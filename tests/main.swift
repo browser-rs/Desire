@@ -2543,6 +2543,29 @@ testPromotionInteractions()
 
 // ---------- 发布预检 + 排期到期（PromotionPreflight / duePlannedDrafts） ----------
 
+// ---------- 文件精确编辑（FileEdit 纯逻辑） ----------
+
+func testFileEdit() {
+    let original = "line one\nlet value = 1\nline three\nlet value = 1\n"
+    let single = FileEdit.apply(content: original, find: "line three", replace: "第三章")
+    check("fileedit：唯一命中替换", single == .replaced(text: original.replacingOccurrences(of: "line three", with: "第三章"), count: 1))
+    let missing = FileEdit.apply(content: original, find: "不存在的内容", replace: "x")
+    check("fileedit：未命中拒绝", missing == .notFound)
+    let dup = FileEdit.apply(content: original, find: "let value = 1", replace: "let value = 2")
+    check("fileedit：多命中拒绝并报数", dup == .ambiguous(count: 2))
+    let all = FileEdit.apply(content: original, find: "let value = 1", replace: "let value = 2", all: true)
+    check("fileedit：all=true 全替换", all == .replaced(text: original.replacingOccurrences(of: "let value = 1", with: "let value = 2"), count: 2))
+    check("fileedit：空 find 拒绝", FileEdit.apply(content: original, find: "", replace: "x") == .notFound)
+    // 多字节/换行原样保留：只动命中区间。
+    let multi = "标题：旧文\n正文保留\n"
+    let swapped = FileEdit.apply(content: multi, find: "标题：旧文", replace: "标题：新文")
+    check("fileedit：只动命中区间", swapped == .replaced(text: "标题：新文\n正文保留\n", count: 1))
+    // 删除语义（replace 为空）。
+    let deleted = FileEdit.apply(content: "keep\nremove me\nkeep2", find: "\nremove me", replace: "")
+    check("fileedit：空替换=删除", deleted == .replaced(text: "keep\nkeep2", count: 1))
+}
+testFileEdit()
+
 func testPromotionPreflight() {
     let bodyOK = String(repeating: "这段正文讲清楚了问题、用法和效果。", count: 5)
         + " https://desire.mankong.icu/"

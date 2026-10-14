@@ -643,12 +643,56 @@ extension BrowserToolProvider {
 
             // --- DOM interaction ---
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "click", description: "Click a page element. Target it with ONE of: ref (e.g. \"e12\" from the latest getPageSnapshot — preferred), text (visible label/aria-label, best for buttons the snapshot missed, e.g. \"点赞\", \"Like\", \"Submit\"), or selector (CSS, last resort). The page is scrolled to the element and a real mouse click is dispatched on its nearest clickable ancestor, so icon buttons and framework-wrapped controls work.",
+                name: "click", description: "Click a page element. Target it with ONE of: ref (e.g. \"e12\" from the latest getPageSnapshot — preferred), text (visible label/aria-label, best for buttons the snapshot missed, e.g. \"点赞\", \"Like\", \"Submit\"), or selector (CSS, last resort). The page is scrolled to the element and a real mouse click is dispatched on its nearest clickable ancestor, so icon buttons and framework-wrapped controls work. button:\"right\" opens the context menu (then click the menu item by text); double:true double-clicks.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "ref": AgentJSONSchemaValue(type: "string", description: "Element ref from the latest getPageSnapshot, e.g. \"e12\""),
                     "text": AgentJSONSchemaValue(type: "string", description: "Visible text of the target, e.g. \"点赞\" or \"Sign in\""),
                     "selector": AgentJSONSchemaValue(type: "string", description: "CSS selector (fallback when ref/text unavailable)"),
+                    "button": AgentJSONSchemaValue(type: "string", description: "\"left\" (default) or \"right\" (context menu)"),
+                    "double": AgentJSONSchemaValue(type: "boolean", description: "true = double-click (dblclick)"),
                 ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "drag",
+                description: "Drag with the real mouse from one place to another (sliders, progress bars, canvas editors, custom sortable lists, map panning). Target the start and end each with ref (preferred) / text / selector, or give the start as viewport x/y. Dispatches mouse down → interpolated moves → up. NOTE: native HTML5 drag-and-drop (draggable=true / dragstart events) cannot be synthesized this way — for those, use executeJS or the page's keyboard alternative.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "fromRef": AgentJSONSchemaValue(type: "string", description: "Start element ref (from getPageSnapshot)"),
+                    "fromText": AgentJSONSchemaValue(type: "string", description: "Start element visible text"),
+                    "fromSelector": AgentJSONSchemaValue(type: "string", description: "Start element CSS selector"),
+                    "fromX": AgentJSONSchemaValue(type: "number", description: "Start viewport x (CSS px; pair with fromY)"),
+                    "fromY": AgentJSONSchemaValue(type: "number", description: "Start viewport y"),
+                    "toRef": AgentJSONSchemaValue(type: "string", description: "End element ref"),
+                    "toText": AgentJSONSchemaValue(type: "string", description: "End element visible text"),
+                    "toSelector": AgentJSONSchemaValue(type: "string", description: "End element CSS selector"),
+                    "toX": AgentJSONSchemaValue(type: "number", description: "End viewport x (pair with toY)"),
+                    "toY": AgentJSONSchemaValue(type: "number", description: "End viewport y"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "editFile",
+                description: "Edit an existing text file by exact substring replacement — the surgical alternative to writeFile (use readFile first to copy the EXACT text). Fails when the text is not found, or matches more than once without all=true (guards against editing the wrong spot).",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "File path (workspace / user folders)"),
+                    "find": AgentJSONSchemaValue(type: "string", description: "Exact text to replace (copy verbatim from readFile, including whitespace)"),
+                    "replace": AgentJSONSchemaValue(type: "string", description: "Replacement text (empty string deletes)"),
+                    "all": AgentJSONSchemaValue(type: "boolean", description: "true = replace every occurrence (default: only a unique match)"),
+                ], required: ["path", "find", "replace"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "readPdf",
+                description: "Extract the text layer of a PDF file (contracts, reports, papers) — local, no page needed. Returns up to ~60k chars; pageCount is included so you can gauge size. Scanned PDFs without a text layer return nothing — screenshot the page and use ocrImage for those.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "PDF path (workspace / user folders)"),
+                    "maxChars": AgentJSONSchemaValue(type: "number", description: "Cap on returned characters (default 60000)"),
+                ], required: ["path"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "ocrImage",
+                description: "Extract text from an image file with on-device OCR (Apple Vision — local, no network): screenshots, receipts, posters, charts, chat captures. Chinese + English. Pair with the screenshot tool to read what is on screen.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Image path (workspace / user folders), e.g. a screenshot the tool just saved"),
+                    "maxChars": AgentJSONSchemaValue(type: "number", description: "Cap on returned characters (default 30000)"),
+                ], required: ["path"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "fill", description: "Fill a form field with a value (fires proper input/change events, works with React/Vue forms)",

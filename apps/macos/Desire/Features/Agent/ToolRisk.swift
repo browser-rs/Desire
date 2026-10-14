@@ -77,6 +77,8 @@ enum ToolRisk: Int, Comparable {
         "listBatchDownloads",
         // Deep page data extraction (read-only)
         "getTables", "getImages", "getPageMeta", "getElementHTML", "getNetworkLog",
+        // Document reading (local OCR / PDF text layer — pure reads)
+        "readPdf", "ocrImage",
         // 运营工作台简报/周报（只读；promotionSave/Metrics/Lesson 写本地状态走默认 sideEffect）
         "promotionBrief", "promotionReport", "promotionPreflight",
         // Waiting / timing (pure observation)

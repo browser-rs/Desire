@@ -31,10 +31,22 @@ extension BrowserToolProvider {
             // session challenged. The JS fallback keeps the tool working
             // when the webview has no window (suspended/background tab) or
             // the element resolves to no on-screen geometry.
+            let isRightClick = ((args["button"] as? String)?.lowercased() == "right")
+            let isDoubleClick = (args["double"] as? Bool) ?? false
             var clickResult = ""
             if let point = await clickablePoint(selector: sel, ref: ref, text: text, in: webView) {
-                await SyntheticInput.click(at: point, in: webView)
-                clickResult = "Clicked (trusted mouse event)"
+                if isRightClick {
+                    await SyntheticInput.rightClick(at: point, in: webView)
+                    clickResult = "Right-clicked (trusted mouse event) — a context menu should be open; click its item by text next"
+                } else if isDoubleClick {
+                    await SyntheticInput.doubleClick(at: point, in: webView)
+                    clickResult = "Double-clicked (trusted mouse event)"
+                } else {
+                    await SyntheticInput.click(at: point, in: webView)
+                    clickResult = "Clicked (trusted mouse event)"
+                }
+            } else if isRightClick || isDoubleClick {
+                return Self.fail("Target has no on-screen geometry — right-click/double-click need a visible webview (left-click has a JS fallback, these do not)")
             } else {
                 clickResult = await callAsync(webView, function: "__desireClick",
                                               args: ["selector": sel ?? "", "ref": ref ?? "", "text": text ?? ""])
@@ -1986,6 +1998,96 @@ extension BrowserToolProvider {
         case "findElements":
             guard let sel = args["selector"] as? String else { return Self.fail("Missing selector") }
             return await callAsync(webView, function: "__desireFindElements", args: ["selector": sel])
+
+        case "drag":
+            guard webView.window != nil else {
+                return Self.fail("No window attached — drags need a visible webview")
+            }
+            let dragStart: CGPoint?
+            if let x = args["fromX"] as? Double, let y = args["fromY"] as? Double {
+                dragStart = windowPoint(fromViewportX: x, y: y, in: webView)
+            } else {
+                dragStart = await clickablePoint(selector: args["fromSelector"] as? String,
+                                                 ref: args["fromRef"] as? String,
+                                                 text: args["fromText"] as? String, in: webView)
+            }
+            let dragEnd: CGPoint?
+            if let x = args["toX"] as? Double, let y = args["toY"] as? Double {
+                dragEnd = windowPoint(fromViewportX: x, y: y, in: webView)
+            } else {
+                dragEnd = await clickablePoint(selector: args["toSelector"] as? String,
+                                               ref: args["toRef"] as? String,
+                                               text: args["toText"] as? String, in: webView)
+            }
+            guard let startPoint = dragStart, let endPoint = dragEnd else {
+                return Self.fail("Could not resolve both drag endpoints — give ref/text/selector (or fromX/fromY, toX/toY as viewport pixels); elements need on-screen geometry")
+            }
+            await SyntheticInput.drag(from: startPoint, to: endPoint, in: webView)
+            return "Dragged (trusted mouse events, 8 interpolated moves) — verify the result with a fresh getPageSnapshot/readTab"
+
+        case "editFile":
+            guard let editPath = args["path"] as? String, !editPath.isEmpty else { return Self.fail("Missing path") }
+            guard let findText = args["find"] as? String, !findText.isEmpty else { return Self.fail("Missing find") }
+            let replaceText = (args["replace"] as? String) ?? ""
+            let replaceAll = (args["all"] as? Bool) ?? false
+            switch AgentWorkspace.shared.resolve(editPath, write: true) {
+            case .denied(let reason):
+                return reason
+            case .granted(let fileURL):
+                guard let data = FileManager.default.contents(atPath: fileURL.path),
+                      let content = String(data: data, encoding: .utf8) else {
+                    return Self.fail("Could not read text file: \(fileURL.path)")
+                }
+                switch FileEdit.apply(content: content, find: findText,
+                                      replace: replaceText, all: replaceAll) {
+                case .notFound:
+                    return Self.fail("Text not found in \(fileURL.path) — readFile first and copy the exact substring (whitespace matters)")
+                case .ambiguous(let count):
+                    return Self.fail("Text matches \(count) places in \(fileURL.path) — extend the snippet to make it unique, or pass all=true")
+                case .replaced(let updated, let count):
+                    do {
+                        try updated.write(to: fileURL, atomically: true, encoding: .utf8)
+                        return "Edited \(fileURL.path): \(count) replacement\(count == 1 ? "" : "s") (\(updated.count) chars now)"
+                    } catch {
+                        return Self.fail("Write failed: \(error.localizedDescription)")
+                    }
+                }
+            }
+
+        case "readPdf":
+            guard let pdfPath = args["path"] as? String, !pdfPath.isEmpty else { return Self.fail("Missing path") }
+            let pdfMax = (args["maxChars"] as? Int) ?? 60_000
+            switch AgentWorkspace.shared.resolve(pdfPath, write: false) {
+            case .denied(let reason):
+                return reason
+            case .granted(let fileURL):
+                guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                    return Self.fail("File not found: \(fileURL.path)")
+                }
+                let pages = PDFTextExtractor.pageCount(of: fileURL)
+                guard let text = PDFTextExtractor.extractText(from: fileURL, maxChars: pdfMax) else {
+                    let sizeNote = pages.map { "\($0) page(s)" } ?? "unreadable"
+                    return "No text layer extracted (\(sizeNote)) — scanned PDF? Screenshot the pages and use ocrImage instead"
+                }
+                let head = pages.map { "PDF text (\($0) page(s)):\n" } ?? "PDF text:\n"
+                return head + text
+            }
+
+        case "ocrImage":
+            guard let imagePath = args["path"] as? String, !imagePath.isEmpty else { return Self.fail("Missing path") }
+            let ocrMax = (args["maxChars"] as? Int) ?? 30_000
+            switch AgentWorkspace.shared.resolve(imagePath, write: false) {
+            case .denied(let reason):
+                return reason
+            case .granted(let fileURL):
+                guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                    return Self.fail("File not found: \(fileURL.path)")
+                }
+                guard let text = await ImageOCR.recognizeText(at: fileURL, maxChars: ocrMax) else {
+                    return "No text recognized in \(fileURL.path) (not an image, or no readable text)"
+                }
+                return "OCR text:\n" + text
+            }
 
         // --- Promotion workbench (self-promotion, 0.7.15) ---
         case "promotionGoal":

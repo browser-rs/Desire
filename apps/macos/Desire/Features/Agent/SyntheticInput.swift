@@ -49,6 +49,49 @@ enum SyntheticInput {
         }
     }
 
+    /// 右键点击（上下文菜单）。同左键走真实事件链。
+    static func rightClick(at point: CGPoint, in webView: WKWebView) async {
+        guard let window = webView.window else { return }
+        post(.rightMouseDown, at: point, windowNumber: window.windowNumber, clickCount: 1)
+        try? await Task.sleep(nanoseconds: 40_000_000)
+        post(.rightMouseUp, at: point, windowNumber: window.windowNumber, clickCount: 1)
+    }
+
+    /// 双击：down/up(clickCount 1) + down/up(clickCount 2)——clickCount 递增，
+    /// 页面才会收到 dblclick。
+    static func doubleClick(at point: CGPoint, in webView: WKWebView) async {
+        guard let window = webView.window else { return }
+        post(.leftMouseDown, at: point, windowNumber: window.windowNumber, clickCount: 1)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        post(.leftMouseUp, at: point, windowNumber: window.windowNumber, clickCount: 1)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        post(.leftMouseDown, at: point, windowNumber: window.windowNumber, clickCount: 2)
+        try? await Task.sleep(nanoseconds: 20_000_000)
+        post(.leftMouseUp, at: point, windowNumber: window.windowNumber, clickCount: 2)
+    }
+
+    /// 拖拽：按下 → 分步 leftMouseDragged → 抬起（真实事件链）。
+    /// 对指针/鼠标事件驱动的拖拽（滑块、自定义排序、画布编辑器）有效；
+    /// 原生 HTML5 drag-and-drop（draggable=true 的 dragstart 系）需要
+    /// NSDraggingSession，事件链合成不了——那类页面模型应改用 executeJS
+    /// 或页面的键盘替代（工具描述里已注明）。
+    static func drag(from start: CGPoint, to end: CGPoint, in webView: WKWebView,
+                     steps: Int = 8) async {
+        guard let window = webView.window else { return }
+        let n = max(2, steps)
+        post(.leftMouseDown, at: start, windowNumber: window.windowNumber, clickCount: 1)
+        try? await Task.sleep(nanoseconds: 60_000_000)
+        for step in 1...n {
+            let t = CGFloat(step) / CGFloat(n)
+            let p = CGPoint(x: start.x + (end.x - start.x) * t,
+                            y: start.y + (end.y - start.y) * t)
+            post(.leftMouseDragged, at: p, windowNumber: window.windowNumber, clickCount: 1)
+            try? await Task.sleep(nanoseconds: 25_000_000)
+        }
+        try? await Task.sleep(nanoseconds: 40_000_000)
+        post(.leftMouseUp, at: end, windowNumber: window.windowNumber, clickCount: 1)
+    }
+
     private static func post(_ type: NSEvent.EventType, at point: CGPoint, windowNumber: Int, clickCount: Int) {
         guard let event = NSEvent.mouseEvent(
             with: type,

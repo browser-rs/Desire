@@ -2091,6 +2091,70 @@ extension BrowserToolProvider {
                 return head + text
             }
 
+        case "exportPageAsPDF":
+            // 整页 PDF（含文本层）落盘；path 缺省 = 下载目录/<页面标题>.pdf。
+            guard webView.window != nil else {
+                return Self.fail("No visible webview — page PDF export needs a rendered page")
+            }
+            let pdfData: Data = await withCheckedContinuation { continuation in
+                webView.createPDF(configuration: WKPDFConfiguration()) { result in
+                    switch result {
+                    case .success(let data): continuation.resume(returning: data)
+                    case .failure: continuation.resume(returning: Data())
+                    }
+                }
+            }
+            guard !pdfData.isEmpty else { return Self.fail("PDF capture failed (page may be blank)") }
+            let pdfDest: URL
+            if let rawPDFPath = args["path"] as? String, !rawPDFPath.isEmpty {
+                switch AgentWorkspace.shared.resolve(rawPDFPath, write: true) {
+                case .denied(let reason): return reason
+                case .granted(let url): pdfDest = url
+                }
+            } else {
+                let title = (webView.title?.isEmpty == false ? webView.title! : "page")
+                let name = FilePathing.sanitizeFileName(title)
+                let dir = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+                    ?? URL(fileURLWithPath: NSHomeDirectory())
+                pdfDest = dir.appendingPathComponent("\(name).pdf")
+            }
+            do {
+                try FileManager.default.createDirectory(
+                    at: pdfDest.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try pdfData.write(to: pdfDest)
+                return "Saved PDF (\(pdfData.count) bytes) → \(pdfDest.path)"
+            } catch {
+                return Self.fail("Write failed: \(error.localizedDescription)")
+            }
+
+        case "httpRequest":
+            guard let rawRequestURL = args["url"] as? String,
+                  let requestURL = URL(string: rawRequestURL),
+                  ["http", "https"].contains(requestURL.scheme?.lowercased() ?? "") else {
+                return Self.fail("Missing or invalid url (http/https)")
+            }
+            let method = ((args["method"] as? String) ?? "GET").uppercased()
+            let timeoutSecs = min(60, max(5, (args["timeoutSec"] as? Int) ?? 30))
+            var request = URLRequest(url: requestURL)
+            request.httpMethod = method
+            request.timeoutInterval = TimeInterval(timeoutSecs)
+            if let headers = args["headers"] as? [String: String] {
+                for (name, value) in headers { request.setValue(value, forHTTPHeaderField: name) }
+            }
+            if let bodyText = args["body"] as? String { request.httpBody = Data(bodyText.utf8) }
+            do {
+                let (data, response) = try await URLSession.shared.data(for: request)
+                let http = response as? HTTPURLResponse
+                let status = http?.statusCode ?? -1
+                let ctype = http?.value(forHTTPHeaderField: "Content-Type") ?? "?"
+                var text = String(data: data.prefix(300_000), encoding: .utf8)
+                    ?? "(binary \(data.count) bytes)"
+                if text.count > 30_000 { text = String(text.prefix(30_000)) + "…[truncated]" }
+                return "HTTP \(status) · \(ctype)\n\(text)"
+            } catch {
+                return Self.fail("Request failed: \(error.localizedDescription)")
+            }
+
         case "ocrImage":
             guard let imagePath = args["path"] as? String, !imagePath.isEmpty else { return Self.fail("Missing path") }
             let ocrMax = (args["maxChars"] as? Int) ?? 30_000

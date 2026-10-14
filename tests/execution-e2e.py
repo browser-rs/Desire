@@ -10,6 +10,7 @@ navigate 到生成的 fixture 页 → waitForText → [右键/双击/拖拽/勾�
 （/agent/messages 只回 suffix(12)，长回合早段结果会被截断）。
 
 覆盖：rightClick(contextmenu) / doubleClick(dblclick) / drag(down+moves+up) /
+httpRequest（本地靶服务）/ exportPageAsPDF→readPdf（导出物文本层）/
 setChecked（含幂等与读回）/ getPageSnapshot 的 checked 字段 / editFile 实际落盘 /
 ocrImage / readPdf。跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
@@ -22,6 +23,7 @@ from pathlib import Path
 
 BRIDGE = "http://127.0.0.1:8799"
 FAKE_PORT = 8899
+API_PORT = 8898
 REPO = Path(__file__).resolve().parent.parent
 FIXTURE_ASSETS = REPO / "tests/fixtures/execution"
 
@@ -56,6 +58,20 @@ document.getElementById('sw').addEventListener('click', function () {
 </script>
 </body></html>
 """
+
+
+class TinyAPI(BaseHTTPRequestHandler):
+    """httpRequest 工具的靶子：GET /hello → JSON。"""
+    def log_message(self, *a):
+        pass
+
+    def do_GET(self):
+        payload = json.dumps({"ok": True, "msg": "muscle-http"}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        self.wfile.write(payload)
 
 
 def bridge(method, path, body=None):
@@ -128,10 +144,15 @@ class Fake(BaseHTTPRequestHandler):
                 call(8, "ocrImage", {"path": f"{self.fix}/probe.png"}),
                 call(9, "readPdf", {"path": f"{self.fix}/probe.pdf"}),
                 call(10, "getPageSnapshot", {}),
+                call(11, "httpRequest", {"url": f"http://127.0.0.1:{API_PORT}/hello"}),
             ]}, "tool_calls")
-        elif n == 12:
+        elif n == 13:
             sse(self.wfile, model, {"role": "assistant", "tool_calls": [
-                call(0, "executeJS", {"code": "JSON.stringify(window.__log || [])"})]}, "tool_calls")
+                call(0, "exportPageAsPDF", {"path": f"{self.fix}/page.pdf"}),
+                call(1, "executeJS", {"code": "JSON.stringify(window.__log || [])"})]}, "tool_calls")
+        elif n == 15:
+            sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                call(0, "readPdf", {"path": f"{self.fix}/page.pdf"})]}, "tool_calls")
         else:
             sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE-DONE（工具结果 %d 个）" % n}, "stop")
 
@@ -151,6 +172,8 @@ def main():
 
     server = ThreadingHTTPServer(("127.0.0.1", FAKE_PORT), Fake)
     threading.Thread(target=server.serve_forever, daemon=True).start()
+    api = ThreadingHTTPServer(("127.0.0.1", API_PORT), TinyAPI)
+    threading.Thread(target=api.serve_forever, daemon=True).start()
 
     # 用**临时档案**跑测试：创建 → 激活 → 跑 → 激活回原档案 → 删除临时。
     # 绝不修改用户的档案字段（2026-10-14 实机教训：就地改活动档案再"恢复"，
@@ -225,6 +248,9 @@ def main():
         ok("editFile 成功", any("Edited" in r for r in results))
         ok("ocrImage 认出 42", "42" in joined)
         ok("readPdf 取到 88000", "88000" in joined)
+        ok("httpRequest 收到响应", "muscle-http" in joined)
+        ok("exportPageAsPDF 落盘", "Saved PDF" in joined)
+        ok("页面 PDF 带文本层（readPdf 读到 fixture 文案）", "右键目标" in joined)
         notes = (fix_dir / "notes.txt").read_text()
         ok("文件实际已改", ("NEW_TOKEN" in notes) and ("OLD_TOKEN" not in notes))
         assert all(c for _, c in checks), "存在失败项"
@@ -257,6 +283,7 @@ def main():
         import shutil
         shutil.rmtree(fix_dir, ignore_errors=True)
         server.shutdown()
+        api.shutdown()
 
 
 if __name__ == "__main__":

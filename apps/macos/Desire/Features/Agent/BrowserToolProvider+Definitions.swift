@@ -687,6 +687,24 @@ extension BrowserToolProvider {
                 ], required: ["path"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "exportPageAsPDF",
+                description: "Save the current page (full scrollable content, real text layer — not an image) as a PDF: invoices, receipts, reports, docs. Returns the saved path; pair with readPdf to read it back or hand the file to the user. Reads the RENDERED page — lazy-loaded content not yet scrolled in may be missing.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Destination path (workspace / user folders). Omit → Downloads/<page title>.pdf"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "httpRequest",
+                description: "Call an HTTP(S) API directly — no tab involved. Returns status + Content-Type + body (text, capped). Use for data lookups (rates, weather, search APIs), webhooks, downloading JSON. Network requests run as your machine would; POST/PUT/DELETE follow the normal approval policy.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "url": AgentJSONSchemaValue(type: "string", description: "Full URL (http/https)"),
+                    "method": AgentJSONSchemaValue(type: "string", description: "GET (default) / POST / PUT / DELETE / PATCH"),
+                    "headers": AgentJSONSchemaValue(type: "object", description: "Optional request headers, e.g. {\"Content-Type\": \"application/json\"}"),
+                    "body": AgentJSONSchemaValue(type: "string", description: "Optional request body (string; JSON must be serialized)"),
+                    "timeoutSec": AgentJSONSchemaValue(type: "number", description: "Timeout in seconds (default 30, max 60)"),
+                ], required: ["url"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "ocrImage",
                 description: "Extract text from an image file with on-device OCR (Apple Vision — local, no network): screenshots, receipts, posters, charts, chat captures. Chinese + English. Pair with the screenshot tool to read what is on screen.",
                 parameters: AgentJSONSchema(type: "object", properties: [

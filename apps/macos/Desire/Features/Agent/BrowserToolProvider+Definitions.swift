@@ -849,15 +849,31 @@ extension BrowserToolProvider {
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "promotionSave",
-                description: "Save a promotion post (draft or published) into the workbench. Call once after drafting (status=draft), and again after the user approves and the post actually goes live (status=published, with url). 'goal' is free text matched against active goal titles. Returns the post id — keep it for promotionMetrics.",
+                description: "Save or UPDATE a workbench post. Lifecycle: idea (选题 — title only, brainstorm candidates) → draft (status=draft, full body) → published (after the user approves and it goes live, with url). Pass `id` to update an existing post (e.g. promote an idea to a draft, reschedule, or attach the live URL) — omitted fields stay unchanged. 'goal' is free text matched against active goal titles. Returns the post id — keep it for promotionMetrics.",
                 parameters: AgentJSONSchema(type: "object", properties: [
-                    "platform": AgentJSONSchemaValue(type: "string", description: "Where it was drafted/posted, e.g. 掘金 / V2EX / Hacker News / 微博"),
-                    "title": AgentJSONSchemaValue(type: "string", description: "Post title"),
-                    "body": AgentJSONSchemaValue(type: "string", description: "Full post text (Markdown ok)"),
+                    "id": AgentJSONSchemaValue(type: "string", description: "Existing post id to update (omit to create)"),
+                    "platform": AgentJSONSchemaValue(type: "string", description: "Where it was drafted/posted, e.g. 掘金 / V2EX / Hacker News / 微博 (required on create)"),
+                    "title": AgentJSONSchemaValue(type: "string", description: "Post title (required on create)"),
+                    "body": AgentJSONSchemaValue(type: "string", description: "Full post text (Markdown ok); required for draft/published, optional for idea"),
                     "goal": AgentJSONSchemaValue(type: "string", description: "Optional: active goal title (or a distinctive substring) this post serves"),
-                    "status": AgentJSONSchemaValue(type: "string", description: "\"draft\" (default) or \"published\""),
-                    "url": AgentJSONSchemaValue(type: "string", description: "Published URL (fill when status=published)"),
-                ], required: ["platform", "title", "body"])
+                    "status": AgentJSONSchemaValue(type: "string", description: "\"idea\" | \"draft\" (default) | \"published\""),
+                    "url": AgentJSONSchemaValue(type: "string", description: "Published URL (fill when status=published; empty string clears)"),
+                    "plannedFor": AgentJSONSchemaValue(type: "string", description: "Optional publish date, yyyy-MM-dd (empty string clears the schedule)"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "promotionPostRemove",
+                description: "Remove a workbench post by id (tidy stale ideas/drafts). Published posts with history are usually better left in place.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "id": AgentJSONSchemaValue(type: "string", description: "Post id (from promotionBrief or promotionSave)"),
+                ], required: ["id"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "promotionReport",
+                description: "Build the operations weekly report (Markdown): goal progress with week deltas, account growth, this week's published posts ranked by views, idea/draft backlog, and lessons collected this week. READ-ONLY. Use it for reviews (雪球: append your own 下周建议), to show the user progress, or as the basis of a 周报 they can copy somewhere.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "periodDays": AgentJSONSchemaValue(type: "number", description: "Look-back window in days (default 7)"),
+                ])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "promotionMetrics",

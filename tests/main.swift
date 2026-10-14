@@ -2398,8 +2398,69 @@ func testPromotionSummary() {
     check("promotion：digest 账号粉丝与增长", fullDigest.contains("粉丝 1120") && fullDigest.contains("+120"))
     check("promotion：digest 注入经验", fullDigest.contains("掘金长文数据优于短沸点"))
     check("promotion：digest 运营经验段", fullDigest.contains("运营经验"))
+
+    // 选题库与排期（三态流水线 v3）。
+    let ideaPost = PromotionPost(platform: "掘金", title: "选题候选", body: "",
+                                 status: .idea, createdAt: t0)
+    let plannedDraft = PromotionPost(platform: "V2EX", title: "排期草稿", body: "…",
+                                     status: .draft,
+                                     plannedFor: t0.addingTimeInterval(2 * 86_400), createdAt: t0)
+    check("promotion：选题库只含 idea", PromotionSummary.ideas(posts: [ideaPost, draftNew, published]).count == 1)
+    check("promotion：排期后缀", PromotionSummary.planSuffix(plannedDraft.plannedFor).contains("排期"))
+    check("promotion：无排期无后缀", PromotionSummary.planSuffix(nil).isEmpty)
+    let pipelineDigest = PromotionSummary.digest(
+        goals: [], posts: [ideaPost, plannedDraft], now: t0)
+    check("promotion：digest 选题库段", pipelineDigest.contains("选题库（1）"))
+    check("promotion：digest 草稿带计划日", pipelineDigest.contains("计划"))
 }
 testPromotionSummary()
+
+// ---------- 运营周报（PromotionReport 纯逻辑） ----------
+
+func testPromotionReport() {
+    let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+    let empty = PromotionReport.markdown(goals: [], posts: [], accounts: [], lessons: [], now: t0)
+    check("report：空工作台提示", empty.contains("工作台为空"))
+
+    let goal = PromotionGoal(title: "v0.7.15 宣传", domain: .promotion,
+                             platforms: ["掘金"], targetPosts: 2)
+    let published = PromotionPost(
+        goalID: goal.id, platform: "掘金", title: "已发一篇", body: "…",
+        status: .published, publishedAt: t0.addingTimeInterval(-86_400),
+        metricHistory: [
+            .init(at: t0.addingTimeInterval(-86_400), views: 100, likes: nil, comments: nil),
+            .init(at: t0, views: 260, likes: 9, comments: 2),
+        ],
+        createdAt: t0.addingTimeInterval(-86_400))
+    let weekIdea = PromotionPost(platform: "掘金", title: "选题一个", body: "",
+                                 status: .idea, createdAt: t0)
+    let weekDraft = PromotionPost(platform: "V2EX", title: "草稿一篇", body: "…",
+                                  status: .draft,
+                                  plannedFor: t0.addingTimeInterval(2 * 86_400), createdAt: t0)
+    let account = PromotionAccount(
+        domain: .media, platform: "掘金", handle: "siwi",
+        snapshots: [
+            .init(at: t0.addingTimeInterval(-2 * 86_400), followers: 1000, views: nil, likes: nil),
+            .init(at: t0, followers: 1080, views: nil, likes: nil),
+        ])
+    let lesson = PromotionLesson(text: "长文优于短帖", platform: "掘金", createdAt: t0)
+
+    let md = PromotionReport.markdown(goals: [goal], posts: [published, weekIdea, weekDraft],
+                                      accounts: [account], lessons: [lesson], now: t0)
+    check("report：含目标进度", md.contains("## 目标进度") && md.contains("v0.7.15"))
+    check("report：含账号增长", md.contains("## 账号增长") && md.contains("+80"))
+    check("report：含本周已发与增长", md.contains("## 本周已发（1）") && md.contains("浏览 260 (+160)"))
+    check("report：含选题与草稿排期", md.contains("选题库（1）") && md.contains("排期"))
+    check("report：含新增经验", md.contains("## 本周新增经验（1）") && md.contains("长文优于短帖"))
+    check("report：留下周建议占位", md.contains("## 下周建议"))
+
+    let oldLesson = PromotionLesson(text: "很久以前的经验",
+                                    createdAt: t0.addingTimeInterval(-30 * 86_400))
+    let md2 = PromotionReport.markdown(goals: [], posts: [], accounts: [],
+                                       lessons: [oldLesson], now: t0)
+    check("report：旧经验不入本周", md2.contains("本周新增经验（0）"))
+}
+testPromotionReport()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

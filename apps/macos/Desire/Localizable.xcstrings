@@ -39492,28 +39492,6 @@
         }
       }
     },
-    "Tell the agent to promote Desire — it drafts posts, asks for your approval, publishes, and tracks the numbers." : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tell the agent to promote Desire — it drafts posts, asks for your approval, publishes, and tracks the numbers."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "对智能体说「帮我推广 Desire」——它起草内容、等你确认后发布，并把数据记回来。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "對智慧體說「幫我推廣 Desire」——它起草內容、等你確認後發佈，並把資料記回來。"
-          }
-        }
-      }
-    },
     "Objective" : {
       "localizations" : {
         "en" : {
@@ -39998,28 +39976,6 @@
         }
       }
     },
-    "Schedule weekly review" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Schedule weekly review"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "安排每周复盘"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "安排每週復盤"
-          }
-        }
-      }
-    },
     "Operations review (weekly)" : {
       "localizations" : {
         "en" : {
@@ -40192,6 +40148,226 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "每週 %@ %02d:%02d"
+          }
+        }
+      }
+    },
+    "Automation" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Automation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动化"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動化"
+          }
+        }
+      }
+    },
+    "Daily collection" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily collection"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日采集"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日採集"
+          }
+        }
+      }
+    },
+    "Weekly review" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weekly review"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每周复盘"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每週復盤"
+          }
+        }
+      }
+    },
+    "21:00 daily — refresh account/post numbers so growth curves stay continuous" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "21:00 daily — refresh account/post numbers so growth curves stay continuous"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天 21:00 采集账号与帖子数据，保持增长曲线连续"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天 21:00 採集帳號與貼文數據，保持成長曲線連續"
+          }
+        }
+      }
+    },
+    "Monday 10:00 — compare growth, distil lessons, plan next week" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Monday 10:00 — compare growth, distil lessons, plan next week"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "周一 10:00 对比增长、沉淀经验、安排下周"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "週一 10:00 對比成長、沉澱經驗、安排下週"
+          }
+        }
+      }
+    },
+    "Ideas" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ideas"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选题"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選題"
+          }
+        }
+      }
+    },
+    "Copy weekly report" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Copy weekly report"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制运营周报"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製營運週報"
+          }
+        }
+      }
+    },
+    "Operations daily collection" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Operations daily collection"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运营每日采集"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "營運每日採集"
+          }
+        }
+      }
+    },
+    "Planned %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Planned %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排期 %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "排期 %@"
+          }
+        }
+      }
+    },
+    "Tell the agent to run your operations — goals, accounts, content and lessons all live here." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tell the agent to run your operations — goals, accounts, content and lessons all live here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对智能体说「运营我的账号 / 帮我推广」——目标、账号、内容与经验都会汇到这里。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對智慧體說「營運我的帳號 / 幫我推廣」——目標、帳號、內容與經驗都會匯到這裡。"
           }
         }
       }

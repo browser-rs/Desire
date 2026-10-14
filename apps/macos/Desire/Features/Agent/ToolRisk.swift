@@ -77,8 +77,8 @@ enum ToolRisk: Int, Comparable {
         "listBatchDownloads",
         // Deep page data extraction (read-only)
         "getTables", "getImages", "getPageMeta", "getElementHTML", "getNetworkLog",
-        // 推广工作台简报（只读；promotionSave/promotionMetrics 写本地状态走默认 sideEffect）
-        "promotionBrief",
+        // 运营工作台简报/周报（只读；promotionSave/Metrics/Lesson 写本地状态走默认 sideEffect）
+        "promotionBrief", "promotionReport",
         // Waiting / timing (pure observation)
         "waitForText",
         // Skills (read-only instruction loading)

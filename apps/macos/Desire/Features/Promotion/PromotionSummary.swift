@@ -49,6 +49,19 @@ nonisolated enum PromotionSummary {
         posts.filter { $0.status == .draft }.sorted { $0.createdAt > $1.createdAt }
     }
 
+    /// 选题库（新的在前）——Agent 率先头脑风暴、用户挑选后立项为草稿。
+    static func ideas(posts: [PromotionPost]) -> [PromotionPost] {
+        posts.filter { $0.status == .idea }.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    /// 排期后缀（" · 排期 10-16"）——草稿行用。
+    static func planSuffix(_ plannedFor: Date?, now: Date = Date()) -> String {
+        guard let plannedFor else { return "" }
+        let f = DateFormatter()
+        f.dateFormat = "MM-dd"
+        return " · 排期 " + f.string(from: plannedFor)
+    }
+
     /// 近期已发（按发布时间倒序，取前 limit 条）——promotionBrief 用它防重复选题。
     static func recentPublished(posts: [PromotionPost], limit: Int = 8) -> [PromotionPost] {
         posts.filter { $0.status == .published }
@@ -96,11 +109,24 @@ nonisolated enum PromotionSummary {
             }
         }
 
+        let ideaPosts = ideas(posts: posts)
+        if !ideaPosts.isEmpty {
+            lines.append("选题库（\(ideaPosts.count)）：")
+            for i in ideaPosts.prefix(8) {
+                lines.append("- [\(i.platform)] \(i.title)")
+            }
+        }
+
         let drafts = outstandingDrafts(posts: posts)
         if !drafts.isEmpty {
             lines.append("待发布草稿（\(drafts.count)）：")
             for d in drafts.prefix(6) {
-                lines.append("- [\(d.platform)] \(d.title)（\(shortDate(d.createdAt)) 起草）")
+                var line = "- [\(d.platform)] \(d.title)（\(shortDate(d.createdAt)) 起草"
+                if let planned = d.plannedFor {
+                    line += "，计划 \(shortDate(planned)) 发"
+                }
+                line += "）"
+                lines.append(line)
             }
         }
 
@@ -109,7 +135,7 @@ nonisolated enum PromotionSummary {
             lines.append("最近已发：")
             for p in published {
                 var s = "- [\(p.platform)] \(p.title)（\(shortDate(p.publishedAt ?? p.createdAt))"
-                if let m = p.metrics {
+                if let m = p.latestMetrics {
                     var parts: [String] = []
                     if let v = m.views {
                         parts.append("浏览 \(v)" + growthSuffix(p.viewsGrowth))

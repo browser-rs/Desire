@@ -91,7 +91,7 @@ final class PromotionStore: ObservableObject {
 
     @discardableResult
     func savePost(goalText: String?, platform: String, title: String, body: String,
-                  status: PromotionPost.Status, url: String?) -> SaveOutcome {
+                  status: PromotionPost.Status, url: String?, plannedFor: Date? = nil) -> SaveOutcome {
         var matched: PromotionGoal?
         let trimmedGoal = goalText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !trimmedGoal.isEmpty { matched = matchGoal(trimmedGoal) }
@@ -105,11 +105,46 @@ final class PromotionStore: ObservableObject {
             status: status,
             url: (cleanURL?.isEmpty ?? true) ? nil : cleanURL,
             publishedAt: status == .published ? now : nil,
+            plannedFor: plannedFor,
             createdAt: now, updatedAt: now)
         posts.insert(post, at: 0)
         persistPosts()
         return SaveOutcome(post: post, matchedGoalTitle: matched?.title,
                            missedGoalText: matched == nil && !trimmedGoal.isEmpty ? trimmedGoal : nil)
+    }
+
+    /// 更新既有帖子（选题→草稿、改排期、补正文/URL）——nil = 保持原值；
+    /// `clearPlannedFor` 显式清排期（工具里用空字符串表达）。
+    @discardableResult
+    func updatePost(id: UUID, goalText: String?? = nil, platform: String? = nil,
+                    title: String? = nil, body: String? = nil,
+                    status: PromotionPost.Status? = nil, url: String? = nil,
+                    plannedFor: Date?? = nil) -> PromotionPost? {
+        guard let idx = posts.firstIndex(where: { $0.id == id }) else { return nil }
+        let now = Date()
+        if let platform, !platform.isEmpty { posts[idx].platform = platform }
+        if let title, !title.isEmpty { posts[idx].title = title }
+        if let body { posts[idx].body = body }
+        if let status {
+            posts[idx].status = status
+            if status == .published, posts[idx].publishedAt == nil {
+                posts[idx].publishedAt = now
+            }
+        }
+        if let url {
+            let clean = url.trimmingCharacters(in: .whitespacesAndNewlines)
+            posts[idx].url = clean.isEmpty ? nil : clean
+        }
+        if let plannedFor {
+            posts[idx].plannedFor = plannedFor
+        }
+        if let goalText {
+            let trimmed = goalText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            posts[idx].goalID = trimmed.isEmpty ? nil : matchGoal(trimmed)?.id
+        }
+        posts[idx].updatedAt = now
+        persistPosts()
+        return posts[idx]
     }
 
     /// 草稿 → 已发布（用户批准、内容上线后调用）。返回是否找到该帖。

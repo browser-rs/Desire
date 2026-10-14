@@ -5,6 +5,8 @@
 - **自推广能力**：Agent 按既定目标替 Desire 起草并发布推广内容——推广工作台（目标 / 草稿 / 已发 / 数据回收）三入口同源：Agent 窗口侧栏「推广」页、`/promote` 斜杠命令、桥 `/promotion/*`；配套 `promotionBrief` / `promotionSave` / `promotionMetrics` 三个工具与内置 `promotion` 技能：事实只取 CHANGELOG / 仓库 / 产品页（不虚构数据），发布前必须用户确认（照走审批链），发布后回访帖子页把浏览 / 点赞 / 评论回填工作台。
 - **运营专项（自媒体 / 电商 / 推广）**：运营工作台从「自推广」扩为三领域共用——目标与经验带领域标签，新增**账号台账**（多平台账号 + 粉丝/曝光快照与增长）与**运营经验清单**（复盘沉淀、注入下次起草、精确去重）；`promotionGoal` / `promotionAccountSave` / `promotionAccountMetrics` / `promotionLesson` 四个新工具，配套 `media-operations` / `ecommerce-operations` 内置技能（发布仍须用户确认、电商改价一律先建议后执行）。
 - **持续学习闭环**：帖子指标改为**快照序列**（每次回访追加一条，浏览增长可比，面板与摘要显示 +N）；定时任务支持**每周**复发，面板与桥一键「安排每周复盘」——采集账号与帖子数据 → 对比增长 → 用 `promotionLesson` 沉淀可复用结论 → 出下周计划。
+- **运营流水线深化**：帖子三态流水线 选题 idea → 草稿 draft → 发布 published——`promotionSave` 支持按 `id` 更新（选题立项为草稿、改排期、补 URL），`plannedFor` 排期，选题只存标题+平台；运营页新增**选题库**段与「自动化」双开关（每日 21:00 采集数据、周一 10:00 复盘，定向定时任务）；新增 `promotionReport` 周报（目标进度/账号增长/本周表现/选题草稿/新增经验，工具 + 桥 + 面板「复制周报」同源）与 `promotionPostRemove` 工具。
+
 
 
 

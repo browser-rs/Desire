@@ -2038,24 +2038,67 @@ extension BrowserToolProvider {
             return text
 
         case "promotionSave":
+            // 创建或更新：带 id = 更新（选题→草稿、改排期、补 URL）；
+            // 无 id = 新建。status: idea（选题，正文可空）| draft | published。
+            let promoStatusRaw = ((args["status"] as? String) ?? "draft").lowercased()
+            guard let promoStatus = PromotionPost.Status(rawValue: promoStatusRaw) else {
+                return Self.fail("status must be \"idea\", \"draft\" or \"published\"")
+            }
+            let goalText = args["goal"] as? String
+            let saveStore = PromotionStore.shared
+            var plannedFor: Date?? = nil
+            if let plannedRaw = args["plannedFor"] as? String {
+                let trimmedPlan = plannedRaw.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmedPlan.isEmpty {
+                    plannedFor = .some(nil)  // 显式清排期
+                } else {
+                    let f = DateFormatter()
+                    f.dateFormat = "yyyy-MM-dd"
+                    f.locale = Locale(identifier: "en_US_POSIX")
+                    let iso = ISO8601DateFormatter()
+                    guard let parsed = f.date(from: trimmedPlan) ?? iso.date(from: trimmedPlan) else {
+                        return Self.fail("plannedFor must be yyyy-MM-dd (or ISO8601)")
+                    }
+                    plannedFor = .some(parsed)
+                }
+            }
+
+            if let idRaw = args["id"] as? String, !idRaw.isEmpty {
+                guard let postID = UUID(uuidString: idRaw) else {
+                    return Self.fail("Invalid id \(idRaw)")
+                }
+                guard let updated = saveStore.updatePost(
+                    id: postID,
+                    goalText: goalText.map { Optional($0) },
+                    platform: args["platform"] as? String,
+                    title: args["title"] as? String,
+                    body: args["body"] as? String,
+                    status: promoStatus,
+                    url: args["url"] as? String,
+                    plannedFor: plannedFor) else {
+                    return "No promotion post matches id \(idRaw) — use an id from promotionBrief/promotionSave"
+                }
+                var updateLine = "updated: id=\(updated.id.uuidString) status=\(updated.status.rawValue) platform=\(updated.platform)"
+                if let planned = updated.plannedFor {
+                    updateLine += " plannedFor=\(PromotionSummary.shortDate(planned))"
+                }
+                return updateLine
+            }
+
             guard let platform = args["platform"] as? String, !platform.isEmpty else {
                 return Self.fail("Missing platform")
             }
             guard let title = args["title"] as? String, !title.isEmpty else {
                 return Self.fail("Missing title")
             }
-            guard let promoBody = args["body"] as? String, !promoBody.isEmpty else {
-                return Self.fail("Missing body")
+            let promoBody = (args["body"] as? String) ?? ""
+            if promoStatus != .idea, promoBody.isEmpty {
+                return Self.fail("Missing body (required for draft/published; ideas are title-only)")
             }
-            let promoStatusRaw = ((args["status"] as? String) ?? "draft").lowercased()
-            guard let promoStatus = PromotionPost.Status(rawValue: promoStatusRaw) else {
-                return Self.fail("status must be \"draft\" or \"published\"")
-            }
-            let goalText = args["goal"] as? String
-            let saveStore = PromotionStore.shared
             let outcome = saveStore.savePost(
                 goalText: goalText, platform: platform, title: title, body: promoBody,
-                status: promoStatus, url: args["url"] as? String)
+                status: promoStatus, url: args["url"] as? String,
+                plannedFor: plannedFor.flatMap { $0 })
             var promoLines = ["saved: id=\(outcome.post.id.uuidString) status=\(promoStatus.rawValue) platform=\(platform)"]
             if let goal = outcome.matchedGoalTitle {
                 promoLines.append("linked to goal: \(goal)")
@@ -2067,6 +2110,22 @@ extension BrowserToolProvider {
                 promoLines.append("note: no URL recorded — call promotionMetrics with the URL once known")
             }
             return promoLines.joined(separator: "\n")
+
+        case "promotionPostRemove":
+            guard let removeID = args["id"] as? String, let removeUUID = UUID(uuidString: removeID) else {
+                return Self.fail("Missing or invalid id")
+            }
+            let existed = PromotionStore.shared.posts.contains { $0.id == removeUUID }
+            PromotionStore.shared.removePost(removeUUID)
+            return existed ? "post removed" : "No promotion post matches id \(removeID)"
+
+        case "promotionReport":
+            let reportStore = PromotionStore.shared
+            let periodDays = max(1, (args["periodDays"] as? Int) ?? (args["periodDays"] as? Double).map(Int.init) ?? 7)
+            return PromotionReport.markdown(
+                goals: reportStore.goals, posts: reportStore.posts,
+                accounts: reportStore.accounts, lessons: reportStore.lessons,
+                periodDays: periodDays)
 
         case "promotionMetrics":
             guard let idOrURL = args["idOrURL"] as? String, !idOrURL.isEmpty else {

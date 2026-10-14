@@ -581,7 +581,7 @@ final class AutomationServer {
         ep("GET", "/promotion/state", "Operations workbench: goals, posts (with metric history + growth), accounts (snapshots + growth), lessons, progress, digest (shared with the agent's promotionBrief tool)", example: "…/promotion/state")
         ep("POST", "/promotion/goal", "Add a promotion goal", params: ["title:string", "objective?:string", "platforms?:array", "targetPosts?:int", "dueDate?:string(yyyy-MM-dd|ISO8601)"], example: #"-d '{"title":"v0.7.15 发布宣传","platforms":["掘金"],"targetPosts":2}'"#)
         ep("POST", "/promotion/goal/remove", "Remove a promotion goal by id (posts keep their history, link cleared)", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
-        ep("POST", "/promotion/post", "Save a promotion post (draft or published) — same semantics as the agent's promotionSave tool", params: ["platform:string", "title:string", "body:string", "status?:draft|published", "url?:string", "goal?:string"], example: #"-d '{"platform":"掘金","title":"…","body":"…","status":"draft"}'"#)
+        ep("POST", "/promotion/post", "Save or update a workbench post (idea/draft/published; pass id to update, plannedFor=yyyy-MM-dd) — same semantics as the agent's promotionSave tool", params: ["id?:string", "platform?:string", "title?:string", "body?:string", "status?:idea|draft|published", "url?:string", "goal?:string", "plannedFor?:string"], example: #"-d '{"platform":"掘金","title":"…","body":"…","status":"draft","plannedFor":"2026-10-20"}'"#)
         ep("POST", "/promotion/metrics", "Record engagement metrics for a post by id or published URL", params: ["idOrURL:string", "views?:int", "likes?:int", "comments?:int"], example: #"-d '{"idOrURL":"https://…","views":320,"likes":12}'"#)
         ep("POST", "/promotion/post/remove", "Remove a promotion post by id", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/promotion/account", "Register/update an operations account (upsert by domain+platform+handle)", params: ["platform:string", "handle:string", "domain?:promotion|media|ecommerce", "url?:string", "note?:string"], example: #"-d '{"platform":"掘金","handle":"siwi","domain":"media"}'"#)
@@ -589,7 +589,8 @@ final class AutomationServer {
         ep("POST", "/promotion/account/remove", "Remove an account by id", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/promotion/lesson", "Record an operations lesson (exact duplicates are skipped)", params: ["text:string", "domain?:promotion|media|ecommerce", "platform?:string"], example: #"-d '{"text":"掘金长文数据优于短沸点","platform":"掘金"}'"#)
         ep("POST", "/promotion/lesson/remove", "Remove a lesson by id", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
-        ep("POST", "/promotion/review", "Schedule (idempotent) or remove the weekly operations-review task", params: ["action?:schedule|remove"], example: "-d '{}'")
+        ep("POST", "/promotion/review", "Schedule (idempotent) or remove an operations automation task", params: ["kind?:dailyCollect|weeklyReview", "action?:schedule|remove"], example: #"-d '{"kind":"dailyCollect"}'"#)
+        ep("GET", "/promotion/report", "Operations weekly report as Markdown (shared with the promotionReport tool and the panel's copy button)", params: ["periodDays?:int"], example: "…/promotion/report?periodDays=7")
         ep("GET", "/page/extract", "Run the agent's pageExtract tool against the selected tab (same implementation, read-only)", params: ["view:string", "all?:bool"], example: "…/page/extract?view=stories")
         ep("POST", "/page/dpp-action", "Run a declared DPP action via the agent toolchain — local-effect actions only (persist/outbound go through the agent approval loop)", params: ["name:string", "args?:object"], example: #"-d '{"name":"fill-article-title","args":{"title":"hi"}}'"#)
         ep("GET", "/dpp/modes", "Per-site DPP event automation modes (off/draft/auto)", example: "…/dpp/modes")
@@ -1006,6 +1007,8 @@ final class AutomationServer {
                 return try Self.json(Self.promotionLessonRemove(body))
             case ("POST", "/promotion/review"):
                 return try Self.json(Self.promotionReview(body))
+            case ("GET", "/promotion/report"):
+                return try Self.json(Self.promotionReport(query))
 
             case ("GET", "/protocol/inspect"):
                 // index? 指定标签（多窗口下 deliveryTarget 的窗口未必是
@@ -4672,16 +4675,46 @@ final class AutomationServer {
     }
 
     private static func promotionPostSave(_ body: [String: Any]) -> [String: Any] {
-        guard let platform = string(body, "platform"), !platform.isEmpty else { return ["error": "missing platform"] }
-        guard let title = string(body, "title"), !title.isEmpty else { return ["error": "missing title"] }
-        guard let text = string(body, "body"), !text.isEmpty else { return ["error": "missing body"] }
         let statusRaw = (string(body, "status") ?? "draft").lowercased()
         guard let status = PromotionPost.Status(rawValue: statusRaw) else {
-            return ["error": "status must be draft or published"]
+            return ["error": "status must be idea, draft or published"]
         }
+        var plannedFor: Date?? = nil
+        if let plannedRaw = body["plannedFor"] as? String {
+            if plannedRaw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                plannedFor = .some(nil)
+            } else if let parsed = promotionDate(plannedRaw) {
+                plannedFor = .some(parsed)
+            } else {
+                return ["error": "plannedFor must be yyyy-MM-dd (or ISO8601)"]
+            }
+        }
+        // 带 id = 更新既有帖子（选题→草稿、改排期、补 URL）。
+        if let idRaw = string(body, "id"), !idRaw.isEmpty {
+            guard let uuid = UUID(uuidString: idRaw) else { return ["error": "invalid id"] }
+            let goalText = string(body, "goal")
+            guard let updated = PromotionStore.shared.updatePost(
+                id: uuid,
+                goalText: goalText.map { Optional($0) },
+                platform: string(body, "platform"),
+                title: string(body, "title"),
+                body: string(body, "body"),
+                status: status,
+                url: string(body, "url"),
+                plannedFor: plannedFor) else {
+                return ["error": "no post matches \(idRaw)"]
+            }
+            return ["ok": true, "id": updated.id.uuidString, "status": updated.status.rawValue,
+                    "post": postJSON(updated)]
+        }
+        guard let platform = string(body, "platform"), !platform.isEmpty else { return ["error": "missing platform"] }
+        guard let title = string(body, "title"), !title.isEmpty else { return ["error": "missing title"] }
+        let text = string(body, "body") ?? ""
+        if status != .idea, text.isEmpty { return ["error": "missing body (required for draft/published)"] }
         let outcome = PromotionStore.shared.savePost(
             goalText: string(body, "goal"), platform: platform, title: title,
-            body: text, status: status, url: string(body, "url"))
+            body: text, status: status, url: string(body, "url"),
+            plannedFor: plannedFor.flatMap { $0 })
         var out: [String: Any] = [
             "ok": true, "id": outcome.post.id.uuidString,
             "status": outcome.post.status.rawValue, "post": postJSON(outcome.post),
@@ -4689,6 +4722,17 @@ final class AutomationServer {
         if let goal = outcome.matchedGoalTitle { out["goalTitle"] = goal }
         if outcome.goalMissed { out["goalMissed"] = true }
         return out
+    }
+
+    /// 运营周报（与 promotionReport 工具、面板复制同源）。
+    private static func promotionReport(_ query: [String: String]) -> [String: Any] {
+        let store = PromotionStore.shared
+        let days = Int(query["periodDays"] ?? "") ?? 7
+        let markdown = PromotionReport.markdown(
+            goals: store.goals, posts: store.posts,
+            accounts: store.accounts, lessons: store.lessons,
+            periodDays: max(1, days))
+        return ["markdown": markdown]
     }
 
     private static func promotionMetricsSave(_ body: [String: Any]) -> [String: Any] {
@@ -4774,26 +4818,24 @@ final class AutomationServer {
         return ["ok": existed]
     }
 
-    /// 每周复盘定时任务：action=schedule（默认，幂等重建）/ remove。
+    /// 运营定时任务：kind=dailyCollect|weeklyReview（默认 weeklyReview），
+    /// action=schedule（默认，幂等重建）/ remove。名字与提示词走
+    /// PromotionAutomation 单一定义（面板同源）。
     private static func promotionReview(_ body: [String: Any]) -> [String: Any] {
-        let scheduler = AgentScheduler.shared
-        let name = "Operations review (weekly)"
-        _ = scheduler.remove(named: name)
-        if (string(body, "action") ?? "schedule") == "remove" {
-            return ["ok": true, "scheduled": false]
+        let kindRaw = string(body, "kind") ?? "weeklyReview"
+        guard let kind = PromotionAutomation.Kind(rawValue: kindRaw) else {
+            return ["error": "kind must be dailyCollect or weeklyReview"]
         }
-        let prompt = """
-        运营复盘（每周）：先调用 promotionBrief 读取运营工作台（目标进度、账号与帖子的最新数据与增长、历史经验）。然后：
-        1) 回访各账号主页与已发帖子页（有 DPP 适配包用适配视图，否则 getPageText），用 promotionAccountMetrics / promotionMetrics 采集最新数据——同一账号/帖子要多采几次才形成增长曲线；
-        2) 对比快照增长，总结本周有效/无效的做法；
-        3) 用 promotionLesson 记录可复用的结论（平台偏好、选题、发布时间、标题风格等），完全重复的会被自动跳过；
-        4) 给出下周行动计划。没有数据可复盘就回复「暂无运营数据」并结束。
-        """
-        guard let task = scheduler.add(name: name, prompt: prompt,
-                                       recurrence: .weekly(weekday: 2, hour: 10, minute: 0)) else {
+        if (string(body, "action") ?? "schedule") == "remove" {
+            PromotionAutomation.remove(kind)
+            return ["ok": true, "scheduled": false, "kind": kind.rawValue]
+        }
+        guard PromotionAutomation.schedule(kind) else {
             return ["error": "failed to schedule"]
         }
-        return ["ok": true, "scheduled": true, "task": task.name, "recurrence": task.recurrenceText]
+        let task = AgentScheduler.shared.tasks.first { $0.name == kind.taskName }
+        return ["ok": true, "scheduled": true, "kind": kind.rawValue,
+                "task": kind.taskName, "recurrence": task?.recurrenceText ?? ""]
     }
 
     private static func promotionAccountJSON(_ account: PromotionAccount) -> [String: Any] {
@@ -4847,6 +4889,7 @@ final class AutomationServer {
         if let goalID = post.goalID { out["goalID"] = goalID.uuidString }
         if let url = post.url { out["url"] = url }
         if let published = post.publishedAt { out["publishedAt"] = published.timeIntervalSince1970 }
+        if let planned = post.plannedFor { out["plannedFor"] = planned.timeIntervalSince1970 }
         if let m = post.metrics {
             var metrics: [String: Any] = [:]
             if let v = m.views { metrics["views"] = v }

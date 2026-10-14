@@ -19,7 +19,9 @@ struct PromotionView: View {
     @State private var metricsEditorID: UUID?
     @State private var accountEditorID: UUID?
     @State private var lessonDraft = ""
-    @State private var reviewScheduled = false
+    @State private var reportCopied = false
+    /// 自动化开关的刷新源（定时任务增删时重绘）。
+    @ObservedObject private var scheduler = AgentScheduler.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,6 +30,8 @@ struct PromotionView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     goalsSection
                     accountsSection
+                    automationSection
+                    ideasSection
                     draftsSection
                     publishedSection
                     lessonsSection
@@ -57,9 +61,9 @@ struct PromotionView: View {
             Text("Operations")
                 .font(.system(size: 13, weight: .semibold))
             Spacer()
-            HoverIcon(systemName: reviewScheduled ? "checkmark.circle" : "calendar.badge.clock",
-                      action: scheduleWeeklyReview,
-                      help: String(localized: "Schedule weekly review"))
+            HoverIcon(systemName: reportCopied ? "checkmark.circle" : "doc.text",
+                      action: copyReport,
+                      help: String(localized: "Copy weekly report"))
             HoverIcon(systemName: "plus", action: { isCreatingGoal = true },
                       help: String(localized: "New Goal"))
         }
@@ -76,7 +80,7 @@ struct PromotionView: View {
             Text("No goals or posts yet")
                 .font(.system(size: 12.5, weight: .medium))
                 .foregroundStyle(.secondary)
-            Text("Tell the agent to promote Desire — it drafts posts, asks for your approval, publishes, and tracks the numbers.")
+            Text("Tell the agent to run your operations — goals, accounts, content and lessons all live here.")
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
                 .multilineTextAlignment(.center)
@@ -86,24 +90,17 @@ struct PromotionView: View {
         .padding(.vertical, 32)
     }
 
-    /// 安排每周复盘（周一 10:00）：幂等——同名任务先删再建。
-    private func scheduleWeeklyReview() {
-        let scheduler = AgentScheduler.shared
-        let name = String(localized: "Operations review (weekly)")
-        _ = scheduler.remove(named: name)
-        let prompt = """
-        运营复盘（每周）：先调用 promotionBrief 读取运营工作台（目标进度、账号与帖子的最新数据与增长、历史经验）。然后：
-        1) 回访各账号主页与已发帖子页（有 DPP 适配包用适配视图，否则 getPageText），用 promotionAccountMetrics / promotionMetrics 采集最新数据——同一账号/帖子要多采几次才形成增长曲线；
-        2) 对比快照增长，总结本周有效/无效的做法；
-        3) 用 promotionLesson 记录可复用的结论（平台偏好、选题、发布时间、标题风格等），完全重复的会被自动跳过；
-        4) 给出下周行动计划。没有数据可复盘就回复「暂无运营数据」并结束。
-        """
-        _ = scheduler.add(name: name, prompt: prompt,
-                          recurrence: .weekly(weekday: 2, hour: 10, minute: 0))
-        withAnimation(.transitionNormal) { reviewScheduled = true }
+    /// 复制运营周报（Markdown）到剪贴板——与 promotionReport 工具、桥 /promotion/report 同源。
+    private func copyReport() {
+        let markdown = PromotionReport.markdown(
+            goals: store.goals, posts: store.posts,
+            accounts: store.accounts, lessons: store.lessons)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(markdown, forType: .string)
+        withAnimation(.transitionNormal) { reportCopied = true }
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(2))
-            withAnimation(.transitionNormal) { reviewScheduled = false }
+            withAnimation(.transitionNormal) { reportCopied = false }
         }
     }
 
@@ -292,6 +289,95 @@ struct PromotionView: View {
         .background(cardBackground)
     }
 
+    // MARK: - Automation（持续学习闭环的自动部分）
+
+    private var automationSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            sectionHeader(String(localized: "Automation"), count: 0)
+            automationRow(.dailyCollect,
+                          icon: "sun.max",
+                          label: String(localized: "Daily collection"),
+                          detail: String(localized: "21:00 daily — refresh account/post numbers so growth curves stay continuous"))
+            automationRow(.weeklyReview,
+                          icon: "calendar.badge.clock",
+                          label: String(localized: "Weekly review"),
+                          detail: String(localized: "Monday 10:00 — compare growth, distil lessons, plan next week"))
+        }
+    }
+
+    private func automationRow(_ kind: PromotionAutomation.Kind, icon: String,
+                               label: String, detail: String) -> some View {
+        let isOn = PromotionAutomation.isScheduled(kind)
+        return HStack(alignment: .top, spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(isOn ? appAccent : Color.secondary)
+                .frame(width: 16)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label)
+                    .font(.system(size: 12, weight: .medium))
+                Text(detail)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 8)
+            Toggle("", isOn: Binding(
+                get: { PromotionAutomation.isScheduled(kind) },
+                set: { on in
+                    if on { PromotionAutomation.schedule(kind) }
+                    else { PromotionAutomation.remove(kind) }
+                }))
+                .toggleStyle(.switch)
+                .controlSize(.small)
+                .labelsHidden()
+        }
+        .padding(10)
+        .background(cardBackground)
+    }
+
+    // MARK: - Ideas（选题库）
+
+    @ViewBuilder
+    private var ideasSection: some View {
+        let ideas = PromotionSummary.ideas(posts: store.posts)
+        if !ideas.isEmpty {
+            sectionHeader(String(localized: "Ideas"), count: ideas.count)
+            VStack(spacing: 4) {
+                ForEach(ideas) { idea in
+                    ideaRow(idea)
+                }
+            }
+        }
+    }
+
+    private func ideaRow(_ idea: PromotionPost) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "lightbulb")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+            Text(idea.title)
+                .font(.system(size: 12))
+                .lineLimit(2)
+            Spacer(minLength: 4)
+            Text(idea.platform)
+                .font(.system(size: 10))
+                .foregroundStyle(appAccent)
+            HoverIcon(systemName: "doc.on.doc", action: { copyTitle(idea) },
+                      help: String(localized: "Copy"))
+            HoverIcon(systemName: "trash", action: { store.removePost(idea.id) },
+                      help: String(localized: "Delete"))
+        }
+        .padding(8)
+        .background(cardBackground)
+    }
+
+    private func copyTitle(_ post: PromotionPost) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(post.title, forType: .string)
+    }
+
     // MARK: - Drafts
 
     @ViewBuilder
@@ -320,6 +406,11 @@ struct PromotionView: View {
                     Text(PromotionSummary.shortDate(post.createdAt))
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
+                    if let planned = post.plannedFor {
+                        Text(String(localized: "Planned \(PromotionSummary.shortDate(planned))"))
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.orange)
+                    }
                 }
             }
             Spacer(minLength: 4)
@@ -403,7 +494,7 @@ struct PromotionView: View {
 
     @ViewBuilder
     private func metricsLine(_ post: PromotionPost) -> some View {
-        if let m = post.metrics, !m.isEmpty {
+        if let m = post.latestMetrics, !m.isEmpty {
             HStack(spacing: 10) {
                 if let v = m.views {
                     HStack(spacing: 3) {

@@ -6,6 +6,8 @@ import Foundation
 /// 追加一条快照——增长曲线是「持续学习进化」的一手数据（复盘 → 经验）。
 struct PromotionPost: Identifiable, Codable, Hashable {
     enum Status: String, Codable {
+        /// 选题（选题库里待立项的主意）。
+        case idea
         case draft
         case published
     }
@@ -36,6 +38,8 @@ struct PromotionPost: Identifiable, Codable, Hashable {
     var status: Status
     var url: String?
     var publishedAt: Date?
+    /// 计划发布日（排期；草稿/选题可带，发布后保留作对照）。
+    var plannedFor: Date?
     var metrics: Metrics?
     var metricHistory: [MetricSnapshot]
     let createdAt: Date
@@ -43,7 +47,7 @@ struct PromotionPost: Identifiable, Codable, Hashable {
 
     init(id: UUID = UUID(), goalID: UUID? = nil, platform: String, title: String, body: String,
          status: Status = .draft, url: String? = nil, publishedAt: Date? = nil,
-         metrics: Metrics? = nil, metricHistory: [MetricSnapshot] = [],
+         plannedFor: Date? = nil, metrics: Metrics? = nil, metricHistory: [MetricSnapshot] = [],
          createdAt: Date = Date(), updatedAt: Date = Date()) {
         self.id = id
         self.goalID = goalID
@@ -53,10 +57,19 @@ struct PromotionPost: Identifiable, Codable, Hashable {
         self.status = status
         self.url = url
         self.publishedAt = publishedAt
+        self.plannedFor = plannedFor
         self.metrics = metrics
         self.metricHistory = metricHistory
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    /// 最新指标：优先聚合字段，缺了回退到快照序列末条（旧数据/直构对象兼容）。
+    nonisolated var latestMetrics: Metrics? {
+        if let metrics { return metrics }
+        guard let last = metricHistory.last else { return nil }
+        return Metrics(views: last.views, likes: last.likes, comments: last.comments,
+                       collectedAt: last.at)
     }
 
     /// 首末对比的浏览增长（不足两个快照 / 任一缺值 = nil）。
@@ -68,8 +81,8 @@ struct PromotionPost: Identifiable, Codable, Hashable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, goalID, platform, title, body, status, url, publishedAt, metrics,
-             metricHistory, createdAt, updatedAt
+        case id, goalID, platform, title, body, status, url, publishedAt, plannedFor,
+             metrics, metricHistory, createdAt, updatedAt
     }
 
     // 容错解码（metricHistory 是后加字段——旧数据不整份失败）。
@@ -83,6 +96,7 @@ struct PromotionPost: Identifiable, Codable, Hashable {
         status = try c.decodeIfPresent(Status.self, forKey: .status) ?? .draft
         url = try c.decodeIfPresent(String.self, forKey: .url)
         publishedAt = try c.decodeIfPresent(Date.self, forKey: .publishedAt)
+        plannedFor = try c.decodeIfPresent(Date.self, forKey: .plannedFor)
         metrics = try c.decodeIfPresent(Metrics.self, forKey: .metrics)
         metricHistory = try c.decodeIfPresent([MetricSnapshot].self, forKey: .metricHistory) ?? []
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt) ?? Date()

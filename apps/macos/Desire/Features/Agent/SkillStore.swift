@@ -518,6 +518,7 @@ final class SkillStore: ObservableObject {
         1. promotionBrief 拿运营工作台：目标与进度、**账号**、待审草稿、已发清单
            （避免重复选题）、**历史经验**（必读——先人的坑别重踩）、版本与链接。
            没有目标就先 askUser 定一个（标题/领域/平台/条数/截止），用 promotionGoal 建好再动笔。
+           还没定题时：先头脑风暴 3-5 个选题存进选题库（promotionSave status=idea，只给标题+平台），让用户挑。
         2. **事实底稿**：用 readFile/runCommand 读仓库 CHANGELOG.md（最新版本段）与
            docs/，只写查得到的事实——版本号、功能名、链接；产品页
            desire.mankong.icu 的能力清单可作参考。
@@ -528,9 +529,13 @@ final class SkillStore: ObservableObject {
         4. **发布**（出站不可逆、逐次审批）：用浏览器已登录的会话——有 DPP 适配包
            走适配动作（如 juejin-compose 的发沸点/写文章），没有就 navigate 到发布页
            用 fill/click 填标题与正文；提交前把最终稿再给用户过目一眼。
-        5. promotionSave 记录（发布成功 status=published + URL；只有草稿则 status=draft）。
+        5. promotionSave 记录三态流水线：选题 idea → 草稿 draft（用 `id` 可直接把选题更新
+           为草稿；想排期就带 `plannedFor: yyyy-MM-dd`）→ 发布 published + URL。
         6. **数据回收**：隔一段时间回访帖子页（适配包视图或 getPageText 读浏览/点赞/
            评论数），promotionMetrics 写回——**多采几次**才形成增长曲线（快照序列）。
+        7. **周报**：promotionReport 生成周报底稿（目标进度/账号增长/本周表现/选题草稿/
+           新增经验），补上「下周建议」后交付用户；日常采集与每周复盘可让用户开
+           「运营」页里的两个自动化开关。
 
         ## 规则
         - 事实纪律：只写 CHANGELOG/仓库/产品页里验证过的内容；不虚构数据、
@@ -557,8 +562,10 @@ final class SkillStore: ObservableObject {
            promotionAccountMetrics 记一条——**从建档起就定期采**，趋势是运营的命根。
         3. **内容排期**：按目标定 3-5 个选题（结合历史经验与账号定位），列给
            askUser 挑；每个选题给出平台形态（长文/图文/短动态）与发布时机建议。
-        4. **创作与发布**：起草 → 用户确认 → 发布（同上：已登录会话 + 适配动作
-           优先，否则走站点自家发布页 fill/click）→ promotionSave 落台账。
+        4. **创作与发布**：选题先入选题库（status=idea）让用户挑；挑中的立为草稿
+           （status=draft，可带 plannedFor 排期）→ 用户确认 → 发布 → promotionSave
+           更新为 published + URL。配合「运营」页的每日采集/每周复盘开关，
+           定期用 promotionReport 出周报。
         5. **互动**：按用户要求回复评论/私信（getComments 读、fill+click 回）；
            对外回复前把回复文本给用户看（站内语气规范/避免翻车）。
         6. **复盘**：对比账号/帖子快照增长，把「什么内容、什么时候发、效果如何」
@@ -583,6 +590,8 @@ final class SkillStore: ObservableObject {
         2. **巡检（读）**：navigate 商家后台/商品页——列表页用 getTables/getPageText
            （有 DPP 适配包用适配视图）读 价格/库存/销量/评价；每次采完用
            promotionMetrics（帖子台账）或 promotionAccountMetrics（店铺）记快照。
+           **长期盯价/盯库存**：建议用户在「页面监视」里给商品页加一条（URL + 间隔 +
+           AI 分析），到点自动比对变化并通知——比每天人工看省事。
         3. **变动处置要用户点头**：改价、下架、改标题这类写操作**必须**先列出
            「当前值 → 建议值 + 理由」给 askUser，批准后才动手（走站点自家界面
            的 fill/click；persist 类动作照走审批链）。

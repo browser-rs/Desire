@@ -317,6 +317,25 @@ extension BrowserToolProvider {
                 }
                 return "Navigated to \(url) — a Cloudflare check appeared and cleared automatically."
             }
+            // 首载健康自愈（2026-10-15 实机：掘金/红迪风控局域页会 "complete"
+            // 但近乎空文档——标题正常、无 CF 标记，直接放行会让模型对着空页
+            // 瞎猜）。判定 → 自动重载一次 → 再判一次，结果如实写进回包。
+            var loadHealthNote = ""
+            if let scheme = u.scheme?.lowercased(), scheme == "http" || scheme == "https" {
+                if let first = await Self.pageHealth(nav), PageLoadHealth.suspectEmptyDocument(first) {
+                    nav.reload()
+                    let reloadDeadline = Date().addingTimeInterval(10)
+                    while Date() < reloadDeadline, nav.isLoading {
+                        try? await Task.sleep(nanoseconds: 300_000_000)
+                    }
+                    try? await Task.sleep(nanoseconds: 500_000_000)
+                    if let second = await Self.pageHealth(nav), PageLoadHealth.suspectEmptyDocument(second) {
+                        loadHealthNote = "\n（首载与重载后都近乎空文档——疑似站点风控局域页；可稍后重试或请用户在窗口里过一下验证）"
+                    } else {
+                        loadHealthNote = "\n（首载近乎空文档，已自动重载一次，页面已正常）"
+                    }
+                }
+            }
             // 导航反馈增强：返回页面标题 + 首段文本 + DPP 视图提示。
             // 模型免调 getPageText 就知道页面有什么。
             let pageTitle = nav.title ?? ""
@@ -385,11 +404,13 @@ extension BrowserToolProvider {
                 }
             }
             var result = "Navigated to \(url) — \(pageTitle)"
+            if !loadHealthNote.isEmpty { result += loadHealthNote }
             if !snippet.isEmpty { result += "\n\(snippet)" }
             if !readyNote.isEmpty { result += readyNote }
             if !stableNote.isEmpty { result += stableNote }
             if !dppHint.isEmpty { result += dppHint }
             return result
+
         case "goBack":
             guard webView.canGoBack else { return Self.fail("Cannot go back") }
             webView.goBack()
@@ -878,5 +899,14 @@ extension BrowserToolProvider {
         default:
             return nil
         }
+    }
+
+    /// 页面健康探针：`contentType:textChars:elementCount`（纯读取；DOM 跨世界共享）。
+    fileprivate static func pageHealth(_ webView: WKWebView) async -> PageLoadHealth.Metrics? {
+        let js = "(function(){var b=document.body;return document.contentType+':'+(b?(b.innerText||'').trim().length:-1)+':'+document.getElementsByTagName('*').length;})()"
+        guard let raw = try? await webView.evaluateJavaScript(js), let value = raw as? String else {
+            return nil
+        }
+        return PageLoadHealth.parseMetrics(value)
     }
 }

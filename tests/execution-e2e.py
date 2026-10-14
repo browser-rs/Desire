@@ -83,10 +83,26 @@ class TinyAPI(BaseHTTPRequestHandler):
     fixture 走 http 同源：file:// 页面上 `download` 属性不生效（跨源被忽略），
     点击会变成导航、把页面状态（window.__log）清掉——同源后下载不换页。"""
     html = ""
+    flaky_hits = 0
     def log_message(self, *a):
         pass
 
     def do_GET(self):
+        if self.path.startswith("/flaky"):
+            TinyAPI.flaky_hits += 1
+            if TinyAPI.flaky_hits <= 1:
+                # 首载：空壳文档（风控局域页形态）
+                body = b"<!DOCTYPE html><html><head><title>flaky</title></head><body></body></html>"
+            else:
+                body = ("<!DOCTYPE html><html><head><title>flaky full</title></head><body>"
+                        "<div id='flaky-ok'>FLAKY-FULL-OK 这是重载后的完整页面内容</div>"
+                        "</body></html>").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path.startswith("/fixture"):
             payload = self.html.encode()
             self.send_response(200)
@@ -164,6 +180,16 @@ class Fake(BaseHTTPRequestHandler):
             sse(self.wfile, model, {"role": "assistant", "content": "ok"}, "stop")
             return
         n = len(round_tools)
+        if "MUSCLE2" in mode:
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "navigate", {"url": f"http://127.0.0.1:{API_PORT}/flaky"})]}, "tool_calls")
+            elif n == 1:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "getPageText", {})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE2-DONE"}, "stop")
+            return
         if n == 0:
             # fixture 页由脚本用 /new-tab **预开成独立前台标签**——用户可能正在
             # 看视频/用别的标签，不能让交互落在他的页面上（既定纪律）。
@@ -369,6 +395,30 @@ def main():
         ok("列表带缓存态", row.get("cached") is True)
         bridge("POST", "/reading-list/remove", {"url": fixture_url})
         ok("删除条目联动清缓存文件", not cache_path.exists())
+
+        # ── MUSCLE2：navigate 首载空文档自愈（/flaky 首空后满）──
+        # 先开自己的空白标签——navigate 打的是"当前选中标签"，绝不能落在用户标签上。
+        bridge("POST", "/new-tab", {"url": "about:blank"})
+        time.sleep(1)
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE2 首载自愈探针"})
+        deadline2 = time.time() + 120
+        while time.time() < deadline2:
+            st2 = bridge("GET", "/agent/messages")
+            if not st2.get("busy") and any("MUSCLE2-DONE" in (m.get("content") or "")
+                                           for m in st2.get("messages", [])):
+                break
+            time.sleep(1)
+        time.sleep(1)
+        conv2_id = bridge("GET", "/agent/trace").get("conversation")
+        conv2_path = (Path.home() / "Library/Application Support/Desire/storage"
+                      / f"conversation-{conv2_id}.json")
+        conv2 = json.loads(conv2_path.read_text())
+        tools2 = [m.get("content") or "" for m in conv2.get("messages", []) if m.get("role") == "tool"]
+        nav_result = next((t for t in tools2 if "Navigated to" in t), "")
+        page_result = next((t for t in tools2 if "FLAKY-FULL-OK" in t), "")
+        ok("navigate 首载空文档自动重载", "已自动重载一次" in nav_result)
+        ok("自愈后页面内容可见", "FLAKY-FULL-OK" in page_result)
         notes = (fix_dir / "notes.txt").read_text()
         ok("文件实际已改", ("NEW_TOKEN" in notes) and ("OLD_TOKEN" not in notes))
         assert all(c for _, c in checks), "存在失败项"
@@ -380,7 +430,8 @@ def main():
             for _ in range(4):
                 stale = [t for t in bridge("GET", "/state").get("tabs", [])
                          if "/fixture" in (t.get("url") or "")
-                         or f"127.0.0.1:{API_PORT}/dl" in (t.get("url") or "")]
+                         or f"127.0.0.1:{API_PORT}/dl" in (t.get("url") or "")
+                         or f"127.0.0.1:{API_PORT}/flaky" in (t.get("url") or "")]
                 if not stale:
                     break
                 for t in stale:

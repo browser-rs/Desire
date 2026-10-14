@@ -2566,6 +2566,26 @@ func testFileEdit() {
 }
 testFileEdit()
 
+// ---------- 首载健康判定（PageLoadHealth 纯逻辑） ----------
+
+func testPageLoadHealth() {
+    check("pageload：空壳 HTML 可疑",
+          PageLoadHealth.suspectEmptyDocument(.init(contentType: "text/html", textChars: 0, elementCount: 3)))
+    check("pageload：正常页不可疑",
+          !PageLoadHealth.suspectEmptyDocument(.init(contentType: "text/html", textChars: 1379, elementCount: 1346)))
+    check("pageload：非 HTML 不算（JSON/图片端点）",
+          !PageLoadHealth.suspectEmptyDocument(.init(contentType: "application/json", textChars: 0, elementCount: 1)))
+    check("pageload：body 缺失按 0 字算",
+          PageLoadHealth.suspectEmptyDocument(.init(contentType: "text/html", textChars: -1, elementCount: 2)))
+    check("pageload：阈值边界 19/59 可疑、20/60 不可疑",
+          PageLoadHealth.suspectEmptyDocument(.init(contentType: "text/html", textChars: 19, elementCount: 59))
+          && !PageLoadHealth.suspectEmptyDocument(.init(contentType: "text/html", textChars: 20, elementCount: 60)))
+    check("pageload：探针串解析",
+          PageLoadHealth.parseMetrics("text/html:12:57") == .init(contentType: "text/html", textChars: 12, elementCount: 57))
+    check("pageload：坏串返回 nil", PageLoadHealth.parseMetrics("garbage") == nil)
+}
+testPageLoadHealth()
+
 func testPromotionPreflight() {
     let bodyOK = String(repeating: "这段正文讲清楚了问题、用法和效果。", count: 5)
         + " https://desire.mankong.icu/"

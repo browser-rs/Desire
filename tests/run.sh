@@ -28,6 +28,7 @@ SOURCES=(
   apps/macos/Desire/App/BearerAuthentication.swift
   apps/macos/Desire/Features/History/HistoryEntry.swift
   apps/macos/Desire/Features/Browsing/SearchEverywhere.swift
+  apps/macos/Desire/Features/Browsing/PageLoadHealth.swift
   apps/macos/Desire/Features/Promotion/OperationDomain.swift
   apps/macos/Desire/Features/Promotion/PromotionGoal.swift
   apps/macos/Desire/Features/Promotion/PromotionPost.swift

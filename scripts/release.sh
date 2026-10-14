@@ -6,6 +6,7 @@
 #   scripts/release.sh <版本号> --from package   # 某一步失败后从该步重跑
 #   scripts/release.sh <版本号> --ci local       # 不用 GitHub CI，本地全套验证
 #   scripts/release.sh <版本号> --skip-ci-check  # 完全跳过 ci 阶段（急救用）
+#   scripts/release.sh <版本号> --no-x86_64      # 跳过 Intel 包（默认 arm64+x86_64 双产物）
 #   scripts/release.sh body v0.3.14        # 只打印该 tag 的 release 正文（调试用）
 #
 # 阶段：prep → build → ci → smoke → package → publish → verify
@@ -23,6 +24,10 @@
 #     认路径/cdhash，换路径才暴露"授权窗永不渲染 → 启动挂死"这类问题。
 #   • gh 一律带 --repo（从 git remote 推导）——mankong/Desire 会 404。
 #   • "零警告"只有 clean build 算数：build 阶段每次删掉 DerivedData 重建。
+#   • Intel（x86_64）产物默认随版发布（v0.7.14 曾只有 arm64、用户报"有构建没
+#     产物"）——release.sh 本地交叉编译（与 arm64 包同源同签名），CI 的
+#     build-x86_64 job 只是编译健康检查、不出产物。装了 Rosetta 的机器 verify
+#     阶段会对 Intel 包做启动冒烟；没装则只核架构（如实标注，勿谎称已测）。
 #   • 安装说明唯一真相 = scripts/install-note.template.md（CI 与本脚本共用）。
 
 set -euo pipefail
@@ -31,6 +36,7 @@ V=""
 FROM="prep"
 SKIP_CI_CHECK=0
 CI_MODE="auto"   # auto：GH CI 优先、不可用回落本地；gh：强依赖 GH CI；local：只用本地
+WITH_X86=1       # 1 = build/package/verify 追加 Intel（x86_64）产物；--no-x86_64 关
 
 usage() {
   sed -n '/^# 用法：/,/^#$/p' "$0" | sed 's/^# \?//'
@@ -44,6 +50,7 @@ while [ $# -gt 0 ]; do
     --from) FROM="$2"; shift 2 ;;
     --skip-ci-check) SKIP_CI_CHECK=1; shift ;;
     --ci) CI_MODE="${2:-}"; shift 2 ;;
+    --no-x86_64) WITH_X86=0; shift ;;
     body)  # body <tag>：只打印该 tag 的 release 正文
       [ $# -ge 2 ] || usage
       EXEC="body"; BODY_TAG="$2"; shift 2 ;;
@@ -231,6 +238,14 @@ stage_ci() {
     || die "CI 未绿。红着不能发版（v0.3.14 的教训）。修完 push 重跑 $0 $V --from ci；若是额度烧尽导致 run 根本没跑起来，改用 --ci local"
 }
 
+warn_gate() {  # warn_gate <logfile> <label> —— 零警告闸门（路径在 warning: 之前，
+               # 惯用 grep 匹配不到；只豁免 appintentsmetadataprocessor）
+  if grep -E "warning:" "$1" | grep -v appintentsmetadataprocessor | head -5 | grep -q .; then
+    grep -E "warning:" "$1" | grep -v appintentsmetadataprocessor | head -10
+    die "$2 存在构建警告——修完再发（v0.3.12 带着 6 条警告发出去的教训）"
+  fi
+}
+
 stage_build() {
   log "build：clean Release 构建（零警告闸门）"
   rm -rf "$DD"
@@ -238,15 +253,27 @@ stage_build() {
   xcodebuild -project apps/macos/Desire.xcodeproj -scheme Desire -configuration Release \
     -derivedDataPath "$DD" clean build 2>&1 | tee "$logfile" | grep -E "BUILD (SUCCEEDED|FAILED)" || true
   grep -q "BUILD SUCCEEDED" "$logfile" || die "构建失败，日志在 $logfile"
-  # 路径在 warning: 之前，惯用 grep 匹配不到；只豁免 appintentsmetadataprocessor
-  if grep -E "warning:" "$logfile" | grep -v appintentsmetadataprocessor | head -5 | grep -q .; then
-    grep -E "warning:" "$logfile" | grep -v appintentsmetadataprocessor | head -10
-    die "存在构建警告——修完再发（v0.3.12 带着 6 条警告发出去的教训）"
-  fi
+  warn_gate "$logfile" "arm64"
   local ver
   ver=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
   [ "$ver" = "$V" ] || die "构建产物版本是 ${ver}，不是 ${V}"
   echo "构建 ✓ ${APP}（版本 ${ver}）"
+
+  if [ "$WITH_X86" = 1 ]; then
+    echo "── x86_64 交叉构建（Intel 包）──"
+    rm -rf "/tmp/dd-release-$V-x86"
+    local log86="/tmp/dd-release-$V-x86-build.log"
+    xcodebuild -project apps/macos/Desire.xcodeproj -scheme Desire -configuration Release \
+      -derivedDataPath "/tmp/dd-release-$V-x86" -destination 'platform=macOS' \
+      ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO COMPILER_INDEX_STORE_ENABLE=NO \
+      clean build 2>&1 | tee "$log86" | grep -E "BUILD (SUCCEEDED|FAILED)" || true
+    grep -q "BUILD SUCCEEDED" "$log86" || die "x86_64 构建失败，日志在 $log86（修完重跑；急救可 --from build --no-x86_64 先发 arm64）"
+    warn_gate "$log86" "x86_64"
+    local ver86
+    ver86=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "/tmp/dd-release-$V-x86/Build/Products/Release/Desire.app/Contents/Info.plist")
+    [ "$ver86" = "$V" ] || die "x86_64 构建产物版本是 ${ver86}，不是 ${V}"
+    echo "x86_64 构建 ✓"
+  fi
 }
 
 stage_smoke() {
@@ -270,7 +297,12 @@ stage_package() {
   log "package：打 zip + 校验和"
   rm -rf "$ARTDIR"; mkdir -p "$ARTDIR"
   ditto -c -k --keepParent "$APP" "$ARTDIR/Desire-$TAG-macos-arm64.zip"
-  (cd "$ARTDIR" && shasum -a 256 "Desire-$TAG-macos-arm64.zip" > SHASUMS256.txt)
+  if [ "$WITH_X86" = 1 ]; then
+    local app86="/tmp/dd-release-$V-x86/Build/Products/Release/Desire.app"
+    [ -d "$app86" ] || die "x86_64 构建产物缺失（$app86）——从 build 阶段重跑，或 --from package --no-x86_64"
+    ditto -c -k --keepParent "$app86" "$ARTDIR/Desire-$TAG-macos-x86_64.zip"
+  fi
+  (cd "$ARTDIR" && shasum -a 256 Desire-*.zip > SHASUMS256.txt)
   cat "$ARTDIR/SHASUMS256.txt"
 }
 
@@ -286,12 +318,15 @@ stage_publish() {
   git tag "$TAG"
   git push origin "$TAG"
   assemble_body "$TAG" || die "CHANGELOG 里没有 $TAG 段？prep 应该已经拦住才对"
+  local uploads=("$ARTDIR/Desire-$TAG-macos-arm64.zip" "$ARTDIR/SHASUMS256.txt")
+  if [ "$WITH_X86" = 1 ]; then
+    uploads=("$ARTDIR/Desire-$TAG-macos-arm64.zip" "$ARTDIR/Desire-$TAG-macos-x86_64.zip" "$ARTDIR/SHASUMS256.txt")
+  fi
   gh release create "$TAG" \
     --repo "$GH_REPO" \
     --title "$TAG" \
     --notes-file /tmp/release-body.md \
-    "$ARTDIR/Desire-$TAG-macos-arm64.zip" \
-    "$ARTDIR/SHASUMS256.txt"
+    "${uploads[@]}"
   echo "Release 已创建：https://github.com/$GH_REPO/releases/tag/$TAG"
 }
 
@@ -309,6 +344,23 @@ stage_verify() {
   open "$vdir/app/Desire.app" --args --automation
   bridge_wait 30 || die "下载产物启动后桥无响应"
   app_quit
+  # x86_64 包：核对架构；release 机器装了 Rosetta 就顺带启动冒烟。
+  local zip86="$vdir/Desire-$TAG-macos-x86_64.zip"
+  if [ -f "$zip86" ]; then
+    ditto -x -k "$zip86" "$vdir/app86"
+    local archs
+    archs=$(lipo -archs "$vdir/app86/Desire.app/Contents/MacOS/Desire")
+    [[ "$archs" == *x86_64* ]] || die "x86_64 包里不是 Intel 二进制：$archs"
+    if arch -x86_64 /usr/bin/true 2>/dev/null; then
+      pkill -9 -x Desire 2>/dev/null || true; sleep 2
+      open "$vdir/app86/Desire.app" --args --automation
+      bridge_wait 60 || die "x86_64 下载产物启动后桥无响应（Rosetta）"
+      app_quit
+      echo "x86_64 包 ✓（校验和 + 架构 + Rosetta 启动冒烟）"
+    else
+      echo "x86_64 包 ✓（校验和 + 架构；本机无 Rosetta，未启动冒烟）"
+    fi
+  fi
   gh workflow enable Release --repo "$GH_REPO"
   echo ""
   echo "✅ v$V 发布完成并验证：Latest、校验和、版本、启动全过；Release 工作流已恢复。"

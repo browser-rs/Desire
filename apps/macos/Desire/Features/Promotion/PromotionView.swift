@@ -33,6 +33,7 @@ struct PromotionView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     goalsSection
                     accountsSection
+                    interactionsSection
                     automationSection
                     ideasSection
                     draftsSection
@@ -97,7 +98,8 @@ struct PromotionView: View {
     private func copyReport() {
         let markdown = PromotionReport.markdown(
             goals: store.goals, posts: store.posts,
-            accounts: store.accounts, lessons: store.lessons)
+            accounts: store.accounts, lessons: store.lessons,
+            interactions: store.interactions)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(markdown, forType: .string)
         withAnimation(.transitionNormal) { reportCopied = true }
@@ -290,6 +292,104 @@ struct PromotionView: View {
         }
         .padding(10)
         .background(cardBackground)
+    }
+
+    // MARK: - Interactions（互动台账）
+
+    @ViewBuilder
+    private var interactionsSection: some View {
+        let inbox = PromotionSummary.inbox(store.interactions)
+        let pending = store.pendingInteractionCount
+        sectionHeader(String(localized: "Interactions"),
+                      count: pending > 0 ? pending : store.interactions.count)
+        if store.interactions.isEmpty {
+            Text("Comments and inquiries the agent finds land here — review replies before they go out.")
+                .font(.system(size: 10.5))
+                .foregroundStyle(.tertiary)
+        } else {
+            VStack(spacing: 4) {
+                ForEach(inbox.prefix(30)) { item in
+                    interactionRow(item)
+                }
+            }
+        }
+    }
+
+    private func interactionRow(_ item: PromotionInteraction) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: interactionIcon(item.kind))
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 2) {
+                HStack(spacing: 6) {
+                    Text(item.platform)
+                        .font(.system(size: 10))
+                        .foregroundStyle(appAccent)
+                    Text(item.author)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .lineLimit(1)
+                    statusChip(item.status)
+                    Spacer(minLength: 0)
+                }
+                Text(item.text)
+                    .font(.system(size: 11.5))
+                    .lineLimit(2)
+                if let post = item.postTitle, !post.isEmpty {
+                    Text("「\(post)」")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+                if let reply = item.reply, !reply.isEmpty {
+                    Text(String(localized: "Reply") + "：" + reply)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 4)
+            if item.status == .pending, onSendToAgent != nil {
+                HoverIcon(systemName: "paperplane", action: {
+                    var ask = "处理互动台账里的这条（id=\(item.id.uuidString)）：[\(item.platform)] \(item.author) 说「\(item.text)」"
+                    if let url = item.url { ask += "（\(url)）" }
+                    ask += "。拟一条回复贴给我确认；我点头后发出去，再用 promotionInteractionReply 标记 replied；我不想回的标 ignored。"
+                    onSendToAgent?(ask)
+                }, help: String(localized: "Reply with the agent"))
+                HoverIcon(systemName: "xmark.circle", action: {
+                    _ = store.replyInteraction(id: item.id, reply: nil, status: .ignored)
+                }, help: String(localized: "Mark ignored"))
+            }
+            HoverIcon(systemName: "trash", action: { store.removeInteraction(item.id) },
+                      help: String(localized: "Delete"))
+        }
+        .padding(8)
+        .background(cardBackground)
+    }
+
+    private func interactionIcon(_ kind: PromotionInteraction.Kind) -> String {
+        switch kind {
+        case .comment: return "bubble.left"
+        case .dm: return "envelope"
+        case .mention: return "at"
+        case .review: return "star"
+        }
+    }
+
+    private func statusChip(_ status: PromotionInteraction.Status) -> some View {
+        let label: String
+        let color: Color
+        switch status {
+        case .pending: label = String(localized: "Pending reply"); color = .orange
+        case .replied: label = String(localized: "Replied"); color = .green
+        case .ignored: label = String(localized: "Ignored"); color = .secondary
+        }
+        return Text(label)
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundStyle(color)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1)
+            .background(Capsule().fill(color.opacity(0.12)))
     }
 
     // MARK: - Automation（持续学习闭环的自动部分）

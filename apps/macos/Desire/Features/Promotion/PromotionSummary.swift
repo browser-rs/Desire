@@ -70,9 +70,19 @@ nonisolated enum PromotionSummary {
             .map { $0 }
     }
 
+    /// 待处理互动在前（pending 按创建倒序），其余按更新倒序——收件箱排序。
+    static func inbox(_ interactions: [PromotionInteraction]) -> [PromotionInteraction] {
+        let pending = interactions.filter { $0.status == .pending }
+            .sorted { $0.createdAt > $1.createdAt }
+        let rest = interactions.filter { $0.status != .pending }
+            .sorted { $0.updatedAt > $1.updatedAt }
+        return pending + rest
+    }
+
     /// 文字摘要（斜杠 /promote 与 promotionBrief 同源，防两处口径漂移）。
     static func digest(goals: [PromotionGoal], posts: [PromotionPost],
                        accounts: [PromotionAccount] = [], lessons: [PromotionLesson] = [],
+                       interactions: [PromotionInteraction] = [],
                        now: Date = Date()) -> String {
         var lines: [String] = []
 
@@ -106,6 +116,18 @@ nonisolated enum PromotionSummary {
                 }
                 if a.snapshots.count < 2, a.latest?.followers == nil { s += " · 待采数据" }
                 lines.append(s)
+            }
+        }
+
+        let pendingInteractions = interactions.filter { $0.status == .pending }
+            .sorted { $0.createdAt > $1.createdAt }
+        if !pendingInteractions.isEmpty {
+            lines.append("待回复互动（\(pendingInteractions.count)）：")
+            for item in pendingInteractions.prefix(5) {
+                var line = "- [\(item.platform)] \(item.author)：\(item.text)"
+                if let post = item.postTitle, !post.isEmpty { line += "（来自「\(post)」）" }
+                if let url = item.url, !url.isEmpty { line += " \(url)" }
+                lines.append(line)
             }
         }
 

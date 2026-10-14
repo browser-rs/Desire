@@ -2496,6 +2496,50 @@ func testPromotionInsights() {
 }
 testPromotionInsights()
 
+// ---------- 互动台账（PromotionInteraction / 收件箱） ----------
+
+func testPromotionInteractions() {
+    let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+
+    // 去重键：有 URL 用 URL（大小写归一）；无 URL 用归一化拼装。
+    let k1 = PromotionInteraction.dedupeKey(url: "https://A.com/x", platform: "掘金",
+                                            postURL: nil, author: "u", text: "你好")
+    let k2 = PromotionInteraction.dedupeKey(url: "https://a.com/x", platform: "别的",
+                                            postURL: nil, author: "谁", text: "不同")
+    check("interaction：URL 去重键大小写归一", k1 == k2)
+    let k3 = PromotionInteraction.dedupeKey(url: nil, platform: "掘金", postURL: "https://p/1",
+                                            author: "阿明", text: "好文！值得一看")
+    let k4 = PromotionInteraction.dedupeKey(url: nil, platform: "掘金", postURL: "https://p/1",
+                                            author: "阿 明", text: "好文，值得一看！")
+    check("interaction：无 URL 归一化去重", k3 == k4)
+    let k5 = PromotionInteraction.dedupeKey(url: nil, platform: "掘金", postURL: "https://p/1",
+                                            author: "阿明", text: "不一样的话")
+    check("interaction：不同内容不同键", k3 != k5)
+
+    // 收件箱排序：pending 在前（创建倒序），其余按更新倒序。
+    let pendingOld = PromotionInteraction(platform: "掘金", author: "a", text: "1", createdAt: t0)
+    let pendingNew = PromotionInteraction(platform: "掘金", author: "b", text: "2",
+                                          createdAt: t0.addingTimeInterval(60))
+    let replied = PromotionInteraction(platform: "V2EX", author: "c", text: "3",
+                                       status: .replied, createdAt: t0,
+                                       updatedAt: t0.addingTimeInterval(120))
+    let inbox = PromotionSummary.inbox([pendingOld, pendingNew, replied])
+    check("interaction：pending 排最前", inbox.first?.author == "b" && inbox.last?.author == "c")
+
+    // digest：待回复互动段（摘要截断在文本原样带出）。
+    let digest = PromotionSummary.digest(goals: [], posts: [], accounts: [], lessons: [],
+                                         interactions: [pendingOld, pendingNew, replied], now: t0)
+    check("interaction：digest 待回复段", digest.contains("待回复互动（2）"))
+    check("interaction：digest 带作者与文本", digest.contains("a：1"))
+
+    // 报告：互动段计数。
+    let md = PromotionReport.markdown(goals: [], posts: [], accounts: [], lessons: [],
+                                      interactions: [pendingOld, replied], now: t0)
+    check("interaction：报告互动段", md.contains("## 互动") && md.contains("已回复 1"))
+    check("interaction：报告待处理数", md.contains("待处理 1"))
+}
+testPromotionInteractions()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

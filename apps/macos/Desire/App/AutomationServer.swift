@@ -591,6 +591,9 @@ final class AutomationServer {
         ep("POST", "/promotion/lesson/remove", "Remove a lesson by id", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/promotion/review", "Schedule (idempotent) or remove an operations automation task", params: ["kind?:dailyCollect|weeklyReview", "action?:schedule|remove"], example: #"-d '{"kind":"dailyCollect"}'"#)
         ep("GET", "/promotion/report", "Operations weekly report as Markdown (shared with the promotionReport tool and the panel's copy button)", params: ["periodDays?:int"], example: "…/promotion/report?periodDays=7")
+        ep("POST", "/promotion/interaction", "Log interaction(s) (comments/DMs/reviews) into the ledger — single object or {items:[…]}, duplicates skipped", params: ["platform?:string", "author?:string", "text?:string", "kind?:comment|dm|mention|review", "url?:string", "postTitle?:string", "items?:array"], example: #"-d '{"platform":"掘金","author":"u1","text":"好文！","url":"https://…"}'"#)
+        ep("POST", "/promotion/interaction/reply", "Draft/close one interaction: store reply text and/or set status", params: ["id:string", "reply?:string", "status?:replied|ignored|pending"], example: #"-d '{"id":"<uuid>","reply":"谢谢支持！","status":"replied"}'"#)
+        ep("POST", "/promotion/interaction/remove", "Remove an interaction by id", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("GET", "/page/extract", "Run the agent's pageExtract tool against the selected tab (same implementation, read-only)", params: ["view:string", "all?:bool"], example: "…/page/extract?view=stories")
         ep("POST", "/page/dpp-action", "Run a declared DPP action via the agent toolchain — local-effect actions only (persist/outbound go through the agent approval loop)", params: ["name:string", "args?:object"], example: #"-d '{"name":"fill-article-title","args":{"title":"hi"}}'"#)
         ep("GET", "/dpp/modes", "Per-site DPP event automation modes (off/draft/auto)", example: "…/dpp/modes")
@@ -1009,6 +1012,12 @@ final class AutomationServer {
                 return try Self.json(Self.promotionReview(body))
             case ("GET", "/promotion/report"):
                 return try Self.json(Self.promotionReport(query))
+            case ("POST", "/promotion/interaction"):
+                return try Self.json(Self.promotionInteractionLog(body))
+            case ("POST", "/promotion/interaction/reply"):
+                return try Self.json(Self.promotionInteractionReply(body))
+            case ("POST", "/promotion/interaction/remove"):
+                return try Self.json(Self.promotionInteractionRemove(body))
 
             case ("GET", "/protocol/inspect"):
                 // index? 指定标签（多窗口下 deliveryTarget 的窗口未必是
@@ -4636,6 +4645,8 @@ final class AutomationServer {
             "posts": store.posts.map { postJSON($0) },
             "accounts": store.accounts.map { promotionAccountJSON($0) },
             "lessons": store.lessons.map { promotionLessonJSON($0) },
+            "interactions": store.interactions.map { promotionInteractionJSON($0) },
+            "pendingInteractions": store.pendingInteractionCount,
             "progress": progress.map { p -> [String: Any] in
                 [
                     "goalID": p.goalID.uuidString, "title": p.title,
@@ -4731,6 +4742,7 @@ final class AutomationServer {
         let markdown = PromotionReport.markdown(
             goals: store.goals, posts: store.posts,
             accounts: store.accounts, lessons: store.lessons,
+            interactions: store.interactions,
             periodDays: max(1, days))
         return ["markdown": markdown]
     }
@@ -4855,6 +4867,89 @@ final class AutomationServer {
             out["latest"] = latestJSON
         }
         if let growth = account.followersGrowth { out["followersGrowth"] = growth }
+        return out
+    }
+
+    /// 互动登记：单条（顶层字段）或批量（items 数组）——批量是巡检主路径。
+    private static func promotionInteractionLog(_ body: [String: Any]) -> [String: Any] {
+        var drafts: [PromotionInteraction] = []
+        if let items = body["items"] as? [[String: Any]] {
+            for (idx, item) in items.prefix(50).enumerated() {
+                guard let platform = string(item, "platform"), !platform.isEmpty else {
+                    return ["error": "items[\(idx)] missing platform"]
+                }
+                guard let text = string(item, "text"), !text.isEmpty else {
+                    return ["error": "items[\(idx)] missing text"]
+                }
+                drafts.append(promotionInteractionDraft(item, platform: platform, text: text))
+            }
+        } else {
+            guard let platform = string(body, "platform"), !platform.isEmpty else {
+                return ["error": "missing platform (or items array)"]
+            }
+            guard let text = string(body, "text"), !text.isEmpty else {
+                return ["error": "missing text"]
+            }
+            drafts.append(promotionInteractionDraft(body, platform: platform, text: text))
+        }
+        let added = PromotionStore.shared.logInteractions(drafts)
+        return ["ok": true, "added": added, "skipped": drafts.count - added,
+                "pending": PromotionStore.shared.pendingInteractionCount]
+    }
+
+    private static func promotionInteractionDraft(_ item: [String: Any], platform: String,
+                                                  text: String) -> PromotionInteraction {
+        let kind = (string(item, "kind")).flatMap { PromotionInteraction.Kind(rawValue: $0.lowercased()) } ?? .comment
+        return PromotionInteraction(
+            kind: kind, platform: platform,
+            accountHandle: string(item, "accountHandle"),
+            postTitle: string(item, "postTitle"),
+            postURL: string(item, "postURL"),
+            author: string(item, "author") ?? "?",
+            text: text,
+            url: string(item, "url"))
+    }
+
+    private static func promotionInteractionReply(_ body: [String: Any]) -> [String: Any] {
+        guard let id = string(body, "id"), let uuid = UUID(uuidString: id) else {
+            return ["error": "missing or invalid id"]
+        }
+        var status: PromotionInteraction.Status?
+        if let statusRaw = string(body, "status") {
+            guard let parsed = PromotionInteraction.Status(rawValue: statusRaw.lowercased()) else {
+                return ["error": "status must be replied, ignored or pending"]
+            }
+            status = parsed
+        }
+        guard let updated = PromotionStore.shared.replyInteraction(
+            id: uuid, reply: string(body, "reply"), status: status) else {
+            return ["error": "no interaction matches \(id)"]
+        }
+        return ["ok": true, "interaction": promotionInteractionJSON(updated)]
+    }
+
+    private static func promotionInteractionRemove(_ body: [String: Any]) -> [String: Any] {
+        guard let id = string(body, "id"), let uuid = UUID(uuidString: id) else {
+            return ["error": "missing or invalid id"]
+        }
+        let existed = PromotionStore.shared.interactions.contains { $0.id == uuid }
+        PromotionStore.shared.removeInteraction(uuid)
+        return ["ok": existed]
+    }
+
+    private static func promotionInteractionJSON(_ item: PromotionInteraction) -> [String: Any] {
+        var out: [String: Any] = [
+            "id": item.id.uuidString, "kind": item.kind.rawValue,
+            "platform": item.platform, "author": item.author, "text": item.text,
+            "status": item.status.rawValue,
+            "createdAt": item.createdAt.timeIntervalSince1970,
+        ]
+        if let v = item.accountHandle { out["accountHandle"] = v }
+        if let v = item.postTitle { out["postTitle"] = v }
+        if let v = item.postURL { out["postURL"] = v }
+        if let v = item.url { out["url"] = v }
+        if let v = item.reply { out["reply"] = v }
+        if let v = item.repliedAt { out["repliedAt"] = v.timeIntervalSince1970 }
         return out
     }
 

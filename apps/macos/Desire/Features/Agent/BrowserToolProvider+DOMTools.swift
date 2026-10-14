@@ -2125,6 +2125,7 @@ extension BrowserToolProvider {
             return PromotionReport.markdown(
                 goals: reportStore.goals, posts: reportStore.posts,
                 accounts: reportStore.accounts, lessons: reportStore.lessons,
+                interactions: reportStore.interactions,
                 periodDays: periodDays)
 
         case "promotionMetrics":
@@ -2188,6 +2189,55 @@ extension BrowserToolProvider {
                 snapLine += " (total \(growth > 0 ? "+" : "")\(growth) since first snapshot)"
             }
             return snapLine
+
+        case "promotionInteractions":
+            guard let itemsRaw = args["items"] as? [[String: Any]], !itemsRaw.isEmpty else {
+                return Self.fail("Missing items (array of interactions)")
+            }
+            var drafts: [PromotionInteraction] = []
+            for (idx, item) in itemsRaw.prefix(20).enumerated() {
+                guard let platform = item["platform"] as? String, !platform.isEmpty else {
+                    return Self.fail("items[\(idx)] missing platform")
+                }
+                guard let text = item["text"] as? String, !text.isEmpty else {
+                    return Self.fail("items[\(idx)] missing text")
+                }
+                let kind = (item["kind"] as? String)
+                    .flatMap { PromotionInteraction.Kind(rawValue: $0.lowercased()) } ?? .comment
+                drafts.append(PromotionInteraction(
+                    kind: kind, platform: platform,
+                    accountHandle: item["accountHandle"] as? String,
+                    postTitle: item["postTitle"] as? String,
+                    postURL: item["postURL"] as? String,
+                    author: (item["author"] as? String) ?? "?",
+                    text: text,
+                    url: item["url"] as? String))
+            }
+            let addedCount = PromotionStore.shared.logInteractions(drafts)
+            let pending = PromotionStore.shared.pendingInteractionCount
+            return "interactions logged: +\(addedCount) new (\(drafts.count - addedCount) duplicate skipped), pending now \(pending)"
+
+        case "promotionInteractionReply":
+            guard let interactionID = args["id"] as? String,
+                  let interactionUUID = UUID(uuidString: interactionID) else {
+                return Self.fail("Missing or invalid id")
+            }
+            var replyStatus: PromotionInteraction.Status?
+            if let statusRaw = args["status"] as? String {
+                guard let parsed = PromotionInteraction.Status(rawValue: statusRaw.lowercased()) else {
+                    return Self.fail("status must be replied, ignored or pending")
+                }
+                replyStatus = parsed
+            }
+            guard let updated = PromotionStore.shared.replyInteraction(
+                id: interactionUUID, reply: args["reply"] as? String, status: replyStatus) else {
+                return "No interaction matches id \(interactionID) — get ids from promotionBrief"
+            }
+            var replyLine = "interaction updated: [\(updated.platform)] \(updated.author) → \(updated.status.rawValue)"
+            if let text = updated.reply, !text.isEmpty {
+                replyLine += " · reply: \(text.prefix(80))"
+            }
+            return replyLine
 
         case "promotionLesson":
             guard let lessonText = args["text"] as? String, !lessonText.isEmpty else {

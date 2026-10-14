@@ -20,14 +20,14 @@ enum PromotionAutomation {
             switch self {
             case .dailyCollect:
                 return """
-                运营数据采集（每日）：调用 promotionBrief 看账号与在发内容。逐个回访账号主页与已发帖子页（有 DPP 适配包用适配视图，否则 getPageText），用 promotionAccountMetrics / promotionMetrics 采集**今天**的数字——同一对象每天采一次，曲线才连续。顺带看一眼新评论/新咨询：值得回复的拟好回复草稿贴给用户过目（别自动回，更别编造）。没有运营数据就回复「暂无运营数据」结束。
+                运营数据采集（每日）：调用 promotionBrief 看账号、在发内容与互动台账。逐个回访账号主页与已发帖子页（有 DPP 适配包用适配视图，否则 getPageText），用 promotionAccountMetrics / promotionMetrics 采集**今天**的数字——同一对象每天采一次，曲线才连续。顺带扫一遍新评论/咨询：用 promotionInteractions 批量登记进互动台账（自动去重）；值得回复的逐条拟稿并用 promotionInteractionReply 存 reply，全部贴给用户过目（**别自动回复**，更别编造）。没有运营数据就回复「暂无运营数据」结束。
                 """
             case .weeklyReview:
                 return """
                 运营复盘（每周）：先调用 promotionBrief（必要时 promotionReport 取周报底稿）读取运营工作台。然后：
                 1) 回访各账号主页与已发帖子页（有 DPP 适配包用适配视图，否则 getPageText），用 promotionAccountMetrics / promotionMetrics 采集最新数据；
                 2) 对比快照增长，总结本周有效/无效的做法（选题、标题、发布时间、平台差异）；
-                3) 用 promotionLesson 记录可复用的结论，完全重复的会被自动跳过；
+                3) 用 promotionLesson 记录可复用的结论，完全重复的会被自动跳过；互动台账清一遍：待处理该回的回、回不了的标忽略（promotionInteractionReply）；
                 4) 给出下周行动计划（含选题建议，可先用 promotionSave status=idea 存进选题库）；5) 已达成或已过期的目标提醒用户归档（暂停）或调整。没有数据可复盘就回复「暂无运营数据」并结束。
                 """
             }

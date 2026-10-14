@@ -8,11 +8,12 @@ nonisolated enum PromotionReport {
 
     static func markdown(goals: [PromotionGoal], posts: [PromotionPost],
                          accounts: [PromotionAccount], lessons: [PromotionLesson],
+                         interactions: [PromotionInteraction] = [],
                          now: Date = Date(), periodDays: Int = 7) -> String {
         let from = now.addingTimeInterval(-Double(periodDays) * 86_400)
         var out: [String] = []
 
-        if goals.isEmpty && posts.isEmpty && accounts.isEmpty && lessons.isEmpty {
+        if goals.isEmpty && posts.isEmpty && accounts.isEmpty && lessons.isEmpty && interactions.isEmpty {
             return "# 运营周报（\(PromotionSummary.shortDate(from)) ~ \(PromotionSummary.shortDate(now))）\n\n"
                 + "工作台为空：还没有目标、账号或内容。先对智能体说「帮我运营」定目标、建账号。\n"
         }
@@ -132,6 +133,22 @@ nonisolated enum PromotionReport {
                         out.append("- [\(d.platform)] \(d.title) · 未排期")
                     }
                 }
+            }
+            out.append("")
+        }
+
+        // ── 互动（本周新增/已回复/待处理）──
+        if !interactions.isEmpty {
+            let weekNew = interactions.filter { $0.createdAt >= from }.count
+            let replied = interactions.filter { $0.status == .replied }.count
+            let pending = interactions.filter { $0.status == .pending }
+                .sorted { $0.createdAt > $1.createdAt }
+            out.append("## 互动")
+            var line = "- 本周新增 \(weekNew) 条 · 已回复 \(replied) · 待处理 \(pending.count)"
+            if !pending.isEmpty { line += "（回不完的先用 promotionInteractionReply 标忽略）" }
+            out.append(line)
+            for item in pending.prefix(5) {
+                out.append("- [\(item.platform)] \(item.author)：\(item.text)")
             }
             out.append("")
         }

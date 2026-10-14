@@ -17,17 +17,20 @@ final class PromotionStore: ObservableObject {
     @Published private(set) var posts: [PromotionPost] = []
     @Published private(set) var accounts: [PromotionAccount] = []
     @Published private(set) var lessons: [PromotionLesson] = []
+    @Published private(set) var interactions: [PromotionInteraction] = []
 
     private static let goalsKey = "promotion.goals"
     private static let postsKey = "promotion.posts"
     private static let accountsKey = "promotion.accounts"
     private static let lessonsKey = "promotion.lessons"
+    private static let interactionsKey = "promotion.interactions"
 
     private init() {
         goals = DiskStore.load([PromotionGoal].self, key: Self.goalsKey) ?? []
         posts = DiskStore.load([PromotionPost].self, key: Self.postsKey) ?? []
         accounts = DiskStore.load([PromotionAccount].self, key: Self.accountsKey) ?? []
         lessons = DiskStore.load([PromotionLesson].self, key: Self.lessonsKey) ?? []
+        interactions = DiskStore.load([PromotionInteraction].self, key: Self.interactionsKey) ?? []
     }
 
     // MARK: - 目标
@@ -247,6 +250,51 @@ final class PromotionStore: ObservableObject {
         persistAccounts()
     }
 
+    // MARK: - 互动台账（评论/私信/评价）
+
+    /// 批量登记（巡检发现一条登记一条；url 或 平台+帖子+作者+正文 去重跳过）。
+    /// 返回实际新增条数。
+    @discardableResult
+    func logInteractions(_ drafts: [PromotionInteraction]) -> Int {
+        guard !drafts.isEmpty else { return 0 }
+        var existing = Set(interactions.map(\.dedupeKey))
+        var added = 0
+        for var item in drafts {
+            let key = item.dedupeKey
+            guard !existing.contains(key) else { continue }
+            existing.insert(key)
+            if item.author.isEmpty { item.author = "?" }
+            interactions.append(item)
+            added += 1
+        }
+        if added > 0 { persistInteractions() }
+        return added
+    }
+
+    /// 回复闭环：存拟稿 / 定状态。status=replied 记 repliedAt；status=pending 可回退。
+    @discardableResult
+    func replyInteraction(id: UUID, reply: String?, status: PromotionInteraction.Status?) -> PromotionInteraction? {
+        guard let idx = interactions.firstIndex(where: { $0.id == id }) else { return nil }
+        let now = Date()
+        if let reply { interactions[idx].reply = reply }
+        if let status {
+            interactions[idx].status = status
+            interactions[idx].repliedAt = status == .replied ? now : nil
+        }
+        interactions[idx].updatedAt = now
+        persistInteractions()
+        return interactions[idx]
+    }
+
+    func removeInteraction(_ id: UUID) {
+        interactions.removeAll { $0.id == id }
+        persistInteractions()
+    }
+
+    var pendingInteractionCount: Int {
+        interactions.filter { $0.status == .pending }.count
+    }
+
     // MARK: - 经验（持续学习）
 
     /// 记一条经验。完全重复（归一化后相同）直接跳过；返回 nil 表示重复。
@@ -280,7 +328,8 @@ final class PromotionStore: ObservableObject {
     // MARK: - 派生与摘要
 
     func digest() -> String {
-        PromotionSummary.digest(goals: goals, posts: posts, accounts: accounts, lessons: lessons)
+        PromotionSummary.digest(goals: goals, posts: posts, accounts: accounts,
+                                lessons: lessons, interactions: interactions)
     }
 
     var outstandingDraftCount: Int {
@@ -293,4 +342,5 @@ final class PromotionStore: ObservableObject {
     private func persistPosts() { DiskStore.save(posts, key: Self.postsKey) }
     private func persistAccounts() { DiskStore.save(accounts, key: Self.accountsKey) }
     private func persistLessons() { DiskStore.save(lessons, key: Self.lessonsKey) }
+    private func persistInteractions() { DiskStore.save(interactions, key: Self.interactionsKey) }
 }

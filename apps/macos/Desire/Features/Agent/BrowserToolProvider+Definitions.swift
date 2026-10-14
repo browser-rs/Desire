@@ -907,6 +907,31 @@ extension BrowserToolProvider {
                 ], required: ["idOrHandle"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "promotionInteractions",
+                description: "Log interactions (comments / DMs / mentions / reviews) found while scanning a page into the interaction ledger — pass ALL relevant items in ONE call (items array, up to 20). Duplicates (same url, or same platform+post+author+text) are skipped. Then draft replies for the ones worth answering, save each with promotionInteractionReply, and show the user before posting anything.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "items": AgentJSONSchemaValue(type: "array", description: "One entry per interaction", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [
+                        "platform": AgentJSONSchemaValue(type: "string", description: "e.g. 掘金 / 公众号 / 淘宝店"),
+                        "author": AgentJSONSchemaValue(type: "string", description: "Who wrote it"),
+                        "text": AgentJSONSchemaValue(type: "string", description: "The interaction text (trimmed excerpt fine)"),
+                        "kind": AgentJSONSchemaValue(type: "string", description: "comment (default) | dm | mention | review"),
+                        "url": AgentJSONSchemaValue(type: "string", description: "Direct link to the interaction (anchor), best-effort"),
+                        "postTitle": AgentJSONSchemaValue(type: "string", description: "Which post/listing it appeared under"),
+                        "postURL": AgentJSONSchemaValue(type: "string", description: "URL of that post"),
+                        "accountHandle": AgentJSONSchemaValue(type: "string", description: "Which of your accounts it belongs to"),
+                    ]))),
+                ], required: ["items"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "promotionInteractionReply",
+                description: "Close the loop on ONE logged interaction: store the reply you drafted (and/or set status). Status: replied (only AFTER the user approves and you actually posted it), ignored (drop it), pending (undo). Ids come from promotionBrief or promotionInteractions.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "id": AgentJSONSchemaValue(type: "string", description: "Interaction id"),
+                    "reply": AgentJSONSchemaValue(type: "string", description: "The reply text (draft or as posted)"),
+                    "status": AgentJSONSchemaValue(type: "string", description: "replied | ignored | pending"),
+                ], required: ["id"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "promotionLesson",
                 description: "Record ONE distilled operations lesson into the learnings list (what worked / what failed and why, per platform or domain). This is the memory that feeds future drafts via promotionBrief — write falsifiable, reusable statements (\"掘金长文 > 短沸点\"、\"周末发布互动低\"). Exact duplicates are skipped.",
                 parameters: AgentJSONSchema(type: "object", properties: [

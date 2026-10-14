@@ -831,6 +831,18 @@ extension BrowserToolProvider {
 
             // --- Promotion workbench (self-promotion, 0.7.15) ---
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "promotionGoal",
+                description: "Create an operations goal (title + domain + platforms + optional target/due). Confirm the goal with the user (askUser) BEFORE creating it — goals drive everything else in the workbench.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "title": AgentJSONSchemaValue(type: "string", description: "Short goal title, e.g. 「v0.7.15 发布宣传」/「账号涨粉计划」"),
+                    "objective": AgentJSONSchemaValue(type: "string", description: "Optional: audience, angle, voice requirements"),
+                    "domain": AgentJSONSchemaValue(type: "string", description: "\"promotion\" (default) | \"media\" (creator accounts) | \"ecommerce\" (shops)"),
+                    "platforms": AgentJSONSchemaValue(type: "array", description: "Target platforms, e.g. [\"掘金\",\"V2EX\"]", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                    "targetPosts": AgentJSONSchemaValue(type: "number", description: "Optional post count target"),
+                    "dueDate": AgentJSONSchemaValue(type: "string", description: "Optional deadline, yyyy-MM-dd or ISO8601"),
+                ], required: ["title"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "promotionBrief",
                 description: "Open the promotion workbench: active goals with progress, drafts awaiting the user's review, recently published posts (avoid duplicate angles), plus the product facts baseline (app version, release page, landing page, repo). READ-ONLY. Recommended flow: call this first; read CHANGELOG.md in the repo (readFile/runCommand) for exact facts; draft per platform; askUser to approve before anything goes out; publish via the site's logged-in UI or a DPP compose action; promotionSave(status=published, url); later revisit the post and promotionMetrics.",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
@@ -849,13 +861,43 @@ extension BrowserToolProvider {
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "promotionMetrics",
-                description: "Record engagement metrics (views/likes/comments) for a saved promotion post, identified by its id or published URL. Call after visiting the live post page (via its DPP adapter view or getPageText).",
+                description: "Record engagement metrics (views/likes/comments) for a saved promotion post, identified by its id or published URL. Call after visiting the live post page (via its DPP adapter view or getPageText). Every call appends a snapshot — revisit posts over time so growth becomes visible to reviews.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "idOrURL": AgentJSONSchemaValue(type: "string", description: "Post id returned by promotionSave, or the published URL"),
                     "views": AgentJSONSchemaValue(type: "number", description: "View count"),
                     "likes": AgentJSONSchemaValue(type: "number", description: "Like count"),
                     "comments": AgentJSONSchemaValue(type: "number", description: "Comment count"),
                 ], required: ["idOrURL"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "promotionAccountSave",
+                description: "Register or update an operations ACCOUNT (one platform identity you run: 掘金/公众号/小红书/店铺…). Upserts by domain+platform+handle. Use before tracking its growth with promotionAccountMetrics.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "platform": AgentJSONSchemaValue(type: "string", description: "e.g. 掘金 / 微信公众号 / 小红书 / 淘宝店"),
+                    "handle": AgentJSONSchemaValue(type: "string", description: "Account name / handle as shown on the platform"),
+                    "domain": AgentJSONSchemaValue(type: "string", description: "\"promotion\" | \"media\" (content accounts) | \"ecommerce\" (shops). Default media."),
+                    "url": AgentJSONSchemaValue(type: "string", description: "Profile / store URL"),
+                    "note": AgentJSONSchemaValue(type: "string", description: "Optional note (positioning, audience…)"),
+                ], required: ["platform", "handle"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "promotionAccountMetrics",
+                description: "Record a snapshot of an account's numbers (followers/views/likes), identified by id, exact handle, or URL. Call after reading the account page (profile counter or adapter view). Snapshots accumulate — growth drives the review lessons.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "idOrHandle": AgentJSONSchemaValue(type: "string", description: "Account id, exact handle, or profile URL"),
+                    "followers": AgentJSONSchemaValue(type: "number", description: "Follower/subscriber count"),
+                    "views": AgentJSONSchemaValue(type: "number", description: "Recent views / impressions (platform-dependent)"),
+                    "likes": AgentJSONSchemaValue(type: "number", description: "Recent likes / favorites"),
+                ], required: ["idOrHandle"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "promotionLesson",
+                description: "Record ONE distilled operations lesson into the learnings list (what worked / what failed and why, per platform or domain). This is the memory that feeds future drafts via promotionBrief — write falsifiable, reusable statements (\"掘金长文 > 短沸点\"、\"周末发布互动低\"). Exact duplicates are skipped.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "text": AgentJSONSchemaValue(type: "string", description: "The lesson, one sentence"),
+                    "domain": AgentJSONSchemaValue(type: "string", description: "Optional: promotion | media | ecommerce"),
+                    "platform": AgentJSONSchemaValue(type: "string", description: "Optional: platform the lesson applies to"),
+                ], required: ["text"])
             )),
                 ]
     }()

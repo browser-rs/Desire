@@ -45,7 +45,7 @@ nonisolated enum AgentSlashParsing {
         "title": String(localized: "rename this conversation: /title <新标题>"),
         "retry": String(localized: "re-run the last answer"),
         "export": String(localized: "save this conversation as a Markdown file"),
-        "promote": String(localized: "promotion workbench: goals, drafts, published posts — /promote <goal> adds a goal"),
+        "promote": String(localized: "operations workbench: goals, accounts, lessons, drafts — /promote <goal> adds a goal"),
     ]
 
     static func parse(_ text: String) -> Parsed? {

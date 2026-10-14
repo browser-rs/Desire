@@ -2359,6 +2359,45 @@ func testPromotionSummary() {
     check("promotion：digest 含草稿与已发", digest.contains("待发布草稿") && digest.contains("最近已发"))
     let emptyDigest = PromotionSummary.digest(goals: [], posts: [], now: t0)
     check("promotion：空工作台提示", emptyDigest.contains("工作台为空"))
+
+    // 域标注（harness 无 .lproj，String(localized:) 回落为键本身）。
+    check("promotion：目标带域标注", digest.contains("[Promotion]"))
+    let mediaGoal = PromotionGoal(title: "账号涨粉计划", domain: .media, platforms: ["掘金"])
+    let mediaProgress = PromotionSummary.progress(goals: [mediaGoal], posts: [], now: t0)
+    check("promotion：域跟随目标", mediaProgress.first?.domain == .media)
+
+    // 帖子快照增长（首末对比）。
+    let tracked = PromotionPost(goalID: goal.id, platform: "掘金", title: "带快照",
+                                body: "…", status: .published, publishedAt: t0,
+                                metricHistory: [
+                                    .init(at: t0, views: 100, likes: 5, comments: 1),
+                                    .init(at: t0.addingTimeInterval(86_400), views: 320, likes: 12, comments: 4),
+                                ],
+                                createdAt: t0)
+    check("promotion：浏览增长=首末差", tracked.viewsGrowth == 220)
+    let singleSnapshot = PromotionPost(platform: "掘金", title: "单快照", body: "…",
+                                       status: .published,
+                                       metricHistory: [.init(at: t0, views: 1, likes: nil, comments: nil)])
+    check("promotion：单快照无增长", singleSnapshot.viewsGrowth == nil)
+    check("promotion：增长后缀格式", PromotionSummary.growthSuffix(220) == " (+220)"
+          && PromotionSummary.growthSuffix(-3) == " (-3)"
+          && PromotionSummary.growthSuffix(0) == "" && PromotionSummary.growthSuffix(nil) == "")
+
+    // 账号快照增长 + digest 账号段/经验段。
+    let account = PromotionAccount(
+        domain: .media, platform: "掘金", handle: "siwi", createdAt: t0,
+        snapshots: [
+            .init(at: t0, followers: 1000, views: nil, likes: nil),
+            .init(at: t0.addingTimeInterval(86_400), followers: 1120, views: nil, likes: nil),
+        ])
+    check("promotion：账号粉丝增长", account.followersGrowth == 120)
+    let lesson = PromotionLesson(text: "掘金长文数据优于短沸点", domain: .media,
+                                 platform: "掘金", createdAt: t0)
+    let fullDigest = PromotionSummary.digest(
+        goals: [mediaGoal], posts: [tracked], accounts: [account], lessons: [lesson], now: t0)
+    check("promotion：digest 账号粉丝与增长", fullDigest.contains("粉丝 1120") && fullDigest.contains("+120"))
+    check("promotion：digest 注入经验", fullDigest.contains("掘金长文数据优于短沸点"))
+    check("promotion：digest 运营经验段", fullDigest.contains("运营经验"))
 }
 testPromotionSummary()
 

@@ -20,6 +20,8 @@ final class AgentScheduler: ObservableObject {
         enum Recurrence: Codable, Equatable {
             case everyMinutes(Int)
             case daily(hour: Int, minute: Int)
+            /// 每周（0.7.15 运营复盘）：weekday 用 Calendar 口径 1=周日…7=周六。
+            case weekly(weekday: Int, hour: Int, minute: Int)
         }
 
         let id: UUID
@@ -43,6 +45,10 @@ final class AgentScheduler: ObservableObject {
                 return String(localized: "every \(minutes) min")
             case .daily(let hour, let minute):
                 return String(format: String(localized: "daily at %02d:%02d"), hour, minute)
+            case .weekly(let weekday, let hour, let minute):
+                let symbols = Calendar.current.weekdaySymbols
+                let day = symbols.indices.contains(weekday - 1) ? symbols[weekday - 1] : "\(weekday)"
+                return String(format: String(localized: "weekly on %@ at %02d:%02d"), day, hour, minute)
             }
         }
     }
@@ -400,6 +406,14 @@ final class AgentScheduler: ObservableObject {
             return now.timeIntervalSince(last) >= Double(max(5, minutes)) * 60
         case .daily(let hour, let minute):
             let calendar = Calendar.current
+            let day = calendar.dateComponents([.year, .month, .day], from: now)
+            guard let todayAt = calendar.date(from: DateComponents(
+                year: day.year, month: day.month, day: day.day, hour: hour, minute: minute
+            )) else { return false }
+            return now >= todayAt && !calendar.isDate(last, inSameDayAs: now)
+        case .weekly(let weekday, let hour, let minute):
+            let calendar = Calendar.current
+            guard calendar.component(.weekday, from: now) == weekday else { return false }
             let day = calendar.dateComponents([.year, .month, .day], from: now)
             guard let todayAt = calendar.date(from: DateComponents(
                 year: day.year, month: day.month, day: day.day, hour: hour, minute: minute

@@ -1988,6 +1988,36 @@ extension BrowserToolProvider {
             return await callAsync(webView, function: "__desireFindElements", args: ["selector": sel])
 
         // --- Promotion workbench (self-promotion, 0.7.15) ---
+        case "promotionGoal":
+            guard let goalTitle = args["title"] as? String, !goalTitle.isEmpty else {
+                return Self.fail("Missing title")
+            }
+            let goalDomain = (args["domain"] as? String)
+                .flatMap { OperationDomain(rawValue: $0.lowercased()) } ?? .promotion
+            let goalPlatforms = (args["platforms"] as? [String]) ?? []
+            let goalTarget = (args["targetPosts"] as? Int) ?? (args["targetPosts"] as? Double).map(Int.init)
+            var goalDue: Date?
+            if let dueRaw = args["dueDate"] as? String, !dueRaw.isEmpty {
+                let iso = ISO8601DateFormatter()
+                if let d = iso.date(from: dueRaw) {
+                    goalDue = d
+                } else {
+                    let f = DateFormatter()
+                    f.dateFormat = "yyyy-MM-dd"
+                    f.locale = Locale(identifier: "en_US_POSIX")
+                    goalDue = f.date(from: dueRaw)
+                }
+            }
+            guard let newGoal = PromotionStore.shared.addGoal(
+                title: goalTitle, objective: (args["objective"] as? String) ?? "",
+                domain: goalDomain, platforms: goalPlatforms,
+                targetPosts: goalTarget, dueDate: goalDue) else {
+                return Self.fail("Title is empty")
+            }
+            var goalLine = "goal created: [\(newGoal.domain.rawValue)] \(newGoal.title)"
+            if let t = newGoal.targetPosts { goalLine += " · target \(t)" }
+            return goalLine
+
         case "promotionBrief":
             let promoStore = PromotionStore.shared
             let promoVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
@@ -2057,6 +2087,60 @@ extension BrowserToolProvider {
             if let l = post.metrics?.likes { metricParts.append("likes \(l)") }
             if let c = post.metrics?.comments { metricParts.append("comments \(c)") }
             return "metrics updated: [\(post.platform)] \(post.title) — \(metricParts.joined(separator: ", "))"
+
+        case "promotionAccountSave":
+            guard let accountPlatform = args["platform"] as? String, !accountPlatform.isEmpty else {
+                return Self.fail("Missing platform")
+            }
+            guard let handle = args["handle"] as? String, !handle.isEmpty else {
+                return Self.fail("Missing handle")
+            }
+            let accountDomain = (args["domain"] as? String)
+                .flatMap { OperationDomain(rawValue: $0.lowercased()) } ?? .media
+            guard let account = PromotionStore.shared.saveAccount(
+                domain: accountDomain, platform: accountPlatform, handle: handle,
+                url: args["url"] as? String, note: (args["note"] as? String) ?? "") else {
+                return Self.fail("platform and handle must not be empty")
+            }
+            var accountLine = "account saved: id=\(account.id.uuidString) [\(account.domain.rawValue)] \(account.platform) · \(account.handle)"
+            if let growth = account.followersGrowth {
+                accountLine += " · followers growth \(growth > 0 ? "+" : "")\(growth)"
+            }
+            return accountLine
+
+        case "promotionAccountMetrics":
+            guard let idOrHandle = args["idOrHandle"] as? String, !idOrHandle.isEmpty else {
+                return Self.fail("Missing idOrHandle")
+            }
+            let accountFollowers = (args["followers"] as? Int) ?? (args["followers"] as? Double).map(Int.init)
+            let accountViews = (args["views"] as? Int) ?? (args["views"] as? Double).map(Int.init)
+            let accountLikes = (args["likes"] as? Int) ?? (args["likes"] as? Double).map(Int.init)
+            guard accountFollowers != nil || accountViews != nil || accountLikes != nil else {
+                return Self.fail("Provide at least one of followers/views/likes")
+            }
+            guard let snapAccount = PromotionStore.shared.recordAccountMetrics(
+                idOrHandle: idOrHandle, followers: accountFollowers,
+                views: accountViews, likes: accountLikes) else {
+                return "No account matches \(idOrHandle) — register it first with promotionAccountSave (or use the exact handle / URL)"
+            }
+            var snapLine = "account snapshot: [\(snapAccount.platform)] \(snapAccount.handle)"
+            if let f = accountFollowers { snapLine += " · followers \(f)" }
+            if let growth = snapAccount.followersGrowth, growth != 0 {
+                snapLine += " (total \(growth > 0 ? "+" : "")\(growth) since first snapshot)"
+            }
+            return snapLine
+
+        case "promotionLesson":
+            guard let lessonText = args["text"] as? String, !lessonText.isEmpty else {
+                return Self.fail("Missing text")
+            }
+            let lessonDomain = (args["domain"] as? String)
+                .flatMap { OperationDomain(rawValue: $0.lowercased()) }
+            guard let lesson = PromotionStore.shared.addLesson(
+                text: lessonText, domain: lessonDomain, platform: args["platform"] as? String) else {
+                return "lesson skipped (empty or exact duplicate)"
+            }
+            return "lesson recorded (id=\(lesson.id.uuidString)): \(lesson.text)"
 
         default:
             return nil

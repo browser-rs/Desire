@@ -1,14 +1,16 @@
 import Foundation
 
-/// 推广的**纯派生逻辑**（Foundation-only，进 tests/run.sh）：
-/// 目标进度、待发布草稿、近期已发清单，以及给斜杠命令/promotionBrief 共用
-/// 的一份文字摘要（digest）。格式化规则集中在这里，视图、工具、桥三处不散写。
+/// 运营的**纯派生逻辑**（Foundation-only，进 tests/run.sh）：
+/// 目标进度、待发布草稿、近期已发、账号快照与经验清单，以及给斜杠命令/
+/// promotionBrief 共用的一份文字摘要（digest）。格式化规则集中在这里，
+/// 视图、工具、桥三处不散写。
 nonisolated enum PromotionSummary {
 
     /// 单个目标的进度快照。
     struct GoalProgress: Equatable {
         let goalID: UUID
         let title: String
+        let domain: OperationDomain
         let platforms: [String]
         let target: Int?
         let publishedCount: Int
@@ -16,7 +18,7 @@ nonisolated enum PromotionSummary {
         let lastPublishedAt: Date?
         /// 有硬指标且已达成；无指标时恒 false（进度只展示不判定）。
         let isComplete: Bool
-        /// 有截止且已过期（同级全部帖已发完才算达成 → 过期只在未完成时有意义）。
+        /// 有截止且已过期（有指标且未达成；无指标看是否有过产出）。
         let isOverdue: Bool
     }
 
@@ -31,6 +33,7 @@ nonisolated enum PromotionSummary {
             return GoalProgress(
                 goalID: goal.id,
                 title: goal.title,
+                domain: goal.domain,
                 platforms: goal.platforms,
                 target: goal.targetPosts,
                 publishedCount: published.count,
@@ -41,7 +44,7 @@ nonisolated enum PromotionSummary {
         }
     }
 
-    /// 待审草稿（新起草的在前）——推广工作流的第一干活队列。
+    /// 待审草稿（新起草的在前）——运营工作流的第一干活队列。
     static func outstandingDrafts(posts: [PromotionPost]) -> [PromotionPost] {
         posts.filter { $0.status == .draft }.sorted { $0.createdAt > $1.createdAt }
     }
@@ -56,14 +59,15 @@ nonisolated enum PromotionSummary {
 
     /// 文字摘要（斜杠 /promote 与 promotionBrief 同源，防两处口径漂移）。
     static func digest(goals: [PromotionGoal], posts: [PromotionPost],
+                       accounts: [PromotionAccount] = [], lessons: [PromotionLesson] = [],
                        now: Date = Date()) -> String {
         var lines: [String] = []
 
         let progressList = progress(goals: goals, posts: posts, now: now)
         if !progressList.isEmpty {
-            lines.append("推广目标（\(progressList.count) 个进行中）：")
+            lines.append("运营目标（\(progressList.count) 个进行中）：")
             for p in progressList {
-                var s = "- \(p.title)"
+                var s = "- [\(p.domain.label)] \(p.title)"
                 if !p.platforms.isEmpty { s += " · \(p.platforms.joined(separator: "/"))" }
                 if let target = p.target {
                     s += " · 目标 \(target) 条，已发 \(p.publishedCount)"
@@ -73,6 +77,21 @@ nonisolated enum PromotionSummary {
                 }
                 if p.draftCount > 0 { s += "，草稿 \(p.draftCount)" }
                 if p.isOverdue { s += " · ⚠️ 已过期" }
+                lines.append(s)
+            }
+        }
+
+        if !accounts.isEmpty {
+            lines.append("账号（\(accounts.count)）：")
+            for a in accounts where a.isActive {
+                var s = "- [\(a.domain.label)] \(a.platform) · \(a.handle)"
+                if let latest = a.latest, let followers = latest.followers {
+                    s += " · 粉丝 \(followers)"
+                    if let growth = a.followersGrowth, growth != 0 {
+                        s += "（\(growth > 0 ? "+" : "")\(growth)）"
+                    }
+                }
+                if a.snapshots.count < 2, a.latest?.followers == nil { s += " · 待采数据" }
                 lines.append(s)
             }
         }
@@ -92,7 +111,9 @@ nonisolated enum PromotionSummary {
                 var s = "- [\(p.platform)] \(p.title)（\(shortDate(p.publishedAt ?? p.createdAt))"
                 if let m = p.metrics {
                     var parts: [String] = []
-                    if let v = m.views { parts.append("浏览 \(v)") }
+                    if let v = m.views {
+                        parts.append("浏览 \(v)" + growthSuffix(p.viewsGrowth))
+                    }
                     if let l = m.likes { parts.append("赞 \(l)") }
                     if let c = m.comments { parts.append("评论 \(c)") }
                     if !parts.isEmpty { s += "，" + parts.joined(separator: " · ") }
@@ -103,10 +124,26 @@ nonisolated enum PromotionSummary {
             }
         }
 
+        // 经验：最近 8 条（越新越靠前）——起草前先读，避免重复踩坑。
+        if !lessons.isEmpty {
+            lines.append("运营经验（\(lessons.count) 条，最近）：")
+            for l in lessons.sorted(by: { $0.createdAt > $1.createdAt }).prefix(8) {
+                var s = "- \(l.text)"
+                if let platform = l.platform { s += "（\(platform)）" }
+                lines.append(s)
+            }
+        }
+
         if lines.isEmpty {
-            lines.append("推广工作台为空：还没有目标，也没有草稿或已发记录。")
+            lines.append("运营工作台为空：还没有目标、账号、草稿或已发记录。")
         }
         return lines.joined(separator: "\n")
+    }
+
+    /// 增长后缀（" （第一→最新 +N）"），无对比数据返回空串。
+    static func growthSuffix(_ growth: Int?) -> String {
+        guard let growth, growth != 0 else { return "" }
+        return growth > 0 ? " (+\(growth))" : " (\(growth))"
     }
 
     static func shortDate(_ date: Date) -> String {

@@ -76,7 +76,7 @@ struct AgentWindowSidebar: View {
             destinationRow(.doctor, icon: "stethoscope",
                            label: String(localized: "Doctor"))
             destinationRow(.promotion, icon: "megaphone",
-                           label: String(localized: "Promotion"),
+                           label: String(localized: "Operations"),
                            badge: promotionStore.outstandingDraftCount == 0
                                ? nil : "\(promotionStore.outstandingDraftCount)")
         }

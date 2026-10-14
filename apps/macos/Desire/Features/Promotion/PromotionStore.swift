@@ -1,35 +1,47 @@
 import Combine
 import Foundation
 
-/// 推广工作台（自推广能力）：目标 + 帖子（草稿/已发/数据）的单一真相。
-/// Agent 工具（promotionBrief / promotionSave / promotionMetrics）、斜杠
-/// /promote、桥 /promotion/*、Agent 窗口「推广」页全部读写这一份；
-/// 持久化走 DiskStore（goals/posts 两个键，量小，单文件数组）。
+/// 运营工作台（自推广 + 自媒体/电商专项）：目标、帖子、账号、经验四类数据
+/// 的单一真相。Agent 工具（promotion* / promotionAccount* / promotionLesson）、
+/// 斜杠 /promote、桥 /promotion/*、Agent 窗口「运营」页全部读写这一份；
+/// 持久化走 DiskStore（四个键，量小，单文件数组）。
+///
+/// 持续学习进化的数据链：帖子/账号的 `metricHistory` 快照积累趋势 →
+/// Agent 复盘把结论写成 `lessons`（PromotionLesson）→ promotionBrief 把
+/// 经验注入下次起草 → 更好的动作产生新数据。
 @MainActor
 final class PromotionStore: ObservableObject {
     static let shared = PromotionStore()
 
     @Published private(set) var goals: [PromotionGoal] = []
     @Published private(set) var posts: [PromotionPost] = []
+    @Published private(set) var accounts: [PromotionAccount] = []
+    @Published private(set) var lessons: [PromotionLesson] = []
 
     private static let goalsKey = "promotion.goals"
     private static let postsKey = "promotion.posts"
+    private static let accountsKey = "promotion.accounts"
+    private static let lessonsKey = "promotion.lessons"
 
     private init() {
         goals = DiskStore.load([PromotionGoal].self, key: Self.goalsKey) ?? []
         posts = DiskStore.load([PromotionPost].self, key: Self.postsKey) ?? []
+        accounts = DiskStore.load([PromotionAccount].self, key: Self.accountsKey) ?? []
+        lessons = DiskStore.load([PromotionLesson].self, key: Self.lessonsKey) ?? []
     }
 
     // MARK: - 目标
 
     @discardableResult
-    func addGoal(title: String, objective: String = "", platforms: [String] = [],
-                 targetPosts: Int? = nil, dueDate: Date? = nil) -> PromotionGoal? {
+    func addGoal(title: String, objective: String = "", domain: OperationDomain = .promotion,
+                 platforms: [String] = [], targetPosts: Int? = nil,
+                 dueDate: Date? = nil) -> PromotionGoal? {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
         let goal = PromotionGoal(
             title: trimmed,
             objective: objective.trimmingCharacters(in: .whitespacesAndNewlines),
+            domain: domain,
             platforms: platforms.map { $0.trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty },
             targetPosts: targetPosts.flatMap { $0 > 0 ? $0 : nil },
             dueDate: dueDate)
@@ -114,7 +126,8 @@ final class PromotionStore: ObservableObject {
         return true
     }
 
-    /// 数据回收：按 id 或 URL 定位帖子，写入互动数据（nil = 该平台没有这项）。
+    /// 数据回收：按 id 或 URL 定位帖子，写入互动数据并**追加一条快照**
+    /// （nil = 该平台没有这项；快照全部保留，增长可比）。
     @discardableResult
     func recordMetrics(idOrURL: String, views: Int?, likes: Int?, comments: Int?) -> PromotionPost? {
         let trimmed = idOrURL.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -133,6 +146,8 @@ final class PromotionStore: ObservableObject {
         if let comments { metrics.comments = comments }
         metrics.collectedAt = now
         posts[idx].metrics = metrics
+        posts[idx].metricHistory.append(PromotionPost.MetricSnapshot(
+            at: now, views: metrics.views, likes: metrics.likes, comments: metrics.comments))
         posts[idx].updatedAt = now
         persistPosts()
         return posts[idx]
@@ -145,10 +160,92 @@ final class PromotionStore: ObservableObject {
 
     func post(id: UUID) -> PromotionPost? { posts.first { $0.id == id } }
 
+    // MARK: - 账号（自媒体/电商专项）
+
+    /// 建档（同 domain+platform+handle 大小写不敏感 upsert，返回账号）。
+    @discardableResult
+    func saveAccount(domain: OperationDomain, platform: String, handle: String,
+                     url: String? = nil, note: String = "") -> PromotionAccount? {
+        let p = platform.trimmingCharacters(in: .whitespacesAndNewlines)
+        let h = handle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !p.isEmpty, !h.isEmpty else { return nil }
+        let cleanURL = url?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let idx = accounts.firstIndex(where: {
+            $0.domain == domain && $0.platform.lowercased() == p.lowercased()
+                && $0.handle.lowercased() == h.lowercased()
+        }) {
+            accounts[idx].url = (cleanURL?.isEmpty ?? true) ? accounts[idx].url : cleanURL
+            if !note.isEmpty { accounts[idx].note = note }
+            persistAccounts()
+            return accounts[idx]
+        }
+        let account = PromotionAccount(domain: domain, platform: p, handle: h,
+                                       url: (cleanURL?.isEmpty ?? true) ? nil : cleanURL,
+                                       note: note)
+        accounts.append(account)
+        persistAccounts()
+        return account
+    }
+
+    /// 账号数据回收：id / handle / url 定位，追加一条快照。
+    @discardableResult
+    func recordAccountMetrics(idOrHandle: String, followers: Int?, views: Int?,
+                              likes: Int?) -> PromotionAccount? {
+        let trimmed = idOrHandle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let idx: Int?
+        if let uuid = UUID(uuidString: trimmed) {
+            idx = accounts.firstIndex { $0.id == uuid }
+        } else {
+            let q = trimmed.lowercased()
+            idx = accounts.firstIndex { $0.handle.lowercased() == q || $0.url == trimmed }
+        }
+        guard let idx else { return nil }
+        accounts[idx].snapshots.append(PromotionAccount.Snapshot(
+            at: Date(), followers: followers, views: views, likes: likes))
+        persistAccounts()
+        return accounts[idx]
+    }
+
+    func removeAccount(_ id: UUID) {
+        accounts.removeAll { $0.id == id }
+        persistAccounts()
+    }
+
+    // MARK: - 经验（持续学习）
+
+    /// 记一条经验。完全重复（归一化后相同）直接跳过；返回 nil 表示重复。
+    @discardableResult
+    func addLesson(text: String, domain: OperationDomain? = nil, platform: String? = nil,
+                   source: PromotionLesson.Source = .agent) -> PromotionLesson? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let normalized = Self.normalizeLesson(trimmed)
+        if lessons.contains(where: { Self.normalizeLesson($0.text) == normalized }) { return nil }
+        let cleanPlatform = platform?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lesson = PromotionLesson(
+            text: trimmed, domain: domain,
+            platform: (cleanPlatform?.isEmpty ?? true) ? nil : cleanPlatform,
+            source: source)
+        lessons.append(lesson)
+        persistLessons()
+        return lesson
+    }
+
+    func removeLesson(_ id: UUID) {
+        lessons.removeAll { $0.id == id }
+        persistLessons()
+    }
+
+    /// 归一化（去空白/标点、小写）——查重口径与记忆系统同思路。
+    static func normalizeLesson(_ text: String) -> String {
+        text.lowercased().filter { !$0.isWhitespace && !$0.isPunctuation }
+    }
+
     // MARK: - 派生与摘要
 
     func digest() -> String {
-        PromotionSummary.digest(goals: goals, posts: posts)
+        PromotionSummary.digest(goals: goals, posts: posts, accounts: accounts, lessons: lessons)
     }
 
     var outstandingDraftCount: Int {
@@ -159,4 +256,6 @@ final class PromotionStore: ObservableObject {
 
     private func persistGoals() { DiskStore.save(goals, key: Self.goalsKey) }
     private func persistPosts() { DiskStore.save(posts, key: Self.postsKey) }
+    private func persistAccounts() { DiskStore.save(accounts, key: Self.accountsKey) }
+    private func persistLessons() { DiskStore.save(lessons, key: Self.lessonsKey) }
 }

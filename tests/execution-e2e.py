@@ -44,6 +44,8 @@ DRAG_HTML = """<!DOCTYPE html><html><head><meta charset="utf-8"><title>muscle fi
 <label style="display:block;margin-top:16px;"><input type="checkbox" id="agree"> 同意条款</label>
 <div role="switch" id="sw" aria-checked="false" tabindex="0">开关</div>
 <div id="shost" style="margin-top:16px;"></div>
+<a id="dl" href="/dl/muscle-dl.txt" download="muscle-dl.txt"
+   style="display:inline-block;margin-top:16px;padding:8px 14px;background:#333;color:#fff;border-radius:6px;">下载文件</a>
 <script>
 window.__log = [];
 var dragging = false;
@@ -65,17 +67,43 @@ sr.innerHTML = '<style>.x{color:#c03a1a}</style>' +
   '<div id="stxt">影子文案出现啦</div>';
 sr.getElementById('sbtn').addEventListener('click', function () { window.__log.push('shadow-click'); });
 sr.getElementById('scb').addEventListener('click', function () { window.__log.push('shadow-check:' + this.checked); });
+try {
+  localStorage.setItem('muscle-ls', 'ls-value-1');
+  sessionStorage.setItem('muscle-ss', 'ss-value');
+  document.cookie = 'muscle-cookie=1; path=/';
+} catch (e) {}
 </script>
 </body></html>
 """
 
 
 class TinyAPI(BaseHTTPRequestHandler):
-    """httpRequest 工具的靶子：GET /hello → JSON。"""
+    """fixture 页 + 靶子：GET /fixture → drag.html，/dl → 附件，/hello → JSON。
+
+    fixture 走 http 同源：file:// 页面上 `download` 属性不生效（跨源被忽略），
+    点击会变成导航、把页面状态（window.__log）清掉——同源后下载不换页。"""
+    html = ""
     def log_message(self, *a):
         pass
 
     def do_GET(self):
+        if self.path.startswith("/fixture"):
+            payload = self.html.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+        if self.path.startswith("/dl"):
+            payload = b"muscle-download-ok"
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Disposition", 'attachment; filename="muscle-dl.txt"')
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
         payload = json.dumps({"ok": True, "msg": "muscle-http"}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
@@ -159,12 +187,21 @@ class Fake(BaseHTTPRequestHandler):
                 call(13, "setChecked", {"text": "影子勾选", "checked": True}),
                 call(14, "fill", {"selector": "#sinput", "value": "shadow-fill-ok"}),
                 call(15, "waitForText", {"text": "影子文案出现啦"}),
+                call(16, "waitForSelector", {"selector": "#sinput"}),
+                call(17, "readPageStorage", {"what": "localStorage"}),
+                call(18, "notify", {"title": "肌肉测试", "body": "通知通道验证", "urgent": False}),
+                call(19, "copyImageToClipboard", {"path": f"{self.fix}/probe.png"}),
+                # 同源 http 页上 download 属性生效：受信点击 #dl 触发真下载、
+                # 不换页（后续还要读 window.__log）。
+                call(20, "click", {"selector": "#dl"}),
+                call(21, "readPageStorage", {"what": "cookies"}),
             ]}, "tool_calls")
-        elif n == 17:
+        elif n == 23:
             sse(self.wfile, model, {"role": "assistant", "tool_calls": [
-                call(0, "exportPageAsPDF", {"path": f"{self.fix}/page.pdf"}),
-                call(1, "executeJS", {"code": "JSON.stringify(window.__log || [])"})]}, "tool_calls")
-        elif n == 19:
+                call(0, "waitForDownload", {"filenameContains": "muscle-dl", "timeoutSec": 60}),
+                call(1, "exportPageAsPDF", {"path": f"{self.fix}/page.pdf"}),
+                call(2, "executeJS", {"code": "JSON.stringify(window.__log || [])"})]}, "tool_calls")
+        elif n == 26:
             sse(self.wfile, model, {"role": "assistant", "tool_calls": [
                 call(0, "readPdf", {"path": f"{self.fix}/page.pdf"})]}, "tool_calls")
         else:
@@ -183,6 +220,7 @@ def main():
     shutil.copy(FIXTURE_ASSETS / "probe.png", fix_dir / "probe.png")
     shutil.copy(FIXTURE_ASSETS / "probe.pdf", fix_dir / "probe.pdf")
     Fake.fix = str(fix_dir)
+    TinyAPI.html = DRAG_HTML
 
     server = ThreadingHTTPServer(("127.0.0.1", FAKE_PORT), Fake)
     threading.Thread(target=server.serve_forever, daemon=True).start()
@@ -213,7 +251,7 @@ def main():
 
     try:
         # 独立前台标签装 fixture（/new-tab 用 activeTabManager；新标签即被选中）。
-        bridge("POST", "/new-tab", {"url": f"file://{fix_dir}/drag.html"})
+        bridge("POST", "/new-tab", {"url": f"http://127.0.0.1:{API_PORT}/fixture"})
         time.sleep(1.5)
         bridge("POST", "/agent/new", {})
         before = {m.get("id") for m in bridge("GET", "/agent/messages").get("messages", [])}
@@ -248,7 +286,7 @@ def main():
             checks.append((name, bool(cond)))
             print(("✓" if cond else "✗"), name)
 
-        ok("导航到 fixture", "drag.html" in joined)
+        ok("导航到 fixture", "/fixture" in joined)
         ok("右键触发 contextmenu", "contextmenu" in joined)
         ok("双击触发 dblclick", "dblclick" in joined)
         ok("拖拽 down/move/up 序列", ("drag-down" in joined and "drag-move" in joined and "drag-up" in joined))
@@ -270,6 +308,13 @@ def main():
         ok("selector deep fill（shadow 输入框）", "Filled" in joined)
         ok("waitForText 穿透 shadow", "Found text" in joined)
         ok("快照包含 shadow 元素", "影子按钮" in joined and "影子输入框" in joined)
+        ok("waitForSelector 深穿透", "Found element" in joined)
+        ok("readPageStorage 列键", "muscle-ls" in joined and "muscle-cookie" in joined)
+        ok("notify 走通知策略", ("Notification delivered" in joined or "held by policy" in joined))
+        ok("copyImageToClipboard", "Image copied to clipboard" in joined)
+        ok("waitForDownload 确认完成", "Download completed: muscle-dl" in joined)
+        dl_file = Path.home() / "Downloads" / "muscle-dl.txt"
+        ok("下载文件真实落盘", dl_file.exists() and "muscle-download-ok" in dl_file.read_text(errors="ignore"))
         notes = (fix_dir / "notes.txt").read_text()
         ok("文件实际已改", ("NEW_TOKEN" in notes) and ("OLD_TOKEN" not in notes))
         assert all(c for _, c in checks), "存在失败项"
@@ -299,6 +344,10 @@ def main():
         deleted = bridge("POST", "/ai/profiles/delete", {"id": temp_id})
         print("临时档案已删:", deleted.get("ok", deleted))
         print("原档案已恢复:", original_active[:8])
+        try:
+            (Path.home() / "Downloads" / "muscle-dl.txt").unlink(missing_ok=True)
+        except Exception:
+            pass
         import shutil
         shutil.rmtree(fix_dir, ignore_errors=True)
         server.shutdown()

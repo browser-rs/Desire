@@ -1987,6 +1987,13 @@ try {
             }
 
             Log.agent.debug("decidePolicy: \(url.absoluteString, privacy: .public) scheme=\(url.scheme ?? "nil", privacy: .public) type=\(navigationAction.navigationType.rawValue) targetFrame=\(navigationAction.targetFrame != nil)")
+            // 下载属性（<a download> / blob 另存）：WebKit 把意图标在
+            // shouldPerformDownload 上——不接就会"点了下载按钮却把文件当页面
+            // 打开"（2026-10-14 E2E 实测）。交给 WKDownload 链（DownloadStore）。
+            if navigationAction.shouldPerformDownload {
+                decisionHandler(.download)
+                return
+            }
             if let scheme = url.scheme?.lowercased(), !Self.internalSchemes.contains(scheme) {
                 // Custom application scheme (tg://, spotify://, zoommtg://,
                 // vscode:// …) — hand it to the OS so the registered desktop
@@ -2199,6 +2206,16 @@ try {
                 parent.state.presentPDFViewer(for: url, suggestedName:
                     navigationResponse.response.suggestedFilename ?? url.lastPathComponent)
                 decisionHandler(.cancel)
+                return
+            }
+            // Content-Disposition: attachment（服务端让浏览器"存而别开"）——
+            // 可展示的 MIME 也得下载；高危类型仍由下面的 !canShowMIMEType 分支
+            // 走确认条（attachment + 可展示类型不会是安装器/镜像）。
+            if navigationResponse.isForMainFrame,
+               let attachmentHTTP = navigationResponse.response as? HTTPURLResponse,
+               let disposition = attachmentHTTP.value(forHTTPHeaderField: "Content-Disposition"),
+               disposition.lowercased().hasPrefix("attachment") {
+                decisionHandler(.download)
                 return
             }
             if !navigationResponse.canShowMIMEType {
@@ -2537,6 +2554,18 @@ try {
         }
 
         func webView(_ webView: WKWebView, navigationResponse: WKNavigationResponse, didBecome download: WKDownload) {
+            adoptWebDownload(download)
+        }
+
+        /// 属性型下载（<a download> / shouldPerformDownload）走 action 侧回调；
+        /// response 侧（附件头/不可展示类型）走上面那个——**两处都得接**：
+        /// WebKit 找不到 delegate 就没人给 destination，下载 3ms 内失败删档
+        ///（2026-10-14 E2E 实测，见 decidePolicyFor navigationAction 的 .download）。
+        func webView(_ webView: WKWebView, navigationAction: WKNavigationAction, didBecome download: WKDownload) {
+            adoptWebDownload(download)
+        }
+
+        private func adoptWebDownload(_ download: WKDownload) {
             download.delegate = self
             // 主框架导航转下载时 WebKit 会以 frame-load-interrupted 收尾这次
             // 导航——那是下载的正常形态，不是页面错误。置 suppress 让随后的

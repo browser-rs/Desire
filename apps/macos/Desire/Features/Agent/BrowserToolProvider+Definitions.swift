@@ -705,6 +705,47 @@ extension BrowserToolProvider {
                 ], required: ["url"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "waitForSelector",
+                description: "Wait until a selector appears on the page (deep-piercing: open shadow DOM and same-origin iframes count). Prefer this over blind waits before filling forms / clicking controls in dynamically rendered views. Returns Found element / Timeout message.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "selector": AgentJSONSchemaValue(type: "string", description: "CSS selector to wait for"),
+                    "timeoutSec": AgentJSONSchemaValue(type: "number", description: "Timeout in seconds (default 8)"),
+                ], required: ["selector"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "waitForDownload",
+                description: "Wait for a download to reach a terminal state — the 'download it and confirm' primitive. Optionally match a filename substring; returns the final filename, size and saved path (or failure/pause/timeout). Downloads can also be paused/resumed from the downloads panel.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "filenameContains": AgentJSONSchemaValue(type: "string", description: "Match only downloads whose filename contains this (case-insensitive)"),
+                    "timeoutSec": AgentJSONSchemaValue(type: "number", description: "Timeout in seconds (default 120, max 600)"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "notify",
+                description: "Push a macOS notification to the user (for long jobs finishing, findings, reminders). Goes through the notification policy: urgent = delivered immediately; routine (default) = respects quiet hours and the daily routine budget, overflow merges into one digest. Returns whether it was delivered now or held.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "title": AgentJSONSchemaValue(type: "string", description: "Notification title"),
+                    "body": AgentJSONSchemaValue(type: "string", description: "Notification body (keep it short)"),
+                    "urgent": AgentJSONSchemaValue(type: "boolean", description: "true = bypass quiet hours/budget (use sparingly)"),
+                ], required: ["title"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "readPageStorage",
+                description: "Inventory the site's client storage: localStorage / sessionStorage / JS-visible cookies. Default lists KEY NAMES with value lengths only (values can carry tokens — pass key to read one specific value explicitly). httpOnly cookies are invisible to page scripts and noted as such. READ = debugging auth state, drafts, feature flags.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "what": AgentJSONSchemaValue(type: "string", description: "localStorage (default) | sessionStorage | cookies"),
+                    "key": AgentJSONSchemaValue(type: "string", description: "Show this one key's value (capped at 2000 chars)"),
+                    "maxItems": AgentJSONSchemaValue(type: "number", description: "Max keys listed (default 60)"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "copyImageToClipboard",
+                description: "Copy an image FILE to the system clipboard so the user can paste it anywhere (⌘V) — charts, screenshots, whiteboard exports, QR codes.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Image file path (workspace / user folders)"),
+                ], required: ["path"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "ocrImage",
                 description: "Extract text from an image file with on-device OCR (Apple Vision — local, no network): screenshots, receipts, posters, charts, chat captures. Chinese + English. Pair with the screenshot tool to read what is on screen.",
                 parameters: AgentJSONSchema(type: "object", properties: [

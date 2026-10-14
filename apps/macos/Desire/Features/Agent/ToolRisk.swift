@@ -82,7 +82,7 @@ enum ToolRisk: Int, Comparable {
         // 运营工作台简报/周报（只读；promotionSave/Metrics/Lesson 写本地状态走默认 sideEffect）
         "promotionBrief", "promotionReport", "promotionPreflight",
         // Waiting / timing (pure observation)
-        "waitForText",
+        "waitForText", "waitForSelector", "waitForDownload",
         // Skills (read-only instruction loading)
         "useSkill", "listSkills",
         // Scheduled task inspection (creation/cancel stays side-effect)

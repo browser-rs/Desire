@@ -819,6 +819,72 @@ async function __desireWaitForText({text, timeout}) {
     });
 }
 
+// 等选择器出现（深穿透：shadow / 同源 iframe 都算）——动态渲染表单/列表
+// 的"先等元素再动手"。超时返回文案而不是抛错（工具层原样带回）。
+async function __desireWaitForSelector({selector, timeout}) {
+    timeout = timeout || 8000;
+    var start = Date.now();
+    return await new Promise(function (resolve) {
+        function check() {
+            if (!selector) return resolve("No selector given");
+            var hits = __desireDeepQSA(selector);
+            if (hits.length > 0) return resolve("Found element");
+            if (Date.now() - start > timeout) return resolve("Timeout waiting for element");
+            setTimeout(check, 250);
+        }
+        check();
+    });
+}
+
+// 站点存储盘点：localStorage / sessionStorage / JS 可见 cookies。
+// 默认只列**键名与长度**（值可能含令牌——要看某个键的值就显式传 key）；
+// httpOnly cookie 对 JS 不可见，返回里注明。
+async function __desireReadStorage({what, key, maxItems}) {
+    what = what || "localStorage";
+    maxItems = maxItems || 60;
+    key = String(key || "").trim();
+    var store = null;
+    if (what === "localstorage" || what === "localStorage") store = window.localStorage;
+    else if (what === "sessionstorage" || what === "sessionStorage") store = window.sessionStorage;
+    if (store) {
+        var label = store === window.localStorage ? "localStorage" : "sessionStorage";
+        if (key) {
+            var v = store.getItem(key);
+            if (v === null) return "No such key in " + label + ": " + key;
+            return key + " = " + (v.length > 2000 ? v.substring(0, 2000) + "…" : v);
+        }
+        var names = [];
+        for (var i = 0; i < store.length && names.length < maxItems; i++) {
+            var k = store.key(i);
+            var val = store.getItem(k) || "";
+            names.push(k + " (" + val.length + " chars)");
+        }
+        return label + ": " + store.length + " key(s)" + (names.length ? "\n- " + names.join("\n- ") : "");
+    }
+    if (what === "cookies" || what === "cookie") {
+        var raw = document.cookie || "";
+        var parts = raw ? raw.split("; ") : [];
+        if (key) {
+            for (var c = 0; c < parts.length; c++) {
+                var eq = parts[c].indexOf("=");
+                if (eq > 0 && parts[c].substring(0, eq) === key) {
+                    return key + " = " + parts[c].substring(eq + 1);
+                }
+            }
+            return "No JS-visible cookie named " + key + " (httpOnly cookies are invisible here)";
+        }
+        var out = [];
+        for (var c2 = 0; c2 < parts.length && out.length < maxItems; c2++) {
+            var eq2 = parts[c2].indexOf("=");
+            out.push(eq2 > 0 ? parts[c2].substring(0, eq2) + " (" + (parts[c2].length - eq2 - 1) + " chars)" : parts[c2]);
+        }
+        return "cookies (JS-visible): " + parts.length +
+            (out.length ? "\n- " + out.join("\n- ") : "") +
+            "\n(httpOnly cookies are not visible to page scripts)";
+    }
+    return "Unknown storage type: " + what + " (use localStorage / sessionStorage / cookies)";
+}
+
 // Extract every visible form field with its identity (name/id/placeholder/
 // label) and — for <select> — the first options. Fields get data-desire-ref
 // ids so fill {ref} targets them directly. Use before fillForm-style work.

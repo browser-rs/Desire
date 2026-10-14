@@ -1972,6 +1972,83 @@ extension BrowserToolProvider {
             }
             return await SyntheticInput.type(text, in: webView)
 
+        case "waitForSelector":
+            guard let waitSelector = args["selector"] as? String, !waitSelector.isEmpty else {
+                return Self.fail("Missing selector")
+            }
+            let selectorTimeout = ((args["timeoutSec"] as? Int) ?? 8) * 1000
+            return await callAsync(webView, function: "__desireWaitForSelector",
+                                   args: ["selector": waitSelector, "timeout": selectorTimeout])
+
+        case "waitForDownload":
+            // "下载并确认"原语：按文件名片段找最近的匹配下载，轮询到终态。
+            let downloadFilter = ((args["filenameContains"] as? String) ?? "").lowercased()
+            let downloadTimeout = min(600, max(10, (args["timeoutSec"] as? Int) ?? 120))
+            let downloadDeadline = Date().addingTimeInterval(TimeInterval(downloadTimeout))
+            while Date() < downloadDeadline {
+                let matches = surface.downloadStore.downloads.filter {
+                    downloadFilter.isEmpty || $0.filename.lowercased().contains(downloadFilter)
+                }
+                if let item = matches.last {
+                    switch item.state {
+                    case .completed:
+                        let size = ByteCountFormatter.string(
+                            fromByteCount: item.totalBytes > 0 ? item.totalBytes : item.downloadedBytes,
+                            countStyle: .file)
+                        let pathNote = item.fileURL.map { " → \($0.path)" } ?? ""
+                        return "Download completed: \(item.filename) (\(size))\(pathNote)"
+                    case .failed:
+                        return "Download failed: \(item.filename) — retry from its source page"
+                    case .paused:
+                        return "Download paused: \(item.filename) — resume it first (downloads panel or POST /downloads/resume)"
+                    case .inProgress:
+                        break
+                    }
+                }
+                try? await Task.sleep(for: .milliseconds(500))
+            }
+            let waitWhat = downloadFilter.isEmpty ? "any download" : "'\(downloadFilter)'"
+            return "Timeout after \(downloadTimeout)s waiting for \(waitWhat) — still in progress? Check listDownloads."
+
+        case "notify":
+            guard let notifyTitle = args["title"] as? String, !notifyTitle.isEmpty else {
+                return Self.fail("Missing title")
+            }
+            let notifyBody = (args["body"] as? String) ?? ""
+            let urgent = (args["urgent"] as? Bool) ?? false
+            let notificationStore = ProactiveNotificationStore.shared
+            let heldBefore = notificationStore.heldLines.count
+            notificationStore.deliver(title: notifyTitle, body: notifyBody,
+                                      tier: urgent ? .urgent : .routine)
+            if notificationStore.heldLines.count > heldBefore {
+                return "Notification held by policy (quiet hours / daily routine budget) — it will ride the next digest"
+            }
+            return urgent ? "Urgent notification delivered" : "Notification delivered"
+
+        case "readPageStorage":
+            let storageKind = ((args["what"] as? String) ?? "localStorage")
+            let storageKey = (args["key"] as? String) ?? ""
+            let storageMax = min(200, max(5, (args["maxItems"] as? Int) ?? 60))
+            return await callAsync(webView, function: "__desireReadStorage",
+                                   args: ["what": storageKind, "key": storageKey, "maxItems": storageMax])
+
+        case "copyImageToClipboard":
+            guard let imagePath = args["path"] as? String, !imagePath.isEmpty else {
+                return Self.fail("Missing path")
+            }
+            switch AgentWorkspace.shared.resolve(imagePath, write: false) {
+            case .denied(let reason):
+                return reason
+            case .granted(let fileURL):
+                guard let image = NSImage(contentsOf: fileURL) else {
+                    return Self.fail("Not a readable image: \(fileURL.path)")
+                }
+                let pasteboard = NSPasteboard.general
+                pasteboard.clearContents()
+                pasteboard.writeObjects([image])
+                return "Image copied to clipboard (\(fileURL.lastPathComponent)) — paste anywhere with ⌘V"
+            }
+
         case "waitForText":
             // Wait until visible text appears (e.g. search results render).
             guard let text = args["text"] as? String, !text.isEmpty else { return Self.fail("Missing text") }

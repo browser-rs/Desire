@@ -2096,9 +2096,11 @@ func testSlashParsing() {
     check("slash：未知命令不拦", AgentSlashParsing.parse("/usr/bin 就是路径") == nil)
     check("slash：裸斜杠不拦", AgentSlashParsing.parse("/") == nil)
     check("slash：非 slash 不拦", AgentSlashParsing.parse("帮我查 /etc/hosts 配置") == nil)
-    check("slash：known 含全部 22 命令", AgentSlashParsing.known.count == 22)
+    check("slash：known 含全部 23 命令", AgentSlashParsing.known.count == 23)
     check("slash：/model 解析", AgentSlashParsing.parse("/model amd")?.argument == "amd")
     check("slash：/persona off 解析", AgentSlashParsing.parse("/persona off")?.argument == "off")
+    check("slash：/promote 无参数", AgentSlashParsing.parse("/promote")?.command == "promote" && AgentSlashParsing.parse("/promote")?.argument.isEmpty == true)
+    check("slash：/promote 带目标", AgentSlashParsing.parse("/promote 新版本宣传")?.argument == "新版本宣传")
     check("slash：/skills 解析", AgentSlashParsing.parse("/skills")?.command == "skills")
     check("slash：/access 带档位", AgentSlashParsing.parse("/access full")?.command == "access" && AgentSlashParsing.parse("/access full")?.argument == "full")
     check("slash：/directive 带文本", AgentSlashParsing.parse("/directive 用英文回答")?.argument == "用英文回答")
@@ -2299,6 +2301,66 @@ func testSearchEverywhere() {
     check("search：大小写不敏感", SearchEverywhere.search("GITHUB", items: items).totalCount >= 2)
 }
 testSearchEverywhere()
+
+// ---------- 自推广工作台（PromotionSummary 纯派生逻辑） ----------
+
+func testPromotionSummary() {
+    let t0 = Date(timeIntervalSince1970: 1_700_000_000)
+    let goal = PromotionGoal(title: "v0.7.15 发布宣传", platforms: ["掘金", "V2EX"],
+                             targetPosts: 2,
+                             dueDate: t0.addingTimeInterval(86_400))
+    let paused = PromotionGoal(title: "旧目标", isActive: false)
+    let published = PromotionPost(goalID: goal.id, platform: "掘金", title: "DPP 介绍",
+                                  body: "…", status: .published,
+                                  publishedAt: t0, createdAt: t0)
+    let published2 = PromotionPost(goalID: goal.id, platform: "V2EX", title: "第二篇",
+                                   body: "…", status: .published,
+                                   publishedAt: t0, createdAt: t0)
+    let draftNew = PromotionPost(goalID: goal.id, platform: "V2EX", title: "新草稿",
+                                 body: "…", status: .draft,
+                                 createdAt: t0.addingTimeInterval(7200))
+    let draftOld = PromotionPost(goalID: goal.id, platform: "掘金", title: "旧草稿",
+                                 body: "…", status: .draft,
+                                 createdAt: t0.addingTimeInterval(3600))
+
+    let progress = PromotionSummary.progress(
+        goals: [goal, paused], posts: [published, draftNew, draftOld], now: t0)
+    check("promotion：进度只含进行中目标", progress.count == 1)
+    eq("promotion：已发计数", progress.first?.publishedCount ?? -1, 1)
+    eq("promotion：草稿计数", progress.first?.draftCount ?? -1, 2)
+    check("promotion：未达标不完成", progress.first?.isComplete == false)
+    check("promotion：截止未过不过期", progress.first?.isOverdue == false)
+
+    // 截止已过：未达标 = 过期；达标 = 完成且不算过期。
+    let overdueNow = t0.addingTimeInterval(3 * 86_400)
+    let overdue = PromotionSummary.progress(goals: [goal], posts: [published], now: overdueNow)
+    check("promotion：逾期未达标标记过期", overdue.first?.isOverdue == true)
+    let done = PromotionSummary.progress(
+        goals: [goal], posts: [published, published2], now: overdueNow)
+    check("promotion：达标即完成", done.first?.isComplete == true)
+    check("promotion：完成后不再标过期", done.first?.isOverdue == false)
+
+    // 草稿队列新在前；平台/标题原样带出。
+    let drafts = PromotionSummary.outstandingDrafts(posts: [published, draftOld, draftNew])
+    check("promotion：草稿只含 draft 且新在前", drafts.count == 2 && drafts.first?.title == "新草稿")
+
+    // 近期已发按发布时间倒序取前 N。
+    let older = PromotionPost(goalID: goal.id, platform: "掘金", title: "旧帖", body: "…",
+                              status: .published, publishedAt: t0, createdAt: t0)
+    let newer = PromotionPost(goalID: goal.id, platform: "掘金", title: "新帖", body: "…",
+                              status: .published,
+                              publishedAt: t0.addingTimeInterval(99), createdAt: t0)
+    let recent = PromotionSummary.recentPublished(posts: [older, newer], limit: 1)
+    check("promotion：近期已发倒序 + 上限", recent.count == 1 && recent.first?.title == "新帖")
+
+    // digest：目标行、草稿行、已发行、空态。
+    let digest = PromotionSummary.digest(goals: [goal], posts: [published, draftNew], now: t0)
+    check("promotion：digest 含目标进度", digest.contains("v0.7.15") && digest.contains("目标 2 条"))
+    check("promotion：digest 含草稿与已发", digest.contains("待发布草稿") && digest.contains("最近已发"))
+    let emptyDigest = PromotionSummary.digest(goals: [], posts: [], now: t0)
+    check("promotion：空工作台提示", emptyDigest.contains("工作台为空"))
+}
+testPromotionSummary()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

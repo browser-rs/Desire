@@ -828,6 +828,35 @@ extension BrowserToolProvider {
                     "index": AgentJSONSchemaValue(type: "number", description: "Cancel only this subtask index (omit = cancel all)"),
                 ])
             )),
+
+            // --- Promotion workbench (self-promotion, 0.7.15) ---
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "promotionBrief",
+                description: "Open the promotion workbench: active goals with progress, drafts awaiting the user's review, recently published posts (avoid duplicate angles), plus the product facts baseline (app version, release page, landing page, repo). READ-ONLY. Recommended flow: call this first; read CHANGELOG.md in the repo (readFile/runCommand) for exact facts; draft per platform; askUser to approve before anything goes out; publish via the site's logged-in UI or a DPP compose action; promotionSave(status=published, url); later revisit the post and promotionMetrics.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "promotionSave",
+                description: "Save a promotion post (draft or published) into the workbench. Call once after drafting (status=draft), and again after the user approves and the post actually goes live (status=published, with url). 'goal' is free text matched against active goal titles. Returns the post id — keep it for promotionMetrics.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "platform": AgentJSONSchemaValue(type: "string", description: "Where it was drafted/posted, e.g. 掘金 / V2EX / Hacker News / 微博"),
+                    "title": AgentJSONSchemaValue(type: "string", description: "Post title"),
+                    "body": AgentJSONSchemaValue(type: "string", description: "Full post text (Markdown ok)"),
+                    "goal": AgentJSONSchemaValue(type: "string", description: "Optional: active goal title (or a distinctive substring) this post serves"),
+                    "status": AgentJSONSchemaValue(type: "string", description: "\"draft\" (default) or \"published\""),
+                    "url": AgentJSONSchemaValue(type: "string", description: "Published URL (fill when status=published)"),
+                ], required: ["platform", "title", "body"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "promotionMetrics",
+                description: "Record engagement metrics (views/likes/comments) for a saved promotion post, identified by its id or published URL. Call after visiting the live post page (via its DPP adapter view or getPageText).",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "idOrURL": AgentJSONSchemaValue(type: "string", description: "Post id returned by promotionSave, or the published URL"),
+                    "views": AgentJSONSchemaValue(type: "number", description: "View count"),
+                    "likes": AgentJSONSchemaValue(type: "number", description: "Like count"),
+                    "comments": AgentJSONSchemaValue(type: "number", description: "Comment count"),
+                ], required: ["idOrURL"])
+            )),
                 ]
     }()
 

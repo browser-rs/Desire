@@ -14,6 +14,8 @@ struct AgentWindowSidebar: View {
     /// 目的地徽标的数据源（任务/技能计数）。
     @ObservedObject private var scheduler = AgentScheduler.shared
     @ObservedObject private var skillStore = SkillStore.shared
+    /// 推广徽标 = 待发布草稿数（行动项）。
+    @ObservedObject private var promotionStore = PromotionStore.shared
     var onNewChat: () -> Void
     /// 从侧栏点会话时把右栏带回聊天列。
     var onActivateChat: () -> Void
@@ -73,6 +75,10 @@ struct AgentWindowSidebar: View {
                            label: String(localized: "Capabilities"))
             destinationRow(.doctor, icon: "stethoscope",
                            label: String(localized: "Doctor"))
+            destinationRow(.promotion, icon: "megaphone",
+                           label: String(localized: "Promotion"),
+                           badge: promotionStore.outstandingDraftCount == 0
+                               ? nil : "\(promotionStore.outstandingDraftCount)")
         }
         .padding(.horizontal, 8)
         .padding(.top, 2)

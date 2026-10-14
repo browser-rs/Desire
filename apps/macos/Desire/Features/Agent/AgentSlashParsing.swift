@@ -17,6 +17,8 @@ nonisolated enum AgentSlashParsing {
         // 2026-10-10 二批：访问等级 / 会话指令 / 定时任务 / 工具清单 / MCP /
         // 重命名 / 重试 / 导出。
         "access", "directive", "tasks", "tools", "mcp", "title", "retry", "export",
+        // 2026-10-14 三批：自推广工作台（无参 = 状态摘要；带参 = 新建目标）。
+        "promote",
     ]
 
     /// 命令一句话说明（/help 输出与输入框候选菜单同源，防漂移）。
@@ -43,6 +45,7 @@ nonisolated enum AgentSlashParsing {
         "title": String(localized: "rename this conversation: /title <新标题>"),
         "retry": String(localized: "re-run the last answer"),
         "export": String(localized: "save this conversation as a Markdown file"),
+        "promote": String(localized: "promotion workbench: goals, drafts, published posts — /promote <goal> adds a goal"),
     ]
 
     static func parse(_ text: String) -> Parsed? {

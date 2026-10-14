@@ -578,6 +578,12 @@ final class AutomationServer {
         ep("POST", "/mcp/remove", "Remove an MCP server by name", params: ["name:string"], example: #"-d '{"name":"local"}'"#)
         ep("GET", "/protocol/inspect", "Inspect the DPP protocol of the current page (views/signals/actions/context/warnings)", params: [], example: "…/protocol/inspect")
         ep("GET", "/search/everything", "Unified search across open tabs / history / bookmarks / reading list (Search Everywhere panel query)", params: ["q:string"], example: "…/search/everything?q=github")
+        ep("GET", "/promotion/state", "Promotion workbench: goals, posts (draft/published), progress, digest (shared with the agent's promotionBrief tool)", example: "…/promotion/state")
+        ep("POST", "/promotion/goal", "Add a promotion goal", params: ["title:string", "objective?:string", "platforms?:array", "targetPosts?:int", "dueDate?:string(yyyy-MM-dd|ISO8601)"], example: #"-d '{"title":"v0.7.15 发布宣传","platforms":["掘金"],"targetPosts":2}'"#)
+        ep("POST", "/promotion/goal/remove", "Remove a promotion goal by id (posts keep their history, link cleared)", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
+        ep("POST", "/promotion/post", "Save a promotion post (draft or published) — same semantics as the agent's promotionSave tool", params: ["platform:string", "title:string", "body:string", "status?:draft|published", "url?:string", "goal?:string"], example: #"-d '{"platform":"掘金","title":"…","body":"…","status":"draft"}'"#)
+        ep("POST", "/promotion/metrics", "Record engagement metrics for a post by id or published URL", params: ["idOrURL:string", "views?:int", "likes?:int", "comments?:int"], example: #"-d '{"idOrURL":"https://…","views":320,"likes":12}'"#)
+        ep("POST", "/promotion/post/remove", "Remove a promotion post by id", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("GET", "/page/extract", "Run the agent's pageExtract tool against the selected tab (same implementation, read-only)", params: ["view:string", "all?:bool"], example: "…/page/extract?view=stories")
         ep("POST", "/page/dpp-action", "Run a declared DPP action via the agent toolchain — local-effect actions only (persist/outbound go through the agent approval loop)", params: ["name:string", "args?:object"], example: #"-d '{"name":"fill-article-title","args":{"title":"hi"}}'"#)
         ep("GET", "/dpp/modes", "Per-site DPP event automation modes (off/draft/auto)", example: "…/dpp/modes")
@@ -968,6 +974,20 @@ final class AutomationServer {
                 }
             }
             return try Self.json(["q": q, "results": items])
+
+            // ── 自推广工作台（0.7.15）─────────────────────────────
+            case ("GET", "/promotion/state"):
+                return try Self.json(Self.promotionState())
+            case ("POST", "/promotion/goal"):
+                return try Self.json(Self.promotionGoalAdd(body))
+            case ("POST", "/promotion/goal/remove"):
+                return try Self.json(Self.promotionGoalRemove(body))
+            case ("POST", "/promotion/post"):
+                return try Self.json(Self.promotionPostSave(body))
+            case ("POST", "/promotion/metrics"):
+                return try Self.json(Self.promotionMetricsSave(body))
+            case ("POST", "/promotion/post/remove"):
+                return try Self.json(Self.promotionPostRemove(body))
 
             case ("GET", "/protocol/inspect"):
                 // index? 指定标签（多窗口下 deliveryTarget 的窗口未必是
@@ -4583,6 +4603,135 @@ final class AutomationServer {
         }
         for rule in doomed { app.elementBlockStore.remove(id: rule.id) }
         return ["ok": true, "removed": doomed.count, "total": app.elementBlockStore.rules.count]
+    }
+
+    // MARK: - 自推广工作台（0.7.15；与 Agent 工具、slash /promote 同源）
+
+    private static func promotionState() -> [String: Any] {
+        let store = PromotionStore.shared
+        let progress = PromotionSummary.progress(goals: store.goals, posts: store.posts)
+        return [
+            "goals": store.goals.map { goalJSON($0) },
+            "posts": store.posts.map { postJSON($0) },
+            "progress": progress.map { p -> [String: Any] in
+                [
+                    "goalID": p.goalID.uuidString, "title": p.title,
+                    "published": p.publishedCount, "drafts": p.draftCount,
+                    "target": p.target ?? 0, "isComplete": p.isComplete,
+                    "isOverdue": p.isOverdue,
+                ]
+            },
+            "digest": store.digest(),
+        ]
+    }
+
+    private static func promotionGoalAdd(_ body: [String: Any]) -> [String: Any] {
+        guard let title = string(body, "title"), !title.isEmpty else { return ["error": "missing title"] }
+        let target = (body["targetPosts"] as? Int) ?? (body["targetPosts"] as? Double).map(Int.init)
+        guard let goal = PromotionStore.shared.addGoal(
+            title: title,
+            objective: string(body, "objective") ?? "",
+            platforms: (body["platforms"] as? [String]) ?? [],
+            targetPosts: target,
+            dueDate: promotionDate(string(body, "dueDate"))) else {
+            return ["error": "title is empty"]
+        }
+        return ["ok": true, "goal": goalJSON(goal)]
+    }
+
+    private static func promotionGoalRemove(_ body: [String: Any]) -> [String: Any] {
+        guard let id = string(body, "id"), let uuid = UUID(uuidString: id) else {
+            return ["error": "missing or invalid id"]
+        }
+        let existed = PromotionStore.shared.goals.contains { $0.id == uuid }
+        PromotionStore.shared.removeGoal(uuid)
+        return ["ok": existed]
+    }
+
+    private static func promotionPostSave(_ body: [String: Any]) -> [String: Any] {
+        guard let platform = string(body, "platform"), !platform.isEmpty else { return ["error": "missing platform"] }
+        guard let title = string(body, "title"), !title.isEmpty else { return ["error": "missing title"] }
+        guard let text = string(body, "body"), !text.isEmpty else { return ["error": "missing body"] }
+        let statusRaw = (string(body, "status") ?? "draft").lowercased()
+        guard let status = PromotionPost.Status(rawValue: statusRaw) else {
+            return ["error": "status must be draft or published"]
+        }
+        let outcome = PromotionStore.shared.savePost(
+            goalText: string(body, "goal"), platform: platform, title: title,
+            body: text, status: status, url: string(body, "url"))
+        var out: [String: Any] = [
+            "ok": true, "id": outcome.post.id.uuidString,
+            "status": outcome.post.status.rawValue, "post": postJSON(outcome.post),
+        ]
+        if let goal = outcome.matchedGoalTitle { out["goalTitle"] = goal }
+        if outcome.goalMissed { out["goalMissed"] = true }
+        return out
+    }
+
+    private static func promotionMetricsSave(_ body: [String: Any]) -> [String: Any] {
+        guard let idOrURL = string(body, "idOrURL"), !idOrURL.isEmpty else {
+            return ["error": "missing idOrURL"]
+        }
+        let views = (body["views"] as? Int) ?? (body["views"] as? Double).map(Int.init)
+        let likes = (body["likes"] as? Int) ?? (body["likes"] as? Double).map(Int.init)
+        let comments = (body["comments"] as? Int) ?? (body["comments"] as? Double).map(Int.init)
+        guard views != nil || likes != nil || comments != nil else {
+            return ["error": "provide at least one of views/likes/comments"]
+        }
+        guard let post = PromotionStore.shared.recordMetrics(
+            idOrURL: idOrURL, views: views, likes: likes, comments: comments) else {
+            return ["error": "no post matches \(idOrURL)"]
+        }
+        return ["ok": true, "post": postJSON(post)]
+    }
+
+    private static func promotionPostRemove(_ body: [String: Any]) -> [String: Any] {
+        guard let id = string(body, "id"), let uuid = UUID(uuidString: id) else {
+            return ["error": "missing or invalid id"]
+        }
+        let existed = PromotionStore.shared.posts.contains { $0.id == uuid }
+        PromotionStore.shared.removePost(uuid)
+        return ["ok": existed]
+    }
+
+    private static func goalJSON(_ goal: PromotionGoal) -> [String: Any] {
+        var out: [String: Any] = [
+            "id": goal.id.uuidString, "title": goal.title, "objective": goal.objective,
+            "platforms": goal.platforms, "isActive": goal.isActive,
+            "createdAt": goal.createdAt.timeIntervalSince1970,
+        ]
+        if let target = goal.targetPosts { out["targetPosts"] = target }
+        if let due = goal.dueDate { out["dueDate"] = due.timeIntervalSince1970 }
+        return out
+    }
+
+    private static func postJSON(_ post: PromotionPost) -> [String: Any] {
+        var out: [String: Any] = [
+            "id": post.id.uuidString, "platform": post.platform, "title": post.title,
+            "status": post.status.rawValue, "createdAt": post.createdAt.timeIntervalSince1970,
+        ]
+        if let goalID = post.goalID { out["goalID"] = goalID.uuidString }
+        if let url = post.url { out["url"] = url }
+        if let published = post.publishedAt { out["publishedAt"] = published.timeIntervalSince1970 }
+        if let m = post.metrics {
+            var metrics: [String: Any] = [:]
+            if let v = m.views { metrics["views"] = v }
+            if let l = m.likes { metrics["likes"] = l }
+            if let c = m.comments { metrics["comments"] = c }
+            if let at = m.collectedAt { metrics["collectedAt"] = at.timeIntervalSince1970 }
+            out["metrics"] = metrics
+        }
+        return out
+    }
+
+    /// dueDate 接受 ISO8601（"2026-11-01T00:00:00Z"）或 "yyyy-MM-dd"。
+    private static func promotionDate(_ raw: String?) -> Date? {
+        guard let raw, !raw.isEmpty else { return nil }
+        if let d = ISO8601DateFormatter().date(from: raw) { return d }
+        let f = DateFormatter()
+        f.dateFormat = "yyyy-MM-dd"
+        f.locale = Locale(identifier: "en_US_POSIX")
+        return f.date(from: raw)
     }
 
     /// 广告候选（给 AI 识别广告用）：跑同一份 `ad-candidates.js`，

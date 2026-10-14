@@ -1987,6 +1987,77 @@ extension BrowserToolProvider {
             guard let sel = args["selector"] as? String else { return Self.fail("Missing selector") }
             return await callAsync(webView, function: "__desireFindElements", args: ["selector": sel])
 
+        // --- Promotion workbench (self-promotion, 0.7.15) ---
+        case "promotionBrief":
+            let promoStore = PromotionStore.shared
+            let promoVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+            let payload: [String: Any] = [
+                "appVersion": promoVersion,
+                "today": PromotionSummary.shortDate(Date()),
+                "links": [
+                    "releases": "https://github.com/browser-rs/Desire/releases/latest",
+                    "landing": "https://desire.mankong.icu/",
+                    "repo": "https://github.com/browser-rs/Desire",
+                ],
+                "digest": promoStore.digest(),
+            ]
+            guard let data = try? JSONSerialization.data(withJSONObject: payload),
+                  let text = String(data: data, encoding: .utf8) else {
+                return Self.fail("Failed to render brief")
+            }
+            return text
+
+        case "promotionSave":
+            guard let platform = args["platform"] as? String, !platform.isEmpty else {
+                return Self.fail("Missing platform")
+            }
+            guard let title = args["title"] as? String, !title.isEmpty else {
+                return Self.fail("Missing title")
+            }
+            guard let promoBody = args["body"] as? String, !promoBody.isEmpty else {
+                return Self.fail("Missing body")
+            }
+            let promoStatusRaw = ((args["status"] as? String) ?? "draft").lowercased()
+            guard let promoStatus = PromotionPost.Status(rawValue: promoStatusRaw) else {
+                return Self.fail("status must be \"draft\" or \"published\"")
+            }
+            let goalText = args["goal"] as? String
+            let saveStore = PromotionStore.shared
+            let outcome = saveStore.savePost(
+                goalText: goalText, platform: platform, title: title, body: promoBody,
+                status: promoStatus, url: args["url"] as? String)
+            var promoLines = ["saved: id=\(outcome.post.id.uuidString) status=\(promoStatus.rawValue) platform=\(platform)"]
+            if let goal = outcome.matchedGoalTitle {
+                promoLines.append("linked to goal: \(goal)")
+            } else if outcome.goalMissed {
+                let titles = saveStore.goals.filter(\.isActive).map(\.title)
+                promoLines.append("goal not matched — active goals: \(titles.isEmpty ? "(none)" : titles.joined(separator: " / "))")
+            }
+            if promoStatus == .published, outcome.post.url == nil {
+                promoLines.append("note: no URL recorded — call promotionMetrics with the URL once known")
+            }
+            return promoLines.joined(separator: "\n")
+
+        case "promotionMetrics":
+            guard let idOrURL = args["idOrURL"] as? String, !idOrURL.isEmpty else {
+                return Self.fail("Missing idOrURL")
+            }
+            let metricViews = (args["views"] as? Int) ?? (args["views"] as? Double).map(Int.init)
+            let metricLikes = (args["likes"] as? Int) ?? (args["likes"] as? Double).map(Int.init)
+            let metricComments = (args["comments"] as? Int) ?? (args["comments"] as? Double).map(Int.init)
+            guard metricViews != nil || metricLikes != nil || metricComments != nil else {
+                return Self.fail("Provide at least one of views/likes/comments")
+            }
+            guard let post = PromotionStore.shared.recordMetrics(
+                idOrURL: idOrURL, views: metricViews, likes: metricLikes, comments: metricComments) else {
+                return "No promotion post matches \(idOrURL) — use the id returned by promotionSave or the exact published URL"
+            }
+            var metricParts: [String] = []
+            if let v = post.metrics?.views { metricParts.append("views \(v)") }
+            if let l = post.metrics?.likes { metricParts.append("likes \(l)") }
+            if let c = post.metrics?.comments { metricParts.append("comments \(c)") }
+            return "metrics updated: [\(post.platform)] \(post.title) — \(metricParts.joined(separator: ", "))"
+
         default:
             return nil
         }

@@ -2,6 +2,8 @@
 ### Added
 
 - **Intel（x86_64）构建随版发布**：release 流程交叉编译 Intel 包，与 arm64 包同传 Release（SHASUMS256.txt 覆盖两种包）；Intel 构建走同一零警告闸门，verify 阶段核对二进制架构、装 Rosetta 的机器顺带启动冒烟；安装说明与产品页补 Intel 下载说明（交叉编译产物，未经真机验证）。
+- **自推广能力**：Agent 按既定目标替 Desire 起草并发布推广内容——推广工作台（目标 / 草稿 / 已发 / 数据回收）三入口同源：Agent 窗口侧栏「推广」页、`/promote` 斜杠命令、桥 `/promotion/*`；配套 `promotionBrief` / `promotionSave` / `promotionMetrics` 三个工具与内置 `promotion` 技能：事实只取 CHANGELOG / 仓库 / 产品页（不虚构数据），发布前必须用户确认（照走审批链），发布后回访帖子页把浏览 / 点赞 / 评论回填工作台。
+
 
 
 ## [v0.7.14] - 2026-10-14

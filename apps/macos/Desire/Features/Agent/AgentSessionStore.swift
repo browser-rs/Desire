@@ -786,6 +786,18 @@ class AgentSessionStore: ObservableObject {
                     self?.appendLocalAssistant(String(localized: "Export failed: \(error.localizedDescription)"))
                 }
             }
+        case "promote":
+            // 自推广工作台（2026-10-14）：无参 = 摘要；带参 = 新建目标。
+            let promotion = PromotionStore.shared
+            if parsed.argument.isEmpty {
+                appendLocalAssistant(String(localized: "Promotion workbench") + "\n" + promotion.digest()
+                    + "\n" + String(localized: "Ask the agent to draft and publish posts; /promote <goal> adds a goal."))
+            } else if let goal = promotion.addGoal(title: parsed.argument) {
+                appendLocalAssistant(String(localized: "Promotion goal added: \(goal.title)")
+                    + "\n" + promotion.digest())
+            } else {
+                appendLocalAssistant(String(localized: "Goal title is empty — /promote <goal>"))
+            }
         default:
             break
         }

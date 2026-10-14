@@ -508,5 +508,38 @@ final class SkillStore: ObservableObject {
         - SPA 站点：路由切换后重查一次，视图要兼容多个路由形态时用多候选。
         - 不确定就参考内置包（juejin/v2ex/cnblogs/hackernews/wikipedia/stackoverflow）。
         """),
+        ("promotion",
+         "自推广：按既定目标为 Desire 起草并发布推广内容（技术社区帖/沸点/短文），发布前必须用户确认，发后记录数据",
+         """
+        ## 何时用
+        用户说「推广/宣传/推销 Desire」「按目标发帖」「给新版本写篇介绍」时。
+
+        ## 流程
+        1. promotionBrief 拿工作台：目标与进度、待审草稿、已发清单（避免重复选题）、
+           版本与链接。没有目标就先 askUser 定一个（标题/平台/条数/截止），
+           /promote <目标> 或推广面板建好再动笔。
+        2. **事实底稿**：用 readFile/runCommand 读仓库 CHANGELOG.md（最新版本段）与
+           docs/，只写查得到的事实——版本号、功能名、链接；产品页
+           desire.mankong.icu 的能力清单可作参考。
+        3. **起草**：按平台改写。技术长文（掘金/博客园）：解决什么问题 → 怎么用 →
+           真实代码片段；社区短帖（V2EX/沸点）：一段话说清 + 链接；英文社区
+           （Hacker News/Reddit）：English, technical angle first, no marketing tone。
+           草稿完整贴给用户看，askUser 确认或按反馈改。
+        4. **发布**（出站不可逆、逐次审批）：用浏览器已登录的会话——有 DPP 适配包
+           走适配动作（如 juejin-compose 的发沸点/写文章），没有就 navigate 到发布页
+           用 fill/click 填标题与正文；提交前把最终稿再给用户过目一眼。
+        5. promotionSave 记录（发布成功 status=published + URL；只有草稿则 status=draft）。
+        6. **数据回收**：隔一段时间回访帖子页（适配包视图或 getPageText 读浏览/点赞/
+           评论数），promotionMetrics 写回，然后对用户汇报进展。
+
+        ## 规则
+        - 事实纪律：只写 CHANGELOG/仓库/产品页里验证过的内容；不虚构数据、
+          不编用户评价、不承诺时间表。
+        - 语气：真诚的技术分享（讲清它解决什么问题），不是广告腔；同一平台
+          避免重复发同一内容；尊重站点版规（别刷屏）。
+        - **发布三步不能省**：起草 → 用户确认 → 提交。persist/outbound 的适配动作
+          每次都会弹审批——这是设计，不是阻碍。
+        - 一帖聚焦一两个功能（先读 CHANGELOG 最新段挑），别罗列全部能力。
+        """),
     ]
 }

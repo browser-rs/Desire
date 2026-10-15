@@ -12,7 +12,8 @@ navigate 到生成的 fixture 页 → waitForText → [右键/双击/拖拽/勾�
 覆盖：rightClick(contextmenu) / doubleClick(dblclick) / drag(down+moves+up) /
 httpRequest（本地靶服务）/ exportPageAsPDF→readPdf（导出物文本层）/
 setChecked（含幂等与读回）/ getPageSnapshot 的 checked 字段 / editFile 实际落盘 /
-ocrImage / readPdf / readDocument(docx) / readSpreadsheet(xlsx/csv，含错类型 Error: 口径)。
+ocrImage / readPdf / readDocument(docx) / readSpreadsheet(xlsx/csv，含错类型 Error: 口径) /
+pinTab+muteTab+setZoom+moveTab（listTabs 状态标记复查）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import json
@@ -157,6 +158,8 @@ def call(idx, name, args):
 
 class Fake(BaseHTTPRequestHandler):
     fix = ""  # 由 main 填（agent workspace 下的 fixture 目录）
+    tab_index = 0   # MUSCLE7：fixture 标签当前位次（main 现查）
+    move_to = 0     # MUSCLE7：moveTab 的目标位次
 
     def log_message(self, *a):
         pass
@@ -215,6 +218,23 @@ class Fake(BaseHTTPRequestHandler):
                     call(0, "readDocument", {"path": f"{self.fix}/quote.xlsx"})]}, "tool_calls")
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE6-DONE"}, "stop")
+            return
+        if "MUSCLE7" in mode:
+            idx = self.tab_index
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "listTabs", {})]}, "tool_calls")
+            elif n == 1:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "pinTab", {"index": idx}),
+                    call(1, "muteTab", {"index": idx}),
+                    call(2, "setZoom", {"percent": 125})]}, "tool_calls")
+            elif n == 4:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "moveTab", {"from": idx, "to": self.move_to}),
+                    call(1, "listTabs", {})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE7-DONE"}, "stop")
             return
         if "MUSCLE4" in mode:
             import datetime as _dt
@@ -604,6 +624,43 @@ def main():
            and "19.9" in xlsx_out and "样品B" in xlsx_out)
         ok("csv 引号字段正确切分", "ACME, Inc." in csv_out and "含逗号, 引号" in csv_out)
         ok("错类型走 Error: 约定并指对工具", wrong_out.startswith("Error:") and "readSpreadsheet" in wrong_out)
+
+        # ── MUSCLE7：标签治理（pin / mute / move / setZoom + listTabs 状态标记）──
+        state7 = bridge("GET", "/state")
+        fixture_idx = next((t.get("index") for t in state7.get("tabs", [])
+                            if "/flaky" in (t.get("url") or "")), None)
+        assert fixture_idx is not None, "找不到 fixture 标签（/flaky）"
+        Fake.tab_index = fixture_idx
+        Fake.move_to = fixture_idx - 1 if fixture_idx > 0 else fixture_idx + 1
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE7 标签治理"})
+        deadline7 = time.time() + 120
+        while time.time() < deadline7:
+            st7 = bridge("GET", "/agent/messages")
+            if not st7.get("busy") and any("MUSCLE7-DONE" in (m.get("content") or "")
+                                           for m in st7.get("messages", [])):
+                break
+            time.sleep(1)
+        time.sleep(1)
+        conv7_id = bridge("GET", "/agent/trace").get("conversation")
+        conv7 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                            / f"conversation-{conv7_id}.json").read_text())
+        tools7 = [m.get("content") or "" for m in conv7.get("messages", []) if m.get("role") == "tool"]
+        baseline = next((l for t in tools7 for l in (t or "").splitlines()
+                         if l.startswith(f"[{fixture_idx}]")), "")
+        pin_out = next((t for t in tools7 if t.startswith("Pinned tab")), "")
+        mute_out = next((t for t in tools7 if t.startswith("Muted tab")), "")
+        zoom_out = next((t for t in tools7 if t.startswith("Zoom set to")), "")
+        move_out = next((t for t in tools7 if t.startswith("Moved tab")), "")
+        final_out = tools7[-1] if tools7 else ""
+        ok("listTabs 基线无状态标记", bool(baseline) and "[pinned" not in baseline and "[muted" not in baseline)
+        ok("pinTab 落地", pin_out.startswith(f"Pinned tab {fixture_idx}"))
+        ok("muteTab 落地（劫持式静音）", mute_out.startswith(f"Muted tab {fixture_idx}") and "blocked" in mute_out)
+        ok("setZoom 落到 125%", zoom_out == "Zoom set to 125%")
+        ok("moveTab 落到目标位", move_out.startswith(f"Moved tab {fixture_idx} → {Fake.move_to}"))
+        final_line = next((l for l in final_out.splitlines() if l.startswith(f"[{Fake.move_to}]")), "")
+        ok("listTabs 复查：标记齐 + 位次正确",
+           "[pinned,muted,zoom 125%]" in final_line and "/flaky" in final_line)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:

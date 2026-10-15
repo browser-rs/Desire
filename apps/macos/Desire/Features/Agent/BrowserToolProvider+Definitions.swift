@@ -422,7 +422,7 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: ["index": AgentJSONSchemaValue(type: "number", description: "Tab index to close (optional, defaults to current)")])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "listTabs", description: "List all open tabs with their titles and indices",
+                name: "listTabs", description: "List all open tabs with their titles, indices, and state markers: [pinned,muted,incognito,zoom N%]",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
@@ -440,6 +440,33 @@ extension BrowserToolProvider {
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "duplicateTab", description: "Duplicate the currently selected tab.",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "pinTab", description: "Pin or unpin a tab (pinned tabs show first, survive 'close others', and are exempt from auto-suspend). Defaults to the current tab and toggles; pass pinned:true/false to set explicitly.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "index": AgentJSONSchemaValue(type: "number", description: "Tab index (0-based, default current)"),
+                    "pinned": AgentJSONSchemaValue(type: "boolean", description: "true = pin, false = unpin (default: toggle)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "muteTab", description: "Mute or unmute a tab's audio. The mute is enforced against site unmute scripts (getter hijack), so it holds. Defaults to the current tab and toggles.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "index": AgentJSONSchemaValue(type: "number", description: "Tab index (0-based, default current)"),
+                    "muted": AgentJSONSchemaValue(type: "boolean", description: "true = mute, false = unmute (default: toggle)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "moveTab", description: "Reorder a tab: it ends up at index `to` in the tab list (0-based). Pinned tabs always render before regular ones in the bar, so reordering only affects position within the tab's own section.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "from": AgentJSONSchemaValue(type: "number", description: "Current index of the tab"),
+                    "to": AgentJSONSchemaValue(type: "number", description: "Index it should occupy after the move"),
+                ], required: ["from", "to"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "setZoom", description: "Set the page zoom of the current tab directly (25-500%).",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "percent": AgentJSONSchemaValue(type: "number", description: "Zoom percentage, e.g. 125"),
+                ], required: ["percent"])
             )),
 
             // --- Bookmarks ---

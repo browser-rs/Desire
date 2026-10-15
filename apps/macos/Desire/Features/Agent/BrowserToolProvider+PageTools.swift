@@ -454,8 +454,15 @@ extension BrowserToolProvider {
 
         case "listTabs":
             guard let tabs = surface.tabManager?.tabs else { return "No tabs open" }
-            let items = tabs.enumerated().map { i, tab in
-                "[\(i)] \(tab.displayTitle) — \(tab.urlString)"
+            let items = tabs.enumerated().map { i, tab -> String in
+                var marks: [String] = []
+                if tab.isPinned { marks.append("pinned") }
+                if tab.audioMuted { marks.append("muted") }
+                if tab.isIncognito { marks.append("incognito") }
+                let zoom = tab.browser.webView.pageZoom
+                if abs(zoom - 1.0) > 0.01 { marks.append("zoom \(Int((zoom * 100).rounded()))%") }
+                let prefix = marks.isEmpty ? "" : "[" + marks.joined(separator: ",") + "] "
+                return "[\(i)] \(prefix)\(tab.displayTitle) — \(tab.urlString)"
             }
             return items.joined(separator: "\n")
 
@@ -525,6 +532,46 @@ extension BrowserToolProvider {
                 videoAdBlocker: surface.videoAdBlocker
             )
             return "Duplicated current tab"
+
+        case "pinTab":
+            // 固定/取消固定（固定标签显示在最前、'关其他标签'豁免、免自动挂起）。
+            guard let manager = surface.tabManager, !manager.tabs.isEmpty else { return Self.fail("No tabs open") }
+            let pinIndex = (args["index"] as? Int) ?? manager.selectedIndex
+            guard manager.tabs.indices.contains(pinIndex) else { return Self.fail("Invalid tab index") }
+            let pinTarget = manager.tabs[pinIndex]
+            let wantPinned = (args["pinned"] as? Bool) ?? !pinTarget.isPinned
+            pinTarget.isPinned = wantPinned
+            return "\(wantPinned ? "Pinned" : "Unpinned") tab \(pinIndex) — \(pinTarget.displayTitle)"
+
+        case "muteTab":
+            // 静音是劫持式的（TabAudioControl）：站点自己的取消静音脚本会被挡。
+            guard let manager = surface.tabManager, !manager.tabs.isEmpty else { return Self.fail("No tabs open") }
+            let muteIndex = (args["index"] as? Int) ?? manager.selectedIndex
+            guard manager.tabs.indices.contains(muteIndex) else { return Self.fail("Invalid tab index") }
+            let muteTarget = manager.tabs[muteIndex]
+            let wantMuted = (args["muted"] as? Bool) ?? !muteTarget.audioMuted
+            muteTarget.audioMuted = wantMuted
+            let hijackNote = wantMuted ? " (site unmute attempts are blocked)" : ""
+            return "\(wantMuted ? "Muted" : "Unmuted") tab \(muteIndex) — \(muteTarget.displayTitle)\(hijackNote)"
+
+        case "moveTab":
+            guard let manager = surface.tabManager, !manager.tabs.isEmpty else { return Self.fail("No tabs open") }
+            guard let moveFrom = args["from"] as? Int, let moveTo = args["to"] as? Int,
+                  manager.tabs.indices.contains(moveFrom), moveTo >= 0, moveTo < manager.tabs.count,
+                  moveFrom != moveTo else {
+                return Self.fail("Invalid from/to (0-based indices within the tab list, from ≠ to)")
+            }
+            // 工具语义 = "移动后落在下标 to"；TabManager.moveTab 是 onMove 的
+            // 插入位语义（from < to 时要 +1 平移，否则会差一位）。
+            manager.moveTab(from: moveFrom, to: moveFrom < moveTo ? moveTo + 1 : moveTo)
+            let landed = manager.tabs.indices.contains(moveTo) ? manager.tabs[moveTo].displayTitle : "?"
+            return "Moved tab \(moveFrom) → \(moveTo) — \(landed)"
+
+        case "setZoom":
+            guard let percent = args["percent"] as? Int else { return Self.fail("Missing percent") }
+            let clamped = min(500, max(25, percent))
+            webView.pageZoom = Double(clamped) / 100.0
+            return "Zoom set to \(clamped)%"
 
         // --- Bookmarks ---
         case "addBookmark":

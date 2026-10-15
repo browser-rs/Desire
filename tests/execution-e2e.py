@@ -180,6 +180,24 @@ class Fake(BaseHTTPRequestHandler):
             sse(self.wfile, model, {"role": "assistant", "content": "ok"}, "stop")
             return
         n = len(round_tools)
+        if "MUSCLE4" in mode:
+            import datetime as _dt
+            due = (_dt.datetime.now() + _dt.timedelta(days=1)).replace(hour=9, minute=0, second=0)
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "addReminder", {"title": "E2E 自清理提醒", "dueDate": due.strftime("%Y-%m-%d %H:%M")})]}, "tool_calls")
+            elif n == 1:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "completeReminder", {"title": "E2E 自清理提醒"})]}, "tool_calls")
+            elif n == 2:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "listReminders", {"maxItems": 20})]}, "tool_calls")
+            elif n == 3:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "listCalendarEvents", {})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE4-DONE"}, "stop")
+            return
         if "MUSCLE3" in mode:
             if n == 0:
                 sse(self.wfile, model, {"role": "assistant", "tool_calls": [
@@ -428,6 +446,7 @@ def main():
         ok("自愈后页面内容可见", "FLAKY-FULL-OK" in page_result)
 
         # ── MUSCLE3：OS 协作工具参数校验（发生在授权请求之前，不弹窗）──
+        status_before_m3 = bridge("GET", "/system/integrations")
         bridge("POST", "/agent/new", {})
         bridge("POST", "/agent/send", {"text": "MUSCLE3 OS 工具校验"})
         deadline3 = time.time() + 90
@@ -445,7 +464,33 @@ def main():
         reminder_result = next((t for t in tools3 if "dueDate" in t), "")
         ok("OS 工具拒收自然语言日期（参数前置校验）", "dueDate must be" in reminder_result)
         integrations = bridge("GET", "/system/integrations")
-        ok("校验失败不触发授权（状态不变）", integrations.get("reminders") == "notDetermined")
+        # 状态无关判据：校验失败不应改变授权状态（此前写死 notDetermined，
+        # 用户真机授权后成了过期断言——2026-10-15 实测踩到）。
+        ok("校验失败不改变授权状态", integrations == status_before_m3)
+
+        # ── MUSCLE4：OS 协作读写闭环（本机已授权；提醒生命周期自清理）──
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE4 OS 读写闭环"})
+        deadline4 = time.time() + 120
+        while time.time() < deadline4:
+            st4 = bridge("GET", "/agent/messages")
+            if not st4.get("busy") and any("MUSCLE4-DONE" in (m.get("content") or "")
+                                           for m in st4.get("messages", [])):
+                break
+            time.sleep(1)
+        time.sleep(1)
+        conv4_id = bridge("GET", "/agent/trace").get("conversation")
+        conv4 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                            / f"conversation-{conv4_id}.json").read_text())
+        tools4 = [m.get("content") or "" for m in conv4.get("messages", []) if m.get("role") == "tool"]
+        made = next((t for t in tools4 if "E2E 自清理提醒" in t and "Reminder added" in t), "")
+        done = next((t for t in tools4 if t.startswith("Reminder completed")), "")
+        open_list = next((t for t in tools4 if "Open reminders" in t or "No open reminders" in t), "")
+        events_list = next((t for t in tools4 if "Calendar events" in t or "No calendar events" in t), "")
+        ok("提醒创建（真机 · 已授权路径）", made.startswith("Reminder added"))
+        ok("提醒完成闭环", done.startswith("Reminder completed"))
+        ok("读回已不含完成的提醒", "E2E 自清理提醒" not in open_list)
+        ok("日历读取可用（含已建测试日程）", "Desire 接入测试日程" in events_list)
         notes = (fix_dir / "notes.txt").read_text()
         ok("文件实际已改", ("NEW_TOKEN" in notes) and ("OLD_TOKEN" not in notes))
         assert all(c for _, c in checks), "存在失败项"

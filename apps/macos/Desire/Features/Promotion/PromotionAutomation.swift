@@ -28,7 +28,7 @@ enum PromotionAutomation {
                 1) 回访各账号主页与已发帖子页（有 DPP 适配包用适配视图，否则 getPageText），用 promotionAccountMetrics / promotionMetrics 采集最新数据；
                 2) 对比快照增长，总结本周有效/无效的做法（选题、标题、发布时间、平台差异）；
                 3) 用 promotionLesson 记录可复用的结论，完全重复的会被自动跳过；互动台账清一遍：待处理该回的回、回不了的标忽略（promotionInteractionReply）；
-                4) 给出下周行动计划（含选题建议，可先用 promotionSave status=idea 存进选题库）；5) 已达成或已过期的目标提醒用户归档（暂停）或调整。没有数据可复盘就回复「暂无运营数据」并结束。
+                4) 给出下周行动计划（含选题建议，可先用 promotionSave status=idea 存进选题库）；**提议**（别擅自）把关键节点用 addReminder / addCalendarEvent 排进系统提醒与日历——用户点头再落；5) 已达成或已过期的目标提醒用户归档（暂停）或调整。没有数据可复盘就回复「暂无运营数据」并结束。
                 """
             }
         }

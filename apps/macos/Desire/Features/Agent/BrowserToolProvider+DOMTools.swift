@@ -2089,6 +2089,35 @@ extension BrowserToolProvider {
                 location: args["location"] as? String, notes: args["notes"] as? String,
                 calendarName: args["calendarName"] as? String)
 
+        case "completeReminder":
+            guard let completeTitle = args["title"] as? String, !completeTitle.isEmpty else {
+                return Self.fail("Missing title")
+            }
+            return await EventKitBridge.completeReminder(title: completeTitle)
+
+        case "listCalendarEvents":
+            let calendar = Calendar.current
+            let eventFrom: Date
+            if let fromRaw = args["from"] as? String, !fromRaw.isEmpty {
+                guard let parsed = SystemIntegrationDates.parse(fromRaw) else {
+                    return Self.fail("from must be 'yyyy-MM-dd HH:mm' or ISO8601")
+                }
+                eventFrom = parsed
+            } else {
+                eventFrom = calendar.startOfDay(for: Date())
+            }
+            let eventTo: Date
+            if let toRaw = args["to"] as? String, !toRaw.isEmpty {
+                guard let parsed = SystemIntegrationDates.parse(toRaw) else {
+                    return Self.fail("to must be 'yyyy-MM-dd HH:mm' or ISO8601")
+                }
+                eventTo = parsed
+            } else {
+                eventTo = calendar.date(byAdding: .day, value: 7, to: eventFrom) ?? eventFrom.addingTimeInterval(7 * 86_400)
+            }
+            let eventLimit = (args["maxItems"] as? Int) ?? 20
+            return await EventKitBridge.listEvents(from: eventFrom, to: eventTo, limit: eventLimit)
+
         case "readPageStorage":
             let storageKind = ((args["what"] as? String) ?? "localStorage")
             let storageKey = (args["key"] as? String) ?? ""

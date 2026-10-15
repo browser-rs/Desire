@@ -118,15 +118,7 @@ enum EventKitBridge {
 
     static func listReminders(limit: Int) async -> String {
         if let problem = await ensuringAccess(.reminder) { return problem }
-        let reminderStore = store
-        let all: [EKReminder] = await withCheckedContinuation { continuation in
-            let predicate = reminderStore.predicateForReminders(in: nil)
-            reminderStore.fetchReminders(matching: predicate) { reminders in
-                let compacted = (reminders ?? []).compactMap { $0 }
-                Task { @MainActor in continuation.resume(returning: compacted) }
-            }
-        }
-        let open = all.filter { !$0.isCompleted }
+        let open = await fetchOpenReminders()
             .sorted { ($0.dueDateComponents?.date ?? .distantFuture) < ($1.dueDateComponents?.date ?? .distantFuture) }
         guard !open.isEmpty else { return "No open reminders." }
         let cap = min(max(1, limit), 40)
@@ -163,6 +155,66 @@ enum EventKitBridge {
         var line = "Event added: \(title) · \(SystemIntegrationDates.describe(start)) – \(SystemIntegrationDates.describe(resolvedEnd))"
         if let calendar = event.calendar?.title, !calendar.isEmpty { line += " · calendar \(calendar)" }
         return line
+    }
+
+    /// 提醒完成："带伞那条标完成"。匹配 open 且标题包含（大小写不敏感）——
+    /// 多条命中不猜、列出来让模型问用户。
+    static func completeReminder(title: String) async -> String {
+        if let problem = await ensuringAccess(.reminder) { return problem }
+        let wanted = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !wanted.isEmpty else { return "Error: missing title" }
+        let open = await fetchOpenReminders()
+        let matches = open.filter { ($0.title ?? "").lowercased().contains(wanted) }
+        if matches.isEmpty { return "No open reminder matches '\(title)'." }
+        if matches.count > 1 {
+            let lines = matches.prefix(8).map { "· \($0.title ?? "(untitled)")" }
+            return "Error: \(matches.count) open reminders match '\(title)' — be more specific:\n" + lines.joined(separator: "\n")
+        }
+        let reminder = matches[0]
+        reminder.isCompleted = true
+        do {
+            try store.save(reminder, commit: true)
+        } catch {
+            return "Error: save failed — \(error.localizedDescription)"
+        }
+        var line = "Reminder completed: \(reminder.title ?? title)"
+        if let due = reminder.dueDateComponents?.date { line += "（原 due \(SystemIntegrationDates.describe(due))）" }
+        return line
+    }
+
+    /// 某时间窗内的日历事件（默认由调用方给窗；升序、cap）。
+    static func listEvents(from: Date, to: Date, limit: Int) async -> String {
+        if let problem = await ensuringAccess(.event) { return problem }
+        guard to > from else { return "Error: 'to' must be after 'from'" }
+        let predicate = store.predicateForEvents(withStart: from, end: to, calendars: nil)
+        let events = store.events(matching: predicate)
+            .sorted { $0.startDate < $1.startDate }
+        guard !events.isEmpty else {
+            return "No calendar events between \(SystemIntegrationDates.describe(from)) and \(SystemIntegrationDates.describe(to))."
+        }
+        let cap = min(max(1, limit), 50)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "MM-dd HH:mm"
+        let lines = events.prefix(cap).map { event -> String in
+            var line = "· \(formatter.string(from: event.startDate))–\(formatter.string(from: event.endDate)) \(event.title ?? "(untitled)")"
+            if let calendar = event.calendar?.title, !calendar.isEmpty { line += " [\(calendar)]" }
+            if let location = event.location, !location.isEmpty { line += " @\(location)" }
+            return line
+        }
+        return "Calendar events (\(events.count), showing \(min(cap, events.count))) \(SystemIntegrationDates.describe(from)) → \(SystemIntegrationDates.describe(to)):\n" + lines.joined(separator: "\n")
+    }
+
+    private static func fetchOpenReminders() async -> [EKReminder] {
+        let reminderStore = store
+        let all: [EKReminder] = await withCheckedContinuation { continuation in
+            let predicate = reminderStore.predicateForReminders(in: nil)
+            reminderStore.fetchReminders(matching: predicate) { reminders in
+                let compacted = (reminders ?? []).compactMap { $0 }
+                Task { @MainActor in continuation.resume(returning: compacted) }
+            }
+        }
+        return all.filter { !$0.isCompleted }
     }
 
     // MARK: - 列表匹配

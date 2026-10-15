@@ -779,6 +779,22 @@ extension BrowserToolProvider {
                 ], required: ["title", "start"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "completeReminder",
+                description: "Mark a reminder as completed by its title (case-insensitive substring). If several open reminders match, it reports them all and completes NONE — be more specific then. Use for 「带伞那条标完成」.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "title": AgentJSONSchemaValue(type: "string", description: "Reminder title (or distinctive substring)"),
+                ], required: ["title"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listCalendarEvents",
+                description: "List calendar events in a time window (title, start–end, calendar, location), ascending — answers 「我明天/这周有什么安排」. from/to accept 'yyyy-MM-dd HH:mm' or ISO8601; defaults: today 00:00 → +7 days.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "from": AgentJSONSchemaValue(type: "string", description: "Window start (default: today 00:00)"),
+                    "to": AgentJSONSchemaValue(type: "string", description: "Window end (default: +7 days)"),
+                    "maxItems": AgentJSONSchemaValue(type: "number", description: "Max events (default 20, cap 50)"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "readPageStorage",
                 description: "Inventory the site's client storage: localStorage / sessionStorage / JS-visible cookies. Default lists KEY NAMES with value lengths only (values can carry tokens — pass key to read one specific value explicitly). httpOnly cookies are invisible to page scripts and noted as such. READ = debugging auth state, drafts, feature flags.",
                 parameters: AgentJSONSchema(type: "object", properties: [

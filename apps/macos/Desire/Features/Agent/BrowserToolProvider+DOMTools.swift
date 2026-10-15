@@ -2358,6 +2358,75 @@ extension BrowserToolProvider {
                 return Self.fail("Request failed: \(error.localizedDescription)")
             }
 
+        case "mergePDFs":
+            guard let mergePaths = args["paths"] as? [String], mergePaths.count >= 2 else {
+                return Self.fail("paths must list at least 2 PDFs")
+            }
+            var mergeURLs: [URL] = []
+            for raw in mergePaths {
+                switch AgentWorkspace.shared.resolve(raw, write: false) {
+                case .denied(let reason):
+                    return reason
+                case .granted(let url):
+                    guard FileManager.default.fileExists(atPath: url.path) else {
+                        return Self.fail("File not found: \(url.path)")
+                    }
+                    mergeURLs.append(url)
+                }
+            }
+            let mergeOutput: URL
+            if let rawOut = args["output"] as? String, !rawOut.isEmpty {
+                switch AgentWorkspace.shared.resolve(rawOut, write: true) {
+                case .denied(let reason): return reason
+                case .granted(let url): mergeOutput = url
+                }
+            } else {
+                let dir = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+                    ?? URL(fileURLWithPath: NSHomeDirectory())
+                mergeOutput = PDFComposer.uniqueURL(dir.appendingPathComponent("merged.pdf"))
+            }
+            switch PDFComposer.merge(urls: mergeURLs, output: mergeOutput) {
+            case .success(let pages):
+                return "Merged \(mergeURLs.count) PDFs → \(pages) page(s): \(mergeOutput.path)"
+            case .failure(let message):
+                return Self.fail(message)
+            }
+
+        case "splitPDF":
+            guard let splitPath = args["path"] as? String, !splitPath.isEmpty else {
+                return Self.fail("Missing path")
+            }
+            guard let specRaw = args["pages"] as? String,
+                  let pages = PDFPageSpec.parse(specRaw) else {
+                return Self.fail("pages must be a spec like '3-5,8' (1-based, closed ranges)")
+            }
+            let splitURL: URL
+            switch AgentWorkspace.shared.resolve(splitPath, write: false) {
+            case .denied(let reason): return reason
+            case .granted(let url): splitURL = url
+            }
+            guard FileManager.default.fileExists(atPath: splitURL.path) else {
+                return Self.fail("File not found: \(splitURL.path)")
+            }
+            let splitOutput: URL
+            if let rawOut = args["output"] as? String, !rawOut.isEmpty {
+                switch AgentWorkspace.shared.resolve(rawOut, write: true) {
+                case .denied(let reason): return reason
+                case .granted(let url): splitOutput = url
+                }
+            } else {
+                let dir = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+                    ?? URL(fileURLWithPath: NSHomeDirectory())
+                let base = splitURL.deletingPathExtension().lastPathComponent
+                splitOutput = PDFComposer.uniqueURL(dir.appendingPathComponent("\(base)-pages.pdf"))
+            }
+            switch PDFComposer.extractPages(url: splitURL, pages: pages, output: splitOutput) {
+            case .success(let count):
+                return "Extracted \(count) page(s) \(pages.map(String.init).joined(separator: ",")) → \(splitOutput.path)"
+            case .failure(let message):
+                return Self.fail(message)
+            }
+
         case "ocrImage":
             guard let imagePath = args["path"] as? String, !imagePath.isEmpty else { return Self.fail("Missing path") }
             let ocrMax = (args["maxChars"] as? Int) ?? 30_000

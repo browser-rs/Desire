@@ -2545,6 +2545,19 @@ testPromotionInteractions()
 
 // ---------- 文件精确编辑（FileEdit 纯逻辑） ----------
 
+func testPDFPageSpec() {
+    check("pdfspec：区间与单页", PDFPageSpec.parse("3-5,8") == [3, 4, 5, 8])
+    check("pdfspec：升序去重", PDFPageSpec.parse("8,3-5,4") == [3, 4, 5, 8])
+    check("pdfspec：全角标点容忍", PDFPageSpec.parse("1，2、4") == [1, 2, 4])
+    check("pdfspec：空白容忍", PDFPageSpec.parse(" 2 , 3-4 ") == [2, 3, 4])
+    check("pdfspec：倒序区间拒绝", PDFPageSpec.parse("5-3") == nil)
+    check("pdfspec：0 页拒绝", PDFPageSpec.parse("0,2") == nil)
+    check("pdfspec：空串拒绝", PDFPageSpec.parse(" , , ") == nil)
+    check("pdfspec：非数字拒绝", PDFPageSpec.parse("a-b") == nil)
+}
+
+testPDFPageSpec()
+
 func testFileEdit() {
     let original = "line one\nlet value = 1\nline three\nlet value = 1\n"
     let single = FileEdit.apply(content: original, find: "line three", replace: "第三章")

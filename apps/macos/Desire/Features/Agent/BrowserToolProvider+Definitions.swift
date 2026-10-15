@@ -811,6 +811,23 @@ extension BrowserToolProvider {
                 ], required: ["path"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "mergePDFs",
+                description: "Merge two or more PDF files IN ORDER into one (structure-level: text layers preserved, nothing rasterized). Returns total page count and the output path. output defaults to Downloads/merged.pdf (auto-suffixed when taken); relative paths resolve inside the workspace.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "paths": AgentJSONSchemaValue(type: "array", description: "PDF paths in merge order (≥2)", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                    "output": AgentJSONSchemaValue(type: "string", description: "Output .pdf path (default Downloads/merged.pdf)"),
+                ], required: ["paths"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "splitPDF",
+                description: "Extract specific pages of a PDF into a new one, e.g. pages '3-5,8' (1-based; closed ranges only — for open-ended 'to the end' read the page count first with readPdf). Returns extracted count, total pages and the output path.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Source PDF path"),
+                    "pages": AgentJSONSchemaValue(type: "string", description: "1-based page spec like '3-5,8'"),
+                    "output": AgentJSONSchemaValue(type: "string", description: "Output .pdf path (default Downloads/<source>-pages.pdf)"),
+                ], required: ["path", "pages"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "ocrImage",
                 description: "Extract text from an image file with on-device OCR (Apple Vision — local, no network): screenshots, receipts, posters, charts, chat captures. Chinese + English. Pair with the screenshot tool to read what is on screen.",
                 parameters: AgentJSONSchema(type: "object", properties: [

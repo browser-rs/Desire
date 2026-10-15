@@ -180,6 +180,24 @@ class Fake(BaseHTTPRequestHandler):
             sse(self.wfile, model, {"role": "assistant", "content": "ok"}, "stop")
             return
         n = len(round_tools)
+        if "MUSCLE5" in mode:
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "splitPDF", {"path": f"{self.fix}/probe3.pdf", "pages": "2",
+                                         "output": f"{self.fix}/split.pdf"})]}, "tool_calls")
+            elif n == 1:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "mergePDFs", {"paths": [f"{self.fix}/probe.pdf", f"{self.fix}/probe3.pdf"],
+                                          "output": f"{self.fix}/merged.pdf"})]}, "tool_calls")
+            elif n == 2:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "readPdf", {"path": f"{self.fix}/merged.pdf"})]}, "tool_calls")
+            elif n == 3:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "readPdf", {"path": f"{self.fix}/split.pdf"})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE5-DONE"}, "stop")
+            return
         if "MUSCLE4" in mode:
             import datetime as _dt
             due = (_dt.datetime.now() + _dt.timedelta(days=1)).replace(hour=9, minute=0, second=0)
@@ -272,6 +290,7 @@ def main():
     import shutil
     shutil.copy(FIXTURE_ASSETS / "probe.png", fix_dir / "probe.png")
     shutil.copy(FIXTURE_ASSETS / "probe.pdf", fix_dir / "probe.pdf")
+    shutil.copy(FIXTURE_ASSETS / "probe3.pdf", fix_dir / "probe3.pdf")
     Fake.fix = str(fix_dir)
     TinyAPI.html = DRAG_HTML
 
@@ -491,6 +510,30 @@ def main():
         ok("提醒完成闭环", done.startswith("Reminder completed"))
         ok("读回已不含完成的提醒", "E2E 自清理提醒" not in open_list)
         ok("日历读取可用（含已建测试日程）", "Desire 接入测试日程" in events_list)
+
+        # ── MUSCLE5：PDF 合并 / 抽页（结构级，文本层保留）──
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE5 PDF 工具链"})
+        deadline5 = time.time() + 120
+        while time.time() < deadline5:
+            st5 = bridge("GET", "/agent/messages")
+            if not st5.get("busy") and any("MUSCLE5-DONE" in (m.get("content") or "")
+                                           for m in st5.get("messages", [])):
+                break
+            time.sleep(1)
+        time.sleep(1)
+        conv5_id = bridge("GET", "/agent/trace").get("conversation")
+        conv5 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                            / f"conversation-{conv5_id}.json").read_text())
+        tools5 = [m.get("content") or "" for m in conv5.get("messages", []) if m.get("role") == "tool"]
+        split_result = next((t for t in tools5 if t.startswith("Extracted")), "")
+        merge_result = next((t for t in tools5 if t.startswith("Merged")), "")
+        merged_read = next((t for t in tools5 if t.startswith("PDF text (4 page")), "")
+        split_read = next((t for t in tools5 if t.startswith("PDF text (1 page")), "")
+        ok("抽页成功（第 2 页）", split_result.startswith("Extracted 1 page(s)"))
+        ok("合并成功（1+3=4 页）", merge_result.startswith("Merged 2 PDFs"))
+        ok("合并产物含两源文本层", "88000" in merged_read and "PAGE-ONE-ALPHA" in merged_read)
+        ok("抽页产物是正确的那一页", "PAGE-TWO-BRAVO" in split_read and "PAGE-ONE-ALPHA" not in split_read)
         notes = (fix_dir / "notes.txt").read_text()
         ok("文件实际已改", ("NEW_TOKEN" in notes) and ("OLD_TOKEN" not in notes))
         assert all(c for _, c in checks), "存在失败项"

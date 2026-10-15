@@ -567,6 +567,34 @@ extension BrowserToolProvider {
             let landed = manager.tabs.indices.contains(moveTo) ? manager.tabs[moveTo].displayTitle : "?"
             return "Moved tab \(moveFrom) → \(moveTo) — \(landed)"
 
+        case "splitView":
+            // 分屏右栏（工具栏分屏按钮同路径；桥 /split 同 API）。
+            guard let manager = surface.tabManager, manager.tabs.count >= 2 else {
+                return Self.fail("Need at least 2 tabs to split")
+            }
+            let selected = manager.selectedIndex
+            let partnerIndex: Int
+            if let requested = args["index"] as? Int {
+                partnerIndex = requested
+            } else if selected + 1 < manager.tabs.count {
+                partnerIndex = selected + 1
+            } else {
+                partnerIndex = 0
+            }
+            guard manager.tabs.indices.contains(partnerIndex), partnerIndex != selected else {
+                return Self.fail("Pick a different tab for the right pane (0-based index)")
+            }
+            manager.setSplitPartner(at: partnerIndex)
+            let leftTitle = manager.tabs[selected].displayTitle
+            let rightTitle = manager.tabs[partnerIndex].displayTitle
+            return "Split view: \(leftTitle) | \(rightTitle) (right pane = tab \(partnerIndex))"
+
+        case "unsplitView":
+            guard let manager = surface.tabManager else { return Self.fail("No window") }
+            guard manager.splitPartnerID != nil else { return "Not in split view" }
+            manager.setSplitPartner(at: nil)
+            return "Left split view"
+
         case "setZoom":
             guard let percent = args["percent"] as? Int else { return Self.fail("Missing percent") }
             let clamped = min(500, max(25, percent))
@@ -1010,6 +1038,18 @@ extension BrowserToolProvider {
             }
             surface.tabGroupStore.rename(group.id, to: newName)
             return "Renamed group \"\(group.name)\" → \"\(newName)\""
+
+        case "collapseTabGroup":
+            guard let groupName = args["groupName"] as? String, !groupName.isEmpty else {
+                return Self.fail("Missing groupName")
+            }
+            guard let group = surface.tabGroupStore.groups.first(where: { $0.name == groupName }) else {
+                let names = surface.tabGroupStore.groups.map(\.name).joined(separator: ", ")
+                return Self.fail("Group not found: \(groupName). Available: \(names.isEmpty ? "(none)" : names)")
+            }
+            let wantCollapsed = (args["collapsed"] as? Bool) ?? !group.isCollapsed
+            surface.tabGroupStore.setCollapsed(group.id, wantCollapsed)
+            return "\(wantCollapsed ? "Collapsed" : "Expanded") tab group \"\(group.name)\""
 
         case "removeTabFromGroup":
             guard let tab = surface.tabManager?.selectedTab else { return Self.fail("No active tab") }

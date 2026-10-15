@@ -6,6 +6,8 @@
 ### Added
 
 - **历史定向清理与标签组改名（v23，替人干活补件）**：新增 `deleteHistory` 工具——按域名（含子域）和/或时间窗（`before`/`after`，"yyyy-MM-dd" / "yyyy-MM-dd HH:mm"）删除历史，**必须带至少一个条件**（清空仍是 clearHistory 的活，防手滑清库）；删除走既有 Store 路径，同步墓碑照常生效。新增 `renameTabGroup` 工具（按组名改名）。桥补 `GET /tab-groups` 与 `POST /tab-groups/delete`（测试清理与外部驱动）。E2E 新增 MUSCLE9（只碰 fixture 标签与 127.0.0.1 记录：入组→改名→复查→按域清历史→复查已清）——顺带把测试期间的本地 fixture 记录从历史里清干净。execution 套件 71 项。
+- **分屏与组折叠进工具面（v24）**：新增 `splitView`（把指定标签放到右栏与当前标签并排——对比两页的硬需求；缺省取相邻标签）与 `unsplitView`（解除分屏，右栏标签留作普通标签）；新增 `collapseTabGroup`（按组名折叠/展开，`collapsed` 可显式指定）。桥 `/tab-groups` 返回补 `collapsed` 字段。E2E 新增 MUSCLE10：进入分屏→折叠组→复查（桥 `/split` + `/tab-groups` 双复核）→解除分屏，76 项。
+
 
 
 ## [v0.7.16] - 2026-10-15

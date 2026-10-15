@@ -4344,7 +4344,8 @@ final class AutomationServer {
     private static func tabGroupsList() -> [String: Any] {
         guard let store = AppState.live?.tabGroupStore else { return ["ok": false, "error": "app state not ready"] }
         let items: [[String: Any]] = store.groups.map { g in
-            ["name": g.name, "colorIndex": g.colorIndex, "tabCount": g.tabIds.count]
+            ["name": g.name, "colorIndex": g.colorIndex, "tabCount": g.tabIds.count,
+             "collapsed": g.isCollapsed]
         }
         return ["ok": true, "groups": items]
     }

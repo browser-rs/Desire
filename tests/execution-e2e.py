@@ -16,7 +16,7 @@ ocrImage / readPdf / readDocument(docx) / readSpreadsheet(xlsx/csv，含错类�
 pinTab+muteTab+setZoom+moveTab（listTabs 状态标记复查）/
 newWindow+saveWorkspace+openIncognitoTab+restoreWorkspace+deleteWorkspace（MUSCLE8 全在
 新窗口里做，用户窗口零触碰）/ renameTabGroup+deleteHistory（MUSCLE9，只碰 fixture 标签
-与 127.0.0.1 记录）。
+与 127.0.0.1 记录）/ splitView+unsplitView+collapseTabGroup（MUSCLE10）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -164,6 +164,7 @@ class Fake(BaseHTTPRequestHandler):
     fix = ""  # 由 main 填（agent workspace 下的 fixture 目录）
     tab_index = 0   # MUSCLE7：fixture 标签当前位次（main 现查）
     move_to = 0     # MUSCLE7：moveTab 的目标位次
+    split_partner = 0  # MUSCLE10：分屏右栏标签位次
 
     def log_message(self, *a):
         pass
@@ -291,6 +292,20 @@ class Fake(BaseHTTPRequestHandler):
                     call(0, "listTabGroups", {}), call(1, "getHistory", {"count": 50})]}, "tool_calls")
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE9-DONE"}, "stop")
+            return
+        if "MUSCLE10" in mode:
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "splitView", {"index": self.split_partner})]}, "tool_calls")
+            elif n == 1:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "collapseTabGroup", {"groupName": "E2E 组（改名）", "collapsed": True}),
+                    call(1, "listTabGroups", {})]}, "tool_calls")
+            elif n == 3:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "unsplitView", {})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE10-DONE"}, "stop")
             return
         if "MUSCLE4" in mode:
             import datetime as _dt
@@ -865,6 +880,46 @@ def main():
         ok("deleteHistory 按域名删除（≥1 条）",
            hist_delete.startswith("Removed ") and "domain 127.0.0.1" in hist_delete and removed_n >= 1)
         ok("删除后 getHistory 不再含该域名", "127.0.0.1" not in history_out)
+
+        # ── MUSCLE10：分屏 + 标签组折叠（fixture 标签为左栏；右栏用 user tab 0，
+        #    只是显示、可逆，随后解除）──
+        st10 = bridge("GET", "/state")
+        fix10 = next((t.get("index") for t in st10.get("tabs", [])
+                      if "/fixture" in (t.get("url") or "") or "/flaky" in (t.get("url") or "")), None)
+        assert fix10 is not None, "找不到 fixture 标签（MUSCLE10 需要它做左栏）"
+        other10 = next((t.get("index") for t in st10.get("tabs", []) if t.get("index") != fix10), None)
+        assert other10 is not None, "没有第二个标签可做右栏"
+        # 先把当前标签切到 fixture（分屏左栏 = 选中标签）
+        bridge("POST", "/switch-tab", {"index": fix10})
+        time.sleep(0.5)
+        Fake.split_partner = other10
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE10 分屏与组折叠"})
+        deadline10 = time.time() + 120
+        while time.time() < deadline10:
+            st10b = bridge("GET", "/agent/messages")
+            if not st10b.get("busy") and any("MUSCLE10-DONE" in (m.get("content") or "")
+                                             for m in st10b.get("messages", [])):
+                break
+            time.sleep(1)
+        time.sleep(1)
+        conv10_id = bridge("GET", "/agent/trace").get("conversation")
+        conv10 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                             / f"conversation-{conv10_id}.json").read_text())
+        tools10 = [m.get("content") or "" for m in conv10.get("messages", []) if m.get("role") == "tool"]
+        split_out = next((t for t in tools10 if t.startswith("Split view:")), "")
+        collapse_out = next((t for t in tools10 if t.startswith("Collapsed tab group")), "")
+        unsplit_out = next((t for t in tools10 if t in ("Left split view", "Not in split view")), "")
+        ok("splitView 进入分屏（右栏到位）", split_out.startswith("Split view:")
+           and f"right pane = tab {other10}" in split_out)
+        ok("collapseTabGroup 折叠", collapse_out == 'Collapsed tab group "E2E 组（改名）"')
+        ok("unsplitView 解除分屏", unsplit_out == "Left split view")
+        # 桥面复核：分屏已解除 + 组折叠态已持久化
+        split_state = bridge("GET", "/split")
+        groups_state = bridge("GET", "/tab-groups").get("groups", [])
+        grouped = next((g for g in groups_state if g.get("name") == "E2E 组（改名）"), {})
+        ok("桥复核：分屏已解除", split_state.get("partner") in (None, "") or split_state.get("partner") is None)
+        ok("桥复核：组折叠态已存", grouped.get("collapsed") is True)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:

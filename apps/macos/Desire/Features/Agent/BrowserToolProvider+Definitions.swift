@@ -463,6 +463,16 @@ extension BrowserToolProvider {
                 ], required: ["from", "to"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "splitView", description: "Show a second tab side by side with the current one (split view). Pick the right pane with `index` (0-based); defaults to the next tab. Great for comparing two pages.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "index": AgentJSONSchemaValue(type: "number", description: "Tab index for the right pane (optional, default next tab)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "unsplitView", description: "Leave split view (the right pane's tab stays open as a normal tab).",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "setZoom", description: "Set the page zoom of the current tab directly (25-500%).",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "percent": AgentJSONSchemaValue(type: "number", description: "Zoom percentage, e.g. 125"),
@@ -690,6 +700,13 @@ extension BrowserToolProvider {
                     "groupName": AgentJSONSchemaValue(type: "string", description: "Current group name"),
                     "newName": AgentJSONSchemaValue(type: "string", description: "New group name"),
                 ], required: ["groupName", "newName"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "collapseTabGroup", description: "Collapse or expand a tab group in the tab bar (by group name; default: toggle).",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "groupName": AgentJSONSchemaValue(type: "string", description: "Group name"),
+                    "collapsed": AgentJSONSchemaValue(type: "boolean", description: "true = collapse, false = expand (default: toggle)"),
+                ], required: ["groupName"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "removeTabFromGroup", description: "Remove the current tab from its tab group",

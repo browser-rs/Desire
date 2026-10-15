@@ -21,7 +21,9 @@ var depth = 0
 
 func label(of el: AXUIElement) -> String {
     var out: [String] = []
-    for attr in [kAXDescriptionAttribute, kAXTitleAttribute, kAXValueAttribute] {
+    // help 也要认：SF symbol 的系统描述会本地化（xmark → "关闭"），
+    // 而 help 是我们自己给的稳定英文标签（"Stop"），跨语言不会变。
+    for attr in [kAXDescriptionAttribute, kAXTitleAttribute, kAXValueAttribute, kAXHelpAttribute] {
         var v: CFTypeRef?
         AXUIElementCopyAttributeValue(el, attr as CFString, &v)
         if let s = v as? String { out.append(s) }

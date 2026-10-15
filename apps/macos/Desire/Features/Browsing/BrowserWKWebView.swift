@@ -13,6 +13,14 @@ class BrowserWKWebView: WKWebView {
     /// 后立刻设置；rebuildWebView 换新视图时从旧视图带过去。
     var devToolsTabID: UUID?
 
+    /// **后台也要收得到合成点击**（v25 根因修复）：应用非活动时，AppKit
+    /// 会把落在非 key 窗口上的鼠标事件当"激活点击"消费掉——`SyntheticInput`
+    /// 用 `NSApp.sendEvent` 投递的真实事件因此静默消失（实测：应用后台时
+    /// 拖拽/点按/下载触发 4/4 全败、前台 4/4 全过；定时/后台回合的智能体
+    /// 点击在用户正用别的应用时同样会丢）。浏览器惯例 = 非活动窗口的首次
+    /// 点击**既激活也投递**，这里就按这个口径放行（不抢焦点、不激活应用）。
+    override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
     override func willOpenMenu(_ menu: NSMenu, with event: NSEvent) {
         super.willOpenMenu(menu, with: event)
 

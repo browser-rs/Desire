@@ -14,6 +14,20 @@ class Tab: ObservableObject {
     let containerID: UUID?
     @Published var urlString = ""
     @Published var isLoading = false
+
+    /// 用户点「停止」（工具栏叉/菜单 ⌘.）：除了 stopLoading，还补两件事——
+    /// ① `window.stop()` 文档级中止（掐解析阻塞的脚本请求）；
+    /// ② **立即认领已停止态**：对"永不响应的挂死连接"，WebKit 既不会取消
+    ///    （实测 32 个 CDN 请求挂十几分钟，stopLoading/window.stop 都不动）
+    ///    也不会有任何 didFinish/didFail 回调——不认领的话 isLoading 永远
+    ///    停在 true，叉点了"没反应"（用户实测报告，2026-10-15）。认领后
+    ///    图标立刻翻回 ↻，挂死页可一键重载重试；若旧加载稍后真收尾，
+    ///    回调再置一次 false 也无害。
+    func stopUserLoad() {
+        browser.webView.stopLoading()
+        browser.webView.evaluateJavaScript("window.stop()", completionHandler: nil)
+        isLoading = false
+    }
     @Published var canGoBack = false
     @Published var canGoForward = false
     @Published var isOnNewTabPage = true

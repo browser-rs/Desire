@@ -2654,6 +2654,7 @@ final class AutomationServer {
                 "incognito": tab.isIncognito,
                 "selected": tm?.selectedIndex == i,
                 "suspended": tab.isSuspended,
+                "loading": tab.isLoading,
                 "domNodes": tab.browser.lastDomNodeCount,
             ]
         }

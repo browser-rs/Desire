@@ -9,6 +9,8 @@
 - **`<a download>` 与附件下载失效**（execution-e2e 逼出的真 bug，波及所有站点的下载按钮）：导航策略没接 `shouldPerformDownload`（点了只会导航不下载）、`navigationAction:didBecome download:` 未实现（属性型下载拿不到 delegate 给 destination，WebKit 数毫秒内失败删档）、`Content-Disposition: attachment` 但 MIME 可展示的响应会被直接当页面打开——三处一并修复，统一走 WKDownload → DownloadStore 正常链路。
 - **工具助手热补种（实机偶发自愈）**：极少数文档形态下隔离世界的 `__desire*` 注入会缺失，`getPageSnapshot` 等直接报 `Can't find variable`（实机观测一次，挂起恢复 / document.write 重置均不可复现，机制未钉死）——现在 `callAsync` 收口检测该 ReferenceError 后**就地重注入 dom-tools 并自动重试一次**，把罕见硬失败变成透明自愈（仍失败则按原错误返回并附标记，日志留痕）。
 - **日历授权缺 entitlement（硬验证时 tccd 日志实证）**：Hardened Runtime 下 `kTCCServiceCalendar` 强制要求 `com.apple.security.personal-information.calendars`——缺失时 TCC **直接拒绝、连授权弹窗都不弹**（提醒事项无此要求，所以只坏日历）；已补进 entitlements（个人信息类属安全类别，开发签名可用；实测授权跨重建保留——TCC 按 Apple Development 证书身份认账）。
+- **停止按钮对"挂死连接"无效**（用户实测报告：刷新变叉后点击无反应）：页面子资源卡在永不响应的连接上时（实测：某站 32 个 CDN 请求悬置十几分钟），WebKit 既不取消也不回调——`isLoading` 永远停在 true，叉点了"没反应"、图标也不翻回。现在工具栏叉与菜单「停止加载」（⌘.）统一走 `Tab.stopUserLoad()`：stopLoading + `window.stop()` 兜底 + **立即认领已停止态**（图标即翻回 ↻，挂死页可一键重载重试；旧加载若稍后真收尾，回调再置一次也无害）。已在"永不响应"实况（含用户当场卡住的标签）上双向验证；`/state` 顺带补了 `loading` 字段供桥观察。
+
 
 
 

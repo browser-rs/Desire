@@ -357,7 +357,7 @@ struct CommandDispatcher {
             if let tab = tabManager.selectedTab { tab.browser.webView.goForward() }
 
         case .stopLoading:
-            if let tab = tabManager.selectedTab { tab.browser.webView.stopLoading() }
+            if let tab = tabManager.selectedTab { tab.stopUserLoad() }
 
         case .viewSource:
             viewSource()

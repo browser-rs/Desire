@@ -182,7 +182,7 @@ struct Toolbar: View {
             BackForwardButton(direction: .back, webView: tab.browser.webView, canGo: tab.canGoBack, action: actions.goBack)
             BackForwardButton(direction: .forward, webView: tab.browser.webView, canGo: tab.canGoForward, action: actions.goForward)
             CapsuleButton(systemName: tab.isLoading ? "xmark" : "arrow.clockwise", action: {
-                if tab.isLoading { tab.browser.webView.stopLoading() } else { actions.reload() }
+                if tab.isLoading { tab.stopUserLoad() } else { actions.reload() }
             }, help: tab.isLoading ? "Stop" : "Reload")
             CapsuleButton(systemName: "house", action: actions.loadHome, help: "Home")
         }

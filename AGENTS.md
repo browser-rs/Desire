@@ -404,6 +404,21 @@ Features/Bookmarks/
   `LinearGradient(colors:)`）就由调用方把 `settings.accentColor.color` 传进去。
   每个独立窗口/面板（设置窗、Agent 浮窗、截图层、引导页）都要在根视图自己挂
   `.tint(...)`——ContentView 的 tint 不跨 scene。
+- **菜单栏入口用 NSStatusItem，别用 SwiftUI `MenuBarExtra`**（2026-10-15 v19）：
+  本应用里 `MenuBarExtra(isInserted:)` 只要绑**动态值**就会在启动进入无限图更新
+  循环——@AppStorage 与 @Published 实测都中招（主线程 100%、`makeMainMenu` 反复
+  重建、自动化桥无响应）；二分验证：去掉绑定或把场景移出 `body` 即恢复。宿主改为
+  `MenuBarQuickEntryController`（status item + NSPopover）：不参与 SwiftUI 场景图，
+  且弹窗能代码收起（打开 Agent 面板前先收弹窗，key window 归还浏览器窗口）。
+  显隐开关 = UserDefaults `general.showMenuBarExtra` + `UserDefaults.didChange`
+  观察（设置页与 defaults 两端即时联动）。配套两条：
+  ① `AgentPanelVisibilityStore` 登记键统一为 `tabManager.sessionKey`
+  （"session-<uuid>"）——通知深链按这个键读，此前写点混用裸 UUID，
+   面板已开时通知还会再 toggle 一次把面板关掉；
+  ② 跨窗口亮面板走 NotificationCenter + 按"持有投递目标会话"收敛，
+  **别走 CommandBus**（它有 `hostingWindow === NSApp.keyWindow` 守卫）。
+  菜单栏 AX 探针 = `tools/axextras.swift`（extras 子树，`axpress.swift` 只走窗口树）。
+
 - **App Sandbox 有意关闭**（`ENABLE_APP_SANDBOX = NO`、entitlements 为
   空）：Agent 功能要执行系统命令，沙盒做不到。**禁止**以"安全修复"
   名义重开沙盒——重开 = Agent 全部系统级能力失效。见上文 Key

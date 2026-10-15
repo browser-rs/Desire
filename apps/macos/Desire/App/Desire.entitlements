@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
-<dict/>
+<dict>
+	<!-- Hardened Runtime 下「日历」服务强制要求此 entitlement——缺失时 TCC
+	     直接拒绝、连授权弹窗都不弹（2026-10-15 tccd 日志实证：
+	     "kTCCServiceCalendar requires entitlement
+	     com.apple.security.personal-information.calendars but it is missing"）。
+	     「提醒事项」无此要求。个人信息类 entitlement 属安全类别，ad-hoc/开发
+	     签名可用（不同于 com.apple.developer.* 受限类会被 AMFI 拒启）。 -->
+	<key>com.apple.security.personal-information.calendars</key>
+	<true/>
+</dict>
 </plist>

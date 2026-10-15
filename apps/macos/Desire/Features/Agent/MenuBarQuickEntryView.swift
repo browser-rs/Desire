@@ -59,10 +59,15 @@ struct MenuBarQuickEntryView: View {
                         .strokeBorder(Color(nsColor: .separatorColor).opacity(0.6))
                 )
                 .focused($fieldFocused)
-                // 回车/小键盘回车发送（Shift+回车换行，与 Agent 面板同语义）；
-                // .onKeyPress 在更新事务里执行 → 提交必须跳一帧（既定教训）。
+                // 回车发送；Shift+回车换行。换行**必须显式插入**：返回 .ignored
+                // 直通给字段会被 SwiftUI 处理成"全选"（实测：随后的输入替换掉
+                // 整个草稿）。提交/写草稿都跳一帧——.onKeyPress 在更新事务里
+                // 执行（既定教训）。
                 .onKeyPress(keys: [.return]) { press in
-                    if press.modifiers.contains(.shift) { return .ignored }
+                    if press.modifiers.contains(.shift) {
+                        Task { @MainActor in draft += "\n" }
+                        return .handled
+                    }
                     Task { @MainActor in submit() }
                     return .handled
                 }

@@ -2655,6 +2655,91 @@ func testPromotionPreflight() {
 }
 testPromotionPreflight()
 
+func testSpreadsheetReader() {
+    // ---- CSV/TSV 解析 ----
+    let basic = SpreadsheetReader.parseDelimited("a,b,c\n1,2,3\n", delimiter: ",")
+    check("csv：行数", basic.count == 2)
+    check("csv：字段", basic[1] == ["1", "2", "3"])
+    let quoted = SpreadsheetReader.parseDelimited("x,\"a,b\",y\n", delimiter: ",")
+    check("csv：引号内分隔符不切分", quoted[0] == ["x", "a,b", "y"])
+    let escaped = SpreadsheetReader.parseDelimited("\"he said \"\"hi\"\"\",z\n", delimiter: ",")
+    check("csv：双引号转义", escaped[0] == ["he said \"hi\"", "z"])
+    let multiline = SpreadsheetReader.parseDelimited("\"line1\nline2\",b\r\nc,d\r\n", delimiter: ",")
+    check("csv：引号内换行", multiline.count == 2 && multiline[0][0] == "line1\nline2")
+    check("csv：CRLF 行分隔", multiline[1] == ["c", "d"])
+    let trailing = SpreadsheetReader.parseDelimited("a\n", delimiter: ",")
+    check("csv：末尾换行不多行", trailing == [["a"]])
+    check("csv：空文本", SpreadsheetReader.parseDelimited("", delimiter: ",").isEmpty)
+
+    // ---- 分隔符嗅探 ----
+    check("嗅探：制表符", SpreadsheetReader.sniffDelimiter("a\tb\tc\n1\t2\t3") == "\t")
+    check("嗅探：分号", SpreadsheetReader.sniffDelimiter("a;b;c") == ";")
+    check("嗅探：引号内逗号不计数", SpreadsheetReader.sniffDelimiter("\"a,b,c\";x;y") == ";")
+    check("嗅探：默认逗号", SpreadsheetReader.sniffDelimiter("a,b,c") == ",")
+
+    // ---- 单元格引用 ----
+    let a1 = SpreadsheetReader.cellCoordinates("A1")
+    check("坐标：A1", a1?.col == 1 && a1?.row == 1)
+    let c12 = SpreadsheetReader.cellCoordinates("C12")
+    check("坐标：C12", c12?.col == 3 && c12?.row == 12)
+    let aa10 = SpreadsheetReader.cellCoordinates("AA10")
+    check("坐标：AA10", aa10?.col == 27 && aa10?.row == 10)
+    check("坐标：小写也行", SpreadsheetReader.cellCoordinates("b2")?.col == 2)
+    check("坐标：非法输入", SpreadsheetReader.cellCoordinates("1A") == nil
+          && SpreadsheetReader.cellCoordinates("") == nil)
+
+    // ---- sharedStrings ----
+    let sharedXML = #"""
+    <?xml version="1.0"?>
+    <sst><si><t>标题</t></si><si><r><t>富</t></r><r><t>文本</t></r></si><si><t>ruby</t><rPh sb="0" eb="1"><t>るびぃ</t></rPh></si></sst>
+    """#.data(using: .utf8)!
+    let shared = SpreadsheetReader.parseSharedStrings(xml: sharedXML)
+    check("sharedStrings：条数", shared.count == 3)
+    check("sharedStrings：富文本 run 拼接", shared[1] == "富文本")
+    check("sharedStrings：注音丢弃", shared[2] == "ruby")
+
+    // ---- 工作表行组装 ----
+    let sheetXML = #"""
+    <?xml version="1.0"?>
+    <worksheet><sheetData>
+    <row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1"><v>42.5</v></c><c r="C1" t="b"><v>1</v></c></row>
+    <row r="2"><c r="A2" t="inlineStr"><is><t>内联</t></is></c><c r="C2"><v>7</v></c></row>
+    </sheetData></worksheet>
+    """#.data(using: .utf8)!
+    let rows = SpreadsheetReader.parseSheetRows(xml: sheetXML, sharedStrings: ["SharedTitle"])
+    check("行组装：两行", rows.count == 2)
+    check("行组装：共享串引用", rows[0][0] == "SharedTitle")
+    check("行组装：数值", rows[0][1] == "42.5")
+    check("行组装：布尔", rows[0][2] == "TRUE")
+    check("行组装：内联串 + 空位补齐", rows[1] == ["内联", "", "7"])
+
+    // rowCap 兜底：超出即停
+    let manyXML = ("<worksheet><sheetData>" + String(repeating: "<row><c><v>1</v></c></row>", count: 10) + "</sheetData></worksheet>").data(using: .utf8)!
+    check("行组装：rowCap 截停", SpreadsheetReader.parseSheetRows(xml: manyXML, sharedStrings: [], rowCap: 3).count == 3)
+
+    // ---- 工作表名 ----
+    let wbXML = #"""
+    <workbook><sheets><sheet name="订单" sheetId="1" r:id="rId1"/><sheet name="Sheet2" sheetId="2" r:id="rId2"/></sheets></workbook>
+    """#.data(using: .utf8)!
+    let names = SpreadsheetReader.parseSheetNames(xml: wbXML)
+    check("工作表名", names == ["订单", "Sheet2"])
+
+    // ---- Markdown 渲染 ----
+    let sheet = SpreadsheetReader.Sheet(name: "t", rows: [["名", "值"], ["a|b", "1"], ["c", "2"]])
+    let md = SpreadsheetReader.markdown(from: sheet)
+    check("md：表头与分隔", md.hasPrefix("| 名 | 值 |\n| --- | --- |"))
+    check("md：竖线转义", md.contains("a\\|b"))
+    check("md：空表", SpreadsheetReader.markdown(from: SpreadsheetReader.Sheet(name: "e", rows: [])) == "(empty sheet)")
+
+    // ---- 富文本取文（纯逻辑部分）----
+    let collapsed = DocumentText.collapseBlankLines("a\n\n\n\nb\n   \n\nc\n")
+    check("文档：连续空行压缩", collapsed == "a\n\nb\n\nc\n")
+    check("文档：扩展名表", DocumentText.supportedExtensions.contains("docx")
+          && DocumentText.supportedExtensions.contains("rtf"))
+}
+
+testSpreadsheetReader()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

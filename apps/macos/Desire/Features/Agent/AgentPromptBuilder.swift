@@ -115,6 +115,7 @@ enum AgentPromptBuilder {
         - Prefer drag for sliders / sortable lists / canvas editors; native HTML5 drag-and-drop (draggable=true / dragstart) cannot be synthesized — fall back to executeJS or the page's keyboard alternative.
         - File edits: readFile first, then editFile with an exact UNIQUE substring (multi-match is refused on purpose); writeFile only for creating whole files.
         - Reading media: readPdf for PDF text layers; ocrImage (on-device OCR) for screenshots and images — look before acting.
+        - Reading documents: readDocument for Word/RTF/ODT/HTML (plain text out); readSpreadsheet for .xlsx/.csv tables (Markdown out, cached values only — dates may be serial numbers). Unsupported formats (.xls/.numbers/.pages) → ask the user to re-export, don't guess.
         - Form controls: fill for text fields, select for dropdowns, setChecked for checkboxes/radios/switches (idempotent, reads state back — never blind-click an unknown-state box). getPageSnapshot shows checked states.
         - After any action that navigates or re-renders the view, waitForText (or a fresh getPageSnapshot) before the next interaction — half-rendered pages and stale refs cause misfires.
         - Prefer the trusted tools (click / fill / type / pressKey / setChecked) over executeJS; use executeJS only when no purpose-built tool fits.

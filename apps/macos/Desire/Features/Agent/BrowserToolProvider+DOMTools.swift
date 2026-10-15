@@ -2261,6 +2261,61 @@ extension BrowserToolProvider {
                 return head + text
             }
 
+        case "readDocument":
+            // Word/RTF 富文本取文（textutil）。表格/PDF/扫描件各有专门工具。
+            guard let docPath = args["path"] as? String, !docPath.isEmpty else { return Self.fail("Missing path") }
+            let docMax = (args["maxChars"] as? Int) ?? 60_000
+            switch AgentWorkspace.shared.resolve(docPath, write: false) {
+            case .denied(let reason):
+                return reason
+            case .granted(let fileURL):
+                let ext = fileURL.pathExtension.lowercased()
+                guard DocumentText.supportedExtensions.contains(ext) else {
+                    return Self.fail("Unsupported document type .\(ext) — readDocument handles \(DocumentText.supportedExtensions.sorted().joined(separator: "/")); PDF → readPdf, images → ocrImage, tables → readSpreadsheet")
+                }
+                guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                    return Self.fail("File not found: \(fileURL.path)")
+                }
+                guard let text = DocumentText.extractPlainText(from: fileURL, maxChars: docMax) else {
+                    return "No text extracted from \(fileURL.lastPathComponent) — empty or unreadable document"
+                }
+                return "Document text (\(ext), \(fileURL.lastPathComponent)):\n\(text)"
+            }
+
+        case "readSpreadsheet":
+            // 表格取数：xlsx（zip+XML）、csv/tsv（分隔符嗅探）。
+            guard let sheetPath = args["path"] as? String, !sheetPath.isEmpty else { return Self.fail("Missing path") }
+            let sheetIndex = (args["sheet"] as? Int) ?? 1
+            let rowCap = (args["maxRows"] as? Int) ?? 200
+            switch AgentWorkspace.shared.resolve(sheetPath, write: false) {
+            case .denied(let reason):
+                return reason
+            case .granted(let fileURL):
+                guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                    return Self.fail("File not found: \(fileURL.path)")
+                }
+                let ext = fileURL.pathExtension.lowercased()
+                let sheet: SpreadsheetReader.Sheet?
+                switch ext {
+                case "csv", "tsv", "txt":
+                    sheet = SpreadsheetReader.readCSV(from: fileURL, maxRows: rowCap)
+                case "xlsx":
+                    sheet = SpreadsheetReader.readXLSX(from: fileURL, sheetIndex: sheetIndex, maxRows: rowCap)
+                case "xls":
+                    return Self.fail("Legacy .xls is not supported — ask the user to re-save as .xlsx or .csv")
+                case "numbers":
+                    return Self.fail(".numbers is a private Apple format — ask the user to export as .xlsx or .csv")
+                default:
+                    return Self.fail("Unsupported table type .\(ext) — use .xlsx / .csv / .tsv")
+                }
+                guard let sheet, !sheet.rows.isEmpty else {
+                    return "No table data found in \(fileURL.lastPathComponent)"
+                }
+                let cols = sheet.rows.map(\.count).max() ?? 0
+                let head = "Spreadsheet \"\(sheet.name)\" (\(sheet.rows.count) row(s) × \(cols) col(s), first row = header):\n\n"
+                return head + SpreadsheetReader.markdown(from: sheet)
+            }
+
         case "exportPageAsPDF":
             // 整页 PDF（含文本层）落盘；path 缺省 = 下载目录/<页面标题>.pdf。
             guard webView.window != nil else {

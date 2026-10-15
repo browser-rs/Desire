@@ -699,6 +699,23 @@ extension BrowserToolProvider {
                 ], required: ["path"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "readDocument",
+                description: "Read a rich-text document as plain text via the on-device text pipeline: Word .docx / legacy .doc, .rtf, .odt, .html/.htm. Use readPdf for PDFs, ocrImage for scans/screenshots, readSpreadsheet for .xlsx/.csv, readFile for plain text.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Document path (workspace / user folders)"),
+                    "maxChars": AgentJSONSchemaValue(type: "number", description: "Cap on returned characters (default 60000)"),
+                ], required: ["path"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "readSpreadsheet",
+                description: "Read a table as a Markdown table: Excel .xlsx (cached values; pick the sheet with a 1-based index) and .csv/.tsv text tables (delimiter sniffed). Dates/formulas may come back as raw numbers (no style parsing). Legacy .xls and Apple .numbers are not supported — ask the user to re-export as .xlsx/.csv.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Table path (.xlsx/.csv/.tsv)"),
+                    "sheet": AgentJSONSchemaValue(type: "number", description: ".xlsx sheet index (1-based, default 1)"),
+                    "maxRows": AgentJSONSchemaValue(type: "number", description: "Cap on rows (default 200)"),
+                ], required: ["path"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "exportPageAsPDF",
                 description: "Save the current page (full scrollable content, real text layer — not an image) as a PDF: invoices, receipts, reports, docs. Returns the saved path; pair with readPdf to read it back or hand the file to the user. Reads the RENDERED page — lazy-loaded content not yet scrolled in may be missing.",
                 parameters: AgentJSONSchema(type: "object", properties: [

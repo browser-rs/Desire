@@ -66,6 +66,8 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/ToolRisk.swift
   apps/macos/Desire/Features/Agent/FileEdit.swift
   apps/macos/Desire/Features/Agent/PDFPageSpec.swift
+  apps/macos/Desire/Features/Agent/SpreadsheetReader.swift
+  apps/macos/Desire/Features/Agent/DocumentText.swift
   apps/macos/Desire/Features/Sync/SyncModels.swift
   apps/macos/Desire/Features/Agent/Memory/MemoryModels.swift
   apps/macos/Desire/Features/Agent/Memory/MemoryRetrieval.swift

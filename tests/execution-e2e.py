@@ -12,7 +12,8 @@ navigate 到生成的 fixture 页 → waitForText → [右键/双击/拖拽/勾�
 覆盖：rightClick(contextmenu) / doubleClick(dblclick) / drag(down+moves+up) /
 httpRequest（本地靶服务）/ exportPageAsPDF→readPdf（导出物文本层）/
 setChecked（含幂等与读回）/ getPageSnapshot 的 checked 字段 / editFile 实际落盘 /
-ocrImage / readPdf。跑完恢复档案、按内容清理测试会话与 fixture 目录。
+ocrImage / readPdf / readDocument(docx) / readSpreadsheet(xlsx/csv，含错类型 Error: 口径)。
+跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import json
 import threading
@@ -198,6 +199,23 @@ class Fake(BaseHTTPRequestHandler):
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE5-DONE"}, "stop")
             return
+        if "MUSCLE6" in mode:
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "readDocument", {"path": f"{self.fix}/doc.docx"})]}, "tool_calls")
+            elif n == 1:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "readSpreadsheet", {"path": f"{self.fix}/quote.xlsx"})]}, "tool_calls")
+            elif n == 2:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "readSpreadsheet", {"path": f"{self.fix}/orders.csv"})]}, "tool_calls")
+            elif n == 3:
+                # 错类型：docx 工具读 xlsx → 必须走 Error: 约定并指对工具
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "readDocument", {"path": f"{self.fix}/quote.xlsx"})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE6-DONE"}, "stop")
+            return
         if "MUSCLE4" in mode:
             import datetime as _dt
             due = (_dt.datetime.now() + _dt.timedelta(days=1)).replace(hour=9, minute=0, second=0)
@@ -291,6 +309,31 @@ def main():
     shutil.copy(FIXTURE_ASSETS / "probe.png", fix_dir / "probe.png")
     shutil.copy(FIXTURE_ASSETS / "probe.pdf", fix_dir / "probe.pdf")
     shutil.copy(FIXTURE_ASSETS / "probe3.pdf", fix_dir / "probe3.pdf")
+    # v20 文档/表格 fixture：docx 由 textutil 打包（系统转换器），xlsx 手写
+    # 最小工作簿（zip + XML——不需要 Excel），csv 含引号/逗号/中文。
+    (fix_dir / "doc.txt").write_text(
+        "Desire 文档读取 fixture\n\nDOC-MARKER-ALPHA 第一段正文\nDOC-MARKER-BETA 第二段正文\n")
+    import subprocess as _sp
+    _sp.run(["textutil", "-convert", "docx", "-output", str(fix_dir / "doc.docx"),
+             str(fix_dir / "doc.txt")], check=True, capture_output=True)
+    (fix_dir / "orders.csv").write_text(
+        'name,qty,note\n"ACME, Inc.",12,"含逗号, 引号"\nBeta,3,ok\n')
+    import zipfile as _zip
+    _shared = ('<?xml version="1.0"?><sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+               '<si><t>商品</t></si><si><t>价格</t></si></sst>')
+    _sheet = ('<?xml version="1.0"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+              '<sheetData>'
+              '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c></row>'
+              '<row r="2"><c r="A2" t="inlineStr"><is><t>样品A</t></is></c><c r="B2"><v>19.9</v></c></row>'
+              '<row r="3"><c r="A3" t="inlineStr"><is><t>样品B</t></is></c><c r="B3"><v>35</v></c></row>'
+              '</sheetData></worksheet>')
+    _wb = ('<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+           'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+           '<sheets><sheet name="报价单" sheetId="1" r:id="rId1"/></sheets></workbook>')
+    with _zip.ZipFile(fix_dir / "quote.xlsx", "w") as _z:
+        _z.writestr("xl/sharedStrings.xml", _shared)
+        _z.writestr("xl/worksheets/sheet1.xml", _sheet)
+        _z.writestr("xl/workbook.xml", _wb)
     Fake.fix = str(fix_dir)
     TinyAPI.html = DRAG_HTML
 
@@ -536,6 +579,31 @@ def main():
         ok("抽页产物是正确的那一页", "PAGE-TWO-BRAVO" in split_read and "PAGE-ONE-ALPHA" not in split_read)
         notes = (fix_dir / "notes.txt").read_text()
         ok("文件实际已改", ("NEW_TOKEN" in notes) and ("OLD_TOKEN" not in notes))
+
+        # ── MUSCLE6：文档/表格读取（docx / xlsx / csv + 错类型 Error: 约定）──
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE6 文档表格读取"})
+        deadline6 = time.time() + 120
+        while time.time() < deadline6:
+            st6 = bridge("GET", "/agent/messages")
+            if not st6.get("busy") and any("MUSCLE6-DONE" in (m.get("content") or "")
+                                           for m in st6.get("messages", [])):
+                break
+            time.sleep(1)
+        time.sleep(1)
+        conv6_id = bridge("GET", "/agent/trace").get("conversation")
+        conv6 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                            / f"conversation-{conv6_id}.json").read_text())
+        tools6 = [m.get("content") or "" for m in conv6.get("messages", []) if m.get("role") == "tool"]
+        doc_out = next((t for t in tools6 if t.startswith("Document text (docx")), "")
+        xlsx_out = next((t for t in tools6 if t.startswith('Spreadsheet "报价单"')), "")
+        csv_out = next((t for t in tools6 if 'Spreadsheet "orders.csv"' in t), "")
+        wrong_out = next((t for t in tools6 if t.startswith("Error:")), "")
+        ok("docx 取文（两端标记句都在）", "DOC-MARKER-ALPHA" in doc_out and "DOC-MARKER-BETA" in doc_out)
+        ok("xlsx 表名/表头/数值（缓存值）", "报价单" in xlsx_out and "商品" in xlsx_out
+           and "19.9" in xlsx_out and "样品B" in xlsx_out)
+        ok("csv 引号字段正确切分", "ACME, Inc." in csv_out and "含逗号, 引号" in csv_out)
+        ok("错类型走 Error: 约定并指对工具", wrong_out.startswith("Error:") and "readSpreadsheet" in wrong_out)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:

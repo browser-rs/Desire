@@ -87,6 +87,8 @@ enum ToolRisk: Int, Comparable {
         "waitForText", "waitForSelector", "waitForDownload",
         // Reading list inspection (add/cache stay side-effect)
         "listReadingList",
+        // Workspaces 查看（save/restore/delete 是写操作，走默认 sideEffect）
+        "listWorkspaces",
         // Skills (read-only instruction loading)
         "useSkill", "listSkills",
         // Scheduled task inspection (creation/cancel stays side-effect)

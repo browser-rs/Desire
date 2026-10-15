@@ -1013,9 +1013,35 @@ final class TabSessionCoordinator {
         isTerminating = true
         UserDefaults.standard.set(false, forKey: Self.runningSentinelKey)
         persistAll(force: true)
-        let keys = managers.compactMap { $0.manager?.sessionKey }
+        var keys = managers.compactMap { $0.manager?.sessionKey }
+        // 一扇窗都不剩（用户关了最后一扇窗）：仍把最后关闭的会话作为
+        // "最近会话"——下次启动照常恢复，而不是把它归档掉。
+        if keys.isEmpty, let lastClosed = lastClosedSessionKey, !lastClosed.isEmpty {
+            keys = [lastClosed]
+        }
+        // 本次运行期间关掉的**其他**窗口：key 还在旧 index 里但不在此次的
+        // live 集合——先归档（既有机制，可经"恢复已归档会话"找回）再落
+        // 新 index。不归档的话文件会一直躺着，且旧 index 会在下次启动
+        // 参与"最近会话"择取（幽灵窗口复活事件的一半根因）。
+        pruneOrphanSessions(keeping: Set(keys), removeIndex: false)
         DiskStore.save(keys, key: Self.indexKey)
         DiskStore.flushSync()
+    }
+
+    /// 最近关闭的窗口的会话 key：关掉**最后一扇窗**再退出时，仍把它作为
+    /// "上次会话"留给下次启动采纳（关窗 ≠ 清仓；Chrome 同语义）。
+    private var lastClosedSessionKey: String?
+
+    /// 窗口关闭时摘除其 manager（ContentView 的 willClose 观察调用）。
+    /// 不摘除的话：SwiftUI 窗口 close 后实例不立即释放 → manager 存活 →
+    /// 退出时它照样 persistAll + 进 index → 下次启动多还一扇窗/抢"最近
+    /// 会话"位（2026-10-15 实测：测试窗口关掉后复活成幽灵窗口）。
+    func unregister(_ manager: TabManager) {
+        if let key = manager.sessionKey { lastClosedSessionKey = key }
+        managers.removeAll { $0.manager == nil || $0.manager === manager }
+        if activeManager === manager {
+            activeManager = managers.compactMap(\.manager).last
+        }
     }
 
     /// Moves session files whose windows were closed since the last
@@ -1023,7 +1049,11 @@ final class TabSessionCoordinator {
     /// — a wrongly-pruned session would be unrecoverable. No-op when the
     /// index is missing (crash before quit — keep everything rather than
     /// guess).
-    func pruneOrphanSessions(keeping keep: Set<String>) {
+    /// - Parameter removeIndex: 归档后是否删除索引。**启动路径**要删（旧索引
+    ///   已消费，删除防止被下次启动误采纳）；**退出路径**（prepareForTermination）
+    ///   传 false——那里紧接着就要写新索引，先删再写只会引入同键 remove/save
+    ///   竞态（2026-10-15 实测：索引被旧代 remove 抹掉，会话恢复全丢）。
+    func pruneOrphanSessions(keeping keep: Set<String>, removeIndex: Bool = true) {
         guard let index: [String] = DiskStore.load([String].self, key: Self.indexKey) else { return }
         var archived: [String] = DiskStore.load([String].self, key: Self.archiveIndexKey) ?? []
         let fm = FileManager.default
@@ -1040,7 +1070,9 @@ final class TabSessionCoordinator {
             try? fm.removeItem(at: Self.archiveDirectory.appendingPathComponent(oldest))
         }
         DiskStore.save(archived, key: Self.archiveIndexKey)
-        DiskStore.remove(key: Self.indexKey)
+        if removeIndex {
+            DiskStore.remove(key: Self.indexKey)
+        }
     }
 
     nonisolated static var archiveDirectory: URL {

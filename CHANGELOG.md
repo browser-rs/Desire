@@ -10,6 +10,10 @@
 - **工具助手热补种（实机偶发自愈）**：极少数文档形态下隔离世界的 `__desire*` 注入会缺失，`getPageSnapshot` 等直接报 `Can't find variable`（实机观测一次，挂起恢复 / document.write 重置均不可复现，机制未钉死）——现在 `callAsync` 收口检测该 ReferenceError 后**就地重注入 dom-tools 并自动重试一次**，把罕见硬失败变成透明自愈（仍失败则按原错误返回并附标记，日志留痕）。
 - **日历授权缺 entitlement（硬验证时 tccd 日志实证）**：Hardened Runtime 下 `kTCCServiceCalendar` 强制要求 `com.apple.security.personal-information.calendars`——缺失时 TCC **直接拒绝、连授权弹窗都不弹**（提醒事项无此要求，所以只坏日历）；已补进 entitlements（个人信息类属安全类别，开发签名可用；实测授权跨重建保留——TCC 按 Apple Development 证书身份认账）。
 - **停止按钮对"挂死连接"无效**（用户实测报告：刷新变叉后点击无反应）：页面子资源卡在永不响应的连接上时（实测：某站 32 个 CDN 请求悬置十几分钟），WebKit 既不取消也不回调——`isLoading` 永远停在 true，叉点了"没反应"、图标也不翻回。现在工具栏叉与菜单「停止加载」（⌘.）统一走 `Tab.stopUserLoad()`：stopLoading + `window.stop()` 兜底 + **立即认领已停止态**（图标即翻回 ↻，挂死页可一键重载重试；旧加载若稍后真收尾，回调再置一次也无害）。已在"永不响应"实况（含用户当场卡住的标签）上双向验证；`/state` 顺带补了 `loading` 字段供桥观察。
+- **关窗僵尸与 macOS 窗口级还原（跨窗口测试照出的存量问题）**：窗口关闭后 TabManager 不摘除 → 退出时它照样把已关窗口的会话写回 session-index → 下次启动多还一扇窗、还会挤掉真实会话的"最近"位（实测：幽灵窗口两轮复活）。修法：`willClose` 时从协调器摘除（摘除时记下"最后关闭会话"，关掉最后一扇窗再退出仍照常恢复）+ 关掉 macOS 的窗口级还原（应用自带会话恢复，这份重复的窗口集只会制造幽灵窗）。
+- **DiskStore 乱序竞态（同一键上先删后写会被抹成删除）**：写者的 stage 由 detached 任务投递，到达顺序无保证——旧代的 remove 后到时会覆盖新代的 write。实测后果：退出路径的 session-index 被删、下次启动会话恢复全丢。修法：写者按代数拒收任何比当前 pending 更旧的操作；退出路径不再"先删索引再写索引"。回归用例（旧代删除不覆盖新代写入/新代删除生效/新代写入胜出）进 `tests/run.sh`。
+- **`newWindow` 在后台应用下被静默丢弃**：命令走 CommandBus，其消费守卫要求 `hostingWindow === NSApp.keyWindow`，应用不在前台时 keyWindow 为空 → 命令被所有窗口丢掉（后台跑 E2E 稳定复现）。修法：工具先激活应用、稍候再发命令，开窗后再显式 `makeKeyAndOrderFront`，并等到新窗口的 TabManager 注册完成才返回。
+
 
 
 
@@ -31,6 +35,8 @@
 - **菜单栏快速入口**（v19）：不打开浏览器窗口就能给 Agent 下指令——菜单栏 ✦ 图标点开一个小浮窗（问一句、回车发送，答案落在当前会话里），「打开 Agent 面板」一键把目标窗口拉前台亮出面板。发送走既定投递口径（定时任务/桥同一目标，多窗口下按"持有会话的窗口"收敛），设置 › 通用 新增「菜单栏」区块可随时关闭（默认开）。宿主是 NSStatusItem + NSPopover：实测 SwiftUI `MenuBarExtra` 的 `isInserted:` 动态绑定（@AppStorage 与 @Published 均如此）会让本应用启动进入无限图更新循环（主线程 100%、主菜单反复重建、桥无响应；二分验证后弃用），NSStatusItem 不参与 SwiftUI 场景图且弹窗能代码收起（打开面板前先收弹窗，key window 归还浏览器窗口）。全链路已实测：AX 点开菜单项 → 键盘注入输入+回车 → 会话收到消息并完成回合 → AX 点「打开 Agent 面板」→ 面板亮出；设置开关 ON/OFF 往返（图标即时增删 + 落盘）通过。
 - **文档与表格读取（v20，替人干活再补两块）**：Agent 的阅读面从 PDF/图片扩到办公文档——新增 `readDocument`（Word `.docx`/旧版 `.doc`、`.rtf`、`.odt`、`.html` 富文本转纯文本，走系统 `textutil`，不引第三方解析器）与 `readSpreadsheet`（`.xlsx` 直接解析 zip+XML 取**缓存值**、`.csv`/`.tsv` 分隔符嗅探，输出 Markdown 表；1 基 sheet 索引选工作表、行列上限截断标注）。口径显式写进工具返回：公式取上次保存结果、日期可能是 Excel 序列号；`.xls`/`.numbers` 不支持并提示另存。风险分级归 `readonly`（本地解析不写任何状态），惯例层补「读文档用哪把工具」分工；纯逻辑（CSV 解析/RFC4180 引号转义、单元格引用、sharedStrings 注音丢弃、行组装补位、Markdown 转义）进 `tests/run.sh`（+32 项）；E2E 新增 MUSCLE6（docx/xlsx/csv 真实读通 + 错类型走 `Error:` 约定并指对工具），execution 套件 51 项全过。开发中实测挖出 Swift 字素簇坑：`"\\r\\n"` 是**单个 Character**，逐字符匹配换行分支永远不命中——CRLF 表格会被当成"一行一个字段"，解析入口必须先归一化换行。
 - **标签治理四件套（v21）**：Agent 现在能真正打理标签栏——新增 `pinTab`（固定/取消，固定标签显示在最前、免自动挂起）、`muteTab`（静音/取消，劫持式静音挡站点自己的取消脚本）、`moveTab`（移位：`to` = 移动后应落的下标，内部按 onMove 插入位语义平移，不会差一位）、`setZoom`（直接设页面缩放 25-500%，只读分级与 zoomIn/Out 同类）。`listTabs` 输出补状态标记 `[pinned,muted,incognito,zoom N%]`——Agent 自己就能核对自己刚做的改动。E2E 新增 MUSCLE7（钉住自己开的 fixture 标签：pin→mute→zoom→move→复查标记与位次，只碰自己的标签）；execution 套件 57 项 ALL PASS。
+- **窗口与工作区工具化（v22）**：Agent 现在能管窗口和整窗快照——`newWindow`（开新窗口可带 URL，开好自动到前台并取得焦点）、`openIncognitoTab`（隐私标签，不进历史）、`closeWindow`（关掉本会话所在窗口，描述里明示会带走全部标签）、工作区四件套 `saveWorkspace` / `listWorkspaces` / `restoreWorkspace`（替换当前窗口标签，与工作区面板 Restore 同语义、返回文案明示）/ `deleteWorkspace`（沿用同名覆盖）。桥补 `GET /workspaces` 与 `POST /workspaces/delete` 供外部驱动与测试清理。
+
 
 
 

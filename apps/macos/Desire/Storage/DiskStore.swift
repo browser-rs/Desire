@@ -158,6 +158,11 @@ actor DiskStoreWriter {
 
     func stage(data: Data, key: String, generation: UInt64) {
         nextGeneration = max(nextGeneration, generation)
+        // 乱序到达（stage 由 detached 任务投递，到达顺序无保证）：**旧代
+        // 不得覆盖新代**——否则"先 remove(gen N) 再 save(gen N+1)"时若
+        // remove 后到，会把新数据抹成一个删除（2026-10-15 实测：退出路径
+        // 的 index 被这样删掉，下次启动会话恢复全丢）。
+        if let existing = pending[key], existing.generation > generation { return }
         pending[key] = .write(generation: generation, data: data)
         scheduleFlush(for: key)
     }
@@ -171,6 +176,8 @@ actor DiskStoreWriter {
 
     func stageRemoval(key: String, generation: UInt64) {
         nextGeneration = max(nextGeneration, generation)
+        // 同 stage：旧代的删除不得覆盖新代的写入（乱序到达场景）。
+        if let existing = pending[key], existing.generation > generation { return }
         pending[key] = .remove(generation: generation)
         scheduleFlush(for: key)
     }

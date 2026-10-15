@@ -433,6 +433,8 @@ final class AutomationServer {
         ep("POST", "/bookmarks/add", "Add bookmark", params: ["title:string", "url:string"], example: #"-d '{"title":"X","url":"https://a.b"}'"#)
         ep("POST", "/bookmarks/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("GET", "/reading-list", "Reading list", example: "…/reading-list")
+        ep("GET", "/workspaces", "Saved window workspaces (name/tabs/savedAt)", example: "…/workspaces")
+        ep("POST", "/workspaces/delete", "Delete a saved workspace by name", params: ["name:string"], example: #"-d '{"name":"…"}'"#)
         ep("POST", "/reading-list/add", "Add item", params: ["title:string", "url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/cache", "Cache an item for offline reading (.webarchive; reuses the item's open tab when available)", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
@@ -1551,6 +1553,10 @@ final class AutomationServer {
                 return try Self.json(Self.setPin(index: Self.index(body), pinned: body["pinned"] as? Bool))
             case ("GET", "/reading-list"):
                 return try Self.json(Self.readingList())
+            case ("GET", "/workspaces"):
+                return try Self.json(Self.workspacesList())
+            case ("POST", "/workspaces/delete"):
+                return try Self.json(Self.workspaceDelete(name: Self.string(body, "name") ?? ""))
             case ("GET", "/system/integrations"):
                 return try Self.json([
                     "reminders": EventKitBridge.access(.reminder).rawValue,
@@ -4318,6 +4324,24 @@ final class AutomationServer {
         }]
     }
 
+    /// 窗口级工作区（v22 桥面）：列表 + 按名删除——E2E 清理与外部驱动用。
+    private static func workspacesList() -> [String: Any] {
+        let items = WorkspaceStore.shared.workspaces.map { ws -> [String: Any] in
+            ["name": ws.name, "tabs": ws.session.tabs.count,
+             "savedAt": ISO8601DateFormatter().string(from: ws.savedAt)]
+        }
+        return ["ok": true, "workspaces": items]
+    }
+
+    private static func workspaceDelete(name: String) -> [String: Any] {
+        guard !name.isEmpty else { return ["ok": false, "error": "missing name"] }
+        guard let ws = WorkspaceStore.shared.workspace(named: name) else {
+            return ["ok": false, "error": "not found: \(name)"]
+        }
+        WorkspaceStore.shared.remove(ws.id)
+        return ["ok": true, "deleted": ws.name]
+    }
+
     /// 阅读列表离线缓存（.webarchive）：页面已打开复用其 webview，否则后台加载。
     private static func readingListCacheAsync(url: String) async -> [String: Any] {
         guard let app = AppState.live, !url.isEmpty else { return ["error": "missing url"] }
@@ -4629,6 +4653,9 @@ final class AutomationServer {
                 "pendingApproval": session.pendingApproval != nil,
                 "messages": session.messages.count,
                 "isNewest": AgentScheduler.shared.deliveryTarget === session,
+                // 宿主窗口是否真实可见（关掉的窗口会滞留为不可见窗口，
+                // 会话条目一时半会不消失——窗口活性要以这个为准）
+                "windowVisible": session.boundTabManager?.selectedTab?.browser.webView.window?.isVisible ?? false,
                 // 双窗口互不串台的断言面：每窗会话当前装载的对话
                 "conversationId": session.conversationId?.uuidString ?? "",
                 "conversationTitle": session.conversationTitle ?? "",

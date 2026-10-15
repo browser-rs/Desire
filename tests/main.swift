@@ -2738,7 +2738,56 @@ func testSpreadsheetReader() {
           && DocumentText.supportedExtensions.contains("rtf"))
 }
 
+
+func testDiskStoreStaleOpGuard() {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("ds-test-\(UUID().uuidString)", isDirectory: true)
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let writer = DiskStoreWriter(directory: dir, debounceInterval: .milliseconds(5))
+
+    // 乱序到达：先 stage 新代写入（gen 2），再 stage 旧代删除（gen 1）——
+    // 旧的删除不得抹掉新的写入。
+    let sem1 = DispatchSemaphore(value: 0)
+    Task {
+        await writer.stage(data: Data("{\"v\":2}".utf8), key: "k", generation: 2)
+        await writer.stageRemoval(key: "k", generation: 1)
+        await writer.flushNow()
+        sem1.signal()
+    }
+    _ = sem1.wait(timeout: .now() + 3)
+    check("DiskStore：旧代删除不覆盖新代写入",
+          FileManager.default.fileExists(atPath: dir.appendingPathComponent("k.json").path))
+
+    // 正向：新代删除应生效（gen 4 > gen 3）
+    let sem2 = DispatchSemaphore(value: 0)
+    Task {
+        await writer.stage(data: Data("{}".utf8), key: "k2", generation: 3)
+        await writer.stageRemoval(key: "k2", generation: 4)
+        await writer.flushNow()
+        sem2.signal()
+    }
+    _ = sem2.wait(timeout: .now() + 3)
+    check("DiskStore：新代删除生效",
+          !FileManager.default.fileExists(atPath: dir.appendingPathComponent("k2.json").path))
+
+    // 反向乱序：先 stage 旧代写入（gen 5），再 stage 新代写入（gen 6）——
+    // 落盘的应是新代内容（含标）"newer"。
+    let sem3 = DispatchSemaphore(value: 0)
+    Task {
+        await writer.stage(data: Data("older".utf8), key: "k3", generation: 5)
+        await writer.stage(data: Data("newer".utf8), key: "k3", generation: 6)
+        await writer.flushNow()
+        sem3.signal()
+    }
+    _ = sem3.wait(timeout: .now() + 3)
+    let content3 = (try? String(contentsOf: dir.appendingPathComponent("k3.json"), encoding: .utf8)) ?? ""
+    check("DiskStore：新代写入胜出", content3 == "newer")
+
+    try? FileManager.default.removeItem(at: dir)
+}
+
 testSpreadsheetReader()
+testDiskStoreStaleOpGuard()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

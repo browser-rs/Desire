@@ -468,6 +468,44 @@ extension BrowserToolProvider {
                     "percent": AgentJSONSchemaValue(type: "number", description: "Zoom percentage, e.g. 125"),
                 ], required: ["percent"])
             )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "newWindow", description: "Open a new browser window, optionally loading a URL in it. Use listWindows to see existing windows.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "url": AgentJSONSchemaValue(type: "string", description: "URL to load in the new window (optional)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "closeWindow", description: "Close the CURRENT browser window (the one this conversation lives in) — every tab in it goes away. Confirm with the user first unless they explicitly asked for it.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "openIncognitoTab", description: "Open a private (incognito) tab — separate cookies/storage, not recorded in history. Optional URL.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "url": AgentJSONSchemaValue(type: "string", description: "URL to load (optional)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "saveWorkspace", description: "Save ALL tabs of the current window as a named workspace (snapshot) — same as the Workspaces panel's Save. Same name overwrites. Restore later with restoreWorkspace.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Workspace name"),
+                ], required: ["name"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listWorkspaces", description: "List saved workspaces (name, tab count, saved time).",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "restoreWorkspace", description: "Load a saved workspace into the current window. NOTE: this REPLACES the window's current tabs with the workspace's tabs (same as the panel's Restore) — confirm with the user first unless they asked for it.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Workspace name"),
+                ], required: ["name"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "deleteWorkspace", description: "Delete a saved workspace by name.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Workspace name"),
+                ], required: ["name"])
+            )),
 
             // --- Bookmarks ---
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

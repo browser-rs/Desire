@@ -449,6 +449,13 @@ struct ContentView: View {
             guard note.object as? NSWindow === hostingWindow else { return }
             AgentScheduler.shared.deliveryTarget = aiSession
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.willCloseNotification)) { note in
+            // 本窗口即将关闭：把它的 TabManager 从协调器摘掉——否则僵尸
+            // manager 会在退出时把已关窗口的会话写回 session-index，下次
+            // 启动多还一扇窗（2026-10-15 实测，见 unregister 注释）。
+            guard note.object as? NSWindow === hostingWindow else { return }
+            TabSessionCoordinator.shared.unregister(tabManager)
+        }
         .onReceive(CommandBus.shared.publisher) { command in
             // The bus is app-wide: ⌘T/⌘W/⌘R… must act only in the KEY
             // window, not in every open window at once.

@@ -573,6 +573,120 @@ extension BrowserToolProvider {
             webView.pageZoom = Double(clamped) / 100.0
             return "Zoom set to \(clamped)%"
 
+        case "newWindow":
+            // 新窗口（菜单 File ▸ New Window 同路径）。**先激活应用再发命令**：
+            // CommandBus 的消费守卫是 hostingWindow === NSApp.keyWindow，
+            // 应用在后台时 keyWindow 为空 → 命令会被所有窗口丢掉（实测：
+            // 后台跑 E2E 时这一步永远失败）。带 url 时等新窗口的 TabManager
+            // 注册（注册点在 TabManager.init）后在其中开标签。
+            NSApp.activate(ignoringOtherApps: true)
+            try? await Task.sleep(for: .milliseconds(250))
+            let beforeManagers = Set(TabSessionCoordinator.shared.liveManagers().map(ObjectIdentifier.init))
+            CommandBus.shared.send(.newWindow)
+            var freshManager: TabManager?
+            for _ in 0..<26 {
+                try? await Task.sleep(for: .milliseconds(150))
+                if let fresh = TabSessionCoordinator.shared.liveManagers()
+                    .first(where: { !beforeManagers.contains(ObjectIdentifier($0)) }) {
+                    freshManager = fresh
+                    break
+                }
+            }
+            guard let freshManager else {
+                return Self.fail("Couldn't open a new window (the command goes to the key window — focus a Desire browser window and retry)")
+            }
+            if let windowURL = args["url"] as? String, !windowURL.isEmpty {
+                freshManager.addTab(url: windowURL,
+                                    javaScriptEnabled: surface.settings.isJavaScriptEnabled,
+                                    contentBlocker: surface.contentBlocker,
+                                    videoAdBlocker: surface.videoAdBlocker)
+            }
+            // 到前台并取 key：应用在后台时新窗口只是"创建"而不成 key——那样
+            // deliveryTarget/键命令都还留在旧窗（E2E 实测踩到）。webview 挂载
+            // 是异步的，等一拍再取窗口引用。
+            NSApp.activate(ignoringOtherApps: true)
+            var keyed = false
+            for _ in 0..<10 {
+                try? await Task.sleep(for: .milliseconds(150))
+                if let window = freshManager.selectedTab?.browser.webView.window {
+                    window.makeKeyAndOrderFront(nil)
+                    keyed = true
+                    break
+                }
+            }
+            let opened = (args["url"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                .map { "Opened a new window with \($0)" } ?? "Opened a new window"
+            return opened + (keyed ? "" : " (window created but couldn't be focused)")
+
+        case "closeWindow":
+            // 关掉**本会话所在窗口**（不是 key window——多窗口/自动化场景下
+            // key 往往是别的窗；按宿主窗口精确关自己的）。
+            guard let hostWindow = webView.window else { return Self.fail("No window attached") }
+            let hostTabCount = surface.tabManager?.tabs.count ?? 0
+            hostWindow.close()
+            return "Closed the window (\(hostTabCount) tab(s))"
+
+        case "openIncognitoTab":
+            let privateURL = args["url"] as? String
+            surface.tabManager?.addTab(
+                url: privateURL,
+                incognito: true,
+                javaScriptEnabled: surface.settings.isJavaScriptEnabled,
+                contentBlocker: surface.contentBlocker,
+                videoAdBlocker: surface.videoAdBlocker,
+                autoPlayPolicy: surface.settings.autoPlayPolicy,
+                newTabPosition: surface.settings.newTabPosition
+            )
+            let urlNote = privateURL.map { " with \($0)" } ?? ""
+            return "Opened a private tab\(urlNote) — not recorded in history"
+
+        case "saveWorkspace":
+            // 工作区 = 当前窗口全部标签的命名快照（与工作区面板「保存当前」同路径）。
+            guard let manager = surface.tabManager, !manager.tabs.isEmpty else { return Self.fail("No tabs to save") }
+            guard let wsName = args["name"] as? String,
+                  !wsName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return Self.fail("Missing name")
+            }
+            let saved = WorkspaceStore.shared.save(name: wsName, tabManager: manager)
+            return "Saved workspace \"\(saved.name)\" (\(saved.session.tabs.count) tab(s))"
+
+        case "listWorkspaces":
+            let allWorkspaces = WorkspaceStore.shared.workspaces
+            guard !allWorkspaces.isEmpty else { return "No workspaces saved" }
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyy-MM-dd HH:mm"
+            return allWorkspaces.map { ws in
+                "\(ws.name) — \(ws.session.tabs.count) tab(s) — saved \(formatter.string(from: ws.savedAt))"
+            }.joined(separator: "\n")
+
+        case "restoreWorkspace":
+            // 与工作区面板「Restore」同路径：**替换**当前窗口的标签集
+            //（选中标签急切恢复、其余挂起），快照里的档案优先。
+            guard let manager = surface.tabManager else { return Self.fail("No window") }
+            guard let restoreName = args["name"] as? String, !restoreName.isEmpty else { return Self.fail("Missing name") }
+            guard let ws = WorkspaceStore.shared.workspace(named: restoreName) else {
+                let names = WorkspaceStore.shared.workspaces.map(\.name).joined(separator: ", ")
+                return Self.fail("Workspace not found: \(restoreName). Available: \(names.isEmpty ? "(none)" : names)")
+            }
+            if let pid = ws.session.profileID {
+                manager.profileID = pid
+                manager.profileDataStore = ProfileStore.shared.dataStore(for: pid)
+            }
+            manager.apply(session: ws.session,
+                          javaScriptEnabled: surface.settings.isJavaScriptEnabled,
+                          contentBlocker: surface.contentBlocker,
+                          videoAdBlocker: surface.videoAdBlocker)
+            return "Restored workspace \"\(ws.name)\" — \(manager.tabs.count) tab(s) now open in this window (previous tabs were replaced)"
+
+        case "deleteWorkspace":
+            guard let delName = args["name"] as? String, !delName.isEmpty else { return Self.fail("Missing name") }
+            guard let wsToDelete = WorkspaceStore.shared.workspace(named: delName) else {
+                return Self.fail("Workspace not found: \(delName)")
+            }
+            WorkspaceStore.shared.remove(wsToDelete.id)
+            return "Deleted workspace \"\(wsToDelete.name)\""
+
         // --- Bookmarks ---
         case "addBookmark":
             guard let url = webView.url?.absoluteString, !url.isEmpty, !isNewTabPage(url) else { return Self.fail("No page to bookmark") }

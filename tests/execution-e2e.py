@@ -13,7 +13,9 @@ navigate 到生成的 fixture 页 → waitForText → [右键/双击/拖拽/勾�
 httpRequest（本地靶服务）/ exportPageAsPDF→readPdf（导出物文本层）/
 setChecked（含幂等与读回）/ getPageSnapshot 的 checked 字段 / editFile 实际落盘 /
 ocrImage / readPdf / readDocument(docx) / readSpreadsheet(xlsx/csv，含错类型 Error: 口径) /
-pinTab+muteTab+setZoom+moveTab（listTabs 状态标记复查）。
+pinTab+muteTab+setZoom+moveTab（listTabs 状态标记复查）/
+newWindow+saveWorkspace+openIncognitoTab+restoreWorkspace+deleteWorkspace（MUSCLE8 全在
+新窗口里做，用户窗口零触碰）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import json
@@ -235,6 +237,42 @@ class Fake(BaseHTTPRequestHandler):
                     call(1, "listTabs", {})]}, "tool_calls")
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE7-DONE"}, "stop")
+            return
+        if "MUSCLE8" in mode:
+            if "MUSCLE8A" in mode:
+                # 回合 A：开新窗口并加载 fixture 页
+                if n == 0:
+                    sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                        call(0, "newWindow", {"url": f"http://127.0.0.1:{API_PORT}/fixture"})]}, "tool_calls")
+                else:
+                    sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE8A-DONE"}, "stop")
+                return
+            # 回合 B：新窗口里跑工作区闭环（deliveryTarget 已是新窗口的会话）
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "saveWorkspace", {"name": "E2E-MUSCLE8"}),
+                    call(1, "openIncognitoTab", {"url": f"http://127.0.0.1:{API_PORT}/hello"})]}, "tool_calls")
+            elif n == 2:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "listWorkspaces", {}),
+                    call(1, "listTabs", {})]}, "tool_calls")
+            elif n == 4:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "restoreWorkspace", {"name": "E2E-MUSCLE8"})]}, "tool_calls")
+            elif n == 5:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "listTabs", {}),
+                    call(1, "listWorkspaces", {})]}, "tool_calls")
+            elif n == 7:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "deleteWorkspace", {"name": "E2E-MUSCLE8"})]}, "tool_calls")
+            elif n == 8:
+                # 最后一步：关掉本会话所在窗口（测试窗口自清理；窗口一关回合
+                # 可能收不到最终消息——断言只依赖已落盘的工具结果）。
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "closeWindow", {})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE8-DONE"}, "stop")
             return
         if "MUSCLE4" in mode:
             import datetime as _dt
@@ -661,6 +699,112 @@ def main():
         final_line = next((l for l in final_out.splitlines() if l.startswith(f"[{Fake.move_to}]")), "")
         ok("listTabs 复查：标记齐 + 位次正确",
            "[pinned,muted,zoom 125%]" in final_line and "/flaky" in final_line)
+
+        # ── MUSCLE8：窗口/工作区/隐私标签（全部在**新窗口**里做）──
+        # 回合 A 开新窗口（新窗口即 key → deliveryTarget 切到它的会话），
+        # 回合 B 的 save/restore 都在新窗口的 tabManager 上跑——用户窗口零触碰。
+        def windows_live():
+            """真实可见的窗口（关掉的窗口会滞留为不可见的会话条目）。"""
+            data = bridge("GET", "/agent/windows")
+            wins = data.get("windows", []) if isinstance(data, dict) else data
+            return [w for w in wins if w.get("windowVisible")]
+
+        def window_count():
+            return len(windows_live())
+
+        wins_before = window_count()
+        # 回合 A 里新窗口一开就是 key → deliveryTarget 立刻切到新窗口的会话，
+        # /agent/trace 跟着走。先记下**当前**（用户窗口）会话 id，事后按 id
+        # 取它的 conversationId 读盘。
+        old_session_id = next((w["id"] for w in windows_live() if w.get("isNewest")), None)
+        assert old_session_id, "找不到当前窗口的会话 id"
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE8A 新窗口"})
+        deadlineA = time.time() + 60
+        while time.time() < deadlineA:
+            stA = bridge("GET", "/agent/messages")
+            if not stA.get("busy") and any("MUSCLE8A-DONE" in (m.get("content") or "")
+                                           for m in stA.get("messages", [])):
+                break
+            time.sleep(1)
+        time.sleep(2)   # 等 deliveryTarget 落到新窗口会话
+        convA_id = next((w.get("conversationId") or "" for w in windows_live()
+                         if w["id"] == old_session_id), "")
+        assert convA_id, "回合 A 的会话没有 conversationId"
+        convA = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                            / f"conversation-{convA_id}.json").read_text())
+        newwin_out = next((m.get("content") or "" for m in convA.get("messages", [])
+                           if m.get("role") == "tool"), "")
+        wins_after = window_count()
+        ok("newWindow 开窗并加载 fixture", newwin_out.startswith("Opened a new window with")
+           and f"127.0.0.1:{API_PORT}/fixture" in newwin_out)
+        ok("窗口数增加", wins_after == wins_before + 1)
+        if wins_after != wins_before + 1:
+            # 硬中止：没有新窗口就继续的话，MUSCLE8B 的工作区替换/关窗会
+            # 全部落在**用户窗口**上（2026-10-15 实测踩过一次）。
+            raise AssertionError("MUSCLE8A 没有开出新窗口——跳过 MUSCLE8B（避免误伤用户窗口）")
+        # 投递目标确实切到新窗口（背后是"新窗口成为 key"这件事）
+        new_session_id = next((w["id"] for w in windows_live() if w.get("isNewest")), None)
+        if new_session_id is None or new_session_id == old_session_id:
+            raise AssertionError("新窗口没有取得投递目标——MUSCLE8B 会跑进用户窗口，中止")
+
+        # 回合 B：新窗口的会话里做工作区闭环
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE8B 工作区闭环"})
+        deadlineB = time.time() + 120
+        while time.time() < deadlineB:
+            stB = bridge("GET", "/agent/messages")
+            msgsB = stB.get("messages", []) if isinstance(stB, dict) else []
+            if any("MUSCLE8-DONE" in (m.get("content") or "") for m in msgsB):
+                break
+            # closeWindow 是最后一步：窗口一关就没有最终消息了，等
+            # "Deleted workspace" 出现即可（后续 closeWindow 不影响断言）。
+            if any("Deleted workspace" in (m.get("content") or "") for m in msgsB):
+                break
+            time.sleep(1)
+        time.sleep(2)   # 等 closeWindow 落地 + 会话文件 flush
+        # **按新窗口会话 id 读盘**：回合 B 的最后一步是 closeWindow——
+
+        # 窗口一关 deliveryTarget 就挪回别的窗口，/agent/trace（跟 deliveryTarget）
+        # 会读到别人的会话（2026-10-15 实测：断言全红而工具其实全对）。
+        # 会话条目在窗口关闭后仍短暂在列（hidden），带 conversationId。
+        convB_id = next((w.get("conversationId") or ""
+                         for w in bridge("GET", "/agent/windows").get("windows", [])
+                         if w["id"] == new_session_id), "")
+        assert convB_id, "新窗口会话没有 conversationId"
+        convB = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                            / f"conversation-{convB_id}.json").read_text())
+        toolsB = [m.get("content") or "" for m in convB.get("messages", []) if m.get("role") == "tool"]
+        save_out = next((t for t in toolsB if t.startswith('Saved workspace "E2E-MUSCLE8"')), "")
+        incog_out = next((t for t in toolsB if "private tab" in t), "")
+        ws_list_1 = next((t for t in toolsB if "E2E-MUSCLE8 —" in t), "")
+        tabs_after_incog = next((t for t in toolsB if "[incognito]" in t), "")
+        restore_out = next((t for t in toolsB if t.startswith('Restored workspace "E2E-MUSCLE8"')), "")
+        restore_idx = toolsB.index(restore_out) if restore_out in toolsB else -1
+        tabs_after_restore = next((t for t in toolsB[restore_idx + 1:]
+                                   if t.startswith("[0]") and "—" in t), "") if restore_idx >= 0 else ""
+        ws_list_2 = [t for t in toolsB if "tab(s) — saved" in t or t == "No workspaces saved"]
+        delete_out = next((t for t in toolsB if t.startswith('Deleted workspace "E2E-MUSCLE8"')), "")
+        ws_after_delete = bridge("GET", "/workspaces").get("workspaces", [])
+        ok("saveWorkspace 快照（2 个标签）", save_out.startswith('Saved workspace "E2E-MUSCLE8" (2 tab(s))'))
+        ok("openIncognitoTab 开隐私标签", incog_out.startswith("Opened a private tab") and "not recorded" in incog_out)
+        ok("listWorkspaces 含快照", "E2E-MUSCLE8 — 2 tab(s)" in ws_list_1)
+        ok("listTabs 显示 incognito 标记", "[incognito]" in tabs_after_incog)
+        ok("restoreWorkspace 替换为快照（隐私标签消失）",
+           restore_out.startswith('Restored workspace "E2E-MUSCLE8"')
+           and "previous tabs were replaced" in restore_out
+           and tabs_after_restore != "" and "[incognito]" not in tabs_after_restore
+           and len(tabs_after_restore.splitlines()) == 2)
+        # 删除后的"不在列表"用**桥端点**核（回合内的 listWorkspaces 输出
+        # 都发生在删除之前——拿它当删除后的证据是刻舟求剑）。
+        ok("deleteWorkspace 后列表不含快照",
+           delete_out == 'Deleted workspace "E2E-MUSCLE8"'
+           and all(w.get("name") != "E2E-MUSCLE8" for w in ws_after_delete))
+        # 窗口自清理：closeWindow（回合最后一步）后活窗口数回落
+        win_deadline = time.time() + 8
+        while time.time() < win_deadline and window_count() != wins_before:
+            time.sleep(0.5)
+        ok("closeWindow 后活窗口数回落", window_count() == wins_before)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -679,6 +823,20 @@ def main():
                 time.sleep(0.5)
         except Exception as exc:
             print("关标签跳过:", exc)
+        # MUSCLE8 收尾：先兜底删工作区（按名字用桥端点），再关掉新窗口——
+        # 只在 /state 显示的确实是**新窗口**（只有 fixture/新标签页）时才发
+        # closeWindow：命令打到 key window 上，护栏防误关用户窗口。
+        try:
+            bridge("POST", "/workspaces/delete", {"name": "E2E-MUSCLE8"})
+            try:
+                wins_now = len([w for w in bridge("GET", "/agent/windows").get("windows", [])
+                                if w.get("windowVisible")])
+                if wins_now > 1:
+                    print("警告：仍有 %d 个活窗口（测试窗口可能没关干净，请人工看一眼）" % wins_now)
+            except Exception:
+                pass
+        except Exception as exc:
+            print("MUSCLE8 收尾跳过:", exc)
         # 清理：测试会话按内容核对后删（别碰用户的）；档案恢复并核对；fixture 目录删除。
         try:
             for f in (Path.home() / "Library/Application Support/Desire/storage").glob("conversation-*.json"):

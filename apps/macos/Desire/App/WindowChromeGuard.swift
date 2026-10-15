@@ -60,6 +60,10 @@ struct WindowChromeGuard: NSViewRepresentable {
 
         func protect(window: NSWindow, onBecomeKey: (() -> Void)?) {
             protectedWindow = window
+            // 关掉 macOS 的窗口级还原（NSPersistentUI）：实测它会把关掉的
+            // 窗口在下次启动"复活"（App 自己有会话恢复，这份重复的窗口集
+            // 只会制造幽灵窗口与 session-index 污染）。
+            window.isRestorable = false
             let center = NotificationCenter.default
             fullscreenObservers.append(center.addObserver(
                 forName: NSWindow.willEnterFullScreenNotification, object: window, queue: .main

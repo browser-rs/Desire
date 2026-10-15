@@ -983,7 +983,19 @@ final class TabSessionCoordinator {
     }
 
     /// The active window's TabManager — read by the automation server.
-    var activeTabManager: TabManager? { activeManager }
+    var activeTabManager: TabManager? {
+        // 活动窗口正常可见 → 直接返回。**活动窗口关掉/不可见时回退到任一
+        // 可见窗口**：桥端点与工具解析都从这里取目标，返回死窗口的（空）
+        // 标签列表会误导外部驱动——2026-10-15 实测：关掉活动窗口后 /state
+        // 显示空标签、测试清理扫不到真窗口里的 fixture 标签。
+        if let activeManager,
+           activeManager.selectedTab?.browser.webView.window?.isVisible != false {
+            return activeManager
+        }
+        let visible = managers.compactMap(\.manager)
+            .last(where: { $0.selectedTab?.browser.webView.window?.isVisible == true })
+        return visible ?? activeManager ?? managers.compactMap(\.manager).last
+    }
 
     /// Persists ONE window's tabs under its own key.
     func persistWindow(_ manager: TabManager, key: String, force: Bool) {

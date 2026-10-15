@@ -1,4 +1,12 @@
 ## [Unreleased]
+### Fixed
+
+- **活动窗口解析加可见性回退**：`activeTabManager` 在活动窗口已关闭/不可见时回退到任一可见窗口——此前桥端点与工具解析会拿到死窗口的（空）标签列表（实测：关掉活动窗口后 /state 显示空标签、外部清理扫不到真窗口里的标签）。另修正两处陈旧注记（savePage 早已接线：File 菜单 + ⌘S；AGENTS 同步）。
+
+### Added
+
+- **历史定向清理与标签组改名（v23，替人干活补件）**：新增 `deleteHistory` 工具——按域名（含子域）和/或时间窗（`before`/`after`，"yyyy-MM-dd" / "yyyy-MM-dd HH:mm"）删除历史，**必须带至少一个条件**（清空仍是 clearHistory 的活，防手滑清库）；删除走既有 Store 路径，同步墓碑照常生效。新增 `renameTabGroup` 工具（按组名改名）。桥补 `GET /tab-groups` 与 `POST /tab-groups/delete`（测试清理与外部驱动）。E2E 新增 MUSCLE9（只碰 fixture 标签与 127.0.0.1 记录：入组→改名→复查→按域清历史→复查已清）——顺带把测试期间的本地 fixture 记录从历史里清干净。execution 套件 71 项。
+
 
 ## [v0.7.16] - 2026-10-15
 ### Changed

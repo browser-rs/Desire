@@ -310,7 +310,7 @@ Features/Bookmarks/
   设置页改键持久化、**下次启动生效**。勿尝试实时重绑：macOS 26 的
   SwiftUI Commands body 会随 Store 变化重算（已用日志实证），但
   keyEquivalent 变化和 .id() 结构重建都不会推给已安装的 NSMenu 条目。
-  映射里 savePage 尚无对应命令（未接线）；⌘1-9 切标签和 Esc 保持硬编码。
+  savePage 已接线（App/AppCommands.swift 的 File 菜单 + ⌘S）；⌘1-9 切标签和 Esc 保持硬编码。
 - **BUG-K 优雅退出挂起**：已缓解（2026-09，0.1.1）：SIGTERM/SIGINT 现在
   由 AppDelegate 安装的 DispatchSource 接管并转 NSApp.terminate(nil)——
   走 applicationShouldTerminate → 会话 flush → 干净退出，与 Cmd+Q 同

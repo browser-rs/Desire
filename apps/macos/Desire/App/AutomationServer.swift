@@ -435,6 +435,8 @@ final class AutomationServer {
         ep("GET", "/reading-list", "Reading list", example: "…/reading-list")
         ep("GET", "/workspaces", "Saved window workspaces (name/tabs/savedAt)", example: "…/workspaces")
         ep("POST", "/workspaces/delete", "Delete a saved workspace by name", params: ["name:string"], example: #"-d '{"name":"…"}'"#)
+        ep("GET", "/tab-groups", "Tab groups (name/color/tabCount)", example: "…/tab-groups")
+        ep("POST", "/tab-groups/delete", "Delete a tab group by name (test cleanup)", params: ["name:string"], example: #"-d '{"name":"…"}'"#)
         ep("POST", "/reading-list/add", "Add item", params: ["title:string", "url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/cache", "Cache an item for offline reading (.webarchive; reuses the item's open tab when available)", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
@@ -1555,6 +1557,10 @@ final class AutomationServer {
                 return try Self.json(Self.readingList())
             case ("GET", "/workspaces"):
                 return try Self.json(Self.workspacesList())
+            case ("GET", "/tab-groups"):
+                return try Self.json(Self.tabGroupsList())
+            case ("POST", "/tab-groups/delete"):
+                return try Self.json(Self.tabGroupDelete(name: Self.string(body, "name") ?? ""))
             case ("POST", "/workspaces/delete"):
                 return try Self.json(Self.workspaceDelete(name: Self.string(body, "name") ?? ""))
             case ("GET", "/system/integrations"):
@@ -4331,6 +4337,26 @@ final class AutomationServer {
              "savedAt": ISO8601DateFormatter().string(from: ws.savedAt)]
         }
         return ["ok": true, "workspaces": items]
+    }
+
+    /// 标签组（v23 桥面）：列表 + 按名删除——测试清理与外部驱动用。
+    /// 走 AppState.live 的实例（写操作必须落在 UI 持有的同一份状态上）。
+    private static func tabGroupsList() -> [String: Any] {
+        guard let store = AppState.live?.tabGroupStore else { return ["ok": false, "error": "app state not ready"] }
+        let items: [[String: Any]] = store.groups.map { g in
+            ["name": g.name, "colorIndex": g.colorIndex, "tabCount": g.tabIds.count]
+        }
+        return ["ok": true, "groups": items]
+    }
+
+    private static func tabGroupDelete(name: String) -> [String: Any] {
+        guard !name.isEmpty else { return ["ok": false, "error": "missing name"] }
+        guard let store = AppState.live?.tabGroupStore else { return ["ok": false, "error": "app state not ready"] }
+        guard let group = store.groups.first(where: { $0.name == name }) else {
+            return ["ok": false, "error": "not found: \(name)"]
+        }
+        store.delete(group.id)
+        return ["ok": true, "deleted": group.name]
     }
 
     private static func workspaceDelete(name: String) -> [String: Any] {

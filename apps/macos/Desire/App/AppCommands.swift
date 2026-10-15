@@ -8,7 +8,7 @@ import SwiftUI
 ///
 /// Items WITHOUT a mapping stay hardcoded (⌘1-9 tab switching, Esc, Reader,
 /// Clear History, Plugins/Extensions, import/export — fixed conventions).
-/// `savePage` has a mapping but no command yet, so it stays unwired.
+/// （savePage 已接线：菜单项 + 快捷键绑定见下方 File 菜单。）
 ///
 /// Re-recorded bindings are persisted by the store and land here on the next
 /// launch. Live re-binding was investigated and is NOT achievable: on

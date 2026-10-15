@@ -753,6 +753,31 @@ extension BrowserToolProvider {
             surface.historyStore.clearAll()
             return "History cleared"
 
+        case "deleteHistory":
+            // 定向清理（清空是 clearHistory 的活；这里必须带至少一个条件，
+            // 防"手滑清库"）。时间收 "yyyy-MM-dd" / "yyyy-MM-dd HH:mm" / ISO。
+            let history = surface.historyStore
+            let beforeCount = history.entries.count
+            var applied: [String] = []
+            if let domain = args["domain"] as? String,
+               !domain.trimmingCharacters(in: .whitespaces).isEmpty {
+                history.removeAll(from: domain)
+                applied.append("domain \(domain)")
+            }
+            for (key, isBefore) in [("before", true), ("after", false)] {
+                guard let raw = args[key] as? String, !raw.isEmpty else { continue }
+                guard let date = SystemIntegrationDates.parse(raw) else {
+                    return Self.fail("Unparseable \(key) date: \(raw) (use yyyy-MM-dd or yyyy-MM-dd HH:mm)")
+                }
+                if isBefore { history.removeAll(before: date) } else { history.removeAll(after: date) }
+                applied.append("\(key) \(raw)")
+            }
+            guard !applied.isEmpty else {
+                return Self.fail("Need at least one of: domain / before / after (to wipe everything use clearHistory)")
+            }
+            let removedCount = beforeCount - history.entries.count
+            return "Removed \(removedCount) history entr\(removedCount == 1 ? "y" : "ies") (\(applied.joined(separator: ", ")))"
+
         // --- Page controls ---
         case "findInPage":
             guard let text = args["text"] as? String, !text.isEmpty else { return Self.fail("Missing search text") }
@@ -973,6 +998,18 @@ extension BrowserToolProvider {
             surface.tabGroupStore.removeTabFromAll(tab.id)
             surface.tabGroupStore.addTab(tab.id, to: newGroup.id)
             return "Created and added to group: \(groupName)"
+
+        case "renameTabGroup":
+            guard let oldName = args["groupName"] as? String, !oldName.isEmpty,
+                  let newName = args["newName"] as? String, !newName.isEmpty else {
+                return Self.fail("Missing groupName / newName")
+            }
+            guard let group = surface.tabGroupStore.groups.first(where: { $0.name == oldName }) else {
+                let names = surface.tabGroupStore.groups.map(\.name).joined(separator: ", ")
+                return Self.fail("Group not found: \(oldName). Available: \(names.isEmpty ? "(none)" : names)")
+            }
+            surface.tabGroupStore.rename(group.id, to: newName)
+            return "Renamed group \"\(group.name)\" → \"\(newName)\""
 
         case "removeTabFromGroup":
             guard let tab = surface.tabManager?.selectedTab else { return Self.fail("No active tab") }

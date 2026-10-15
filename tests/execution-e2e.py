@@ -15,9 +15,11 @@ setChecked（含幂等与读回）/ getPageSnapshot 的 checked 字段 / editFil
 ocrImage / readPdf / readDocument(docx) / readSpreadsheet(xlsx/csv，含错类型 Error: 口径) /
 pinTab+muteTab+setZoom+moveTab（listTabs 状态标记复查）/
 newWindow+saveWorkspace+openIncognitoTab+restoreWorkspace+deleteWorkspace（MUSCLE8 全在
-新窗口里做，用户窗口零触碰）。
+新窗口里做，用户窗口零触碰）/ renameTabGroup+deleteHistory（MUSCLE9，只碰 fixture 标签
+与 127.0.0.1 记录）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
+import contextlib
 import json
 import threading
 import time
@@ -273,6 +275,22 @@ class Fake(BaseHTTPRequestHandler):
                     call(0, "closeWindow", {})]}, "tool_calls")
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE8-DONE"}, "stop")
+            return
+        if "MUSCLE9" in mode:
+            if n == 0:
+                # 先切回 fixture 标签（标签组操作带在"当前标签"上，别动用户的）
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "switchTab", {"index": self.tab_index}),
+                    call(1, "addTabToGroup", {"groupName": "E2E 组"})]}, "tool_calls")
+            elif n == 2:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "renameTabGroup", {"groupName": "E2E 组", "newName": "E2E 组（改名）"}),
+                    call(1, "deleteHistory", {"domain": "127.0.0.1"})]}, "tool_calls")
+            elif n == 4:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "listTabGroups", {}), call(1, "getHistory", {"count": 50})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE9-DONE"}, "stop")
             return
         if "MUSCLE4" in mode:
             import datetime as _dt
@@ -805,6 +823,48 @@ def main():
         while time.time() < win_deadline and window_count() != wins_before:
             time.sleep(0.5)
         ok("closeWindow 后活窗口数回落", window_count() == wins_before)
+
+        # ── MUSCLE9：标签组改名 + 历史定向清理（都只碰 fixture 相关对象）──
+        st9 = bridge("GET", "/state")
+        fix_idx9 = next((t.get("index") for t in st9.get("tabs", [])
+                         if "/fixture" in (t.get("url") or "") or "/flaky" in (t.get("url") or "")), None)
+        assert fix_idx9 is not None, "找不到 fixture 标签（MUSCLE9 要切回它）"
+        Fake.tab_index = fix_idx9
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE9 标签组与历史清理"})
+        deadline9 = time.time() + 120
+        while time.time() < deadline9:
+            st9b = bridge("GET", "/agent/messages")
+            if not st9b.get("busy") and any("MUSCLE9-DONE" in (m.get("content") or "")
+                                            for m in st9b.get("messages", [])):
+                break
+            time.sleep(1)
+        time.sleep(1)
+        conv9_id = bridge("GET", "/agent/trace").get("conversation")
+        conv9 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                            / f"conversation-{conv9_id}.json").read_text())
+        tools9 = [m.get("content") or "" for m in conv9.get("messages", []) if m.get("role") == "tool"]
+        group_add = next((t for t in tools9 if "to group: E2E 组" in t), "")
+        group_rename = next((t for t in tools9 if t.startswith("Renamed group")), "")
+        hist_delete = next((t for t in tools9 if t.startswith("Removed")), "")
+        groups_list = next((t for t in tools9 if "E2E 组（改名）" in t), "")
+        # getHistory 的结果必须取**删除之后**那条（写在前面的 deleteHistory
+        # 自己也含 "127.0.0.1"，按内容搜会抓错——实测踩过）
+        hist_idx = tools9.index(hist_delete) if hist_delete in tools9 else -1
+        history_out = next((t for t in (tools9[hist_idx + 1:] if hist_idx >= 0 else [])
+                            if "— http" in t or t == "No history entries"), "")
+        removed_n = 0
+        if hist_delete:
+            with contextlib.suppress(Exception):
+                removed_n = int(hist_delete.split()[1])
+        ok("标签组创建并入组（fixture 标签）", group_add.startswith("Created and added to group: E2E 组"))
+        ok("标签组改名", group_rename == 'Renamed group "E2E 组" → "E2E 组（改名）"')
+        # listTabGroups 行格式："<name> (N tabs): ..."——旧名后跟 " ("，而
+        # 新名是 "E2E 组（改名） ("，两者不互相误匹配。
+        ok("listTabGroups 显示新名", "E2E 组（改名）" in groups_list and "E2E 组 (" not in groups_list)
+        ok("deleteHistory 按域名删除（≥1 条）",
+           hist_delete.startswith("Removed ") and "domain 127.0.0.1" in hist_delete and removed_n >= 1)
+        ok("删除后 getHistory 不再含该域名", "127.0.0.1" not in history_out)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -828,6 +888,7 @@ def main():
         # closeWindow：命令打到 key window 上，护栏防误关用户窗口。
         try:
             bridge("POST", "/workspaces/delete", {"name": "E2E-MUSCLE8"})
+            bridge("POST", "/tab-groups/delete", {"name": "E2E 组（改名）"})
             try:
                 wins_now = len([w for w in bridge("GET", "/agent/windows").get("windows", [])
                                 if w.get("windowVisible")])

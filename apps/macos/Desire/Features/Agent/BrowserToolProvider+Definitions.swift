@@ -530,6 +530,15 @@ extension BrowserToolProvider {
                 name: "clearHistory", description: "Clear all browsing history",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "deleteHistory",
+                description: "Delete history entries selectively — by domain, and/or before/after a date (yyyy-MM-dd or yyyy-MM-dd HH:mm). At least one filter is required; use clearHistory only when the user wants everything gone.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "domain": AgentJSONSchemaValue(type: "string", description: "Host to purge, e.g. example.com (matches subdomains)"),
+                    "before": AgentJSONSchemaValue(type: "string", description: "Delete entries older than this date"),
+                    "after": AgentJSONSchemaValue(type: "string", description: "Delete entries newer than this date"),
+                ])
+            )),
 
             // --- Page controls ---
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
@@ -673,6 +682,14 @@ extension BrowserToolProvider {
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "addTabToGroup", description: "Add the current tab to a tab group",
                 parameters: AgentJSONSchema(type: "object", properties: ["groupName": AgentJSONSchemaValue(type: "string", description: "Name of the tab group")], required: ["groupName"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "renameTabGroup",
+                description: "Rename a tab group (by its current name).",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "groupName": AgentJSONSchemaValue(type: "string", description: "Current group name"),
+                    "newName": AgentJSONSchemaValue(type: "string", description: "New group name"),
+                ], required: ["groupName", "newName"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "removeTabFromGroup", description: "Remove the current tab from its tab group",

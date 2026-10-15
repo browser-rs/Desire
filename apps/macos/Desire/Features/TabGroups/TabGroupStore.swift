@@ -16,6 +16,15 @@ class TabGroupStore: ObservableObject {
         return group
     }
 
+    /// 改名（v23：智能体工具 renameTabGroup 用；UI 暂无入口）。
+    func rename(_ id: UUID, to newName: String) {
+        guard let idx = groups.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        groups[idx].name = trimmed
+        save()
+    }
+
     func addTab(_ tabId: UUID, to groupId: UUID) {
         guard let idx = groups.firstIndex(where: { $0.id == groupId }) else { return }
         for i in groups.indices { groups[i].tabIds.remove(tabId) }

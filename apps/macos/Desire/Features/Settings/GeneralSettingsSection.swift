@@ -22,6 +22,9 @@ struct GeneralSettingsSection: View {
         return ["system", "zh-Hans", "zh-Hant", "en"].contains(raw) ? raw : "system"
     }()
 
+    /// 菜单栏快速入口显隐（NSStatusItem 宿主的开关，见该类型头注释）。
+    @ObservedObject private var menuBarQuickEntry = MenuBarQuickEntryController.shared
+
     var body: some View {
         SettingsContainer {
             // MARK: - Language(置顶分区:进设置第一眼可见)
@@ -79,6 +82,26 @@ struct GeneralSettingsSection: View {
                         selection: $settings.defaultPageZoom,
                         options: [0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0],
                         label: { zoomLabel($0) }
+                    )
+                }
+            }
+
+            // MARK: - Menu Bar（v19 快速入口）
+
+            SettingsSection(
+                title: "Menu Bar",
+                subtitle: "Quick Agent entry without opening a browser window.",
+                icon: "menubar.rectangle"
+            ) {
+                VStack(spacing: 0) {
+                    SettingsToggleRow(
+                        "Show Menu Bar Icon",
+                        subtitle: "Ask the Agent from any app: click the ✦ icon, type, press Return. The answer lands in the current conversation — open the window to read it.",
+                        systemImage: "sparkles",
+                        isOn: Binding(
+                            get: { menuBarQuickEntry.isVisible },
+                            set: { menuBarQuickEntry.setVisible($0) }
+                        )
                     )
                 }
             }

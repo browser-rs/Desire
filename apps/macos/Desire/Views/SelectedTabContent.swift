@@ -280,7 +280,7 @@ struct SelectedTabContent: View {
             onAsk: {
                 content.aiSession.addSelectedTextContext(selection.text)
                 showAgentPanel = true
-                AgentPanelVisibilityStore.shared.record(key: content.sessionID?.uuidString, shown: true)
+                AgentPanelVisibilityStore.shared.record(key: content.tabManager.sessionKey, shown: true)
                 tab.browser.selectionAI = nil
             },
             onCopy: {

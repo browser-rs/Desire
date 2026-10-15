@@ -275,6 +275,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Log.app.info("launch phase: didFinishLaunching +\(Int(Date().timeIntervalSince(DesireApp.launchStart) * 1000), privacy: .public)ms")
         installSignalHandlers()
+        // 菜单栏快速入口（v19）：NSStatusItem 宿主。放这里而不是 Scene——
+        // SwiftUI MenuBarExtra 的 isInserted 动态绑定会在本应用触发启动
+        // 无限循环（见 MenuBarQuickEntryController 头注释）。
+        MenuBarQuickEntryController.shared.install()
         noticeAbnormalPreviousExit()
         // 冷启动带 URL 启动（默认浏览器点链接拉起 app）：窗口装配晚于
         // didFinishLaunching，走重试 flush。

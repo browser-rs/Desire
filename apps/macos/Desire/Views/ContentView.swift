@@ -285,8 +285,10 @@ struct ContentView: View {
                     onAskAI: { prompt in
                         aiSession.sendMessage(prompt)
                         showAgentPanel = true
-        AgentPanelVisibilityStore.shared.record(key: sessionID?.uuidString, shown: true)
-                        AgentPanelVisibilityStore.shared.record(key: sessionID?.uuidString, shown: true)
+                        // 登记键统一用 sessionKey（"session-<uuid>"）——通知
+                        // 深链（NotificationRouter）按这个键读；此前写裸 UUID
+                        // 读取永远落空（面板已开还会被再 toggle 一次关掉）。
+                        AgentPanelVisibilityStore.shared.record(key: tabManager.sessionKey, shown: true)
                     }
                 )
                 .overlay {
@@ -344,7 +346,7 @@ struct ContentView: View {
             let ball = ballPanel
             ball.onOpenAgentPanel = {
                 showAgentPanel = true
-                AgentPanelVisibilityStore.shared.record(key: sessionID?.uuidString, shown: true)
+                AgentPanelVisibilityStore.shared.record(key: tabManager.sessionKey, shown: true)
             }
             ball.onAskAboutPage = { askAgentAboutPage() }
             // v4：翻译/自定义提示词/拖拽投递的通用发话口 + 截图槽位。
@@ -437,7 +439,7 @@ struct ContentView: View {
         .onReceive(aiSession.promptCenter.$pending) { pending in
             if pending != nil, !showAgentPanel {
                 showAgentPanel = true
-                AgentPanelVisibilityStore.shared.record(key: sessionID?.uuidString, shown: true)
+                AgentPanelVisibilityStore.shared.record(key: tabManager.sessionKey, shown: true)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
@@ -452,6 +454,17 @@ struct ContentView: View {
             // window, not in every open window at once.
             guard hostingWindow === NSApp.keyWindow else { return }
             commandDispatcher.handle(command)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .desireShowAgentPanel)) { _ in
+            // 菜单栏快速入口（v19）：亮出 Agent 面板。不能走 CommandBus——
+            // 弹窗打开时它自己是 key window，上面的 key 守卫会把命令丢掉。
+            // 按"持有投递目标会话"收敛到唯一窗口（无会话时首个窗口接管）。
+            let target = AgentScheduler.shared.deliveryTarget
+            guard target == nil || aiSession === target else { return }
+            showAgentPanel = true
+            AgentPanelVisibilityStore.shared.record(key: tabManager.sessionKey, shown: true)
+            hostingWindow?.makeKeyAndOrderFront(nil)
+            Log.agent.info("menu bar quick entry: panel shown in window \(sessionID?.uuidString ?? "-", privacy: .public)")
         }
         .onChange(of: b.undoRule?.id) { _, ruleID in
             // BrowsingActions publishes the interception; the toast lives in

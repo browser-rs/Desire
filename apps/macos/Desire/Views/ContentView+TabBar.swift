@@ -7,6 +7,19 @@ import WebKit
 extension ContentView {
     /// Tab strip. Extracted from `body` (L1-1) to keep `body` scannable.
     /// Pure view slice — no state or logic moved, closures retained verbatim.
+    /// 新建组（顶栏与侧栏共用）：TabGroupPrompts 收名 → store 建组并把该
+    /// 标签入组。宿主窗口的后台兜底在 TabGroupPrompts 里（此前
+    /// keyWindow/mainWindow 皆 nil 时直接 return，提示在后台静默不出现）。
+    func createGroupFromTab(_ index: Int) {
+        TabGroupPrompts.presentNameSheet(titleKey: "New Tab Group",
+                                         initialName: "",
+                                         confirmKey: "Create") { name in
+            let group = tabGroupStore.create(name: name)
+            guard tabManager.tabs.indices.contains(index) else { return }
+            tabGroupStore.addTab(tabManager.tabs[index].id, to: group.id)
+        }
+    }
+
     @ViewBuilder
     func tabBarSection(for tab: Tab) -> some View {
         TabBar(
@@ -102,7 +115,8 @@ extension ContentView {
             containerFor: { containerStore.container(for: $0) },
             onToggleGroupCollapse: { tabGroupStore.toggleCollapsed($0) },
             onDeleteGroup: { tabGroupStore.delete($0) },
-            tabGroups: tabGroupStore.groups,
+            onRenameGroup: { id, name in tabGroupStore.rename(id, to: name) },
+            groupStore: tabGroupStore,
             onRemoveFromGroup: { tabGroupStore.removeTabFromAll($0) },
             onAddToGroup: { tabId, groupId in tabGroupStore.addTab(tabId, to: groupId) },
             windowSessionID: sessionID?.uuidString ?? "pending-session",
@@ -111,25 +125,7 @@ extension ContentView {
             onCaptureThumbnail: { tab, completion in
                 thumbnailStore.captureThumbnail(for: tab, completion: completion)
             },
-            onCreateGroup: { index in
-                let alert = NSAlert()
-                alert.messageText = String(localized: "New Tab Group")
-                alert.informativeText = String(localized: "Enter group name")
-                let tf = NSTextField(frame: NSRect(x: 0, y: 0, width: 200, height: 22))
-                alert.accessoryView = tf
-                alert.addButton(withTitle: String(localized: "Create"))
-                alert.addButton(withTitle: String(localized: "Cancel"))
-                // R2-15：sheet 异步（runModal 冻结整个 app）。
-                guard let window = NSApp.keyWindow ?? NSApp.mainWindow else { return }
-                alert.beginSheetModal(for: window) { response in
-                    guard response == .alertFirstButtonReturn else { return }
-                    let name = tf.stringValue.trimmingCharacters(in: .whitespaces)
-                    guard !name.isEmpty else { return }
-                    let group = tabGroupStore.create(name: name)
-                    let tabId = tabManager.tabs[index].id
-                    tabGroupStore.addTab(tabId, to: group.id)
-                }
-            },
+            onCreateGroup: { index in createGroupFromTab(index) },
             onDuplicateTab: { index in
                 tabManager.duplicateTab(at: index, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy)
             },

@@ -38,8 +38,14 @@ struct TabBar: View {
     let onToggleGroupCollapse: (UUID) -> Void
     /// Deletes a group (its tabs survive, ungrouped).
     let onDeleteGroup: (UUID) -> Void
-    /// Available tab groups (for context menus).
-    let tabGroups: [TabGroup]
+    /// 重命名组（v0.7.18 UI 收口）：名字由 TabGroupRenamePrompt 收集后回传。
+    let onRenameGroup: (UUID, String) -> Void
+    /// 标签组 store（v0.7.18 观察修复）：此前收 `tabGroups: [TabGroup]` 值
+    /// 参数、数据又经 `appState.tabGroupStore` 计算属性取——store 变化不会
+    /// 触发 ContentView 重绘，值参数永远还是旧快照：**折叠一个组，胶囊不出现**
+    /// （AX 驱动实测照出；"隔着另一个 store 读嵌套 ObservableObject 不重绘"
+    /// 的老坑）。改为直接观察 store、组数据都从 `groupStore.groups` 现读。
+    @ObservedObject var groupStore: TabGroupStore
     let onRemoveFromGroup: (UUID) -> Void
     let onAddToGroup: (UUID, UUID) -> Void
     /// 本窗口会话 ID（拖拽 provider 的来源标识）。
@@ -69,7 +75,7 @@ struct TabBar: View {
                 HStack(spacing: 6) {
                     let pinned = tabs.filter(\.isPinned)
                     // Collapsed groups hide their tabs and render as one pill.
-                    let collapsedGroups = tabGroups
+                    let collapsedGroups = groupStore.groups
                         .filter { $0.isCollapsed }
                         .compactMap { group -> TabGroup? in
                             tabs.contains(where: { group.tabIds.contains($0.id) }) ? group : nil
@@ -109,6 +115,11 @@ struct TabBar: View {
                         .help("Open Group")
                         .contextMenu {
                             Button("Open Group") { onToggleGroupCollapse(group.id) }
+                            Button("Rename Group…") {
+                                TabGroupPrompts.presentRename(group: group) { newName in
+                                    onRenameGroup(group.id, newName)
+                                }
+                            }
                             Button("Delete Group") { onDeleteGroup(group.id) }
                         }
                     }
@@ -143,7 +154,8 @@ struct TabBar: View {
                                 containerColor: containerFor(tab.containerID)?.color,
                                 onToggleGroupCollapse: onToggleGroupCollapse,
                                 onDeleteGroup: onDeleteGroup,
-                                tabGroups: tabGroups,
+                                onRenameGroup: onRenameGroup,
+                                tabGroups: groupStore.groups,
                                 onRemoveFromGroup: onRemoveFromGroup,
                                 onAddToGroup: onAddToGroup,
                                 onCaptureThumbnail: onCaptureThumbnail,
@@ -212,7 +224,8 @@ struct TabBar: View {
                                 containerColor: containerFor(tab.containerID)?.color,
                                 onToggleGroupCollapse: onToggleGroupCollapse,
                                 onDeleteGroup: onDeleteGroup,
-                                tabGroups: tabGroups,
+                                onRenameGroup: onRenameGroup,
+                                tabGroups: groupStore.groups,
                                 onRemoveFromGroup: onRemoveFromGroup,
                                 onAddToGroup: onAddToGroup,
                                 onCaptureThumbnail: onCaptureThumbnail,
@@ -367,6 +380,8 @@ private struct TabPillView: View {
     let containerColor: Color?
     let onToggleGroupCollapse: (UUID) -> Void
     let onDeleteGroup: (UUID) -> Void
+    /// 重命名组（v0.7.18 UI 收口；名字由 TabGroupRenamePrompt 收集）。
+    let onRenameGroup: (UUID, String) -> Void
     /// Available tab groups for the context menu.
     let tabGroups: [TabGroup]
     let onRemoveFromGroup: (UUID) -> Void
@@ -551,6 +566,11 @@ private struct TabPillView: View {
                     Button("Open Group") { onToggleGroupCollapse(group.id) }
                 } else {
                     Button("Collapse Group") { onToggleGroupCollapse(group.id) }
+                }
+                Button("Rename Group…") {
+                    TabGroupPrompts.presentRename(group: group) { newName in
+                        onRenameGroup(group.id, newName)
+                    }
                 }
                 Button("Delete Group") { onDeleteGroup(group.id) }
                 Divider()

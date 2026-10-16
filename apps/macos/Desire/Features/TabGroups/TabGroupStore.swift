@@ -16,7 +16,8 @@ class TabGroupStore: ObservableObject {
         return group
     }
 
-    /// 改名（v23：智能体工具 renameTabGroup 用；UI 暂无入口）。
+    /// 改名（v23 智能体工具 renameTabGroup 用；v0.7.18 起 UI 入口齐备：
+    /// 顶栏胶囊/折叠胶囊与侧栏行的右键「重命名分组…」都汇到这里）。
     func rename(_ id: UUID, to newName: String) {
         guard let idx = groups.firstIndex(where: { $0.id == id }) else { return }
         let trimmed = newName.trimmingCharacters(in: .whitespacesAndNewlines)

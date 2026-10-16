@@ -643,6 +643,12 @@ struct ContentView: View {
                         tabManager.closeToTheRight(of: index)
                     },
                     onRemoveFromGroup: { tabGroupStore.removeTabFromAll($0) },
+                    tabGroups: tabGroupStore.groups,
+                    onToggleGroupCollapse: { tabGroupStore.toggleCollapsed($0) },
+                    onDeleteGroup: { tabGroupStore.delete($0) },
+                    onAddToGroup: { tabId, groupId in tabGroupStore.addTab(tabId, to: groupId) },
+                    onRenameGroup: { id, name in tabGroupStore.rename(id, to: name) },
+                    onCreateGroup: { index in createGroupFromTab(index) },
                     tabGroupColor: { [gColors = [Color.red, .orange, .yellow, .green, .blue, .purple, .pink, .brown]] tabId in
                         tabGroupStore.group(for: tabId).map { gColors[$0.colorIndex % gColors.count] }
                     }

@@ -1002,6 +1002,9 @@ extension BrowserToolProvider {
                 if let cached = surface.readingListStore.cacheURL(for: item.id) {
                     line += "\n  [offline copy] \(cached.path)"
                 }
+                if let summary = item.summary, !summary.isEmpty {
+                    line += "\n  [summary] \(summary.prefix(60))"
+                }
                 return line
             }.joined(separator: "\n")
 
@@ -1022,6 +1025,27 @@ extension BrowserToolProvider {
             let kb = ByteCountFormatter.string(fromByteCount: Int64(outcome.bytes), countStyle: .file)
             let via = outcome.fromOpenTab ? "（复用已打开标签，含登录态）" : "（后台加载）"
             return "Cached offline: \(listItem.title) (\(kb))\(via) → \(outcome.fileURL.path)"
+
+        case "summarizeReadingList":
+            // 批量摘要（v0.7.19）：长任务模式——立刻返回，后台逐条 readURL +
+            // 旁路模型摘要，写完即存（面板实时可见）；完成后系统通知+会话备注。
+            guard let sumSession = ownerSession else { return Self.fail("No live agent session") }
+            let sumLimit = min(20, max(1, (args["limit"] as? Int) ?? 5))
+            let sumForce = (args["force"] as? Bool) ?? false
+            let sumURLs = (args["urls"] as? [String]) ?? []
+            let started = ReadingListSummarizer.shared.start(
+                store: surface.readingListStore,
+                preference: sumSession.preference,
+                limit: sumLimit,
+                force: sumForce,
+                urls: sumURLs,
+                session: sumSession)
+            if started == 0 {
+                return ReadingListSummarizer.shared.isRunning
+                    ? "A summary run is already in progress."
+                    : "Nothing to summarize (no items without summaries — pass force:true to redo, or urls to target specific items)."
+            }
+            return "Summarizing \(started) saved page(s) in the background — summaries land on the items (Reading List panel) as they finish."
 
         // --- Downloads ---
         case "listDownloads":

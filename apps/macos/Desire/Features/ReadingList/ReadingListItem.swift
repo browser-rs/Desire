@@ -12,4 +12,8 @@ struct ReadingListItem: Identifiable, Codable {
     /// 视为未缓存——字段照常随条目同步，无碍。
     var cachedFile: String? = nil
     var cachedAt: Date? = nil
+    /// 批量摘要（v0.7.19 summarizeReadingList）：旁路模型读正文后的 2-3 句摘要。
+    /// 可选 + 合成 Codable（旧文件缺键解码为 nil，不清数据）；随云同步走。
+    var summary: String? = nil
+    var summarizedAt: Date? = nil
 }

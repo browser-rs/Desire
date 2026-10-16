@@ -8,6 +8,18 @@ struct ReadingListPanel: View {
     let onClose: () -> Void
     /// 正在抓离线副本的条目（面板内小指示）。
     @State private var cachingIDs: Set<UUID> = []
+    /// 批量摘要（v0.7.19）：进度实时观察；preference 供旁路模型调用口径
+    /// （与 Agent 面板同源——AppState 持有，WhiteboardPanel 同款取法）。
+    @ObservedObject private var summarizer = ReadingListSummarizer.shared
+    private var preference: AgentPreferenceStore {
+        AppState.live?.aiPreference ?? AgentPreferenceStore()
+    }
+
+    /// 一键全部摘要（后台；新一轮覆盖未摘要条目）。
+    private func summarizeNow(urls: [String]) {
+        summarizer.start(store: store, preference: preference, limit: 20,
+                         force: false, urls: urls, session: nil)
+    }
 
     /// 抓离线副本：复用已打开标签（含登录态）或后台加载；完成后落徽标。
     private func cacheNow(_ item: ReadingListItem) {
@@ -26,6 +38,26 @@ struct ReadingListPanel: View {
                 Text("Reading List")
                     .font(.headline)
                 Spacer()
+                if !store.items.isEmpty {
+                    // 一键全部摘要（v0.7.19）：后台跑，逐条落 summary。
+                    Button {
+                        summarizeNow(urls: [])
+                    } label: {
+                        if summarizer.isRunning {
+                            HStack(spacing: 4) {
+                                ProgressView().controlSize(.mini)
+                                Text(verbatim: "\(summarizer.completedCount)/\(summarizer.totalCount)")
+                                    .font(.system(size: 10, design: .monospaced))
+                            }
+                        } else {
+                            Text("Summarize All")
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption)
+                    .disabled(summarizer.isRunning)
+                    .help("Summarize saved pages in the background (needs a configured AI profile)")
+                }
                 if !store.items.isEmpty {
                     Button("Clear All") { store.clearAll() }
                         .buttonStyle(.plain)
@@ -72,6 +104,18 @@ struct ReadingListPanel: View {
                                         .lineLimit(1)
                                         .font(.caption)
                                         .foregroundStyle(.tertiary)
+                                    if let summary = item.summary, !summary.isEmpty {
+                                        HStack(alignment: .top, spacing: 4) {
+                                            Image(systemName: "text.quote")
+                                                .font(.system(size: 9))
+                                                .foregroundStyle(appAccent.opacity(0.8))
+                                                .padding(.top, 1)
+                                            Text(summary)
+                                                .lineLimit(2)
+                                                .font(.system(size: 11))
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
                                     Text(item.savedDate, style: .date)
                                         .font(.caption2)
                                         .foregroundStyle(.tertiary)
@@ -93,6 +137,17 @@ struct ReadingListPanel: View {
                                        : String(localized: "Re-cache for Offline")) {
                                     cacheNow(item)
                                 }
+                                Button((item.summary ?? "").isEmpty
+                                       ? String(localized: "Summarize")
+                                       : String(localized: "Re-summarize")) {
+                                    summarizer.start(store: store,
+                                                     preference: preference,
+                                                     limit: 1,
+                                                     force: true,
+                                                     urls: [item.url],
+                                                     session: nil)
+                                }
+                                .disabled(summarizer.isRunning)
                                 Button("Delete") { store.remove(item.id) }
                             }
                         }

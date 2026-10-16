@@ -53,6 +53,17 @@ class ReadingListStore: ObservableObject {
         save()
     }
 
+    /// 写入批量摘要（v0.7.19）：盖 LWW 戳让摘要随云同步走。
+    func setSummary(_ id: UUID, text: String) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        items[index].summary = trimmed
+        items[index].summarizedAt = Date()
+        items[index].updatedAt = Date()
+        save()
+    }
+
     // MARK: - 离线缓存
 
     /// 缓存的 webarchive 落定（capture 成功后调用）。

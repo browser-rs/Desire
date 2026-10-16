@@ -444,6 +444,7 @@ final class AutomationServer {
         ep("POST", "/reading-list/add", "Add item", params: ["title:string", "url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/cache", "Cache an item for offline reading (.webarchive; reuses the item's open tab when available)", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
+        ep("POST", "/reading-list/summarize", "Batch-summarize saved pages in the background (readURL + bypass model call; summaries land on the items)", params: ["limit?:int", "force?:bool", "urls?:[string]"], example: #"-d '{"limit":5}'"#)
         ep("GET", "/system/integrations", "OS integration permission state (reminders / calendar: granted|denied|restricted|notDetermined) — read-only, never prompts", example: "…/system/integrations")
         ep("GET", "/speech", "Text-to-speech state (speaking/paused) — reader TTS, also driven by the readAloud tool", example: "…/speech")
         ep("POST", "/speech/stop", "Stop text-to-speech immediately (automation cleanup)", example: "-d '{}'")
@@ -1611,6 +1612,23 @@ final class AutomationServer {
                 ))
             case ("POST", "/reading-list/remove"):
                 return try Self.json(Self.removeReadingItem(url: Self.string(body, "url") ?? ""))
+            case ("POST", "/reading-list/summarize"):
+                guard let rlSession = Self.resolveSession(Self.string(body, "window")) else {
+                    return try Self.json(["error": "no live agent session"])
+                }
+                guard let rlApp = AppState.live else {
+                    return try Self.json(["error": "app state not ready"])
+                }
+                let rlURLs = (body["urls"] as? [String]) ?? []
+                let rlStarted = ReadingListSummarizer.shared.start(
+                    store: rlApp.readingListStore,
+                    preference: rlSession.preference,
+                    limit: min(20, max(1, (body["limit"] as? Int) ?? 5)),
+                    force: (body["force"] as? Bool) ?? false,
+                    urls: rlURLs,
+                    session: rlSession)
+                return try Self.json(["ok": true, "queued": rlStarted,
+                                      "running": ReadingListSummarizer.shared.isRunning])
             case ("GET", "/sync/status"):
                 return try Self.json(Self.syncStatus())
             case ("POST", "/sync/now"):
@@ -4423,13 +4441,14 @@ final class AutomationServer {
     private static func readingList() throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         return ["items": app.readingListStore.items.map { i -> [String: Any] in
-            var row: [String: Any] = ["title": i.title, "url": i.url, "read": i.isRead]
+            var row: [String: Any] = ["id": i.id.uuidString, "title": i.title, "url": i.url, "read": i.isRead]
             if let cached = app.readingListStore.cacheURL(for: i.id) {
                 row["cached"] = true
                 row["cachedPath"] = cached.path
             } else {
                 row["cached"] = false
             }
+            if let summary = i.summary { row["summary"] = summary }
             return row
         }]
     }

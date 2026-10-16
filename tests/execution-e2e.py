@@ -25,7 +25,8 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 朗读工具（MUSCLE16：readAloud 传文本→/speech 在讲→stopSpeaking→停；无 text 从 /article 提取、回执带标题）/
 会话预算（MUSCLE17：假端点 usage 推到 460/500 → warning；续跑 → 停在步骤边界 + 档位阶梯前进）/
 热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
-桥 /promotion/review 一键安排每日选题采集并撤销）。
+桥 /promotion/review 一键安排每日选题采集并撤销）/
+阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -157,6 +158,21 @@ class TinyAPI(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if self.path.startswith("/rlpage"):
+            which = "MUSCLE19P1" if self.path.startswith("/rlpage1") else "MUSCLE19P2"
+            body = ("<!DOCTYPE html><html><head><meta charset='utf-8'>"
+                    f"<title>RL Page {which}</title></head><body>"
+                    f"<article><h1>{which} 测试文章</h1>"
+                    f"<p>{which} 正文段落一：用于验证批量摘要取文与模型回显的标记内容，"
+                    "句子足够长以便正文提取阈值通过。</p>"
+                    f"<p>{which} 正文段落二：再来一段以确保提取器选中正文容器而不是导航。</p>"
+                    "</article></body></html>").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path.startswith("/hotlist"):
             # 热点选题（MUSCLE18）的靶页：热榜形态（标题 + 若干长段落），
             # readURL 的正文提取按"body 长段落"回退即可整页读出。
@@ -240,6 +256,12 @@ class Fake(BaseHTTPRequestHandler):
         self.end_headers()
         if "conversation title" in sys_text:
             sse(self.wfile, model, {"role": "assistant", "content": "执行肌肉测试"}, "stop")
+            return
+        if "阅读助理" in sys_text:
+            # 批量摘要的旁路调用（MUSCLE19）：把收到的页面标记回显进摘要——
+            # 摘要里出现标记 = 正文真的流到了模型（不是空稿摘要）。
+            marker = next((p for p in ("MUSCLE19P1", "MUSCLE19P2") if p in (msgs[-1].get("content") or "")), "?")
+            sse(self.wfile, model, {"role": "assistant", "content": f"摘要回显：{marker} 的主旨与要点。"}, "stop")
             return
         if "MUSCLE" not in mode:
             sse(self.wfile, model, {"role": "assistant", "content": "ok"}, "stop")
@@ -1492,12 +1514,42 @@ def main():
         ok("选题：来源链接在正文（带热榜页 URL）",
            f"127.0.0.1:{API_PORT}/hotlist" in (idea1.get("body") or "")
            and f"127.0.0.1:{API_PORT}/hotlist" in (idea2.get("body") or ""))
+        # ── MUSCLE19：阅读列表批量摘要（readURL 取文 + 旁路模型摘要 → 条目字段）──
+        page19a = f"http://127.0.0.1:{API_PORT}/rlpage1"
+        page19b = f"http://127.0.0.1:{API_PORT}/rlpage2"
+        before19 = {i.get("url"): i.get("summary") for i in bridge("GET", "/reading-list").get("items", [])}
+        bridge("POST", "/reading-list/add", {"title": "MUSCLE19P1", "url": page19a})
+        bridge("POST", "/reading-list/add", {"title": "MUSCLE19P2", "url": page19b})
+        sum19 = bridge("POST", "/reading-list/summarize", {"urls": [page19a, page19b], "limit": 5})
+        ok("摘要：桥触发入队两条", sum19.get("ok") is True and sum19.get("queued") == 2)
+        deadline19 = time.time() + 150
+        got19 = {}
+        while time.time() < deadline19:
+            items19 = {i.get("url"): (i.get("summary") or "") for i in bridge("GET", "/reading-list").get("items", [])}
+            got19 = items19
+            if got19.get(page19a) and got19.get(page19b):
+                break
+            time.sleep(1)
+        ok("摘要：两条摘要落回条目", bool(got19.get(page19a)) and bool(got19.get(page19b)))
+        ok("摘要：内容来自页面实读（回显标记）",
+           "MUSCLE19P1" in got19.get(page19a, "") and "MUSCLE19P2" in got19.get(page19b, ""))
+        untouched = all(
+            (i.get("summary") or None) == (before19.get(i.get("url")) or None)
+            for i in bridge("GET", "/reading-list").get("items", [])
+            if i.get("url") not in (page19a, page19b))
+        ok("摘要：只动指定条目（其它条目摘要不变）", untouched)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
         # 朗读兜底：万一 MUSCLE16 中途失败也别让机器一直念。
         try:
             bridge("POST", "/speech/stop", {})
+        except Exception:
+            pass
+        # 摘要兜底（MUSCLE19）：只删本脚本加进去的两条阅读条目（URL 精确匹配）。
+        try:
+            for pth in ("/rlpage1", "/rlpage2"):
+                bridge("POST", "/reading-list/remove", {"url": f"http://127.0.0.1:{API_PORT}{pth}"})
         except Exception:
             pass
         # 选题兜底（MUSCLE18）：只清本脚本创建的 MUSCLE18 选题/目标（前缀精确匹配）

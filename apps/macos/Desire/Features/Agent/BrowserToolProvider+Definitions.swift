@@ -652,6 +652,14 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "summarizeReadingList", description: "Summarize saved reading-list pages IN THE BACKGROUND: reads each page's text off-screen (reuses an open tab when available, so logins apply) and writes a 2-3 sentence summary onto the item (visible in the Reading List panel and synced). Returns immediately with how many pages are queued — items gain summaries as they finish (check with listReadingList). Use for \"summarize my reading list\" / \"把这 N 篇都看看写个摘要\". Pass `urls` to target specific items.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "limit": AgentJSONSchemaValue(type: "number", description: "Max pages this run (default 5, max 20)"),
+                    "force": AgentJSONSchemaValue(type: "boolean", description: "Re-summarize pages that already have a summary (default false)"),
+                    "urls": AgentJSONSchemaValue(type: "array", description: "Only summarize these exact URLs (optional)", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "cachePageForOffline",
                 description: "Save an offline copy of a reading-list item's page as a .webarchive (works with the item's open tab — keeping its login state — or by loading it in the background). The item must already be in the reading list. Returns the saved path and size.",
                 parameters: AgentJSONSchema(type: "object", properties: [

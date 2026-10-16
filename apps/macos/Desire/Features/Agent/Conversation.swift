@@ -19,4 +19,7 @@ struct Conversation: Identifiable, Codable {
     /// 覆盖——随会话文件落盘、切会话跟随，**不进长期记忆**。注入
     /// <session_directive> 层（仅本会话生效）。
     var directive: String?
+    /// 会话预算档位（v0.7.18）：超当前档停机后前进到下一档，随会话落盘
+    /// （切回/重启后仍按"已经付过的档"继续，而不是一重启又拦）。
+    var budgetStopLevel: Int?
 }

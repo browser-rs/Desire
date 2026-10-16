@@ -789,6 +789,16 @@ extension BrowserToolProvider {
             }
             return await session.reflectForTool(question: (args["question"] as? String) ?? "")
 
+        case "setTokenBudget":
+            // 会话预算（v0.7.18）：改的是**本会话**（工具跑在哪个会话就改哪个）。
+            // 档位复位——刚调过预算，从头按新额度算。
+            guard let tokens = args["tokens"] as? Int else { return Self.fail("Missing tokens") }
+            guard let session = ownerSession else { return Self.fail("No owning agent session") }
+            session.setTokenBudget(tokens)
+            let budget = (session.budgetSnapshot()["budget"] as? Int) ?? 0
+            if budget == 0 { return "Token budget disabled for this conversation." }
+            return "Token budget set to \(budget) tokens for this conversation (tier reset)."
+
         // --- Past conversations ---
         case "searchConversations":
             let query = (args["query"] as? String) ?? ""

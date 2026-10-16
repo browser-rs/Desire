@@ -2959,12 +2959,46 @@ func testNumericWatch() {
     check("数值：旧存档解码（新字段可缺省）", decoded != nil && decoded?.watchesNumbers == false)
 }
 
+// ---------- 会话预算（v0.7.18）----------
+func testAgentBudget() {
+    // 状态：off / within / warning（≥80%）/ stopped（≥当前档位额度）
+    eq("预算：未启用 = off", AgentBudget.state(used: 999, budget: 0, stopLevel: 1), .off)
+    eq("预算：正常 = within", AgentBudget.state(used: 399, budget: 500, stopLevel: 1), .within)
+    eq("预算：恰好 80% = warning", AgentBudget.state(used: 400, budget: 500, stopLevel: 1), .warning)
+    eq("预算：79% 仍 within", AgentBudget.state(used: 399, budget: 500, stopLevel: 1), .within)
+    eq("预算：到额度 = stopped", AgentBudget.state(used: 500, budget: 500, stopLevel: 1), .stopped)
+    eq("预算：超额度 = stopped", AgentBudget.state(used: 920, budget: 500, stopLevel: 1), .stopped)
+
+    // 档位阶梯：停一次后 allowance 翻倍，下一档前又回到 within/warning
+    eq("预算：档位额度 = level×budget", AgentBudget.allowance(budget: 500, stopLevel: 2), 1000)
+    eq("预算：档位 2 时 920 = warning（未到 1000）",
+       AgentBudget.state(used: 920, budget: 500, stopLevel: 2), .warning)
+    eq("预算：档位 2 到时 1000 = stopped",
+       AgentBudget.state(used: 1000, budget: 500, stopLevel: 2), .stopped)
+
+    // 停机后的下一档：把当前用量划进已付区间
+    eq("预算：nextStopLevel(920/500) = 2", AgentBudget.nextStopLevel(used: 920, budget: 500), 2)
+    eq("预算：恰好整档 nextStopLevel(1000/500) = 3", AgentBudget.nextStopLevel(used: 1000, budget: 500), 3)
+    eq("预算：预算关时 nextStopLevel 恒 1", AgentBudget.nextStopLevel(used: 9999, budget: 0), 1)
+
+    // 百分比（chip 显示）
+    eq("预算：percent 92", AgentBudget.percent(used: 460, budget: 500), 92)
+    eq("预算：percent 关预算 = 0", AgentBudget.percent(used: 460, budget: 0), 0)
+    eq("预算：percent 按当前档位", AgentBudget.percent(used: 920, budget: 500, stopLevel: 2), 92)
+
+    // 停机文案带齐数字与可续跑说明
+    let text = AgentBudget.stoppedText(used: 920, budget: 500)
+    check("预算：停机文案含已用/预算", text.contains("920") && text.contains("500"))
+    check("预算：停机文案含续跑说明", text.contains("预算调大") || text.contains("继续"))
+}
+
 testSpreadsheetReader()
 testDiskStoreStaleOpGuard()
 testAgentInbox()
 testSessionArchive()
 testAgentInboxSinceMode()
 testNumericWatch()
+testAgentBudget()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

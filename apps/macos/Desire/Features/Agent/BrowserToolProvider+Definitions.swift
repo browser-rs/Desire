@@ -613,6 +613,12 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "setTokenBudget", description: "Set THIS conversation's token budget (0 = off). Call it only when the user explicitly asks to change the budget (e.g. after a budget-reached notice). When cumulative usage reaches the current tier (1x, 2x, ... the budget), the agent stops at a step boundary until the budget is raised or the user continues.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "tokens": AgentJSONSchemaValue(type: "number", description: "Budget in tokens; 0 disables the budget"),
+                ], required: ["tokens"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "zoomIn", description: "Zoom in the page",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

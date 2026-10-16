@@ -152,6 +152,12 @@ class AgentPreferenceStore: ObservableObject {
     @Published var completionSound: Bool {
         didSet { UserDefaults.standard.set(completionSound, forKey: "aiCompletionSound") }
     }
+    /// 会话 token 预算（v0.7.18，0 = 关）：一个对话的累计用量（AgentUsage
+    /// 口径）到当前档位（1×、2×…）额度时，回合停在步骤边界并提示；80% 起
+    /// 状态行出 chip。桥 POST /agent/budget 与 setTokenBudget 工具可配。
+    @Published var tokenBudget: Int {
+        didSet { UserDefaults.standard.set(tokenBudget, forKey: "agentTokenBudget") }
+    }
     /// When on, every model request carries an EPHEMERAL compact summary of
     /// the page the agent is working on (title + URL + text excerpt) — so
     /// "这是什么页面" needs no tool roundtrip and every agent step sees the
@@ -497,6 +503,7 @@ class AgentPreferenceStore: ObservableObject {
         }
         costAwareRouting = UserDefaults.standard.object(forKey: "aiCostAwareRouting") as? Bool ?? false
         completionSound = UserDefaults.standard.object(forKey: "aiCompletionSound") as? Bool ?? true
+        tokenBudget = UserDefaults.standard.object(forKey: "agentTokenBudget") as? Int ?? 0
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7
         reasoningEffort = UserDefaults.standard.string(forKey: "aiReasoningEffort") ?? "off"
         maxLoopIterations = UserDefaults.standard.object(forKey: "aiMaxLoopIterations") as? Int ?? 50

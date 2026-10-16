@@ -41735,6 +41735,29 @@
           }
         }
       }
+    },
+    "Session budget: %@ / %@ tokens (tier %lld)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Session budget: %@ / %@ tokens (tier %lld)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "会话预算：已用 %@ / %@ tokens（第 %lld 档）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "會話預算：已用 %@ / %@ token（第 %lld 檔）"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

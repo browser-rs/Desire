@@ -297,6 +297,18 @@ struct AgentHeaderView: View {
                 .foregroundStyle(contextColor)
                 .help(contextHelp)
             }
+            // 会话预算（v0.7.18）：开了预算且已用 ≥80% 当前档位额度时出现——
+            // 橙 = 将到档位上限、红 = 已到（回合会停在步骤边界等你）。
+            if let budgetChip {
+                HStack(spacing: 3) {
+                    Image(systemName: "target")
+                        .font(.system(size: 9))
+                    Text(verbatim: "\(budgetChip.percent)%")
+                        .font(.system(size: 10, design: .monospaced))
+                }
+                .foregroundStyle(budgetChip.color)
+                .help(budgetChip.help)
+            }
             // 本对话累计成本：只在**填过单价**时出现（没填 = 显示不出来，不显示 $0）。
             // 金额小、要能一眼扫过，所以固定等宽 + tertiary。
             if let cost = costText {
@@ -313,6 +325,20 @@ struct AgentHeaderView: View {
         let usage = store.conversationUsage
         guard !usage.isEmpty else { return nil }
         return usage.formattedUSD
+    }
+
+    /// 会话预算 chip（nil = 未启用预算，或还在当前档位的 80% 以下）。
+    private var budgetChip: (percent: Int, color: Color, help: String)? {
+        let budget = preference.tokenBudget
+        guard budget > 0 else { return nil }
+        let state = store.budgetState
+        guard state == .warning || state == .stopped else { return nil }
+        let used = store.conversationUsage.totalTokens
+        return (
+            percent: AgentBudget.percent(used: used, budget: budget, stopLevel: store.budgetStopLevel),
+            color: state == .stopped ? .red : .orange,
+            help: String(localized: "Session budget: \(AgentUsage.formatTokens(used)) / \(AgentUsage.formatTokens(budget)) tokens (tier \(store.budgetStopLevel))")
+        )
     }
 
     /// 悬停说明：把"这个数是怎么来的"说清——哪来的 token、按谁的单价、有没有没算进去的。

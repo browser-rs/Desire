@@ -22,7 +22,8 @@ newWindow+saveWorkspace+openIncognitoTab+restoreWorkspace+deleteWorkspace（MUSC
 readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开新标签）/
 数值盯梢（MUSCLE14：建监视→基线→改价→跨线告警→列表→删除）/
 每站缩放记忆（MUSCLE15：清零→设 150→同站导航保持→reset 后清除）/
-朗读工具（MUSCLE16：readAloud 传文本→/speech 在讲→stopSpeaking→停；无 text 从 /article 提取、回执带标题）。
+朗读工具（MUSCLE16：readAloud 传文本→/speech 在讲→stopSpeaking→停；无 text 从 /article 提取、回执带标题）/
+会话预算（MUSCLE17：假端点 usage 推到 460/500 → warning；续跑 → 停在步骤边界 + 档位阶梯前进）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -394,6 +395,44 @@ class Fake(BaseHTTPRequestHandler):
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE16C-DONE"}, "stop")
             return
+        if "MUSCLE17" in mode and body.get("tools") and "自评者" not in sys_text:
+            # 会话预算（v0.7.18）：每个真实回合的回复都带 usage（400+60）——
+            # 只在**带 tools 的回合请求**上记账，标题/记忆/自评等旁路调用
+            # 不带 tools，天然不计入，测试的用量算术因此是确定的。
+            def sse_usage(finish_reason):
+                # usage 块必须在 [DONE] 之前——解析器遇到 [DONE] 即 break。
+                chunk = {"id": "chatcmpl-m", "object": "chat.completion.chunk",
+                         "created": int(time.time()), "model": model,
+                         "choices": [], "usage": {"prompt_tokens": 400, "completion_tokens": 60}}
+                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                done = {"id": "chatcmpl-m", "object": "chat.completion.chunk",
+                        "created": int(time.time()), "model": model,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": finish_reason}]}
+                self.wfile.write(f"data: {json.dumps(done)}\n\ndata: [DONE]\n\n".encode())
+                self.wfile.flush()
+            if "MUSCLE17A" in mode and n == 0:
+                # 手写 delta 块（sse() 自带 [DONE]，usage 必须在它之前）。
+                c = {"id": "chatcmpl-m", "object": "chat.completion.chunk",
+                     "created": int(time.time()), "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": "MUSCLE17A-OK"},
+                                  "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(c)}\n\n".encode())
+                sse_usage("stop")
+            elif "MUSCLE17A" in mode:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE17A-DONE"}, "stop")
+            elif "MUSCLE17B" in mode and n == 0:
+                c = {"id": "chatcmpl-m", "object": "chat.completion.chunk",
+                     "created": int(time.time()), "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call(0, "listTabs", {})]},
+                                  "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(c)}\n\n".encode())
+                sse_usage("tool_calls")
+            elif "MUSCLE17B" in mode:
+                # 到不了这里（第二次迭代会被预算门控拦住）——留着做反证。
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE17B-DONE"}, "stop")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE17-DONE"}, "stop")
+            return
         if "MUSCLE14" in mode:
             if n == 0:
                 sse(self.wfile, model, {"role": "assistant", "tool_calls": [
@@ -606,6 +645,8 @@ def main():
 
     import subprocess
     prior_clipboard = subprocess.run(["pbpaste"], capture_output=True, text=True).stdout
+    # MUSCLE17 的预算恢复值：测试真正改过预算才回填，中途失败不回填（不碰用户设置）。
+    _orig_budget = None
     try:
         subprocess.run(["osascript", "-e",
                         f'set the clipboard to (read (POSIX file "{fix_dir}/probe.png") as «class PNGf»)'],
@@ -1334,12 +1375,56 @@ def main():
         bridge("POST", "/speech/stop", {})
         time.sleep(0.5)
         ok("桥 /speech/stop 收尾（speaking=false）", bridge("GET", "/speech").get("speaking") is False)
+        # ── MUSCLE17：会话预算与超支提醒（假端点 usage 推过阈值）──
+        old_budget = bridge("GET", "/agent/budget").get("budget", 0)
+        _orig_budget = old_budget
+        bridge("POST", "/agent/budget", {"tokens": 500})
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE17A 预算预警"})
+        deadline17 = time.time() + 150
+        while time.time() < deadline17:
+            st17 = bridge("GET", "/agent/messages")
+            if not st17.get("busy") and any("MUSCLE17A-DONE" in (m.get("content") or "")
+                                            for m in st17.get("messages", [])):
+                break
+            time.sleep(1)
+        b17 = bridge("GET", "/agent/budget")
+        ok("预算：首轮用满 460/500 → state=warning",
+           b17.get("state") == "warning" and b17.get("used", 0) >= 460 and b17.get("percent", 0) >= 92)
+        bridge("POST", "/agent/send", {"text": "MUSCLE17B 续跑"})
+        deadline17b = time.time() + 150
+        while time.time() < deadline17b:
+            st17b = bridge("GET", "/agent/messages")
+            if not st17b.get("busy") and any("预算已用尽" in (m.get("content") or "")
+                                             for m in st17b.get("messages", [])):
+                break
+            time.sleep(1)
+        conv17_id = bridge("GET", "/agent/trace").get("conversation")
+        conv17 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                             / f"conversation-{conv17_id}.json").read_text())
+        msgs17 = conv17.get("messages", [])
+        notice17 = next((m.get("content") or "" for m in msgs17 if "预算已用尽" in (m.get("content") or "")), "")
+        tools17 = [m for m in msgs17 if m.get("role") == "tool"]
+        ok("预算：超档后回合停在步骤边界并提示（含 920/500）",
+           "920" in notice17 and "500" in notice17)
+        ok("预算：第二次迭代被拦住（没有 B-DONE）",
+           not any("MUSCLE17B-DONE" in (m.get("content") or "") for m in msgs17))
+        ok("预算：停机前只执行了一次工具（listTabs）", len(tools17) == 1)
+        b17b = bridge("GET", "/agent/budget")
+        ok("预算：档位阶梯前进（stopLevel=2，下一档 1000）",
+           b17b.get("stopLevel") == 2 and b17b.get("used", 0) >= 920)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
         # 朗读兜底：万一 MUSCLE16 中途失败也别让机器一直念。
         try:
             bridge("POST", "/speech/stop", {})
+        except Exception:
+            pass
+        # 预算兜底：恢复测试前的预算值（别把用户/环境的设置留在 500）。
+        try:
+            if _orig_budget is not None:
+                bridge("POST", "/agent/budget", {"tokens": _orig_budget})
         except Exception:
             pass
         # 关掉测试标签（fixture 页 + 本 fixture 服务器的残留 /dl 页）——

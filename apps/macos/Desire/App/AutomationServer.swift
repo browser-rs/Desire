@@ -447,6 +447,8 @@ final class AutomationServer {
         ep("GET", "/system/integrations", "OS integration permission state (reminders / calendar: granted|denied|restricted|notDetermined) — read-only, never prompts", example: "…/system/integrations")
         ep("GET", "/speech", "Text-to-speech state (speaking/paused) — reader TTS, also driven by the readAloud tool", example: "…/speech")
         ep("POST", "/speech/stop", "Stop text-to-speech immediately (automation cleanup)", example: "-d '{}'")
+        ep("GET", "/agent/budget", "Conversation token budget (budget/used/state off|within|warning|stopped/stopLevel/percent)", example: "…/agent/budget")
+        ep("POST", "/agent/budget", "Set the conversation token budget (0 = off; resets the tier)", params: ["tokens:int"], example: #"-d '{"tokens":50000}'"#)
         ep("GET", "/sync/status", "Cloud sync state (auth / syncing / lastSyncAt / lastError / per-domain cursors + pending tombstones)", example: "…/sync/status")
         ep("POST", "/sync/now", "Run a full sync cycle (all domains), return resulting status", example: "-d '{}'")
         ep("POST", "/sync/login", "Sign in (then auto-sync at launch + every 5 min)", params: ["username:string", "password:string"], example: #"-d '{"username":"u","password":"p"}'"#)
@@ -1570,6 +1572,17 @@ final class AutomationServer {
             case ("POST", "/speech/stop"):
                 ReaderSpeechService.shared.stop()
                 return try Self.json(Self.speechState())
+            case ("GET", "/agent/budget"):
+                return try Self.json(Self.agentBudget(window: Self.string(query, "window")))
+            case ("POST", "/agent/budget"):
+                guard let tokens = body["tokens"] as? Int else {
+                    return try Self.json(["error": "tokens required (int; 0 = off)"])
+                }
+                guard let session = Self.resolveSession(Self.string(body, "window")) else {
+                    return try Self.json(["error": "no live agent session"])
+                }
+                session.setTokenBudget(tokens)
+                return try Self.json(session.budgetSnapshot())
             case ("GET", "/session-archives"):
                 return try Self.json(Self.sessionArchivesList())
             case ("POST", "/session-archives/restore"):
@@ -4465,6 +4478,12 @@ final class AutomationServer {
     private static func speechState() -> [String: Any] {
         ["speaking": ReaderSpeechService.shared.isSpeaking,
          "paused": ReaderSpeechService.shared.isPaused]
+    }
+
+    /// 会话预算快照（v0.7.18，GET /agent/budget）——交付目标会话的口径。
+    private static func agentBudget(window: String?) -> [String: Any] {
+        guard let session = resolveSession(window) else { return ["error": "no live agent session"] }
+        return session.budgetSnapshot()
     }
 
     /// 收件箱（v26）：与 Agent 窗口收件箱页同一份构建逻辑；会话按"查询读盘"

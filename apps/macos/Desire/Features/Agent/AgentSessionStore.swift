@@ -385,6 +385,66 @@ class AgentSessionStore: ObservableObject {
         AgentUsage.of(messages, price: preference.usagePrice(for:))
     }
 
+    // MARK: - 会话预算（v0.7.18）
+
+    /// 当前预算档位（1 = 首个额度）。超档停机后前进到 `floor(used/budget)+1`
+    /// 并随会话落盘；换会话恢复、新会话复位。
+    @Published private(set) var budgetStopLevel = 1
+
+    /// 上次对外发布的预算状态（跃迁事件用；加载时静默对齐、不复报）。
+    private var lastBudgetState: AgentBudget.State = .off
+
+    /// 预算状态（状态行 chip / 桥端点 / 回合门控同源）。
+    var budgetState: AgentBudget.State {
+        AgentBudget.state(used: conversationUsage.totalTokens,
+                          budget: preference.tokenBudget,
+                          stopLevel: budgetStopLevel)
+    }
+
+    /// 已到当前档位额度？（预算关闭恒 false）
+    private var budgetReached: Bool {
+        let budget = preference.tokenBudget
+        guard budget > 0 else { return false }
+        return conversationUsage.totalTokens >= AgentBudget.allowance(budget: budget, stopLevel: budgetStopLevel)
+    }
+
+    /// 桥/状态行共用的预算快照。
+    func budgetSnapshot() -> [String: Any] {
+        let used = conversationUsage.totalTokens
+        let budget = preference.tokenBudget
+        return ["budget": budget,
+                "used": used,
+                "state": budgetState.rawValue,
+                "stopLevel": budgetStopLevel,
+                "percent": AgentBudget.percent(used: used, budget: budget, stopLevel: budgetStopLevel),
+                "conversationId": conversationId?.uuidString ?? ""]
+    }
+
+    /// 设置预算（0=关；上限 5 亿防空手滑写坏偏好）。档位与跃迁基线复位。
+    /// 桥 POST /agent/budget 与 setTokenBudget 工具共用。
+    func setTokenBudget(_ tokens: Int) {
+        preference.tokenBudget = min(max(0, tokens), 500_000_000)
+        budgetStopLevel = 1
+        lastBudgetState = budgetState
+    }
+
+    /// 回合收尾评估跃迁：用量跨入 80% 发一次事件（外部集成用；状态行 chip
+    /// 是计算属性、不需要事件驱动）。停机事件在停机处即时发（档位要随停
+    /// 推进，这里看到的会是推进后的状态）。
+    private func updateBudgetPublishedState() {
+        let state = budgetState
+        guard state != lastBudgetState else { return }
+        if state == .warning {
+            let used = conversationUsage.totalTokens
+            let budget = preference.tokenBudget
+            BridgeEventBus.shared.publish("agentBudgetWarning", [
+                "used": used, "budget": budget,
+                "percent": AgentBudget.percent(used: used, budget: budget, stopLevel: budgetStopLevel),
+            ])
+        }
+        lastBudgetState = state
+    }
+
     /// 自评（reflection）提示词：只**审查**轨迹，不许执行工具、不许续写任务。
     /// 工具 `reflect` 与回合收尾的自动自评共用它。
     static let critiquePrompt = """
@@ -1096,6 +1156,9 @@ class AgentSessionStore: ObservableObject {
         // 新对话的计划自然为空（按会话分存），旧会话的计划保留——切回可见。
         hasInterruptedTurn = false
         turnCheckpointActive = false
+        // 会话预算：新对话回到首档（旧会话的档位随它自己的文件留着）。
+        budgetStopLevel = 1
+        lastBudgetState = budgetState
         promptCenter.cancel()
         messages.removeAll()
         conversationId = nil
@@ -1166,6 +1229,9 @@ class AgentSessionStore: ObservableObject {
         // 检查点：上次回合没走到收尾（标志残留）→ 面板提示继续/放弃。
         hasInterruptedTurn = conv.turnActive == true
         turnCheckpointActive = false   // 内存态复位；继续时由 resume 重新置位落盘
+        // 会话预算：档位随会话恢复；跃迁基线静默对齐（不复报已越过的阈值）。
+        budgetStopLevel = max(1, conv.budgetStopLevel ?? 1)
+        lastBudgetState = budgetState
         awaitingQuestion = false
         currentAction = nil
         isNewChatIntentional = false
@@ -1245,7 +1311,7 @@ class AgentSessionStore: ObservableObject {
         // 计划**保存时现读**计划 store（updatePlan 改完无需专门触发，
         // 回合收尾的常规保存自然带上）；无会话（conversationId=nil）读不到。
         let planSteps = AgentPlanStore.shared.steps(for: id.uuidString)
-        let conv = Conversation(id: id, title: title, createdAt: createdAt, updatedAt: Date(), messages: persistedMessages, inputHistory: inputHistory, planSteps: planSteps.isEmpty ? nil : planSteps, turnActive: turnCheckpointActive)
+        let conv = Conversation(id: id, title: title, createdAt: createdAt, updatedAt: Date(), messages: persistedMessages, inputHistory: inputHistory, planSteps: planSteps.isEmpty ? nil : planSteps, turnActive: turnCheckpointActive, budgetStopLevel: budgetStopLevel)
         conversationStore.save(conv)
     }
 
@@ -1592,6 +1658,8 @@ class AgentSessionStore: ObservableObject {
             lastTurnErrorText = nil
             await runTurn(turnID: turnID)
             guard isCurrentTurn(turnID) else { return }
+            // 会话预算跃迁（v0.7.18）：用量跨入 80% 时发一次事件。
+            updateBudgetPublishedState()
             // Turn finished — hand the outcome to registered handlers
             // (scheduler run records for scheduled prompts). 用户中途取消
             // （turnFailed 未置）也不算 success（C-5）。
@@ -1684,6 +1752,7 @@ class AgentSessionStore: ObservableObject {
         // runaway execution while allowing genuinely long multi-step tasks.
         var iterations = 0
         var hitIterationCap = false
+        var hitBudgetStop = false
         // 检查点：回合开工即落盘"进行中"——此后任何一步都有断点可循。
         turnCheckpointActive = true
         lastStreamCheckpoint = Date()
@@ -1696,6 +1765,15 @@ class AgentSessionStore: ObservableObject {
             iterations += 1
             await waitWhilePaused()
             guard isCurrentTurn(turnID), !isCancelled else { return }
+
+            // 会话预算（v0.7.18）：已到当前档位还要求**续跑**（迭代 ≥2）时
+            // 停住——首个来回永远放行（那是对用户输入的直接响应），停的是
+            // "不被察觉的自动续跑"。停在步骤边界，收尾处一次性说明 + 档位
+            // 前进（见下方 hitBudgetStop 块）。
+            if iterations > 1, budgetReached {
+                hitBudgetStop = true
+                break
+            }
 
             // Tool definitions must be sent on EVERY call in a tool-use
             // conversation: the second call sends back tool results, and
@@ -2114,6 +2192,28 @@ class AgentSessionStore: ObservableObject {
                 content: "⚠️ Reached the maximum number of steps (\(maxIterations)). Stopping to avoid runaway execution."
             ))
             streamingVersion += 1
+            saveCurrentConversation()
+        }
+
+        // 会话预算停机（v0.7.18）：可见说明把数字与"怎么继续"一次给全；
+        // 档位推进到 floor(used/budget)+1，于是调大预算/继续说一声之后能
+        // 跑到下一档（而不是一碰上限永久卡死）。事件此刻发——档位推进后
+        // 状态已是下一档，通用跃迁检查看不到这次 stopped。
+        if isCurrentTurn(turnID), hitBudgetStop && !isCancelled {
+            turnFailed = true
+            lastTurnErrorText = "Conversation token budget reached."
+            let used = conversationUsage.totalTokens
+            let budget = preference.tokenBudget
+            messages.append(AgentMessage(
+                role: .assistant,
+                content: AgentBudget.stoppedText(used: used, budget: budget)
+            ))
+            streamingVersion += 1
+            BridgeEventBus.shared.publish("agentBudgetStopped", [
+                "used": used, "budget": budget, "stopLevel": budgetStopLevel,
+            ])
+            budgetStopLevel = AgentBudget.nextStopLevel(used: used, budget: budget)
+            lastBudgetState = budgetState
             saveCurrentConversation()
         }
     }

@@ -124,6 +124,17 @@ final class AgentScheduler: ObservableObject {
         }
     }
 
+    /// 窗口关闭：若它正是投递目标，**转交**给仍在世的最近注册会话；一个都
+    /// 没有就清空（桥/工具据此报"无活会话"，而不是继续打到死窗口上——
+    /// 实测：关掉窗口后 deliveryTarget 仍指向它，后续回合的工具全跑在
+    /// 一个不可见的死窗口上，点击/导航全部静默失效）。
+    func sessionDidClose(_ store: AgentSessionStore) {
+        guard deliveryTarget === store else { return }
+        let others = liveSessions().compactMap(\.store).filter { $0 !== store }
+        deliveryTarget = others.last
+        Log.agent.info("delivery target reassigned after window close: \(self.deliveryTarget == nil ? "none" : "next live", privacy: .public)")
+    }
+
     func session(withID id: UUID) -> AgentSessionStore? {
         liveSessions().first(where: { $0.id == id })?.store
     }

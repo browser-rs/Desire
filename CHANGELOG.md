@@ -3,12 +3,16 @@
 
 - **活动窗口解析加可见性回退**：`activeTabManager` 在活动窗口已关闭/不可见时回退到任一可见窗口——此前桥端点与工具解析会拿到死窗口的（空）标签列表（实测：关掉活动窗口后 /state 显示空标签、外部清理扫不到真窗口里的标签）。另修正两处陈旧注记（savePage 早已接线：File 菜单 + ⌘S；AGENTS 同步）。
 - **"后台应用里智能体点击静默失效"（v25 根因修复，真 bug）**：应用不在前台时，AppKit 会把落在非 key 窗口上的鼠标事件当"激活点击"消费掉——`SyntheticInput` 用 `NSApp.sendEvent` 投递的真实事件因此整批消失：实测同一条 [拖拽 + 文字点按 shadow 按钮 + 点下载链接] 用例，前台 4/4 全过、后台 4/4 全败；这既是 execution E2E 那簇"抖动项"（拖拽序列/影子按钮/下载确认）反复红的真根因，也意味着**定时任务/后台回合里智能体替人点的每一个按钮在用户正用别的应用时都白点**。修法：`BrowserWKWebView` 覆写 `acceptsFirstMouse → true`——浏览器惯例（非活动窗口的首次点击既激活也投递），点击照常送达且不抢焦点、不激活应用；修复后同一探针后台 4/4 全过，execution E2E 连续两轮 76 项 ALL PASS（此前该簇按约一半概率红）。
+- **窗口生命周期的两处"后台静默失效"（v26 跨窗口测试照出）**：① **新窗口开不出来**：`newWindow` 工具走 CommandBus 的 key-window 守卫命令，应用在后台时（keyWindow 为空）命令被所有窗口丢掉——实测后台 3/3 失败（先 activate 也来不及）；改为**按会话点名的 NotificationCenter 广播**（只让该会话所在窗口调 openWindow），后台 3/3 成功。② **关窗后投递目标仍指向死窗口**：窗口关闭时没有人把 `deliveryTarget` 转走，后续回合的智能体工具全跑在一扇不可见的死窗口上（点击/导航/取页面全部静默失效，测试里表现为"整批交互都没反应"）；现在关窗即转交给仍在世的最近注册会话（一个都没有则清空，桥/工具如实报"无活会话"）。另收紧 `activeTabManager` 的可见性回退（活动 manager 连选中标签都没有时也回退，避免解析到已关窗口的空标签列表）。
+
 
 
 ### Added
 
 - **历史定向清理与标签组改名（v23，替人干活补件）**：新增 `deleteHistory` 工具——按域名（含子域）和/或时间窗（`before`/`after`，"yyyy-MM-dd" / "yyyy-MM-dd HH:mm"）删除历史，**必须带至少一个条件**（清空仍是 clearHistory 的活，防手滑清库）；删除走既有 Store 路径，同步墓碑照常生效。新增 `renameTabGroup` 工具（按组名改名）。桥补 `GET /tab-groups` 与 `POST /tab-groups/delete`（测试清理与外部驱动）。E2E 新增 MUSCLE9（只碰 fixture 标签与 127.0.0.1 记录：入组→改名→复查→按域清历史→复查已清）——顺带把测试期间的本地 fixture 记录从历史里清干净。execution 套件 71 项。
 - **分屏与组折叠进工具面（v24）**：新增 `splitView`（把指定标签放到右栏与当前标签并排——对比两页的硬需求；缺省取相邻标签）与 `unsplitView`（解除分屏，右栏标签留作普通标签）；新增 `collapseTabGroup`（按组名折叠/展开，`collapsed` 可显式指定）。桥 `/tab-groups` 返回补 `collapsed` 字段。E2E 新增 MUSCLE10：进入分屏→折叠组→复查（桥 `/split` + `/tab-groups` 双复核）→解除分屏，76 项。
+- **收件箱（v26，Agent 窗口新目的地「收件箱」）**：把「等你处理」与「智能体替你盯着的变化」收成一张清单——待处理项（被打断的回合 / 48h 内待回复的会话 / 待回复互动 / 被免打扰扣下的通知，可一键补推）与变化信号（页面监视命中带 AI 分析摘要 / 失败的定时任务），行内动作直达（回到会话 / 运营台账 / 任务页）。数据经 `AgentInboxCollector` 从各 store 收集、`AgentInbox.build`（纯函数，进 tests/run.sh 12 项）分节；同一份构建逻辑同时供 Agent 窗口页、桥 `GET /inbox` 与离屏快照（`/panel/snapshot?name=inbox`）使用；侧栏带「等你处理」数角标。E2E 新增 MUSCLE11（手造待回复会话→/inbox 命中→删文件消失；强制免打扰→notify 被扣→补推→消失，策略原样复原）。
+
 
 
 

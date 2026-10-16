@@ -608,9 +608,19 @@ extension BrowserToolProvider {
             // 后台跑 E2E 时这一步永远失败）。带 url 时等新窗口的 TabManager
             // 注册（注册点在 TabManager.init）后在其中开标签。
             NSApp.activate(ignoringOtherApps: true)
-            try? await Task.sleep(for: .milliseconds(250))
             let beforeManagers = Set(TabSessionCoordinator.shared.liveManagers().map(ObjectIdentifier.init))
-            CommandBus.shared.send(.newWindow)
+            // 走 NotificationCenter + **按会话点名**，不走 CommandBus：后者有
+            // key-window 守卫，应用在后台时（keyWindow 为空）命令会被所有窗口
+            // 丢掉——实测后台调 newWindow 3/3 失败（即使先 activate 也来不及）。
+            // 监听侧只让"这个会话所在的那一扇窗"开新窗，广播天然收敛到唯一。
+            var windowRequest: [String: Any] = [:]
+            if let owner = ownerSession,
+               let entryID = AgentScheduler.shared.liveSessions()
+                   .first(where: { $0.store === owner })?.id.uuidString {
+                windowRequest["session"] = entryID
+            }
+            NotificationCenter.default.post(name: .desireOpenNewWindow, object: nil,
+                                            userInfo: windowRequest.isEmpty ? nil : windowRequest)
             var freshManager: TabManager?
             for _ in 0..<26 {
                 try? await Task.sleep(for: .milliseconds(150))
@@ -1147,4 +1157,13 @@ extension BrowserToolProvider {
         }
         return PageLoadHealth.parseMetrics(value)
     }
+}
+
+
+extension Notification.Name {
+    /// 新窗口请求（v26）：由 newWindow 工具发出、按会话点名（userInfo["session"]）
+    /// ——只让该会话所在窗口调 openWindow（广播天然收敛到唯一一扇）。
+    /// 为什么不用 CommandBus：它有 `hostingWindow === NSApp.keyWindow` 守卫，
+    /// 应用在后台时 keyWindow 为空，命令会被所有窗口丢掉（实测 3/3 失败）。
+    static let desireOpenNewWindow = Notification.Name("desire.openNewWindow")
 }

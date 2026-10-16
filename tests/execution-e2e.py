@@ -16,7 +16,8 @@ ocrImage / readPdf / readDocument(docx) / readSpreadsheet(xlsx/csv，含错类�
 pinTab+muteTab+setZoom+moveTab（listTabs 状态标记复查）/
 newWindow+saveWorkspace+openIncognitoTab+restoreWorkspace+deleteWorkspace（MUSCLE8 全在
 新窗口里做，用户窗口零触碰）/ renameTabGroup+deleteHistory（MUSCLE9，只碰 fixture 标签
-与 127.0.0.1 记录）/ splitView+unsplitView+collapseTabGroup（MUSCLE10）。
+与 127.0.0.1 记录）/ splitView+unsplitView+collapseTabGroup（MUSCLE10）/ 收件箱（MUSCLE11：
+手造待回复会话→/inbox 命中→删文件消失；强制免打扰→notify 被扣→补推→消失，策略原样复原）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -306,6 +307,13 @@ class Fake(BaseHTTPRequestHandler):
                     call(0, "unsplitView", {})]}, "tool_calls")
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE10-DONE"}, "stop")
+            return
+        if "MUSCLE11" in mode:
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "notify", {"title": "收件箱 E2E", "body": "这条应被扣下", "urgent": False})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE11-DONE"}, "stop")
             return
         if "MUSCLE4" in mode:
             import datetime as _dt
@@ -840,10 +848,19 @@ def main():
         ok("closeWindow 后活窗口数回落", window_count() == wins_before)
 
         # ── MUSCLE9：标签组改名 + 历史定向清理（都只碰 fixture 相关对象）──
-        st9 = bridge("GET", "/state")
-        fix_idx9 = next((t.get("index") for t in st9.get("tabs", [])
-                         if "/fixture" in (t.get("url") or "") or "/flaky" in (t.get("url") or "")), None)
-        assert fix_idx9 is not None, "找不到 fixture 标签（MUSCLE9 要切回它）"
+        # fixture 标签在用户窗口里；MUSCLE8 刚关掉测试窗口，/state 的活动窗口
+        # 归属可能有一瞬没落定——重试几拍并打印现场。
+        fix_idx9 = None
+        for _attempt in range(6):
+            st9 = bridge("GET", "/state")
+            fix_idx9 = next((t.get("index") for t in st9.get("tabs", [])
+                             if "/fixture" in (t.get("url") or "") or "/flaky" in (t.get("url") or "")), None)
+            if fix_idx9 is not None:
+                break
+            time.sleep(0.5)
+        assert fix_idx9 is not None, (
+            "找不到 fixture 标签（MUSCLE9 要切回它）；/state tabs="
+            + str([(t.get("index"), t.get("url")) for t in st9.get("tabs", [])]))
         Fake.tab_index = fix_idx9
         bridge("POST", "/agent/new", {})
         bridge("POST", "/agent/send", {"text": "MUSCLE9 标签组与历史清理"})
@@ -920,6 +937,71 @@ def main():
         grouped = next((g for g in groups_state if g.get("name") == "E2E 组（改名）"), {})
         ok("桥复核：分屏已解除", split_state.get("partner") in (None, "") or split_state.get("partner") is None)
         ok("桥复核：组折叠态已存", grouped.get("collapsed") is True)
+
+        # ── MUSCLE11：收件箱（手造待回复会话 + 强制扣通知→补推）──
+        import uuid as _uuid
+        storage = Path.home() / "Library/Application Support/Desire/storage"
+        fab_id = str(_uuid.uuid4()).upper()
+        now_ref = time.time() - 978307200  # ReferenceDate 秒（手造会话的既定手法）
+        fab = {
+            "id": fab_id, "title": "INBOX-E2E 待回复", "createdAt": now_ref - 60,
+            "updatedAt": now_ref, "inputHistory": [], "turnActive": False,
+            "messages": [
+                {"id": str(_uuid.uuid4()).upper(), "role": "user",
+                 "content": "INBOX-E2E 在等回复", "createdAt": now_ref - 60},
+                {"id": str(_uuid.uuid4()).upper(), "role": "user",
+                 "content": "INBOX-E2E 最后这条没有回复", "createdAt": now_ref},
+            ],
+        }
+        fab_path = storage / f"conversation-{fab_id}.json"
+        fab_path.write_text(json.dumps(fab, ensure_ascii=False))
+        time.sleep(1)
+        inbox1 = bridge("GET", "/inbox")
+        fab_rows = [it for sec in inbox1.get("sections", []) for it in sec.get("items", [])
+                    if it.get("conversationId") == fab_id]
+        ok("收件箱：待回复会话进入 action 节",
+           bool(fab_rows) and fab_rows[0].get("kind") == "unanswered"
+           and "没有回复" in (fab_rows[0].get("detail") or "")
+           and inbox1.get("actionCount", 0) >= 1)
+        fab_path.unlink(missing_ok=True)
+        time.sleep(1)
+        inbox2 = bridge("GET", "/inbox")
+        ok("收件箱：删文件后不再列出",
+           not any(it.get("conversationId") == fab_id
+                   for sec in inbox2.get("sections", []) for it in sec.get("items", [])))
+
+        # 被扣通知：临时强制免打扰 → notify(routine) → 进收件箱 → 补推 → 消失
+        policy_before = bridge("GET", "/notifications/policy").get("policy", {})
+        bridge("POST", "/notifications/policy",
+               {"quietHoursEnabled": True, "quietStart": "00:00", "quietEnd": "23:59"})
+        try:
+            bridge("POST", "/agent/new", {})
+            bridge("POST", "/agent/send", {"text": "MUSCLE11 收件箱扣通知"})
+            deadline11 = time.time() + 90
+            while time.time() < deadline11:
+                st11 = bridge("GET", "/agent/messages")
+                if not st11.get("busy") and any("MUSCLE11-DONE" in (m.get("content") or "")
+                                                for m in st11.get("messages", [])):
+                    break
+                time.sleep(1)
+            time.sleep(1.5)
+            inbox3 = bridge("GET", "/inbox")
+            held_rows = [it for sec in inbox3.get("sections", []) for it in sec.get("items", [])
+                         if it.get("kind") == "heldNotification"]
+            ok("收件箱：被扣通知聚合一行", bool(held_rows) and "1" in (held_rows[0].get("title") or ""))
+            bridge("POST", "/notifications/flush")
+            time.sleep(0.8)
+            inbox4 = bridge("GET", "/inbox")
+            ok("收件箱：补推后 held 行消失",
+               not any(it.get("kind") == "heldNotification"
+                       for sec in inbox4.get("sections", []) for it in sec.get("items", [])))
+        finally:
+            bridge("POST", "/notifications/policy", {
+                "quietHoursEnabled": policy_before.get("quietHoursEnabled", False),
+                "quietStart": policy_before.get("quietStart", "23:00"),
+                "quietEnd": policy_before.get("quietEnd", "08:00"),
+                "dailyRoutineLimit": policy_before.get("dailyRoutineLimit", 12),
+            })
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:

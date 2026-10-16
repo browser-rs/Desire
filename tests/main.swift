@@ -2786,8 +2786,66 @@ func testDiskStoreStaleOpGuard() {
     try? FileManager.default.removeItem(at: dir)
 }
 
+
+func testAgentInbox() {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    func conv(_ name: String, agoHours: Double, interrupted: Bool = false, lastUser: Bool = true) -> AgentInbox.Inputs.Conversation {
+        AgentInbox.Inputs.Conversation(
+            id: UUID(), title: name, excerpt: "\(name) 摘要",
+            updatedAt: now.addingTimeInterval(-agoHours * 3600),
+            hasInterruptedTurn: interrupted, lastMessageIsUser: lastUser)
+    }
+
+    // 空输入 → 无分节
+    check("收件箱：空输入无分节", AgentInbox.build(AgentInbox.Inputs(), now: now).isEmpty)
+
+    // 被打断的回合最优先，且同会话不重复出现在"待回复"
+    var inputs = AgentInbox.Inputs()
+    inputs.conversations = [conv("老的", agoHours: 5), conv("被打断", agoHours: 1, interrupted: true)]
+    var sections = AgentInbox.build(inputs, now: now)
+    check("收件箱：被打断排最前", sections.first?.items.first?.kind == .interrupted)
+    check("收件箱：同会话去重（被打断的会话不再出现在待回复）",
+          sections.first?.items.filter { $0.conversationID != nil }.count == 2
+          && sections.first?.items.filter { $0.kind == .unanswered }.count == 1)
+
+    // 48h 窗口与"最后一条是用户"过滤
+    inputs.conversations = [
+        conv("超窗", agoHours: 49), conv("窗口内", agoHours: 47),
+        conv("已回过", agoHours: 2, lastUser: false),
+    ]
+    sections = AgentInbox.build(inputs, now: now)
+    let unanswered = sections.first?.items.filter { $0.kind == .unanswered } ?? []
+    check("收件箱：48h 窗口外不进", !unanswered.contains { $0.title.contains("超窗") })
+    check("收件箱：最后一条非用户不进", !unanswered.contains { $0.title.contains("已回过") })
+    check("收件箱：窗口内按时间倒序", unanswered.first?.title.contains("窗口内") == true)
+
+    // 待回复会话上限 6
+    inputs.conversations = (1...9).map { conv("会话\($0)", agoHours: Double($0)) }
+    sections = AgentInbox.build(inputs, now: now)
+    check("收件箱：待回复封顶 6", sections.first?.items.filter { $0.kind == .unanswered }.count == 6)
+
+    // 变化与结果：监视命中（排序）+ 任务失败 + 被扣通知
+    inputs = AgentInbox.Inputs()
+    inputs.watches = [
+        AgentInbox.Inputs.Watch(name: "旧", changeCount: 1, analysis: nil, changedAt: now.addingTimeInterval(-7200)),
+        AgentInbox.Inputs.Watch(name: "新", changeCount: 3, analysis: "价格降了", changedAt: now.addingTimeInterval(-60)),
+        AgentInbox.Inputs.Watch(name: "没变化过", changeCount: 0, analysis: nil, changedAt: nil),
+    ]
+    inputs.runs = [AgentInbox.Inputs.Run(taskName: "日报", error: "timeout", finishedAt: now)]
+    inputs.heldNotifications = [AgentInbox.Inputs.HeldNotification(line: "a"), AgentInbox.Inputs.HeldNotification(line: "b")]
+    sections = AgentInbox.build(inputs, now: now)
+    let signals = sections.first { $0.id == "signals" }?.items ?? []
+    check("收件箱：未变化过的监视不进", signals.filter { $0.kind == .watchChange }.count == 2)
+    check("收件箱：监视按最近变化排序", signals.first?.title.contains("新") == true)
+    check("收件箱：任务失败行带错误", signals.contains { $0.kind == .failedRun && $0.detail == "timeout" })
+    let action = sections.first { $0.id == "action" }?.items ?? []
+    check("收件箱：被扣通知聚合一行", action.contains { $0.kind == .heldNotification && $0.title.contains("2") })
+    eq("收件箱：待办角标只数 action", AgentInbox.actionCount(sections), 1)
+}
+
 testSpreadsheetReader()
 testDiskStoreStaleOpGuard()
+testAgentInbox()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

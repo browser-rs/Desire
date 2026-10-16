@@ -16,6 +16,7 @@ struct AgentWindowSidebar: View {
     @ObservedObject private var skillStore = SkillStore.shared
     /// 推广徽标 = 待发布草稿数（行动项）。
     @ObservedObject private var promotionStore = PromotionStore.shared
+    @ObservedObject private var notifications = ProactiveNotificationStore.shared
     var onNewChat: () -> Void
     /// 从侧栏点会话时把右栏带回聊天列。
     var onActivateChat: () -> Void
@@ -57,8 +58,17 @@ struct AgentWindowSidebar: View {
 
     // MARK: - Destinations（智能体区）
 
+    /// 收件箱待办角标：与收件箱页同一份构建逻辑（只数"等你处理"）。
+    private var inboxActionCount: Int {
+        AgentInbox.actionCount(AgentInbox.build(
+            AgentInboxCollector.liveInputs(conversationStore: conversationStore)))
+    }
+
     private var destinationsSection: some View {
         VStack(spacing: 2) {
+            destinationRow(.inbox, icon: "tray",
+                           label: String(localized: "Inbox"),
+                           badge: inboxActionCount == 0 ? nil : "\(inboxActionCount)")
             destinationRow(.tasks, icon: "clock.badge.checkmark",
                            label: String(localized: "Tasks"),
                            badge: scheduler.tasks.isEmpty ? nil : "\(scheduler.tasks.count)")

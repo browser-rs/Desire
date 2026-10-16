@@ -455,12 +455,24 @@ struct ContentView: View {
             // 启动多还一扇窗（2026-10-15 实测，见 unregister 注释）。
             guard note.object as? NSWindow === hostingWindow else { return }
             TabSessionCoordinator.shared.unregister(tabManager)
+            // 投递目标若正是本窗口的会话，转交给还在世的会话——否则后续回合
+            // 的工具会继续打到这扇已关的窗口上（实测：点击/导航静默失效）。
+            AgentScheduler.shared.sessionDidClose(aiSession)
         }
         .onReceive(CommandBus.shared.publisher) { command in
             // The bus is app-wide: ⌘T/⌘W/⌘R… must act only in the KEY
             // window, not in every open window at once.
             guard hostingWindow === NSApp.keyWindow else { return }
             commandDispatcher.handle(command)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .desireOpenNewWindow)) { note in
+            // 只让**该会话所在的窗口**开新窗（工具按会话点名；应用后台也可用，
+            // 不经过 CommandBus 的 key-window 守卫）。
+            guard let wanted = note.userInfo?["session"] as? String,
+                  let mine = AgentScheduler.shared.liveSessions()
+                      .first(where: { $0.store === aiSession })?.id.uuidString,
+                  wanted == mine else { return }
+            openWindow(id: "main", value: UUID())
         }
         .onReceive(NotificationCenter.default.publisher(for: .desireShowAgentPanel)) { _ in
             // 菜单栏快速入口（v19）：亮出 Agent 面板。不能走 CommandBus——

@@ -403,7 +403,7 @@ final class AutomationServer {
         ep("GET", "/conversations", "Newest agent conversations (id/title/messages/firstMessage) — pair with /conversations/delete for cleanup", params: ["limit?:int (default 20)"], example: "…/conversations?limit=5")
         ep("GET", "/media/batch/log", "Full per-batch download log (create/resolve/download/merge/pause/fail, newest last)", params: ["id:string (batch uuid)", "tail?:int (default all)"], example: "…/media/batch/log?id=…")
         ep("POST", "/media/batch/manage", "Manage a batch directly (no agent round-trip): pause/resume/cancel/skip; batchId/itemId accept 8-char short ids", params: ["action:pause|resume|cancel|skip|remove", "batchId:string", "itemId?:string"], example: #"-d '{"action":"pause","batchId":"76a91071"}'"#)
-        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats|whiteboard|…)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
+        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats|inbox|whiteboard|…)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
         ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/addSelectionToWhiteboard/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
         // Downloads
         ep("GET", "/downloads", "Rows: id/file/state/paused/bytes/total/private", example: "…/downloads")
@@ -436,6 +436,7 @@ final class AutomationServer {
         ep("GET", "/workspaces", "Saved window workspaces (name/tabs/savedAt)", example: "…/workspaces")
         ep("POST", "/workspaces/delete", "Delete a saved workspace by name", params: ["name:string"], example: #"-d '{"name":"…"}'"#)
         ep("GET", "/tab-groups", "Tab groups (name/color/tabCount)", example: "…/tab-groups")
+        ep("GET", "/inbox", "Inbox: 等你处理 + 变化与结果（与 Agent 窗口收件箱页同源）", example: "…/inbox")
         ep("POST", "/tab-groups/delete", "Delete a tab group by name (test cleanup)", params: ["name:string"], example: #"-d '{"name":"…"}'"#)
         ep("POST", "/reading-list/add", "Add item", params: ["title:string", "url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
@@ -1557,6 +1558,8 @@ final class AutomationServer {
                 return try Self.json(Self.readingList())
             case ("GET", "/workspaces"):
                 return try Self.json(Self.workspacesList())
+            case ("GET", "/inbox"):
+                return try Self.json(Self.agentInbox())
             case ("GET", "/tab-groups"):
                 return try Self.json(Self.tabGroupsList())
             case ("POST", "/tab-groups/delete"):
@@ -3644,6 +3647,9 @@ final class AutomationServer {
             try png.write(to: URL(fileURLWithPath: path))
             return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
         }
+        if name == "inbox" {
+            return try await agentInboxSnapshot(width: width ?? 420, height: height ?? 900)
+        }
         if name == "agentstats" {
             // Agent 面板的"使用统计"页：同样当场渲染（面板在主窗分栏里）。尺寸可指定——
             // 这一页在**窄面板**下最容易挤坏，要能按 420/900 两种宽度各拍一张。
@@ -3711,6 +3717,33 @@ final class AutomationServer {
             return ["error": "encode failed"]
         }
         let path = NSHomeDirectory() + "/desire_agentstats.png"
+        try png.write(to: URL(fileURLWithPath: path))
+        return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
+    }
+
+    /// 收件箱页快照（与 agentstats 同款：当场建宿主渲染）。
+    private static func agentInboxSnapshot(width: CGFloat, height: CGFloat) async throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let size = NSSize(width: max(240, width), height: max(320, height))
+        let host = NSHostingView(
+            rootView: AgentInboxView(conversationStore: app.conversationStore)
+                .appAccent(AppAccent.current)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .frame(width: size.width, height: size.height)
+        )
+        host.frame = NSRect(origin: .zero, size: size)
+        host.appearance = NSApp.windows.first { $0.isVisible && $0.frame.width > 800 }?.effectiveAppearance
+        host.layoutSubtreeIfNeeded()
+        try? await Task.sleep(for: .milliseconds(200))
+        host.layoutSubtreeIfNeeded()
+        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
+            return ["error": "bitmap alloc failed"]
+        }
+        host.cacheDisplay(in: host.bounds, to: rep)
+        guard let png = rep.representation(using: .png, properties: [:]) else {
+            return ["error": "encode failed"]
+        }
+        let path = NSHomeDirectory() + "/desire_inbox.png"
         try png.write(to: URL(fileURLWithPath: path))
         return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
     }
@@ -4337,6 +4370,28 @@ final class AutomationServer {
              "savedAt": ISO8601DateFormatter().string(from: ws.savedAt)]
         }
         return ["ok": true, "workspaces": items]
+    }
+
+    /// 收件箱（v26）：与 Agent 窗口收件箱页同一份构建逻辑；会话按"查询读盘"
+    /// 惯例走新实例（UI 用实时 store，两边语义一致、输入来源不同）。
+    private static func agentInbox() -> [String: Any] {
+        let sections = AgentInbox.build(AgentInboxCollector.diskInputs())
+        let json: [[String: Any]] = sections.map { section in
+            ["id": section.id, "title": section.title,
+             "items": section.items.map { item -> [String: Any] in
+                 var row: [String: Any] = [
+                     "kind": item.kind.rawValue, "title": item.title, "detail": item.detail,
+                 ]
+                 if let cid = item.conversationID { row["conversationId"] = cid.uuidString }
+                 return row
+             }]
+        }
+        return [
+            "ok": true,
+            "sections": json,
+            "actionCount": AgentInbox.actionCount(sections),
+            "totalCount": sections.reduce(0) { $0 + $1.items.count },
+        ]
     }
 
     /// 标签组（v23 桥面）：列表 + 按名删除——测试清理与外部驱动用。

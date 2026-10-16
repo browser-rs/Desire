@@ -989,7 +989,8 @@ final class TabSessionCoordinator {
         // 标签列表会误导外部驱动——2026-10-15 实测：关掉活动窗口后 /state
         // 显示空标签、测试清理扫不到真窗口里的 fixture 标签。
         if let activeManager,
-           activeManager.selectedTab?.browser.webView.window?.isVisible != false {
+           let activeTab = activeManager.selectedTab,
+           activeTab.browser.webView.window?.isVisible != false {
             return activeManager
         }
         let visible = managers.compactMap(\.manager)

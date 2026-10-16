@@ -4,6 +4,7 @@ import SwiftUI
 /// 都回到聊天列。
 enum AgentWindowDestination: Hashable {
     case chat
+    case inbox
     case tasks
     case skills
     case memory
@@ -71,6 +72,17 @@ struct AgentWindowRoot: View {
                 isSidebarExpanded: isSidebarExpanded,
                 hidesHeaderNavigation: true,
                 promptCenter: store.promptCenter
+            )
+        case .inbox:
+            AgentInboxView(
+                conversationStore: conversationStore,
+                onBack: { switchDestination(.chat) },
+                onOpenConversation: { id in
+                    switchDestination(.chat)
+                    if let id { store.loadConversation(id) }
+                },
+                onOpenOperations: { switchDestination(.promotion) },
+                onOpenTasks: { switchDestination(.tasks) }
             )
         case .tasks:
             AgentTasksView(onBack: { switchDestination(.chat) })

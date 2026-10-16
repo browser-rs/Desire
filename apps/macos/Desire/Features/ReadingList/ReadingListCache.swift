@@ -71,7 +71,9 @@ enum ReadingListCache {
     /// 离屏缓存 webview（一次抓取一个；完成即释放，别常驻）。
     private static var offscreenCacheWebview: WKWebView?
 
-    private static func openTabWebview(matching url: String) -> WKWebView? {
+    /// 找 URL 匹配的已打开标签的 webview（URLReader 也复用：读链接时优先
+    /// 借已开标签，零等待且含登录态）。
+    static func openTabWebview(matching url: String) -> WKWebView? {
         for manager in TabSessionCoordinator.shared.liveManagers() {
             for tab in manager.tabs {
                 let current = tab.browser.webView.url?.absoluteString

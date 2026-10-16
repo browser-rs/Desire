@@ -18,7 +18,8 @@ newWindow+saveWorkspace+openIncognitoTab+restoreWorkspace+deleteWorkspace（MUSC
 新窗口里做，用户窗口零触碰）/ renameTabGroup+deleteHistory（MUSCLE9，只碰 fixture 标签
 与 127.0.0.1 记录）/ splitView+unsplitView+collapseTabGroup（MUSCLE10）/ 收件箱（MUSCLE11：
 手造待回复会话→/inbox 命中→删文件消失；强制免打扰→notify 被扣→补推→消失，策略原样复原）/
-归档会话（MUSCLE12：手造归档→列表→在新窗口恢复→复核标记 URL→关窗）。
+归档会话（MUSCLE12：手造归档→列表→在新窗口恢复→复核标记 URL→关窗）/
+readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开新标签）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -309,6 +310,19 @@ class Fake(BaseHTTPRequestHandler):
                     call(0, "unsplitView", {})]}, "tool_calls")
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE10-DONE"}, "stop")
+            return
+        if "MUSCLE13" in mode:
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "readURL", {"url": f"http://127.0.0.1:{API_PORT}/flaky"})]}, "tool_calls")
+            elif n == 1:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "readURL", {"url": f"http://127.0.0.1:{API_PORT}/hello", "includeLinks": False})]}, "tool_calls")
+            elif n == 2:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "readURL", {"url": "not a url"})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE13-DONE"}, "stop")
             return
         if "MUSCLE12" in mode:
             if "MUSCLE12A" in mode:
@@ -1089,6 +1103,35 @@ def main():
         while time.time() < win_deadline12 and len(windows_live()) > wins_before:
             time.sleep(0.5)
         ok("MUSCLE12 测试窗口已关闭", len(windows_live()) <= wins_before)
+        # ── MUSCLE13：readURL 离屏取正文（不开标签）──
+        st13 = bridge("GET", "/state")
+        tabs13_before = len(st13.get("tabs", []))
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE13 readURL 离屏取文"})
+        deadline13 = time.time() + 120
+        while time.time() < deadline13:
+            st13b = bridge("GET", "/agent/messages")
+            if not st13b.get("busy") and any("MUSCLE13-DONE" in (m.get("content") or "")
+                                             for m in st13b.get("messages", [])):
+                break
+            time.sleep(1)
+        time.sleep(1)
+        conv13_id = bridge("GET", "/agent/trace").get("conversation")
+        conv13 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                             / f"conversation-{conv13_id}.json").read_text())
+        tools13 = [m.get("content") or "" for m in conv13.get("messages", []) if m.get("role") == "tool"]
+        open13 = next((t for t in tools13 if "(from the open tab)" in t), "")
+        offscreen13 = next((t for t in tools13 if "(loaded off-screen)" in t), "")
+        bad13 = next((t for t in tools13 if t.startswith("Error:")), "")
+        time.sleep(0.5)
+        tabs13_after = len(bridge("GET", "/state").get("tabs", []))
+        ok("readURL 走已开标签路径（含正文）",
+           open13.startswith("Page text (from the open tab)")
+           and ("右键目标" in open13 or "FLAKY-FULL-OK" in open13 or "flaky" in open13))
+        ok("readURL 离屏路径（JSON 靶服务正文）",
+           offscreen13.startswith("Page text (loaded off-screen)") and "muscle-http" in offscreen13)
+        ok("readURL 坏 URL 走 Error: 约定", bad13.startswith("Error:"))
+        ok("readURL 不开新标签", tabs13_after == tabs13_before)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:

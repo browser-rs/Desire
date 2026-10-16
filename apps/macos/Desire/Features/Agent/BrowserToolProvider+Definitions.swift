@@ -800,6 +800,14 @@ extension BrowserToolProvider {
                 ], required: ["path", "find", "replace"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "readURL", description: "Read a link's page text WITHOUT opening a tab: loads it off-screen (reuses the open tab when the page is already open, so logins/cookies apply) and returns title + readable text + a link list. Use it for \"read this link and summarize\", batch reading, or scanning a page for entry points. Body text only — shadow DOM / cross-origin iframe content is not included.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "url": AgentJSONSchemaValue(type: "string", description: "Link to read (http/https; scheme optional)"),
+                    "maxChars": AgentJSONSchemaValue(type: "number", description: "Cap on returned characters (default 20000, max 60000)"),
+                    "includeLinks": AgentJSONSchemaValue(type: "boolean", description: "Include the page's link list (default true)"),
+                ], required: ["url"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "readPdf",
                 description: "Extract the text layer of a PDF file (contracts, reports, papers) — local, no page needed. Returns up to ~60k chars; pageCount is included so you can gauge size. Scanned PDFs without a text layer return nothing — screenshot the page and use ocrImage for those.",
                 parameters: AgentJSONSchema(type: "object", properties: [

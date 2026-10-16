@@ -2242,6 +2242,25 @@ extension BrowserToolProvider {
                 }
             }
 
+        case "readURL":
+            // 离屏取正文（不开标签）。页面已打开则借其 webview 直读（零等待、
+            // 含登录态）；否则离屏加载（当前档案 data store + 桌面 Safari UA）。
+            let readURLText = (args["url"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !readURLText.isEmpty else { return Self.fail("Missing url") }
+            let readMax = min(60_000, max(1_000, (args["maxChars"] as? Int) ?? 20_000))
+            let includeLinks = (args["includeLinks"] as? Bool) ?? true
+            guard let page = await URLReader.read(url: readURLText, maxChars: readMax, includeLinks: includeLinks) else {
+                return Self.fail("Couldn't read \(readURLText) (bad URL, offline, or the page never finished loading)")
+            }
+            var readOut = "Page text \(page.fromOpenTab ? "(from the open tab)" : "(loaded off-screen)"): \(page.finalURL)\n"
+            if !page.title.isEmpty { readOut += "Title: \(page.title)\n" }
+            readOut += "\n" + page.text
+            if page.truncated { readOut += "\n…[truncated at \(readMax) chars]" }
+            if !page.links.isEmpty {
+                readOut += "\n\nLinks:\n" + page.links.prefix(30).map { "- \($0.text) — \($0.href)" }.joined(separator: "\n")
+            }
+            return readOut
+
         case "readPdf":
             guard let pdfPath = args["path"] as? String, !pdfPath.isEmpty else { return Self.fail("Missing path") }
             let pdfMax = (args["maxChars"] as? Int) ?? 60_000

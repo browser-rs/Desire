@@ -311,7 +311,50 @@ def main():
         check("C 返回带 busy 信号语义（页面 busy 1.5s 内已消）",
               "still present" not in assistant_text)
 
+        # Round D：danger 动作 → alwaysAllow 升格「本站 × 此动作」点名授权 →
+        #           二次执行不再弹审批卡（逐动作放行，0.6.7 机制；桥的
+        #           alwaysAllow 与审批卡 Always Allow 同路径——pageAction 的
+        #           alwaysAllow 自动落成站点授权）
+        bridge("POST", "/navigate", body={"url": f"http://127.0.0.1:{FIXTURE_PORT}/"})
+        time.sleep(1.5)
+        before = run_case("DPPGATE 授权下单")
+        approval = wait_approval()
+        check("D 首次执行仍触发审批（此时无任何站点授权）", approval is not None)
+        # siteGrant=true 走的正是审批卡「本站始终允许」那条代码路径
+        res = bridge("POST", "/approvals/resolve",
+                     body={"decision": "always_allow", "siteGrant": True})
+        check("D alwaysAllow 被接受", res.get("ok") is True)
+        state = wait_turn_done(before)
+        executed = js("window.__ordered === true")
+        check("D 授权后动作执行了", executed.get("result") in (True, "true"))
+        rules = bridge("GET", "/dpp/action-approvals").get("rules", [])
+        granted = [r for r in rules if r.get("host") == "127.0.0.1" and r.get("action") == "place-order"]
+        check("D 授权已持久化为 站点 × 动作 规则", len(granted) == 1)
+
+        # D2：同站点同动作二次执行 → 不再弹审批卡、直接执行
+        bridge("POST", "/navigate", body={"url": f"http://127.0.0.1:{FIXTURE_PORT}/"})
+        time.sleep(1.5)
+        before = run_case("DPPGATE 二次下单")
+        no_second_card = assert_no_approval_while(lambda: None, duration=8)
+        if not no_second_card:
+            # 若错误地弹了卡：解掉（deny）让回合收尾，断言已记录为失败
+            bridge("POST", "/approvals/resolve", body={"decision": "deny"})
+        state = wait_turn_done(before)
+        executed2 = js("window.__ordered === true")
+        check("D2 二次执行全程无审批卡（逐动作放行生效）", no_second_card)
+        check("D2 二次执行确实跑了", executed2.get("result") in (True, "true"))
+        tool_msgs_d = last_tool_msgs(state)
+        check("D2 工具回执正常（未拒绝/未报错）",
+              tool_msgs_d and "denied" not in (tool_msgs_d[-1].get("content") or "")
+              and not (tool_msgs_d[-1].get("content") or "").startswith("Error"))
+
     finally:
+        # 逐动作授权的收尾（D 轮的 fixture 域名 x 动作；无论成败都收回）
+        try:
+            bridge("POST", "/dpp/action-approvals/revoke",
+                   body={"host": "127.0.0.1", "action": "place-order"})
+        except Exception:
+            pass
         # 还原档案并核对
         rec = bridge("POST", "/ai/profiles", body={
             "id": original["id"], "name": original["name"],

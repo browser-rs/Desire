@@ -4717,7 +4717,11 @@ final class AutomationServer {
         ApprovalPolicyStore.shared.recordHistory(
             toolName: session.pendingApproval?.toolCall.function.name ?? "unknown",
             decision: decision, source: "bridge")
-        session.resolveApproval(outcome)
+        // siteGrant 必须**传下去**：DPP 逐动作审批的「本站始终允许」由
+        // store 的 resolveApproval(siteGrant:) 落成 站点×动作 规则——
+        // 此前这里收了参数却没转发，桥的显式站点授权静默退化成普通放行
+        // （2026-10-17 修，gate_e2e D 轮照出）。
+        session.resolveApproval(outcome, siteGrant: siteGrant)
         return ["ok": true, "resolved": decision]
     }
 

@@ -16,7 +16,9 @@
 3. 起常驻 fixture/假 LLM：`nohup python3 tests/dpp-e2e/serve_daemon.py &`
    （8877 = DPP fixture，8880 = 假 OpenAI SSE；**必须独立进程**——脚本内线程
    会随脚本退出死掉，制造"网络错误"假象）
-4. `python3 tests/dpp-e2e/gate_e2e.py --use-daemon`（审批闸门 20 项）
+4. `python3 tests/dpp-e2e/gate_e2e.py --use-daemon`（审批闸门 27 项：A local
+   免审 / B deny / C allow_once / **D 逐动作放行——alwaysAllow 落成 站点×动作
+   规则，二次执行全程无审批卡**）
    `python3 tests/dpp-e2e/event_e2e.py`（事件驱动回合 8 项）
    `python3 tests/dpp-e2e/upload_wellknown_e2e.py`（站点级 + upload，7 项）
    `python3 tests/dpp-e2e/sdk_live_e2e.py`（线上 SDK——**外部依赖**

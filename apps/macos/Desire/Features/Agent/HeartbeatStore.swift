@@ -157,49 +157,19 @@ final class HeartbeatStore: ObservableObject {
 }
 
 extension HeartbeatStore {
-    /// 距上次心跳以来的自动信号：页面监视变化（带 AI 分析结论）、失败的定时
-    /// 任务、被打断的回合、最近没人回复的会话（未完成事务收件箱）。
+    /// 距上次心跳以来的自动信号：**与收件箱同一份聚合**（v28 归一——此前
+    /// 这里和 AgentInbox.build 各写了一套同样状态的收集逻辑，口径迟早漂移）。
+    /// 心跳额外跳过高频"被扣通知"（它们本来就会合流成摘要补推，不该再触发
+    /// 心跳提醒一次）。
     fileprivate func gatherSignals() -> [HeartbeatDecision.Signal] {
-        var signals: [HeartbeatDecision.Signal] = []
         let since = lastBeatAt ?? Date().addingTimeInterval(-TimeInterval(intervalMinutes * 60))
-        for watch in PageWatchStore.shared.watches where watch.isEnabled {
-            guard let changed = watch.lastChangedAt, changed > since else { continue }
-            var detail = "内容发生变化（共 \(watch.changeCount) 次）"
-            if let analysis = watch.lastAnalysis?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !analysis.isEmpty {
-                detail += "；AI 分析：\(String(analysis.suffix(160)))"
-            }
-            signals.append(HeartbeatDecision.Signal(title: "页面监视「\(watch.name)」", detail: detail))
-        }
-        for run in AgentScheduler.shared.runs {
-            guard run.status == "failed", let finished = run.finishedAt, finished > since else { continue }
-            signals.append(HeartbeatDecision.Signal(
-                title: "定时任务「\(run.taskName)」失败",
-                detail: String((run.error ?? "unknown error").prefix(160))))
-        }
-        // 未完成事务收件箱：被打断的回合（面板有"继续/放弃"入口）。
-        if let session = AgentScheduler.shared.deliveryTarget, session.hasInterruptedTurn {
-            signals.append(HeartbeatDecision.Signal(
-                title: "当前会话有被打断的回合",
-                detail: "上一回合没有正常收尾，可在面板里继续或放弃"))
-        }
-        // 最近 48h 内、最后一条消息是用户且没有回复的会话（上限 4 条防吵）。
-        // 活会话的"回合进行中"不算——那不是遗留，是正在发生。
-        let store = AppState.live?.conversationStore ?? ConversationStore()
-        var pendingConversations = 0
-        for conv in store.conversations where pendingConversations < 4 {
-            guard let last = conv.messages.last, last.role == .user,
-                  !(conv.turnActive ?? false),
-                  Date().timeIntervalSince(conv.updatedAt) < 48 * 3600 else { continue }
-            let excerpt = (last.content ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .replacingOccurrences(of: "\n", with: " ")
-            signals.append(HeartbeatDecision.Signal(
-                title: "会话「\(conv.title)」有待回复的消息",
-                detail: String(excerpt.prefix(120))))
-            pendingConversations += 1
-        }
-        return signals
+        guard let app = AppState.live else { return [] }
+        let sections = AgentInbox.build(
+            AgentInboxCollector.liveInputs(conversationStore: app.conversationStore),
+            since: since)
+        return sections.flatMap { $0.items }
+            .filter { $0.kind != .heldNotification }
+            .map { HeartbeatDecision.Signal(title: $0.title, detail: $0.detail) }
     }
 
     private func recordBeat(result: String) {

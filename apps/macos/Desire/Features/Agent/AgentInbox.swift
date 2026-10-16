@@ -60,6 +60,8 @@ nonisolated enum AgentInbox {
             let platform: String
             let author: String
             let excerpt: String
+            /// 最后更新时刻（since 过滤用；收件箱展示不看它）。
+            let updatedAt: Date
         }
         struct HeldNotification: Equatable {
             let line: String
@@ -77,7 +79,10 @@ nonisolated enum AgentInbox {
     static let unansweredWindow: TimeInterval = 48 * 3600
     static let perSectionItemCap = 6
 
-    static func build(_ inputs: Inputs, now: Date = Date()) -> [Section] {
+    /// - Parameter since: 非 nil 时进入"末次巡检以来"模式：监视变化/任务失败/
+    ///   互动只收该时刻之后的（心跳巡检用；收件箱页传 nil = 全量现状）。
+    ///   会话部分两种模式一致（48h 窗口 + 待回复）。
+    static func build(_ inputs: Inputs, now: Date = Date(), since: Date? = nil) -> [Section] {
         var action: [Item] = []
 
         // 被打断的回合（最高优先；同一会话不再重复出现在"待回复"里）。
@@ -110,7 +115,10 @@ nonisolated enum AgentInbox {
         }
 
         // 待处理互动（运营台账里没回过的那批）。
-        for interaction in inputs.interactions.prefix(perSectionItemCap) {
+        let interactions = inputs.interactions
+            .filter { since == nil || $0.updatedAt > since! }
+            .prefix(perSectionItemCap)
+        for interaction in interactions {
             action.append(Item(
                 id: "interaction-\(interaction.id.uuidString)",
                 kind: .interaction,
@@ -132,7 +140,10 @@ nonisolated enum AgentInbox {
         // 变化与结果：页面监视命中、失败的定时任务。
         var signals: [Item] = []
         let changedWatches = inputs.watches
-            .filter { $0.changedAt != nil }
+            .filter { watch in
+                guard let changed = watch.changedAt else { return false }
+                return since == nil || changed > since!
+            }
             .sorted { ($0.changedAt ?? .distantPast) > ($1.changedAt ?? .distantPast) }
             .prefix(perSectionItemCap)
         for watch in changedWatches {
@@ -149,6 +160,7 @@ nonisolated enum AgentInbox {
                 conversationID: nil))
         }
         let failedRuns = inputs.runs
+            .filter { since == nil || $0.finishedAt > since! }
             .sorted { $0.finishedAt > $1.finishedAt }
             .prefix(perSectionItemCap)
         for run in failedRuns {

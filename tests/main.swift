@@ -2888,10 +2888,46 @@ func testSessionArchive() {
     try? FileManager.default.removeItem(at: dir)
 }
 
+
+func testAgentInboxSinceMode() {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    var inputs = AgentInbox.Inputs()
+    inputs.watches = [
+        AgentInbox.Inputs.Watch(name: "旧变化", changeCount: 1, analysis: nil,
+                                changedAt: now.addingTimeInterval(-7200)),
+        AgentInbox.Inputs.Watch(name: "新变化", changeCount: 2, analysis: nil,
+                                changedAt: now.addingTimeInterval(-60)),
+    ]
+    inputs.runs = [
+        AgentInbox.Inputs.Run(taskName: "旧失败", error: "x", finishedAt: now.addingTimeInterval(-7200)),
+        AgentInbox.Inputs.Run(taskName: "新失败", error: "y", finishedAt: now.addingTimeInterval(-30)),
+    ]
+    inputs.interactions = [
+        AgentInbox.Inputs.Interaction(id: UUID(), platform: "P", author: "A", excerpt: "旧互动",
+                                      updatedAt: now.addingTimeInterval(-7200)),
+        AgentInbox.Inputs.Interaction(id: UUID(), platform: "P", author: "B", excerpt: "新互动",
+                                      updatedAt: now.addingTimeInterval(-30)),
+    ]
+    inputs.heldNotifications = [AgentInbox.Inputs.HeldNotification(line: "held")]
+    let since = now.addingTimeInterval(-3600)
+    let all = AgentInbox.build(inputs, now: now).flatMap { $0.items }
+    let recent = AgentInbox.build(inputs, now: now, since: since).flatMap { $0.items }
+    check("收件箱 since：全量含旧变化", all.contains { $0.title.contains("旧变化") })
+    check("收件箱 since：新变化进、旧变化出",
+          recent.contains { $0.title.contains("新变化") } && !recent.contains { $0.title.contains("旧变化") })
+    check("收件箱 since：任务按完成时刻过滤",
+          recent.contains { $0.title.contains("新失败") } && !recent.contains { $0.title.contains("旧失败") })
+    check("收件箱 since：互动按更新时刻过滤",
+          recent.contains { $0.detail.contains("新互动") } && !recent.contains { $0.detail.contains("旧互动") })
+    check("收件箱 since：被扣通知不受 since 影响（心跳自行跳过）",
+          recent.contains { $0.kind == .heldNotification })
+}
+
 testSpreadsheetReader()
 testDiskStoreStaleOpGuard()
 testAgentInbox()
 testSessionArchive()
+testAgentInboxSinceMode()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

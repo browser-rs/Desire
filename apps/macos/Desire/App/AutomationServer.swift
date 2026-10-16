@@ -403,7 +403,7 @@ final class AutomationServer {
         ep("GET", "/conversations", "Newest agent conversations (id/title/messages/firstMessage) — pair with /conversations/delete for cleanup", params: ["limit?:int (default 20)"], example: "…/conversations?limit=5")
         ep("GET", "/media/batch/log", "Full per-batch download log (create/resolve/download/merge/pause/fail, newest last)", params: ["id:string (batch uuid)", "tail?:int (default all)"], example: "…/media/batch/log?id=…")
         ep("POST", "/media/batch/manage", "Manage a batch directly (no agent round-trip): pause/resume/cancel/skip; batchId/itemId accept 8-char short ids", params: ["action:pause|resume|cancel|skip|remove", "batchId:string", "itemId?:string"], example: #"-d '{"action":"pause","batchId":"76a91071"}'"#)
-        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats|inbox|whiteboard|…)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
+        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats|inbox|workspaces|whiteboard|…)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
         ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/addSelectionToWhiteboard/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
         // Downloads
         ep("GET", "/downloads", "Rows: id/file/state/paused/bytes/total/private", example: "…/downloads")
@@ -3658,6 +3658,9 @@ final class AutomationServer {
             try png.write(to: URL(fileURLWithPath: path))
             return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
         }
+        if name == "workspaces" {
+            return try await workspacesSnapshot(width: width ?? 520, height: height ?? 640)
+        }
         if name == "inbox" {
             return try await agentInboxSnapshot(width: width ?? 420, height: height ?? 900)
         }
@@ -3728,6 +3731,40 @@ final class AutomationServer {
             return ["error": "encode failed"]
         }
         let path = NSHomeDirectory() + "/desire_agentstats.png"
+        try png.write(to: URL(fileURLWithPath: path))
+        return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
+    }
+
+    /// 工作区面板快照（含「已归档会话」区块）。tabManager 用一次性实例——
+    /// 这一页在快照里是纯展示（按钮不点）。
+    private static func workspacesSnapshot(width: CGFloat, height: CGFloat) async throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let size = NSSize(width: max(360, width), height: max(320, height))
+        let host = NSHostingView(
+            rootView: WorkspacePanel(
+                tabManager: TabManager(),
+                settings: app.settings,
+                contentBlocker: app.contentBlocker,
+                videoAdBlocker: app.videoAdBlocker,
+                profileDataStore: nil,
+                onClose: {})
+                .appAccent(AppAccent.current)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .frame(width: size.width, height: size.height)
+        )
+        host.frame = NSRect(origin: .zero, size: size)
+        host.appearance = NSApp.windows.first { $0.isVisible && $0.frame.width > 800 }?.effectiveAppearance
+        host.layoutSubtreeIfNeeded()
+        try? await Task.sleep(for: .milliseconds(250))
+        host.layoutSubtreeIfNeeded()
+        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
+            return ["error": "bitmap alloc failed"]
+        }
+        host.cacheDisplay(in: host.bounds, to: rep)
+        guard let png = rep.representation(using: .png, properties: [:]) else {
+            return ["error": "encode failed"]
+        }
+        let path = NSHomeDirectory() + "/desire_workspaces.png"
         try png.write(to: URL(fileURLWithPath: path))
         return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
     }

@@ -37,7 +37,8 @@ enum AgentInboxCollector {
                 AgentInbox.Inputs.Interaction(id: item.id,
                                               platform: item.platform,
                                               author: item.author,
-                                              excerpt: String(item.text.prefix(140)))
+                                              excerpt: String(item.text.prefix(140)),
+                                              updatedAt: item.updatedAt)
             }
         inputs.heldNotifications = ProactiveNotificationStore.shared.heldLines
             .map { AgentInbox.Inputs.HeldNotification(line: $0) }

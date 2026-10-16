@@ -23,7 +23,9 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 数值盯梢（MUSCLE14：建监视→基线→改价→跨线告警→列表→删除）/
 每站缩放记忆（MUSCLE15：清零→设 150→同站导航保持→reset 后清除）/
 朗读工具（MUSCLE16：readAloud 传文本→/speech 在讲→stopSpeaking→停；无 text 从 /article 提取、回执带标题）/
-会话预算（MUSCLE17：假端点 usage 推到 460/500 → warning；续跑 → 停在步骤边界 + 档位阶梯前进）。
+会话预算（MUSCLE17：假端点 usage 推到 460/500 → warning；续跑 → 停在步骤边界 + 档位阶梯前进）/
+热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
+桥 /promotion/review 一键安排每日选题采集并撤销）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -149,6 +151,21 @@ class TinyAPI(BaseHTTPRequestHandler):
                     "<nav>导航噪音</nav>"
                     f"<article><h1>Article Fixture</h1>{paras}</article>"
                     "</body></html>").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path.startswith("/hotlist"):
+            # 热点选题（MUSCLE18）的靶页：热榜形态（标题 + 若干长段落），
+            # readURL 的正文提取按"body 长段落"回退即可整页读出。
+            items = "".join(
+                f"<p>MUSCLE18HOT 话题 {i}：某框架 {i}.0 发布引发迁移讨论，实测兼容性与性能差异（热度 {100 + i * 37}）</p>"
+                for i in range(1, 6))
+            body = ("<!DOCTYPE html><html><head><meta charset='utf-8'>"
+                    "<title>Hot List Fixture</title></head><body>"
+                    f"<h1>今日热榜</h1>{items}</body></html>").encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -432,6 +449,27 @@ class Fake(BaseHTTPRequestHandler):
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE17B-DONE"}, "stop")
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE17-DONE"}, "stop")
+            return
+        if "MUSCLE18" in mode and body.get("tools") and "自评者" not in sys_text:
+            hot_url = f"http://127.0.0.1:{API_PORT}/hotlist"
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "readURL", {"url": hot_url})]}, "tool_calls")
+            elif n == 1:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "promotionSave", {"platform": "热榜源", "title": "MUSCLE18 选题一",
+                                              "body": f"切入角度：迁移成本实测对比 + 来源: {hot_url}",
+                                              "status": "idea", "goal": "MUSCLE18 选题目标"})]}, "tool_calls")
+            elif n == 2:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "promotionSave", {"platform": "热榜源", "title": "MUSCLE18 选题二",
+                                              "body": f"切入角度：性能拆解教程 + 来源: {hot_url}",
+                                              "status": "idea"})]}, "tool_calls")
+            elif n == 3:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "listSkills", {})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE18-DONE"}, "stop")
             return
         if "MUSCLE14" in mode:
             if n == 0:
@@ -1413,12 +1451,66 @@ def main():
         b17b = bridge("GET", "/agent/budget")
         ok("预算：档位阶梯前进（stopLevel=2，下一档 1000）",
            b17b.get("stopLevel") == 2 and b17b.get("used", 0) >= 920)
+        # ── MUSCLE18：热点选题（readURL 读热榜 → 提炼 → 选题库 + 一键安排每日采集）──
+        goal18 = bridge("POST", "/promotion/goal", {"title": "MUSCLE18 选题目标", "objective": "E2E"})
+        goal18_id = (goal18.get("goal") or {}).get("id", "")
+        ok("选题：测试目标已建", goal18_id != "")
+        sched18 = bridge("POST", "/promotion/review", {"kind": "dailyTopics"})
+        tasks18 = bridge("GET", "/agent/tasks").get("tasks", [])
+        ok("选题：桥一键安排每日选题采集",
+           sched18.get("ok") is True
+           and any(("选题" in (t.get("name") or "")) or ("scout" in (t.get("name") or "").lower())
+                   for t in tasks18))
+        bridge("POST", "/promotion/review", {"kind": "dailyTopics", "action": "remove"})
+        tasks18b = bridge("GET", "/agent/tasks").get("tasks", [])
+        ok("选题：撤销后任务消失",
+           not any(("选题" in (t.get("name") or "")) or ("scout" in (t.get("name") or "").lower())
+                   for t in tasks18b))
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE18 找热点选题"})
+        deadline18 = time.time() + 150
+        while time.time() < deadline18:
+            st18 = bridge("GET", "/agent/messages")
+            if not st18.get("busy") and any("MUSCLE18-DONE" in (m.get("content") or "")
+                                            for m in st18.get("messages", [])):
+                break
+            time.sleep(1)
+        conv18_id = bridge("GET", "/agent/trace").get("conversation")
+        conv18 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                             / f"conversation-{conv18_id}.json").read_text())
+        tools18 = [m.get("content") or "" for m in conv18.get("messages", []) if m.get("role") == "tool"]
+        read18 = next((t for t in tools18 if "MUSCLE18HOT" in t), "")
+        ok("选题：readURL 实读热榜页（话题进正文）", read18 != "" and "热榜" in read18)
+        skills18 = next((t for t in tools18 if "hot-topics" in t), "")
+        ok("选题：listSkills 带 hot-topics 内置剧本", skills18 != "")
+        state18 = bridge("GET", "/promotion/state")
+        posts18 = [p for p in state18.get("posts", []) if (p.get("title") or "").startswith("MUSCLE18 选题")]
+        idea1 = next((p for p in posts18 if p.get("title") == "MUSCLE18 选题一"), {})
+        idea2 = next((p for p in posts18 if p.get("title") == "MUSCLE18 选题二"), {})
+        ok("选题：两条 idea 入库", idea1.get("status") == "idea" and idea2.get("status") == "idea")
+        ok("选题：领域随目标关联（goalID 带齐）", idea1.get("goalID") == goal18_id)
+        ok("选题：来源链接在正文（带热榜页 URL）",
+           f"127.0.0.1:{API_PORT}/hotlist" in (idea1.get("body") or "")
+           and f"127.0.0.1:{API_PORT}/hotlist" in (idea2.get("body") or ""))
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
         # 朗读兜底：万一 MUSCLE16 中途失败也别让机器一直念。
         try:
             bridge("POST", "/speech/stop", {})
+        except Exception:
+            pass
+        # 选题兜底（MUSCLE18）：只清本脚本创建的 MUSCLE18 选题/目标（前缀精确匹配）
+        # 与可能残留的每日选题采集任务。
+        try:
+            st18f = bridge("GET", "/promotion/state")
+            for p in st18f.get("posts", []):
+                if (p.get("title") or "").startswith("MUSCLE18 选题"):
+                    bridge("POST", "/promotion/post/remove", {"id": p.get("id")})
+            for g in st18f.get("goals", []):
+                if (g.get("title") or "") == "MUSCLE18 选题目标":
+                    bridge("POST", "/promotion/goal/remove", {"id": g.get("id")})
+            bridge("POST", "/promotion/review", {"kind": "dailyTopics", "action": "remove"})
         except Exception:
             pass
         # 预算兜底：恢复测试前的预算值（别把用户/环境的设置留在 500）。

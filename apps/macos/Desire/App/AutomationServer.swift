@@ -603,7 +603,7 @@ final class AutomationServer {
         ep("POST", "/promotion/account/remove", "Remove an account by id", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/promotion/lesson", "Record an operations lesson (exact duplicates are skipped)", params: ["text:string", "domain?:promotion|media|ecommerce", "platform?:string"], example: #"-d '{"text":"掘金长文数据优于短沸点","platform":"掘金"}'"#)
         ep("POST", "/promotion/lesson/remove", "Remove a lesson by id", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
-        ep("POST", "/promotion/review", "Schedule (idempotent) or remove an operations automation task", params: ["kind?:dailyCollect|weeklyReview", "action?:schedule|remove"], example: #"-d '{"kind":"dailyCollect"}'"#)
+        ep("POST", "/promotion/review", "Schedule (idempotent) or remove an operations automation task", params: ["kind?:dailyCollect|weeklyReview|dailyTopics", "action?:schedule|remove"], example: #"-d '{"kind":"dailyTopics"}'"#)
         ep("GET", "/promotion/report", "Operations weekly report as Markdown (shared with the promotionReport tool and the panel's copy button)", params: ["periodDays?:int"], example: "…/promotion/report?periodDays=7")
         ep("POST", "/promotion/interaction", "Log interaction(s) (comments/DMs/reviews) into the ledger — single object or {items:[…]}, duplicates skipped", params: ["platform?:string", "author?:string", "text?:string", "kind?:comment|dm|mention|review", "url?:string", "postTitle?:string", "items?:array"], example: #"-d '{"platform":"掘金","author":"u1","text":"好文！","url":"https://…"}'"#)
         ep("POST", "/promotion/interaction/reply", "Draft/close one interaction: store reply text and/or set status", params: ["id:string", "reply?:string", "status?:replied|ignored|pending"], example: #"-d '{"id":"<uuid>","reply":"谢谢支持！","status":"replied"}'"#)
@@ -5242,6 +5242,9 @@ final class AutomationServer {
         var out: [String: Any] = [
             "id": post.id.uuidString, "platform": post.platform, "title": post.title,
             "status": post.status.rawValue, "createdAt": post.createdAt.timeIntervalSince1970,
+            // body 进 JSON（v0.7.18）：选题/草稿的正文（切入角度 + 来源链接）在
+            // 这里——桥端集成与 E2E 断言需要；面板读 store、不受影响。
+            "body": post.body,
         ]
         if let goalID = post.goalID { out["goalID"] = goalID.uuidString }
         if let url = post.url { out["url"] = url }

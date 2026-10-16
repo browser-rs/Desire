@@ -410,6 +410,10 @@ struct PromotionView: View {
                           icon: "calendar.badge.clock",
                           label: String(localized: "Weekly review"),
                           detail: String(localized: "Monday 10:00 — compare growth, distil lessons, plan next week"))
+            automationRow(.dailyTopics,
+                          icon: "flame",
+                          label: String(localized: "Daily topic scout"),
+                          detail: String(localized: "09:30 daily — scan hot lists and stock 3-5 ideas into the idea backlog"))
         }
     }
 

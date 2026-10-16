@@ -8,11 +8,14 @@ enum PromotionAutomation {
     enum Kind: String, CaseIterable {
         case dailyCollect
         case weeklyReview
+        /// 热点选题采集（v0.7.18）：readURL 读热榜 → 提炼 → 选题库。
+        case dailyTopics
 
         var taskName: String {
             switch self {
             case .dailyCollect: return String(localized: "Operations daily collection")
             case .weeklyReview: return String(localized: "Operations review (weekly)")
+            case .dailyTopics: return String(localized: "Operations topic scout (daily)")
             }
         }
 
@@ -30,6 +33,10 @@ enum PromotionAutomation {
                 3) 用 promotionLesson 记录可复用的结论，完全重复的会被自动跳过；互动台账清一遍：待处理该回的回、回不了的标忽略（promotionInteractionReply）；
                 4) 给出下周行动计划（含选题建议，可先用 promotionSave status=idea 存进选题库）；**提议**（别擅自）把关键节点用 addReminder / addCalendarEvent 排进系统提醒与日历——用户点头再落；5) 已达成或已过期的目标提醒用户归档（暂停）或调整。没有数据可复盘就回复「暂无运营数据」并结束。
                 """
+            case .dailyTopics:
+                return """
+                热点选题采集（每日）：按「热点选题」（hot-topics）技能的执行流程跑一遍——promotionBrief 读已有选题去重（近几天报过没被挑的方向换掉）→ readURL 读一两类热榜/趋势页（技术社区 + 综合热榜各一条即可；DPP 站点优先 pageExtract）→ 挑 3-5 个与运营目标相关、能写出观点/教程的热点 → 逐条 promotionSave {status:"idea", platform:「来源站点」, title:「题面」, body:"切入角度 + 来源: <url>", goal:「相关目标标题」}（没有匹配目标就不传 goal）。只报实读到的热点、来源链接来自本次返回、不编造热度；选题库里待挑的已堆到 15 条以上就只报增量并提醒用户清一清。采集完把清单（标题+理由+来源）贴给用户挑。
+                """
             }
         }
     }
@@ -44,6 +51,7 @@ enum PromotionAutomation {
         switch kind {
         case .dailyCollect: recurrence = .daily(hour: 21, minute: 0)
         case .weeklyReview: recurrence = .weekly(weekday: 2, hour: 10, minute: 0)
+        case .dailyTopics: recurrence = .daily(hour: 9, minute: 30)
         }
         return scheduler.add(name: kind.taskName, prompt: kind.prompt, recurrence: recurrence) != nil
     }

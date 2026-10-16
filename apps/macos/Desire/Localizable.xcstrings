@@ -41825,6 +41825,75 @@
           }
         }
       }
+    },
+    "Operations topic scout (daily)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Operations topic scout (daily)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "运营选题采集（每日）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "營運選題採集（每日）"
+          }
+        }
+      }
+    },
+    "Daily topic scout" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Daily topic scout"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日选题采集"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每日選題採集"
+          }
+        }
+      }
+    },
+    "09:30 daily — scan hot lists and stock 3-5 ideas into the idea backlog" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "09:30 daily — scan hot lists and stock 3-5 ideas into the idea backlog"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天 09:30 — 扫热榜、把 3-5 个选题存进选题库"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每天 09:30 — 掃熱榜、把 3-5 個選題存進選題庫"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -72,7 +72,21 @@ case "dump":
             let r = role(of: el)
             let l = label(of: el)
             if !l.isEmpty || r.contains("Button") || r.contains("MenuBarItem") || r.contains("Window") || r.contains("Popover") || r.contains("Dialog") || r.contains("Group") {
-                print(String(repeating: "  ", count: depth) + "\(r) [\(l)]")
+                // 帧（屏幕坐标，左上原点）——排查"谁盖住谁"用。
+                var frameNote = ""
+                var pv: CFTypeRef?
+                var sv: CFTypeRef?
+                AXUIElementCopyAttributeValue(el, kAXPositionAttribute as CFString, &pv)
+                AXUIElementCopyAttributeValue(el, kAXSizeAttribute as CFString, &sv)
+                if let pv, CFGetTypeID(pv) == AXValueGetTypeID(),
+                   let sv, CFGetTypeID(sv) == AXValueGetTypeID() {
+                    var pt = CGPoint.zero
+                    var sz = CGSize.zero
+                    AXValueGetValue(unsafeDowncast(pv, to: AXValue.self), .cgPoint, &pt)
+                    AXValueGetValue(unsafeDowncast(sv, to: AXValue.self), .cgSize, &sz)
+                    if sz.width > 0 { frameNote = String(format: " x=%.0f..%.0f y=%.0f", pt.x, pt.x + sz.width, pt.y) }
+                }
+                print(String(repeating: "  ", count: depth) + "\(r) [\(l)]\(frameNote)")
             }
             return false
         }

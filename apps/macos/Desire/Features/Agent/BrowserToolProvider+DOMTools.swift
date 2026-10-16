@@ -1834,6 +1834,70 @@ extension BrowserToolProvider {
             }
             return Self.fail("Failed to schedule '\(name)' (empty fields?)")
 
+        case "listPageWatches":
+            // 页面监视（确定性、无模型成本）：文本 diff + 可选的数值盯梢。
+            let pageWatches = PageWatchStore.shared.watches
+            guard !pageWatches.isEmpty else { return "No page watches" }
+            return pageWatches.map { watch -> String in
+                var line = "\(watch.isEnabled ? "✓" : "·") \(watch.name) — every \(watch.intervalMinutes) min — \(watch.url)"
+                if watch.watchesNumbers {
+                    let latest = watch.latestValue.map { String(format: "%.2f", $0) } ?? "?"
+                    var numeric = "\n  numbers: latest \(latest), \(watch.valueHistory?.count ?? 0) point(s)"
+                    if let above = watch.alertAbove { numeric += ", alert > \(String(format: "%.2f", above))" }
+                    if let below = watch.alertBelow { numeric += ", alert < \(String(format: "%.2f", below))" }
+                    if let alert = watch.lastAlert { numeric += "\n  last alert: \(alert)" }
+                    line += numeric
+                }
+                if let err = watch.lastError, !err.isEmpty { line += "\n  error: \(err)" }
+                return line
+            }.joined(separator: "\n")
+
+        case "addPageWatch":
+            // "帮我盯着这个价格/这个页面"——页面监视是确定性的（每次检查一次离屏
+            // 加载，不花 token）；数值选择器可选，配阈值即跨线告警。
+            guard let name = args["name"] as? String, !name.isEmpty,
+                  let url = args["url"] as? String, !url.isEmpty else {
+                return Self.fail("Missing name / url")
+            }
+            let minutes = (args["intervalMinutes"] as? Int) ?? 30
+            guard let added = PageWatchStore.shared.add(
+                name: name, url: url,
+                selector: args["selector"] as? String,
+                minutes: minutes,
+                aiAnalysis: (args["aiAnalysis"] as? Bool) ?? false,
+                numericSelector: args["numericSelector"] as? String,
+                alertAbove: args["alertAbove"] as? Double,
+                alertBelow: args["alertBelow"] as? Double) else {
+                return Self.fail("Invalid name/url — check the URL and try again")
+            }
+            var note = "Added page watch «\(added.name)» (every \(added.intervalMinutes) min)"
+            if added.watchesNumbers {
+                note += " with number tracking on \(added.numericSelector ?? "")"
+            }
+            return note
+
+        case "removePageWatch":
+            guard let name = args["name"] as? String, !name.isEmpty else { return Self.fail("Missing name") }
+            guard PageWatchStore.shared.remove(named: name) else {
+                return Self.fail("No page watch named \(name) (see listPageWatches)")
+            }
+            return "Removed page watch «\(name)»"
+
+        case "checkPageWatch":
+            guard let name = args["name"] as? String, !name.isEmpty else { return Self.fail("Missing name") }
+            guard let watch = PageWatchStore.shared.find(named: name) else {
+                return Self.fail("No page watch named \(name) (see listPageWatches)")
+            }
+            let changed = await PageWatchStore.shared.check(named: name)
+            guard let updated = PageWatchStore.shared.find(named: name) else { return "Watch removed during check" }
+            var result = "Checked «\(watch.name)»: changed=\(changed)"
+            if updated.watchesNumbers, let latest = updated.latestValue {
+                result += ", latest value \(String(format: "%.2f", latest))"
+            }
+            if let alert = updated.lastAlert { result += ", alert: \(alert)" }
+            if let err = updated.lastError { result += ", error: \(err)" }
+            return result
+
         case "listScheduledTasks":
             let tasks = AgentScheduler.shared.tasks
             if tasks.isEmpty { return "No scheduled tasks." }

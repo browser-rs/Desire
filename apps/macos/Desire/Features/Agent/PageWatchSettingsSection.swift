@@ -11,6 +11,9 @@ struct PageWatchSettingsSection: View {
     @State private var newSelector = ""
     @State private var newMinutes = 30
     @State private var newAI = false
+    @State private var newNumericSelector = ""
+    @State private var newAlertBelow = ""
+    @State private var newAlertAbove = ""
     @State private var addError: String?
     @State private var checkingName: String?
 
@@ -96,6 +99,27 @@ struct PageWatchSettingsSection: View {
             .toggleStyle(.switch)
             .controlSize(.small)
         }
+        if watch.watchesNumbers {
+            SettingsRowDivider(leading: 14)
+            SettingsRow(
+                String(localized: "Number Tracking"),
+                subtitle: numericMetaText(watch)
+            ) {
+                if let points = watch.valueHistory, points.count >= 2 {
+                    Sparkline(values: points.map(\.value))
+                        .frame(width: 56, height: 16)
+                }
+            }
+        }
+        if let alert = watch.lastAlert, !alert.isEmpty {
+            SettingsRowDivider(leading: 14)
+            SettingsFieldRow(String(localized: "Last Alert")) {
+                Text(alert)
+                    .font(.system(size: 11.5, weight: .medium))
+                    .foregroundStyle(.orange)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
         if let analysis = watch.lastAnalysis, !analysis.isEmpty {
             SettingsRowDivider(leading: 14)
             SettingsFieldRow(String(localized: "Latest Analysis")) {
@@ -123,6 +147,27 @@ struct PageWatchSettingsSection: View {
         return parts.joined(separator: " · ")
     }
 
+    /// 数值行副标题：最新值 · 笔数 · 阈值。
+    private func numericMetaText(_ watch: PageWatch) -> String {
+        var parts: [String] = []
+        if let latest = watch.latestValue {
+            parts.append(String(format: String(localized: "latest %@"), String(format: "%.2f", latest)))
+        } else {
+            parts.append(String(localized: "no readings yet"))
+        }
+        parts.append(String(localized: "\(watch.valueHistory?.count ?? 0) readings"))
+        if let below = watch.alertBelow {
+            parts.append(String(format: String(localized: "alert below %@"), String(format: "%.2f", below)))
+        }
+        if let above = watch.alertAbove {
+            parts.append(String(format: String(localized: "alert above %@"), String(format: "%.2f", above)))
+        }
+        if let selector = watch.numericSelector {
+            parts.append(selector)
+        }
+        return parts.joined(separator: " · ")
+    }
+
     // MARK: - 添加表单（SettingsFieldRow 规范）
 
     private var addForm: some View {
@@ -142,6 +187,28 @@ struct PageWatchSettingsSection: View {
             SettingsFieldRow(String(localized: "CSS selector (optional)")) {
                 TextField(String(localized: "CSS selector (optional)"), text: $newSelector)
                     .textFieldStyle(.roundedBorder)
+            }
+            SettingsRowDivider(leading: SettingsMetrics.fieldLabelWidth)
+            SettingsFieldRow(String(localized: "Number selector (optional)")) {
+                TextField(".price", text: $newNumericSelector)
+                    .textFieldStyle(.roundedBorder)
+            }
+            SettingsRowDivider(leading: SettingsMetrics.fieldLabelWidth)
+            SettingsFieldRow(String(localized: "Alert thresholds")) {
+                HStack(spacing: 8) {
+                    Text(String(localized: "below"))
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                    TextField("1200", text: $newAlertBelow)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 90)
+                    Text(String(localized: "above"))
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                    TextField("—", text: $newAlertAbove)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 90)
+                }
             }
             SettingsRowDivider(leading: SettingsMetrics.fieldLabelWidth)
             SettingsFieldRow(String(localized: "Interval")) {
@@ -182,13 +249,43 @@ struct PageWatchSettingsSection: View {
 
     private func add() {
         let trimmedSelector = newSelector.trimmingCharacters(in: .whitespaces)
+        let trimmedNumeric = newNumericSelector.trimmingCharacters(in: .whitespaces)
         if store.add(name: newName, url: newURL,
                      selector: trimmedSelector.isEmpty ? nil : trimmedSelector,
-                     minutes: newMinutes, aiAnalysis: newAI) == nil {
+                     minutes: newMinutes, aiAnalysis: newAI,
+                     numericSelector: trimmedNumeric.isEmpty ? nil : trimmedNumeric,
+                     alertAbove: Double(newAlertAbove.trimmingCharacters(in: .whitespaces)),
+                     alertBelow: Double(newAlertBelow.trimmingCharacters(in: .whitespaces))) == nil {
             addError = String(localized: "Invalid name or URL")
             return
         }
         newName = ""; newURL = ""; newSelector = ""; newMinutes = 30; newAI = false
+        newNumericSelector = ""; newAlertBelow = ""; newAlertAbove = ""
         addError = nil
+    }
+}
+
+/// 数值历史迷你走势（56×16 固定小图；两点以上才画）。
+private struct Sparkline: View {
+    let values: [Double]
+
+    var body: some View {
+        GeometryReader { geo in
+            let minV = values.min() ?? 0
+            let maxV = values.max() ?? 1
+            let span = max(maxV - minV, 0.000_001)
+            Path { path in
+                for (index, value) in values.enumerated() {
+                    let x = geo.size.width * CGFloat(index) / CGFloat(max(values.count - 1, 1))
+                    let y = geo.size.height * (1 - CGFloat((value - minV) / span))
+                    if index == 0 {
+                        path.move(to: CGPoint(x: x, y: y))
+                    } else {
+                        path.addLine(to: CGPoint(x: x, y: y))
+                    }
+                }
+            }
+            .stroke(Color.orange.opacity(0.85), style: StrokeStyle(lineWidth: 1.2, lineJoin: .round))
+        }
     }
 }

@@ -169,7 +169,13 @@ struct TabBar: View {
                                     TabPreviewPanel.shared.hide()
                                 }
                             )
-                                .frame(width: 50)
+                                // **minWidth 而不是 width**（v0.7.18 用户实测修复）：
+                                // 硬钳 50pt 时，胶囊里一多出元素（分组色条/容器点/
+                                // 音频钮/图钉），内容超宽就被 SwiftUI 在 50pt 槽位里
+                                // 居中 → 胶囊背景往左溢出 7~15pt，正好钻到红绿灯
+                                // 底下（"不 Pin 正常、一 Pin 第一个胶囊就被遮住"）。
+                                // 下限保持 50 = 常规固定标签仍是等宽小胶囊。
+                                .frame(minWidth: 50)
                         }
                     }
                     if !pinned.isEmpty && !regular.isEmpty {
@@ -408,15 +414,16 @@ private struct TabPillView: View {
             } else if tab.isOnNewTabPage {
                 Image(systemName: "asterisk").font(.caption)
             } else {
+                // 固定标签的图钉**并排**画在图标左侧（v0.7.18 用户实拍修复）：
+                // 曾用 6pt 角标叠在 14pt 图标右下角（offset +4/+4）——渲染出来
+                // 挤在圆形图标底边、半截越出胶囊底下，看着就是坏的。
+                if tab.isPinned {
+                    Image(systemName: "pin.fill")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .help(String(localized: "Pinned tab"))
+                }
                 FaviconView(urlString: tab.browser.webView.url?.absoluteString ?? tab.urlString, size: 14)
-                    .overlay(alignment: .bottomTrailing) {
-                        if tab.isPinned {
-                            Image(systemName: "pin.fill")
-                                .font(.system(size: 6))
-                                .foregroundStyle(.secondary)
-                                .offset(x: 4, y: 4)
-                        }
-                    }
             }
             if tab.isPlayingAudio {
                 Button {

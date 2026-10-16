@@ -55,6 +55,7 @@ SOURCES=(
   apps/macos/Desire/Features/Browsing/MediaResource.swift
   apps/macos/Desire/Features/Downloads/BatchMedia.swift
   apps/macos/Desire/Features/PageWatch/PageWatchDiff.swift
+  apps/macos/Desire/Features/PageWatch/PageWatch.swift
   apps/macos/Desire/Features/NewTab/QuickDial.swift
   apps/macos/Desire/Features/UserScripts/PluginResources.swift
   apps/macos/Desire/Features/UserScripts/DNRRule.swift

@@ -227,6 +227,35 @@ extension BrowserToolProvider {
                 ], required: ["name", "prompt"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listPageWatches", description: "List page watches (deterministic monitors: off-screen text diff, optional number tracking with thresholds).",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "addPageWatch", description: "Watch a page on a schedule (min 5 min; deterministic, no token cost). Optional numeric tracking: numericSelector picks an element whose first number is recorded each check, and alertAbove/alertBelow fire ONE notification when the value CROSSES the threshold (e.g. price drops below 1200). Use it for \"watch this price/page and tell me\".",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Watch name (unique)"),
+                    "url": AgentJSONSchemaValue(type: "string", description: "Page URL"),
+                    "selector": AgentJSONSchemaValue(type: "string", description: "CSS selector to diff (optional; default whole body)"),
+                    "intervalMinutes": AgentJSONSchemaValue(type: "number", description: "Check interval in minutes (default 30, min 5)"),
+                    "aiAnalysis": AgentJSONSchemaValue(type: "boolean", description: "Ask the agent to analyze changes (costs tokens; default false)"),
+                    "numericSelector": AgentJSONSchemaValue(type: "string", description: "CSS selector for the number to track (optional)"),
+                    "alertAbove": AgentJSONSchemaValue(type: "number", description: "Alert when the tracked number rises above this (optional)"),
+                    "alertBelow": AgentJSONSchemaValue(type: "number", description: "Alert when the tracked number drops below this (optional)"),
+                ], required: ["name", "url"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "removePageWatch", description: "Remove a page watch by name.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Watch name"),
+                ], required: ["name"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "checkPageWatch", description: "Force a page watch to check NOW (loads the page off-screen, ~2-5s) and report changed/value/alert.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Watch name"),
+                ], required: ["name"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "listScheduledTasks", description: "List scheduled tasks (定时任务) with their recurrences and last-run status.",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

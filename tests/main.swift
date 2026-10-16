@@ -2923,11 +2923,48 @@ func testAgentInboxSinceMode() {
           recent.contains { $0.kind == .heldNotification })
 }
 
+
+func testNumericWatch() {
+    // 取数：千分位/货币/单位前后缀
+    eq("数值：千分位+货币", NumericWatch.parseValue(from: "¥1,299.00 元"), 1299.0)
+    eq("数值：纯数字", NumericWatch.parseValue(from: "  42 "), 42.0)
+    eq("数值：小数", NumericWatch.parseValue(from: "stock: 3.5 left"), 3.5)
+    eq("数值：末尾逗号残渣", NumericWatch.parseValue(from: "1,299,"), 1299.0)
+    check("数值：无数字返回 nil", NumericWatch.parseValue(from: "sold out") == nil)
+    check("数值：负号不进 token（取无符号数值）", NumericWatch.parseValue(from: "-5") == 5.0)
+
+    // 跨线判定：只认穿越；首测基线不告警
+    check("数值：首测不告警", NumericWatch.crossingAlert(previous: nil, new: 10, above: 5, below: nil) == nil)
+    check("数值：向下穿越",
+          NumericWatch.crossingAlert(previous: 1300, new: 1150, above: nil, below: 1200) == .below(1200))
+    check("数值：已在阈值下不重复告警",
+          NumericWatch.crossingAlert(previous: 1100, new: 1090, above: nil, below: 1200) == nil)
+    check("数值：向上穿越",
+          NumericWatch.crossingAlert(previous: 5, new: 6, above: 5.5, below: nil) == .above(5.5))
+    check("数值：反向移动不告警",
+          NumericWatch.crossingAlert(previous: 1190, new: 1250, above: nil, below: 1200) == nil)
+
+    // 历史封顶
+    let base = Date(timeIntervalSince1970: 0)
+    var history: [PageWatch.ValuePoint] = []
+    for i in 0..<70 {
+        history = NumericWatch.appendCap(history, PageWatch.ValuePoint(at: base.addingTimeInterval(Double(i)), value: Double(i)))
+    }
+    eq("数值：历史封顶 60", history.count, 60)
+    eq("数值：封顶保留最新", history.last?.value, 69.0)
+
+    // 模型字段默认回兼容（旧存档 decode 不炸）
+    let legacy = #"{"id":"00000000-0000-0000-0000-000000000001","name":"t","url":"https://e.com","intervalMinutes":30,"isEnabled":true,"createdAt":0,"changeCount":0}"#
+    let decoded = try? JSONDecoder().decode(PageWatch.self, from: legacy.data(using: .utf8)!)
+    check("数值：旧存档解码（新字段可缺省）", decoded != nil && decoded?.watchesNumbers == false)
+}
+
 testSpreadsheetReader()
 testDiskStoreStaleOpGuard()
 testAgentInbox()
 testSessionArchive()
 testAgentInboxSinceMode()
+testNumericWatch()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

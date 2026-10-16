@@ -37,17 +37,24 @@ final class PageWatchStore: ObservableObject {
 
     @discardableResult
     func add(name: String, url: String, selector: String?, minutes: Int,
-             aiAnalysis: Bool = false) -> PageWatch? {
+             aiAnalysis: Bool = false,
+             numericSelector: String? = nil,
+             alertAbove: Double? = nil,
+             alertBelow: Double? = nil) -> PageWatch? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty, !trimmedURL.isEmpty, let parsed = URL(string: trimmedURL) else { return nil }
-        let watch = PageWatch(
+        var watch = PageWatch(
             id: UUID(), name: trimmedName, url: parsed.absoluteString,
             selector: selector?.isEmpty == true ? nil : selector,
             intervalMinutes: max(5, minutes), isEnabled: true, createdAt: Date(),
             lastCheckedAt: nil, lastChangedAt: nil, previousText: nil,
             changeCount: 0, lastError: nil, aiAnalysis: aiAnalysis
         )
+        let trimmedNumeric = numericSelector?.trimmingCharacters(in: .whitespaces)
+        watch.numericSelector = (trimmedNumeric?.isEmpty == true) ? nil : trimmedNumeric
+        watch.alertAbove = alertAbove
+        watch.alertBelow = alertBelow
         watches.append(watch)
         save()
         return watch
@@ -120,7 +127,10 @@ final class PageWatchStore: ObservableObject {
         let watch = watches[idx]
         let watchID = watch.id
         do {
-            let text = try await fetchText(url: URL(string: watch.url)!, selector: watch.selector)
+            let pair = try await fetchTexts(url: URL(string: watch.url)!,
+                                            selector: watch.selector,
+                                            numericSelector: watch.numericSelector)
+            let text = pair.text
             let normalized = normalize(text)
             guard let cur = watches.firstIndex(where: { $0.id == watchID }) else {
                 Self.log.info("page watch '\(watch.name, privacy: .public)' removed during check — discarding result")
@@ -161,6 +171,31 @@ final class PageWatchStore: ObservableObject {
             } else {
                 save()
             }
+
+            // 数值盯梢（v0.7.18）：无论文本是否变化都记一笔（封顶 60）；
+            // 跨阈值只在**穿越**那一刻告警一次（与 diff 通知同一分级管线）。
+            if watch.watchesNumbers {
+                if let numericText = pair.numeric, let value = NumericWatch.parseValue(from: numericText) {
+                    let point = PageWatch.ValuePoint(at: Date(), value: value)
+                    watches[cur].valueHistory = NumericWatch.appendCap(watches[cur].valueHistory ?? [], point)
+                    if let alert = NumericWatch.crossingAlert(previous: watch.latestValue, new: value,
+                                                              above: watch.alertAbove, below: watch.alertBelow) {
+                        watches[cur].lastAlert = NumericWatch.alertText(alert, value: value)
+                        watches[cur].lastAlertAt = Date()
+                        notifyNumericAlert(watch: watches[cur], value: value)
+                        BridgeEventBus.shared.publish("pageWatchNumericAlert", [
+                            "name": watches[cur].name,
+                            "url": watches[cur].url,
+                            "value": value,
+                            "alert": watches[cur].lastAlert ?? "",
+                        ])
+                    }
+                    save()
+                } else if let numericSelector = watch.numericSelector {
+                    watches[cur].lastError = "numeric selector not found: \(numericSelector)"
+                    save()
+                }
+            }
             return changed
         } catch {
             guard let cur = watches.firstIndex(where: { $0.id == watchID }) else { return false }
@@ -191,6 +226,14 @@ final class PageWatchStore: ObservableObject {
     }
 
     private func fetchText(url: URL, selector: String?) async throws -> String {
+        let pair = try await fetchTexts(url: url, selector: selector, numericSelector: nil)
+        return pair.text
+    }
+
+    /// 一把加载、两路取文（v0.7.18 数值盯梢：diff 文本 + 数值文本共用一次
+    /// 离屏装载，别为盯一个价格把页面加载两遍）。数值选择器未命中返回
+    /// numeric=nil（不炸整次检查；调用侧记 lastError）。
+    private func fetchTexts(url: URL, selector: String?, numericSelector: String?) async throws -> (text: String, numeric: String?) {
         let webview = offscreenWebview()
         webview.load(URLRequest(url: url))
         // Poll isLoading: up to 12 s.
@@ -199,28 +242,41 @@ final class PageWatchStore: ObservableObject {
             try await Task.sleep(for: .milliseconds(100))
         }
         try await Task.sleep(for: .milliseconds(300)) // let late JS render
-        let js: String
-        if let selector, !selector.isEmpty {
-            let escaped = selector.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
-            js = """
-            (function(){
-              var el = document.querySelector('\(escaped)');
-              return el ? (el.innerText || el.textContent || '') : '__NO_MATCH__';
-            })()
-            """
-        } else {
-            js = "document.body ? document.body.innerText : ''"
+        func selectorLiteral(_ raw: String) -> String {
+            raw.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "'", with: "\\'")
         }
-        let result: Any = await withCheckedContinuation { continuation in
+        let textExpr: String
+        if let selector, !selector.isEmpty {
+            textExpr = "(function(){var el=document.querySelector('\(selectorLiteral(selector))');return el?(el.innerText||el.textContent||''):'__NO_MATCH__';})()"
+        } else {
+            textExpr = "(document.body ? document.body.innerText : '')"
+        }
+        let numericExpr: String
+        if let numericSelector, !numericSelector.isEmpty {
+            numericExpr = "(function(){var el=document.querySelector('\(selectorLiteral(numericSelector))');return el?(el.innerText||el.textContent||''):null;})()"
+        } else {
+            numericExpr = "null"
+        }
+        let js = """
+        (function(){
+          return JSON.stringify({ text: \(textExpr), numeric: \(numericExpr) });
+        })()
+        """
+        let raw: Any = await withCheckedContinuation { continuation in
             webview.evaluateJavaScript(js) { value, _ in
                 continuation.resume(returning: value ?? "")
             }
         }
-        let text = result as? String ?? ""
+        guard let rawString = raw as? String,
+              let data = rawString.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw WatchError.selectorNotFound(selector ?? "")
+        }
+        let text = (object["text"] as? String) ?? ""
         if text == "__NO_MATCH__" {
             throw WatchError.selectorNotFound(selector ?? "")
         }
-        return text
+        return (text, object["numeric"] as? String)
     }
 
     enum WatchError: LocalizedError {
@@ -282,6 +338,15 @@ final class PageWatchStore: ObservableObject {
     }
 
     // MARK: - Notification
+
+    /// 数值跨阈值通知（routine 档：免打扰/预算由通知策略收口，不绕过分级）。
+    private func notifyNumericAlert(watch: PageWatch, value: Double) {
+        ProactiveNotificationStore.shared.deliver(
+            title: String(localized: "Page watch “\(watch.name)”"),
+            body: watch.lastAlert ?? String(format: "%.2f", value),
+            tier: .routine)
+        Self.log.info("page watch '\(watch.name, privacy: .public)' numeric alert: \(value, privacy: .public)")
+    }
 
     private func notifyChange(watch: PageWatch, diff: String) {
         ProactiveNotificationStore.shared.deliver(

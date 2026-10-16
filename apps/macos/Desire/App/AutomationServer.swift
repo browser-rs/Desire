@@ -2126,7 +2126,10 @@ final class AutomationServer {
                     url: Self.string(body, "url") ?? "",
                     selector: Self.string(body, "selector"),
                     minutes: body["minutes"] as? Int ?? 5,
-                    aiAnalysis: body["aiAnalysis"] as? Bool
+                    aiAnalysis: body["aiAnalysis"] as? Bool,
+                    numericSelector: Self.string(body, "numericSelector"),
+                    alertAbove: body["alertAbove"] as? Double,
+                    alertBelow: body["alertBelow"] as? Double
                 ))
             case ("POST", "/watches/remove"):
                 return try Self.json(Self.removeWatch(name: Self.string(body, "name") ?? ""))
@@ -5961,17 +5964,35 @@ final class AutomationServer {
 
     private static func listWatches() throws -> [String: Any] {
         let store = PageWatchStore.shared
+        let iso = ISO8601DateFormatter()
         return ["watches": store.watches.map { w -> [String: Any] in
-            ["name": w.name, "url": w.url, "selector": w.selector ?? "",
-             "minutes": w.intervalMinutes, "enabled": w.isEnabled,
-             "changeCount": w.changeCount, "lastError": w.lastError ?? "",
-             "aiAnalysis": w.wantsAIAnalysis, "lastAnalysis": w.lastAnalysis ?? ""]
+            var row: [String: Any] = [
+                "name": w.name, "url": w.url, "selector": w.selector ?? "",
+                "minutes": w.intervalMinutes, "enabled": w.isEnabled,
+                "changeCount": w.changeCount, "lastError": w.lastError ?? "",
+                "aiAnalysis": w.wantsAIAnalysis, "lastAnalysis": w.lastAnalysis ?? "",
+            ]
+            if let numericSelector = w.numericSelector {
+                row["numericSelector"] = numericSelector
+                row["valueCount"] = w.valueHistory?.count ?? 0
+                if let latest = w.latestValue { row["latestValue"] = latest }
+                if let above = w.alertAbove { row["alertAbove"] = above }
+                if let below = w.alertBelow { row["alertBelow"] = below }
+                if let alert = w.lastAlert { row["lastAlert"] = alert }
+                if let at = w.lastAlertAt { row["lastAlertAt"] = iso.string(from: at) }
+            }
+            return row
         }]
     }
 
-    private static func addWatch(name: String, url: String, selector: String?, minutes: Int, aiAnalysis: Bool?) throws -> [String: Any] {
+    private static func addWatch(name: String, url: String, selector: String?, minutes: Int, aiAnalysis: Bool?,
+                                 numericSelector: String? = nil, alertAbove: Double? = nil,
+                                 alertBelow: Double? = nil) throws -> [String: Any] {
         guard PageWatchStore.shared.add(name: name, url: url, selector: selector, minutes: minutes,
-                                        aiAnalysis: aiAnalysis ?? false) != nil else {
+                                        aiAnalysis: aiAnalysis ?? false,
+                                        numericSelector: numericSelector,
+                                        alertAbove: alertAbove,
+                                        alertBelow: alertBelow) != nil else {
             return ["error": "invalid name/url"]
         }
         return ["ok": true, "name": name]
@@ -5994,7 +6015,13 @@ final class AutomationServer {
             return ["error": "no such watch"]
         }
         let changed = await PageWatchStore.shared.check(named: name)
-        return ["ok": true, "name": name, "changed": changed]
+        var result: [String: Any] = ["ok": true, "name": name, "changed": changed]
+        if let updated = PageWatchStore.shared.find(named: name) {
+            if let latest = updated.latestValue { result["latestValue"] = latest }
+            if let alert = updated.lastAlert { result["lastAlert"] = alert }
+            if let err = updated.lastError { result["lastError"] = err }
+        }
+        return result
     }
 
     // MARK: Memory + skills management (0.1.15)

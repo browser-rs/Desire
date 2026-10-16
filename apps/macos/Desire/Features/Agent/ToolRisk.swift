@@ -89,6 +89,8 @@ enum ToolRisk: Int, Comparable {
         "listReadingList",
         // 归档会话查看（restoreArchivedSession 会替换窗口标签，走默认 sideEffect）
         "listArchivedSessions",
+        // 页面监视查看（add/remove/check 是写操作/远端抓取，走默认 sideEffect）
+        "listPageWatches",
         // readURL 有意不进只读集：带登录态的 GET 按 httpRequest 同族处理
         //（"抓远端内容"一律过一次审批，fullAccess 档无摩擦）。
         // Workspaces 查看（save/restore/delete 是写操作，走默认 sideEffect）

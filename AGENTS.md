@@ -423,6 +423,21 @@ Features/Bookmarks/
   空）：Agent 功能要执行系统命令，沙盒做不到。**禁止**以"安全修复"
   名义重开沙盒——重开 = Agent 全部系统级能力失效。见上文 Key
   Conventions。
+- **窗口关闭/退出的三条实测事实（2026-10-16，"关窗即归档"那批的现场）**：
+  ① **AppKit 在终止流程里会给窗口补发 willClose**（`applicationShouldTerminate`
+  之后、进程退出前，日志里是 "finishing close"，ContentView 的观察者照跑）
+  ——任何"关窗时做副作用"的代码必须排除 `isTerminating`，否则退出路径会把
+  索引里已写好的全部活动窗口会话变成采纳不到的死键；
+  ② **SwiftUI 关窗后 manager 实例滞留 + 离屏快照等一次性实例**会留下
+  **无会话键的空 manager**（`close:` 日志里是 `others=[nokey/0t]`）——
+  "还有别的活窗口吗"**不能按存活 manager 计数**，判据看"别的 manager 里
+  有没有标签的 webview 挂在活窗口上"；
+  ③ **关最后一扇窗**的会话文件要留在 storage（归档了，采纳侧
+  `mostRecentSessionKey` 的"跳过无文件的 key"会把整次恢复滤成空白窗口）。
+  诊断入口：`/usr/bin/log show --predicate 'subsystem == "me.siwi.Desire"
+  AND category == "tabs"'` 里的 `close: key=… others=[…] terminating=… archived=…` 行。
+  另：应用窗口不在当前 Space/屏上时 **AX 窗口列表为空、CG 全部 onscreen=false**
+  （进程活着、桥正常）——AX 探针查不到窗口不等于窗口不存在，先 `open -a` 激活再看。
 - **分栏拖拽（0.3.10 终版，用户实测收敛）**：**HSplitView 原生分栏**——
   分屏右栏/MQ 检查器/Agent/DevTools 全部是其子视图，分隔条与拖拽由
   SwiftUI 提供，视图内**零拖拽代码**。宽度协商只走子视图

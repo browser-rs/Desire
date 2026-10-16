@@ -630,7 +630,8 @@ extension BrowserToolProvider {
         case "setZoom":
             guard let percent = args["percent"] as? Int else { return Self.fail("Missing percent") }
             let clamped = min(500, max(25, percent))
-            webView.pageZoom = Double(clamped) / 100.0
+            guard let zoomTab = surface.tabManager?.selectedTab else { return Self.fail("No active tab") }
+            zoomTab.applyPageZoom(Double(clamped) / 100.0, rememberIn: surface.siteSettingsStore)
             return "Zoom set to \(clamped)%"
 
         case "newWindow":
@@ -916,17 +917,20 @@ extension BrowserToolProvider {
             return await eval(webView, js)
 
         case "zoomIn":
-            let newZoom = min(5.0, max(0.5, webView.pageZoom + 0.1))
-            webView.pageZoom = newZoom
-            return "Zoomed in to \(Int(newZoom * 100))%"
+            // 统一落点（v0.7.18）：菜单/工具栏/工具都走 Tab.applyPageZoom——
+            // 双写 + 记每站缩放（否则菜单/工具改的缩放在下次导航被压回去）。
+            guard let zoomTab = surface.tabManager?.selectedTab else { return Self.fail("No active tab") }
+            zoomTab.applyPageZoom(zoomTab.browser.pageZoom + 0.1, rememberIn: surface.siteSettingsStore)
+            return "Zoomed in to \(Int(zoomTab.browser.pageZoom * 100))%"
 
         case "zoomOut":
-            let newZoom = min(5.0, max(0.5, webView.pageZoom - 0.1))
-            webView.pageZoom = newZoom
-            return "Zoomed out to \(Int(newZoom * 100))%"
+            guard let zoomTab = surface.tabManager?.selectedTab else { return Self.fail("No active tab") }
+            zoomTab.applyPageZoom(zoomTab.browser.pageZoom - 0.1, rememberIn: surface.siteSettingsStore)
+            return "Zoomed out to \(Int(zoomTab.browser.pageZoom * 100))%"
 
         case "resetZoom":
-            webView.pageZoom = 1.0
+            guard let zoomTab = surface.tabManager?.selectedTab else { return Self.fail("No active tab") }
+            zoomTab.applyPageZoom(1.0, rememberIn: surface.siteSettingsStore)
             return "Zoom reset to 100%"
 
         // --- Content blockers ---

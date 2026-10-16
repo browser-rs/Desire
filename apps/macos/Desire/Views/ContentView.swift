@@ -142,6 +142,7 @@ struct ContentView: View {
             contentBlocker: contentBlocker,
             videoAdBlocker: videoAdBlocker,
             bookmarkStore: bookmarkStore,
+            siteSettingsStore: appState.siteSettingsStore,
             historyStore: historyStore,
             openSettings: { openWindow(id: "settings") },
             toggleWhiteboard: { WhiteboardPanel.shared.toggle() },

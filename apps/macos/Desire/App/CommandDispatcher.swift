@@ -30,6 +30,7 @@ struct CommandDispatcher {
     let contentBlocker: ContentBlockerStore
     let videoAdBlocker: VideoAdBlocker
     let bookmarkStore: BookmarkStore
+    let siteSettingsStore: SiteSettingsStore
     let historyStore: HistoryStore
     let openSettings: () -> Void
     let toggleWhiteboard: () -> Void
@@ -238,20 +239,15 @@ struct CommandDispatcher {
 
         case .zoomIn:
             guard let tab = tabManager.selectedTab else { return }
-            let newZoom = min(5.0, max(0.5, tab.browser.pageZoom + 0.1))
-            tab.browser.pageZoom = newZoom
-            tab.browser.webView.pageZoom = newZoom
+            tab.applyPageZoom(tab.browser.pageZoom + 0.1, rememberIn: siteSettingsStore)
 
         case .zoomOut:
             guard let tab = tabManager.selectedTab else { return }
-            let newZoom = min(5.0, max(0.5, tab.browser.pageZoom - 0.1))
-            tab.browser.pageZoom = newZoom
-            tab.browser.webView.pageZoom = newZoom
+            tab.applyPageZoom(tab.browser.pageZoom - 0.1, rememberIn: siteSettingsStore)
 
         case .actualSize:
             guard let tab = tabManager.selectedTab else { return }
-            tab.browser.pageZoom = 1.0
-            tab.browser.webView.pageZoom = 1.0
+            tab.applyPageZoom(1.0, rememberIn: siteSettingsStore)
 
         case .clearHistory:
             historyStore.clearAll()

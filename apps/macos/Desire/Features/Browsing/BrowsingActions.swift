@@ -174,21 +174,12 @@ extension BrowsingActions {
 extension BrowsingActions {
     func zoom(by delta: Double) {
         guard let tab = tabManager.selectedTab else { return }
-        let newZoom = min(5.0, max(0.5, tab.browser.pageZoom + delta))
-        tab.browser.pageZoom = newZoom
-        tab.browser.webView.pageZoom = newZoom
-        if let host = tab.browser.webView.url?.host {
-            siteSettingsStore.setZoom(newZoom, for: host)
-        }
+        tab.applyPageZoom(tab.browser.pageZoom + delta, rememberIn: siteSettingsStore)
     }
 
     func zoom(to value: Double) {
         guard let tab = tabManager.selectedTab else { return }
-        tab.browser.pageZoom = value
-        tab.browser.webView.pageZoom = value
-        if let host = tab.browser.webView.url?.host {
-            siteSettingsStore.setZoom(value, for: host)
-        }
+        tab.applyPageZoom(value, rememberIn: siteSettingsStore)
     }
 }
 

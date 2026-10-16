@@ -114,6 +114,20 @@ class Tab: ObservableObject {
 
     private var cancellables = Set<AnyCancellable>()
 
+    /// 统一的缩放落点（v0.7.18）：菜单（⌘+/⌘-/⌘0）/工具栏/智能体工具**全部
+    /// 走这里**——双写 state 与 webview，并把**每站缩放**记进站点设置
+    /// （下次导航由 didCommit 应用回来；1.0 = 清除站点记录，Chrome 同语义）。
+    /// 此前只有工具栏路径记录：菜单/工具改的缩放在下次导航会被 didCommit
+    /// 的"应用已存值"直接覆盖回去（看着像"缩放自己弹回去了"）。
+    func applyPageZoom(_ zoom: Double, rememberIn store: SiteSettingsStore?) {
+        let clamped = min(5.0, max(0.5, zoom))
+        browser.pageZoom = clamped
+        browser.webView.pageZoom = clamped
+        if let store, let host = browser.webView.url?.host, !host.isEmpty {
+            store.setZoom(clamped, for: host)
+        }
+    }
+
     /// 音频静音状态：**劫持式**（TabAudioControl，0.6.3 升级）——原一次性
     /// `e.muted = true` 会被站点 1.5s 后的取消静音脚本破功（视频站播放器
     /// 惯用手法）；劫持 getter 后站点 set 无效。browser.isMuted 保持同步
@@ -1050,7 +1064,46 @@ final class TabSessionCoordinator {
     /// 退出时它照样 persistAll + 进 index → 下次启动多还一扇窗/抢"最近
     /// 会话"位（2026-10-15 实测：测试窗口关掉后复活成幽灵窗口）。
     func unregister(_ manager: TabManager) {
-        if let key = manager.sessionKey { lastClosedSessionKey = key }
+        if let key = manager.sessionKey {
+            lastClosedSessionKey = key
+            // **关窗即归档它的会话文件**（v0.7.18）：文件留在 storage/ 会变成
+            // 下次启动"最近会话"采纳的诱饵——实测一天攒了 23 个已关窗口的
+            // 会话文件，直接导致"幽灵窗口/投递目标指向已关窗口/启动找不到
+            // 活动会话"这一串；归档后仍可从「已归档会话」面板找回。
+            //
+            // **最后一扇窗不归档**：关了它再退出时，它要按上面
+            // lastClosedSessionKey 的语义留作"最近会话"（prepareForTermination
+            // 会把它写进索引）被下次启动采纳——归档了索引就指向一个不在
+            // storage/ 的 key，而采纳侧"跳过无文件的 key"会把它滤掉，用户
+            // 回来看到的是更旧的会话甚至空白窗口。
+            //
+            // **退出中不归档**：若 AppKit 在终止流程里给窗口补发 willClose
+            // （非用户关窗），此刻索引已经写好（prepareForTermination），
+            // 再归档就是"索引指向已归档文件"——把索引里全部活动窗口的会话
+            // 都变成采纳不到的死键。退出路径的落盘/归档由 prepareForTermination
+            // 一手包办，这里只认真正的用户关窗。
+            //
+            // "还有别的窗口吗"**不能只数存活 manager**：SwiftUI 关闭窗口后
+            // 实例不立即释放（本类注释的老现象），已关窗口的 manager 会滞留
+            // 存活一阵；再加上无会话键的游离 manager（离屏快照等一次性实例），
+            // 按存活数判断会把"最后一扇窗"误判成"还有别的窗"（2026-10-16 实测：
+            // 关掉唯一窗口时 othersRemain=true，用户会话被归档、下次启动恢复
+            // 落空）。判据改看**真正挂在窗口上的视图**：别的 manager 只要有一
+            // 个标签的 webview 还挂在活的 NSWindow 上，才算"还有窗口"。
+            // 挂起标签没有挂上去 → 可能少算（少算的方向是"保守不归档"，安全）。
+            let live = managers.compactMap(\.manager)
+            let othersRemain = live.contains { other in
+                other !== manager && other.tabs.contains { $0.browser.webView.window != nil }
+            }
+            let archived = othersRemain && !isTerminating
+            if archived {
+                archiveSessionFile(key: key)
+            }
+            let othersInfo = live.filter { $0 !== manager }
+                .map { "\($0.sessionKey ?? "nokey")/\($0.tabs.count)t" }
+                .joined(separator: ",")
+            Log.tabs.info("close: key=\(key, privacy: .public) others=[\(othersInfo, privacy: .public)] terminating=\(self.isTerminating, privacy: .public) archived=\(archived, privacy: .public)")
+        }
         managers.removeAll { $0.manager == nil || $0.manager === manager }
         if activeManager === manager {
             activeManager = managers.compactMap(\.manager).last
@@ -1071,12 +1124,9 @@ final class TabSessionCoordinator {
         var archived: [String] = DiskStore.load([String].self, key: Self.archiveIndexKey) ?? []
         let fm = FileManager.default
         for key in index where !keep.contains(key) {
-            let source = DiskStore.directory.appendingPathComponent("\(key).json")
-            guard fm.fileExists(atPath: source.path) else { continue }
-            try? fm.createDirectory(at: Self.archiveDirectory, withIntermediateDirectories: true)
-            let name = "archived-\(key)-\(Int(Date().timeIntervalSince1970)).json"
-            try? fm.moveItem(at: source, to: Self.archiveDirectory.appendingPathComponent(name))
-            archived.append(name)
+            if let name = Self.moveToArchive(key: key) {
+                archived.append(name)
+            }
         }
         while archived.count > 5 {
             let oldest = archived.removeFirst()
@@ -1122,6 +1172,33 @@ final class TabSessionCoordinator {
         archived.removeAll { $0 == fileName }
         DiskStore.save(archived, key: Self.archiveIndexKey)
         return true
+    }
+
+    /// 把一个会话文件移进归档（幂等；文件不存在返回 nil）。归档索引一并更新，
+    /// 超过上限裁掉最旧——`pruneOrphanSessions` 与 `unregister` 共用。
+    private func archiveSessionFile(key: String) {
+        guard let name = Self.moveToArchive(key: key) else { return }
+        var archived: [String] = DiskStore.load([String].self, key: Self.archiveIndexKey) ?? []
+        archived.append(name)
+        while archived.count > 5 {
+            let oldest = archived.removeFirst()
+            try? FileManager.default.removeItem(at: Self.archiveDirectory.appendingPathComponent(oldest))
+        }
+        DiskStore.save(archived, key: Self.archiveIndexKey)
+    }
+
+    nonisolated static func moveToArchive(key: String) -> String? {
+        let fm = FileManager.default
+        let source = DiskStore.directory.appendingPathComponent("\(key).json")
+        guard fm.fileExists(atPath: source.path) else { return nil }
+        try? fm.createDirectory(at: archiveDirectory, withIntermediateDirectories: true)
+        let name = "archived-\(key)-\(Int(Date().timeIntervalSince1970)).json"
+        do {
+            try fm.moveItem(at: source, to: archiveDirectory.appendingPathComponent(name))
+            return name
+        } catch {
+            return nil
+        }
     }
 
     /// 归档文件名只允许"纯文件名 + archived- 前缀 + .json 后缀"（防路径穿越）。

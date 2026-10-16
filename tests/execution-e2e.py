@@ -20,7 +20,8 @@ newWindow+saveWorkspace+openIncognitoTab+restoreWorkspace+deleteWorkspace（MUSC
 手造待回复会话→/inbox 命中→删文件消失；强制免打扰→notify 被扣→补推→消失，策略原样复原）/
 归档会话（MUSCLE12：手造归档→列表→在新窗口恢复→复核标记 URL→关窗）/
 readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开新标签）/
-数值盯梢（MUSCLE14：建监视→基线→改价→跨线告警→列表→删除）。
+数值盯梢（MUSCLE14：建监视→基线→改价→跨线告警→列表→删除）/
+每站缩放记忆（MUSCLE15：清零→设 150→同站导航保持→reset 后清除）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -324,6 +325,31 @@ class Fake(BaseHTTPRequestHandler):
                     call(0, "unsplitView", {})]}, "tool_calls")
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE10-DONE"}, "stop")
+            return
+        if "MUSCLE15" in mode:
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "resetZoom", {})]}, "tool_calls")
+            elif n == 1:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "setZoom", {"percent": 150})]}, "tool_calls")
+            elif n == 2:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "navigate", {"url": f"http://127.0.0.1:{API_PORT}/hello"})]}, "tool_calls")
+            elif n == 3:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "listTabs", {})]}, "tool_calls")
+            elif n == 4:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "resetZoom", {})]}, "tool_calls")
+            elif n == 5:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "navigate", {"url": f"http://127.0.0.1:{API_PORT}/flaky"})]}, "tool_calls")
+            elif n == 6:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "listTabs", {})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE15-DONE"}, "stop")
             return
         if "MUSCLE14" in mode:
             if n == 0:
@@ -1194,6 +1220,30 @@ def main():
         ok("listPageWatches 带数值面与告警",
            "numbers: latest 1150" in list14.replace(",", "") and "last alert:" in list14)
         ok("removePageWatch 清干净（桥复核）", remove14 != "" and not watch_left)
+        # ── MUSCLE15：每站缩放记忆（工具/菜单改的缩放下次导航不再被压回去）──
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE15 每站缩放记忆"})
+        deadline15 = time.time() + 150
+        while time.time() < deadline15:
+            st15 = bridge("GET", "/agent/messages")
+            if not st15.get("busy") and any("MUSCLE15-DONE" in (m.get("content") or "")
+                                            for m in st15.get("messages", [])):
+                break
+            time.sleep(1)
+        time.sleep(1)
+        conv15_id = bridge("GET", "/agent/trace").get("conversation")
+        conv15 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                             / f"conversation-{conv15_id}.json").read_text())
+        tools15 = [m.get("content") or "" for m in conv15.get("messages", []) if m.get("role") == "tool"]
+        reset15 = next((t for t in tools15 if t == "Zoom reset to 100%"), "")
+        set15 = next((t for t in tools15 if t == "Zoom set to 150%"), "")
+        after_nav = next((t for t in tools15 if "/hello" in t and "zoom 150%" in t), "")
+        ok("resetZoom 清零基线", reset15 == "Zoom reset to 100%")
+        ok("setZoom 150 生效", set15 == "Zoom set to 150%")
+        ok("同站导航后缩放被应用回来（150% 保持）", after_nav != "")
+        final_lists = [t for t in tools15 if t.startswith("[0]")]
+        cleared = final_lists and all("zoom" not in line.lower() for line in final_lists[-1].splitlines())
+        ok("reset 后站点记忆清除（再导航不带上缩放）", bool(cleared))
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -1224,6 +1274,12 @@ def main():
             for _w in bridge("GET", "/watches").get("watches", []):
                 if "E2E" in (_w.get("name") or ""):
                     bridge("POST", "/watches/remove", {"name": _w["name"]})
+            # 关窗即归档（v0.7.18）：测试窗的会话会进归档——把"URL 全是本地
+            # fixture"的归档趁早删掉（自己造的，别占用户归档的 5 个名额）。
+            for _arch in bridge("GET", "/session-archives").get("archives", []):
+                urls = _arch.get("urls") or []
+                if urls and all("127.0.0.1" in u for u in urls):
+                    bridge("POST", "/session-archives/delete", {"file": _arch["file"]})
             try:
                 wins_now = len([w for w in bridge("GET", "/agent/windows").get("windows", [])
                                 if w.get("windowVisible")])

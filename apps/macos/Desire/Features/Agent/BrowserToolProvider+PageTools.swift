@@ -514,6 +514,38 @@ extension BrowserToolProvider {
             manager.closeOthers(keeping: keep)
             return "Closed \(before - manager.tabs.count) other tabs"
 
+        case "listArchivedSessions":
+            // 已关窗口的会话归档（保留最近 5 个）——"我关掉的那扇窗还能找回吗"。
+            let archives = SessionArchive.list(in: TabSessionCoordinator.archiveDirectory)
+            guard !archives.isEmpty else { return "No archived sessions" }
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyy-MM-dd HH:mm"
+            return archives.map { entry in
+                var line = "\(entry.fileName) — \(entry.tabCount) tab(s) — archived \(formatter.string(from: entry.savedAt))"
+                if !entry.topURLs.isEmpty {
+                    line += "\n  " + entry.topURLs.prefix(2).joined(separator: ", ")
+                }
+                return line
+            }.joined(separator: "\n")
+
+        case "restoreArchivedSession":
+            // 把归档会话恢复到**当前窗口**（替换其标签，与工作区恢复同语义）。
+            guard let archiveFile = args["file"] as? String, !archiveFile.isEmpty else {
+                return Self.fail("Missing file (see listArchivedSessions)")
+            }
+            guard let archiveManager = surface.tabManager else { return Self.fail("No window") }
+            guard TabSessionCoordinator.isSafeArchiveName(archiveFile) else {
+                return Self.fail("Bad archive file name (use the exact file from listArchivedSessions)")
+            }
+            guard let restoredTabs = TabSessionCoordinator.shared.restoreArchivedSession(
+                named: archiveFile, into: archiveManager,
+                settings: surface.settings, contentBlocker: surface.contentBlocker,
+                videoAdBlocker: surface.videoAdBlocker) else {
+                return Self.fail("Couldn't read archive: \(archiveFile) (deleted or corrupt?)")
+            }
+            return "Restored archived session \(archiveFile) — \(restoredTabs) tab(s) now open in this window (previous tabs were replaced)"
+
         case "reopenLastClosedTab":
             guard let manager = surface.tabManager else { return Self.fail("No window") }
             let reopened = manager.reopenLastClosedTab(
@@ -640,14 +672,18 @@ extension BrowserToolProvider {
                                     videoAdBlocker: surface.videoAdBlocker)
             }
             // 到前台并取 key：应用在后台时新窗口只是"创建"而不成 key——那样
-            // deliveryTarget/键命令都还留在旧窗（E2E 实测踩到）。webview 挂载
-            // 是异步的，等一拍再取窗口引用。
+            // deliveryTarget/键命令都还留在旧窗（E2E 实测踩到）。**用 AppKit
+            // 窗口差集找新窗**：不带 URL 时新窗展示的是原生新标签页（没有
+            // webview），`selectedTab?.browser.webView.window` 永远拿不到宿主，
+            // 实测那条路径开窗后焦点一直不落（工具只能回"created but couldn't
+            // be focused"）。
             NSApp.activate(ignoringOtherApps: true)
+            let windowsBefore = Set(NSApp.windows.map(ObjectIdentifier.init))
             var keyed = false
-            for _ in 0..<10 {
+            for _ in 0..<13 {
                 try? await Task.sleep(for: .milliseconds(150))
-                if let window = freshManager.selectedTab?.browser.webView.window {
-                    window.makeKeyAndOrderFront(nil)
+                if let freshWindow = NSApp.windows.first(where: { !windowsBefore.contains(ObjectIdentifier($0)) }) {
+                    freshWindow.makeKeyAndOrderFront(nil)
                     keyed = true
                     break
                 }
@@ -657,11 +693,19 @@ extension BrowserToolProvider {
             return opened + (keyed ? "" : " (window created but couldn't be focused)")
 
         case "closeWindow":
-            // 关掉**本会话所在窗口**（不是 key window——多窗口/自动化场景下
-            // key 往往是别的窗；按宿主窗口精确关自己的）。
-            guard let hostWindow = webView.window else { return Self.fail("No window attached") }
+            // 关掉**本会话所在窗口**。走会话点名的通知（与 newWindow 同路径）：
+            // 后台窗口的选中标签可能已挂起（webView 不在任何窗口上），
+            // `webView.window` 拿不到宿主 → 实测关不掉后台窗口；ContentView
+            // 持有 hostingWindow 引用，不受挂起影响。
             let hostTabCount = surface.tabManager?.tabs.count ?? 0
-            hostWindow.close()
+            var closeRequest: [String: Any] = [:]
+            if let owner = ownerSession,
+               let entryID = AgentScheduler.shared.liveSessions()
+                   .first(where: { $0.store === owner })?.id.uuidString {
+                closeRequest["session"] = entryID
+            }
+            NotificationCenter.default.post(name: .desireCloseWindow, object: nil,
+                                            userInfo: closeRequest.isEmpty ? nil : closeRequest)
             return "Closed the window (\(hostTabCount) tab(s))"
 
         case "openIncognitoTab":
@@ -1166,4 +1210,10 @@ extension Notification.Name {
     /// 为什么不用 CommandBus：它有 `hostingWindow === NSApp.keyWindow` 守卫，
     /// 应用在后台时 keyWindow 为空，命令会被所有窗口丢掉（实测 3/3 失败）。
     static let desireOpenNewWindow = Notification.Name("desire.openNewWindow")
+}
+
+extension Notification.Name {
+    /// 关窗请求（v27）：由 closeWindow 工具按会话点名发出，只让该会话所在
+    /// 窗口关自己（与 newWindow 的通知同款收敛；挂起的后台窗口也能关）。
+    static let desireCloseWindow = Notification.Name("desire.closeWindow")
 }

@@ -17,7 +17,8 @@ pinTab+muteTab+setZoom+moveTab（listTabs 状态标记复查）/
 newWindow+saveWorkspace+openIncognitoTab+restoreWorkspace+deleteWorkspace（MUSCLE8 全在
 新窗口里做，用户窗口零触碰）/ renameTabGroup+deleteHistory（MUSCLE9，只碰 fixture 标签
 与 127.0.0.1 记录）/ splitView+unsplitView+collapseTabGroup（MUSCLE10）/ 收件箱（MUSCLE11：
-手造待回复会话→/inbox 命中→删文件消失；强制免打扰→notify 被扣→补推→消失，策略原样复原）。
+手造待回复会话→/inbox 命中→删文件消失；强制免打扰→notify 被扣→补推→消失，策略原样复原）/
+归档会话（MUSCLE12：手造归档→列表→在新窗口恢复→复核标记 URL→关窗）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -166,6 +167,7 @@ class Fake(BaseHTTPRequestHandler):
     tab_index = 0   # MUSCLE7：fixture 标签当前位次（main 现查）
     move_to = 0     # MUSCLE7：moveTab 的目标位次
     split_partner = 0  # MUSCLE10：分屏右栏标签位次
+    archive_file = ""  # MUSCLE12：手造归档文件名
 
     def log_message(self, *a):
         pass
@@ -307,6 +309,29 @@ class Fake(BaseHTTPRequestHandler):
                     call(0, "unsplitView", {})]}, "tool_calls")
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE10-DONE"}, "stop")
+            return
+        if "MUSCLE12" in mode:
+            if "MUSCLE12A" in mode:
+                if n == 0:
+                    sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                        call(0, "newWindow", {})]}, "tool_calls")
+                else:
+                    sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE12A-DONE"}, "stop")
+                return
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "listArchivedSessions", {})]}, "tool_calls")
+            elif n == 1:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "restoreArchivedSession", {"file": self.archive_file})]}, "tool_calls")
+            elif n == 2:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "listTabs", {})]}, "tool_calls")
+            elif n == 3:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "closeWindow", {})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE12-DONE"}, "stop")
             return
         if "MUSCLE11" in mode:
             if n == 0:
@@ -1002,6 +1027,68 @@ def main():
                 "quietEnd": policy_before.get("quietEnd", "08:00"),
                 "dailyRoutineLimit": policy_before.get("dailyRoutineLimit", 12),
             })
+        # ── MUSCLE12：归档会话（手造归档 → 列表 → 在新窗口恢复 → 复核 → 关窗）──
+        arch_dir = Path.home() / "Library/Application Support/Desire/session-archives"
+        arch_dir.mkdir(parents=True, exist_ok=True)
+        arch_name = f"archived-session-E2E12-{int(time.time())}.json"
+        (arch_dir / arch_name).write_text(json.dumps({
+            "tabs": [
+                {"url": f"http://127.0.0.1:{API_PORT}/archive-marker",
+                 "isOnNewTabPage": False, "isPinned": False},
+                {"url": None, "isOnNewTabPage": True, "isPinned": False},
+            ],
+            "selectedIndex": 0,
+        }, ensure_ascii=False))
+        Fake.archive_file = arch_name
+        listed = bridge("GET", "/session-archives").get("archives", [])
+        arch_row = next((a for a in listed if a.get("file") == arch_name), {})
+        ok("桥：归档列表含手造条目（2 标签）",
+           arch_row.get("tabs") == 2
+           and any("/archive-marker" in u for u in arch_row.get("urls", [])))
+        # 回合 A：开测试窗口（用户窗口里跑）；回合 B：在测试窗口里恢复归档
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE12A 开窗"})
+        deadlineA12 = time.time() + 60
+        while time.time() < deadlineA12:
+            stA12 = bridge("GET", "/agent/messages")
+            if not stA12.get("busy") and any("MUSCLE12A-DONE" in (m.get("content") or "")
+                                             for m in stA12.get("messages", [])):
+                break
+            time.sleep(1)
+        time.sleep(2)
+        # 不按 windowVisible 筛：不带 URL 的新窗口展示原生新标签页（无 webview），
+        # 活性信号对它天然为 false——用 isNewest（工具会 makeKey）判定新窗。
+        all12 = bridge("GET", "/agent/windows").get("windows", [])
+        new12 = next((w["id"] for w in all12 if w.get("isNewest")), None)
+        assert new12 and new12 != old_session_id, "MUSCLE12A 没有开出新窗口（中止避免误伤）"
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE12 归档恢复"})
+        deadline12 = time.time() + 120
+        while time.time() < deadline12:
+            st12 = bridge("GET", "/agent/messages")
+            if not st12.get("busy") and any("MUSCLE12-DONE" in (m.get("content") or "")
+                                            for m in st12.get("messages", [])):
+                break
+            time.sleep(1)
+        time.sleep(2)
+        conv12_id = next((w.get("conversationId") or ""
+                          for w in bridge("GET", "/agent/windows").get("windows", [])
+                          if w["id"] == new12), "")
+        conv12 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                             / f"conversation-{conv12_id}.json").read_text())
+        tools12 = [m.get("content") or "" for m in conv12.get("messages", []) if m.get("role") == "tool"]
+        list12 = next((t for t in tools12 if arch_name in t), "")
+        restore12 = next((t for t in tools12 if t.startswith("Restored archived session")), "")
+        tabs12 = next((t for t in tools12 if "/archive-marker" in t and t.startswith("[0]")), "")
+        ok("listArchivedSessions 列出条目（2 标签）", "2 tab(s)" in list12 and arch_name in list12)
+        ok("restoreArchivedSession 恢复（替换窗口标签）",
+           restore12.startswith("Restored archived session") and "2 tab(s) now open" in restore12)
+        ok("恢复后的标签含归档标记 URL", "/archive-marker" in tabs12)
+        # 窗口收尾（closeWindow 留住 finally 的兜底）
+        win_deadline12 = time.time() + 8
+        while time.time() < win_deadline12 and len(windows_live()) > wins_before:
+            time.sleep(0.5)
+        ok("MUSCLE12 测试窗口已关闭", len(windows_live()) <= wins_before)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -1026,6 +1113,9 @@ def main():
         try:
             bridge("POST", "/workspaces/delete", {"name": "E2E-MUSCLE8"})
             bridge("POST", "/tab-groups/delete", {"name": "E2E 组（改名）"})
+            for _arch in bridge("GET", "/session-archives").get("archives", []):
+                if "E2E12" in (_arch.get("file") or ""):
+                    bridge("POST", "/session-archives/delete", {"file": _arch["file"]})
             try:
                 wins_now = len([w for w in bridge("GET", "/agent/windows").get("windows", [])
                                 if w.get("windowVisible")])

@@ -2843,9 +2843,55 @@ func testAgentInbox() {
     eq("收件箱：待办角标只数 action", AgentInbox.actionCount(sections), 1)
 }
 
+
+func testSessionArchive() {
+    // 文件名时间戳
+    let ts = SessionArchive.timestamp(fromFileName: "archived-session-ABC-1792125528.json")
+    check("归档：文件名时间戳", ts?.timeIntervalSince1970 == 1792125528)
+    check("归档：非法文件名无时间戳", SessionArchive.timestamp(fromFileName: "archived-weird.json") == nil)
+
+    // 正常解析：跳过新标签页、取前 3 个 URL
+    let wire = #"""
+    {"tabs":[
+      {"url":null,"isOnNewTabPage":true,"isPinned":false},
+      {"url":"https://a.example/1","isOnNewTabPage":false,"isPinned":true},
+      {"url":"https://a.example/2","isOnNewTabPage":false},
+      {"url":"https://a.example/3","isOnNewTabPage":false},
+      {"url":"https://a.example/4","isOnNewTabPage":false}
+    ],"selectedIndex":1}
+    """#.data(using: .utf8)!
+    let e = SessionArchive.entry(fileName: "archived-session-ABC-1792125528.json",
+                                data: wire, modifiedAt: Date(timeIntervalSince1970: 0))
+    check("归档：标签数含新标签页", e?.tabCount == 5)
+    check("归档：时间取文件名", e?.savedAt.timeIntervalSince1970 == 1792125528)
+    eq("归档：URL 名单跳过新标签页且封顶 3", e?.topURLs ?? [], ["https://a.example/1", "https://a.example/2", "https://a.example/3"])
+
+    // 坏数据 → nil
+    check("归档：坏 JSON 返回 nil",
+          SessionArchive.entry(fileName: "archived-x-1.json",
+                               data: Data("{".utf8), modifiedAt: Date()) == nil)
+    check("归档：空会话返回 nil",
+          SessionArchive.entry(fileName: "archived-x-1.json",
+                               data: #"{"tabs":[],"selectedIndex":0}"#.data(using: .utf8)!,
+                               modifiedAt: Date()) == nil)
+
+    // 目录扫描：只收 archived-*.json，按时间新→旧
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("arch-test-\(UUID().uuidString)", isDirectory: true)
+    try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    try? wire.write(to: dir.appendingPathComponent("archived-session-A-1000.json"))
+    try? wire.write(to: dir.appendingPathComponent("archived-session-B-2000.json"))
+    try? Data("{}".utf8).write(to: dir.appendingPathComponent("session-notarchived.json"))
+    let listed = SessionArchive.list(in: dir)
+    eq("归档：目录扫描条数", listed.count, 2)
+    check("归档：新→旧排序", listed.first?.fileName == "archived-session-B-2000.json")
+    try? FileManager.default.removeItem(at: dir)
+}
+
 testSpreadsheetReader()
 testDiskStoreStaleOpGuard()
 testAgentInbox()
+testSessionArchive()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

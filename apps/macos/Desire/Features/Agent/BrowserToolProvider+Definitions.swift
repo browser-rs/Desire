@@ -434,6 +434,16 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listArchivedSessions", description: "List archived sessions from closed windows (newest first; the archive keeps the latest 5) — use this when the user asks to bring back a window/session they closed.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "restoreArchivedSession", description: "Restore an archived session (file name from listArchivedSessions) into the CURRENT window. NOTE: this REPLACES the window's current tabs.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "file": AgentJSONSchemaValue(type: "string", description: "Archive file name, e.g. archived-session-….json"),
+                ], required: ["file"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "reopenLastClosedTab", description: "Reopen the most recently closed tab in this window.",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

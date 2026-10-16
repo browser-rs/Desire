@@ -1088,6 +1088,50 @@ final class TabSessionCoordinator {
         }
     }
 
+    /// 从归档恢复一个会话到指定窗口（**替换**其标签；与工作区恢复同一
+    /// apply 路径）。返回恢复后的标签数；文件名非法（含路径分隔/穿越）或
+    /// 文件损坏返回 nil。fileName 只接受归档目录里的**纯文件名**。
+    func restoreArchivedSession(named fileName: String,
+                                into manager: TabManager,
+                                settings: Settings,
+                                contentBlocker: ContentBlockerStore,
+                                videoAdBlocker: VideoAdBlocker) -> Int? {
+        guard Self.isSafeArchiveName(fileName) else { return nil }
+        let url = Self.archiveDirectory.appendingPathComponent(fileName)
+        guard let data = try? Data(contentsOf: url),
+              let session = try? JSONDecoder().decode(SavedSession.self, from: data),
+              !session.tabs.isEmpty else { return nil }
+        if let pid = session.profileID {
+            manager.profileID = pid
+            manager.profileDataStore = ProfileStore.shared.dataStore(for: pid)
+        }
+        manager.apply(session: session,
+                      javaScriptEnabled: settings.isJavaScriptEnabled,
+                      contentBlocker: contentBlocker,
+                      videoAdBlocker: videoAdBlocker)
+        return manager.tabs.count
+    }
+
+    /// 删除一个归档（文件 + 归档索引条目）。同上只接受纯文件名。
+    func removeArchivedSession(named fileName: String) -> Bool {
+        guard Self.isSafeArchiveName(fileName) else { return false }
+        let url = Self.archiveDirectory.appendingPathComponent(fileName)
+        guard FileManager.default.fileExists(atPath: url.path) else { return false }
+        try? FileManager.default.removeItem(at: url)
+        var archived: [String] = DiskStore.load([String].self, key: Self.archiveIndexKey) ?? []
+        archived.removeAll { $0 == fileName }
+        DiskStore.save(archived, key: Self.archiveIndexKey)
+        return true
+    }
+
+    /// 归档文件名只允许"纯文件名 + archived- 前缀 + .json 后缀"（防路径穿越）。
+    nonisolated static func isSafeArchiveName(_ name: String) -> Bool {
+        !name.isEmpty
+            && name.hasPrefix("archived-")
+            && name.hasSuffix(".json")
+            && !name.contains("/") && !name.contains("\\") && !name.contains("..")
+    }
+
     nonisolated static var archiveDirectory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory

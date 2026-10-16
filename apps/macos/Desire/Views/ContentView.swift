@@ -465,6 +465,14 @@ struct ContentView: View {
             guard hostingWindow === NSApp.keyWindow else { return }
             commandDispatcher.handle(command)
         }
+        .onReceive(NotificationCenter.default.publisher(for: .desireCloseWindow)) { note in
+            // 只关**该会话所在的窗口**（工具按会话点名；后台挂起窗口也能关）。
+            guard let wanted = note.userInfo?["session"] as? String,
+                  let mine = AgentScheduler.shared.liveSessions()
+                      .first(where: { $0.store === aiSession })?.id.uuidString,
+                  wanted == mine else { return }
+            hostingWindow?.close()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .desireOpenNewWindow)) { note in
             // 只让**该会话所在的窗口**开新窗（工具按会话点名；应用后台也可用，
             // 不经过 CommandBus 的 key-window 守卫）。

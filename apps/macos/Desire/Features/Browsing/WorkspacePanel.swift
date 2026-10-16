@@ -17,13 +17,16 @@ struct WorkspacePanel: View {
 
     @State private var newName = ""
     @State private var restoreTarget: WorkspaceStore.Workspace?
+    /// 已归档会话（v27）：窗口关闭时移进 session-archives/ 的会话——
+    /// 「关掉的那扇窗还能找回吗」的答案就在这。
+    @State private var archives: [SessionArchive.Entry] = []
 
     var body: some View {
         VStack(spacing: 0) {
             header
             saveRow
             Divider().opacity(0.6)
-            if store.workspaces.isEmpty {
+            if store.workspaces.isEmpty && archives.isEmpty {
                 emptyState
             } else {
                 workspaceList
@@ -31,6 +34,7 @@ struct WorkspacePanel: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .frame(minWidth: 420, minHeight: 320)
+        .onAppear { reloadArchives() }
     }
 
     private var header: some View {
@@ -79,9 +83,104 @@ struct WorkspacePanel: View {
                 ForEach(store.workspaces) { ws in
                     workspaceRow(ws)
                 }
+                archivedSection
             }
             .padding(12)
         }
+    }
+
+    // MARK: - 已归档会话（v27）
+
+    private var archivedSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "archivebox")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Text("Archived Sessions")
+                    .font(.system(size: 11.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Text("Closed windows (latest 5 kept)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                Spacer()
+            }
+            .padding(.top, 10)
+
+            if archives.isEmpty {
+                Text("No archived sessions yet — closed windows land here and can be restored any time.")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.tertiary)
+                    .padding(.vertical, 4)
+            } else {
+                ForEach(archives, id: \.fileName) { entry in
+                    archivedRow(entry)
+                }
+            }
+        }
+    }
+
+    private func archivedRow(_ entry: SessionArchive.Entry) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "archivebox.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(entry.savedAt, style: .relative)
+                    .font(.system(size: 12, weight: .medium))
+                HStack(spacing: 4) {
+                    Text("\(entry.tabCount) tabs")
+                    if let top = entry.topURLs.first {
+                        Text("·")
+                        Text(top)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
+                .font(.system(size: 10.5))
+                .foregroundStyle(.tertiary)
+            }
+            Spacer(minLength: 8)
+            Button {
+                restoreArchived(entry)
+            } label: {
+                Text(String(localized: "Restore"))
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            Button {
+                _ = TabSessionCoordinator.shared.removeArchivedSession(named: entry.fileName)
+                reloadArchives()
+            } label: {
+                Image(systemName: "minus.circle")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.red)
+            }
+            .buttonStyle(.plain)
+            .help(String(localized: "Delete"))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(
+            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.45))
+        )
+    }
+
+    private func reloadArchives() {
+        archives = SessionArchive.list(in: TabSessionCoordinator.archiveDirectory)
+    }
+
+    /// 恢复归档会话到当前窗口（替换标签；与「恢复工作区」同语义）——归档
+    /// 文件保留（非破坏；容量上限会自然淘汰最旧的）。
+    private func restoreArchived(_ entry: SessionArchive.Entry) {
+        _ = TabSessionCoordinator.shared.restoreArchivedSession(
+            named: entry.fileName, into: tabManager,
+            settings: settings, contentBlocker: contentBlocker,
+            videoAdBlocker: videoAdBlocker)
+        onClose()
     }
 
     private func workspaceRow(_ ws: WorkspaceStore.Workspace) -> some View {

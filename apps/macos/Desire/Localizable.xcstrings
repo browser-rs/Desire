@@ -41427,6 +41427,72 @@
           }
         }
       }
+    },
+    "Archived Sessions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Archived Sessions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已归档会话"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已封存工作階段"
+          }
+        }
+      }
+    },
+    "Closed windows (latest 5 kept)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closed windows (latest 5 kept)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭的窗口（保留最近 5 个）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關閉的視窗（保留最近 5 個）"
+          }
+        }
+      }
+    },
+    "No archived sessions yet — closed windows land here and can be restored any time." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No archived sessions yet — closed windows land here and can be restored any time."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有归档会话。窗口关闭时会话会移到这里，可随时找回。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有封存工作階段。視窗關閉時工作階段會移到這裡，可隨時找回。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

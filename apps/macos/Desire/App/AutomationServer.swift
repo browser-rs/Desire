@@ -437,6 +437,9 @@ final class AutomationServer {
         ep("POST", "/workspaces/delete", "Delete a saved workspace by name", params: ["name:string"], example: #"-d '{"name":"…"}'"#)
         ep("GET", "/tab-groups", "Tab groups (name/color/tabCount)", example: "…/tab-groups")
         ep("GET", "/inbox", "Inbox: 等你处理 + 变化与结果（与 Agent 窗口收件箱页同源）", example: "…/inbox")
+        ep("GET", "/session-archives", "Archived sessions of closed windows (newest first)", example: "…/session-archives")
+        ep("POST", "/session-archives/restore", "Restore an archived session into a window (replaces its tabs)", params: ["file:string", "window?:uuid"], example: #"-d '{"file":"archived-…json"}'"#)
+        ep("POST", "/session-archives/delete", "Delete an archived session file", params: ["file:string"], example: #"-d '{"file":"archived-…json"}'"#)
         ep("POST", "/tab-groups/delete", "Delete a tab group by name (test cleanup)", params: ["name:string"], example: #"-d '{"name":"…"}'"#)
         ep("POST", "/reading-list/add", "Add item", params: ["title:string", "url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
@@ -1560,6 +1563,14 @@ final class AutomationServer {
                 return try Self.json(Self.workspacesList())
             case ("GET", "/inbox"):
                 return try Self.json(Self.agentInbox())
+            case ("GET", "/session-archives"):
+                return try Self.json(Self.sessionArchivesList())
+            case ("POST", "/session-archives/restore"):
+                return try Self.json(Self.sessionArchiveRestore(
+                    file: Self.string(body, "file") ?? "",
+                    window: Self.string(body, "window")))
+            case ("POST", "/session-archives/delete"):
+                return try Self.json(Self.sessionArchiveDelete(file: Self.string(body, "file") ?? ""))
             case ("GET", "/tab-groups"):
                 return try Self.json(Self.tabGroupsList())
             case ("POST", "/tab-groups/delete"):
@@ -4372,6 +4383,37 @@ final class AutomationServer {
         return ["ok": true, "workspaces": items]
     }
 
+    /// 归档会话（v27 桥面）：列表 / 恢复到指定窗口 / 删除。
+    private static func sessionArchivesList() -> [String: Any] {
+        let entries = SessionArchive.list(in: TabSessionCoordinator.archiveDirectory)
+        let iso = ISO8601DateFormatter()
+        return ["ok": true, "archives": entries.map { e -> [String: Any] in
+            ["file": e.fileName, "savedAt": iso.string(from: e.savedAt),
+             "tabs": e.tabCount, "urls": e.topURLs]
+        }]
+    }
+
+    private static func sessionArchiveRestore(file: String, window: String?) -> [String: Any] {
+        guard let session = Self.resolveSession(window),
+              let manager = session.boundTabManager,
+              let app = AppState.live else {
+            return ["ok": false, "error": "no live window (pass window=<agent session id>?)"]
+        }
+        guard let tabs = TabSessionCoordinator.shared.restoreArchivedSession(
+            named: file, into: manager,
+            settings: app.settings, contentBlocker: app.contentBlocker,
+            videoAdBlocker: app.videoAdBlocker) else {
+            return ["ok": false, "error": "bad archive file: \(file)"]
+        }
+        return ["ok": true, "tabs": tabs,
+                "urls": manager.tabs.map { $0.urlString }.filter { !$0.isEmpty }]
+    }
+
+    private static func sessionArchiveDelete(file: String) -> [String: Any] {
+        let removed = TabSessionCoordinator.shared.removeArchivedSession(named: file)
+        return removed ? ["ok": true, "deleted": file] : ["ok": false, "error": "bad or missing file: \(file)"]
+    }
+
     /// 收件箱（v26）：与 Agent 窗口收件箱页同一份构建逻辑；会话按"查询读盘"
     /// 惯例走新实例（UI 用实时 store，两边语义一致、输入来源不同）。
     private static func agentInbox() -> [String: Any] {
@@ -4735,9 +4777,13 @@ final class AutomationServer {
                 "pendingApproval": session.pendingApproval != nil,
                 "messages": session.messages.count,
                 "isNewest": AgentScheduler.shared.deliveryTarget === session,
-                // 宿主窗口是否真实可见（关掉的窗口会滞留为不可见窗口，
-                // 会话条目一时半会不消失——窗口活性要以这个为准）
-                "windowVisible": session.boundTabManager?.selectedTab?.browser.webView.window?.isVisible ?? false,
+                // 宿主窗口是否真实可见（关掉的窗口会滞留为不可见窗口，会话
+                // 条目一时半会不消失——窗口活性要以这个为准）。**扫全部标签**：
+                // 挂起标签没有挂到窗口上的 webview，只看 selectedTab 会误报
+                // 不可见（实测把刚开出来的新窗口判成"没开"）。
+                "windowVisible": session.boundTabManager?.tabs.contains { tab in
+                    tab.browser.webView.window?.isVisible == true
+                } ?? false,
                 // 双窗口互不串台的断言面：每窗会话当前装载的对话
                 "conversationId": session.conversationId?.uuidString ?? "",
                 "conversationTitle": session.conversationTitle ?? "",

@@ -916,6 +916,39 @@ extension BrowserToolProvider {
             """
             return await eval(webView, js)
 
+        case "readAloud":
+            // 朗读（v0.7.18）：端上 TTS（ReaderSpeechService，零费用、数据不出
+            // 机）。给了 text 直接念；没给就取当前页可读正文（隔离世界的
+            // __desireReadableArticle，与阅读模式同源启发式）。口播上限
+            // 20000 字符，截断如实回报。
+            let provided = ((args["text"] as? String) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let speech = ReaderSpeechService.shared
+            if !provided.isEmpty {
+                let spoken = String(provided.prefix(20_000))
+                speech.speak(spoken)
+                let note = spoken.count < provided.count ? " (truncated from \(provided.count))" : ""
+                return "Reading aloud on-device: \(spoken.count) chars\(note). Use stopSpeaking to stop."
+            }
+            let raw = await callAsync(webView, function: "__desireReadableArticle",
+                                      args: ["maxChars": 20_000])
+            if raw.hasPrefix("Error:") { return raw }
+            guard let data = raw.data(using: .utf8),
+                  let parsed = try? JSONSerialization.jsonObject(with: data),
+                  let obj = parsed as? [String: Any],
+                  let body = (obj["text"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !body.isEmpty else {
+                return Self.fail("No readable text found on this page")
+            }
+            let title = (obj["title"] as? String) ?? ""
+            speech.speak(title.isEmpty ? body : "\(title)。\n\(body)")
+            let cut = (obj["truncated"] as? Bool) == true ? " (page body truncated at 20000 chars)" : ""
+            return "Reading aloud on-device: \(body.count) chars from \(title.isEmpty ? "this page" : "\"\(title)\"")\(cut). Use stopSpeaking to stop."
+
+        case "stopSpeaking":
+            ReaderSpeechService.shared.stop()
+            return "Speech stopped"
+
         case "zoomIn":
             // 统一落点（v0.7.18）：菜单/工具栏/工具都走 Tab.applyPageZoom——
             // 双写 + 记每站缩放（否则菜单/工具改的缩放在下次导航被压回去）。

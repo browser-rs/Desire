@@ -11,6 +11,8 @@
 
 - **`readURL`：离屏取正文（v0.7.18 首批）**——不开标签读任意链接："读一下这篇给我要点"、"把这几个链接都看看"、扫一个页面找入口，以及热点选题/批量阅读的地基。页面**已经打开**就借它的 webview 直读（零等待、含登录态、不打扰页面）；没打开才离屏加载（一次性 webview + **当前档案的 data store** + 与主浏览一致的桌面 Safari UA，20s 超时退场）。返回标题 + 正文（innerText，尊重 CSS 可见性，压缩空行、封顶截断）+ 链接清单（可关）。口径如实标注：shadow DOM/跨源 iframe 正文不在内；与 httpRequest 同族过审批，不进只读自动放行。E2E MUSCLE13（已开标签路径 / 离屏路径 / 坏 URL 错误口径 / **不开新标签**）。
 - **网页数值盯梢（页面监视 v2，替人干活·电商/运营三用）**：监视条目可标注**数值字段**（`numericSelector`）——每次检查把命中的**第一个数字**记进历史（封顶 60 点，千分位/货币符号自动处理），配 `alertAbove`/`alertBelow` 阈值后**只在跨线那一刻**告警一次（不重复刷；通知走既有分级管线，免打扰/预算照管）。页面监视首次进工具面：`listPageWatches` / `addPageWatch`（含数值与阈值参数）/ `removePageWatch` / `checkPageWatch`——"帮我盯着这个价格，低于 1200 告诉我"现在一句话搞定；桥 `/watches*` 同步补数值面与告警字段；设置页监视区块新增「数值盯梢」行（最新值/读数笔数/阈值 + **迷你走势**）。纯逻辑（取数/跨线判定/历史封顶/旧存档回兼容）进 tests/run.sh；E2E MUSCLE14（建监视→基线 1,299→fixture 改价→跨线告警"低于 1200"→列表→删除，桥面复核清干净）。
+- **朗读工具 `readAloud` / `stopSpeaking`（v0.7.18）**：智能体现在能把页面念给人听——"把这篇念给我听"一句话搞定，走**端上 TTS**（AVSpeechSynthesizer，零费用、数据不出机）：`readAloud` 给了 `text` 直接念，没给就取当前页**可读正文**（隔离世界提取器，与阅读模式同源启发式，开放 Shadow DOM/同源 iframe 也认；封顶 20000 字符、截断如实回报），`stopSpeaking` 随时停（分级 readonly——消音永远安全；readAloud 本体留 sideEffect，与 notify 同类）。配套把 TTS 服务接上 synthesizer delegate——**自然读完/被打断时 `isSpeaking` 现在会归位**（此前读完后阅读模式工具条一直显示"在讲"）。桥补 `GET /speech` 与 `POST /speech/stop`（自动化观察与收尾）；能力页归类「媒体提取」。E2E 新增 MUSCLE16（文本路径→在讲→停→页面提取路径带标题→停），定点探针 7/7 ALL PASS。
+
 
 
 

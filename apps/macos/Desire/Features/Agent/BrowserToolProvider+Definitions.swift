@@ -603,6 +603,16 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "readAloud", description: "Read text ALOUD on the device with on-device speech synthesis (no cloud, no API cost) — e.g. \"read this article to me\". Pass `text` to read a specific passage, or omit it to read the current page's readable article text (reader extraction; long pages are truncated at 20000 chars). Use stopSpeaking to stop.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "text": AgentJSONSchemaValue(type: "string", description: "Text to read aloud; omit to read the current page's article text"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "stopSpeaking", description: "Stop the current text-to-speech reading (readAloud / reader mode)",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "zoomIn", description: "Zoom in the page",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

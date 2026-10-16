@@ -21,7 +21,8 @@ newWindow+saveWorkspace+openIncognitoTab+restoreWorkspace+deleteWorkspace（MUSC
 归档会话（MUSCLE12：手造归档→列表→在新窗口恢复→复核标记 URL→关窗）/
 readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开新标签）/
 数值盯梢（MUSCLE14：建监视→基线→改价→跨线告警→列表→删除）/
-每站缩放记忆（MUSCLE15：清零→设 150→同站导航保持→reset 后清除）。
+每站缩放记忆（MUSCLE15：清零→设 150→同站导航保持→reset 后清除）/
+朗读工具（MUSCLE16：readAloud 传文本→/speech 在讲→stopSpeaking→停；无 text 从 /article 提取、回执带标题）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -134,6 +135,24 @@ class TinyAPI(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
             self.wfile.write(payload)
+            return
+        if self.path.startswith("/article"):
+            # 朗读提取器（MUSCLE16）的靶页：article 容器 + 长段落（≥100 字
+            # 才够打分阈值；标题供工具回执复述）。
+            paras = "".join(
+                f"<p>第 {i} 段：这是用于朗读功能自测的中文正文段落，"
+                "形状与真实文章一致，句子足够长以便语音合成器有内容可念。</p>"
+                for i in range(1, 7))
+            body = ("<!DOCTYPE html><html><head><meta charset='utf-8'>"
+                    "<title>Article Fixture</title></head><body>"
+                    "<nav>导航噪音</nav>"
+                    f"<article><h1>Article Fixture</h1>{paras}</article>"
+                    "</body></html>").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
             return
         if self.path.startswith("/dl"):
             payload = b"muscle-download-ok"
@@ -350,6 +369,30 @@ class Fake(BaseHTTPRequestHandler):
                     call(0, "listTabs", {})]}, "tool_calls")
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE15-DONE"}, "stop")
+            return
+        if "MUSCLE16A" in mode:
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "readAloud", {"text": "这是朗读功能的自测文本，朗读工具会把这段文字用端上语音合成念出来。" * 12})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE16A-DONE"}, "stop")
+            return
+        if "MUSCLE16B" in mode:
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "stopSpeaking", {})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE16B-DONE"}, "stop")
+            return
+        if "MUSCLE16C" in mode:
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "navigate", {"url": f"http://127.0.0.1:{API_PORT}/article"})]}, "tool_calls")
+            elif n == 1:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "readAloud", {})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE16C-DONE"}, "stop")
             return
         if "MUSCLE14" in mode:
             if n == 0:
@@ -1244,9 +1287,61 @@ def main():
         final_lists = [t for t in tools15 if t.startswith("[0]")]
         cleared = final_lists and all("zoom" not in line.lower() for line in final_lists[-1].splitlines())
         ok("reset 后站点记忆清除（再导航不带上缩放）", bool(cleared))
+        # ── MUSCLE16：朗读工具（端上 TTS；/speech 观察在讲/停了）──
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE16A 朗读这段"})
+        deadline16 = time.time() + 150
+        while time.time() < deadline16:
+            st16 = bridge("GET", "/agent/messages")
+            if not st16.get("busy") and any("MUSCLE16A-DONE" in (m.get("content") or "")
+                                            for m in st16.get("messages", [])):
+                break
+            time.sleep(1)
+        conv16_id = bridge("GET", "/agent/trace").get("conversation")
+        conv16 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                             / f"conversation-{conv16_id}.json").read_text())
+        tools16 = [m.get("content") or "" for m in conv16.get("messages", []) if m.get("role") == "tool"]
+        read16 = next((t for t in tools16 if t.startswith("Reading aloud")), "")
+        ok("readAloud 文本路径回执", read16 != "" and "chars" in read16)
+        ok("朗读中（/speech speaking）", bridge("GET", "/speech").get("speaking") is True)
+        bridge("POST", "/agent/send", {"text": "MUSCLE16B 停"})
+        deadline16b = time.time() + 150
+        while time.time() < deadline16b:
+            st16b = bridge("GET", "/agent/messages")
+            if not st16b.get("busy") and any("MUSCLE16B-DONE" in (m.get("content") or "")
+                                             for m in st16b.get("messages", [])):
+                break
+            time.sleep(1)
+        ok("stopSpeaking 后停住（/speech speaking=false）",
+           bridge("GET", "/speech").get("speaking") is False)
+        # 无 text：从当前页提取正文朗读（/article fixture；标题进回执）
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE16C 念这篇"})
+        deadline16c = time.time() + 150
+        while time.time() < deadline16c:
+            st16c = bridge("GET", "/agent/messages")
+            if not st16c.get("busy") and any("MUSCLE16C-DONE" in (m.get("content") or "")
+                                             for m in st16c.get("messages", [])):
+                break
+            time.sleep(1)
+        conv16c_id = bridge("GET", "/agent/trace").get("conversation")
+        conv16c = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                              / f"conversation-{conv16c_id}.json").read_text())
+        tools16c = [m.get("content") or "" for m in conv16c.get("messages", []) if m.get("role") == "tool"]
+        page16 = next((t for t in tools16c if t.startswith("Reading aloud")), "")
+        ok("readAloud 页面提取路径（回执带标题）", "Article Fixture" in page16)
+        ok("页面路径也在讲", bridge("GET", "/speech").get("speaking") is True)
+        bridge("POST", "/speech/stop", {})
+        time.sleep(0.5)
+        ok("桥 /speech/stop 收尾（speaking=false）", bridge("GET", "/speech").get("speaking") is False)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
+        # 朗读兜底：万一 MUSCLE16 中途失败也别让机器一直念。
+        try:
+            bridge("POST", "/speech/stop", {})
+        except Exception:
+            pass
         # 关掉测试标签（fixture 页 + 本 fixture 服务器的残留 /dl 页）——
         # 收敛式：每次重快照，因为关一个标签会挪掉后面所有索引。
         try:
@@ -1254,7 +1349,8 @@ def main():
                 stale = [t for t in bridge("GET", "/state").get("tabs", [])
                          if "/fixture" in (t.get("url") or "")
                          or f"127.0.0.1:{API_PORT}/dl" in (t.get("url") or "")
-                         or f"127.0.0.1:{API_PORT}/flaky" in (t.get("url") or "")]
+                         or f"127.0.0.1:{API_PORT}/flaky" in (t.get("url") or "")
+                         or f"127.0.0.1:{API_PORT}/article" in (t.get("url") or "")]
                 if not stale:
                     break
                 for t in stale:

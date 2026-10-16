@@ -274,6 +274,7 @@ struct AgentCapabilitiesView: View {
             "listPageVideos", "downloadMedia", "screenshot", "screenshotElement",
             "setUploadFile",
             "startRecording", "stopRecording",
+            "readAloud", "stopSpeaking",
         ],
         "收藏与剪贴板": [
             "addBookmark", "listBookmarks", "removeBookmark",

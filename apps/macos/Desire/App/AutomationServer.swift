@@ -445,6 +445,8 @@ final class AutomationServer {
         ep("POST", "/reading-list/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/cache", "Cache an item for offline reading (.webarchive; reuses the item's open tab when available)", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("GET", "/system/integrations", "OS integration permission state (reminders / calendar: granted|denied|restricted|notDetermined) — read-only, never prompts", example: "…/system/integrations")
+        ep("GET", "/speech", "Text-to-speech state (speaking/paused) — reader TTS, also driven by the readAloud tool", example: "…/speech")
+        ep("POST", "/speech/stop", "Stop text-to-speech immediately (automation cleanup)", example: "-d '{}'")
         ep("GET", "/sync/status", "Cloud sync state (auth / syncing / lastSyncAt / lastError / per-domain cursors + pending tombstones)", example: "…/sync/status")
         ep("POST", "/sync/now", "Run a full sync cycle (all domains), return resulting status", example: "-d '{}'")
         ep("POST", "/sync/login", "Sign in (then auto-sync at launch + every 5 min)", params: ["username:string", "password:string"], example: #"-d '{"username":"u","password":"p"}'"#)
@@ -1563,6 +1565,11 @@ final class AutomationServer {
                 return try Self.json(Self.workspacesList())
             case ("GET", "/inbox"):
                 return try Self.json(Self.agentInbox())
+            case ("GET", "/speech"):
+                return try Self.json(Self.speechState())
+            case ("POST", "/speech/stop"):
+                ReaderSpeechService.shared.stop()
+                return try Self.json(Self.speechState())
             case ("GET", "/session-archives"):
                 return try Self.json(Self.sessionArchivesList())
             case ("POST", "/session-archives/restore"):
@@ -4452,6 +4459,12 @@ final class AutomationServer {
     private static func sessionArchiveDelete(file: String) -> [String: Any] {
         let removed = TabSessionCoordinator.shared.removeArchivedSession(named: file)
         return removed ? ["ok": true, "deleted": file] : ["ok": false, "error": "bad or missing file: \(file)"]
+    }
+
+    /// 朗读状态（v0.7.18）：自动化/E2E 观察端上 TTS（readAloud 与阅读模式共用）。
+    private static func speechState() -> [String: Any] {
+        ["speaking": ReaderSpeechService.shared.isSpeaking,
+         "paused": ReaderSpeechService.shared.isPaused]
     }
 
     /// 收件箱（v26）：与 Agent 窗口收件箱页同一份构建逻辑；会话按"查询读盘"

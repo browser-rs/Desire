@@ -4,8 +4,11 @@ import Combine
 /// Reader 朗读（0.6.5 TTS）：AVSpeechSynthesizer 端上合成，零费用、数据不出机。
 /// 一次 speak 整篇正文（合成器自带分句队列）；暂停/继续/停止由工具条驱动；
 /// 切出阅读模式（onDisappear）自动停止。语种按文本首段 CJK 占比选 zh-CN/en-US。
+/// 0.7.18：接 synthesizer delegate——自然读完/被打断时把 isSpeaking 归位
+/// （此前只在显式 stop() 时归位：读完后工具条会一直显示"在讲"，朗读工具
+/// 的"在讲吗"也失真）。
 @MainActor
-final class ReaderSpeechService: ObservableObject {
+final class ReaderSpeechService: NSObject, ObservableObject, AVSpeechSynthesizerDelegate {
     static let shared = ReaderSpeechService()
 
     @Published private(set) var isSpeaking = false
@@ -13,7 +16,9 @@ final class ReaderSpeechService: ObservableObject {
 
     private let synthesizer = AVSpeechSynthesizer()
 
-    private init() {
+    private override init() {
+        super.init()
+        synthesizer.delegate = self
         NotificationCenter.default.addObserver(
             forName: NSNotification.Name("readerSpeechStop"), object: nil, queue: .main
         ) { [weak self] _ in
@@ -55,6 +60,24 @@ final class ReaderSpeechService: ObservableObject {
         synthesizer.stopSpeaking(at: .immediate)
         isSpeaking = false
         isPaused = false
+    }
+
+    // MARK: - AVSpeechSynthesizerDelegate（自然读完 / 被打断时归位状态）
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
+                                       didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor [weak self] in
+            self?.isSpeaking = false
+            self?.isPaused = false
+        }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
+                                       didCancel utterance: AVSpeechUtterance) {
+        Task { @MainActor [weak self] in
+            self?.isSpeaking = false
+            self?.isPaused = false
+        }
     }
 }
 

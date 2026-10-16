@@ -1268,6 +1268,54 @@ async function __desireCollectHighlights() {
     return JSON.stringify(out);
 }
 
+// 朗读/摘要用：提取「可读正文」纯文本（JSON 字符串 {title, text, truncated}）。
+// 容器打分与 UserScripts/reader-content.js 同源——那边的产物是 HTML（阅读 UI
+// 走页面世界 postMessage），这里是纯文本（readAloud 等工具在隔离世界直调）；
+// 两个世界共享不了代码，改启发式时两边对齐。候选查询走 __desireDeepQSA
+// （开放 Shadow DOM / 同源 iframe 也认）。
+async function __desireReadableArticle({maxChars}) {
+    maxChars = maxChars || 20000;
+    function score(el) {
+        if (!el || !el.tagName) return 0;
+        var id = (el.id || '').toLowerCase();
+        var cls = (el.className || '').toString().toLowerCase();
+        var s = 0;
+        if (/article|post|content|main|story|entry/.test(id) || /article|post|content|main|story|entry/.test(cls)) s += 10;
+        if (/comment|sidebar|footer|header|nav|menu/.test(id) || /comment|sidebar|footer|header|nav|menu/.test(cls)) s -= 10;
+        var text = el.innerText || '';
+        var links = el.querySelectorAll('a').length;
+        var textLen = text.replace(/\s+/g, ' ').length;
+        if (textLen > 100) s += Math.min(5, Math.floor(textLen / 500));
+        if (links > 0) s -= Math.min(3, Math.floor(links / 50));
+        return s;
+    }
+    var candidates = [];
+    var els = __desireDeepQSA('article, [role=main], main, .post, .article, .content, #content, #article, .entry, .post-content');
+    for (var i = 0; i < els.length; i++) {
+        var sc = score(els[i]);
+        if (sc > 0) candidates.push({el: els[i], score: sc});
+    }
+    candidates.sort(function(a, b) { return b.score - a.score; });
+    var best = candidates.length > 0 ? candidates[0].el : null;
+    /* 回退 1：body 里的长段落拼容器 */
+    if (!best || ((best.innerText || '').trim().length < 100)) {
+        var container = document.createElement('div');
+        __desireDeepQSA('p').forEach(function(p) {
+            if ((p.innerText || '').trim().length > 20) container.appendChild(p.cloneNode(true));
+        });
+        if (container.children.length > 3) best = container;
+    }
+    /* 回退 2：整页 body */
+    if (!best || ((best.innerText || '').trim().length < 50)) best = document.body;
+    var text = ((best.innerText || best.textContent || '') + '')
+        .replace(/[ \t]+/g, ' ')
+        .replace(/\n{3,}/g, '\n\n')
+        .trim();
+    var truncated = false;
+    if (text.length > maxChars) { text = text.slice(0, maxChars); truncated = true; }
+    return JSON.stringify({title: (document.title || '').trim(), text: text, truncated: truncated});
+}
+
 
 // --- 选择器穿透辅助（shadow DOM `>>>` + 同源 iframe）——**单一来源**：
 // 本文件向页面世界与 agentToolWorld 双世界注入，工具侧不再前置任何 helper

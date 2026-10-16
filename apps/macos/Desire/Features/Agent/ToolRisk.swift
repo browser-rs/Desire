@@ -113,6 +113,9 @@ enum ToolRisk: Int, Comparable {
         "wait", "waitForElement", "findInPage",
         // Media (PiP is a local view action, reversible)
         "togglePictureInPicture",
+        // 停止朗读永远安全（消音方向）；readAloud 本身走默认 sideEffect——
+        // 它让设备出声，与 notify 同类。
+        "stopSpeaking",
         // Past-conversation search / reading (local files, read-only)
         "searchConversations", "readConversation",
         // Reads back an already-stored tool result (session memory, read-only)

@@ -676,3 +676,47 @@ iOS 本地通知权限要懒请求（TCC 纪律）。
 > 更远批次候选（不承诺）：白板同步域回顾、历史 tombstone 服务端 GC、
 > workspace 同步域（需服务端发版）、跨源 DPP iframe、响应式 pixelRatio
 > （WebKit 边界待再评估）、阅读列表批量摘要（readURL 落地后自然延伸）。
+
+
+## v0.7.19 规划稿（分布四主题，各 1–2 项）
+
+> 承接四主题框架（①浏览器基础 ②Agent 基础 ③融合 ④替人干活 + ⑤可靠性 ⑥可发现性）。
+> 素材来自 Backlog 长尾与各专项评审遗留；发版时机由拄手择机（2026-10-15 授权）。
+
+### 一、浏览器基础能力
+1. **启动行为与崩溃恢复提示**：设置 › 通用新增「启动时」三选一——继续上次会话
+   （默认，现行为）/ 打开主页 / 打开指定页集；**崩溃后首次启动**在面板顶部给一条
+   可关闭的恢复提示（"上次异常退出，已按最近会话恢复 N 个标签"/"从空白开始"），
+   把现在全静默的采纳过程亮出来。验收：桥改设置 → 重启 → 采纳行为切换断言；
+   `/state` 带 `launchedAfterCrash` 与恢复来源字段。
+2. **下载体验补件**（Backlog 长尾）：下载限速/并发设置 + 媒体行内预览。
+
+### 二、Agent 基础能力
+1. **备忘录工具（Notes）**：`addNote` / `listNotes` / `searchNotes`——AppleScript
+   驱动 Notes.app（缺省建/用「Desire」文件夹）；risk = **dangerous**（写用户的外部
+   App 数据，每次都显式确认）。验收：E2E 建一条带标记的笔记 → 列表读回 → 删除
+   收尾（只动自造标记，先确认 Notes.app 存在）。
+
+### 三、浏览器 + Agent 融合能力
+1. **DPP 检查器（DevTools 面板内）**：DevTools 新增「页面协议」标签页——当前标签页
+   的协议来源（host/frame）、views 清单、actions 清单（含 effects/danger 标注）与
+   命中适配包；每个 action 一键试跑（local 直跑；persist/outbound 照走审批链）。
+   与工具/桥同一数据源（effectiveProtocol）。验收：fixture 声明 → 面板列出
+   views/actions → 试跑 local action 生效（重跑快照断言）。
+
+### 四、浏览器替人干活的能力
+1. **阅读列表批量摘要**：`summarizeReadingList {limit?, force?}`——对未摘要条目
+   逐篇 **readURL 取正文 → 一次旁路模型摘要**（当前档案口径），摘要随条目落盘并
+   走云同步（`ReadingListItem.summary`），面板行内可见；长任务模式（工具立刻
+   返回、后台跑、逐条写上、完成系统通知 + 会话备注）；阅读列表面板加
+   「全部摘要」一键入口。验收：fixture 两篇入库 → 桥触发 → 轮询条目带 summary
+   （内容含页面实读回显标记）→ 完成通知；摘要调用不阻塞回合。
+
+### 五、贯穿（可靠性与可发现性，不占版本主题）
+- 每项能力随实现交 E2E/harness/快照三件套；CHANGELOG 照 changelog.py 纪律；
+  发版走 tools/pre-release-check.sh 五闸门 + scripts/release.sh 七阶段。
+- 能力页/工具索引自动生成（toolDefs / MCP 注册表），新工具不手写清单。
+
+> 更远批次候选（不承诺）：跨源 DPP iframe（宿主 frame API）、白板同步域回顾、
+> 历史 tombstone 服务端 GC、workspace 同步域（需服务端发版）、日历双向写入、
+> 标签页自动分组（Agent 依语义分组）、响应式 pixelRatio（WebKit 边界待再评估）。

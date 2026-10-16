@@ -936,6 +936,28 @@ extension BrowserToolProvider {
                 ], required: ["title"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "addNote", description: "Save a note to the user's Notes app (AppleScript). Defaults to a \"Desire\" folder (created on first use); pass `folder` to target another. Body is plain text (Markdown-ish ok). Use for \"记一下\" / \"把这段存进备忘录\". The first use may show a macOS automation permission prompt — if it times out, ask the user to approve it and retry.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "title": AgentJSONSchemaValue(type: "string", description: "Note title (required)"),
+                    "body": AgentJSONSchemaValue(type: "string", description: "Note body, plain text (optional)"),
+                    "folder": AgentJSONSchemaValue(type: "string", description: "Target Notes folder (default: Desire)"),
+                ], required: ["title"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listNotes", description: "List recent notes from the user's Notes app (title / folder / modified date). Pair with searchNotes for content search.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "folder": AgentJSONSchemaValue(type: "string", description: "Limit to one folder (optional)"),
+                    "limit": AgentJSONSchemaValue(type: "number", description: "Max notes (default 15, max 50)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "searchNotes", description: "Search the user's Notes app by keyword: scans the most recently modified notes' titles AND bodies (client-side filter — Notes has no server-side full-text API), returns matching notes with an excerpt. Needs at least 2 characters.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "query": AgentJSONSchemaValue(type: "string", description: "Keyword to search for (required)"),
+                    "limit": AgentJSONSchemaValue(type: "number", description: "Max matches (default 5, max 20)"),
+                ], required: ["query"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "addReminder",
                 description: "Create a reminder in the user's Reminders app (title + optional notes / due date / list name). dueDate accepts 'yyyy-MM-dd HH:mm', 'yyyy-MM-dd' or ISO8601 — convert relative phrasing ('明天九点') to an absolute time yourself first. First use shows a one-time macOS permission dialog; if it reports waiting, ask the user to click Allow and retry.",
                 parameters: AgentJSONSchema(type: "object", properties: [

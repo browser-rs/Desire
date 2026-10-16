@@ -2159,6 +2159,51 @@ extension BrowserToolProvider {
             }
             return await EventKitBridge.completeReminder(title: completeTitle)
 
+        case "addNote":
+            guard let noteTitle = args["title"] as? String,
+                  !noteTitle.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return Self.fail("Missing title")
+            }
+            do {
+                let folder = try await NotesBridge.addNote(
+                    title: noteTitle.trimmingCharacters(in: .whitespacesAndNewlines),
+                    body: (args["body"] as? String) ?? "",
+                    folder: args["folder"] as? String)
+                return "Saved note \"\(noteTitle)\" to Notes › \(folder)"
+            } catch {
+                return Self.fail(error.localizedDescription)
+            }
+
+        case "listNotes":
+            let notesLimit = min(50, max(1, (args["limit"] as? Int) ?? 15))
+            do {
+                let notes = try await NotesBridge.listNotes(folder: args["folder"] as? String, limit: notesLimit)
+                guard !notes.isEmpty else { return "No notes found" }
+                return notes.map { "\($0.title) — \($0.folder) · \($0.modified)" }.joined(separator: "\n")
+            } catch {
+                return Self.fail(error.localizedDescription)
+            }
+
+        case "searchNotes":
+            guard let noteQuery = args["query"] as? String,
+                  noteQuery.trimmingCharacters(in: .whitespacesAndNewlines).count >= 2 else {
+                return Self.fail("Give me at least 2 characters to search for")
+            }
+            let searchLimit = min(20, max(1, (args["limit"] as? Int) ?? 5))
+            do {
+                let hits = try await NotesBridge.searchNotes(query: noteQuery, limit: searchLimit)
+                guard !hits.isEmpty else { return "No notes matched \"\(noteQuery)\"" }
+                return hits.map { hit -> String in
+                    var line = "**\(hit.title)** — \(hit.folder) · \(hit.modified)"
+                    if let body = hit.plainBody {
+                        line += "\n" + String(body.prefix(300))
+                    }
+                    return line
+                }.joined(separator: "\n\n")
+            } catch {
+                return Self.fail(error.localizedDescription)
+            }
+
         case "listCalendarEvents":
             let calendar = Calendar.current
             let eventFrom: Date

@@ -26,7 +26,8 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 会话预算（MUSCLE17：假端点 usage 推到 460/500 → warning；续跑 → 停在步骤边界 + 档位阶梯前进）/
 热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
 桥 /promotion/review 一键安排每日选题采集并撤销）/
-阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）。
+阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）/
+备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -492,6 +493,19 @@ class Fake(BaseHTTPRequestHandler):
                     call(0, "listSkills", {})]}, "tool_calls")
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE18-DONE"}, "stop")
+            return
+        if "MUSCLE20" in mode and body.get("tools") and "自评者" not in sys_text:
+            # 备忘录工具（v0.7.19）：只验参数校验路径——真调用会触发「Desire 想
+            # 控制备忘录」TCC 弹窗（用户在场点一次即可），套件里绝不发起
+            # AppleEvent（"参数校验先于授权"惯例，同提醒事项首轮 E2E）。
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "addNote", {"body": "只有正文没有标题"})]}, "tool_calls")
+            elif n == 1:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "searchNotes", {"query": "x"})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE20-DONE"}, "stop")
             return
         if "MUSCLE14" in mode:
             if n == 0:
@@ -1538,6 +1552,26 @@ def main():
             for i in bridge("GET", "/reading-list").get("items", [])
             if i.get("url") not in (page19a, page19b))
         ok("摘要：只动指定条目（其它条目摘要不变）", untouched)
+        # ── MUSCLE20：备忘录工具（参数校验路径；AppleEvent 留给用户在场时授权）──
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE20 备忘录校验"})
+        deadline20 = time.time() + 150
+        while time.time() < deadline20:
+            st20 = bridge("GET", "/agent/messages")
+            if not st20.get("busy") and any("MUSCLE20-DONE" in (m.get("content") or "")
+                                            for m in st20.get("messages", [])):
+                break
+            time.sleep(1)
+        conv20_id = bridge("GET", "/agent/trace").get("conversation")
+        conv20 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
+                             / f"conversation-{conv20_id}.json").read_text())
+        tools20 = [m.get("content") or "" for m in conv20.get("messages", []) if m.get("role") == "tool"]
+        note20 = next((t for t in tools20 if "Missing title" in t), "")
+        search20 = next((t for t in tools20 if "2 characters" in t), "")
+        ok("备忘录：addNote 缺标题走 Error 约定", note20.startswith("Error:"))
+        ok("备忘录：searchNotes 太短走 Error 约定", search20.startswith("Error:"))
+        ok("备忘录：校验路径不发 AppleEvent（无授权等待——回合自行收尾）",
+           "MUSCLE20-DONE" in " ".join(m.get("content") or "" for m in bridge("GET", "/agent/messages").get("messages", [])))
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:

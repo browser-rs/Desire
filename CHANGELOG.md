@@ -2,6 +2,8 @@
 ### Added
 
 - **阅读列表批量摘要（v0.7.19 旗舰）**：「读完这 N 篇给我一份汇总」变成一条后台流水线——新工具 `summarizeReadingList {limit?, force?, urls?}`（桥 `POST /reading-list/summarize` 同源）：对未摘要条目**逐篇 readURL 取正文**（已开标签复用含登录态；否则离屏加载）→ **一次旁路模型摘要**（`MemoryExtractor.collectText` 同管道，当前档案口径）→ 写回条目 `ReadingListItem.summary`（可选字段、旧文件零迁移；**盖 LWW 戳随云同步**）。长任务模式（同媒体导出）：工具/桥**立刻返回**"已入队 N 条"，逐条写完即存（**阅读列表面板行内实时出现**），收尾发系统通知 + 会话备注；面板加「全部摘要」一键入口（带 x/y 进度）与逐条右键「摘要 / 重新摘要」；`listReadingList` 带 [summary] 提示让模型知道哪篇摘过。稳健性：单篇失败（离线/超时/空稿）**不写任何标记**、下轮自然重试；`urls` 过滤保证按条触发**绝不误动**列表里其它条目（E2E 有专项断言）。定点探针 4/4 ALL PASS（入队/落回/实读回显/只动指定条目）；E2E MUSCLE19 已进套件。
+- **备忘录工具（v0.7.19）**：系统级协作第三件——`addNote` / `listNotes` / `searchNotes` 驱动 Notes.app（缺省落「Desire」文件夹、首次自动创建；搜索扫最近修改至多 120 条、标题+正文客户端过滤——Notes 没有服务端全文检索 API，这点已如实写进工具描述）。权限两条都按纪律落位：Hardened Runtime 下发 Apple Events 需要 `com.apple.security.automation.apple-events` entitlement（已加，AMFI 实测放行）+ `NSAppleEventsUsageDescription` 说明；TCC「自动化」授权**懒请求**——首次真调用才弹「Desire 想控制备忘录」，osascript 调用带 30 秒超时、超时如实回报"点了允许再试"（与提醒事项"弹窗可能永不渲染"预案同款）。三段 AppleScript（建笔记/清单/搜索）经 `osacompile` **编译期校验**（含 Notes 词典解析、换行与特殊字符转义；编译不发送事件、不触发 TCC）。E2E MUSCLE20 走"参数校验先于授权"路径（缺标题 / 搜索词太短 → `Error:` 约定，绝不发起 AppleEvent）；定点探针 3/3 ALL PASS。
+
 
 
 ## [v0.7.18] - 2026-10-17

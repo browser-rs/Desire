@@ -289,6 +289,7 @@
 				INFOPLIST_KEY_NSCameraUsageDescription = "Used when a website requests camera access";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Used when a website requests location access";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Desire uses Apple Events to save notes to your Notes app when you ask the agent to.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Desire needs microphone access for voice commands.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Desire uses speech recognition to convert voice commands into browser actions.";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -327,6 +328,7 @@
 				INFOPLIST_FILE = Desire/Info.plist;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSAppleEventsUsageDescription = "Desire uses Apple Events to save notes to your Notes app when you ask the agent to.";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Desire needs microphone access for voice commands.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "Desire uses speech recognition to convert voice commands into browser actions.";
 				LD_RUNPATH_SEARCH_PATHS = (

@@ -10,5 +10,10 @@
 	     签名可用（不同于 com.apple.developer.* 受限类会被 AMFI 拒启）。 -->
 	<key>com.apple.security.personal-information.calendars</key>
 	<true/>
+	<!-- Hardened Runtime 下发 Apple Events（备忘录 AppleScript）需要此
+	     entitlement——缺失时 osascript 直接 -1743 拒绝；TCC「自动化」授权
+	     照常懒请求（首次真调用才弹「Desire 想控制备忘录」）。 -->
+	<key>com.apple.security.automation.apple-events</key>
+	<true/>
 </dict>
 </plist>

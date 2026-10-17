@@ -1691,24 +1691,24 @@ def main():
             time.sleep(1)
         ok("双语对照：流水线收尾、全部段落翻完（done==total≥3）",
            final23.get("done") == final23.get("total") and final23.get("total", 0) >= 3
-           and final23.get("error") in (None, "null"), final23)
+           and final23.get("error") in (None, "null"))
         d23 = json.loads(bridge("POST", "/execute", {"js": (
             "JSON.stringify({nodes:document.querySelectorAll('.desire-bilingual').length,"
             "texts:[...document.querySelectorAll('.desire-bilingual')].map(function(n){return n.textContent}),"
             "marked:document.querySelectorAll('[data-desire-bi]').length})")}).get("result") or "{}")
         texts23 = d23.get("texts") or []
         ok("双语对照：译文节点数==段落数、带块标记",
-           d23.get("nodes") == final23.get("total") and d23.get("marked") == final23.get("total"), d23)
+           d23.get("nodes") == final23.get("total") and d23.get("marked") == final23.get("total"))
         ok("双语对照：首条按序号对齐且含正文（fox 段）",
            bool(texts23) and texts23[0].startswith("译(1) ")
-           and any("quick brown fox" in t for t in texts23), texts23)
+           and any("quick brown fox" in t for t in texts23))
         st23b = bridge("POST", "/bilingual", {"on": False})
         time.sleep(1)
         d23b = json.loads(bridge("POST", "/execute", {"js": (
             "JSON.stringify({nodes:document.querySelectorAll('.desire-bilingual').length,"
             "marked:document.querySelectorAll('[data-desire-bi]').length})")}).get("result") or "{}")
         ok("双语对照：关闭后译文与标记清零", st23b.get("on") is False
-           and d23b.get("nodes") == 0 and d23b.get("marked") == 0, (st23b, d23b))
+           and d23b.get("nodes") == 0 and d23b.get("marked") == 0)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:

@@ -611,9 +611,20 @@ class Fake(BaseHTTPRequestHandler):
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE11-DONE"}, "stop")
             return
+        # 注意顺序：MUSCLE4CLEAN 是 MUSCLE4 的超串，必须先判。
+        if "MUSCLE4CLEAN" in mode:
+            import datetime as _dt
+            ev_day = (_dt.datetime.now() + _dt.timedelta(days=1)).strftime("%Y-%m-%d")
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "deleteCalendarEvent", {"title": "E2E 自清理日程", "date": ev_day})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE4CLEAN-DONE"}, "stop")
+            return
         if "MUSCLE4" in mode:
             import datetime as _dt
             due = (_dt.datetime.now() + _dt.timedelta(days=1)).replace(hour=9, minute=0, second=0)
+            ev_start = (_dt.datetime.now() + _dt.timedelta(days=1)).replace(hour=10, minute=0, second=0)
             if n == 0:
                 sse(self.wfile, model, {"role": "assistant", "tool_calls": [
                     call(0, "addReminder", {"title": "E2E 自清理提醒", "dueDate": due.strftime("%Y-%m-%d %H:%M")})]}, "tool_calls")
@@ -624,8 +635,20 @@ class Fake(BaseHTTPRequestHandler):
                 sse(self.wfile, model, {"role": "assistant", "tool_calls": [
                     call(0, "listReminders", {"maxItems": 20})]}, "tool_calls")
             elif n == 3:
+                # 自建自删（别再依赖用户日历里的既有事件——2026-10-17 起
+                # 该断言用自己创建的 "E2E 自清理日程" 验证，删除步骤顺带把
+                # dangerous 审批闸门也走了一遍（测试侧经 /approvals 放行））。
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "addCalendarEvent", {"title": "E2E 自清理日程",
+                                                 "start": ev_start.strftime("%Y-%m-%d %H:%M"),
+                                                 "durationMinutes": 60})]}, "tool_calls")
+            elif n == 4:
                 sse(self.wfile, model, {"role": "assistant", "tool_calls": [
                     call(0, "listCalendarEvents", {})]}, "tool_calls")
+            elif n == 5:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "deleteCalendarEvent", {"title": "E2E 自清理日程",
+                                                    "date": ev_start.strftime("%Y-%m-%d")})]}, "tool_calls")
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE4-DONE"}, "stop")
             return
@@ -927,11 +950,18 @@ def main():
         # 用户真机授权后成了过期断言——2026-10-15 实测踩到）。
         ok("校验失败不改变授权状态", integrations == status_before_m3)
 
-        # ── MUSCLE4：OS 协作读写闭环（本机已授权；提醒生命周期自清理）──
+        # ── MUSCLE4：OS 协作读写闭环（本机已授权；提醒+日程全自清理）──
         bridge("POST", "/agent/new", {})
         bridge("POST", "/agent/send", {"text": "MUSCLE4 OS 读写闭环"})
-        deadline4 = time.time() + 120
+        deadline4 = time.time() + 150
         while time.time() < deadline4:
+            ap4 = bridge("GET", "/approvals")
+            if ap4.get("pending"):
+                # deleteCalendarEvent 是 dangerous：测试侧替用户放行一次
+                # （顺带覆盖桥审批闸门的真实路径）。
+                bridge("POST", "/approvals/resolve", {"decision": "allow_once"})
+                time.sleep(0.5)
+                continue
             st4 = bridge("GET", "/agent/messages")
             if not st4.get("busy") and any("MUSCLE4-DONE" in (m.get("content") or "")
                                            for m in st4.get("messages", [])):
@@ -946,10 +976,14 @@ def main():
         done = next((t for t in tools4 if t.startswith("Reminder completed")), "")
         open_list = next((t for t in tools4 if "Open reminders" in t or "No open reminders" in t), "")
         events_list = next((t for t in tools4 if "Calendar events" in t or "No calendar events" in t), "")
+        event_added = next((t for t in tools4 if t.startswith("Event added: E2E 自清理日程")), "")
+        event_deleted = next((t for t in tools4 if t.startswith("Event deleted: E2E 自清理日程")), "")
         ok("提醒创建（真机 · 已授权路径）", made.startswith("Reminder added"))
         ok("提醒完成闭环", done.startswith("Reminder completed"))
         ok("读回已不含完成的提醒", "E2E 自清理提醒" not in open_list)
-        ok("日历读取可用（含已建测试日程）", "Desire 接入测试日程" in events_list)
+        ok("日历写入 + 读取可用（自建事件读回）",
+           event_added != "" and "E2E 自清理日程" in events_list)
+        ok("日历删除走 dangerous 审批并落地（测试侧放行）", event_deleted != "")
 
         # ── MUSCLE5：PDF 合并 / 抽页（结构级，文本层保留）──
         bridge("POST", "/agent/new", {})
@@ -1118,6 +1152,9 @@ def main():
         incog_out = next((t for t in toolsB if "private tab" in t), "")
         ws_list_1 = next((t for t in toolsB if "E2E-MUSCLE8 —" in t), "")
         tabs_after_incog = next((t for t in toolsB if "[incognito]" in t), "")
+        if not tabs_after_incog:
+            print("MUSCLE8 诊断：未找到 [incognito] 标记；listTabs 候选输出 →",
+                  [t[:160] for t in toolsB if t.startswith("[0]")][:3])
         restore_out = next((t for t in toolsB if t.startswith('Restored workspace "E2E-MUSCLE8"')), "")
         restore_idx = toolsB.index(restore_out) if restore_out in toolsB else -1
         tabs_after_restore = next((t for t in toolsB[restore_idx + 1:]
@@ -1442,7 +1479,10 @@ def main():
         ok("setZoom 150 生效", set15 == "Zoom set to 150%")
         ok("同站导航后缩放被应用回来（150% 保持）", after_nav != "")
         final_lists = [t for t in tools15 if t.startswith("[0]")]
-        cleared = final_lists and all("zoom" not in line.lower() for line in final_lists[-1].splitlines())
+        # 只看当前标签（/flaky 那行）——旧写法扫全窗口所有标签行，别家标签的
+        # zoom 标记会把结论污染成偶发假阳（2026-10-17 run2 实测）。
+        current_line = next((ln for ln in final_lists[-1].splitlines() if "/flaky" in ln), "") if final_lists else ""
+        cleared = current_line != "" and "zoom" not in current_line.lower()
         ok("reset 后站点记忆清除（再导航不带上缩放）", bool(cleared))
         # ── MUSCLE16：朗读工具（端上 TTS；/speech 观察在讲/停了）──
         bridge("POST", "/agent/new", {})
@@ -1739,6 +1779,27 @@ def main():
         # 双语对照兜底（MUSCLE23）：无论如何先关掉（防在跑的批次）。
         try:
             bridge("POST", "/bilingual", {"on": False})
+        except Exception:
+            pass
+        # 日程兜底（MUSCLE4）：万一回合中途失败留下 "E2E 自清理日程"，
+        # 用一次小程序化回合删掉（仅当临时档案仍活跃——绝不拿用户真档案跑）。
+        try:
+            prof_now = bridge("GET", "/ai/profiles")
+            active_now = next((p["id"] for p in prof_now.get("profiles", []) if p.get("active")), None)
+            if active_now and active_now == temp_id:
+                bridge("POST", "/agent/new", {})
+                bridge("POST", "/agent/send", {"text": "MUSCLE4CLEAN 兜底清理"})
+                dl4c = time.time() + 60
+                while time.time() < dl4c:
+                    ap4c = bridge("GET", "/approvals")
+                    if ap4c.get("pending"):
+                        bridge("POST", "/approvals/resolve", {"decision": "allow_once"})
+                        continue
+                    msgs4c = bridge("GET", "/agent/messages")
+                    if not msgs4c.get("busy") and any("MUSCLE4CLEAN-DONE" in (m.get("content") or "")
+                                                      for m in msgs4c.get("messages", [])):
+                        break
+                    time.sleep(1)
         except Exception:
             pass
         # 书签导入兜底（MUSCLE22）：循环删到无副本（find 每次只删第一条）。

@@ -122,6 +122,9 @@ struct ContentView: View {
     /// OBSERVED（工具栏菜单的"站点自动播放/暗色"勾选态从它派生，切换要
     /// 立即重绘——惰性计算属性不建立依赖，图标会停在旧态直到下次重绘）。
     @ObservedObject var siteSettingsStore: SiteSettingsStore
+    /// OBSERVED：工具栏菜单的"双语对照"勾选态从它派生（同 siteSettingsStore
+    /// 的理由——切换/进度要立即重绘）。
+    @ObservedObject var bilingualService: BilingualReadingService = .shared
     var quickDialStore: QuickDialStore { appState.quickDialStore }
     var readingListStore: ReadingListStore { appState.readingListStore }
     var pluginStore: PluginStore { appState.pluginStore }

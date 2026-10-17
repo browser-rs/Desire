@@ -345,6 +345,16 @@ extension BrowsingActions {
             tabManager.closeTab(at: index)
         }
     }
+
+    /// 双语对照开关（工具栏菜单/桥/工具共用）：状态按标签记在
+    /// BilingualReadingService，翻译流水线也在那边跑。
+    func toggleBilingual(for tab: Tab) {
+        guard !tab.isOnNewTabPage else { return }
+        BilingualReadingService.shared.toggle(
+            webView: tab.browser.webView,
+            tabID: tab.id,
+            preference: AppState.live?.aiPreference)
+    }
 }
 
 // MARK: - Find in page

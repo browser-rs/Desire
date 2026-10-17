@@ -66,7 +66,7 @@ enum ToolRisk: Int, Comparable {
         // Navigation that doesn't lose state (history traversal)
         "goBack", "goForward",
         // View toggles (reversible, local to current view)
-        "toggleReaderMode", "zoomIn", "zoomOut", "resetZoom", "setZoom", "setSiteFont",
+        "toggleReaderMode", "zoomIn", "zoomOut", "resetZoom", "setZoom", "setSiteFont", "bilingualTranslate",
         // DOM inspection (read-only queries)
         "extract", "findElements", "getPageLinks",
         // Comment / chat structured extraction (read-only)

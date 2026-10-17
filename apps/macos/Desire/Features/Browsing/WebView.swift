@@ -1842,6 +1842,8 @@ try {
                parent.siteSettingsStore.effectiveFont(for: host).isActive {
                 SiteFontApplier.apply(to: webView, host: host, store: parent.siteSettingsStore)
             }
+            // 双语对照：该标签开着时导航后重施（翻译流水线在后台跑、逐批回填）。
+            BilingualReadingService.shared.reapplyIfActive(webView: webView, tabID: parent.tabID)
             // 静音态跨导航重放：documentStart 劫持随新文档重来（force 状态
             // 归零），didFinish 按本 webview 的 isMuted 补一次强制——否则
             // 静音标签翻页/刷新后声音就回来了。

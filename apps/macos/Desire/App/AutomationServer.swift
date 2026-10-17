@@ -473,6 +473,9 @@ final class AutomationServer {
         ep("GET", "/site-settings", "Per-host zoom/darkMode/blockedSelectors", params: ["host:string"], example: "…/site-settings?host=example.com")
         ep("POST", "/site-settings/darkmode", "Set per-host dark mode", params: ["host:string", "enabled:bool"], example: #"-d '{"host":"example.com","enabled":true}'"#)
         ep("POST", "/site-settings/zoom", "Set per-host zoom", params: ["host:string", "zoom:double"], example: #"-d '{"host":"example.com","zoom":1.5}'"#)
+        ep("POST", "/site-settings/font", "Per-site fonts: minFontSize (0=off)/fontFamily (''=off)/null=follow default; re-injects immediately", params: ["host", "minFontSize?", "fontFamily?"], example: #"-d '{"host":"a.b","minFontSize":16}'"#)
+        ep("GET", "/bilingual", "Bilingual reading state for the active tab (on/running/done/total/error)", example: "…/bilingual")
+        ep("POST", "/bilingual", "Toggle bilingual reading (AI translations inserted under each paragraph)", params: ["on:bool", "index?:int"], example: #"-d '{"on":true}'"#)
         ep("GET", "/elements", "Element-blocker rules", example: "…/elements")
         ep("POST", "/elements/add", "Hide matching CSS on matching hosts", params: ["selector:string", "pattern:string"], example: #"-d '{"selector":"nav","pattern":"example.com"}'"#)
         ep("POST", "/elements/remove", "Remove rule", params: ["selector:string", "pattern:string"], example: "-d '{…}'")
@@ -1531,6 +1534,12 @@ final class AutomationServer {
                 ))
             case ("POST", "/site-settings/font"):
                 return try Self.json(Self.setSiteFont(body: body))
+            case ("GET", "/bilingual"):
+                return try Self.json(Self.bilingualState())
+            case ("POST", "/bilingual"):
+                return try Self.json(Self.setBilingual(
+                    on: body["on"] as? Bool ?? false,
+                    index: Self.index(body)))
             case ("GET", "/quickdial"):
                 return try Self.json(Self.quickDial())
             case ("POST", "/quickdial/add"):
@@ -4119,6 +4128,36 @@ final class AutomationServer {
             app.passwordStore.delete(entry)
         }
         return ["ok": true, "deleted": victims.count]
+    }
+
+    /// 双语对照状态（活动标签的口径；E2E 轮询直到 running=false）。
+    private static func bilingualState() throws -> [String: Any] {
+        let service = BilingualReadingService.shared
+        let tab = TabSessionCoordinator.shared.activeTabManager?.selectedTab
+        return ["on": tab.map { service.isOn(tabID: $0.id) } ?? false,
+                "running": service.isRunning,
+                "done": service.doneCount,
+                "total": service.totalCount,
+                "error": service.lastError ?? NSNull()]
+    }
+
+    /// 双语对照开/关（活动标签或指定 index 的标签）。
+    private static func setBilingual(on: Bool, index: Int?) throws -> [String: Any] {
+        guard let manager = TabSessionCoordinator.shared.activeTabManager else {
+            return ["error": "no active window"]
+        }
+        let tab: Tab?
+        if let index, index >= 0, index < manager.tabs.count {
+            tab = manager.tabs[index]
+        } else {
+            tab = manager.selectedTab
+        }
+        guard let tab else { return ["error": "no such tab"] }
+        BilingualReadingService.shared.toggle(
+            webView: tab.browser.webView,
+            tabID: tab.id,
+            preference: AppState.live?.aiPreference)
+        return try Self.bilingualState()
     }
 
     // MARK: Site settings / QuickDial / Element blocker

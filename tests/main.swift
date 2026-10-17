@@ -3163,6 +3163,20 @@ func testBookmarkHTMLParser() {
 }
 testBookmarkHTMLParser()
 
+func testBilingualParsing() {
+    check("对照：JSON 数组直取", BilingualParsing.parseTranslations("[\"甲\", \"乙\"]", expected: 2) == ["甲", "乙"])
+    check("对照：围栏 JSON 容忍", BilingualParsing.parseTranslations("```json\n[\"甲\",\"乙\"]\n```", expected: 2) == ["甲", "乙"])
+    check("对照：前后杂散文字容忍",
+          BilingualParsing.parseTranslations("Here you go:\n[\"甲\"]\nDone.", expected: 1) == ["甲"])
+    check("对照：JSON 条数不符整批丢", BilingualParsing.parseTranslations("[\"甲\"]", expected: 2) == nil)
+    check("对照：行回退（剥编号）",
+          BilingualParsing.parseTranslations("1. 甲\n2) 乙", expected: 2) == ["甲", "乙"])
+    check("对照：行回退条数不符丢", BilingualParsing.parseTranslations("1. 甲\n2. 乙\n3. 丙", expected: 2) == nil)
+    check("对照：空输出丢", BilingualParsing.parseTranslations("", expected: 1) == nil)
+    check("对照：期望 0 条丢", BilingualParsing.parseTranslations("[]", expected: 0) == nil)
+}
+testBilingualParsing()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

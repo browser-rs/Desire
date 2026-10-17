@@ -27,7 +27,7 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
 桥 /promotion/review 一键安排每日选题采集并撤销）/
 阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）/
-书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
+双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -189,6 +189,21 @@ class TinyAPI(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if self.path.startswith("/bipage"):
+            # 双语对照（MUSCLE23）的靶页：标题 + 三段英文正文（≥12 字符门槛）。
+            body = ("<!DOCTYPE html><html><head><meta charset='utf-8'>"
+                    "<title>Bilingual Fixture</title></head><body><article>"
+                    "<h1>Reading Practice</h1>"
+                    "<p>The quick brown fox jumps over the lazy dog every single morning before breakfast.</p>"
+                    "<p>Distributed systems fail in interesting ways when the network partitions last.</p>"
+                    "<p>A small paragraph that should also be picked up by the collector without trouble.</p>"
+                    "</article></body></html>").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path.startswith("/fontpage"):
             # 站点字体（MUSCLE21）的靶页：内联 10px 小字 / 无字体段落 /
             # 自带 Monlo 的段落（验证抬升、注入、作者优先三条）。
@@ -278,6 +293,18 @@ class Fake(BaseHTTPRequestHandler):
             # 摘要里出现标记 = 正文真的流到了模型（不是空稿摘要）。
             marker = next((p for p in ("MUSCLE19P1", "MUSCLE19P2") if p in (msgs[-1].get("content") or "")), "?")
             sse(self.wfile, model, {"role": "assistant", "content": f"摘要回显：{marker} 的主旨与要点。"}, "stop")
+            return
+        if "DESIRE_BILINGUAL_TRANSLATE" in sys_text:
+            # 双语对照（MUSCLE23）的旁路翻译调用：按编号行回 JSON 数组，
+            # 每条 "译(<n>) <原文>"——DOM 插入的断言靠这个前缀与序号。
+            user_text = msgs[-1].get("content") or ""
+            out = []
+            for l in user_text.split("\n"):
+                if not l.strip():
+                    continue
+                num, _, text = l.partition(". ")
+                out.append(f"译({num or '?'}) {text}")
+            sse(self.wfile, model, {"role": "assistant", "content": json.dumps(out, ensure_ascii=False)}, "stop")
             return
         if "MUSCLE" not in mode:
             sse(self.wfile, model, {"role": "assistant", "content": "ok"}, "stop")
@@ -1650,6 +1677,38 @@ def main():
                                      "https://fresh-bm22.test/two",
                                      "https://fresh-bm22.test/two?x=1"))
            and urls22.count(BM_SEED) == 1 and (BM_SEED + "/") not in urls22)
+        # ── MUSCLE23：AI 双语对照（分块旁路翻译 → 段落后回填；桥直接驱动）──
+        bridge("POST", "/navigate", {"url": f"http://127.0.0.1:{API_PORT}/bipage"})
+        time.sleep(2)
+        st23 = bridge("POST", "/bilingual", {"on": True})
+        ok("双语对照：开启回执 on=true", st23.get("on") is True)
+        deadline23 = time.time() + 90
+        final23 = {}
+        while time.time() < deadline23:
+            final23 = bridge("GET", "/bilingual")
+            if not final23.get("running") and final23.get("total", 0) > 0:
+                break
+            time.sleep(1)
+        ok("双语对照：流水线收尾、全部段落翻完（done==total≥3）",
+           final23.get("done") == final23.get("total") and final23.get("total", 0) >= 3
+           and final23.get("error") in (None, "null"), final23)
+        d23 = json.loads(bridge("POST", "/execute", {"js": (
+            "JSON.stringify({nodes:document.querySelectorAll('.desire-bilingual').length,"
+            "texts:[...document.querySelectorAll('.desire-bilingual')].map(function(n){return n.textContent}),"
+            "marked:document.querySelectorAll('[data-desire-bi]').length})")}).get("result") or "{}")
+        texts23 = d23.get("texts") or []
+        ok("双语对照：译文节点数==段落数、带块标记",
+           d23.get("nodes") == final23.get("total") and d23.get("marked") == final23.get("total"), d23)
+        ok("双语对照：首条按序号对齐且含正文（fox 段）",
+           bool(texts23) and texts23[0].startswith("译(1) ")
+           and any("quick brown fox" in t for t in texts23), texts23)
+        st23b = bridge("POST", "/bilingual", {"on": False})
+        time.sleep(1)
+        d23b = json.loads(bridge("POST", "/execute", {"js": (
+            "JSON.stringify({nodes:document.querySelectorAll('.desire-bilingual').length,"
+            "marked:document.querySelectorAll('[data-desire-bi]').length})")}).get("result") or "{}")
+        ok("双语对照：关闭后译文与标记清零", st23b.get("on") is False
+           and d23b.get("nodes") == 0 and d23b.get("marked") == 0, (st23b, d23b))
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -1675,6 +1734,11 @@ def main():
                 if (g.get("title") or "") == "MUSCLE18 选题目标":
                     bridge("POST", "/promotion/goal/remove", {"id": g.get("id")})
             bridge("POST", "/promotion/review", {"kind": "dailyTopics", "action": "remove"})
+        except Exception:
+            pass
+        # 双语对照兜底（MUSCLE23）：无论如何先关掉（防在跑的批次）。
+        try:
+            bridge("POST", "/bilingual", {"on": False})
         except Exception:
             pass
         # 书签导入兜底（MUSCLE22）：循环删到无副本（find 每次只删第一条）。
@@ -1708,7 +1772,8 @@ def main():
                          or f"127.0.0.1:{API_PORT}/dl" in (t.get("url") or "")
                          or f"127.0.0.1:{API_PORT}/flaky" in (t.get("url") or "")
                          or f"127.0.0.1:{API_PORT}/article" in (t.get("url") or "")
-                         or f"127.0.0.1:{API_PORT}/fontpage" in (t.get("url") or "")]
+                         or f"127.0.0.1:{API_PORT}/fontpage" in (t.get("url") or "")
+                         or f"127.0.0.1:{API_PORT}/bipage" in (t.get("url") or "")]
                 if not stale:
                     break
                 for t in stale:

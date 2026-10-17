@@ -32,6 +32,7 @@ struct Toolbar: View {
         let toggleAgentPanel: () -> Void
         let toggleAgentFloatingPanel: () -> Void
         let toggleDevTools: () -> Void
+        let toggleBilingual: () -> Void
     }
 
     @ObservedObject var tab: Tab
@@ -46,6 +47,8 @@ struct Toolbar: View {
     let isDarkMode: Bool
     /// 站点自动播放许可（父视图按 host 派生，同 isDarkMode 的传递方式）。
     let isSiteAutoPlayAllowed: Bool
+    /// 该标签的双语对照开着与否（父视图从 BilingualReadingService 派生）。
+    let isBilingualOn: Bool
     /// Search-engine picker state, derived from `Settings`.
     let searchEngineState: SearchEngineState
     /// Not observed on purpose: the toolbar only CALLS into the model
@@ -790,6 +793,11 @@ struct Toolbar: View {
             moreMenuItem("Screenshot Region…", "crop", shortcut: "⇧⌘5") { actions.captureScreenshot() }
             Divider()
             moreMenuItem("Translate…", "translate") { actions.toggleTranslate() }
+            moreMenuItem(isBilingualOn ? "Bilingual Reading On" : "Bilingual Reading",
+                         isBilingualOn ? "character.book.closed.fill" : "character.book.closed") {
+                actions.toggleBilingual()
+            }
+            .disabled(tab.isOnNewTabPage)
             moreMenuItem("Safari Web Inspector", "ladybug", shortcut: "⇧⌘I") { actions.inspectElement() }
             moreMenuItem("DevTools Panel (Beta)", "hammer", shortcut: "⇧⌘D") { actions.toggleDevTools() }
             moreMenuItem("Responsive Design Mode", "rectangle.on.rectangle", shortcut: "⇧⌘M") { actions.toggleResponsiveMode() }

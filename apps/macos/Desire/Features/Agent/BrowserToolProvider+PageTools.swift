@@ -659,6 +659,23 @@ extension BrowserToolProvider {
             let familyText = font.fontFamily.isEmpty ? "font family off" : "font family \(font.fontFamily)"
             return "Site font for \(host): \(minText), \(familyText)"
 
+        case "bilingualTranslate":
+            guard let on = args["on"] as? Bool else { return Self.fail("Missing on") }
+            guard let bilingualTab = surface.tabManager?.selectedTab, !bilingualTab.isOnNewTabPage else {
+                return Self.fail("No active page")
+            }
+            let service = BilingualReadingService.shared
+            // toggle 的语义是"翻"，这里要的是"设成"——状态不符才动。
+            if service.isOn(tabID: bilingualTab.id) != on {
+                service.toggle(webView: bilingualTab.browser.webView,
+                               tabID: bilingualTab.id,
+                               preference: AppState.live?.aiPreference)
+            }
+            if !on {
+                return "Bilingual reading off"
+            }
+            return "Bilingual reading started — translations stream in per batch; open paragraphs to see them below the originals."
+
         case "newWindow":
             // 新窗口（菜单 File ▸ New Window 同路径）。**先激活应用再发命令**：
             // CommandBus 的消费守卫是 hostingWindow === NSApp.keyWindow，

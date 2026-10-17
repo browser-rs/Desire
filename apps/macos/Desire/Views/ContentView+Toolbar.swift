@@ -15,6 +15,7 @@ extension ContentView {
         let host = tab.browser.webView.url?.host
         let isDark = host.map { siteSettingsStore.darkModeEnabled(for: $0) } ?? false
         let isSiteAutoPlayAllowed = host.map { siteSettingsStore.autoPlayOverride(for: $0) == .allow } ?? false
+        let isBilingual = bilingualService.isOn(tabID: tab.id)
         let isBookmarked: Bool = {
             guard let url = tab.browser.webView.url?.absoluteString, !tab.isOnNewTabPage else { return false }
             return bookmarkStore.contains(url: url)
@@ -25,6 +26,7 @@ extension ContentView {
             isReadingMode: tab.browser.isReadingMode,
             isDarkMode: isDark,
             isSiteAutoPlayAllowed: isSiteAutoPlayAllowed,
+            isBilingualOn: isBilingual,
             searchEngineState: .init(
                 currentEngine: settings.searchEngine,
                 effectiveEngineName: settings.effectiveEngineName,
@@ -107,7 +109,8 @@ extension ContentView {
                 toggleSiteAutoPlay: { b.toggleSiteAutoPlay(for: tab) },
                 toggleAgentPanel: { showAgentPanel.toggle() },
                 toggleAgentFloatingPanel: { aiFloatingPanel?.toggle() },
-                toggleDevTools: { toggleDevTools() }
+                toggleDevTools: { toggleDevTools() },
+                toggleBilingual: { b.toggleBilingual(for: tab) }
             ),
             showHistory: $showHistory,
             showBookmarks: $showBookmarks,

@@ -272,7 +272,8 @@ nonisolated enum SyncAPIClient {
     /// `updatedAt` 原文 + 行 `id`；sinceID 为 nil = 旧版 ts-only 语义）。
     /// 均为 nil = 全量。
     static func pull<P: Codable>(
-        baseURL: String, domain: String, since: String?, sinceID: Int64?, accessToken: String
+        baseURL: String, domain: String, since: String?, sinceID: Int64?,
+        deviceID: String? = nil, accessToken: String
     ) async throws -> SyncPullResponse<P> {
         var path = "/sync/\(domain)"
         var query: [String] = []
@@ -282,6 +283,10 @@ nonisolated enum SyncAPIClient {
         }
         if let sinceID {
             query.append("since_id=\(sinceID)")
+        }
+        // 设备标识：服务端据此记拉取游标（通用墓碑 GC 的判定依据）。
+        if let deviceID, !deviceID.isEmpty {
+            query.append("device=\(deviceID.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? deviceID)")
         }
         if !query.isEmpty {
             path += "?" + query.joined(separator: "&")

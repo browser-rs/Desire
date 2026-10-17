@@ -6,6 +6,7 @@ use crate::errors::AppError;
 use crate::types::{ApiResponse, ApiResult, AppState};
 use crate::utils::jwt::Claims;
 
+use super::sync_gc::{self, GcReport};
 use super::sync_model::{KeyCheckBody, KeyCheckResp, SyncPullResp, SyncPushReq, SyncPushResp};
 use super::sync_service;
 
@@ -77,8 +78,39 @@ pub async fn pull(
     None => None,
     Some(raw) => Some(sync_service::parse_since_id(raw)?),
   };
+  let device = q
+    .get("device")
+    .map(|s| s.trim().to_string())
+    .filter(|s| !s.is_empty() && s.len() <= 64);
   let resp = sync_service::pull(&state, claims.sub, &domain, since, since_id).await?;
+  // 设备游标记账(v0.7.20 tombstone GC 的依据;best-effort,失败不影响拉取)。
+  if let Some(device) = device {
+    sync_gc::record_pull_cursor(&state.pool, claims.sub, &domain, &device, since, since_id).await;
+    sync_gc::maybe_gc_after_pull(&state.pool, claims.sub).await;
+  }
   api_ok!(resp)
+}
+
+/// 通用墓碑 GC(v0.7.20):回收"所有活跃设备都已越过 + 超过宽限期"的已删
+/// 条目。只作用于当前用户自己的数据;`dry_run=true` 只数不删。
+#[utoipa::path(
+  post, path = "/sync/gc", tag = "sync",
+  params(("dry_run" = Option<bool>, Query, description = "只统计不删除")),
+  responses((status = 200, body = GcReport))
+)]
+pub async fn gc(
+  State(state): State<AppState>,
+  Extension(claims): Extension<Claims>,
+  Query(q): Query<std::collections::HashMap<String, String>>,
+) -> ApiResult<GcReport> {
+  let dry_run = matches!(
+    q.get("dry_run").map(|s| s.trim().to_lowercase()).as_deref(),
+    Some("1") | Some("true") | Some("yes")
+  );
+  let report = sync_gc::gc_tombstones(&state.pool, claims.sub, dry_run)
+    .await
+    .map_err(|e| AppError::Internal(format!("sync gc failed: {e}")))?;
+  api_ok!(report)
 }
 
 #[utoipa::path(

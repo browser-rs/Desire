@@ -892,7 +892,7 @@ final class SyncStore: ObservableObject {
             pages += 1
             let response: SyncPullResponse<SyncEncryptedPayload> = try await SyncAPIClient.pull(
                 baseURL: serverBaseURL, domain: domain.rawValue,
-                since: since, sinceID: sinceID, accessToken: token
+                since: since, sinceID: sinceID, deviceID: deviceID, accessToken: token
             )
             if response.items.isEmpty { break }
             // R2-22：服务端改为 `updated_at >= 游标`（单 range 走索引序）后，

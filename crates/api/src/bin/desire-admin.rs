@@ -8,6 +8,7 @@
 //!   desire-admin user disable <username>         # 禁止登录,已有令牌全部失效
 //!   desire-admin user enable <username>
 //!   desire-admin registration status|on|off      # 注册开关(env 显式设置时优先)
+//!   desire-admin sync gc [--dry-run]             # 通用墓碑 GC(全量用户)
 //!   desire-admin stats                           # 用户数/各域同步行数
 
 use anyhow::{Context, bail};
@@ -28,6 +29,8 @@ async fn main() -> anyhow::Result<()> {
     ["user", "delete", username] => user_delete(&pool, username).await?,
     ["user", "disable", username] => user_set_status(&pool, username, 0).await?,
     ["user", "enable", username] => user_set_status(&pool, username, 1).await?,
+    ["sync", "gc"] => sync_gc_cmd(&pool, false).await?,
+    ["sync", "gc", "--dry-run"] => sync_gc_cmd(&pool, true).await?,
     ["registration", "status"] => registration_status(&pool).await?,
     ["registration", "on"] => registration_set(&pool, true).await?,
     ["registration", "off"] => registration_set(&pool, false).await?,
@@ -51,8 +54,38 @@ static USAGE: &str = "\
   user disable <username>                         # 禁止登录,已有令牌全部失效
   user enable <username>
   registration status | on | off                  # 注册开关
+  sync gc [--dry-run]                             # 通用墓碑 GC(按设备游标)
   stats                                           # 用户数 / 各域同步行数
 ";
+
+async fn sync_gc_cmd(pool: &MySqlPool, dry_run: bool) -> anyhow::Result<()> {
+  let reports = desire_api::modules::sync::sync_gc::gc_all_users(pool, dry_run).await?;
+  let mut total = 0u64;
+  for (user_id, report) in &reports {
+    let sum: u64 = report.deleted.values().sum();
+    total += sum;
+    if sum > 0 || report.stale_cursors > 0 {
+      println!(
+        "user {user_id}: {} 条墓碑{} / 过期游标 {}",
+        sum,
+        if report.deleted.is_empty() {
+          String::new()
+        } else {
+          format!("（{:?}）", report.deleted)
+        },
+        report.stale_cursors
+      );
+    }
+  }
+  println!(
+    "{}: {} 个用户，合计 {} 条墓碑{}",
+    if dry_run { "dry-run" } else { "gc" },
+    reports.len(),
+    total,
+    if dry_run { "（未删除）" } else { "" }
+  );
+  Ok(())
+}
 
 fn db_url() -> anyhow::Result<String> {
   std::env::var("DATABASE_URL").context("DATABASE_URL is required")

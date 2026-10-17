@@ -15,4 +15,5 @@ pub fn router() -> Router<AppState> {
       "/sync/key-check",
       get(sync_controller::key_check).put(sync_controller::set_key_check),
     )
+    .route("/sync/gc", axum::routing::post(sync_controller::gc))
 }

@@ -267,7 +267,7 @@ struct AgentCapabilitiesView: View {
         "导航与标签": [
             "navigate", "newTab", "listTabs", "switchTab", "closeTab",
             "closeOtherTabs", "reopenLastClosedTab", "duplicateTab",
-            "goBack", "goForward", "listTabGroups", "addTabToGroup",
+            "goBack", "goForward", "listTabGroups", "addTabToGroup", "autoGroupTabs",
             "removeTabFromGroup", "listContainers",
         ],
         "媒体提取": [

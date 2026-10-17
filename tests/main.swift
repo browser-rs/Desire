@@ -2959,6 +2959,25 @@ func testNumericWatch() {
     check("数值：旧存档解码（新字段可缺省）", decoded != nil && decoded?.watchesNumbers == false)
 }
 
+// ---------- 标签页语义聚类解析（v0.7.20）----------
+func testTabGroupCluster() {
+    let fenced = "这是分组：\n```json\n{\"groups\":[{\"name\":\"技术\",\"indices\":[0,1]},{\"name\":\"购物\",\"indices\":[2,3]}]}\n```\n完毕"
+    let plan = TabGroupCluster.parse(fenced, tabCount: 4)
+    eq("聚类：剥围栏解析两组", plan?.groups.count, 2)
+    eq("聚类：组名与下标", plan?.groups.first, TabGroupCluster.Group(name: "技术", titleIndices: [0, 1]))
+
+    let dirty = #"{"groups":[{"name":"A","indices":[0, 99, 1, 1]},{"name":"A","indices":[2,3]},{"name":"B","indices":[1]},{"name":"C","indices":["4"," 5 "]}]}"#
+    let cleaned = TabGroupCluster.parse(dirty, tabCount: 6)
+    eq("聚类：首组越界/重复剔净", cleaned?.groups.first?.titleIndices, [0, 1])
+    eq("聚类：重名加序号（A 2 出现）", cleaned?.groups.map(\.name).contains("A 2"), true)
+    eq("聚类：已占用索引/单标签组被丢弃（无 B）", cleaned?.groups.contains(where: { $0.name == "B" }), false)
+    eq("聚类：字符串下标接受（C [4,5]）", cleaned?.groups.first(where: { $0.name == "C" })?.titleIndices, [4, 5])
+
+    eq("聚类：非 JSON → nil", TabGroupCluster.parse("我觉得可以分为三组", tabCount: 4), nil)
+    eq("聚类：无有效组 → nil", TabGroupCluster.parse(#"{"groups":[{"name":"X","indices":[0]}]}"#, tabCount: 4), nil)
+    eq("聚类：单标签页 → nil", TabGroupCluster.parse(#"{"groups":[{"name":"X","indices":[0,0]}]}"#, tabCount: 1), nil)
+}
+
 // ---------- 启动页集解析（v0.7.19）----------
 func testStartupPageSet() {
     let urls = StartupPageSet.urls(from: "https://a.example  https://b.example\nhttps://c.example")
@@ -3013,6 +3032,7 @@ testAgentInboxSinceMode()
 testNumericWatch()
 testAgentBudget()
 testStartupPageSet()
+testTabGroupCluster()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

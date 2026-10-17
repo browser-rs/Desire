@@ -749,6 +749,12 @@ extension BrowserToolProvider {
 
             // --- Tab groups ---
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "autoGroupTabs", description: "Cluster the open tabs into named tab groups by TOPIC (one bypass model call; groups appear in the tab strip). Pass dryRun:true to only preview the proposed grouping without changing anything. Needs at least two tabs.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "dryRun": AgentJSONSchemaValue(type: "boolean", description: "Only preview the proposed groups (default false = apply)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "listTabGroups", description: "List all tab groups",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

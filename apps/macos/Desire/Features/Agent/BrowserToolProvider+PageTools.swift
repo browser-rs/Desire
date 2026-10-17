@@ -1131,6 +1131,58 @@ extension BrowserToolProvider {
             """)
 
         // --- Tab groups ---
+        case "autoGroupTabs":
+            // 语义聚类分组（v0.7.20）：一次旁路模型调用把标签按主题聚类，
+            // 复用 TabGroupStore 建组归位；dryRun 只回方案。输出解析/校验
+            // 全在 TabGroupCluster（纯逻辑，越界/重复/重名全收干净）。
+            let clusterDryRun = (args["dryRun"] as? Bool) ?? false
+            guard let clusterSession = ownerSession else { return Self.fail("No live agent session") }
+            guard let clusterManager = surface.tabManager, clusterManager.tabs.count >= 2 else {
+                return Self.fail("Need at least two open tabs to group")
+            }
+            let clusterTabs = clusterManager.tabs
+            let listing = clusterTabs.enumerated().map { index, tab in
+                let host = tab.browser.webView.url?.host ?? ""
+                return "\(index): \(String(tab.displayTitle.prefix(60))) — \(host)"
+            }.joined(separator: "\n")
+            let clusterRaw = await MemoryExtractor.collectText(
+                preference: clusterSession.preference,
+                system: "把浏览器的标签页按主题聚类。只输出 JSON：{\"groups\":[{\"name\":\"组名(≤12字)\",\"indices\":[索引数组]}]}。每组 2-5 个标签、最多 6 组；不相关的标签可不入任何组；不要解释、不要代码围栏。",
+                user: listing)
+            guard let clusterPlan = TabGroupCluster.parse(clusterRaw, tabCount: clusterTabs.count) else {
+                return Self.fail("Could not parse a grouping plan from the model output — try again")
+            }
+            let planText = clusterPlan.groups.map { group -> String in
+                let names = group.titleIndices
+                    .compactMap { clusterTabs.indices.contains($0) ? clusterTabs[$0].displayTitle : nil }
+                    .joined(separator: "; ")
+                return "• \(group.name): \(names)"
+            }.joined(separator: "\n")
+            if clusterDryRun {
+                return "Proposed groups (dry run — nothing changed):\n\(planText)"
+            }
+            let clusterStore = surface.tabGroupStore
+            var applied: [String] = []
+            var colorCursor = clusterStore.groups.count
+            for group in clusterPlan.groups {
+                let tabIDs = group.titleIndices.compactMap { clusterTabs.indices.contains($0) ? clusterTabs[$0].id : nil }
+                guard !tabIDs.isEmpty else { continue }
+                let target: TabGroup
+                if let existing = clusterStore.groups.first(where: { $0.name.caseInsensitiveCompare(group.name) == .orderedSame }) {
+                    target = existing
+                } else {
+                    target = clusterStore.create(name: group.name, colorIndex: colorCursor)
+                    colorCursor += 1
+                }
+                for tabID in tabIDs {
+                    clusterStore.removeTabFromAll(tabID)
+                    clusterStore.addTab(tabID, to: target.id)
+                }
+                applied.append("\(target.name)(\(tabIDs.count))")
+            }
+            guard !applied.isEmpty else { return "Nothing was grouped." }
+            return "Grouped tabs into \(applied.count) group(s): \(applied.joined(separator: ", "))"
+
         case "listTabGroups":
             let groups = surface.tabGroupStore.groups
             guard !groups.isEmpty else { return "No tab groups" }

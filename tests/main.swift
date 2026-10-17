@@ -3047,6 +3047,28 @@ testStartupPageSet()
 testTabGroupCluster()
 testMouseGestureTrail()
 
+func testSiteFont() {
+    check("字体：min 0 保持关闭", SiteFont.clampMin(0) == 0)
+    check("字体：min 越界夹到下限", SiteFont.clampMin(5) == 9)
+    check("字体：min 越界夹到上限", SiteFont.clampMin(99) == 24)
+    check("字体：min 正常值不动", SiteFont.clampMin(14) == 14)
+    let sanitized = SiteFont.clampFamily("Songti; } html{display:none")
+    check("字体：族名剥 CSS 逃逸字符",
+          !sanitized.contains(";") && !sanitized.contains("{") && !sanitized.contains("}") && sanitized.hasPrefix("Songti"))
+    check("字体：族名去空白", SiteFont.clampFamily("  Georgia  ") == "Georgia")
+    let following = SiteFont.resolve(siteMin: nil, siteFamily: nil, defaultMin: 14, defaultFamily: "Georgia")
+    check("字体：无站点值跟随全局", following.minFontSize == 14 && following.fontFamily == "Georgia")
+    let overridden = SiteFont.resolve(siteMin: 0, siteFamily: "", defaultMin: 14, defaultFamily: "Georgia")
+    check("字体：站点显式关闭覆盖全局", overridden.minFontSize == 0 && overridden.fontFamily.isEmpty)
+    check("字体：站点值覆盖全局",
+          SiteFont.resolve(siteMin: 20, siteFamily: nil, defaultMin: 14, defaultFamily: "").minFontSize == 20)
+    check("字体：两项都关不激活", !SiteFont(minFontSize: 0, fontFamily: "").isActive)
+    check("字体：任一项开就激活",
+          SiteFont(minFontSize: 12, fontFamily: "").isActive && SiteFont(minFontSize: 0, fontFamily: "Georgia").isActive)
+    check("字体：档位表含关闭档", SiteFont.sizeChoices.first == 0 && SiteFont.familyChoices.first == "")
+}
+testSiteFont()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

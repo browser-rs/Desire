@@ -518,6 +518,14 @@ extension BrowserToolProvider {
                 ], required: ["percent"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "setSiteFont", description: "Adjust fonts for the current site: raise a minimum font size for text rendering too small, and/or set a default font family (font family only affects pages that don't set their own fonts; it won't break icon fonts). Applies per-site immediately. Omit a parameter to leave it unchanged; pass 0 / empty string to turn that part off for this site; pass followDefaults=true to clear both overrides.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "minFontSize": AgentJSONSchemaValue(type: "number", description: "Minimum font size in px (0 = off for this site; clamped to 9-24)"),
+                    "fontFamily": AgentJSONSchemaValue(type: "string", description: "Default font family, e.g. \"Songti SC\" (empty string = off)"),
+                    "followDefaults": AgentJSONSchemaValue(type: "boolean", description: "Clear both per-site overrides so the site follows global defaults again"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "newWindow", description: "Open a new browser window, optionally loading a URL in it. Use listWindows to see existing windows.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "url": AgentJSONSchemaValue(type: "string", description: "URL to load in the new window (optional)"),

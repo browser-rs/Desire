@@ -634,6 +634,31 @@ extension BrowserToolProvider {
             zoomTab.applyPageZoom(Double(clamped) / 100.0, rememberIn: surface.siteSettingsStore)
             return "Zoom set to \(clamped)%"
 
+        case "setSiteFont":
+            guard let tab = surface.tabManager?.selectedTab,
+                  let host = tab.browser.webView.url?.host, !host.isEmpty else {
+                return Self.fail("No active page")
+            }
+            let store = surface.siteSettingsStore
+            // 三态与站点弹层一致：不给的键不动；0/空串 = 本站关闭；
+            // followDefaults = 两项都回到"跟随全局"。
+            if args["followDefaults"] as? Bool == true {
+                store.setMinFontSize(nil, for: host)
+                store.setFontFamily(nil, for: host)
+            } else {
+                if let minSize = args["minFontSize"] as? Int ?? (args["minFontSize"] as? Double).map(Int.init) {
+                    store.setMinFontSize(minSize, for: host)
+                }
+                if let family = args["fontFamily"] as? String {
+                    store.setFontFamily(family, for: host)
+                }
+            }
+            SiteFontApplier.apply(to: tab.browser.webView, host: host, store: store)
+            let font = store.effectiveFont(for: host)
+            let minText = font.minFontSize > 0 ? "min font \(font.minFontSize)px" : "min font off"
+            let familyText = font.fontFamily.isEmpty ? "font family off" : "font family \(font.fontFamily)"
+            return "Site font for \(host): \(minText), \(familyText)"
+
         case "newWindow":
             // 新窗口（菜单 File ▸ New Window 同路径）。**先激活应用再发命令**：
             // CommandBus 的消费守卫是 hostingWindow === NSApp.keyWindow，

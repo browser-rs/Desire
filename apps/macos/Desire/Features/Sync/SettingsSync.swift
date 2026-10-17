@@ -36,6 +36,8 @@ enum SettingsSync {
         flag("downloadDockBadge", { $0.downloadDockBadge }, { s, v in s.downloadDockBadge = v }),
         flag("askWhereToSaveDownloads", { $0.askWhereToSaveDownloads }, { s, v in s.askWhereToSaveDownloads = v }),
         number("defaultPageZoom", { $0.defaultPageZoom }, { s, v in s.defaultPageZoom = v }),
+        number("defaultMinFontSize", { Double($0.defaultMinFontSize) }, { s, v in s.defaultMinFontSize = Int(v) }),
+        text("defaultFontFamily", { $0.defaultFontFamily }, { s, v in s.defaultFontFamily = v }),
         flag("warnDangerousDownloads", { $0.warnDangerousDownloads }, { s, v in s.warnDangerousDownloads = v }),
         rawEnum("startupBehavior", { $0.startupBehavior }, { s, v in s.startupBehavior = v }),
         rawEnum("autoPlayPolicy", { $0.autoPlayPolicy }, { s, v in s.autoPlayPolicy = v }),

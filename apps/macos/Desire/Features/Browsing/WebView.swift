@@ -1835,6 +1835,13 @@ try {
             if let host = webView.url?.host, parent.siteSettingsStore.darkModeEnabled(for: host) {
                 webView.evaluateJavaScript(UserScriptLoader.load("dark-mode-inject"), completionHandler: nil)
             }
+            // 站点字体（最小字号/字体族）：站点或全局默认开着才注入——两处
+            // 都关时页面侧零开销。改值是即时的（弹层/桥/工具），这里是
+            // 导航后的常规重施（页面脚本幂等）。
+            if let host = webView.url?.host,
+               parent.siteSettingsStore.effectiveFont(for: host).isActive {
+                SiteFontApplier.apply(to: webView, host: host, store: parent.siteSettingsStore)
+            }
             // 静音态跨导航重放：documentStart 劫持随新文档重来（force 状态
             // 归零），didFinish 按本 webview 的 isMuted 补一次强制——否则
             // 静音标签翻页/刷新后声音就回来了。

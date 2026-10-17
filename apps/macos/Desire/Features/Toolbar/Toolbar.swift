@@ -108,6 +108,11 @@ struct Toolbar: View {
     @State private var showMoreMenu = false
     @State private var showSecurityInfo = false
     @State private var showExtensionsPanel = false
+    /// 站点字体弹层（非观察引用：Toolbar 只把它交给 Sheet 构造，不读它的
+    /// 状态——同 downloadStore/passwordStore 的传递方式）。
+    let siteFontStore: SiteSettingsStore
+    @State private var showFontSheet = false
+    @State private var fontSheetHost = ""
     /// Cached bookmark-state for the current page, passed from the parent.
     let isBookmarked: Bool
     /// Local editing buffer for the address field. Binding the field directly
@@ -151,6 +156,12 @@ struct Toolbar: View {
         .background(.bar)
         .popover(isPresented: $showPasswords) {
             PasswordPanel(passwordStore: passwordStore)
+        }
+        .sheet(isPresented: $showFontSheet) {
+            SiteFontSheet(host: fontSheetHost, store: siteFontStore) {
+                // 改一项立即重注入（不用刷新）。
+                SiteFontApplier.apply(to: tab.browser.webView, host: fontSheetHost, store: siteFontStore)
+            }
         }
         .onChange(of: isUrlFocused) { _, focused in
             // **聚焦时不要播种缓冲**：未聚焦期间 `.onChange(of: displayedURL)` 已经把它
@@ -758,6 +769,11 @@ struct Toolbar: View {
             .disabled(tab.isOnNewTabPage)
             moreMenuItem("Dark Mode", isDarkMode ? "moon.circle.fill" : "moon.circle") { actions.toggleDarkMode() }
                 .disabled(tab.isOnNewTabPage)
+            moreMenuItem("Page Font…", "textformat.size") {
+                fontSheetHost = tab.browser.webView.url?.host ?? ""
+                showFontSheet = true
+            }
+            .disabled(tab.isOnNewTabPage)
             moreMenuItem(isSiteAutoPlayAllowed ? "Site Auto-Play On" : "Site Auto-Play Off",
                          isSiteAutoPlayAllowed ? "play.circle.fill" : "play.circle") { actions.toggleSiteAutoPlay() }
                 .disabled(tab.isOnNewTabPage)

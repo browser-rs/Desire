@@ -1528,6 +1528,8 @@ final class AutomationServer {
                     host: Self.string(body, "host") ?? "",
                     zoom: body["zoom"] as? Double ?? 1.0
                 ))
+            case ("POST", "/site-settings/font"):
+                return try Self.json(Self.setSiteFont(body: body))
             case ("GET", "/quickdial"):
                 return try Self.json(Self.quickDial())
             case ("POST", "/quickdial/add"):
@@ -4118,10 +4120,17 @@ final class AutomationServer {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         let store = app.siteSettingsStore
         guard !host.isEmpty else { return ["error": "missing host"] }
+        let font = store.effectiveFont(for: host)
+        let own = store.fontOverride(for: host)
         return ["host": host,
                 "zoom": store.zoom(for: host),
                 "darkMode": store.darkModeEnabled(for: host),
-                "blockedSelectors": store.blockedSelectors(for: host)]
+                "blockedSelectors": store.blockedSelectors(for: host),
+                // 生效值（站点覆盖或全局默认解析后）+ 站点显式值（null = 跟随默认）。
+                "minFontSize": font.minFontSize,
+                "fontFamily": font.fontFamily,
+                "siteMinFontSize": own.min.map { $0 as Any } ?? NSNull(),
+                "siteFontFamily": own.family.map { $0 as Any } ?? NSNull()]
     }
 
     private static func setSiteDarkMode(host: String, enabled: Bool) throws -> [String: Any] {
@@ -4134,6 +4143,44 @@ final class AutomationServer {
         guard let app = AppState.live, !host.isEmpty else { return ["error": "missing host"] }
         app.siteSettingsStore.setZoom(zoom, for: host)
         return ["ok": true, "zoom": app.siteSettingsStore.zoom(for: host)]
+    }
+
+    /// 站点字体（最小字号/字体族）。三态：键**缺失** = 不动；`null` = 跟随
+    /// 默认；数值/字符串 = 显式值（0/空串 = 本站关闭）。改完对活动标签立即
+    /// 重注入——桥驱动时页面当场变化，不用刷新。
+    private static func setSiteFont(body: [String: Any]) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let host = Self.string(body, "host") ?? ""
+        guard !host.isEmpty else { return ["error": "missing host"] }
+        let store = app.siteSettingsStore
+        if body.keys.contains("minFontSize") {
+            if body["minFontSize"] is NSNull {
+                store.setMinFontSize(nil, for: host)
+            } else if let value = body["minFontSize"] as? Int {
+                store.setMinFontSize(value, for: host)
+            } else if let value = body["minFontSize"] as? Double {
+                store.setMinFontSize(Int(value), for: host)
+            }
+        }
+        if body.keys.contains("fontFamily") {
+            if body["fontFamily"] is NSNull {
+                store.setFontFamily(nil, for: host)
+            } else if let value = Self.string(body, "fontFamily") {
+                store.setFontFamily(value, for: host)
+            }
+        }
+        if let tab = TabSessionCoordinator.shared.activeTabManager?.selectedTab,
+           tab.browser.webView.url?.host == host {
+            SiteFontApplier.apply(to: tab.browser.webView, host: host, store: store)
+        }
+        let font = store.effectiveFont(for: host)
+        let own = store.fontOverride(for: host)
+        return ["ok": true,
+                "host": host,
+                "minFontSize": font.minFontSize,
+                "fontFamily": font.fontFamily,
+                "siteMinFontSize": own.min.map { $0 as Any } ?? NSNull(),
+                "siteFontFamily": own.family.map { $0 as Any } ?? NSNull()]
     }
 
     private static func quickDial() throws -> [String: Any] {

@@ -145,6 +145,7 @@ extension ContentView {
                 get: { appState.showWorkspacesPanel },
                 set: { appState.showWorkspacesPanel = $0 }
             ),
+            siteFontStore: siteSettingsStore,
             isBookmarked: isBookmarked
         )
     }

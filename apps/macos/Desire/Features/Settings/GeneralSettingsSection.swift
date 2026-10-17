@@ -86,6 +86,24 @@ struct GeneralSettingsSection: View {
                         options: [0.5, 0.75, 0.9, 1.0, 1.1, 1.25, 1.5, 2.0],
                         label: { zoomLabel($0) }
                     )
+                    SettingsRowDivider()
+                    SettingsPickerRow(
+                        "Minimum Font Size",
+                        subtitle: "Raise text smaller than this (per site: the more menu ▸ Page Font…).",
+                        systemImage: "textformat.size.smaller",
+                        selection: $settings.defaultMinFontSize,
+                        options: SiteFont.sizeChoices,
+                        label: { $0 == 0 ? "Off" : "\($0) px" }
+                    )
+                    SettingsRowDivider()
+                    SettingsPickerRow(
+                        "Default Font Family",
+                        subtitle: "Used when a page doesn't set its own fonts (per site: the more menu ▸ Page Font…).",
+                        systemImage: "textformat",
+                        selection: $settings.defaultFontFamily,
+                        options: SiteFont.familyChoices,
+                        label: { $0.isEmpty ? "Off" : $0 }
+                    )
                 }
             }
 

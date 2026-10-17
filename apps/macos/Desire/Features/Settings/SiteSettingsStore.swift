@@ -69,6 +69,56 @@ class SiteSettingsStore: ObservableObject {
         settings[domain]?.autoPlay
     }
 
+    // MARK: - 站点字体（最小字号 + 字体族）
+
+    /// 该站点**生效**的字体设置：站点显式值优先，未设跟随全局默认
+    /// （`defaultMinFontSize` / `defaultFontFamily`，设置页写入）。
+    func effectiveFont(for domain: String) -> SiteFont {
+        let global = defaultFont
+        return SiteFont.resolve(
+            siteMin: settings[domain]?.minFontSize,
+            siteFamily: settings[domain]?.fontFamily,
+            defaultMin: global.minFontSize,
+            defaultFamily: global.fontFamily
+        )
+    }
+
+    /// 全局默认（设置页两键的直读）。
+    var defaultFont: SiteFont {
+        let defaults = UserDefaults.standard
+        return SiteFont.resolve(
+            siteMin: nil,
+            siteFamily: nil,
+            defaultMin: defaults.object(forKey: "defaultMinFontSize") as? Int ?? 0,
+            defaultFamily: defaults.string(forKey: "defaultFontFamily") ?? ""
+        )
+    }
+
+    /// 站点显式值（nil = 跟随默认）——站点弹层回显用。
+    func fontOverride(for domain: String) -> (min: Int?, family: String?) {
+        (settings[domain]?.minFontSize, settings[domain]?.fontFamily)
+    }
+
+    /// `value`：nil = 跟随全局；0 = 本站关闭；9–24 = 生效值（越界夹取）。
+    func setMinFontSize(_ value: Int?, for domain: String) {
+        guard var s = settings[domain] ?? (value == nil ? nil : SiteSettings(zoom: 1.0)) else { return }
+        s.minFontSize = value.map { SiteFont.clampMin($0) }
+        settings[domain] = s
+        cleanEmpty(domain)
+        save()
+        objectWillChange.send()
+    }
+
+    /// `value`：nil = 跟随全局；空串 = 本站不覆盖；其余为字体族名。
+    func setFontFamily(_ value: String?, for domain: String) {
+        guard var s = settings[domain] ?? (value == nil ? nil : SiteSettings(zoom: 1.0)) else { return }
+        s.fontFamily = value.map { SiteFont.clampFamily($0) }
+        settings[domain] = s
+        cleanEmpty(domain)
+        save()
+        objectWillChange.send()
+    }
+
     func setAutoPlay(_ mode: SiteSettings.AutoPlay?, for domain: String) {
         // mode == nil 且站点本来就没记录 → 无事可做（别凭空造一条空记录）。
         guard var s = settings[domain] ?? (mode == nil ? nil : SiteSettings(zoom: 1.0)) else { return }
@@ -102,7 +152,8 @@ class SiteSettingsStore: ObservableObject {
     }
 
     private func cleanEmpty(_ domain: String) {
-        if let s = settings[domain], s.zoom == 1.0, !s.darkMode, s.blockedSelectors.isEmpty, s.autoPlay == nil {
+        if let s = settings[domain], s.zoom == 1.0, !s.darkMode, s.blockedSelectors.isEmpty,
+           s.autoPlay == nil, s.minFontSize == nil, s.fontFamily == nil {
             settings.removeValue(forKey: domain)
         }
     }

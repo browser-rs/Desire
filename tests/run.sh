@@ -78,6 +78,7 @@ SOURCES=(
   apps/macos/Desire/Features/Sync/SyncModels.swift
   apps/macos/Desire/Features/Agent/Memory/MemoryModels.swift
   apps/macos/Desire/Features/Agent/Memory/MemoryRetrieval.swift
+  apps/macos/Desire/Features/Settings/SiteFont.swift
   apps/macos/Desire/Features/Sync/SyncCrypto.swift
   apps/macos/Desire/Features/Sync/SyncMerge.swift
   apps/macos/Desire/Features/Sync/WhiteboardSync.swift

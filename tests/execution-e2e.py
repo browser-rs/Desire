@@ -27,7 +27,7 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
 桥 /promotion/review 一键安排每日选题采集并撤销）/
 阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）/
-备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
+站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -183,6 +183,21 @@ class TinyAPI(BaseHTTPRequestHandler):
             body = ("<!DOCTYPE html><html><head><meta charset='utf-8'>"
                     "<title>Hot List Fixture</title></head><body>"
                     f"<h1>今日热榜</h1>{items}</body></html>").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path.startswith("/fontpage"):
+            # 站点字体（MUSCLE21）的靶页：内联 10px 小字 / 无字体段落 /
+            # 自带 Monlo 的段落（验证抬升、注入、作者优先三条）。
+            body = ("<!DOCTYPE html><html><head><meta charset='utf-8'>"
+                    "<title>Font Fixture</title></head><body>"
+                    "<p id='tiny' style='font-size:10px'>tiny text</p>"
+                    "<p id='plain'>plain paragraph</p>"
+                    "<p id='authored' style='font-family:Menlo'>authored</p>"
+                    "</body></html>").encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -1572,6 +1587,34 @@ def main():
         ok("备忘录：searchNotes 太短走 Error 约定", search20.startswith("Error:"))
         ok("备忘录：校验路径不发 AppleEvent（无授权等待——回合自行收尾）",
            "MUSCLE20-DONE" in " ".join(m.get("content") or "" for m in bridge("GET", "/agent/messages").get("messages", [])))
+        # ── MUSCLE21：站点字体（最小字号 + 字体族；桥直接驱动，无模型往返）──
+        bridge("POST", "/navigate", {"url": f"http://127.0.0.1:{API_PORT}/fontpage"})
+        time.sleep(2)
+        r21 = bridge("POST", "/site-settings/font",
+                     {"host": "127.0.0.1", "minFontSize": 16, "fontFamily": "Songti SC"})
+        ok("站点字体：桥设置回执（生效值 + 站点显式值）",
+           r21.get("minFontSize") == 16 and r21.get("siteMinFontSize") == 16)
+        time.sleep(0.6)
+        probe21 = ("JSON.stringify({"
+                   "small:getComputedStyle(document.getElementById('tiny')).fontSize,"
+                   "plain:getComputedStyle(document.getElementById('plain')).fontFamily,"
+                   "authored:getComputedStyle(document.getElementById('authored')).fontFamily,"
+                   "tag:!!document.getElementById('desire-site-font-family'),"
+                   "marked:document.getElementById('tiny').hasAttribute('data-desire-minfont')})")
+        d21 = json.loads(bridge("POST", "/execute", {"js": probe21}).get("result") or "{}")
+        ok("站点字体：最小字号把内联 10px 抬到 16px（带标记）",
+           d21.get("small") == "16px" and d21.get("marked") is True)
+        ok("站点字体：字体族注入、作者字体优先（Menlo 不被覆盖）",
+           "Songti" in (d21.get("plain") or "") and d21.get("authored") == "Menlo"
+           and d21.get("tag") is True)
+        bridge("POST", "/site-settings/font",
+               {"host": "127.0.0.1", "minFontSize": None, "fontFamily": None})
+        time.sleep(0.6)
+        d21b = json.loads(bridge("POST", "/execute", {"js": (
+            "JSON.stringify({small:getComputedStyle(document.getElementById('tiny')).fontSize,"
+            "tag:!!document.getElementById('desire-site-font-family')})")}).get("result") or "{}")
+        ok("站点字体：清覆盖后原内联字号原样还原（10px / 样式移除）",
+           d21b.get("small") == "10px" and d21b.get("tag") is False)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -1599,6 +1642,12 @@ def main():
             bridge("POST", "/promotion/review", {"kind": "dailyTopics", "action": "remove"})
         except Exception:
             pass
+        # 站点字体兜底（MUSCLE21）：清掉本脚本对 127.0.0.1 的覆盖。
+        try:
+            bridge("POST", "/site-settings/font",
+                   {"host": "127.0.0.1", "minFontSize": None, "fontFamily": None})
+        except Exception:
+            pass
         # 预算兜底：恢复测试前的预算值（别把用户/环境的设置留在 500）。
         try:
             if _orig_budget is not None:
@@ -1613,7 +1662,8 @@ def main():
                          if "/fixture" in (t.get("url") or "")
                          or f"127.0.0.1:{API_PORT}/dl" in (t.get("url") or "")
                          or f"127.0.0.1:{API_PORT}/flaky" in (t.get("url") or "")
-                         or f"127.0.0.1:{API_PORT}/article" in (t.get("url") or "")]
+                         or f"127.0.0.1:{API_PORT}/article" in (t.get("url") or "")
+                         or f"127.0.0.1:{API_PORT}/fontpage" in (t.get("url") or "")]
                 if not stale:
                     break
                 for t in stale:

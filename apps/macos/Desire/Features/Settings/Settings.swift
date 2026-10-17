@@ -91,6 +91,15 @@ class Settings: ObservableObject {
     @Published var defaultPageZoom: Double {
         didSet { UserDefaults.standard.set(defaultPageZoom, forKey: "defaultPageZoom") }
     }
+    /// 网页最小字号（px，0 = 关闭）。站点无显式覆盖时生效——
+    /// SiteSettingsStore.effectiveFont 直读 UserDefaults 同名 key。
+    @Published var defaultMinFontSize: Int {
+        didSet { UserDefaults.standard.set(defaultMinFontSize, forKey: "defaultMinFontSize") }
+    }
+    /// 网页默认字体族（空 = 不覆盖）。同 defaultMinFontSize。
+    @Published var defaultFontFamily: String {
+        didSet { UserDefaults.standard.set(defaultFontFamily, forKey: "defaultFontFamily") }
+    }
     /// 高危文件类型（.dmg/.pkg/.sh 等）下载前弹确认。WebView 决策点直读
     /// UserDefaults，改动即时生效。
     @Published var warnDangerousDownloads: Bool {
@@ -156,6 +165,8 @@ class Settings: ObservableObject {
         downloadDockBadge = UserDefaults.standard.object(forKey: "downloadDockBadge") as? Bool ?? true
         askWhereToSaveDownloads = UserDefaults.standard.object(forKey: "askWhereToSaveDownloads") as? Bool ?? false
         defaultPageZoom = UserDefaults.standard.object(forKey: "defaultPageZoom") as? Double ?? 1.0
+        defaultMinFontSize = UserDefaults.standard.object(forKey: "defaultMinFontSize") as? Int ?? 0
+        defaultFontFamily = UserDefaults.standard.string(forKey: "defaultFontFamily") ?? ""
         warnDangerousDownloads = UserDefaults.standard.object(forKey: "warnDangerousDownloads") as? Bool ?? true
         startupBehavior = StartupBehavior(rawValue: UserDefaults.standard.string(forKey: "startupBehavior") ?? "") ?? .restoreSession
         startupPageSet = UserDefaults.standard.string(forKey: "startupPageSet") ?? ""

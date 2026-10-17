@@ -277,7 +277,7 @@ struct AgentCapabilitiesView: View {
             "readAloud", "stopSpeaking",
         ],
         "收藏与剪贴板": [
-            "addBookmark", "listBookmarks", "removeBookmark",
+            "addBookmark", "listBookmarks", "removeBookmark", "checkBookmarkLinks",
             "addToReadingList", "copyToClipboard", "readClipboard",
             "saveAsPDF", "printPage", "addQuickDial", "listQuickDials",
             "removeQuickDial", "getHistory", "clearHistory", "listDownloads",

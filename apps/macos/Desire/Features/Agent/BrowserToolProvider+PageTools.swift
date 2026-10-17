@@ -777,6 +777,23 @@ extension BrowserToolProvider {
             surface.bookmarkStore.add(title: title, url: url)
             return "Bookmarked: \(title)"
 
+        case "checkBookmarkLinks":
+            // 书签死链校验（v0.7.20）：长任务模式——立刻返回，后台 HEAD/GET
+            // 探测，完成发通知+会话备注；绝不自动删（报告给用户点头）。
+            guard let hlSession = ownerSession else { return Self.fail("No live agent session") }
+            let hlURLs = (args["urls"] as? [String]) ?? []
+            let hlStarted = BookmarkLinkChecker.shared.start(
+                store: surface.bookmarkStore,
+                urls: hlURLs,
+                limit: min(500, max(1, (args["limit"] as? Int) ?? 100)),
+                session: hlSession)
+            if hlStarted == 0 {
+                return BookmarkLinkChecker.shared.isRunning
+                    ? "A bookmark link check is already running."
+                    : "No http(s) bookmarks to check (pass urls to target specific ones)."
+            }
+            return "Checking \(hlStarted) bookmark link(s) in the background — results land as a session note + notification when done (nothing is deleted automatically)."
+
         case "listBookmarks":
             let all = surface.bookmarkStore.allBookmarks
             guard !all.isEmpty else { return "No bookmarks" }

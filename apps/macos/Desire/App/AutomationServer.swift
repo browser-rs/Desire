@@ -432,6 +432,8 @@ final class AutomationServer {
         ep("GET", "/bookmarks", "Bookmark leaves", example: "…/bookmarks")
         ep("POST", "/bookmarks/add", "Add bookmark", params: ["title:string", "url:string"], example: #"-d '{"title":"X","url":"https://a.b"}'"#)
         ep("POST", "/bookmarks/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
+        ep("GET", "/bookmarks/health", "Bookmark link check state (running/progress/dead/redirected)", example: "…/bookmarks/health")
+        ep("POST", "/bookmarks/health/check", "Start a background bookmark link check (nothing deleted automatically)", params: ["urls?:[string]", "limit?:int"], example: #"-d '{"limit":100}'"#)
         ep("GET", "/reading-list", "Reading list", example: "…/reading-list")
         ep("GET", "/workspaces", "Saved window workspaces (name/tabs/savedAt)", example: "…/workspaces")
         ep("POST", "/workspaces/delete", "Delete a saved workspace by name", params: ["name:string"], example: #"-d '{"name":"…"}'"#)
@@ -1560,6 +1562,30 @@ final class AutomationServer {
                 ))
             case ("POST", "/bookmarks/remove"):
                 return try Self.json(Self.removeBookmark(url: Self.string(body, "url") ?? ""))
+            case ("GET", "/bookmarks/health"):
+                let checker = BookmarkLinkChecker.shared
+                return try Self.json([
+                    "running": checker.isRunning,
+                    "total": checker.total,
+                    "checked": checker.checked,
+                    "dead": checker.dead.map { ["title": $0.title, "url": $0.url, "reason": $0.reason] },
+                    "redirected": checker.redirected.map { ["title": $0.title, "url": $0.url, "to": $0.destination] },
+                    "lastReportAt": checker.lastReportAt?.timeIntervalSince1970 ?? 0,
+                ])
+            case ("POST", "/bookmarks/health/check"):
+                guard let hlSession = Self.resolveSession(Self.string(body, "window")) else {
+                    return try Self.json(["error": "no live agent session"])
+                }
+                guard let hlApp = AppState.live else {
+                    return try Self.json(["error": "app state not ready"])
+                }
+                let hlQueued = BookmarkLinkChecker.shared.start(
+                    store: hlApp.bookmarkStore,
+                    urls: (body["urls"] as? [String]) ?? [],
+                    limit: min(500, max(1, (body["limit"] as? Int) ?? 100)),
+                    session: hlSession)
+                return try Self.json(["ok": true, "queued": hlQueued,
+                                      "running": BookmarkLinkChecker.shared.isRunning])
             case ("POST", "/tabs/pin"):
                 return try Self.json(Self.setPin(index: Self.index(body), pinned: body["pinned"] as? Bool))
             case ("GET", "/reading-list"):

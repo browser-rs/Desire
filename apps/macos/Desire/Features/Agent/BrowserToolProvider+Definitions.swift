@@ -562,6 +562,13 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: ["title": AgentJSONSchemaValue(type: "string", description: "Custom title (optional)")])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "checkBookmarkLinks", description: "Check bookmark links for dead URLs IN THE BACKGROUND: probes each http(s) bookmark (HEAD, Range-GET fallback, no body download) and reports dead links + cross-site redirects as a session note and notification when done. NOTHING is deleted automatically — relay the report and clean up only after the user agrees. Pass `urls` to target specific bookmarks.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "urls": AgentJSONSchemaValue(type: "array", description: "Only check these exact URLs (optional)", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                    "limit": AgentJSONSchemaValue(type: "number", description: "Max bookmarks this run (default 100, max 500)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "listBookmarks", description: "List all bookmarks with titles and URLs",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

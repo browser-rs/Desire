@@ -1151,9 +1151,12 @@ def main():
         save_out = next((t for t in toolsB if t.startswith('Saved workspace "E2E-MUSCLE8"')), "")
         incog_out = next((t for t in toolsB if "private tab" in t), "")
         ws_list_1 = next((t for t in toolsB if "E2E-MUSCLE8 —" in t), "")
-        tabs_after_incog = next((t for t in toolsB if "[incognito]" in t), "")
+        # 标记可能与其他标记组合出现（"[incognito,zoom 125%]"——MUSCLE7 的
+        # setZoom 自 0.7.18 起会记站点缩放，后续同站新标签带上 zoom 标记；
+        # 精确 "[incognito]" 匹配因此失效，2026-10-17 诊断定案）。用前缀匹配。
+        tabs_after_incog = next((t for t in toolsB if "[incognito" in t), "")
         if not tabs_after_incog:
-            print("MUSCLE8 诊断：未找到 [incognito] 标记；listTabs 候选输出 →",
+            print("MUSCLE8 诊断：未找到 incognito 标记；listTabs 候选输出 →",
                   [t[:160] for t in toolsB if t.startswith("[0]")][:3])
         restore_out = next((t for t in toolsB if t.startswith('Restored workspace "E2E-MUSCLE8"')), "")
         restore_idx = toolsB.index(restore_out) if restore_out in toolsB else -1
@@ -1169,7 +1172,7 @@ def main():
         ok("restoreWorkspace 替换为快照（隐私标签消失）",
            restore_out.startswith('Restored workspace "E2E-MUSCLE8"')
            and "previous tabs were replaced" in restore_out
-           and tabs_after_restore != "" and "[incognito]" not in tabs_after_restore
+           and tabs_after_restore != "" and "[incognito" not in tabs_after_restore
            and len(tabs_after_restore.splitlines()) == 2)
         # 删除后的"不在列表"用**桥端点**核（回合内的 listWorkspaces 输出
         # 都发生在删除之前——拿它当删除后的证据是刻舟求剑）。

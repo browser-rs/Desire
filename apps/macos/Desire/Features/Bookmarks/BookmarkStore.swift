@@ -113,6 +113,12 @@ class BookmarkStore: ObservableObject {
         leafURLs.contains(url)
     }
 
+    /// 现有叶子 URL 全集——导入去重向导/桥的判定输入（归一化在
+    /// BookmarkImportDedupe 里做）。
+    func importedURLSet() -> Set<String> {
+        leafURLs
+    }
+
     func find(url: String) -> Bookmark? {
         bookmarks.find { $0.url == url }
     }

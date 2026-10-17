@@ -22,6 +22,9 @@ struct BookmarkPanel: View {
     @State private var selectedIDs: Set<UUID> = []
     @State private var isSelecting = false
     @State private var expandedFolders: Set<UUID> = []
+    /// 导入去重向导的待确认项（nil = 无）。仅当解析结果里有重复时才出现——
+    /// 全新导入维持"直接进库"的原行为。
+    @State private var pendingImport: PendingBookmarkImport?
 
     private var flatItems: [FlatBookmark] {
         guard !searchText.isEmpty else {
@@ -163,6 +166,14 @@ struct BookmarkPanel: View {
             .padding(20)
             .frame(width: 300)
         }
+        .sheet(item: $pendingImport) { pending in
+            BookmarkImportDedupeSheet(sourceName: pending.sourceName, plan: pending.plan) {
+                pendingImport = nil
+            } onCommit: { keepDuplicates in
+                store.saveImported(keepDuplicates ? pending.original : pending.plan.filtered)
+                pendingImport = nil
+            }
+        }
     }
 
     @ViewBuilder
@@ -288,8 +299,23 @@ struct BookmarkPanel: View {
     private func importFrom(_ source: BookmarkImportService.ImportSource) {
         guard let bookmarks = BookmarkImportService.importBookmarks(from: source),
               !bookmarks.isEmpty else { return }
-        store.saveImported(bookmarks)
+        let plan = BookmarkImportDedupe.plan(incoming: bookmarks,
+                                             existingURLs: store.importedURLSet())
+        guard plan.hasDuplicates else {
+            store.saveImported(bookmarks)
+            return
+        }
+        pendingImport = PendingBookmarkImport(sourceName: source.displayName,
+                                              original: bookmarks, plan: plan)
     }
+}
+
+/// 去重向导的待确认载荷（面板私有；sheet(item:) 需要 Identifiable）。
+private struct PendingBookmarkImport: Identifiable {
+    let id = UUID()
+    let sourceName: String
+    let original: [Bookmark]
+    let plan: BookmarkImportDedupe.Plan
 }
 
 private struct BookmarkEditor: View {

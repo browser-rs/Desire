@@ -152,67 +152,9 @@ struct BookmarkImportService {
         return parseHTMLBookmarks(html)
     }
 
-    private static func parseHTMLBookmarks(_ html: String) -> [Bookmark] {
-        var stack: [Bookmark] = []
-        var root: [Bookmark] = []
-
-        func addToCurrent(_ item: Bookmark) {
-            if let top = stack.last, top.isFolder {
-                stack[stack.count - 1].children.append(item)
-            } else {
-                root.append(item)
-            }
-        }
-
-        var searchRange = html.startIndex..<html.endIndex
-        while let dtRange = html.range(of: "<DT>", options: [.caseInsensitive], range: searchRange) {
-            searchRange = dtRange.upperBound..<html.endIndex
-            let rest = html[searchRange]
-
-            if rest.hasPrefix("<A ") || rest.hasPrefix("<A\t") || rest.hasPrefix("<A\n") {
-                guard let hrefStart = rest.range(of: "HREF=\"", options: [.caseInsensitive]) else { continue }
-                let urlStart = hrefStart.upperBound
-                guard let urlEnd = rest[urlStart...].firstIndex(of: "\"") else { continue }
-                let url = String(rest[urlStart..<urlEnd])
-
-                let afterURL = rest[urlEnd...]
-                guard let closeTag = afterURL.range(of: "</A>", options: [.caseInsensitive]) else { continue }
-                let tagStart = afterURL.firstIndex(of: ">") ?? urlEnd
-                let titleEnd = closeTag.lowerBound
-                let title = (tagStart < titleEnd)
-                    ? String(afterURL[afterURL.index(after: tagStart)..<titleEnd])
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                        .replacingOccurrences(of: "\n", with: " ")
-                        .replacingOccurrences(of: "\t", with: " ")
-                        .components(separatedBy: .whitespaces).filter { !$0.isEmpty }.joined(separator: " ")
-                    : ""
-                searchRange = closeTag.upperBound..<html.endIndex
-                addToCurrent(Bookmark.leaf(title: title.isEmpty ? url : title, url: url))
-
-            } else if rest.hasPrefix("<H3") || rest.hasPrefix("<H3\t") || rest.hasPrefix("<H3\n") {
-                guard let closeTag = rest.range(of: "</H3>", options: [.caseInsensitive]) else { continue }
-                let titleStart = rest.firstIndex(of: ">") ?? rest.startIndex
-                let titleEnd = closeTag.lowerBound
-                let title = (titleStart < titleEnd)
-                    ? String(rest[rest.index(after: titleStart)..<titleEnd])
-                        .trimmingCharacters(in: .whitespacesAndNewlines)
-                    : ""
-                searchRange = closeTag.upperBound..<html.endIndex
-                stack.append(Bookmark.folder(title: title.isEmpty ? String(localized: "Folder") : title))
-
-            } else if rest.hasPrefix("</DL>") || rest.hasPrefix("</DL\t") || rest.hasPrefix("</DL\n") {
-                if let folder = stack.popLast() { addToCurrent(folder) }
-                searchRange = html.index(searchRange.lowerBound, offsetBy: 5)..<html.endIndex
-            } else if rest.hasPrefix("<HR") || rest.hasPrefix("<META") || rest.hasPrefix("<!") {
-                guard let end = rest.range(of: ">") else { continue }
-                searchRange = end.upperBound..<html.endIndex
-            } else if rest.hasPrefix("<p>") || rest.hasPrefix("<P>") {
-                searchRange = html.index(searchRange.lowerBound, offsetBy: 3)..<html.endIndex
-            } else {
-                searchRange = html.index(after: searchRange.lowerBound)..<html.endIndex
-            }
-        }
-        for folder in stack.reversed() { addToCurrent(folder) }
-        return root
+    /// HTML 书签文件解析（Netscape 格式）。**实现已移入 `BookmarkHTMLParser`**
+    /// （Foundation-only、进单测 harness）；这里保留薄封装供面板与桥调用。
+    static func parseHTMLBookmarks(_ html: String) -> [Bookmark] {
+        BookmarkHTMLParser.parse(html)
     }
 }

@@ -432,6 +432,7 @@ final class AutomationServer {
         ep("GET", "/bookmarks", "Bookmark leaves", example: "…/bookmarks")
         ep("POST", "/bookmarks/add", "Add bookmark", params: ["title:string", "url:string"], example: #"-d '{"title":"X","url":"https://a.b"}'"#)
         ep("POST", "/bookmarks/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
+        ep("POST", "/bookmarks/import", "Import Netscape-format bookmarks (html= or path=); duplicate plan + import; dryRun plans only, strategy=skipDuplicates|keepAll", params: ["html?/path?", "dryRun?", "strategy?"], example: #"-d '{"path":"/tmp/bm.html","dryRun":true}'"#)
         ep("GET", "/bookmarks/health", "Bookmark link check state (running/progress/dead/redirected)", example: "…/bookmarks/health")
         ep("POST", "/bookmarks/health/check", "Start a background bookmark link check (nothing deleted automatically)", params: ["urls?:[string]", "limit?:int"], example: #"-d '{"limit":100}'"#)
         ep("GET", "/reading-list", "Reading list", example: "…/reading-list")
@@ -1564,6 +1565,12 @@ final class AutomationServer {
                 ))
             case ("POST", "/bookmarks/remove"):
                 return try Self.json(Self.removeBookmark(url: Self.string(body, "url") ?? ""))
+            case ("POST", "/bookmarks/import"):
+                return try Self.json(Self.importBookmarksBridge(
+                    html: Self.string(body, "html"),
+                    path: Self.string(body, "path"),
+                    strategy: Self.string(body, "strategy") ?? "skipDuplicates",
+                    dryRun: body["dryRun"] as? Bool ?? false))
             case ("GET", "/bookmarks/health"):
                 let checker = BookmarkLinkChecker.shared
                 return try Self.json([
@@ -4508,6 +4515,45 @@ final class AutomationServer {
         }
         app.bookmarkStore.remove(bookmark)
         return ["ok": true]
+    }
+
+    /// 书签导入（去重向导的程序化孪生，Netscape HTML 格式）：`html` 或
+    /// `path` 二选一；`dryRun` 只回计划（向导同款统计 + 重复样例）；
+    /// 落库时 `strategy` = skipDuplicates（默认，只进全新条目）/ keepAll。
+    /// 面板向导走同一套 BookmarkImportDedupe 逻辑。
+    private static func importBookmarksBridge(
+        html: String?, path: String?, strategy: String, dryRun: Bool
+    ) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        var source = html
+        if source == nil, let path, !path.isEmpty {
+            source = try? String(contentsOfFile: path, encoding: .utf8)
+        }
+        guard let text = source, !text.isEmpty else { return ["error": "missing html or path"] }
+        let parsed = BookmarkImportService.parseHTMLBookmarks(text)
+        guard !parsed.isEmpty else { return ["error": "no bookmarks parsed"] }
+        let plan = BookmarkImportDedupe.plan(incoming: parsed,
+                                             existingURLs: app.bookmarkStore.importedURLSet())
+        var payload: [String: Any] = [
+            "ok": true,
+            "dryRun": dryRun,
+            "total": plan.total,
+            "fresh": plan.fresh,
+            "existingDuplicates": plan.existingDuplicates.count,
+            "innerDuplicates": plan.innerDuplicates.count,
+        ]
+        if dryRun {
+            payload["sample"] = (plan.existingDuplicates + plan.innerDuplicates).prefix(20).map {
+                ["title": $0.title, "url": $0.url, "kind": $0.kind.rawValue]
+            }
+            payload["freshSample"] = Array(plan.filtered.flatMap { $0.flattened().map(\.0) }
+                .filter { $0.isLeaf }.prefix(20).map { ["title": $0.title, "url": $0.url ?? ""] })
+        } else {
+            let toImport = strategy == "keepAll" ? parsed : plan.filtered
+            app.bookmarkStore.saveImported(toImport)
+            payload["imported"] = BookmarkImportDedupe.leafCount(toImport)
+        }
+        return payload
     }
 
     // MARK: Pins / reading list / search history

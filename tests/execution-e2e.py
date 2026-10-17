@@ -27,7 +27,7 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
 桥 /promotion/review 一键安排每日选题采集并撤销）/
 阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）/
-站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
+书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -1615,6 +1615,41 @@ def main():
             "tag:!!document.getElementById('desire-site-font-family')})")}).get("result") or "{}")
         ok("站点字体：清覆盖后原内联字号原样还原（10px / 样式移除）",
            d21b.get("small") == "10px" and d21b.get("tag") is False)
+        # ── MUSCLE22：书签导入去重（HTML 解析 + 撞库/组内划分 + 策略落库；桥直接驱动）──
+        BM_SEED = "https://seed-bm22.test/keep"
+        BM_URLS = [BM_SEED, BM_SEED + "/", "https://fresh-bm22.test/one",
+                   "https://fresh-bm22.test/two", "https://fresh-bm22.test/two?x=1"]
+        for u in BM_URLS:
+            for _ in range(5):
+                bridge("POST", "/bookmarks/remove", {"url": u})
+        bridge("POST", "/bookmarks/add", {"title": "SEED22", "url": BM_SEED})
+        bm_html = """<!DOCTYPE NETSCAPE-Bookmark-file-1>
+<TITLE>Bookmarks</TITLE><H1>Bookmarks</H1>
+<DL><p>
+  <DT><H3>ImportTest</H3>
+  <DL><p>
+    <DT><A HREF="https://seed-bm22.test/keep/">SEED22 dup</A>
+    <DT><A HREF="https://fresh-bm22.test/one">Fresh One</A>
+    <DT><A HREF="https://fresh-bm22.test/two">Fresh Two</A>
+    <DT><A HREF="https://fresh-bm22.test/two?x=1">Fresh Two Query</A>
+    <DT><A HREF="https://fresh-bm22.test/two">Fresh Two Again</A>
+  </DL><p>
+</DL><p>
+"""
+        (Path("/tmp/bm22_import.html")).write_text(bm_html)
+        r22 = bridge("POST", "/bookmarks/import", {"path": "/tmp/bm22_import.html", "dryRun": True})
+        ok("导入去重：dryRun 统计（total 5 / 撞库 1 / 组内 1 / 全新 3）",
+           r22.get("total") == 5 and r22.get("existingDuplicates") == 1
+           and r22.get("innerDuplicates") == 1 and r22.get("fresh") == 3)
+        r22b = bridge("POST", "/bookmarks/import", {"path": "/tmp/bm22_import.html"})
+        ok("导入去重：skipDuplicates 只落全新 3 条", r22b.get("imported") == 3)
+        time.sleep(1.2)
+        urls22 = [e.get("url") for e in bridge("GET", "/bookmarks").get("entries", [])]
+        ok("导入去重：全新三连在库、撞库/组内重复未进",
+           all(u in urls22 for u in ("https://fresh-bm22.test/one",
+                                     "https://fresh-bm22.test/two",
+                                     "https://fresh-bm22.test/two?x=1"))
+           and urls22.count(BM_SEED) == 1 and (BM_SEED + "/") not in urls22)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -1640,6 +1675,16 @@ def main():
                 if (g.get("title") or "") == "MUSCLE18 选题目标":
                     bridge("POST", "/promotion/goal/remove", {"id": g.get("id")})
             bridge("POST", "/promotion/review", {"kind": "dailyTopics", "action": "remove"})
+        except Exception:
+            pass
+        # 书签导入兜底（MUSCLE22）：循环删到无副本（find 每次只删第一条）。
+        try:
+            for u in ("https://seed-bm22.test/keep", "https://seed-bm22.test/keep/",
+                      "https://fresh-bm22.test/one", "https://fresh-bm22.test/two",
+                      "https://fresh-bm22.test/two?x=1"):
+                for _ in range(5):
+                    bridge("POST", "/bookmarks/remove", {"url": u})
+            Path("/tmp/bm22_import.html").unlink(missing_ok=True)
         except Exception:
             pass
         # 站点字体兜底（MUSCLE21）：清掉本脚本对 127.0.0.1 的覆盖。

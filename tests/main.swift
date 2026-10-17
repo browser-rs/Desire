@@ -3069,6 +3069,100 @@ func testSiteFont() {
 }
 testSiteFont()
 
+func testBookmarkImportDedupe() {
+    // 归一化：结构等价折叠（尾斜杠/fragment/大小写/默认端口），http≠https、查询保留
+    check("去重：尾斜杠折叠", BookmarkImportDedupe.normalize("https://A.b/X/") == "https://a.b/X")
+    check("去重：fragment 剔除", BookmarkImportDedupe.normalize("https://a.b/p#sec") == "https://a.b/p")
+    check("去重：默认端口省略", BookmarkImportDedupe.normalize("https://a.b:443/p") == "https://a.b/p")
+    check("去重：http 与 https 分开", BookmarkImportDedupe.normalize("http://a.b/p") != BookmarkImportDedupe.normalize("https://a.b/p"))
+    check("去重：查询串保留", BookmarkImportDedupe.normalize("https://a.b/p?q=1") != BookmarkImportDedupe.normalize("https://a.b/p"))
+
+    // 划分：现有撞库 / 组内重复 / 全新；文件夹空壳剔除、原本空文件夹保留
+    let incoming = [
+        Bookmark.folder(title: "F", children: [
+            Bookmark.leaf(title: "dup-existing", url: "https://x.test/p/"),   // 撞现有（尾斜杠差异）
+            Bookmark.leaf(title: "fresh-1", url: "https://x.test/new-a"),
+            Bookmark.leaf(title: "dup-inner-1", url: "https://x.test/same"),
+            Bookmark.leaf(title: "dup-inner-2", url: "https://x.test/same#frag"), // 组内重复（fragment 差异）
+        ]),
+        Bookmark.folder(title: "EmptyOk", children: []),
+        Bookmark.folder(title: "AllDup", children: [
+            Bookmark.leaf(title: "dup-existing-2", url: "https://existing.test/"),
+        ]),
+        Bookmark.leaf(title: "fresh-2", url: "https://x.test/new-b"),
+    ]
+    let plan = BookmarkImportDedupe.plan(incoming: incoming, existingURLs: ["https://x.test/p", "https://existing.test/"])
+    check("去重：叶子计数", plan.total == 6)
+    check("去重：现有重复 2 条", plan.existingDuplicates.count == 2)
+    check("去重：组内重复 1 条", plan.innerDuplicates.count == 1)
+    check("去重：全新 3 条", plan.fresh == 3)
+    check("去重：组内重复记在 withinImport", plan.innerDuplicates.first?.kind == .withinImport)
+    check("去重：过滤树保留 2 叶 + 1 空文件夹 + 2 个存活文件夹?", plan.filtered.count == 3)
+    let filteredLeaves = plan.filtered.flatMap { $0.flattened().map(\.0) }.filter { $0.isLeaf }
+    check("去重：过滤树保留全新 + 组内首现叶子（后现被剔）", filteredLeaves.count == 3
+          && filteredLeaves.contains { $0.url == "https://x.test/same" }
+          && !filteredLeaves.contains { ($0.url ?? "").hasSuffix("#frag") })
+    check("去重：子项被剔光的文件夹不保留", !plan.filtered.contains { $0.title == "AllDup" })
+    check("去重：原本空的文件夹保留", plan.filtered.contains { $0.title == "EmptyOk" })
+    check("去重：leafCount 与 total 一致", BookmarkImportDedupe.leafCount(incoming) == 6)
+    check("去重：无重复时 hasDuplicates=false",
+          !BookmarkImportDedupe.plan(incoming: [Bookmark.leaf(title: "a", url: "https://only.test/")],
+                                     existingURLs: []).hasDuplicates)
+}
+testBookmarkImportDedupe()
+
+func testBookmarkHTMLParser() {
+    // 回归：旧实现只在"紧跟 <DT> 后"检查 </DL>，真实导出里 </DL> 出现在两个
+    // <DT> 之间 → 文件夹永不回弹、整份嵌套文件解析为 0 条。以下用例都锁这条。
+    let nested = """
+    <!DOCTYPE NETSCAPE-Bookmark-file-1>
+    <H1>Bookmarks</H1>
+    <DL><p>
+        <DT><H3>Bar</H3>
+        <DL><p>
+            <DT><A HREF="https://a.test/1">One</A>
+            <DT><A HREF="https://a.test/2">Two</A>
+        </DL><p>
+        <DT><H3>Menu</H3>
+        <DL><p>
+            <DT><A HREF="https://b.test/3">Three</A>
+        </DL><p>
+        <DT><A HREF="https://c.test/4">Root Leaf</A>
+    </DL><p>
+    """
+    let parsed = BookmarkHTMLParser.parse(nested)
+    check("HTML 解析：两个文件夹 + 一条根级叶子", parsed.count == 3)
+    check("HTML 解析：Bar 组两条", parsed.first?.children.count == 2
+          && parsed.first?.title == "Bar")
+    check("HTML 解析：Menu 组一条（兄弟文件夹不嵌套）", parsed.count > 1
+          && parsed[1].title == "Menu" && parsed[1].children.count == 1)
+    check("HTML 解析：根级叶子落在根", parsed.last?.isLeaf == true
+          && parsed.last?.url == "https://c.test/4")
+
+    let flat = """
+    <DL><p>
+    <DT><A HREF="https://x.test/a">A</A>
+    <DT><A HREF="https://x.test/b">B &amp; tagged</A>
+    </DL><p>
+    """
+    let flatParsed = BookmarkHTMLParser.parse(flat)
+    check("HTML 解析：平铺文件不被误伤", flatParsed.count == 2
+          && flatParsed.allSatisfy { $0.isLeaf })
+
+    // 空标题退回 URL；未闭合文件夹也收进结果（不丢数据）。
+    let truncated = """
+    <DL><p>
+    <DT><A HREF="https://d.test/5"></A>
+    <DT><H3>Unclosed</H3>
+    <DL><p>
+    <DT><A HREF="https://d.test/6">Six</A>
+    """
+    let truncParsed = BookmarkHTMLParser.parse(truncated)
+    check("HTML 解析：空标题退回 URL", truncParsed.first?.title == "https://d.test/5")
+    check("HTML 解析：未闭合文件夹收尾不丢", truncParsed.contains { $0.title == "Unclosed" && $0.children.count == 1 })
+}
+testBookmarkHTMLParser()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

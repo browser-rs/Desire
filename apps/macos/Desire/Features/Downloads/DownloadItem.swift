@@ -19,6 +19,9 @@ struct DownloadItem: Identifiable {
     var startTime: Date = Date()
     var lastUpdateTime: Date = Date()
     var speed: Int64 = 0 // bytes per second
+    /// 并发上限排队中（v0.7.19）：有意**不动 State 枚举**——排队不是新生命周期
+    /// 态（不进 HistoryItem/同步面），只是一个等待标记；传输名额空出即开始。
+    var isQueued: Bool = false
     /// Download originated in an incognito tab — never persisted to the
     /// shared download history (in-memory only, like resumeData).
     var isPrivate: Bool = false

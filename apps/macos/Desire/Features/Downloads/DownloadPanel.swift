@@ -26,6 +26,8 @@ struct DownloadPanel: View {
     @AppStorage("batch.onboardingDone") private var batchOnboardingDone = false
     @State private var showBatchOnboarding = false
     @ObservedObject var mediaStore = MediaExportStore.shared
+    /// 预览 sheet 的文件（v0.7.19）。
+    @State private var previewURL: URL?
 
     @State private var searchText = ""
     @State private var showBatchTasks = false
@@ -82,6 +84,14 @@ struct DownloadPanel: View {
             BatchDownloadSettingsContent(isOnboarding: true)
                 .padding(22)
                 .frame(width: 520)
+        }
+        .sheet(isPresented: Binding(
+            get: { previewURL != nil },
+            set: { if !$0 { previewURL = nil } }
+        )) {
+            if let url = previewURL {
+                DownloadPreviewSheet(fileURL: url) { previewURL = nil }
+            }
         }
         .sheet(isPresented: $showBatchSettings) {
             BatchDownloadSettingsContent()
@@ -321,7 +331,8 @@ struct DownloadPanel: View {
                         Section {
                             VStack(spacing: 0) {
                                 ForEach(items) { item in
-                                    DownloadRow(item: item, store: store)
+                                    DownloadRow(item: item, store: store,
+                                                onPreview: { previewURL = $0 })
                                     if item.id != items.last?.id {
                                         RowSeparator()
                                     }
@@ -442,6 +453,8 @@ private struct DownloadRow: View {
     @Environment(\.appAccent) private var appAccent: Color
     let item: DownloadItem
     @ObservedObject var store: DownloadStore
+    /// 行内预览（v0.7.19）：完成的本地文件走 QuickLook 内嵌 sheet。
+    let onPreview: (URL) -> Void
 
     @State private var isHovering = false
 
@@ -453,7 +466,7 @@ private struct DownloadRow: View {
             VStack(alignment: .leading, spacing: 3) {
                 titleLine
                 statusLine
-                if item.state == .inProgress {
+                if item.state == .inProgress && !item.isQueued {
                     ProgressBar(
                         progress: item.progress,
                         indeterminate: item.isIndeterminate,
@@ -547,6 +560,10 @@ private struct DownloadRow: View {
     @ViewBuilder
     private var statusLine: some View {
         switch item.state {
+        case .inProgress where item.isQueued:
+            Text("Waiting for a download slot…")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
         case .inProgress where item.isPaused:
             HStack(spacing: 4) {
                 Text("Paused").foregroundStyle(.orange)
@@ -676,6 +693,9 @@ private struct DownloadRow: View {
         case .completed:
             Button("Open") { store.openFile(item) }
             Button("Show in Finder") { store.revealInFinder(item) }
+            if let url = item.fileURL, FileManager.default.fileExists(atPath: url.path) {
+                Button("Preview") { onPreview(url) }
+            }
         case .failed:
             Button("Retry") { store.retry(item) }
         }

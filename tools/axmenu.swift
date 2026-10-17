@@ -1,36 +1,10 @@
-// axmenu — 用无障碍树驱动**右键菜单与表单 sheet**（axpress 够不着的场景）。
-//
-// 用法：axmenu <pid> <task> [args…]
-//   dump                        打开第一个胶囊的右键菜单并列出条目（探查用）
-//   create <组名> [胶囊标题子串]   菜单→添加到分组→新建分组…→ sheet 填名→创建
-//   collapse <组名> [胶囊标题子串] 菜单→(分组: 组名)→折叠分组
-//   rename <旧组名> <新组名>      对「折叠胶囊/侧栏行」（标题=组名）开菜单→
-//                                重命名分组…→ sheet 填名→重命名
-//   delete <组名>                同上路径→删除分组
-//
-// 为什么存在：CGEvent.postToPid 的鼠标事件在 darwin 27 上不再被主窗消费
-// （见 AGENTS.md），SwiftUI 层的右键菜单没有坐标注入路径。AX 路线：
-// kAXShowMenuAction 打开菜单 → 全树找 AXMenuItem 按标题 AXPress →
-// NSAlert 的 sheet 是原生控件（AXTextField 直接 SetAttributeValue 填值、
-// AXButton AXPress 提交）。
-//
-// 三个实测坑（写新 task 前先读）：
-// ① **菜单项标题是本地化后的文案**（"新建分组…" 而非 "New Group…"）——
-//    别凭源码字符串写匹配；先 `dump` 看真实标题（全角/半角冒号都可能不同：
-//    "分组: %@" 是半角冒号）。
-// ② **子菜单项在子菜单被展开前不进 AX 树**——两级条目要先把父项 press
-//    再找子项（本工具的 create/rename 都是这么走的）。
-// ③ **折叠组胶囊是 AXButton（标题 '组名、数量'）**，普通胶囊是
-//    AXStaticText——按角色写死会找不到；按标题子串 + AXShowMenu 动作名筛。
 import ApplicationServices
 import Foundation
 
+// AX 驱动标签组菜单：axmenu <pid> <task> [args...]
+// tasks: create <name> | collapse <groupName> | rename <oldName> <newName> | delete <groupName> | dump
 let args = CommandLine.arguments
-let pid = args.count > 1 ? Int32(args[1]) ?? 0 : 0
-guard pid != 0, args.count >= 3 else {
-    print("usage: axmenu <pid> <dump|create|collapse|rename|delete> [args…]")
-    exit(2)
-}
+guard args.count >= 3, let pid = Int32(args[1]) else { print("usage"); exit(2) }
 let task = args[2]
 let app = AXUIElementCreateApplication(pid)
 
@@ -59,9 +33,7 @@ func findAll(_ root: AXUIElement, role want: String, contains: String? = nil, de
     for k in kids(root) { out += findAll(k, role: want, contains: contains, depth: depth + 1) }
     return out
 }
-func perform(_ el: AXUIElement, _ action: String) -> AXError {
-    AXUIElementPerformAction(el, action as CFString)
-}
+func perform(_ el: AXUIElement, _ action: String) -> AXError { AXUIElementPerformAction(el, action as CFString) }
 func esc() {
     if let e = CGEvent(keyboardEventSource: nil, virtualKey: 53, keyDown: true) { e.post(tap: .cghidEventTap) }
     if let e = CGEvent(keyboardEventSource: nil, virtualKey: 53, keyDown: false) { e.post(tap: .cghidEventTap) }
@@ -77,22 +49,23 @@ func pressItem(_ substr: String) -> Bool {
     print("not found: \(substr)")
     return false
 }
-/// 打开右键菜单：`titled` = nil 时取标签栏第一个普通胶囊（AXStaticText），
-/// 否则按标题子串找任意角色（折叠胶囊是 AXButton '组名、数量'）。
+// 打开胶囊/胶囊组 pill 的右键菜单：找滚动区里标题匹配的静态文本（带 AXShowMenu）
 func showMenu(titled: String? = nil) -> Bool {
     var winsRef: CFTypeRef?
     AXUIElementCopyAttributeValue(app, kAXWindowsAttribute as CFString, &winsRef)
-    guard let wins = winsRef as? [AXUIElement], let win = wins.first else { print("no window"); return false }
+    guard let wins = winsRef as? [AXUIElement], !wins.isEmpty else { print("no window"); return false }
     var pool: [AXUIElement] = []
     if titled == nil {
-        pool = findAll(win, role: "AXStaticText")
+        // 普通胶囊 = 标签栏里的 AXStaticText（取第一个窗口的第一个）
+        pool = findAll(wins[0], role: "AXStaticText")
     } else {
+        // **跨全部窗口**（popover/面板是独立窗口——下载面板的行不在首窗里）。
         func collect(_ el: AXUIElement, _ depth: Int) {
             guard depth < 12 else { return }
             pool.append(el)
             for k in kids(el) { collect(k, depth + 1) }
         }
-        collect(win, 0)
+        for win in wins { collect(win, 0) }
     }
     for t in pool where !title(t).isEmpty {
         if let wanted = titled, !title(t).contains(wanted) { continue }
@@ -106,7 +79,7 @@ func showMenu(titled: String? = nil) -> Bool {
     print("no menu target (titled: \(titled ?? "*"))")
     return false
 }
-/// NSAlert sheet：填文本 + 按按钮（标题子串匹配，等 sheet 出现最多 ~3s）。
+// alert sheet 填值 + 按按钮
 func typeSheet(_ value: String, button: String) -> Bool {
     var sheet: AXUIElement?
     for _ in 0..<10 {
@@ -124,7 +97,7 @@ func typeSheet(_ value: String, button: String) -> Bool {
         print("pressed button: \(title(b))")
         return true
     }
-    print("button not found: \(button)")
+    print("button not found: \(button)；现有：", findAll(sheet, role: "AXButton").map { title($0) })
     return false
 }
 
@@ -135,6 +108,8 @@ case "dump":
     esc()
 case "create":
     esc()
+    // 可选：第 4 参 = 目标胶囊标题子串（侧栏开启时第一个 AXStaticText 是侧栏行，
+    // 建首个组必须指名顶栏胶囊）。
     let target = args.count > 4 ? args[4] : nil
     guard showMenu(titled: target), pressItem("添加到分组") || pressItem("Add to Group") else { exit(1) }
     guard pressItem("新建分组") || pressItem("New Group") else { exit(1) }
@@ -148,6 +123,7 @@ case "collapse":
     guard pressItem("折叠") || pressItem("Collapse") else { exit(1) }
 case "rename":
     esc()
+    // pill 是折叠组在标签栏的静态文本（标题 = 组名）——直接对它开菜单
     guard showMenu(titled: args[3]) else { exit(1) }
     guard pressItem("重命名分组") || pressItem("Rename Group") else { exit(1) }
     guard typeSheet(args[4], button: "重命名") || typeSheet(args[4], button: "Rename") else { exit(1) }
@@ -155,6 +131,11 @@ case "delete":
     esc()
     guard showMenu(titled: args[3]) else { exit(1) }
     guard pressItem("删除分组") || pressItem("Delete Group") else { exit(1) }
+case "showmenu-press":
+    // 通用：对标题含 args[3] 的元素开右键菜单，按标题含 args[4] 的条目 press。
+    esc()
+    guard showMenu(titled: args.count > 3 ? args[3] : nil) else { exit(1) }
+    guard pressItem(args.count > 4 ? args[4] : "") else { exit(1) }
 default:
     print("unknown task"); exit(2)
 }

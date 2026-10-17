@@ -405,8 +405,66 @@ class DownloadStore: ObservableObject {
         return sections
     }
 
+    // MARK: - 并发上限（v0.7.19）
+
+    /// 同时传输的下载上限（UserDefaults "maxConcurrentDownloads"；0 = 不限）。
+    /// WebKit 的 WKDownload 没有节流 API——限速做不了真的（勿做假 UI）；
+    /// 并发是能真控的：超限的下载在 `decideDestinationUsing` 处被挂起
+    /// （completionHandler 不回调 = WebKit 不开始传输），名额空出再放行。
+    var maxConcurrentDownloads: Int {
+        UserDefaults.standard.object(forKey: "maxConcurrentDownloads") as? Int ?? 0
+    }
+
+    /// 正在传输的条数（inProgress 且非暂停/非排队）。
+    var activeTransferCount: Int {
+        downloads.filter { $0.state == .inProgress && !$0.isPaused && !$0.isQueued }.count
+    }
+
+    /// 为一次将要开始的下载预留名额；超限返回 false。**必须传 excluding：**
+    /// 新下载的 item 已在 downloads 里（inProgress）——不排除它会把自己算进
+    /// 进行中计数，上限=1 时第一条就自锁（实测踩过）。
+    func beginTransferIfAllowed(excluding id: UUID? = nil) -> Bool {
+        let limit = maxConcurrentDownloads
+        guard limit > 0 else { return true }
+        let active = downloads.filter {
+            $0.state == .inProgress && !$0.isPaused && !$0.isQueued && $0.id != id
+        }.count
+        return active < limit
+    }
+
+    /// 排队（超并发上限）：走**既有暂停机制**停成 resumeData——挂住
+    /// decideDestination 的版本实测会把 parked 下载判失败（WebKit 的等待
+    /// 窗口/连接语义不可赌），而 pause/resume 是本应用已充分验证的一条路。
+    func pauseForQueue(id: UUID) {
+        markQueued(id: id)
+        pause(id: id)
+    }
+
+    /// 名额空出、放行排队项：清排队标记 → 走既有 resume（checkpoint 未到位
+    /// 会由 pendingResumeIDs 接力，竞态安全）。
+    func resumeFromQueue(id: UUID) {
+        markUnqueued(id: id)
+        resume(id: id)
+    }
+
+    func markQueued(id: UUID) {
+        guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
+        downloads[i].isQueued = true
+    }
+
+    func markUnqueued(id: UUID) {
+        guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
+        downloads[i].isQueued = false
+    }
+
+    /// 名额可能空出的统一出口（完成/失败/移除/暂停）——等待队列回泵。
+    private func postSlotFreed() {
+        NotificationCenter.default.post(name: .downloadSlotFreed, object: nil)
+    }
+
     func complete(id: UUID) {
         guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
+        downloads[i].isQueued = false
         downloads[i].state = .completed
         if let url = downloads[i].fileURL,
            let size = (try? FileManager.default.attributesOfItem(atPath: url.path)[.size]) as? Int64 {
@@ -423,16 +481,19 @@ class DownloadStore: ObservableObject {
             "bytes": downloads[i].downloadedBytes, "private": downloads[i].isPrivate,
         ])
         queueCompletionNotification(filename: downloads[i].filename)
+        postSlotFreed()
     }
 
     func fail(id: UUID, message: String) {
         guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
         downloads[i].state = .failed
+        downloads[i].isQueued = false
         downloads[i].error = message
         saveHistory()
         BridgeEventBus.shared.publish("downloadFailed", [
             "id": id.uuidString, "file": downloads[i].filename, "error": message,
         ])
+        postSlotFreed()
     }
 
     func remove(id: UUID) {
@@ -442,6 +503,7 @@ class DownloadStore: ObservableObject {
         }
         downloads.removeAll { $0.id == id }
         saveHistory()
+        postSlotFreed()
     }
 
     func clearFinished() {
@@ -898,4 +960,11 @@ func formatTimeRemaining(_ seconds: TimeInterval) -> String {
     } else {
         return String(localized: "\(secs)s")
     }
+}
+
+
+extension Notification.Name {
+    /// 一个传输名额空出（下载完成/失败/移除/暂停）——各 webview 协调器的
+    /// 等待队列监听它做回泵（v0.7.19 并发上限）。
+    static let downloadSlotFreed = Notification.Name("desire.downloadSlotFreed")
 }

@@ -3502,6 +3502,10 @@ final class AutomationServer {
                 "file": item.filename,
                 "state": item.state.rawValue,
                 "paused": item.isPaused,
+                // 并发上限排队中（v0.7.19）。
+                "queued": item.isQueued,
+                "path": item.fileURL?.path ?? "",
+                "source": item.sourceURL?.absoluteString ?? "",
                 "bytes": item.downloadedBytes,
                 "total": item.totalBytes,
                 "private": item.isPrivate,

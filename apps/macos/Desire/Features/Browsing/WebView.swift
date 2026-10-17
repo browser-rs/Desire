@@ -646,6 +646,8 @@ struct WebView: NSViewRepresentable {
         var lastNavigatedURL: String?
         private var observations: [NSKeyValueObservation] = []
         private var activeDownloads: [ObjectIdentifier: DownloadInfo] = [:]
+        /// 并发上限（v0.7.19）：名额空出通知的观察句柄（一次安装）。
+        private var slotObserver: NSObjectProtocol?
         /// Partial destination file for in-flight RESUMED downloads, keyed by
         /// the new WKDownload object (cleared once decideDestination runs).
         private var resumeDestinations: [ObjectIdentifier: URL] = [:]
@@ -2609,6 +2611,14 @@ try {
                 Task { await self?.resumeDownload(data, itemID: id) }
             }
             parent.downloadStore.add(item: item)
+            // 并发上限（v0.7.19）：超限就**按既有暂停机制**把这条停成
+            // resumeData 排队（挂住 decideDestination 赌 WebKit 等待窗口的
+            // 版本实测会把 parked 下载判失败，弃用）；名额空出由
+            // .downloadSlotFreed 回泵，走同一条 checkpoint 竞态安全路径。
+            if !parent.downloadStore.beginTransferIfAllowed(excluding: id) {
+                parent.downloadStore.pauseForQueue(id: id)
+                installSlotObserverIfNeeded()
+            }
             let observation = download.progress.observe(\.fractionCompleted) { [weak self] progress, _ in
                 Task { @MainActor [weak self] in
                     self?.parent.downloadStore.updateProgress(
@@ -2639,6 +2649,26 @@ try {
                 )
             }
             completionHandler(destination)
+        }
+
+        /// 名额空出的回泵（v0.7.19 并发上限）：放行排队项（走既有 resume 路径，
+        /// checkpoint 未到位由 pendingResumeIDs 接力）。
+        private func pumpQueuedDownloads() {
+            for item in parent.downloadStore.downloads where item.isQueued {
+                guard parent.downloadStore.beginTransferIfAllowed(excluding: item.id) else { break }
+                parent.downloadStore.resumeFromQueue(id: item.id)
+            }
+        }
+
+        private func installSlotObserverIfNeeded() {
+            guard slotObserver == nil else { return }
+            slotObserver = NotificationCenter.default.addObserver(
+                forName: .downloadSlotFreed, object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.pumpQueuedDownloads()
+                }
+            }
         }
 
         func downloadDidFinish(_ download: WKDownload) {

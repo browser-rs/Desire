@@ -400,6 +400,15 @@ struct GeneralSettingsSection: View {
                         }
                     )
                     SettingsRowDivider()
+                    SettingsPickerRow(
+                        "Simultaneous Downloads",
+                        subtitle: "Limit how many files download at once — extra downloads wait in the list (per window). WebKit has no per-download throttle API, so this is the available real control.",
+                        systemImage: "arrow.down.circle.dotted",
+                        selection: maxConcurrentDownloadsBinding,
+                        options: [0, 1, 2, 3, 4, 6],
+                        label: { value in value == 0 ? String(localized: "Unlimited") : "\(value)" }
+                    )
+                    SettingsRowDivider()
                     FolderPathRow(
                         title: "Screenshot Save Location",
                         subtitle: "Where captured screenshots are written.",
@@ -483,6 +492,15 @@ struct GeneralSettingsSection: View {
         case .light: "Light"
         case .dark: "Dark"
         }
+    }
+
+    /// 并发下载上限（0 = 不限；UserDefaults 直写——DownloadStore 现读现用，
+    /// 无需发布链）。
+    private var maxConcurrentDownloadsBinding: Binding<Int> {
+        Binding(
+            get: { UserDefaults.standard.object(forKey: "maxConcurrentDownloads") as? Int ?? 0 },
+            set: { UserDefaults.standard.set($0, forKey: "maxConcurrentDownloads") }
+        )
     }
 
     private func startupLabel(_ behavior: StartupBehavior) -> String {

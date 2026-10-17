@@ -42170,6 +42170,75 @@
           }
         }
       }
+    },
+    "Simultaneous Downloads" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Simultaneous Downloads"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同时下载数"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同時下載數"
+          }
+        }
+      }
+    },
+    "Waiting for a download slot…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Waiting for a download slot…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待下载空位…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "等待下載空位…"
+          }
+        }
+      }
+    },
+    "Limit how many files download at once — extra downloads wait in the list (per window). WebKit has no per-download throttle API, so this is the available real control." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Limit how many files download at once — extra downloads wait in the list (per window). WebKit has no per-download throttle API, so this is the available real control."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "限制同时下载的文件数，超出的在列表里排队等待（按窗口计）。WebKit 没有单下载节流 API，这是能做到的真控制。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "限制同時下載的檔案數，超出的在清單裡排隊等待（依視窗計）。WebKit 沒有單下載節流 API，這是能做到的真控制。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -28,10 +28,13 @@ enum SessionRestore {
         let videoAdBlocker: VideoAdBlocker?
         /// 会话身份绑定（SwiftUI @Binding 的直写由调用方完成，这里传出新 id）。
         let existingSessionID: UUID?
-        /// 崩溃恢复提示（UI 回调——View 层渲染 toast）。
-        let onCrashRestoreNotice: (() -> Void)?
+        /// 启动提示（UI 回调——View 层渲染 toast）。文案在此拼好：
+        /// 崩溃恢复（带标签数）或"异常退出但按启动设置打开"两种。
+        let onStartupNotice: ((String) -> Void)?
         /// 打开新标签（走 BrowsingActions，保持与新标签页语义一致）。
         let openFreshTab: () -> Void
+        /// 按启动设置打开一组 URL（主页/指定页集）；多条时都开。
+        let openStartupURLs: (([String]) -> Void)?
     }
 
     /// 执行恢复。返回窗口应绑定的会话 UUID（可能因采纳而改变）。
@@ -63,44 +66,78 @@ enum SessionRestore {
         }
 
         // First window with no own session — adopt the most recent session
-        // from the termination index (continue where you left off).
+        // from the termination index (continue where you left off), unless the
+        // user chose a different startup behavior (v0.7.19: home / page set).
         context.appState.hasRestoredSession = true
-        guard context.settings.startupBehavior == .restoreSession,
-              let lastKey = TabSessionCoordinator.shared.mostRecentSessionKey(),
-              lastKey != sessionKey,
-              let session = TabSessionCoordinator.shared.session(forKey: lastKey),
-              !session.tabs.isEmpty else {
-            TabSessionCoordinator.shared.pruneOrphanSessions(keeping: [sessionKey])
-            if let legacy = TabSessionCoordinator.shared.takeLegacySession() {
-                manager.apply(
-                    session: legacy,
-                    javaScriptEnabled: context.settings.isJavaScriptEnabled,
-                    contentBlocker: context.contentBlocker,
-                    videoAdBlocker: context.videoAdBlocker
-                )
-            } else {
-                context.openFreshTab()
+        let crashed = TabSessionCoordinator.shared.launchedAfterCrash
+        if context.settings.startupBehavior == .restoreSession,
+           let lastKey = TabSessionCoordinator.shared.mostRecentSessionKey(),
+           lastKey != sessionKey,
+           let session = TabSessionCoordinator.shared.session(forKey: lastKey),
+           !session.tabs.isEmpty {
+            // 崩溃回收（0.3.8）：上次异常终止——提示已恢复到崩溃前最后写入的
+            // 会话（v0.7.19：带标签数，把"恢复了几扇窗"说清）。
+            if crashed {
+                context.onStartupNotice?(
+                    String(localized: "Restored after an unexpected quit — \(session.tabs.count) tab(s) back"))
             }
-            return Result(sessionID: sessionID, sessionKey: sessionKey)
+            // Re-bind the window to the adopted identity so all future persists
+            // land on the same session file.
+            manager.sessionKey = lastKey
+            manager.apply(
+                session: session,
+                javaScriptEnabled: context.settings.isJavaScriptEnabled,
+                contentBlocker: context.contentBlocker,
+                videoAdBlocker: context.videoAdBlocker
+            )
+            // Deliberately NOT pruning here: consuming the index would leave the
+            // next launch with nothing to adopt. This window now persists under
+            // `lastKey`, and the next clean quit rewrites the index with it.
+            return Result(sessionID: sessionID, sessionKey: lastKey)
         }
 
-        // 崩溃回收（0.3.8）：上次异常终止——提示用户已恢复到崩溃前最后
-        // 写入的会话（非上次干净退出时的）。
-        if TabSessionCoordinator.shared.launchedAfterCrash {
-            context.onCrashRestoreNotice?()
+        TabSessionCoordinator.shared.pruneOrphanSessions(keeping: [sessionKey])
+        if let legacy = TabSessionCoordinator.shared.takeLegacySession() {
+            manager.apply(
+                session: legacy,
+                javaScriptEnabled: context.settings.isJavaScriptEnabled,
+                contentBlocker: context.contentBlocker,
+                videoAdBlocker: context.videoAdBlocker
+            )
+            return Result(sessionID: sessionID, sessionKey: sessionKey)
         }
-        // Re-bind the window to the adopted identity so all future persists
-        // land on the same session file.
-        manager.sessionKey = lastKey
-        manager.apply(
-            session: session,
-            javaScriptEnabled: context.settings.isJavaScriptEnabled,
-            contentBlocker: context.contentBlocker,
-            videoAdBlocker: context.videoAdBlocker
-        )
-        // Deliberately NOT pruning here: consuming the index would leave the
-        // next launch with nothing to adopt. This window now persists under
-        // `lastKey`, and the next clean quit rewrites the index with it.
-        return Result(sessionID: sessionID, sessionKey: lastKey)
+        // 按启动设置开页面：主页 / 指定页集（解析失败即退回新标签页）。
+        switch context.settings.startupBehavior {
+        case .pageSet:
+            let urls = StartupPageSet.urls(from: context.settings.startupPageSet)
+            if !urls.isEmpty {
+                context.openStartupURLs?(urls)
+                if crashed {
+                    context.onStartupNotice?(
+                        String(localized: "Last quit was unexpected — opened your startup pages"))
+                }
+                return Result(sessionID: sessionID, sessionKey: sessionKey)
+            }
+            context.openFreshTab()
+        case .homePage:
+            let home = context.settings.homePage.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !home.isEmpty, let url = URL(string: home),
+               let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" {
+                context.openStartupURLs?([home])
+                if crashed {
+                    context.onStartupNotice?(
+                        String(localized: "Last quit was unexpected — opened your homepage"))
+                }
+                return Result(sessionID: sessionID, sessionKey: sessionKey)
+            }
+            context.openFreshTab()
+        case .newTabPage, .restoreSession:
+            context.openFreshTab()
+        }
+        if crashed {
+            context.onStartupNotice?(
+                String(localized: "Last quit was unexpected — started with a fresh tab"))
+        }
+        return Result(sessionID: sessionID, sessionKey: sessionKey)
     }
 }

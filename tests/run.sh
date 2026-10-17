@@ -8,6 +8,7 @@ OUT="$(mktemp -d)/puretests"
 SOURCES=(
   apps/macos/Desire/Features/Agent/AgentMessage.swift
   apps/macos/Desire/Features/Agent/AgentBudget.swift
+  apps/macos/Desire/Features/Settings/TabBehavior.swift
   apps/macos/Desire/Features/Agent/AgentGuard.swift
   apps/macos/Desire/Features/Agent/HeartbeatDecision.swift
   apps/macos/Desire/Features/Agent/SkillAuthoring.swift

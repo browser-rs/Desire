@@ -2959,6 +2959,19 @@ func testNumericWatch() {
     check("数值：旧存档解码（新字段可缺省）", decoded != nil && decoded?.watchesNumbers == false)
 }
 
+// ---------- 启动页集解析（v0.7.19）----------
+func testStartupPageSet() {
+    let urls = StartupPageSet.urls(from: "https://a.example  https://b.example\nhttps://c.example")
+    eq("页集：空白/换行分隔 → 3 条", urls.count, 3)
+    eq("页集：顺序保持", urls.first, "https://a.example")
+    let filtered = StartupPageSet.urls(from: "https://a.example ftp://nope.example javascript:alert(1) notaurl https://a.example")
+    eq("页集：非 http(s)/非法/重复被滤", filtered, ["https://a.example"])
+    var many = ""
+    for i in 0..<20 { many += "https://e\(i).example " }
+    eq("页集：封顶 10 条", StartupPageSet.urls(from: many).count, 10)
+    eq("页集：空输入 → 空", StartupPageSet.urls(from: "   \n  ").count, 0)
+}
+
 // ---------- 会话预算（v0.7.18）----------
 func testAgentBudget() {
     // 状态：off / within / warning（≥80%）/ stopped（≥当前档位额度）
@@ -2999,6 +3012,7 @@ testSessionArchive()
 testAgentInboxSinceMode()
 testNumericWatch()
 testAgentBudget()
+testStartupPageSet()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

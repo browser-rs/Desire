@@ -2731,6 +2731,9 @@ final class AutomationServer {
             "agentBusy": AgentScheduler.shared.deliveryTarget?.isProcessing ?? false,
             "isActive": NSApp.isActive,
             "hasKeyWindow": NSApp.keyWindow != nil,
+            // 启动行为与崩溃标志（v0.7.19）：重启类断言读它。
+            "startupBehavior": Settings().startupBehavior.rawValue,
+            "launchedAfterCrash": TabSessionCoordinator.shared.launchedAfterCrash,
             // Agent 的文件工具以这个目录为工作区——自动化/评估要把 fixture
             // 放进它才能免审批被 readFile 读到。
             "agentWorkspace": SystemCommandStore.shared.workingDirectoryText,

@@ -122,6 +122,20 @@ struct GeneralSettingsSection: View {
                         options: StartupBehavior.allCases,
                         label: startupLabel
                     )
+                    if settings.startupBehavior == .pageSet {
+                        SettingsRowDivider()
+                        SettingsRow(
+                            "Startup pages",
+                            subtitle: "URLs separated by spaces or new lines (up to 10).",
+                            systemImage: "list.bullet.rectangle"
+                        ) {
+                            SettingsTextField(
+                                placeholder: "https://a.example https://b.example",
+                                text: $settings.startupPageSet,
+                                width: 280
+                            )
+                        }
+                    }
                     SettingsRowDivider()
                     SettingsRow(
                         "Homepage",
@@ -475,6 +489,8 @@ struct GeneralSettingsSection: View {
         switch behavior {
         case .restoreSession: "Restore previous session"
         case .newTabPage: "Open new tab page"
+        case .homePage: "Open homepage"
+        case .pageSet: "Open a set of pages"
         }
     }
 

@@ -99,6 +99,10 @@ class Settings: ObservableObject {
     @Published var startupBehavior: StartupBehavior {
         didSet { UserDefaults.standard.set(startupBehavior.rawValue, forKey: "startupBehavior") }
     }
+    /// 「打开指定页集」的 URL 列表（空白/换行分隔；本机设置，刻意不进同步目录）。
+    @Published var startupPageSet: String {
+        didSet { UserDefaults.standard.set(startupPageSet, forKey: "startupPageSet") }
+    }
     @Published var autoPlayPolicy: AutoPlayPolicy {
         didSet { UserDefaults.standard.set(autoPlayPolicy.rawValue, forKey: "autoPlayPolicy") }
     }
@@ -154,6 +158,7 @@ class Settings: ObservableObject {
         defaultPageZoom = UserDefaults.standard.object(forKey: "defaultPageZoom") as? Double ?? 1.0
         warnDangerousDownloads = UserDefaults.standard.object(forKey: "warnDangerousDownloads") as? Bool ?? true
         startupBehavior = StartupBehavior(rawValue: UserDefaults.standard.string(forKey: "startupBehavior") ?? "") ?? .restoreSession
+        startupPageSet = UserDefaults.standard.string(forKey: "startupPageSet") ?? ""
         autoPlayPolicy = AutoPlayPolicy(rawValue: UserDefaults.standard.string(forKey: "autoPlayPolicy") ?? "") ?? .requireUserAction
         suspendAfterMinutes = UserDefaults.standard.object(forKey: "suspendAfterMinutes") as? Double ?? 30
         openLinksInBackground = UserDefaults.standard.bool(forKey: "openLinksInBackground")

@@ -395,15 +395,30 @@ struct ContentView: View {
                         contentBlocker: contentBlocker,
                         videoAdBlocker: videoAdBlocker,
                         existingSessionID: sessionID,
-                        onCrashRestoreNotice: {
+                        onStartupNotice: { message in
                             DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
                                 actionToast = StatusBarToast(
                                     icon: "arrow.counterclockwise.circle",
-                                    text: String(localized: "Restored session after an unexpected quit")
+                                    text: message
                                 )
                             }
                         },
-                        openFreshTab: { b.openFreshTab() }
+                        openFreshTab: { b.openFreshTab() },
+                        openStartupURLs: { urls in
+                            // 启动页集/主页（v0.7.19）：逐个开标签，末条自然
+                            // 成为选中（makeActive=true 逐条切换）。
+                            for url in urls {
+                                tabManager.addTab(
+                                    url: url,
+                                    incognito: false,
+                                    javaScriptEnabled: settings.isJavaScriptEnabled,
+                                    contentBlocker: contentBlocker,
+                                    videoAdBlocker: videoAdBlocker,
+                                    autoPlayPolicy: settings.autoPlayPolicy,
+                                    newTabPosition: .end
+                                )
+                            }
+                        }
                     )
                 ) {
                     sessionID = restored.sessionID

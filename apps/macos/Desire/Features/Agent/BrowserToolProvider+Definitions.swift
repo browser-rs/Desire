@@ -994,6 +994,37 @@ extension BrowserToolProvider {
                 ], required: ["title", "start"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "updateCalendarEvent", description: "Update ONE calendar event (title/time/duration/location/notes/calendar). Identifies the event by `title` (substring) within a window — pass `date` (yyyy-MM-dd) to narrow; refuses to guess when multiple match and lists the candidates instead.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "title": AgentJSONSchemaValue(type: "string", description: "Existing event title (substring match; required)"),
+                    "date": AgentJSONSchemaValue(type: "string", description: "Day to search (yyyy-MM-dd; default: today .. +30 days)"),
+                    "newTitle": AgentJSONSchemaValue(type: "string", description: "Rename to this"),
+                    "start": AgentJSONSchemaValue(type: "string", description: "New start ('yyyy-MM-dd HH:mm' or ISO8601)"),
+                    "end": AgentJSONSchemaValue(type: "string", description: "New end (optional; else keep duration or use durationMinutes)"),
+                    "durationMinutes": AgentJSONSchemaValue(type: "number", description: "New duration in minutes"),
+                    "location": AgentJSONSchemaValue(type: "string", description: "New location (empty string clears)"),
+                    "notes": AgentJSONSchemaValue(type: "string", description: "New notes (empty string clears)"),
+                    "calendarName": AgentJSONSchemaValue(type: "string", description: "Move to this calendar"),
+                ], required: ["title"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "deleteCalendarEvent", description: "DELETE one calendar event — irreversible. Confirm with the user first unless they explicitly asked for this event to be deleted. Identifies the event by `title` (substring) within a window; refuses to guess when multiple match.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "title": AgentJSONSchemaValue(type: "string", description: "Event title (substring match; required)"),
+                    "date": AgentJSONSchemaValue(type: "string", description: "Day to search (yyyy-MM-dd; default: today .. +30 days)"),
+                ], required: ["title"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "updateReminder", description: "Update ONE open reminder (rename / change due date / notes / list). Identifies it by `title` (substring); refuses to guess when multiple match.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "title": AgentJSONSchemaValue(type: "string", description: "Existing reminder title (substring match; required)"),
+                    "newTitle": AgentJSONSchemaValue(type: "string", description: "Rename to this"),
+                    "dueDate": AgentJSONSchemaValue(type: "string", description: "New due date ('yyyy-MM-dd HH:mm', 'yyyy-MM-dd' or ISO8601)"),
+                    "notes": AgentJSONSchemaValue(type: "string", description: "New notes (empty string clears)"),
+                    "listName": AgentJSONSchemaValue(type: "string", description: "Move to this reminders list"),
+                ], required: ["title"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "completeReminder",
                 description: "Mark a reminder as completed by its title (case-insensitive substring). If several open reminders match, it reports them all and completes NONE — be more specific then. Use for 「带伞那条标完成」.",
                 parameters: AgentJSONSchema(type: "object", properties: [

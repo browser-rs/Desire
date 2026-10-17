@@ -182,6 +182,151 @@ enum EventKitBridge {
         return line
     }
 
+    // MARK: - 双向（v0.7.20：改与删）
+
+    /// 命中唯一才动手：0 命中/多命中的处理与 completeReminder 同款纪律
+    ///（多命中列候选让模型问用户，绝不猜）。
+    private enum EventMatch {
+        case unique(EKEvent)
+        case problem(String)
+    }
+
+    private static func uniqueEvent(title: String, from: Date, to: Date) -> EventMatch {
+        let wanted = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !wanted.isEmpty else { return .problem("Error: missing title") }
+        let predicate = store.predicateForEvents(withStart: from, end: to, calendars: nil)
+        let matches = store.events(matching: predicate)
+            .filter { ($0.title ?? "").lowercased().contains(wanted) }
+            .sorted { $0.startDate < $1.startDate }
+        if matches.isEmpty { return .problem("No calendar event matches '\(title)' in that window.") }
+        if matches.count > 1 {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "MM-dd HH:mm"
+            let lines = matches.prefix(8).map { event in
+                "· \(formatter.string(from: event.startDate)) \(event.title ?? "(untitled)")"
+            }
+            return .problem("Error: \(matches.count) events match '\(title)' — be more specific (pass `date`):\n" + lines.joined(separator: "\n"))
+        }
+        return .unique(matches[0])
+    }
+
+    /// 改一个日历事件（标题/时间/时长/地点/备注/日历）。命中唯一才动手。
+    static func updateEvent(title: String, from: Date, to: Date,
+                            newTitle: String?, start: Date?, end: Date?, durationMinutes: Int?,
+                            location: String?, notes: String?, calendarName: String?) async -> String {
+        if let problem = await ensuringAccess(.event) { return problem }
+        switch uniqueEvent(title: title, from: from, to: to) {
+        case .problem(let message):
+            return message
+        case .unique(let event):
+            var changes: [String] = []
+            if let newTitle, !newTitle.isEmpty, newTitle != event.title {
+                changes.append("title '\(event.title ?? "")' → '\(newTitle)'")
+                event.title = newTitle
+            }
+            if let start {
+                changes.append("start → \(SystemIntegrationDates.describe(start))")
+                let wasDuration = event.endDate.timeIntervalSince(event.startDate)
+                event.startDate = start
+                if let end {
+                    event.endDate = end
+                } else if let durationMinutes {
+                    event.endDate = start.addingTimeInterval(TimeInterval(durationMinutes * 60))
+                } else {
+                    event.endDate = start.addingTimeInterval(wasDuration > 0 ? wasDuration : 3600)
+                }
+            } else if let end {
+                changes.append("end → \(SystemIntegrationDates.describe(end))")
+                event.endDate = end
+            } else if let durationMinutes {
+                changes.append("duration → \(durationMinutes)min")
+                event.endDate = event.startDate.addingTimeInterval(TimeInterval(durationMinutes * 60))
+            }
+            if let location, location != (event.location ?? "") {
+                changes.append("location → '\(location)'")
+                event.location = location.isEmpty ? nil : location
+            }
+            if let notes, notes != (event.notes ?? "") {
+                changes.append("notes updated")
+                event.notes = notes.isEmpty ? nil : notes
+            }
+            if let calendarName, let target = store.calendars(for: .event)
+                .first(where: { $0.title.caseInsensitiveCompare(calendarName) == .orderedSame }),
+               target.calendarIdentifier != event.calendar?.calendarIdentifier {
+                changes.append("calendar → \(target.title)")
+                event.calendar = target
+            }
+            guard !changes.isEmpty else { return "No changes requested for '\(event.title ?? title)'." }
+            do {
+                try store.save(event, span: .thisEvent, commit: true)
+            } catch {
+                return "Error: save failed — \(error.localizedDescription)"
+            }
+            return "Event updated: \(event.title ?? title)（\(changes.joined(separator: "; "))）"
+        }
+    }
+
+    /// 删一个日历事件。**不可逆**——工具分级 dangerous（每次显式确认），
+    /// 且命中不唯一一律拒绝（删错对象比删不掉更糟）。
+    static func deleteEvent(title: String, from: Date, to: Date) async -> String {
+        if let problem = await ensuringAccess(.event) { return problem }
+        switch uniqueEvent(title: title, from: from, to: to) {
+        case .problem(let message):
+            return message
+        case .unique(let event):
+            let summary = "\(event.title ?? title) @ \(SystemIntegrationDates.describe(event.startDate))"
+            do {
+                try store.remove(event, span: .thisEvent, commit: true)
+            } catch {
+                return "Error: delete failed — \(error.localizedDescription)"
+            }
+            return "Event deleted: \(summary)"
+        }
+    }
+
+    /// 改一条未完成提醒（标题/到期/备注/列表）。命中唯一才动手。
+    static func updateReminder(title: String, newTitle: String?, due: Date?,
+                               notes: String?, listName: String?) async -> String {
+        if let problem = await ensuringAccess(.reminder) { return problem }
+        let wanted = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !wanted.isEmpty else { return "Error: missing title" }
+        let open = await fetchOpenReminders()
+        let matches = open.filter { ($0.title ?? "").lowercased().contains(wanted) }
+        if matches.isEmpty { return "No open reminder matches '\(title)'." }
+        if matches.count > 1 {
+            let lines = matches.prefix(8).map { "· \($0.title ?? "(untitled)")" }
+            return "Error: \(matches.count) open reminders match '\(title)' — be more specific:\n" + lines.joined(separator: "\n")
+        }
+        let reminder = matches[0]
+        var changes: [String] = []
+        if let newTitle, !newTitle.isEmpty, newTitle != reminder.title {
+            changes.append("title '\(reminder.title ?? "")' → '\(newTitle)'")
+            reminder.title = newTitle
+        }
+        if let due {
+            changes.append("due → \(SystemIntegrationDates.describe(due))")
+            reminder.dueDateComponents = Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute], from: due)
+        }
+        if let notes, notes != (reminder.notes ?? "") {
+            changes.append("notes updated")
+            reminder.notes = notes.isEmpty ? nil : notes
+        }
+        if let listName, let target = matchList(named: listName),
+           target.calendarIdentifier != reminder.calendar?.calendarIdentifier {
+            changes.append("list → \(target.title)")
+            reminder.calendar = target
+        }
+        guard !changes.isEmpty else { return "No changes requested for '\(reminder.title ?? title)'." }
+        do {
+            try store.save(reminder, commit: true)
+        } catch {
+            return "Error: save failed — \(error.localizedDescription)"
+        }
+        return "Reminder updated: \(reminder.title ?? title)（\(changes.joined(separator: "; "))）"
+    }
+
     /// 某时间窗内的日历事件（默认由调用方给窗；升序、cap）。
     static func listEvents(from: Date, to: Date, limit: Int) async -> String {
         if let problem = await ensuringAccess(.event) { return problem }

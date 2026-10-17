@@ -130,6 +130,9 @@ enum ToolRisk: Int, Comparable {
         "executeJS", "runCommand",
         // 凭据操作：填存档密码并（可选）提交登录——必须显式确认。
         "fillLogin",
+        // 日历事件删除（v0.7.20）：**不可逆**且无 Always-Allow 可接受——
+        // 每次调用都必须让用户看见对象摘要再点头（确定性"删错比删不掉更糟"）。
+        "deleteCalendarEvent",
     ]
 
     /// A short, human-readable label for this tier, shown in the approval UI.

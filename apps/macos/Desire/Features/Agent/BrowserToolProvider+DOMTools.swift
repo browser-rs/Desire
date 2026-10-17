@@ -7,6 +7,20 @@ import os
 /// 纯搬运（case 体零改动）；返回 nil = 本域不认识该工具。
 extension BrowserToolProvider {
 
+    /// 事件查找窗口（v0.7.20 改/删）：给了 date 用那一天，否则 now-1d..now+30d。
+    /// 返回 nil = date 解析失败（调用方按参数错误处理）。
+    private static func eventSearchWindow(date raw: String?) -> (from: Date, to: Date)? {
+        guard let raw, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return (Date().addingTimeInterval(-86_400), Date().addingTimeInterval(30 * 86_400))
+        }
+        guard let anchor = SystemIntegrationDates.parse(raw) else { return nil }
+        let calendar = Calendar.current
+        let from = calendar.startOfDay(for: anchor)
+        let to = calendar.date(byAdding: .day, value: 1, to: from) ?? from.addingTimeInterval(86_400)
+        return (from, to)
+    }
+
+
     func executeDOMAndSystemTools(_ call: AgentToolCall, args: [String: Any], surface: any BrowserToolSurface, in webView: WKWebView) async -> String? {
         switch call.function.name {
         // --- DOM interaction ---
@@ -2158,6 +2172,52 @@ extension BrowserToolProvider {
                 return Self.fail("Missing title")
             }
             return await EventKitBridge.completeReminder(title: completeTitle)
+
+        case "updateCalendarEvent":
+            guard let upTitle = args["title"] as? String, !upTitle.isEmpty else { return Self.fail("Missing title") }
+            guard let upWindow = Self.eventSearchWindow(date: args["date"] as? String) else {
+                return Self.fail("date must be 'yyyy-MM-dd' or ISO8601")
+            }
+            var upStart: Date?
+            if let startRaw = args["start"] as? String, !startRaw.isEmpty {
+                guard let parsed = SystemIntegrationDates.parse(startRaw) else {
+                    return Self.fail("start must be 'yyyy-MM-dd HH:mm' or ISO8601")
+                }
+                upStart = parsed
+            }
+            var upEnd: Date?
+            if let endRaw = args["end"] as? String, !endRaw.isEmpty {
+                guard let parsed = SystemIntegrationDates.parse(endRaw) else {
+                    return Self.fail("end must be 'yyyy-MM-dd HH:mm' or ISO8601")
+                }
+                upEnd = parsed
+            }
+            return await EventKitBridge.updateEvent(
+                title: upTitle, from: upWindow.from, to: upWindow.to,
+                newTitle: args["newTitle"] as? String, start: upStart, end: upEnd,
+                durationMinutes: args["durationMinutes"] as? Int,
+                location: args["location"] as? String, notes: args["notes"] as? String,
+                calendarName: args["calendarName"] as? String)
+
+        case "deleteCalendarEvent":
+            guard let delTitle = args["title"] as? String, !delTitle.isEmpty else { return Self.fail("Missing title") }
+            guard let delWindow = Self.eventSearchWindow(date: args["date"] as? String) else {
+                return Self.fail("date must be 'yyyy-MM-dd' or ISO8601")
+            }
+            return await EventKitBridge.deleteEvent(title: delTitle, from: delWindow.from, to: delWindow.to)
+
+        case "updateReminder":
+            guard let updTitle = args["title"] as? String, !updTitle.isEmpty else { return Self.fail("Missing title") }
+            var updDue: Date?
+            if let dueRaw = args["dueDate"] as? String, !dueRaw.isEmpty {
+                guard let parsed = SystemIntegrationDates.parse(dueRaw) else {
+                    return Self.fail("dueDate must be 'yyyy-MM-dd HH:mm', 'yyyy-MM-dd' or ISO8601")
+                }
+                updDue = parsed
+            }
+            return await EventKitBridge.updateReminder(
+                title: updTitle, newTitle: args["newTitle"] as? String, due: updDue,
+                notes: args["notes"] as? String, listName: args["listName"] as? String)
 
         case "addNote":
             guard let noteTitle = args["title"] as? String,

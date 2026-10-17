@@ -483,12 +483,19 @@ struct ContentView: View {
                   wanted == mine else { return }
             openWindow(id: "main", value: UUID())
         }
-        .onReceive(NotificationCenter.default.publisher(for: .desireShowAgentPanel)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .desireShowAgentPanel)) { note in
             // 菜单栏快速入口（v19）：亮出 Agent 面板。不能走 CommandBus——
             // 弹窗打开时它自己是 key window，上面的 key 守卫会把命令丢掉。
-            // 按"持有投递目标会话"收敛到唯一窗口（无会话时首个窗口接管）。
-            let target = AgentScheduler.shared.deliveryTarget
-            guard target == nil || aiSession === target else { return }
+            // **显式点名会话**（DevTools 检查器试跑，v0.7.19）：只在该会话所在
+            // 窗口亮；缺省按"持有投递目标会话"收敛到唯一窗口（首窗接管）。
+            if let wanted = note.userInfo?["session"] as? String {
+                let mine = AgentScheduler.shared.liveSessions()
+                    .first(where: { $0.store === aiSession })?.id.uuidString
+                guard mine == wanted else { return }
+            } else {
+                let target = AgentScheduler.shared.deliveryTarget
+                guard target == nil || aiSession === target else { return }
+            }
             showAgentPanel = true
             AgentPanelVisibilityStore.shared.record(key: tabManager.sessionKey, shown: true)
             hostingWindow?.makeKeyAndOrderFront(nil)

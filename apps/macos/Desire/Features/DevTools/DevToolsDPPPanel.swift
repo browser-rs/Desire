@@ -6,8 +6,13 @@ import WebKit // MemberImportVisibility：FrameProtocolEntry.url 定义面
 /// warnings）+ 已派发事件流（PageEventHub 环形历史）。
 struct DPPInspectorPanel: View {
     @ObservedObject var tab: Tab
+    /// 试跑用（v0.7.19）：该窗口的 Agent 会话；nil = 纯只读（离屏快照）。
+    var aiSession: AgentSessionStore? = nil
     @ObservedObject private var eventHub = PageEventHub.shared
     @Environment(\.appAccent) private var appAccent
+    /// 试跑中的动作名（行内转圈）与逐动作结果（只进检查器，不进对话）。
+    @State private var runningActionName: String?
+    @State private var runResults: [String: String] = [:]
 
     var body: some View {
         if let dpp = tab.browser.effectiveProtocol {
@@ -188,6 +193,23 @@ struct DPPInspectorPanel: View {
                         if let host = frameTag(action.sourceFrame) {
                             tag("frame: \(host)", .red)
                         }
+                        Spacer(minLength: 8)
+                        // 试跑（v0.7.19）：走**与回合同一**的闸门——内部动作
+                        // 直跑；persist/outbound/danger 会弹审批卡（审批规则、
+                        // 白名单、DPP 站点放行全部照常生效，不是绕过审批的侧门）。
+                        if let aiSession {
+                            if runningActionName == action.name {
+                                ProgressView().controlSize(.mini)
+                            } else {
+                                Button(String(localized: "Run")) {
+                                    runAction(action, session: aiSession)
+                                }
+                                .buttonStyle(.plain)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundStyle(appAccent)
+                                .help(String(localized: "Run this declared action through the same approval gate the agent uses"))
+                            }
+                        }
                     }
                     if let run = action.run, !run.isEmpty {
                         Text(run)
@@ -195,9 +217,35 @@ struct DPPInspectorPanel: View {
                             .foregroundStyle(.secondary)
                             .lineLimit(3)
                     }
+                    if let result = runResults[action.name] {
+                        Text(result)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(result.hasPrefix("Error:") ? .red : .secondary)
+                            .lineLimit(4)
+                            .textSelection(.enabled)
+                    }
                 }
                 .padding(.vertical, 2)
             }
+        }
+    }
+
+    /// 试跑一个声明动作：审批卡会落在 Agent 面板——先把**本窗口**的面板亮
+    /// 出来（显式点名会话；无审批时也无害）。结果只显示在检查器里。
+    private func runAction(_ action: DesireProtocol.ProtocolAction, session: AgentSessionStore) {
+        runningActionName = action.name
+        runResults[action.name] = nil
+        if let sessionID = AgentScheduler.shared.liveSessions()
+            .first(where: { $0.store === session })?.id.uuidString {
+            NotificationCenter.default.post(name: .desireShowAgentPanel,
+                                            object: nil,
+                                            userInfo: ["session": sessionID])
+        }
+        Task { @MainActor in
+            let result = await session.runInspectorToolCall(name: "pageAction",
+                                                            arguments: ["name": action.name, "args": [:]])
+            runResults[action.name] = String(result.prefix(600))
+            runningActionName = nil
         }
     }
 

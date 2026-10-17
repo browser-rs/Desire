@@ -24,6 +24,8 @@ struct DevToolsPanel: View {
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: DevToolsStore
     var tab: Tab?
+    /// 试跑用（v0.7.19）：该窗口的 Agent 会话（离屏快照路径缺省 nil=只读）。
+    var aiSession: AgentSessionStore? = nil
     var onStartElementPicker: (() -> Void)?
     /// Network 详情里的"Open in New Tab"：交给 ContentView 的 tabManager 在
     /// 应用内开标签页（不能走系统默认浏览器）。
@@ -64,7 +66,7 @@ struct DevToolsPanel: View {
                 }
             case .dpp:
                 if let tab {
-                    DPPInspectorPanel(tab: tab)
+                    DPPInspectorPanel(tab: tab, aiSession: aiSession)
                 } else {
                     Text("No tab selected")
                         .font(.caption)

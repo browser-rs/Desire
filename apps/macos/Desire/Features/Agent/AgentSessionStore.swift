@@ -3216,6 +3216,28 @@ class AgentSessionStore: ObservableObject {
         }
     }
 
+    /// DevTools 检查器「试跑」（v0.7.19）：走**与回合内完全相同**的闸门
+    /// （risk 分级/审批/白名单/DPP 站点授权）执行单个工具调用——不是绕过
+    /// 审批的侧门。结果只回给调用方：试跑不是对话内容，不进会话消息。
+    func runInspectorToolCall(name: String, arguments: [String: Any]) async -> String {
+        let argumentsJSON: String
+        if let data = try? JSONSerialization.data(withJSONObject: arguments),
+           let text = String(data: data, encoding: .utf8) {
+            argumentsJSON = text
+        } else {
+            argumentsJSON = "{}"
+        }
+        let call = AgentToolCall(id: UUID().uuidString, type: "function",
+                                 function: AgentToolFunction(name: name, arguments: argumentsJSON))
+        let decision = await gate(toolCall: call, risk: effectiveRisk(for: call))
+        switch decision {
+        case .denied:
+            return "Denied by approval policy."
+        case .allowedOnce, .allowedAlways:
+            return await toolProvider.execute(call, in: WKWebView())
+        }
+    }
+
     /// Called by the UI (`ToolApprovalBar`) when the user decides.
     /// `siteGrant`：DPP 逐动作放行——把「审批锚点 host × 动作名」持久化为
     /// 本站始终允许（0.6.7）。

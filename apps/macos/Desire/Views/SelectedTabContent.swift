@@ -212,6 +212,7 @@ struct SelectedTabContent: View {
                             DevToolsPanel(
                                 store: content.devToolsStore,
                                 tab: tab,
+                                aiSession: content.aiSession,
                                 onStartElementPicker: {
                                     tab.browser.elementPickIntent = .devTools
                                     tab.browser.isPickingElement = true

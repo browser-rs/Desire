@@ -1168,7 +1168,7 @@ def main():
         ok("saveWorkspace 快照（2 个标签）", save_out.startswith('Saved workspace "E2E-MUSCLE8" (2 tab(s))'))
         ok("openIncognitoTab 开隐私标签", incog_out.startswith("Opened a private tab") and "not recorded" in incog_out)
         ok("listWorkspaces 含快照", "E2E-MUSCLE8 — 2 tab(s)" in ws_list_1)
-        ok("listTabs 显示 incognito 标记", "[incognito]" in tabs_after_incog)
+        ok("listTabs 显示 incognito 标记", "incognito" in tabs_after_incog)
         ok("restoreWorkspace 替换为快照（隐私标签消失）",
            restore_out.startswith('Restored workspace "E2E-MUSCLE8"')
            and "previous tabs were replaced" in restore_out

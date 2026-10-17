@@ -24,6 +24,9 @@ struct GeneralSettingsSection: View {
 
     /// 菜单栏快速入口显隐（NSStatusItem 宿主的开关，见该类型头注释）。
     @ObservedObject private var menuBarQuickEntry = MenuBarQuickEntryController.shared
+    /// 鼠标手势/超级拖拽开关（v0.7.20 补设置入口——此前两项功能默认关
+    /// 且无 UI，等于不可达）。
+    @ObservedObject private var gestureStore = MouseGestureStore.shared
 
     var body: some View {
         SettingsContainer {
@@ -148,6 +151,36 @@ struct GeneralSettingsSection: View {
                             width: 280
                         )
                     }
+                }
+            }
+
+            // MARK: - Mouse Gestures
+
+            SettingsSection(
+                title: "Gestures",
+                subtitle: "Right-button drag gestures and drag-to-open for links. Both are off by default.",
+                icon: "computermouse"
+            ) {
+                VStack(spacing: 0) {
+                    SettingsToggleRow(
+                        "Mouse Gestures",
+                        subtitle: "Hold the RIGHT mouse button and drag: ← back, → forward, ←→ reload, ↓ new tab, ↑ close tab. A plain right-click still opens the context menu.",
+                        systemImage: "hand.draw",
+                        isOn: Binding(
+                            get: { gestureStore.gestureEnabled },
+                            set: { gestureStore.gestureEnabled = $0 }
+                        )
+                    )
+                    SettingsRowDivider()
+                    SettingsToggleRow(
+                        "Super Drag",
+                        subtitle: "Drag a link and release it on empty space to open it in a background tab.",
+                        systemImage: "cursorarrow.motionlines",
+                        isOn: Binding(
+                            get: { gestureStore.superDragEnabled },
+                            set: { gestureStore.superDragEnabled = $0 }
+                        )
+                    )
                 }
             }
 

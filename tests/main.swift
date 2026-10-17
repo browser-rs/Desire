@@ -2959,6 +2959,18 @@ func testNumericWatch() {
     check("数值：旧存档解码（新字段可缺省）", decoded != nil && decoded?.watchesNumbers == false)
 }
 
+// ---------- 鼠标手势轨迹映射（v0.7.20）----------
+func testMouseGestureTrail() {
+    eq("手势：l → back", MouseGestureTrail.action(for: "l"), "back")
+    eq("手势：r → forward", MouseGestureTrail.action(for: "r"), "forward")
+    eq("手势：lr → reload", MouseGestureTrail.action(for: "lr"), "reload")
+    eq("手势：rl → reload", MouseGestureTrail.action(for: "rl"), "reload")
+    eq("手势：d → new-tab", MouseGestureTrail.action(for: "d"), "new-tab")
+    eq("手势：u → close-tab", MouseGestureTrail.action(for: "u"), "close-tab")
+    eq("手势：未知轨迹 → nil", MouseGestureTrail.action(for: "lu"), nil)
+    eq("手势：空轨迹 → nil", MouseGestureTrail.action(for: ""), nil)
+}
+
 // ---------- 标签页语义聚类解析（v0.7.20）----------
 func testTabGroupCluster() {
     let fenced = "这是分组：\n```json\n{\"groups\":[{\"name\":\"技术\",\"indices\":[0,1]},{\"name\":\"购物\",\"indices\":[2,3]}]}\n```\n完毕"
@@ -3033,6 +3045,7 @@ testNumericWatch()
 testAgentBudget()
 testStartupPageSet()
 testTabGroupCluster()
+testMouseGestureTrail()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

@@ -42239,6 +42239,144 @@
           }
         }
       }
+    },
+    "Right-button drag gestures and drag-to-open for links. Both are off by default." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right-button drag gestures and drag-to-open for links. Both are off by default."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "右键拖动的手势操作与「拖链接开新标签」；两项默认关闭。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "右鍵拖動的手勢操作與「拖連結開新分頁」；兩項預設關閉。"
+          }
+        }
+      }
+    },
+    "Mouse Gestures" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mouse Gestures"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鼠标手势"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "滑鼠手勢"
+          }
+        }
+      }
+    },
+    "Hold the RIGHT mouse button and drag: ← back, → forward, ←→ reload, ↓ new tab, ↑ close tab. A plain right-click still opens the context menu." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hold the RIGHT mouse button and drag: ← back, → forward, ←→ reload, ↓ new tab, ↑ close tab. A plain right-click still opens the context menu."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按住**右键**拖动画轨迹：← 后退、→ 前进、←→ 刷新、↓ 新标签、↑ 关标签；原地右键单击仍是上下文菜单。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按住**右鍵**拖動畫軌跡：← 上一頁、→ 下一頁、←→ 重新載入、↓ 新分頁、↑ 關閉分頁；原地右鍵單擊仍是右鍵選單。"
+          }
+        }
+      }
+    },
+    "Super Drag" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Super Drag"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超级拖拽"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "超級拖曳"
+          }
+        }
+      }
+    },
+    "Drag a link and release it on empty space to open it in a background tab." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag a link and release it on empty space to open it in a background tab."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖动链接到页面空白处松开 = 后台标签打开该链接。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖動連結到頁面空白處放開 = 在背景分頁開啟該連結。"
+          }
+        }
+      }
+    },
+    "Gestures" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Gestures"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手势"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手勢"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

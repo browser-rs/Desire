@@ -115,21 +115,10 @@ final class MouseGestureStore: ObservableObject {
     }
 
     /// 手势动作分发（在主线程；动作经 BrowsingActions 的既有命令通道）。
+    /// 轨迹→动作映射抽到 `MouseGestureTrail`（纯逻辑进单测）。
     private func dispatchGesture(_ trail: String, in window: NSWindow?) {
-        guard let app = AppState.live,
-              let tm = TabSessionCoordinator.shared.activeTabManager else { return }
-        _ = app
-        let action: String?
-        switch trail {
-        case "l": action = "back"
-        case "r": action = "forward"
-        case "lr", "rl": action = "reload"
-        case "d": action = "new-tab"
-        case "u": action = "close-tab"
-        case "l,r", "r,l": action = nil
-        default: action = nil
-        }
-        guard let action else { return }
+        guard let tm = TabSessionCoordinator.shared.activeTabManager else { return }
+        guard let action = MouseGestureTrail.action(for: trail) else { return }
         Log.app.info("mouse gesture: \(trail, privacy: .public) → \(action, privacy: .public)")
         let tab = tm.selectedTab
         switch action {

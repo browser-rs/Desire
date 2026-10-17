@@ -127,7 +127,9 @@ pub async fn gc_tombstones(
     }
     let affected = match min_active_cursor(pool, user_id, domain).await? {
       Some((ts, id)) => {
-        report.basis.insert((*domain).to_string(), "cursor".to_string());
+        report
+          .basis
+          .insert((*domain).to_string(), "cursor".to_string());
         if dry_run {
           count_cursor_cutoff(pool, user_id, domain, ts, id).await?
         } else {
@@ -247,11 +249,7 @@ async fn delete_cursor_cutoff(
   Ok(result.rows_affected())
 }
 
-async fn count_fallback(
-  pool: &MySqlPool,
-  user_id: i64,
-  domain: &str,
-) -> Result<u64, sqlx::Error> {
+async fn count_fallback(pool: &MySqlPool, user_id: i64, domain: &str) -> Result<u64, sqlx::Error> {
   let count: i64 = sqlx::query_scalar(COUNT_FALLBACK_SQL)
     .bind(user_id)
     .bind(domain)
@@ -261,11 +259,7 @@ async fn count_fallback(
   Ok(count.max(0) as u64)
 }
 
-async fn delete_fallback(
-  pool: &MySqlPool,
-  user_id: i64,
-  domain: &str,
-) -> Result<u64, sqlx::Error> {
+async fn delete_fallback(pool: &MySqlPool, user_id: i64, domain: &str) -> Result<u64, sqlx::Error> {
   let result = sqlx::query(DELETE_FALLBACK_SQL)
     .bind(user_id)
     .bind(domain)
@@ -276,7 +270,10 @@ async fn delete_fallback(
 }
 
 /// 全部用户跑一遍(`desire-admin sync gc` 用;逐个用户,失败不中断)。
-pub async fn gc_all_users(pool: &MySqlPool, dry_run: bool) -> Result<Vec<(i64, GcReport)>, sqlx::Error> {
+pub async fn gc_all_users(
+  pool: &MySqlPool,
+  dry_run: bool,
+) -> Result<Vec<(i64, GcReport)>, sqlx::Error> {
   let user_ids: Vec<i64> = sqlx::query_scalar("SELECT DISTINCT user_id FROM sync_items")
     .fetch_all(pool)
     .await?;

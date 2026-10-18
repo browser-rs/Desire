@@ -479,6 +479,7 @@ final class AutomationServer {
         ep("POST", "/site-settings/font", "Per-site fonts: minFontSize (0=off)/fontFamily (''=off)/null=follow default; re-injects immediately", params: ["host", "minFontSize?", "fontFamily?"], example: #"-d '{"host":"a.b","minFontSize":16}'"#)
         ep("POST", "/site-settings/clear", "Clear all per-site UI overrides (zoom/dark/auto-play/fonts; blocked rules untouched) and re-apply to the active tab", params: ["host:string"], example: #"-d '{"host":"a.b"}'"#)
         ep("GET", "/agent/find", "Find messages in the live conversation (case-insensitive; content only)", params: ["q:string", "window?:string"], example: "…/agent/find?q=deploy")
+        ep("POST", "/skills/distill", "Distill a SKILL.md draft from the live conversation (one bypass model call); save=true writes it", params: ["save?:bool", "window?:string"], example: #"-d '{"save":true}'"#)
         ep("GET", "/palette", "Command-palette mixed search (commands/tabs/bookmarks/history/conversations, grouped + per-source totals)", params: ["q:string"], example: "…/palette?q=book")
         ep("GET", "/bilingual", "Bilingual reading state for the active tab (on/running/done/total/error)", example: "…/bilingual")
         ep("POST", "/bilingual", "Toggle bilingual reading (AI translations inserted under each paragraph)", params: ["on:bool", "index?:int"], example: #"-d '{"on":true}'"#)
@@ -2667,6 +2668,10 @@ final class AutomationServer {
                 return try await Self.json(Self.retrievalEval(body: body))
             case ("GET", "/skills"):
                 return try Self.json(Self.listSkills())
+            case ("POST", "/skills/distill"):
+                return try await Self.json(Self.distillSkill(
+                    window: Self.string(body, "window"),
+                    save: body["save"] as? Bool ?? false))
             case ("POST", "/skills/reload"):
                 return try Self.json(Self.reloadSkills())
             case ("POST", "/skills/delete"):
@@ -6511,6 +6516,37 @@ final class AutomationServer {
     private static func reloadSkills() throws -> [String: Any] {
         SkillStore.shared.reload()
         return ["ok": true, "count": SkillStore.shared.skills.count]
+    }
+
+    /// 从会话提炼技能草稿（v0.7.22 旗舰的桥等价；与面板路径同一服务）。
+    /// 默认只回草稿；save=true 时落盘（<name>.md、同名覆盖）并 reload。
+    private static func distillSkill(window: String?, save: Bool) async throws -> [String: Any] {
+        guard let session = resolveSession(window) else { return ["error": "no live agent session"] }
+        guard let preference = AppState.live?.aiPreference else { return ["error": "app state not ready"] }
+        guard let draft = await SkillDistiller.draft(from: session.messages, preference: preference) else {
+            return ["error": "distillation failed (conversation too short or model output unparsable)"]
+        }
+        var payload: [String: Any] = [
+            "ok": true, "saved": false,
+            "name": draft.name, "description": draft.description,
+            "instructions": draft.instructions,
+        ]
+        if save {
+            let url = SkillStore.directory
+                .appendingPathComponent(FilePathing.sanitizeFileName(draft.name) + ".md")
+            let markdown = SkillAuthoring.markdown(name: draft.name,
+                                                   description: draft.description,
+                                                   instructions: draft.instructions)
+            do {
+                try markdown.write(to: url, atomically: true, encoding: .utf8)
+            } catch {
+                return ["error": "write failed: \(error.localizedDescription)"]
+            }
+            SkillStore.shared.reload()
+            payload["saved"] = true
+            payload["path"] = url.path
+        }
+        return payload
     }
 
     private static func deleteSkill(name: String) throws -> [String: Any] {

@@ -27,7 +27,7 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
 桥 /promotion/review 一键安排每日选题采集并撤销）/
 阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）/
-书签死链校验+清理（MUSCLE27：真 404 命中/零误伤/removed+missing 路径）/\n会话内查找（MUSCLE26：标记消息命中 + 无命中零）/\n阅读进度记忆（MUSCLE25：桥写 → 关标签重开 → 恢复 ≈50%）/\n命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
+从会话提炼技能（MUSCLE28：草稿三字段/不落盘/落盘可见/清理还原）/\n书签死链校验+清理（MUSCLE27：真 404 命中/零误伤/removed+missing 路径）/\n会话内查找（MUSCLE26：标记消息命中 + 无命中零）/\n阅读进度记忆（MUSCLE25：桥写 → 关标签重开 → 恢复 ≈50%）/\n命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -351,6 +351,15 @@ class Fake(BaseHTTPRequestHandler):
             marker = next((p for p in ("MUSCLE19P1", "MUSCLE19P2") if p in (msgs[-1].get("content") or "")), "?")
             sse(self.wfile, model, {"role": "assistant", "content": f"摘要回显：{marker} 的主旨与要点。"}, "stop")
             return
+        if "DESIRE_SKILL_DISTILL" in sys_text:
+            # 技能提炼（MUSCLE28）的旁路调用：回固定 JSON 草稿。
+            draft = json.dumps({
+                "name": "价格巡检流程",
+                "description": "当需要核对页面价格变动时使用",
+                "instructions": "1. 打开目标页\n2. 用 extractJS 抓价格节点\n3. 与上次记录对比",
+            }, ensure_ascii=False)
+            sse(self.wfile, model, {"role": "assistant", "content": draft}, "stop")
+            return
         if "DESIRE_BILINGUAL_TRANSLATE" in sys_text:
             # 双语对照（MUSCLE23）的旁路翻译调用：按编号行回 JSON 数组，
             # 每条 "译(<n>) <原文>"——DOM 插入的断言靠这个前缀与序号。
@@ -611,6 +620,9 @@ class Fake(BaseHTTPRequestHandler):
             return
         if "MUSCLE26" in mode:
             sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE26-DONE"}, "stop")
+            return
+        if "MUSCLE28" in mode:
+            sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE28-DONE"}, "stop")
             return
         if "MUSCLE14" in mode:
             if n == 0:
@@ -1958,6 +1970,32 @@ def main():
         time.sleep(1.2)
         urls27 = [e.get("url") for e in bridge("GET", "/bookmarks").get("entries", [])]
         ok("死链清理：死链已删、好链保留", BH_DEAD not in urls27 and BH_ALIVE in urls27)
+        # ── MUSCLE28：从会话提炼技能（旗舰；桥等价，落盘/清理全链）──
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE28 提炼演练：核对页面价格节点并记录流程"})
+        deadline28 = time.time() + 90
+        while time.time() < deadline28:
+            st28 = bridge("GET", "/agent/messages")
+            if not st28.get("busy") and any("MUSCLE28-DONE" in (m.get("content") or "")
+                                            for m in st28.get("messages", [])):
+                break
+            time.sleep(1)
+        d28 = bridge("POST", "/skills/distill", {})
+        ok("提炼：草稿三字段 + 默认不落盘",
+           d28.get("ok") and d28.get("name") == "价格巡检流程"
+           and "核对页面价格变动" in (d28.get("description") or "")
+           and "extractJS" in (d28.get("instructions") or "")
+           and d28.get("saved") is False)
+        before28 = {s["name"] for s in bridge("GET", "/skills").get("skills", [])}
+        ok("提炼：落盘前不在技能列表", "价格巡检流程" not in before28)
+        d28b = bridge("POST", "/skills/distill", {"save": True})
+        ok("提炼：save=true 落 <name>.md", d28b.get("saved") is True
+           and (d28b.get("path") or "").endswith("价格巡检流程.md"))
+        after28 = {s["name"] for s in bridge("GET", "/skills").get("skills", [])}
+        ok("提炼：落盘后 /skills 可见", "价格巡检流程" in after28)
+        bridge("POST", "/skills/delete", {"name": "价格巡检流程"})
+        left28 = {s["name"] for s in bridge("GET", "/skills").get("skills", [])}
+        ok("提炼：清理后列表还原", "价格巡检流程" not in left28)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -2028,6 +2066,11 @@ def main():
                                                       for m in msgs4c.get("messages", [])):
                         break
                     time.sleep(1)
+        except Exception:
+            pass
+        # 技能提炼兜底（MUSCLE28）：删掉可能的草稿文件。
+        try:
+            bridge("POST", "/skills/delete", {"name": "价格巡检流程"})
         except Exception:
             pass
         # 书签导入兜底（MUSCLE22）：循环删到无副本（find 每次只删第一条）。

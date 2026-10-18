@@ -85,6 +85,7 @@ SOURCES=(
   apps/macos/Desire/Features/Browsing/PaletteSearch.swift
   apps/macos/Desire/Features/Agent/AgentMessageSearch.swift
   apps/macos/Desire/Features/History/HistoryGrouping.swift
+  apps/macos/Desire/Features/Agent/SkillDistill.swift
   apps/macos/Desire/Features/Sync/SyncCrypto.swift
   apps/macos/Desire/Features/Sync/SyncMerge.swift
   apps/macos/Desire/Features/Sync/WhiteboardSync.swift

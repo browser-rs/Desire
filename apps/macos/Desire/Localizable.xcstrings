@@ -43411,6 +43411,94 @@
           }
         }
       }
+    },
+    "Distill Skill from This Conversation…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distill Skill from This Conversation…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "从本对话提炼技能…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "從本對話提煉技能…"
+          }
+        }
+      }
+    },
+    "Distilling a skill draft from this conversation…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Distilling a skill draft from this conversation…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在从本对话提炼技能草稿…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在從本對話提煉技能草稿…"
+          }
+        }
+      }
+    },
+    "Skill distillation failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skill distillation failed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "技能提炼失败"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "技能提煉失敗"
+          }
+        }
+      }
+    },
+    "Could not distill a skill from this conversation — the run may be too short, or the model did not return a parsable draft." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not distill a skill from this conversation — the run may be too short, or the model did not return a parsable draft."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法从本对话提炼技能——这段运行可能太短，或模型没有返回可解析的草稿。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法從本對話提煉技能——這段執行可能太短，或模型沒有回傳可解析的草稿。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

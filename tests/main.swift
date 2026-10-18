@@ -3280,6 +3280,47 @@ func testHistoryGrouping() {
 }
 testHistoryGrouping()
 
+func testSkillDistill() {
+    let ok = SkillDistill.draft(fromModelOutput: """
+    Here is the draft:
+    ```json
+    {"name": "Refresh Hidden Prices", "description": "when a price page hides numbers\\nbehind a paywall",
+     "instructions": "1. open the page\\n2. run extractJS"}
+    ```
+    """)
+    check("提炼：围栏/杂谈容忍且字段齐", ok != nil)
+    check("提炼：描述压成单行", ok?.description == "when a price page hides numbers behind a paywall")
+    check("提炼：名称按原样", ok?.name == "Refresh Hidden Prices")
+    let longName = String(repeating: "x", count: 80)
+    check("提炼：名称截 60 字符",
+          SkillDistill.draft(fromModelOutput: "{\"name\": \"\(longName)\", \"description\": \"d\", \"instructions\": \"i\"}")?.name.count == 60)
+    check("提炼：缺字段拒收",
+          SkillDistill.draft(fromModelOutput: "{\"name\": \"a\", \"instructions\": \"i\"}") == nil)
+    check("提炼：空正文拒收",
+          SkillDistill.draft(fromModelOutput: "{\"name\": \"a\", \"description\": \"d\", \"instructions\": \"  \"}") == nil)
+    check("提炼：非 JSON 拒收", SkillDistill.draft(fromModelOutput: "no json here") == nil)
+    let nested = SkillDistill.draft(fromModelOutput: "{\"name\": \"a\", \"description\": \"d\", \"instructions\": \"---\\nname: x\\n---\\n真正文\"}")
+    check("提炼：正文自带 frontmatter 剥一层", nested?.instructions == "真正文")
+
+    let messages = [
+        AgentMessage(role: .system, content: "system prompt"),
+        AgentMessage(role: .user, content: "查一下价格"),
+        AgentMessage(role: .assistant, content: "好的",
+                     toolCalls: [AgentToolCall(id: "1", type: "function",
+                                               function: .init(name: "getPageText", arguments: "{}"))]),
+        AgentMessage(role: .tool, content: "价格 42", toolCallId: "1", toolName: "getPageText"),
+    ]
+    let text = SkillDistill.transcript(from: messages)
+    check("运行记录：不含 system", !text.contains("system prompt"))
+    check("运行记录：含用户与工具行",
+          text.contains("USER: 查一下价格") && text.contains("[tool] getPageText")
+          && text.contains("[result] 价格 42"))
+    let long = [AgentMessage(role: .user, content: String(repeating: "长", count: 500))]
+    check("运行记录：超限保尾部加省略标记",
+          SkillDistill.transcript(from: long, maxChars: 100).hasPrefix("…(前文截断)"))
+}
+testSkillDistill()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

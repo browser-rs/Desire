@@ -25,6 +25,12 @@ struct AgentPanel: View {
     /// 上一次的文本变化来自历史回填（据此区分"用户手打" → 退出翻阅）。
     @State private var recalledFromHistory = false
     @State private var showHistory = false
+    // 从会话提炼技能（v0.7.22 旗舰）：跑一次旁路调用 → 编辑器预填草稿。
+    @State private var distillRunning = false
+    @State private var distillDraft: SkillDistill.Draft?
+    @State private var showDistillEditor = false
+    @State private var distillError: String?
+
     // 会话内查找（v0.7.21）：⌘F 打开；命中消息高亮 + 滚动定位。
     @State private var showFind = false
     @State private var findText = ""
@@ -120,6 +126,19 @@ struct AgentPanel: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
+        .sheet(isPresented: $showDistillEditor) {
+            AgentSkillEditorSheet(editing: nil, draftPrelude: distillDraft) {
+                SkillStore.shared.reload()
+            }
+        }
+        .alert(String(localized: "Skill distillation failed"),
+               isPresented: Binding(
+                    get: { distillError != nil },
+                    set: { if !$0 { distillError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(distillError ?? "")
+        }
         .onAppear {
             // 面板出现（打开/从子页回来）时把焦点交给输入框 —— 否则必须先用鼠标
             // 点一下输入框才能打字（用户反馈过的 UX 缺陷）。@FocusState 在 onAppear
@@ -143,6 +162,7 @@ struct AgentPanel: View {
                 hasHistory: !conversationStore.conversations.isEmpty,
                 onShowHistory: hidesHeaderNavigation ? nil : { showHistory = true },
                 onShowCapabilities: hidesHeaderNavigation ? nil : { showCapabilities = true },
+                onDistillSkill: { distillCurrentConversation() },
                 onShowTrace: hidesHeaderNavigation ? nil : { showTrace = true },
                 onShowStats: hidesHeaderNavigation ? nil : { showStats = true },
                 onShowMemory: hidesHeaderNavigation ? nil : { showMemory = true },
@@ -152,6 +172,20 @@ struct AgentPanel: View {
                 isSidebarExpanded: isSidebarExpanded,
                 onNewChat: { store.clear() }
             )
+
+            if distillRunning {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .controlSize(.mini)
+                    Text("Distilling a skill draft from this conversation…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 4)
+                .background(.bar)
+            }
 
             if showFind {
                 findBar
@@ -756,6 +790,25 @@ struct AgentPanel: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
         .background(.bar)
+    }
+
+    /// 「提炼为技能」：当前会话 → 旁路模型 → 草稿 → 编辑器预填（用户在编辑器里
+    /// 剪裁后保存；这里**不落盘**——草稿是建议，保存动作归用户）。
+    private func distillCurrentConversation() {
+        guard !distillRunning else { return }
+        distillRunning = true
+        let messages = store.messages
+        let preference = store.preference
+        Task { @MainActor in
+            let draft = await SkillDistiller.draft(from: messages, preference: preference)
+            distillRunning = false
+            if let draft {
+                distillDraft = draft
+                showDistillEditor = true
+            } else {
+                distillError = String(localized: "Could not distill a skill from this conversation — the run may be too short, or the model did not return a parsable draft.")
+            }
+        }
     }
 
     private func openFind() {

@@ -316,11 +316,13 @@ private struct AgentSkillCard: View {
 /// 技能编辑器（新建/编辑共用，2026-10-10）：名称/描述/使用说明三字段 →
 /// `SkillAuthoring.markdown` 渲染 SKILL.md。新建写到技能目录 `<名称>.md`；
 /// 编辑写回原文件（含目录 skill 的 SKILL.md）。同名 = 覆盖（与导入同语义）。
-private struct AgentSkillEditorSheet: View {
+struct AgentSkillEditorSheet: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @Environment(\.dismiss) private var dismiss
     let editing: SkillStore.Skill?
+    /// 新建态的预填草稿（「从会话提炼技能」的产物）；editing 非 nil 时忽略。
+    var draftPrelude: SkillDistill.Draft? = nil
     /// 保存成功后回调（宿主 reload + 重扫风险）。
     let onSaved: () -> Void
 
@@ -408,6 +410,10 @@ private struct AgentSkillEditorSheet: View {
                 description = editing.description
                 instructions = Self.stripFrontmatter(
                     (try? String(contentsOf: editing.url, encoding: .utf8)) ?? "")
+            } else if let draftPrelude {
+                name = draftPrelude.name
+                description = draftPrelude.description
+                instructions = draftPrelude.instructions
             }
         }
     }

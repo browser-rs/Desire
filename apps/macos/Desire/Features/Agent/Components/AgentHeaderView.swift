@@ -16,6 +16,8 @@ struct AgentHeaderView: View {
     /// 历史入口（独立窗口里上移到侧栏会话区 → 传 nil 隐藏头部按钮）。
     var onShowHistory: (() -> Void)?
     var onShowCapabilities: (() -> Void)?
+    /// 「从会话提炼技能」（v0.7.22 旗舰）：当前会话 → 技能草稿 → 编辑器预填。
+    var onDistillSkill: (() -> Void)?
     var onShowTrace: (() -> Void)?
     var onShowStats: (() -> Void)?
     var onShowMemory: (() -> Void)?
@@ -217,6 +219,13 @@ struct AgentHeaderView: View {
                         store.modeBinding = mode
                     }
                     .disabled(store.effectiveMode == mode)
+                }
+                if let onDistillSkill {
+                    Divider()
+                    Button(String(localized: "Distill Skill from This Conversation…")) {
+                        onDistillSkill()
+                    }
+                    .disabled(store.messages.isEmpty)
                 }
             } label: {
                 Text(boundName ?? "Agent")

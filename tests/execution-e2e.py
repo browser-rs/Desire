@@ -27,7 +27,7 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
 桥 /promotion/review 一键安排每日选题采集并撤销）/
 阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）/
-从会话提炼技能（MUSCLE28：草稿三字段/不落盘/落盘可见/清理还原）/\n书签死链校验+清理（MUSCLE27：真 404 命中/零误伤/removed+missing 路径）/\n会话内查找（MUSCLE26：标记消息命中 + 无命中零）/\n阅读进度记忆（MUSCLE25：桥写 → 关标签重开 → 恢复 ≈50%）/\n命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
+记忆冲突复核（MUSCLE29：keepNew 删旧增新 / merge 删二留一）/\n从会话提炼技能（MUSCLE28：草稿三字段/不落盘/落盘可见/清理还原）/\n书签死链校验+清理（MUSCLE27：真 404 命中/零误伤/removed+missing 路径）/\n会话内查找（MUSCLE26：标记消息命中 + 无命中零）/\n阅读进度记忆（MUSCLE25：桥写 → 关标签重开 → 恢复 ≈50%）/\n命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -1996,6 +1996,40 @@ def main():
         bridge("POST", "/skills/delete", {"name": "价格巡检流程"})
         left28 = {s["name"] for s in bridge("GET", "/skills").get("skills", [])}
         ok("提炼：清理后列表还原", "价格巡检流程" not in left28)
+        # ── MUSCLE29：记忆冲突复核（四决议；桥等价，纯逻辑由 harness 覆盖）──
+        M29 = "MUSCLE29"
+
+        def mem_facts29():
+            return {f["id"]: f["content"] for f in bridge("GET", "/memory").get("facts", [])}
+
+        def seed29(text):
+            bridge("POST", "/memory/facts/add", {"content": text, "category": "fact", "scope": "global"})
+            time.sleep(0.4)
+            hits = [fid for fid, c in mem_facts29().items() if c == text]
+            return hits[0] if hits else None
+
+        for fid, c in mem_facts29().items():
+            if M29 in c:
+                bridge("POST", "/memory/facts/delete", {"id": fid})
+        a29 = seed29(f"{M29} 记忆甲：偏好宋体阅读长文")
+        ok("记忆复核：种子入库", bool(a29))
+        bridge("POST", "/memory/conflicts/resolve", {
+            "newText": f"{M29} 记忆甲改：偏好宋体阅读长文并加大行距",
+            "relatedIDs": [a29], "resolution": "keepNew"})
+        time.sleep(0.4)
+        now29 = mem_facts29()
+        ok("记忆复核：keepNew 删旧增新",
+           a29 not in now29 and any("并加大行距" in c for c in now29.values()))
+        b29 = seed29(f"{M29} 阅读字号偏好：正文 16px")
+        c29 = seed29(f"{M29} 深夜时段偏好：22 点后")
+        ok("记忆复核：merge 种子两条", bool(b29) and bool(c29))
+        bridge("POST", "/memory/conflicts/resolve", {
+            "newText": f"{M29} 合并载体", "relatedIDs": [b29, c29], "resolution": "merge",
+            "mergedText": f"{M29} 合并后的一条偏好"})
+        time.sleep(0.4)
+        now29 = mem_facts29()
+        ok("记忆复核：merge 删两条留合并句",
+           b29 not in now29 and c29 not in now29 and any("合并后的一条偏好" in c for c in now29.values()))
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -2066,6 +2100,13 @@ def main():
                                                       for m in msgs4c.get("messages", [])):
                         break
                     time.sleep(1)
+        except Exception:
+            pass
+        # 记忆复核兜底（MUSCLE29）：删掉含标记的事实。
+        try:
+            for fid, c in ((f["id"], f["content"]) for f in bridge("GET", "/memory").get("facts", [])):
+                if "MUSCLE29" in c:
+                    bridge("POST", "/memory/facts/delete", {"id": fid})
         except Exception:
             pass
         # 技能提炼兜底（MUSCLE28）：删掉可能的草稿文件。

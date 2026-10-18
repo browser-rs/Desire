@@ -11,6 +11,12 @@ struct AgentMemoryView: View {
 
     @ObservedObject private var memory = AgentMemoryStore.shared
     @State private var newFact = ""
+    /// 冲突复核向导（v0.7.22）：手动添加的即时复核 / 自动抽取的队列复核。
+    struct ConflictSheetPayload: Identifiable {
+        let id = UUID()
+        let mode: AgentMemoryConflictSheet.Mode
+    }
+    @State private var conflictSheet: ConflictSheetPayload?
     @State private var editingFactID: UUID?
     @State private var editingText = ""
     @State private var showClearConfirmation = false
@@ -30,6 +36,16 @@ struct AgentMemoryView: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .sheet(item: $conflictSheet) { payload in
+            AgentMemoryConflictSheet(memory: memory, mode: payload.mode) {
+                // 处理完一条：队列还有就接着下一条（复核是队列语义）。
+                if let next = memory.pendingConflicts.first {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+                        conflictSheet = ConflictSheetPayload(mode: .review(next))
+                    }
+                }
+            }
+        }
         .overlay(alignment: .top) {
             if let exportedURL {
                 HStack(spacing: 6) {
@@ -155,6 +171,28 @@ struct AgentMemoryView: View {
 
     private var factsSection: some View {
         sectionCard(title: "长期记忆 · \(memory.archive.facts.count)", icon: "brain") {
+            if !memory.pendingConflicts.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
+                        .font(.system(size: 11))
+                        .foregroundStyle(appAccent)
+                    Text(String(localized: "\(memory.pendingConflicts.count) newly learned memories look related to existing ones — review when convenient."))
+                        .font(.system(size: 11.5))
+                    Spacer()
+                    Button(String(localized: "Review")) {
+                        if let first = memory.pendingConflicts.first {
+                            conflictSheet = ConflictSheetPayload(mode: .review(first))
+                        }
+                    }
+                    .font(.system(size: 11.5))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(appAccent)
+                }
+                .padding(8)
+                .background(RoundedRectangle(cornerRadius: 6).fill(appAccent.opacity(0.08)))
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
+            }
             VStack(spacing: 0) {
                 HStack(spacing: 6) {
                     TextField("手动添加一条记忆…", text: $newFact)
@@ -279,6 +317,11 @@ struct AgentMemoryView: View {
     private func addFact() {
         let content = newFact.trimmingCharacters(in: .whitespaces)
         guard !content.isEmpty else { return }
+        // 相关既有事实存在时先复核（近似判定口径；无相关内容直接入库）。
+        if !memory.conflictCandidates(for: content, category: "fact", scope: "global").isEmpty {
+            conflictSheet = ConflictSheetPayload(mode: .manual(newText: content, category: "fact", scope: "global"))
+            return
+        }
         memory.addFact(content: content, category: "fact")
         newFact = ""
     }

@@ -62,6 +62,12 @@ enum MemoryExtractor {
                     category: fact["category"] as? String ?? "fact",
                     source: source
                 )
+                // 自动路径不能打断回合——相关但非近似重复的候选进复核队列
+                // （记忆面板横幅→向导；口径=近似判定、不声称语义冲突）。
+                memory.noteAutoConflictIfNeeded(
+                    insertedFactContent: String(content.prefix(200)),
+                    category: fact["category"] as? String ?? "fact",
+                    scope: "global")
             }
         }
         if let profile = obj["profile"] as? [String: Any] {

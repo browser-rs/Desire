@@ -3321,6 +3321,36 @@ func testSkillDistill() {
 }
 testSkillDistill()
 
+func testMemoryConflict() {
+    func fact(_ content: String, _ category: String = "fact", _ scope: String = "global") -> MemoryFact {
+        MemoryFact(content: content, category: category, scope: scope)
+    }
+    // 同桶 + 高重叠 = 相关候选
+    let base = [fact("用户偏好用宋体阅读长文"), fact("用户偏好用黑体阅读长文")]
+    let cands = MemoryConflict.candidates(for: "用户偏好用宋体阅读长文并加大行距",
+                                          category: "fact", scope: "global", facts: base)
+    check("冲突：同桶高重叠进候选", !cands.isEmpty)
+    check("冲突：候选按重叠降序",
+          cands.map(\.overlap) == cands.map(\.overlap).sorted(by: >))
+    // 近似重复单列一类（≥0.8）
+    let dupFacts = [fact("用户偏好在深夜时段学习")]
+    let dupCands = MemoryConflict.candidates(for: "用户偏好在深夜时段学习！",
+                                             category: "fact", scope: "global", facts: dupFacts)
+    check("冲突：近似重复标记 kind", dupCands.first?.kind == .nearDuplicate)
+    // 不同桶且无重叠不打扰
+    let unrelated = [fact("项目代号白鹤", "project", "github.com")]
+    check("冲突：异桶异 scope 不提示",
+          MemoryConflict.candidates(for: "今天天气适合运动", category: "fact", scope: "global",
+                                    facts: unrelated).isEmpty)
+    // 空文本不产生候选
+    check("冲突：空文本空候选",
+          MemoryConflict.candidates(for: "   ", category: "fact", scope: "global", facts: base).isEmpty)
+    // 合并兜底拼接：去重 + "；" 衔接
+    let merged = MemoryConflict.defaultMergedText(new: "偏好宋体", related: ["偏好宋体", "行距 1.6"])
+    check("冲突：合并拼接去重", merged == "偏好宋体；行距 1.6")
+}
+testMemoryConflict()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

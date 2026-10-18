@@ -45,7 +45,7 @@ struct MemoryFact: Codable, Identifiable, Equatable {
 /// without loading their raw transcripts (L3, already in ConversationStore).
 enum MemoryModels {
     /// 记忆事实的**归一化**：小写、去空白与常见标点 —— 近似重复判定用它。
-    static func normalizeFact(_ text: String) -> String {
+    nonisolated static func normalizeFact(_ text: String) -> String {
         let lowered = text.lowercased()
         let skipped = CharacterSet.whitespacesAndNewlines
             .union(CharacterSet(charactersIn: "，。、！？：；\"'()（）[]【】…—,.!?;:"))

@@ -33,6 +33,11 @@ final class AgentMemoryStore: ObservableObject {
         }
         archive = loaded
         pendingDeletions = DiskStore.load([String: Date].self, key: Self.deletionsKey) ?? [:]
+        if let data = UserDefaults.standard.data(forKey: Self.pendingConflictsKey),
+           let decoded = try? JSONDecoder().decode([PendingConflict].self, from: data) {
+            pendingConflicts = decoded
+        }
+        prunePendingConflicts()
     }
 
     /// Convenience for view branching (onboarding shows until completed).
@@ -110,6 +115,136 @@ final class AgentMemoryStore: ObservableObject {
             }
         }
         save()
+    }
+
+    // MARK: - 记忆冲突复核（v0.7.22）
+
+    /// 复核决议（面板与桥共用一套语义）。
+    enum ConflictResolution: String {
+        /// 保留新的：删掉相关旧事实，写入新事实。
+        case keepNew
+        /// 保留旧的：不写入新事实。
+        case keepOld
+        /// 两条都保留（近似重复会撞既有去重被拒，属预期）。
+        case keepBoth
+        /// 合并：删掉相关旧事实，写入合并文本（缺省由纯逻辑兜底拼接）。
+        case merge
+    }
+
+    struct PendingConflict: Codable, Identifiable, Equatable {
+        let id: UUID
+        let factID: UUID
+        let relatedIDs: [UUID]
+    }
+
+    private static let pendingConflictsKey = "memory.pendingConflicts"
+
+    /// 自动抽取路径留下的待复核项（手动添加是即时的、不进队列）。
+    @Published private(set) var pendingConflicts: [PendingConflict] = []
+
+    /// 与新增文本相关的既有事实（纯逻辑薄封装；**近似判定**口径见 MemoryConflict）。
+    func conflictCandidates(for text: String, category: String, scope: String) -> [MemoryConflict.Candidate] {
+        MemoryConflict.candidates(for: text, category: category, scope: scope, facts: archive.facts)
+    }
+
+    /// 执行一次复核决议。`relatedIDs` 为空时 keepNew/merge 等同于普通新增。
+    /// 删除走既有 recordDeletion（墓碑随同步）；全部改动一次落盘。
+    @discardableResult
+    func resolveConflict(newText: String, category: String, scope: String, source: String? = nil,
+                         resolution: ConflictResolution, relatedIDs: [UUID],
+                         mergedText: String? = nil) -> Bool {
+        let trimmed = newText.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch resolution {
+        case .keepOld:
+            removePendingConflicts(forFactIDs: [])
+            return true
+        case .keepBoth:
+            addFact(content: trimmed, category: category, scope: scope, source: source)
+            return true
+        case .keepNew:
+            removeFacts(ids: relatedIDs)
+            addFact(content: trimmed, category: category, scope: scope, source: source)
+            return true
+        case .merge:
+            removeFacts(ids: relatedIDs)
+            let relatedTexts = archive.facts.filter { relatedIDs.contains($0.id) }.map(\.content)
+            let merged = (mergedText?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap {
+                $0.isEmpty ? nil : $0
+            } ?? MemoryConflict.defaultMergedText(new: trimmed, related: relatedTexts)
+            addFact(content: merged, category: category, scope: scope, source: source)
+            return true
+        }
+    }
+
+    /// 复核态（事实已自动入库）的决议：keepOld = 删掉**新入库的那条**；
+    /// keepNew = 删相关旧条；merge = 删两边、写合并文本。队列项同步清掉。
+    func resolveReview(factID: UUID, relatedIDs: [UUID], resolution: ConflictResolution,
+                       mergedText: String? = nil) {
+        guard let fact = archive.facts.first(where: { $0.id == factID }) else {
+            removePendingConflicts(forFactIDs: [factID])
+            return
+        }
+        switch resolution {
+        case .keepOld:
+            removeFacts(ids: [factID])
+        case .keepBoth:
+            break
+        case .keepNew:
+            removeFacts(ids: relatedIDs)
+        case .merge:
+            let relatedTexts = archive.facts.filter { relatedIDs.contains($0.id) }.map(\.content)
+            let merged = (mergedText?.trimmingCharacters(in: .whitespacesAndNewlines)).flatMap {
+                $0.isEmpty ? nil : $0
+            } ?? MemoryConflict.defaultMergedText(new: fact.content, related: relatedTexts)
+            removeFacts(ids: relatedIDs + [factID])
+            addFact(content: merged, category: fact.category, scope: fact.scope, source: fact.source)
+        }
+        removePendingConflicts(forFactIDs: [factID])
+        save()
+    }
+
+    /// 复核完成/条目不存在时清队列项。
+    func removePendingConflicts(forFactIDs ids: [UUID]) {
+        if ids.isEmpty { return }
+        pendingConflicts.removeAll { ids.contains($0.factID) }
+        savePendingConflicts()
+    }
+
+    /// 清理队列里"引用已不存在"的悬空项（事实被删/被去重拒收后）。
+    func prunePendingConflicts() {
+        let factIDs = Set(archive.facts.map(\.id))
+        let before = pendingConflicts.count
+        pendingConflicts.removeAll { entry in
+            guard factIDs.contains(entry.factID) else { return true }
+            return entry.relatedIDs.allSatisfy { !factIDs.contains($0) }
+        }
+        if pendingConflicts.count != before { savePendingConflicts() }
+    }
+
+    /// 自动抽取路径的备注：入库成功且存在"相关但非近似重复"候选时进队列。
+    func noteAutoConflictIfNeeded(insertedFactContent: String, category: String, scope: String) {
+        guard let fact = archive.facts.first(where: { $0.content == insertedFactContent.trimmingCharacters(in: .whitespacesAndNewlines) }) else { return }
+        let related = MemoryConflict.candidates(for: fact.content, category: category,
+                                                scope: scope, facts: archive.facts)
+            .filter { $0.factID != fact.id && $0.kind == .related }
+            .map(\.factID)
+        guard !related.isEmpty else { return }
+        pendingConflicts.removeAll { $0.factID == fact.id }
+        pendingConflicts.append(PendingConflict(id: UUID(), factID: fact.id, relatedIDs: related))
+        savePendingConflicts()
+    }
+
+    private func removeFacts(ids: [UUID]) {
+        for id in ids {
+            recordDeletion(id.uuidString)
+            archive.facts.removeAll { $0.id == id }
+        }
+        removePendingConflicts(forFactIDs: ids)
+    }
+
+    private func savePendingConflicts() {
+        UserDefaults.standard.set(try? JSONEncoder().encode(pendingConflicts),
+                                  forKey: Self.pendingConflictsKey)
     }
 
     /// Read accessors for the automation bridge (memory management surface).

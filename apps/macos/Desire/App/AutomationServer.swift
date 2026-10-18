@@ -479,6 +479,8 @@ final class AutomationServer {
         ep("POST", "/site-settings/font", "Per-site fonts: minFontSize (0=off)/fontFamily (''=off)/null=follow default; re-injects immediately", params: ["host", "minFontSize?", "fontFamily?"], example: #"-d '{"host":"a.b","minFontSize":16}'"#)
         ep("POST", "/site-settings/clear", "Clear all per-site UI overrides (zoom/dark/auto-play/fonts; blocked rules untouched) and re-apply to the active tab", params: ["host:string"], example: #"-d '{"host":"a.b"}'"#)
         ep("GET", "/agent/find", "Find messages in the live conversation (case-insensitive; content only)", params: ["q:string", "window?:string"], example: "…/agent/find?q=deploy")
+        ep("GET", "/memory/conflicts", "Pending memory-conflict reviews (approximate relatedness; queue from auto-extraction)", example: "…/memory/conflicts")
+        ep("POST", "/memory/conflicts/resolve", "Resolve a conflict: resolution=keepNew|keepOld|keepBoth|merge; factID (review) or newText (manual)", params: ["factID?/newText?", "relatedIDs:[uuid]", "resolution", "mergedText?"], example: #"-d '{"newText":"…","relatedIDs":["…"],"resolution":"merge"}'"#)
         ep("POST", "/skills/distill", "Distill a SKILL.md draft from the live conversation (one bypass model call); save=true writes it", params: ["save?:bool", "window?:string"], example: #"-d '{"save":true}'"#)
         ep("GET", "/palette", "Command-palette mixed search (commands/tabs/bookmarks/history/conversations, grouped + per-source totals)", params: ["q:string"], example: "…/palette?q=book")
         ep("GET", "/bilingual", "Bilingual reading state for the active tab (on/running/done/total/error)", example: "…/bilingual")
@@ -2649,6 +2651,10 @@ final class AutomationServer {
                 return try Self.json(Self.decayMemory(olderThanDays: body["days"] as? Int ?? 90))
             case ("GET", "/memory"):
                 return try Self.json(Self.memorySnapshot())
+            case ("GET", "/memory/conflicts"):
+                return try Self.json(Self.memoryConflicts())
+            case ("POST", "/memory/conflicts/resolve"):
+                return try Self.json(Self.resolveMemoryConflict(body: body))
             case ("POST", "/memory/facts/add"):
                 return try Self.json(Self.addMemoryFact(
                     content: Self.string(body, "content") ?? "",
@@ -6492,6 +6498,54 @@ final class AutomationServer {
         guard !content.isEmpty else { return ["error": "missing content"] }
         AgentMemoryStore.shared.addFact(content: content, category: category, scope: scope)
         return ["ok": true]
+    }
+
+    /// 冲突复核队列（近似判定口径；面板横幅的桥等价）。
+    private static func memoryConflicts() throws -> [String: Any] {
+        let store = AgentMemoryStore.shared
+        store.prunePendingConflicts()
+        let entries: [[String: Any]] = store.pendingConflicts.map { pending in
+            let fact = store.factsSnapshot.first { $0.id == pending.factID }
+            let related = pending.relatedIDs.compactMap { id in
+                store.factsSnapshot.first { $0.id == id }.map {
+                    ["id": $0.id.uuidString, "content": $0.content]
+                }
+            }
+            return ["factID": pending.factID.uuidString,
+                    "content": fact?.content ?? "",
+                    "related": related]
+        }
+        return ["ok": true, "count": entries.count, "conflicts": entries]
+    }
+
+    /// 复核决议（面板向导的桥等价）：resolution = keepNew|keepOld|keepBoth|merge。
+    /// `factID` 给复核态（已入库）；`newText` 给手动态（尚未入库）。
+    private static func resolveMemoryConflict(body: [String: Any]) throws -> [String: Any] {
+        let store = AgentMemoryStore.shared
+        guard let resolutionRaw = Self.string(body, "resolution"),
+              let resolution = AgentMemoryStore.ConflictResolution(rawValue: resolutionRaw) else {
+            return ["error": "resolution must be keepNew | keepOld | keepBoth | merge"]
+        }
+        // 逐元素容错：数组里混 null/非字符串时**不能整体退化**为空
+        //（`as? [String]` 遇 NSNull 会整组 nil——静默吞参，2026-10-18 探针照出）。
+        let relatedIDs = ((body["relatedIDs"] as? [Any]) ?? [])
+            .compactMap { $0 as? String }
+            .compactMap { UUID(uuidString: $0) }
+        let mergedText = Self.string(body, "mergedText")
+        if let factIDRaw = Self.string(body, "factID"), let factID = UUID(uuidString: factIDRaw) {
+            store.resolveReview(factID: factID, relatedIDs: relatedIDs,
+                                resolution: resolution, mergedText: mergedText)
+            return ["ok": true, "mode": "review"]
+        }
+        if let newText = Self.string(body, "newText"), !newText.isEmpty {
+            store.resolveConflict(newText: newText,
+                                  category: Self.string(body, "category") ?? "fact",
+                                  scope: Self.string(body, "scope") ?? "global",
+                                  resolution: resolution, relatedIDs: relatedIDs,
+                                  mergedText: mergedText)
+            return ["ok": true, "mode": "manual"]
+        }
+        return ["error": "need factID (review) or newText (manual)"]
     }
 
     private static func updateMemoryFact(id: String, content: String) throws -> [String: Any] {

@@ -1082,8 +1082,10 @@ struct AgentPanel: View {
     return AgentPanel(store: store, conversationStore: conversationStore, promptCenter: store.promptCenter)
         .frame(width: 360, height: 560)
 }
-/// Tab Crew 进度条（0.3.1）：每子任务一枚瓦片（状态色），点击对应标签；
-/// 全部落定后可一键关闭条子。UI 占位最简 v1。
+/// Tab Crew 进度条（0.3.1 起；v0.7.22 升级为**运行观察面**）：概要行（状态点 +
+/// 目标 + 取消/关闭）+ 运行中逐 worker 的**实时详情**（当前步骤 / 已用时 /
+/// 工具调用数）。WorkerTask 是引用类型，进度靠 store 侧节流 objectWillChange
+/// 推动重绘；已用时用 TimelineView 自走（不依赖发布）。
 struct CrewProgressStrip: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
@@ -1092,41 +1094,95 @@ struct CrewProgressStrip: View {
 
     private func tint(_ state: AgentCrewStore.WorkerTask.State) -> Color {
         switch state {
-        case .pending: .secondary.opacity(0.4)
-        case .running: .accentColor
-        case .done: .green
-        case .failed: .red
-        case .cancelled: .secondary
+        case .pending: return Color.secondary.opacity(0.4)
+        case .running: return appAccent
+        case .done: return .green
+        case .failed: return .red
+        case .cancelled: return .secondary
         }
     }
 
+    /// 运行中/待跑的 worker 展详情（落定的不占版面；最多 6 行）。
+    private var observedTasks: [AgentCrewStore.WorkerTask] {
+        Array(crew.tasks.filter { !$0.state.isTerminal }.prefix(6))
+    }
+
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "person.3.sequence")
-                .font(.system(size: 10))
-                .foregroundStyle(.secondary)
-            Text(crew.objective)
-                .font(.caption2.weight(.medium))
-                .lineLimit(1)
-            HStack(spacing: 4) {
-                ForEach(crew.tasks) { t in
-                    Circle()
-                        .fill(tint(t.state))
-                        .frame(width: 8, height: 8)
-                        .help("[\(t.index)] \(t.state.rawValue): \(t.instruction)")
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 8) {
+                Image(systemName: "person.3.sequence")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                Text(crew.objective)
+                    .font(.caption2.weight(.medium))
+                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    ForEach(crew.tasks) { t in
+                        Circle()
+                            .fill(tint(t.state))
+                            .frame(width: 8, height: 8)
+                            .help("[\(t.index)] \(t.state.rawValue): \(t.instruction)")
+                    }
+                }
+                Spacer(minLength: 8)
+                if !crew.isSettled {
+                    Button("Cancel", action: onCancelAll)
+                        .buttonStyle(.plain)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button {
+                        AgentCrewStore.shared.clear()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Dismiss")
                 }
             }
-            Spacer(minLength: 8)
-            if !crew.isSettled {
-                Button("Cancel", action: onCancelAll)
-                    .buttonStyle(.plain)
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+            ForEach(observedTasks) { t in
+                HStack(spacing: 6) {
+                    Text("#\(t.index)")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    Text(t.instruction)
+                        .font(.system(size: 10.5))
+                        .lineLimit(1)
+                        .foregroundStyle(.primary)
+                    if let step = t.currentStep {
+                        Text(step)
+                            .font(.system(size: 10))
+                            .foregroundStyle(appAccent)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 6)
+                    if t.toolCallCount > 0 {
+                        Text("\(t.toolCallCount)×")
+                            .font(.system(size: 9.5, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                    if let started = t.startedAt, t.state == .running {
+                        TimelineView(.periodic(from: started, by: 1)) { context in
+                            Text(msText(context.date.timeIntervalSince(started)))
+                                .font(.system(size: 9.5, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+                .padding(.leading, 18)
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
         .background(appAccent.opacity(0.08))
         .animation(.overlaySpring, value: crew.tasks.map { $0.state.rawValue })
+    }
+
+    private func msText(_ seconds: TimeInterval) -> String {
+        seconds >= 60
+            ? String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
+            : String(format: "%.0fs", seconds)
     }
 }

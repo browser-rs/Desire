@@ -441,6 +441,8 @@ final class AutomationServer {
         ep("GET", "/workspaces", "Saved window workspaces (name/tabs/savedAt)", example: "…/workspaces")
         ep("POST", "/workspaces/delete", "Delete a saved workspace by name", params: ["name:string"], example: #"-d '{"name":"…"}'"#)
         ep("GET", "/tab-groups", "Tab groups (name/color/tabCount)", example: "…/tab-groups")
+        ep("GET", "/crew", "Tab-crew observation: per-worker state/currentStep/elapsed/toolCalls + tokens", example: "…/crew")
+        ep("POST", "/crew", "Crew control: action=clear (dismiss settled strip) | cancel (cancel running workers)", params: ["action"], example: #"-d '{"action":"clear"}'"#)
         ep("POST", "/inbox/dismiss", "Hide inbox items: action=ignore (permanent) | snooze (hours? or until epoch)", params: ["ids:[string]", "action", "hours?/until?"], example: #"-d '{"ids":["…"],"action":"snooze","hours":2}'"#)
         ep("POST", "/inbox/restore", "Restore hidden inbox items (ids omitted = all)", params: ["ids?:[string]"], example: "-d '{}'")
         ep("GET", "/inbox", "Inbox: 等你处理 + 变化与结果（与 Agent 窗口收件箱页同源）", example: "…/inbox")
@@ -1660,6 +1662,10 @@ final class AutomationServer {
                 return try Self.json(Self.inboxDismiss(body: body))
             case ("POST", "/inbox/restore"):
                 return try Self.json(Self.inboxRestore(ids: body["ids"] as? [String]))
+            case ("GET", "/crew"):
+                return try Self.json(Self.crewState())
+            case ("POST", "/crew"):
+                return try Self.json(Self.crewAction(Self.string(body, "action") ?? "clear"))
             case ("GET", "/inbox"):
                 return try Self.json(Self.agentInbox())
             case ("GET", "/speech"):
@@ -6531,6 +6537,42 @@ final class AutomationServer {
         guard !content.isEmpty else { return ["error": "missing content"] }
         AgentMemoryStore.shared.addFact(content: content, category: category, scope: scope)
         return ["ok": true]
+    }
+
+    /// Tab Crew 运行观察（面板条子的桥等价；进度字段见 AgentCrewStore.noteProgress）。
+    private static func crewState() -> [String: Any] {
+        let store = AgentCrewStore.shared
+        guard let crew = store.crew else { return ["ok": true, "crew": false] }
+        let workers: [[String: Any]] = crew.tasks.map { t in
+            var row: [String: Any] = ["index": t.index, "state": t.state.rawValue,
+                                      "instruction": t.instruction,
+                                      "toolCalls": t.toolCallCount]
+            if let step = t.currentStep { row["currentStep"] = step }
+            if let started = t.startedAt { row["elapsedSec"] = Date().timeIntervalSince(started) }
+            if let result = t.result { row["result"] = String(result.prefix(400)) }
+            return row
+        }
+        return ["ok": true, "crew": true,
+                "objective": crew.objective,
+                "settled": crew.isSettled,
+                "doneCount": crew.completedCount,
+                "failedCount": crew.failedCount,
+                "tokens": store.usage.promptTokens + store.usage.completionTokens,
+                "workers": workers]
+    }
+
+    /// Crew 控制：clear（落定后清条子）/ cancel（运行中全取消）。
+    private static func crewAction(_ action: String) throws -> [String: Any] {
+        let store = AgentCrewStore.shared
+        switch action {
+        case "clear":
+            store.clear()
+        case "cancel":
+            store.cancelAll()
+        default:
+            return ["error": "action must be clear | cancel"]
+        }
+        return crewState()
     }
 
     /// 收件箱批处理（v0.7.22）：忽略（永久隐藏）/ 稍后（定时回列表）。

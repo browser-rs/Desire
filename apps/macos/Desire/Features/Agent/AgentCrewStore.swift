@@ -55,6 +55,10 @@ final class AgentCrewStore: ObservableObject {
         var startedAt: Date?
         var finishedAt: Date?
         var task: Task<Void, Never>?
+        /// 运行观察面（v0.7.22）：当前步骤的一句话描述 + 工具调用计数
+        /// （"思考中（第 2 轮）"/"调用 extractTables"/"撰写报告"）。
+        var currentStep: String?
+        var toolCallCount: Int = 0
 
         enum State: String {
             case pending, running, done, failed, cancelled
@@ -72,6 +76,18 @@ final class AgentCrewStore: ObservableObject {
 
     /// 全部落定回调：领队会话注入，把聚合摘要送回领队消息流。
     var onCrewSettled: ((Crew) -> Void)?
+
+    /// 进展发布节流（≥1s 一次）：WorkerTask 是引用类型，字段变更不会自动
+    /// 触发 ObservableObject——面板靠这里手动发布，节流防每 token 一次重绘。
+    private var lastProgressPublish = Date.distantPast
+
+    private func noteProgress(_ worker: WorkerTask, step: String) {
+        worker.currentStep = step
+        let now = Date()
+        guard now.timeIntervalSince(lastProgressPublish) >= 1 else { return }
+        lastProgressPublish = now
+        objectWillChange.send()
+    }
 
     /// worker 允许的工具（只读研究子集——不给 click/fill/下载/写入）。
     private static let workerToolNames: Set<String> = [
@@ -163,7 +179,10 @@ final class AgentCrewStore: ObservableObject {
 
         var calls = 0
         defer { worker.finishedAt = Date() }
+        var round = 0
         for _ in 0..<10 {
+            round += 1
+            noteProgress(worker, step: String(format: String(localized: "Thinking (round %lld)"), round))
             // Cancelled (per-worker) workers must stop burning model calls —
             // the state flag is what cancel(taskIndex:) sets.
             if Task.isCancelled || worker.state == .cancelled {
@@ -208,6 +227,7 @@ final class AgentCrewStore: ObservableObject {
 
             if toolCalls.isEmpty {
                 // 无工具调用 = 最终报告。
+                noteProgress(worker, step: String(localized: "Writing the report"))
                 worker.state = .done
                 worker.result = text.isEmpty ? "(empty report)" : text
                 settleIfDone()
@@ -215,6 +235,8 @@ final class AgentCrewStore: ObservableObject {
             }
             for call in toolCalls {
                 calls += 1
+                worker.toolCallCount = calls
+                noteProgress(worker, step: String(format: String(localized: "Calling %@"), call.function.name))
                 guard calls <= 8 else {
                     worker.state = .failed
                     worker.result = "tool-call budget exhausted"
@@ -283,6 +305,12 @@ final class AgentCrewStore: ObservableObject {
         t.finishedAt = Date()
         settleIfDone()
         return "Cancelled subtask \(taskIndex)"
+    }
+
+    /// 清掉进度条（落定后的 ✕ / 测试收尾）。运行中不清——那是 cancelAll 的事。
+    func clear() {
+        guard let c = crew, c.isSettled else { return }
+        crew = nil
     }
 
     func cancelAll() {

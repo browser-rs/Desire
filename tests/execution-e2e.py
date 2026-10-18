@@ -27,7 +27,7 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
 桥 /promotion/review 一键安排每日选题采集并撤销）/
 阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）/
-记忆冲突复核（MUSCLE29：keepNew 删旧增新 / merge 删二留一）/\n从会话提炼技能（MUSCLE28：草稿三字段/不落盘/落盘可见/清理还原）/\n书签死链校验+清理（MUSCLE27：真 404 命中/零误伤/removed+missing 路径）/\n会话内查找（MUSCLE26：标记消息命中 + 无命中零）/\n阅读进度记忆（MUSCLE25：桥写 → 关标签重开 → 恢复 ≈50%）/\n命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
+轨迹复盘→输出规则（MUSCLE30：失败模式草稿/规则增删去重）/\n记忆冲突复核（MUSCLE29：keepNew 删旧增新 / merge 删二留一）/\n从会话提炼技能（MUSCLE28：草稿三字段/不落盘/落盘可见/清理还原）/\n书签死链校验+清理（MUSCLE27：真 404 命中/零误伤/removed+missing 路径）/\n会话内查找（MUSCLE26：标记消息命中 + 无命中零）/\n阅读进度记忆（MUSCLE25：桥写 → 关标签重开 → 恢复 ≈50%）/\n命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -687,6 +687,14 @@ class Fake(BaseHTTPRequestHandler):
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE11-DONE"}, "stop")
             return
         # 注意顺序：MUSCLE4CLEAN 是 MUSCLE4 的超串，必须先判。
+        if "MUSCLE30" in mode:
+            # 轨迹复盘（MUSCLE30）：首轮调 readFile 读不存在的文件 → Error: 落轨迹。
+            if n == 0:
+                sse(self.wfile, model, {"role": "assistant", "tool_calls": [
+                    call(0, "readFile", {"path": "/tmp/muscle30-nonexistent.txt"})]}, "tool_calls")
+            else:
+                sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE30-DONE"}, "stop")
+            return
         if "MUSCLE4CLEAN" in mode:
             import datetime as _dt
             ev_day = (_dt.datetime.now() + _dt.timedelta(days=1)).strftime("%Y-%m-%d")
@@ -2030,6 +2038,34 @@ def main():
         now29 = mem_facts29()
         ok("记忆复核：merge 删两条留合并句",
            b29 not in now29 and c29 not in now29 and any("合并后的一条偏好" in c for c in now29.values()))
+        # ── MUSCLE30：轨迹复盘卡 → 输出规则草稿（失败模式模板化派生）──
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE30 规则草稿演练：先读一个不存在的文件再汇报"})
+        deadline30 = time.time() + 90
+        while time.time() < deadline30:
+            st30 = bridge("GET", "/agent/messages")
+            if not st30.get("busy") and any("MUSCLE30-DONE" in (m.get("content") or "")
+                                            for m in st30.get("messages", [])):
+                break
+            time.sleep(1)
+        r30 = {}
+        deadline30b = time.time() + 15
+        while time.time() < deadline30b:
+            r30 = bridge("GET", "/agent/rule-draft")
+            if r30.get("drafts"):
+                break
+            time.sleep(1)
+        ok("复盘卡：草稿含 errored/readFile",
+           any(d.get("kind") == "errored" and d.get("tool") == "readFile"
+               for d in r30.get("drafts", [])))
+        ok("复盘卡：草稿文本含工具名", any("readFile" in t for t in (r30.get("texts") or [])))
+        rule30 = "MUSCLE30 规则：调用 readFile 前先确认路径存在"
+        a30 = bridge("POST", "/ai/output-rules/add", {"text": rule30})
+        ok("规则：添加进列", a30.get("ok") and rule30 in a30.get("rules", []))
+        a30b = bridge("POST", "/ai/output-rules/add", {"text": rule30})
+        ok("规则：重复添加去重", (a30b.get("rules") or []).count(rule30) == 1)
+        r30b = bridge("POST", "/ai/output-rules/remove", {"text": rule30})
+        ok("规则：移除生效", r30b.get("ok") and rule30 not in r30b.get("rules", []))
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -2100,6 +2136,11 @@ def main():
                                                       for m in msgs4c.get("messages", [])):
                         break
                     time.sleep(1)
+        except Exception:
+            pass
+        # 输出规则兜底（MUSCLE30）：删掉测试规则。
+        try:
+            bridge("POST", "/ai/output-rules/remove", {"text": "MUSCLE30 规则：调用 readFile 前先确认路径存在"})
         except Exception:
             pass
         # 记忆复核兜底（MUSCLE29）：删掉含标记的事实。

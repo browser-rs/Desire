@@ -16,6 +16,8 @@ struct AgentTraceView: View {
     @State private var selectedID: UUID?
     @State private var turns: [[String: Any]] = []
     @State private var stats: [String: Any] = [:]
+    /// 复盘卡 → 输出规则草稿的编辑文本（nil = sheet 关着）。
+    @State private var ruleDraftText: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -32,6 +34,11 @@ struct AgentTraceView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear { reload() }
+        .sheet(isPresented: Binding(
+            get: { ruleDraftText != nil },
+            set: { if !$0 { ruleDraftText = nil } })) {
+            ruleDraftSheet
+        }
     }
 
     // MARK: - Header
@@ -152,7 +159,9 @@ struct AgentTraceView: View {
                     .foregroundStyle(.secondary)
             }
             ForEach(Array(turns.enumerated()), id: \.offset) { _, turn in
-                TurnTraceCard(turn: turn)
+                TurnTraceCard(turn: turn) { drafts in
+                    ruleDraftText = drafts.map(TurnReview.ruleText(for:)).joined(separator: "\n")
+                }
             }
         }
     }
@@ -189,6 +198,43 @@ struct AgentTraceView: View {
         conversationStore.conversations.first { $0.id == selectedConversationID }?.title ?? "—"
     }
 
+    /// 规则草稿 sheet：可编辑，逐行追加进"输出规则"（去重、空行忽略）。
+    private var ruleDraftSheet: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(String(localized: "Write failure patterns into Output Rules…"))
+                .font(.system(size: 13, weight: .semibold))
+            Text("These rules go into <output_rules> of every future turn. Edit or delete lines before adding.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextEditor(text: Binding(
+                get: { ruleDraftText ?? "" },
+                set: { ruleDraftText = $0 }))
+                .font(.system(size: 12))
+                .frame(minHeight: 120)
+                .overlay(RoundedRectangle(cornerRadius: 6)
+                    .stroke(Color(nsColor: .separatorColor), lineWidth: 0.5))
+            HStack {
+                Spacer()
+                Button(String(localized: "Cancel")) { ruleDraftText = nil }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                Button(String(localized: "Add to Output Rules")) {
+                    let lines = (ruleDraftText ?? "")
+                        .split(separator: "\n")
+                        .map { $0.trimmingCharacters(in: .whitespaces) }
+                        .filter { !$0.isEmpty }
+                    for line in lines where !preference.outputRules.contains(line) {
+                        preference.outputRules.append(line)
+                    }
+                    ruleDraftText = nil
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(20)
+        .frame(width: 480)
+    }
+
     private func reload() {
         guard let id = selectedConversationID,
               let conversation = conversationStore.conversations.first(where: { $0.id == id }) else {
@@ -213,6 +259,8 @@ struct AgentTraceView: View {
 /// 一个回合：折叠状态只显示目标与摘要，展开后是完整的 Step 列表。
 private struct TurnTraceCard: View {
     let turn: [String: Any]
+    /// 复盘卡（v0.7.22）：把本回合的失败/慢模式写成输出规则草稿（宿主弹 sheet）。
+    var onDraftRules: (([TurnReview.RuleDraft]) -> Void)? = nil
     @State private var expanded = false
 
     private var steps: [[String: Any]] { (turn["steps"] as? [[String: Any]]) ?? [] }
@@ -279,6 +327,15 @@ private struct TurnTraceCard: View {
                     }
                 }
                 .padding(.leading, 8)
+            }
+            let drafts = TurnReview.drafts(from: TurnReview.stepFacts(fromTurn: turn))
+            if !drafts.isEmpty, let onDraftRules {
+                Button(String(localized: "Write failure patterns into Output Rules…")) {
+                    onDraftRules(drafts)
+                }
+                .font(.system(size: 11))
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
             }
         }
         .padding(8)

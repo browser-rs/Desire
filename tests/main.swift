@@ -3351,6 +3351,46 @@ func testMemoryConflict() {
 }
 testMemoryConflict()
 
+func testTurnReview() {
+    let turn: [String: Any] = [
+        "steps": [
+            ["action": "readFile", "denied": false, "threwError": true, "ms": 120.0],
+            ["action": "click", "denied": true, "threwError": false, "ms": 300.0],
+            ["action": "waitForText", "denied": false, "threwError": false, "ms": 9500.0],
+            ["action": "waitForText", "denied": false, "threwError": false, "ms": 10500.0],
+            ["action": "noop"],
+        ],
+    ]
+    let facts = TurnReview.stepFacts(fromTurn: turn)
+    check("复盘：抽步事实（含无 ms 的步）", facts.count == 5 && facts[4].durationMs == nil)
+    let drafts = TurnReview.drafts(from: facts)
+    check("复盘：草稿条数与顺序（被拒→出错→慢）",
+          drafts.map(\.kind) == [.denied, .errored, .slow])
+    check("复盘：被拒工具正确", drafts[0].tool == "click")
+    check("复盘：出错工具正确", drafts[1].tool == "readFile")
+    check("复盘：慢工具均值聚合（(9500+10500)/2）", drafts[2].avgMs == 10000.0)
+    // 无失败无慢 → 空草稿
+    let clean = TurnReview.drafts(from: [
+        TurnReview.StepFact(action: "click", denied: false, threwError: false, durationMs: 50),
+    ])
+    check("复盘：干净回合不硬凑规则", clean.isEmpty)
+    // 同工具多次拒绝只出一条
+    let dup = TurnReview.drafts(from: [
+        TurnReview.StepFact(action: "deleteFile", denied: true, threwError: false, durationMs: nil),
+        TurnReview.StepFact(action: "deleteFile", denied: true, threwError: false, durationMs: nil),
+    ])
+    check("复盘：同工具去重", dup.count == 1)
+    // 封顶 3 条
+    let many = TurnReview.drafts(from: ["a", "b", "c", "d"].map {
+        TurnReview.StepFact(action: $0, denied: true, threwError: false, durationMs: nil)
+    })
+    check("复盘：草稿封顶 3 条", many.count == 3)
+    // 规则文本带工具名（模板渲染）
+    let text = TurnReview.ruleText(for: drafts[0])
+    check("复盘：规则文本含工具名", text.contains("click"))
+}
+testTurnReview()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

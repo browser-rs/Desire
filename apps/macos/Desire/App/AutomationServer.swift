@@ -478,6 +478,7 @@ final class AutomationServer {
         ep("POST", "/site-settings/zoom", "Set per-host zoom", params: ["host:string", "zoom:double"], example: #"-d '{"host":"example.com","zoom":1.5}'"#)
         ep("POST", "/site-settings/font", "Per-site fonts: minFontSize (0=off)/fontFamily (''=off)/null=follow default; re-injects immediately", params: ["host", "minFontSize?", "fontFamily?"], example: #"-d '{"host":"a.b","minFontSize":16}'"#)
         ep("POST", "/site-settings/clear", "Clear all per-site UI overrides (zoom/dark/auto-play/fonts; blocked rules untouched) and re-apply to the active tab", params: ["host:string"], example: #"-d '{"host":"a.b"}'"#)
+        ep("GET", "/agent/rule-draft", "Derive Output-Rule drafts from a trace turn's failure/slow patterns (templated, no model call)", params: ["conversation?:uuid", "turn?:int (default last)"], example: "…/agent/rule-draft")
         ep("GET", "/agent/find", "Find messages in the live conversation (case-insensitive; content only)", params: ["q:string", "window?:string"], example: "…/agent/find?q=deploy")
         ep("GET", "/memory/conflicts", "Pending memory-conflict reviews (approximate relatedness; queue from auto-extraction)", example: "…/memory/conflicts")
         ep("POST", "/memory/conflicts/resolve", "Resolve a conflict: resolution=keepNew|keepOld|keepBoth|merge; factID (review) or newText (manual)", params: ["factID?/newText?", "relatedIDs:[uuid]", "resolution", "mergedText?"], example: #"-d '{"newText":"…","relatedIDs":["…"],"resolution":"merge"}'"#)
@@ -533,6 +534,9 @@ final class AutomationServer {
         ep("POST", "/ai/model", "Switch the current model (same path as the input-bar menu)", params: ["model:string"], example: #"-d '{"model":"gpt-4o-mini"}'"#)
         ep("POST", "/ai/models/fetch", "Fetch a service's /models list into its model list (same fetcher the UI uses)", params: ["id?:uuid (default: active)"], example: "-d '{}'")
         ep("POST", "/ai/profiles/delete", "Delete a custom model service (built-ins cannot be deleted)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
+        ep("GET", "/ai/output-rules", "Output rules (the <output_rules> prompt layer)", example: "…/ai/output-rules")
+        ep("POST", "/ai/output-rules/add", "Append one output rule (dedup)", params: ["text:string"], example: #"-d '{"text":"…"}'"#)
+        ep("POST", "/ai/output-rules/remove", "Remove one output rule by exact text", params: ["text:string"], example: #"-d '{"text":"…"}'"#)
         ep("GET", "/ai/prices", "Model price table (USD per Mtok) used to turn token usage into cost", example: "…/ai/prices")
         ep("POST", "/ai/prices", "Set/clear model prices; 0 or omitted = unknown (that model shows no money)", params: ["models?:{model:{input,output}}", "remove?:[model]"], example: #"-d '{"models":{"gpt-4o":{"input":2.5,"output":10}}}'"#)
         ep("GET", "/agent/messages", "Live agent conversation + busy (+hasInterruptedTurn: 上回合被中断待继续)", example: "…/agent/messages")
@@ -1553,6 +1557,10 @@ final class AutomationServer {
                 return try Self.json(Self.clearSiteSettings(host: Self.string(body, "host") ?? ""))
             case ("GET", "/palette"):
                 return try Self.json(Self.palette(query: Self.string(query, "q") ?? ""))
+            case ("GET", "/agent/rule-draft"):
+                return try Self.json(Self.agentRuleDraft(
+                    conversation: Self.string(query, "conversation"),
+                    turn: Int(Self.string(query, "turn") ?? "")))
             case ("GET", "/agent/find"):
                 return try Self.json(Self.agentMessageFind(
                     query: Self.string(query, "q") ?? "",
@@ -1879,6 +1887,12 @@ final class AutomationServer {
                 return try Self.json(["ok": true, "profileId": NSNull()])
             case ("POST", "/ai/profiles/delete"):
                 return try Self.json(Self.aiProfileDelete(id: Self.string(body, "id") ?? ""))
+            case ("GET", "/ai/output-rules"):
+                return try Self.json(Self.outputRulesList())
+            case ("POST", "/ai/output-rules/add"):
+                return try Self.json(Self.outputRulesAdd(text: Self.string(body, "text") ?? ""))
+            case ("POST", "/ai/output-rules/remove"):
+                return try Self.json(Self.outputRulesRemove(text: Self.string(body, "text") ?? ""))
             case ("GET", "/ai/prices"):
                 return try Self.json(Self.aiPriceList())
             case ("POST", "/ai/prices"):
@@ -6498,6 +6512,48 @@ final class AutomationServer {
         guard !content.isEmpty else { return ["error": "missing content"] }
         AgentMemoryStore.shared.addFact(content: content, category: category, scope: scope)
         return ["ok": true]
+    }
+
+    /// 轨迹复盘卡（v0.7.22）：回合的失败/慢模式 → 输出规则草稿（模板化派生，不经模型）。
+    private static func agentRuleDraft(conversation: String?, turn: Int?) throws -> [String: Any] {
+        guard let store = AppState.live?.conversationStore else { return ["error": "app state not ready"] }
+        let conv = conversation.flatMap { UUID(uuidString: $0) }
+            .flatMap { store.conversation(for: $0) }
+            ?? AgentScheduler.shared.deliveryTarget?.conversationId
+                .flatMap { store.conversation(for: $0) }
+        guard let conv else { return ["error": "no conversation"] }
+        let price = AppState.live?.aiPreference.usagePrice(for:)
+        let turns = AgentTrace.turns(of: conv, price: price)
+        guard !turns.isEmpty else { return ["error": "no turns"] }
+        let index = turn.map { min(max(0, $0), turns.count - 1) } ?? (turns.count - 1)
+        let drafts = TurnReview.drafts(from: TurnReview.stepFacts(fromTurn: turns[index]))
+        return ["ok": true, "turn": index,
+                "drafts": drafts.map { draft in
+                    ["kind": draft.kind.rawValue, "tool": draft.tool,
+                     "avgMs": draft.avgMs ?? 0] as [String: Any]
+                },
+                "texts": drafts.map(TurnReview.ruleText(for:))]
+    }
+
+    /// 输出规则（<output_rules> 层）的增删查——轨迹复盘卡"一键写进"的桥等价。
+    private static func outputRulesList() throws -> [String: Any] {
+        ["ok": true, "rules": AppState.live?.aiPreference.outputRules ?? []]
+    }
+
+    private static func outputRulesAdd(text: String) throws -> [String: Any] {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return ["error": "missing text"] }
+        guard let preference = AppState.live?.aiPreference else { return ["error": "app state not ready"] }
+        if !preference.outputRules.contains(trimmed) {
+            preference.outputRules.append(trimmed)
+        }
+        return ["ok": true, "rules": preference.outputRules]
+    }
+
+    private static func outputRulesRemove(text: String) throws -> [String: Any] {
+        guard let preference = AppState.live?.aiPreference else { return ["error": "app state not ready"] }
+        preference.outputRules.removeAll { $0 == text }
+        return ["ok": true, "rules": preference.outputRules]
     }
 
     /// 冲突复核队列（近似判定口径；面板横幅的桥等价）。

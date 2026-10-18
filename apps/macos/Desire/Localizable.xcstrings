@@ -43499,6 +43499,138 @@
           }
         }
       }
+    },
+    "%@ was denied by the user before — ask for confirmation first instead of calling it directly." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ was denied by the user before — ask for confirmation first instead of calling it directly."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 曾被用户拒绝——再次调用前先征求确认，不要直接执行。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 曾被使用者拒絕——再次呼叫前先徵求確認，不要直接執行。"
+          }
+        }
+      }
+    },
+    "%@ returned an error before — validate its result (the Error: prefix) before continuing, and switch approach instead of blind retries." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ returned an error before — validate its result (the Error: prefix) before continuing, and switch approach instead of blind retries."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 曾返回错误——继续前先校验结果（Error: 前缀）；失败就换方案，不要盲目重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 曾回傳錯誤——繼續前先驗證結果（Error: 前綴）；失敗就換方案，不要盲目重試。"
+          }
+        }
+      }
+    },
+    "%@ took about %@ on average — announce an expected duration before slow steps." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ took about %@ on average — announce an expected duration before slow steps."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 平均耗时约 %@——执行慢步骤前先告知预期耗时。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ 平均耗時約 %@——執行慢步驟前先告知預期耗時。"
+          }
+        }
+      }
+    },
+    "Write failure patterns into Output Rules…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Write failure patterns into Output Rules…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把失败模式写进输出规则…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把失敗模式寫進輸出規則…"
+          }
+        }
+      }
+    },
+    "Add to Output Rules" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add to Output Rules"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "添加到输出规则"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加入輸出規則"
+          }
+        }
+      }
+    },
+    "These rules go into <output_rules> of every future turn. Edit or delete lines before adding." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "These rules go into <output_rules> of every future turn. Edit or delete lines before adding."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这些规则会进入之后每一轮的 <output_rules> 层；添加前可先编辑或删行。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這些規則會進入之後每一輪的 <output_rules> 層；加入前可先編輯或刪行。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

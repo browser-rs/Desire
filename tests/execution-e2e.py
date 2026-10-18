@@ -27,11 +27,12 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
 桥 /promotion/review 一键安排每日选题采集并撤销）/
 阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）/
-收件箱批处理（MUSCLE32：忽略/稍后过期/恢复）/\n周报（MUSCLE31：状态/生成/备注投递/不含金额）/\n轨迹复盘→输出规则（MUSCLE30：失败模式草稿/规则增删去重）/\n记忆冲突复核（MUSCLE29：keepNew 删旧增新 / merge 删二留一）/\n从会话提炼技能（MUSCLE28：草稿三字段/不落盘/落盘可见/清理还原）/\n书签死链校验+清理（MUSCLE27：真 404 命中/零误伤/removed+missing 路径）/\n会话内查找（MUSCLE26：标记消息命中 + 无命中零）/\n阅读进度记忆（MUSCLE25：桥写 → 关标签重开 → 恢复 ≈50%）/\n命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
+评估集导出（MUSCLE33：反馈 up → 导出 JSONL → 列表/删除）/\n收件箱批处理（MUSCLE32：忽略/稍后过期/恢复）/\n周报（MUSCLE31：状态/生成/备注投递/不含金额）/\n轨迹复盘→输出规则（MUSCLE30：失败模式草稿/规则增删去重）/\n记忆冲突复核（MUSCLE29：keepNew 删旧增新 / merge 删二留一）/\n从会话提炼技能（MUSCLE28：草稿三字段/不落盘/落盘可见/清理还原）/\n书签死链校验+清理（MUSCLE27：真 404 命中/零误伤/removed+missing 路径）/\n会话内查找（MUSCLE26：标记消息命中 + 无命中零）/\n阅读进度记忆（MUSCLE25：桥写 → 关标签重开 → 恢复 ≈50%）/\n命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
 import json
+import os
 import threading
 import time
 import urllib.parse
@@ -2139,6 +2140,32 @@ def main():
         ok("收件箱批处理：过期稍后自动回列表",
            any(x[0] == iid32 for x in inbox_rows32()))
         fab32_path.unlink(missing_ok=True)
+        # ── MUSCLE33：评估集导出（👍 回合 → JSONL；派生复用 AgentTrace）──
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "EVAL-MUSCLE33 导出演练"})
+        deadline33 = time.time() + 90
+        while time.time() < deadline33:
+            st33 = bridge("GET", "/agent/messages")
+            if not st33.get("busy") and any("MUSCLE33-DONE" in (m.get("content") or "")
+                                            for m in st33.get("messages", [])):
+                break
+            time.sleep(1)
+        msgs33 = bridge("GET", "/agent/messages").get("messages", [])
+        last33 = next((m for m in reversed(msgs33)
+                       if m.get("role") == "assistant" and (m.get("content") or "").strip()), None)
+        ok("评估集：回合完成", last33 is not None)
+        bridge("POST", "/agent/feedback", {"messageId": (last33 or {}).get("id"), "vote": "up"})
+        r33 = bridge("POST", "/agent/eval-export", {})
+        ok("评估集：导出回执 turns≥1", r33.get("ok") and (r33.get("turns") or 0) >= 1)
+        path33 = r33.get("path") or ""
+        ok("评估集：文件存在且首行含 goal",
+           bool(path33) and Path(path33).exists()
+           and "EVAL-MUSCLE33" in json.loads(
+               [l for l in Path(path33).read_text().splitlines() if l.strip()][0]).get("goal", ""))
+        lst33 = bridge("GET", "/agent/eval-exports").get("exports", [])
+        ok("评估集：列表含该文件", any(e.get("name") == os.path.basename(path33) for e in lst33))
+        d33 = bridge("POST", "/agent/eval-export/delete", {"path": path33})
+        ok("评估集：删除生效", d33.get("ok") and not Path(path33).exists())
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -2209,6 +2236,15 @@ def main():
                                                       for m in msgs4c.get("messages", [])):
                         break
                     time.sleep(1)
+        except Exception:
+            pass
+        # 评估集兜底（MUSCLE33）：删掉可能的导出残留。
+        try:
+            for e in bridge("GET", "/agent/eval-exports").get("exports", []):
+                if "eval-thumbsup-" in (e.get("name") or ""):
+                    # 只删本轮（时间最新一个）——测试文件必然在列表首位。
+                    bridge("POST", "/agent/eval-export/delete", {"path": e.get("path")})
+                    break
         except Exception:
             pass
         # 收件箱批处理兜底（MUSCLE32）：恢复隐藏 + 删手造文件。

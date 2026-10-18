@@ -441,6 +441,9 @@ final class AutomationServer {
         ep("GET", "/workspaces", "Saved window workspaces (name/tabs/savedAt)", example: "…/workspaces")
         ep("POST", "/workspaces/delete", "Delete a saved workspace by name", params: ["name:string"], example: #"-d '{"name":"…"}'"#)
         ep("GET", "/tab-groups", "Tab groups (name/color/tabCount)", example: "…/tab-groups")
+        ep("POST", "/agent/eval-export", "Export 👍-rated turns as eval JSONL (AgentTrace-derived); path = target directory", params: ["path?:string"], example: "-d '{}'")
+        ep("GET", "/agent/eval-exports", "Existing eval exports (newest first)", example: "…/agent/eval-exports")
+        ep("POST", "/agent/eval-export/delete", "Delete one eval export (only eval-thumbsup-*.jsonl)", params: ["path:string"], example: #"-d '{"path":"/…"}'"#)
         ep("GET", "/crew", "Tab-crew observation: per-worker state/currentStep/elapsed/toolCalls + tokens", example: "…/crew")
         ep("POST", "/crew", "Crew control: action=clear (dismiss settled strip) | cancel (cancel running workers)", params: ["action"], example: #"-d '{"action":"clear"}'"#)
         ep("POST", "/inbox/dismiss", "Hide inbox items: action=ignore (permanent) | snooze (hours? or until epoch)", params: ["ids:[string]", "action", "hours?/until?"], example: #"-d '{"ids":["…"],"action":"snooze","hours":2}'"#)
@@ -1662,6 +1665,12 @@ final class AutomationServer {
                 return try Self.json(Self.inboxDismiss(body: body))
             case ("POST", "/inbox/restore"):
                 return try Self.json(Self.inboxRestore(ids: body["ids"] as? [String]))
+            case ("POST", "/agent/eval-export"):
+                return try Self.json(Self.evalExport(path: Self.string(body, "path")))
+            case ("GET", "/agent/eval-exports"):
+                return try Self.json(Self.evalExportsList())
+            case ("POST", "/agent/eval-export/delete"):
+                return try Self.json(Self.evalExportDelete(path: Self.string(body, "path") ?? ""))
             case ("GET", "/crew"):
                 return try Self.json(Self.crewState())
             case ("POST", "/crew"):
@@ -6536,6 +6545,40 @@ final class AutomationServer {
     private static func addMemoryFact(content: String, category: String, scope: String) throws -> [String: Any] {
         guard !content.isEmpty else { return ["error": "missing content"] }
         AgentMemoryStore.shared.addFact(content: content, category: category, scope: scope)
+        return ["ok": true]
+    }
+
+    /// 评估集导出（v0.7.22）：👍 回合 → JSONL（复用 AgentTrace 派生）。
+    private static func evalExport(path: String?) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let directory = path.flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: $0) }
+        do {
+            let result = try EvalExporter.export(conversationStore: app.conversationStore,
+                                                 price: app.aiPreference.usagePrice(for:),
+                                                 to: directory)
+            return ["ok": true, "path": result.url.path, "turns": result.count]
+        } catch {
+            return ["error": "export failed: \(error.localizedDescription)"]
+        }
+    }
+
+    /// 已有评估集导出（新→旧）。
+    private static func evalExportsList() throws -> [String: Any] {
+        let exports = EvalExporter.listExports().map { entry in
+            ["name": entry.url.lastPathComponent,
+             "path": entry.url.path,
+             "size": entry.size,
+             "modified": entry.modified.timeIntervalSince1970] as [String: Any]
+        }
+        return ["ok": true, "exports": exports]
+    }
+
+    private static func evalExportDelete(path: String) throws -> [String: Any] {
+        guard path.hasSuffix(".jsonl"),
+              URL(fileURLWithPath: path).lastPathComponent.hasPrefix("eval-thumbsup-") else {
+            return ["error": "仅允许删除 eval-thumbsup-*.jsonl"]
+        }
+        EvalExporter.delete(URL(fileURLWithPath: path))
         return ["ok": true]
     }
 

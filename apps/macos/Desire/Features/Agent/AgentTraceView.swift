@@ -18,6 +18,8 @@ struct AgentTraceView: View {
     @State private var stats: [String: Any] = [:]
     /// 复盘卡 → 输出规则草稿的编辑文本（nil = sheet 关着）。
     @State private var ruleDraftText: String?
+    /// 评估集导出回执（"已导出 N 回合"）。
+    @State private var evalExportNote: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -26,7 +28,13 @@ struct AgentTraceView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     overviewSection
                     slowestSection
-                    turnsSection
+                    if let evalExportNote {
+                Text(evalExportNote)
+                    .font(.system(size: 11))
+                    .foregroundStyle(appAccent)
+                    .padding(.horizontal, 12)
+            }
+            turnsSection
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 20)
@@ -71,6 +79,26 @@ struct AgentTraceView: View {
             .menuStyle(.borderlessButton)
             .fixedSize()
             .tint(.secondary)
+            Menu {
+                Button(String(localized: "Export 👍 turns as eval set")) { exportEvalSet() }
+                let existing = EvalExporter.listExports().prefix(5)
+                if !existing.isEmpty {
+                    Divider()
+                    ForEach(Array(existing.enumerated()), id: \.offset) { _, entry in
+                        Button(entry.url.lastPathComponent) {
+                            NSWorkspace.shared.activateFileViewerSelecting([entry.url])
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: "checklist")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Eval set")
             HoverIcon(systemName: "arrow.clockwise", action: reload, help: "Reload")
         }
         .padding(.horizontal, 12)
@@ -233,6 +261,18 @@ struct AgentTraceView: View {
         }
         .padding(20)
         .frame(width: 480)
+    }
+
+    /// 导出 👍 回合为评估集（默认 ~/Documents/DesireAgent）。
+    private func exportEvalSet() {
+        do {
+            let result = try EvalExporter.export(conversationStore: conversationStore,
+                                                 price: preference.usagePrice(for:))
+            evalExportNote = String(format: String(localized: "Exported %lld 👍 turn(s) → %@"),
+                                    result.count, result.url.lastPathComponent)
+        } catch {
+            evalExportNote = String(localized: "Export failed: ") + error.localizedDescription
+        }
     }
 
     private func reload() {

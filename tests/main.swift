@@ -3415,6 +3415,32 @@ func testWeeklyDigest() {
 }
 testWeeklyDigest()
 
+func testRemoteBoardContent() {
+    let rows = RemoteBoardContent.parseTableRows("| a | b |\n| --- | --- |\n| 1 | 2 |")
+    check("板载荷：表头+分隔线剔除+数据行", rows == [["a", "b"], ["1", "2"]])
+    check("板载荷：非表格返回 nil", RemoteBoardContent.parseTableRows("hello") == nil)
+    let wide = "|" + (1...12).map { " c\($0) " }.joined(separator: "|") + "|"
+    check("板载荷：列封顶 8", RemoteBoardContent.parseTableRows(wide)?.first?.count == 8)
+    let longNote = String(repeating: "字", count: 2000)
+    let built = RemoteBoardContent.build(blocks: [
+        .init(type: "note", title: "n", content: longNote),
+    ])
+    check("板载荷：note 文本截 1200", built.payload.first?.text?.count == 1200)
+    check("板载荷：预算内正常填充", built.bytes <= 18_000 && built.payload.first?.text != nil)
+    let huge = RemoteBoardContent.build(blocks: [
+        .init(type: "note", title: "h", content: String(repeating: "x", count: 1200)),
+    ], byteBudget: 500)
+    check("板载荷：超预算退回 preview", huge.payload.first?.text == nil && huge.bytes <= 500)
+    let thumbs = RemoteBoardContent.build(blocks: (1...3).map {
+        .init(type: "image", title: "i\($0)", content: "data:image/png;base64,AA")
+    }, thumbnail: { _ in "data:image/jpeg;base64,TINY" })
+    check("板载荷：image 缩略封顶 2 张", thumbs.payload.compactMap(\.imageThumb).count == 2)
+    let data = try! JSONEncoder().encode(built.payload)
+    let back = try! JSONDecoder().decode([RemoteBoardContent.BlockPayload].self, from: data)
+    check("板载荷：编解码 round-trip（两端契约）", back == built.payload)
+}
+testRemoteBoardContent()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

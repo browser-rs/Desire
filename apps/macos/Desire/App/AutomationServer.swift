@@ -472,6 +472,7 @@ final class AutomationServer {
         ep("POST", "/sync/setting", "Write one syncable setting locally (pushed to server on next sync)", params: ["key:string", "string|bool|number:value"], example: #"-d '{"key":"homePage","string":"https://example.com"}'"#)
         ep("POST", "/remote/toggle", "E2E/automation: enable/disable remote control (Mac side)", params: ["enabled:bool"], example: #"-d '{"enabled":true}'"#)
         ep("POST", "/remote/pair", "E2E/automation: start a pairing code on the Mac side", example: "-d '{}'")
+        ep("GET", "/remote/board-payload", "The snapshot board payload for a conversation (same builder the remote frame uses)", params: ["conversationId?:string"], example: "…/remote/board-payload")
         ep("GET", "/remote/status", "E2E/automation: remote state incl. active pairing code + session key (LOCAL DEV BRIDGE ONLY — never expose beyond localhost)", example: "…/remote/status")
         ep("POST", "/sync/domain", "Enable/disable a sync category", params: ["domain:string (bookmarks|quickdials|reading_list|keyboard_shortcuts|settings)", "enabled:bool"], example: #"-d '{"domain":"quickdials","enabled":false}'"#)
         ep("GET", "/search-history", "Recent search queries", params: ["count?:int"], example: "…/search-history?count=5")
@@ -1754,6 +1755,9 @@ final class AutomationServer {
                 return try Self.json(Self.remoteToggle(body["enabled"] as? Bool ?? false))
             case ("POST", "/remote/pair"):
                 return try Self.json(Self.remotePairStart())
+            case ("GET", "/remote/board-payload"):
+                return try Self.json(Self.remoteBoardPayload(
+                    conversationId: Self.string(query, "conversationId")))
             case ("GET", "/remote/status"):
                 return try Self.json(Self.remoteStatus())
             case ("POST", "/sync/setting"):
@@ -6646,6 +6650,28 @@ final class AutomationServer {
         let store = AgentInboxDismissalStore.shared
         let restored = store.restore(ids: ids)
         return ["ok": true, "restored": restored, "hiddenCount": store.hiddenCount]
+    }
+
+    /// 当前会话白板的**快照载荷**（v0.7.23 跨端可读化）：与 RemoteControlStore
+    /// 发送的 board 帧同源同构建——探针/两端契约断言用。
+    private static func remoteBoardPayload(conversationId: String?) -> [String: Any] {
+        let id = conversationId
+            ?? AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString
+        guard let payload = RemoteControlStore.boardPayload(id) else {
+            return ["ok": true, "board": false]
+        }
+        let blocks: [[String: Any]] = payload.blocks.map { block in
+            var row: [String: Any] = ["type": block.type,
+                                      "preview": block.preview,
+                                      "contentLength": block.contentLength]
+            if let title = block.title { row["title"] = title }
+            if let text = block.text { row["text"] = text }
+            if let rows = block.rows { row["rows"] = rows }
+            if let thumb = block.imageThumb { row["imageThumb"] = thumb }
+            return row
+        }
+        return ["ok": true, "board": true, "title": payload.title, "blocks": blocks,
+                "payloadBytes": RemoteBoardContent.encodedSize(payload.blocks)]
     }
 
     /// 周报状态（面板设置行的桥等价）。

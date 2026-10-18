@@ -47,6 +47,12 @@ struct RemoteBoardBlock: Codable, Equatable {
     var title: String?
     var preview: String
     var contentLength: Int
+    /// v0.7.23 只读内容：note 全文（截 1200）。
+    var text: String?
+    /// v0.7.23：table 行（≤12×8；nil = 旧 Mac 或解析不出）。
+    var rows: [[String]]?
+    /// v0.7.23：image 缩略 data URI（预算内才有）。
+    var imageThumb: String?
 }
 
 struct RemoteBoard: Codable, Equatable {

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// 聊天页（主页面根内容）：消息流 + Agent 交互停靠区（状态 / 计划 /
 /// 子代理 / 排队 / 快捷动作 / 提问 / 审批）+ 漂浮输入胶囊。
@@ -530,6 +531,7 @@ struct PulsingDot: View {
 /// "读板"视图（编辑仍在桌面）。
 struct BoardStripView: View {
     let board: RemoteBoard
+    @State private var showsDetail = false
 
     private var typeIcon: (String, String) {
         switch board.blocks.first?.type {
@@ -555,6 +557,8 @@ struct BoardStripView: View {
             }
             ForEach(Array(board.blocks.enumerated()), id: \.offset) { _, block in
                 VStack(alignment: .leading, spacing: 3) {
+                    // v0.7.23：note 全文 / 表格行渲染（旧 Mac 无这些字段时
+                    // 退回 preview——两端向后兼容）。
                     HStack(spacing: 5) {
                         Image(systemName: block.type == "image" ? "photo" :
                               block.type == "chart" ? "chart.bar" :
@@ -569,7 +573,20 @@ struct BoardStripView: View {
                             .font(.caption2)
                             .foregroundStyle(.tertiary)
                     }
-                    if block.type != "image", !block.preview.isEmpty {
+                    if let thumb = block.imageThumb, let image = decodeDataURI(thumb) {
+                        Image(uiImage: image)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxHeight: 160)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                    } else if let rows = block.rows, !rows.isEmpty {
+                        BoardMiniTable(rows: rows)
+                    } else if let text = block.text, !text.isEmpty {
+                        Text(text)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(6)
+                    } else if block.type != "image", !block.preview.isEmpty {
                         Text(block.preview)
                             .font(.caption2.monospaced())
                             .foregroundStyle(.secondary)
@@ -586,6 +603,10 @@ struct BoardStripView: View {
         .background(Color(.secondarySystemBackground))
         .clipShape(RoundedRectangle(cornerRadius: 12))
         .padding(.horizontal, 12)
+        .onTapGesture { showsDetail = true }
+        .sheet(isPresented: $showsDetail) {
+            BoardDetailView(board: board)
+        }
     }
 
     private func typeLabel(_ type: String) -> String {
@@ -597,4 +618,113 @@ struct BoardStripView: View {
         default: return "便签"
         }
     }
+}
+
+/// 白板只读详情（v0.7.23）：逐块完整呈现——note 全文 / 表格网格 / 图片内联；
+/// flow/mindmap/chart 显示类型与预览（手机端不做渲染器，如实降级）。
+private struct BoardDetailView: View {
+    let board: RemoteBoard
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    ForEach(Array(board.blocks.enumerated()), id: \.offset) { _, block in
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 5) {
+                                Image(systemName: icon(block.type))
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text(block.title ?? block.type)
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Text("\(block.contentLength) 字符")
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            if let thumb = block.imageThumb, let image = decodeDataURI(thumb) {
+                                Image(uiImage: image)
+                                    .resizable()
+                                    .scaledToFit()
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            } else if let rows = block.rows, !rows.isEmpty {
+                                BoardMiniTable(rows: rows)
+                            } else if let text = block.text, !text.isEmpty {
+                                Text(text)
+                                    .font(.callout)
+                                    .textSelection(.enabled)
+                            } else {
+                                Text(block.preview.isEmpty
+                                     ? "（本端不支持的内容类型，编辑请在桌面端）"
+                                     : block.preview)
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.secondarySystemBackground))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+                .padding(12)
+            }
+            .navigationTitle(board.title)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+    }
+
+    private func icon(_ type: String) -> String {
+        switch type {
+        case "image": return "photo"
+        case "chart": return "chart.bar"
+        case "table": return "tablecells"
+        case "mermaid": return "flowchart"
+        default: return "note.text"
+        }
+    }
+}
+
+/// 只读迷你表格（行/列都来自 Mac 的截断载荷）。
+private struct BoardMiniTable: View {
+    let rows: [[String]]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(rows.enumerated()), id: \.offset) { index, row in
+                HStack(alignment: .top, spacing: 0) {
+                    ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
+                        Text(cell)
+                            .font(.caption2)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                    }
+                }
+                .background(index == 0 ? Color(.tertiarySystemBackground) : .clear)
+                if index < rows.count - 1 {
+                    Divider()
+                }
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(Color(.separator), lineWidth: 0.5)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+/// data URI → UIImage（白板缩略图内联）。
+private func decodeDataURI(_ uri: String) -> UIImage? {
+    guard let comma = uri.firstIndex(of: ","),
+          let data = Data(base64Encoded: String(uri[uri.index(after: comma)...]),
+                          options: .ignoreUnknownCharacters) else { return nil }
+    return UIImage(data: data)
 }

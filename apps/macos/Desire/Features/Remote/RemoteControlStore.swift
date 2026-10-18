@@ -746,18 +746,12 @@ final class RemoteControlStore: ObservableObject {
         /// 200 字符，**不带 base64**——image 块只报 contentLength，帧不超重）。
         var board: BoardPayload? = nil
 
+        /// 板载荷的块类型 = `RemoteBoardContent.BlockPayload`（v0.7.23 起
+        /// 单一真相：构建/编码/契约单测都在那边；这里的容器只负责 title）。
         struct BoardPayload: Codable {
             var title: String
             /// image | mermaid | chart | note | table
-            var blocks: [BoardBlockPayload]
-        }
-
-        struct BoardBlockPayload: Codable {
-            var type: String
-            var title: String?
-            /// 内容前 200 字符（image 块 = data URI 前缀，仅供类型判断）
-            var preview: String
-            var contentLength: Int
+            var blocks: [RemoteBoardContent.BlockPayload]
         }
 
         struct ApprovalPayload: Codable {
@@ -983,18 +977,18 @@ final class RemoteControlStore: ObservableObject {
             timeout: Int(UserPromptCenter.answerTimeout))
     }
 
-    /// 当前会话白板 → 载荷（块清单截断；空板返回 nil——不发空帧）。
+    /// 当前会话白板 → 载荷（空板返回 nil——不发空帧）。构建在纯逻辑
+    /// `RemoteBoardContent`（预算感知：note 全文/表格行/图片缩略按真实编码
+    /// 字节数逐块填充，装不下退回 preview）。
     static func boardPayload(_ conversationID: String?) -> RemoteSnapshotFrame.BoardPayload? {
         let board = WhiteboardStore.shared.board(for: conversationID)
         guard !board.blocks.isEmpty else { return nil }
-        return RemoteSnapshotFrame.BoardPayload(
-            title: board.title,
-            blocks: board.blocks.prefix(12).map {
-                RemoteSnapshotFrame.BoardBlockPayload(
-                    type: $0.type, title: $0.title,
-                    preview: String($0.content.prefix(200)),
-                    contentLength: $0.content.count)
-            })
+        let result = RemoteBoardContent.build(
+            blocks: board.blocks.map {
+                RemoteBoardContent.Input(type: $0.type, title: $0.title, content: $0.content)
+            },
+            thumbnail: { dataURI in downscaledPreviewDataURI(from: dataURI) })
+        return RemoteSnapshotFrame.BoardPayload(title: board.title, blocks: result.payload)
     }
 
     /// 截图 data URI → 预算内降采样 JPEG data URI。快照帧有 22K 预算，

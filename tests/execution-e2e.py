@@ -107,6 +107,19 @@ class TinyAPI(BaseHTTPRequestHandler):
 
     price_hits = 0
 
+    def do_HEAD(self):
+        # 书签死链探测 HEAD 优先——BaseHTTPRequestHandler 默认对 HEAD 回 501，
+        # 会被 classify 判成死链（套件自测陷阱）。这里按路由只回状态/头。
+        if self.path.startswith("/dead404"):
+            self.send_response(404)
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+            return
+        self.send_response(200)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", "0")
+        self.end_headers()
+
     def do_GET(self):
         if self.path.startswith("/price"):
             TinyAPI.price_hits += 1
@@ -1844,7 +1857,14 @@ def main():
         hit24 = palette24("palettehit")
         ok("面板：标签 + 历史双源命中 fixture",
            hit24.get("tab", {}).get("total", 0) >= 1 and hit24.get("history", {}).get("total", 0) >= 1)
-        conv24 = palette24("MUSCLE24 面板检索标记")
+        # 会话列表在回合收尾后才进 store（最终一致）——轮询到出现或超时。
+        conv24 = {}
+        deadline24b = time.time() + 15
+        while time.time() < deadline24b:
+            conv24 = palette24("MUSCLE24 面板检索标记")
+            if conv24.get("conversation", {}).get("total", 0) >= 1:
+                break
+            time.sleep(1)
         ok("面板：会话源命中（首条消息文本）", conv24.get("conversation", {}).get("total", 0) >= 1)
         cmd24 = palette24("book")
         ok("面板：命令源前缀优先（Bookmarks Panel 首行）",

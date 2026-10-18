@@ -3391,6 +3391,30 @@ func testTurnReview() {
 }
 testTurnReview()
 
+func testWeeklyDigest() {
+    let input = WeeklyDigest.Input(
+        days: 7, conversationCount: 4, messageCount: 96,
+        windowTokens: 12345, windowTurns: 18,
+        newFactCount: 3, newFactSamples: ["偏好宋体", "深夜学习"],
+        inboxActionCount: 2, inboxByTitle: [("被打断的回合", 1), ("失败任务", 1)],
+        newSkillNames: ["价格巡检"])
+    let text = WeeklyDigest.compose(input)
+    check("周报：含会话与消息数", text.contains("4") && text.contains("96"))
+    check("周报：token 紧凑格式（12.3k）", text.contains("12.3k") && text.contains("18"))
+    check("周报：记忆条目与样例", text.contains("3") && text.contains("偏好宋体"))
+    check("周报：收件箱明细", text.contains("被打断的回合") && text.contains("失败任务"))
+    check("周报：新技能列出", text.contains("价格巡检"))
+    check("周报：不给金额（$ 不出现）", !text.contains("$"))
+    let lean = WeeklyDigest.compose(WeeklyDigest.Input(
+        days: 7, conversationCount: 0, messageCount: 0,
+        windowTokens: 0, windowTurns: 0,
+        newFactCount: 0, newFactSamples: [],
+        inboxActionCount: 0, inboxByTitle: [],
+        newSkillNames: []))
+    check("周报：空窗省略可选段", !lean.contains("记忆") && !lean.contains("收件箱") && !lean.contains("技能"))
+}
+testWeeklyDigest()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

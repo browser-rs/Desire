@@ -70,7 +70,7 @@ struct AgentUsage: Equatable {
     }
 
     /// token 数的紧凑写法（1.2k / 12k / 123k）。
-    static func formatTokens(_ count: Int) -> String {
+    nonisolated static func formatTokens(_ count: Int) -> String {
         if count >= 100_000 { return String(format: "%.0fk", Double(count) / 1000) }
         if count >= 1_000 { return String(format: "%.1fk", Double(count) / 1000) }
         return "\(count)"

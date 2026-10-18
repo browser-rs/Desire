@@ -38,6 +38,8 @@ struct AgentSettingsSection: View {
     @ObservedObject var store: AgentPreferenceStore
     /// 心跳巡检（模型自决的周期巡检，独立 store 持有自己的偏好）。
     @ObservedObject var heartbeat = HeartbeatStore.shared
+    /// 周报（周期性确定性回顾；自持 store）。
+    @ObservedObject var weeklyDigest = WeeklyDigestStore.shared
     /// 生命周期钩子（beforeToolCall / turnFinish 用户脚本）。
     @ObservedObject var hooks = AgentHooksStore.shared
 
@@ -95,6 +97,27 @@ struct AgentSettingsSection: View {
                 .labelsHidden()
                 .tint(appAccent)
         }
+    }
+
+    private func weekdayLabel(_ weekday: Int) -> String {
+        switch weekday {
+        case 1: return String(localized: "Sunday")
+        case 2: return String(localized: "Monday")
+        case 3: return String(localized: "Tuesday")
+        case 4: return String(localized: "Wednesday")
+        case 5: return String(localized: "Thursday")
+        case 6: return String(localized: "Friday")
+        default: return String(localized: "Saturday")
+        }
+    }
+
+    private func weeklyDigestStatus() -> String {
+        guard let last = weeklyDigest.lastDeliveredAt else {
+            return String(localized: "Not delivered yet.")
+        }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter.localizedString(for: last, relativeTo: Date())
     }
 
     /// 心跳"上次巡检"行的状态文案：相对时间 + 结论前缀。
@@ -661,6 +684,51 @@ struct AgentSettingsSection: View {
                 }
             }
 
+
+            // MARK: - Weekly Report（周期性确定性回顾）
+
+            SettingsSection(
+                title: String(localized: "Weekly Report"),
+                subtitle: String(localized: "A templated recap of the last 7 days (conversations, usage, memory, inbox, skills) — no model call. Arrives as a routine notification and a note in the Agent panel."),
+                icon: "calendar.badge.clock"
+            ) {
+                VStack(spacing: 0) {
+                    SettingsToggleRow(
+                        "Enable Weekly Report",
+                        subtitle: String(localized: "Delivered once a week at the chosen time while the app is open; deferred while a turn is running. Money is not included — per-day buckets only carry tokens (see Usage Stats for costs)."),
+                        systemImage: "doc.text.magnifyingglass",
+                        isOn: $weeklyDigest.isEnabled
+                    )
+                    if weeklyDigest.isEnabled {
+                        SettingsRowDivider()
+                        SettingsPickerRow(
+                            "Day",
+                            systemImage: "calendar",
+                            selection: $weeklyDigest.weekday,
+                            options: [2, 3, 4, 5, 6, 7, 1],
+                            label: { weekdayLabel($0) }
+                        )
+                        SettingsRowDivider()
+                        SettingsPickerRow(
+                            "Time",
+                            systemImage: "clock",
+                            selection: $weeklyDigest.hour,
+                            options: WeeklyDigestStore.hourChoices,
+                            label: { String(format: "%02d:00", $0) }
+                        )
+                    }
+                    SettingsRowDivider()
+                    SettingsRow(
+                        "Last Report",
+                        subtitle: weeklyDigestStatus(),
+                        systemImage: "clock.arrow.circlepath"
+                    ) {
+                        SettingsCapsuleButton("Generate Now", style: .secondary) {
+                            Task { await WeeklyDigestStore.shared.runNow() }
+                        }
+                    }
+                }
+            }
             // MARK: - Hooks（生命周期钩子）
 
             SettingsSection(

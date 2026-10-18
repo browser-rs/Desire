@@ -478,6 +478,8 @@ final class AutomationServer {
         ep("POST", "/site-settings/zoom", "Set per-host zoom", params: ["host:string", "zoom:double"], example: #"-d '{"host":"example.com","zoom":1.5}'"#)
         ep("POST", "/site-settings/font", "Per-site fonts: minFontSize (0=off)/fontFamily (''=off)/null=follow default; re-injects immediately", params: ["host", "minFontSize?", "fontFamily?"], example: #"-d '{"host":"a.b","minFontSize":16}'"#)
         ep("POST", "/site-settings/clear", "Clear all per-site UI overrides (zoom/dark/auto-play/fonts; blocked rules untouched) and re-apply to the active tab", params: ["host:string"], example: #"-d '{"host":"a.b"}'"#)
+        ep("GET", "/agent/weekly-digest", "Weekly report state (enabled/weekday/hour/due/lastDeliveredAt/lastText)", example: "…/agent/weekly-digest")
+        ep("POST", "/agent/weekly-digest", "Weekly report actions: run-now (templated digest → session note + routine notification) / enable / disable", params: ["action"], example: #"-d '{"action":"run-now"}'"#)
         ep("GET", "/agent/rule-draft", "Derive Output-Rule drafts from a trace turn's failure/slow patterns (templated, no model call)", params: ["conversation?:uuid", "turn?:int (default last)"], example: "…/agent/rule-draft")
         ep("GET", "/agent/find", "Find messages in the live conversation (case-insensitive; content only)", params: ["q:string", "window?:string"], example: "…/agent/find?q=deploy")
         ep("GET", "/memory/conflicts", "Pending memory-conflict reviews (approximate relatedness; queue from auto-extraction)", example: "…/memory/conflicts")
@@ -1557,6 +1559,11 @@ final class AutomationServer {
                 return try Self.json(Self.clearSiteSettings(host: Self.string(body, "host") ?? ""))
             case ("GET", "/palette"):
                 return try Self.json(Self.palette(query: Self.string(query, "q") ?? ""))
+            case ("GET", "/agent/weekly-digest"):
+                return try Self.json(Self.weeklyDigestState())
+            case ("POST", "/agent/weekly-digest"):
+                return try Self.json(await Self.weeklyDigestAction(
+                    action: Self.string(body, "action") ?? "run-now"))
             case ("GET", "/agent/rule-draft"):
                 return try Self.json(Self.agentRuleDraft(
                     conversation: Self.string(query, "conversation"),
@@ -6512,6 +6519,37 @@ final class AutomationServer {
         guard !content.isEmpty else { return ["error": "missing content"] }
         AgentMemoryStore.shared.addFact(content: content, category: category, scope: scope)
         return ["ok": true]
+    }
+
+    /// 周报状态（面板设置行的桥等价）。
+    private static func weeklyDigestState() -> [String: Any] {
+        let store = WeeklyDigestStore.shared
+        return ["ok": true,
+                "enabled": store.isEnabled,
+                "weekday": store.weekday,
+                "hour": store.hour,
+                "due": store.isDue(),
+                "lastDeliveredAt": store.lastDeliveredAt?.timeIntervalSince1970 ?? 0,
+                "lastText": store.lastDigestText ?? ""]
+    }
+
+    /// 周报动作：run-now（立即生成并投递）/ enable / disable。
+    private static func weeklyDigestAction(action: String) async -> [String: Any] {
+        let store = WeeklyDigestStore.shared
+        switch action {
+        case "run-now":
+            let text = await store.runNow()
+            var state = weeklyDigestState()
+            state["text"] = text
+            return state
+        case "enable":
+            store.isEnabled = true
+        case "disable":
+            store.isEnabled = false
+        default:
+            return ["error": "action must be run-now | enable | disable"]
+        }
+        return weeklyDigestState()
     }
 
     /// 轨迹复盘卡（v0.7.22）：回合的失败/慢模式 → 输出规则草稿（模板化派生，不经模型）。

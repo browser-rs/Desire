@@ -848,8 +848,19 @@ def main():
     # 恢复曾把 model 写丢一次——aiProfileUpsert 更新分支是"endpoint 必填 +
     # model 无条件覆盖"，只传 model 的修复会静默 400）。
     profiles = bridge("GET", "/ai/profiles")
+    # 自愈（2026-10-18 事故）：被打断的轮次会把假档留在活动位，下一轮再把它
+    # 当"原档案"记录 → 假档接力、真档永久失活。启动即清残留假档，再把当前
+    # 活动档（必为真档）记为原档。
+    for _p in list(profiles.get("profiles", [])):
+        if "E2E Muscle" in (_p.get("name") or ""):
+            bridge("POST", "/ai/profiles/delete", {"id": _p["id"]})
+            print("清理残留假档:", _p.get("name"), _p["id"][:8])
+    profiles = bridge("GET", "/ai/profiles")
     original_active = next((p["id"] for p in profiles.get("profiles", []) if p.get("active")), None)
     assert original_active, f"找不到活动档案: {profiles}"
+    assert "E2E Muscle" not in next(
+        (p.get("name") or "" for p in profiles.get("profiles", []) if p["id"] == original_active), ""), \
+        "活动档案仍是假档——先手工切回真档再跑套件"
     print("原活动档案:", original_active[:8])
     created = bridge("POST", "/ai/profiles", {
         "name": "E2E Muscle（临时）",

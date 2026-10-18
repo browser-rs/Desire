@@ -463,6 +463,7 @@ final class AutomationServer {
         ep("POST", "/speech/stop", "Stop text-to-speech immediately (automation cleanup)", example: "-d '{}'")
         ep("GET", "/agent/budget", "Conversation token budget (budget/used/state off|within|warning|stopped/stopLevel/percent)", example: "…/agent/budget")
         ep("POST", "/agent/budget", "Set the conversation token budget (0 = off; resets the tier)", params: ["tokens:int"], example: #"-d '{"tokens":50000}'"#)
+        ep("GET", "/sync/devices", "Account devices + per-device pull cursors (live fetch from the sync server)", example: "…/sync/devices")
         ep("GET", "/sync/conflicts", "Recent sync conflicts (entries where the server's LWW copy won; decrypted readable labels)", example: "…/sync/conflicts")
         ep("POST", "/sync/conflicts/clear", "Clear the conflict-details ledger", example: "-d '{}'")
         ep("GET", "/sync/status", "Cloud sync state (auth / syncing / lastSyncAt / lastError / per-domain cursors + pending tombstones)", example: "…/sync/status")
@@ -1741,6 +1742,17 @@ final class AutomationServer {
                     session: rlSession)
                 return try Self.json(["ok": true, "queued": rlStarted,
                                       "running": ReadingListSummarizer.shared.isRunning])
+            case ("GET", "/sync/devices"):
+                guard let store = AppState.live?.syncStore else { return try Self.json(["error": "app state not ready"]) }
+                await store.refreshDevices()
+                return try Self.json(["ok": store.devicesError == nil,
+                                      "error": store.devicesError ?? "",
+                                      "devices": store.devices.map { device in
+                                          ["device_id": device.deviceID, "name": device.name,
+                                           "platform": device.platform, "revoked": device.revoked,
+                                           "last_seen_at": device.lastSeenAt?.timeIntervalSince1970 ?? 0,
+                                           "cursor_seen_at": device.cursorSeenAt?.timeIntervalSince1970 ?? 0] as [String: Any]
+                                      }])
             case ("GET", "/sync/conflicts"):
                 return try Self.json(Self.syncConflicts())
             case ("POST", "/sync/conflicts/clear"):

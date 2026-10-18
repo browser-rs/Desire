@@ -42,6 +42,21 @@ pub fn is_valid_domain(domain: &str) -> bool {
   DOMAINS.contains(&domain)
 }
 
+/// 设备面板行（v0.7.23）：设备身份 + 最近拉取游标台账。
+#[derive(Debug, Serialize, ToSchema)]
+pub struct SyncDeviceDto {
+  pub device_id: String,
+  pub name: String,
+  pub platform: String,
+  /// 最近一次登录/刷新令牌的时间（设备活跃的粗判据）。
+  pub last_seen_at: chrono::NaiveDateTime,
+  pub revoked: bool,
+  /// 最近一次上报的拉取游标（NULL = 从未增量拉取）。
+  pub cursor_updated_at: Option<chrono::NaiveDateTime>,
+  /// 游标上报时间（活跃判定用；与 GC 的 90 天窗口同源）。
+  pub cursor_seen_at: Option<chrono::NaiveDateTime>,
+}
+
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct SyncPushItem {
   /// 客户端侧稳定 ID(≤64 字符)

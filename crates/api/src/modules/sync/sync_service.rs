@@ -4,10 +4,11 @@ use tracing::warn;
 
 use crate::errors::AppError;
 use crate::types::AppState;
+use sqlx::MySqlPool;
 
 use super::sync_model::{
-  HISTORY_TTL_DAYS, MAX_PAYLOAD_BYTES, MAX_PUSH_ITEMS, PULL_LIMIT, SyncItemDto, SyncPullResp,
-  SyncPushItem, SyncPushResp, SyncPushResultItem, SyncRowRaw, table_for,
+  HISTORY_TTL_DAYS, MAX_PAYLOAD_BYTES, MAX_PUSH_ITEMS, PULL_LIMIT, SyncDeviceDto, SyncItemDto,
+  SyncPullResp, SyncPushItem, SyncPushResp, SyncPushResultItem, SyncRowRaw, table_for,
 };
 
 /// 拉取:增量行(含 tombstone),按 (updated_at, id) 升序,单批 ≤1000。
@@ -236,6 +237,47 @@ pub async fn push(
     results,
     server_time: Utc::now().naive_utc(),
   })
+}
+
+/// 设备面板（v0.7.23）：该用户的设备清单 + 各自最近一次拉取游标
+/// （sync_pull_cursors 台账；没拉过 = 均 NULL——"从未增量拉取"如实呈现）。
+pub async fn devices(pool: &MySqlPool, user_id: i64) -> Result<Vec<SyncDeviceDto>, AppError> {
+  let rows: Vec<(
+    String,
+    String,
+    String,
+    NaiveDateTime,
+    Option<NaiveDateTime>,
+    Option<NaiveDateTime>,
+    Option<NaiveDateTime>,
+  )> = sqlx::query_as(
+    "SELECT d.device_id, d.name, d.platform, d.last_seen_at, d.revoked_at, \
+     c.cursor_ts, c.seen_ts FROM devices d \
+     LEFT JOIN (SELECT device_id, MAX(cursor_updated_at) AS cursor_ts, \
+                MAX(seen_at) AS seen_ts FROM sync_pull_cursors \
+                WHERE user_id = ? GROUP BY device_id) c ON c.device_id = d.device_id \
+     WHERE d.user_id = ? ORDER BY d.last_seen_at DESC LIMIT 20",
+  )
+  .bind(user_id)
+  .bind(user_id)
+  .fetch_all(pool)
+  .await?;
+  Ok(
+    rows
+      .into_iter()
+      .map(
+        |(device_id, name, platform, last_seen_at, revoked_at, cursor_ts, seen_ts)| SyncDeviceDto {
+          device_id,
+          name,
+          platform,
+          last_seen_at,
+          revoked: revoked_at.is_some(),
+          cursor_updated_at: cursor_ts,
+          cursor_seen_at: seen_ts,
+        },
+      )
+      .collect(),
+  )
 }
 
 /// 历史域 TTL:history push 后顺带删掉该用户超过保留期的行(含 tombstone)。

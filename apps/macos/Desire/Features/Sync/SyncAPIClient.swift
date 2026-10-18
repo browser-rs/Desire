@@ -294,6 +294,13 @@ nonisolated enum SyncAPIClient {
         return try await send("GET", baseURL, path, token: accessToken)
     }
 
+    /// 设备面板（v0.7.23）：该账号的设备 + 拉取游标台账。
+    static func fetchDevices(baseURL: String, accessToken: String) async throws -> [SyncDeviceInfo] {
+        struct Resp: Codable { var data: [SyncDeviceInfo] }
+        let resp: Resp = try await send("GET", baseURL, "/sync/devices", token: accessToken)
+        return resp.data
+    }
+
     /// 批量推送（LWW 仲裁在服务端）。
     static func push<P: Codable>(
         baseURL: String, domain: String, items: [SyncWireItem<P>], accessToken: String

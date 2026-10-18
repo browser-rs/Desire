@@ -466,6 +466,7 @@ struct SyncSettingsSection: View {
         }
 
         ConflictsSection(store: store)
+        DevicesSection(store: store)
     }
 
     /// 相对时间文案（系统本地化，"3 分钟前"），随 app 语言走。
@@ -705,5 +706,67 @@ private struct ConflictDetailsSheet: View {
 
     private func domainName(_ raw: String) -> String {
         SyncDomain(rawValue: raw)?.displayName ?? raw
+    }
+}
+
+/// 设备面板小节（v0.7.23）：账号下的设备清单 + 各自拉取游标；90 天没拉过的
+/// 标灰（GC 的活跃窗口同口径），吊销设备红字。
+private struct DevicesSection: View {
+    @ObservedObject var store: SyncStore
+
+    private static let formatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .short
+        return f
+    }()
+
+    var body: some View {
+        SettingsSection(
+            title: "Devices",
+            subtitle: "Every device on this account and how far it has synced. Grey = no pull for 90+ days.",
+            icon: "ipad.and.iphone"
+        ) {
+            VStack(spacing: 0) {
+                if store.devices.isEmpty {
+                    SettingsRow(
+                        "No device data yet",
+                        subtitle: store.devicesError ?? String(localized: "Tap Refresh to load from the server."),
+                        systemImage: "questionmark.circle"
+                    ) {}
+                } else {
+                    ForEach(Array(store.devices.enumerated()), id: \.element.id) { index, device in
+                        if index > 0 { SettingsRowDivider() }
+                        SettingsRow(
+                            device.name.isEmpty ? device.deviceID : device.name,
+                            subtitle: caption(device),
+                            systemImage: device.revoked ? "xmark.circle" : "desktopcomputer"
+                        ) {}
+                    }
+                }
+                SettingsRowDivider()
+                SettingsRow(
+                    "Refresh",
+                    subtitle: store.devicesError.map { "⚠ " + $0 } ?? " ",
+                    systemImage: "arrow.clockwise"
+                ) {
+                    SettingsCapsuleButton("Refresh", style: .secondary) {
+                        Task { await store.refreshDevices() }
+                    }
+                }
+            }
+        }
+        .task { if store.devices.isEmpty { await store.refreshDevices() } }
+    }
+
+    private func caption(_ device: SyncDeviceInfo) -> String {
+        var parts: [String] = []
+        if !device.platform.isEmpty { parts.append(device.platform) }
+        if let seen = device.cursorSeenAt ?? device.lastSeenAt {
+            parts.append(String(localized: "last pull ") + Self.formatter.localizedString(for: seen, relativeTo: Date()))
+        } else {
+            parts.append(String(localized: "never pulled"))
+        }
+        if device.revoked { parts.append(String(localized: "revoked")) }
+        return parts.joined(separator: " · ")
     }
 }

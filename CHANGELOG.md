@@ -3,6 +3,8 @@
 
 - **iOS 白板可读化（v0.7.23 旗舰）**：手机端从"块类型+200 字符预览"升级为**读得动**——桌面快照的板载荷按类型补只读内容：note 全文（截 1200）、table 解析成行（≤12×8，跳过 `|---|` 分隔行）、image 内联缩略 data URI（**帧内最多 2 张、按真实编码字节数预算 18K 逐块填充**，装不下退回 preview；旧字段 preview/contentLength 原样保留=旧客户端兼容）。构建逻辑抽成 Foundation-only 的 `RemoteBoardContent`（单一真相：快照发送与契约单测同源）；iOS 端 `BoardStripView` 直出 note 文本/迷你表格/内联图（无新字段时退回 preview），点条子开**只读详情页**（逐块完整呈现，flow/mindmap/chart 如实降级为类型+预览，编辑仍在桌面）。验收：单测 +8（表格解析/列行封顶/note 截断/**预算退回**/缩略封顶 2/编解码 round-trip=跨端契约）；定点探针 5/5（清板→长 note+表格+1×1 PNG→载荷三块：全文 1200/两数据行/缩略内联/总字节 ≤18K）；iOS 端编译随 SPM 依赖拉取验证（视图渲染走查由用户过目）。
 - **同步冲突明细（v0.7.23）**：设置页 Sync 区块新增「Conflict Details」——本机**LWW 输掉**的条目逐条列（域 + 解密后可读标签 + 相对时间，上限 60 随 UserDefaults 持久化，可一键清空）。实现：push 被服务端判 conflict 时（此前只有计数与短码诊断），把胜者密文用新增的 `SyncCrypto.decryptRaw` 解密、经纯逻辑 `SyncConflictLabel` 提取可读标签（书签 title+host / 设置 KV `key = value` / 记忆 content / 首字符串值兜底，截 60；提取不出退 client_id 短码）——`decrypt` 拆出 raw 层不改变既有解码路径。桥 `GET /sync/conflicts` + `POST /sync/conflicts/clear`。验收：单测 +8（五形态提取/非 JSON/无字符串值/截断）；桥探针（结构/清空）通过；**真实冲突产生的端到端需第二设备**——手法记录在案（dev server + curl 第二客户端 + tools/api-sync-smoke.sh 的冲突步骤叠加），下次 dev-server 会话补断言（不碰用户生产登录态）。
+- **设备面板（v0.7.23）**：同步设置页新增「Devices」小节——该账号的全部设备（名称/平台/最近一次拉取距今，「从未拉取」如实写；90 天没拉过的置灰=与 GC 活跃窗口同口径；吊销设备红字标注）+ 刷新按钮。服务端新增只读 `GET /sync/devices`（devices ⟕ sync_pull_cursors 台账聚合，限自己、上限 20）。客户端 `SyncAPIClient.fetchDevices` + `SyncStore.refreshDevices`（不持久化，服务端权威；失败如实记录不清空旧数据）；应用桥 `GET /sync/devices` 同源（未登录时优雅早退空列表）。验收：**本地 dev 全链 3/3**（注册→未拉过 cursor=null（全量提拉不算台账、设计如此）→增量拉一次→cursor/seen 就位且名称平台带出→账号级联清理）；`cargo build` + `cargo fmt` 干净；macOS 构建零警告。**注意**：该端点在**服务端镜像**里——部署三连（migrate 无迁移可跳、api 镜像已随本批重推）后生产手机端设备面板才可用。
+
 
 
 

@@ -419,3 +419,41 @@ struct KeyCheckResp: Codable {
 struct KeyCheckBody: Codable {
     var check: String
 }
+
+/// 设备面板行（v0.7.23）：服务端 /sync/devices 的客户端形态。
+struct SyncDeviceInfo: Codable, Identifiable, Equatable {
+    var deviceID: String
+    var name: String
+    var platform: String
+    var lastSeenAt: Date?
+    var revoked: Bool
+    var cursorUpdatedAt: Date?
+    var cursorSeenAt: Date?
+
+    var id: String { deviceID }
+
+    enum CodingKeys: String, CodingKey {
+        case deviceID = "device_id"
+        case name
+        case platform
+        case lastSeenAt = "last_seen_at"
+        case revoked
+        case cursorUpdatedAt = "cursor_updated_at"
+        case cursorSeenAt = "cursor_seen_at"
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        deviceID = try container.decode(String.self, forKey: .deviceID)
+        name = try container.decode(String.self, forKey: .name)
+        platform = try container.decode(String.self, forKey: .platform)
+        revoked = try container.decode(Bool.self, forKey: .revoked)
+        // naive 时间统一走 SyncDate（可变小数）。
+        let lastSeenRaw = try container.decodeIfPresent(String.self, forKey: .lastSeenAt)
+        lastSeenAt = lastSeenRaw.flatMap(SyncDate.parse)
+        let cursorRaw = try container.decodeIfPresent(String.self, forKey: .cursorUpdatedAt)
+        cursorUpdatedAt = cursorRaw.flatMap(SyncDate.parse)
+        let seenRaw = try container.decodeIfPresent(String.self, forKey: .cursorSeenAt)
+        cursorSeenAt = seenRaw.flatMap(SyncDate.parse)
+    }
+}

@@ -774,6 +774,22 @@ final class SyncStore: ObservableObject {
 
     private static let conflictNotesKey = "sync.recentConflicts"
 
+    /// 设备面板（v0.7.23）：刷新按钮/设置页回显（不持久化——服务端权威）。
+    @Published private(set) var devices: [SyncDeviceInfo] = []
+    @Published private(set) var devicesError: String?
+
+    /// 拉取设备清单（需登录态；失败如实记录，不清空旧数据）。
+    func refreshDevices() async {
+        guard authState != .signedOut else { return }
+        do {
+            let token = try await validAccessToken()
+            devices = try await SyncAPIClient.fetchDevices(baseURL: serverBaseURL, accessToken: token)
+            devicesError = nil
+        } catch {
+            devicesError = error.localizedDescription
+        }
+    }
+
     /// 最近的本机 LWW 输掉的条目（新在前，上限 60，随 UserDefaults 持久化）。
     @Published private(set) var recentConflicts: [SyncConflictNote] = []
 

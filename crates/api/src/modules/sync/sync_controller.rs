@@ -7,7 +7,9 @@ use crate::types::{ApiResponse, ApiResult, AppState};
 use crate::utils::jwt::Claims;
 
 use super::sync_gc::{self, GcReport};
-use super::sync_model::{KeyCheckBody, KeyCheckResp, SyncPullResp, SyncPushReq, SyncPushResp};
+use super::sync_model::{
+  KeyCheckBody, KeyCheckResp, SyncDeviceDto, SyncPullResp, SyncPushReq, SyncPushResp,
+};
 use super::sync_service;
 
 /// 同步密钥指纹(E2E):客户端持有主密钥,服务端只存指纹用于导入校验。
@@ -89,6 +91,19 @@ pub async fn pull(
     sync_gc::maybe_gc_after_pull(&state.pool, claims.sub).await;
   }
   api_ok!(resp)
+}
+
+/// 设备面板（v0.7.23）：设备清单 + 各自拉取游标台账（只读、限自己）。
+#[utoipa::path(
+  get, path = "/sync/devices", tag = "sync",
+  responses((status = 200, body = Vec<SyncDeviceDto>))
+)]
+pub async fn devices(
+  State(state): State<AppState>,
+  Extension(claims): Extension<Claims>,
+) -> ApiResult<Vec<SyncDeviceDto>> {
+  let rows = sync_service::devices(&state.pool, claims.sub).await?;
+  api_ok!(rows)
 }
 
 /// 通用墓碑 GC(v0.7.20):回收"所有活跃设备都已越过 + 超过宽限期"的已删

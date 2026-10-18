@@ -475,6 +475,8 @@ final class AutomationServer {
         ep("POST", "/sync/setting", "Write one syncable setting locally (pushed to server on next sync)", params: ["key:string", "string|bool|number:value"], example: #"-d '{"key":"homePage","string":"https://example.com"}'"#)
         ep("POST", "/remote/toggle", "E2E/automation: enable/disable remote control (Mac side)", params: ["enabled:bool"], example: #"-d '{"enabled":true}'"#)
         ep("POST", "/remote/pair", "E2E/automation: start a pairing code on the Mac side", example: "-d '{}'")
+        ep("GET", "/remote/sessions-frame", "The remote sessions frame (same builder as the phone's frame; includes per-session unread)", example: "…/remote/sessions-frame")
+        ep("POST", "/remote/mark-seen", "Mark a conversation as seen by the phone (same path as the phone's select receipt)", params: ["conversationId:string"], example: #"-d '{"conversationId":"…"}'"#)
         ep("GET", "/remote/board-payload", "The snapshot board payload for a conversation (same builder the remote frame uses)", params: ["conversationId?:string"], example: "…/remote/board-payload")
         ep("GET", "/remote/status", "E2E/automation: remote state incl. active pairing code + session key (LOCAL DEV BRIDGE ONLY — never expose beyond localhost)", example: "…/remote/status")
         ep("POST", "/sync/domain", "Enable/disable a sync category", params: ["domain:string (bookmarks|quickdials|reading_list|keyboard_shortcuts|settings)", "enabled:bool"], example: #"-d '{"domain":"quickdials","enabled":false}'"#)
@@ -1774,6 +1776,11 @@ final class AutomationServer {
                 return try Self.json(Self.remoteToggle(body["enabled"] as? Bool ?? false))
             case ("POST", "/remote/pair"):
                 return try Self.json(Self.remotePairStart())
+            case ("GET", "/remote/sessions-frame"):
+                return try Self.json(Self.remoteSessionsFrame())
+            case ("POST", "/remote/mark-seen"):
+                AppState.live?.remoteControlStore.markRemoteSeen(Self.string(body, "conversationId"))
+                return try Self.json(["ok": true])
             case ("GET", "/remote/board-payload"):
                 return try Self.json(Self.remoteBoardPayload(
                     conversationId: Self.string(query, "conversationId")))
@@ -6669,6 +6676,17 @@ final class AutomationServer {
         let store = AgentInboxDismissalStore.shared
         let restored = store.restore(ids: ids)
         return ["ok": true, "restored": restored, "hiddenCount": store.hiddenCount]
+    }
+
+    /// 会话列表帧（含未读接力字段）——与发给手机的 sessions 帧同构（同一
+    /// 构建函数），探针/E2E 断言用。
+    private static func remoteSessionsFrame() -> [String: Any] {
+        guard let raw = AppState.live?.remoteControlStore.debugSessionsFrame(),
+              let data = raw.data(using: .utf8),
+              let dict = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            return ["error": "no sessions frame"]
+        }
+        return dict
     }
 
     /// 当前会话白板的**快照载荷**（v0.7.23 跨端可读化）：与 RemoteControlStore

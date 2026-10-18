@@ -466,6 +466,7 @@ final class RemoteControlStore: ObservableObject {
             pushSnapshot(force: true)
         case "select":
             remoteConversationID = inner.session
+            markRemoteSeen(inner.session)
             openRemoteConversation()
             pushSnapshot(force: true)
         case "sessions":
@@ -827,6 +828,8 @@ final class RemoteControlStore: ObservableObject {
     }
 
     private func pushSnapshot(force: Bool) {
+        // 手机正停在对话页 = 看过（未读接力：快照推送即"浏览中"的回执）。
+        markRemoteSeen(remoteConversationID)
         guard isEnabled, case .signedIn = syncStore.authState else { return }
         if force { lastForcedPush = Date() }
         // 无活动会话也要回空快照：手机端"已连接、空闲"是合法状态，静默会让对端以为信道死了
@@ -1420,24 +1423,78 @@ final class RemoteControlStore: ObservableObject {
 
     /// 会话列表 = **用户的真实对话**（ConversationStore，有标题/会持久化），
     /// 不再是窗口会话——远程 App 就是本地 Agent 对话的镜像。
+    ///
+    /// v0.7.23 未读接力：每行带 `unread`（手机最后一次"看过"该会话之后新增的
+    /// 助手回合数；首次配对把存量标记为已读，不制造一整屏红点）。"看过"的
+    /// 两个输入：手机 select 该会话（回执上行）、或该会话正被快照推送（手机
+    /// 正停在对话页）。
     private func sessionsFrame() -> String {
         guard let app = AppState.live else {
             return "{\"t\":\"sessions\",\"list\":[]}"
         }
         let busy = remoteSession?.isProcessing ?? false
+        let epoch = remoteSeenEpoch
         let list = app.conversationStore.conversations
             .sorted { $0.updatedAt > $1.updatedAt }
             .prefix(50)
             .map { conversation -> [String: Any] in
-                ["id": conversation.id.uuidString,
-                 "label": conversation.title,
-                 "busy": busy && conversation.id.uuidString == remoteConversationID,
-                 "count": conversation.messages.count,
-                 "date": conversation.updatedAt.timeIntervalSince1970]
+                let id = conversation.id.uuidString
+                let since = max(remoteSeenAt[id] ?? .distantPast, epoch)
+                let unread = conversation.messages.filter {
+                    $0.role == .assistant && $0.createdAt > since
+                }.count
+                return ["id": id,
+                        "label": conversation.title,
+                        "busy": busy && id == remoteConversationID,
+                        "count": conversation.messages.count,
+                        "date": conversation.updatedAt.timeIntervalSince1970,
+                        "unread": min(unread, 99)]
             }
         let dict: [String: Any] = ["t": "sessions", "list": Array(list)]
         return (try? JSONSerialization.data(withJSONObject: dict)).flatMap { String(data: $0, encoding: .utf8) }
             ?? "{\"t\":\"sessions\",\"list\":[]}"
+    }
+
+    /// 桥/探针用：原样给出当前 sessions 帧字符串（同一构建函数）。
+    func debugSessionsFrame() -> String {
+        sessionsFrame()
+    }
+
+    // MARK: - 远程已读台账（v0.7.23 未读接力）
+
+    private static let remoteSeenAtKey = "remote.seenAt"
+    private static let remoteSeenEpochKey = "remote.seenEpoch"
+    private static let remoteSeenPersistInterval: TimeInterval = 10
+    private var lastRemoteSeenPersist = Date.distantPast
+
+    /// 会话 → 手机最后一次"看过"的时刻。陈旧键随会话增长无害（按 id 稀疏读）。
+    private lazy var remoteSeenAt: [String: Date] = {
+        guard let data = UserDefaults.standard.data(forKey: Self.remoteSeenAtKey),
+              let decoded = try? JSONDecoder().decode([String: Date].self, from: data) else { return [:] }
+        return decoded
+    }()
+
+    /// 首次用到 sessions 帧时的"配对基线"：在此之前的历史一律视为已读
+    /// （否则新配对的第一屏整个是未读）。惰性初始化并持久化。
+    private var remoteSeenEpoch: Date {
+        if let stored = UserDefaults.standard.object(forKey: Self.remoteSeenEpochKey) as? Date {
+            return stored
+        }
+        let now = Date()
+        UserDefaults.standard.set(now, forKey: Self.remoteSeenEpochKey)
+        return now
+    }
+
+    /// 手机"看过"某会话（select 回执 / 正在被快照推送）。写内存即时、
+    /// 落盘节流（快照秒级刷新别把 UserDefaults 写穿）。
+    func markRemoteSeen(_ conversationID: String?) {
+        guard let conversationID, !conversationID.isEmpty else { return }
+        remoteSeenAt[conversationID] = Date()
+        let now = Date()
+        guard now.timeIntervalSince(lastRemoteSeenPersist) >= Self.remoteSeenPersistInterval else { return }
+        lastRemoteSeenPersist = now
+        UserDefaults.standard.set(try? JSONEncoder().encode(remoteSeenAt),
+                                  forKey: Self.remoteSeenAtKey)
     }
 
     // MARK: - E2E 会话密钥（Keychain 持久；二维码携带）

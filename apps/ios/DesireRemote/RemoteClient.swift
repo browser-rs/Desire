@@ -30,6 +30,8 @@ final class RemoteClient: ObservableObject {
         var count: Int
         /// 最近更新时间（epoch 秒；Mac 端 conversation.updatedAt）
         var date: Double?
+        /// v0.7.23 未读接力：手机看过之后新增的助手回合数（0/缺省 = 已读）。
+        var unread: Int?
 
         var dateValue: Date? {
             date.map { Date(timeIntervalSince1970: $0) }

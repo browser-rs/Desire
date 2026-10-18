@@ -135,6 +135,14 @@ struct SessionListView: View {
                             .font(.system(size: 15, weight: isSelected ? .semibold : .regular))
                             .foregroundStyle(.primary)
                             .lineLimit(1)
+                        if let unread = session.unread, unread > 0 {
+                            Text("\(unread)")
+                                .font(.caption2.weight(.bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(.red))
+                        }
                         if session.busy {
                             Text("工作中")
                                 .font(.system(size: 10, weight: .semibold))

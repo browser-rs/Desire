@@ -495,7 +495,22 @@ private struct DownloadRow: View {
             isHovering = hovering
         }
         .animation(.hoverFast, value: isHovering)
+        // 完成行：拖到 Finder/任意 App（文件 URL 载体）；双击 = 打开。
+        // 仅"已完成且文件真实存在"时挂——进行中/失败行没有可交付的实体。
+        .modifier(CompletedFileDraggable(item: item))
+        .onTapGesture(count: 2) {
+            if item.state == .completed, dragFileURL != nil {
+                store.openFile(item)
+            }
+        }
         .contextMenu { rowMenu }
+    }
+
+    /// 完成行的真实文件 URL（存在才给拖拽/双击用）。
+    private var dragFileURL: URL? {
+        guard item.state == .completed, let url = item.fileURL,
+              FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return url
     }
 
     // MARK: Row pieces
@@ -695,6 +710,10 @@ private struct DownloadRow: View {
             Button("Show in Finder") { store.revealInFinder(item) }
             if let url = item.fileURL, FileManager.default.fileExists(atPath: url.path) {
                 Button("Preview") { onPreview(url) }
+                Button("Copy Path") {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(url.path, forType: .string)
+                }
             }
         case .failed:
             Button("Retry") { store.retry(item) }
@@ -769,4 +788,19 @@ private struct ProgressBar: View {
 #Preview {
     DownloadPanel(store: DownloadStore())
         .frame(width: 480, height: 520)
+}
+
+/// 完成下载行的拖拽载体：挂 `.onDrag`（NSItemProvider 携带文件 URL——
+/// Finder/邮件/任意 App 都能收）。非完成行原样透传。
+private struct CompletedFileDraggable: ViewModifier {
+    let item: DownloadItem
+
+    func body(content: Content) -> some View {
+        if item.state == .completed, let url = item.fileURL,
+           FileManager.default.fileExists(atPath: url.path) {
+            content.onDrag { NSItemProvider(contentsOf: url) ?? NSItemProvider() }
+        } else {
+            content
+        }
+    }
 }

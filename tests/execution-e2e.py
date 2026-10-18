@@ -1713,6 +1713,18 @@ def main():
             "tag:!!document.getElementById('desire-site-font-family')})")}).get("result") or "{}")
         ok("站点字体：清覆盖后原内联字号原样还原（10px / 样式移除）",
            d21b.get("small") == "10px" and d21b.get("tag") is False)
+
+        # 站点控制中心（v0.7.21）：清除本站覆盖（桥等价，与 UI 同序）
+        bridge("POST", "/site-settings/zoom", {"host": "127.0.0.1", "zoom": 1.25})
+        bridge("POST", "/site-settings/darkmode", {"host": "127.0.0.1", "enabled": True})
+        bridge("POST", "/site-settings/font", {"host": "127.0.0.1", "minFontSize": 16})
+        time.sleep(0.5)
+        clr = bridge("POST", "/site-settings/clear", {"host": "127.0.0.1"})
+        time.sleep(0.5)
+        st21 = bridge("GET", "/site-settings?host=127.0.0.1")
+        ok("站点控制：清除覆盖后四项回默认（zoom 1.0/dark false/font 0）",
+           clr.get("ok") is True and st21.get("zoom") == 1.0 and st21.get("darkMode") is False
+           and st21.get("minFontSize") == 0 and st21.get("fontFamily") == "")
         # ── MUSCLE22：书签导入去重（HTML 解析 + 撞库/组内划分 + 策略落库；桥直接驱动）──
         BM_SEED = "https://seed-bm22.test/keep"
         BM_URLS = [BM_SEED, BM_SEED + "/", "https://fresh-bm22.test/one",

@@ -27,7 +27,7 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
 桥 /promotion/review 一键安排每日选题采集并撤销）/
 阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）/
-命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
+阅读进度记忆（MUSCLE25：桥写 → 关标签重开 → 恢复 ≈50%）/\n命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -199,6 +199,18 @@ class TinyAPI(BaseHTTPRequestHandler):
                     "<p>Distributed systems fail in interesting ways when the network partitions last.</p>"
                     "<p>A small paragraph that should also be picked up by the collector without trouble.</p>"
                     "</article></body></html>").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path.startswith("/tallpage"):
+            # 阅读进度（MUSCLE25）的靶页：足够高的长页。
+            paras = "".join(f"<p>Tall paragraph {i}: 阅读进度恢复用的长页面内容。</p>"
+                            for i in range(1, 41))
+            body = ("<!DOCTYPE html><html><head><meta charset='utf-8'>"
+                    f"<title>Tall Page</title></head><body>{paras}</body></html>").encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -1843,6 +1855,35 @@ def main():
         ok("查找：敏感大写只剩 1", f2.get("count") == 1, f2)
         f3 = bridge("GET", "/find?q=alpha&caseSensitive=1")
         ok("查找：敏感小写命中 1", f3.get("count") == 1, f3)
+        # ── MUSCLE25：阅读进度记忆（桥写 → 关标签重开 → didFinish 恢复）──
+        TALL_URL = f"http://127.0.0.1:{API_PORT}/tallpage"
+        bridge("POST", "/reading-list/remove", {"url": TALL_URL})
+        bridge("POST", "/reading-list/add", {"title": "Tall Page", "url": TALL_URL})
+        for t in bridge("GET", "/state").get("tabs", []):
+            if "/tallpage" in (t.get("url") or ""):
+                bridge("POST", "/close-tab", {"index": t.get("index")})
+        bridge("POST", "/new-tab", {"url": TALL_URL})
+        time.sleep(2.5)
+        pr = bridge("POST", "/reading-list/progress", {"url": TALL_URL, "ratio": 0.5})
+        ok("阅读进度：桥写回执 0.5", pr.get("ok") and abs((pr.get("progress") or 0) - 0.5) < 0.001)
+        rows25 = bridge("GET", "/reading-list").get("items", [])
+        row25 = next((i for i in rows25 if i.get("url") == TALL_URL), {})
+        ok("阅读进度：列表行带 progress 字段", abs((row25.get("progress") or 0) - 0.5) < 0.001)
+        for t in bridge("GET", "/state").get("tabs", []):
+            if "/tallpage" in (t.get("url") or ""):
+                bridge("POST", "/close-tab", {"index": t.get("index")})
+        time.sleep(1)
+        bridge("POST", "/new-tab", {"url": TALL_URL})
+        time.sleep(3.5)
+        restored25 = bridge("POST", "/execute", {"js": (
+            "(function(){var d=document.documentElement;var m=d.scrollHeight-window.innerHeight;"
+            "return m<=40?0:(window.scrollY||d.scrollTop||0)/m;})()")}).get("result")
+        ok("阅读进度：重开自动恢复到 ≈50%（didFinish 钩子）",
+           isinstance(restored25, (int, float)) and 0.4 < float(restored25) < 0.6, restored25)
+        for t in bridge("GET", "/state").get("tabs", []):
+            if "/tallpage" in (t.get("url") or ""):
+                bridge("POST", "/close-tab", {"index": t.get("index")})
+        bridge("POST", "/reading-list/remove", {"url": TALL_URL})
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -1868,6 +1909,12 @@ def main():
                 if (g.get("title") or "") == "MUSCLE18 选题目标":
                     bridge("POST", "/promotion/goal/remove", {"id": g.get("id")})
             bridge("POST", "/promotion/review", {"kind": "dailyTopics", "action": "remove"})
+        except Exception:
+            pass
+        # 阅读进度兜底（MUSCLE25）：移除测试条目（种子自建的）。
+        try:
+            bridge("POST", "/reading-list/remove",
+                   {"url": f"http://127.0.0.1:{API_PORT}/tallpage"})
         except Exception:
             pass
         # 命令面板兜底（MUSCLE24）：清种子书签（循环删到无副本）。
@@ -1936,7 +1983,8 @@ def main():
                          or f"127.0.0.1:{API_PORT}/fontpage" in (t.get("url") or "")
                          or f"127.0.0.1:{API_PORT}/bipage" in (t.get("url") or "")
                          or f"127.0.0.1:{API_PORT}/palettehit" in (t.get("url") or "")
-                         or f"127.0.0.1:{API_PORT}/casepage" in (t.get("url") or "")]
+                         or f"127.0.0.1:{API_PORT}/casepage" in (t.get("url") or "")
+                         or f"127.0.0.1:{API_PORT}/tallpage" in (t.get("url") or "")]
                 if not stale:
                     break
                 for t in stale:

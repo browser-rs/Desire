@@ -33,6 +33,20 @@ struct Toolbar: View {
         let toggleAgentFloatingPanel: () -> Void
         let toggleDevTools: () -> Void
         let toggleBilingual: () -> Void
+        /// 站点控制中心（锁图标弹层）的聚合动作——只含父视图能实现的部分；
+        /// 依赖 Toolbar 本地状态的 editFont / 关弹层 由 Toolbar 就地补全。
+        let siteControls: SiteControlActions
+    }
+
+    /// 父视图侧的站点控制动作（无 UI 状态依赖）。
+    struct SiteControlActions {
+        let zoomIn: () -> Void
+        let zoomOut: () -> Void
+        let zoomReset: () -> Void
+        let toggleDarkMode: () -> Void
+        let toggleAutoPlay: () -> Void
+        let manageBlocked: () -> Void
+        let clearOverrides: () -> Void
     }
 
     @ObservedObject var tab: Tab
@@ -111,9 +125,11 @@ struct Toolbar: View {
     @State private var showMoreMenu = false
     @State private var showSecurityInfo = false
     @State private var showExtensionsPanel = false
-    /// 站点字体弹层（非观察引用：Toolbar 只把它交给 Sheet 构造，不读它的
-    /// 状态——同 downloadStore/passwordStore 的传递方式）。
-    let siteFontStore: SiteSettingsStore
+    /// 站点设置（字体弹层 + 控制中心共用；非观察引用：Toolbar 只把它交给
+    /// 弹层构造，不读它的状态——同 downloadStore/passwordStore 的传递方式）。
+    let siteSettingsStore: SiteSettingsStore
+    /// 本站拦截规则数（父视图按 host 派生；弹层打开时取当次渲染值）。
+    var blockedElementCount: Int? = nil
     @State private var showFontSheet = false
     @State private var fontSheetHost = ""
     /// Cached bookmark-state for the current page, passed from the parent.
@@ -161,9 +177,9 @@ struct Toolbar: View {
             PasswordPanel(passwordStore: passwordStore)
         }
         .sheet(isPresented: $showFontSheet) {
-            SiteFontSheet(host: fontSheetHost, store: siteFontStore) {
+            SiteFontSheet(host: fontSheetHost, store: siteSettingsStore) {
                 // 改一项立即重注入（不用刷新）。
-                SiteFontApplier.apply(to: tab.browser.webView, host: fontSheetHost, store: siteFontStore)
+                SiteFontApplier.apply(to: tab.browser.webView, host: fontSheetHost, store: siteSettingsStore)
             }
         }
         .onChange(of: isUrlFocused) { _, focused in
@@ -230,10 +246,35 @@ struct Toolbar: View {
                   ? "Connection Secure · Mixed Content (\(tab.browser.mixedContentTotal) insecure resources)"
                   : (tab.browser.isSecure ? "Connection Secure" : "Connection Not Secure"))
             .popover(isPresented: $showSecurityInfo) {
-                SecurityInfoView(trust: tab.browser.isSecure ? tab.browser.serverTrust : nil,
-                                 host: tab.browser.webView.url?.host ?? "",
-                                 mixedContentTotal: tab.browser.mixedContentTotal,
-                                 mixedContentScripts: tab.browser.mixedContentScripts)
+                VStack(alignment: .leading, spacing: 10) {
+                    SecurityInfoView(trust: tab.browser.isSecure ? tab.browser.serverTrust : nil,
+                                     host: tab.browser.webView.url?.host ?? "",
+                                     mixedContentTotal: tab.browser.mixedContentTotal,
+                                     mixedContentScripts: tab.browser.mixedContentScripts)
+                    if let host = tab.browser.webView.url?.host, !host.isEmpty, !tab.isOnNewTabPage {
+                        Divider()
+                        SiteControlsView(
+                            host: host,
+                            store: siteSettingsStore,
+                            pageZoom: tab.browser.pageZoom,
+                            blockedCount: blockedElementCount ?? 0,
+                            actions: SiteControlsView.Actions(
+                                zoomIn: actions.siteControls.zoomIn,
+                                zoomOut: actions.siteControls.zoomOut,
+                                zoomReset: actions.siteControls.zoomReset,
+                                toggleDarkMode: actions.siteControls.toggleDarkMode,
+                                toggleAutoPlay: actions.siteControls.toggleAutoPlay,
+                                editFont: {
+                                    fontSheetHost = host
+                                    showFontSheet = true
+                                },
+                                manageBlocked: {
+                                    showSecurityInfo = false
+                                    actions.siteControls.manageBlocked()
+                                },
+                                clearOverrides: actions.siteControls.clearOverrides))
+                    }
+                }
             }
 
             URLBarField(

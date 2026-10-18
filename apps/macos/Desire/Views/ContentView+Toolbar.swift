@@ -110,7 +110,19 @@ extension ContentView {
                 toggleAgentPanel: { showAgentPanel.toggle() },
                 toggleAgentFloatingPanel: { aiFloatingPanel?.toggle() },
                 toggleDevTools: { toggleDevTools() },
-                toggleBilingual: { b.toggleBilingual(for: tab) }
+                toggleBilingual: { b.toggleBilingual(for: tab) },
+                siteControls: Toolbar.SiteControlActions(
+                    zoomIn: { b.zoom(by: 0.1) },
+                    zoomOut: { b.zoom(by: -0.1) },
+                    zoomReset: { b.zoom(to: 1.0) },
+                    toggleDarkMode: { b.toggleDarkMode(for: tab) },
+                    toggleAutoPlay: { b.toggleSiteAutoPlay(for: tab) },
+                    manageBlocked: {
+                        // 关弹层由 Toolbar 本地补全（showSecurityInfo 是它的状态）。
+                        showElementBlock = true
+                    },
+                    clearOverrides: { b.clearSiteControls(for: tab) }
+                )
             ),
             showHistory: $showHistory,
             showBookmarks: $showBookmarks,
@@ -148,7 +160,8 @@ extension ContentView {
                 get: { appState.showWorkspacesPanel },
                 set: { appState.showWorkspacesPanel = $0 }
             ),
-            siteFontStore: siteSettingsStore,
+            siteSettingsStore: siteSettingsStore,
+            blockedElementCount: host.map { elementBlockStore.matchingRules(for: $0).count },
             isBookmarked: isBookmarked
         )
     }

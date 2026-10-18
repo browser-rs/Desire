@@ -346,6 +346,19 @@ extension BrowsingActions {
         }
     }
 
+    /// 清除本站全部覆盖（站点控制中心的"Clear Site Overrides"）：缩放/暗色/
+    /// 自动播放/字体一次还原（**拦截规则不动**——那是内容级决定，走拦截面板
+    /// 单独管理），页面就地生效（暗色样式与字体注入当场撤销、缩放复位）。
+    func clearSiteControls(for tab: Tab) {
+        guard let host = tab.browser.webView.url?.host, !host.isEmpty else { return }
+        siteSettingsStore.clearOverrides(for: host)
+        tab.browser.webView.evaluateJavaScript(
+            "(function(){var el=document.getElementById('desire-dark-mode');if(el)el.remove();})();",
+            completionHandler: nil)
+        tab.applyPageZoom(1.0, rememberIn: siteSettingsStore)
+        SiteFontApplier.apply(to: tab.browser.webView, host: host, store: siteSettingsStore)
+    }
+
     /// 双语对照开关（工具栏菜单/桥/工具共用）：状态按标签记在
     /// BilingualReadingService，翻译流水线也在那边跑。
     func toggleBilingual(for tab: Tab) {

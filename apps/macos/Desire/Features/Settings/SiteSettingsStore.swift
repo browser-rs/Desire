@@ -146,6 +146,21 @@ class SiteSettingsStore: ObservableObject {
         objectWillChange.send()
     }
 
+    /// 清除本站全部 UI 覆盖（缩放之外：暗色/自动播放/字体；**拦截规则
+    /// 不动**——那是内容级决定，走拦截面板单独管理）。缩放由调用方走
+    /// setZoom(1.0) 保持"记站点"同一条路径。UI（站点控制中心）与桥
+    /// `/site-settings/clear` 共用。
+    func clearOverrides(for domain: String) {
+        guard settings[domain] != nil else { return }
+        settings[domain]?.darkMode = false
+        settings[domain]?.autoPlay = nil
+        settings[domain]?.minFontSize = nil
+        settings[domain]?.fontFamily = nil
+        cleanEmpty(domain)
+        save()
+        objectWillChange.send()
+    }
+
     func resetAll() {
         settings.removeAll()
         save()

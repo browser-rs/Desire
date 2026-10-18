@@ -474,6 +474,7 @@ final class AutomationServer {
         ep("POST", "/site-settings/darkmode", "Set per-host dark mode", params: ["host:string", "enabled:bool"], example: #"-d '{"host":"example.com","enabled":true}'"#)
         ep("POST", "/site-settings/zoom", "Set per-host zoom", params: ["host:string", "zoom:double"], example: #"-d '{"host":"example.com","zoom":1.5}'"#)
         ep("POST", "/site-settings/font", "Per-site fonts: minFontSize (0=off)/fontFamily (''=off)/null=follow default; re-injects immediately", params: ["host", "minFontSize?", "fontFamily?"], example: #"-d '{"host":"a.b","minFontSize":16}'"#)
+        ep("POST", "/site-settings/clear", "Clear all per-site UI overrides (zoom/dark/auto-play/fonts; blocked rules untouched) and re-apply to the active tab", params: ["host:string"], example: #"-d '{"host":"a.b"}'"#)
         ep("GET", "/palette", "Command-palette mixed search (commands/tabs/bookmarks/history/conversations, grouped + per-source totals)", params: ["q:string"], example: "…/palette?q=book")
         ep("GET", "/bilingual", "Bilingual reading state for the active tab (on/running/done/total/error)", example: "…/bilingual")
         ep("POST", "/bilingual", "Toggle bilingual reading (AI translations inserted under each paragraph)", params: ["on:bool", "index?:int"], example: #"-d '{"on":true}'"#)
@@ -1538,6 +1539,8 @@ final class AutomationServer {
                 ))
             case ("POST", "/site-settings/font"):
                 return try Self.json(Self.setSiteFont(body: body))
+            case ("POST", "/site-settings/clear"):
+                return try Self.json(Self.clearSiteSettings(host: Self.string(body, "host") ?? ""))
             case ("GET", "/palette"):
                 return try Self.json(Self.palette(query: Self.string(query, "q") ?? ""))
             case ("GET", "/bilingual"):
@@ -4165,6 +4168,31 @@ final class AutomationServer {
                           "subtitle": row.subtitle, "url": row.url ?? ""]
                      }]
                 }]
+    }
+
+    /// 清除本站 UI 覆盖（站点控制中心"Clear Site Overrides"的桥等价，
+    /// 与 BrowsingActions.clearSiteControls 同序：store 级清除 + 活动标签
+    /// 就地还原暗色样式/缩放/字体注入）。
+    private static func clearSiteSettings(host: String) throws -> [String: Any] {
+        guard let app = AppState.live, !host.isEmpty else { return ["error": "missing host"] }
+        let store = app.siteSettingsStore
+        store.clearOverrides(for: host)
+        if let tab = TabSessionCoordinator.shared.activeTabManager?.selectedTab,
+           tab.browser.webView.url?.host == host {
+            tab.browser.webView.evaluateJavaScript(
+                "(function(){var el=document.getElementById('desire-dark-mode');if(el)el.remove();})();",
+                completionHandler: nil)
+            tab.applyPageZoom(1.0, rememberIn: store)
+            SiteFontApplier.apply(to: tab.browser.webView, host: host, store: store)
+        } else {
+            store.setZoom(1.0, for: host)
+        }
+        let font = store.effectiveFont(for: host)
+        return ["ok": true, "host": host,
+                "zoom": store.zoom(for: host),
+                "darkMode": store.darkModeEnabled(for: host),
+                "minFontSize": font.minFontSize,
+                "fontFamily": font.fontFamily]
     }
 
     /// 双语对照状态（活动标签的口径；E2E 轮询直到 running=false）。

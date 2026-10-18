@@ -179,6 +179,10 @@ final class SyncStore: ObservableObject {
             startSyncInfrastructure()
         }
         lastSyncAt = defaults.object(forKey: lastSyncKey) as? Date
+        if let data = defaults.data(forKey: Self.conflictNotesKey),
+           let decoded = try? JSONDecoder().decode([SyncConflictNote].self, from: data) {
+            recentConflicts = decoded
+        }
         if let raw = defaults.data(forKey: Self.diagnosticsKey),
            let decoded = try? JSONDecoder().decode([String: SyncDomainDiag].self, from: raw) {
             diagnostics = Dictionary(uniqueKeysWithValues: decoded.compactMap { key, value in
@@ -758,6 +762,46 @@ final class SyncStore: ObservableObject {
 
     /// 各域当前待删墓碑数（同步日志里展示"待删 N"——正常应在裁决后归零，
     /// 长期不为 0 = 该域的同步持续失败，是需要看的信号）。
+    // MARK: - 冲突明细（v0.7.23）
+
+    struct SyncConflictNote: Codable, Identifiable, Equatable {
+        var id: UUID
+        var domain: String
+        /// 解密后提取的可读标签；提取不出时退 client_id 短码。
+        var label: String
+        var at: Date
+    }
+
+    private static let conflictNotesKey = "sync.recentConflicts"
+
+    /// 最近的本机 LWW 输掉的条目（新在前，上限 60，随 UserDefaults 持久化）。
+    @Published private(set) var recentConflicts: [SyncConflictNote] = []
+
+    func clearConflictNotes() {
+        recentConflicts = []
+        defaults.removeObject(forKey: Self.conflictNotesKey)
+    }
+
+    /// push conflict = 服务端胜者已落地：逐条解密胜者载荷提取可读标签。
+    private func recordConflictNotes(domain: SyncDomain,
+                                     results: [SyncPushResult<SyncEncryptedPayload>],
+                                     master: String) {
+        var notes = recentConflicts
+        for result in results {
+            var label = String(result.clientId.suffix(8))
+            if let envelope = result.item?.payload,
+               let plain = try? SyncCrypto.decryptRaw(envelope, domain: domain, masterKeyBase64: master),
+               let text = String(data: plain, encoding: .utf8),
+               let extracted = SyncConflictLabel.label(fromPlainJSON: text) {
+                label = extracted
+            }
+            notes.insert(SyncConflictNote(id: UUID(), domain: domain.rawValue,
+                                          label: label, at: Date()), at: 0)
+        }
+        recentConflicts = Array(notes.prefix(60))
+        defaults.set(try? JSONEncoder().encode(recentConflicts), forKey: Self.conflictNotesKey)
+    }
+
     var pendingTombstoneCounts: [SyncDomain: Int] {
         [
             .bookmarks: bookmarkStore.pendingDeletions.count,
@@ -860,6 +904,10 @@ final class SyncStore: ObservableObject {
                     // conflict 是服务端赢了(胜者已落地)。两种情况下待删清单里的旧 tombstone
                     // 都该清掉——否则输掉 LWW 的删除会每周期重推一遍,永远 conflict。
                     adapter.clear(Set(pushResults.map(\.clientId)), master)
+                }
+                let conflictedResults = pushResults.filter { $0.status == "conflict" }
+                if !conflictedResults.isEmpty {
+                    recordConflictNotes(domain: domain, results: conflictedResults, master: master)
                 }
                 // 诊断：pushed = 实发条数；conflict = LWW 输掉（服务端胜者回写）。
                 recordDiag(domain) { diag in

@@ -463,6 +463,8 @@ final class AutomationServer {
         ep("POST", "/speech/stop", "Stop text-to-speech immediately (automation cleanup)", example: "-d '{}'")
         ep("GET", "/agent/budget", "Conversation token budget (budget/used/state off|within|warning|stopped/stopLevel/percent)", example: "…/agent/budget")
         ep("POST", "/agent/budget", "Set the conversation token budget (0 = off; resets the tier)", params: ["tokens:int"], example: #"-d '{"tokens":50000}'"#)
+        ep("GET", "/sync/conflicts", "Recent sync conflicts (entries where the server's LWW copy won; decrypted readable labels)", example: "…/sync/conflicts")
+        ep("POST", "/sync/conflicts/clear", "Clear the conflict-details ledger", example: "-d '{}'")
         ep("GET", "/sync/status", "Cloud sync state (auth / syncing / lastSyncAt / lastError / per-domain cursors + pending tombstones)", example: "…/sync/status")
         ep("POST", "/sync/now", "Run a full sync cycle (all domains), return resulting status", example: "-d '{}'")
         ep("POST", "/sync/login", "Sign in (then auto-sync at launch + every 5 min)", params: ["username:string", "password:string"], example: #"-d '{"username":"u","password":"p"}'"#)
@@ -1739,6 +1741,11 @@ final class AutomationServer {
                     session: rlSession)
                 return try Self.json(["ok": true, "queued": rlStarted,
                                       "running": ReadingListSummarizer.shared.isRunning])
+            case ("GET", "/sync/conflicts"):
+                return try Self.json(Self.syncConflicts())
+            case ("POST", "/sync/conflicts/clear"):
+                AppState.live?.syncStore.clearConflictNotes()
+                return try Self.json(Self.syncConflicts())
             case ("GET", "/sync/status"):
                 return try Self.json(Self.syncStatus())
             case ("POST", "/sync/now"):
@@ -6672,6 +6679,16 @@ final class AutomationServer {
         }
         return ["ok": true, "board": true, "title": payload.title, "blocks": blocks,
                 "payloadBytes": RemoteBoardContent.encodedSize(payload.blocks)]
+    }
+
+    /// 同步冲突明细（v0.7.23）：最近本机 LWW 输掉的条目（解密标签）。
+    private static func syncConflicts() -> [String: Any] {
+        guard let store = AppState.live?.syncStore else { return ["error": "app state not ready"] }
+        let notes = store.recentConflicts.map { note in
+            ["id": note.id.uuidString, "domain": note.domain,
+             "label": note.label, "at": note.at.timeIntervalSince1970] as [String: Any]
+        }
+        return ["ok": true, "count": notes.count, "conflicts": notes]
     }
 
     /// 周报状态（面板设置行的桥等价）。

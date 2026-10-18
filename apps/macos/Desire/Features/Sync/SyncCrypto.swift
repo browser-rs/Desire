@@ -223,6 +223,15 @@ nonisolated enum SyncCrypto {
         _ envelope: SyncEncryptedPayload, domain: SyncDomain,
         masterKeyBase64: String, as type: T.Type
     ) throws -> T {
+        let plaintext = try decryptRaw(envelope, domain: domain, masterKeyBase64: masterKeyBase64)
+        return try SyncJSON.makeDecoder().decode(T.self, from: plaintext)
+    }
+
+    /// 解密到**明文字节**（不做类型解码）——给只想要可读摘要的调用方
+    /// （v0.7.23 冲突明细的标签提取）用。
+    public static func decryptRaw(
+        _ envelope: SyncEncryptedPayload, domain: SyncDomain, masterKeyBase64: String
+    ) throws -> Data {
         guard envelope.v == envelopeVersion else {
             throw CryptoError.cryptoFailure("unknown envelope version \(envelope.v)")
         }
@@ -230,16 +239,13 @@ nonisolated enum SyncCrypto {
             throw CryptoError.invalidKeyFormat
         }
         let key = try domainKey(masterKeyBase64, domain: domain, purpose: "payload")
-        let sealed: AES.GCM.SealedBox
-        let plaintext: Data
         do {
-            sealed = try AES.GCM.SealedBox(combined: combined)
-            plaintext = try AES.GCM.open(sealed, using: key)
+            let sealed = try AES.GCM.SealedBox(combined: combined)
+            return try AES.GCM.open(sealed, using: key)
         } catch {
             // 认证失败 = 密钥不对或密文被篡改
             throw CryptoError.authenticationFailed
         }
-        return try SyncJSON.makeDecoder().decode(T.self, from: plaintext)
     }
 
     // MARK: - client_id(确定性 HMAC;服务器保唯一性,读不出真实 id)

@@ -3441,6 +3441,24 @@ func testRemoteBoardContent() {
 }
 testRemoteBoardContent()
 
+func testSyncConflictLabel() {
+    check("冲突标签：书签 title+host",
+          SyncConflictLabel.label(fromPlainJSON: "{\"title\":\"某篇文章\",\"url\":\"https://a.test/x\"}") == "某篇文章 — a.test")
+    check("冲突标签：只有 title",
+          SyncConflictLabel.label(fromPlainJSON: "{\"title\":\"只有标题\"}") == "只有标题")
+    check("冲突标签：设置 KV 形态",
+          SyncConflictLabel.label(fromPlainJSON: "{\"key\":\"homePage\",\"value\":\"https://x\"}") == "homePage = https://x")
+    check("冲突标签：记忆 content 前缀",
+          (SyncConflictLabel.label(fromPlainJSON: "{\"content\":\"偏好宋体阅读\"}") ?? "").hasPrefix("偏好宋体"))
+    check("冲突标签：兜底取首个字符串值",
+          SyncConflictLabel.label(fromPlainJSON: "{\"weird\":\"兜底文本\"}") == "兜底文本")
+    check("冲突标签：非 JSON 返回 nil", SyncConflictLabel.label(fromPlainJSON: "not json") == nil)
+    check("冲突标签：无字符串值返回 nil", SyncConflictLabel.label(fromPlainJSON: "{\"n\":1,\"b\":true}") == nil)
+    check("冲突标签：长 title 截 60",
+          (SyncConflictLabel.label(fromPlainJSON: "{\"title\":\"\(String(repeating: "长", count: 80))\"}") ?? "").count == 60)
+}
+testSyncConflictLabel()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

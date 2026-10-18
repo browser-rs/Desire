@@ -6,6 +6,8 @@ import SwiftUI
 /// 全部走 store 方法，错误展示用 store.lastError（登录失败是同步态的属性）。
 struct SyncSettingsSection: View {
     @ObservedObject var store: SyncStore
+    /// 冲突明细 sheet（v0.7.23）。
+    @State private var showsConflicts = false
 
     @State private var username = ""
     @State private var password = ""
@@ -462,6 +464,8 @@ struct SyncSettingsSection: View {
                 }
             }
         }
+
+        ConflictsSection(store: store)
     }
 
     /// 相对时间文案（系统本地化，"3 分钟前"），随 app 语言走。
@@ -616,5 +620,90 @@ struct SyncSettingsSection_Previews: PreviewProvider {
             agentPreferenceStore: AgentPreferenceStore()
         ))
         .appAccent(.blue)
+    }
+}
+
+/// 冲突明细小节（v0.7.23）：本机 LWW 输掉的最近条目（解密后可读标签）——
+/// 单看逐域 ✓ 不知道"到底哪几条被服务端胜出"，这里给明细 + 清空。
+private struct ConflictsSection: View {
+    @ObservedObject var store: SyncStore
+    @State private var shows = false
+
+    var body: some View {
+        SettingsSection(
+            title: "Conflict Details",
+            subtitle: "Entries where another device's copy won last-write-wins (decrypted locally for readability).",
+            icon: "arrow.triangle.branch"
+        ) {
+            SettingsRow(
+                "Recent Conflicts",
+                subtitle: store.recentConflicts.isEmpty
+                    ? String(localized: "None — every device is in sync.")
+                    : String(localized: "\(store.recentConflicts.count) entr(y/ies) — tap to review."),
+                systemImage: "exclamationmark.triangle"
+            ) {
+                if !store.recentConflicts.isEmpty {
+                    SettingsCapsuleButton("Review", style: .secondary) { shows = true }
+                }
+            }
+        }
+        .sheet(isPresented: $shows) {
+            ConflictDetailsSheet(store: store) { shows = false }
+        }
+    }
+}
+
+private struct ConflictDetailsSheet: View {
+    @ObservedObject var store: SyncStore
+    let onClose: () -> Void
+
+    private static let formatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter
+    }()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(String(localized: "Conflict Details"))
+                    .font(.headline)
+                Spacer()
+                Button(String(localized: "Clear")) {
+                    store.clearConflictNotes()
+                    onClose()
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                Button(String(localized: "Done")) { onClose() }
+                    .keyboardShortcut(.defaultAction)
+            }
+            Text("These local changes lost LWW against another device's newer copy — the newer copy is now on this device too.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            List(store.recentConflicts) { note in
+                HStack(spacing: 8) {
+                    Text(domainName(note.domain))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 72, alignment: .leading)
+                    Text(note.label)
+                        .font(.system(size: 12.5))
+                        .lineLimit(1)
+                    Spacer()
+                    Text(Self.formatter.localizedString(for: note.at, relativeTo: Date()))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .listStyle(.inset)
+        }
+        .padding(20)
+        .frame(width: 520, height: 420)
+    }
+
+    private func domainName(_ raw: String) -> String {
+        SyncDomain(rawValue: raw)?.displayName ?? raw
     }
 }

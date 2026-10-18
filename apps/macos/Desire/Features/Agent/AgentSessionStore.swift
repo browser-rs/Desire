@@ -2074,6 +2074,21 @@ class AgentSessionStore: ObservableObject {
                 }
             }
 
+            // **流结束后的无条件写回**（2026-10-18 修复，预算 E2E 偶发照出）：
+            // 本地 `assistantMsg` 是 messages 里的值拷贝——usage 常作为该轮
+            // 最后一个事件到达，若无后续 text/toolCall 事件触发 write-back，
+            // token 就只留在本地副本里；`conversationUsage` 从 messages 派生，
+            // 于是预算/成本读数偶发**少记最后一轮**（断言在 "920/500" 处飘）。
+            // 这里在工具执行/下一轮之前把副本落回，一次收口。
+            if let current = assistantMsg,
+               let idx = messages.firstIndex(where: { $0.id == current.id }),
+               messages[idx].promptTokens != current.promptTokens
+                   || messages[idx].completionTokens != current.completionTokens
+                   || messages[idx].content != current.content
+                   || messages[idx].reasoning != current.reasoning {
+                messages[idx] = current
+            }
+
             guard let tcs = msg.toolCalls, !tcs.isEmpty else { return }
 
             // Execute tool calls with risk-gated approval. Each call may

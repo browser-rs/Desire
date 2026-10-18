@@ -851,9 +851,11 @@ def main():
         joined = "\n".join(results)
 
         checks = []
-        def ok(name, cond):
-            checks.append((name, bool(cond)))
-            print(("✓" if cond else "✗"), name)
+        def ok(name, cond, extra=None):
+            checks.append((name, cond))
+            print(("✓ " if cond else "✗ ") + name)
+            if not cond and extra is not None:
+                print("    ↳", extra)
 
         ok("导航到 fixture", "/fixture" in joined)
         ok("右键触发 contextmenu", "contextmenu" in joined)

@@ -3177,6 +3177,67 @@ func testBilingualParsing() {
 }
 testBilingualParsing()
 
+func testPaletteSearch() {
+    func row(_ source: PaletteSearch.Source, _ id: String, _ title: String,
+             _ subtitle: String = "", url: String? = nil) -> PaletteSearch.Row {
+        .init(source: source, id: id, title: title, subtitle: subtitle, url: url)
+    }
+    // 评分档位：前缀 > 词首 > 子串 > URL > 副标题 > 模糊
+    let prefix = row(.command, "a", "Bookmarks Panel", "Bookmarks")
+    let word = row(.command, "b", "Show Bookmarks", "Bookmarks")
+    let substring = row(.command, "c", "Notebookmaker Guide", "Tools")
+    let urlHit = row(.history, "d", "Some Page", "https://x.test/bookmarks", url: "https://x.test/bookmarks")
+    let fuzzy = row(.command, "e", "B-o-o-k-m Layout", "")
+    let q = "bookm"
+    check("面板：前缀档最高", PaletteSearch.score(prefix, query: q) == 100)
+    check("面板：词首档次之", PaletteSearch.score(word, query: q) == 80)
+    check("面板：标题子串档", PaletteSearch.score(substring, query: q) == 60)
+    check("面板：URL 命中档", PaletteSearch.score(urlHit, query: q) == 50)
+    check("面板：模糊子序列兜底", PaletteSearch.score(fuzzy, query: q) == 20)
+    check("面板：不命中为 0", PaletteSearch.score(row(.command, "f", "Nothing Here", ""), query: q) == 0)
+
+    // 分组 + 截断 + total；同分保持输入序
+    var rows: [PaletteSearch.Row] = []
+    for i in 1...12 {
+        rows.append(row(.bookmark, "bm\(i)", "Bookmark \(i)", "https://b.test/\(i)", url: "https://b.test/\(i)"))
+    }
+    rows.append(row(.tab, "tab1", "Bookmark Tab", "https://t.test/1", url: "https://t.test/1"))
+    rows.append(row(.command, "cmd1", "Bookmark Panel", "Bookmarks"))
+    let sections = PaletteSearch.search("bookmark", rows: rows)
+    let bookmarkSection = sections.first { $0.source == .bookmark }
+    check("面板：书签段截断到 8 条", bookmarkSection?.rows.count == 8)
+    check("面板：徽标 total 是全量命中数", bookmarkSection?.total == 12)
+    check("面板：同分保持输入序", bookmarkSection?.rows.first?.id == "bm1")
+    // 段序 = 源枚举序（命令 → 标签 → 书签 → …）
+    check("面板：段序按源枚举", sections.map(\.source) == [.command, .tab, .bookmark])
+
+    // 前缀行挤掉同段内的普通行（分数优先于输入序）
+    let mixed = [row(.bookmark, "x", "ZZZ Bookmark"), row(.bookmark, "y", "Bookmark ZZZ")]
+    let mixedSections = PaletteSearch.search("bookmark", rows: mixed)
+    check("面板：前缀优先于输入序", mixedSections.first?.rows.first?.id == "y")
+
+    // 空查询初始态：命令 + 标签，其余源不给
+    let initRows = [
+        row(.command, "c1", "Command One"), row(.tab, "t1", "Tab One", "https://t.test"),
+        row(.history, "h1", "History One", "https://h.test")
+    ]
+    let initial = PaletteSearch.initialSections(rows: initRows)
+    check("面板：初始态只给命令与标签", initial.map(\.source) == [.command, .tab])
+    check("面板：初始态命令保持输入序", initial.first?.rows.first?.id == "c1")
+
+    // 显示序列：组头 + 行；键盘取行跳过组头
+    let items = PaletteSearch.displayItems(sections)
+    check("面板：显示序列头行交替（3 头 + 10 行 = 13）", items.count == 13)
+    if case .header(let source, let total) = items.first {
+        check("面板：首项是组头且带 total", source == .command && total == 1)
+    } else {
+        check("面板：首项是组头且带 total", false)
+    }
+    check("面板：可导航行数与截断一致", items.compactMap(\.rowValue).count == 1 + 1 + 8)
+    check("面板：空查询走 search 返回空", PaletteSearch.search("  ", rows: initRows).isEmpty)
+}
+testPaletteSearch()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

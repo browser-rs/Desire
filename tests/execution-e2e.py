@@ -27,13 +27,14 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
 桥 /promotion/review 一键安排每日选题采集并撤销）/
 阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）/
-双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
+命令面板混合检索（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
 import json
 import threading
 import time
+import urllib.parse
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -198,6 +199,17 @@ class TinyAPI(BaseHTTPRequestHandler):
                     "<p>Distributed systems fail in interesting ways when the network partitions last.</p>"
                     "<p>A small paragraph that should also be picked up by the collector without trouble.</p>"
                     "</article></body></html>").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path.startswith("/palettehit"):
+            # 命令面板（MUSCLE24）的靶页：标签 + 历史双源命中用。
+            body = ("<!DOCTYPE html><html><head><meta charset='utf-8'>"
+                    "<title>Palette Hit Page</title></head>"
+                    "<body><h1>palettehit fixture</h1></body></html>").encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -548,6 +560,9 @@ class Fake(BaseHTTPRequestHandler):
                     call(0, "searchNotes", {"query": "x"})]}, "tool_calls")
             else:
                 sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE20-DONE"}, "stop")
+            return
+        if "MUSCLE24" in mode:
+            sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE24-DONE"}, "stop")
             return
         if "MUSCLE14" in mode:
             if n == 0:
@@ -1752,6 +1767,45 @@ def main():
             "marked:document.querySelectorAll('[data-desire-bi]').length})")}).get("result") or "{}")
         ok("双语对照：关闭后译文与标记清零", st23b.get("on") is False
            and d23b.get("nodes") == 0 and d23b.get("marked") == 0)
+        # ── MUSCLE24：命令面板混合检索（五源聚合；桥 /palette 与 UI 同源）──
+        PAL_URL = "https://palette24-e2e.test/alpha"
+        for _ in range(5):
+            bridge("POST", "/bookmarks/remove", {"url": PAL_URL})
+        bridge("POST", "/bookmarks/add", {"title": "PALETTE24 专项书签", "url": PAL_URL})
+        bridge("POST", "/new-tab", {"url": f"http://127.0.0.1:{API_PORT}/palettehit"})
+        time.sleep(2)
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE24 面板检索标记"})
+        deadline24 = time.time() + 90
+        while time.time() < deadline24:
+            st24 = bridge("GET", "/agent/messages")
+            if not st24.get("busy") and any("MUSCLE24-DONE" in (m.get("content") or "")
+                                            for m in st24.get("messages", [])):
+                break
+            time.sleep(1)
+
+        def palette24(q):
+            r = bridge("GET", "/palette?q=" + urllib.parse.quote(q))
+            return {sec["source"]: sec for sec in r.get("sections", [])}
+
+        bm24 = palette24("PALETTE24")
+        ok("面板：书签源命中（标题前缀档、行带 url）",
+           bm24.get("bookmark", {}).get("total", 0) >= 1
+           and any(row.get("url") == PAL_URL for row in bm24.get("bookmark", {}).get("rows", [])))
+        hit24 = palette24("palettehit")
+        ok("面板：标签 + 历史双源命中 fixture",
+           hit24.get("tab", {}).get("total", 0) >= 1 and hit24.get("history", {}).get("total", 0) >= 1)
+        conv24 = palette24("MUSCLE24 面板检索标记")
+        ok("面板：会话源命中（首条消息文本）", conv24.get("conversation", {}).get("total", 0) >= 1)
+        cmd24 = palette24("book")
+        ok("面板：命令源前缀优先（Bookmarks Panel 首行）",
+           (cmd24.get("command", {}).get("rows") or [{}])[0].get("title") == "Bookmarks Panel")
+        init24 = bridge("GET", "/palette?q=")
+        ok("面板：空查询初始态 = 命令 + 标签",
+           [sec["source"] for sec in init24.get("sections", [])] == ["command", "tab"])
+        all24 = palette24("palette")
+        ok("面板：各源截断 ≤8",
+           bool(all24) and all(len(sec.get("rows", [])) <= 8 for sec in all24.values()))
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -1777,6 +1831,12 @@ def main():
                 if (g.get("title") or "") == "MUSCLE18 选题目标":
                     bridge("POST", "/promotion/goal/remove", {"id": g.get("id")})
             bridge("POST", "/promotion/review", {"kind": "dailyTopics", "action": "remove"})
+        except Exception:
+            pass
+        # 命令面板兜底（MUSCLE24）：清种子书签（循环删到无副本）。
+        try:
+            for _ in range(5):
+                bridge("POST", "/bookmarks/remove", {"url": "https://palette24-e2e.test/alpha"})
         except Exception:
             pass
         # 双语对照兜底（MUSCLE23）：无论如何先关掉（防在跑的批次）。
@@ -1837,7 +1897,8 @@ def main():
                          or f"127.0.0.1:{API_PORT}/flaky" in (t.get("url") or "")
                          or f"127.0.0.1:{API_PORT}/article" in (t.get("url") or "")
                          or f"127.0.0.1:{API_PORT}/fontpage" in (t.get("url") or "")
-                         or f"127.0.0.1:{API_PORT}/bipage" in (t.get("url") or "")]
+                         or f"127.0.0.1:{API_PORT}/bipage" in (t.get("url") or "")
+                         or f"127.0.0.1:{API_PORT}/palettehit" in (t.get("url") or "")]
                 if not stale:
                     break
                 for t in stale:

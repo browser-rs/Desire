@@ -474,6 +474,7 @@ final class AutomationServer {
         ep("POST", "/site-settings/darkmode", "Set per-host dark mode", params: ["host:string", "enabled:bool"], example: #"-d '{"host":"example.com","enabled":true}'"#)
         ep("POST", "/site-settings/zoom", "Set per-host zoom", params: ["host:string", "zoom:double"], example: #"-d '{"host":"example.com","zoom":1.5}'"#)
         ep("POST", "/site-settings/font", "Per-site fonts: minFontSize (0=off)/fontFamily (''=off)/null=follow default; re-injects immediately", params: ["host", "minFontSize?", "fontFamily?"], example: #"-d '{"host":"a.b","minFontSize":16}'"#)
+        ep("GET", "/palette", "Command-palette mixed search (commands/tabs/bookmarks/history/conversations, grouped + per-source totals)", params: ["q:string"], example: "…/palette?q=book")
         ep("GET", "/bilingual", "Bilingual reading state for the active tab (on/running/done/total/error)", example: "…/bilingual")
         ep("POST", "/bilingual", "Toggle bilingual reading (AI translations inserted under each paragraph)", params: ["on:bool", "index?:int"], example: #"-d '{"on":true}'"#)
         ep("GET", "/elements", "Element-blocker rules", example: "…/elements")
@@ -1534,6 +1535,8 @@ final class AutomationServer {
                 ))
             case ("POST", "/site-settings/font"):
                 return try Self.json(Self.setSiteFont(body: body))
+            case ("GET", "/palette"):
+                return try Self.json(Self.palette(query: Self.string(query, "q") ?? ""))
             case ("GET", "/bilingual"):
                 return try Self.json(Self.bilingualState())
             case ("POST", "/bilingual"):
@@ -4128,6 +4131,29 @@ final class AutomationServer {
             app.passwordStore.delete(entry)
         }
         return ["ok": true, "deleted": victims.count]
+    }
+
+    /// 命令面板混合检索（与 UI 同一套纯逻辑 + 同一处快照构建）。
+    private static func palette(query: String) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        var rows = PaletteSnapshot.rows(
+            tabManager: TabSessionCoordinator.shared.activeTabManager,
+            bookmarkStore: app.bookmarkStore,
+            historyStore: app.historyStore,
+            conversationStore: app.conversationStore)
+        rows.append(contentsOf: CommandPalette.orderedCommandRows())
+        let sections = query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? PaletteSearch.initialSections(rows: rows)
+            : PaletteSearch.search(query, rows: rows)
+        return ["query": query,
+                "sections": sections.map { section in
+                    ["source": section.source.rawValue,
+                     "total": section.total,
+                     "rows": section.rows.map { row in
+                         ["id": row.id, "title": row.title,
+                          "subtitle": row.subtitle, "url": row.url ?? ""]
+                     }]
+                }]
     }
 
     /// 双语对照状态（活动标签的口径；E2E 轮询直到 running=false）。

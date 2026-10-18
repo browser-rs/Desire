@@ -82,6 +82,7 @@ SOURCES=(
   apps/macos/Desire/Features/Bookmarks/BookmarkImportDedupe.swift
   apps/macos/Desire/Features/Bookmarks/BookmarkHTMLParser.swift
   apps/macos/Desire/Features/Translation/BilingualParsing.swift
+  apps/macos/Desire/Features/Browsing/PaletteSearch.swift
   apps/macos/Desire/Features/Sync/SyncCrypto.swift
   apps/macos/Desire/Features/Sync/SyncMerge.swift
   apps/macos/Desire/Features/Sync/WhiteboardSync.swift

@@ -586,9 +586,15 @@ struct ContentView: View {
                 Color.black.opacity(0.001)
                     .contentShape(Rectangle())
                     .onTapGesture { showCommandPalette = false }
-                CommandPalette { command in
-                    commandDispatcher.handle(command)
-                }
+                CommandPalette(
+                    makeSources: { makePaletteSources() },
+                    onRun: { command in
+                        commandDispatcher.handle(command)
+                    },
+                    onActivate: { row, newTab in
+                        activatePaletteRow(row, newTab: newTab)
+                    }
+                )
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .padding(.top, 80)
                 .transition(.opacity.combined(with: .move(edge: .top)))

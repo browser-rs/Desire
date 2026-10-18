@@ -25,6 +25,8 @@ struct BookmarkPanel: View {
     /// 导入去重向导的待确认项（nil = 无）。仅当解析结果里有重复时才出现——
     /// 全新导入维持"直接进库"的原行为。
     @State private var pendingImport: PendingBookmarkImport?
+    /// 书签健康（死链清理向导）弹层。
+    @State private var showHealthSheet = false
 
     private var flatItems: [FlatBookmark] {
         guard !searchText.isEmpty else {
@@ -78,6 +80,10 @@ struct BookmarkPanel: View {
 
                 Divider().frame(height: 16)
 
+                Button("", systemImage: "stethoscope") { showHealthSheet = true }
+                    .labelStyle(.iconOnly)
+                    .buttonStyle(.plain)
+                    .help("Check for Dead Links…")
                 Button("", systemImage: "square.and.arrow.up") { store.exportToHTML() }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
@@ -165,6 +171,11 @@ struct BookmarkPanel: View {
             }
             .padding(20)
             .frame(width: 300)
+        }
+        .sheet(isPresented: $showHealthSheet) {
+            BookmarkHealthSheet(store: store,
+                                checker: BookmarkLinkChecker.shared,
+                                onClose: { showHealthSheet = false })
         }
         .sheet(item: $pendingImport) { pending in
             BookmarkImportDedupeSheet(sourceName: pending.sourceName, plan: pending.plan) {

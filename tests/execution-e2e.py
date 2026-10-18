@@ -27,7 +27,7 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
 桥 /promotion/review 一键安排每日选题采集并撤销）/
 阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）/
-会话内查找（MUSCLE26：标记消息命中 + 无命中零）/\n阅读进度记忆（MUSCLE25：桥写 → 关标签重开 → 恢复 ≈50%）/\n命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
+书签死链校验+清理（MUSCLE27：真 404 命中/零误伤/removed+missing 路径）/\n会话内查找（MUSCLE26：标记消息命中 + 无命中零）/\n阅读进度记忆（MUSCLE25：桥写 → 关标签重开 → 恢复 ≈50%）/\n命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -201,6 +201,15 @@ class TinyAPI(BaseHTTPRequestHandler):
                     "</article></body></html>").encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path.startswith("/dead404"):
+            # 死链清理向导（MUSCLE27）的靶页：恒 404。
+            body = b"not found"
+            self.send_response(404)
+            self.send_header("Content-Type", "text/plain")
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -1902,6 +1911,33 @@ def main():
            f26.get("count", 0) >= 1 and len(f26.get("ids", [])) == f26.get("count"))
         f26b = bridge("GET", "/agent/find?q=zzz-no-such-text")
         ok("会话查找：无命中 count=0", f26b.get("count") == 0)
+        # ── MUSCLE27：书签死链校验 + 清理向导（桥等价；删除走既有墓碑路径）──
+        BH_DEAD = f"http://127.0.0.1:{API_PORT}/dead404"
+        BH_ALIVE = f"http://127.0.0.1:{API_PORT}/fixture"
+        for u in (BH_DEAD, BH_ALIVE):
+            for _ in range(5):
+                bridge("POST", "/bookmarks/remove", {"url": u})
+        bridge("POST", "/bookmarks/add", {"title": "BH27 Dead", "url": BH_DEAD})
+        bridge("POST", "/bookmarks/add", {"title": "BH27 Alive", "url": BH_ALIVE})
+        bh = bridge("POST", "/bookmarks/health/check", {"urls": [BH_DEAD, BH_ALIVE], "limit": 10})
+        ok("死链校验：入队 2 条", bh.get("queued") == 2)
+        deadline27 = time.time() + 40
+        final27 = {}
+        while time.time() < deadline27:
+            final27 = bridge("GET", "/bookmarks/health")
+            if not final27.get("running") and final27.get("lastReportAt", 0) > 0:
+                break
+            time.sleep(1)
+        dead27 = [d.get("url") for d in final27.get("dead", [])]
+        ok("死链校验：只命中真 404、好链零误伤", dead27 == [BH_DEAD])
+        cl = bridge("POST", "/bookmarks/health/cleanup", {"urls": [BH_DEAD]})
+        ok("死链清理：removed==[dead]（走墓碑路径）", cl.get("ok") and cl.get("removed") == [BH_DEAD])
+        cl2 = bridge("POST", "/bookmarks/health/cleanup", {"urls": [BH_DEAD]})
+        ok("死链清理：重复删除走 missing 路径",
+           cl2.get("removed") == [] and cl2.get("missing") == [BH_DEAD])
+        time.sleep(1.2)
+        urls27 = [e.get("url") for e in bridge("GET", "/bookmarks").get("entries", [])]
+        ok("死链清理：死链已删、好链保留", BH_DEAD not in urls27 and BH_ALIVE in urls27)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -1927,6 +1963,13 @@ def main():
                 if (g.get("title") or "") == "MUSCLE18 选题目标":
                     bridge("POST", "/promotion/goal/remove", {"id": g.get("id")})
             bridge("POST", "/promotion/review", {"kind": "dailyTopics", "action": "remove"})
+        except Exception:
+            pass
+        # 死链清理兜底（MUSCLE27）：清两条种子书签（循环删到无副本）。
+        try:
+            for u in (f"http://127.0.0.1:{API_PORT}/dead404", f"http://127.0.0.1:{API_PORT}/fixture"):
+                for _ in range(5):
+                    bridge("POST", "/bookmarks/remove", {"url": u})
         except Exception:
             pass
         # 阅读进度兜底（MUSCLE25）：移除测试条目（种子自建的）。

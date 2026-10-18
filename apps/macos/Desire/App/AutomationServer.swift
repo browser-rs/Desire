@@ -435,6 +435,7 @@ final class AutomationServer {
         ep("POST", "/bookmarks/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/bookmarks/import", "Import Netscape-format bookmarks (html= or path=); duplicate plan + import; dryRun plans only, strategy=skipDuplicates|keepAll", params: ["html?/path?", "dryRun?", "strategy?"], example: #"-d '{"path":"/tmp/bm.html","dryRun":true}'"#)
         ep("GET", "/bookmarks/health", "Bookmark link check state (running/progress/dead/redirected)", example: "…/bookmarks/health")
+        ep("POST", "/bookmarks/health/cleanup", "Remove bookmarked dead links after review (wizard equivalent; tombstones)", params: ["urls:[string]"], example: #"-d '{"urls":["https://dead.example"]}'"#)
         ep("POST", "/bookmarks/health/check", "Start a background bookmark link check (nothing deleted automatically)", params: ["urls?:[string]", "limit?:int"], example: #"-d '{"limit":100}'"#)
         ep("GET", "/reading-list", "Reading list", example: "…/reading-list")
         ep("GET", "/workspaces", "Saved window workspaces (name/tabs/savedAt)", example: "…/workspaces")
@@ -1609,6 +1610,8 @@ final class AutomationServer {
                     "redirected": checker.redirected.map { ["title": $0.title, "url": $0.url, "to": $0.destination] },
                     "lastReportAt": checker.lastReportAt?.timeIntervalSince1970 ?? 0,
                 ])
+            case ("POST", "/bookmarks/health/cleanup"):
+                return try Self.json(Self.bookmarkHealthCleanup(urls: body["urls"] as? [String] ?? []))
             case ("POST", "/bookmarks/health/check"):
                 guard let hlSession = Self.resolveSession(Self.string(body, "window")) else {
                     return try Self.json(["error": "no live agent session"])
@@ -3487,6 +3490,24 @@ final class AutomationServer {
             ["id": $0.id.uuidString, "title": $0.title, "url": $0.url]
         }
         return ["entries": Array(entries)]
+    }
+
+    /// 死链清理（向导"Remove Selected"的桥等价）：逐条 find → remove（走
+    /// 既有删除路径：墓碑 + 落盘 + 同步），返回删掉的与没找到的。
+    private static func bookmarkHealthCleanup(urls: [String]) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard !urls.isEmpty else { return ["error": "missing urls"] }
+        var removed: [String] = []
+        var missing: [String] = []
+        for url in urls {
+            if let bookmark = app.bookmarkStore.find(url: url) {
+                app.bookmarkStore.remove(bookmark)
+                removed.append(url)
+            } else {
+                missing.append(url)
+            }
+        }
+        return ["ok": true, "removed": removed, "missing": missing]
     }
 
     /// 历史按域名聚合（面板"站点分组"的桥等价；同一纯逻辑 HistoryGrouping）。

@@ -447,6 +447,7 @@ final class AutomationServer {
         ep("POST", "/reading-list/add", "Add item", params: ["title:string", "url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/cache", "Cache an item for offline reading (.webarchive; reuses the item's open tab when available)", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
+        ep("POST", "/reading-list/progress", "Set reading progress (0..1) for an item (stamps LWW for sync)", params: ["url:string", "ratio:double"], example: #"-d '{"url":"https://a.b","ratio":0.42}'"#)
         ep("POST", "/reading-list/summarize", "Batch-summarize saved pages in the background (readURL + bypass model call; summaries land on the items)", params: ["limit?:int", "force?:bool", "urls?:[string]"], example: #"-d '{"limit":5}'"#)
         ep("GET", "/system/integrations", "OS integration permission state (reminders / calendar: granted|denied|restricted|notDetermined) — read-only, never prompts", example: "…/system/integrations")
         ep("GET", "/speech", "Text-to-speech state (speaking/paused) — reader TTS, also driven by the readAloud tool", example: "…/speech")
@@ -1617,6 +1618,10 @@ final class AutomationServer {
                 return try Self.json(Self.setPin(index: Self.index(body), pinned: body["pinned"] as? Bool))
             case ("GET", "/reading-list"):
                 return try Self.json(Self.readingList())
+            case ("POST", "/reading-list/progress"):
+                return try Self.json(Self.setReadingProgress(
+                    url: Self.string(body, "url") ?? "",
+                    ratio: body["ratio"] as? Double ?? 0))
             case ("GET", "/workspaces"):
                 return try Self.json(Self.workspacesList())
             case ("GET", "/inbox"):
@@ -4668,6 +4673,17 @@ final class AutomationServer {
         return ["ok": true, "index": index ?? -1, "pinned": tab.isPinned]
     }
 
+    /// 写阅读进度（E2E/自动化用；盖 LWW 戳随同步，与页内采集同一条路径）。
+    private static func setReadingProgress(url: String, ratio: Double) throws -> [String: Any] {
+        guard let app = AppState.live, !url.isEmpty else { return ["error": "missing url"] }
+        guard app.readingListStore.items.contains(where: { $0.url == url }) else {
+            return ["error": "no such reading-list item"]
+        }
+        app.readingListStore.setProgress(ratio, for: url)
+        return ["ok": true, "url": url,
+                "progress": app.readingListStore.progress(for: url) ?? 0]
+    }
+
     private static func readingList() throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         return ["items": app.readingListStore.items.map { i -> [String: Any] in
@@ -4679,6 +4695,7 @@ final class AutomationServer {
                 row["cached"] = false
             }
             if let summary = i.summary { row["summary"] = summary }
+            if let progress = i.progress { row["progress"] = progress }
             return row
         }]
     }

@@ -80,6 +80,17 @@ struct ReadingListPanel: View {
                                 .font(.system(size: 8))
                                 .foregroundStyle(item.isRead ? .secondary : appAccent)
 
+                            // 阅读进度戳（记录过且未读完才显示；重开自动回到该位置）。
+                            if let progress = item.progress, progress > 0.02, !item.isRead {
+                                Text("\(Int((progress * 100).rounded()))%")
+                                    .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                                    .foregroundStyle(appAccent)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(Capsule().fill(appAccent.opacity(0.12)))
+                                    .help(String(localized: "Resume reading"))
+                            }
+
                             if cachingIDs.contains(item.id) {
                                 ProgressView()
                                     .controlSize(.mini)

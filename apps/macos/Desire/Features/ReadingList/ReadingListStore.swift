@@ -64,6 +64,24 @@ class ReadingListStore: ObservableObject {
         save()
     }
 
+    /// 记录阅读进度（0..1，钳位）。**盖 LWW 戳**（updatedAt）——否则同步侧
+    /// 的 FlatSyncMerge 会把这次改动当旧值拒收。变化不明显（<1%）不写，
+    /// 免得每个 tick 都落盘。
+    func setProgress(_ ratio: Double, for url: String) {
+        guard let index = items.firstIndex(where: { $0.url == url }) else { return }
+        let clamped = min(1.0, max(0.0, ratio))
+        if let existing = items[index].progress, abs(existing - clamped) < 0.01 { return }
+        items[index].progress = clamped
+        items[index].progressAt = Date()
+        items[index].updatedAt = Date()
+        save()
+    }
+
+    /// 该 URL 的记录进度（nil = 无记录）。
+    func progress(for url: String) -> Double? {
+        items.first { $0.url == url }?.progress
+    }
+
     // MARK: - 离线缓存
 
     /// 缓存的 webarchive 落定（capture 成功后调用）。

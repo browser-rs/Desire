@@ -16,4 +16,8 @@ struct ReadingListItem: Identifiable, Codable {
     /// 可选 + 合成 Codable（旧文件缺键解码为 nil，不清数据）；随云同步走。
     var summary: String? = nil
     var summarizedAt: Date? = nil
+    /// 阅读进度（0..1；nil = 未记录）。随条目落盘 + 云同步（LWW 盖戳），
+    /// 重开页面自动回到读到的地方。
+    var progress: Double? = nil
+    var progressAt: Date? = nil
 }

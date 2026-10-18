@@ -523,6 +523,11 @@ struct ContentView: View {
             hostingWindow?.makeKeyAndOrderFront(nil)
             Log.agent.info("menu bar quick entry: panel shown in window \(sessionID?.uuidString ?? "-", privacy: .public)")
         }
+        .onChange(of: tabManager.selectedTab?.id) { _, _ in
+            // 阅读进度：切走前先把旧标签采一次（换表后就没机会了），再换跟踪对象。
+            ReadingProgressTracker.shared.captureNow()
+            ReadingProgressTracker.shared.track(tab: tabManager.selectedTab)
+        }
         .onChange(of: b.undoRule?.id) { _, ruleID in
             // BrowsingActions publishes the interception; the toast lives in
             // view state — bridge the two (this link was missing, so the

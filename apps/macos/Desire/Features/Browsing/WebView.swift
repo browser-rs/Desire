@@ -609,6 +609,30 @@ struct WebView: NSViewRepresentable {
         """
     }
 
+    /// 阅读进度：当前滚动比例（0..1；不可滚动的短页返回 0）。纯读。
+    static let scrollProgressJS = """
+    (function() {
+        var doc = document.documentElement;
+        var max = (doc.scrollHeight || 0) - (window.innerHeight || 0);
+        if (max <= 40) return 0;
+        var y = window.scrollY || doc.scrollTop || 0;
+        return Math.min(1, Math.max(0, y / max));
+    })()
+    """
+
+    /// 恢复阅读位置：按比例滚到对应位置（短页/比例过小由调用方先过滤）。
+    static func restoreScrollJS(ratio: Double) -> String {
+        return """
+        (function() {
+            var doc = document.documentElement;
+            var max = (doc.scrollHeight || 0) - (window.innerHeight || 0);
+            if (max <= 40) return false;
+            window.scrollTo(0, max * \(min(1.0, max(0.0, ratio))));
+            return true;
+        })()
+        """
+    }
+
     /// 混合内容扫描（0.2.15）：https 页面上 http:// 子资源计数，按风险
     /// 分组——script/iframe/object 是主动加载（可执行/可嵌套），img/video
     /// 等是被动加载（主要涉及隐私与完整性）。
@@ -1873,6 +1897,9 @@ try {
             }
             // 双语对照：该标签开着时导航后重施（翻译流水线在后台跑、逐批回填）。
             BilingualReadingService.shared.reapplyIfActive(webView: webView, tabID: parent.tabID)
+            // 阅读进度：阅读列表里的页面导航完成后回到上次位置（每条一次）。
+            ReadingProgressTracker.shared.restoreIfNeeded(
+                webView: webView, url: webView.url?.absoluteString)
             // 静音态跨导航重放：documentStart 劫持随新文档重来（force 状态
             // 归零），didFinish 按本 webview 的 isMuted 补一次强制——否则
             // 静音标签翻页/刷新后声音就回来了。

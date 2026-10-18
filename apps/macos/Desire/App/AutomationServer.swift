@@ -441,6 +441,8 @@ final class AutomationServer {
         ep("GET", "/workspaces", "Saved window workspaces (name/tabs/savedAt)", example: "…/workspaces")
         ep("POST", "/workspaces/delete", "Delete a saved workspace by name", params: ["name:string"], example: #"-d '{"name":"…"}'"#)
         ep("GET", "/tab-groups", "Tab groups (name/color/tabCount)", example: "…/tab-groups")
+        ep("POST", "/inbox/dismiss", "Hide inbox items: action=ignore (permanent) | snooze (hours? or until epoch)", params: ["ids:[string]", "action", "hours?/until?"], example: #"-d '{"ids":["…"],"action":"snooze","hours":2}'"#)
+        ep("POST", "/inbox/restore", "Restore hidden inbox items (ids omitted = all)", params: ["ids?:[string]"], example: "-d '{}'")
         ep("GET", "/inbox", "Inbox: 等你处理 + 变化与结果（与 Agent 窗口收件箱页同源）", example: "…/inbox")
         ep("GET", "/session-archives", "Archived sessions of closed windows (newest first)", example: "…/session-archives")
         ep("POST", "/session-archives/restore", "Restore an archived session into a window (replaces its tabs)", params: ["file:string", "window?:uuid"], example: #"-d '{"file":"archived-…json"}'"#)
@@ -1654,6 +1656,10 @@ final class AutomationServer {
                     ratio: body["ratio"] as? Double ?? 0))
             case ("GET", "/workspaces"):
                 return try Self.json(Self.workspacesList())
+            case ("POST", "/inbox/dismiss"):
+                return try Self.json(Self.inboxDismiss(body: body))
+            case ("POST", "/inbox/restore"):
+                return try Self.json(Self.inboxRestore(ids: body["ids"] as? [String]))
             case ("GET", "/inbox"):
                 return try Self.json(Self.agentInbox())
             case ("GET", "/speech"):
@@ -4841,11 +4847,16 @@ final class AutomationServer {
     /// 收件箱（v26）：与 Agent 窗口收件箱页同一份构建逻辑；会话按"查询读盘"
     /// 惯例走新实例（UI 用实时 store，两边语义一致、输入来源不同）。
     private static func agentInbox() -> [String: Any] {
-        let sections = AgentInbox.build(AgentInboxCollector.diskInputs())
+        let dismissals = AgentInboxDismissalStore.shared
+        dismissals.purgeExpired()
+        let sections = AgentInbox.build(AgentInboxCollector.diskInputs(),
+                                        hidden: { dismissals.isHidden($0) })
+            .filter { !$0.items.isEmpty }
         let json: [[String: Any]] = sections.map { section in
             ["id": section.id, "title": section.title,
              "items": section.items.map { item -> [String: Any] in
                  var row: [String: Any] = [
+                     "id": item.id,
                      "kind": item.kind.rawValue, "title": item.title, "detail": item.detail,
                  ]
                  if let cid = item.conversationID { row["conversationId"] = cid.uuidString }
@@ -4857,6 +4868,7 @@ final class AutomationServer {
             "sections": json,
             "actionCount": AgentInbox.actionCount(sections),
             "totalCount": sections.reduce(0) { $0 + $1.items.count },
+            "hiddenCount": dismissals.hiddenCount,
         ]
     }
 
@@ -6519,6 +6531,36 @@ final class AutomationServer {
         guard !content.isEmpty else { return ["error": "missing content"] }
         AgentMemoryStore.shared.addFact(content: content, category: category, scope: scope)
         return ["ok": true]
+    }
+
+    /// 收件箱批处理（v0.7.22）：忽略（永久隐藏）/ 稍后（定时回列表）。
+    private static func inboxDismiss(body: [String: Any]) throws -> [String: Any] {
+        let store = AgentInboxDismissalStore.shared
+        let ids = ((body["ids"] as? [Any]) ?? []).compactMap { $0 as? String }
+        guard !ids.isEmpty else { return ["error": "missing ids"] }
+        switch Self.string(body, "action") ?? "ignore" {
+        case "ignore":
+            store.ignore(ids)
+        case "snooze":
+            let until: Date
+            if let epoch = body["until"] as? Double {
+                until = Date(timeIntervalSince1970: epoch)
+            } else {
+                let hours = max(1, (body["hours"] as? Double) ?? 1)
+                until = Date().addingTimeInterval(hours * 3600)
+            }
+            store.snooze(ids, until: until)
+        default:
+            return ["error": "action must be ignore | snooze"]
+        }
+        return ["ok": true, "hiddenCount": store.hiddenCount]
+    }
+
+    /// 恢复隐藏条目（ids 缺省/null = 全部）。
+    private static func inboxRestore(ids: [String]?) throws -> [String: Any] {
+        let store = AgentInboxDismissalStore.shared
+        let restored = store.restore(ids: ids)
+        return ["ok": true, "restored": restored, "hiddenCount": store.hiddenCount]
     }
 
     /// 周报状态（面板设置行的桥等价）。

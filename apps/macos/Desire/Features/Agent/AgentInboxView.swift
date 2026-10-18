@@ -21,9 +21,16 @@ struct AgentInboxView: View {
     var onOpenTasks: () -> Void = {}
 
     @State private var flushNote: String?
+    /// 批处理（v0.7.22）：选择模式 + 批量条。
+    @ObservedObject private var dismissals = AgentInboxDismissalStore.shared
+    @State private var isSelecting = false
+    @State private var selectedIDs: Set<String> = []
 
     private var sections: [AgentInbox.Section] {
-        AgentInbox.build(AgentInboxCollector.liveInputs(conversationStore: conversationStore))
+        let store = AgentInboxDismissalStore.shared
+        return AgentInbox.build(AgentInboxCollector.liveInputs(conversationStore: conversationStore),
+                                hidden: { store.isHidden($0) })
+            .filter { !$0.items.isEmpty }
     }
 
     private var totalItems: Int { sections.reduce(0) { $0 + $1.items.count } }
@@ -47,6 +54,49 @@ struct AgentInboxView: View {
             }
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .safeAreaInset(edge: .bottom) {
+            if isSelecting && !selectedIDs.isEmpty {
+                batchBar
+            }
+        }
+    }
+
+    /// 批量条（选择模式 + 有选中项）：稍后 1 小时 / 到明天 09:00 / 忽略。
+    private var batchBar: some View {
+        HStack(spacing: 10) {
+            Text(String(localized: "Selected") + " \(selectedIDs.count)")
+                .font(.system(size: 11.5, weight: .medium))
+            Spacer()
+            Button(String(localized: "Snooze 1 Hour")) {
+                dismissals.snooze(Array(selectedIDs), until: Date().addingTimeInterval(3600))
+                finishBatch()
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(appAccent)
+            Button(String(localized: "Tomorrow")) {
+                let calendar = Calendar.current
+                let tomorrow = Date().addingTimeInterval(86_400)
+                let nine = calendar.date(bySettingHour: 9, minute: 0, second: 0, of: tomorrow) ?? tomorrow
+                dismissals.snooze(Array(selectedIDs), until: nine)
+                finishBatch()
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(appAccent)
+            Button(String(localized: "Ignore")) {
+                dismissals.ignore(Array(selectedIDs))
+                finishBatch()
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(.bar)
+    }
+
+    private func finishBatch() {
+        selectedIDs.removeAll()
+        isSelecting = false
     }
 
     // MARK: - Header
@@ -71,6 +121,29 @@ struct AgentInboxView: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6)))
+            }
+            if dismissals.hiddenCount > 0, !isSelecting {
+                Button {
+                    dismissals.restore()
+                } label: {
+                    Text(String(localized: "Hidden") + " \(dismissals.hiddenCount) · " + String(localized: "Restore"))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(appAccent)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(appAccent.opacity(0.1)))
+                }
+                .buttonStyle(.plain)
+                .help("Restore all ignored / snoozed items")
+            }
+            if totalItems > 0 {
+                Button(isSelecting ? String(localized: "Done") : String(localized: "Select")) {
+                    isSelecting.toggle()
+                    if !isSelecting { selectedIDs.removeAll() }
+                }
+                .font(.system(size: 10.5))
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
             }
         }
         .padding(.horizontal, 12)
@@ -100,6 +173,14 @@ struct AgentInboxView: View {
 
     private func itemRow(_ item: AgentInbox.Item) -> some View {
         HStack(alignment: .top, spacing: 8) {
+            if isSelecting {
+                Image(systemName: selectedIDs.contains(item.id)
+                      ? "checkmark.circle.fill" : "circle")
+                    .font(.system(size: 13))
+                    .foregroundStyle(selectedIDs.contains(item.id)
+                                     ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+                    .padding(.top, 1)
+            }
             Image(systemName: icon(for: item.kind))
                 .font(.system(size: 12, weight: .medium))
                 .foregroundStyle(color(for: item.kind))
@@ -125,6 +206,15 @@ struct AgentInboxView: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.45))
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            guard isSelecting else { return }
+            if selectedIDs.contains(item.id) {
+                selectedIDs.remove(item.id)
+            } else {
+                selectedIDs.insert(item.id)
+            }
+        }
     }
 
     @ViewBuilder

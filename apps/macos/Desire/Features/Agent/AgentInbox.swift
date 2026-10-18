@@ -76,13 +76,20 @@ nonisolated enum AgentInbox {
 
     // MARK: - 构建（纯逻辑）
 
+    /// 隐藏过滤（忽略/稍后台账）：空节由调用方 prune。
+    private static func filterHidden(_ items: [Item], _ hidden: ((String) -> Bool)?) -> [Item] {
+        guard let hidden else { return items }
+        return items.filter { !hidden($0.id) }
+    }
+
     static let unansweredWindow: TimeInterval = 48 * 3600
     static let perSectionItemCap = 6
 
     /// - Parameter since: 非 nil 时进入"末次巡检以来"模式：监视变化/任务失败/
     ///   互动只收该时刻之后的（心跳巡检用；收件箱页传 nil = 全量现状）。
     ///   会话部分两种模式一致（48h 窗口 + 待回复）。
-    static func build(_ inputs: Inputs, now: Date = Date(), since: Date? = nil) -> [Section] {
+    static func build(_ inputs: Inputs, now: Date = Date(), since: Date? = nil,
+                      hidden: ((String) -> Bool)? = nil) -> [Section] {
         var action: [Item] = []
 
         // 被打断的回合（最高优先；同一会话不再重复出现在"待回复"里）。
@@ -173,8 +180,10 @@ nonisolated enum AgentInbox {
         }
 
         return [
-            Section(id: "action", title: String(localized: "Needs you"), items: action),
-            Section(id: "signals", title: String(localized: "Changes & results"), items: signals),
+            Section(id: "action", title: String(localized: "Needs you"),
+                    items: filterHidden(action, hidden)),
+            Section(id: "signals", title: String(localized: "Changes & results"),
+                    items: filterHidden(signals, hidden)),
         ].filter { !$0.items.isEmpty }
     }
 

@@ -116,7 +116,11 @@ final class WeeklyDigestStore: ObservableObject {
         let newFacts = memory.factsSnapshot.filter { $0.createdAt >= start }
         let samples = newFacts.prefix(3).map { String($0.content.prefix(40)) }
 
-        let inboxSections = AgentInbox.build(AgentInboxCollector.diskInputs())
+        let dismissals = AgentInboxDismissalStore.shared
+        dismissals.purgeExpired()
+        let inboxSections = AgentInbox.build(AgentInboxCollector.diskInputs(),
+                                             hidden: { dismissals.isHidden($0) })
+            .filter { !$0.items.isEmpty }
         let inboxCount = AgentInbox.actionCount(inboxSections)
         let inboxByTitle = inboxSections.map { ($0.title, $0.items.count) }
             .filter { $0.1 > 0 }

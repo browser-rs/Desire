@@ -27,7 +27,7 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
 桥 /promotion/review 一键安排每日选题采集并撤销）/
 阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）/
-周报（MUSCLE31：状态/生成/备注投递/不含金额）/\n轨迹复盘→输出规则（MUSCLE30：失败模式草稿/规则增删去重）/\n记忆冲突复核（MUSCLE29：keepNew 删旧增新 / merge 删二留一）/\n从会话提炼技能（MUSCLE28：草稿三字段/不落盘/落盘可见/清理还原）/\n书签死链校验+清理（MUSCLE27：真 404 命中/零误伤/removed+missing 路径）/\n会话内查找（MUSCLE26：标记消息命中 + 无命中零）/\n阅读进度记忆（MUSCLE25：桥写 → 关标签重开 → 恢复 ≈50%）/\n命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
+收件箱批处理（MUSCLE32：忽略/稍后过期/恢复）/\n周报（MUSCLE31：状态/生成/备注投递/不含金额）/\n轨迹复盘→输出规则（MUSCLE30：失败模式草稿/规则增删去重）/\n记忆冲突复核（MUSCLE29：keepNew 删旧增新 / merge 删二留一）/\n从会话提炼技能（MUSCLE28：草稿三字段/不落盘/落盘可见/清理还原）/\n书签死链校验+清理（MUSCLE27：真 404 命中/零误伤/removed+missing 路径）/\n会话内查找（MUSCLE26：标记消息命中 + 无命中零）/\n阅读进度记忆（MUSCLE25：桥写 → 关标签重开 → 恢复 ≈50%）/\n命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -2100,6 +2100,45 @@ def main():
            any(first31 in (m.get("content") or "") for m in msgs31))
         d31 = bridge("POST", "/agent/weekly-digest", {"action": "disable"})
         ok("周报：disable 收尾", d31.get("enabled") is False)
+        # ── MUSCLE32：收件箱批处理（忽略/稍后/恢复；桥等价）──
+        import uuid as _uuid32
+        storage32 = Path.home() / "Library/Application Support/Desire/storage"
+        fab32 = str(_uuid32.uuid4()).upper()
+        now32 = time.time() - 978307200
+        fab32_path = storage32 / f"conversation-{fab32}.json"
+        fab32_path.write_text(json.dumps({
+            "id": fab32, "title": "INBOX-BATCH 待回复", "createdAt": now32 - 60,
+            "updatedAt": now32, "inputHistory": [], "turnActive": False,
+            "messages": [
+                {"id": str(_uuid32.uuid4()).upper(), "role": "user",
+                 "content": "INBOX-BATCH 最后这条没有回复", "createdAt": now32},
+            ],
+        }, ensure_ascii=False))
+        time.sleep(1.2)
+
+        def inbox_rows32():
+            return [(it.get("id"), it.get("conversationId"), it.get("kind"))
+                    for sec in bridge("GET", "/inbox").get("sections", [])
+                    for it in sec.get("items", [])]
+
+        hit32 = next((r for r in inbox_rows32() if r[1] == fab32), None)
+        ok("收件箱批处理：手造会话入箱带 id", bool(hit32) and hit32[2] == "unanswered")
+        iid32 = hit32[0] if hit32 else "none"
+        r32 = bridge("POST", "/inbox/dismiss", {"ids": [iid32], "action": "ignore"})
+        ok("收件箱批处理：忽略隐藏（hiddenCount=1）",
+           r32.get("ok") and r32.get("hiddenCount") == 1)
+        ok("收件箱批处理：忽略后不列出",
+           not any(x[0] == iid32 for x in inbox_rows32()))
+        r32b = bridge("POST", "/inbox/restore", {})
+        ok("收件箱批处理：恢复全部（restored=1）",
+           r32b.get("ok") and r32b.get("restored") == 1)
+        ok("收件箱批处理：恢复后重新列出",
+           any(x[0] == iid32 for x in inbox_rows32()))
+        bridge("POST", "/inbox/dismiss",
+               {"ids": [iid32], "action": "snooze", "until": time.time() - 5})
+        ok("收件箱批处理：过期稍后自动回列表",
+           any(x[0] == iid32 for x in inbox_rows32()))
+        fab32_path.unlink(missing_ok=True)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -2170,6 +2209,11 @@ def main():
                                                       for m in msgs4c.get("messages", [])):
                         break
                     time.sleep(1)
+        except Exception:
+            pass
+        # 收件箱批处理兜底（MUSCLE32）：恢复隐藏 + 删手造文件。
+        try:
+            bridge("POST", "/inbox/restore", {})
         except Exception:
             pass
         # 周报兜底（MUSCLE31）：关掉开关（状态默认关）。

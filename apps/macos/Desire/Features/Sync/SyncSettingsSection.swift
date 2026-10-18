@@ -8,6 +8,9 @@ struct SyncSettingsSection: View {
     @ObservedObject var store: SyncStore
     /// 冲突明细 sheet（v0.7.23）。
     @State private var showsConflicts = false
+    /// 接入引导 sheet（v0.7.23）：首次登录后自动弹一次，之后走 syncSection 入口。
+    @State private var showsOnboarding = false
+    private static let onboardingShownKey = "sync.onboardingShown"
 
     @State private var username = ""
     @State private var password = ""
@@ -35,6 +38,16 @@ struct SyncSettingsSection: View {
         }
         .sheet(isPresented: $showQRLogin) {
             SyncQRLoginSheet(store: store)
+        }
+        .sheet(isPresented: $showsOnboarding) {
+            SyncOnboardingSheet(store: store)
+        }
+        .onChange(of: store.authState, initial: true) {
+            // 首次进入已登录态自动弹一次接入引导（此前的账号也补弹一次）。
+            guard case .signedIn = store.authState,
+                  !UserDefaults.standard.bool(forKey: Self.onboardingShownKey) else { return }
+            UserDefaults.standard.set(true, forKey: Self.onboardingShownKey)
+            showsOnboarding = true
         }
         .onAppear {
             // 内置默认地址不在界面露出：只有用户设过覆盖才显示值
@@ -386,6 +399,15 @@ struct SyncSettingsSection: View {
                         StatusPill(text: localizedSettingText("Syncing…"), kind: .info)
                     } else {
                         StatusPill(text: localizedSettingText("Signed in"), kind: .success)
+                    }
+                }
+                SettingsRowDivider()
+                SettingsRow(
+                    "Device Setup",
+                    subtitle: "Walk through account, key, categories and the first sync."
+                ) {
+                    SettingsCapsuleButton("Open", style: .secondary) {
+                        showsOnboarding = true
                     }
                 }
                 SettingsRowDivider()

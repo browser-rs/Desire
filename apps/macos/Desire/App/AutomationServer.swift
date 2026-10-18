@@ -403,7 +403,7 @@ final class AutomationServer {
         ep("GET", "/conversations", "Newest agent conversations (id/title/messages/firstMessage) — pair with /conversations/delete for cleanup", params: ["limit?:int (default 20)"], example: "…/conversations?limit=5")
         ep("GET", "/media/batch/log", "Full per-batch download log (create/resolve/download/merge/pause/fail, newest last)", params: ["id:string (batch uuid)", "tail?:int (default all)"], example: "…/media/batch/log?id=…")
         ep("POST", "/media/batch/manage", "Manage a batch directly (no agent round-trip): pause/resume/cancel/skip; batchId/itemId accept 8-char short ids", params: ["action:pause|resume|cancel|skip|remove", "batchId:string", "itemId?:string"], example: #"-d '{"action":"pause","batchId":"76a91071"}'"#)
-        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats|inbox|workspaces|whiteboard|…)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
+        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats|inbox|workspaces|whiteboard|syncchecklist|…)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
         ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/addSelectionToWhiteboard/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
         // Downloads
         ep("GET", "/downloads", "Rows: id/file/state/paused/bytes/total/private", example: "…/downloads")
@@ -3901,6 +3901,38 @@ final class AutomationServer {
             // Agent 面板的"使用统计"页：同样当场渲染（面板在主窗分栏里）。尺寸可指定——
             // 这一页在**窄面板**下最容易挤坏，要能按 420/900 两种宽度各拍一张。
             return try await agentStatsSnapshot(width: width ?? 420, height: height ?? 900)
+        }
+        if name == "syncchecklist" {
+            // 接入引导 checklist（v0.7.23）：数据全在 syncStore 里、init 即载，
+            // 离屏直拍（sheet 壳子要窗口，快照走不到——渲染的是内容层）。
+            guard let app = AppState.live else { return ["error": "app state not ready"] }
+            let size = NSSize(width: max(360, width ?? 560), height: max(320, height ?? 620))
+            let rootView = AnyView(SettingsContainer { SyncOnboardingChecklist(store: app.syncStore) })
+            let host = NSHostingView(
+                rootView: rootView
+                    .appAccent(AppAccent.current)
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .frame(width: size.width, height: size.height)
+            )
+            host.frame = NSRect(origin: .zero, size: size)
+            host.appearance = NSApp.windows.first { $0.isVisible && $0.frame.width > 800 }?.effectiveAppearance
+                ?? NSApp.effectiveAppearance
+            host.layoutSubtreeIfNeeded()
+            for _ in 0..<6 {
+                try? await Task.sleep(for: .milliseconds(70))
+                host.needsLayout = true
+                host.layoutSubtreeIfNeeded()
+            }
+            guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
+                return ["error": "bitmap alloc failed"]
+            }
+            host.cacheDisplay(in: host.bounds, to: rep)
+            guard let png = rep.representation(using: .png, properties: [:]) else {
+                return ["error": "encode failed"]
+            }
+            let path = NSHomeDirectory() + "/desire_syncchecklist_panel.png"
+            try png.write(to: URL(fileURLWithPath: path))
+            return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
         }
         guard name == "downloads" else { return ["error": "unknown panel"] }
         // SwiftUI presents .popover content in an NSPopover-backed window.

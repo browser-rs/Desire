@@ -3459,6 +3459,44 @@ func testSyncConflictLabel() {
 }
 testSyncConflictLabel()
 
+func testSyncOnboardingSteps() {
+    let now = Date(timeIntervalSince1970: 1_000_000)
+    // 全新未登录：四步全未完成，零事实。
+    let fresh = SyncOnboardingSteps.derive(
+        account: nil, hasKey: false, fingerprint: nil,
+        enabledCount: 0, lastSyncAt: nil, now: now)
+    check("接入引导：四步齐且顺序固定",
+          fresh.map(\.id) == [.signIn, .key, .categories, .firstSync])
+    check("接入引导：未登录全未完成", fresh.allSatisfy { !$0.isDone })
+    check("接入引导：未登录无事实", fresh.allSatisfy { $0.fact == nil })
+
+    // 登录完成、密钥就绪：前两步 done，指纹作为事实带出。
+    let halfway = SyncOnboardingSteps.derive(
+        account: "mankong", hasKey: true, fingerprint: "ABCD1234",
+        enabledCount: 0, lastSyncAt: nil, now: now)
+    check("接入引导：登录步 done 带账号", halfway[0].isDone && halfway[0].fact == "mankong")
+    check("接入引导：密钥步 done 带指纹", halfway[1].isDone && halfway[1].fact == "ABCD1234")
+    check("接入引导：类目 0 不算完成", !halfway[2].isDone && halfway[2].fact == nil)
+
+    // 全部就绪：最后一步带相对时间。
+    let done = SyncOnboardingSteps.derive(
+        account: "u", hasKey: true, fingerprint: "FF",
+        enabledCount: 9, lastSyncAt: now.addingTimeInterval(-180), now: now)
+    check("接入引导：全就绪四步全 done", done.allSatisfy { $0.isDone })
+    check("接入引导：类目数进事实", done[2].fact == "9")
+    check("接入引导：相对时间=3 分钟前", done[3].fact == "3 分钟前")
+
+    check("接入引导：刚刚", SyncOnboardingSteps.coarseRelative(
+        from: now.addingTimeInterval(-30), to: now) == "刚刚")
+    check("接入引导：小时档", SyncOnboardingSteps.coarseRelative(
+        from: now.addingTimeInterval(-7200), to: now) == "2 小时前")
+    check("接入引导：天档", SyncOnboardingSteps.coarseRelative(
+        from: now.addingTimeInterval(-3 * 86_400), to: now) == "3 天前")
+    check("接入引导：钟差（未来时间）钳到刚刚", SyncOnboardingSteps.coarseRelative(
+        from: now.addingTimeInterval(60), to: now) == "刚刚")
+}
+testSyncOnboardingSteps()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

@@ -11,6 +11,8 @@
 - **下载面板拖拽与快捷操作（v0.7.21）**：完成行可**直接拖到 Finder/邮件/任意 App**（`NSItemProvider(contentsOf:)` 携带真实文件 URL；仅"已完成且文件存在"的行挂拖拽——进行中/失败行没有可交付实体，不挂假手柄）；**双击完成行 = 打开文件**（与右键「Open」同路径）；右键菜单补 **Copy Path**（复制本地路径，与既有 Copy Link 并存）。现状核实说明：右键的 Open / Show in Finder / Preview 0.7.19 起已在（原计划里的"补打开"无实际缺口，不做）；"批量面板条目跳单条面板"经核实无真实落点——批量引擎的条目不在 DownloadStore 单条面板里，跨面板跳转没有目标可去，同样不做（不做清单会写进 ROADMAP）。验收：构建零警告 + 手势/拖拽交互留用户走查（拖拽属于无法用桥断言的系统交互——AX 也够不到拖拽会话）。
 - **阅读进度记忆（v0.7.21）**：阅读列表里的页面自动记滚动位置，重开回到读到的地方——条目新增 `progress`/`progressAt` 可选字段（旧文件零迁移、随云同步走且**盖 LWW 戳**，否则 FlatSyncMerge 会当旧值拒收）。采集用**零常驻注入**的取舍：每 15 秒对"当前标签恰在阅读列表里"的页面做一次纯读（`WebView.scrollProgressJS`，不可滚短页返回 0），切标签前先补采一次再换跟踪对象；恢复走既有 didFinish 钩子模式（`ReadingProgressTracker.restoreIfNeeded`，每条 URL 一次、比例 <2% 不恢复）。列表面板行显示进度戳（已记录且未读完时；悬停提示 Resume reading）；桥 `/reading-list` 行带 `progress` + `POST /reading-list/progress` 可直接写。验收：定点探针 6/6（写入回执/行字段/页内读取口径 ≈0.62/**关标签重开自动滚回 ≈50%**/清理零残留）。
 - **会话内查找（v0.7.21）**：Agent 面板 ⌘F 弹出查找条——跨消息子串查找（大小写不敏感，**只扫正文 content**：纯工具调用消息与折叠推理不参与，避免命中噪音），命中消息**强调色描边**、自动滚动定位（复用既有 ScrollViewReader 的 `.id(msg.id)`，proxy 由底部锚点捕获）；Enter/↓ 下一个、↑ 上一个、计数 "n / m" / "No matches"、Esc 关闭。面板级 Esc 的处理顺序为**查找条优先**（开着先关它，不影响"取消回合"语义）。纯逻辑 `AgentMessageSearch` 进 harness（Foundation-only，+5 项），桥 `GET /agent/find?q=` 同源开放（E2E MUSCLE26）。
+- **历史站点分组收口（v0.7.21）**：核实后按"只做真缺口"落地——date/site 双模式分组与按站点删除 0.6.x 起已在，本次补三件：① **站点组可折叠**（组头 chevron 点击折叠/展开，折叠态保留组名与计数）；② **站内相对时间**（站点模式下每行行尾显示"2 小时前"这类相对时间，核扫描"这站最近看了啥"）；③ **聚合口径抽纯**（`HistoryGrouping`，Foundation-only 进 harness +6）——面板与桥 `GET /history?grouped=1` 同源（分组按"组内最新访问降序"，常用站浮前；桥返回 groups/total/groupedTotal 供守恒断言）。验收：定点探针 4/4（结构/计数守恒/本域在组/降序）；面板折叠交互留用户走查。
+
 
 
 

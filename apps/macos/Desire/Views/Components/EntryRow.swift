@@ -5,6 +5,8 @@ struct EntryRow: View {
     let subtitle: String
     /// 可选尾缀徽章文案（如历史行的 "×12" 访问次数）。
     var badgeText: String? = nil
+    /// 可选行尾右侧文案（如历史站点组内的相对时间）。
+    var trailingText: String? = nil
     let action: () -> Void
 
     var body: some View {
@@ -24,7 +26,16 @@ struct EntryRow: View {
                             .clipShape(Capsule())
                     }
                 }
-                Text(subtitle).lineLimit(1).font(.caption).foregroundStyle(.secondary)
+                HStack(spacing: 6) {
+                    Text(subtitle).lineLimit(1).font(.caption).foregroundStyle(.secondary)
+                    if let trailingText {
+                        Spacer(minLength: 8)
+                        Text(trailingText)
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                }
             }
         }
         .buttonStyle(.plain)

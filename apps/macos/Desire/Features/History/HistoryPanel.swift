@@ -7,6 +7,8 @@ struct HistoryPanel: View {
 
     @State private var searchText = ""
     @State private var groupMode: GroupMode = .date
+    /// 站点模式下折叠的组（v0.7.21：折叠聚合 + 站内相对时间）。
+    @State private var collapsedDomains: Set<String> = []
     @State private var showClearOptions = false
 
     enum GroupMode: String, CaseIterable {
@@ -58,18 +60,24 @@ struct HistoryPanel: View {
         return sections
     }
 
+    /// 站点分组（v0.7.21）：聚合口径抽到纯逻辑 HistoryGrouping（与桥
+    /// `/history?grouped=1` 同源）；无 host 的条目归"其它"。
     private var siteGrouped: [(String, [HistoryEntry])] {
-        var groups: [String: [HistoryEntry]] = [:]
-        for entry in filtered {
-            let domain = domainFromURL(entry.url) ?? String(localized: "Other")
-            groups[domain, default: []].append(entry)
+        HistoryGrouping.byDomain(filtered).map { group in
+            (group.domain.isEmpty ? String(localized: "Other") : group.domain, group.entries)
         }
-        return groups.sorted { $0.key < $1.key }
     }
 
     private func domainFromURL(_ urlString: String) -> String? {
-        guard let url = URL(string: urlString), let host = url.host else { return nil }
-        return host
+        URL(string: urlString)?.host
+    }
+
+    /// 站点组内的相对时间（"2 小时前"）。
+    private func relativeTime(_ date: Date) -> String {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        formatter.dateTimeStyle = .named
+        return formatter.localizedString(for: date, relativeTo: Date())
     }
 
     var body: some View {
@@ -137,11 +145,13 @@ struct HistoryPanel: View {
                     let sections = groupMode == .date ? dateGrouped : siteGrouped
                     ForEach(sections, id: \.0) { sectionTitle, entries in
                         Section {
+                            if groupMode != .site || !collapsedDomains.contains(sectionTitle) {
                             ForEach(entries) { entry in
                                 EntryRow(
                                     title: entry.title,
                                     subtitle: entry.url,
                                     badgeText: entry.visitCount > 1 ? "×\(entry.visitCount)" : nil,
+                                    trailingText: groupMode == .site ? relativeTime(entry.timestamp) : nil,
                                     action: { onSelect(entry.url) }
                                 )
                                 .swipeActions(edge: .trailing) {
@@ -166,8 +176,15 @@ struct HistoryPanel: View {
                                     }
                                 }
                             }
+                            }
                         } header: {
-                            HStack {
+                            HStack(spacing: 4) {
+                                if groupMode == .site {
+                                    Image(systemName: collapsedDomains.contains(sectionTitle)
+                                          ? "chevron.right" : "chevron.down")
+                                        .font(.system(size: 9, weight: .semibold))
+                                        .foregroundStyle(.secondary)
+                                }
                                 Text(sectionTitle)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -175,6 +192,15 @@ struct HistoryPanel: View {
                                 Text("\(entries.count)")
                                     .font(.caption)
                                     .foregroundStyle(.tertiary)
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                guard groupMode == .site else { return }
+                                if collapsedDomains.contains(sectionTitle) {
+                                    collapsedDomains.remove(sectionTitle)
+                                } else {
+                                    collapsedDomains.insert(sectionTitle)
+                                }
                             }
                         }
                     }

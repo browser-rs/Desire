@@ -3255,6 +3255,31 @@ func testAgentMessageSearch() {
 }
 testAgentMessageSearch()
 
+func testHistoryGrouping() {
+    func entry(_ url: String, _ minutesAgo: Int) -> HistoryEntry {
+        HistoryEntry(id: UUID(), url: url, title: url,
+                     timestamp: Date().addingTimeInterval(TimeInterval(-minutesAgo * 60)))
+    }
+    let entries = [
+        entry("https://a.test/1", 5),
+        entry("https://b.test/x", 60),
+        entry("https://a.test/2", 120),
+        entry("about:blank", 240),
+        entry("https://b.test/y", 300),
+    ]
+    let groups = HistoryGrouping.byDomain(entries)
+    check("历史分组：三组（a/b/无host）", groups.count == 3)
+    check("历史分组：组间按最新访问降序",
+          groups.map(\.domain) == ["a.test", "b.test", ""])
+    check("历史分组：a 组两条且保持输入序",
+          groups[0].entries.count == 2 && groups[0].entries[0].url == "https://a.test/1")
+    check("历史分组：无 host 归空串", groups[2].entries.count == 1)
+    check("历史分组：全量守恒（组内计数之和 == 输入数）",
+          groups.reduce(0) { $0 + $1.entries.count } == entries.count)
+    check("历史分组：空输入空输出", HistoryGrouping.byDomain([]).isEmpty)
+}
+testHistoryGrouping()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

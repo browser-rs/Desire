@@ -412,6 +412,7 @@ final class AutomationServer {
         ep("POST", "/downloads/resume", "Resume", params: ["id?:uuid"], example: "-d '{}'")
         // Data stores
         ep("GET", "/history", "History, newest first", params: ["count?:int"], example: "…/history?count=10")
+        ep("GET", "/history?grouped=1", "History aggregated by domain (panel site-grouping equivalent, same pure logic)", params: ["grouped:1"], example: "…/history?grouped=1")
         ep("POST", "/history/remove", "Remove one history entry by id (test hygiene)", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
         ep("POST", "/devtools/eval", "Run JS in the console REPL path", params: ["js:string", "index?:int"], example: #"-d '{"js":"document.title"}'"#)
@@ -787,6 +788,9 @@ final class AutomationServer {
                     inline: query["inline"] == "1"
                 ))
             case ("GET", "/history"):
+                if query["grouped"] == "1" {
+                    return try Self.json(Self.historyGrouped())
+                }
                 return try Self.json(Self.history(count: Int(query["count"] ?? "10") ?? 10))
             case ("GET", "/diag/geometry"):
                 return try Self.json(Self.geometry(index: Self.index(query)))
@@ -3483,6 +3487,20 @@ final class AutomationServer {
             ["id": $0.id.uuidString, "title": $0.title, "url": $0.url]
         }
         return ["entries": Array(entries)]
+    }
+
+    /// 历史按域名聚合（面板"站点分组"的桥等价；同一纯逻辑 HistoryGrouping）。
+    private static func historyGrouped() throws -> [String: Any] {
+        let historyStore = HistoryStore()
+        historyStore.applyScope(profileID: ProfileStore.shared.activeProfileID)
+        let groups = HistoryGrouping.byDomain(historyStore.entries).map { group -> [String: Any] in
+            ["domain": group.domain,
+             "count": group.entries.count,
+             "latest": group.entries.first?.timestamp.timeIntervalSince1970 ?? 0]
+        }
+        return ["groups": groups,
+                "total": historyStore.entries.count,
+                "groupedTotal": groups.reduce(0) { $0 + ($1["count"] as? Int ?? 0) }]
     }
 
     private static func bookmarks() throws -> [String: Any] {

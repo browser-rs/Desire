@@ -476,6 +476,7 @@ final class AutomationServer {
         ep("POST", "/site-settings/zoom", "Set per-host zoom", params: ["host:string", "zoom:double"], example: #"-d '{"host":"example.com","zoom":1.5}'"#)
         ep("POST", "/site-settings/font", "Per-site fonts: minFontSize (0=off)/fontFamily (''=off)/null=follow default; re-injects immediately", params: ["host", "minFontSize?", "fontFamily?"], example: #"-d '{"host":"a.b","minFontSize":16}'"#)
         ep("POST", "/site-settings/clear", "Clear all per-site UI overrides (zoom/dark/auto-play/fonts; blocked rules untouched) and re-apply to the active tab", params: ["host:string"], example: #"-d '{"host":"a.b"}'"#)
+        ep("GET", "/agent/find", "Find messages in the live conversation (case-insensitive; content only)", params: ["q:string", "window?:string"], example: "…/agent/find?q=deploy")
         ep("GET", "/palette", "Command-palette mixed search (commands/tabs/bookmarks/history/conversations, grouped + per-source totals)", params: ["q:string"], example: "…/palette?q=book")
         ep("GET", "/bilingual", "Bilingual reading state for the active tab (on/running/done/total/error)", example: "…/bilingual")
         ep("POST", "/bilingual", "Toggle bilingual reading (AI translations inserted under each paragraph)", params: ["on:bool", "index?:int"], example: #"-d '{"on":true}'"#)
@@ -1544,6 +1545,10 @@ final class AutomationServer {
                 return try Self.json(Self.clearSiteSettings(host: Self.string(body, "host") ?? ""))
             case ("GET", "/palette"):
                 return try Self.json(Self.palette(query: Self.string(query, "q") ?? ""))
+            case ("GET", "/agent/find"):
+                return try Self.json(Self.agentMessageFind(
+                    query: Self.string(query, "q") ?? "",
+                    window: Self.string(query, "window")))
             case ("GET", "/bilingual"):
                 return try Self.json(Self.bilingualState())
             case ("POST", "/bilingual"):
@@ -4150,6 +4155,16 @@ final class AutomationServer {
             app.passwordStore.delete(entry)
         }
         return ["ok": true, "deleted": victims.count]
+    }
+
+    /// 会话内查找（面板 ⌘F 的桥等价；同一纯逻辑）。
+    private static func agentMessageFind(query: String, window: String?) throws -> [String: Any] {
+        guard let session = resolveSession(window) else {
+            return ["error": "no live agent session"]
+        }
+        let ids = AgentMessageSearch.matches(messages: session.messages, query: query)
+        return ["query": query, "count": ids.count,
+                "ids": ids.map(\.uuidString)]
     }
 
     /// 命令面板混合检索（与 UI 同一套纯逻辑 + 同一处快照构建）。

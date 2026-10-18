@@ -25,6 +25,13 @@ struct AgentPanel: View {
     /// 上一次的文本变化来自历史回填（据此区分"用户手打" → 退出翻阅）。
     @State private var recalledFromHistory = false
     @State private var showHistory = false
+    // 会话内查找（v0.7.21）：⌘F 打开；命中消息高亮 + 滚动定位。
+    @State private var showFind = false
+    @State private var findText = ""
+    @State private var findMatches: [UUID] = []
+    @State private var findIndex = 0
+    @State private var scrollProxy: ScrollViewProxy?
+    @FocusState private var isFindFieldFocused: Bool
     @State private var showCapabilities = false
     @State private var showMemory = false
     /// 白板开关（由宿主窗口注入——面板不持有窗口对象）。
@@ -145,6 +152,10 @@ struct AgentPanel: View {
                 isSidebarExpanded: isSidebarExpanded,
                 onNewChat: { store.clear() }
             )
+
+            if showFind {
+                findBar
+            }
 
             // "via Cloud / via On-device" indicator, shown only when the
             // router is active (lastProviderUsed is set by activeProvider).
@@ -553,6 +564,14 @@ struct AgentPanel: View {
             // `.onKeyPress` 的处理器在 SwiftUI 更新事务里跑：凡是会写 `@Published`
             // 的动作都要跳一帧（见 AgentInputBar 回车那段的注释，用户实测一次提交
             // 刷 59 条 "Publishing changes from within view updates"）。
+            if press.key == KeyEquivalent("f") && press.modifiers.contains(.command) {
+                Task { @MainActor in openFind() }
+                return .handled
+            }
+            if press.key == .escape && showFind {
+                Task { @MainActor in showFind = false }
+                return .handled
+            }
             if press.key == .return && press.modifiers.contains(.command) {
                 Task { @MainActor in submit() }
                 return .handled
@@ -688,7 +707,86 @@ struct AgentPanel: View {
                 isLatestBoardCard: msg.id == latestBoardCardID
             )
             .id(msg.id)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(appAccent.opacity(0.65), lineWidth: 1.5)
+                    .opacity(isCurrentFindMatch(msg.id) ? 1 : 0)
+                    .allowsHitTesting(false)
+            )
         }
+    }
+
+    // MARK: - 会话内查找
+
+    private var findBar: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            TextField(String(localized: "Find in conversation"), text: $findText)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12))
+                .frame(width: 200)
+                .focused($isFindFieldFocused)
+                .onChange(of: findText) { _, _ in recomputeFind(reset: true) }
+                .onSubmit { advanceFind(1) }
+                .onKeyPress(.upArrow) { advanceFind(-1); return .handled }
+                .onKeyPress(.downArrow) { advanceFind(1); return .handled }
+                .onKeyPress(.escape) { Task { @MainActor in showFind = false }; return .handled }
+            if !findText.isEmpty {
+                Text(findMatches.isEmpty
+                     ? String(localized: "No matches")
+                     : "\(findIndex + 1) / \(findMatches.count)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .monospacedDigit()
+            }
+            Button("Previous", systemImage: "chevron.up") { advanceFind(-1) }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.plain)
+                .disabled(findMatches.isEmpty)
+            Button("Next", systemImage: "chevron.down") { advanceFind(1) }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.plain)
+                .disabled(findMatches.isEmpty)
+            Button("Done", systemImage: "xmark") { showFind = false }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+        .background(.bar)
+    }
+
+    private func openFind() {
+        showFind = true
+        recomputeFind(reset: true)
+        // 聚焦晚一帧（焦点在更新事务内同步置位会被字段编辑器吃掉，见既有惯例）。
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+            isFindFieldFocused = true
+        }
+    }
+
+    private func recomputeFind(reset: Bool) {
+        findMatches = AgentMessageSearch.matches(messages: store.messages, query: findText)
+        if reset { findIndex = 0 }
+        findIndex = min(max(0, findIndex), max(0, findMatches.count - 1))
+        jumpToCurrentMatch()
+    }
+
+    private func advanceFind(_ delta: Int) {
+        guard !findMatches.isEmpty else { return }
+        findIndex = (findIndex + delta + findMatches.count) % findMatches.count
+        jumpToCurrentMatch()
+    }
+
+    private func jumpToCurrentMatch() {
+        guard findMatches.indices.contains(findIndex) else { return }
+        scrollProxy?.scrollTo(findMatches[findIndex], anchor: .center)
+    }
+
+    private func isCurrentFindMatch(_ id: UUID) -> Bool {
+        showFind && findMatches.indices.contains(findIndex) && findMatches[findIndex] == id
     }
 
     private var messageScrollView: some View {
@@ -717,6 +815,7 @@ struct AgentPanel: View {
                     Color.clear
                         .frame(height: 1)
                         .id("__bottom__")
+                        .onAppear { scrollProxy = proxy }
                 }
                 .padding(.vertical, 12)
                 // 可读性上限：面板能拖很宽，满行的文字不好扫读。

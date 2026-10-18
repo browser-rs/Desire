@@ -6,6 +6,8 @@
 - **站点控制中心（v0.7.21）**：点地址栏锁图标弹出的一站式"本站设置"——缩放（−/100%/＋，点百分比即重置）、暗色、自动播放、页面字体（摘要行 → 打开既有站点字体弹层）、已拦截元素计数（→拦截面板），底部「清除本站覆盖」把缩放/暗色/自动播放/字体一次还原（**拦截规则不动**——内容级决定走拦截面板单独管）。实现两处收口：`SiteSettingsStore.clearOverrides`（store 级清除，UI 与桥共用）+ `BrowsingActions.clearSiteControls`（页面就地还原：暗色样式撤除、缩放复位、字体注入重施），桥 `POST /site-settings/clear` 同序等价。验收：定点探针 6/6（四项覆盖就位 → 页面侧 16px+样式标签生效 → 清除 → 四项回默认且页面 10px/样式与暗色标签齐撤）；弹层视觉与交互走查留用户过目。
 - **下载面板拖拽与快捷操作（v0.7.21）**：完成行可**直接拖到 Finder/邮件/任意 App**（`NSItemProvider(contentsOf:)` 携带真实文件 URL；仅"已完成且文件存在"的行挂拖拽——进行中/失败行没有可交付实体，不挂假手柄）；**双击完成行 = 打开文件**（与右键「Open」同路径）；右键菜单补 **Copy Path**（复制本地路径，与既有 Copy Link 并存）。现状核实说明：右键的 Open / Show in Finder / Preview 0.7.19 起已在（原计划里的"补打开"无实际缺口，不做）；"批量面板条目跳单条面板"经核实无真实落点——批量引擎的条目不在 DownloadStore 单条面板里，跨面板跳转没有目标可去，同样不做（不做清单会写进 ROADMAP）。验收：构建零警告 + 手势/拖拽交互留用户走查（拖拽属于无法用桥断言的系统交互——AX 也够不到拖拽会话）。
 - **阅读进度记忆（v0.7.21）**：阅读列表里的页面自动记滚动位置，重开回到读到的地方——条目新增 `progress`/`progressAt` 可选字段（旧文件零迁移、随云同步走且**盖 LWW 戳**，否则 FlatSyncMerge 会当旧值拒收）。采集用**零常驻注入**的取舍：每 15 秒对"当前标签恰在阅读列表里"的页面做一次纯读（`WebView.scrollProgressJS`，不可滚短页返回 0），切标签前先补采一次再换跟踪对象；恢复走既有 didFinish 钩子模式（`ReadingProgressTracker.restoreIfNeeded`，每条 URL 一次、比例 <2% 不恢复）。列表面板行显示进度戳（已记录且未读完时；悬停提示 Resume reading）；桥 `/reading-list` 行带 `progress` + `POST /reading-list/progress` 可直接写。验收：定点探针 6/6（写入回执/行字段/页内读取口径 ≈0.62/**关标签重开自动滚回 ≈50%**/清理零残留）。
+- **会话内查找（v0.7.21）**：Agent 面板 ⌘F 弹出查找条——跨消息子串查找（大小写不敏感，**只扫正文 content**：纯工具调用消息与折叠推理不参与，避免命中噪音），命中消息**强调色描边**、自动滚动定位（复用既有 ScrollViewReader 的 `.id(msg.id)`，proxy 由底部锚点捕获）；Enter/↓ 下一个、↑ 上一个、计数 "n / m" / "No matches"、Esc 关闭。面板级 Esc 的处理顺序为**查找条优先**（开着先关它，不影响"取消回合"语义）。纯逻辑 `AgentMessageSearch` 进 harness（Foundation-only，+5 项），桥 `GET /agent/find?q=` 同源开放（E2E MUSCLE26）。
+
 
 
 

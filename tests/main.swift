@@ -3238,6 +3238,23 @@ func testPaletteSearch() {
 }
 testPaletteSearch()
 
+func testAgentMessageSearch() {
+    let a = AgentMessage(role: .user, content: "帮我查一下 MUSCLE 会话内查找标记")
+    let b = AgentMessage(role: .assistant, content: "好的，已经找到：muscle 相关结果")
+    let c = AgentMessage(role: .assistant, content: nil, toolCalls: [])
+    let d = AgentMessage(role: .tool, content: "tool output mentions marker")
+    let ids = AgentMessageSearch.matches(messages: [a, b, c, d], query: "MUSCLE")
+    check("会话查找：大小写不敏感命中两条", ids == [a.id, b.id])
+    check("会话查找：无内容/工具消息不命中空串", AgentMessageSearch.matches(messages: [a, b, c, d], query: "").isEmpty)
+    check("会话查找：工具结果文本可命中（它是可搜正文）",
+          AgentMessageSearch.matches(messages: [d], query: "marker") == [d.id])
+    check("会话查找：仅 toolCalls 无 content 的消息不命中任何查询",
+          AgentMessageSearch.matches(messages: [c], query: "tool").isEmpty)
+    check("会话查找：无命中为空", AgentMessageSearch.matches(messages: [a, b], query: "zzz").isEmpty)
+    check("会话查找：空白查询为空", AgentMessageSearch.matches(messages: [a, b], query: "   ").isEmpty)
+}
+testAgentMessageSearch()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

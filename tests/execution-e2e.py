@@ -27,7 +27,7 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
 桥 /promotion/review 一键安排每日选题采集并撤销）/
 阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）/
-阅读进度记忆（MUSCLE25：桥写 → 关标签重开 → 恢复 ≈50%）/\n命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
+会话内查找（MUSCLE26：标记消息命中 + 无命中零）/\n阅读进度记忆（MUSCLE25：桥写 → 关标签重开 → 恢复 ≈50%）/\n命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -586,6 +586,9 @@ class Fake(BaseHTTPRequestHandler):
             return
         if "MUSCLE24" in mode:
             sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE24-DONE"}, "stop")
+            return
+        if "MUSCLE26" in mode:
+            sse(self.wfile, model, {"role": "assistant", "content": "MUSCLE26-DONE"}, "stop")
             return
         if "MUSCLE14" in mode:
             if n == 0:
@@ -1884,6 +1887,21 @@ def main():
             if "/tallpage" in (t.get("url") or ""):
                 bridge("POST", "/close-tab", {"index": t.get("index")})
         bridge("POST", "/reading-list/remove", {"url": TALL_URL})
+        # ── MUSCLE26：会话内查找（面板 ⌘F 的桥等价；同一纯逻辑）──
+        bridge("POST", "/agent/new", {})
+        bridge("POST", "/agent/send", {"text": "MUSCLE26 会话内查找标记"})
+        deadline26 = time.time() + 90
+        while time.time() < deadline26:
+            st26 = bridge("GET", "/agent/messages")
+            if not st26.get("busy") and any("MUSCLE26-DONE" in (m.get("content") or "")
+                                            for m in st26.get("messages", [])):
+                break
+            time.sleep(1)
+        f26 = bridge("GET", "/agent/find?q=" + urllib.parse.quote("会话内查找标记"))
+        ok("会话查找：命中含标记的消息（count≥1 且 ids 齐）",
+           f26.get("count", 0) >= 1 and len(f26.get("ids", [])) == f26.get("count"))
+        f26b = bridge("GET", "/agent/find?q=zzz-no-such-text")
+        ok("会话查找：无命中 count=0", f26b.get("count") == 0)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:

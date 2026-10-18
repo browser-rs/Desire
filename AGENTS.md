@@ -1068,8 +1068,16 @@ tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更
   （datetime(6)，客户端把游标推进到末条；naive 格式 `2026-09-24T12:00:00.123456`
   与序列化一致，原样回传）。settings 域：client_id = 设置键名，payload = 值本体。
   冒烟 `tools/api-sync-smoke.sh`（9 步：applied / conflict 回胜者 / 覆盖 / tombstone /
-  增量游标 / KV / 未知域 404）。**已知边界**：tombstone 永久保留（GC 需按设备记游标，
-  留给后续）；服务端不解读 payload，书签树结构/排序全在 payload 里由客户端裁决。
+  增量游标 / KV / 未知域 404）。**通用 tombstone GC 已落地（2026-10-18，v0.7.21 服务端批次）**：
+  迁移 0016 `sync_pull_cursors`（拉取带 `device` 时记该设备复合游标）+ `sync_gc`
+  模块（活跃设备最小游标 + 30 天宽限删墓碑；无游标兜底 180 天；过期游标清理）
+  + `POST /sync/gc` + `desire-admin sync gc [--dry-run]`；拉取后每用户每小时
+  限量跑。**残留风险的既定取舍**：180 天没同步的设备其游标被清理后、"没见过的
+  删除"可能被 GC、该设备重连会把本地副本当新写入推上来（复活）——与"离线设备
+  重连"同语义，不额外加锁。客户端 `device` 上报随 app 0.7.20+ 已随包发出。
+  冒烟 `tools/api-sync-gc-smoke.py`（20 项：游标记账/判定支/dry-run/兜底支/
+  过期游标清理/级联清理）。服务端不解读 payload，书签树结构/排序全在 payload
+  里由客户端裁决。
 - **客户端 SyncEngine 已落地（2026-09-24，首域 = 书签）**：`Features/Sync/`——
   `SyncStore`（登录态、Keychain 令牌**非交互读写**、每域游标、启动后 3s + 每 5 分钟
   自动同步，AppState.init 末尾 startAutoSync）、`SyncAPIClient`（**nonisolated enum**，

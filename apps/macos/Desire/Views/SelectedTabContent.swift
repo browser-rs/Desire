@@ -128,6 +128,8 @@ struct SelectedTabContent: View {
                             findString: content.$findString,
                             findMatchCount: content.findMatchCount,
                             findCurrentIndex: content.findCurrentIndex,
+                            caseSensitive: content.$findCaseSensitive,
+                            snippet: content.findSnippet,
                             isFindFocused: content.$isFindFocused,
                             onFindNext: { content.performFindNext() },
                             onFindPrevious: { content.performFindPrevious() },

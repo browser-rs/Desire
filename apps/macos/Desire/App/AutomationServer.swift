@@ -388,7 +388,7 @@ final class AutomationServer {
         ep("GET", "/page/text", "Visible page text (≤20k chars)", params: ["index?:int"], example: "…/page/text?index=0")
         ep("GET", "/page/url", "url/title/isLoading/zoom/error", params: ["index?:int"], example: "…/page/url")
         ep("GET", "/page/timing", "Navigation timing (ttfb/load/protocol)", params: ["index?:int"], example: "…/page/timing")
-        ep("GET", "/find", "Find in page: matchFound + count", params: ["q:string", "index?:int"], example: "…/find?q=hello")
+        ep("GET", "/find", "Find in page: matchFound + count + first-match snippet", params: ["q:string", "index?:int", "caseSensitive?:0|1"], example: "…/find?q=hello")
         ep("GET", "/suggest", "Address-bar suggestions (local rows)", params: ["q:string"], example: "…/suggest?q=git")
         ep("GET", "/conversations/search", "Search saved agent conversations (same code path as the searchConversations tool)", params: ["q:string", "limit?:int"], example: "…/conversations/search?q=github")
         ep("POST", "/conversations/delete", "Delete conversations (cleanup after tests, batch)", params: ["ids:[uuid]", "id?:uuid"], example: #"-d '{"ids":["…"]}'"#)
@@ -746,7 +746,10 @@ final class AutomationServer {
             case ("GET", "/page/text"):
                 return try await Self.json(Self.pageText(index: Self.index(query)))
             case ("GET", "/find"):
-                return try await Self.json(Self.find(query: query["q"] ?? "", index: Self.index(query)))
+                return try await Self.json(Self.find(
+                    query: query["q"] ?? "",
+                    index: Self.index(query),
+                    caseSensitive: query["caseSensitive"] == "1"))
             case ("GET", "/page/timing"):
                 guard let tab = Self.shared.resolveIndex(Self.index(query)) else {
                     return Self.error("no such tab")
@@ -3982,23 +3985,31 @@ final class AutomationServer {
 
     /// Native find-in-page: returns whether the query matches and the
     /// total occurrence count (same count JS the FindBar uses).
-    private static func find(query: String, index: Int?) async throws -> [String: Any] {
+    private static func find(query: String, index: Int?, caseSensitive: Bool) async throws -> [String: Any] {
         guard let tab = shared.resolveIndex(index), !query.isEmpty else {
             return ["error": "no such tab or empty query"]
         }
         let config = WKFindConfiguration()
         config.wraps = false
+        config.caseSensitive = caseSensitive
         let found: Bool = await withCheckedContinuation { continuation in
             tab.browser.webView.find(query, configuration: config) { result in
                 continuation.resume(returning: result.matchFound)
             }
         }
         let count: Int = await withCheckedContinuation { continuation in
-            tab.browser.webView.evaluateJavaScript(WebView.findCountJS(query: query)) { value, _ in
+            tab.browser.webView.evaluateJavaScript(
+                WebView.findCountJS(query: query, caseSensitive: caseSensitive)) { value, _ in
                 continuation.resume(returning: (value as? Int) ?? 0)
             }
         }
-        return ["matchFound": found, "count": count]
+        let snippet: String = await withCheckedContinuation { continuation in
+            tab.browser.webView.evaluateJavaScript(
+                WebView.findSnippetJS(query: query, caseSensitive: caseSensitive)) { value, _ in
+                continuation.resume(returning: (value as? String) ?? "")
+            }
+        }
+        return ["matchFound": found, "count": count, "snippet": snippet]
     }
 
     /// Reader-mode extraction state for the selected tab (populated after

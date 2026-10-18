@@ -27,7 +27,7 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 热点选题（MUSCLE18：readURL 读热榜→promotionSave idea×2（目标/来源带齐）→listSkills 带 hot-topics；
 桥 /promotion/review 一键安排每日选题采集并撤销）/
 阅读列表批量摘要（MUSCLE19：两篇入库→桥按 urls 触发→条目带摘要（含页面实读回显）→只动指定条目→删除收尾）/
-命令面板混合检索（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
+命令面板混合检索 + 查找升级（MUSCLE24：五源聚合/前缀优先/初始态/截断 ≤8 + 大小写敏感/片段）/\n双语对照（MUSCLE23：桥开启 → 假端点分块翻译回填 → 节点计数/序号对齐/关闭清零）/\n书签导入去重（MUSCLE22：HTML 解析 + 撞库/组内划分 + skipDuplicates/keepAll 落库）/\n站点字体（MUSCLE21：桥设 16px+Songti → 内联 10px 被抬、作者字体不被覆盖 → 清覆盖原值还原）/\n备忘录工具（MUSCLE20：addNote 缺标题 / searchNotes 太短 → Error 约定；真调用会弹 TCC 自动化授权，套件只走校验路径）。
 跑完恢复档案、按内容清理测试会话与 fixture 目录。
 """
 import contextlib
@@ -199,6 +199,17 @@ class TinyAPI(BaseHTTPRequestHandler):
                     "<p>Distributed systems fail in interesting ways when the network partitions last.</p>"
                     "<p>A small paragraph that should also be picked up by the collector without trouble.</p>"
                     "</article></body></html>").encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if self.path.startswith("/casepage"):
+            # 查找升级（MUSCLE24 尾段）的靶页：大小写三态混排。
+            body = ("<!DOCTYPE html><html><head><meta charset='utf-8'>"
+                    "<title>Case Page</title></head>"
+                    "<body><p>Alpha alpha ALPHA — 大小写三态混排用于查找断言。</p></body></html>").encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
             self.send_header("Content-Length", str(len(body)))
@@ -1806,6 +1817,18 @@ def main():
         all24 = palette24("palette")
         ok("面板：各源截断 ≤8",
            bool(all24) and all(len(sec.get("rows", [])) <= 8 for sec in all24.values()))
+
+        # 查找升级（同属 v0.7.21）：大小写敏感 + 命中片段
+        bridge("POST", "/new-tab", {"url": f"http://127.0.0.1:{API_PORT}/casepage"})
+        time.sleep(2)
+        f1 = bridge("GET", "/find?q=alpha")
+        ok("查找：不敏感命中 3（matchFound + count）",
+           f1.get("count") == 3 and f1.get("matchFound") is True, f1)
+        ok("查找：命中片段带上下文", "Alpha" in (f1.get("snippet") or ""), f1.get("snippet"))
+        f2 = bridge("GET", "/find?q=Alpha&caseSensitive=1")
+        ok("查找：敏感大写只剩 1", f2.get("count") == 1, f2)
+        f3 = bridge("GET", "/find?q=alpha&caseSensitive=1")
+        ok("查找：敏感小写命中 1", f3.get("count") == 1, f3)
         assert all(c for _, c in checks), "存在失败项"
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
@@ -1898,7 +1921,8 @@ def main():
                          or f"127.0.0.1:{API_PORT}/article" in (t.get("url") or "")
                          or f"127.0.0.1:{API_PORT}/fontpage" in (t.get("url") or "")
                          or f"127.0.0.1:{API_PORT}/bipage" in (t.get("url") or "")
-                         or f"127.0.0.1:{API_PORT}/palettehit" in (t.get("url") or "")]
+                         or f"127.0.0.1:{API_PORT}/palettehit" in (t.get("url") or "")
+                         or f"127.0.0.1:{API_PORT}/casepage" in (t.get("url") or "")]
                 if not stale:
                     break
                 for t in stale:

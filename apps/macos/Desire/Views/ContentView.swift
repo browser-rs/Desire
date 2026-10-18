@@ -255,6 +255,10 @@ struct ContentView: View {
     @State var findHasMatch = false
     @State var findMatchCount = 0
     @State var findCurrentIndex = 0
+    /// 查找大小写敏感（粘性偏好；@AppStorage 直接持久化）。
+    @AppStorage("findCaseSensitive") var findCaseSensitive = false
+    /// 首个命中的上下文片段（±40 字符；查找栏预览行）。
+    @State var findSnippet = ""
     /// 原生窗口全屏（⌃⌘F）：只影响标签栏给红绿灯留的边距（全屏时红绿灯
     /// 浮在内容上），**不再收起 chrome**——全屏浏览没有标签栏没法用。
     @State var isWindowFullScreen = false
@@ -860,6 +864,7 @@ struct ContentView: View {
 
     func showFindBar() {
         findString = ""
+        findSnippet = ""
         findHasMatch = false
         findMatchCount = 0
         findCurrentIndex = 0
@@ -872,6 +877,7 @@ struct ContentView: View {
     func hideFindBar() {
         isFindBarVisible = false
         findString = ""
+        findSnippet = ""
         findHasMatch = false
         findMatchCount = 0
         findCurrentIndex = 0
@@ -883,21 +889,30 @@ struct ContentView: View {
             findHasMatch = false
             findMatchCount = 0
             findCurrentIndex = 0
+            findSnippet = ""
             return
         }
         let config = WKFindConfiguration()
         config.wraps = false
+        config.caseSensitive = findCaseSensitive
         tab.browser.webView.find(findString, configuration: config) { result in
             findHasMatch = result.matchFound
             if result.matchFound {
                 findCurrentIndex = 0
             }
         }
-        tab.browser.webView.evaluateJavaScript(WebView.findCountJS(query: findString)) { value, _ in
+        tab.browser.webView.evaluateJavaScript(
+            WebView.findCountJS(query: findString, caseSensitive: findCaseSensitive)) { value, _ in
             if let count = value as? Int {
                 DispatchQueue.main.async {
                     findMatchCount = count
                 }
+            }
+        }
+        tab.browser.webView.evaluateJavaScript(
+            WebView.findSnippetJS(query: findString, caseSensitive: findCaseSensitive)) { value, _ in
+            DispatchQueue.main.async {
+                findSnippet = (value as? String) ?? ""
             }
         }
     }
@@ -906,6 +921,7 @@ struct ContentView: View {
         guard let tab = tabManager.selectedTab, !findString.isEmpty else { return }
         let config = WKFindConfiguration()
         config.wraps = true
+        config.caseSensitive = findCaseSensitive
         tab.browser.webView.find(findString, configuration: config) { result in
             findHasMatch = result.matchFound
             if result.matchFound && findMatchCount > 0 {
@@ -919,6 +935,7 @@ struct ContentView: View {
         let config = WKFindConfiguration()
         config.backwards = true
         config.wraps = true
+        config.caseSensitive = findCaseSensitive
         tab.browser.webView.find(findString, configuration: config) { result in
             findHasMatch = result.matchFound
             if result.matchFound && findMatchCount > 0 {

@@ -567,15 +567,44 @@ struct WebView: NSViewRepresentable {
     /// Used by the find-in-page UI. NOTE: TreeWalker.nextNode() only returns
     /// a boolean — the text lives on `walk.currentNode.nodeValue` (using
     /// `walk.nodeValue` throws, which used to zero the match count).
-    static func findCountJS(query: String) -> String {
+    static func findCountJS(query: String, caseSensitive: Bool = false) -> String {
         return """
         (function() {
             var t = \(JSString.literal(query));
             if (!t) return 0;
-            var r = new RegExp(t.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'), 'gi');
+            var flags = \(caseSensitive ? "'g'" : "'gi'");
+            var r = new RegExp(t.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&'), flags);
             var c = 0, walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
             while (walk.nextNode()) { c += (walk.currentNode.nodeValue.match(r) || []).length; }
             return c;
+        })()
+        """
+    }
+
+    /// 首个命中的上下文片段（±context 字符，"…" 标两端截断）——查找栏的
+    /// 命中预览行。与 findCountJS 同一套语义（大小写开关共享）；这里用
+    /// indexOf 而非正则，避免再养一份正则转义。
+    static func findSnippetJS(query: String, caseSensitive: Bool = false, context: Int = 40) -> String {
+        return """
+        (function() {
+            var t = \(JSString.literal(query));
+            if (!t) return "";
+            var target = t.toLowerCase();
+            var walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null, false);
+            while (walk.nextNode()) {
+                var v = walk.currentNode.nodeValue || '';
+                var hay = \(caseSensitive ? "v" : "v.toLowerCase()");
+                var idx = hay.indexOf(\(caseSensitive ? "t" : "target"));
+                if (idx >= 0) {
+                    var start = Math.max(0, idx - \(context));
+                    var end = Math.min(v.length, idx + t.length + \(context));
+                    var before = v.slice(start, idx).replace(/\\s+/g, ' ');
+                    var hit = v.substr(idx, t.length);
+                    var after = v.slice(idx + t.length, end).replace(/\\s+/g, ' ');
+                    return (start > 0 ? '…' : '') + before + hit + after + (end < v.length ? '…' : '');
+                }
+            }
+            return "";
         })()
         """
     }

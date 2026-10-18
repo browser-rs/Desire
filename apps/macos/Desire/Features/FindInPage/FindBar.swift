@@ -6,6 +6,10 @@ struct FindBar: View {
     @Binding var findString: String
     let findMatchCount: Int
     let findCurrentIndex: Int
+    /// 大小写敏感（粘性偏好；切换即重查——宿主 onFindAll 读同一状态）。
+    @Binding var caseSensitive: Bool
+    /// 首个命中的上下文片段（±40 字符；空 = 不显示）。
+    let snippet: String
     var isFindFocused: FocusState<Bool>.Binding
     let onFindNext: () -> Void
     let onFindPrevious: () -> Void
@@ -22,37 +26,49 @@ struct FindBar: View {
     @State private var showOtherTabs = false
 
     var body: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "magnifyingglass")
-                .foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
 
-            TextField("Find in page…", text: $findString)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 180)
-                .focused(isFindFocused)
-                .onChange(of: findString) { _, _ in
-                    onFindAll()
-                }
-                .onSubmit { onFindNext() }
-                .onKeyPress(.return, phases: .down) { press in
-                    // Shift+Enter = 上一个（主流查找栏键盘流）。
-                    if press.modifiers.contains(.shift) {
-                        onFindPrevious()
-                        return .handled
+                TextField("Find in page…", text: $findString)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 180)
+                    .focused(isFindFocused)
+                    .onChange(of: findString) { _, _ in
+                        onFindAll()
                     }
-                    return .ignored
-                }
+                    .onSubmit { onFindNext() }
+                    .onKeyPress(.return, phases: .down) { press in
+                        // Shift+Enter = 上一个（主流查找栏键盘流）。
+                        if press.modifiers.contains(.shift) {
+                            onFindPrevious()
+                            return .handled
+                        }
+                        return .ignored
+                    }
 
-            if findMatchCount > 0 && !findString.isEmpty {
-                Text("\(findCurrentIndex + 1) / \(findMatchCount)")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .monospacedDigit()
-            } else if !findString.isEmpty {
-                Text("Not found")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+                Button {
+                    caseSensitive.toggle()
+                    onFindAll()
+                } label: {
+                    Text("Aa")
+                        .font(.system(size: 11, weight: caseSensitive ? .bold : .regular))
+                        .foregroundStyle(caseSensitive ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+                }
+                .buttonStyle(.plain)
+                .help("Match Case")
+
+                if findMatchCount > 0 && !findString.isEmpty {
+                    Text("\(findCurrentIndex + 1) / \(findMatchCount)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                } else if !findString.isEmpty {
+                    Text("Not found")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
 
             Button("Previous", systemImage: "chevron.up") { onFindPrevious() }
                 .labelStyle(.iconOnly)
@@ -83,6 +99,17 @@ struct FindBar: View {
             Button("Done") { onHide() }
                 .buttonStyle(.plain)
                 .foregroundStyle(appAccent)
+            }
+
+            // 命中预览：首个命中的上下文片段（读操作，不产生高亮副作用）。
+            if !snippet.isEmpty && !findString.isEmpty {
+                Text(snippet)
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .padding(.leading, 24)
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
@@ -131,6 +158,8 @@ struct FindBar: View {
         findString: .constant(""),
         findMatchCount: 0,
         findCurrentIndex: 0,
+        caseSensitive: .constant(false),
+        snippet: "",
         isFindFocused: FocusState<Bool>().projectedValue,
         onFindNext: {}, onFindPrevious: {}, onHide: {}, onFindAll: {}
     )

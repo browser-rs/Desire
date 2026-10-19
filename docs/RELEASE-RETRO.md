@@ -22,6 +22,11 @@
 ci local 失败 ~3m → 续跑 ci/package/publish/verify ~6m）
 
 **问题与反思**
+0. **启动无主窗竞态**（发版过程中暴露）：快速 `pkill -9 → open` 后偶发"桥起来了但
+   主窗不建"（SwiftUI 场景恢复竞态，Debug/Release 都中；隔久一点启动或重开一次即
+   恢复）。此前的 verify/smoke 只查桥——**窗口缺失也会假装通过**。已改：新增
+   `launch_wait_window`（等 /state tabs ≥ 1，失败重启一次），run_local_suite 与
+   verify 都用它。
 1. **套件 15 分钟是发版日最大固定成本**：本版 app 代码改动多（弹窗/OAuth、划词卡、
    同步域、工具），套件必须重跑。结论：套件留在发版日，但 `release.sh` 本体要压到
    ~15 分钟；在"套件戳已覆盖 HEAD"时，本地评估套件与之高度冗余 → 跳过。

@@ -114,6 +114,30 @@ bridge_wait() {  # bridge_wait <超时秒>
   return 1
 }
 
+# 启动应用并等**主窗就绪**（/state tabs ≥ 1）。2026-10-20 实测：快速
+# pkill -9 → open 后偶发"桥起来了但主窗不建"（SwiftUI 场景恢复竞态，与构建无关，
+# 重开一次即恢复）——套件/eval/verify 都必须以主窗为准，否则窗口缺失也会假通过。
+launch_wait_window() {  # <app 路径> <超时秒>
+  local app="$1" timeout="${2:-40}" attempt=0 deadline n
+  while [ "$attempt" -lt 2 ]; do
+    deadline=$(( $(date +%s) + timeout ))
+    while [ "$(date +%s)" -lt "$deadline" ]; do
+      n=$(curl -s -m 2 http://127.0.0.1:8799/state 2>/dev/null | python3 -c 'import json,sys
+try: print(len(json.load(sys.stdin).get("tabs",[])))
+except Exception: print(0)' 2>/dev/null || echo 0)
+      [ "${n:-0}" -ge 1 ] && return 0
+      sleep 1
+    done
+    attempt=$((attempt+1))
+    if [ "$attempt" -lt 2 ]; then
+      echo "（启动后无主窗——重启一次）"
+      pkill -9 -x Desire 2>/dev/null || true; sleep 3
+      open "$app" --args --automation
+    fi
+  done
+  return 1
+}
+
 app_quit() {
   osascript -e 'quit app "Desire"' >/dev/null 2>&1 || true
   sleep 2
@@ -228,7 +252,7 @@ finish_retro() {
   git commit -m "docs(release): retro timing v${V}" >/dev/null 2>&1 || true
   git push origin main >/dev/null 2>&1 || true
 }
-trap 'rc=$?; if [ "$rc" -ne 0 ] && [ -z "${EXEC:-}" ]; then finish_retro "失败（exit $rc）"; fi' EXIT
+trap 'rc=$?; if [ "$rc" -ne 0 ] && [ -z "${EXEC:-}" ]; then finish_retro "失败（exit ${rc}）"; fi' EXIT
 
 stage_gates() {
   log "gates：闸门（干净树 / 单测 / 结构 / 查重 / 套件戳）"
@@ -345,10 +369,8 @@ run_local_suite() {
   echo "── 本地评估套件 ──"
   pkill -9 -x Desire 2>/dev/null || true; sleep 2
   open "$APP" --args --automation
-  bridge_wait 30 || die "桥没起来（${APP}）"
-  # 评估套件需要**活的 Agent 会话**，而桥起来 ≠ 窗口/会话已注册（2026-10-20
-  # 实测：桥响应了但 /agent/send 报 no live agent session）。等 /agent/windows
-  # 出现至少一个注册会话再开跑。
+  launch_wait_window "$APP" 40 || die "启动后主窗未就绪（重开一次仍无）——${APP}"
+  # 评估套件还需要**活的 Agent 会话**（主窗 ≠ 会话注册完成）。
   local session_ready=0
   for _ in $(seq 1 30); do
     if curl -s -m 2 http://127.0.0.1:8799/agent/windows 2>/dev/null | grep -q '"id"'; then
@@ -514,6 +536,7 @@ PYV
   pkill -9 -x Desire 2>/dev/null || true; sleep 2
   open "$vdir/app/Desire.app" --args --automation
   bridge_wait 30 || die "产物启动后桥无响应"
+  launch_wait_window "$vdir/app/Desire.app" 40 || die "产物启动后主窗未就绪（重开一次仍无）"
   app_quit
   if [ "$WITH_X86" = 1 ] && [ -f "$ARTDIR/Desire-$TAG-macos-x86_64.zip" ]; then
     ditto -x -k "$ARTDIR/Desire-$TAG-macos-x86_64.zip" "$vdir/app86"
@@ -552,6 +575,7 @@ stage_verify() {
   pkill -9 -x Desire 2>/dev/null || true; sleep 2
   open "$vdir/app/Desire.app" --args --automation
   bridge_wait 30 || die "下载产物启动后桥无响应"
+  launch_wait_window "$vdir/app/Desire.app" 40 || die "下载产物启动后主窗未就绪"
   app_quit
   # x86_64 包：核对架构；release 机器装了 Rosetta 就顺带启动冒烟。
   local zip86="$vdir/Desire-$TAG-macos-x86_64.zip"

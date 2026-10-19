@@ -35,7 +35,7 @@ else
     echo "  ✗ 套件戳之后的提交动了代码——重跑套件："
     printf '%s\n' "$CHANGES" | head -5
     FAIL=1
-  else echo "  ✓ ${STAMP_SHA:0:8}（$STAMP_META）"; fi
+  else echo "  ✓ ${STAMP_SHA:0:8}（${STAMP_META}）"; fi
 fi
 
 echo "── 4/5 CHANGELOG 结构校验"

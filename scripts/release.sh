@@ -193,7 +193,7 @@ stage_gates() {
     printf '%s\n' "$code_changes" | head -5
     die "套件戳之后的提交动了代码（见上）——必须重跑完整套件再发版（别拿旧戳发新版）"
   fi
-  echo "── 套件戳 ✓ ${stamp_sha:0:8}（$stamp_meta）"
+  echo "── 套件戳 ✓ ${stamp_sha:0:8}（${stamp_meta}）"
 }
 
 stage_prep() {
@@ -223,7 +223,7 @@ stage_prep() {
     echo "website 版本号已同步 → $V"
   fi
 
-  # 版本号：MARKETING_VERSION = $V；CURRENT_PROJECT_VERSION = 旧值 + 1
+  # 版本号：MARKETING_VERSION = ${V}；CURRENT_PROJECT_VERSION = 旧值 + 1
   local pbx="apps/macos/Desire.xcodeproj/project.pbxproj"
   local current_build
   current_build=$(grep -m1 "CURRENT_PROJECT_VERSION = " "$pbx" | grep -o '[0-9]\+')
@@ -336,7 +336,7 @@ stage_build() {
       -derivedDataPath "/tmp/dd-release-$V-x86" -destination 'platform=macOS' \
       ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO COMPILER_INDEX_STORE_ENABLE=NO \
       clean build 2>&1 | tee "$log86" | grep -E "BUILD (SUCCEEDED|FAILED)" || true
-    grep -q "BUILD SUCCEEDED" "$log86" || die "x86_64 构建失败，日志在 $log86（修完重跑；急救可 --from build --no-x86_64 先发 arm64）"
+    grep -q "BUILD SUCCEEDED" "$log86" || die "x86_64 构建失败，日志在 ${log86}（修完重跑；急救可 --from build --no-x86_64 先发 arm64）"
     warn_gate "$log86" "x86_64"
     local ver86
     ver86=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "/tmp/dd-release-$V-x86/Build/Products/Release/Desire.app/Contents/Info.plist")
@@ -368,7 +368,7 @@ stage_package() {
   ditto -c -k --keepParent "$APP" "$ARTDIR/Desire-$TAG-macos-arm64.zip"
   if [ "$WITH_X86" = 1 ]; then
     local app86="/tmp/dd-release-$V-x86/Build/Products/Release/Desire.app"
-    [ -d "$app86" ] || die "x86_64 构建产物缺失（$app86）——从 build 阶段重跑，或 --from package --no-x86_64"
+    [ -d "$app86" ] || die "x86_64 构建产物缺失（${app86}）——从 build 阶段重跑，或 --from package --no-x86_64"
     ditto -c -k --keepParent "$app86" "$ARTDIR/Desire-$TAG-macos-x86_64.zip"
   fi
   (cd "$ARTDIR" && shasum -a 256 Desire-*.zip > SHASUMS256.txt)

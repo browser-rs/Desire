@@ -269,15 +269,23 @@ struct SelectedTabContent: View {
         }
     }
 
+    /// 划词就地卡（v0.7.25 旗舰）：状态 + 锚点（selection 的 viewport 坐标）。
+    @State private var assistModel = SelectionAssistCardModel()
+    @State private var assistAnchor: CGPoint?
+
     /// 划词工具条构造（0.6.5 拆出——闭包加到 6 个后 body 内 type-check 超时）。
     private func selectionAIBar(_ selection: SelectionAIInfo) -> some View {
         SelectionAIBar(
             onExplain: {
-                onAskAI("请用中文解释以下选中文本的含义，如有术语请一并说明：\n\n\(selection.text)")
+                // 就地卡（v0.7.25）：解释/翻译不再烧回合——旁路流式贴划词处；
+                // 需要多轮/工具时才走「追问」进面板。
+                assistModel.run(selection.text)
+                assistAnchor = CGPoint(x: selection.viewportX, y: selection.viewportY)
                 tab.browser.selectionAI = nil
             },
             onTranslate: {
-                onAskAI("将以下内容翻译成中文（若原文已是中文则翻译成英文），只输出译文：\n\n\(selection.text)")
+                assistModel.run(selection.text, mode: .translate)
+                assistAnchor = CGPoint(x: selection.viewportX, y: selection.viewportY)
                 tab.browser.selectionAI = nil
             },
             onAsk: {
@@ -420,6 +428,44 @@ struct SelectedTabContent: View {
                                         x: min(max(selection.viewportX * tab.browser.pageZoom, 8), max(geo.size.width - 220, 8)),
                                         y: min(max(selection.viewportY * tab.browser.pageZoom + 10, 8), max(geo.size.height - 40, 8))
                                     )
+                            }
+                            if let anchor = assistAnchor {
+                                SelectionInPlaceCard(
+                                    model: assistModel,
+                                    onClose: {
+                                        assistAnchor = nil
+                                        assistModel.reset()
+                                    },
+                                    onCopy: { text in
+                                        NSPasteboard.general.clearContents()
+                                        NSPasteboard.general.setString(text, forType: .string)
+                                    },
+                                    onSpeak: { text in
+                                        ReaderSpeechService.shared.speak(text)
+                                    },
+                                    onToWhiteboard: { text in
+                                        let note = WhiteboardBlock(
+                                            type: WhiteboardBlock.Kind.note,
+                                            title: assistModel.mode.title,
+                                            content: text)
+                                        WhiteboardStore.shared.append(
+                                            [note], title: String(localized: "Selection assist"),
+                                            conversationID: AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString)
+                                    },
+                                    onAsk: { result in
+                                        content.aiSession.addSelectedTextContext(assistModel.sourceText)
+                                        if !result.isEmpty {
+                                            content.aiSession.addSelectedTextContext(result)
+                                        }
+                                        showAgentPanel = true
+                                        AgentPanelVisibilityStore.shared.record(key: content.tabManager.sessionKey, shown: true)
+                                        assistAnchor = nil
+                                    }
+                                )
+                                .offset(
+                                    x: min(max(anchor.x * tab.browser.pageZoom, 8), max(geo.size.width - 356, 8)),
+                                    y: min(max(anchor.y * tab.browser.pageZoom + 10, 8), max(geo.size.height - 300, 8))
+                                )
                             }
                         }
                         .frame(width: responsiveW, height: responsiveH)

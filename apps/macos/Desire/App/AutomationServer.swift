@@ -479,6 +479,7 @@ final class AutomationServer {
         ep("POST", "/remote/mark-seen", "Mark a conversation as seen by the phone (same path as the phone's select receipt)", params: ["conversationId:string"], example: #"-d '{"conversationId":"…"}'"#)
         ep("GET", "/remote/board-payload", "The snapshot board payload for a conversation (same builder the remote frame uses)", params: ["conversationId?:string"], example: "…/remote/board-payload")
         ep("POST", "/share-card", "Generate a page share card (first-screen snapshot + title/domain + optional side-model summary) and save it to Downloads", params: ["index?:int (tab; default selected)", "summarize?:bool (default true)"], example: #"-d '{"summarize":false}'"#)
+        ep("POST", "/selection/assist", "Run the selection in-place card once (side-model streaming; no conversation messages created)", params: ["text:string", "mode?:auto|explain|translate|dictionary"], example: #"-d '{"text":"serendipity"}'"#)
         ep("GET", "/board/gallery", "Whiteboard template gallery index (community)", params: ["baseURL?:string (default https://desire.mankong.icu/gallery/; E2E uses a fixture)"], example: "…/board/gallery")
         ep("POST", "/board/gallery/import", "Import a community template into the whiteboard", params: ["id:string", "mode?:auto|append|replace (auto = set when empty else append)", "baseURL?:string", "conversationId?:uuid"], example: #"-d '{"id":"swot"}'"#)
         ep("GET", "/remote/status", "E2E/automation: remote state incl. active pairing code + session key (LOCAL DEV BRIDGE ONLY — never expose beyond localhost)", example: "…/remote/status")
@@ -1846,6 +1847,11 @@ final class AutomationServer {
             case ("POST", "/remote/mark-seen"):
                 AppState.live?.remoteControlStore.markRemoteSeen(Self.string(body, "conversationId"))
                 return try Self.json(["ok": true])
+            case ("POST", "/selection/assist"):
+                // 划词就地卡（v0.7.25 旗舰）：旁路流式一次（不产生会话消息）。
+                return try Self.json(await Self.selectionAssist(
+                    text: Self.string(body, "text") ?? "",
+                    mode: Self.string(body, "mode") ?? "auto"))
             case ("GET", "/board/gallery"):
                 return try Self.json(await Self.boardGalleryList(base: Self.string(query, "baseURL")))
             case ("POST", "/board/gallery/import"):
@@ -6817,6 +6823,27 @@ final class AutomationServer {
 
     /// 当前会话白板的**快照载荷**（v0.7.23 跨端可读化）：与 RemoteControlStore
     /// 发送的 board 帧同源同构建——探针/两端契约断言用。
+    /// 划词就地卡（v0.7.25，桥 = 服务同源；同一 stream 路径）。
+    private static func selectionAssist(text: String, mode: String) async -> [String: Any] {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return ["error": "Missing text"] }
+        let requested: SelectionAssistMode?
+        switch mode {
+        case "auto": requested = nil
+        case "explain": requested = .explain
+        case "translate": requested = .translate
+        case "dictionary": requested = .dictionary
+        default: return ["error": "mode must be auto | explain | translate | dictionary"]
+        }
+        let effective = requested ?? SelectionAssistMode.detect(trimmed)
+        do {
+            let result = try await SelectionAssistService.stream(text: trimmed, mode: effective, onDelta: { _ in })
+            return ["ok": true, "mode": effective.rawValue, "text": result, "chars": result.count]
+        } catch {
+            return ["error": error.localizedDescription]
+        }
+    }
+
     /// 社区模板列表/导入（v0.7.24，桥 = 服务同源；E2E 用 baseURL 指 fixture）。
     private static func boardGalleryList(base: String?) async -> [String: Any] {
         do {

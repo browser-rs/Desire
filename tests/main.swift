@@ -488,6 +488,24 @@ do {
           LoginWallAdvisory.advise(hasVisiblePasswordField: true, hasLoginWords: true) == pw)
 }
 
+// ---------- 划词就地卡模式（v0.7.25）----------
+
+do {
+    check("划词卡：CJK 短词 → 词典", SelectionAssistMode.detect("拼音") == .dictionary)
+    check("划词卡：CJK 句子 → 解释", SelectionAssistMode.detect("这是一段完整的句子。") == .explain)
+    check("划词卡：拉丁单词 → 词典", SelectionAssistMode.detect("serendipity") == .dictionary)
+    check("划词卡：拉丁短语 → 解释", SelectionAssistMode.detect("hello world") == .explain)
+    check("划词卡：超长单词不判词典", SelectionAssistMode.detect(String(repeating: "a", count: 40)) == .explain)
+    check("划词卡：空文本 → 解释", SelectionAssistMode.detect("   ") == .explain)
+    check("划词卡：解释提示词含原文",
+          SelectionAssistMode.userPrompt(for: "内容", mode: .explain).contains("内容"))
+    check("划词卡：翻译提示词只输出译文",
+          SelectionAssistMode.userPrompt(for: "x", mode: .translate).contains("只输出译文"))
+    check("划词卡：词典系统提示含例句要求",
+          SelectionAssistMode.systemPrompt(for: .dictionary).contains("example"))
+    check("划词卡：三模式标题齐", SelectionAssistMode.allCases.map(\.title) == ["解释", "翻译", "词典"])
+}
+
 // ---------- DPP 一键上板（0.6.9：pageExtract 结果 → 白板块）----------
 
 do {

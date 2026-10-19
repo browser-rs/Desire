@@ -373,6 +373,41 @@ do {
     check("PDF 布局：NaN 防护", WhiteboardPDFLayout.slices(scaledHeight: .nan).isEmpty)
 }
 
+// ---------- OCR 表格重建（v0.7.24）----------
+
+do {
+    func line(_ t: String, x: Double, w: Double, y: Double) -> OCRTableDetector.Line {
+        OCRTableDetector.Line(text: t, minX: x, maxX: x + w, centerY: y, height: 0.03)
+    }
+    let table = OCRTableDetector.markdownTable(from: [
+        line("列一", x: 0.10, w: 0.10, y: 0.100), line("列二", x: 0.40, w: 0.10, y: 0.105),
+        line("a",   x: 0.10, w: 0.05, y: 0.200), line("b",   x: 0.40, w: 0.05, y: 0.200),
+    ])
+    check("OCR 表格：2×2 重建", table == "| 列一 | 列二 |\n| --- | --- |\n| a | b |")
+    check("OCR 表格：散文不误判", OCRTableDetector.markdownTable(from: [
+        line("这是一行普通文字", x: 0.10, w: 0.80, y: 0.10),
+        line("另一行普通文字", x: 0.10, w: 0.80, y: 0.20),
+    ]) == nil)
+    check("OCR 表格：列不对齐拒绝", OCRTableDetector.markdownTable(from: [
+        line("a", x: 0.10, w: 0.05, y: 0.10), line("b", x: 0.40, w: 0.05, y: 0.10),
+        line("c", x: 0.70, w: 0.05, y: 0.20), line("d", x: 0.40, w: 0.05, y: 0.20),
+    ]) == nil)
+    check("OCR 表格：单行拒绝", OCRTableDetector.markdownTable(from: [
+        line("a", x: 0.10, w: 0.05, y: 0.10), line("b", x: 0.40, w: 0.05, y: 0.10),
+    ]) == nil)
+    let three = OCRTableDetector.markdownTable(from: [
+        line("h1", x: 0.10, w: 0.06, y: 0.10), line("h2", x: 0.40, w: 0.06, y: 0.10),
+        line("a|b", x: 0.10, w: 0.06, y: 0.20), line("c", x: 0.40, w: 0.06, y: 0.20),
+        line("d", x: 0.10, w: 0.06, y: 0.30), line("e", x: 0.40, w: 0.06, y: 0.30),
+    ])
+    check("OCR 表格：3 行 + 管道转义",
+          three?.contains("a\\|b") == true && three?.components(separatedBy: "\n").count == 4)
+    check("OCR 表格：行内 y 抖动聚类", OCRTableDetector.markdownTable(from: [
+        line("x", x: 0.10, w: 0.05, y: 0.100), line("y", x: 0.40, w: 0.05, y: 0.112),
+        line("z", x: 0.10, w: 0.05, y: 0.200), line("w", x: 0.40, w: 0.05, y: 0.203),
+    ]) != nil)
+}
+
 // ---------- DPP 一键上板（0.6.9：pageExtract 结果 → 白板块）----------
 
 do {

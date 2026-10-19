@@ -281,7 +281,7 @@ final class ScreenshotOverlayView: NSView {
         switch tool {
         case .select:
             handleSelectToolDown(point: point)
-        case .rectangle, .ellipse, .arrow, .brush, .mosaic:
+        case .rectangle, .ellipse, .arrow, .brush, .mosaic, .magnifier:
             handleShapeToolDown(point: point, tool: tool)
         case .text:
             handleTextToolDown(point: point)
@@ -356,7 +356,7 @@ final class ScreenshotOverlayView: NSView {
 
         case .drawingAnnotation(let tool):
             guard var ann = currentAnnotation else { break }
-            if tool == .rectangle || tool == .ellipse || tool == .arrow {
+            if tool == .rectangle || tool == .ellipse || tool == .arrow || tool == .magnifier {
                 if ann.points.count >= 2 {
                     ann.points[1] = point
                 } else {
@@ -394,7 +394,7 @@ final class ScreenshotOverlayView: NSView {
         case .drawingAnnotation(let tool):
             if let ann = currentAnnotation {
                 var valid = true
-                if tool == .rectangle || tool == .ellipse || tool == .arrow {
+                if tool == .rectangle || tool == .ellipse || tool == .arrow || tool == .magnifier {
                     if ann.points.count >= 2 {
                         let p1 = ann.points[0]
                         let p2 = ann.points[1]
@@ -708,22 +708,34 @@ final class ScreenshotOverlayView: NSView {
         Task { @MainActor in
             defer { toolbarModel.ocrInProgress = false }
             let text: String
+            var tableMarkdown: String?
             do {
-                text = try await VisionOCRService.recognize(image: crop).text
+                let result = try await VisionOCRService.recognize(image: crop)
+                text = result.text
+                // 表格重建（v0.7.24）：识别出规则表格才给"复制表格"入口。
+                tableMarkdown = OCRTableDetector.markdownTable(
+                    from: VisionOCRService.tableLines(from: result))
             } catch {
                 text = error.localizedDescription
             }
-            showOCRPanel(text: text)
+            showOCRPanel(text: text, tableMarkdown: tableMarkdown)
         }
     }
 
-    private func showOCRPanel(text: String) {
+    private func showOCRPanel(text: String, tableMarkdown: String?) {
         dismissOCRPanel()
         let panelView = ScreenshotOCRPanel(
             text: text,
+            tableMarkdown: tableMarkdown,
             onCopy: { [weak self] in
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(text, forType: .string)
+                self?.dismissOCRPanel()
+            },
+            onCopyTable: { [weak self] in
+                guard let tableMarkdown else { return }
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(tableMarkdown, forType: .string)
                 self?.dismissOCRPanel()
             },
             onToWhiteboard: { [weak self] in

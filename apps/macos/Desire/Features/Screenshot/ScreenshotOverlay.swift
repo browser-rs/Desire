@@ -46,7 +46,8 @@ struct ScreenshotToolbar: View {
         .init(tool: .brush,      icon: "pencil",               help: "Brush"),
         .init(tool: .mosaic,     icon: "square.grid.3x3",      help: "Mosaic"),
         .init(tool: .text,       icon: "textformat",           help: "Text"),
-        .init(tool: .number,     icon: "number.circle",        help: "Number")
+        .init(tool: .number,     icon: "number.circle",        help: "Number"),
+        .init(tool: .magnifier,  icon: "magnifyingglass",      help: "Magnifier")
     ]
 
     /// Stroke width presets (points): thin / medium / thick.
@@ -114,7 +115,7 @@ struct ScreenshotToolbar: View {
                     }
                 }
             )
-        case .arrow, .brush, .mosaic:
+        case .arrow, .brush, .mosaic, .magnifier:
             return AnyView(
                 HStack(spacing: 4) {
                     ForEach(strokeOptions, id: \.width) { opt in
@@ -276,7 +277,10 @@ struct ScreenshotToolbar: View {
 struct ScreenshotOCRPanel: View {
     @Environment(\.appAccent) private var appAccent: Color
     let text: String
+    /// 识别出规则表格时的 Markdown 重建（v0.7.24）；nil = 无表格入口。
+    var tableMarkdown: String? = nil
     let onCopy: () -> Void
+    var onCopyTable: () -> Void = {}
     let onToWhiteboard: () -> Void
     let onClose: () -> Void
 
@@ -307,6 +311,11 @@ struct ScreenshotOCRPanel: View {
                 Button("复制") { onCopy() }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                if tableMarkdown != nil {
+                    Button("复制表格") { onCopyTable() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
                 Button("进白板") { onToWhiteboard() }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)

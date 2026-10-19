@@ -18,6 +18,8 @@ enum ScreenshotTool: Int, Codable, Sendable {
     case mosaic
     case text
     case number
+    /// 放大镜（v0.7.24）：拖框选源区域 → 圆形镜头 2× 放大（中心为锚）。
+    case magnifier
 }
 
 /// A resize handle on the selection rect. Used for hit-testing during mouseDown.

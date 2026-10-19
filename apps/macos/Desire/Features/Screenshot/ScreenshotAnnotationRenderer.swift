@@ -130,6 +130,35 @@ enum ScreenshotAnnotationRenderer {
             ctx.clip()
             ctx.draw(mosaicCG, in: CGRect(origin: .zero, size: mosaicSource.size))
 
+        case .magnifier:
+            // 放大镜（v0.7.24）：拖框 = 源区域；镜头 = 框中心的圆（直径 = 框长边，
+            // 下限 24pt），内容 = 源图以中心为锚 2× 放大，圆环描边收边。
+            guard annotation.points.count >= 2, let mosaicSource else { break }
+            guard let sourceCG = mosaicSource.cgImage(forProposedRect: nil, context: nil, hints: nil) else { break }
+            let p1 = annotation.points[0]
+            let p2 = annotation.points[1]
+            let sourceRect = CGRect(
+                x: min(p1.x, p2.x),
+                y: min(p1.y, p2.y),
+                width: abs(p2.x - p1.x),
+                height: abs(p2.y - p1.y)
+            )
+            let diameter = max(max(sourceRect.width, sourceRect.height), 24)
+            let radius = diameter / 2
+            let center = CGPoint(x: sourceRect.midX, y: sourceRect.midY)
+            let lensRect = CGRect(x: center.x - radius, y: center.y - radius,
+                                  width: diameter, height: diameter)
+            ctx.saveGState()
+            ctx.addEllipse(in: lensRect)
+            ctx.clip()
+            ctx.translateBy(x: center.x, y: center.y)
+            ctx.scaleBy(x: 2, y: 2)
+            ctx.translateBy(x: -center.x, y: -center.y)
+            ctx.draw(sourceCG, in: CGRect(origin: .zero, size: mosaicSource.size))
+            ctx.restoreGState()
+            ctx.setLineWidth(max(2, annotation.strokeWidth))
+            ctx.strokeEllipse(in: lensRect)
+
         case .text:
             guard let text = annotation.text, !text.isEmpty, !annotation.points.isEmpty else { break }
             let point = annotation.points[0]

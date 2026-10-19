@@ -10,6 +10,9 @@ enum VisionOCRService {
         var lines: [String]
         /// 合并文本（行以换行连接）。
         var text: String
+        /// 每行的归一化包围盒（Vision 原生坐标：左下原点、0-1），与 lines 对齐
+        ///（v0.7.24：表格重建用）。
+        var boxes: [CGRect] = []
     }
 
     enum OCRError: LocalizedError {
@@ -26,7 +29,7 @@ enum VisionOCRService {
     /// 闭包里，只有 [String]（Sendable）过隔离边界。精确档大图可能上百毫秒，
     /// 不能占主线程。
     static func recognize(cgImage: CGImage) async throws -> Result {
-        let lines: [String] = try await withCheckedThrowingContinuation { continuation in
+        let pairs: [(String, CGRect)] = try await withCheckedThrowingContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 do {
                     let request = VNRecognizeTextRequest()
@@ -35,17 +38,28 @@ enum VisionOCRService {
                     request.usesLanguageCorrection = true
                     let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
                     try handler.perform([request])
-                    let text = (request.results ?? []).compactMap {
-                        $0.topCandidates(1).first?.string
-                    }.filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-                    continuation.resume(returning: text)
+                    let pairs = (request.results ?? []).compactMap { observation -> (String, CGRect)? in
+                        guard let candidate = observation.topCandidates(1).first else { return nil }
+                        guard !candidate.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+                        return (candidate.string, observation.boundingBox)
+                    }
+                    continuation.resume(returning: pairs)
                 } catch {
                     continuation.resume(throwing: error)
                 }
             }
         }
-        guard !lines.isEmpty else { throw OCRError.noText }
-        return Result(lines: lines, text: lines.joined(separator: "\n"))
+        guard !pairs.isEmpty else { throw OCRError.noText }
+        return Result(lines: pairs.map(\.0), text: pairs.map(\.0).joined(separator: "\n"),
+                      boxes: pairs.map(\.1))
+    }
+
+    /// 表格检测输入（top-down 归一化——Vision 是左下原点，这里翻转 y）。
+    static func tableLines(from result: Result) -> [OCRTableDetector.Line] {
+        zip(result.lines, result.boxes).map { text, box in
+            OCRTableDetector.Line(text: text, minX: box.minX, maxX: box.maxX,
+                                  centerY: 1 - box.midY, height: box.height)
+        }
     }
 
     static func recognize(image: NSImage) async throws -> Result {

@@ -58,6 +58,45 @@ if [ "$WANT_BUILD" = 1 ]; then
     if [ "$W" = "0" ]; then echo "  ✓ 零警告"; else
       echo "  ✗ $W 条警告："; grep -E "warning:" /tmp/precheck-build.log | head -5; FAIL=1; fi
   else echo "  ✗ 构建失败"; grep -E "error:" /tmp/precheck-build.log | head -5; FAIL=1; fi
+  # 产物启动验证（2026-10-20 反思落地）：非 DerivedData 路径启动 + **主窗就绪** +
+  # 优雅退出。零警告只证明"编得出来"，主窗竞态/Keychain ACL 这类问题只有真启动才暴露。
+  if [ "$FAIL" = "0" ]; then
+    APP="$DD/Build/Products/Release/Desire.app"
+    if [ -d "$APP" ]; then
+      echo "  ── 产物启动验证（主窗 + 优雅退出）──"
+      pkill -9 -x Desire 2>/dev/null || true; sleep 2
+      open "$APP" --args --automation
+      READY=0
+      for _ in $(seq 1 40); do
+        N=$(curl -s -m 2 http://127.0.0.1:8799/state 2>/dev/null | python3 -c 'import json,sys
+try: print(len(json.load(sys.stdin).get("tabs",[])))
+except Exception: print(0)' 2>/dev/null || echo 0)
+        if [ "${N:-0}" -ge 1 ]; then READY=1; break; fi
+        sleep 1
+      done
+      if [ "$READY" != 1 ]; then
+        echo "  （主窗未就绪——重开一次）"
+        pkill -9 -x Desire 2>/dev/null || true; sleep 3
+        open "$APP" --args --automation
+        for _ in $(seq 1 40); do
+          N=$(curl -s -m 2 http://127.0.0.1:8799/state 2>/dev/null | python3 -c 'import json,sys
+try: print(len(json.load(sys.stdin).get("tabs",[])))
+except Exception: print(0)' 2>/dev/null || echo 0)
+          if [ "${N:-0}" -ge 1 ]; then READY=1; break; fi
+          sleep 1
+        done
+      fi
+      if [ "$READY" = 1 ]; then echo "  ✓ 启动后主窗就绪"
+      else echo "  ✗ 启动后主窗未就绪（重开一次仍无）"; FAIL=1; fi
+      osascript -e 'quit app "Desire"' >/dev/null 2>&1 || true
+      sleep 3
+      if pgrep -x Desire >/dev/null 2>&1; then
+        echo "  ✗ 优雅退出失败（进程仍在）"; pkill -9 -x Desire 2>/dev/null || true; FAIL=1
+      else echo "  ✓ 优雅退出"; fi
+    else
+      echo "  ✗ 找不到 Release 产物：$APP"; FAIL=1
+    fi
+  fi
   rm -rf "$DD"
 fi
 

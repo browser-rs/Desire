@@ -1015,11 +1015,17 @@ Features/Bookmarks/
 失败续跑 `--from <阶段>`；正文预览 `body <tag>`（与 CI release.yml 共用
 `scripts/install-note.template.md`）。
 
-**发布日的标准序（人只做三步）**：
-1. 写 CHANGELOG 的 `## [vX.Y.Z]` 段（`scripts/changelog.py add`）+ 手工冻结提交。
-2. 在干净树跑完整套件：`python3 tests/execution-e2e.py`（约 15 分钟；**全绿收尾
-   自动写套件戳 `.git/desire-e2e-stamp`**）。
-3. `printf 'y\n' | scripts/release.sh <版本号>` 后台跑、只盯日志。
+**发布日 checklist（2026-10-20 反思定稿；顺序不可换——"先验后发，发版是终态动作"）**：
+1. 代码/文档全部冻结；写 CHANGELOG 条目（`scripts/changelog.py add`）。
+2. **完整预检**：`tools/pre-release-check.sh <版本> --build`——干净树/单测/结构/查重/
+   零警告 clean 构建/**产物主窗就绪 + 优雅退出**（非 DerivedData 路径）。
+3. 在干净树跑完整套件：`python3 tests/execution-e2e.py`（约 15 分钟；全绿自动写套件戳）。
+   **套件之后只许改白名单文件**（CHANGELOG/website/docs/scripts/tools/AGENTS/pbxproj）；
+   动了 app 代码 = 重跑套件。
+4. `printf 'y\n' | scripts/release.sh <版本号>` 后台跑、只盯日志（CHANGELOG 冻结由
+   prep 自动完成，无需手工改名）。
+5. 发版后：产品页部署提醒（手工步）；**报时先给发版日总预算 ≈ 30 分钟（含套件）**，
+   再拆阶段；长等待给阶段 ETA。耗时/问题自动记入 `docs/RELEASE-RETRO.md`，发版后补反思。
 
 **每道闸门都是真踩过的坑（别删别绕）**：
 - **gates（2026-10-19 立，v0.7.24 事故后）**：干净树 / CHANGELOG 结构 / 纯逻辑

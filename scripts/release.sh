@@ -13,6 +13,10 @@
 #   scripts/release.sh body v0.7.24        # 只打印该 tag 的 release 正文（调试用）
 #
 # 阶段：gates → prep → build → ci → package → publish → verify
+#   构建快路径（2026-10-20）：预检 --build 全绿会写 .git/desire-build-stamp；发版
+#   时若同一份源码已有 clean 零警告构建 → 复用其 DerivedData 只做增量重链接
+#   （版本号变化由增量拾取）——发版动作因此 ~8 分钟。删掉 .git/desire-build-stamp
+#   即回退到 clean build。
 #   （2026-10-20 精简：**删掉 smoke**——它与 verify 的"非 DerivedData 启动+桥探活"
 #    完全冗余，verify 从打包产物启动覆盖面更全。ci 在套件戳覆盖 HEAD 时自动跳过；
 #    prep 自动冻结 CHANGELOG；退出时自动把阶段耗时记入 docs/RELEASE-RETRO.md。）
@@ -99,7 +103,7 @@ fi
 
 TAG="v$V"
 DD="/tmp/dd-release-$V"
-SMOKE_DIR="/tmp/dd-release-smoke-$V"
+X86DD="/tmp/dd-release-$V-x86"
 ARTDIR="/tmp/desire-release-$V"
 APP="$DD/Build/Products/Release/Desire.app"
 
@@ -200,6 +204,26 @@ stamp_summary() {
   [ -z "$changes" ] || return 2
   printf '%s %s' "$sha" "$meta"
   return 0
+}
+
+# 构建戳（2026-10-20）：tools/pre-release-check.sh --build 全绿后写
+# .git/desire-build-stamp。release.sh 的 build 阶段据此判断"同一份源码已经过
+# clean 零警告构建"——复用其 DerivedData 做**增量重链接**（版本号变化只需重链接），
+# 不再重复 clean 构建。白名单同套件戳（pbxproj 在名单内：版本号变化靠增量拾取）。
+BUILD_STAMP_PATH=".git/desire-build-stamp"
+build_stamp_covers_head() {
+  [ -f "$BUILD_STAMP_PATH" ] || return 1
+  local sha changes
+  sha=$(awk '{print $1}' "$BUILD_STAMP_PATH")
+  git cat-file -e "${sha}^{commit}" 2>/dev/null || return 1
+  changes=$(git diff --name-only "${sha}..HEAD" | while IFS= read -r f; do
+    if [[ "$f" != "CHANGELOG.md" && "$f" != website/* && "$f" != docs/* \
+       && "$f" != scripts/* && "$f" != tools/* && "$f" != "AGENTS.md" \
+       && "$f" != "apps/macos/Desire.xcodeproj/project.pbxproj" ]]; then
+      printf '%s\n' "$f"
+    fi
+  done)
+  [ -z "$changes" ]
 }
 
 # prep 自动冻结（2026-10-20）：[Unreleased] 有条目就自动改名 vX.Y.Z（今天）并
@@ -427,7 +451,44 @@ warn_gate() {  # warn_gate <logfile> <label> —— 零警告闸门（路径在 
   fi
 }
 
+# 快路径：复用预检的 clean 构建（同一份源码、零警告已验证过）→ 只做增量重链接。
+# 版本号变化（pbxproj）由增量构建拾取；产物版本仍强制核对。
+stage_build_incremental() {
+  log "build：复用预检 clean 构建（增量重链接；零警告已在预检阶段验证）"
+  DD="/tmp/dd-precheck"
+  X86DD="/tmp/dd-precheck-x86"
+  APP="$DD/Build/Products/Release/Desire.app"
+  local logfile="/tmp/dd-release-$V-build.log"
+  xcodebuild -project apps/macos/Desire.xcodeproj -scheme Desire -configuration Release \
+    -derivedDataPath "$DD" build 2>&1 | tee "$logfile" | grep -E "BUILD (SUCCEEDED|FAILED)" || true
+  grep -q "BUILD SUCCEEDED" "$logfile" || die "增量构建失败，日志在 $logfile（急救：删 .git/desire-build-stamp 走 clean）"
+  warn_gate "$logfile" "arm64（增量）"
+  local ver
+  ver=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
+  [ "$ver" = "$V" ] || die "增量产物版本是 ${ver}，不是 ${V}（版本号未被增量拾取）"
+  echo "构建 ✓ ${APP}（版本 ${ver}，增量）"
+  if [ "$WITH_X86" = 1 ]; then
+    local log86="/tmp/dd-release-$V-x86-build.log"
+    xcodebuild -project apps/macos/Desire.xcodeproj -scheme Desire -configuration Release \
+      -derivedDataPath "$X86DD" -destination 'platform=macOS' \
+      ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO COMPILER_INDEX_STORE_ENABLE=NO \
+      build 2>&1 | tee "$log86" | grep -E "BUILD (SUCCEEDED|FAILED)" || true
+    grep -q "BUILD SUCCEEDED" "$log86" || die "x86_64 增量构建失败，日志在 ${log86}"
+    warn_gate "$log86" "x86_64（增量）"
+    local ver86
+    ver86=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$X86DD/Build/Products/Release/Desire.app/Contents/Info.plist")
+    [ "$ver86" = "$V" ] || die "x86 增量产物版本是 ${ver86}，不是 ${V}"
+    echo "x86_64 构建 ✓（增量）"
+  fi
+}
+
 stage_build() {
+  if build_stamp_covers_head \
+     && [ -d "/tmp/dd-precheck/Build/Products/Release/Desire.app" ] \
+     && { [ "$WITH_X86" != 1 ] || [ -d "/tmp/dd-precheck-x86/Build/Products/Release/Desire.app" ]; }; then
+    stage_build_incremental
+    return 0
+  fi
   log "build：clean Release 构建（零警告闸门）"
   rm -rf "$DD"
   local logfile="/tmp/dd-release-$V-build.log"
@@ -442,16 +503,16 @@ stage_build() {
 
   if [ "$WITH_X86" = 1 ]; then
     echo "── x86_64 交叉构建（Intel 包）──"
-    rm -rf "/tmp/dd-release-$V-x86"
+    rm -rf "$X86DD"
     local log86="/tmp/dd-release-$V-x86-build.log"
     xcodebuild -project apps/macos/Desire.xcodeproj -scheme Desire -configuration Release \
-      -derivedDataPath "/tmp/dd-release-$V-x86" -destination 'platform=macOS' \
+      -derivedDataPath "$X86DD" -destination 'platform=macOS' \
       ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO COMPILER_INDEX_STORE_ENABLE=NO \
       clean build 2>&1 | tee "$log86" | grep -E "BUILD (SUCCEEDED|FAILED)" || true
     grep -q "BUILD SUCCEEDED" "$log86" || die "x86_64 构建失败，日志在 ${log86}（修完重跑；急救可 --from build --no-x86_64 先发 arm64）"
     warn_gate "$log86" "x86_64"
     local ver86
-    ver86=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "/tmp/dd-release-$V-x86/Build/Products/Release/Desire.app/Contents/Info.plist")
+    ver86=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$X86DD/Build/Products/Release/Desire.app/Contents/Info.plist")
     [ "$ver86" = "$V" ] || die "x86_64 构建产物版本是 ${ver86}，不是 ${V}"
     echo "x86_64 构建 ✓"
   fi
@@ -462,7 +523,7 @@ stage_package() {
   rm -rf "$ARTDIR"; mkdir -p "$ARTDIR"
   ditto -c -k --keepParent "$APP" "$ARTDIR/Desire-$TAG-macos-arm64.zip"
   if [ "$WITH_X86" = 1 ]; then
-    local app86="/tmp/dd-release-$V-x86/Build/Products/Release/Desire.app"
+    local app86="$X86DD/Build/Products/Release/Desire.app"
     [ -d "$app86" ] || die "x86_64 构建产物缺失（${app86}）——从 build 阶段重跑，或 --from package --no-x86_64"
     ditto -c -k --keepParent "$app86" "$ARTDIR/Desire-$TAG-macos-x86_64.zip"
   fi

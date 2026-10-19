@@ -50,14 +50,30 @@ else echo "  (跳过——未传版本号)"; fi
 
 if [ "$WANT_BUILD" = 1 ]; then
   echo "── +clean Release 构建（零警告；--build）"
-  DD="/tmp/dd-precheck-$(date +%s)"
+  # 固定 DD（2026-10-20）：预检的 clean 构建**留作发版复用**——release.sh 的 build
+  # 阶段发现构建戳覆盖 HEAD 时改为"增量重链接"（版本号变化只需重链接），不再重复
+  # clean 构建（发版动作因此 ~8 分钟）。零警告与产物启动都在这一阶段付一次。
+  DD="/tmp/dd-precheck"
+  DD86="/tmp/dd-precheck-x86"
+  rm -rf "$DD" "$DD86"
   if xcodebuild -project apps/macos/Desire.xcodeproj -scheme Desire \
       -configuration Release -derivedDataPath "$DD" clean build 2>&1 \
       | tee /tmp/precheck-build.log | grep -qE "BUILD SUCCEEDED"; then
     W=$(grep -E "warning:" /tmp/precheck-build.log | grep -v appintentsmetadataprocessor | wc -l | tr -d ' ')
-    if [ "$W" = "0" ]; then echo "  ✓ 零警告"; else
+    if [ "$W" = "0" ]; then echo "  ✓ arm64 零警告"; else
       echo "  ✗ $W 条警告："; grep -E "warning:" /tmp/precheck-build.log | head -5; FAIL=1; fi
   else echo "  ✗ 构建失败"; grep -E "error:" /tmp/precheck-build.log | head -5; FAIL=1; fi
+  if [ "$FAIL" = "0" ]; then
+    echo "  ── x86_64 clean 构建 ──"
+    if xcodebuild -project apps/macos/Desire.xcodeproj -scheme Desire \
+        -configuration Release -derivedDataPath "$DD86" -destination 'platform=macOS' \
+        ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO COMPILER_INDEX_STORE_ENABLE=NO clean build 2>&1 \
+        | tee /tmp/precheck-build86.log | grep -qE "BUILD SUCCEEDED"; then
+      W86=$(grep -E "warning:" /tmp/precheck-build86.log | grep -v appintentsmetadataprocessor | wc -l | tr -d ' ')
+      if [ "$W86" = "0" ]; then echo "  ✓ x86_64 零警告"; else
+        echo "  ✗ x86_64 $W86 条警告："; grep -E "warning:" /tmp/precheck-build86.log | head -5; FAIL=1; fi
+    else echo "  ✗ x86_64 构建失败"; grep -E "error:" /tmp/precheck-build86.log | head -5; FAIL=1; fi
+  fi
   # 产物启动验证（2026-10-20 反思落地）：非 DerivedData 路径启动 + **主窗就绪** +
   # 优雅退出。零警告只证明"编得出来"，主窗竞态/Keychain ACL 这类问题只有真启动才暴露。
   if [ "$FAIL" = "0" ]; then
@@ -97,7 +113,13 @@ except Exception: print(0)' 2>/dev/null || echo 0)
       echo "  ✗ 找不到 Release 产物：$APP"; FAIL=1
     fi
   fi
-  rm -rf "$DD"
+  # 构建戳（全绿才写）：release.sh 的 build 阶段据此复用上面的 clean 构建。
+  if [ "$FAIL" = "0" ]; then
+    printf '%s %s\n' "$(git rev-parse HEAD)" "$(date '+%Y-%m-%dT%H:%M:%S')" > .git/desire-build-stamp
+    echo "  ✓ 构建戳已写（$(git rev-parse --short HEAD)）——发版将增量复用"
+  else
+    rm -f .git/desire-build-stamp
+  fi
 fi
 
 echo ""

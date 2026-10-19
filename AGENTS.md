@@ -1024,8 +1024,12 @@ Features/Bookmarks/
    动了 app 代码 = 重跑套件。
 4. `printf 'y\n' | scripts/release.sh <版本号>` 后台跑、只盯日志（CHANGELOG 冻结由
    prep 自动完成，无需手工改名）。
-5. 发版后：产品页部署提醒（手工步）；**报时先给发版日总预算 ≈ 30 分钟（含套件）**，
-   再拆阶段；长等待给阶段 ETA。耗时/问题自动记入 `docs/RELEASE-RETRO.md`，发版后补反思。
+5. 发版后：产品页部署提醒（手工步）。**报时口径（2026-10-20 修正）**：
+   **发版动作 ≈ 6–7 分钟**（gates 1.5m + prep 10s + 增量 build ~20s + package 5s +
+   publish ~4m 资产上传 + verify 20s；增量 build 依赖预检写的
+   `.git/desire-build-stamp`，无戳自动回退 clean 构建 ~9m）；
+   **验证阶段独立、可提前做**：预检（clean 双架构+零警告+产物启动）≈13m + 套件 15m。
+   长等待给阶段 ETA。耗时/问题自动记入 `docs/RELEASE-RETRO.md`，发版后补反思。
 
 **每道闸门都是真踩过的坑（别删别绕）**：
 - **gates（2026-10-19 立，v0.7.24 事故后）**：干净树 / CHANGELOG 结构 / 纯逻辑

@@ -356,6 +356,23 @@ do {
     check("白板评论：旧载荷缺键 → nil", legacyPayload.comments == nil)
 }
 
+// ---------- 白板 PDF 分页布局（v0.7.24）----------
+
+do {
+    let contentH = WhiteboardPDFLayout.contentHeight
+    check("PDF 布局：空内容零页", WhiteboardPDFLayout.slices(scaledHeight: 0).isEmpty)
+    check("PDF 布局：恰满一页不溢出",
+          WhiteboardPDFLayout.pageCount(scaledHeight: contentH) == 1)
+    check("PDF 布局：略超一页 → 2 页",
+          WhiteboardPDFLayout.pageCount(scaledHeight: contentH + 1) == 2)
+    let three = WhiteboardPDFLayout.slices(scaledHeight: contentH * 2.5)
+    check("PDF 布局：2.5 页 → 3 页且末页半高",
+          three.count == 3 && abs(three[2].height - contentH * 0.5) < 0.001)
+    check("PDF 布局：切片连续无缝",
+          three[1].top == contentH && abs(three[2].top - contentH * 2) < 0.001)
+    check("PDF 布局：NaN 防护", WhiteboardPDFLayout.slices(scaledHeight: .nan).isEmpty)
+}
+
 // ---------- DPP 一键上板（0.6.9：pageExtract 结果 → 白板块）----------
 
 do {

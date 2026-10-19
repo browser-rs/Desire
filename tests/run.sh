@@ -52,6 +52,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/SecretRedactor.swift
   apps/macos/Desire/Features/Whiteboard/WhiteboardSpec.swift
   apps/macos/Desire/Features/Whiteboard/WhiteboardComment.swift
+  apps/macos/Desire/Features/Whiteboard/WhiteboardPDFLayout.swift
   apps/macos/Desire/Features/Whiteboard/WhiteboardHTMLExport.swift apps/macos/Desire/Features/Agent/ContextCompaction.swift
   apps/macos/Desire/Features/Agent/AgentTrace.swift
   apps/macos/Desire/App/FilePathing.swift

@@ -1185,6 +1185,20 @@ final class AutomationServer {
                     if format == "markdown" {
                         return try Self.json(["conversationId": conversationID ?? "", "markdown": board.markdownExport()])
                     }
+                    if format == "pdf" {
+                        // PDF 导出（v0.7.24）：A4 分页；空板明确报错。
+                        guard !board.blocks.isEmpty else {
+                            return try Self.json(["error": "board is empty"])
+                        }
+                        let result = try await WhiteboardPDFExport.pdfData(board: board)
+                        return try Self.json([
+                            "conversationId": conversationID ?? "",
+                            "format": "pdf",
+                            "title": board.title,
+                            "pages": result.pages,
+                            "base64": result.data.base64EncodedString(),
+                        ])
+                    }
                 }
                 return try Self.json([
                     "conversationId": conversationID ?? "",

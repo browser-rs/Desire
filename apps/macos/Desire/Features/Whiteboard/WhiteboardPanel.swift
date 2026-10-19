@@ -413,6 +413,8 @@ struct WhiteboardPanelView: View {
             .help("重做（⇧⌘Z）")
             CapsuleButton(systemName: "square.and.arrow.down", action: { exportPNG() })
                 .help("导出 PNG 到下载目录")
+            CapsuleButton(systemName: "doc.richtext", action: { exportPDF() })
+                .help("导出 PDF（A4 分页，适合打印/归档）")
             Menu {
                 Button("便签") { addBlock(WhiteboardBlock.Kind.note, "## 新便签\n- ") }
                 Button("Mermaid 导图/流程图") { addBlock(WhiteboardBlock.Kind.mermaid, "graph TD\n    A[节点] --> B[节点]") }
@@ -563,6 +565,23 @@ struct WhiteboardPanelView: View {
     /// cacheDisplay 对 WKWebView 的合成层不可靠（常拍出空白/缺内容）——
     /// 优先 takeSnapshot：先量出全内容高，rect 取整个文档区域（可超出
     /// 可视视口，WebKit 会渲染该区域），失败再回退 cacheDisplay。
+    private func exportPDF() {
+        exportStatus = "正在导出 PDF…"
+        Task { @MainActor in
+            do {
+                let result = try await WhiteboardPDFExport.pdfData(
+                    board: store.board(for: session.conversationId?.uuidString))
+                let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+                let url = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+                    .appendingPathComponent("白板-\(stamp).pdf")
+                try result.data.write(to: url)
+                exportStatus = "已存到下载目录 ✓（\(result.pages) 页）"
+            } catch {
+                exportStatus = "导出失败：\(error.localizedDescription)"
+            }
+        }
+    }
+
     private func exportPNG() {
         exportStatus = "正在导出…"
         Task { @MainActor in

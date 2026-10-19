@@ -12,7 +12,10 @@
 #   scripts/release.sh <版本号> --no-x86_64       # 跳过 Intel 包（默认 arm64+x86_64 双产物）
 #   scripts/release.sh body v0.7.24        # 只打印该 tag 的 release 正文（调试用）
 #
-# 阶段：gates → prep → build → ci → smoke → package → publish → verify
+# 阶段：gates → prep → build → ci → package → publish → verify
+#   （2026-10-20 精简：**删掉 smoke**——它与 verify 的"非 DerivedData 启动+桥探活"
+#    完全冗余，verify 从打包产物启动覆盖面更全。ci 在套件戳覆盖 HEAD 时自动跳过；
+#    prep 自动冻结 CHANGELOG；退出时自动把阶段耗时记入 docs/RELEASE-RETRO.md。）
 #   gates（2026-10-19 立）：干净树/CHANGELOG 结构/纯逻辑单测/远端查重/**套件戳**。
 #     教训（v0.7.24）：预检曾独立成脚本、靠人记得跑——修复提交后忘跑预检就直接
 #     发版的洞。现在闸门内置为第一站，永远跑在**最终提交**上。
@@ -51,6 +54,7 @@ CI_MODE="local"  # local（默认）：本地评估套件+cargo 闸门；auto：
 WITH_X86=1       # 1 = build/package/verify 追加 Intel（x86_64）产物；--no-x86_64 关
 VERIFY_DOWNLOAD=0  # 1 = verify 走真实重下载；默认快档（digest 三方 + 本地包冒烟）
 SKIP_E2E_STAMP=0   # 1 = 跳过套件戳校验（应急；会大字警告）
+FORCE_CI=0         # 1 = 即使套件戳覆盖 HEAD 也跑本地评估（--force-ci）
 
 usage() {
   sed -n '/^# 用法：/,/^#$/p' "$0" | sed 's/^# \?//'
@@ -66,6 +70,7 @@ while [ $# -gt 0 ]; do
     --ci) CI_MODE="${2:-}"; shift 2 ;;
     --no-x86_64) WITH_X86=0; shift ;;
     --verify-download) VERIFY_DOWNLOAD=1; shift ;;
+    --force-ci) FORCE_CI=1; shift ;;
     --skip-e2e-stamp) SKIP_E2E_STAMP=1; shift ;;
     body)  # body <tag>：只打印该 tag 的 release 正文
       [ $# -ge 2 ] || usage
@@ -149,6 +154,82 @@ assert_no_secret_artifacts() {
 
 # ── 阶段 ────────────────────────────────────────────────────
 
+# 套件戳校验（gates/ci 共用）：戳存在 + 其后提交只动白名单 → 0 并输出摘要；
+# 1 = 无戳/戳无效；2 = 戳后有代码改动。白名单 = 不影响 app 行为/套件覆盖面的
+# 文件（发版会动的 CHANGELOG/website/pbxproj + 不随 app 出货的 docs/scripts/
+# tools/AGENTS）；tests/ 与 crates/ 与 app 源码不在名单（改它们必须重跑套件）。
+STAMP_PATH=".git/desire-e2e-stamp"
+stamp_summary() {
+  [ -f "$STAMP_PATH" ] || return 1
+  local sha meta changes
+  sha=$(awk '{print $1}' "$STAMP_PATH")
+  meta=$(awk '{print $2" 于 "$3}' "$STAMP_PATH")
+  git cat-file -e "${sha}^{commit}" 2>/dev/null || return 1
+  # 别用 case——macOS 自带 bash 3.2 在 $( ) 里解析 case 会炸（实测）。
+  changes=$(git diff --name-only "${sha}..HEAD" | while IFS= read -r f; do
+    if [[ "$f" != "CHANGELOG.md" && "$f" != website/* && "$f" != docs/* \
+       && "$f" != scripts/* && "$f" != tools/* && "$f" != "AGENTS.md" \
+       && "$f" != "apps/macos/Desire.xcodeproj/project.pbxproj" ]]; then
+      printf '%s\n' "$f"
+    fi
+  done)
+  [ -z "$changes" ] || return 2
+  printf '%s %s' "$sha" "$meta"
+  return 0
+}
+
+# prep 自动冻结（2026-10-20）：[Unreleased] 有条目就自动改名 vX.Y.Z（今天）并
+# 提交——手工冻结这一步删掉，少一次人为顺序错误。
+auto_freeze_changelog() {
+  local today
+  today=$(date +%F)
+  if ! python3 - "$TAG" "$today" <<'PYF'
+import re, sys
+tag, today = sys.argv[1], sys.argv[2]
+p = "CHANGELOG.md"
+s = open(p).read()
+m = re.search(r"(?m)^## \[Unreleased\]\s*$", s)
+if not m:
+    sys.exit(1)
+head = m.end()
+nxt = re.search(r"(?m)^## \[", s[head:])
+end = head + nxt.start() if nxt else len(s)
+if not re.search(r"(?m)^- ", s[head:end]):
+    sys.exit(2)
+s = s[:m.start()] + f"## [{tag}] - {today}" + s[head:]
+open(p, "w").write(s)
+print(f"已自动冻结 {tag}（取 [Unreleased] 全段）")
+PYF
+  then die "自动冻结失败——CHANGELOG 里没有 [Unreleased] 条目，先写好发布说明"; fi
+  git add CHANGELOG.md
+  git commit -m "chore(release): freeze ${V} changelog section" >/dev/null
+}
+
+# ── 阶段计时 + 复盘自动入档（2026-10-20）──────────────
+STAGE_TIMINGS=()
+RETRO_DONE=0
+finish_retro() {
+  local outcome="$1" stamp t
+  [ "${RETRO_DONE:-0}" = "1" ] && return 0
+  RETRO_DONE=1
+  [ -n "${V:-}" ] || return 0
+  [ "${#STAGE_TIMINGS[@]}" -gt 0 ] || return 0
+  [ -f docs/RELEASE-RETRO.md ] || return 0
+  {
+    printf '\n### v%s — %s（%s）\n\n' "$V" "$outcome" "$(date '+%Y-%m-%d %H:%M')"
+    printf '| 阶段 | 耗时 |\n| --- | --- |\n'
+    for t in ${STAGE_TIMINGS[@]+"${STAGE_TIMINGS[@]}"}; do
+      printf '| %s | %s |\n' "${t%%:*}" "${t#*:}"
+    done
+    printf '\n（问题与反思待补。）\n'
+  } >> docs/RELEASE-RETRO.md
+  echo "阶段耗时已记入 docs/RELEASE-RETRO.md"
+  git add docs/RELEASE-RETRO.md >/dev/null 2>&1 || true
+  git commit -m "docs(release): retro timing v${V}" >/dev/null 2>&1 || true
+  git push origin main >/dev/null 2>&1 || true
+}
+trap 'rc=$?; if [ "$rc" -ne 0 ] && [ -z "${EXEC:-}" ]; then finish_retro "失败（exit $rc）"; fi' EXIT
+
 stage_gates() {
   log "gates：闸门（干净树 / 单测 / 结构 / 查重 / 套件戳）"
   assert_release_worktree_clean
@@ -171,29 +252,17 @@ stage_gates() {
     echo ""
     return 0
   fi
-  local stamp=".git/desire-e2e-stamp"
-  [ -f "$stamp" ] || die "没有套件戳——先在干净树跑完整套件（python3 tests/execution-e2e.py），或应急 --skip-e2e-stamp"
-  local stamp_sha stamp_meta
-  stamp_sha=$(awk '{print $1}' "$stamp")
-  stamp_meta=$(awk '{print $2" 于 "$3}' "$stamp")
-  git cat-file -e "${stamp_sha}^{commit}" 2>/dev/null || die "套件戳的提交 $stamp_sha 不在本仓库——重跑套件"
-  local code_changes
-  # 白名单 = 不会影响 app 行为也不影响套件覆盖面的文件：发版自身会动的
-  # （CHANGELOG/website/pbxproj）+ 不随 app 出货的（AGENTS/docs/scripts/tools）。
-  # tests/ 与 crates/ 与 app 源码**不在**名单——改它们必须重跑套件。
-  # 注：别用 case——macOS 自带 bash 3.2 在 $( ) 里解析 case 会炸（实测）。
-  code_changes=$(git diff --name-only "$stamp_sha..HEAD" | while IFS= read -r f; do
-    if [[ "$f" != "CHANGELOG.md" && "$f" != website/* && "$f" != docs/* \
-       && "$f" != scripts/* && "$f" != tools/* && "$f" != "AGENTS.md" \
-       && "$f" != "apps/macos/Desire.xcodeproj/project.pbxproj" ]]; then
-      printf '%s\n' "$f"
+  local summary
+  if summary=$(stamp_summary); then
+    echo "── 套件戳 ✓ ${summary}"
+  else
+    local rc=$?
+    if [ "$rc" = 2 ]; then
+      git diff --name-only "$(awk '{print $1}' "$STAMP_PATH")..HEAD" | head -5
+      die "套件戳之后的提交动了代码（见上）——必须重跑完整套件再发版（别拿旧戳发新版）"
     fi
-  done)
-  if [ -n "$code_changes" ]; then
-    printf '%s\n' "$code_changes" | head -5
-    die "套件戳之后的提交动了代码（见上）——必须重跑完整套件再发版（别拿旧戳发新版）"
+    die "没有可用的套件戳——先在干净树跑完整套件（python3 tests/execution-e2e.py），或应急 --skip-e2e-stamp"
   fi
-  echo "── 套件戳 ✓ ${stamp_sha:0:8}（${stamp_meta}）"
 }
 
 stage_prep() {
@@ -201,7 +270,9 @@ stage_prep() {
   assert_release_worktree_clean
   assert_no_secret_artifacts
   [ -f CHANGELOG.md ] || die "没有 CHANGELOG.md"
-  grep -qF "## [$TAG]" CHANGELOG.md || die "CHANGELOG.md 里没有 '## [$TAG]' 段——先写好发布说明再跑"
+  if ! grep -qF "## [$TAG]" CHANGELOG.md; then
+    auto_freeze_changelog
+  fi
   if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then die "本地已有 tag $TAG"; fi
   if gh release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then die "远端已有 release $TAG"; fi
 
@@ -294,6 +365,14 @@ run_local_suite() {
 stage_ci() {
   log "ci：HEAD 质量闸门（模式：${CI_MODE}"
   if [ "$SKIP_CI_CHECK" = 1 ]; then echo "（--skip-ci-check：完全跳过）"; return 0; fi
+  # 套件戳已覆盖 HEAD（含 189 项 UI 套件）→ 本地评估套件与之高度冗余，跳过。
+  # （--force-ci 强制；--ci gh 仍走远端。）
+  if [ "$CI_MODE" != "gh" ] && [ "$FORCE_CI" != 1 ]; then
+    if stamp_summary >/dev/null 2>&1; then
+      echo "── 套件戳已覆盖 HEAD（189 项 UI 套件）——跳过冗余本地评估（--force-ci 可强制）"
+      return 0
+    fi
+  fi
   if [ "$CI_MODE" = "local" ]; then run_local_suite; return 0; fi
 
   local sha run=""
@@ -354,23 +433,6 @@ stage_build() {
     [ "$ver86" = "$V" ] || die "x86_64 构建产物版本是 ${ver86}，不是 ${V}"
     echo "x86_64 构建 ✓"
   fi
-}
-
-stage_smoke() {
-  log "smoke：从非 DerivedData 路径启动 + 桥探活"
-  rm -rf "$SMOKE_DIR"; mkdir -p "$SMOKE_DIR"
-  ditto "$APP" "$SMOKE_DIR/Desire.app"
-  pkill -9 -x Desire 2>/dev/null || true; sleep 2
-  # 启动性能探针（0.6.4）：计时 open → 桥就绪，>10s 记警告（不拦发版——
-  # 首次启动含会话恢复/索引重建，噪声大；数值供版本间对账）。
-  SMOKE_START=$(python3 -c 'import time; print(time.time())')
-  open "$SMOKE_DIR/Desire.app" --args --automation
-  bridge_wait 30 || die "桥 30 秒内没起来（/state 无响应）——查 /usr/bin/log show --predicate 'process == \"Desire\"'"
-  python3 -c "import time; print(f'启动→桥就绪: {time.time()-$SMOKE_START:.1f}s（参考基线：开发机 0.8s；>10s 查日志分段）')"
-  curl -s -m 5 http://127.0.0.1:8799/agent/stats | grep -q "conversations" || die "/agent/stats 异常"
-  curl -s -m 5 http://127.0.0.1:8799/ai/profiles | grep -q "profiles" || die "/ai/profiles 异常"
-  app_quit
-  echo "冒烟 ✓（桥 + 统计 + 档案端点）"
 }
 
 stage_package() {
@@ -521,14 +583,18 @@ fi
 
 # ── 阶段调度 ────────────────────────────────────────────────
 
-ORDER=(gates prep build ci smoke package publish verify)
+ORDER=(gates prep build ci package publish verify)
 START=-1
 for i in "${!ORDER[@]}"; do
   if [ "${ORDER[$i]}" = "$FROM" ]; then START=$i; fi
 done
-[ "$START" -ge 0 ] || die "--from 未知阶段: $FROM (可选: gates prep build ci smoke package publish verify)"
+[ "$START" -ge 0 ] || die "--from 未知阶段: $FROM (可选: gates prep build ci package publish verify)"
 
 for i in "${!ORDER[@]}"; do
   if [ "$i" -lt "$START" ]; then continue; fi
-  "stage_${ORDER[$i]}"
+  _stage_name="${ORDER[$i]}"
+  _t0=$(date +%s)
+  "stage_${_stage_name}"
+  STAGE_TIMINGS+=("${_stage_name}:$(( $(date +%s) - _t0 ))s")
 done
+finish_retro "成功"

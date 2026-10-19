@@ -275,6 +275,17 @@ run_local_suite() {
   pkill -9 -x Desire 2>/dev/null || true; sleep 2
   open "$APP" --args --automation
   bridge_wait 30 || die "桥没起来（${APP}）"
+  # 评估套件需要**活的 Agent 会话**，而桥起来 ≠ 窗口/会话已注册（2026-10-20
+  # 实测：桥响应了但 /agent/send 报 no live agent session）。等 /agent/windows
+  # 出现至少一个注册会话再开跑。
+  local session_ready=0
+  for _ in $(seq 1 30); do
+    if curl -s -m 2 http://127.0.0.1:8799/agent/windows 2>/dev/null | grep -q '"id"'; then
+      session_ready=1; break
+    fi
+    sleep 1
+  done
+  [ "$session_ready" = 1 ] || die "Agent 会话未注册（窗口/场景未就绪）——重跑 $0 $V --from ci"
   python3 tests/agent-eval.py --cleanup || die "评估套件未过"
   app_quit
   echo "本地验证 ✓（gates 单测 + 评估套件）"

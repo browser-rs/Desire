@@ -99,6 +99,7 @@ SOURCES=(
   apps/macos/Desire/Features/Remote/RemoteBoardContent.swift
   apps/macos/Desire/Features/Sync/SyncConflictLabel.swift
   apps/macos/Desire/Features/Sync/SyncOnboardingSteps.swift
+  apps/macos/Desire/Features/Sync/WorkspaceSync.swift
   apps/macos/Desire/Features/Sync/SyncCrypto.swift
   apps/macos/Desire/Features/Sync/SyncMerge.swift
   apps/macos/Desire/Features/Sync/WhiteboardSync.swift

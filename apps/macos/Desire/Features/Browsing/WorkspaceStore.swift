@@ -23,13 +23,18 @@ final class WorkspaceStore: ObservableObject {
     }
 
     @Published private(set) var workspaces: [Workspace] = []
+    /// 显式删除的墓碑（云同步用，v0.7.25）：单独键持久化——不动既有
+    /// [Workspace] 数组的文件形状（旧文件零迁移）。
+    @Published private(set) var pendingDeletions: [UUID: Date] = [:]
 
     private static let storageKey = "workspaces"
+    private static let tombstonesKey = "workspaces.pendingDeletions"
 
     private init() {
         workspaces = DiskStore.load([Workspace].self, key: Self.storageKey)
             ?? []
         workspaces.sort { $0.savedAt > $1.savedAt }
+        pendingDeletions = DiskStore.load([UUID: Date].self, key: Self.tombstonesKey) ?? [:]
     }
 
     /// 保存当前窗口（TabManager）为命名工作区。同名覆盖（=更新）。
@@ -53,7 +58,33 @@ final class WorkspaceStore: ObservableObject {
 
     func remove(_ id: UUID) {
         workspaces.removeAll { $0.id == id }
+        pendingDeletions[id] = Date()   // 显式删除 → 同步墓碑
         persist()
+        persistTombstones()
+    }
+
+    /// 同步裁决后清已应用墓碑（冲突回包 = 服务端已裁决，同平铺域口径）。
+    func clearPendingDeletions(_ ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        for id in ids { pendingDeletions[id] = nil }
+        persistTombstones()
+    }
+
+    /// 同步写回（不进任何本地戳——savedAt 随载荷走；远端墓碑走 removeForSync）。
+    func replaceForSync(_ workspace: Workspace) {
+        workspaces.removeAll { $0.id == workspace.id }
+        workspaces.insert(workspace, at: 0)
+        workspaces.sort { $0.savedAt > $1.savedAt }
+        pendingDeletions[workspace.id] = nil   // 远端复活 = 撤销本端墓碑
+        persist()
+        persistTombstones()
+    }
+
+    func removeForSync(_ id: UUID) {
+        workspaces.removeAll { $0.id == id }
+        pendingDeletions[id] = nil
+        persist()
+        persistTombstones()
     }
 
     /// 恢复：新建 TabManager 装载工作区标签并成为当前窗口内容——由调用方
@@ -65,6 +96,10 @@ final class WorkspaceStore: ObservableObject {
 
     private func persist() {
         DiskStore.save(workspaces, key: Self.storageKey)
+    }
+
+    private func persistTombstones() {
+        DiskStore.save(pendingDeletions, key: Self.tombstonesKey)
     }
 
     private static let fallbackName = "Workspace"

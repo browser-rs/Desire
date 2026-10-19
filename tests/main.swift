@@ -506,6 +506,55 @@ do {
     check("划词卡：三模式标题齐", SelectionAssistMode.allCases.map(\.title) == ["解释", "翻译", "词典"])
 }
 
+// ---------- 工作区同步（v0.7.25 第十域）----------
+
+do {
+    let t0 = Date(timeIntervalSince1970: 10_000)
+    let tabs = [WorkspaceSync.TabPayload(url: "https://a.test/1", isOnNewTabPage: false, isPinned: true),
+                WorkspaceSync.TabPayload(url: nil, isOnNewTabPage: true, isPinned: false)]
+    let payload = WorkspaceSync.payload(id: "ws-1", name: "工作区 A", tabs: tabs,
+                                        selectedIndex: 1, savedAt: t0)
+    check("工作区同步：payload 组装", payload?.tabs.count == 2)
+    let data = try! JSONEncoder().encode(payload!)
+    let back = try! JSONDecoder().decode(WorkspaceSync.Payload.self, from: data)
+    check("工作区同步：编解码 round-trip", back == payload)
+    check("工作区同步：载荷不含 sessionState（类型即契约）",
+          !String(data: data, encoding: .utf8)!.contains("sessionState"))
+
+    func wire(_ p: WorkspaceSync.Payload, at: Date) -> SyncWireItem<WorkspaceSync.Payload> {
+        SyncWireItem(clientId: p.id, clientUpdatedAt: at, deleted: false, payload: p, updatedAt: nil)
+    }
+    // LWW：远端更新盖写；旧/同刻忽略
+    let newer = WorkspaceSync.Payload(id: "ws-1", name: "工作区 A2", tabs: tabs,
+                                      selectedIndex: 0, savedAt: t0.addingTimeInterval(100))
+    var merged = WorkspaceSync.apply(base: ["ws-1": payload!],
+                                     remote: [wire(newer, at: newer.savedAt)], tombstones: [:])
+    check("工作区同步：远端更新盖写", merged["ws-1"]?.name == "工作区 A2")
+    let older = WorkspaceSync.Payload(id: "ws-1", name: "旧", tabs: [], selectedIndex: 0,
+                                      savedAt: t0.addingTimeInterval(-50))
+    merged = WorkspaceSync.apply(base: merged, remote: [wire(older, at: older.savedAt)], tombstones: [:])
+    check("工作区同步：远端更旧忽略", merged["ws-1"]?.name == "工作区 A2")
+    merged = WorkspaceSync.apply(base: merged,
+                                 remote: [wire(newer, at: newer.savedAt)], tombstones: [:])
+    check("工作区同步：同刻忽略（幂等）", merged["ws-1"]?.name == "工作区 A2")
+
+    // 墓碑：比本地新 → 删；比本地旧（本端之后又存过）→ 本端赢
+    let tombNewer = WorkspaceSync.apply(base: merged, remote: [],
+                                        tombstones: ["ws-1": newer.savedAt.addingTimeInterval(10)])
+    check("工作区同步：新墓碑落地删除", tombNewer["ws-1"] == nil)
+    let tombOlder = WorkspaceSync.apply(base: merged, remote: [],
+                                        tombstones: ["ws-1": t0.addingTimeInterval(1)])
+    check("工作区同步：旧墓碑被本端赢", tombOlder["ws-1"] != nil)
+
+    // 体量护栏
+    let hugeTabs = (0..<400).map { _ in
+        WorkspaceSync.TabPayload(url: String(repeating: "u", count: 500),
+                                 isOnNewTabPage: false, isPinned: false)
+    }
+    check("工作区同步：超限返回 nil", WorkspaceSync.payload(id: "ws-h", name: "h",
+                                                         tabs: hugeTabs, selectedIndex: 0, savedAt: t0) == nil)
+}
+
 // ---------- DPP 一键上板（0.6.9：pageExtract 结果 → 白板块）----------
 
 do {

@@ -675,9 +675,10 @@ iOS 本地通知权限要懒请求（TCC 纪律）。
 
 ## v0.7.25 — 手边的智能（就地智能 + 跨端收口）
 
-> **实况（2026-10-19 开版）**：旗舰**划词就地卡已交付**（旁路流式三模式 +
-> 词典自动判定；harness 1052 全过、桥探针 7/7 真端点——“不烧回合”属性实证）。
-> 其余七件待做。
+> **实况（2026-10-19 更新）**：**两件已交付**——旗舰**划词就地卡**（旁路流式三模式 +
+> 词典自动判定；桥探针 7/7 真端点——“不烧回合”属性实证）+ **workspace 同步域**
+> （第十域，savedAt LWW/墓碑/剥 sessionState；harness 1061 全过；dev-server E2E 待）。
+> 其余六件待做。
 
 叙事：把"要用的东西"放在手边——划词就地出结果（不再绕道 Agent 面板烧回合）、
 跨端与跨窗口的资产补齐（标签组同步/全量历史可查/会话可接力/健康可见），
@@ -699,7 +700,7 @@ builtin 任务框架（v0.7.24）已有第一个（weeklyReport）；checkpointS
   （卡片状态机/文本裁剪/词级判定纯逻辑）。
 
 **主力件**
-1. **workspace 同步域（第十域）**：现状 = 九域已通、`WorkspaceStore`（标签组
+1. **workspace 同步域（第十域）✅ 已交付（2026-10-19，E2E 待）**：现状 = 九域已通、`WorkspaceStore`（标签组
    快照，Codable）仅本地；增量 = `SyncDomain.workspace` + adapter（collect/apply，
    savedAt LWW）+ 类目开关 + 桥；验收：harness（FlatSyncMerge 复用/编解码）+
    dev-server 双客户端 E2E。

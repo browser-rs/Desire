@@ -20,6 +20,8 @@ enum SyncDomain: String, CaseIterable {
     /// 白板（0.6.8 第九类，opt-in 默认关闭）：每会话一文档的 KV 域，板属个人
     /// 创作默认仅本机；image 块 data URI 不随同步传输（占位符 + 本地按块 UUID 回填）。
     case whiteboard
+    /// 工作区（v0.7.25 第十域）：标签组快照跨端；默认关（同白板——个人上下文）。
+    case workspace
 
     /// 展示名（键与设置页既有文案共用，目录里已有三语）。
     var displayName: String {
@@ -33,6 +35,7 @@ enum SyncDomain: String, CaseIterable {
         case .agentPrefs: String(localized: "Agent Prompt")
         case .history: String(localized: "Browsing History")
         case .whiteboard: String(localized: "Whiteboard")
+        case .workspace: String(localized: "Workspaces")
         }
     }
 }

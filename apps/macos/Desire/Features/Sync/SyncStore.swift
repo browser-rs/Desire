@@ -151,7 +151,7 @@ final class SyncStore: ObservableObject {
         for domain in SyncDomain.allCases {
             // opt-in 默认关：浏览历史（高频日志型 + 隐私敏感）、白板（板属个人
             // 创作，默认仅本机）；其余域默认开
-            let fallback = domain == .history || domain == .whiteboard ? false : true
+            let fallback = domain == .history || domain == .whiteboard || domain == .workspace ? false : true
             enabledDomains[domain] = defaults.object(forKey: enabledKey(domain)) as? Bool ?? fallback
         }
         // Keychain 三读移出主线程（同 AgentPreferenceStore：启动主线程的
@@ -201,6 +201,7 @@ final class SyncStore: ObservableObject {
         observeLocalChanges(agentMemoryStore.objectWillChange, domain: .agentMemory)
         observeLocalChanges(historyStore.objectWillChange, domain: .history)
         observeLocalChanges(WhiteboardStore.shared.objectWillChange, domain: .whiteboard)
+        observeLocalChanges(WorkspaceStore.shared.objectWillChange, domain: .workspace)
     }
 
     private func observeLocalChanges(
@@ -760,6 +761,7 @@ final class SyncStore: ObservableObject {
                           commit: { self.commitAgentPrefsSnapshot() }),
             DomainAdapter(domain: .history, collect: collectHistory, apply: applyHistory, clear: clearHistoryPending),
             DomainAdapter(domain: .whiteboard, collect: collectWhiteboards, apply: applyWhiteboards, clear: clearWhiteboardsPending),
+            DomainAdapter(domain: .workspace, collect: collectWorkspaces, apply: applyWorkspaces, clear: clearWorkspacePending),
         ]
     }
 
@@ -827,6 +829,7 @@ final class SyncStore: ObservableObject {
 
     var pendingTombstoneCounts: [SyncDomain: Int] {
         [
+            .workspace: WorkspaceStore.shared.pendingDeletions.count,
             .bookmarks: bookmarkStore.pendingDeletions.count,
             .quickDials: quickDialStore.pendingDeletions.count,
             .readingList: readingListStore.pendingDeletions.count,
@@ -1532,6 +1535,95 @@ final class SyncStore: ObservableObject {
             serverIDs.contains((try? SyncCrypto.hmacClientID($0, domain: .whiteboard, masterKeyBase64: master)) ?? "")
         }
         WhiteboardStore.shared.clearPendingDeletions(Set(real))
+    }
+
+    // MARK: 工作区域（v0.7.25 第十域，默认关；每工作区一文档 + savedAt LWW）
+
+    private func collectWorkspaces(master: String) -> [SyncWireItem<SyncEncryptedPayload>] {
+        var items: [SyncWireItem<SyncEncryptedPayload>] = []
+        for workspace in WorkspaceStore.shared.workspaces {
+            guard let payload = Self.workspacePayloadForSync(workspace) else {
+                Log.app.warning("workspace sync: \(workspace.id.uuidString, privacy: .public) over payload budget — skipped")
+                continue
+            }
+            items.append(encryptedWire(domain: .workspace, realID: workspace.id.uuidString,
+                                       clientUpdatedAt: workspace.savedAt, deleted: false,
+                                       payload: payload, master: master))
+        }
+        for (id, deletedAt) in WorkspaceStore.shared.pendingDeletions {
+            items.append(encryptedTombstone(domain: .workspace, realID: id.uuidString,
+                                            clientUpdatedAt: deletedAt, master: master))
+        }
+        return items
+    }
+
+    private func applyWorkspaces(_ items: [SyncWireItem<SyncEncryptedPayload>], master: String) {
+        var tombstones: [String: Date] = [:]
+        let store = WorkspaceStore.shared
+        let candidateIDs = store.workspaces.map { $0.id.uuidString }
+            + store.pendingDeletions.keys.map { $0.uuidString }
+        for item in items where item.deleted == true {
+            for localID in candidateIDs where item.clientId == (try? SyncCrypto.hmacClientID(
+                localID, domain: .workspace, masterKeyBase64: master)) {
+                tombstones[localID] = item.clientUpdatedAt
+            }
+        }
+        let decrypted = decryptItems(items, domain: .workspace, master: master,
+                                     as: WorkspaceSync.Payload.self) { item, payload in
+            SyncWireItem<WorkspaceSync.Payload>(
+                clientId: payload.id, clientUpdatedAt: item.clientUpdatedAt,
+                deleted: item.deleted, payload: payload, updatedAt: item.updatedAt)
+        }
+        var base: [String: WorkspaceSync.Payload] = [:]
+        for workspace in store.workspaces {
+            if let payload = Self.workspacePayloadForSync(workspace) { base[payload.id] = payload }
+        }
+        let merged = WorkspaceSync.apply(base: base, remote: decrypted, tombstones: tombstones)
+        for (id, payload) in merged {
+            if let existing = store.workspaces.first(where: { $0.id.uuidString == id }),
+               existing.savedAt == payload.savedAt, existing.name == payload.name {
+                continue
+            }
+            store.replaceForSync(Self.workspace(from: payload))
+        }
+        for workspace in store.workspaces where merged[workspace.id.uuidString] == nil {
+            store.removeForSync(workspace.id)
+        }
+    }
+
+    private func clearWorkspacePending(_ serverIDs: Set<String>, master: String) {
+        let real = WorkspaceStore.shared.pendingDeletions.keys.filter {
+            serverIDs.contains((try? SyncCrypto.hmacClientID($0.uuidString, domain: .workspace,
+                                                             masterKeyBase64: master)) ?? "")
+        }
+        WorkspaceStore.shared.clearPendingDeletions(Set(real))
+    }
+
+    private static func workspacePayloadForSync(_ workspace: WorkspaceStore.Workspace) -> WorkspaceSync.Payload? {
+        WorkspaceSync.payload(
+            id: workspace.id.uuidString,
+            name: workspace.name,
+            tabs: workspace.session.tabs.map {
+                WorkspaceSync.TabPayload(url: $0.url, isOnNewTabPage: $0.isOnNewTabPage,
+                                         isPinned: $0.isPinned)
+            },
+            selectedIndex: workspace.session.selectedIndex,
+            savedAt: workspace.savedAt)
+    }
+
+    /// 远端载荷 → 本地 Workspace：SavedTab 重建（tabID 新生成、sessionState
+    /// 为空——机器本地还原状态不带跨端）。
+    private static func workspace(from payload: WorkspaceSync.Payload) -> WorkspaceStore.Workspace {
+        let tabs = payload.tabs.map {
+            SavedTab(tabID: UUID(), url: $0.url, isOnNewTabPage: $0.isOnNewTabPage,
+                     isPinned: $0.isPinned, sessionState: nil, containerID: nil)
+        }
+        let index = tabs.isEmpty ? 0 : min(max(0, payload.selectedIndex), tabs.count - 1)
+        return WorkspaceStore.Workspace(
+            id: UUID(uuidString: payload.id) ?? UUID(),
+            name: payload.name,
+            session: SavedSession(tabs: tabs, selectedIndex: index, profileID: nil),
+            savedAt: payload.savedAt)
     }
 
     // MARK: - 加解密小工具

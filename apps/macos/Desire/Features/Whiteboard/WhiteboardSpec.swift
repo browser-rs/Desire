@@ -7,6 +7,11 @@ struct WhiteboardSpec: Codable, Equatable {
     var title: String
     var blocks: [WhiteboardBlock]
 
+    /// 块级/板级评论（v0.7.24）：随白板域**整板文档**同步（零新增域、零成本
+    /// 搭车）；旧文件缺键 → nil（可选解码，向后兼容）。不建模"逐设备已读"——
+    /// 未解决（resolvedAt == nil）就是"需要处理"，跨端语义简单且不会漂。
+    var comments: [WhiteboardComment]?
+
     /// .board 文件 schema 版本（0.7.1 社区分享）：导出写入，导入校验。
     /// 当前唯一版本 = "desire-board/1"；旧文件缺键按 /1 读（可选解码）；
     /// 更高版本结构未知，导入侧明确拒绝——静默解码会丢字段，宁拒不丢。
@@ -18,10 +23,12 @@ struct WhiteboardSpec: Codable, Equatable {
     /// 会把双引擎渲染与 DiskStore 落盘一起拖垮。面板编辑不受此限。
     static let maxBlocks = 60
 
-    init(title: String = "白板", blocks: [WhiteboardBlock] = [], schemaVersion: String? = nil) {
+    init(title: String = "白板", blocks: [WhiteboardBlock] = [], schemaVersion: String? = nil,
+         comments: [WhiteboardComment]? = nil) {
         self.title = title
         self.blocks = blocks
         self.schemaVersion = schemaVersion
+        self.comments = comments
     }
 
     /// 导出用：带当前 schema 版本的副本。
@@ -167,6 +174,52 @@ extension WhiteboardSpec {
         guard blocks.indices.contains(index) else { return self }
         spec.blocks[index].content = content
         return spec
+    }
+
+    // MARK: 评论变换（纯函数，供 Store/桥/单测）
+
+    /// 追加评论；超上限（maxCommentsPerBoard）丢最旧的已解决条目，
+    /// 全未解决时丢最旧的一条（有界优先于保真——防长寿命板把 payload 顶爆）。
+    func addingComment(_ comment: WhiteboardComment) -> WhiteboardSpec {
+        var spec = self
+        var list = spec.comments ?? []
+        list.append(comment)
+        if list.count > WhiteboardComment.maxCommentsPerBoard {
+            let victim = list.first(where: { !$0.isOpen }) ?? list.first
+            if let victim, let index = list.firstIndex(of: victim) {
+                list.remove(at: index)
+            }
+        }
+        spec.comments = list
+        return spec
+    }
+
+    /// 已解决 ↔ 未解决切换（at = 置为已解决的时间；取消解决传 nil 即可）。
+    func togglingCommentResolved(_ id: UUID, at date: Date) -> WhiteboardSpec {
+        var spec = self
+        guard var list = spec.comments,
+              let index = list.firstIndex(where: { $0.id == id }) else { return self }
+        list[index].resolvedAt = list[index].isOpen ? date : nil
+        spec.comments = list
+        return spec
+    }
+
+    func deletingComment(_ id: UUID) -> WhiteboardSpec {
+        var spec = self
+        guard var list = spec.comments else { return self }
+        list.removeAll { $0.id == id }
+        spec.comments = list.isEmpty ? nil : list
+        return spec
+    }
+
+    /// 目标块在板上的 1-based 块号（评论行标签用；悬空/整板 → nil）。
+    func blockNumber(of blockID: UUID?) -> Int? {
+        guard let blockID, let index = blocks.firstIndex(where: { $0.id == blockID }) else { return nil }
+        return index + 1
+    }
+
+    var openCommentCount: Int {
+        WhiteboardComment.openCount(comments ?? [])
     }
 
     // MARK: 供 Agent 读板（whiteboard 工具 get 动作）与结果摘要

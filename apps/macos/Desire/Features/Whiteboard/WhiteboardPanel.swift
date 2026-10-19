@@ -112,41 +112,198 @@ struct WhiteboardPanelView: View {
     ///（单块 spec）；Esc/退出按钮回编辑态。
     @State private var presenting = false
     @State private var presentIndex = 0
+    /// 评论侧栏（v0.7.24）。
+    @State private var showsComments = false
+    @State private var commentDraft = ""
+    @State private var commentTargetBlockID: UUID?
 
     private var conversationKey: String? { session.conversationId?.uuidString }
     private var liveBoard: WhiteboardSpec { store.board(for: conversationKey) }
 
     var body: some View {
-        VStack(spacing: 0) {
-            if presenting {
-                presentToolbar
-                Divider().opacity(0.6)
-                WhiteboardWebView(spec: presentSpec, onEdit: { _, _, _, _ in })
-                presentControls
-            } else {
-                toolbar
-                Divider().opacity(0.6)
-                WhiteboardWebView(
-                    spec: liveBoard,
-                    onEdit: { kind, index, delta, content in
-                        // 面板块工具条/拖拽的唯一落点——此前 onEdit 无人消费，
-                        // 工具条在真实 app 里从未生效过（只有 JS 层探针验过）。
-                        switch kind {
-                        case "move":
-                            store.apply({ $0 = $0.movingBlock(index, delta: delta) }, conversationID: conversationKey)
-                        case "delete":
-                            store.apply({ $0 = $0.deletingBlock(index) }, conversationID: conversationKey)
-                        case "reorder":
-                            store.apply({ $0 = $0.reorderingBlock(from: index, to: delta) }, conversationID: conversationKey)
-                        case "edit":
-                            store.apply({ $0 = $0.editingBlock(index, content: content) }, conversationID: conversationKey)
-                        default:
-                            break
+        HStack(spacing: 0) {
+            VStack(spacing: 0) {
+                if presenting {
+                    presentToolbar
+                    Divider().opacity(0.6)
+                    WhiteboardWebView(spec: presentSpec, onEdit: { _, _, _, _ in })
+                    presentControls
+                } else {
+                    toolbar
+                    Divider().opacity(0.6)
+                    WhiteboardWebView(
+                        spec: liveBoard,
+                        onEdit: { kind, index, delta, content in
+                            // 面板块工具条/拖拽的唯一落点——此前 onEdit 无人消费，
+                            // 工具条在真实 app 里从未生效过（只有 JS 层探针验过）。
+                            switch kind {
+                            case "move":
+                                store.apply({ $0 = $0.movingBlock(index, delta: delta) }, conversationID: conversationKey)
+                            case "delete":
+                                store.apply({ $0 = $0.deletingBlock(index) }, conversationID: conversationKey)
+                            case "reorder":
+                                store.apply({ $0 = $0.reorderingBlock(from: index, to: delta) }, conversationID: conversationKey)
+                            case "edit":
+                                store.apply({ $0 = $0.editingBlock(index, content: content) }, conversationID: conversationKey)
+                            default:
+                                break
+                            }
                         }
-                    }
-                )
+                    )
+                }
+            }
+            if showsComments && !presenting {
+                Divider().opacity(0.6)
+                commentSidebar
+                    .frame(width: 250)
             }
         }
+    }
+
+    // MARK: - 评论侧栏（v0.7.24）
+
+    private static let commentRelative: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .abbreviated
+        return formatter
+    }()
+
+    private func commentTargetLabel(_ blockID: UUID?) -> String {
+        guard let blockID else { return "整板" }
+        guard let number = liveBoard.blockNumber(of: blockID) else { return "已删除的块" }
+        let block = liveBoard.blocks[number - 1]
+        let name = (block.title?.isEmpty == false) ? block.title! : block.type
+        return "块 \(number) · \(name)"
+    }
+
+    private var commentSidebar: some View {
+        let comments = liveBoard.comments ?? []
+        return VStack(spacing: 0) {
+            HStack(spacing: 6) {
+                Image(systemName: "text.bubble")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(appAccent)
+                Text("评论")
+                    .font(.system(size: 12, weight: .semibold))
+                if liveBoard.openCommentCount > 0 {
+                    Text("\(liveBoard.openCommentCount)")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Capsule().fill(.red))
+                }
+                Spacer()
+                CapsuleButton(systemName: "xmark") { showsComments = false }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            Divider().opacity(0.6)
+            if comments.isEmpty {
+                Text("选中目标块后写下批注。评论随白板一起同步到其他设备（白板同步类目开启时）。")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                Spacer()
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(WhiteboardComment.ordered(comments)) { comment in
+                            commentRow(comment)
+                        }
+                    }
+                    .padding(10)
+                }
+            }
+            Divider().opacity(0.6)
+            commentComposer
+        }
+        .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    private func commentRow(_ comment: WhiteboardComment) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(comment.text)
+                .font(.system(size: 11))
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 6) {
+                Text(commentTargetLabel(comment.blockID))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(appAccent)
+                Text("· \(comment.author) · \(Self.commentRelative.localizedString(for: comment.createdAt, relativeTo: Date()))")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                Spacer(minLength: 4)
+                Button {
+                    store.toggleCommentResolved(comment.id, conversationID: conversationKey)
+                } label: {
+                    Image(systemName: comment.isOpen ? "checkmark.circle" : "arrow.uturn.backward.circle")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(comment.isOpen ? AnyShapeStyle(.green) : AnyShapeStyle(.tertiary))
+                .help(comment.isOpen ? "标记已解决" : "重新打开")
+                Button {
+                    store.deleteComment(comment.id, conversationID: conversationKey)
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 11))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.tertiary)
+                .help("删除评论")
+            }
+        }
+        .padding(8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .controlBackgroundColor)))
+        .opacity(comment.isOpen ? 1 : 0.55)
+    }
+
+    private var commentComposer: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Menu {
+                Button("整板") { commentTargetBlockID = nil }
+                if !liveBoard.blocks.isEmpty {
+                    Divider()
+                    ForEach(Array(liveBoard.blocks.enumerated()), id: \.element.id) { index, block in
+                        Button("块 \(index + 1) · \((block.title?.isEmpty == false) ? block.title! : block.type)") {
+                            commentTargetBlockID = block.id
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "scope")
+                        .font(.system(size: 10))
+                    Text(commentTargetLabel(commentTargetBlockID))
+                        .font(.system(size: 11))
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 8))
+                }
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            HStack(spacing: 6) {
+                TextField("写批注…", text: $commentDraft)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 11))
+                    .onSubmit { submitComment() }
+                CapsuleButton(systemName: "paperplane.fill", action: { submitComment() })
+                    .disabled(commentDraft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(10)
+    }
+
+    private func submitComment() {
+        // 目标块可能属于另一块板（切过会话）——提交时校验，悬空回退整板。
+        let target = liveBoard.blocks.contains { $0.id == commentTargetBlockID } ? commentTargetBlockID : nil
+        guard store.addComment(text: commentDraft, blockID: target, conversationID: conversationKey) != nil else { return }
+        commentDraft = ""
     }
 
     // MARK: - 演示模式（逐块步进）
@@ -235,6 +392,10 @@ struct WhiteboardPanelView: View {
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
+            CapsuleButton(systemName: liveBoard.openCommentCount > 0 ? "text.bubble.fill" : "text.bubble", action: {
+                showsComments.toggle()
+            })
+            .help("评论侧栏（未解决 \(liveBoard.openCommentCount) 条）")
             CapsuleButton(systemName: "play.rectangle", action: {
                 presentIndex = 0
                 presenting = liveBoard.blocks.count > 0

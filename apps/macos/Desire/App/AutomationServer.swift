@@ -648,7 +648,7 @@ final class AutomationServer {
         ep("GET", "/dpp/modes", "Per-site DPP event automation modes (off/draft/auto)", example: "…/dpp/modes")
         ep("POST", "/dpp/mode", "Set the DPP event automation mode for a host", params: ["host:string", "mode:string(off|draft|auto)"], example: #"-d '{"host":"example.com","mode":"draft"}'"#)
         ep("GET", "/whiteboard", "Current conversation's whiteboard blocks (type/title/contentLength/200-char preview; ?conversationId= override; ?format=readout|markdown|png — png returns the share-card image as base64)", example: "…/whiteboard")
-        ep("POST", "/whiteboard", "Drive the whiteboard: action=render (replace) | append | insert (with index) | clear | get (read back) | undo/redo | edit/delete/move (single block by 1-based index); blocks = [{type: mermaid|chart|note|table|image, title?, content}]", params: ["action?:string", "title?:string", "blocks?:array", "index?:int", "delta?:int", "content?:any", "conversationId?:string"], example: #"-d '{"action":"append","blocks":[{"type":"note","title":"备注","content":"hi"}]}'"#)
+        ep("POST", "/whiteboard", "Drive the whiteboard: action=render (replace) | append | insert (with index) | clear | get (read back) | undo/redo | edit/delete/move (single block by 1-based index) | comment/comment-resolve/comment-delete (v0.7.24); blocks = [{type: mermaid|chart|note|table|image, title?, content}]", params: ["action?:string", "title?:string", "blocks?:array", "index?:int", "delta?:int", "content?:any", "text?:string (comment)", "blockIndex?:int (comment target, 1-based; omit = whole board)", "commentId?:string", "conversationId?:string"], example: #"-d '{"action":"append","blocks":[{"type":"note","title":"备注","content":"hi"}]}'"#)
         ep("GET", "/dpp/config", "Agent-side DPP config (enabled / promptHints / defaultEventMode / siteModes)", example: "…/dpp/config")
         ep("POST", "/dpp/config", "Set agent-side DPP config (omit fields to keep)", params: ["enabled?:bool", "promptHints?:bool", "defaultEventMode?:string(off|draft|auto)"], example: #"-d '{"enabled":true,"defaultEventMode":"auto"}'"#)
         ep("POST", "/dpp/context-toggle", "Disable/enable site-authored context injection for a host (design review #6)", params: ["host:string", "disabled?:bool"], example: #"-d '{"host":"example.com","disabled":true}'"#)
@@ -1189,6 +1189,15 @@ final class AutomationServer {
                 return try Self.json([
                     "conversationId": conversationID ?? "",
                     "title": board.title,
+                    // 评论（v0.7.24）：blockNumber 0 = 整板；随白板域同步。
+                    "comments": board.comments?.map {
+                        ["id": $0.id.uuidString,
+                         "text": $0.text,
+                         "author": $0.author,
+                         "blockNumber": board.blockNumber(of: $0.blockID) ?? 0,
+                         "resolved": !$0.isOpen,
+                         "createdAt": $0.createdAt.timeIntervalSince1970]
+                    } ?? [],
                     // preview = 每块内容前 200 字符（断言块语义用；image 块
                     // 只报 URI 前缀，不回传万级 base64）。
                     "blocks": board.blocks.map {
@@ -1278,6 +1287,43 @@ final class AutomationServer {
                         store.set(updated, conversationID: conversationID)
                         return try Self.json(["ok": true, "action": "move", "blockCount": updated.blocks.count])
                     }
+                }
+                // 评论动作（v0.7.24）：comment / comment-resolve / comment-delete。
+                if action == "comment" {
+                    var blockID: UUID?
+                    if let number = (body["blockIndex"] as? Int)
+                        ?? (body["blockIndex"] as? Double).map(Int.init)
+                        ?? (body["blockIndex"] as? String).flatMap(Int.init) {
+                        let board = store.board(for: conversationID)
+                        guard board.blocks.indices.contains(number - 1) else {
+                            return try Self.json(["error": "Block index \(number) out of range (board has \(board.blocks.count) block(s))"])
+                        }
+                        blockID = board.blocks[number - 1].id
+                    }
+                    guard let commentID = store.addComment(
+                        text: Self.string(body, "text") ?? "",
+                        blockID: blockID, conversationID: conversationID) else {
+                        return try Self.json(["error": "Missing text"])
+                    }
+                    let board = store.board(for: conversationID)
+                    return try Self.json(["ok": true, "action": "comment",
+                                          "commentId": commentID.uuidString,
+                                          "openCount": board.openCommentCount])
+                }
+                if action == "comment-resolve" || action == "comment-delete" {
+                    guard let raw = Self.string(body, "commentId"),
+                          let commentID = UUID(uuidString: raw) else {
+                        return try Self.json(["error": "Missing/invalid commentId"])
+                    }
+                    if action == "comment-resolve" {
+                        store.toggleCommentResolved(commentID, conversationID: conversationID)
+                    } else {
+                        store.deleteComment(commentID, conversationID: conversationID)
+                    }
+                    let board = store.board(for: conversationID)
+                    return try Self.json(["ok": true, "action": action,
+                                          "commentCount": board.comments?.count ?? 0,
+                                          "openCount": board.openCommentCount])
                 }
                 guard var rawBlocks = body["blocks"] as? [[String: Any]], !rawBlocks.isEmpty else {
                     return try Self.json(["error": "Missing blocks array (action=render|append)"])
@@ -6739,8 +6785,15 @@ final class AutomationServer {
             if let thumb = block.imageThumb { row["imageThumb"] = thumb }
             return row
         }
-        return ["ok": true, "board": true, "title": payload.title, "blocks": blocks,
-                "payloadBytes": RemoteBoardContent.encodedSize(payload.blocks)]
+        var out: [String: Any] = ["ok": true, "board": true, "title": payload.title, "blocks": blocks,
+                                  "payloadBytes": RemoteBoardContent.encodedSize(payload.blocks)]
+        if let comments = payload.comments {
+            out["comments"] = comments.map {
+                ["text": $0.text, "author": $0.author, "target": $0.target,
+                 "resolved": $0.resolved] as [String: Any]
+            }
+        }
+        return out
     }
 
     /// 同步冲突明细（v0.7.23）：最近本机 LWW 输掉的条目（解密标签）。

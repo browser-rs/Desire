@@ -72,6 +72,22 @@ struct SyncSettingsSection: View {
             icon: "arrow.triangle.2.circlepath"
         ) {
             VStack(spacing: 0) {
+                // 会话失效横幅（v0.7.24）：自愈登出时此前只写 lastError，
+                // 未登录表单不展示——用户不知道"为什么退了、要不要重登"。
+                if let sessionNote = store.lastError {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Label(sessionNote, systemImage: "exclamationmark.triangle.fill")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.orange)
+                        Text(localizedSettingText("Sign in again to resume syncing. Your key and cloud data are unaffected."))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    SettingsRowDivider()
+                }
                 // 模式：整行分段（原来挤在右上角，与下方表单没有任何对齐关系）
                 HStack {
                     Picker("", selection: $mode) {

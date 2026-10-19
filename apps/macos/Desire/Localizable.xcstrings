@@ -44621,6 +44621,72 @@
           }
         }
       }
+    },
+    "Sync signed out" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sync signed out"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步已退出登录"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同步已登出"
+          }
+        }
+      }
+    },
+    "The server rejected this Mac's session. Sign in again in Settings → Sync to resume. Your data and key are safe." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The server rejected this Mac's session. Sign in again in Settings → Sync to resume. Your data and key are safe."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "服务器拒绝了这台 Mac 的会话。请到 设置 → Sync 重新登录以恢复同步；数据与密钥不受影响。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "伺服器拒絕了這台 Mac 的連線階段。請到 設定 → Sync 重新登入以恢復同步；資料與金鑰不受影響。"
+          }
+        }
+      }
+    },
+    "Sign in again to resume syncing. Your key and cloud data are unaffected." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sign in again to resume syncing. Your key and cloud data are unaffected."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新登录即可恢复同步；主密钥与云端数据不受影响。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "重新登入即可恢復同步；主密鑰與雲端資料不受影響。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

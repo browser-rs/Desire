@@ -58,6 +58,17 @@ struct RemoteBoardBlock: Codable, Equatable {
 struct RemoteBoard: Codable, Equatable {
     var title: String
     var blocks: [RemoteBoardBlock]
+    /// v0.7.24：板评论（未解决在前，最多 6 条；nil = 旧 Mac 或没有评论）。
+    var comments: [RemoteBoardComment]?
+}
+
+/// v0.7.24：板评论（只读——写评论在 Mac 面板）。
+struct RemoteBoardComment: Codable, Equatable {
+    var text: String
+    var author: String
+    /// 目标标签（"块 N · 标题" / "整板" / "已删除的块"）。
+    var target: String
+    var resolved: Bool
 }
 
 struct SnapshotFrame: Codable {

@@ -711,6 +711,13 @@ final class SyncStore: ObservableObject {
         changeSyncTask = nil
         changeSyncDelay = Self.changeDebounceSeconds
         lastError = String(localized: "Sync session expired — please sign in again.")
+        // 静默断联事故的补救（v0.7.24）：此前只写 lastError，用户不看设置页
+        // 就完全不知道同步停了（本机曾断联 11 天）。一次性 routine 通知；
+        // authState 已回未登录态，后续自动同步停摆，不会重复打扰。
+        ProactiveNotificationStore.shared.deliver(
+            title: String(localized: "Sync signed out"),
+            body: String(localized: "The server rejected this Mac's session. Sign in again in Settings → Sync to resume. Your data and key are safe."),
+            tier: .routine)
     }
 
     /// 单域适配器：collect 本机状态（加密）→ push → 冲突胜者落地 → 清已裁决

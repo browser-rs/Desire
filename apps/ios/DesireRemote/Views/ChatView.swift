@@ -667,6 +667,33 @@ private struct BoardDetailView: View {
                         .background(Color(.secondarySystemBackground))
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                     }
+                    if let comments = board.comments, !comments.isEmpty {
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "text.bubble")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                Text("评论（\(comments.filter { !$0.resolved }.count) 未解决）")
+                                    .font(.subheadline.weight(.semibold))
+                                Spacer()
+                            }
+                            ForEach(Array(comments.enumerated()), id: \.offset) { _, comment in
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(comment.text)
+                                        .font(.callout)
+                                    Text("\(comment.target) · \(comment.author)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                                .padding(8)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color(.secondarySystemBackground))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .opacity(comment.resolved ? 0.55 : 1)
+                            }
+                        }
+                        .padding(.top, 4)
+                    }
                 }
                 .padding(12)
             }

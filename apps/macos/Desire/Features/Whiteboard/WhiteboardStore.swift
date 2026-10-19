@@ -81,6 +81,31 @@ final class WhiteboardStore: ObservableObject {
         boardsByConversation[resolved(conversationID)] ?? WhiteboardSpec()
     }
 
+    // MARK: 评论（v0.7.24，走 apply = 白送撤销/落盘/同步标脏）
+
+    /// 追加一条评论；空文本拒绝（返回 nil），成功返回评论 id。
+    /// 作者 = 本机全名（取不到回退"我"）。
+    @discardableResult
+    func addComment(text: String, blockID: UUID?, conversationID: String?) -> UUID? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let name = NSFullUserName().trimmingCharacters(in: .whitespaces)
+        let comment = WhiteboardComment(
+            blockID: blockID,
+            text: String(trimmed.prefix(WhiteboardComment.maxTextChars)),
+            author: name.isEmpty ? "我" : name)
+        apply({ $0 = $0.addingComment(comment) }, conversationID: conversationID)
+        return comment.id
+    }
+
+    func toggleCommentResolved(_ id: UUID, conversationID: String?) {
+        apply({ $0 = $0.togglingCommentResolved(id, at: Date()) }, conversationID: conversationID)
+    }
+
+    func deleteComment(_ id: UUID, conversationID: String?) {
+        apply({ $0 = $0.deletingComment(id) }, conversationID: conversationID)
+    }
+
     /// 无活跃会话时的回退（桥 /whiteboard 调试用）：最近更新过的板。
     func mostRecentBoard() -> WhiteboardSpec? {
         guard let id = insertionOrder.last else { return nil }

@@ -75,6 +75,38 @@ nonisolated enum RemoteBoardContent {
         return (payload, encodedSize(payload))
     }
 
+    struct CommentPayload: Codable, Equatable {
+        var text: String
+        var author: String
+        /// 目标标签（"块 N · 标题" / "整板"）；调用方给。
+        var target: String
+        var resolved: Bool
+    }
+
+    /// 评论载荷（v0.7.24）：未解决在前（WhiteboardComment.ordered），
+    /// 文本截 200，条数 ≤ maxComments，真实编码字节预算内逐条填充
+    ///（装不下即停——评论是"顺带可读"，不挤占块内容预算）。
+    static func buildComments(_ comments: [WhiteboardComment],
+                              maxComments: Int = 6,
+                              byteBudget: Int = 2_400,
+                              label: (UUID?) -> String) -> [CommentPayload] {
+        var out: [CommentPayload] = []
+        for comment in WhiteboardComment.ordered(comments).prefix(maxComments) {
+            let candidate = CommentPayload(
+                text: String(comment.text.prefix(200)),
+                author: comment.author,
+                target: label(comment.blockID),
+                resolved: !comment.isOpen)
+            guard commentEncodedSize(out + [candidate]) <= byteBudget else { break }
+            out.append(candidate)
+        }
+        return out
+    }
+
+    static func commentEncodedSize(_ payload: [CommentPayload]) -> Int {
+        (try? JSONEncoder().encode(payload))?.count ?? 0
+    }
+
     /// markdown 表格 → 行（跳过 `|---|` 分隔行；保留表头行；12×8 封顶）。
     /// 解析不出任何数据行返回 nil（调用方退回 preview）。
     static func parseTableRows(_ content: String, maxRows: Int = 12, maxCols: Int = 8) -> [[String]]? {

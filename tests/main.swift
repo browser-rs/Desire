@@ -271,6 +271,91 @@ do {
                                  updatedAt: Date()) == nil)
 }
 
+// ---------- 白板评论（v0.7.24）----------
+
+do {
+    let target = UUID()
+    let t0 = Date(timeIntervalSince1970: 5000)
+
+    // 编解码：带评论 round-trip；旧文件（无 comments 键）解码为 nil
+    let spec = WhiteboardSpec(
+        title: "带评论的板",
+        blocks: [WhiteboardBlock(id: target, type: WhiteboardBlock.Kind.note, content: "内容")],
+        comments: [
+            WhiteboardComment(blockID: target, text: "这块数据要复核", author: "阿蒙", createdAt: t0),
+            WhiteboardComment(text: "整板：周五前定稿", author: "阿蒙", createdAt: t0.addingTimeInterval(10)),
+        ])
+    let data = try JSONEncoder().encode(spec)
+    let back = try JSONDecoder().decode(WhiteboardSpec.self, from: data)
+    check("白板评论：编码 round-trip", back == spec)
+    let legacy = try JSONDecoder().decode(WhiteboardSpec.self, from: Data(#"{"title":"旧板","blocks":[]}"#.utf8))
+    check("白板评论：旧文件缺键 → nil", legacy.comments == nil)
+
+    // 变换：添加 / 解决切换 / 删除
+    let c1 = WhiteboardComment(blockID: target, text: "第一条", author: "我", createdAt: t0)
+    let c2 = WhiteboardComment(text: "第二条", author: "我", createdAt: t0.addingTimeInterval(5))
+    var board = WhiteboardSpec()
+    board = board.addingComment(c1).addingComment(c2)
+    check("白板评论：追加两条", board.comments?.count == 2)
+    check("白板评论：未解决计数", board.openCommentCount == 2)
+    board = board.togglingCommentResolved(c1.id, at: t0.addingTimeInterval(60))
+    check("白板评论：解决置位", board.comments?.first(where: { $0.id == c1.id })?.resolvedAt != nil)
+    check("白板评论：解决后未解决计数 1", board.openCommentCount == 1)
+    board = board.togglingCommentResolved(c1.id, at: t0.addingTimeInterval(70))
+    check("白板评论：再切换回未解决", board.openCommentCount == 2)
+    board = board.deletingComment(c2.id)
+    check("白板评论：删除剩一条", board.comments?.count == 1)
+    board = board.deletingComment(c1.id)
+    check("白板评论：删空置 nil", board.comments == nil)
+
+    // 排序：未解决在前（新→旧），已解决在后
+    let resolvedOld = WhiteboardComment(text: "已解决", author: "我",
+                                        createdAt: t0.addingTimeInterval(100),
+                                        resolvedAt: t0.addingTimeInterval(200))
+    let openNew = WhiteboardComment(text: "新未解决", author: "我", createdAt: t0.addingTimeInterval(300))
+    let openOld = WhiteboardComment(text: "旧未解决", author: "我", createdAt: t0.addingTimeInterval(1))
+    let ordered = WhiteboardComment.ordered([resolvedOld, openOld, openNew])
+    check("白板评论：未解决在前且新→旧", ordered.map(\.text) == ["新未解决", "旧未解决", "已解决"])
+
+    // 上限：满了丢最旧的已解决条目；全未解决丢最旧
+    var full = WhiteboardSpec()
+    let oldestResolved = WhiteboardComment(text: "最旧已解决", author: "我", createdAt: t0,
+                                           resolvedAt: t0.addingTimeInterval(1))
+    full = full.addingComment(oldestResolved)
+    for i in 0..<(WhiteboardComment.maxCommentsPerBoard - 1) {
+        full = full.addingComment(WhiteboardComment(text: "第 \(i) 条", author: "我",
+                                                    createdAt: t0.addingTimeInterval(Double(i + 10))))
+    }
+    check("白板评论：满上限时数量封顶", full.comments?.count == WhiteboardComment.maxCommentsPerBoard)
+    let overflow = WhiteboardComment(text: "溢出", author: "我", createdAt: t0.addingTimeInterval(9999))
+    full = full.addingComment(overflow)
+    check("白板评论：溢出丢最旧已解决", full.comments?.count == WhiteboardComment.maxCommentsPerBoard
+          && !(full.comments ?? []).contains(where: { $0.text == "最旧已解决" })
+          && (full.comments ?? []).contains(where: { $0.text == "溢出" }))
+
+    // 块号标签：悬空 → nil
+    let numbered = WhiteboardSpec(blocks: [WhiteboardBlock(id: target, type: WhiteboardBlock.Kind.note, content: "x")])
+    check("白板评论：块号 1-based", numbered.blockNumber(of: target) == 1)
+    check("白板评论：悬空块 → nil", numbered.blockNumber(of: UUID()) == nil)
+    check("白板评论：整板 → nil", numbered.blockNumber(of: nil) == nil)
+
+    // 同步：payload 带评论往返 + apply 落地
+    let syncSpec = WhiteboardSpec(title: "同步板",
+                                  blocks: [WhiteboardBlock(id: target, type: WhiteboardBlock.Kind.note, content: "x")],
+                                  comments: [c1])
+    let commentPayload = WhiteboardSync.payload(for: syncSpec, conversationId: "conv-c",
+                                                updatedAt: t0)!
+    check("白板评论：payload 带评论", commentPayload.comments?.count == 1)
+    let commentWire = syncWire(id: "conv-c", updatedAt: t0, payload: commentPayload)
+    let applied = WhiteboardSync.apply(base: [:], base: [:], remote: [commentWire], tombstones: [:])
+    check("白板评论：apply 落地评论", applied.boards["conv-c"]?.comments?.first?.text == "第一条")
+    // 旧载荷（无评论键）解码兼容
+    let legacyPayload = try JSONDecoder().decode(
+        WhiteboardSync.Payload.self,
+        from: Data(#"{"conversationId":"c","title":"t","blocks":[],"updatedAt":5000}"#.utf8))
+    check("白板评论：旧载荷缺键 → nil", legacyPayload.comments == nil)
+}
+
 // ---------- DPP 一键上板（0.6.9：pageExtract 结果 → 白板块）----------
 
 do {
@@ -3438,6 +3523,29 @@ func testRemoteBoardContent() {
     let data = try! JSONEncoder().encode(built.payload)
     let back = try! JSONDecoder().decode([RemoteBoardContent.BlockPayload].self, from: data)
     check("板载荷：编解码 round-trip（两端契约）", back == built.payload)
+
+    // 评论载荷（v0.7.24）：排序/截断/封顶/预算/标签
+    let t0 = Date(timeIntervalSince1970: 1000)
+    let resolved = WhiteboardComment(text: "旧已解决", author: "a", createdAt: t0,
+                                     resolvedAt: t0.addingTimeInterval(1))
+    let open1 = WhiteboardComment(blockID: UUID(), text: String(repeating: "长", count: 400),
+                                  author: "b", createdAt: t0.addingTimeInterval(2))
+    let open2 = WhiteboardComment(text: "整板评论", author: "c", createdAt: t0.addingTimeInterval(3))
+    let commentPayload = RemoteBoardContent.buildComments([resolved, open1, open2]) { _ in "块 1 · note" }
+    check("板评论载荷：未解决在前且新→旧",
+          commentPayload.count == 3 && commentPayload[0].text == "整板评论"
+          && commentPayload[2].resolved == true)
+    check("板评论载荷：文本截 200", commentPayload[1].text.count == 200)
+    check("板评论载荷：标签透传", commentPayload[0].target == "块 1 · note")
+    let manyComments = (0..<12).map {
+        WhiteboardComment(text: "c\($0)", author: "a", createdAt: t0.addingTimeInterval(Double($0)))
+    }
+    check("板评论载荷：条数封顶 6", RemoteBoardContent.buildComments(manyComments) { _ in "整板" }.count == 6)
+    check("板评论载荷：超预算截停",
+          RemoteBoardContent.buildComments(manyComments, byteBudget: 60) { _ in "整板" }.count < 6)
+    let commentData = try! JSONEncoder().encode(commentPayload)
+    let commentBack = try! JSONDecoder().decode([RemoteBoardContent.CommentPayload].self, from: commentData)
+    check("板评论载荷：编解码 round-trip（两端契约）", commentBack == commentPayload)
 }
 testRemoteBoardContent()
 

@@ -753,6 +753,8 @@ final class RemoteControlStore: ObservableObject {
             var title: String
             /// image | mermaid | chart | note | table
             var blocks: [RemoteBoardContent.BlockPayload]
+            /// 评论（v0.7.24）：未解决在前，手机只读展示。
+            var comments: [RemoteBoardContent.CommentPayload]?
         }
 
         struct ApprovalPayload: Codable {
@@ -991,7 +993,15 @@ final class RemoteControlStore: ObservableObject {
                 RemoteBoardContent.Input(type: $0.type, title: $0.title, content: $0.content)
             },
             thumbnail: { dataURI in downscaledPreviewDataURI(from: dataURI) })
-        return RemoteSnapshotFrame.BoardPayload(title: board.title, blocks: result.payload)
+        let comments = RemoteBoardContent.buildComments(board.comments ?? []) { blockID in
+            guard let blockID else { return "整板" }
+            guard let number = board.blockNumber(of: blockID) else { return "已删除的块" }
+            let block = board.blocks[number - 1]
+            return "块 \(number) · \((block.title?.isEmpty == false) ? block.title! : block.type)"
+        }
+        return RemoteSnapshotFrame.BoardPayload(
+            title: board.title, blocks: result.payload,
+            comments: comments.isEmpty ? nil : comments)
     }
 
     /// 截图 data URI → 预算内降采样 JPEG data URI。快照帧有 22K 预算，

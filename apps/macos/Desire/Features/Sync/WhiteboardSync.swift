@@ -18,6 +18,8 @@ enum WhiteboardSync {
         var conversationId: String
         var title: String
         var blocks: [WhiteboardBlock]
+        /// 评论（v0.7.24）：随整板文档搭车同步；旧载荷缺键 → nil（可选解码）。
+        var comments: [WhiteboardComment]?
         /// 板级更新时间（= 线上 client_updated_at，双写防口径漂移）。
         var updatedAt: Date
     }
@@ -29,7 +31,7 @@ enum WhiteboardSync {
             blocks[i].content = Self.imagePlaceholder
         }
         let payload = Payload(conversationId: conversationId, title: spec.title,
-                              blocks: blocks, updatedAt: updatedAt)
+                              blocks: blocks, comments: spec.comments, updatedAt: updatedAt)
         // 体量护栏：超限整板跳过（绝不静默剥块——半块板比没有更误导）。
         guard JSONEncodeCount(payload) <= maxPayloadChars else { return nil }
         return payload
@@ -71,7 +73,8 @@ enum WhiteboardSync {
                     incoming.blocks[i].content = local.content
                 }
             }
-            boards[id] = WhiteboardSpec(title: incoming.title, blocks: incoming.blocks)
+            boards[id] = WhiteboardSpec(title: incoming.title, blocks: incoming.blocks,
+                                        comments: incoming.comments)
             times[id] = remoteAt
         }
         times = times.filter { boards[$0.key] != nil }

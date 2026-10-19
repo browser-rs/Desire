@@ -408,6 +408,35 @@ do {
     ]) != nil)
 }
 
+// ---------- 网页分享卡布局（v0.7.24）----------
+
+do {
+    check("分享卡：清洗合并空白与换行",
+          PageShareCardLayout.cleanSummary("第一句。\n\n  第二句，有 空格。") == "第一句。 第二句，有 空格。")
+    check("分享卡：纯 URL 行剔除",
+          PageShareCardLayout.cleanSummary("https://a.b/c\n这是正文内容的一句话说明。") == "这是正文内容的一句话说明。")
+    check("分享卡：太短返回 nil", PageShareCardLayout.cleanSummary("太短") == nil)
+    check("分享卡：空返回 nil", PageShareCardLayout.cleanSummary("   \n  ") == nil)
+    let long = String(repeating: "字", count: 400)
+    let truncated = PageShareCardLayout.cleanSummary(long)
+    check("分享卡：超长截断补 …", truncated?.count == 240 && truncated?.hasSuffix("…") == true)
+
+    // 折行：宽度 = 640-48 = 592；CJK 13pt ≈ 592/13 = 45 字/行
+    let cjk = String(repeating: "汉", count: 200)
+    let lines = PageShareCardLayout.wrap(cjk)
+    check("分享卡：CJK 折行 45 字/行且封顶 4 行", lines.count == 4 && lines[0].count == 45)
+    check("分享卡：末行截断补 …", lines[3].hasSuffix("…"))
+    check("分享卡：短文本一行", PageShareCardLayout.wrap("只有一句话。").count == 1)
+    check("分享卡：空文本零行", PageShareCardLayout.wrap("").isEmpty)
+
+    // 高度：图 16:10（1.6）、两行摘要
+    let h = PageShareCardLayout.cardHeight(imageAspect: 1.6, summaryLineCount: 2)
+    let expected: Double = 24 + 96 + (592.0 / 1.6) + (19.0 * 2.0 + 12.0) + 36 + 24
+    check("分享卡：总高公式", abs(h - expected) < 0.001)
+    check("分享卡：无摘要时更矮",
+          PageShareCardLayout.cardHeight(imageAspect: 1.6, summaryLineCount: 0) < h)
+}
+
 // ---------- DPP 一键上板（0.6.9：pageExtract 结果 → 白板块）----------
 
 do {

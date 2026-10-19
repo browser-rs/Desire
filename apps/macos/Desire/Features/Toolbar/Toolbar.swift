@@ -825,6 +825,10 @@ struct Toolbar: View {
                 .disabled(tab.isOnNewTabPage)
             moreMenuItem("Share…", "square.and.arrow.up") { shareCurrentPage() }
                 .disabled(tab.isOnNewTabPage)
+            moreMenuItem("Page Share Card", "rectangle.on.rectangle.angled") {
+                Task { await generateShareCard() }
+            }
+            .disabled(tab.isOnNewTabPage)
             Divider()
             moreMenuItem("Zoom In", "plus.magnifyingglass", shortcut: "⌘=") { actions.zoomIn() }
             moreMenuItem("Zoom Out", "minus.magnifyingglass", shortcut: "⌘-") { actions.zoomOut() }
@@ -884,6 +888,22 @@ struct Toolbar: View {
         guard let contentView = NSApp.mainWindow?.contentView else { return }
         let rect = NSRect(x: contentView.bounds.midX, y: contentView.bounds.maxY - 100, width: 1, height: 1)
         picker.show(relativeTo: rect, of: contentView, preferredEdge: .minY)
+    }
+
+    /// 网页分享卡（v0.7.24）：首屏图 + 标题/域名 + 旁路摘要 → PNG 进下载目录。
+    private func generateShareCard() async {
+        do {
+            let outcome = try await PageShareCardService.generate()
+            ProactiveNotificationStore.shared.deliver(
+                title: String(localized: "Share card saved"),
+                body: String(localized: "\(outcome.title) — saved to Downloads (\(outcome.width)×\(outcome.height))."),
+                tier: .routine)
+        } catch {
+            ProactiveNotificationStore.shared.deliver(
+                title: String(localized: "Share card failed"),
+                body: error.localizedDescription,
+                tier: .routine)
+        }
     }
 }
 

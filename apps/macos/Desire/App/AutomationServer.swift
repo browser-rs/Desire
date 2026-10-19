@@ -478,6 +478,7 @@ final class AutomationServer {
         ep("GET", "/remote/sessions-frame", "The remote sessions frame (same builder as the phone's frame; includes per-session unread)", example: "…/remote/sessions-frame")
         ep("POST", "/remote/mark-seen", "Mark a conversation as seen by the phone (same path as the phone's select receipt)", params: ["conversationId:string"], example: #"-d '{"conversationId":"…"}'"#)
         ep("GET", "/remote/board-payload", "The snapshot board payload for a conversation (same builder the remote frame uses)", params: ["conversationId?:string"], example: "…/remote/board-payload")
+        ep("POST", "/share-card", "Generate a page share card (first-screen snapshot + title/domain + optional side-model summary) and save it to Downloads", params: ["index?:int (tab; default selected)", "summarize?:bool (default true)"], example: #"-d '{"summarize":false}'"#)
         ep("GET", "/remote/status", "E2E/automation: remote state incl. active pairing code + session key (LOCAL DEV BRIDGE ONLY — never expose beyond localhost)", example: "…/remote/status")
         ep("POST", "/sync/domain", "Enable/disable a sync category", params: ["domain:string (bookmarks|quickdials|reading_list|keyboard_shortcuts|settings)", "enabled:bool"], example: #"-d '{"domain":"quickdials","enabled":false}'"#)
         ep("GET", "/search-history", "Recent search queries", params: ["count?:int"], example: "…/search-history?count=5")
@@ -1843,6 +1844,12 @@ final class AutomationServer {
             case ("POST", "/remote/mark-seen"):
                 AppState.live?.remoteControlStore.markRemoteSeen(Self.string(body, "conversationId"))
                 return try Self.json(["ok": true])
+            case ("POST", "/share-card"):
+                // 网页分享卡（v0.7.24）：活跃标签 → 首屏图 + 标题/域名 +
+                //（可选）旁路模型摘要 → PNG 存下载目录。
+                return try Self.json(await Self.pageShareCard(
+                    index: Self.index(body),
+                    summarize: body["summarize"] as? Bool ?? true))
             case ("GET", "/remote/board-payload"):
                 return try Self.json(Self.remoteBoardPayload(
                     conversationId: Self.string(query, "conversationId")))
@@ -6800,6 +6807,22 @@ final class AutomationServer {
 
     /// 当前会话白板的**快照载荷**（v0.7.23 跨端可读化）：与 RemoteControlStore
     /// 发送的 board 帧同源同构建——探针/两端契约断言用。
+    /// 网页分享卡（v0.7.24，桥 = 服务同源）。
+    private static func pageShareCard(index: Int?, summarize: Bool) async -> [String: Any] {
+        do {
+            let outcome = try await PageShareCardService.generate(index: index, summarize: summarize)
+            return ["ok": true,
+                    "path": outcome.url.path,
+                    "title": outcome.title,
+                    "domain": outcome.domain,
+                    "summaryChars": outcome.summaryChars,
+                    "width": outcome.width,
+                    "height": outcome.height]
+        } catch {
+            return ["error": error.localizedDescription]
+        }
+    }
+
     private static func remoteBoardPayload(conversationId: String?) -> [String: Any] {
         let id = conversationId
             ?? AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString

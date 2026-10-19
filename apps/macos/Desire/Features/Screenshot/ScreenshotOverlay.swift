@@ -28,6 +28,8 @@ struct ScreenshotToolbar: View {
     let onCopy: () -> Void
     let onCancel: () -> Void
     let onOCR: () -> Void
+    /// 选区 → 分享卡（v0.7.25）：首屏裁剪图 + 页标题/域名合成白卡存下载目录。
+    let onShareCard: () -> Void
 
     private struct ToolItem: Hashable {
         let tool: ScreenshotTool
@@ -81,6 +83,7 @@ struct ScreenshotToolbar: View {
                     .frame(height: 18)
                     .padding(.horizontal, 2)
                 actionButton(icon: "doc.text.viewfinder", help: "识别文字 (OCR)", action: onOCR, enabled: !model.ocrInProgress)
+                actionButton(icon: "rectangle.on.rectangle.angled", help: "分享卡（选区 + 页标题）", action: onShareCard, enabled: true)
                 actionButton(icon: "square.and.arrow.down", help: "Save", action: onSave, enabled: true)
                 actionButton(icon: "doc.on.doc", help: "Copy", action: onCopy, enabled: true)
             }

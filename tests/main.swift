@@ -575,6 +575,17 @@ do {
                                                          tabs: hugeTabs, selectedIndex: 0, savedAt: t0) == nil)
 }
 
+// ---------- 同步健康状态（v0.7.25 可发现性）----------
+
+do {
+    check("同步健康：未登录优先", SyncHealth.derive(signedIn: false, syncing: true, hasError: true) == .signedOut)
+    check("同步健康：同步中优先于错误", SyncHealth.derive(signedIn: true, syncing: true, hasError: true) == .syncing)
+    check("同步健康：错误态", SyncHealth.derive(signedIn: true, syncing: false, hasError: true) == .error)
+    check("同步健康：正常态", SyncHealth.derive(signedIn: true, syncing: false, hasError: false) == .ok)
+    check("同步健康：四态提示齐全",
+          Set([SyncHealth.signedOut, .syncing, .error, .ok].map(\.title)).count == 4)
+}
+
 // ---------- DPP 一键上板（0.6.9：pageExtract 结果 → 白板块）----------
 
 do {

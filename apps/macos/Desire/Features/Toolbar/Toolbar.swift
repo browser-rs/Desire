@@ -72,6 +72,8 @@ struct Toolbar: View {
     let suggestionModel: AddressSuggestionsModel
     let downloadStore: DownloadStore
     let passwordStore: PasswordStore
+    /// 同步状态点（v0.7.25 可发现性）：只读 store 的发布状态。
+    @ObservedObject var syncStore: SyncStore
     /// Dev-tools toggle tint. Passed as a plain Bool (refreshed by the parent
     /// when `toggleDevTools()` flips the panel flag) instead of observing the
     /// whole DevToolsStore — otherwise every console message / network event
@@ -167,6 +169,7 @@ struct Toolbar: View {
             // Chrome 式扩展：固定的插件图标在拼图按钮左侧（缩放与 Agent 之间）。
             pinnedPluginsRow
             extensionsButton
+            SyncStatusIndicator(store: syncStore)
             trailingButtons
         }
         .padding(.leading, 12)

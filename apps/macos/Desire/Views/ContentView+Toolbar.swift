@@ -44,6 +44,7 @@ extension ContentView {
             suggestionModel: suggestionModel,
             downloadStore: downloadStore,
             passwordStore: passwordStore,
+            syncStore: appState.syncStore,
             isDevModeEnabled: devToolsStore.isDevModeEnabled,
             isUrlFocused: $isUrlFocused,
             urlFieldFrame: $urlFieldFrame,

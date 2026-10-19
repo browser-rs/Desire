@@ -1,4 +1,5 @@
 import AppKit
+import WebKit
 import SwiftUI
 
 /// The translucent overlay NSView that captures mouse events for
@@ -69,7 +70,8 @@ final class ScreenshotOverlayView: NSView {
             onSave: { [weak self] in self?.saveImage() },
             onCopy: { [weak self] in self?.copyImage() },
             onCancel: { [weak self] in self?.cancel() },
-            onOCR: { [weak self] in self?.recognizeSelectionText() }
+            onOCR: { [weak self] in self?.recognizeSelectionText() },
+            onShareCard: { [weak self] in self?.shareSelectionAsCard() }
         )
         let hosting: NSHostingView<AnyView> = NSHostingView(rootView: AnyView(toolbar.appAccent(AppAccent.current)))
         hosting.translatesAutoresizingMaskIntoConstraints = false
@@ -691,6 +693,37 @@ final class ScreenshotOverlayView: NSView {
         dismissOCRPanel()
         needsDisplay = true
         positionToolbar()
+    }
+
+    // MARK: - 选区分享卡（v0.7.25）
+
+    /// 选区裁剪 + 页标题/域名 → 白卡 PNG 存下载目录（复用网页分享卡的渲染器；
+    /// 选区是图片、不跑摘要——摘要走整页分享卡）。
+    private func shareSelectionAsCard() {
+        if textField != nil { commitTextField() }
+        guard !selectionRect.isEmpty, selectionRect.width > 1, selectionRect.height > 1,
+              let crop = ScreenshotCapture.cropImage(capturedImage, to: selectionRect) else { return }
+        let tab = TabSessionCoordinator.shared.activeTabManager?.selectedTab
+        let title = tab?.browser.webView.title ?? ""
+        let domain = tab?.browser.webView.url?.host ?? ""
+        let card = PageShareCardRenderer.render(title: title, domain: domain,
+                                                image: crop, summaryLines: [])
+        guard let png = PageShareCardRenderer.pngData(of: card) else { return }
+        let stamp = ISO8601DateFormatter().string(from: Date()).replacingOccurrences(of: ":", with: "-")
+        let url = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("网页分享卡-\(stamp).png")
+        do {
+            try png.write(to: url)
+            ProactiveNotificationStore.shared.deliver(
+                title: String(localized: "Share card saved"),
+                body: url.lastPathComponent,
+                tier: .routine)
+        } catch {
+            ProactiveNotificationStore.shared.deliver(
+                title: String(localized: "Share card failed"),
+                body: error.localizedDescription,
+                tier: .routine)
+        }
     }
 
     // MARK: - 截图 OCR（0.6.9）

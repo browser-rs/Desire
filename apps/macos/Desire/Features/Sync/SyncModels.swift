@@ -170,7 +170,7 @@ struct SyncEncryptedPayload: Codable, Equatable {
 /// `id` 是服务端行 id（pull 响应携带，复合游标第二分量）；
 /// `updatedAt` 是服务端写入时间**原文**——客户端把它当拉取游标原样回传，
 /// 不做解析（避免时间精度往返误差）。
-struct SyncWireItem<Payload: Codable>: Codable {
+nonisolated struct SyncWireItem<Payload: Codable>: Codable {
     var clientId: String
     var clientUpdatedAt: Date
     /// push 请求必须显式带（服务端 serde default 只在键缺席时兜底）

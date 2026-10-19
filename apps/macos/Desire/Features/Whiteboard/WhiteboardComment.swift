@@ -2,7 +2,7 @@ import Foundation
 
 /// 白板评论（v0.7.24）：批注挂在块 UUID 上（blockID == nil = 整板评论）。
 /// 随白板域整板文档同步；resolve 语义 = 已处理（不建模逐设备已读）。
-struct WhiteboardComment: Codable, Equatable, Identifiable {
+nonisolated struct WhiteboardComment: Codable, Equatable, Identifiable {
     var id: UUID
     /// 目标块（nil = 整板）。块被删后评论保留（blockID 悬空——按"整板"渲染）。
     var blockID: UUID?

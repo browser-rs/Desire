@@ -27,6 +27,9 @@ final class AgentScheduler: ObservableObject {
         let id: UUID
         var name: String
         var prompt: String
+        /// 内置流水线（v0.7.24）：非 nil 时到点**不投递 prompt**，改跑确定性
+        /// 流水线（当前唯一值 "weeklyReport"）。旧文件缺键 → nil（可选解码）。
+        var builtin: String?
         var recurrence: Recurrence
         var isEnabled: Bool
         var createdAt: Date
@@ -201,6 +204,29 @@ final class AgentScheduler: ObservableObject {
     func remove(_ id: UUID) {
         tasks.removeAll { $0.id == id }
         save()
+    }
+
+    /// 内置流水线任务（v0.7.24）：prompt 仅作展示，到点走 `deliverBuiltin`。
+    @discardableResult
+    func addBuiltin(name: String, recurrence: ScheduledTask.Recurrence,
+                    targetSessionID: UUID? = nil) -> ScheduledTask? {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { return nil }
+        let task = ScheduledTask(
+            id: UUID(),
+            name: trimmedName,
+            prompt: "（内置）周报流水线：汇总 → 上板 → 可选备忘录",
+            builtin: "weeklyReport",
+            recurrence: recurrence,
+            isEnabled: true,
+            createdAt: Date(),
+            lastFiredAt: Date(),
+            lastResult: nil,
+            targetSessionID: targetSessionID
+        )
+        tasks.append(task)
+        save()
+        return task
     }
 
     /// Removes by (case-insensitive) name — the cancelScheduledTask tool path.
@@ -384,6 +410,13 @@ final class AgentScheduler: ObservableObject {
                 finishedAt: nil, status: "delivered", success: nil, error: nil, attempts: attempts
             ))
         }
+        // 内置流水线（v0.7.24）：不投递 prompt，跑确定性管线并按结果收尾 run。
+        if let builtin = task.builtin {
+            deliverBuiltin(builtin, task: task, runID: runID)
+            if let i = taskIndex { tasks[i].lastResult = "delivered (builtin)" }
+            Self.log.info("Scheduled builtin '\(builtin, privacy: .public)' fired via task '\(task.name, privacy: .public)'")
+            return
+        }
         // The turn-finish hook is passed THROUGH deliverScheduled: when the
         // prompt gets queued behind a running turn, the hook rides with the
         // queue entry and binds to its own turn — never to whichever turn
@@ -393,6 +426,29 @@ final class AgentScheduler: ObservableObject {
         }
         if let i = taskIndex { tasks[i].lastResult = "delivered" }
         Self.log.info("Scheduled task '\(task.name, privacy: .public)' delivered")
+    }
+
+    /// 内置流水线执行 + run 收尾（失败非致命，记录在 run 上）。
+    private func deliverBuiltin(_ builtin: String, task: ScheduledTask, runID: UUID) {
+        switch builtin {
+        case "weeklyReport":
+            Task { @MainActor [weak self] in
+                let writeToNotes = UserDefaults.standard.bool(forKey: "agent.weeklyReport.writeToNotes")
+                let outcome = await WeeklyReportPipeline.run(days: 7, writeToNotes: writeToNotes)
+                self?.updateRun(id: runID) {
+                    $0.status = "success"
+                    $0.finishedAt = Date()
+                    $0.error = nil
+                }
+                Self.log.info("Weekly report pipeline done: digest=\(outcome.digestChars) chars, board=\(outcome.boardBlocks) blocks, notes=\(outcome.notes, privacy: .public)")
+            }
+        default:
+            updateRun(id: runID) {
+                $0.status = "failed"
+                $0.finishedAt = Date()
+                $0.error = "unknown builtin: \(builtin)"
+            }
+        }
     }
 
     /// Fires every due, enabled task. Runs on a 20s wall clock. Persisting

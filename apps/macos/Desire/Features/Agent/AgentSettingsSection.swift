@@ -40,6 +40,8 @@ struct AgentSettingsSection: View {
     @ObservedObject var heartbeat = HeartbeatStore.shared
     /// 周报（周期性确定性回顾；自持 store）。
     @ObservedObject var weeklyDigest = WeeklyDigestStore.shared
+    /// 报告流水线：是否同时写备忘录（UserDefaults 持久化，调度器读同一键）。
+    @AppStorage("agent.weeklyReport.writeToNotes") private var weeklyBoardToNotes = false
     /// 生命周期钩子（beforeToolCall / turnFinish 用户脚本）。
     @ObservedObject var hooks = AgentHooksStore.shared
 
@@ -725,6 +727,24 @@ struct AgentSettingsSection: View {
                     ) {
                         SettingsCapsuleButton("Generate Now", style: .secondary) {
                             Task { await WeeklyDigestStore.shared.runNow() }
+                        }
+                    }
+                    // 报告流水线（v0.7.24）：汇总 → 白板（周报模板）→ 可选备忘录。
+                    SettingsRowDivider()
+                    SettingsToggleRow(
+                        "Also Write to Notes",
+                        subtitle: String(localized: "When running the report pipeline, save a copy to the Notes app (first use may ask for automation permission)."),
+                        systemImage: "note.text",
+                        isOn: $weeklyBoardToNotes
+                    )
+                    SettingsRowDivider()
+                    SettingsRow(
+                        "Weekly Board",
+                        subtitle: String(localized: "Summarize → seed the weekly board template → append the digest block. Runs as a scheduled task too (builtin: weeklyReport)."),
+                        systemImage: "rectangle.on.rectangle"
+                    ) {
+                        SettingsCapsuleButton("Generate & Board", style: .secondary) {
+                            Task { await WeeklyReportPipeline.run(writeToNotes: weeklyBoardToNotes) }
                         }
                     }
                 }

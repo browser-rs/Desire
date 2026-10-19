@@ -44687,6 +44687,116 @@
           }
         }
       }
+    },
+    "Also Write to Notes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Also Write to Notes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同时写入备忘录"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同時寫入備忘錄"
+          }
+        }
+      }
+    },
+    "When running the report pipeline, save a copy to the Notes app (first use may ask for automation permission)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "When running the report pipeline, save a copy to the Notes app (first use may ask for automation permission)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跑报告流水线时往备忘录存一份（首次使用可能弹自动化授权）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跑報告流水線時往備忘錄存一份（首次使用可能彈自動化授權）。"
+          }
+        }
+      }
+    },
+    "Weekly Board" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Weekly Board"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "周报上板"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "週報上板"
+          }
+        }
+      }
+    },
+    "Summarize → seed the weekly board template → append the digest block. Runs as a scheduled task too (builtin: weeklyReport)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summarize → seed the weekly board template → append the digest block. Runs as a scheduled task too (builtin: weeklyReport)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "汇总 → 空板铺周报模板 → 追加摘要块；也可挂成定时任务（内置 weeklyReport）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "彙總 → 空板鋪週報模板 → 追加摘要塊；也可掛成定時任務（內置 weeklyReport）。"
+          }
+        }
+      }
+    },
+    "Generate & Board" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Generate & Board"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "生成并上板"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "生成並上板"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

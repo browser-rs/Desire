@@ -92,3 +92,14 @@ ci local 失败 ~3m → 续跑 ci/package/publish/verify ~6m）
 | publish | ≤ 2m | 禁工作流→tag→release（含 408 资产重试） |
 | verify | ≤ 2m | digest 三方 + 解包启动冒烟 + 恢复工作流 |
 | **合计（不含套件）** | **≤ 15m** | |
+
+### v0.7.25 — 成功（2026-10-20 01:35）
+
+| 阶段 | 耗时 |
+| --- | --- |
+| ci | 0s |
+| package | 4s |
+| publish | 241s |
+| verify | 19s |
+
+（问题与反思待补。）

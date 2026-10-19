@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- **OAuth 弹窗登录修复（v0.7.25）**：crates.io 的"Log in with GitHub"永远登不上——根因 = 新窗口策略把 `window.open` 弹窗**一律转成标签**，而回跳页（`crates.io/github-redirect.html`）靠 `window.opener.postMessage` 把授权码交回原页；转标签后 **opener 为 null**，回跳页静默什么都不做（现场证据：该页 DOM 空、`window.opener === null`）。修复：`createWebViewWith` 区分两类新窗口——**脚本文档开的（navigationType == .other）或带显式尺寸的 → 真弹窗**（用 WebKit 交给我们的 configuration 建 WKWebView 放进独立窗口，opener/cookie/进程池自动接好；页面 `window.close()` 经 `webViewDidClose` 关窗、KVO 同步窗口标题）；**链接的 target=_blank 仍转标签**（既有 UX 不变）。验收：本地 fixture（opener postMessage + window.close）修复前 FAIL（登录页标题不变且多出标签）、修复后 PASS（标题变 "GOT ABC"、弹窗自关无残留标签）；**真站实测**：crates.io 点击 Login with GitHub → 弹窗完成授权 → 原页登录成功（截图确认 SiwiLiZhao 个人页）。
+
 ### Added
 
 - **划词就地卡（v0.7.25 旗舰）**：划词条的"解释/翻译"不再绕道 Agent 面板烧回合——**旁路模型流式**输出贴在划词处的就地小卡（解释/翻译/词典三模式；**词级输入自动走词典**：读音/词性/释义/例句），卡上动作 = 复制/朗读/进白板/追问（追问才开面板并带上文）；无 Key/失败优雅降级（失败态 + 转面板指引）。桥 `POST /selection/assist`（与服务同源；不产生会话消息）。验收：harness **1052/0**（+10：模式判定 CJK/拉丁/超长/空、提示词契约、三模式标题）；桥探针 **7/7**（真端点：serendipity→词典含音标例句、句子→解释、hello world→"你好，世界"、**会话消息数不变 = 不烧回合**、空文本/非法 mode 拒绝）。已知边界：就地卡视觉走查留用户；旁路调用暂不计入对话成本（与标题/记忆整理同类，沿用既有缺口）。

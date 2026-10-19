@@ -353,6 +353,16 @@ Features/Bookmarks/
 
 ## 架构决策（勿回退、勿重复踩坑）
 
+- **新窗口必须分两类处理（OAuth 弹窗 vs 链接新标签）**（2026-10-20 crates.io 登录实测）：
+  脚本文档开的窗口（`window.open`，`navigationType == .other` 或带显式尺寸）必须返回
+  **真弹窗 webview**（`PopupWindowController`：拿 WebKit 给的 configuration 建
+  WKWebView 放进独立窗口，opener/cookie/进程池自动接好；`window.close()` 经
+  webViewDidClose 关窗）——很多 OAuth/SSO 回跳页靠 `window.opener.postMessage`
+  交回授权码，**把它转成普通标签会让 opener 为 null，登录静默永远完不成**
+  （crates.io "Log in with GitHub" 就是这么坏的：回跳页看着是空白，实际它什么都
+  没做）。链接的 `target=_blank`（`.linkActivated`）仍转标签（别把普通新窗口
+  变成弹窗，UX 倒退）。诊断手法：`/execute` 读 `window.opener` + 页面
+  outerHTML（空文档 + URL 有值 = 弹窗被转标签的典型现场）。
 - **视频全屏 = WebKit 原生 element fullscreen + `WebViewContainer`**
   （2026-09-20 实测收敛；此前三轮返工的真根因）：
   - `isElementFullscreenEnabled = true` 必须保持。WebKit 会自建覆盖整屏的

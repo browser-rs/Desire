@@ -2389,6 +2389,17 @@ try {
                 confirmAndOpenExternalURL(url, from: webView)
                 return nil
             }
+            // OAuth/SSO 弹窗（v0.7.25 修复）：脚本文档开的窗口必须给**真弹窗**——
+            // 回跳页靠 window.opener.postMessage 交回授权码；转成标签会让
+            // opener 为 null（crates.io "Login with GitHub" 实测永远完不成）。
+            // 普通链接的 target=_blank 保持"转标签"的既有 UX。
+            let scriptOpened = navigationAction.navigationType == .other
+            let sized = windowFeatures.width != nil || windowFeatures.height != nil
+                || windowFeatures.x != nil || windowFeatures.y != nil
+            if scriptOpened || sized {
+                return PopupWindowController.present(configuration: configuration,
+                                                     features: windowFeatures)
+            }
             if let url = navigationAction.request.url {
                 // 在后台线程中创建新标签页，然后立即导航
                 Task { @MainActor in

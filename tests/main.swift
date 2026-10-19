@@ -506,6 +506,26 @@ do {
     check("划词卡：三模式标题齐", SelectionAssistMode.allCases.map(\.title) == ["解释", "翻译", "词典"])
 }
 
+// ---------- 每日简报（v0.7.25）----------
+
+do {
+    let rich = DailyBrief.compose(DailyBrief.Input(
+        conversationCount: 3, messageCount: 42, windowTokens: 12_345, windowTurns: 7,
+        newFactCount: 2, newFactSamples: ["偏好宋体", "常用端口 8877"],
+        inboxActionCount: 2, inboxByTitle: [("待回答", 1), ("失败任务", 1)]))
+    check("每日简报：含标题与日期", rich.hasPrefix("今日简报 — "))
+    check("每日简报：会话行", rich.contains("3") && rich.contains("42"))
+    check("每日简报：用量行含 token 格式化", rich.contains("12,345") || rich.contains("12.3k"))
+    check("每日简报：记忆行含样例", rich.contains("偏好宋体"))
+    check("每日简报：收件箱行含明细", rich.contains("待回答"))
+    let lean = DailyBrief.compose(DailyBrief.Input(
+        conversationCount: 0, messageCount: 0, windowTokens: 0, windowTurns: 0,
+        newFactCount: 0, newFactSamples: [], inboxActionCount: 0, inboxByTitle: []))
+    check("每日简报：空日只有两行（不编造）", lean.components(separatedBy: "\n").count == 3)
+    check("每日简报：空日无记忆/收件箱行",
+          !lean.contains("记忆") && !lean.contains("收件箱"))
+}
+
 // ---------- 工作区同步（v0.7.25 第十域）----------
 
 do {

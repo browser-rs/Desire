@@ -206,17 +206,23 @@ final class AgentScheduler: ObservableObject {
         save()
     }
 
-    /// 内置流水线任务（v0.7.24）：prompt 仅作展示，到点走 `deliverBuiltin`。
+    /// 内置流水线任务（v0.7.24 起；v0.7.25 泛化 kind）：prompt 仅作展示，
+    /// 到点走 `deliverBuiltin`。kind ∈ weeklyReport | dailyBrief。
     @discardableResult
     func addBuiltin(name: String, recurrence: ScheduledTask.Recurrence,
+                    kind: String = "weeklyReport",
                     targetSessionID: UUID? = nil) -> ScheduledTask? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmedName.isEmpty else { return nil }
+        guard !trimmedName.isEmpty,
+              ["weeklyReport", "dailyBrief"].contains(kind) else { return nil }
+        let displayPrompt = kind == "dailyBrief"
+            ? "（内置）每日简报：今日会话/用量/收件箱 → 备注 + 通知"
+            : "（内置）周报流水线：汇总 → 上板 → 可选备忘录"
         let task = ScheduledTask(
             id: UUID(),
             name: trimmedName,
-            prompt: "（内置）周报流水线：汇总 → 上板 → 可选备忘录",
-            builtin: "weeklyReport",
+            prompt: displayPrompt,
+            builtin: kind,
             recurrence: recurrence,
             isEnabled: true,
             createdAt: Date(),
@@ -441,6 +447,16 @@ final class AgentScheduler: ObservableObject {
                     $0.error = nil
                 }
                 Self.log.info("Weekly report pipeline done: digest=\(outcome.digestChars) chars, board=\(outcome.boardBlocks) blocks, notes=\(outcome.notes, privacy: .public)")
+            }
+        case "dailyBrief":
+            Task { @MainActor [weak self] in
+                let text = DailyBriefService.runNow()
+                self?.updateRun(id: runID) {
+                    $0.status = "success"
+                    $0.finishedAt = Date()
+                    $0.error = nil
+                }
+                Self.log.info("Daily brief done: \(text.count) chars")
             }
         default:
             updateRun(id: runID) {

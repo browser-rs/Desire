@@ -479,6 +479,7 @@ final class AutomationServer {
         ep("POST", "/remote/mark-seen", "Mark a conversation as seen by the phone (same path as the phone's select receipt)", params: ["conversationId:string"], example: #"-d '{"conversationId":"…"}'"#)
         ep("GET", "/remote/board-payload", "The snapshot board payload for a conversation (same builder the remote frame uses)", params: ["conversationId?:string"], example: "…/remote/board-payload")
         ep("POST", "/share-card", "Generate a page share card (first-screen snapshot + title/domain + optional side-model summary) and save it to Downloads", params: ["index?:int (tab; default selected)", "summarize?:bool (default true)"], example: #"-d '{"summarize":false}'"#)
+        ep("POST", "/agent/daily-brief", "Run the daily brief now (today's conversations/usage/inbox/memory → session note + routine notification; toBoard=true also puts it on the whiteboard)", params: ["toBoard?:bool"], example: "-d '{}'")
         ep("POST", "/selection/assist", "Run the selection in-place card once (side-model streaming; no conversation messages created)", params: ["text:string", "mode?:auto|explain|translate|dictionary"], example: #"-d '{"text":"serendipity"}'"#)
         ep("GET", "/board/gallery", "Whiteboard template gallery index (community)", params: ["baseURL?:string (default https://desire.mankong.icu/gallery/; E2E uses a fixture)"], example: "…/board/gallery")
         ep("POST", "/board/gallery/import", "Import a community template into the whiteboard", params: ["id:string", "mode?:auto|append|replace (auto = set when empty else append)", "baseURL?:string", "conversationId?:uuid"], example: #"-d '{"id":"swot"}'"#)
@@ -1847,6 +1848,11 @@ final class AutomationServer {
             case ("POST", "/remote/mark-seen"):
                 AppState.live?.remoteControlStore.markRemoteSeen(Self.string(body, "conversationId"))
                 return try Self.json(["ok": true])
+            case ("POST", "/agent/daily-brief"):
+                // 每日简报（v0.7.25）：确定性派生（今日会话/用量/收件箱/记忆）→
+                // 会话备注 + routine 通知（可选上板）。
+                return try Self.json(Self.dailyBriefRun(
+                    toBoard: body["toBoard"] as? Bool))
             case ("POST", "/selection/assist"):
                 // 划词就地卡（v0.7.25 旗舰）：旁路流式一次（不产生会话消息）。
                 return try Self.json(await Self.selectionAssist(
@@ -6402,13 +6408,14 @@ final class AutomationServer {
             return ["error": "need minutes, or hour+minute"]
         }
         if let builtin {
-            // 内置流水线任务（v0.7.24）：builtin=weeklyReport（prompt 仅展示）。
-            guard builtin == "weeklyReport" else {
+            // 内置流水线任务（v0.7.24 起；v0.7.25 泛化）：weeklyReport | dailyBrief。
+            guard ["weeklyReport", "dailyBrief"].contains(builtin) else {
                 return ["error": "unknown builtin: \(builtin)"]
             }
             let targetID = resolveSession(window)?.registryID
             guard AgentScheduler.shared.addBuiltin(
-                name: name, recurrence: recurrence, targetSessionID: targetID) != nil else {
+                name: name, recurrence: recurrence, kind: builtin,
+                targetSessionID: targetID) != nil else {
                 return ["error": "invalid name"]
             }
             var payload: [String: Any] = ["ok": true, "name": name, "builtin": builtin]
@@ -6823,6 +6830,12 @@ final class AutomationServer {
 
     /// 当前会话白板的**快照载荷**（v0.7.23 跨端可读化）：与 RemoteControlStore
     /// 发送的 board 帧同源同构建——探针/两端契约断言用。
+    /// 每日简报（v0.7.25，桥 = 服务同源）。
+    private static func dailyBriefRun(toBoard: Bool?) -> [String: Any] {
+        let text = DailyBriefService.runNow(toBoard: toBoard)
+        return ["ok": true, "text": text, "chars": text.count]
+    }
+
     /// 划词就地卡（v0.7.25，桥 = 服务同源；同一 stream 路径）。
     private static func selectionAssist(text: String, mode: String) async -> [String: Any] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)

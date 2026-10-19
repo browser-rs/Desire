@@ -915,6 +915,40 @@ extension BrowserToolProvider {
             guard !entries.isEmpty else { return "No history entries" }
             return entries.map { "\($0.title) — \($0.url)" }.joined(separator: "\n")
 
+        case "searchHistory":
+            // 本地列表 +（登录时）**归档全量检索**（服务端存密文——按需全量拉取
+            // 后本地解密过滤；见 SyncStore.searchArchivedHistory）。同 URL 去重
+            // （本地优先），标注来源便于模型判断新鲜度。
+            let query = (args["query"] as? String) ?? ""
+            let limit = min(200, max(1, args["limit"] as? Int ?? 50))
+            let local = surface.historyStore.entries
+                .filter {
+                    query.isEmpty
+                        || $0.title.localizedCaseInsensitiveContains(query)
+                        || $0.url.localizedCaseInsensitiveContains(query)
+                }
+                .sorted { $0.timestamp > $1.timestamp }
+                .prefix(limit)
+            var lines = local.map { "\($0.title) — \($0.url)  [local]" }
+            var localURLs = Set(local.map(\.url))
+            var archiveNote = ""
+            if let app = AppState.live {
+                do {
+                    let hits = try await app.syncStore.searchArchivedHistory(
+                        query: query, limit: limit)
+                    for hit in hits where !localURLs.contains(hit.url) {
+                        lines.append("\(hit.title) — \(hit.url)  [archive]")
+                        localURLs.insert(hit.url)
+                    }
+                } catch {
+                    archiveNote = "\n(archive search unavailable: \(error.localizedDescription))"
+                }
+            }
+            if lines.isEmpty {
+                return "No matching history entries" + archiveNote
+            }
+            return lines.prefix(limit).joined(separator: "\n") + archiveNote
+
         case "clearHistory":
             surface.historyStore.clearAll()
             return "History cleared"

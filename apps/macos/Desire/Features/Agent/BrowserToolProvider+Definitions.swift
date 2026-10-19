@@ -597,6 +597,14 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: ["count": AgentJSONSchemaValue(type: "number", description: "Number of entries to return (default 20)")])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "searchHistory",
+                description: "Search browsing history by text (title/url). Covers the local list and, when cloud sync is signed in, the full archived history on the server (pulled and decrypted locally on demand).",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "query": AgentJSONSchemaValue(type: "string", description: "Text to match (case-insensitive; empty = recent entries)"),
+                    "limit": AgentJSONSchemaValue(type: "number", description: "Max results (default 50, cap 200)")
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "clearHistory", description: "Clear all browsing history",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

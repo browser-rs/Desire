@@ -586,6 +586,31 @@ do {
           Set([SyncHealth.signedOut, .syncing, .error, .ok].map(\.title)).count == 4)
 }
 
+// ---------- 归档历史检索（v0.7.25）----------
+
+do {
+    let t0 = Date(timeIntervalSince1970: 20_000)
+    func payload(_ title: String, _ url: String, _ offset: TimeInterval) -> HistorySyncPayload {
+        HistorySyncPayload(id: UUID(), url: url, title: title,
+                           timestamp: t0.addingTimeInterval(offset),
+                           updatedAt: nil, visitCount: 1)
+    }
+    let items = [
+        payload("Rust 异步入门", "https://a.test/rust-async", -10),
+        payload("Swift 并发", "https://a.test/swift", -5),
+        payload("Rust 异步入门（重访）", "https://a.test/rust-async", -1),
+    ]
+    let rust = HistoryArchiveSearch.match(items, query: "rust")
+    check("归档检索：大小写不敏感子串", rust.count == 1 && rust[0].url == "https://a.test/rust-async")
+    check("归档检索：同 URL 去重保留最新", rust[0].timestamp == t0.addingTimeInterval(-1))
+    let all = HistoryArchiveSearch.match(items, query: "  ")
+    check("归档检索：空 query 返回全部且按时间倒序",
+          all.count == 2 && all[0].url == "https://a.test/rust-async")
+    check("归档检索：limit 封顶", HistoryArchiveSearch.match(items, query: "", limit: 1).count == 1)
+    check("归档检索：URL 命中", HistoryArchiveSearch.match(items, query: "swift").count == 1)
+    check("归档检索：无命中为空", HistoryArchiveSearch.match(items, query: "zzz").isEmpty)
+}
+
 // ---------- DPP 一键上板（0.6.9：pageExtract 结果 → 白板块）----------
 
 do {

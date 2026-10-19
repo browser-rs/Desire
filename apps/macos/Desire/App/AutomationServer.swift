@@ -479,6 +479,7 @@ final class AutomationServer {
         ep("POST", "/remote/mark-seen", "Mark a conversation as seen by the phone (same path as the phone's select receipt)", params: ["conversationId:string"], example: #"-d '{"conversationId":"…"}'"#)
         ep("GET", "/remote/board-payload", "The snapshot board payload for a conversation (same builder the remote frame uses)", params: ["conversationId?:string"], example: "…/remote/board-payload")
         ep("POST", "/share-card", "Generate a page share card (first-screen snapshot + title/domain + optional side-model summary) and save it to Downloads", params: ["index?:int (tab; default selected)", "summarize?:bool (default true)"], example: #"-d '{"summarize":false}'"#)
+        ep("GET", "/history/archive-search", "Search the full archived browsing history (client-side: pulls the encrypted history domain and decrypts locally; requires sync sign-in)", params: ["q:string", "limit?:int (default 50)"], example: "…/history/archive-search?q=rust")
         ep("POST", "/agent/daily-brief", "Run the daily brief now (today's conversations/usage/inbox/memory → session note + routine notification; toBoard=true also puts it on the whiteboard)", params: ["toBoard?:bool"], example: "-d '{}'")
         ep("POST", "/selection/assist", "Run the selection in-place card once (side-model streaming; no conversation messages created)", params: ["text:string", "mode?:auto|explain|translate|dictionary"], example: #"-d '{"text":"serendipity"}'"#)
         ep("GET", "/board/gallery", "Whiteboard template gallery index (community)", params: ["baseURL?:string (default https://desire.mankong.icu/gallery/; E2E uses a fixture)"], example: "…/board/gallery")
@@ -1848,6 +1849,11 @@ final class AutomationServer {
             case ("POST", "/remote/mark-seen"):
                 AppState.live?.remoteControlStore.markRemoteSeen(Self.string(body, "conversationId"))
                 return try Self.json(["ok": true])
+            case ("GET", "/history/archive-search"):
+                // 归档历史检索（v0.7.25）：服务端存密文——客户端全量拉取+本地解密。
+                return try Self.json(await Self.historyArchiveSearch(
+                    query: Self.string(query, "q") ?? "",
+                    limit: Int(Self.string(query, "limit") ?? "") ?? 50))
             case ("POST", "/agent/daily-brief"):
                 // 每日简报（v0.7.25）：确定性派生（今日会话/用量/收件箱/记忆）→
                 // 会话备注 + routine 通知（可选上板）。
@@ -6830,6 +6836,22 @@ final class AutomationServer {
 
     /// 当前会话白板的**快照载荷**（v0.7.23 跨端可读化）：与 RemoteControlStore
     /// 发送的 board 帧同源同构建——探针/两端契约断言用。
+    /// 归档历史检索（v0.7.25，桥 = SyncStore 同源）。
+    private static func historyArchiveSearch(query: String, limit: Int) async -> [String: Any] {
+        guard let store = AppState.live?.syncStore else { return ["error": "app state not ready"] }
+        do {
+            let hits = try await store.searchArchivedHistory(query: query, limit: limit)
+            return ["ok": true, "count": hits.count,
+                    "hits": hits.map {
+                        ["title": $0.title, "url": $0.url,
+                         "timestamp": $0.timestamp.timeIntervalSince1970,
+                         "visitCount": $0.visitCount] as [String: Any]
+                    }]
+        } catch {
+            return ["error": error.localizedDescription]
+        }
+    }
+
     /// 每日简报（v0.7.25，桥 = 服务同源）。
     private static func dailyBriefRun(toBoard: Bool?) -> [String: Any] {
         let text = DailyBriefService.runNow(toBoard: toBoard)

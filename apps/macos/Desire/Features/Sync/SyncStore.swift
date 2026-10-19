@@ -106,6 +106,8 @@ final class SyncStore: ObservableObject {
     private let serverKey = "sync.serverBaseURL"
     private let deviceIDKey = "sync.deviceID"
     private let lastSyncKey = "sync.lastSyncAt"
+    /// 归档历史解密缓存（本次运行内；退出/换账号清空）。
+    private var archiveHistoryCache: [HistorySyncPayload]?
     // 设置 KV 域的 LWW 戳与"上次已知值"快照（本地变更靠 diff 检测）
     private let settingsStampsKey = "sync.settings.stamps"
     private let settingsSnapshotKey = "sync.settings.snapshot"
@@ -601,6 +603,65 @@ final class SyncStore: ObservableObject {
         }
         defaults.removeObject(forKey: settingsStampsKey)
         defaults.removeObject(forKey: settingsSnapshotKey)
+        archiveHistoryCache = nil
+    }
+
+    // MARK: - 归档历史检索（v0.7.25）
+    // 服务端存的是密文（E2E）——服务端无法做全文检索。做法：登录且有主密钥时，
+    // 从 since=nil **全量拉取**历史域（分页有上限）→ 本地解密 → 过滤；
+    // 结果缓存本次运行内（退出登录/换账号清空）。返回 Hits（同 URL 去重）。
+
+    enum HistorySearchError: LocalizedError {
+        case signedOut
+        case noKey
+        var errorDescription: String? {
+            switch self {
+            case .signedOut:
+                String(localized: "Sync is not signed in — archived history is unavailable.")
+            case .noKey:
+                String(localized: "Sync key is missing — cannot decrypt archived history.")
+            }
+        }
+    }
+
+    func searchArchivedHistory(query: String, limit: Int = 50,
+                               maxPages: Int = 20) async throws -> [HistoryArchiveSearch.Hit] {
+        guard authState != .signedOut else { throw HistorySearchError.signedOut }
+        guard let master = masterKeyBase64 else { throw HistorySearchError.noKey }
+        if archiveHistoryCache == nil {
+            let token = try await validAccessToken()
+            var since: String?
+            var sinceID: Int64?
+            var collected: [HistorySyncPayload] = []
+            var pages = 0
+            var seenCursor: String?
+            while pages < max(1, maxPages) {
+                pages += 1
+                let response: SyncPullResponse<SyncEncryptedPayload> = try await SyncAPIClient.pull(
+                    baseURL: serverBaseURL, domain: SyncDomain.history.rawValue,
+                    since: since, sinceID: sinceID, deviceID: nil, accessToken: token)
+                if response.items.isEmpty { break }
+                let decrypted = decryptItems(response.items, domain: .history, master: master,
+                                             as: HistorySyncPayload.self) { item, payload in
+                    SyncWireItem<HistorySyncPayload>(
+                        clientId: payload.id.uuidString,
+                        clientUpdatedAt: item.clientUpdatedAt,
+                        deleted: item.deleted, payload: payload, updatedAt: item.updatedAt)
+                }
+                collected.append(contentsOf: decrypted.compactMap(\.payload))
+                if let last = response.items.last {
+                    let cursor = "\(last.updatedAt ?? "")|\(last.id ?? 0)"
+                    if cursor == seenCursor { break }
+                    seenCursor = cursor
+                    since = last.updatedAt
+                    sinceID = last.id
+                }
+                if response.items.count < Self.pullPageSize { break }
+            }
+            archiveHistoryCache = collected
+        }
+        return HistoryArchiveSearch.match(archiveHistoryCache ?? [],
+                                          query: query, limit: limit)
     }
 
     /// 修改密码（登录态）。成功后现有令牌仍有效，无需重新登录。

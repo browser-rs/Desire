@@ -1,3 +1,10 @@
+## [Unreleased]
+### Fixed
+
+- **navigate 工具竞态修复（v0.7.24）**：完成判定此前只看"`!isLoading` 且旧页面标题非空"——`load()` 后 isLoading 尚未翻转时**第一轮就误判完成、提前返回**（快速连发 navigate → listTabs/readTab 会读到旧页面；真实模型的秒级间隔掩盖了它，2026-10-19 发版套件在假模型下两处翻红才暴露）。现在完成判定要求**"导航确实开始过"**（观察到 isLoading 或 URL 已变化）；15s 内 URL 从未变化且未到目标 → 如实报 "did not commit" 而不是拿旧页面假成功（同 URL 重载无法区分，放行）。
+- **WhiteboardComment 显式 nonisolated（v0.7.24）**：Release 构建 main-actor 隔离警告——纯数据类型的 `isOpen`/`ordered` 被 nonisolated 的 `RemoteBoardContent` 引用（预检逮到；此前增量构建把 warning 过滤掉了才漏过）。
+
+
 ## [v0.7.24] - 2026-10-19
 ### Added
 

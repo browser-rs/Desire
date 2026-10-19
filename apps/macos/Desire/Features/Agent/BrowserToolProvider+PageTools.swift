@@ -280,6 +280,11 @@ extension BrowserToolProvider {
                 tab.urlString = u.absoluteString
             }
             let targetWebView = targetTab?.browser.webView ?? webView
+            // 完成判定必须要求"导航确实开始过"（v0.7.24 实测竞态：load() 后
+            // isLoading 尚未翻转、旧页面标题非空时，旧代码第一轮就误判完成
+            // 提前返回——假模型连发 navigate→listTabs 时读到旧页面；真实模型
+            // 秒级间隔掩盖了它，但快速连读/慢网络同样会中招）。
+            let preNavURL = targetWebView.url?.absoluteString
             targetWebView.load(URLRequest(url: u))
             // 实际承载导航的 webview（window 参数跨窗时 ≠ 传入的 webView）——
             // 后续一切轮询/读取都必须用它，否则 CF 检测/标题/DPP 全部看错页面。
@@ -292,8 +297,11 @@ extension BrowserToolProvider {
                              "verify you are human", "attention required", "请稍候"]
             let deadline = Date().addingTimeInterval(15)
             var challengeReported = false
+            var sawLoading = false
             while Date() < deadline {
-                if !nav.isLoading {
+                if nav.isLoading { sawLoading = true }
+                let urlChanged = nav.url?.absoluteString != preNavURL
+                if !nav.isLoading, sawLoading || urlChanged {
                     let title = (nav.title ?? "").lowercased()
                     if !challengeReported, !title.isEmpty,
                        cfMarkers.contains(where: { title.contains($0) }) {
@@ -316,6 +324,12 @@ extension BrowserToolProvider {
                     return "Navigated to \(url) — Cloudflare human-verification page is STILL showing. Ask the user to complete the check in the browser window. Do NOT retry navigation."
                 }
                 return "Navigated to \(url) — a Cloudflare check appeared and cleared automatically."
+            }
+            // 15s 内 URL 从未变化且不是"同 URL 重载"（当前 URL ≠ 目标）——
+            // 导航没落地，如实报告而不是假成功（旧行为会拿旧页面的标题放行）。
+            if nav.url?.absoluteString != u.absoluteString,
+               nav.url?.absoluteString == preNavURL {
+                return "Error: navigation to \(url) did not commit (still at \(String(nav.url?.absoluteString.prefix(120) ?? "unknown")) after 15s) — check the URL, then retry"
             }
             // 首载健康自愈（2026-10-15 实机：掘金/红迪风控局域页会 "complete"
             // 但近乎空文档——标题正常、无 CF 标记，直接放行会让模型对着空页

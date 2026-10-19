@@ -1,10 +1,3 @@
-## [Unreleased]
-### Fixed
-
-- **navigate 工具竞态修复（v0.7.24）**：完成判定此前只看"`!isLoading` 且旧页面标题非空"——`load()` 后 isLoading 尚未翻转时**第一轮就误判完成、提前返回**（快速连发 navigate → listTabs/readTab 会读到旧页面；真实模型的秒级间隔掩盖了它，2026-10-19 发版套件在假模型下两处翻红才暴露）。现在完成判定要求**"导航确实开始过"**（观察到 isLoading 或 URL 已变化）；15s 内 URL 从未变化且未到目标 → 如实报 "did not commit" 而不是拿旧页面假成功（同 URL 重载无法区分，放行）。
-- **WhiteboardComment 显式 nonisolated（v0.7.24）**：Release 构建 main-actor 隔离警告——纯数据类型的 `isOpen`/`ordered` 被 nonisolated 的 `RemoteBoardContent` 引用（预检逮到；此前增量构建把 warning 过滤掉了才漏过）。
-
-
 ## [v0.7.24] - 2026-10-19
 ### Added
 
@@ -17,12 +10,10 @@
 - **白板模板社区站内化（v0.7.24）**：白板"从模板创建"菜单新增"**从社区获取…**"——应用内拉取 `gallery/index.json`（**新增机读索引**，随站点部署）→ sheet 列表（名称/描述/块数）→ 单板导入走**信任摘要确认**（追加/替换语义与本地 .board 导入同款）。索引来自网络、**当不可信输入**：版本不认识拒绝、file 只认相对路径（禁绝对 URL/协议相对/`..` 跳出/反斜杠），纯逻辑 `BoardGallery` 进 harness（+13：解析/版本/空表/坏 JSON/额外字段忽略/五类 URL 拒绝）。桥 `GET /board/gallery` + `POST /board/gallery/import`（`baseURL` 可指 fixture；`mode` auto/append/replace）。验收：harness **1038/0**；fixture 全链探针全过（列表 5 块/导入块数与块型顺序核对/二次 auto=append 累加/显式 replace/未知 id 与不可达 base 拒绝）。**注意**：默认地址 `https://desire.mankong.icu/gallery/` 需站点部署 `index.json` 后生效（部署是手工步；未部署时面板给出明确的"社区不可达"提示）。
 - **DPP 内容管线收尾（v0.7.24）**：三处收口——① **跨源 iframe 逐帧抽取**（0.7 切片二能力回归验证：声明在跨源子框架的 view/action 全进所属框架执行，框架导航离开时明确失败让模型刷新协议）；② **shadow DOM `>>>` 下钻**（L1 扫描进 open shadow root 回归验证）；③ **登录墙指引**（新）：抽取 0 条目且非合法空态时探测登录信号（**可见密码框优先、登录词次之**），把"为什么空"变成一句可行动指引（"先登录再重试、别空转换策略"）——纯逻辑 `LoginWallAdvisory` 进 harness。验收：三 fixture 探针 `tools/dpp-finish-probe.py` **3/3**（双源 8892/8893 fixture：跨源抽到子框架数据、shadow `>>>` 抽到 shadow 内数据、登录墙出指引）；harness **1042/0**。期间修掉一个真 bug：**`callAsyncJavaScript` 不取末尾表达式值**——IIFE 形态返回 null 静默失效（信号探测首版就这么哑掉），已改显式 return 并全仓扫过无同类。
 
+### Fixed
 
-
-
-
-
-
+- **navigate 工具竞态修复（v0.7.24）**：完成判定此前只看"`!isLoading` 且旧页面标题非空"——`load()` 后 isLoading 尚未翻转时**第一轮就误判完成、提前返回**（快速连发 navigate → listTabs/readTab 会读到旧页面；真实模型的秒级间隔掩盖了它，2026-10-19 发版套件在假模型下两处翻红才暴露）。现在完成判定要求**"导航确实开始过"**（观察到 isLoading 或 URL 已变化）；15s 内 URL 从未变化且未到目标 → 如实报 "did not commit" 而不是拿旧页面假成功（同 URL 重载无法区分，放行）。
+- **WhiteboardComment 显式 nonisolated（v0.7.24）**：Release 构建 main-actor 隔离警告——纯数据类型的 `isOpen`/`ordered` 被 nonisolated 的 `RemoteBoardContent` 引用（预检逮到；此前增量构建把 warning 过滤掉了才漏过）。
 
 ## [v0.7.23] - 2026-10-19
 ### Added

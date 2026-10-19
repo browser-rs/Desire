@@ -991,37 +991,50 @@ Features/Bookmarks/
   - **发版冒烟必须从非 DerivedData 路径（如 /tmp）启动一次**：ACl 失配只在
     换路径启动时触发，常规 DerivedData 路径测不出来。
 
-## 发布流程（scripts/release.sh，2026-09-24 起）
+## 发布流程（scripts/release.sh，2026-10-19 流程重组）
 
-**发布 = `scripts/release.sh <版本号>`**，别再手工按记忆走六步——v0.3.14 就是
-手工发的，工作流禁晚了被 tag 触发只能取消、gh 用错 repo 名 404、CI 红着就打了
-tag。脚本把全流程固化成七个阶段，每一步都有 v0.3.14（及更早）真实踩过的坑当闸门：
+**发布 = `scripts/release.sh <版本号>`**（默认全程 ~15 分钟，不等 GitHub）。
+八阶段：`gates → prep → build → ci → smoke → package → publish → verify`。
+失败续跑 `--from <阶段>`；正文预览 `body <tag>`（与 CI release.yml 共用
+`scripts/install-note.template.md`）。
 
-1. **prep**：要求 CHANGELOG 已有 `## [vX.Y.Z]` 段（先写好发布说明）；tag/远端
-   release 查重；版本号写入 pbxproj（构建号自增）；确认后提交推送。
-2. **build**：每次删掉 DerivedData **clean build**（增量构建测不出全部警告），
-   零警告闸门（`warning:` 前面是路径，只有 appintentsmetadataprocessor 可豁免），
-   产物版本用 PlistBuddy 核对。
-3. **ci**：HEAD 质量闸门，`--ci auto`（默认）/ `gh` / `local` 三档——**红着不能
-   发版**（v0.3.14 是红着发的，评估套件坏了没人发现）。**GitHub 额度烧完也要能
-   发版**：macOS runner 按 10 倍扣分钟，auto 找不到 HEAD 的 run（Actions 不可用）
-   会回落到**本地全套验证**（单测 + 评估套件，即 ci.yml 的本地等价物，build 在
-   ci 之前就是为了这个）；`gh` 强依赖远端；`local` 完全不用 Actions。gh API
-   （推 tag、gh release create、workflow disable/enable）不走 Actions 分钟数，
-   额度烧尽照样能发。
-4. **smoke**：把产物拷到**非 DerivedData 路径**再启动——Keychain 条目 ACL 对
-   adhoc 构建按 cdhash/路径认，只在换路径启动时才暴露"授权窗永不渲染"这类问题；
-   桥 + `/agent/stats` + `/ai/profiles` 探活。
-5. **package**：zip + SHASUMS256.txt（/tmp 下，不进仓库）。
-6. **publish**：**第一步先 `gh workflow disable Release`**（它由 v* tag 触发、
-   会自己构建发布抢 Latest——必须在推 tag 之前）；推 tag；正文 = CHANGELOG 段 +
-   安装说明，`--repo` 从 git remote 推导（mankong/Desire 会 404）。
-7. **verify**：**从 release 重新下载**验校验和、版本、启动（发布铁律），最后恢复
-   Release 工作流。
+**发布日的标准序（人只做三步）**：
+1. 写 CHANGELOG 的 `## [vX.Y.Z]` 段（`scripts/changelog.py add`）+ 手工冻结提交。
+2. 在干净树跑完整套件：`python3 tests/execution-e2e.py`（约 15 分钟；**全绿收尾
+   自动写套件戳 `.git/desire-e2e-stamp`**）。
+3. `printf 'y\n' | scripts/release.sh <版本号>` 后台跑、只盯日志。
 
-失败续跑：`--from <阶段>`（如 build 过了 smoke 挂了 → `--from smoke`）；急救闸门
-`--skip-ci-check` 别轻易用；额度紧张时 `--ci local`；发布前想预览正文用 `body <tag>`（与 CI 的 release.yml
-共用 `scripts/install-note.template.md`，改安装说明只改这一个文件）。
+**每道闸门都是真踩过的坑（别删别绕）**：
+- **gates（2026-10-19 立，v0.7.24 事故后）**：干净树 / CHANGELOG 结构 / 纯逻辑
+  单测 / 远端查重 / **套件戳校验**——戳之后的提交只准动白名单（CHANGELOG.md、
+  website/、pbxproj），**动了代码必须重跑套件**。此前预检独立成脚本、靠人记得
+  跑，修复提交后忘跑预检就直接发版的洞由此关死。应急 `--skip-e2e-stamp`
+  （大字警告，别轻易用）。
+- **build**：每次删 DerivedData **clean build** 零警告（`warning:` 前面是路径，
+  只豁免 appintentsmetadataprocessor）；产物版本 PlistBuddy 核对。
+- **ci 默认 local**：本地评估套件 +（crates/ 随版改动时）cargo fmt/test——ci.yml
+  的本地等价物。**远端 CI 改为 `--ci gh` 抽查**（macOS runner 排队 + 全量构建
+  10–15 分钟，例行发版不值得等；每隔几版抽查一次环境差异）。`--ci auto` 保留
+  （有 HEAD 的 run 就等，没有回落本地）。gh API 不走 Actions 分钟数，额度烧尽
+  照样能发。
+- **smoke**：产物拷到**非 DerivedData 路径**启动（Keychain ACL 按 cdhash/路径认，
+  换路径才暴露"授权窗永不渲染"）；桥 + `/agent/stats` + `/ai/profiles` 探活。
+- **publish**：**第一步 `gh workflow disable Release`**（v* tag 会触发它自建发布
+  抢 Latest）；推 tag；`gh release create --repo`（mankong/Desire 会 404）。
+- **verify 默认快档（2026-10-19 立）**：GitHub 资产 **digest（服务端对上传字节的
+  sha256）与本地 SHASUMS/大小三方比对** + 本地包（字节等同）非 DerivedData 启动
+  冒烟 + x86 架构核验——等价于"重新下载再校验"且不吃资产 CDN 超时（多次拖
+  20+ 分钟）。真实重下载降级为 `--verify-download`。收尾**必须**恢复工作流：
+  `gh workflow enable release.yml`——**禁用态按名字 enable 会 could not find
+  （实测），要用文件名**。
+
+**速度开关**：`--no-x86_64`（跳过 Intel 包，省 ~4 分钟）；`--verify-download`
+（网络好时抽检）；`--skip-ci-check`（急救）。**预检快查**（发版前想早点知道）：
+`tools/pre-release-check.sh [版本] [--build]`——默认 1 分钟（干净/单测/结构/查重/
+套件戳），`--build` 加 clean 构建零警告；完整闸门反正会在 release.sh 里再跑一遍。
+
+**本机事实**：macOS 自带 bash 3.2——`$( )` 里写 `case` 会语法炸（release.sh 里
+用 `if`/`[[ ]]` 绕开）；`.git/desire-e2e-stamp` 只存本机（不进仓库、不跨机）。
 
 ## 端点扩展模式
 

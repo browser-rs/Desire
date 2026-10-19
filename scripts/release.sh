@@ -1,42 +1,56 @@
-#!/usr/bin/env bash
-# Desire 发布流程（一键化）。
+#!/bin/bash
+# Desire 发布流程（一键化）。2026-10-19 流程重组：闸门内置、默认本地验证、
+# 快档核验——目标"顺畅发版、快速发版"（默认全程 ~15 分钟，不等 GitHub）。
 #
 # 用法：
-#   scripts/release.sh <版本号>            # 例：scripts/release.sh 0.3.15
+#   scripts/release.sh <版本号>            # 默认：gates→prep→build→ci(local)→smoke→package→publish→verify(快档)
 #   scripts/release.sh <版本号> --from package   # 某一步失败后从该步重跑
-#   scripts/release.sh <版本号> --ci local       # 不用 GitHub CI，本地全套验证
-#   scripts/release.sh <版本号> --skip-ci-check  # 完全跳过 ci 阶段（急救用）
-#   scripts/release.sh <版本号> --no-x86_64      # 跳过 Intel 包（默认 arm64+x86_64 双产物）
-#   scripts/release.sh body v0.3.14        # 只打印该 tag 的 release 正文（调试用）
+#   scripts/release.sh <版本号> --ci gh          # 强依赖远端 CI（抽查环境差异用，等 10-15 分钟）
+#   scripts/release.sh <版本号> --ci auto        # 有 HEAD 的 run 就等，没有回落本地
+#   scripts/release.sh <版本号> --verify-download # verify 走真实重下载（网络好时/抽检）
+#   scripts/release.sh <版本号> --skip-e2e-stamp  # 应急：跳过套件戳校验（会大字警告）
+#   scripts/release.sh <版本号> --no-x86_64       # 跳过 Intel 包（默认 arm64+x86_64 双产物）
+#   scripts/release.sh body v0.7.24        # 只打印该 tag 的 release 正文（调试用）
 #
-# 阶段：prep → build → ci → smoke → package → publish → verify
-#   （build 在 ci 之前：ci 的 local 模式要拿构建产物跑评估套件）
+# 阶段：gates → prep → build → ci → smoke → package → publish → verify
+#   gates（2026-10-19 立）：干净树/CHANGELOG 结构/纯逻辑单测/远端查重/**套件戳**。
+#     教训（v0.7.24）：预检曾独立成脚本、靠人记得跑——修复提交后忘跑预检就直接
+#     发版的洞。现在闸门内置为第一站，永远跑在**最终提交**上。
+#   ci 默认 local：本地评估套件 +（crates/ 有改动时）cargo fmt/test——ci.yml 的
+#     本地等价物，几分钟出结果；远端 CI 改为 --ci gh 抽查（macOS runner 排队 +
+#     全量构建要 10-15 分钟，例行发版不值得等；环境差异抽查每隔几版做一次）。
+#   verify 默认快档：GitHub 资产 digest（服务端对上传字节的 sha256）与本地
+#     SHASUMS/大小**三方比对** + 本地包（字节等同）非 DerivedData 路径启动冒烟；
+#     真实重下载在资产 CDN 抽风时会拖几十分钟，降级为 --verify-download。
 #
 # 流程固化的教训（每条都是真踩过的，别删）：
 #   • Release 工作流必须在**推 tag 之前** disable——它由 v* tag 触发、会自己构建
 #     发布，抢 Latest。publish 阶段第一步就是它，verify 结束再 enable。
-#   • CI 必须绿才能打 tag：v0.3.14 是红着 CI 发出去的（评估套件坏了没人看）。
-#   • **GitHub 额度烧完也要能发版**：macOS runner 按 10 倍扣分钟，额度用尽后
-#     Actions 全灭。--ci auto（默认）找不到 HEAD 的 run 就回落到本地全套验证
-#     （单测 + 评估套件），--ci local 强制本地；gh API 本身不走 Actions 分钟数，
-#     推 tag / gh release create 永远可用。
+#   • **禁用态的 workflow 按名字 enable 会 "could not find"**（2026-10-19 实测）
+#     ——用文件名：gh workflow enable release.yml。
+#   • CI 必须绿才能打 tag（v0.3.14 红着发出去的教训）——--ci gh/auto 模式适用；
+#     本地模式下 gates+build+评估套件就是等价闸门。
 #   • 冒烟必须从**非 DerivedData 路径**启动：Keychain 条目 ACL 对 adhoc 构建
 #     认路径/cdhash，换路径才暴露"授权窗永不渲染 → 启动挂死"这类问题。
 #   • gh 一律带 --repo（从 git remote 推导）——mankong/Desire 会 404。
 #   • "零警告"只有 clean build 算数：build 阶段每次删掉 DerivedData 重建。
 #   • Intel（x86_64）产物默认随版发布（v0.7.14 曾只有 arm64、用户报"有构建没
-#     产物"）——release.sh 本地交叉编译（与 arm64 包同源同签名），CI 的
-#     build-x86_64 job 只是编译健康检查、不出产物。装了 Rosetta 的机器 verify
-#     阶段会对 Intel 包做启动冒烟；没装则只核架构（如实标注，勿谎称已测）。
+#     产物"）——release.sh 本地交叉编译（与 arm64 包同源同签名）。装了 Rosetta
+#     的机器 verify 会对 Intel 包做启动冒烟；没装则只核架构（如实标注）。
 #   • 安装说明唯一真相 = scripts/install-note.template.md（CI 与本脚本共用）。
+#   • 套件戳 = .git/desire-e2e-stamp（tests/execution-e2e.py 全绿收尾时写）；
+#     gates 校验"戳之后的提交只动了白名单（CHANGELOG/website/pbxproj）"——
+#     代码修复后必须重跑套件，别拿旧戳发新版。
 
 set -euo pipefail
 
 V=""
-FROM="prep"
+FROM="gates"
 SKIP_CI_CHECK=0
-CI_MODE="auto"   # auto：GH CI 优先、不可用回落本地；gh：强依赖 GH CI；local：只用本地
+CI_MODE="local"  # local（默认）：本地评估套件+cargo 闸门；auto：有 run 就等；gh：强依赖远端
 WITH_X86=1       # 1 = build/package/verify 追加 Intel（x86_64）产物；--no-x86_64 关
+VERIFY_DOWNLOAD=0  # 1 = verify 走真实重下载；默认快档（digest 三方 + 本地包冒烟）
+SKIP_E2E_STAMP=0   # 1 = 跳过套件戳校验（应急；会大字警告）
 
 usage() {
   sed -n '/^# 用法：/,/^#$/p' "$0" | sed 's/^# \?//'
@@ -51,6 +65,8 @@ while [ $# -gt 0 ]; do
     --skip-ci-check) SKIP_CI_CHECK=1; shift ;;
     --ci) CI_MODE="${2:-}"; shift 2 ;;
     --no-x86_64) WITH_X86=0; shift ;;
+    --verify-download) VERIFY_DOWNLOAD=1; shift ;;
+    --skip-e2e-stamp) SKIP_E2E_STAMP=1; shift ;;
     body)  # body <tag>：只打印该 tag 的 release 正文
       [ $# -ge 2 ] || usage
       EXEC="body"; BODY_TAG="$2"; shift 2 ;;
@@ -133,6 +149,53 @@ assert_no_secret_artifacts() {
 
 # ── 阶段 ────────────────────────────────────────────────────
 
+stage_gates() {
+  log "gates：闸门（干净树 / 单测 / 结构 / 查重 / 套件戳）"
+  assert_release_worktree_clean
+  [ -f CHANGELOG.md ] || die "没有 CHANGELOG.md"
+  python3 scripts/changelog.py verify || die "CHANGELOG 结构问题"
+
+  echo "── 纯逻辑单测 ──"
+  bash tests/run.sh || die "纯逻辑单测未过（本地 40 秒能发现的问题别带进发版）"
+
+  if [ "${EXEC:-}" != "body" ]; then
+    if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then die "本地已有 tag $TAG"; fi
+    if gh release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then die "远端已有 release $TAG"; fi
+    echo "── 远端查重 ✓ 无 $TAG"
+  fi
+
+  if [ "$SKIP_E2E_STAMP" = 1 ]; then
+    echo ""
+    echo "⚠️  ⚠️  ⚠️  --skip-e2e-stamp：跳过了套件戳校验——本次发布没有"
+    echo "⚠️  ⚠️  ⚠️  “这套代码跑过完整 E2E 套件”的机械证据。仅限应急！"
+    echo ""
+    return 0
+  fi
+  local stamp=".git/desire-e2e-stamp"
+  [ -f "$stamp" ] || die "没有套件戳——先在干净树跑完整套件（python3 tests/execution-e2e.py），或应急 --skip-e2e-stamp"
+  local stamp_sha stamp_meta
+  stamp_sha=$(awk '{print $1}' "$stamp")
+  stamp_meta=$(awk '{print $2" 于 "$3}' "$stamp")
+  git cat-file -e "${stamp_sha}^{commit}" 2>/dev/null || die "套件戳的提交 $stamp_sha 不在本仓库——重跑套件"
+  local code_changes
+  # 白名单 = 不会影响 app 行为也不影响套件覆盖面的文件：发版自身会动的
+  # （CHANGELOG/website/pbxproj）+ 不随 app 出货的（AGENTS/docs/scripts/tools）。
+  # tests/ 与 crates/ 与 app 源码**不在**名单——改它们必须重跑套件。
+  # 注：别用 case——macOS 自带 bash 3.2 在 $( ) 里解析 case 会炸（实测）。
+  code_changes=$(git diff --name-only "$stamp_sha..HEAD" | while IFS= read -r f; do
+    if [[ "$f" != "CHANGELOG.md" && "$f" != website/* && "$f" != docs/* \
+       && "$f" != scripts/* && "$f" != tools/* && "$f" != "AGENTS.md" \
+       && "$f" != "apps/macos/Desire.xcodeproj/project.pbxproj" ]]; then
+      printf '%s\n' "$f"
+    fi
+  done)
+  if [ -n "$code_changes" ]; then
+    printf '%s\n' "$code_changes" | head -5
+    die "套件戳之后的提交动了代码（见上）——必须重跑完整套件再发版（别拿旧戳发新版）"
+  fi
+  echo "── 套件戳 ✓ ${stamp_sha:0:8}（$stamp_meta）"
+}
+
 stage_prep() {
   log "prep：冻结 CHANGELOG + 版本号，提交并推送"
   assert_release_worktree_clean
@@ -198,17 +261,23 @@ PYCH
   echo "已推送 $(git rev-parse --short HEAD)，构建号 → $next_build"
 }
 
-# GitHub CI 不可用（额度烧尽 / 工作流被关）时的本地等价验证：
-# 单测 + 评估套件，正是 ci.yml 在远端跑的那两样。
+# 本地等价验证（ci.yml 的本地版）：评估套件 +（crates/ 随版改动时）cargo 闸门。
+# 纯逻辑单测已在 gates 阶段跑过，这里不重复。
 run_local_suite() {
-  bash tests/run.sh || die "本地单测未过"
+  local last_tag=""
+  last_tag=$(git describe --tags --abbrev=0 2>/dev/null || true)
+  if [ -n "$last_tag" ] && git diff --name-only "$last_tag..HEAD" | grep -q '^crates/'; then
+    echo "── cargo fmt + test（crates/ 有改动）──"
+    cargo fmt --check || die "cargo fmt 未过"
+    cargo test --workspace || die "cargo test 未过"
+  fi
   echo "── 本地评估套件 ──"
   pkill -9 -x Desire 2>/dev/null || true; sleep 2
   open "$APP" --args --automation
-  bridge_wait 30 || die "桥没起来（${APP}"
+  bridge_wait 30 || die "桥没起来（${APP}）"
   python3 tests/agent-eval.py --cleanup || die "评估套件未过"
   app_quit
-  echo "本地全套验证 ✓（单测 + 评估 16 项）"
+  echo "本地验证 ✓（gates 单测 + 评估套件）"
 }
 
 stage_ci() {
@@ -330,8 +399,75 @@ stage_publish() {
   echo "Release 已创建：https://github.com/$GH_REPO/releases/tag/$TAG"
 }
 
+# verify 快档（2026-10-19 立）：GitHub 资产 digest 是**服务端对上传字节的
+# sha256**——与本地 SHASUMS/文件大小三方比对，等价于"重新下载再校验"，且不
+# 吃资产 CDN 的超时（近期多次拖 20+ 分钟最后还得手工收口）。本地包与远端字节
+# 等同（digest 一致即证），冒烟照跑：非 DerivedData 路径启动 + 版本核对。
+stage_verify_fast() {
+  log "verify：digest 三方比对 + 本地包启动冒烟（快档；--verify-download 换真实重下载）"
+  local digests="/tmp/release-verify-digests-$V.txt"
+  gh api "repos/$GH_REPO/releases/tags/$TAG" \
+    --jq '.assets[] | "\(.name)\t\(.size)\t\(.digest)"' > "$digests" \
+    || die "读远端资产清单失败"
+  (cd "$ARTDIR" && shasum -a 256 -c SHASUMS256.txt) || die "本地包校验和自检失败"
+  if ! python3 - "$ARTDIR" "$digests" <<'PYV'
+import hashlib, pathlib, sys
+art, digest_file = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2])
+ok = True
+for line in digest_file.read_text().splitlines():
+    parts = line.split("\t")
+    if len(parts) != 3:
+        print("✗ 远端资产行解析失败:", line); ok = False; continue
+    name, size, digest = parts
+    f = art / name
+    if not f.exists():
+        print(f"✗ 本地缺资产 {name}"); ok = False; continue
+    data = f.read_bytes()
+    if len(data) != int(size):
+        print(f"✗ {name} 大小不符：本地 {len(data)} vs 远端 {size}"); ok = False; continue
+    if "sha256:" + hashlib.sha256(data).hexdigest() != digest:
+        print(f"✗ {name} sha256 不符"); ok = False; continue
+    print(f"✓ {name}（{size} bytes，sha256 三方一致）")
+sys.exit(0 if ok else 1)
+PYV
+  then die "资产 digest 三方比对失败——发布产物被替换？"; fi
+  # 本地包（与远端字节等同）非 DerivedData 路径启动冒烟 + 版本核对。
+  local vdir="/tmp/release-verify-$V"
+  rm -rf "$vdir"; mkdir -p "$vdir"
+  ditto -x -k "$ARTDIR/Desire-$TAG-macos-arm64.zip" "$vdir/app"
+  local ver
+  ver=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$vdir/app/Desire.app/Contents/Info.plist")
+  [ "$ver" = "$V" ] || die "产物的版本是 ${ver}，不是 ${V}"
+  pkill -9 -x Desire 2>/dev/null || true; sleep 2
+  open "$vdir/app/Desire.app" --args --automation
+  bridge_wait 30 || die "产物启动后桥无响应"
+  app_quit
+  if [ "$WITH_X86" = 1 ] && [ -f "$ARTDIR/Desire-$TAG-macos-x86_64.zip" ]; then
+    ditto -x -k "$ARTDIR/Desire-$TAG-macos-x86_64.zip" "$vdir/app86"
+    local archs
+    archs=$(lipo -archs "$vdir/app86/Desire.app/Contents/MacOS/Desire")
+    [[ "$archs" == *x86_64* ]] || die "x86_64 包里不是 Intel 二进制：$archs"
+    if arch -x86_64 /usr/bin/true 2>/dev/null; then
+      pkill -9 -x Desire 2>/dev/null || true; sleep 2
+      open "$vdir/app86/Desire.app" --args --automation
+      bridge_wait 60 || die "x86_64 产物启动后桥无响应（Rosetta）"
+      app_quit
+      echo "x86_64 包 ✓（digest + 架构 + Rosetta 启动冒烟）"
+    else
+      echo "x86_64 包 ✓（digest + 架构；本机无 Rosetta，未启动冒烟）"
+    fi
+  fi
+  gh workflow enable release.yml --repo "$GH_REPO"   # 按文件名（禁用态按名字 enable 会 could not find，实测）
+  echo ""
+  echo "✅ v$V 发布完成并验证（快档：digest 三方 + 本地包启动冒烟）；Release 工作流已恢复。"
+}
+
 stage_verify() {
-  log "verify：从 release 重新下载 → 校验和 → 版本 → 启动（发版铁律）"
+  if [ "$VERIFY_DOWNLOAD" != 1 ]; then
+    stage_verify_fast
+    return 0
+  fi
+  log "verify（--verify-download）：从 release 重新下载 → 校验和 → 版本 → 启动"
   local vdir="/tmp/release-verify-$V"
   rm -rf "$vdir"; mkdir -p "$vdir"
   gh release download "$TAG" --repo "$GH_REPO" --pattern "*.zip" --pattern "*.txt" --dir "$vdir" --clobber
@@ -361,7 +497,7 @@ stage_verify() {
       echo "x86_64 包 ✓（校验和 + 架构；本机无 Rosetta，未启动冒烟）"
     fi
   fi
-  gh workflow enable Release --repo "$GH_REPO"
+  gh workflow enable release.yml --repo "$GH_REPO"
   echo ""
   echo "✅ v$V 发布完成并验证：Latest、校验和、版本、启动全过；Release 工作流已恢复。"
 }
@@ -374,12 +510,12 @@ fi
 
 # ── 阶段调度 ────────────────────────────────────────────────
 
-ORDER=(prep build ci smoke package publish verify)
+ORDER=(gates prep build ci smoke package publish verify)
 START=-1
 for i in "${!ORDER[@]}"; do
   if [ "${ORDER[$i]}" = "$FROM" ]; then START=$i; fi
 done
-[ "$START" -ge 0 ] || die "--from 未知阶段: $FROM (可选: prep ci build smoke package publish verify)"
+[ "$START" -ge 0 ] || die "--from 未知阶段: $FROM (可选: gates prep build ci smoke package publish verify)"
 
 for i in "${!ORDER[@]}"; do
   if [ "$i" -lt "$START" ]; then continue; fi

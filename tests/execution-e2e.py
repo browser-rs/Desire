@@ -2389,6 +2389,31 @@ def main():
         shutil.rmtree(fix_dir, ignore_errors=True)
         server.shutdown()
         api.shutdown()
+        # 发版套件戳（2026-10-19 流程重组）：全绿且工作区干净 → 写
+        # .git/desire-e2e-stamp（release.sh 的 gates 阶段据此校验"这套代码
+        # 跑过套件"——修复后忘了重跑套件/预检的洞由此关死）；有失败或脏树 →
+        # 删旧戳（旧戳不可复用）。
+        try:
+            repo = Path(__file__).resolve().parent.parent
+            stamp = repo / ".git" / "desire-e2e-stamp"
+            all_green = bool(checks) and all(c for _, c in checks)
+            if all_green:
+                sha = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo,
+                                     capture_output=True, text=True).stdout.strip()
+                dirty = subprocess.run(["git", "status", "--porcelain"], cwd=repo,
+                                       capture_output=True, text=True).stdout.strip()
+                if sha and not dirty:
+                    stamp.write_text(f"{sha} {len(checks)}/{sum(1 for _, c in checks if c)} "
+                                     f"{time.strftime('%Y-%m-%dT%H:%M:%S')}\n")
+                    print(f"套件戳已写：{sha[:8]}（{len(checks)} 项全绿）→ .git/desire-e2e-stamp")
+                else:
+                    stamp.unlink(missing_ok=True)
+                    print("工作区不干净/拿不到 sha——套件戳未写（先提交再跑套件）")
+            else:
+                stamp.unlink(missing_ok=True)
+                print("套件有失败——旧套件戳已清除")
+        except Exception as exc:
+            print("套件戳写入异常（忽略）:", exc)
 
 
 if __name__ == "__main__":

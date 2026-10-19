@@ -116,6 +116,8 @@ struct WhiteboardPanelView: View {
     @State private var showsComments = false
     @State private var commentDraft = ""
     @State private var commentTargetBlockID: UUID?
+    /// 社区模板 sheet（v0.7.24）。
+    @State private var showsGallery = false
 
     private var conversationKey: String? { session.conversationId?.uuidString }
     private var liveBoard: WhiteboardSpec { store.board(for: conversationKey) }
@@ -157,6 +159,9 @@ struct WhiteboardPanelView: View {
                 commentSidebar
                     .frame(width: 250)
             }
+        }
+        .sheet(isPresented: $showsGallery) {
+            BoardGallerySheet(store: store, conversationID: conversationKey, onClose: { showsGallery = false })
         }
     }
 
@@ -425,6 +430,8 @@ struct WhiteboardPanelView: View {
                     ForEach(WhiteboardTemplates.builtIn) { template in
                         Button("\(template.name)") { applyTemplate(template) }
                     }
+                    Divider()
+                    Button("从社区获取…") { showsGallery = true }
                 }
             } label: {
                 Image(systemName: "plus")

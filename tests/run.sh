@@ -52,6 +52,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/SecretRedactor.swift
   apps/macos/Desire/Features/Whiteboard/WhiteboardSpec.swift
   apps/macos/Desire/Features/Whiteboard/WhiteboardComment.swift
+  apps/macos/Desire/Features/Whiteboard/BoardGallery.swift
   apps/macos/Desire/Features/Whiteboard/WhiteboardPDFLayout.swift
   apps/macos/Desire/Features/Screenshot/OCRTableDetector.swift
   apps/macos/Desire/Features/ShareCard/PageShareCardLayout.swift

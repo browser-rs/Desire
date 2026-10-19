@@ -1,0 +1,40 @@
+{
+  "version": 1,
+  "boards": [
+    {
+      "id": "competitor",
+      "name": "竞品对比",
+      "description": "功能矩阵表格 + 结论区。",
+      "file": "boards/competitor.board",
+      "blocks": 2
+    },
+    {
+      "id": "meeting",
+      "name": "会议纪要",
+      "description": "议程 / 结论 / 待办，会后直接归档。",
+      "file": "boards/meeting.board",
+      "blocks": 2
+    },
+    {
+      "id": "retro",
+      "name": "流程复盘",
+      "description": "事件链导图 + 时间线 + 改进项。",
+      "file": "boards/retro.board",
+      "blocks": 2
+    },
+    {
+      "id": "swot",
+      "name": "SWOT 分析",
+      "description": "优势/劣势/机会/威胁四象限，团队讨论后直接填。",
+      "file": "boards/swot.board",
+      "blocks": 1
+    },
+    {
+      "id": "weekly",
+      "name": "周报",
+      "description": "本周完成 / 下周计划 / 风险与求助三段结构。",
+      "file": "boards/weekly.board",
+      "blocks": 1
+    }
+  ]
+}

@@ -479,6 +479,8 @@ final class AutomationServer {
         ep("POST", "/remote/mark-seen", "Mark a conversation as seen by the phone (same path as the phone's select receipt)", params: ["conversationId:string"], example: #"-d '{"conversationId":"…"}'"#)
         ep("GET", "/remote/board-payload", "The snapshot board payload for a conversation (same builder the remote frame uses)", params: ["conversationId?:string"], example: "…/remote/board-payload")
         ep("POST", "/share-card", "Generate a page share card (first-screen snapshot + title/domain + optional side-model summary) and save it to Downloads", params: ["index?:int (tab; default selected)", "summarize?:bool (default true)"], example: #"-d '{"summarize":false}'"#)
+        ep("GET", "/board/gallery", "Whiteboard template gallery index (community)", params: ["baseURL?:string (default https://desire.mankong.icu/gallery/; E2E uses a fixture)"], example: "…/board/gallery")
+        ep("POST", "/board/gallery/import", "Import a community template into the whiteboard", params: ["id:string", "mode?:auto|append|replace (auto = set when empty else append)", "baseURL?:string", "conversationId?:uuid"], example: #"-d '{"id":"swot"}'"#)
         ep("GET", "/remote/status", "E2E/automation: remote state incl. active pairing code + session key (LOCAL DEV BRIDGE ONLY — never expose beyond localhost)", example: "…/remote/status")
         ep("POST", "/sync/domain", "Enable/disable a sync category", params: ["domain:string (bookmarks|quickdials|reading_list|keyboard_shortcuts|settings)", "enabled:bool"], example: #"-d '{"domain":"quickdials","enabled":false}'"#)
         ep("GET", "/search-history", "Recent search queries", params: ["count?:int"], example: "…/search-history?count=5")
@@ -1844,6 +1846,14 @@ final class AutomationServer {
             case ("POST", "/remote/mark-seen"):
                 AppState.live?.remoteControlStore.markRemoteSeen(Self.string(body, "conversationId"))
                 return try Self.json(["ok": true])
+            case ("GET", "/board/gallery"):
+                return try Self.json(await Self.boardGalleryList(base: Self.string(query, "baseURL")))
+            case ("POST", "/board/gallery/import"):
+                return try Self.json(await Self.boardGalleryImport(
+                    id: Self.string(body, "id") ?? "",
+                    mode: Self.string(body, "mode") ?? "auto",
+                    base: Self.string(body, "baseURL"),
+                    conversationId: Self.string(body, "conversationId")))
             case ("POST", "/share-card"):
                 // 网页分享卡（v0.7.24）：活跃标签 → 首屏图 + 标题/域名 +
                 //（可选）旁路模型摘要 → PNG 存下载目录。
@@ -6807,6 +6817,51 @@ final class AutomationServer {
 
     /// 当前会话白板的**快照载荷**（v0.7.23 跨端可读化）：与 RemoteControlStore
     /// 发送的 board 帧同源同构建——探针/两端契约断言用。
+    /// 社区模板列表/导入（v0.7.24，桥 = 服务同源；E2E 用 baseURL 指 fixture）。
+    private static func boardGalleryList(base: String?) async -> [String: Any] {
+        do {
+            let boards = try await BoardGalleryService.fetchIndex(base: base ?? BoardGallery.defaultBaseURL)
+            return ["ok": true, "count": boards.count,
+                    "boards": boards.map {
+                        ["id": $0.id, "name": $0.name, "description": $0.description,
+                         "file": $0.file, "blocks": $0.blocks ?? 0] as [String: Any]
+                    }]
+        } catch {
+            return ["error": error.localizedDescription]
+        }
+    }
+
+    private static func boardGalleryImport(id: String, mode: String, base: String?,
+                                           conversationId: String?) async -> [String: Any] {
+        let baseURL = base ?? BoardGallery.defaultBaseURL
+        do {
+            let boards = try await BoardGalleryService.fetchIndex(base: baseURL)
+            guard let board = boards.first(where: { $0.id == id }) else {
+                return ["error": "no such template: \(id)"]
+            }
+            let spec = try await BoardGalleryService.fetchBoard(board, base: baseURL)
+            let store = WhiteboardStore.shared
+            let conversation = conversationId
+                ?? AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString
+            let current = store.board(for: conversation)
+            let effective = mode == "auto" ? (current.blocks.isEmpty ? "replace" : "append") : mode
+            switch effective {
+            case "replace":
+                store.set(WhiteboardSpec(title: spec.title, blocks: spec.blocks), conversationID: conversation)
+            case "append":
+                store.append(spec.blocks, title: spec.title, conversationID: conversation)
+            default:
+                return ["error": "mode must be auto | append | replace"]
+            }
+            let after = store.board(for: conversation)
+            return ["ok": true, "id": id, "title": spec.title,
+                    "importedBlocks": spec.blocks.count, "boardBlocks": after.blocks.count,
+                    "mode": effective]
+        } catch {
+            return ["error": error.localizedDescription]
+        }
+    }
+
     /// 网页分享卡（v0.7.24，桥 = 服务同源）。
     private static func pageShareCard(index: Int?, summarize: Bool) async -> [String: Any] {
         do {

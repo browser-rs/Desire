@@ -437,6 +437,42 @@ do {
           PageShareCardLayout.cardHeight(imageAspect: 1.6, summaryLineCount: 0) < h)
 }
 
+// ---------- 白板模板社区索引（v0.7.24）----------
+
+do {
+    let good = Data(#"{"version":1,"boards":[{"id":"swot","name":"SWOT","description":"d","file":"boards/swot.board","blocks":2}]}"#.utf8)
+    let index = BoardGallery.parseIndex(good)
+    check("社区索引：解析成功", index?.boards.first?.id == "swot")
+    check("社区索引：版本不认识拒绝",
+          BoardGallery.parseIndex(Data(#"{"version":2,"boards":[{"id":"a","name":"n","description":"d","file":"f"}]}"#.utf8)) == nil)
+    check("社区索引：空列表拒绝",
+          BoardGallery.parseIndex(Data(#"{"version":1,"boards":[]}"#.utf8)) == nil)
+    check("社区索引：坏 JSON 拒绝", BoardGallery.parseIndex(Data("not json".utf8)) == nil)
+    // 额外字段忽略（向前兼容）
+    let extra = Data(#"{"version":1,"generatedAt":"x","boards":[{"id":"a","name":"n","description":"d","file":"f","future":true}]}"#.utf8)
+    check("社区索引：额外字段忽略", BoardGallery.parseIndex(extra)?.boards.count == 1)
+
+    let base = "https://desire.mankong.icu/gallery/"
+    check("社区 URL：相对路径解析",
+          BoardGallery.resolveFileURL("boards/swot.board", base: base)?.absoluteString
+          == "https://desire.mankong.icu/gallery/boards/swot.board")
+    check("社区 URL：绝对 URL 拒绝",
+          BoardGallery.resolveFileURL("https://evil.example/x.board", base: base) == nil)
+    check("社区 URL：协议相对拒绝",
+          BoardGallery.resolveFileURL("//evil.example/x.board", base: base) == nil)
+    check("社区 URL：.. 跳出拒绝",
+          BoardGallery.resolveFileURL("../../etc/passwd", base: base) == nil)
+    check("社区 URL：根路径拒绝",
+          BoardGallery.resolveFileURL("/abs/x.board", base: base) == nil)
+    check("社区 URL：反斜杠拒绝",
+          BoardGallery.resolveFileURL("boards\\x.board", base: base) == nil)
+    check("社区 URL：非 http(s) base 拒绝",
+          BoardGallery.resolveFileURL("a.board", base: "file:///tmp/") == nil)
+    check("社区 URL：http base 允许（E2E fixture）",
+          BoardGallery.resolveFileURL("a.board", base: "http://127.0.0.1:8891/")?.absoluteString
+          == "http://127.0.0.1:8891/a.board")
+}
+
 // ---------- DPP 一键上板（0.6.9：pageExtract 结果 → 白板块）----------
 
 do {

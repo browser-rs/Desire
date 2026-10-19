@@ -614,6 +614,7 @@ final class AutomationServer {
         ep("POST", "/agent/send", "Prompt the live agent session", params: ["text:string", "recordHistory?:bool (default false)"], example: #"-d '{"text":"summarize this page"}'"#)
         ep("POST", "/agent/resume", "Checkpoint resume: continue a turn that was interrupted by a crash/force-quit (action=resume) or clear the marker (action=discard)", params: ["action:resume|discard", "window?:string"], example: #"-d '{"action":"resume"}'"#)
         ep("GET", "/agent/tasks", "Scheduled agent tasks", example: "…/agent/tasks")
+        ep("POST", "/agent/handoff", "Hand the current delivery session's conversation to another window (target takes over; source returns to a fresh conversation)", params: ["window:string (live session id from GET /agent/windows)"], example: #"-d '{"window":"…"}'"#)
         ep("GET", "/agent/crew", "Tab Crew status (per-subtask progress + reports)", example: "…/agent/crew")
         ep("POST", "/agent/crew/cancel", "Cancel the whole crew (or one subtask)", params: ["index?:int"], example: "-d '{}'")
         ep("POST", "/agent/crew-dispatch", "Dispatch a crew (objective + subtasks); MCP crewDispatch maps here", params: ["objective:string", "tasks:array", "isolated?:bool (ephemeral container, wiped on settle)"], example: "-d '{\"objective\":\"compare\",\"tasks\":[{\"url\":\"https://a\",\"instruction\":\"price of X\"}]}'")
@@ -2420,6 +2421,9 @@ final class AutomationServer {
                 ))
             case ("POST", "/watches/check"):
                 return try await Self.json(Self.checkWatch(name: Self.string(body, "name") ?? ""))
+            case ("POST", "/agent/handoff"):
+                // 会话接力（v0.7.25）：把当前投递会话的对话交给另一窗口接管。
+                return try Self.json(Self.agentHandoff(window: Self.string(body, "window")))
             case ("GET", "/agent/windows"):
                 return try Self.json(Self.agentWindows())
             case ("GET", "/agent/messages"):
@@ -5380,6 +5384,28 @@ final class AutomationServer {
             return AgentScheduler.shared.session(withID: id)
         }
         return AgentScheduler.shared.deliveryTarget
+    }
+
+    /// 会话接力（v0.7.25）：源（当前投递会话）先落盘 → 目标 loadConversation →
+    /// 投递目标切到目标 → 源 clear() 回空会话（不持有旧对话，避免退出时旧副本
+    /// 覆盖目标的新内容）。
+    private static func agentHandoff(window: String?) -> [String: Any] {
+        guard let window, let targetID = UUID(uuidString: window),
+              let target = AgentScheduler.shared.session(withID: targetID) else {
+            return ["error": "handoff needs window=<live session id> (see GET /agent/windows)"]
+        }
+        guard let source = AgentScheduler.shared.deliveryTarget, source !== target else {
+            return ["error": "source session is missing or already the target"]
+        }
+        guard let conversation = source.conversationId else {
+            return ["error": "source session has no conversation to hand off"]
+        }
+        source.flushConversation()
+        target.loadConversation(conversation)
+        AgentScheduler.shared.deliveryTarget = target
+        source.clear()
+        return ["ok": true, "conversation": conversation.uuidString,
+                "target": targetID.uuidString]
     }
 
     private static func agentWindows() throws -> [String: Any] {

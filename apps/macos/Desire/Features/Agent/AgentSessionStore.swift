@@ -1256,6 +1256,13 @@ class AgentSessionStore: ObservableObject {
         DiskStore.flushSync()
     }
 
+    /// 公开落盘（v0.7.25 会话接力）：接力前把源会话写到盘上，目标窗口才能
+    /// loadConversation 读到的就是最新内容。
+    func flushConversation() {
+        saveCurrentConversation()
+        DiskStore.flushSync()
+    }
+
     private func saveCurrentConversation() {
         let id = conversationId ?? UUID()
         conversationId = id

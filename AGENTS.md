@@ -235,6 +235,13 @@ Features/Bookmarks/
   ② **增量构建只重编改动的文件**，没碰过的文件里的警告根本不会出现——要下结论
   必须 `clean build`。另：`appintentsmetadataprocessor` 那行不是代码警告，可忽略。
 - 应用以 `--automation` 启动后，`127.0.0.1:8799` 提供完整 JSON 接口
+
+- **桥开不了第二窗口**（2026-10-20 会话接力实测）：`POST /command {"name":"newWindow"}`
+  返回 ok 但**没有新窗**——它走 SwiftUI `openWindow`，桥上下文里拿不到场景环境。
+  双窗自动化：`osascript -e 'tell application "Desire" to activate'` + CGEvent
+  `postToPid` 注入 ⌘N（`virtualKey 45 + .maskCommand`），再用 `GET /agent/windows`
+  确认两个注册会话。另：`windowVisible` 判据扫 webview 的 window，新标签页上的
+  webview 没挂载会误报 false——判窗口存在用 `CGWindowList`（本机实测两窗两条）。
   （见 `Desire/App/AutomationServer.swift` 头注释）。
 - **禁止** System Events 键盘注入 / 坐标点击：多全屏 Space 环境下会
   切空间、误注入前台其他应用，且 SwiftUI 窗口内 Menu 无法按名点击。

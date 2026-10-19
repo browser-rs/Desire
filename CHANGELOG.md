@@ -1,7 +1,4 @@
-## [Unreleased]
-### Fixed
-
-- **OAuth 弹窗登录修复（v0.7.25）**：crates.io 的"Log in with GitHub"永远登不上——根因 = 新窗口策略把 `window.open` 弹窗**一律转成标签**，而回跳页（`crates.io/github-redirect.html`）靠 `window.opener.postMessage` 把授权码交回原页；转标签后 **opener 为 null**，回跳页静默什么都不做（现场证据：该页 DOM 空、`window.opener === null`）。修复：`createWebViewWith` 区分两类新窗口——**脚本文档开的（navigationType == .other）或带显式尺寸的 → 真弹窗**（用 WebKit 交给我们的 configuration 建 WKWebView 放进独立窗口，opener/cookie/进程池自动接好；页面 `window.close()` 经 `webViewDidClose` 关窗、KVO 同步窗口标题）；**链接的 target=_blank 仍转标签**（既有 UX 不变）。验收：本地 fixture（opener postMessage + window.close）修复前 FAIL（登录页标题不变且多出标签）、修复后 PASS（标题变 "GOT ABC"、弹窗自关无残留标签）；**真站实测**：crates.io 点击 Login with GitHub → 弹窗完成授权 → 原页登录成功（截图确认 SiwiLiZhao 个人页）。
+## [v0.7.25] - 2026-10-20
 
 ### Added
 
@@ -13,11 +10,9 @@
 - **归档历史检索（v0.7.25，范围修正）**：原计划"服务端历史检索接口"被 **E2E 加密**挡住——服务端存的 `sync_history_items.payload` 是 AES-GCM 密文（设计如此，服务端不可读），服务端全文检索会破坏端到端加密。正解：**客户端按需全量拉取 → 本地解密 → 过滤**（从 since=nil 分页拉、页数设上限、本次运行内缓存，退出登录清空）。Agent 新增只读工具 `searchHistory`（本地 500 条优先 + 归档去重补充，标注 `[local]`/`[archive]`；未登录时本地照常+归档不可用的说明）；桥 `GET /history/archive-search`。验收：harness **1079/0**（+6：大小写不敏感/同 URL 去重保留最新/空查询倒序/limit 封顶/URL 命中/无命中）；**生产真库实测 3/3**（未登录路径曾被意外覆盖——你已重新登录：`man kong` 账号、密钥在；`q=crates.io` 命中 3 条带时间戳、空查询返回最近 5 条上限内、无命中 ok+0）。
 - **会话接力（v0.7.25，多窗口互通）**：把当前对话**交给另一窗口接管**——桥 `POST /agent/handoff {"window": <live session id>}`：源窗口先落盘（`flushConversation`）→ 目标 `loadConversation` 接管（同一 conversationId）→ 投递目标（deliveryTarget）切换到目标窗口 → 源 `clear()` 回空会话（不持有旧对话，避免退出时旧副本覆盖目标的新内容）。验收：双窗真机探针 **7/7**（源会话建立/接力带同一会话/目标接管/投递目标切换/源回新会话/目标续写落在同一会话且消息增长/轨迹会话一致；两段测试对话已清理）。**测试发现**：桥 `/command newWindow` 走 SwiftUI `openWindow`，在桥上下文里**静默无效**（返回 ok 但没开窗）——自动化开第二窗要系统级激活 + ⌘N 键盘注入（已记入 AGENTS.md 测试要点）。
 
+### Fixed
 
-
-
-
-
+- **OAuth 弹窗登录修复（v0.7.25）**：crates.io 的"Log in with GitHub"永远登不上——根因 = 新窗口策略把 `window.open` 弹窗**一律转成标签**，而回跳页（`crates.io/github-redirect.html`）靠 `window.opener.postMessage` 把授权码交回原页；转标签后 **opener 为 null**，回跳页静默什么都不做（现场证据：该页 DOM 空、`window.opener === null`）。修复：`createWebViewWith` 区分两类新窗口——**脚本文档开的（navigationType == .other）或带显式尺寸的 → 真弹窗**（用 WebKit 交给我们的 configuration 建 WKWebView 放进独立窗口，opener/cookie/进程池自动接好；页面 `window.close()` 经 `webViewDidClose` 关窗、KVO 同步窗口标题）；**链接的 target=_blank 仍转标签**（既有 UX 不变）。验收：本地 fixture（opener postMessage + window.close）修复前 FAIL（登录页标题不变且多出标签）、修复后 PASS（标题变 "GOT ABC"、弹窗自关无残留标签）；**真站实测**：crates.io 点击 Login with GitHub → 弹窗完成授权 → 原页登录成功（截图确认 SiwiLiZhao 个人页）。
 
 ## [v0.7.24] - 2026-10-19
 ### Added

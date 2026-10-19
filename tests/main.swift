@@ -473,6 +473,21 @@ do {
           == "http://127.0.0.1:8891/a.board")
 }
 
+// ---------- 登录墙指引（v0.7.24）----------
+
+do {
+    check("登录墙：无信号无提示",
+          LoginWallAdvisory.advise(hasVisiblePasswordField: false, hasLoginWords: false) == nil)
+    let pw = LoginWallAdvisory.advise(hasVisiblePasswordField: true, hasLoginWords: false)
+    check("登录墙：密码框优先且含行动指引",
+          pw?.contains("login wall") == true && pw?.contains("log in") == true)
+    let words = LoginWallAdvisory.advise(hasVisiblePasswordField: false, hasLoginWords: true)
+    check("登录墙：仅登录词给轻提示",
+          words?.contains("mentions sign-in/login") == true)
+    check("登录墙：密码框与登录词同现取强提示",
+          LoginWallAdvisory.advise(hasVisiblePasswordField: true, hasLoginWords: true) == pw)
+}
+
 // ---------- DPP 一键上板（0.6.9：pageExtract 结果 → 白板块）----------
 
 do {

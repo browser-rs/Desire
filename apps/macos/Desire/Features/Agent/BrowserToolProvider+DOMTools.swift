@@ -1501,6 +1501,34 @@ extension BrowserToolProvider {
                         emptyNote = "\n(\(viewName) is legitimately empty — the page's empty-state marker '\(sel)' is showing; do not retry)"
                     }
                 }
+                // 登录墙指引（v0.7.24）：0 条目且非合法空态 → 探测登录信号
+                //（可见密码框 / 登录词）——把"为什么空"变成可行动的一句话。
+                if items.isEmpty, emptyNote.isEmpty {
+                    // callAsyncJavaScript 不取末尾表达式值——必须显式 return
+                    //（IIFE 形态实测返回 null，静默不生效过一次）。
+                    let signalJS = """
+                    try {
+                      var pw = document.querySelectorAll('input[type=password]');
+                      var vis = false;
+                      for (var i = 0; i < pw.length; i++) {
+                        var r = pw[i].getBoundingClientRect();
+                        if (r.width > 0 && r.height > 0) { vis = true; }
+                      }
+                      var t = ((document.body && document.body.innerText) || '').slice(0, 1500);
+                      return JSON.stringify({pw: vis, words: /(登录|登入|注册|sign in|log in|login|create account|密码|password)/i.test(t)});
+                    } catch (e) { return null; }
+                    """
+                    if let raw = try? await dppWebView.callAsyncJavaScript(
+                        signalJS, arguments: [:], in: targetFrame,
+                        contentWorld: WebView.agentToolWorld) as? String,
+                       let data = raw.data(using: .utf8),
+                       let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                       let advice = LoginWallAdvisory.advise(
+                           hasVisiblePasswordField: obj["pw"] as? Bool ?? false,
+                           hasLoginWords: obj["words"] as? Bool ?? false) {
+                        emptyNote = advice
+                    }
+                }
                 return render(items, pages: 1, scope: "current", emptyNoteText: emptyNote)
             }
             // 无限滚动：滚到底 → 等内容增长 → 抽取去重累计；连续两轮无新增

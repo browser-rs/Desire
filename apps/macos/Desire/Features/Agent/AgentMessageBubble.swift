@@ -253,6 +253,8 @@ private struct AssistantBubble: View {
     var onLearnReason: ((String) -> Void)? = nil
     var toolDurations: [String: Double] = [:]
     @State private var isHovering = false
+    /// 回复朗读（v0.7.28）：复用端上 TTS，不产生网络/费用。
+    @ObservedObject private var speech = ReaderSpeechService.shared
 
     private var isError: Bool {
         message.content?.hasPrefix("Error:") == true
@@ -383,6 +385,27 @@ private struct AssistantBubble: View {
                 CopyChip(text: text)
                     .opacity(isHovering ? 1 : 0)
                     .allowsHitTesting(isHovering)
+                Button {
+                    if speech.isSpeaking {
+                        speech.stop()
+                    } else {
+                        // 轻量去 Markdown 标记，避免念出 "星号星号"。
+                        speech.speak(text
+                            .replacingOccurrences(of: "**", with: "")
+                            .replacingOccurrences(of: "`", with: ""))
+                    }
+                } label: {
+                    Image(systemName: speech.isSpeaking ? "speaker.slash.fill" : "speaker.wave.2")
+                        .font(.system(size: 10))
+                        .frame(width: 18, height: 16)
+                        .foregroundStyle(speech.isSpeaking
+                                         ? AnyShapeStyle(appAccent)
+                                         : AnyShapeStyle(.secondary))
+                }
+                .buttonStyle(.plain)
+                .help(speech.isSpeaking ? "Stop Reading" : "Read Aloud")
+                .opacity(isHovering || speech.isSpeaking ? 1 : 0)
+                .allowsHitTesting(isHovering || speech.isSpeaking)
             }
             .frame(height: 18)
         }

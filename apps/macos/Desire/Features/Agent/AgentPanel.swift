@@ -596,6 +596,8 @@ struct AgentPanel: View {
             }
             .onChange(of: store.conversationId) { old, new in
                 historyIndex = nil      // 换了对话：历史也跟着换
+                // 换对话时停掉上一段的回复朗读（v0.7.28）。
+                ReaderSpeechService.shared.stop()
                 // 草稿按对话存取：切走时存下、切回时取回（以前切一次就丢）。
                 if let old { drafts[old] = inputText }
                 inputText = new.flatMap { drafts[$0] } ?? ""

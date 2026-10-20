@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.7.27] - 2026-10-21
 ### Added
 
 - **crew 运行观察面收尾（v0.7.27 旗舰）**：逐 worker 记录模型与 token，面板/桥按 worker 展示 token 与金额（未定价只显 token，沿用 `AgentUsage` 口径）；终态 worker 不再从条子里消失（保留已用时/工具数/结果悬停）。顺带修两个真 bug：tab 消失与模型异常这两条提前失败路径此前**不调用 `settleIfDone`**，最后一个 worker 这样失败时 crew 永远不落定；`WorkerTask.task` 从未赋值（取消实际靠 state 标志），已移除死句柄并让取消立即发布终态。验收：harness（解析/汇总）、Debug 构建绿；逐 worker 金额待真端点 crew 探针。

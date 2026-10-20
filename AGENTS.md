@@ -1013,62 +1013,51 @@ Features/Bookmarks/
   - **发版冒烟必须从非 DerivedData 路径（如 /tmp）启动一次**：ACl 失配只在
     换路径启动时触发，常规 DerivedData 路径测不出来。
 
-## 发布流程（scripts/release.sh，2026-10-19 流程重组）
+## 发布流程（2026-10-21 起：云端构建发布，tag 前必须预发版通过）
 
-**发布 = `scripts/release.sh <版本号>`**（默认全程 ~15 分钟，不等 GitHub）。
-八阶段：`gates → prep → build → ci → smoke → package → publish → verify`。
-失败续跑 `--from <阶段>`；正文预览 `body <tag>`（与 CI release.yml 共用
-`scripts/install-note.template.md`）。
+**铁律：发版必须成功**——tag 一旦推出就不好回退，所以**打 tag 必须发生在"这份提交
+已经在云端完整构建通过"之后**。仓库是公开仓库，Actions 标准 runner 免费且不计分钟
+（私有仓库才有 2000 分钟/月 + macOS 10× 扣减——那是本地发版时代的历史顾虑）；
+构建/打包/上传全部交给 GitHub，不占开发机、不阻塞继续开发。
 
-**发布日 checklist（2026-10-20 反思定稿；顺序不可换——"先验后发，发版是终态动作"）**：
-1. 代码/文档全部冻结；写 CHANGELOG 条目（`scripts/changelog.py add`）。
-2. **完整预检**：`tools/pre-release-check.sh <版本> --build`——干净树/单测/结构/查重/
-   零警告 clean 构建/**产物主窗就绪 + 优雅退出**（非 DerivedData 路径）。
-   **有警告/构建问题先修完再进套件**（2026-10-21 教训：顺序反了会变成
-   "套件→发现警告→整套件重跑"，一次多花 15 分钟）；套件戳在这一步只是提醒。
-3. **再跑套件一次**（必须在预检之后——编译问题先暴露）：`python3 tests/execution-e2e.py`（约 15 分钟；全绿自动写套件戳）。
-   **套件之后只许改白名单文件**（CHANGELOG/website/docs/scripts/tools/AGENTS/pbxproj）；
-   动了 app 代码 = 重跑套件。
-4. `printf 'y\n' | scripts/release.sh <版本号>` 后台跑、只盯日志（CHANGELOG 冻结由
-   prep 自动完成，无需手工改名）。
-5. 发版后：产品页部署提醒（手工步）。**报时口径（2026-10-20 修正）**：
-   **发版动作 ≈ 6–7 分钟**（gates 1.5m + prep 10s + 增量 build ~20s + package 5s +
-   publish ~4m 资产上传 + verify 20s；增量 build 依赖预检写的
-   `.git/desire-build-stamp`，无戳自动回退 clean 构建 ~9m）；
-   **验证阶段独立、可提前做**：预检（clean 双架构+零警告+产物启动）≈13m + 套件 15m。
-   长等待给阶段 ETA。耗时/问题自动记入 `docs/RELEASE-RETRO.md`，发版后补反思。
+**流程**：
+1. 开发完成并推到 main；本地验证：
+   - 每次：`bash tests/run.sh`（纯逻辑，40 秒）；
+   - 动了浏览器/Agent 运行路径：`python3 tests/execution-e2e.py`（15 分钟，全绿）；
+   - 结构/视觉改动：按本文件前面的桥/快照手法走查。
+2. 写 CHANGELOG（`scripts/changelog.py add <Type>`，stdin 传正文）。
+3. `scripts/release.sh <版本号>`：
+   - 冻结 CHANGELOG、同步 website/pbxproj 版本号、跑单测、提交推送（版本号/构建号
+     幂等，续跑不会重复加号）；
+   - **触发 release.yml 的 workflow_dispatch 预发版构建**（与正式发布同一套双架构
+     零警告构建 + 单测，但不发布），等它绿；
+   - **只有绿了才打 tag 并推送** → 正式发布工作流构建同一份字节并幂等发布；
+   - 预发版失败 → **tag 不存在**，开发可继续，修完重跑同一命令；
+   - 续跑：`scripts/release.sh <版本号> --from tag`（要求 HEAD 已有绿色预发版）。
+4. `gh run list --workflow release.yml --limit 5` 看发布进度。
+5. 发版后产品页部署是手工步（release.sh 不管页面部署）。
 
-**每道闸门都是真踩过的坑（别删别绕）**：
-- **gates（2026-10-19 立，v0.7.24 事故后）**：干净树 / CHANGELOG 结构 / 纯逻辑
-  单测 / 远端查重 / **套件戳校验**——戳之后的提交只准动白名单（CHANGELOG.md、
-  website/、pbxproj），**动了代码必须重跑套件**。此前预检独立成脚本、靠人记得
-  跑，修复提交后忘跑预检就直接发版的洞由此关死。应急 `--skip-e2e-stamp`
-  （大字警告，别轻易用）。
-- **build**：每次删 DerivedData **clean build** 零警告（`warning:` 前面是路径，
-  只豁免 appintentsmetadataprocessor）；产物版本 PlistBuddy 核对。
-- **ci 默认 local**：本地评估套件 +（crates/ 随版改动时）cargo fmt/test——ci.yml
-  的本地等价物。**远端 CI 改为 `--ci gh` 抽查**（macOS runner 排队 + 全量构建
-  10–15 分钟，例行发版不值得等；每隔几版抽查一次环境差异）。`--ci auto` 保留
-  （有 HEAD 的 run 就等，没有回落本地）。gh API 不走 Actions 分钟数，额度烧尽
-  照样能发。
-- **smoke**：产物拷到**非 DerivedData 路径**启动（Keychain ACL 按 cdhash/路径认，
-  换路径才暴露"授权窗永不渲染"）；桥 + `/agent/stats` + `/ai/profiles` 探活。
-- **publish**：**第一步 `gh workflow disable Release`**（v* tag 会触发它自建发布
-  抢 Latest）；推 tag；`gh release create --repo`（mankong/Desire 会 404）。
-- **verify 默认快档（2026-10-19 立）**：GitHub 资产 **digest（服务端对上传字节的
-  sha256）与本地 SHASUMS/大小三方比对** + 本地包（字节等同）非 DerivedData 启动
-  冒烟 + x86 架构核验——等价于"重新下载再校验"且不吃资产 CDN 超时（多次拖
-  20+ 分钟）。真实重下载降级为 `--verify-download`。收尾**必须**恢复工作流：
-  `gh workflow enable release.yml`——**禁用态按名字 enable 会 could not find
-  （实测），要用文件名**。
+**为什么这样能保证成功**：tag 指向的提交与预发版验证的提交是同一个 SHA；正式发布
+只是重跑同一构建 + 上传，任何上传/网络失败可 **re-run 同一 tag 的工作流**补完
+（Release 已存在则复用更新、资产 `--clobber` 覆盖、最后校验远端 size/sha256 digest）。
 
-**速度开关**：`--no-x86_64`（跳过 Intel 包，省 ~4 分钟）；`--verify-download`
-（网络好时抽检）；`--skip-ci-check`（急救）。**预检快查**（发版前想早点知道）：
-`tools/pre-release-check.sh [版本] [--build]`——默认 1 分钟（干净/单测/结构/查重/
-套件戳），`--build` 加 clean 构建零警告；完整闸门反正会在 release.sh 里再跑一遍。
+**工作流要点**（`.github/workflows/release.yml`）：
+- `workflow_dispatch(version)` = 预发版；`push tag v*` = 正式发布；
+- `quality`（Rust fmt/test/build）+ `build-arm64` / `build-x86_64` 并行，各自
+  PlistBuddy 校验产物版本 == 版本号、x86 用 lipo 校验架构、零警告 grep 闸门；
+- 发布 job 只在 tag push 时运行：下载 artifacts → 正文 = CHANGELOG 该版本段 +
+  `scripts/install-note.template.md` → Release 幂等创建/更新 → 逐资产上传重试 →
+  `scripts/verify-release-assets.py` 三方校验。
 
-**本机事实**：macOS 自带 bash 3.2——`$( )` 里写 `case` 会语法炸（release.sh 里
-用 `if`/`[[ ]]` 绕开）；`.git/desire-e2e-stamp` 只存本机（不进仓库、不跨机）。
+**别绕的坑**：
+- **本机 Xcode 可能比 CI 新**：本地全量构建绿 ≠ CI 绿（曾因 private init 的构造
+  可见性差异，CI 连红 5 次）。预发版构建正是为此存在，不要跳过它直接打 tag。
+- 不再手工 disable/enable Release 工作流（那是本地发版时代的遗留；现在它就是
+  唯一发布者）。
+- 产物用 `CODE_SIGNING_ALLOWED=NO`（链接器仍给 arm64 ad-hoc 签名，可启动）；
+  安装说明仍要求 `xattr -cr`。安装说明单一真相 = `scripts/install-note.template.md`。
+- CHANGELOG 的 `[Unreleased]` 由 `scripts/release.sh` 自动改名并补空壳；条目只许用
+  `scripts/changelog.py add` 写。
 
 ## 端点扩展模式
 

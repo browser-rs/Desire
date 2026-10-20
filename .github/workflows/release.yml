@@ -1,15 +1,28 @@
 name: Release
 
+# 两条入口：
+#   • workflow_dispatch（version=X.Y.Z）→ **预发版构建**：单测 + 双架构零警告构建，
+#     不发布、不打 tag。scripts/release.sh 在打 tag 前必须先看到这一次绿——这是
+#     "发版必须成功"的保证：tag 指向的字节与这里验证过的完全一致。
+#   • push tag vX.Y.Z → 同样的构建 + **幂等发布**（已存在的 Release 复用、资产覆盖
+#     上传、重跑可补完）。发布阶段的网络/上传失败只需 re-run 同一 tag 的工作流。
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version without the v prefix (e.g. 0.7.26)'
+        required: true
+        type: string
 
 permissions:
   contents: write
 
+# 预发版与正式发布互不取消；同一 tag 的重推才取消旧 run。
 concurrency:
-  group: release-${{ github.ref }}
-  cancel-in-progress: true
+  group: release-${{ github.event_name == 'workflow_dispatch' && format('preflight-{0}', github.sha) || github.ref }}
+  cancel-in-progress: false
 
 jobs:
   quality:
@@ -25,10 +38,9 @@ jobs:
       - name: Rust build
         run: cargo build --workspace
 
-  release:
-    name: Build and publish
+  build-arm64:
+    name: Build arm64 (zero warnings)
     runs-on: macos-latest
-    needs: quality
 
     steps:
       - uses: actions/checkout@v4
@@ -40,35 +52,138 @@ jobs:
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
 
-      - name: Build (Release, unsigned)
+      - name: Pure-logic unit tests
+        run: bash tests/run.sh
+
+      - name: Build and verify version
         run: |
+          set -euo pipefail
+          V="${{ inputs.version }}"
+          if [ -z "$V" ]; then V="${GITHUB_REF_NAME#v}"; fi
           xcodebuild \
             -project apps/macos/Desire.xcodeproj \
             -scheme Desire \
             -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/dd-arm64" \
             -destination 'platform=macOS' \
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            build
+            clean build 2>&1 | tee build-arm64.log
+          if grep -E "warning:" build-arm64.log | grep -v appintentsmetadataprocessor | grep -q .; then
+            echo "::error::arm64 build emitted warnings"
+            grep -E "warning:" build-arm64.log | grep -v appintentsmetadataprocessor | head -20
+            exit 1
+          fi
+          APP="$RUNNER_TEMP/dd-arm64/Build/Products/Release/Desire.app"
+          VER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
+          [ "$VER" = "$V" ] || { echo "::error::built version $VER != expected $V"; exit 1; }
 
-      - name: Package zip (symlink-safe)
+      - name: Package arm64
         run: |
-          APP=$(find ~/Library/Developer/Xcode/DerivedData -type d -name "Desire.app" -path "*Release*" | head -1)
-          test -n "$APP"
-          ditto -c -k --keepParent "$APP" "Desire-${{ github.ref_name }}-macos-arm64.zip"
-          shasum -a 256 "Desire-${{ github.ref_name }}-macos-arm64.zip" > SHASUMS256.txt
+          set -euo pipefail
+          V="${{ inputs.version }}"
+          if [ -z "$V" ]; then V="${GITHUB_REF_NAME#v}"; fi
+          ditto -c -k --keepParent \
+            "$RUNNER_TEMP/dd-arm64/Build/Products/Release/Desire.app" \
+            "Desire-v$V-macos-arm64.zip"
+          shasum -a 256 "Desire-v$V-macos-arm64.zip" > "SHASUMS256-arm64.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: arm64
+          path: |
+            Desire-v*-macos-arm64.zip
+            SHASUMS256-arm64.txt
+          if-no-files-found: error
+
+  build-x86_64:
+    name: Build x86_64 (zero warnings)
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode
+        run: |
+          XCODE=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Build and verify version/arch
+        run: |
+          set -euo pipefail
+          V="${{ inputs.version }}"
+          if [ -z "$V" ]; then V="${GITHUB_REF_NAME#v}"; fi
+          xcodebuild \
+            -project apps/macos/Desire.xcodeproj \
+            -scheme Desire \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/dd-x86" \
+            -destination 'platform=macOS' \
+            ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            clean build 2>&1 | tee build-x86.log
+          if grep -E "warning:" build-x86.log | grep -v appintentsmetadataprocessor | grep -q .; then
+            echo "::error::x86_64 build emitted warnings"
+            grep -E "warning:" build-x86.log | grep -v appintentsmetadataprocessor | head -20
+            exit 1
+          fi
+          APP="$RUNNER_TEMP/dd-x86/Build/Products/Release/Desire.app"
+          VER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
+          [ "$VER" = "$V" ] || { echo "::error::x86_64 built version $VER != expected $V"; exit 1; }
+          ARCHS=$(lipo -archs "$APP/Contents/MacOS/Desire")
+          [[ "$ARCHS" == *x86_64* ]] || { echo "::error::x86_64 binary missing: $ARCHS"; exit 1; }
+
+      - name: Package x86_64
+        run: |
+          set -euo pipefail
+          V="${{ inputs.version }}"
+          if [ -z "$V" ]; then V="${GITHUB_REF_NAME#v}"; fi
+          ditto -c -k --keepParent \
+            "$RUNNER_TEMP/dd-x86/Build/Products/Release/Desire.app" \
+            "Desire-v$V-macos-x86_64.zip"
+          shasum -a 256 "Desire-v$V-macos-x86_64.zip" > "SHASUMS256-x86_64.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: x86_64
+          path: |
+            Desire-v*-macos-x86_64.zip
+            SHASUMS256-x86_64.txt
+          if-no-files-found: error
+
+  publish:
+    name: Publish (idempotent)
+    needs: [quality, build-arm64, build-x86_64]
+    # 只有 tag push 才发布；workflow_dispatch 是预发版构建，到此为止。
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: '*'
+          merge-multiple: true
+          path: assets
+
+      - name: Assemble checksums
+        run: |
+          set -euo pipefail
+          cd assets
+          cat SHASUMS256-arm64.txt SHASUMS256-x86_64.txt > SHASUMS256.txt
           cat SHASUMS256.txt
 
-      - name: Create GitHub Release
+      - name: Create or update GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="${{ github.ref_name }}"
-          # 安装说明的单一真相在 scripts/install-note.template.md（release.sh 同源）
+          set -euo pipefail
+          TAG="$GITHUB_REF_NAME"
           sed "s|__TAG__|${TAG}|g" scripts/install-note.template.md > install-note.md
-          # Body: the tag's section from CHANGELOG.md + install note; fall
-          # back to generated notes when the changelog lacks the section.
-          # -F is required: [v0.1.5] would otherwise be a regex char class.
           if grep -qF "## [$TAG]" CHANGELOG.md; then
             awk -v tag="[$TAG]" '
               index($0, "## " tag) == 1 { flag = 1; next }
@@ -76,18 +191,39 @@ jobs:
               flag { print }
             ' CHANGELOG.md > body.md
             cat install-note.md >> body.md
-            gh release create "$TAG" \
-              --title "$TAG" \
-              --notes-file body.md \
-              "Desire-$TAG-macos-arm64.zip" \
-              SHASUMS256.txt
           else
-            gh release create "$TAG" \
-              --title "$TAG" \
-              --generate-notes \
-              "Desire-$TAG-macos-arm64.zip" \
-              SHASUMS256.txt
-            gh release view "$TAG" --json body -q .body > body.md
+            printf 'Release %s\n' "$TAG" > body.md
             cat install-note.md >> body.md
-            gh release edit "$TAG" --notes-file body.md
           fi
+          # 幂等：已存在就更新正文（重跑同一 tag 不报错）。
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes-file body.md
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes-file body.md
+          fi
+
+      # 多资产一次性上传会偶发 408（本地发版时代实测）——逐个传 + 重试；
+      # --clobber 让重跑直接补/覆盖，不需要删 tag。
+      - name: Upload assets
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="$GITHUB_REF_NAME"
+          cd assets
+          for f in Desire-"$TAG"-macos-arm64.zip Desire-"$TAG"-macos-x86_64.zip SHASUMS256.txt; do
+            OK=no
+            for attempt in 1 2 3 4; do
+              if gh release upload "$TAG" "$f" --repo "$GITHUB_REPOSITORY" --clobber; then OK=yes; break; fi
+              echo "upload $f failed (attempt $attempt) — retrying"
+              sleep $((attempt * 10))
+            done
+            [ "$OK" = yes ] || { echo "::error::failed to upload $f"; exit 1; }
+          done
+
+      - name: Verify remote assets (size + sha256 digest)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 scripts/verify-release-assets.py "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" assets

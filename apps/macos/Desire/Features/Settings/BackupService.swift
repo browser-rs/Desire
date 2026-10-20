@@ -106,8 +106,30 @@ enum BackupService {
 
     // MARK: - Import
 
+    /// 导入前预览（v0.7.28）：只读文件头，不碰任何 store。
+    struct Preview {
+        var version: Int
+        var exportedAt: Date
+        var appVersion: String
+        var counts: [String: Int]
+        var supported: Bool
+    }
+
+    static func preview(from url: URL) throws -> Preview {
+        let data = try Data(contentsOf: url)
+        guard let archive = BackupArchive.decode(data), !archive.payloads.isEmpty else {
+            throw BackupError.invalidArchive
+        }
+        return Preview(version: archive.version,
+                       exportedAt: archive.exportedAt,
+                       appVersion: archive.appVersion,
+                       counts: archive.counts,
+                       supported: archive.isSupported)
+    }
+
     @discardableResult
-    static func importArchive(from url: URL, mode: Mode) throws -> [String: Int] {
+    static func importArchive(from url: URL, mode: Mode,
+                              domains: Set<BackupArchive.Domain>? = nil) throws -> [String: Int] {
         guard let app = AppState.live else { throw BackupError.appNotReady }
         let data = try Data(contentsOf: url)
         guard let archive = BackupArchive.decode(data), !archive.payloads.isEmpty else {
@@ -116,11 +138,12 @@ enum BackupService {
         guard archive.isSupported else {
             throw BackupError.unsupportedVersion(archive.version)
         }
+        let wanted: (BackupArchive.Domain) -> Bool = { domains?.contains($0) ?? true }
 
         var applied: [String: Int] = [:]
         let decoder = JSONDecoder()
 
-        if let payload = archive.payloads[BackupArchive.Domain.bookmarks.rawValue],
+        if wanted(.bookmarks), let payload = archive.payloads[BackupArchive.Domain.bookmarks.rawValue],
            let tree = try? decoder.decode([Bookmark].self, from: payload) {
             switch mode {
             case .replace:
@@ -136,7 +159,7 @@ enum BackupService {
             }
         }
 
-        if let payload = archive.payloads[BackupArchive.Domain.history.rawValue],
+        if wanted(.history), let payload = archive.payloads[BackupArchive.Domain.history.rawValue],
            let entries = try? decoder.decode([HistoryEntry].self, from: payload) {
             switch mode {
             case .replace:
@@ -152,7 +175,7 @@ enum BackupService {
             }
         }
 
-        if let payload = archive.payloads[BackupArchive.Domain.readingList.rawValue],
+        if wanted(.readingList), let payload = archive.payloads[BackupArchive.Domain.readingList.rawValue],
            let items = try? decoder.decode([ReadingListItem].self, from: payload) {
             switch mode {
             case .replace:
@@ -168,7 +191,7 @@ enum BackupService {
             }
         }
 
-        if let payload = archive.payloads[BackupArchive.Domain.quickDials.rawValue],
+        if wanted(.quickDials), let payload = archive.payloads[BackupArchive.Domain.quickDials.rawValue],
            let dials = try? decoder.decode([QuickDial].self, from: payload) {
             switch mode {
             case .replace:
@@ -184,7 +207,7 @@ enum BackupService {
             }
         }
 
-        if let payload = archive.payloads[BackupArchive.Domain.settings.rawValue],
+        if wanted(.settings), let payload = archive.payloads[BackupArchive.Domain.settings.rawValue],
            let values = try? decoder.decode([String: BackupSettingValue].self, from: payload) {
             switch mode {
             case .replace:
@@ -202,7 +225,7 @@ enum BackupService {
             }
         }
 
-        if let payload = archive.payloads[BackupArchive.Domain.agentMemory.rawValue],
+        if wanted(.agentMemory), let payload = archive.payloads[BackupArchive.Domain.agentMemory.rawValue],
            let memory = try? decoder.decode(MemoryArchive.self, from: payload) {
             let result = AgentMemoryStore.shared.importArchive(
                 memory, mode: mode == .replace ? .replace : .merge)

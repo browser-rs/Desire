@@ -417,7 +417,8 @@ final class AutomationServer {
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
         ep("GET", "/diag/browser", "Browser diagnostics: content-process crash count + recent crashes", example: "…/diag/browser")
         ep("POST", "/backup/export", "Write a full backup JSON (settings/bookmarks/history/reading list/quick dials/Agent memory; no keys)", params: ["path:string (file or directory)"], example: #"-d '{"path":"/tmp/desire-backup.json"}'"#)
-        ep("POST", "/backup/import", "Restore a backup: mode=merge (add missing) | replace (overwrite)", params: ["path:string", "mode?:merge|replace"], example: #"-d '{"path":"/tmp/desire-backup.json","mode":"merge"}'"#)
+        ep("POST", "/backup/import", "Restore a backup: mode=merge (add missing) | replace (overwrite); optional domains filter", params: ["path:string", "mode?:merge|replace", "domains?:[settings|bookmarks|history|readingList|quickDials|agentMemory]"], example: #"-d '{"path":"/tmp/desire-backup.json","mode":"merge","domains":["bookmarks"]}'"#)
+        ep("POST", "/backup/preview", "Preview a backup file: version/date/domain counts (no changes)", params: ["path:string"], example: #"-d '{"path":"/tmp/desire-backup.json"}'"#)
         ep("POST", "/devtools/eval", "Run JS in the console REPL path", params: ["js:string", "index?:int"], example: #"-d '{"js":"document.title"}'"#)
         ep("POST", "/devtools/inspect", "Fill the Element tab from a selector", params: ["selector:string", "index?:int"], example: #"-d '{"selector":"h1"}'"#)
         ep("GET", "/devtools", "DevTools panel state (scoped counters, tab list, totals)", example: "…/devtools")
@@ -840,6 +841,8 @@ final class AutomationServer {
                 return try Self.json(Self.backupExport(body: body))
             case ("POST", "/backup/import"):
                 return try Self.json(Self.backupImport(body: body))
+            case ("POST", "/backup/preview"):
+                return try Self.json(Self.backupPreview(body: body))
             case ("GET", "/spawn-test"):
                 // Direct spawn probe — proves the (removed) sandbox really
                 // lets the app run system binaries, no LLM involved.
@@ -6908,12 +6911,33 @@ final class AutomationServer {
             return ["error": "missing path"]
         }
         let mode = BackupService.Mode(rawValue: Self.string(body, "mode") ?? "merge") ?? .merge
+        let domains: Set<BackupArchive.Domain>? = (body["domains"] as? [String]).map { raw in
+            Set(raw.compactMap(BackupArchive.Domain.init(rawValue:)))
+        }
         do {
             let applied = try BackupService.importArchive(from: URL(fileURLWithPath: path),
-                                                          mode: mode)
+                                                          mode: mode,
+                                                          domains: domains)
             return ["ok": true, "mode": mode.rawValue, "applied": applied]
         } catch {
             return ["error": "import failed: \(error.localizedDescription)"]
+        }
+    }
+
+    private static func backupPreview(body: [String: Any]) throws -> [String: Any] {
+        guard let path = Self.string(body, "path"), !path.isEmpty else {
+            return ["error": "missing path"]
+        }
+        do {
+            let preview = try BackupService.preview(from: URL(fileURLWithPath: path))
+            return ["ok": true,
+                    "version": preview.version,
+                    "exportedAt": preview.exportedAt.timeIntervalSince1970,
+                    "appVersion": preview.appVersion,
+                    "counts": preview.counts,
+                    "supported": preview.supported]
+        } catch {
+            return ["error": "preview failed: \(error.localizedDescription)"]
         }
     }
 

@@ -1118,6 +1118,13 @@ private struct DiagnosticsRow: View {
 /// 快拨/Agent 记忆；**不含 Keychain、API Key 与对话正文**。
 private struct BackupRow: View {
     @State private var note: String?
+    @State private var pendingImport: PendingImport?
+
+    private struct PendingImport: Identifiable {
+        let id = UUID()
+        let url: URL
+        let preview: BackupService.Preview
+    }
 
     var body: some View {
         SettingsRow(
@@ -1136,6 +1143,11 @@ private struct BackupRow: View {
             Button("OK", role: .cancel) { note = nil }
         } message: {
             Text(note ?? "")
+        }
+        .sheet(item: $pendingImport) { pending in
+            BackupImportSheet(url: pending.url, preview: pending.preview) { message in
+                note = message
+            }
         }
     }
 
@@ -1160,24 +1172,9 @@ private struct BackupRow: View {
         panel.allowedContentTypes = [.json]
         panel.allowsMultipleSelection = false
         guard panel.runModal() == .OK, let url = panel.url else { return }
-
-        let alert = NSAlert()
-        alert.messageText = String(localized: "Import backup")
-        alert.informativeText = String(localized: "Merge adds missing items and leaves current data in place (settings are untouched). Replace overwrites settings, bookmarks, history, reading list, quick dials and Agent memory.")
-        alert.addButton(withTitle: String(localized: "Merge"))
-        alert.addButton(withTitle: String(localized: "Replace"))
-        alert.addButton(withTitle: String(localized: "Cancel"))
-        let mode: BackupService.Mode
-        switch alert.runModal() {
-        case .alertFirstButtonReturn: mode = .merge
-        case .alertSecondButtonReturn: mode = .replace
-        default: return
-        }
-
         do {
-            let applied = try BackupService.importArchive(from: url, mode: mode)
-            let total = applied.values.reduce(0, +)
-            note = String(format: String(localized: "Imported: %lld item(s)"), total)
+            let preview = try BackupService.preview(from: url)
+            pendingImport = PendingImport(url: url, preview: preview)
         } catch {
             note = error.localizedDescription
         }

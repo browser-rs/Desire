@@ -188,6 +188,9 @@ class AgentSessionStore: ObservableObject {
     /// `RoutingProvider`'s onDecision callback when `providerKind == .routing`;
     /// `nil` otherwise. The AI panel shows it as a "via ..." badge.
     @Published var lastProviderUsed: String?
+    /// 本回合成本路由说明（nil = 主模型；"cheap — 原因" / "cheap-failed→main — 原因"）。
+    /// 状态行小 chip 用它做可发现性；flushTail 把它写进助手消息的 routeReason。
+    @Published private(set) var lastRouteNote: String?
 
     /// Human-readable description of the page the agent will act on
     /// ("Title — host"), shown in the AI panel header. Always describes the
@@ -1768,6 +1771,27 @@ class AgentSessionStore: ObservableObject {
         AgentScheduler.shared.updateWindowTitle(self, title: windowTitle)
         saveCurrentConversation()
 
+        // 成本感知路由（v0.7.26）：每回合一次决策，只改本轮 runStream 的默认
+        // prefs（显式 prefsOverride——failover/回退——不受影响）。保守规则见
+        // AgentRouteDecision：任何不确定都走主模型。
+        let routingDecision = AgentRouteDecision.decide(
+            routingEnabled: preference.costRoutingEnabled,
+            hasCheapProfile: preference.bypassPreferences() != nil,
+            userText: messages.last(where: { $0.role == .user })?.content ?? "",
+            hasActivePlan: !AgentPlanStore.shared.steps(for: conversationId?.uuidString).isEmpty,
+            messageCount: messages.count)
+        let cheapTurnPreference: AgentPreferenceStore? =
+            routingDecision.route == .cheap ? preference.bypassPreferences() : nil
+        var routeNote: String? = routingDecision.route == .cheap
+            ? "cheap — \(routingDecision.reason)" : nil
+        lastRouteNote = routeNote
+        let routeLogEnabled = preference.costRoutingEnabled
+        let routeLogCheap = cheapTurnPreference != nil
+        let routeLogCount = messages.count
+        let routeLogRoute = routingDecision.route.rawValue
+        let routeLogReason = routingDecision.reason
+        Log.agent.info("route decision: \(routeLogRoute, privacy: .public) enabled=\(routeLogEnabled, privacy: .public) cheap=\(routeLogCheap, privacy: .public) count=\(routeLogCount, privacy: .public) reason=\(routeLogReason, privacy: .public)")
+
         while isCurrentTurn(turnID) && !isCancelled && iterations < maxIterations {
             iterations += 1
             await waitWhilePaused()
@@ -1821,7 +1845,7 @@ class AgentSessionStore: ObservableObject {
             // without duplicating the event handling. `prefsOverride`：failover
             // 时传备用档案视图（只换 provider 与 model，事件处理完全同路）。
             func runStream(prefsOverride: AgentPreferenceStore? = nil) async throws {
-                let prefs = prefsOverride ?? streamPreference
+                let prefs = prefsOverride ?? (cheapTurnPreference ?? streamPreference)
                 let active = makeProvider(for: prefs)
                 lastProviderUsed = active.viaLabel
                 // 成本归属：优先服务端自报的模型（网关会改写/路由），没有才退回请求时选的。
@@ -1856,6 +1880,7 @@ class AgentSessionStore: ObservableObject {
                     // 助手消息出现（首个 chunk 就带 model、而正文还没到），统一在
                     // 每次 flush 时按当前已知值盖章，谁先到都不会漏。
                     assistantMsg?.model = reportedModel ?? (requestedModel.isEmpty ? nil : requestedModel)
+                    assistantMsg?.routeReason = routeNote
                     // 按 **id** 找回尾部消息，不用 append 时记下的下标：流式中途
                     // 会话被清空/切换时，那个下标会指向别的消息（把 token 写进
                     // 无关消息），数组变短后还可能越界。
@@ -1990,6 +2015,17 @@ class AgentSessionStore: ObservableObject {
             repeat {
             do {
                 try await runStream()
+            } catch let cheapError where cheapTurnPreference != nil && assistantMsg == nil {
+                // 省钱路由失败（未流出任何内容）→ 主模型兜底**一次**；省钱绝不换卡死。
+                Log.agent.info("cost routing: cheap route failed (\(cheapError.localizedDescription, privacy: .public)) — falling back to primary")
+                routeNote = "cheap-failed→main — \(routingDecision.reason)"
+                lastRouteNote = routeNote
+                do {
+                    try await runStream(prefsOverride: streamPreference)
+                } catch {
+                    fail(error)
+                    return
+                }
             } catch let error where assistantMsg == nil && !contextRetried
                                     && Self.isContextOverflowError(error) {
                 // 诊断钩子：E4 曾出现"错误匹配却未重试"的偶发（4 连挂后自愈、

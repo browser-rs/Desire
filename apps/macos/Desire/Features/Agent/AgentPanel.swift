@@ -191,6 +191,20 @@ struct AgentPanel: View {
                 findBar
             }
 
+            // 成本感知路由（v0.7.26）：本回合被路由时如实标注（悬停看原因）。
+            if let note = store.lastRouteNote {
+                HStack(spacing: 4) {
+                    Image(systemName: "dollarsign.circle")
+                        .font(.system(size: 9))
+                    Text("省钱路由")
+                        .font(.caption2)
+                }
+                .foregroundStyle(.secondary)
+                .help(note)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal, 12)
+            }
+
             // "via Cloud / via On-device" indicator, shown only when the
             // router is active (lastProviderUsed is set by activeProvider).
             if let via = store.lastProviderUsed {

@@ -546,6 +546,15 @@ do {
     check("路由：空输入走主模型", decide("   ").route == .main)
     check("路由：原因可审计（非空）", !decide("今天星期几").reason.isEmpty
           && !decide("打开 example.com").reason.isEmpty)
+    // 消息审计字段：旧会话（无 routeReason 键）照常解码；新字段可编码。
+    let oldJSON = #"{"id":"11111111-1111-1111-1111-111111111111","role":"user","content":"hi","createdAt":700000000}"#
+    let decoded = try! JSONDecoder().decode(AgentMessage.self, from: Data(oldJSON.utf8))
+    check("路由审计：旧会话缺键解码为 nil", decoded.routeReason == nil)
+    var audited = AgentMessage(role: .assistant, content: "ok")
+    audited.routeReason = "cheap — short question"
+    let data = try! JSONEncoder().encode(audited)
+    check("路由审计：新字段编解码",
+          try! JSONDecoder().decode(AgentMessage.self, from: data).routeReason == "cheap — short question")
 }
 
 // ---------- 工作区同步（v0.7.25 第十域）----------

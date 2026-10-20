@@ -40,6 +40,9 @@ nonisolated struct AgentMessage: Identifiable, Codable, Sendable {
     /// 这次回答实际用的模型 id（优先取响应里的 `model`，服务端没给才用请求时所选）。
     /// 成本按它查单价——会话中途换模型、routing 挑模型的场景因此也算得对。
     var model: String?
+    /// 成本感知路由的审计字段（v0.7.26）：本回合是否被路由到廉价档案、原因、
+    /// 以及"廉价失败→主模型兜底"。nil = 走主模型（绝大多数回合）。
+    var routeReason: String?
     /// 用户对该条回答的评价："up" / "down"（可选）。这是**最便宜也最真实的回答质量标签**，
     /// 随会话文件落盘，将来用来攒评估集。
     var feedback: String?

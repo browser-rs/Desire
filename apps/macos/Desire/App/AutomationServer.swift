@@ -480,6 +480,8 @@ final class AutomationServer {
         ep("GET", "/remote/board-payload", "The snapshot board payload for a conversation (same builder the remote frame uses)", params: ["conversationId?:string"], example: "…/remote/board-payload")
         ep("POST", "/share-card", "Generate a page share card (first-screen snapshot + title/domain + optional side-model summary) and save it to Downloads", params: ["index?:int (tab; default selected)", "summarize?:bool (default true)"], example: #"-d '{"summarize":false}'"#)
         ep("GET", "/history/archive-search", "Search the full archived browsing history (client-side: pulls the encrypted history domain and decrypts locally; requires sync sign-in)", params: ["q:string", "limit?:int (default 50)"], example: "…/history/archive-search?q=rust")
+        ep("GET", "/ai/routing", "Cost-aware routing state (enabled / bypassConfigured / hasCheapProfile)", example: "…/ai/routing")
+        ep("POST", "/ai/routing", "Enable/disable cost-aware routing (conservative: short questions with no actions/plan run on the bypass profile; failures retry once on the chat model)", params: ["enabled:bool"], example: "-d '{\"enabled\":true}'")
         ep("POST", "/agent/daily-brief", "Run the daily brief now (today's conversations/usage/inbox/memory → session note + routine notification; toBoard=true also puts it on the whiteboard)", params: ["toBoard?:bool"], example: "-d '{}'")
         ep("POST", "/selection/assist", "Run the selection in-place card once (side-model streaming; no conversation messages created)", params: ["text:string", "mode?:auto|explain|translate|dictionary"], example: #"-d '{"text":"serendipity"}'"#)
         ep("GET", "/board/gallery", "Whiteboard template gallery index (community)", params: ["baseURL?:string (default https://desire.mankong.icu/gallery/; E2E uses a fixture)"], example: "…/board/gallery")
@@ -2007,6 +2009,38 @@ final class AutomationServer {
                 return try Self.json(Self.aiSetModel(Self.string(body, "model") ?? ""))
             case ("POST", "/ai/profiles/activate"):
                 return try Self.json(Self.aiProfileActivate(id: Self.string(body, "id") ?? ""))
+            case ("GET", "/ai/routing"):
+                guard let pref = AppState.live?.aiPreference else { return try Self.json(["error": "preference not ready"]) }
+                return try Self.json([
+                    "enabled": pref.costRoutingEnabled,
+                    "bypassConfigured": pref.bypassProfileID != nil,
+                    "hasCheapProfile": pref.bypassPreferences() != nil,
+                ])
+            case ("GET", "/ai/routing-decide"):
+                // 诊断/断言：用真实 store 状态跑一次路由决策并回显全部输入。
+                guard let pref = AppState.live?.aiPreference else { return try Self.json(["error": "preference not ready"]) }
+                let session = AgentScheduler.shared.deliveryTarget
+                let text = Self.string(query, "text") ?? ""
+                let hasPlan = !AgentPlanStore.shared.steps(for: session?.conversationId?.uuidString).isEmpty
+                let decision = AgentRouteDecision.decide(
+                    routingEnabled: pref.costRoutingEnabled,
+                    hasCheapProfile: pref.bypassPreferences() != nil,
+                    userText: text,
+                    hasActivePlan: hasPlan,
+                    messageCount: session?.messages.count ?? 0)
+                return try Self.json([
+                    "route": decision.route.rawValue,
+                    "reason": decision.reason,
+                    "enabled": pref.costRoutingEnabled,
+                    "hasCheapProfile": pref.bypassPreferences() != nil,
+                    "hasPlan": hasPlan,
+                    "messageCount": session?.messages.count ?? -1,
+                    "conversationId": session?.conversationId?.uuidString ?? "",
+                ])
+            case ("POST", "/ai/routing"):
+                guard let pref = AppState.live?.aiPreference else { return try Self.json(["error": "preference not ready"]) }
+                pref.costRoutingEnabled = body["enabled"] as? Bool ?? false
+                return try Self.json(["ok": true, "enabled": pref.costRoutingEnabled])
             case ("GET", "/ai/bypass-profile"):
                 guard let pref = AppState.live?.aiPreference else { return try Self.json(["error": "preference not ready"]) }
                 var payload: [String: Any] = ["profileId": NSNull()]
@@ -5365,6 +5399,12 @@ final class AutomationServer {
             if let note = message.verificationNote { item["verificationNote"] = String(note.prefix(600)) }
             if let feedback = message.feedback { item["feedback"] = feedback }
             if let calls = message.toolCalls { item["toolCalls"] = calls.map(\.function.name) }
+            // 成本/路由审计（v0.7.26）：模型、路由原因、token 用量都在消息上，
+            // 桥透传它们，成本与路由的 E2E 才能只读断言。
+            if let model = message.model { item["model"] = model }
+            if let route = message.routeReason { item["routeReason"] = route }
+            if let prompt = message.promptTokens { item["promptTokens"] = prompt }
+            if let completion = message.completionTokens { item["completionTokens"] = completion }
             return item
         }
         return [

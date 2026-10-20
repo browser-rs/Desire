@@ -158,6 +158,11 @@ class AgentPreferenceStore: ObservableObject {
     @Published var tokenBudget: Int {
         didSet { UserDefaults.standard.set(tokenBudget, forKey: "agentTokenBudget") }
     }
+    /// 成本感知路由（v0.7.26）：开关默认关。开启后"简单短问句"走旁路档案
+    /// （bypassPreferences），失败自动回主模型。规则见 AgentRouteDecision。
+    @Published var costRoutingEnabled: Bool {
+        didSet { UserDefaults.standard.set(costRoutingEnabled, forKey: "agent.costRouting") }
+    }
     /// When on, every model request carries an EPHEMERAL compact summary of
     /// the page the agent is working on (title + URL + text excerpt) — so
     /// "这是什么页面" needs no tool roundtrip and every agent step sees the
@@ -504,6 +509,7 @@ class AgentPreferenceStore: ObservableObject {
         costAwareRouting = UserDefaults.standard.object(forKey: "aiCostAwareRouting") as? Bool ?? false
         completionSound = UserDefaults.standard.object(forKey: "aiCompletionSound") as? Bool ?? true
         tokenBudget = UserDefaults.standard.object(forKey: "agentTokenBudget") as? Int ?? 0
+        costRoutingEnabled = UserDefaults.standard.bool(forKey: "agent.costRouting")
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7
         reasoningEffort = UserDefaults.standard.string(forKey: "aiReasoningEffort") ?? "off"
         maxLoopIterations = UserDefaults.standard.object(forKey: "aiMaxLoopIterations") as? Int ?? 50

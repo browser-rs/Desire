@@ -1024,7 +1024,9 @@ Features/Bookmarks/
 1. 代码/文档全部冻结；写 CHANGELOG 条目（`scripts/changelog.py add`）。
 2. **完整预检**：`tools/pre-release-check.sh <版本> --build`——干净树/单测/结构/查重/
    零警告 clean 构建/**产物主窗就绪 + 优雅退出**（非 DerivedData 路径）。
-3. 在干净树跑完整套件：`python3 tests/execution-e2e.py`（约 15 分钟；全绿自动写套件戳）。
+   **有警告/构建问题先修完再进套件**（2026-10-21 教训：顺序反了会变成
+   "套件→发现警告→整套件重跑"，一次多花 15 分钟）；套件戳在这一步只是提醒。
+3. **再跑套件一次**（必须在预检之后——编译问题先暴露）：`python3 tests/execution-e2e.py`（约 15 分钟；全绿自动写套件戳）。
    **套件之后只许改白名单文件**（CHANGELOG/website/docs/scripts/tools/AGENTS/pbxproj）；
    动了 app 代码 = 重跑套件。
 4. `printf 'y\n' | scripts/release.sh <版本号>` 后台跑、只盯日志（CHANGELOG 冻结由

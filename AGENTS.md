@@ -236,6 +236,11 @@ Features/Bookmarks/
   必须 `clean build`。另：`appintentsmetadataprocessor` 那行不是代码警告，可忽略。
 - 应用以 `--automation` 启动后，`127.0.0.1:8799` 提供完整 JSON 接口
 
+- **强杀（`pkill -9`）后首启可能没有主窗**（2026-10-20 实测）：桥活着、/state
+  可响应但 tabs=0、无 Agent 会话——强杀跳过了退出路径的会话/窗口状态落盘。
+  **优雅退出（`osascript quit`）后重启即恢复**。所以自动化探针/套件/发版验证一律
+  **以 tabs≥1 为主窗就绪判据、失败时先 quit 再 open**（不是再 pkill）。产品侧
+  "崩溃后首启无窗"仍是待修项（见 ROADMAP v0.7.26 可靠性条目）。
 - **桥开不了第二窗口**（2026-10-20 会话接力实测）：`POST /command {"name":"newWindow"}`
   返回 ok 但**没有新窗**——它走 SwiftUI `openWindow`，桥上下文里拿不到场景环境。
   双窗自动化：`osascript -e 'tell application "Desire" to activate'` + CGEvent

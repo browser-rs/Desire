@@ -91,8 +91,10 @@ except Exception: print(0)' 2>/dev/null || echo 0)
         sleep 1
       done
       if [ "$READY" != 1 ]; then
-        echo "  （主窗未就绪——重开一次）"
-        pkill -9 -x Desire 2>/dev/null || true; sleep 3
+        echo "  （主窗未就绪——优雅退出后重开一次）"
+        osascript -e 'quit app "Desire"' >/dev/null 2>&1 || true
+        sleep 3
+        pkill -9 -x Desire 2>/dev/null || true; sleep 1
         open "$APP" --args --automation
         for _ in $(seq 1 40); do
           N=$(curl -s -m 2 http://127.0.0.1:8799/state 2>/dev/null | python3 -c 'import json,sys

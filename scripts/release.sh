@@ -134,8 +134,13 @@ except Exception: print(0)' 2>/dev/null || echo 0)
     done
     attempt=$((attempt+1))
     if [ "$attempt" -lt 2 ]; then
-      echo "（启动后无主窗——重启一次）"
-      pkill -9 -x Desire 2>/dev/null || true; sleep 3
+      # 2026-10-20 实测：强杀（-9）后首启可能无主窗，**优雅退出再启动**可修复
+      # （退出路径会正常写会话/窗口状态）。所以重试先 quit 再 open。
+      echo "（启动后无主窗——优雅退出后重启一次）"
+      osascript -e 'quit app "Desire"' >/dev/null 2>&1 || true
+      sleep 3
+      pkill -9 -x Desire 2>/dev/null || true
+      sleep 1
       open "$app" --args --automation
     fi
   done

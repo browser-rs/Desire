@@ -1,13 +1,7 @@
 ## [Unreleased]
 ### Added
 
-- **成本感知路由（v0.7.26 旗舰）**：简单回合走廉价档案——规则**保守**（开关默认关；仅当短问句 ≤80 字、无动作类关键词、无进行中的计划、会话 ≤6 条时路由，**任何不确定都走主模型**）；**廉价调用失败自动回主模型一次**（仅限未流出任何内容，省钱绝不换卡死）；助手消息新增 `routeReason` 审计字段、状态行"省钱路由"chip（悬停看原因）、设置页 Cost-Aware Routing 开关（旁路档案选择器下方），桥 `GET/POST /ai/routing` + `GET /ai/routing-decide`（诊断，回显全部决策输入）。验收：harness **1091/0**（路由决策 10 项 + 审计字段编解码兼容）；**真端点探针 3/3**（routeReason=`cheap — short question…`、模型名落账）——期间发现**桥的消息序列化白名单漏了 `model`/`routeReason`/token 字段**（成本与路由的桥断言因此一直读不到），已补齐。
-
-
-## [v0.7.25] - 2026-10-20
-
-### Added
-
+- **路由审计与失败回退（v0.7.26，在既有 RoutingProvider 之上）**：应用早有成本感知路由（端上/ollama 优先、`RoutingDecision` 纯逻辑、`via X` 标签）——本轮补三个真缺口：① **审计**：每条助手消息新增 `routeReason`（`via Cloud/On-device/…`，路由在工具链中变化时如实反映最后一次决策），桥消息透传 `model`/`routeReason`/token；② **失败回退**：自动路由（端上/ollama 优先）失败且未流出任何内容 → **强制云重试一次**（本地模型不可用绝不换卡死）；③ **桥状态**：`GET/POST /ai/routing`（costAware/providerKind/lockedToCloud/lastProviderUsed）。验收：harness **1081/0**（审计字段编解码兼容）；**真端点探针 4/4**（routing 模式下短问句回答正常、`routeReason=via Cloud`、lastProviderUsed 一致）。**规划期教训**：原计划"新增成本感知路由"是错的——漏查既有实现（`costAwareRouting`/`RoutingProvider`），平行实现已全部回滚。
 - **划词就地卡（v0.7.25 旗舰）**：划词条的"解释/翻译"不再绕道 Agent 面板烧回合——**旁路模型流式**输出贴在划词处的就地小卡（解释/翻译/词典三模式；**词级输入自动走词典**：读音/词性/释义/例句），卡上动作 = 复制/朗读/进白板/追问（追问才开面板并带上文）；无 Key/失败优雅降级（失败态 + 转面板指引）。桥 `POST /selection/assist`（与服务同源；不产生会话消息）。验收：harness **1052/0**（+10：模式判定 CJK/拉丁/超长/空、提示词契约、三模式标题）；桥探针 **7/7**（真端点：serendipity→词典含音标例句、句子→解释、hello world→"你好，世界"、**会话消息数不变 = 不烧回合**、空文本/非法 mode 拒绝）。已知边界：就地卡视觉走查留用户；旁路调用暂不计入对话成本（与标题/记忆整理同类，沿用既有缺口）。
 - **工作区同步域（v0.7.25，第十域）**：标签组快照（`WorkspaceStore`）跨端——每工作区一文档（client_id = HMAC(工作区 UUID)），**savedAt LWW**；`sessionState`（页面还原 blob，机器本地）在载荷里剥掉，远端标签按 url/新标签页/pin 重建（tabID 新生成）；删除走**显式墓碑**（单独键持久化——不动既有 `[Workspace]` 文件形状、旧文件零迁移）；默认关（同白板——个人上下文），设置页类目行随 `SyncDomain.allCases` 自动出现。验收：harness **1061/0**（+9：payload 组装/编解码 round-trip/载荷不含 sessionState/LWW 新盖旧忽略同刻幂等/墓碑新旧两支/体量护栏）；dev-server 双客户端 E2E 待下次 dev-server 会话（本机容器未起，手法沿用既有域）。
 - **每日简报内置流水线（v0.7.25，第二个 builtin）**：复用 v0.7.24 的 builtin 任务框架——`builtin=dailyBrief`：今日会话/消息数、token 用量与轮数、新记忆（带样例）、收件箱待办（带明细）→ 会话备注 + routine 通知（`agent.dailyBrief.toBoard` 开启则顺带上板）；**纯确定性、零模型调用**，空日不编造（只有两行）。触发面：内置定时任务（桥 `/agent/tasks/create` builtin=dailyBrief；未知值拒绝）/ 桥 `POST /agent/daily-brief`。验收：harness **1068/0**（+7：富输入六行/空日不编造/样例与明细/日期头）；桥探针 **7/7**（真机数据出简报 + 任务创建/列表/清理 + 未知 builtin 拒绝）。

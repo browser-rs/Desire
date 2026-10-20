@@ -526,36 +526,19 @@ do {
           !lean.contains("记忆") && !lean.contains("收件箱"))
 }
 
-// ---------- 成本感知路由（v0.7.26 旗舰）----------
+// ---------- 路由审计字段（v0.7.26，消息级）----------
 
 do {
-    func decide(_ text: String, enabled: Bool = true, cheap: Bool = true,
-                plan: Bool = false, messages: Int = 2) -> AgentRouteDecision.Decision {
-        AgentRouteDecision.decide(routingEnabled: enabled, hasCheapProfile: cheap,
-                                  userText: text, hasActivePlan: plan, messageCount: messages)
-    }
-    check("路由：开关关闭恒主模型", decide("今天星期几", enabled: false).route == .main)
-    check("路由：无廉价档案走主模型", decide("今天星期几", cheap: false).route == .main)
-    check("路由：计划进行中走主模型", decide("今天星期几", plan: true).route == .main)
-    check("路由：短问句走廉价", decide("今天星期几").route == .cheap)
-    check("路由：动作关键词走主模型", decide("打开 example.com").route == .main)
-    check("路由：英文动作关键词（大小写不敏感）", decide("Open the settings").route == .main)
-    check("路由：长输入走主模型",
-          decide(String(repeating: "字", count: 100)).route == .main)
-    check("路由：长对话走主模型", decide("今天星期几", messages: 12).route == .main)
-    check("路由：空输入走主模型", decide("   ").route == .main)
-    check("路由：原因可审计（非空）", !decide("今天星期几").reason.isEmpty
-          && !decide("打开 example.com").reason.isEmpty)
-    // 消息审计字段：旧会话（无 routeReason 键）照常解码；新字段可编码。
     let oldJSON = #"{"id":"11111111-1111-1111-1111-111111111111","role":"user","content":"hi","createdAt":700000000}"#
     let decoded = try! JSONDecoder().decode(AgentMessage.self, from: Data(oldJSON.utf8))
     check("路由审计：旧会话缺键解码为 nil", decoded.routeReason == nil)
     var audited = AgentMessage(role: .assistant, content: "ok")
-    audited.routeReason = "cheap — short question"
+    audited.routeReason = "via On-device"
     let data = try! JSONEncoder().encode(audited)
     check("路由审计：新字段编解码",
-          try! JSONDecoder().decode(AgentMessage.self, from: data).routeReason == "cheap — short question")
+          try! JSONDecoder().decode(AgentMessage.self, from: data).routeReason == "via On-device")
 }
+
 
 // ---------- 工作区同步（v0.7.25 第十域）----------
 

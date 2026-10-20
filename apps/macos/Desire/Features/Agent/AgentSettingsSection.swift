@@ -575,13 +575,6 @@ struct AgentSettingsSection: View {
                     }
                 )
                 SettingsRowDivider()
-                SettingsToggleRow(
-                    "Cost-Aware Routing",
-                    subtitle: String(localized: "Short questions with no actions and no plan run on the bypass profile; anything else stays on the chat's model. If the cheaper call fails, it retries once on the chat model. Off by default."),
-                    systemImage: "dollarsign.circle",
-                    isOn: $store.costRoutingEnabled
-                )
-                SettingsRowDivider()
                 SettingsPickerRow(
                     "Fallback Service",
                     subtitle: String(localized: "When the current service keeps failing on transient errors (rate limits, 5xx, dropped connections), the turn retries once on this service before giving up. Leave it off to fail as before."),

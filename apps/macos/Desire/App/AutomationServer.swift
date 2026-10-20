@@ -3059,6 +3059,20 @@ final class AutomationServer {
             // Agent 的文件工具以这个目录为工作区——自动化/评估要把 fixture
             // 放进它才能免审批被 readFile 读到。
             "agentWorkspace": SystemCommandStore.shared.workingDirectoryText,
+            // 阅读模式状态（v0.7.28）：提取后的 baseURL/内容长度是探针能断言
+            // "阅读模式真的拿到了这一页"的最小证据。
+            "reader": readerState(tm?.selectedTab),
+        ]
+    }
+
+    private static func readerState(_ tab: Tab?) -> [String: Any] {
+        guard let tab else { return ["active": false] }
+        return [
+            "active": tab.browser.isReadingMode,
+            "loading": tab.browser.isReaderLoading,
+            "baseURL": tab.browser.readerBaseURLString,
+            "title": tab.browser.readerTitle,
+            "contentChars": tab.browser.readerContent.count,
         ]
     }
 

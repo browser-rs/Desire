@@ -82,7 +82,8 @@ final class MetricsManager: NSObject, MXMetricManagerSubscriber {
         let stamp = formatter.string(from: Date())
         do {
             let store = try OSLogStore(scope: .currentProcessIdentifier)
-            let entries = try store.getEntries(at: Date().addingTimeInterval(-30 * 60))
+            let position = store.position(date: Date().addingTimeInterval(-30 * 60))
+            let entries = try store.getEntries(at: position)
             var lines: [String] = []
             for entry in entries {
                 lines.append("\(entry.date.ISO8601Format()) \(entry.composedMessage)")

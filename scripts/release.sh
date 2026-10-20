@@ -1,123 +1,57 @@
 #!/bin/bash
-# Desire 发版（2026-10-21 起：本地只准备版本 + 门控打 tag，构建/发布全部交给 GitHub）。
+# Desire 发版（2026-10-21 起：本地只准备版本并触发，云端构建成功才自动打 tag + 发布）。
 #
-#   scripts/release.sh 0.7.26            # 准备 → 云端预发版构建（必须绿）→ 打 tag → 发布
-#   scripts/release.sh 0.7.26 --from tag # 预发版已绿，只补打 tag（续跑）
+#   scripts/release.sh 0.7.26     # 约 30 秒返回：冻结 CHANGELOG、同步版本号、单测、
+#                                 # 提交推送、触发云端发布；构建通过后云端自动建 tag
+#   scripts/release.sh --status   # 看最近几次 Release 工作流
 #
-# "发版必须成功"是铁律，机制如下：
-#   1. 本地准备：冻结 CHANGELOG、同步版本号、跑纯逻辑单测、提交推送。
-#   2. **云端预发版构建**：对同一个提交触发 release.yml 的 workflow_dispatch——与正式
-#      发布完全相同的双架构零警告构建 + 单测，但不发布。**只有它绿了才打 tag**；
-#      构建若有问题，tag 根本不存在，开发可以继续往前走。
-#   3. 打 tag 后，正式发布工作流构建同一份字节并幂等发布（Release 已存在则复用、
-#      资产 --clobber 覆盖、重跑可补完）——网络/上传失败 re-run 同一 tag 即可，
-#      不需要改代码、不需要换 tag。
+# **发版必须成功**（铁律）：tag 由 GitHub Actions 在**双架构零警告构建 + 单测全部
+# 通过之后**创建（`gh release create --target <已验证 SHA>`），构建失败则 tag 与
+# Release 都不存在——不会留下一个"构建不过的版本"。发布 job 幂等：上传/网络失败
+# 只需 `gh run rerun <id> --failed`，不用改代码、不用换 tag。
 #
-# 触发前本地仍需验证（云端的预发版只保证"能构建、单测过"）：
+# **触发后开发不停**：命令只负责准备与调度，几秒返回；构建/发布在云端异步跑，
+# 可以立刻继续开发（tag 指向的是已经验证过的那个提交 SHA，不受后续提交影响）。
+#
+# 触发前本地仍需验证（云端只保证"能构建、单测过"，不跑浏览器 E2E）：
 #   • 动了浏览器/Agent 运行路径 → python3 tests/execution-e2e.py（约 15 分钟，全绿）
-#   • 视觉/交互改动 → 按 AGENTS.md 的桥/快照手法走查
+#   • 结构/视觉改动 → 按 AGENTS.md 的桥/快照手法走查
 #
 # 为什么构建放云端：仓库是公开仓库，Actions 标准 runner 免费且不计分钟（私有仓库
-# 才有 2000 分钟/月 + macOS 10× 扣减——那是历史顾虑）。预发版构建约 8–12 分钟，
-# 云端异步跑，不占开发机；等它的时候可以继续开发。
+# 才有 2000 分钟/月 + macOS 10× 扣减——那是历史顾虑）。
 #
-# 进度：gh run list --workflow release.yml --limit 5
-# 删除错误 tag（只在发布前）：git tag -d vX.Y.Z && git push origin :refs/tags/vX.Y.Z
+# 工作流：.github/workflows/release.yml（workflow_dispatch = 构建后按需发布；
+# push tag = 手动 tag 路径，同样幂等）。
 
 set -euo pipefail
-
-FROM="prepare"
-V=""
-for arg in "$@"; do
-  case "$arg" in
-    --from) FROM="tag" ;;   # 目前只支持 --from tag
-    -*) printf '未知参数：%s\n' "$arg" >&2; exit 1 ;;
-    *) if [ -z "$V" ]; then V="$arg"; else printf '多余参数：%s\n' "$arg" >&2; exit 1; fi ;;
-  esac
-done
 
 log() { printf '\n\033[1;36m═══ %s ═══\033[0m\n' "$*"; }
 die() { printf '\n\033[1;31m✗ %s\033[0m\n' "$*" >&2; exit 1; }
 
-[ -n "$V" ] || { sed -n '2,12p' "$0" | sed 's/^# \?//'; exit 1; }
-case "$V" in v*) die "版本号不要带 v 前缀：scripts/release.sh ${V#v}" ;; esac
-[[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "版本号格式应为 X.Y.Z：$V"
-TAG="v$V"
-
 REPO_ROOT="$(git rev-parse --show-toplevel)" || die "不在 git 仓库里"
 cd "$REPO_ROOT"
-[ "$(git branch --show-current)" = "main" ] || die "必须在 main 上发版"
-[ -z "$(git status --porcelain)" ] || die "工作区必须干净——先提交或暂存当前变更"
-
 ORIGIN_URL=$(git remote get-url origin)
 GH_REPO=$(printf '%s' "$ORIGIN_URL" | sed -E 's#^git@[^:]+:##; s#^https?://[^/]+/##; s#\.git$##')
 command -v gh >/dev/null || die "需要 gh CLI"
 gh auth status >/dev/null 2>&1 || die "gh 未登录"
 
-if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then die "本地已有 tag $TAG"; fi
-if gh release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then die "远端已有 release $TAG"; fi
-
-# ── 预发版构建的定位与等待 ──────────────────────────────────
-find_preflight_run() {
-  # 输出：<databaseId>\t<headSha>\t<status>\t<conclusion>\t<url>
-  gh run list --repo "$GH_REPO" --workflow release.yml --limit 20 \
-    --json databaseId,headSha,event,status,conclusion,url \
-    --jq '.[] | select(.event == "workflow_dispatch") | [.databaseId, .headSha, .status, (.conclusion // ""), .url] | @tsv'
-}
-
-wait_for_preflight() {
-  local head_sha="$1" run_line="" run_id="" deadline start elapsed status conclusion url last_status=""
-  start=$(date +%s); deadline=$((start + 60))
-  while [ "$(date +%s)" -lt "$deadline" ]; do
-    run_line=$(find_preflight_run | awk -F '\t' -v sha="$head_sha" '$2 == sha { print; exit }')
-    [ -n "$run_line" ] && break
-    sleep 3
-  done
-  [ -n "$run_line" ] || die "没有找到这次预发版构建的 workflow run（调度失败？）"
-  run_id=$(printf '%s' "$run_line" | cut -f1)
-  echo "预发版构建：$run_id"
-  url=$(printf '%s' "$run_line" | cut -f5)
-  deadline=$(( $(date +%s) + 2700 ))
-  while :; do
-    elapsed=$(( $(date +%s) - start ))
-    run_line=$(gh run view "$run_id" --repo "$GH_REPO" --json status,conclusion,url \
-      --jq '[.status, (.conclusion // ""), .url] | @tsv' 2>/dev/null || true)
-    if [ -n "$run_line" ]; then
-      status=$(printf '%s' "$run_line" | cut -f1)
-      conclusion=$(printf '%s' "$run_line" | cut -f2)
-      url=$(printf '%s' "$run_line" | cut -f3)
-      if [ "$status" != "$last_status" ]; then
-        printf '  状态：%s（已等 %ss）\n' "$status" "$elapsed"
-        last_status="$status"
-      fi
-      [ "$status" = "completed" ] && break
-    fi
-    [ "$(date +%s)" -lt "$deadline" ] || die "预发版构建超时（45 分钟）：$url"
-    sleep 15
-  done
-  if [ "$conclusion" != "success" ]; then
-    die "预发版构建未通过（$conclusion）——tag 未创建，可继续开发；修复后重跑本命令。
-  $url"
-  fi
-  echo "预发版构建通过（$url）——与 tag 将要指向的提交完全一致。"
-}
-
-# ── --from tag：只补 tag（要求该提交已有成功的预发版构建）────────
-if [ "$FROM" = "tag" ]; then
-  log "补打 tag $TAG"
-  HEAD_SHA=$(git rev-parse HEAD)
-  run_line=$(find_preflight_run | awk -F '\t' -v sha="$HEAD_SHA" '$2 == sha && $3 == "completed" && $4 == "success" { print; exit }')
-  [ -n "$run_line" ] || die "HEAD（$(printf '%s' "$HEAD_SHA" | cut -c1-8)）没有成功的预发版构建——先跑完整命令"
-  grep -qF "## [$TAG]" CHANGELOG.md || die "CHANGELOG 缺少 $TAG 段"
-  grep -q "MARKETING_VERSION = $V;" apps/macos/Desire.xcodeproj/project.pbxproj || die "版本号未同步到 $V"
-  git tag "$TAG"
-  git push origin "$TAG"
-  log "已触发正式发布"
-  echo "tag    : $TAG @ $(printf '%s' "$HEAD_SHA" | cut -c1-8)"
-  echo "进度   : gh run list --workflow release.yml --limit 5"
-  echo "发布页 : https://github.com/$GH_REPO/releases/tag/$TAG"
+if [ "${1:-}" = "--status" ]; then
+  gh run list --repo "$GH_REPO" --workflow release.yml --limit 8
+  echo ""
+  gh release list --repo "$GH_REPO" --limit 3
   exit 0
 fi
+
+V="${1:-}"
+[ -n "$V" ] || { sed -n '2,20p' "$0" | sed 's/^# \?//'; exit 1; }
+case "$V" in v*) die "版本号不要带 v 前缀：scripts/release.sh ${V#v}" ;; esac
+[[ "$V" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || die "版本号格式应为 X.Y.Z：$V"
+TAG="v$V"
+
+[ "$(git branch --show-current)" = "main" ] || die "必须在 main 上发版"
+[ -z "$(git status --porcelain)" ] || die "工作区必须干净——先提交或暂存当前变更"
+if git rev-parse -q --verify "refs/tags/$TAG" >/dev/null; then die "本地已有 tag $TAG"; fi
+if gh release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then die "远端已有 release $TAG"; fi
 
 # ── 1. CHANGELOG 冻结 ────────────────────────────────────────
 log "CHANGELOG"
@@ -189,20 +123,44 @@ git diff --cached --quiet || git commit -m "release(v$V): v$V — freeze changel
 git push origin main
 HEAD_SHA=$(git rev-parse HEAD)
 
-# ── 5. 云端预发版构建（铁律闸门）───────────────────────────
-log "云端预发版构建（双架构零警告 + 单测；不发布）"
-gh workflow run release.yml --repo "$GH_REPO" --ref main -f version="$V" \
+# ── 5. 触发云端：构建通过 → 自动建 tag → 发布 ──────────────
+log "触发云端发布（构建通过后才创建 tag）"
+gh workflow run release.yml --repo "$GH_REPO" --ref main \
+  -f version="$V" -f publish_on_success=true \
   || die "无法触发 release.yml（workflow 文件是否已推到 main？）"
-wait_for_preflight "$HEAD_SHA"
 
-# ── 6. 打 tag → 正式发布（云端异步）───────────────────────
-log "打 tag 并触发正式发布"
-git tag "$TAG"
-git push origin "$TAG"
+# 确认调度的是本次提交（main 若在调度瞬间被推进，宁可取消也不发错内容）。
+RUN_ID=""
+RUN_URL=""
+for _ in $(seq 1 30); do
+  MATCH=$(gh run list --repo "$GH_REPO" --workflow release.yml --limit 20 \
+    --json databaseId,headSha,event,url \
+    --jq ".[] | select(.event == \"workflow_dispatch\" and .headSha == \"$HEAD_SHA\") | [.databaseId, .url] | @tsv" \
+    | sort -nr | head -1)
+  if [ -n "$MATCH" ]; then
+    RUN_ID=$(printf '%s' "$MATCH" | cut -f1)
+    RUN_URL=$(printf '%s' "$MATCH" | cut -f2)
+    break
+  fi
+  sleep 2
+done
 
-log "已触发云端发布"
-echo "tag    : $TAG @ $(printf '%s' "$HEAD_SHA" | cut -c1-8)"
-echo "进度   : gh run list --workflow release.yml --limit 5"
-echo "发布页 : https://github.com/$GH_REPO/releases/tag/$TAG"
+if [ -z "$RUN_ID" ]; then
+  # 调度可能解析到了更新的 main：取消这些 run（它们会带 publish_on_success=true），
+  # 避免用错误 SHA 建 tag。然后让用户重跑本命令。
+  for id in $(gh run list --repo "$GH_REPO" --workflow release.yml --limit 10 \
+      --json databaseId,headSha,event \
+      --jq ".[] | select(.event == \"workflow_dispatch\" and .headSha != \"$HEAD_SHA\") | .databaseId"); do
+    gh run cancel "$id" --repo "$GH_REPO" >/dev/null 2>&1 || true
+  done
+  die "没有找到本次提交的云端运行（调度可能解析到了更新的 main）——已取消错位运行，请重跑本命令"
+fi
+
+log "已触发（本地可以继续开发）"
+echo "run    : $RUN_URL"
+echo "行为   : 双架构零警告构建 + 单测全部通过 → 自动创建 tag $TAG 并发布；"
+echo "         任何一步失败 → 不产生 tag / Release（开发继续，修好重跑本命令）"
+echo "进度   : gh run watch $RUN_ID"
+echo "状态   : scripts/release.sh --status"
 echo ""
-echo "构建/上传在 GitHub Actions 上跑；发布失败只需 re-run 同一 tag 的工作流（幂等补完）。"
+echo "tag 指向：$(printf '%s' "$HEAD_SHA" | cut -c1-8)（后续提交不影响本次发布）"

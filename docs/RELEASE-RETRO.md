@@ -178,12 +178,11 @@ ci local 失败 ~3m → 续跑 ci/package/publish/verify ~6m）
 - 删除本地构建/打包/上传管线（旧 `release.sh` 的 build/package/publish/verify
   阶段、`tools/pre-release-check.sh`、套件戳机制）——本地不再产出发布资产。
 - `scripts/release.sh` 只剩：冻结 CHANGELOG → 同步版本号 → 单测 → 提交推送 →
-  **云端预发版构建（必须绿）** → 打 tag（版本号/构建号幂等，可续跑）。
-- `.github/workflows/release.yml` 成为唯一发布者：`workflow_dispatch` = 预发版
-  （双架构零警告 + 单测，不发布）；`push tag` = 正式发布（并行双架构构建、
-  Release 幂等创建/更新、逐资产上传重试、远端 digest 三方校验）。
+  触发云端；**tag 由云端在构建全部通过后创建**（版本号/构建号幂等，可续跑）。
+- `.github/workflows/release.yml` 成为唯一发布者：`workflow_dispatch` = 双架构
+  零警告构建 + 单测，**全绿后自动建 tag 并发布**（失败则无 tag）；`push tag` =
+  手动路径，同样幂等（Release 复用、资产覆盖、digest 校验）。
 - 失败语义：预发版失败 → tag 不存在，开发继续；正式发布失败 → re-run 同一 tag
   工作流即可补完（不换代码、不换 tag）。
 
-**代价**：约 8–12 分钟云端等待（双架构并行），发生在云端、不占开发机；本地命令
-本身只做准备与门控。
+**代价**：云端构建 8–12 分钟（双架构并行），但本地命令 30 秒返回，开发不停。

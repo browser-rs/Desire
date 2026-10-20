@@ -1013,12 +1013,16 @@ Features/Bookmarks/
   - **发版冒烟必须从非 DerivedData 路径（如 /tmp）启动一次**：ACl 失配只在
     换路径启动时触发，常规 DerivedData 路径测不出来。
 
-## 发布流程（2026-10-21 起：云端构建发布，tag 前必须预发版通过）
+## 发布流程（2026-10-21 起：云端构建成功才自动打 tag + 发布）
 
-**铁律：发版必须成功**——tag 一旦推出就不好回退，所以**打 tag 必须发生在"这份提交
-已经在云端完整构建通过"之后**。仓库是公开仓库，Actions 标准 runner 免费且不计分钟
-（私有仓库才有 2000 分钟/月 + macOS 10× 扣减——那是本地发版时代的历史顾虑）；
-构建/打包/上传全部交给 GitHub，不占开发机、不阻塞继续开发。
+**铁律：发版必须成功，且触发发版不阻塞开发**。实现方式：本地命令只准备版本并触发
+云端，**tag 由 GitHub Actions 在双架构零警告构建 + 单测全部通过之后创建**
+（`gh release create --target <已验证 SHA>`；GITHUB_TOKEN 建的 tag 不会二次触发
+工作流）。构建失败 → 发布 job 不运行，**tag 与 Release 都不存在**，开发继续。
+发布 job 幂等：上传/网络失败 `gh run rerun <id> --failed` 补完，不改代码、不换 tag。
+
+仓库是公开仓库，Actions 标准 runner 免费且不计分钟（私有仓库才有 2000 分钟/月 +
+macOS 10× 扣减——那是本地发版时代的历史顾虑）。
 
 **流程**：
 1. 开发完成并推到 main；本地验证：
@@ -1026,34 +1030,31 @@ Features/Bookmarks/
    - 动了浏览器/Agent 运行路径：`python3 tests/execution-e2e.py`（15 分钟，全绿）；
    - 结构/视觉改动：按本文件前面的桥/快照手法走查。
 2. 写 CHANGELOG（`scripts/changelog.py add <Type>`，stdin 传正文）。
-3. `scripts/release.sh <版本号>`：
-   - 冻结 CHANGELOG、同步 website/pbxproj 版本号、跑单测、提交推送（版本号/构建号
-     幂等，续跑不会重复加号）；
-   - **触发 release.yml 的 workflow_dispatch 预发版构建**（与正式发布同一套双架构
-     零警告构建 + 单测，但不发布），等它绿；
-   - **只有绿了才打 tag 并推送** → 正式发布工作流构建同一份字节并幂等发布；
-   - 预发版失败 → **tag 不存在**，开发可继续，修完重跑同一命令；
-   - 续跑：`scripts/release.sh <版本号> --from tag`（要求 HEAD 已有绿色预发版）。
-4. `gh run list --workflow release.yml --limit 5` 看发布进度。
+3. `scripts/release.sh <版本号>`（约 30 秒返回）：冻结 CHANGELOG、同步
+   website/pbxproj 版本号（幂等，续跑不重复加构建号）、跑单测、提交推送、触发
+   release.yml；构建/发布在云端异步进行，**本地立刻可以继续开发**。
+4. `scripts/release.sh --status` 或 `gh run list --workflow release.yml` 看进度。
 5. 发版后产品页部署是手工步（release.sh 不管页面部署）。
 
-**为什么这样能保证成功**：tag 指向的提交与预发版验证的提交是同一个 SHA；正式发布
-只是重跑同一构建 + 上传，任何上传/网络失败可 **re-run 同一 tag 的工作流**补完
-（Release 已存在则复用更新、资产 `--clobber` 覆盖、最后校验远端 size/sha256 digest）。
+**失败语义**：
+- 构建/单测失败 → 没有 tag、没有 Release；修好代码后重跑同一命令（CHANGELOG 段已
+  冻结、版本号幂等，不会重复提交）。
+- 发布阶段（上传/网络）失败 → tag 已指向已验证的 SHA；`gh run rerun <id> --failed`
+  只重跑发布 job（复用本次构建产物）。
+- 调度若解析到更新的 main（并发推送窗口）→ 脚本会取消错位运行并报错，重跑即可。
 
 **工作流要点**（`.github/workflows/release.yml`）：
-- `workflow_dispatch(version)` = 预发版；`push tag v*` = 正式发布；
-- `quality`（Rust fmt/test/build）+ `build-arm64` / `build-x86_64` 并行，各自
-  PlistBuddy 校验产物版本 == 版本号、x86 用 lipo 校验架构、零警告 grep 闸门；
-- 发布 job 只在 tag push 时运行：下载 artifacts → 正文 = CHANGELOG 该版本段 +
-  `scripts/install-note.template.md` → Release 幂等创建/更新 → 逐资产上传重试 →
-  `scripts/verify-release-assets.py` 三方校验。
+- `workflow_dispatch(version, publish_on_success)`：单测 + arm64 / x86_64 并行零警告
+  构建 → **全部通过后才运行发布 job**（建 tag → Release → 上传 → digest 校验）；
+- `push tag v*`：手动 tag 路径，同样构建 + 幂等发布；
+- 构建 job 各自 PlistBuddy 校验产物版本 == 版本号，x86 用 lipo 校验架构；
+- 发布 job：下载 artifacts → 正文 = CHANGELOG 段 + install note → Release 幂等
+  创建/更新 → 逐资产上传重试 → `scripts/verify-release-assets.py` 三方校验。
 
 **别绕的坑**：
 - **本机 Xcode 可能比 CI 新**：本地全量构建绿 ≠ CI 绿（曾因 private init 的构造
-  可见性差异，CI 连红 5 次）。预发版构建正是为此存在，不要跳过它直接打 tag。
-- 不再手工 disable/enable Release 工作流（那是本地发版时代的遗留；现在它就是
-  唯一发布者）。
+  可见性差异，CI 连红 5 次）。云端构建就是权威闸门——它不过就没有 tag，别手工补。
+- 不再手工 disable/enable Release 工作流（本地发版时代的遗留；现在它是唯一发布者）。
 - 产物用 `CODE_SIGNING_ALLOWED=NO`（链接器仍给 arm64 ad-hoc 签名，可启动）；
   安装说明仍要求 `xattr -cr`。安装说明单一真相 = `scripts/install-note.template.md`。
 - CHANGELOG 的 `[Unreleased]` 由 `scripts/release.sh` 自动改名并补空壳；条目只许用

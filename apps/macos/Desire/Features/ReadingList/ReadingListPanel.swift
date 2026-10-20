@@ -8,6 +8,15 @@ struct ReadingListPanel: View {
     let onClose: () -> Void
     /// 正在抓离线副本的条目（面板内小指示）。
     @State private var cachingIDs: Set<UUID> = []
+    /// 搜索与筛选（v0.7.28）。
+    @State private var searchText = ""
+    @State private var listFilter: ReadingListFilter = .all
+
+    private var filteredItems: [ReadingListItem] {
+        let cached = Set(store.items.filter { store.cacheURL(for: $0.id) != nil }.map(\.id))
+        return ReadingListFilter.apply(store.items, query: searchText,
+                                       filter: listFilter, cachedIDs: cached)
+    }
     /// 批量摘要（v0.7.19）：进度实时观察；preference 供旁路模型调用口径
     /// （与 Agent 面板同源——AppState 持有，WhiteboardPanel 同款取法）。
     @ObservedObject private var summarizer = ReadingListSummarizer.shared
@@ -70,11 +79,38 @@ struct ReadingListPanel: View {
             }
             .padding()
 
+            if !store.items.isEmpty {
+                HStack(spacing: 8) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "magnifyingglass")
+                            .foregroundStyle(.secondary)
+                        TextField("Search Reading List…", text: $searchText)
+                            .textFieldStyle(.plain)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(nsColor: .controlBackgroundColor))
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                    Picker("Filter", selection: $listFilter) {
+                        ForEach(ReadingListFilter.allCases, id: \.self) { filter in
+                            Text(filter.title).tag(filter)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 190)
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
+            }
+
             if store.items.isEmpty {
                 EmptyState(message: String(localized: "Reading List is Empty"))
+            } else if filteredItems.isEmpty {
+                EmptyState(message: String(localized: "No Matching Items"))
             } else {
                 List {
-                    ForEach(store.items) { item in
+                    ForEach(filteredItems) { item in
                         HStack(spacing: 10) {
                             Image(systemName: item.isRead ? "circle.fill" : "circle")
                                 .font(.system(size: 8))

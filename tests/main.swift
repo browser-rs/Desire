@@ -3784,6 +3784,25 @@ func testMemoryConflict() {
 }
 testMemoryConflict()
 
+func testReadingListFilter() {
+    let a = ReadingListItem(id: UUID(), title: "Swift 并发", url: "https://a.example/1",
+                            savedDate: Date(), isRead: false, summary: "actor 入门")
+    let b = ReadingListItem(id: UUID(), title: "离线阅读", url: "https://b.example/2",
+                            savedDate: Date(), isRead: true)
+    let c = ReadingListItem(id: UUID(), title: "其他", url: "https://c.example/3",
+                            savedDate: Date(), isRead: false)
+    let items = [a, b, c]
+    check("阅读列表：查询命中摘要",
+          ReadingListFilter.apply(items, query: "actor", filter: .all, cachedIDs: []).map(\.id) == [a.id])
+    check("阅读列表：未读筛选",
+          ReadingListFilter.apply(items, query: "", filter: .unread, cachedIDs: []).map(\.id) == [a.id, c.id])
+    check("阅读列表：离线筛选",
+          ReadingListFilter.apply(items, query: "", filter: .offline, cachedIDs: [b.id]).map(\.id) == [b.id])
+    check("阅读列表：筛选与查询叠加",
+          ReadingListFilter.apply(items, query: "example", filter: .unread, cachedIDs: []).count == 2)
+}
+testReadingListFilter()
+
 func testBackupArchive() {
     struct Row: Codable, Equatable { var a: String }
     let payload = BackupArchive.encodePayload([Row(a: "x"), Row(a: "y")])!

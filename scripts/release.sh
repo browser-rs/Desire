@@ -55,6 +55,17 @@ if gh release view "$TAG" --repo "$GH_REPO" >/dev/null 2>&1; then die "远端已
 
 # ── 1. CHANGELOG 冻结 ────────────────────────────────────────
 log "CHANGELOG"
+# 空壳 [Unreleased]（旧脚本冻结后留下的）会让 verify 拒绝；发布场景直接移除。
+# 下次加条目时 changelog.py add 会自动重建这个头。
+python3 - <<'PYCLEAN'
+import re
+p = "CHANGELOG.md"
+s = open(p).read()
+m = re.match(r"## \[Unreleased\]\s*\n+(?=## \[)", s)
+if m:
+    open(p, "w").write(s[m.end():])
+    print("已移除空的 [Unreleased] 空壳")
+PYCLEAN
 python3 scripts/changelog.py verify || die "CHANGELOG 结构问题"
 
 if grep -qF "## [$TAG]" CHANGELOG.md; then
@@ -74,10 +85,8 @@ end = head + nxt.start() if nxt else len(s)
 if not re.search(r"(?m)^- ", s[head:end]):
     sys.exit(2)
 s = s[:m.start()] + f"## [{tag}] - {today}" + s[head:]
-if "## [Unreleased]" not in s:
-    s = "## [Unreleased]\n\n" + s
 open(p, "w").write(s)
-print(f"已冻结 {tag}，并补了新的 [Unreleased] 空壳")
+print(f"已冻结 {tag}")
 PYF
 fi
 

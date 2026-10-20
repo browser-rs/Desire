@@ -15,6 +15,8 @@ struct ReaderView: View {
     @ObservedObject private var speech = ReaderSpeechService.shared
     /// 朗读源剥离 HTML 后的纯文本（body 出现一次后缓存，避免每帧重剥）。
     @State private var plainText: String = ""
+    /// "保存离线"的瞬时反馈（v0.7.28）。
+    @State private var offlineNote: String?
 
     private var speechText: String { plainText.isEmpty ? Self.stripHTML(contentHTML) : plainText }
 
@@ -90,6 +92,18 @@ struct ReaderView: View {
                 .foregroundStyle(speech.isSpeaking ? Color.accentColor : .secondary)
 
                 // 行距切换（紧凑/标准/宽松）
+                if let offlineNote {
+                    Text(offlineNote)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                Button { saveOffline() } label: {
+                    Image(systemName: "arrow.down.circle")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Save offline copy")
                 Menu {
                     ForEach([1.4, 1.7, 2.0], id: \.self) { spacing in
                         Button(spacing == 1.4 ? "Tight" : spacing == 1.7 ? "Normal" : "Loose") {
@@ -173,6 +187,36 @@ struct ReaderView: View {
     private func stepFont(_ delta: Int) {
         settings.fontSize = max(14, min(26, settings.fontSize + delta))
         settings.save()
+    }
+
+    /// 保存离线（v0.7.28）：把干净的阅读正文挂到阅读列表条目的离线缓存上
+    /// （没有条目就先加一条）——列表右键"Open Offline Copy"即可离线打开。
+    private func saveOffline() {
+        guard let baseURL,
+              !contentHTML.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            offlineNote = String(localized: "Nothing to save")
+            return
+        }
+        guard let store = AppState.live?.readingListStore else {
+            offlineNote = String(localized: "Reading list unavailable")
+            return
+        }
+        let urlString = baseURL.absoluteString
+        if store.items.first(where: { $0.url == urlString }) == nil {
+            store.add(title: title.isEmpty ? (baseURL.host ?? urlString) : title,
+                      url: urlString)
+        }
+        guard let item = store.items.first(where: { $0.url == urlString }),
+              let outcome = ReadingListCache.saveReaderHTML(wrappedHTML, itemID: item.id) else {
+            offlineNote = String(localized: "Could not save offline")
+            return
+        }
+        store.setCache(item.id, fileURL: outcome.fileURL)
+        offlineNote = String(localized: "Saved offline")
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            offlineNote = nil
+        }
     }
 
     private var wrappedHTML: String {

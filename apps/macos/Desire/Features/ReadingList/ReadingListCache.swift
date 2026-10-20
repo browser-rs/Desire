@@ -68,6 +68,21 @@ enum ReadingListCache {
         return Outcome(fileURL: file, bytes: data.count, fromOpenTab: fromOpenTab)
     }
 
+    /// 阅读模式"保存离线"（v0.7.28）：把提取后的干净正文写成 `.html`（内联主题
+    /// 样式、链接已绝对化）——比整页 .webarchive 小得多，离线可读。文件名
+    /// `<itemID>-reader.html`（重存即覆盖，与 .webarchive 互不冲突）。
+    static func saveReaderHTML(_ html: String, itemID: UUID) -> Outcome? {
+        let directory = ReadingListStore.cacheDirectory
+        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let file = directory.appendingPathComponent("\(itemID.uuidString)-reader.html")
+        do {
+            try html.write(to: file, atomically: true, encoding: .utf8)
+        } catch {
+            return nil
+        }
+        return Outcome(fileURL: file, bytes: html.utf8.count, fromOpenTab: true)
+    }
+
     /// 离屏缓存 webview（一次抓取一个；完成即释放，别常驻）。
     private static var offscreenCacheWebview: WKWebView?
 

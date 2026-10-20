@@ -1191,59 +1191,92 @@ Trace/Stats/Memory 页面已在；差距在**内容浏览（白板）**、**未�
 
 ---
 
-## v0.7.28 — 带得走、读得顺（浏览器基础与可靠性）
+## v0.7.28 — 带得走、读得顺、找得到（浏览器基础 × 可靠性 × 融合）
 
-> **现状依据（2026-10-21 逐项审计）**：
-> - 阅读模式：`ReaderView` 用 `loadHTMLString(html, baseURL: nil)`（相对图片/链接失效）；
->   `ReaderWebView` 无导航代理（点链接困在阅读视图里）；`isReadingMode` 全仓只有 set、
->   导航后不复位；阅读视图无滚动位置记忆；提取器只做容器打分，不清理内嵌 nav/ad、
->   不处理懒加载图片。
-> - 标签挂起：`TabManager.memoryPressureActive` 置 true 后**全仓没有复位**——首次内存
->   警告之后每次巡检都会挂起所有后台候选；只监听 `.warning`，无 critical 分级；
->   无手动卸载入口。
-> - 崩溃自愈：内容进程崩溃自动重载一次（10s 防循环），但**无滚动恢复**、无崩溃计数/
->   持久化；防循环命中时横幅仍写"已自动恢复"，与事实不符；诊断只有 MetricKit 报告目录。
-> - 备份：只有零散导出（书签 HTML/记忆 JSON/Markdown/价格表），**没有统一备份与恢复**；
->   历史完全无导出。
-> - 可访问性：macOS 全仓仅 3 处 `accessibilityLabel`、0 处 Reduce Motion 处理；
->   `HoverIcon`（66 处调用）只有 `.help`；`SuspendedTabView` 等点击目标不可键盘聚焦。
-> - 历史：有搜索/分组/按域删除，**无多选批量删除、无"只看某站"筛选**。
+> 叙事：上一版把「Agent 看得清」做完了；这一版回到**浏览器本体**——让数据带得走
+> （统一备份）、文章读得顺（阅读模式与离线）、后台不悄悄消失（挂起/崩溃可诊断）、
+> 想要的东西找得到（历史/阅读列表/记忆/命令面板）。Agent 侧只做一个融合件
+> （回复朗读）与一个可发现性收口。
+>
+> **现状依据（2026-10-21 逐项审计，带 path:line）**：
+> - 备份只有零散导出（书签 HTML/记忆 JSON/价格表），历史完全无导出，无统一恢复。
+> - 阅读模式 `ReaderView` 的 `loadHTMLString(baseURL: nil)` 让相对图片/链接全裂；
+>   `ReaderWebView` 无导航代理（链接困在阅读视图）；`isReadingMode` 导航后不复位；
+>   无滚动记忆；提取器不清洗 nav/ad、不处理懒加载图片。
+> - `TabManager.memoryPressureActive` 置 true 后**从不复位**——首次内存警告后每次
+>   巡检都挂起全部后台候选；只监听 `.warning`，无 critical/normal；无手动卸载入口。
+> - 内容进程崩溃自动重载一次，但无持久计数、无滚动恢复；防循环命中时横幅仍写
+>   "已自动恢复"（误导）。
+> - 可访问性：macOS 全仓仅 3 处 `accessibilityLabel`，0 处 Reduce Motion；
+>   `HoverIcon`（66 处）只有 `.help`。
+> - 历史：有搜索/分组/按域删除，无多选批量删除、无"只看某站"、云归档搜索只有桥。
+> - 阅读列表：无搜索/筛选（只有列表与逐条操作）；离线缓存机制已在。
+> - 记忆面板：无搜索/筛选；事实列表较长时只能滚动。
+> - 诊断：只有 MetricKit 报告目录 + zip，无 OSLog 导出、无崩溃计数。
+> - Agent 回复没有朗读入口（TTS 只在阅读模式）。
+> - 设置页只有"快捷键搜索"，没有全局设置搜索；命令面板未收录本版新能力。
+>
+> 主题分布：浏览器基础 4 · 融合 1 · Agent 基础 2 · 可靠性 2 · 可发现性 1。
 
-**旗舰：统一备份与恢复**
-- `BackupArchive`（版本化 JSON，按域存 payload + counts；纯逻辑进 harness）：
-  设置目录键、书签树、历史、阅读列表、快拨、Agent 记忆；**不含 Keychain/API Key/对话**。
-- 导出到用户选择的位置；导入支持 **Merge（只补缺）** 与 **Replace（整体还原，二次确认）**；
-  书签合并进"Imported <日期>"文件夹，历史/阅读列表/快拨按 URL 去重，设置只补缺键，
-  记忆事实按近似重复去重。
-- 入口：设置 → 通用 → Backup & Restore；桥 `POST /backup/export|import`。
-- 验收：harness（版本拒绝/payload round-trip/计数）；桥 E2E（导出→改数据→合并/替换→
-  计数与抽样一致）；产物内不含任何密钥字符串。
+**旗舰：统一备份与恢复（含选择性恢复）** ✅ 核心已落地，待补选择性/预览
+- 落地：`BackupArchive`（版本化 JSON，按域 payload + counts）+ `BackupService`；
+  覆盖设置（同步目录 23 键）/书签树/历史/阅读列表/快拨/Agent 记忆；
+  **不含 Keychain/API Key/主密钥/对话正文**。
+- 待补：导入前的**预览**（version/日期/各域条数）；按域勾选导入；
+  Merge（书签进 "Imported" 文件夹、历史/阅读/快拨按 URL 补缺、设置不动、
+  记忆按近似重复去重）与 Replace（二次确认）。桥补 `POST /backup/preview` 与
+  `import` 的 `domains` 参数。
+- 验收：harness（归档 round-trip/未来版本拒绝/设置值）；桥 E2E（导出→改数据→
+  预览→按域 Merge→Replace 抽样）；**备份文件密钥模式扫描零命中**。
 
 **主力件**
-1. **阅读模式修复与增强**：`readerContent` 带上 `location.href` 作为 baseURL（相对图片/
-   链接可用）；阅读视图接管链接点击 → 关闭阅读模式并在原标签打开（含 target=_blank）；
-   主文档导航提交到新 URL 时自动退出阅读模式；按 URL 记忆滚动位置（设置变化/切换后恢复）；
-   提取器清理 nav/aside/footer/script/表单、还原 data-src 懒加载图片、把 a/img 的
-   相对地址转绝对。验收：本地 fixture（相对图片/链接/懒加载）探针 + 滚动恢复断言。
-2. **标签挂起策略修复**：`memoryPressureActive` 在消费后复位；内存事件补 `.critical`
-   （立即触发一次巡检）与 `.normal`（清除标志）；标签右键新增 **Unload Tab**（选中标签禁用）。
-   验收：纯逻辑/单测不易覆盖，走桥与日志断言 + 手动走查；构建零警告。
-3. **崩溃自愈增强**：`BrowserDiagnostics` 持久化崩溃计数/最近 20 条（URL+时间+是否自动
-   重载）；防循环命中时横幅改写"已停止自动刷新"并给出手动刷新；设置诊断行显示计数；
-   桥 `GET /diag/browser`。验收：桥探针字段齐全 + 手动制造崩溃路径走查。
-4. **可访问性横切**：`HoverIcon` 自动用 help 作为 accessibilityLabel（覆盖 66 处）；
-   动画令牌接 `NSWorkspace.accessibilityDisplayShouldReduceMotion`（Reduce Motion 开启时
-   返回 nil）；`SuspendedTabView` 等待点目标改 Button/键盘可达。验收：构建零警告 +
-   快照/走查；Reduce Motion 开关前后行为对照。
-5. **历史多选批量删除**：历史页选择模式（复选框 + 全选/反选 + 删除 N），与收件箱同款
-   交互；按站点筛选（点击站点组标题切换只显示该站）。验收：harness（纯逻辑筛选）+
-   桥/面板走查。
+1. **阅读模式修复与离线保存** ✅ 核心已落地，待 fixture 验收
+   - baseURL=页面 URL；链接/`target=_blank` 回原标签打开；主文档导航提交到新 URL
+     自动退出；按 URL 记忆滚动；提取器清洗 + 懒加载图片 + 绝对化 URL；
+     阅读视图"保存离线" → 阅读列表离线缓存（可离线打开）。
+   - 验收：本地 fixture（相对图片/链接/懒加载/长文）逐项；离线保存后在阅读列表
+     "Open Offline Copy" 断网可读；滚动恢复断言。
+2. **标签挂起与内存治理修复** ✅ 已落地
+   - 消费 `memoryPressureActive`；`.critical` 立即巡检、`.normal` 清除；标签右键
+     **Unload Tab**（选中/新标签页禁用）。
+   - 验收：日志断言（同一警告不会每轮重复挂起）；手动卸载后点标签恢复状态。
+3. **历史管理收口**（批量删除/站点筛选 ✅；云归档搜索 UI 待补）
+   - 选择模式 + Delete N；站点组漏斗"只看该站"；搜索叠加；
+     **云归档搜索**：搜索框旁云图标，签名后调用 `SyncStore.searchArchivedHistory`，
+     结果分节展示并可打开（仅登录态）。
+   - 验收：harness（筛选纯逻辑）；面板走查；归档搜索在登录态返回真实命中。
+4. **阅读列表搜索与筛选**（待实现）
+   - 搜索 title/url/summary；筛选：全部 / 未读 / 已缓存；与批量摘要入口并存。
+   - 验收：纯逻辑 `ReadingListFilter` 进 harness；面板走查。
+5. **记忆面板搜索与筛选**（待实现）
+   - 搜索 content/category/source；筛选 pinned / 待复核；结果计数。
+   - 验收：纯逻辑 `MemoryFactFilter` 进 harness；面板走查。
+6. **Agent 回复朗读**（待实现）
+   - 助手消息操作行加喇叭按钮（复用 AVSpeechSynthesizer 端上合成）；开读时按钮
+     变停止；新消息/切换会话自动停。
+   - 验收：手动走查（中文/英文、停止、切会话不残留）。
+7. **浏览器诊断包**（计数/横幅 ✅；OSLog 导出待补）
+   - 设置 → 诊断行显示崩溃计数（悬停最近一次）；"Export…" 的 zip 追加
+     `oslog-<stamp>.log`（`OSLogStore(scope: .currentProcessIdentifier)` 最近 30 分钟）。
+   - 验收：`/diag/browser` 字段齐全；导出 zip 内含 oslog 文件且非空。
+8. **可访问性横切** ✅ 已落地
+   - `HoverIcon` 统一 accessibilityLabel；动画令牌接 Reduce Motion；
+     关键点击目标（挂起页已有 Button）键盘可达。
+   - 验收：构建零警告；Reduce Motion 开关前后对照（无动画但状态正确）。
+9. **可发现性收口**（待实现）
+   - 命令面板收录：备份导出/导入预览、阅读模式保存离线、诊断包导出、历史"只看该站"；
+     菜单/快捷键与既有命令同源（不新增平行路径）。
+   - 验收：命令面板搜索上述关键词可执行；桥 `/command` 同名可用。
 
-**收口**：备份文件不含密钥（grep 断言）；新增文案补三语；harness/双架构零警告构建绿。
+**收口**
+- 备份文件**不含密钥**（grep 断言）；Merge/Replace 全链跑一遍；
+- 新增文案补三语（或确认走目录自动抽取）；
+- harness 全绿、CI 双架构零警告、手动走查清单逐项打勾；
+- 发布仍走 `scripts/release.sh`（云端同编译器构建全绿才建 tag）。
 
-> **实况（2026-10-21 开发中）**：六件落地——备份与恢复（旗舰；harness +7、桥
-> export/merge E2E 2/2、密钥扫描零命中）、阅读模式修复（baseURL/链接/导航退出/
-> 滚动记忆/提取清洗）、标签挂起粘性标志修复 + critical/normal + 手动 Unload、
-> 崩溃诊断（持久计数 + 设置行 + `/diag/browser`）、可访问性横切（HoverIcon 标签 +
-> Reduce Motion）、历史批量删除与站点筛选。harness **1120/0**、Debug 构建绿；
-> 发版走 CI 双架构零警告 + 云端自动 tag/上传。
+**明确不在本版**
+- 备份口令加密（KDF/凭据轮换需单独设计评审）；
+- 崩溃后滚动恢复（`interactionState` 在内容进程崩溃后不可靠，需另找信号）；
+- 全局设置全文搜索（先做命令面板入口，避免大改设置页结构）；
+- passkey（Apple entitlement）、真网络节流、DASH 下载（平台/API 限制）。
+

@@ -10,6 +10,20 @@
 - **浏览器诊断（v0.7.28）**：新增 `BrowserDiagnostics`——内容进程崩溃**持久计数 + 最近 20 条**（URL/时间/是否自动重载）；设置 → 诊断行显示 "N content crash(es)" 并悬停给最近一次详情；桥 `GET /diag/browser`。修复防崩溃循环命中时横幅仍写"页面已自动恢复"的误导文案（现在如实写"已停止自动刷新"）。验收：桥探针 1/1（字段齐全、初始 0）；崩溃路径走查（白屏/横幅文案）。
 - **可访问性横切（v0.7.28）**：`HoverIcon`（66 处调用）统一把 `help` 作为 accessibilityLabel（无 help 时退回 SF Symbol 名）——VoiceOver 不再只念"按钮"；全部动画令牌（hover/transition/spring）接 `NSWorkspace.accessibilityDisplayShouldReduceMotion`，系统开启"减弱动态效果"时返回 nil（状态照常切换，只是不动画）。验收：构建零警告；Reduce Motion 开关前后行为走查。
 - **历史批量删除与站点筛选（v0.7.28）**：历史页新增 **Select** 选择模式（复选框 + 底部 Delete N）、站点组头新增漏斗按钮（只看该站，可一键清除筛选）；搜索与站点筛选可叠加。验收：构建绿；面板视觉走查。
+- **备份选择性恢复与预览（v0.7.28 旗舰补全）**：导入前先读文件头展示**格式版本/导出时间/应用版本/各域条数**，并按域勾选要恢复的内容（设置/书签/历史/阅读列表/快拨/Agent 记忆）；Merge 与 Replace 的文案随选区分开，未来版本文件明确拒绝。桥补 `POST /backup/preview` 与 `import` 的 `domains` 过滤。验收：桥探针 **3/3**（真实数据导出六域计数正确；预览字段齐全；`domains:["history"]` 合并只返回 history 且 0 新增）。
+- **历史云归档搜索 UI（v0.7.28）**：历史页搜索框旁新增云图标——登录态下按需拉取加密归档、**本地解密过滤**（服务端不可读，这是端到端加密的必然形态），结果显示在独立 "Cloud archive" 分节、可点开；未登录时明确提示。验收：构建绿 + 面板走查（登录态真库命中沿用 v0.7.25 的桥探针 3/3 口径）。
+- **阅读列表搜索与筛选（v0.7.28）**：面板顶部新增搜索（title/url/摘要）与分段筛选 **All / Unread / Offline**，可与搜索叠加；纯逻辑 `ReadingListFilter` 进 harness（4 项：摘要命中/未读/仅离线/叠加）。
+- **记忆面板搜索与筛选（v0.7.28）**：长期记忆列表新增搜索（content/category/source）与 **All / Pinned / Pending review** 筛选；纯逻辑 `MemoryModels.filterFacts` 进 harness（5 项）。
+- **Agent 回复朗读（v0.7.28）**：助手消息操作行新增喇叭按钮——端上 TTS 朗读（零费用/数据不出机），朗读中变停止；切换会话自动停；轻量去掉 Markdown 标记避免念出星号。验收：构建绿 + 手动走查（中英文/停止/切会话）。
+- **诊断包升级（v0.7.28）**：设置页导出的诊断 zip 现在额外包含**最近 30 分钟的进程内 OSLog**（`OSLogStore(scope: .currentProcessIdentifier)`，只含本应用）与 `browser-crashes.json`（崩溃计数/最近 20 条）；桥 `POST /diag/export` 同源。验收：桥探针导出 zip，oslog 文件 232KB 非空、崩溃摘要存在。
+- **可发现性收口（v0.7.28）**：⌘K 命令面板与文件菜单收录 **Export Backup Now** / **Export Diagnostics…**——新能力不再只藏在设置页深处；两者都走既有 CommandBus（不新增平行执行路径）。
+
+
+
+
+
+
+
 
 
 

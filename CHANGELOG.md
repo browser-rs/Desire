@@ -11,11 +11,15 @@
 - **会话接力（v0.7.25，多窗口互通）**：把当前对话**交给另一窗口接管**——桥 `POST /agent/handoff {"window": <live session id>}`：源窗口先落盘（`flushConversation`）→ 目标 `loadConversation` 接管（同一 conversationId）→ 投递目标（deliveryTarget）切换到目标窗口 → 源 `clear()` 回空会话（不持有旧对话，避免退出时旧副本覆盖目标的新内容）。验收：双窗真机探针 **7/7**（源会话建立/接力带同一会话/目标接管/投递目标切换/源回新会话/目标续写落在同一会话且消息增长/轨迹会话一致；两段测试对话已清理）。**测试发现**：桥 `/command newWindow` 走 SwiftUI `openWindow`，在桥上下文里**静默无效**（返回 ok 但没开窗）——自动化开第二窗要系统级激活 + ⌘N 键盘注入（已记入 AGENTS.md 测试要点）。
 - **预算可视化（v0.7.26）**：成本路由开关旁新增 **Session Budget** 选择器——0（关闭）/ 10 万 / 50 万 / 100 万 / 200 万 token，**自定义历史值原样显示**（用户机器上遗留的 500 正是此前"只能经工具/桥/UserDefaults 改、界面不可见"的后果）；副标题说明"到档位上限回合停在步骤边界"。验收：构建绿 + 选择器与 store 同源（`tokenBudget`）；视觉走查留用户。
 - **划词卡成本入账（v0.7.26）**：`SelectionAssistService` 收集流式 `usage` → 归账到**会话内最近一条助手消息**（`bypassUsage` kind=`selectionAssist`，token 并入其总量）——v0.7.25 留的最后一个旁路缺口；UI 卡片与桥 `/selection/assist` 同一归账路径。验收：真端点探针 **2/2**（词典调用后该消息 `promptTokens` **75470 → 75668，+198**）。
+- **启动预算进 /state（v0.7.26）**：`GET /state` 新增 `startup: {firstWindowMs, budgetMs}`（首窗可交互毫秒数，预算 400ms 沿用既有日志口径）；套件在启动后断言 `firstWindowMs ≤ 2000ms`（阈值放宽以避开 CI 冷缓存抖动，只抓"启动路径真的坏掉"的大回归）。此前该指标只有统一日志，没有任何程序化消费。
+
 
 
 ### Fixed
 
 - **OAuth 弹窗登录修复（v0.7.25）**：crates.io 的"Log in with GitHub"永远登不上——根因 = 新窗口策略把 `window.open` 弹窗**一律转成标签**，而回跳页（`crates.io/github-redirect.html`）靠 `window.opener.postMessage` 把授权码交回原页；转标签后 **opener 为 null**，回跳页静默什么都不做（现场证据：该页 DOM 空、`window.opener === null`）。修复：`createWebViewWith` 区分两类新窗口——**脚本文档开的（navigationType == .other）或带显式尺寸的 → 真弹窗**（用 WebKit 交给我们的 configuration 建 WKWebView 放进独立窗口，opener/cookie/进程池自动接好；页面 `window.close()` 经 `webViewDidClose` 关窗、KVO 同步窗口标题）；**链接的 target=_blank 仍转标签**（既有 UX 不变）。验收：本地 fixture（opener postMessage + window.close）修复前 FAIL（登录页标题不变且多出标签）、修复后 PASS（标题变 "GOT ABC"、弹窗自关无残留标签）；**真站实测**：crates.io 点击 Login with GitHub → 弹窗完成授权 → 原页登录成功（截图确认 SiwiLiZhao 个人页）。
+- **首启无主窗缓解（v0.7.26）**：强杀（`pkill -9`）/崩溃后首启偶发"桥活着但 tabs=0、无 Agent 会话"（根因指向 SwiftUI 场景恢复；优雅退出可修复）。处理：主窗/设置/引导三个场景关掉 SwiftUI 恢复（`.restorationBehavior(.disabled)`）——应用本就有自己的会话恢复（`SessionRestore` 采纳 index 最近会话），SwiftUI 的窗口恢复是冗余且不可靠的那一层；主窗由 `.defaultLaunchBehavior(.presented)` 每次重新呈现。验收：**连续 5 次强杀重启均 1–2 秒出主窗（5/5）**；工具侧（预检/发版 verify/套件）改为 tabs≥1 判据 + 优雅退出重试（昨日已落地）。
+
 
 ## [v0.7.24] - 2026-10-19
 ### Added

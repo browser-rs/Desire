@@ -8,6 +8,10 @@ import SwiftUI
 /// 400 ms budget (warning when over).
 enum StartupMetric {
     static let launchedAt = Date()
+    /// 首窗可交互耗时（ms）——桥 `/state` 的 startup 字段读它做回归断言
+    ///（v0.7.26；此前只有日志，没有程序化指标）。
+    private(set) static var firstWindowMs: Int?
+    static let budgetMs = 400
     private static var marked = false
     private static let signposter = OSSignposter(subsystem: "me.siwi.Desire", category: "app")
     private static var interval: OSSignpostIntervalState?
@@ -27,7 +31,8 @@ enum StartupMetric {
             signposter.endInterval("coldStart", interval)
         }
         let ms = Int(Date().timeIntervalSince(launchedAt) * 1000)
-        if ms > 400 {
+        firstWindowMs = ms
+        if ms > budgetMs {
             Log.app.warning("startup: first window interactive in \(ms, privacy: .public)ms — OVER the 400ms budget")
         } else {
             Log.app.info("startup: first window interactive in \(ms, privacy: .public)ms (budget 400ms)")
@@ -86,6 +91,11 @@ struct DesireApp: App {
         // 主窗可能不被创建（只剩引导窗，无标签页 → 桥的浏览器端点全废）。
         // 显式声明主窗**必在启动时呈现**，不依赖镜像的隐式行为。
         .defaultLaunchBehavior(.presented)
+        // 无主窗缓解（v0.7.26）：冻结/强杀后首启偶发"只剩引导窗/无主窗"
+        // （2026-10-20 实测：桥活着 tabs=0）。应用有**自己的**会话恢复
+        //（SessionRestore 采纳 index 最近会话），SwiftUI 的窗口恢复是冗余的
+        // ——关掉它，主窗每次都由 `.presented` 重新呈现。
+        .restorationBehavior(.disabled)
         .commands { AppCommands(
             shortcuts: appState.system.keyboardShortcutStore,
             settings: appState.settings,
@@ -110,6 +120,7 @@ struct DesireApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
+        .restorationBehavior(.disabled)
     }
 
     // Settings window.

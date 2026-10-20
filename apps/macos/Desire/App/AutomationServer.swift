@@ -3003,6 +3003,11 @@ final class AutomationServer {
             // 启动行为与崩溃标志（v0.7.19）：重启类断言读它。
             "startupBehavior": Settings().startupBehavior.rawValue,
             "launchedAfterCrash": TabSessionCoordinator.shared.launchedAfterCrash,
+            // 启动预算（v0.7.26）：首窗可交互 ms + 预算；回归断言读它。
+            "startup": [
+                "firstWindowMs": StartupMetric.firstWindowMs.map { $0 as Any } ?? NSNull(),
+                "budgetMs": StartupMetric.budgetMs,
+            ] as [String: Any],
             // Agent 的文件工具以这个目录为工作区——自动化/评估要把 fixture
             // 放进它才能免审批被 readFile 读到。
             "agentWorkspace": SystemCommandStore.shared.workingDirectoryText,

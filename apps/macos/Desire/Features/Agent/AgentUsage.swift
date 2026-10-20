@@ -5,7 +5,7 @@ import Foundation
 /// `usd == nil` 是**有意义的状态**：有 token 但没有单价 → 调用方不显示金额
 /// （显示 $0.0000 会被读成"免费"）。混着已定价与未定价模型时同样为 nil，
 /// 因为那时总额只是下界，标出来会误导。
-struct AgentUsage: Equatable {
+nonisolated struct AgentUsage: Equatable {
     var promptTokens: Int = 0
     var completionTokens: Int = 0
     /// 其中旁路调用（标题/记忆整理/自评）的部分——`promptTokens`/`completionTokens`

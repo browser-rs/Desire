@@ -3784,6 +3784,25 @@ func testMemoryConflict() {
 }
 testMemoryConflict()
 
+func testMemoryFactFilter() {
+    let a = MemoryFact(content: "偏好宋体阅读", category: "preference",
+                       pinned: true, scope: "global", source: "阅读会话")
+    let b = MemoryFact(content: "常用 GitHub 搜索", category: "habit")
+    let c = MemoryFact(content: "项目代号白鹤", category: "fact", scope: "github.com")
+    let facts = [a, b, c]
+    check("记忆筛选：查询命中内容",
+          MemoryModels.filterFacts(facts, query: "宋体", filter: .all, pendingIDs: []).map(\.id) == [a.id])
+    check("记忆筛选：查询命中来源",
+          MemoryModels.filterFacts(facts, query: "阅读", filter: .all, pendingIDs: []).map(\.id) == [a.id])
+    check("记忆筛选：仅 pinned",
+          MemoryModels.filterFacts(facts, query: "", filter: .pinned, pendingIDs: []).map(\.id) == [a.id])
+    check("记忆筛选：仅待复核",
+          MemoryModels.filterFacts(facts, query: "", filter: .pending, pendingIDs: [b.id]).map(\.id) == [b.id])
+    check("记忆筛选：查询+筛选叠加",
+          MemoryModels.filterFacts(facts, query: "github", filter: .all, pendingIDs: []).count == 1)
+}
+testMemoryFactFilter()
+
 func testReadingListFilter() {
     let a = ReadingListItem(id: UUID(), title: "Swift 并发", url: "https://a.example/1",
                             savedDate: Date(), isRead: false, summary: "actor 入门")

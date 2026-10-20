@@ -52,6 +52,43 @@ enum MemoryModels {
         return String(lowered.unicodeScalars.filter { !skipped.contains($0) })
     }
 
+    /// 记忆面板的筛选（v0.7.28）：全部 / 仅 pinned / 仅待复核。
+    enum FactFilter: String, CaseIterable {
+        case all
+        case pinned
+        case pending
+
+        var title: String {
+            switch self {
+            case .all: return String(localized: "All")
+            case .pinned: return String(localized: "Pinned")
+            case .pending: return String(localized: "Pending review")
+            }
+        }
+    }
+
+    /// 查询匹配 content/category/source（大小写不敏感）；filter 按状态过滤。
+    nonisolated static func filterFacts(_ facts: [MemoryFact], query: String,
+                                        filter: FactFilter,
+                                        pendingIDs: Set<UUID>) -> [MemoryFact] {
+        var result = facts
+        switch filter {
+        case .all:
+            break
+        case .pinned:
+            result = result.filter(\.pinned)
+        case .pending:
+            result = result.filter { pendingIDs.contains($0.id) }
+        }
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !needle.isEmpty else { return result }
+        return result.filter { fact in
+            fact.content.lowercased().contains(needle)
+                || fact.category.lowercased().contains(needle)
+                || (fact.source ?? "").lowercased().contains(needle)
+        }
+    }
+
     /// 待复核冲突的新事实不进提示（v0.7.27）：用户确认前不参与注入。
     nonisolated static func injectableFacts(_ facts: [MemoryFact],
                                             pendingIDs: Set<UUID>) -> [MemoryFact] {

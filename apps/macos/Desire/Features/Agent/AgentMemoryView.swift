@@ -21,6 +21,19 @@ struct AgentMemoryView: View {
     @State private var editingText = ""
     @State private var showClearConfirmation = false
     @State private var exportedURL: URL?
+    /// 事实搜索与筛选（v0.7.28）。
+    @State private var factSearch = ""
+    @State private var factFilter: MemoryModels.FactFilter = .all
+
+    private var filteredFacts: [MemoryFact] {
+        let pendingIDs = Set(memory.pendingConflicts.map(\.factID))
+        return MemoryModels.filterFacts(memory.archive.facts, query: factSearch,
+                                        filter: factFilter, pendingIDs: pendingIDs)
+            .sorted { a, b in
+                if a.pinned != b.pinned { return a.pinned }
+                return a.updatedAt > b.updatedAt
+            }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -230,6 +243,31 @@ struct AgentMemoryView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 6)
 
+                if !memory.archive.facts.isEmpty {
+                    HStack(spacing: 8) {
+                        HStack(spacing: 5) {
+                            Image(systemName: "magnifyingglass")
+                                .foregroundStyle(.secondary)
+                            TextField("Search memory…", text: $factSearch)
+                                .textFieldStyle(.plain)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 6))
+
+                        Picker("Filter", selection: $factFilter) {
+                            ForEach(MemoryModels.FactFilter.allCases, id: \.self) { filter in
+                                Text(filter.title).tag(filter)
+                            }
+                        }
+                        .pickerStyle(.segmented)
+                        .frame(width: 230)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 6)
+                }
+
                 if memory.archive.facts.isEmpty {
                     Text("还没有学到任何长期记忆。正常使用几轮后，Agent 会自动记录你的偏好和习惯。")
                         .font(.system(size: 11))
@@ -237,14 +275,18 @@ struct AgentMemoryView: View {
                         .padding(.horizontal, 10)
                         .padding(.vertical, 10)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                } else if filteredFacts.isEmpty {
+                    Text("No matching memories.")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                ForEach(Array(memory.archive.facts.sorted { a, b in
-                    if a.pinned != b.pinned { return a.pinned }
-                    return a.updatedAt > b.updatedAt
-                }.enumerated()), id: \.element.id) { index, fact in
+                ForEach(Array(filteredFacts.enumerated()), id: \.element.id) { index, fact in
                     factRow(fact)
-                    if index < memory.archive.facts.count - 1 {
+                    if index < filteredFacts.count - 1 {
                         SettingsRowDivider()
                     }
                 }

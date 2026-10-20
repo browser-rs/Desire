@@ -333,12 +333,27 @@ class TabManager: ObservableObject {
     private var memoryPressureSource: DispatchSourceMemoryPressure?
 
     private func startMemoryPressureMonitor() {
+        // v0.7.28：warning 之外补 critical（立即巡检，不等 60s）与 normal
+        // （清除标志）。此前只监听 warning 且标志**从不复位**——首次警告后
+        // 每次巡检都会把全部后台候选挂起，后台标签越用越少。
         let source = DispatchSource.makeMemoryPressureSource(
-            eventMask: .warning, queue: .main)
-        source.setEventHandler { [weak self] in
+            eventMask: [.warning, .critical, .normal], queue: .main)
+        source.setEventHandler { [weak self, weak source] in
             MainActor.assumeIsolated {
-                self?.memoryPressureActive = true
-                Log.tabs.info("memory pressure event received")
+                guard let self else { return }
+                let event = source?.data ?? []
+                if event.contains(.normal) {
+                    self.memoryPressureActive = false
+                    Log.tabs.info("memory pressure cleared")
+                    return
+                }
+                self.memoryPressureActive = true
+                let critical = event.contains(.critical)
+                Log.tabs.info("memory pressure event received (critical=\(critical, privacy: .public))")
+                if critical {
+                    // 紧急：立即跑一次巡检（标志已置位，内存水位分支会清后台）。
+                    self.suspendIdleTabs()
+                }
             }
         }
         source.resume()
@@ -427,6 +442,9 @@ class TabManager: ObservableObject {
                 tab.browser.webView.loadHTMLString("", baseURL: nil)
                 Log.tabs.info("memory watermark: suspended '\(tab.displayTitle, privacy: .public)'")
             }
+            // v0.7.28：内存事件是"一次性信号"——消费掉。否则首次警告后
+            // 每次巡检都会继续挂起所有后台候选（sticky 标志，真实 bug）。
+            memoryPressureActive = false
         }
     }
 

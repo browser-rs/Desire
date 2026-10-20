@@ -10,17 +10,32 @@ struct HistoryPanel: View {
     /// 站点模式下折叠的组（v0.7.21：折叠聚合 + 站内相对时间）。
     @State private var collapsedDomains: Set<String> = []
     @State private var showClearOptions = false
+    /// 批量删除（v0.7.28）：选择模式 + 选中集合。
+    @State private var isSelecting = false
+    @State private var selectedIDs: Set<UUID> = []
+    /// 只看某站（v0.7.28）：nil = 全部。
+    @State private var siteFilter: String?
 
     enum GroupMode: String, CaseIterable {
         case date, site
     }
 
     private var filtered: [HistoryEntry] {
-        guard !searchText.isEmpty else { return store.entries }
-        return store.entries.filter {
+        var result = store.entries
+        if let siteFilter {
+            result = result.filter { domainFromURL($0.url) == siteFilter }
+        }
+        guard !searchText.isEmpty else { return result }
+        return result.filter {
             $0.title.localizedCaseInsensitiveContains(searchText) ||
             $0.url.localizedCaseInsensitiveContains(searchText)
         }
+    }
+
+    private func deleteSelected() {
+        for id in selectedIDs { store.removeEntry(id: id) }
+        selectedIDs.removeAll()
+        isSelecting = false
     }
 
     private var dateGrouped: [(String, [HistoryEntry])] {
@@ -86,6 +101,14 @@ struct HistoryPanel: View {
                 Text("History").font(.headline)
                 Spacer()
                 if !store.entries.isEmpty {
+                    Button(isSelecting ? "Done" : "Select") {
+                        isSelecting.toggle()
+                        if !isSelecting { selectedIDs.removeAll() }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption)
+                }
+                if !store.entries.isEmpty {
                     Menu {
                         Button("Clear Today") {
                             clearHistory(.today)
@@ -138,6 +161,22 @@ struct HistoryPanel: View {
                 .padding(.bottom, 8)
             }
 
+            if let siteFilter {
+                HStack(spacing: 5) {
+                    Image(systemName: "line.3.horizontal.decrease.circle")
+                        .font(.system(size: 10))
+                    Text(siteFilter)
+                        .font(.caption)
+                    Button("Clear") { self.siteFilter = nil }
+                        .buttonStyle(.plain)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 6)
+            }
+
             if filtered.isEmpty {
                 EmptyState(message: searchText.isEmpty ? String(localized: "No Browsing History") : String(localized: "No Matching Records"))
             } else {
@@ -147,13 +186,33 @@ struct HistoryPanel: View {
                         Section {
                             if groupMode != .site || !collapsedDomains.contains(sectionTitle) {
                             ForEach(entries) { entry in
-                                EntryRow(
-                                    title: entry.title,
-                                    subtitle: entry.url,
-                                    badgeText: entry.visitCount > 1 ? "×\(entry.visitCount)" : nil,
-                                    trailingText: groupMode == .site ? relativeTime(entry.timestamp) : nil,
-                                    action: { onSelect(entry.url) }
-                                )
+                                HStack(spacing: 8) {
+                                    if isSelecting {
+                                        Image(systemName: selectedIDs.contains(entry.id)
+                                              ? "checkmark.circle.fill" : "circle")
+                                            .font(.system(size: 12))
+                                            .foregroundStyle(selectedIDs.contains(entry.id)
+                                                             ? AnyShapeStyle(.tint)
+                                                             : AnyShapeStyle(.secondary))
+                                    }
+                                    EntryRow(
+                                        title: entry.title,
+                                        subtitle: entry.url,
+                                        badgeText: entry.visitCount > 1 ? "×\(entry.visitCount)" : nil,
+                                        trailingText: groupMode == .site ? relativeTime(entry.timestamp) : nil,
+                                        action: {
+                                            if isSelecting {
+                                                if selectedIDs.contains(entry.id) {
+                                                    selectedIDs.remove(entry.id)
+                                                } else {
+                                                    selectedIDs.insert(entry.id)
+                                                }
+                                            } else {
+                                                onSelect(entry.url)
+                                            }
+                                        }
+                                    )
+                                }
                                 .swipeActions(edge: .trailing) {
                                     Button(role: .destructive) {
                                         store.removeEntry(id: entry.id)
@@ -189,6 +248,16 @@ struct HistoryPanel: View {
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                                 Spacer()
+                                if groupMode == .site {
+                                    Button {
+                                        siteFilter = sectionTitle
+                                    } label: {
+                                        Image(systemName: "line.3.horizontal.decrease.circle")
+                                            .font(.system(size: 10))
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help("Only this site")
+                                }
                                 Text("\(entries.count)")
                                     .font(.caption)
                                     .foregroundStyle(.tertiary)
@@ -206,6 +275,23 @@ struct HistoryPanel: View {
                     }
                 }
                 .listStyle(.plain)
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            if isSelecting && !selectedIDs.isEmpty {
+                HStack(spacing: 10) {
+                    Text(String(localized: "Selected") + " \(selectedIDs.count)")
+                        .font(.caption)
+                    Spacer()
+                    Button(String(localized: "Delete"), role: .destructive) {
+                        deleteSelected()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.bar)
             }
         }
         .frame(width: 420, height: 500)

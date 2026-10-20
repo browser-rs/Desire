@@ -1,3 +1,21 @@
+## [Unreleased]
+### Fixed
+
+- **标签挂起的内存压力标志是粘性的（v0.7.28 修复）**：`TabManager.memoryPressureActive` 置 true 后从未复位——首次内存警告之后**每次 60s 巡检都会把全部后台候选挂起**，后台标签越用越少。现在：巡检消费后复位；内存事件补 `.critical`（立即巡检，不等下轮）与 `.normal`（清除标志）；标签右键新增 **Unload Tab**（手动释放，选中/新标签页禁用，点标签即恢复）。
+
+### Added
+
+- **统一备份与恢复（v0.7.28 旗舰）**：设置 → 通用新增 Backup & Restore——把**设置（同步目录 23 键）/书签树/历史/阅读列表/快拨/Agent 记忆**打包成一个版本化 JSON（`BackupArchive`：按域存 payload + counts，未来版本拒绝导入）；**不包含 Keychain/API Key/同步主密钥/对话正文**。导入支持 **Merge**（书签按 URL 去重后放进 "Imported <日期>" 文件夹；历史/阅读列表/快拨只补缺；设置保持现状；记忆事实按近似重复去重、摘要按会话 id 去重、画像只填空白）与 **Replace**（整体还原，UI 二次确认）。桥 `POST /backup/export|import`。验收：harness **1120/0**（+7：归档 round-trip/域解码/未来版本拒绝/坏数据/设置值 round-trip）；**桥 E2E 2/2**（真实数据导出 144KB、六域 counts 正确；原样 merge 导入 0 新增；密钥模式扫描零命中）。
+- **阅读模式修复与增强（v0.7.28）**：① `readerContent` 现在携带 `location.href`，阅读视图用页面 URL 作 baseURL——**相对图片/链接不再全裂**；② 阅读视图接管链接（含 target=_blank）：点击关闭阅读模式并在原标签打开，不再困在阅读视图里；③ 主文档导航提交到新 URL 时自动退出阅读模式（地址栏/前进后退切页不再显示上一篇的阅读内容）；④ 按 URL 记忆滚动位置（字号/主题切换会重建 webview，重新打开也不回顶部）；⑤ 提取器清洗内嵌 nav/aside/footer/script/表单、还原 data-src 懒加载图片、把 a/img 相对地址转绝对。验收：Debug 构建绿；相对资源/链接/滚动恢复需本地 fixture 走查（提取器逻辑可在页面上下文单测）。
+- **浏览器诊断（v0.7.28）**：新增 `BrowserDiagnostics`——内容进程崩溃**持久计数 + 最近 20 条**（URL/时间/是否自动重载）；设置 → 诊断行显示 "N content crash(es)" 并悬停给最近一次详情；桥 `GET /diag/browser`。修复防崩溃循环命中时横幅仍写"页面已自动恢复"的误导文案（现在如实写"已停止自动刷新"）。验收：桥探针 1/1（字段齐全、初始 0）；崩溃路径走查（白屏/横幅文案）。
+- **可访问性横切（v0.7.28）**：`HoverIcon`（66 处调用）统一把 `help` 作为 accessibilityLabel（无 help 时退回 SF Symbol 名）——VoiceOver 不再只念"按钮"；全部动画令牌（hover/transition/spring）接 `NSWorkspace.accessibilityDisplayShouldReduceMotion`，系统开启"减弱动态效果"时返回 nil（状态照常切换，只是不动画）。验收：构建零警告；Reduce Motion 开关前后行为走查。
+- **历史批量删除与站点筛选（v0.7.28）**：历史页新增 **Select** 选择模式（复选框 + 底部 Delete N）、站点组头新增漏斗按钮（只看该站，可一键清除筛选）；搜索与站点筛选可叠加。验收：构建绿；面板视觉走查。
+
+
+
+
+
+
 ## [v0.7.27] - 2026-10-21
 ### Added
 

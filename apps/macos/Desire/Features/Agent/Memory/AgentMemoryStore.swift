@@ -241,6 +241,66 @@ final class AgentMemoryStore: ObservableObject {
         if pendingConflicts.count != before { savePendingConflicts() }
     }
 
+    /// 备份导入（v0.7.28）。replace = 整份替换；merge = 只补缺：
+    /// 事实按近似重复去重、摘要按会话 id 去重、画像只填空白字段。
+    enum ImportMode { case merge, replace }
+
+    @discardableResult
+    func importArchive(_ incoming: MemoryArchive, mode: ImportMode) -> (facts: Int, summaries: Int) {
+        switch mode {
+        case .replace:
+            archive = incoming
+            save()
+            return (incoming.facts.count, incoming.summaries.count)
+        case .merge:
+            var addedFacts = 0
+            for fact in incoming.facts {
+                let normalized = MemoryModels.normalizeFact(fact.content)
+                let exists = archive.facts.contains {
+                    $0.id == fact.id
+                        || MemoryModels.areNearDuplicates(MemoryModels.normalizeFact($0.content),
+                                                          normalized)
+                }
+                guard !exists else { continue }
+                archive.facts.append(fact)
+                addedFacts += 1
+            }
+            var addedSummaries = 0
+            for summary in incoming.summaries
+            where !archive.summaries.contains(where: { $0.conversationId == summary.conversationId }) {
+                archive.summaries.append(summary)
+                addedSummaries += 1
+            }
+            var profileChanged = false
+            if archive.profile.name.isEmpty, !incoming.profile.name.isEmpty {
+                archive.profile.name = incoming.profile.name
+                profileChanged = true
+            }
+            if archive.profile.language.isEmpty, !incoming.profile.language.isEmpty {
+                archive.profile.language = incoming.profile.language
+                profileChanged = true
+            }
+            if archive.profile.style.isEmpty, !incoming.profile.style.isEmpty {
+                archive.profile.style = incoming.profile.style
+                profileChanged = true
+            }
+            if archive.profile.customInstructions.isEmpty,
+               !incoming.profile.customInstructions.isEmpty {
+                archive.profile.customInstructions = incoming.profile.customInstructions
+                profileChanged = true
+            }
+            if profileChanged { archive.profileUpdatedAt = Date() }
+            archive.factsTotalLearned += addedFacts
+            // 200 条上限：合并后超出时丢最旧的非 pinned。
+            while archive.facts.count > 200,
+                  let oldest = archive.facts.lastIndex(where: { !$0.pinned }) {
+                archive.facts.remove(at: oldest)
+            }
+            if addedFacts > 0 || addedSummaries > 0 || profileChanged { save() }
+            return (addedFacts, addedSummaries)
+        }
+    }
+
     /// 自动抽取路径的备注：入库成功且存在"相关但非近似重复"候选时进队列。
     func noteAutoConflictIfNeeded(insertedFactContent: String, category: String, scope: String) {
         guard let fact = archive.facts.first(where: { $0.content == insertedFactContent.trimmingCharacters(in: .whitespacesAndNewlines) }) else { return }

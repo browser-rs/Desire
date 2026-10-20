@@ -4,8 +4,12 @@ import WebKit
 struct ReaderView: View {
     let title: String
     let contentHTML: String
+    /// 提取时的页面 URL（v0.7.28）：相对图片/链接的解析基准。
+    let baseURL: URL?
     let isLoading: Bool
     let onClose: () -> Void
+    /// 阅读视图里点到链接：关闭阅读模式并在原标签打开（v0.7.28）。
+    let onOpenURL: (URL) -> Void
 
     @State private var settings = ReaderSettings.load()
     @ObservedObject private var speech = ReaderSpeechService.shared
@@ -150,7 +154,10 @@ struct ReaderView: View {
                 }
                 Spacer()
             } else {
-                ReaderWebView(html: wrappedHTML)
+                ReaderWebView(html: wrappedHTML,
+                              baseURL: baseURL,
+                              urlKey: baseURL?.absoluteString ?? "",
+                              onOpenURL: onOpenURL)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .id(settingsIdentity) // 设置变化重载（HTML 模板内联样式）
             }
@@ -232,19 +239,108 @@ struct ReaderView: View {
 
 private struct ReaderWebView: NSViewRepresentable {
     let html: String
+    let baseURL: URL?
+    let urlKey: String
+    let onOpenURL: (URL) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(urlKey: urlKey, onOpenURL: onOpenURL)
+    }
 
     func makeNSView(context: Context) -> WKWebView {
         let wv = WKWebView()
-        wv.loadHTMLString(html, baseURL: nil)
+        wv.navigationDelegate = context.coordinator
+        wv.uiDelegate = context.coordinator
+        // baseURL 让相对图片/链接可解析（v0.7.28：此前是 nil，图全裂）。
+        wv.loadHTMLString(html, baseURL: baseURL)
         return wv
     }
 
     func updateNSView(_ nsView: WKWebView, context: Context) {
         // 设置变化经 .id 重挂载，无需 update 处理。
     }
+
+    static func dismantleNSView(_ nsView: WKWebView, coordinator: Coordinator) {
+        coordinator.persistScroll(of: nsView)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
+        let urlKey: String
+        let onOpenURL: (URL) -> Void
+
+        init(urlKey: String, onOpenURL: @escaping (URL) -> Void) {
+            self.urlKey = urlKey
+            self.onOpenURL = onOpenURL
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction,
+                     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            // 阅读视图里的链接不再在阅读视图内漫游：回到原标签打开。
+            if navigationAction.navigationType == .linkActivated,
+               let url = navigationAction.request.url {
+                decisionHandler(.cancel)
+                onOpenURL(url)
+                return
+            }
+            decisionHandler(.allow)
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            guard !urlKey.isEmpty,
+                  let y = ReaderScrollMemory.restore(for: urlKey), y > 0 else { return }
+            webView.evaluateJavaScript("window.scrollTo(0, \(y));", completionHandler: nil)
+        }
+
+        func webView(_ webView: WKWebView,
+                     createWebViewWith configuration: WKWebViewConfiguration,
+                     for navigationAction: WKNavigationAction,
+                     windowFeatures: WKWindowFeatures) -> WKWebView? {
+            if let url = navigationAction.request.url { onOpenURL(url) }
+            return nil
+        }
+
+        func persistScroll(of webView: WKWebView) {
+            let key = urlKey
+            guard !key.isEmpty else { return }
+            webView.evaluateJavaScript("window.scrollY") { value, _ in
+                if let y = value as? Double, y > 0 {
+                    ReaderScrollMemory.save(y, for: key)
+                }
+            }
+        }
+    }
+}
+
+/// 阅读视图的滚动位置记忆（v0.7.28）：按页面 URL 存最近位置——字号/主题切换会
+/// 重建 webview，重新打开阅读模式也不该回到顶部。
+enum ReaderScrollMemory {
+    private static let key = "reader.scrollPositions"
+    private static let cap = 200
+
+    static func restore(for urlKey: String) -> Double? {
+        guard !urlKey.isEmpty else { return nil }
+        let map = UserDefaults.standard.dictionary(forKey: key) as? [String: Double] ?? [:]
+        return map[urlKey]
+    }
+
+    static func save(_ y: Double, for urlKey: String) {
+        guard !urlKey.isEmpty else { return }
+        var map = UserDefaults.standard.dictionary(forKey: key) as? [String: Double] ?? [:]
+        map[urlKey] = y
+        if map.count > cap {
+            for stale in map.keys.prefix(map.count - cap) { map.removeValue(forKey: stale) }
+        }
+        UserDefaults.standard.set(map, forKey: key)
+    }
 }
 
 #Preview {
-    ReaderView(title: "示例文章标题", contentHTML: "<p>这是阅读模式的内容预览。</p><p>第二段内容。</p>", isLoading: false, onClose: {})
+    ReaderView(title: "示例文章标题",
+               contentHTML: "<p>这是阅读模式的内容预览。</p><p>第二段内容。</p>",
+               baseURL: URL(string: "https://example.com/article"),
+               isLoading: false,
+               onClose: {},
+               onOpenURL: { _ in })
         .frame(width: 600, height: 400)
 }

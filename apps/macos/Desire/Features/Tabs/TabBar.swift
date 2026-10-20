@@ -544,12 +544,22 @@ private struct TabPillView: View {
         .contextMenu { tabContextMenu }
     }
 
+    /// 手动卸载（v0.7.28）：释放 webview 内存但保留快照，点标签即可恢复。
+    private func unloadTab(_ tab: Tab) {
+        tab.captureSuspendedState()
+        tab.isSuspended = true
+        tab.browser.webView.stopLoading()
+        tab.browser.webView.loadHTMLString("", baseURL: nil)
+    }
+
     @ViewBuilder
     private var tabContextMenu: some View {
         Button("New Tab") { actions.addTab() }
         Button("Duplicate Tab") { actions.duplicateTab(index) }
         Button("Reload") { actions.reloadTab(tab) }
             .disabled(tab.isOnNewTabPage)
+        Button("Unload Tab") { unloadTab(tab) }
+            .disabled(tab.isSuspended || index == selectedIndex || tab.isOnNewTabPage)
         Button("Copy URL") { actions.copyTabURL(tab) }
         Button("Copy Performance Snapshot") { actions.copyPerfSnapshot(tab) }
             .disabled(tab.isOnNewTabPage)

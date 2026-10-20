@@ -415,6 +415,9 @@ final class AutomationServer {
         ep("GET", "/history?grouped=1", "History aggregated by domain (panel site-grouping equivalent, same pure logic)", params: ["grouped:1"], example: "…/history?grouped=1")
         ep("POST", "/history/remove", "Remove one history entry by id (test hygiene)", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
+        ep("GET", "/diag/browser", "Browser diagnostics: content-process crash count + recent crashes", example: "…/diag/browser")
+        ep("POST", "/backup/export", "Write a full backup JSON (settings/bookmarks/history/reading list/quick dials/Agent memory; no keys)", params: ["path:string (file or directory)"], example: #"-d '{"path":"/tmp/desire-backup.json"}'"#)
+        ep("POST", "/backup/import", "Restore a backup: mode=merge (add missing) | replace (overwrite)", params: ["path:string", "mode?:merge|replace"], example: #"-d '{"path":"/tmp/desire-backup.json","mode":"merge"}'"#)
         ep("POST", "/devtools/eval", "Run JS in the console REPL path", params: ["js:string", "index?:int"], example: #"-d '{"js":"document.title"}'"#)
         ep("POST", "/devtools/inspect", "Fill the Element tab from a selector", params: ["selector:string", "index?:int"], example: #"-d '{"selector":"h1"}'"#)
         ep("GET", "/devtools", "DevTools panel state (scoped counters, tab list, totals)", example: "…/devtools")
@@ -831,6 +834,12 @@ final class AutomationServer {
                 return try Self.json(Self.history(count: Int(query["count"] ?? "10") ?? 10))
             case ("GET", "/diag/geometry"):
                 return try Self.json(Self.geometry(index: Self.index(query)))
+            case ("GET", "/diag/browser"):
+                return try Self.json(BrowserDiagnostics.shared.summary())
+            case ("POST", "/backup/export"):
+                return try Self.json(Self.backupExport(body: body))
+            case ("POST", "/backup/import"):
+                return try Self.json(Self.backupImport(body: body))
             case ("GET", "/spawn-test"):
                 // Direct spawn probe — proves the (removed) sandbox really
                 // lets the app run system binaries, no LLM involved.
@@ -6871,6 +6880,41 @@ final class AutomationServer {
         }
         EvalExporter.deleteFixture(url)
         return ["ok": true]
+    }
+
+    /// 统一备份（v0.7.28）：path 是文件（.json）或目录（自动取默认文件名）。
+    private static func backupExport(body: [String: Any]) throws -> [String: Any] {
+        guard let path = Self.string(body, "path"), !path.isEmpty else {
+            return ["error": "missing path"]
+        }
+        let url = URL(fileURLWithPath: path)
+        do {
+            let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
+            let result: (url: URL, counts: [String: Int])
+            if isDirectory || !path.hasSuffix(".json") {
+                try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+                result = try BackupService.export(toDirectory: url)
+            } else {
+                result = try BackupService.export(to: url)
+            }
+            return ["ok": true, "path": result.url.path, "counts": result.counts]
+        } catch {
+            return ["error": "export failed: \(error.localizedDescription)"]
+        }
+    }
+
+    private static func backupImport(body: [String: Any]) throws -> [String: Any] {
+        guard let path = Self.string(body, "path"), !path.isEmpty else {
+            return ["error": "missing path"]
+        }
+        let mode = BackupService.Mode(rawValue: Self.string(body, "mode") ?? "merge") ?? .merge
+        do {
+            let applied = try BackupService.importArchive(from: URL(fileURLWithPath: path),
+                                                          mode: mode)
+            return ["ok": true, "mode": mode.rawValue, "applied": applied]
+        } catch {
+            return ["error": "import failed: \(error.localizedDescription)"]
+        }
     }
 
     /// Tab Crew 运行观察（面板条子的桥等价；进度字段见 AgentCrewStore.noteProgress）。

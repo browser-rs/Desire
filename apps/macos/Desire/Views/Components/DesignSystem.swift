@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 // MARK: - Corner Radius
@@ -28,15 +29,27 @@ extension View {
 // MARK: - Animation
 
 extension Animation {
-    static let hoverFast = Animation.easeOut(duration: 0.1)
-    static let transitionNormal = Animation.easeInOut(duration: 0.2)
-    static let transitionSlow = Animation.smooth(duration: 0.3)
+    /// Reduce Motion（v0.7.28）：系统开启"减弱动态效果"时自绘动画全部返回 nil
+    /// ——SwiftUI 把 nil 视作无动画，状态照常切换。所有视图共用这一组令牌，
+    /// 因此一处生效即覆盖全 app。
+    private static var reduceMotion: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+    }
+    static var hoverFast: Animation? { reduceMotion ? nil : .easeOut(duration: 0.1) }
+    static var transitionNormal: Animation? { reduceMotion ? nil : .easeInOut(duration: 0.2) }
+    static var transitionSlow: Animation? { reduceMotion ? nil : .smooth(duration: 0.3) }
     /// 浮层进出场（toast/通知条）：轻微回弹，比 easeInOut 更有生命力。
-    static let overlaySpring = Animation.spring(response: 0.32, dampingFraction: 0.82)
+    static var overlaySpring: Animation? {
+        reduceMotion ? nil : .spring(response: 0.32, dampingFraction: 0.82)
+    }
     /// 控件状态（开关/高亮/尺寸变化）：小位移快速跟随。
-    static let controlSpring = Animation.spring(response: 0.25, dampingFraction: 0.85)
+    static var controlSpring: Animation? {
+        reduceMotion ? nil : .spring(response: 0.25, dampingFraction: 0.85)
+    }
     /// 全窗口级布局变化（概览开关/分屏出现/侧栏）：从容但有落地感。
-    static let layoutSpring = Animation.spring(response: 0.38, dampingFraction: 0.88)
+    static var layoutSpring: Animation? {
+        reduceMotion ? nil : .spring(response: 0.38, dampingFraction: 0.88)
+    }
 }
 
 // MARK: - Standard Transitions

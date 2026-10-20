@@ -1,6 +1,7 @@
 import AppKit
 import os
 import SwiftUI
+import UniformTypeIdentifiers
 
 struct GeneralSettingsSection: View {
     @ObservedObject var settings: Settings
@@ -1026,6 +1027,8 @@ private struct SystemSection: View {
             CheckUpdatesRow(checker: UpdateChecker.shared)
             SettingsRowDivider()
             DiagnosticsRow()
+            SettingsRowDivider()
+            BackupRow()
         }
         .onAppear(perform: checkDefaultBrowser)
     }
@@ -1065,8 +1068,18 @@ private struct SystemSection: View {
 /// "在访达中显示"）——此前 Export 在没有报告时会静默变成"打开文件夹"，用户以为导出了。
 private struct DiagnosticsRow: View {
     @State private var reportCount = 0
+    /// 内容进程崩溃计数（v0.7.28）：此前只在日志里，用户/我们都没法看到。
+    @ObservedObject private var browserDiagnostics = BrowserDiagnostics.shared
 
     private var hasReports: Bool { reportCount > 0 }
+
+    private var lastCrashHelp: String {
+        guard let last = browserDiagnostics.recentCrashes.first else { return "" }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return "Last content-process crash: \(formatter.string(from: last.at)) — \(last.url)"
+    }
 
     var body: some View {
         SettingsRow(
@@ -1075,6 +1088,11 @@ private struct DiagnosticsRow: View {
             systemImage: "stethoscope"
         ) {
             HStack(spacing: 6) {
+                if browserDiagnostics.totalCrashes > 0 {
+                    StatusPill(text: "\(browserDiagnostics.totalCrashes) content crash(es)",
+                               kind: .warning)
+                        .help(lastCrashHelp)
+                }
                 if hasReports {
                     StatusPill(text: "\(reportCount)", kind: .neutral)
                 }
@@ -1093,6 +1111,76 @@ private struct DiagnosticsRow: View {
             }
         }
         .onAppear { reportCount = MetricsManager.shared.reportCount }
+    }
+}
+
+/// 统一备份与恢复（v0.7.28）：一个版本化 JSON，覆盖设置/书签/历史/阅读列表/
+/// 快拨/Agent 记忆；**不含 Keychain、API Key 与对话正文**。
+private struct BackupRow: View {
+    @State private var note: String?
+
+    var body: some View {
+        SettingsRow(
+            "Backup & Restore",
+            subtitle: "Settings, bookmarks, history, reading list, quick dials and Agent memory. Keys and conversations are never included.",
+            systemImage: "externaldrive"
+        ) {
+            HStack(spacing: 6) {
+                SettingsCapsuleButton("Export…") { exportBackup() }
+                SettingsCapsuleButton("Import…") { importBackup() }
+            }
+        }
+        .alert("Backup",
+               isPresented: Binding(get: { note != nil },
+                                    set: { if !$0 { note = nil } })) {
+            Button("OK", role: .cancel) { note = nil }
+        } message: {
+            Text(note ?? "")
+        }
+    }
+
+    private func exportBackup() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = BackupService.suggestedFileName()
+        panel.canCreateDirectories = true
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            let result = try BackupService.export(to: url)
+            let total = result.counts.values.reduce(0, +)
+            note = String(format: String(localized: "Backup written: %lld item(s)"), total)
+            NSWorkspace.shared.activateFileViewerSelecting([result.url])
+        } catch {
+            note = error.localizedDescription
+        }
+    }
+
+    private func importBackup() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Import backup")
+        alert.informativeText = String(localized: "Merge adds missing items and leaves current data in place (settings are untouched). Replace overwrites settings, bookmarks, history, reading list, quick dials and Agent memory.")
+        alert.addButton(withTitle: String(localized: "Merge"))
+        alert.addButton(withTitle: String(localized: "Replace"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        let mode: BackupService.Mode
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: mode = .merge
+        case .alertSecondButtonReturn: mode = .replace
+        default: return
+        }
+
+        do {
+            let applied = try BackupService.importArchive(from: url, mode: mode)
+            let total = applied.values.reduce(0, +)
+            note = String(format: String(localized: "Imported: %lld item(s)"), total)
+        } catch {
+            note = error.localizedDescription
+        }
     }
 }
 

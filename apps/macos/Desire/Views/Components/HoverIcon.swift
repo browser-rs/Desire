@@ -26,6 +26,9 @@ struct HoverIcon: View {
         .buttonStyle(.plain)
         .disabled(disabled)
         .help(help)
+        // v0.7.28：图标按钮的统一可读标签（help 是唯一的语义来源；没有
+        // help 时退回 SF Symbol 名，至少让 VoiceOver 不是"按钮"而已）。
+        .accessibilityLabel(Text(help.isEmpty ? systemName : help))
         .onHover { isHovering = $0 }
     }
 }

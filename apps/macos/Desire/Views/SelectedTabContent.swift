@@ -59,7 +59,9 @@ struct SelectedTabContent: View {
                 HStack(spacing: 6) {
                     Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
                         .font(.system(size: 10))
-                    Text("渲染进程崩溃——页面已自动恢复；崩溃前的表单输入不保")
+                    Text(tab.browser.crashAutoReloadSuppressed
+                         ? "渲染进程连续崩溃——已停止自动刷新，请手动刷新或稍后重试"
+                         : "渲染进程崩溃——页面已自动恢复；崩溃前的表单输入不保")
                         .font(.system(size: 11))
                     Spacer()
                     Button("刷新") { tab.browser.webView.reload() }
@@ -374,10 +376,16 @@ struct SelectedTabContent: View {
                 ReaderView(
                     title: tab.browser.readerTitle,
                     contentHTML: tab.browser.readerContent,
+                    baseURL: URL(string: tab.browser.readerBaseURLString),
                     isLoading: tab.browser.isReaderLoading,
                     onClose: {
                         tab.browser.isReadingMode = false
                         tab.browser.isReaderLoading = false
+                    },
+                    onOpenURL: { url in
+                        tab.browser.isReadingMode = false
+                        tab.browser.isReaderLoading = false
+                        actions.navigateToURL(url.absoluteString, for: tab)
                     }
                 )
             } else if tab.isSuspended {

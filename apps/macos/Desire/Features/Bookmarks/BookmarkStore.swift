@@ -172,9 +172,37 @@ class BookmarkStore: ObservableObject {
         save()
     }
 
+    /// 备份合并（v0.7.28）：按 URL 去重，把缺失的书签放进一个 "Imported …"
+    /// 文件夹（非破坏式；用户可自行整理/删除）。
+    @discardableResult
+    func mergeImported(_ incoming: [Bookmark], folderTitle: String) -> Int {
+        var seen = Set(flatBookmarks(bookmarks).compactMap(\.url))
+        let leaves = flatBookmarks(incoming).filter { node in
+            guard let url = node.url, !seen.contains(url) else { return false }
+            seen.insert(url)
+            return true
+        }
+        guard !leaves.isEmpty else { return 0 }
+        let now = Date()
+        let folder = Bookmark(
+            id: UUID(), title: folderTitle, url: nil,
+            children: leaves.map {
+                Bookmark(id: UUID(), title: $0.title, url: $0.url,
+                         children: [], updatedAt: now)
+            },
+            updatedAt: now)
+        bookmarks.append(folder)
+        rebuildURLIndex()
+        save()
+        return leaves.count
+    }
+
+    private func flatBookmarks(_ nodes: [Bookmark]) -> [Bookmark] {
+        nodes.flatMap { [$0] + flatBookmarks($0.children) }
+    }
+
     /// push 成功后从待删清单移除（clientIDs = 服务端已 applied 的条目）。
-    func clearPendingDeletions(_ clientIDs: Set<String>) {
-        guard !clientIDs.isEmpty, !pendingDeletions.isEmpty else { return }
+    func clearPendingDeletions(_ clientIDs: Set<String>) {        guard !clientIDs.isEmpty, !pendingDeletions.isEmpty else { return }
         let ids = Set(clientIDs.compactMap(UUID.init(uuidString:)))
         let hits = pendingDeletions.keys.filter { ids.contains($0) }
         guard !hits.isEmpty else { return }

@@ -40,6 +40,36 @@
         if (!best || best.innerText.trim().length < 50) { best = document.body; }
         var title = document.title || '';
         var isFallback = (best === document.body || best.tagName === 'DIV');
-        window.webkit.messageHandlers.readerContent.postMessage({title: title, content: best.innerHTML || best.innerText || '', html: best.outerHTML, fallback: isFallback ? '1' : '0'});
+
+        /* v0.7.28: clean + make the fragment self-contained.
+           - drop chrome that slipped inside the chosen container
+           - restore lazy-loaded images
+           - absolutize links/images (reader loads as a standalone document) */
+        var clone = best.cloneNode(true);
+        clone.querySelectorAll('script,style,noscript,nav,aside,footer,form,button,input,select,textarea,svg use,[aria-hidden="true"]').forEach(function(el) { el.remove(); });
+        clone.querySelectorAll('img').forEach(function(img) {
+            var lazy = img.getAttribute('data-src') || img.getAttribute('data-original')
+                || img.getAttribute('data-lazy-src') || img.getAttribute('data-url');
+            if (lazy) { img.setAttribute('src', lazy); }
+            img.removeAttribute('srcset');
+            img.removeAttribute('loading');
+        });
+        function absolutize(el, attr) {
+            var v = el.getAttribute(attr);
+            if (!v) { return; }
+            try { el.setAttribute(attr, new URL(v, document.baseURI).href); } catch (e) {}
+        }
+        clone.querySelectorAll('a[href]').forEach(function(a) { absolutize(a, 'href'); });
+        clone.querySelectorAll('img[src]').forEach(function(img) { absolutize(img, 'src'); });
+        clone.querySelectorAll('source[src]').forEach(function(s) { absolutize(s, 'src'); });
+
+        window.webkit.messageHandlers.readerContent.postMessage({
+            title: title,
+            content: best.innerText || '',
+            html: clone.outerHTML || clone.innerHTML || '',
+            url: location.href,
+            baseURI: document.baseURI,
+            fallback: isFallback ? '1' : '0'
+        });
     };
 })();

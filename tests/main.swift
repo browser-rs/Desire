@@ -3784,6 +3784,38 @@ func testMemoryConflict() {
 }
 testMemoryConflict()
 
+func testBackupArchive() {
+    struct Row: Codable, Equatable { var a: String }
+    let payload = BackupArchive.encodePayload([Row(a: "x"), Row(a: "y")])!
+    let settingsPayload = BackupArchive.encodePayload(["flag": BackupSettingValue.bool(true),
+                                                       "count": .number(3)])!
+    let archive = BackupArchive(
+        version: BackupArchive.currentVersion,
+        exportedAt: Date(timeIntervalSince1970: 1_800_000_000),
+        appVersion: "0.7.28",
+        payloads: ["bookmarks": payload, "settings": settingsPayload],
+        counts: ["bookmarks": 2, "settings": 2])
+
+    guard let data = BackupArchive.encode(archive),
+          let back = BackupArchive.decode(data) else {
+        check("备份：归档 round-trip", false)
+        return
+    }
+    check("备份：归档 round-trip", back == archive)
+    check("备份：payload 解码",
+          back.decoded([Row].self, domain: .bookmarks) == [Row(a: "x"), Row(a: "y")])
+    check("备份：缺失域返回 nil", back.decoded([Row].self, domain: .history) == nil)
+    check("备份：版本接受", back.isSupported)
+    var newer = archive
+    newer.version = BackupArchive.currentVersion + 1
+    check("备份：未来版本拒绝", !newer.isSupported)
+    let settings = back.decoded([String: BackupSettingValue].self, domain: .settings)
+    check("备份：设置值 round-trip",
+          settings?["flag"] == .bool(true) && settings?["count"] == .number(3))
+    check("备份：坏数据解码 nil", BackupArchive.decode(Data("{}".utf8)) == nil)
+}
+testBackupArchive()
+
 func testEvalFixture() {
     let jsonl = """
     {"goal":"解释 Swift 的 actor","answer":"actor 是引用类型…","title":"并发"}

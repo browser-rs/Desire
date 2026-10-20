@@ -150,6 +150,9 @@ class BrowserState: ObservableObject {
     @Published var isMuted: Bool = false
     /// 渲染进程崩溃自愈中（0.6.4）：自动重载完成（didCommit）即清除。
     @Published var contentProcessCrashed = false
+    /// 防崩溃循环命中（v0.7.28）：10s 内二次崩溃时不再自动重载——横幅要
+    /// 如实写"已停止自动刷新"，不能再说"页面已自动恢复"。
+    @Published var crashAutoReloadSuppressed = false
     /// 大页面守护代理指标（page-perf.js 每 5s 上报；WebKit 无公开 per-tab 内存）。
     @Published var lastDomNodeCount = 0
     /// 视频速度接管值（0.6.5；1 = 未接管）。
@@ -185,6 +188,9 @@ class BrowserState: ObservableObject {
     @Published var isReaderLoading = false
     @Published var readerTitle = ""
     @Published var readerContent = ""
+    /// 提取时的页面 URL（v0.7.28）：阅读视图用它做 baseURL——相对图片/链接
+    /// 才能加载；主文档导航到别的 URL 时据此自动退出阅读模式。
+    @Published var readerBaseURLString = ""
     @Published var hoveredLinkURL: String?
     @Published var isPickingElement = false
     /// A beforeunload confirmation awaiting a decision (also resolvable via
@@ -1427,6 +1433,8 @@ try {
                 Log.userScripts.info("readerContent msg arrived: title=\((dict["title"] ?? "?").prefix(30), privacy: .public) contentChars=\((dict["html"] ?? dict["content"] ?? "").count, privacy: .public)")
                 parent.state.readerTitle = dict["title"] ?? ""
                 parent.state.readerContent = dict["html"] ?? dict["content"] ?? ""
+                // v0.7.28：阅读视图的 baseURL（相对资源可用）+ 导航退出判据。
+                parent.state.readerBaseURLString = dict["url"] ?? dict["baseURI"] ?? ""
                 parent.state.isReaderLoading = false
             } else if message.name == "hoverLink", let url = message.body as? String {
                 parent.state.hoveredLinkURL = url.isEmpty ? nil : url
@@ -1498,14 +1506,19 @@ try {
         /// 已流出的表单内容不保（进程已死，如实标注）。
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
             let now = Date()
+            let crashedURL = webView.url?.absoluteString ?? ""
             if let last = lastCrashReloadAt, now.timeIntervalSince(last) < 10 {
                 Log.app.error("WebContent process crashed again within 10s — skipping auto-reload (crash loop guard)")
                 parent.state.contentProcessCrashed = true
+                parent.state.crashAutoReloadSuppressed = true
+                BrowserDiagnostics.shared.recordContentProcessCrash(url: crashedURL, autoReloaded: false)
                 return
             }
             lastCrashReloadAt = now
-            Log.app.error("WebContent process crashed — auto-reloading \(webView.url?.absoluteString ?? "", privacy: .public)")
+            Log.app.error("WebContent process crashed — auto-reloading \(crashedURL, privacy: .public)")
             parent.state.contentProcessCrashed = true
+            parent.state.crashAutoReloadSuppressed = false
+            BrowserDiagnostics.shared.recordContentProcessCrash(url: crashedURL, autoReloaded: true)
             webView.reload()
         }
 
@@ -1611,6 +1624,15 @@ try {
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
             parent.state.contentProcessCrashed = false
+            parent.state.crashAutoReloadSuppressed = false
+            // v0.7.28：主文档真正导航到别的 URL → 阅读模式自动退出（否则
+            // 地址栏/前进后退切页后仍显示上一篇的阅读内容）。
+            if parent.state.isReadingMode,
+               !parent.state.readerBaseURLString.isEmpty,
+               webView.url?.absoluteString != parent.state.readerBaseURLString {
+                parent.state.isReadingMode = false
+                parent.state.isReaderLoading = false
+            }
             // Response headers arrived — the watchdog did its job.
             disarmLoadTimeout()
             // 广告规则可能刚被改过（本地覆盖文件 / 远程包）：把页面里旧代数的

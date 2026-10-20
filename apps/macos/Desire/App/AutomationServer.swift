@@ -6836,11 +6836,8 @@ final class AutomationServer {
         let workers: [[String: Any]] = crew.tasks.map { t in
             var row: [String: Any] = ["index": t.index, "state": t.state.rawValue,
                                       "instruction": t.instruction,
-                                      "toolCalls": t.toolCallCount,
-                                      "promptTokens": t.promptTokens,
-                                      "completionTokens": t.completionTokens]
+                                      "toolCalls": t.toolCallCount]
             if let step = t.currentStep { row["currentStep"] = step }
-            if let model = t.model { row["model"] = model }
             if let started = t.startedAt { row["elapsedSec"] = Date().timeIntervalSince(started) }
             if let result = t.result { row["result"] = String(result.prefix(400)) }
             return row

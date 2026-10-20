@@ -71,6 +71,8 @@ struct CommandPalette: View {
         cmd("cmd.showPlugins", "Plugins", "Tools", "puzzlepiece", .showPlugins),
         cmd("cmd.showElementBlock", "Element Blocker", "Tools", "eye.slash", .showElementBlock),
         cmd("cmd.screenshot", "Screenshot Region…", "Tools", "camera.viewfinder", .screenshot),
+        cmd("cmd.exportBackup", "Export Backup Now", "File", "externaldrive", .exportBackup),
+        cmd("cmd.exportDiagnostics", "Export Diagnostics…", "Tools", "stethoscope", .exportDiagnostics),
         cmd("cmd.toggleSidebar", "Toggle Sidebar", "Tabs", "sidebar.left", .toggleSidebar),
         cmd("cmd.tabSearch", "Search Tabs", "Tabs", "rectangle.stack", .tabSearch),
         cmd("cmd.toggleFullScreen", "Toggle Full Screen", "View", "arrow.up.left.and.arrow.down.right", .toggleFullScreen),

@@ -162,6 +162,8 @@ enum BrowserCommand {
     case reload, forceReload, inspectElement, printPage, savePage
     case zoomIn, zoomOut, actualSize
     case clearHistory, exportBookmarks, importBookmarksFrom(BookmarkImportService.ImportSource)
+    /// v0.7.28 可发现性：备份与诊断包的一键导出（菜单/命令面板同源）。
+    case exportBackup, exportDiagnostics
     case screenshot
     case restoreArchivedSession
     // 菜单补全（0.2.13）：新功能的统一入口。

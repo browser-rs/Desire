@@ -185,6 +185,7 @@ struct AppCommands: Commands {
                 .keyboardShortcut(binding("showReadingList", "r", [.control, .command]))
             Divider()
             Button("Export Bookmarks…") { postCommand(.exportBookmarks) }
+            Button("Export Backup Now") { postCommand(.exportBackup) }
             Menu("Import Bookmarks") {
                 Button("From Safari…") { postCommand(.importBookmarksFrom(.safari)) }
                 Button("From Chrome…") { postCommand(.importBookmarksFrom(.chrome)) }

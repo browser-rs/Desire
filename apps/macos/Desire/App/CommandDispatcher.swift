@@ -274,6 +274,21 @@ struct CommandDispatcher {
         case .exportBookmarks:
             bookmarkStore.exportToHTML()
 
+        case .exportBackup:
+            do {
+                let result = try BackupService.export(toDirectory: BackupService.defaultDirectory)
+                NSWorkspace.shared.activateFileViewerSelecting([result.url])
+            } catch {
+                Log.app.error("backup export failed: \(error.localizedDescription, privacy: .public)")
+            }
+
+        case .exportDiagnostics:
+            if let url = MetricsManager.shared.exportDiagnosticsArchive() {
+                NSWorkspace.shared.activateFileViewerSelecting([url])
+            } else {
+                Log.app.error("diagnostics export failed")
+            }
+
         case .importBookmarksFrom(let source):
             if let bookmarks = BookmarkImportService.importBookmarks(from: source), !bookmarks.isEmpty {
                 bookmarkStore.saveImported(bookmarks)

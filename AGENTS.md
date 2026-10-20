@@ -1013,62 +1013,47 @@ Features/Bookmarks/
   - **发版冒烟必须从非 DerivedData 路径（如 /tmp）启动一次**：ACl 失配只在
     换路径启动时触发，常规 DerivedData 路径测不出来。
 
-## 发布流程（2026-10-21 定稿：本地手动发布）
+## 发布流程（2026-10-21 定稿：CI 与本地同编译器，云端构建全绿才建 tag）
 
-**为什么手动**：本机 Xcode **27.1**，GitHub runner 最高 **26.6.0**——两套编译器的
-警告/可见性规则不同，"本地绿 ≠ CI 绿"（实测：CI 零警告闸门抓到 18 条 Sync 线类型的
-Swift 6 隔离警告，本地 27.1 不报）。发版必须用**与验证相同的编译器**，所以构建/打包/
-上传都在本地；GitHub 的 Release 工作流保持禁用，tag push 不会二次发布，CI 不作为
-发版路径。
+**关键事实**：GitHub 的 `xcode-27` 镜像里装着 **Xcode 27.1 (27A9275)**，与本机
+完全一致（镜像另有 27.0/27.2 beta，工作流显式选 27.1）。因此本地"零警告"与 CI
+结论一致，云端构建可以作为发布闸门。公开仓库 Actions 免费不计分钟。
 
-**发布日 checklist（顺序不可换）**：
-1. **冻结发布内容**：确认工作树里只有本版改动。**下一版的开发改动绝不能进发布构建**
-   （2026-10-21 事故：v0.7.27 的 crew 改动混进了 v0.7.26 候选）。有就先 revert 出来，
-   发布完成后再恢复。
-2. 写 CHANGELOG（`scripts/changelog.py add`），`changelog.py verify` 通过；空的
-   `## [Unreleased]` 空壳要删掉（verify 会拒）。
-3. 版本号：`MARKETING_VERSION = X.Y.Z`、`CURRENT_PROJECT_VERSION` +1、`website/index.html`
-   四处版本号同步；提交并推送。
-4. 本地双架构构建（各自独立 DerivedData）：
-   ```
-   xcodebuild -project apps/macos/Desire.xcodeproj -scheme Desire -configuration Release \
-     -derivedDataPath /tmp/dd-release-X.Y.Z clean build
-   xcodebuild ... -derivedDataPath /tmp/dd-release-X.Y.Z-x86 \
-     -destination 'platform=macOS' ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO \
-     COMPILER_INDEX_STORE_ENABLE=NO clean build
-   ```
-   各自 `grep -E "warning:"` 必须为零；PlistBuddy 核对产物版本；x86 用 `lipo -archs`
-   确认 x86_64。
-5. 打包：
-   ```
-   ditto -c -k --keepParent <arm64 App> /tmp/desire-release-X.Y.Z/Desire-vX.Y.Z-macos-arm64.zip
-   ditto -c -k --keepParent <x86 App>   /tmp/desire-release-X.Y.Z/Desire-vX.Y.Z-macos-x86_64.zip
-   (cd /tmp/desire-release-X.Y.Z && shasum -a 256 Desire-*.zip > SHASUMS256.txt)
-   ```
-6. **`gh workflow disable release.yml`**（必须，防止 tag 触发云端重复发布）。
-7. 打 tag 并发布：
-   ```
-   git tag vX.Y.Z && git push origin vX.Y.Z
-   gh release create vX.Y.Z --repo browser-rs/Desire --title vX.Y.Z --notes-file <正文>
-   # 多资产一次性上传会 408：先建 Release，再逐个传 + 重试
-   gh release upload vX.Y.Z <zip> --repo browser-rs/Desire --clobber   # 每个资产各一次
-   ```
-   正文 = CHANGELOG 该版本段 + `scripts/install-note.template.md`（`__TAG__` 替换）。
-8. 验证：
-   ```
-   python3 scripts/verify-release-assets.py vX.Y.Z browser-rs/Desire /tmp/desire-release-X.Y.Z
-   ```
-   （远端 size/sha256 三方一致）+ arm64 zip 解压到**非 DerivedData 路径**启动，
-   `/state` 的 tabs ≥ 1，优雅退出（`osascript -e 'quit app "Desire"'`）。
-9. 发布完成后才恢复下一版开发改动。
-10. 产品页部署是手工步（本地发布脚本不管页面部署）。
+**CI（ci.yml，push main 自动跑）**：Rust 质量门 + arm64/x86_64 并行 clean Release
+构建，**零警告闸门** + 版本核对 + x86 架构校验。作用 = 每次 push 就发现编译/警告
+问题，而不是等到发版；失败会在 Actions 里附构建日志 artifact。
 
-**事实/坑**：
-- `gh release create` 不带资产；资产逐个 `gh release upload --clobber`（408 重试）。
-- Release 工作流保持禁用；**不要**再打开云端发布（编译器不同 + 会抢 Latest）。
-- 本机 Xcode 27.1 与 CI 26.6.0 的差异已实际踩过：CI 的警告不能被本机复现，
-  所以"零警告"只在本地构建上判定；不要拿 CI 当发版闸门。
-- 安装说明单一真相 = `scripts/install-note.template.md`；下载侧仍要求 `xattr -cr`。
+**发版（release.yml，仅 workflow_dispatch）**：
+1. `scripts/release.sh <版本号>`（约 30 秒返回）：冻结 CHANGELOG、同步
+   website/pbxproj 版本号（幂等）、跑纯逻辑单测、提交推送、触发云端；之后开发继续。
+2. 云端用 **Xcode 27.1** 做双架构零警告构建 + 单测；**全部通过后才执行 publish**：
+   用 GITHUB_TOKEN 在**本次已验证的 SHA** 上创建 tag 并上传资产——构建失败则
+   **tag 与 Release 都不存在**（铁律：发版必须成功）。
+3. publish job 幂等（Release 已存在则更新、资产 `--clobber` 逐个上传并重试、
+   最后校验远端 size/sha256）；上传/网络失败只需 `gh run rerun <id> --failed`。
+4. 发版前自检：`scripts/release.sh <版本号> --build-only`（publish=false，只构建，
+   不建 tag）；`scripts/release.sh --status` 看进度。
+5. 产品页部署是手工步。
+
+**不监听 tag push**：tag 只能由已验证的流水线创建，避免手工 tag 绕过闸门。
+
+**失败语义**：
+- 构建/单测失败 → 无 tag、无 Release；修好重跑同一命令（版本段已冻结、版本号幂等）。
+- publish 阶段失败 → tag 已指向已验证 SHA；`gh run rerun <id> --failed` 补完。
+- 调度若解析到更新的 main → 脚本会取消错位运行并报错，重跑即可。
+
+**回退路径（镜像不可用时）**：若 `xcode-27` 预览镜像被撤或 Xcode 27.1 不在镜像里，
+CI/release 会在"pinned Xcode missing"一步明确失败；此时退回**本地手动发布**：
+本地双架构零警告构建 → 打包 → `gh workflow disable release.yml` → tag →
+`gh release create`（不带资产）→ 逐个 `gh release upload --clobber` → digest 校验 →
+非 DerivedData 路径启动冒烟。完整命令见 git 历史与 RELEASE-RETRO。
+
+**别绕的坑**：
+- 发布构建前**冻结发布内容**（本次要发的提交里不得混入下一版开发）；调度后继续开发
+  不受影响，因为云端 run 钉在调度时的 SHA。
+- 多资产一次性 `gh release create` 会偶发 408——先建 Release 再逐个上传。
+- 安装说明单一真相 = `scripts/install-note.template.md`；下载侧要求 `xattr -cr`。
+- bash 3.2：`$var` 后紧跟全角字符要写 `${var}`。
 
 ## 端点扩展模式
 

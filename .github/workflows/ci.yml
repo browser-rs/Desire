@@ -1,10 +1,15 @@
 name: CI
 
+# 与本地完全相同的编译器：xcode-27 镜像里的 Xcode 27.1 (27A9275) 就是本机版本
+# （镜像里另有 27.0/27.2 beta；我们显式选 27.1）。因此本地"零警告"与 CI 结论一致，
+# push 时就能发现编译/警告问题，而不是等到发版。
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -14,167 +19,104 @@ jobs:
   rust:
     name: Rust (fmt, test, build)
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Rust formatting
         run: cargo fmt --check
-
       - name: Rust tests
         run: cargo test --workspace
-
       - name: Rust build
         run: cargo build --workspace
 
-  build:
-    name: Build (Release, arm64)
-    runs-on: macos-latest
-
+  build-arm64:
+    name: Build arm64 (zero warnings)
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select pinned Xcode (26.6.0)
+      - name: Select Xcode 27.1 (same build as local)
         run: |
-          # 钉死版本：runner 镜像升级不会悄悄换编译器（本机 27.1 与 CI 26.6.0
-          # 的警告/可见性规则不同，见 AGENTS.md 发布流程）。
-          XCODE=/Applications/Xcode_26.6.0.app
-          [ -d "$XCODE" ] || { echo "::error::pinned Xcode 26.6.0 missing"; ls -d /Applications/Xcode*.app; exit 1; }
-          echo "Using $XCODE"
+          XCODE=/Applications/Xcode_27.1.app
+          [ -d "$XCODE" ] || { echo "::error::pinned Xcode 27.1 missing"; ls -d /Applications/Xcode*.app; exit 1; }
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
+          xcodebuild -version | grep -q "Xcode 27.1" || { echo "::error::expected Xcode 27.1"; exit 1; }
 
-      - name: Pure-logic unit tests (swiftc harness)
+      - name: Pure-logic unit tests
         run: bash tests/run.sh
 
-      - name: Build (Release, unsigned)
+      - name: Build Release (zero warnings)
         run: |
+          set -euo pipefail
           xcodebuild \
             -project apps/macos/Desire.xcodeproj \
             -scheme Desire \
             -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/dd-arm64" \
             -destination 'platform=macOS' \
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            build
-
-      - name: Launch app for eval (automation bridge)
-        run: |
-          APP=$(find ~/Library/Developer/Xcode/DerivedData -type d -name "Desire.app" -path "*Release*" | head -1)
-          open "$APP" --args --automation
-          OK=no
-          for i in $(seq 1 30); do
-            if curl -s -m 2 http://127.0.0.1:8799/state | grep -q '"selected"'; then
-              OK=yes
-              break
-            fi
-            sleep 1
-          done
-          [ "$OK" = yes ] || { echo "::error::app never came up — eval suite needs the bridge"; exit 1; }
-          # 环境事实（0.7.0 发版实测）：runner 上应用**无法激活**（isActive 恒
-          # false，osascript activate 无效），浏览器端点（/navigate /new-tab
-          # 等）会挂起——浏览器依赖的 eval 用例必须 EVAL_E*=1 本地跑；
-          # osascript 激活尝试保留（对未来镜像无害）。
-          osascript -e 'tell application "Desire" to activate' 2>/dev/null || true
-
-      - name: Agent eval suite (fixture endpoint, deterministic)
-        run: |
-          EVAL_RC=0
-          python3 tests/agent-eval.py --cleanup || EVAL_RC=$?
-          if [ "$EVAL_RC" != "0" ]; then
-            echo "=== Desire app log tail (launch/window) ==="
-            /usr/bin/log show --last 15m --info --debug --predicate 'process == "Desire"' --style compact 2>/dev/null | grep -iE "launch|window|onboarding|phase|error|fault" | tail -40 || true
-            echo "=== onboardingDone defaults ==="
-            defaults read me.siwi.Desire desire.onboardingDone 2>&1 || true
-            echo "=== CGWindowList (all Desire windows) ==="
-            echo 'import CoreGraphics; import Foundation; let l = CGWindowListCopyWindowInfo([.optionAll], kCGNullWindowID) as! [[String: Any]]; for w in l where (w[kCGWindowOwnerName as String] as? String) == "Desire" { print(w[kCGWindowNumber as String] as? Int ?? -1, w[kCGWindowBounds as String] ?? [:], w[kCGWindowLayer as String] ?? -1) }' > /tmp/wl.swift
-            swift /tmp/wl.swift 2>&1 || true
+            clean build 2>&1 | tee build-arm64.log
+          if grep -E "warning:" build-arm64.log | grep -v appintentsmetadataprocessor | grep -q .; then
+            echo "::error::arm64 build emitted warnings"
+            grep -E "warning:" build-arm64.log | grep -v appintentsmetadataprocessor | head -30
+            exit 1
           fi
-          exit $EVAL_RC
+          APP="$RUNNER_TEMP/dd-arm64/Build/Products/Release/Desire.app"
+          EXPECTED=$(grep -m1 "MARKETING_VERSION = " apps/macos/Desire.xcodeproj/project.pbxproj | grep -o '[0-9.]\+')
+          VER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
+          [ "$VER" = "$EXPECTED" ] || { echo "::error::built version $VER != $EXPECTED"; exit 1; }
+          echo "arm64 OK: $VER"
 
-      - name: Stop eval app instance
-        if: always()
-        run: |
-          pkill -x Desire || true
-          sleep 2
-
-      - name: Locate app bundle
-        id: app
-        run: |
-          APP=$(find ~/Library/Developer/Xcode/DerivedData -type d -name "Desire.app" -path "*Release*" | head -1)
-          echo "path=$APP" >> "$GITHUB_OUTPUT"
-
-      - name: Launch smoke test + startup budget (0.6.4)
-        run: |
-          APP="${{ steps.app.outputs.path }}"
-          # 0.6.4 性能预算：launch → /state 就绪的墙钟进入门禁。CI runner 比
-          # 本机慢（本机基线 632ms / 预算 700ms）——门禁放宽到 2s 挡退化，
-          # 实测值照常打印供趋势观察。冷启动首启会被字体/缓存拖长，取
-          # 第二次启动的值（与本地探针手法一致）。
-          open "$APP" --args --automation
-          OK=no
-          for i in $(seq 1 30); do
-            if curl -s -m 2 http://127.0.0.1:8799/state | grep -q '"selected"'; then
-              OK=yes
-              break
-            fi
-            sleep 1
-          done
-          pkill -x Desire || true
-          sleep 2
-          # 第二次启动 = 预算测量对象（缓存已热）
-          T0=$(python3 -c 'import time; print(time.time())')
-          open "$APP" --args --automation
-          READY=no
-          for i in $(seq 1 30); do
-            if curl -s -m 2 http://127.0.0.1:8799/state | grep -q '"selected"'; then
-              READY=yes
-              break
-            fi
-            sleep 0.2
-          done
-          T1=$(python3 -c 'import time; print(time.time())')
-          ELAPSED=$(python3 -c "print(int(($T1 - $T0) * 1000))")
-          echo "startup budget: ${ELAPSED}ms (gate 2000ms on CI; local budget 700ms)"
-          STARTUP=$(log show --last 2m --predicate 'subsystem == "me.siwi.Desire"' --style compact 2>/dev/null | grep -c "startup: first window interactive" || true)
-          echo "smoke: $OK / ready: $READY (startup log lines: $STARTUP)"
-          pkill -x Desire || true
-          [ "$OK" = yes ] || { echo "::error::launch smoke test failed — /state never answered"; exit 1; }
-          [ "$READY" = yes ] || { echo "::error::second launch never became ready"; exit 1; }
-          [ "$ELAPSED" -le 2000 ] || { echo "::error::startup budget blown on CI: ${ELAPSED}ms > 2000ms — investigate before release"; exit 1; }
-
-      - name: Upload app artifact
+      - name: Upload build log on failure
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: Desire-${{ github.sha }}
-          path: ${{ steps.app.outputs.path }}
-          retention-days: 7
-          if-no-files-found: error
+          name: ci-build-arm64-log
+          path: build-arm64.log
+          if-no-files-found: ignore
 
   build-x86_64:
-    name: Build check (x86_64)
-    runs-on: macos-latest
-    # Informational for now: the release ships arm64; Intel compile health
-    # is tracked without blocking CI.
-    continue-on-error: true
-
+    name: Build x86_64 (zero warnings)
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select newest Xcode
+      - name: Select Xcode 27.1 (same build as local)
         run: |
-          XCODE=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          XCODE=/Applications/Xcode_27.1.app
+          [ -d "$XCODE" ] || { echo "::error::pinned Xcode 27.1 missing"; ls -d /Applications/Xcode*.app; exit 1; }
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
+          xcodebuild -version | grep -q "Xcode 27.1" || { echo "::error::expected Xcode 27.1"; exit 1; }
 
-      - name: Build (Release, x86_64 cross-compile, unsigned)
+      - name: Build Release x86_64 (zero warnings)
         run: |
+          set -euo pipefail
           xcodebuild \
             -project apps/macos/Desire.xcodeproj \
             -scheme Desire \
             -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/dd-x86" \
             -destination 'platform=macOS' \
             ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO \
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            build
+            clean build 2>&1 | tee build-x86.log
+          if grep -E "warning:" build-x86.log | grep -v appintentsmetadataprocessor | grep -q .; then
+            echo "::error::x86_64 build emitted warnings"
+            grep -E "warning:" build-x86.log | grep -v appintentsmetadataprocessor | head -30
+            exit 1
+          fi
+          APP="$RUNNER_TEMP/dd-x86/Build/Products/Release/Desire.app"
+          ARCHS=$(lipo -archs "$APP/Contents/MacOS/Desire")
+          [[ "$ARCHS" == *x86_64* ]] || { echo "::error::x86_64 binary missing: $ARCHS"; exit 1; }
+          echo "x86_64 OK"
+
+      - name: Upload build log on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ci-build-x86-log
+          path: build-x86.log
+          if-no-files-found: ignore

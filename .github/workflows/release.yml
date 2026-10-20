@@ -1,25 +1,21 @@
 name: Release
 
-# 两条入口：
-#   • workflow_dispatch(version, publish_on_success=true) → 一次运行内完成：单测 +
-#     arm64/x86_64 并行零警告构建；**全部通过后才走到发布 job**，在那里创建 tag
-#     （--target 本次已验证的 SHA；GITHUB_TOKEN 建的 tag 不会二次触发工作流）并上传
-#     资产。构建失败 → 发布 job 不运行，**tag 与 Release 都不存在**，开发继续。
-#     scripts/release.sh 只负责准备版本并触发，几秒返回。
-#   • push tag vX.Y.Z → 手动/重推 tag 的路径：同样的构建 + **幂等发布**（Release 已
-#     存在则复用/更新、资产 --clobber 覆盖）；发布阶段网络失败可 `gh run rerun
-#     <id> --failed` 只重跑发布 job。
+# 手动触发（scripts/release.sh 负责冻结版本并调度）：
+#   workflow_dispatch(version, publish)
+#   1) 与本地完全相同的 Xcode 27.1 (27A9275) + xcode-27 镜像，双架构零警告构建；
+#   2) 构建全部通过后才执行 publish：用 GITHUB_TOKEN 创建 tag（--target 本次已验证
+#      的 SHA）并上传资产——构建失败则 tag/Release 都不存在（铁律：发版必须成功）；
+#   3) publish=false 可只跑构建（发版前自检）。
+# 不监听 tag push：tag 只能由这条已验证的流水线创建，避免把未验证的 tag 发布出去。
 on:
-  push:
-    tags: ['v*']
   workflow_dispatch:
     inputs:
       version:
         description: 'Release version without the v prefix (e.g. 0.7.26)'
         required: true
         type: string
-      publish_on_success:
-        description: 'Build, then create tag + publish only if the build passed'
+      publish:
+        description: 'Publish (create tag + release) only if all builds pass'
         required: true
         type: boolean
         default: true
@@ -27,16 +23,14 @@ on:
 permissions:
   contents: write
 
-# 预发版与正式发布互不取消；同一 tag 的重推才取消旧 run。
 concurrency:
-  group: release-${{ github.event_name == 'workflow_dispatch' && format('preflight-{0}', github.sha) || github.ref }}
+  group: release
   cancel-in-progress: false
 
 jobs:
   quality:
     name: Rust quality gate
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
       - name: Rust formatting
@@ -48,20 +42,17 @@ jobs:
 
   build-arm64:
     name: Build arm64 (zero warnings)
-    runs-on: macos-latest
-
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select pinned Xcode (26.6.0)
+      - name: Select Xcode 27.1 (same build as local)
         run: |
-          # 钉死版本：runner 镜像升级不会悄悄换编译器（本机 27.1 与 CI 26.6.0
-          # 的警告/可见性规则不同，见 AGENTS.md 发布流程）。
-          XCODE=/Applications/Xcode_26.6.0.app
-          [ -d "$XCODE" ] || { echo "::error::pinned Xcode 26.6.0 missing"; ls -d /Applications/Xcode*.app; exit 1; }
-          echo "Using $XCODE"
+          XCODE=/Applications/Xcode_27.1.app
+          [ -d "$XCODE" ] || { echo "::error::pinned Xcode 27.1 missing"; ls -d /Applications/Xcode*.app; exit 1; }
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
+          xcodebuild -version | grep -q "Xcode 27.1" || { echo "::error::expected Xcode 27.1"; exit 1; }
 
       - name: Pure-logic unit tests
         run: bash tests/run.sh
@@ -70,7 +61,6 @@ jobs:
         run: |
           set -euo pipefail
           V="${{ inputs.version }}"
-          if [ -z "$V" ]; then V="${GITHUB_REF_NAME#v}"; fi
           xcodebuild \
             -project apps/macos/Desire.xcodeproj \
             -scheme Desire \
@@ -82,21 +72,13 @@ jobs:
             clean build 2>&1 | tee build-arm64.log
           if grep -E "warning:" build-arm64.log | grep -v appintentsmetadataprocessor | grep -q .; then
             echo "::error::arm64 build emitted warnings"
-            grep -E "warning:" build-arm64.log | grep -v appintentsmetadataprocessor | head -20
+            grep -E "warning:" build-arm64.log | grep -v appintentsmetadataprocessor | head -30
             exit 1
           fi
           APP="$RUNNER_TEMP/dd-arm64/Build/Products/Release/Desire.app"
           VER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
           [ "$VER" = "$V" ] || { echo "::error::built version $VER != expected $V"; exit 1; }
-
-      - name: Package arm64
-        run: |
-          set -euo pipefail
-          V="${{ inputs.version }}"
-          if [ -z "$V" ]; then V="${GITHUB_REF_NAME#v}"; fi
-          ditto -c -k --keepParent \
-            "$RUNNER_TEMP/dd-arm64/Build/Products/Release/Desire.app" \
-            "Desire-v$V-macos-arm64.zip"
+          ditto -c -k --keepParent "$APP" "Desire-v$V-macos-arm64.zip"
           shasum -a 256 "Desire-v$V-macos-arm64.zip" > "SHASUMS256-arm64.txt"
 
       - uses: actions/upload-artifact@v4
@@ -109,26 +91,22 @@ jobs:
 
   build-x86_64:
     name: Build x86_64 (zero warnings)
-    runs-on: macos-latest
-
+    runs-on: xcode-27
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select pinned Xcode (26.6.0)
+      - name: Select Xcode 27.1 (same build as local)
         run: |
-          # 钉死版本：runner 镜像升级不会悄悄换编译器（本机 27.1 与 CI 26.6.0
-          # 的警告/可见性规则不同，见 AGENTS.md 发布流程）。
-          XCODE=/Applications/Xcode_26.6.0.app
-          [ -d "$XCODE" ] || { echo "::error::pinned Xcode 26.6.0 missing"; ls -d /Applications/Xcode*.app; exit 1; }
-          echo "Using $XCODE"
+          XCODE=/Applications/Xcode_27.1.app
+          [ -d "$XCODE" ] || { echo "::error::pinned Xcode 27.1 missing"; ls -d /Applications/Xcode*.app; exit 1; }
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
+          xcodebuild -version | grep -q "Xcode 27.1" || { echo "::error::expected Xcode 27.1"; exit 1; }
 
       - name: Build and verify version/arch
         run: |
           set -euo pipefail
           V="${{ inputs.version }}"
-          if [ -z "$V" ]; then V="${GITHUB_REF_NAME#v}"; fi
           xcodebuild \
             -project apps/macos/Desire.xcodeproj \
             -scheme Desire \
@@ -141,7 +119,7 @@ jobs:
             clean build 2>&1 | tee build-x86.log
           if grep -E "warning:" build-x86.log | grep -v appintentsmetadataprocessor | grep -q .; then
             echo "::error::x86_64 build emitted warnings"
-            grep -E "warning:" build-x86.log | grep -v appintentsmetadataprocessor | head -20
+            grep -E "warning:" build-x86.log | grep -v appintentsmetadataprocessor | head -30
             exit 1
           fi
           APP="$RUNNER_TEMP/dd-x86/Build/Products/Release/Desire.app"
@@ -149,15 +127,7 @@ jobs:
           [ "$VER" = "$V" ] || { echo "::error::x86_64 built version $VER != expected $V"; exit 1; }
           ARCHS=$(lipo -archs "$APP/Contents/MacOS/Desire")
           [[ "$ARCHS" == *x86_64* ]] || { echo "::error::x86_64 binary missing: $ARCHS"; exit 1; }
-
-      - name: Package x86_64
-        run: |
-          set -euo pipefail
-          V="${{ inputs.version }}"
-          if [ -z "$V" ]; then V="${GITHUB_REF_NAME#v}"; fi
-          ditto -c -k --keepParent \
-            "$RUNNER_TEMP/dd-x86/Build/Products/Release/Desire.app" \
-            "Desire-v$V-macos-x86_64.zip"
+          ditto -c -k --keepParent "$APP" "Desire-v$V-macos-x86_64.zip"
           shasum -a 256 "Desire-v$V-macos-x86_64.zip" > "SHASUMS256-x86_64.txt"
 
       - uses: actions/upload-artifact@v4
@@ -169,13 +139,10 @@ jobs:
           if-no-files-found: error
 
   publish:
-    name: Publish (idempotent)
+    name: Create tag and publish (only after all builds pass)
     needs: [quality, build-arm64, build-x86_64]
-    # tag push 直接发布；workflow_dispatch 则在**构建全部通过后**才走到这里——
-    # 失败时本 job 不运行，tag 与 Release 都不会存在（铁律：发版必须成功）。
-    if: startsWith(github.ref, 'refs/tags/v') || github.event.inputs.publish_on_success == 'true'
+    if: inputs.publish
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
 
@@ -192,14 +159,12 @@ jobs:
           cat SHASUMS256-arm64.txt SHASUMS256-x86_64.txt > SHASUMS256.txt
           cat SHASUMS256.txt
 
-      - name: Create or update GitHub Release
+      - name: Create tag and GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          V="${{ inputs.version }}"
-          if [ -z "$V" ]; then V="${GITHUB_REF_NAME#v}"; fi
-          TAG="v$V"
+          TAG="v${{ inputs.version }}"
           sed "s|__TAG__|${TAG}|g" scripts/install-note.template.md > install-note.md
           if grep -qF "## [$TAG]" CHANGELOG.md; then
             awk -v tag="[$TAG]" '
@@ -212,28 +177,22 @@ jobs:
             printf 'Release %s\n' "$TAG" > body.md
             cat install-note.md >> body.md
           fi
-          # 幂等：已存在就更新正文（重跑同一 tag 不报错）。
+          # 幂等：release 已存在（例如上次上传失败重跑）就更新正文。
+          # --target 把 tag 创建在**本次已验证的提交**上；GITHUB_TOKEN 创建的
+          # tag 不会再触发工作流。
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes-file body.md
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            # 预发版通过 → 现在才创建 tag（指向本次已验证的 SHA）；用 GITHUB_TOKEN
-            # 创建的 tag 不会再触发一次 Release 工作流。
+          else
             gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
               --title "$TAG" --notes-file body.md
-          else
-            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --title "$TAG" --notes-file body.md
           fi
 
-      # 多资产一次性上传会偶发 408（本地发版时代实测）——逐个传 + 重试；
-      # --clobber 让重跑直接补/覆盖，不需要删 tag。
-      - name: Upload assets
+      - name: Upload assets (one by one, with retries)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          V="${{ inputs.version }}"
-          if [ -z "$V" ]; then V="${GITHUB_REF_NAME#v}"; fi
-          TAG="v$V"
+          TAG="v${{ inputs.version }}"
           cd assets
           for f in Desire-"$TAG"-macos-arm64.zip Desire-"$TAG"-macos-x86_64.zip SHASUMS256.txt; do
             OK=no
@@ -250,6 +209,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          V="${{ inputs.version }}"
-          if [ -z "$V" ]; then V="${GITHUB_REF_NAME#v}"; fi
-          python3 scripts/verify-release-assets.py "v$V" "$GITHUB_REPOSITORY" assets
+          python3 scripts/verify-release-assets.py "v${{ inputs.version }}" "$GITHUB_REPOSITORY" assets

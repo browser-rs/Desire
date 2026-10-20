@@ -15,6 +15,10 @@ struct HistoryPanel: View {
     @State private var selectedIDs: Set<UUID> = []
     /// 只看某站（v0.7.28）：nil = 全部。
     @State private var siteFilter: String?
+    /// 云归档搜索（v0.7.28）：端到端加密的服务端历史只能在客户端解密过滤。
+    @State private var archiveHits: [HistoryArchiveSearch.Hit] = []
+    @State private var archiveLoading = false
+    @State private var archiveError: String?
 
     enum GroupMode: String, CaseIterable {
         case date, site
@@ -36,6 +40,30 @@ struct HistoryPanel: View {
         for id in selectedIDs { store.removeEntry(id: id) }
         selectedIDs.removeAll()
         isSelecting = false
+    }
+
+    /// 云归档检索（v0.7.28）：登录态下按需拉取并本地解密，不进本地历史库。
+    private func searchArchive() {
+        guard let sync = AppState.live?.syncStore else {
+            archiveError = String(localized: "Cloud sync is not available.")
+            return
+        }
+        guard case .signedIn = sync.authState else {
+            archiveError = String(localized: "Sign in to sync to search the archive.")
+            return
+        }
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        archiveLoading = true
+        archiveError = nil
+        Task { @MainActor in
+            do {
+                archiveHits = try await sync.searchArchivedHistory(query: query, limit: 50)
+            } catch {
+                archiveHits = []
+                archiveError = error.localizedDescription
+            }
+            archiveLoading = false
+        }
     }
 
     private var dateGrouped: [(String, [HistoryEntry])] {
@@ -156,6 +184,19 @@ struct HistoryPanel: View {
                     }
                     .pickerStyle(.segmented)
                     .frame(width: 70)
+
+                    Button { searchArchive() } label: {
+                        if archiveLoading {
+                            ProgressView().controlSize(.mini)
+                        } else {
+                            Image(systemName: "cloud")
+                                .font(.system(size: 12))
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                              || archiveLoading)
+                    .help("Search the encrypted history archive")
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)
@@ -177,10 +218,37 @@ struct HistoryPanel: View {
                 .padding(.bottom, 6)
             }
 
-            if filtered.isEmpty {
+            if let archiveError {
+                Text(archiveError)
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 4)
+            }
+
+            if filtered.isEmpty && archiveHits.isEmpty && !archiveLoading {
                 EmptyState(message: searchText.isEmpty ? String(localized: "No Browsing History") : String(localized: "No Matching Records"))
             } else {
                 List {
+                    if archiveLoading || !archiveHits.isEmpty {
+                        Section(String(localized: "Cloud archive")) {
+                            if archiveLoading {
+                                HStack(spacing: 6) {
+                                    ProgressView().controlSize(.mini)
+                                    Text("Searching archive…")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            } else {
+                                ForEach(Array(archiveHits.enumerated()), id: \.offset) { _, hit in
+                                    EntryRow(title: hit.title, subtitle: hit.url,
+                                             badgeText: hit.visitCount > 1 ? "×\(hit.visitCount)" : nil,
+                                             trailingText: relativeTime(hit.timestamp),
+                                             action: { onSelect(hit.url) })
+                                }
+                            }
+                        }
+                    }
                     let sections = groupMode == .date ? dateGrouped : siteGrouped
                     ForEach(sections, id: \.0) { sectionTitle, entries in
                         Section {
@@ -276,6 +344,11 @@ struct HistoryPanel: View {
                 }
                 .listStyle(.plain)
             }
+        }
+        .onChange(of: searchText) { _, _ in
+            // 查询变了，旧的归档结果立即作废（避免看到上一词的命中）。
+            archiveHits = []
+            archiveError = nil
         }
         .safeAreaInset(edge: .bottom) {
             if isSelecting && !selectedIDs.isEmpty {

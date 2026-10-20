@@ -1013,52 +1013,62 @@ Features/Bookmarks/
   - **发版冒烟必须从非 DerivedData 路径（如 /tmp）启动一次**：ACl 失配只在
     换路径启动时触发，常规 DerivedData 路径测不出来。
 
-## 发布流程（2026-10-21 起：云端构建成功才自动打 tag + 发布）
+## 发布流程（2026-10-21 定稿：本地手动发布）
 
-**铁律：发版必须成功，且触发发版不阻塞开发**。实现方式：本地命令只准备版本并触发
-云端，**tag 由 GitHub Actions 在双架构零警告构建 + 单测全部通过之后创建**
-（`gh release create --target <已验证 SHA>`；GITHUB_TOKEN 建的 tag 不会二次触发
-工作流）。构建失败 → 发布 job 不运行，**tag 与 Release 都不存在**，开发继续。
-发布 job 幂等：上传/网络失败 `gh run rerun <id> --failed` 补完，不改代码、不换 tag。
+**为什么手动**：本机 Xcode **27.1**，GitHub runner 最高 **26.6.0**——两套编译器的
+警告/可见性规则不同，"本地绿 ≠ CI 绿"（实测：CI 零警告闸门抓到 18 条 Sync 线类型的
+Swift 6 隔离警告，本地 27.1 不报）。发版必须用**与验证相同的编译器**，所以构建/打包/
+上传都在本地；GitHub 的 Release 工作流保持禁用，tag push 不会二次发布，CI 不作为
+发版路径。
 
-仓库是公开仓库，Actions 标准 runner 免费且不计分钟（私有仓库才有 2000 分钟/月 +
-macOS 10× 扣减——那是本地发版时代的历史顾虑）。
+**发布日 checklist（顺序不可换）**：
+1. **冻结发布内容**：确认工作树里只有本版改动。**下一版的开发改动绝不能进发布构建**
+   （2026-10-21 事故：v0.7.27 的 crew 改动混进了 v0.7.26 候选）。有就先 revert 出来，
+   发布完成后再恢复。
+2. 写 CHANGELOG（`scripts/changelog.py add`），`changelog.py verify` 通过；空的
+   `## [Unreleased]` 空壳要删掉（verify 会拒）。
+3. 版本号：`MARKETING_VERSION = X.Y.Z`、`CURRENT_PROJECT_VERSION` +1、`website/index.html`
+   四处版本号同步；提交并推送。
+4. 本地双架构构建（各自独立 DerivedData）：
+   ```
+   xcodebuild -project apps/macos/Desire.xcodeproj -scheme Desire -configuration Release \
+     -derivedDataPath /tmp/dd-release-X.Y.Z clean build
+   xcodebuild ... -derivedDataPath /tmp/dd-release-X.Y.Z-x86 \
+     -destination 'platform=macOS' ARCHS=x86_64 ONLY_ACTIVE_ARCH=NO \
+     COMPILER_INDEX_STORE_ENABLE=NO clean build
+   ```
+   各自 `grep -E "warning:"` 必须为零；PlistBuddy 核对产物版本；x86 用 `lipo -archs`
+   确认 x86_64。
+5. 打包：
+   ```
+   ditto -c -k --keepParent <arm64 App> /tmp/desire-release-X.Y.Z/Desire-vX.Y.Z-macos-arm64.zip
+   ditto -c -k --keepParent <x86 App>   /tmp/desire-release-X.Y.Z/Desire-vX.Y.Z-macos-x86_64.zip
+   (cd /tmp/desire-release-X.Y.Z && shasum -a 256 Desire-*.zip > SHASUMS256.txt)
+   ```
+6. **`gh workflow disable release.yml`**（必须，防止 tag 触发云端重复发布）。
+7. 打 tag 并发布：
+   ```
+   git tag vX.Y.Z && git push origin vX.Y.Z
+   gh release create vX.Y.Z --repo browser-rs/Desire --title vX.Y.Z --notes-file <正文>
+   # 多资产一次性上传会 408：先建 Release，再逐个传 + 重试
+   gh release upload vX.Y.Z <zip> --repo browser-rs/Desire --clobber   # 每个资产各一次
+   ```
+   正文 = CHANGELOG 该版本段 + `scripts/install-note.template.md`（`__TAG__` 替换）。
+8. 验证：
+   ```
+   python3 scripts/verify-release-assets.py vX.Y.Z browser-rs/Desire /tmp/desire-release-X.Y.Z
+   ```
+   （远端 size/sha256 三方一致）+ arm64 zip 解压到**非 DerivedData 路径**启动，
+   `/state` 的 tabs ≥ 1，优雅退出（`osascript -e 'quit app "Desire"'`）。
+9. 发布完成后才恢复下一版开发改动。
+10. 产品页部署是手工步（本地发布脚本不管页面部署）。
 
-**流程**：
-1. 开发完成并推到 main；本地验证：
-   - 每次：`bash tests/run.sh`（纯逻辑，40 秒）；
-   - 动了浏览器/Agent 运行路径：`python3 tests/execution-e2e.py`（15 分钟，全绿）；
-   - 结构/视觉改动：按本文件前面的桥/快照手法走查。
-2. 写 CHANGELOG（`scripts/changelog.py add <Type>`，stdin 传正文）。
-3. `scripts/release.sh <版本号>`（约 30 秒返回）：冻结 CHANGELOG、同步
-   website/pbxproj 版本号（幂等，续跑不重复加构建号）、跑单测、提交推送、触发
-   release.yml；构建/发布在云端异步进行，**本地立刻可以继续开发**。
-4. `scripts/release.sh --status` 或 `gh run list --workflow release.yml` 看进度。
-5. 发版后产品页部署是手工步（release.sh 不管页面部署）。
-
-**失败语义**：
-- 构建/单测失败 → 没有 tag、没有 Release；修好代码后重跑同一命令（CHANGELOG 段已
-  冻结、版本号幂等，不会重复提交）。
-- 发布阶段（上传/网络）失败 → tag 已指向已验证的 SHA；`gh run rerun <id> --failed`
-  只重跑发布 job（复用本次构建产物）。
-- 调度若解析到更新的 main（并发推送窗口）→ 脚本会取消错位运行并报错，重跑即可。
-
-**工作流要点**（`.github/workflows/release.yml`）：
-- `workflow_dispatch(version, publish_on_success)`：单测 + arm64 / x86_64 并行零警告
-  构建 → **全部通过后才运行发布 job**（建 tag → Release → 上传 → digest 校验）；
-- `push tag v*`：手动 tag 路径，同样构建 + 幂等发布；
-- 构建 job 各自 PlistBuddy 校验产物版本 == 版本号，x86 用 lipo 校验架构；
-- 发布 job：下载 artifacts → 正文 = CHANGELOG 段 + install note → Release 幂等
-  创建/更新 → 逐资产上传重试 → `scripts/verify-release-assets.py` 三方校验。
-
-**别绕的坑**：
-- **本机 Xcode 可能比 CI 新**：本地全量构建绿 ≠ CI 绿（曾因 private init 的构造
-  可见性差异，CI 连红 5 次）。云端构建就是权威闸门——它不过就没有 tag，别手工补。
-- 不再手工 disable/enable Release 工作流（本地发版时代的遗留；现在它是唯一发布者）。
-- 产物用 `CODE_SIGNING_ALLOWED=NO`（链接器仍给 arm64 ad-hoc 签名，可启动）；
-  安装说明仍要求 `xattr -cr`。安装说明单一真相 = `scripts/install-note.template.md`。
-- CHANGELOG 的 `[Unreleased]` 由 `scripts/release.sh` 自动改名并补空壳；条目只许用
-  `scripts/changelog.py add` 写。
+**事实/坑**：
+- `gh release create` 不带资产；资产逐个 `gh release upload --clobber`（408 重试）。
+- Release 工作流保持禁用；**不要**再打开云端发布（编译器不同 + 会抢 Latest）。
+- 本机 Xcode 27.1 与 CI 26.6.0 的差异已实际踩过：CI 的警告不能被本机复现，
+  所以"零警告"只在本地构建上判定；不要拿 CI 当发版闸门。
+- 安装说明单一真相 = `scripts/install-note.template.md`；下载侧仍要求 `xattr -cr`。
 
 ## 端点扩展模式
 

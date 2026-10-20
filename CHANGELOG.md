@@ -1,4 +1,6 @@
 ## [Unreleased]
+
+## [v0.7.26] - 2026-10-21
 ### Added
 
 - **路由审计与失败回退（v0.7.26，在既有 RoutingProvider 之上）**：应用早有成本感知路由（端上/ollama 优先、`RoutingDecision` 纯逻辑、`via X` 标签）——本轮补三个真缺口：① **审计**：每条助手消息新增 `routeReason`（`via Cloud/On-device/…`，路由在工具链中变化时如实反映最后一次决策），桥消息透传 `model`/`routeReason`/token；② **失败回退**：自动路由（端上/ollama 优先）失败且未流出任何内容 → **强制云重试一次**（本地模型不可用绝不换卡死）；③ **桥状态**：`GET/POST /ai/routing`（costAware/providerKind/lockedToCloud/lastProviderUsed）。验收：harness **1081/0**（审计字段编解码兼容）；**真端点探针 4/4**（routing 模式下短问句回答正常、`routeReason=via Cloud`、lastProviderUsed 一致）。**规划期教训**：原计划"新增成本感知路由"是错的——漏查既有实现（`costAwareRouting`/`RoutingProvider`），平行实现已全部回滚。

@@ -58,6 +58,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/LoginWallAdvisory.swift
   apps/macos/Desire/Features/Agent/SelectionAssistMode.swift
   apps/macos/Desire/Features/Agent/DailyBrief.swift
+  apps/macos/Desire/Features/Agent/AgentRouteDecision.swift
   apps/macos/Desire/Features/ShareCard/PageShareCardLayout.swift
   apps/macos/Desire/Features/Whiteboard/WhiteboardHTMLExport.swift apps/macos/Desire/Features/Agent/ContextCompaction.swift
   apps/macos/Desire/Features/Agent/AgentTrace.swift

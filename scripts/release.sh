@@ -126,7 +126,7 @@ HEAD_SHA=$(git rev-parse HEAD)
 # ── 5. 触发云端：构建通过 → 自动建 tag → 发布 ──────────────
 log "触发云端发布（构建通过后才创建 tag）"
 gh workflow run release.yml --repo "$GH_REPO" --ref main \
-  -f version="$V" -f publish_on_success=true \
+  -f version="$V" -F publish_on_success=true \
   || die "无法触发 release.yml（workflow 文件是否已推到 main？）"
 
 # 确认调度的是本次提交（main 若在调度瞬间被推进，宁可取消也不发错内容）。

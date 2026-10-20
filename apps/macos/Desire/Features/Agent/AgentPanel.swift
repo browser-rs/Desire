@@ -304,7 +304,9 @@ struct AgentPanel: View {
 
             // Tab Crew 进度条（0.3.1）：作业组活跃/最近落定时显示子任务瓦片。
             if let crew = crewStore.crew {
-                CrewProgressStrip(crew: crew, onCancelAll: { crewStore.cancelAll() })
+                CrewProgressStrip(crew: crew,
+                                  price: store.preference.usagePrice(for:),
+                                  onCancelAll: { crewStore.cancelAll() })
             }
 
             if let context = store.contextLabel {
@@ -1116,14 +1118,17 @@ struct AgentPanel: View {
     return AgentPanel(store: store, conversationStore: conversationStore, promptCenter: store.promptCenter)
         .frame(width: 360, height: 560)
 }
-/// Tab Crew 进度条（0.3.1 起；v0.7.22 升级为**运行观察面**）：概要行（状态点 +
-/// 目标 + 取消/关闭）+ 运行中逐 worker 的**实时详情**（当前步骤 / 已用时 /
-/// 工具调用数）。WorkerTask 是引用类型，进度靠 store 侧节流 objectWillChange
-/// 推动重绘；已用时用 TimelineView 自走（不依赖发布）。
+/// Tab Crew 进度条（0.3.1 起；v0.7.22 运行观察面；v0.7.27 补逐 worker 成本）：
+/// 概要行（状态点 + 目标 + 取消/关闭）+ 每个 worker 的详情（当前步骤 / 已用时 /
+/// 工具调用数 / token 与金额）。终态 worker 保留在条子里（悬停看结果），
+/// 否则"跑完就消失"，看不到每个子任务花了多少。WorkerTask 是引用类型，进度靠
+/// store 侧节流 objectWillChange 推动重绘；运行中的已用时用 TimelineView 自走。
 struct CrewProgressStrip: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     let crew: AgentCrewStore.Crew
+    /// 单价查询（与全 app 成本口径同源：未定价返回 nil → 只显示 token）。
+    let price: (String?) -> ModelPrice?
     let onCancelAll: () -> Void
 
     private func tint(_ state: AgentCrewStore.WorkerTask.State) -> Color {
@@ -1136,9 +1141,21 @@ struct CrewProgressStrip: View {
         }
     }
 
-    /// 运行中/待跑的 worker 展详情（落定的不占版面；最多 6 行）。
+    /// dispatch 上限就是 6 个；终态也保留。
     private var observedTasks: [AgentCrewStore.WorkerTask] {
-        Array(crew.tasks.filter { !$0.state.isTerminal }.prefix(6))
+        Array(crew.tasks.prefix(6))
+    }
+
+    private func costText(_ task: AgentCrewStore.WorkerTask) -> String? {
+        guard let model = price(task.model),
+              let usd = model.cost(promptTokens: task.promptTokens,
+                                   completionTokens: task.completionTokens) else { return nil }
+        return AgentUsage.formatUSD(usd)
+    }
+
+    private func elapsedText(_ task: AgentCrewStore.WorkerTask) -> String? {
+        guard let start = task.startedAt else { return nil }
+        return msText((task.finishedAt ?? Date()).timeIntervalSince(start))
     }
 
     var body: some View {
@@ -1184,28 +1201,46 @@ struct CrewProgressStrip: View {
                     Text(t.instruction)
                         .font(.system(size: 10.5))
                         .lineLimit(1)
-                        .foregroundStyle(.primary)
-                    if let step = t.currentStep {
+                        .foregroundStyle(t.state == .cancelled ? .secondary : .primary)
+                    if t.state == .running, let step = t.currentStep {
                         Text(step)
                             .font(.system(size: 10))
                             .foregroundStyle(appAccent)
                             .lineLimit(1)
                     }
                     Spacer(minLength: 6)
+                    if t.totalTokens > 0 {
+                        Text(AgentUsage.formatTokens(t.totalTokens))
+                            .font(.system(size: 9.5, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .help(t.model.map {
+                                "\($0) · \(t.promptTokens) prompt / \(t.completionTokens) completion"
+                            } ?? "\(t.promptTokens) prompt / \(t.completionTokens) completion")
+                    }
+                    if let cost = costText(t) {
+                        Text(cost)
+                            .font(.system(size: 9.5, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
                     if t.toolCallCount > 0 {
                         Text("\(t.toolCallCount)×")
                             .font(.system(size: 9.5, design: .monospaced))
                             .foregroundStyle(.tertiary)
                     }
-                    if let started = t.startedAt, t.state == .running {
+                    if t.state == .running, let started = t.startedAt {
                         TimelineView(.periodic(from: started, by: 1)) { context in
                             Text(msText(context.date.timeIntervalSince(started)))
                                 .font(.system(size: 9.5, design: .monospaced))
                                 .foregroundStyle(.secondary)
                         }
+                    } else if let elapsed = elapsedText(t) {
+                        Text(elapsed)
+                            .font(.system(size: 9.5, design: .monospaced))
+                            .foregroundStyle(.secondary)
                     }
                 }
                 .padding(.leading, 18)
+                .help(t.result.map { String($0.prefix(400)) } ?? "")
             }
         }
         .padding(.horizontal, 12)

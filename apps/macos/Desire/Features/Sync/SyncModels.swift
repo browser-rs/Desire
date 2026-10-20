@@ -189,7 +189,7 @@ nonisolated struct SyncWireItem<Payload: Codable>: Codable {
     }
 }
 
-struct SyncPullResponse<Payload: Codable>: Codable {
+nonisolated struct SyncPullResponse<Payload: Codable>: Codable {
     var items: [SyncWireItem<Payload>]
     var serverTime: String?
 
@@ -199,11 +199,11 @@ struct SyncPullResponse<Payload: Codable>: Codable {
     }
 }
 
-struct SyncPushRequest<Payload: Codable>: Codable {
+nonisolated struct SyncPushRequest<Payload: Codable>: Codable {
     var items: [SyncWireItem<Payload>]
 }
 
-struct SyncPushResult<Payload: Codable>: Codable {
+nonisolated struct SyncPushResult<Payload: Codable>: Codable {
     var clientId: String
     /// applied = 采纳；conflict = 服务端版本更新，item 给回胜者（客户端应采纳）
     var status: String
@@ -216,7 +216,7 @@ struct SyncPushResult<Payload: Codable>: Codable {
     }
 }
 
-struct SyncPushResponse<Payload: Codable>: Codable {
+nonisolated struct SyncPushResponse<Payload: Codable>: Codable {
     var results: [SyncPushResult<Payload>]
 }
 
@@ -286,7 +286,7 @@ nonisolated struct SyncEnvelope<Data: Codable>: Codable {
 
 // MARK: - Auth DTOs
 
-struct SyncTokenPair: Codable {
+nonisolated struct SyncTokenPair: Codable {
     var accessToken: String
     var refreshToken: String
     var expiresIn: Int
@@ -305,7 +305,7 @@ struct SyncMe: Codable {
     var email: String
 }
 
-struct SyncAuthBody: Codable {
+nonisolated struct SyncAuthBody: Codable {
     var username: String
     var password: String
     var nickname: String?
@@ -321,7 +321,7 @@ struct SyncAuthBody: Codable {
     }
 }
 
-struct SyncCaptcha: Codable {
+nonisolated struct SyncCaptcha: Codable {
     var captchaId: String
     /// PNG 的标准 base64
     var image: String
@@ -335,7 +335,7 @@ struct SyncCaptcha: Codable {
     }
 }
 
-struct SyncDeviceBody: Codable {
+nonisolated struct SyncDeviceBody: Codable {
     var deviceID: String
     var name: String?
     var platform: String?
@@ -347,7 +347,7 @@ struct SyncDeviceBody: Codable {
     }
 }
 
-struct SyncRefreshBody: Codable {
+nonisolated struct SyncRefreshBody: Codable {
     var refreshToken: String
 
     enum CodingKeys: String, CodingKey {
@@ -355,7 +355,7 @@ struct SyncRefreshBody: Codable {
     }
 }
 
-struct SyncLogoutBody: Codable {
+nonisolated struct SyncLogoutBody: Codable {
     var refreshToken: String
 
     enum CodingKeys: String, CodingKey {
@@ -363,7 +363,7 @@ struct SyncLogoutBody: Codable {
     }
 }
 
-struct SetPasswordReq: Codable {
+nonisolated struct SetPasswordReq: Codable {
     var oldPassword: String
     var newPassword: String
     /// 改密时同步换包(新盐 + 新 KEK 包裹的 DEK);缺省 = 无托管
@@ -389,7 +389,7 @@ nonisolated struct SyncWrappedDek: Codable, Equatable {
     var ct: String
 }
 
-struct SyncEscrowResp: Codable {
+nonisolated struct SyncEscrowResp: Codable {
     /// nil = 该账号尚未托管密钥(第一台设备)
     var kdfSalt: String?
     var wrappedDek: String?
@@ -402,7 +402,7 @@ struct SyncEscrowResp: Codable {
     }
 }
 
-struct SyncEscrowBody: Codable {
+nonisolated struct SyncEscrowBody: Codable {
     var kdfSalt: String
     var wrappedDek: String
     var keyCheck: String
@@ -414,12 +414,12 @@ struct SyncEscrowBody: Codable {
     }
 }
 
-struct KeyCheckResp: Codable {
+nonisolated struct KeyCheckResp: Codable {
     /// nil = 该账号还没有设置密钥（第一台设备）
     var check: String?
 }
 
-struct KeyCheckBody: Codable {
+nonisolated struct KeyCheckBody: Codable {
     var check: String
 }
 

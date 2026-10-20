@@ -1128,3 +1128,53 @@ Trace/Stats/Memory 页面已在；差距在**内容浏览（白板）**、**未�
 
 > 更远批次候选（不承诺）：workspace 同步域、服务端历史检索接口、
 > 词典就近翻译条、多窗口 Agent 会话互通、内核级下载限速（待 WebKit API）。
+
+---
+
+## v0.7.27 — 看得清、算得全（Agent 可观测性与成本闭环）
+
+> **现状依据（2026-10-21 逐项审计，带 path:line）**：
+> - crew：`WorkerTask` 只有 `currentStep/toolCallCount`，`usage` 只在 crew 级且未
+>   `@Published`；面板只展示**非终态** worker（跑完即消失）；两个提前失败路径
+>   （tab vanished / model error）不调 `settleIfDone`，最后一个 worker 这样失败时
+>   crew 永远不落定；`WorkerTask.task` 从未赋值（cancel 实际靠 state 标志）。
+> - 收件箱：多选 + 批量「稍后 1h / 明早 9 点 / 永久忽略」已有；缺**批量重试**
+>   （failedRun/interrupted）、单条 snooze/ignore、按类型筛选；watchChange 行无动作。
+> - 旁路记账：critique/reflect/title/facts/summary/guard 已记；**heartbeat 未记**，
+>   ReadingListSummarizer / BilingualReadingService / SkillDistiller /
+>   PageShareCardService / BrowserToolProvider+PageTools 均未传 onUsage。
+> - 轨迹复盘卡：已有步数/耗时/成本/点赞与「写进输出规则」；缺耗时分布、重试次数、
+>   按模型/旁路的回合成本拆分。
+> - 评估集：应用内可导出 👍 回合并列出最近 5 份；无应用内删除/登记 fixture；
+>   `EvalExporter` 的 JSONL 与 `tests/agent-eval.py --fixtures` 的 JSON 格式不互通。
+> - 记忆冲突：`MemoryConflict` + 向导 + `pendingConflicts` 已在；但**自动抽取的事实
+>   在用户复核前已入库并参与提示注入**，没有批量决议。
+
+**旗舰：crew 运行观察面收尾**
+- 逐 worker 记录模型与 token，面板/桥按 worker 展示成本（未定价只显 token）；
+- 终态 worker 保留（已用时、工具数、token/金额、结果悬停）；
+- 修两个提前失败不结算的洞与失效的 `WorkerTask.task` 取消句柄。
+- 验收：harness（用量汇总/格式化边界）+ 假端点 crew E2E（两 worker 不同模型 →
+  各自 token/金额正确）；桥 `/agent/crew` 断言逐 worker 字段。
+
+**主力件**
+1. **收件箱批处理补齐**：批量重试（failedRun → 重跑对应任务；interrupted →
+   续跑会话）、单条 snooze/ignore、类型筛选 chips；桥 `POST /inbox/batch`。
+   验收：桥造两类条目 → 批量重试断言状态迁移；筛选纯逻辑进 harness。
+2. **旁路成本入账收尾**：统一 `BypassUsageRecorder`（活动会话 deliveryTarget），
+   覆盖 heartbeat 与五个服务；kind 命名与 CostBreakdown 分类一致。
+   验收：假端点固定 usage → 断言 `bypassUsage` 出现新 kind，面板/轨迹/统计三处同源。
+3. **轨迹复盘卡增强**：耗时分布条、同工具同参数失败≥2 的重试计数、按模型/旁路
+   拆分的回合成本；「写进输出规则」沿用。
+   验收：给定轨迹 fixture 断言派生字段（纯逻辑进 harness）。
+4. **评估集闭环**：应用内 fixtures 列表/删除/「登记为评估 fixture」；JSONL → fixture
+   转换与 CLI 共用同一格式定义。
+   验收：round-trip 测试 + 桥导出/登记/删除 E2E。
+5. **记忆冲突注入保护**：自动抽取且存在未复核冲突的事实标记 pending，
+   `<user_memory>` 暂不注入；面板支持批量「保留新/保留旧/都保留」。
+   验收：纯逻辑断言 prompt 过滤；面板批量决议桥探针。
+
+**收口**：成本口径复核——面板状态行/成本弹层/轨迹/统计/桥全部走 `AgentUsage`
+与同一份价格表；任何一处未定价不给总额。
+
+**贯穿**：数字类改动三处同源校验；新旁路必须带模型与 token，否则不记账。

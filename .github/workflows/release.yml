@@ -53,9 +53,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select newest Xcode
+      - name: Select pinned Xcode (26.6.0)
         run: |
-          XCODE=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          # 钉死版本：runner 镜像升级不会悄悄换编译器（本机 27.1 与 CI 26.6.0
+          # 的警告/可见性规则不同，见 AGENTS.md 发布流程）。
+          XCODE=/Applications/Xcode_26.6.0.app
+          [ -d "$XCODE" ] || { echo "::error::pinned Xcode 26.6.0 missing"; ls -d /Applications/Xcode*.app; exit 1; }
           echo "Using $XCODE"
           sudo xcode-select -s "$XCODE"
           xcodebuild -version
@@ -111,9 +114,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select newest Xcode
+      - name: Select pinned Xcode (26.6.0)
         run: |
-          XCODE=$(ls -d /Applications/Xcode*.app | sort -V | tail -1)
+          # 钉死版本：runner 镜像升级不会悄悄换编译器（本机 27.1 与 CI 26.6.0
+          # 的警告/可见性规则不同，见 AGENTS.md 发布流程）。
+          XCODE=/Applications/Xcode_26.6.0.app
+          [ -d "$XCODE" ] || { echo "::error::pinned Xcode 26.6.0 missing"; ls -d /Applications/Xcode*.app; exit 1; }
           echo "Using $XCODE"
           sudo xcode-select -s "$XCODE"
           xcodebuild -version

@@ -54,11 +54,16 @@ final class AgentCrewStore: ObservableObject {
         var result: String?
         var startedAt: Date?
         var finishedAt: Date?
-        var task: Task<Void, Never>?
         /// 运行观察面（v0.7.22）：当前步骤的一句话描述 + 工具调用计数
         /// （"思考中（第 2 轮）"/"调用 extractTables"/"撰写报告"）。
         var currentStep: String?
         var toolCallCount: Int = 0
+        /// 逐 worker 用量（v0.7.27）：模型与 token——面板/桥按 worker 展示成本，
+        /// 不再只有一个 crew 总量。模型取第一次上报（worker 不换模型）。
+        var model: String?
+        var promptTokens = 0
+        var completionTokens = 0
+        var totalTokens: Int { promptTokens + completionTokens }
 
         enum State: String {
             case pending, running, done, failed, cancelled
@@ -83,11 +88,19 @@ final class AgentCrewStore: ObservableObject {
 
     private func noteProgress(_ worker: WorkerTask, step: String) {
         worker.currentStep = step
+        publishProgress()
+    }
+
+    /// 节流发布（≥1s）：token 流式上报很密，面板不需要每个 token 重绘。
+    private func publishProgress() {
         let now = Date()
         guard now.timeIntervalSince(lastProgressPublish) >= 1 else { return }
         lastProgressPublish = now
         objectWillChange.send()
     }
+
+    /// 终态/取消这类一次性变化立即发布（不等节流，避免面板停在 running）。
+    private func publishNow() { objectWillChange.send() }
 
     /// worker 允许的工具（只读研究子集——不给 click/fill/下载/写入）。
     private static let workerToolNames: Set<String> = [
@@ -155,6 +168,8 @@ final class AgentCrewStore: ObservableObject {
             worker.state = .failed
             worker.result = "worker tab vanished"
             worker.finishedAt = Date()
+            publishNow()
+            settleIfDone()
             return
         }
         worker.state = .running
@@ -208,8 +223,13 @@ final class AgentCrewStore: ObservableObject {
                     case .usage(let prompt, let completion):
                         usage.promptTokens += prompt
                         usage.completionTokens += completion
+                        worker.promptTokens += prompt
+                        worker.completionTokens += completion
+                        publishProgress()
                     case .model(let name):
                         if usage.model == nil { usage.model = name }
+                        if worker.model == nil { worker.model = name }
+                        publishProgress()
                     }
                 }
             } catch {
@@ -217,6 +237,8 @@ final class AgentCrewStore: ObservableObject {
                     worker.state = .failed
                     worker.result = "model error: \(error.localizedDescription)"
                 }
+                publishNow()
+                settleIfDone()
                 return
             }
             if !text.isEmpty {
@@ -230,6 +252,7 @@ final class AgentCrewStore: ObservableObject {
                 noteProgress(worker, step: String(localized: "Writing the report"))
                 worker.state = .done
                 worker.result = text.isEmpty ? "(empty report)" : text
+                publishNow()
                 settleIfDone()
                 return
             }
@@ -240,6 +263,7 @@ final class AgentCrewStore: ObservableObject {
                 guard calls <= 8 else {
                     worker.state = .failed
                     worker.result = "tool-call budget exhausted"
+                    publishNow()
                     settleIfDone()
                     return
                 }
@@ -250,6 +274,7 @@ final class AgentCrewStore: ObservableObject {
         }
         worker.state = .failed
         worker.result = "round budget exhausted"
+        publishNow()
         settleIfDone()
     }
 
@@ -287,6 +312,10 @@ final class AgentCrewStore: ObservableObject {
         guard let c = crew else { return "No crew has been dispatched" }
         let lines = c.tasks.map { t -> String in
             var line = "[\(t.index)] \(t.state.rawValue.uppercased()) — \(t.instruction.prefix(70))"
+            if t.totalTokens > 0 {
+                line += String(format: " [%d tokens%@]", t.totalTokens,
+                               t.model.map { " · \($0)" } ?? "")
+            }
             if let r = t.result { line += "\n    → \(r.prefix(600))" }
             return line
         }
@@ -300,9 +329,11 @@ final class AgentCrewStore: ObservableObject {
     func cancel(taskIndex: Int) -> String {
         guard let c = crew, c.tasks.indices.contains(taskIndex) else { return "No such task index" }
         let t = c.tasks[taskIndex]
-        t.task?.cancel()
+        // worker 串行跑在同一个父 Task 里，没有独立句柄可 cancel；停止靠
+        // state 标志（runWorker 每轮/每个流事件都会检查），这里立刻置位。
         t.state = .cancelled
         t.finishedAt = Date()
+        publishNow()
         settleIfDone()
         return "Cancelled subtask \(taskIndex)"
     }
@@ -316,9 +347,10 @@ final class AgentCrewStore: ObservableObject {
     func cancelAll() {
         guard let c = crew else { return }
         for t in c.tasks where !t.state.isTerminal {
-            t.task?.cancel()
             t.state = .cancelled
+            t.finishedAt = Date()
         }
+        publishNow()
         settleIfDone()
     }
 }

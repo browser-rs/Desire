@@ -480,6 +480,7 @@ final class AutomationServer {
         ep("GET", "/remote/board-payload", "The snapshot board payload for a conversation (same builder the remote frame uses)", params: ["conversationId?:string"], example: "…/remote/board-payload")
         ep("POST", "/share-card", "Generate a page share card (first-screen snapshot + title/domain + optional side-model summary) and save it to Downloads", params: ["index?:int (tab; default selected)", "summarize?:bool (default true)"], example: #"-d '{"summarize":false}'"#)
         ep("GET", "/history/archive-search", "Search the full archived browsing history (client-side: pulls the encrypted history domain and decrypts locally; requires sync sign-in)", params: ["q:string", "limit?:int (default 50)"], example: "…/history/archive-search?q=rust")
+        ep("GET", "/agent/cost-breakdown", "This conversation's cost broken down by model x category (main/subagent/bypass), plus the AgentUsage total", params: ["window?:string"], example: "…/agent/cost-breakdown")
         ep("GET", "/ai/routing", "Routing state (costAware / providerKind / lockedToCloud / lastProviderUsed)", example: "…/ai/routing")
         ep("POST", "/ai/routing", "Enable/disable cost-aware routing (existing RoutingProvider: simple text turns prefer on-device/Ollama)", params: ["enabled:bool"], example: "-d '{\"enabled\":true}'")
         ep("POST", "/agent/daily-brief", "Run the daily brief now (today's conversations/usage/inbox/memory → session note + routine notification; toBoard=true also puts it on the whiteboard)", params: ["toBoard?:bool"], example: "-d '{}'")
@@ -2009,6 +2010,26 @@ final class AutomationServer {
                 return try Self.json(Self.aiSetModel(Self.string(body, "model") ?? ""))
             case ("POST", "/ai/profiles/activate"):
                 return try Self.json(Self.aiProfileActivate(id: Self.string(body, "id") ?? ""))
+            case ("GET", "/agent/cost-breakdown"):
+                // 本对话成本明细（v0.7.26）：模型×类型拆组 + 合计（AgentUsage 口径）。
+                guard let session = Self.resolveSession(Self.string(query, "window")) else {
+                    return try Self.json(["error": "no live agent session"])
+                }
+                let price = AppState.live?.aiPreference.usagePrice(for:) ?? { _ in nil }
+                let result = CostBreakdown.derive(session.messages, price: price)
+                return try Self.json([
+                    "groups": result.groups.map { group -> [String: Any] in
+                        ["category": group.category,
+                         "kind": group.kind ?? "",
+                         "model": group.model ?? "",
+                         "promptTokens": group.promptTokens,
+                         "completionTokens": group.completionTokens,
+                         "usd": group.usd.map { $0 as Any } ?? NSNull()]
+                    },
+                    "totalTokens": result.usage.totalTokens,
+                    "usd": result.usage.usd.map { $0 as Any } ?? NSNull(),
+                    "hasUnpriced": result.usage.hasUnpriced,
+                ])
             case ("GET", "/ai/routing"):
                 guard let pref = AppState.live?.aiPreference else { return try Self.json(["error": "preference not ready"]) }
                 return try Self.json([

@@ -19,6 +19,14 @@ struct AgentPanel: View {
     /// 每个对话的输入草稿：切走再切回不丢正在打的字（放在内存里，会话级）。
     @State private var drafts: [UUID: String] = [:]
     @State private var showTrace = false
+    @State private var showCostDetails = false
+
+    /// 成本 chip 文案：token 常显；金额只在全部可定价时显示（`AgentUsage` 口径）。
+    private var costChipText: String {
+        let usage = store.conversationUsage
+        let tokens = AgentUsage.formatTokens(usage.totalTokens)
+        return usage.formattedUSD.map { "\(tokens) · \($0)" } ?? tokens
+    }
     @State private var showStats = false
     /// 输入历史翻阅位置（nil = 不在翻阅）。历史本身在 store 里、按对话保存。
     @State private var historyIndex: Int?
@@ -189,6 +197,32 @@ struct AgentPanel: View {
 
             if showFind {
                 findBar
+            }
+
+            // 本对话成本（v0.7.26）：token 常有、金额按"有单价才显示"的口径；
+            // 点开按 模型×类型（主回合/子代理/旁路）拆明细。
+            if !store.conversationUsage.isEmpty {
+                Button {
+                    showCostDetails.toggle()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "dollarsign.circle")
+                            .font(.system(size: 9))
+                        Text(costChipText)
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.horizontal, 12)
+                .padding(.top, 2)
+                .popover(isPresented: $showCostDetails, arrowEdge: .bottom) {
+                    CostBreakdownPopover(
+                        breakdown: CostBreakdown.derive(store.messages,
+                                                        price: store.preference.usagePrice(for:)))
+                }
+                .help("本对话成本明细")
             }
 
             // "via Cloud / via On-device" indicator, shown only when the

@@ -12,6 +12,9 @@
 - **预算可视化（v0.7.26）**：成本路由开关旁新增 **Session Budget** 选择器——0（关闭）/ 10 万 / 50 万 / 100 万 / 200 万 token，**自定义历史值原样显示**（用户机器上遗留的 500 正是此前"只能经工具/桥/UserDefaults 改、界面不可见"的后果）；副标题说明"到档位上限回合停在步骤边界"。验收：构建绿 + 选择器与 store 同源（`tokenBudget`）；视觉走查留用户。
 - **划词卡成本入账（v0.7.26）**：`SelectionAssistService` 收集流式 `usage` → 归账到**会话内最近一条助手消息**（`bypassUsage` kind=`selectionAssist`，token 并入其总量）——v0.7.25 留的最后一个旁路缺口；UI 卡片与桥 `/selection/assist` 同一归账路径。验收：真端点探针 **2/2**（词典调用后该消息 `promptTokens` **75470 → 75668，+198**）。
 - **启动预算进 /state（v0.7.26）**：`GET /state` 新增 `startup: {firstWindowMs, budgetMs}`（首窗可交互毫秒数，预算 400ms 沿用既有日志口径）；套件在启动后断言 `firstWindowMs ≤ 2000ms`（阈值放宽以避开 CI 冷缓存抖动，只抓"启动路径真的坏掉"的大回归）。此前该指标只有统一日志，没有任何程序化消费。
+- **本对话成本明细（v0.7.26）**：面板状态行新增**成本 chip**（token 常显；金额只在全部可定价时显示，沿用 `AgentUsage` 的 `≥` 口径）——点开弹层按 **模型 × 类型** 拆开：主回合 / 子代理（工具消息上的用量）/ 旁路（标题/记忆/自评/守护/划词卡逐笔），每行 token + 金额（未定价如实写"未定价"），底部合计与面板同一 `AgentUsage` 口径。纯逻辑 `CostBreakdown.derive` 进 harness；桥 `GET /agent/cost-breakdown`。验收：harness **1088/0**（+7：主回合扣旁路/未定价 nil/子代理分组的 kind/旁路按 kind/排序/合计与 AgentUsage 同源）；**真端点探针 3/3**（实际对话拆出 main 75468 / 旁路 selectionAssist 104 / 旁路 title 94，未定价→不显示金额）。
+- **路由审计进轨迹（v0.7.26）**：轨迹每回合新增 `route` 字段（既有 RoutingProvider 的 `via Cloud/On-device`），轨迹页展开时显示 Route 行，桥 `/agent/trace` 的 JSONL 同步可读。验收：**真端点探针 2/2**（routing 模式下该回合 `route=via Cloud`，模型/成本字段齐全）。
+
 
 
 

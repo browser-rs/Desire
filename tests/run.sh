@@ -47,6 +47,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/RoutingDecision.swift
   apps/macos/Desire/Features/Agent/Conversation.swift
   apps/macos/Desire/Features/Agent/ModelPrice.swift
+  apps/macos/Desire/Features/Agent/CostBreakdown.swift
   apps/macos/Desire/Features/Agent/AgentUsage.swift
   apps/macos/Desire/Features/Agent/UsageStats.swift
   apps/macos/Desire/Features/Agent/SecretRedactor.swift

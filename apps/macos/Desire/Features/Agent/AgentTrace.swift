@@ -114,6 +114,11 @@ enum AgentTrace {
             if let model = slice.last(where: { $0.role == .assistant })?.model, !model.isEmpty {
                 turn["model"] = model
             }
+            // 路由审计（v0.7.26）：既有 RoutingProvider 的 "via X" 落在消息上，
+            // 轨迹照抄——审计页/导出都能回答"这回合到底谁跑的"。
+            if let route = slice.last(where: { $0.role == .assistant })?.routeReason, !route.isEmpty {
+                turn["route"] = route
+            }
             if let critique { turn["critique"] = String(critique.prefix(600)) }
             if let verification { turn["verificationNote"] = String(verification.prefix(600)) }
             if let feedback { turn["feedback"] = feedback }

@@ -359,6 +359,9 @@ private struct TurnTraceCard: View {
                     if let model = turn["model"] as? String, !model.isEmpty {
                         labelled("Model", model)
                     }
+                    if let route = turn["route"] as? String, !route.isEmpty {
+                        labelled("Route", route)
+                    }
                     if let critique = turn["critique"] as? String, !critique.isEmpty {
                         labelled("Self-review", critique)
                     }

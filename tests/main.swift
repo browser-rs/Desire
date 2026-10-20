@@ -539,6 +539,44 @@ do {
           try! JSONDecoder().decode(AgentMessage.self, from: data).routeReason == "via On-device")
 }
 
+// ---------- 成本明细（v0.7.26）----------
+
+do {
+    func price(_ model: String?) -> ModelPrice? {
+        model == "model-a" ? ModelPrice(inputPerMTok: 1, outputPerMTok: 2) : nil
+    }
+    var main = AgentMessage(role: .assistant, content: "ok")
+    main.model = "model-a"
+    main.promptTokens = 100
+    main.completionTokens = 20
+    main.bypassUsage = [AgentBypassUsage(kind: "title", model: "model-a",
+                                         promptTokens: 10, completionTokens: 2)]
+    var unpriced = AgentMessage(role: .assistant, content: "ok2")
+    unpriced.model = "model-b"
+    unpriced.promptTokens = 30
+    unpriced.completionTokens = 3
+    var sub = AgentMessage(role: .tool, content: nil)
+    sub.toolName = "spawnSubagent"
+    sub.model = "model-a"
+    sub.promptTokens = 50
+    sub.completionTokens = 5
+    let result = CostBreakdown.derive([main, unpriced, sub], price: price)
+    let mainA = result.groups.first { $0.category == "main" && $0.model == "model-a" }
+    check("成本明细：主回合扣除旁路", mainA?.promptTokens == 90 && mainA?.completionTokens == 18)
+    check("成本明细：主回合金额", mainA?.usd != nil)
+    let mainB = result.groups.first { $0.category == "main" && $0.model == "model-b" }
+    check("成本明细：未定价模型 usd=nil", mainB?.usd == nil)
+    let subGroup = result.groups.first { $0.category == "subagent" }
+    check("成本明细：子代理单独成组", subGroup?.kind == "spawnSubagent" && subGroup?.promptTokens == 50)
+    let bypassGroup = result.groups.first { $0.category == "bypass" }
+    check("成本明细：旁路按 kind 成组", bypassGroup?.kind == "title" && bypassGroup?.promptTokens == 10)
+    check("成本明细：排序（main→subagent→bypass）",
+          result.groups.map(\.category) == ["main", "main", "subagent", "bypass"])
+    check("成本明细：合计与 AgentUsage 同源",
+          result.usage.promptTokens == 180 && result.usage.completionTokens == 28
+          && result.usage.hasUnpriced && result.usage.usd == nil)
+}
+
 
 // ---------- 工作区同步（v0.7.25 第十域）----------
 

@@ -1,6 +1,7 @@
 import AppKit
 import FoundationModels
 import SwiftUI
+import UniformTypeIdentifiers
 
 private enum ModelPreset: String, CaseIterable {
     case gpt4o = "gpt-4o"
@@ -900,6 +901,75 @@ struct AgentSettingsSection: View {
 
     // MARK: - Cost section
 
+    /// 单价表的行序：每个服务档案一组（模型 + 候选清单），其余已填价的落 "Other"。
+    private enum PriceRow { case header(String); case model(String) }
+
+    private var priceRows: [PriceRow] {
+        var seen = Set<String>()
+        var rows: [PriceRow] = []
+        for profile in store.profiles {
+            var models: [String] = []
+            for model in ([profile.model] + profile.modelList) where !model.isEmpty && !seen.contains(model) {
+                seen.insert(model)
+                models.append(model)
+            }
+            if !models.isEmpty {
+                rows.append(.header(profile.name))
+                rows.append(contentsOf: models.map(PriceRow.model))
+            }
+        }
+        let others = store.priceableModels.filter { !seen.contains($0) }
+        if !others.isEmpty {
+            rows.append(.header(String(localized: "Other models")))
+            rows.append(contentsOf: others.map(PriceRow.model))
+        }
+        return rows
+    }
+
+    private func priceRow(_ model: String) -> some View {
+        SettingsRow(model, systemImage: nil) {
+            HStack(spacing: 6) {
+                priceField(model: model, keyPath: \.inputPerMTok, placeholder: "in")
+                Text(verbatim: "$/M")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                priceField(model: model, keyPath: \.outputPerMTok, placeholder: "out")
+                Text(verbatim: "$/M")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    private func exportPrices() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "desire-model-prices.json"
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        try? ModelPriceTable.exportJSON(store.modelPrices)
+            .data(using: .utf8)?.write(to: url)
+    }
+
+    private func importPrices() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url,
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return }
+        guard let imported = ModelPriceTable.parseJSON(text) else {
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Import failed")
+            alert.informativeText = String(localized: "Not a valid price table (see the shape in the subtitle).")
+            alert.runModal()
+            return
+        }
+        store.modelPrices = ModelPriceTable.merge(existing: store.modelPrices, imported: imported)
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Imported \(imported.count) model price(s)")
+        alert.informativeText = imported.keys.sorted().prefix(8).joined(separator: ", ")
+        alert.runModal()
+    }
+
     /// 模型单价表：把 token 用量折算成金额。**不内置价格表**（服务商改价是常事，
     /// 内置一份只会很快变成错的信息），**也不做前缀匹配**（`gpt-4o` 会顺手套到
     /// `gpt-4o-mini` 头上，差 10 倍）——填了才算，没填就只显示 token。
@@ -910,19 +980,29 @@ struct AgentSettingsSection: View {
             icon: "dollarsign.circle"
         ) {
             VStack(spacing: 0) {
-                ForEach(Array(store.priceableModels.enumerated()), id: \.element) { index, model in
+                // 按服务档案分组（v0.7.26）：每个服务的模型归在一起，其它已
+                // 填价的模型落到"Other models"——之前是一张平铺大列表。
+                ForEach(Array(priceRows.enumerated()), id: \.offset) { index, row in
                     if index > 0 { SettingsRowDivider() }
-                    SettingsRow(model, systemImage: nil) {
-                        HStack(spacing: 6) {
-                            priceField(model: model, keyPath: \.inputPerMTok, placeholder: "in")
-                            Text(verbatim: "$/M")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                            priceField(model: model, keyPath: \.outputPerMTok, placeholder: "out")
-                            Text(verbatim: "$/M")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                        }
+                    switch row {
+                    case .header(let title):
+                        Text(verbatim: title)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 6)
+                    case .model(let model):
+                        priceRow(model)
+                    }
+                }
+                SettingsRowDivider()
+                SettingsRow(String(localized: "Import / Export"),
+                            subtitle: String(localized: "Importers merge by model id (listed models win, others keep their values). Exported shape: {\"gpt-4o\": {\"inputPerMTok\": 2.5, \"outputPerMTok\": 10}}."),
+                            systemImage: "arrow.up.arrow.down.square") {
+                    HStack(spacing: 6) {
+                        SettingsCapsuleButton(String(localized: "Import"), style: .secondary) { importPrices() }
+                        SettingsCapsuleButton(String(localized: "Export"), style: .secondary) { exportPrices() }
                     }
                 }
                 SettingsRowDivider()

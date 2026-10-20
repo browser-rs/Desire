@@ -577,6 +577,31 @@ do {
           && result.usage.hasUnpriced && result.usage.usd == nil)
 }
 
+// ---------- 单价表导入导出（v0.7.26）----------
+
+do {
+    let table = ["gpt-4o": ModelPrice(inputPerMTok: 2.5, outputPerMTok: 10),
+                 "gpt-4o-mini": ModelPrice(inputPerMTok: 0.15, outputPerMTok: 0.6)]
+    let json = ModelPriceTable.exportJSON(table)
+    check("单价表：导出→解析 round-trip", ModelPriceTable.parseJSON(json) == table)
+    check("单价表：简写键 input/output",
+          ModelPriceTable.parseJSON(#"{"m":{"input":1.5,"output":2}}"#)
+          == ["m": ModelPrice(inputPerMTok: 1.5, outputPerMTok: 2)])
+    check("单价表：负值钳到 0",
+          ModelPriceTable.parseJSON(#"{"m":{"input":-3,"output":2}}"#)
+          == ["m": ModelPrice(inputPerMTok: 0, outputPerMTok: 2)])
+    check("单价表：非对象条目跳过",
+          ModelPriceTable.parseJSON(#"{"m":{"input":1},"bad":42}"#)
+          == ["m": ModelPrice(inputPerMTok: 1, outputPerMTok: 0)])
+    check("单价表：非法 JSON → nil", ModelPriceTable.parseJSON("not json") == nil)
+    check("单价表：空表 → nil", ModelPriceTable.parseJSON("{}") == nil)
+    let merged = ModelPriceTable.merge(existing: ["a": ModelPrice(inputPerMTok: 1, outputPerMTok: 1)],
+                                       imported: ["a": ModelPrice(inputPerMTok: 9, outputPerMTok: 9),
+                                                  "b": ModelPrice(inputPerMTok: 2, outputPerMTok: 2)])
+    check("单价表：合并覆盖同名 + 保留未提及",
+          merged["a"]?.inputPerMTok == 9 && merged["b"]?.outputPerMTok == 2)
+}
+
 
 // ---------- 工作区同步（v0.7.25 第十域）----------
 

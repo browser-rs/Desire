@@ -9,7 +9,8 @@ enum SelectionAssistService {
     /// 流式跑一次；`onDelta` 逐段回调（主 actor）；返回最终全文。
     /// 错误如实抛出（卡片显示失败态 + 一键转面板）。
     static func stream(text: String, mode: SelectionAssistMode,
-                       onDelta: @MainActor (String) -> Void) async throws -> String {
+                       onDelta: @MainActor (String) -> Void,
+                       onUsage: (@MainActor (Int, Int, String?) -> Void)? = nil) async throws -> String {
         guard let prefs = AppState.live?.aiPreference else {
             throw NSError(domain: "SelectionAssist", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "Agent 配置未就绪"])
@@ -20,14 +21,25 @@ enum SelectionAssistService {
             AgentMessage(role: .user, content: SelectionAssistMode.userPrompt(for: text, mode: mode)),
         ]
         var output = ""
+        var usagePrompt = 0
+        var usageCompletion = 0
+        var reportedModel: String?
         for try await event in sidePrefs.provider.stream(messages: messages, tools: [], prefs: sidePrefs) {
             switch event {
             case .text(let delta):
                 output += delta
                 onDelta(output)
+            case .usage(let prompt, let completion):
+                usagePrompt = prompt
+                usageCompletion = completion
+            case .model(let name):
+                reportedModel = name
             default:
                 break
             }
+        }
+        if usagePrompt > 0 || usageCompletion > 0 {
+            onUsage?(usagePrompt, usageCompletion, reportedModel)
         }
         let trimmed = output.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
@@ -69,9 +81,18 @@ final class SelectionAssistCardModel: ObservableObject {
         phase = .streaming
         task = Task { @MainActor [weak self] in
             do {
-                let final = try await SelectionAssistService.stream(text: trimmed, mode: resolved) { partial in
-                    self?.text = partial
-                }
+                let final = try await SelectionAssistService.stream(
+                    text: trimmed, mode: resolved,
+                    onDelta: { partial in self?.text = partial },
+                    onUsage: { prompt, completion, model in
+                        // 划词卡成本入账（v0.7.26）：记到会话内最近助手消息的旁路属性。
+                        guard let app = AppState.live, let session = AgentScheduler.shared.deliveryTarget else { return }
+                        _ = app
+                        session.attributeAssistantBypassUsage(
+                            kind: "selectionAssist", prompt: prompt,
+                            completion: completion, model: model)
+                    }
+                )
                 guard let self, !Task.isCancelled else { return }
                 self.text = final
                 self.phase = .done

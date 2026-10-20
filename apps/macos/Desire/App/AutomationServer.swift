@@ -6918,7 +6918,14 @@ final class AutomationServer {
         }
         let effective = requested ?? SelectionAssistMode.detect(trimmed)
         do {
-            let result = try await SelectionAssistService.stream(text: trimmed, mode: effective, onDelta: { _ in })
+            let result = try await SelectionAssistService.stream(
+                text: trimmed, mode: effective, onDelta: { _ in },
+                onUsage: { prompt, completion, model in
+                    // 旁路归账（与 UI 卡片同路径）：划词成本并入会话内最近助手消息。
+                    AgentScheduler.shared.deliveryTarget?.attributeAssistantBypassUsage(
+                        kind: "selectionAssist", prompt: prompt,
+                        completion: completion, model: model)
+                })
             return ["ok": true, "mode": effective.rawValue, "text": result, "chars": result.count]
         } catch {
             return ["error": error.localizedDescription]

@@ -36,6 +36,12 @@ struct AgentSettingsSection: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: AgentPreferenceStore
+
+    /// 预算档位预设 + 当前自定义值（历史遗留值如 500 也要能在选择器里显示）。
+    private var budgetOptions: [Int] {
+        let presets = [0, 100_000, 500_000, 1_000_000, 2_000_000]
+        return presets.contains(store.tokenBudget) ? presets : (presets + [store.tokenBudget]).sorted()
+    }
     /// 心跳巡检（模型自决的周期巡检，独立 store 持有自己的偏好）。
     @ObservedObject var heartbeat = HeartbeatStore.shared
     /// 周报（周期性确定性回顾；自持 store）。
@@ -608,6 +614,19 @@ struct AgentSettingsSection: View {
                     subtitle: String(localized: "When routing is on, simple short text-only turns run on the free on-device or Ollama model instead of the cloud — complex and tool-using turns still go to the cloud."),
                     systemImage: "scalemass",
                     isOn: $store.costAwareRouting
+                )
+                SettingsRowDivider()
+                // 会话预算（v0.7.26）：此前只能经工具/桥/UserDefaults 改，用户机器上
+                // 因此留着 500 token 的遗留值无人察觉——这里是可见的控制面。
+                SettingsPickerRow(
+                    "Session Budget",
+                    subtitle: String(localized: "Cumulative token budget per conversation (0 = off). At the tier limit the turn stops at a step boundary until you raise it."),
+                    systemImage: "gauge.with.dots.needle.bottom.50percent",
+                    selection: $store.tokenBudget,
+                    options: budgetOptions,
+                    label: { value in
+                        value == 0 ? String(localized: "Off") : AgentUsage.formatTokens(value)
+                    }
                 )
                 SettingsRowDivider()
                 SettingsToggleRow(

@@ -2811,6 +2811,13 @@ class AgentSessionStore: ObservableObject {
     /// 防护）并累加会话计数器；同时把**逐笔明细**（种类 + 实际模型）记在同一
     /// 消息上——成本路由后旁路跑的模型 ≠ 主模型，成本要按真跑的那个算，
     /// `AgentUsage.of`/`UsageStats.derive` 据此把主回合与旁路分开定价。
+    /// 公开的旁路归账（v0.7.26）：划词就地卡这类**不在回合内**的旁路调用用——
+    /// 记到会话内最近一条助手消息（与标题/记忆整理同一路径，token 并入其总量）。
+    func attributeAssistantBypassUsage(kind: String, prompt: Int, completion: Int, model: String?) {
+        let tailID = messages.last(where: { $0.role == .assistant })?.id
+        attributeBypassUsage(kind, prompt, completion, model: model, to: tailID)
+    }
+
     private func attributeBypassUsage(_ kind: String, _ prompt: Int, _ completion: Int,
                                       model: String?, to tailID: UUID?) {
         guard prompt > 0 || completion > 0 else { return }

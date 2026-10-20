@@ -803,13 +803,6 @@ def main():
     state = bridge("GET", "/state")
     workspace = state.get("agentWorkspace")
     assert workspace, "拿不到 agentWorkspace"
-    # 启动预算（v0.7.26）：首窗可交互毫秒数进 /state；阈值放宽（CI 冷缓存/慢机），
-    # 只抓启动路径真的坏掉（主窗没起来/卡在恢复）的大回归。
-    startup = state.get("startup") or {}
-    first_ms = startup.get("firstWindowMs")
-    ok("启动预算：首窗可交互 ≤ 2000ms",
-       isinstance(first_ms, (int, float)) and 0 < first_ms <= 2000,
-       f"firstWindowMs={first_ms}")
     fix_dir = Path(workspace) / "muscle-e2e"
     fix_dir.mkdir(parents=True, exist_ok=True)
     (fix_dir / "drag.html").write_text(DRAG_HTML)
@@ -932,6 +925,14 @@ def main():
             print(("✓ " if cond else "✗ ") + name)
             if not cond and extra is not None:
                 print("    ↳", extra)
+
+        # 启动预算（v0.7.26）：首窗可交互毫秒数进 /state；阈值放宽（CI 冷缓存/慢机），
+        # 只抓启动路径真的坏掉（主窗没起来/卡在恢复）的大回归。
+        _startup = state.get("startup") or {}
+        _first_ms = _startup.get("firstWindowMs")
+        ok("启动预算：首窗可交互 ≤ 2000ms",
+           isinstance(_first_ms, (int, float)) and 0 < _first_ms <= 2000,
+           f"firstWindowMs={_first_ms}")
 
         ok("导航到 fixture", "/fixture" in joined)
         ok("右键触发 contextmenu", "contextmenu" in joined)

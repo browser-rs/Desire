@@ -84,7 +84,11 @@ final class ReadingListSummarizer: ObservableObject {
         let summary = await MemoryExtractor.collectText(
             preference: preference,
             system: "你是阅读助理。用 2-3 句话给这篇网页写摘要：先一句主旨，再 1-2 句关键要点。只输出摘要本身，不加前后缀、不加引号。",
-            user: "标题：\(head)\n\n正文：\n\(text)")
+            user: "标题：\(head)\n\n正文：\n\(text)",
+            onUsage: { p, c, m in
+                AgentSessionStore.recordBypassUsage(kind: "readingList", prompt: p,
+                                                    completion: c, model: m)
+            })
         let cleaned = summary.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return false }
         store.setSummary(item.id, text: String(cleaned.prefix(600)))

@@ -23,7 +23,11 @@ enum SkillDistiller {
         no code fences. (DESIRE_SKILL_DISTILL)
         """
         let output = await MemoryExtractor.collectText(
-            preference: preference, system: system, user: transcript)
+            preference: preference, system: system, user: transcript,
+            onUsage: { p, c, m in
+                AgentSessionStore.recordBypassUsage(kind: "skillDistill", prompt: p,
+                                                    completion: c, model: m)
+            })
         return SkillDistill.draft(fromModelOutput: output)
     }
 }

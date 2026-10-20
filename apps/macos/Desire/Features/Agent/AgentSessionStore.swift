@@ -2818,6 +2818,14 @@ class AgentSessionStore: ObservableObject {
         attributeBypassUsage(kind, prompt, completion, model: model, to: tailID)
     }
 
+    /// 静态旁路归账（v0.7.27）：不在回合内的服务（心跳/阅读摘要/双语/技能
+    /// 提炼/分享卡/标签聚类）没有会话引用——记到最新注册的活会话。没有活会话
+    /// 时静默丢弃（这些调用本来就不属于任何对话成本）。
+    static func recordBypassUsage(kind: String, prompt: Int, completion: Int, model: String?) {
+        AgentScheduler.shared.deliveryTarget?.attributeAssistantBypassUsage(
+            kind: kind, prompt: prompt, completion: completion, model: model)
+    }
+
     private func attributeBypassUsage(_ kind: String, _ prompt: Int, _ completion: Int,
                                       model: String?, to tailID: UUID?) {
         guard prompt > 0 || completion > 0 else { return }

@@ -73,4 +73,61 @@ enum EvalExporter {
     static func delete(_ url: URL) {
         try? FileManager.default.removeItem(at: url)
     }
+
+    // MARK: - 登记为评估 fixture（v0.7.27）
+
+    /// `tests/agent-eval.py --fixtures` 消费的目录（JSON 文件，每条一个评估集）。
+    static var fixturesDirectory: URL {
+        defaultDirectory.appendingPathComponent("eval/fixtures", isDirectory: true)
+    }
+
+    /// 把一份 JSONL 导出转成 fixture JSON（脱敏后写盘）。
+    static func registerAsFixture(from exportURL: URL,
+                                  to directory: URL? = nil) throws -> (url: URL, count: Int) {
+        let text = try String(contentsOf: exportURL, encoding: .utf8)
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        let dir = directory ?? fixturesDirectory
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+        var file = EvalFixture.convert(
+            jsonl: text,
+            exportedAt: ISO8601DateFormatter().string(from: Date()))
+        // 应用内导出的 JSONL 含真实会话内容——登记时统一脱敏（与 CLI 同口径）。
+        file.fixtures = file.fixtures.map { entry in
+            EvalFixture.Entry(goal: SecretRedactor.redact(entry.goal),
+                              answer: SecretRedactor.redact(entry.answer),
+                              title: SecretRedactor.redact(entry.title))
+        }
+        guard let data = EvalFixture.encode(file) else {
+            throw CocoaError(.fileWriteUnknown)
+        }
+        let url = dir.appendingPathComponent("fixtures-\(formatter.string(from: Date())).json")
+        try data.write(to: url, options: .atomic)
+        return (url, file.count)
+    }
+
+    /// 已有 fixtures（新→旧）。
+    static func listFixtures(in directory: URL? = nil) -> [(url: URL, count: Int, modified: Date)] {
+        let dir = directory ?? fixturesDirectory
+        guard let entries = try? FileManager.default.contentsOfDirectory(
+            at: dir, includingPropertiesForKeys: [.contentModificationDateKey],
+            options: [.skipsHiddenFiles]) else { return [] }
+        return entries
+            .filter { $0.lastPathComponent.hasPrefix("fixtures-") && $0.pathExtension == "json" }
+            .compactMap { url -> (URL, Int, Date)? in
+                guard let data = try? Data(contentsOf: url),
+                      let file = EvalFixture.parse(data),
+                      let values = try? url.resourceValues(forKeys: [.contentModificationDateKey]) else {
+                    return nil
+                }
+                return (url, file.count, values.contentModificationDate ?? .distantPast)
+            }
+            .sorted { $0.2 > $1.2 }
+    }
+
+    static func deleteFixture(_ url: URL) {
+        guard url.lastPathComponent.hasPrefix("fixtures-"), url.pathExtension == "json" else { return }
+        try? FileManager.default.removeItem(at: url)
+    }
 }

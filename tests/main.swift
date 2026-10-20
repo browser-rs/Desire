@@ -3258,6 +3258,14 @@ func testAgentInbox() {
     let action = sections.first { $0.id == "action" }?.items ?? []
     check("收件箱：被扣通知聚合一行", action.contains { $0.kind == .heldNotification && $0.title.contains("2") })
     eq("收件箱：待办角标只数 action", AgentInbox.actionCount(sections), 1)
+
+    // v0.7.27：失败任务条目 id → 任务名（批量重试；名字本身可含连字符）
+    eq("收件箱：run id 解析任务名", AgentInbox.taskName(fromItemID: "run-日报-1800000000"), "日报")
+    eq("收件箱：任务名可含连字符",
+       AgentInbox.taskName(fromItemID: "run-daily-digest-1800000000"), "daily-digest")
+    check("收件箱：非 run 条目不解析", AgentInbox.taskName(fromItemID: "watch-日报") == nil)
+    check("收件箱：缺时间戳不解析", AgentInbox.taskName(fromItemID: "run-日报") == nil)
+    check("收件箱：空任务名不解析", AgentInbox.taskName(fromItemID: "run--1800000000") == nil)
 }
 
 
@@ -3765,8 +3773,47 @@ func testMemoryConflict() {
     // 合并兜底拼接：去重 + "；" 衔接
     let merged = MemoryConflict.defaultMergedText(new: "偏好宋体", related: ["偏好宋体", "行距 1.6"])
     check("冲突：合并拼接去重", merged == "偏好宋体；行距 1.6")
+
+    // v0.7.27：待复核冲突的事实不参与注入
+    let f1 = fact("待复核的新事实")
+    let f2 = fact("已确认的旧事实")
+    let injectable = MemoryModels.injectableFacts([f1, f2], pendingIDs: [f1.id])
+    check("冲突：待复核事实不注入", injectable.map(\.id) == [f2.id])
+    check("冲突：无待复核时全量注入",
+          MemoryModels.injectableFacts([f1, f2], pendingIDs: []).count == 2)
 }
 testMemoryConflict()
+
+func testEvalFixture() {
+    let jsonl = """
+    {"goal":"解释 Swift 的 actor","answer":"actor 是引用类型…","title":"并发"}
+    {"goal":"解释 Swift 的 actor","answer":"重复目标应被去重","title":"重复"}
+    {"title":"没有 goal"}
+    坏行不是 JSON
+    {"goal":"   ","answer":"空目标跳过","title":"空"}
+    {"goal":"第二问","answer":"第二答","title":"会话二"}
+    """
+    let file = EvalFixture.convert(jsonl: jsonl, exportedAt: "2026-10-21T00:00:00Z")
+    check("评估集：坏行/无 goal/空目标跳过", file.fixtures.count == 2)
+    check("评估集：同 goal 去重", file.fixtures.first?.goal == "解释 Swift 的 actor")
+    check("评估集：count 与条目一致", file.count == file.fixtures.count)
+    check("评估集：warning 固定", file.warning == EvalFixture.warning)
+
+    guard let data = EvalFixture.encode(file), let back = EvalFixture.parse(data) else {
+        check("评估集：编码 round-trip", false)
+        return
+    }
+    check("评估集：编码 round-trip", back == file)
+
+    // 上限与截断
+    let many = (0..<60).map { "{\"goal\":\"q\($0)\",\"answer\":\"a\"}" }.joined(separator: "\n")
+    check("评估集：条目上限 50", EvalFixture.convert(jsonl: many, exportedAt: "x").count == 50)
+    let long = "{\"goal\":\"\(String(repeating: "g", count: 600))\",\"answer\":\"\(String(repeating: "a", count: 2500))\"}"
+    let clipped = EvalFixture.convert(jsonl: long, exportedAt: "x").fixtures.first
+    check("评估集：goal 截 500 / answer 截 2000",
+          clipped?.goal.count == 500 && clipped?.answer.count == 2000)
+}
+testEvalFixture()
 
 func testTurnReview() {
     let turn: [String: Any] = [
@@ -3805,6 +3852,24 @@ func testTurnReview() {
     // 规则文本带工具名（模板渲染）
     let text = TurnReview.ruleText(for: drafts[0])
     check("复盘：规则文本含工具名", text.contains("click"))
+
+    // v0.7.27：耗时分布（按工具聚合、份额合计 1）
+    let slices = TurnReview.timeDistribution(from: facts)
+    check("复盘：耗时分布按工具聚合", slices.first?.tool == "waitForText")
+    check("复盘：耗时份额合计为 1",
+          abs(slices.reduce(0.0) { $0 + $1.share } - 1.0) < 0.0001)
+    // v0.7.27：同参数失败重试计数
+    let retryFacts = [
+        TurnReview.StepFact(action: "click", denied: false, threwError: true, durationMs: nil, args: "#a"),
+        TurnReview.StepFact(action: "click", denied: false, threwError: false, durationMs: nil, args: "#a"),
+        TurnReview.StepFact(action: "click", denied: false, threwError: false, durationMs: nil, args: "#a"),
+        TurnReview.StepFact(action: "click", denied: false, threwError: true, durationMs: nil, args: "#b"),
+    ]
+    check("复盘：同参数失败重试计数", TurnReview.retryCount(from: retryFacts) == 2)
+    check("复盘：不同参数不算重试", TurnReview.retryCount(from: [
+        TurnReview.StepFact(action: "click", denied: false, threwError: true, durationMs: nil, args: "#a"),
+        TurnReview.StepFact(action: "click", denied: false, threwError: true, durationMs: nil, args: "#b"),
+    ]) == 0)
 }
 testTurnReview()
 

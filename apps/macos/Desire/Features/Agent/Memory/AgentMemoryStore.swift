@@ -210,6 +210,26 @@ final class AgentMemoryStore: ObservableObject {
         savePendingConflicts()
     }
 
+    /// 批量决议（v0.7.27）：keepNew = 保留新入库的、删相关旧条；keepOld = 删新入库的。
+    /// 队列一次清空、一次落盘；返回处理的条数。
+    @discardableResult
+    func resolveAllPending(keepingNew: Bool) -> Int {
+        let entries = pendingConflicts
+        guard !entries.isEmpty else { return 0 }
+        for entry in entries {
+            guard archive.facts.contains(where: { $0.id == entry.factID }) else { continue }
+            if keepingNew {
+                removeFacts(ids: entry.relatedIDs)
+            } else {
+                removeFacts(ids: [entry.factID])
+            }
+        }
+        pendingConflicts.removeAll()
+        savePendingConflicts()
+        save()
+        return entries.count
+    }
+
     /// 清理队列里"引用已不存在"的悬空项（事实被删/被去重拒收后）。
     func prunePendingConflicts() {
         let factIDs = Set(archive.facts.map(\.id))
@@ -422,7 +442,10 @@ final class AgentMemoryStore: ObservableObject {
         // 注入量 = pinned 恒定 + 相关性 top-K（全量注入曾到 200 条，
         // 爆上下文且稀释注意力）。
         let loweredHost = (currentHost ?? "").lowercased()
-        let scoped = archive.facts
+        // 待复核冲突的新事实**不注入**（v0.7.27）：自动抽取先入库、用户还没确认
+        // 哪条对——在那之前当成"不确定"处理，避免把矛盾内容带进系统提示。
+        let pendingIDs = Set(pendingConflicts.map(\.factID))
+        let scoped = MemoryModels.injectableFacts(archive.facts, pendingIDs: pendingIDs)
             .filter { fact in
                 let scope = fact.scope.lowercased()
                 return scope.isEmpty || scope == "global"

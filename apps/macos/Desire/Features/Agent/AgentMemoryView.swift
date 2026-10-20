@@ -187,6 +187,18 @@ struct AgentMemoryView: View {
                     .font(.system(size: 11.5))
                     .buttonStyle(.plain)
                     .foregroundStyle(appAccent)
+                    Button(String(localized: "Keep all new")) {
+                        memory.resolveAllPending(keepingNew: true)
+                    }
+                    .font(.system(size: 11))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(appAccent)
+                    Button(String(localized: "Keep all old")) {
+                        memory.resolveAllPending(keepingNew: false)
+                    }
+                    .font(.system(size: 11))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
                 }
                 .padding(8)
                 .background(RoundedRectangle(cornerRadius: 6).fill(appAccent.opacity(0.08)))

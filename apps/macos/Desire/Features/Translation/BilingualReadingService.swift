@@ -170,7 +170,11 @@ final class BilingualReadingService: ObservableObject {
         split paragraphs. Keep numbers, code and proper nouns intact. (DESIRE_BILINGUAL_TRANSLATE)
         """
         let output = await MemoryExtractor.collectText(
-            preference: preference, system: system, user: numbered)
+            preference: preference, system: system, user: numbered,
+            onUsage: { p, c, m in
+                AgentSessionStore.recordBypassUsage(kind: "bilingual", prompt: p,
+                                                    completion: c, model: m)
+            })
         return BilingualParsing.parseTranslations(output, expected: batch.count)
     }
 

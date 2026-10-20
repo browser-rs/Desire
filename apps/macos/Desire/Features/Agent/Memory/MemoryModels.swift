@@ -52,6 +52,12 @@ enum MemoryModels {
         return String(lowered.unicodeScalars.filter { !skipped.contains($0) })
     }
 
+    /// 待复核冲突的新事实不进提示（v0.7.27）：用户确认前不参与注入。
+    nonisolated static func injectableFacts(_ facts: [MemoryFact],
+                                            pendingIDs: Set<UUID>) -> [MemoryFact] {
+        pendingIDs.isEmpty ? facts : facts.filter { !pendingIDs.contains($0.id) }
+    }
+
     /// 近似重复判定：字符 bigram 的 Jaccard 相似度 ≥ 0.8 视为重复。
     /// （注释曾写"近似重复"而实现只做精确匹配 —— 语义重复会堆积，
     /// 把 200 条上限挤满。没有端上 embedding，字符 bigram 是够用的下限。）

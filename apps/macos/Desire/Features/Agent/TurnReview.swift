@@ -10,6 +10,15 @@ nonisolated enum TurnReview {
         let denied: Bool
         let threwError: Bool
         let durationMs: Double?
+        /// 调用参数（v0.7.27 重试计数用；旧轨迹没有 → nil）。
+        var args: String? = nil
+    }
+
+    struct TimeSlice: Equatable {
+        let tool: String
+        let ms: Double
+        /// 占本回合已计时步骤总耗时的比例（0…1）。
+        let share: Double
     }
 
     struct RuleDraft: Equatable {
@@ -29,8 +38,41 @@ nonisolated enum TurnReview {
             return StepFact(action: action,
                             denied: step["denied"] as? Bool ?? false,
                             threwError: step["threwError"] as? Bool ?? false,
-                            durationMs: step["ms"] as? Double)
+                            durationMs: step["ms"] as? Double,
+                            args: step["args"] as? String)
         }
+    }
+
+    /// 按工具聚合的耗时分布（v0.7.27）：只统计有耗时的步骤，按总耗时降序；
+    /// 总耗时 ≤ 0 → 空（旧轨迹没有耗时，不硬凑）。UI 画比例条。
+    static func timeDistribution(from steps: [StepFact]) -> [TimeSlice] {
+        let timed = steps.compactMap { step -> (String, Double)? in
+            guard let ms = step.durationMs, ms > 0 else { return nil }
+            return (step.action, ms)
+        }
+        let total = timed.reduce(0.0) { $0 + $1.1 }
+        guard total > 0 else { return [] }
+        var totals: [String: Double] = [:]
+        for (tool, ms) in timed { totals[tool, default: 0] += ms }
+        return totals.map { TimeSlice(tool: $0.key, ms: $0.value, share: $0.value / total) }
+            .sorted { $0.ms > $1.ms }
+    }
+
+    /// 同参数失败重试次数（v0.7.27）：把 (工具, 参数) 完全相同的步骤归组，
+    /// **该组至少失败过一次**时，多出来的次数就是重试（3 次里 2 次是重试）。
+    /// 参数缺失的旧轨迹按"同工具"归组（更保守：仍能看出重复调用）。
+    static func retryCount(from steps: [StepFact]) -> Int {
+        var groups: [String: (count: Int, failed: Bool)] = [:]
+        for step in steps {
+            let key = step.action + "|" + (step.args ?? "")
+            var entry = groups[key] ?? (0, false)
+            entry.count += 1
+            entry.failed = entry.failed || step.denied || step.threwError
+            groups[key] = entry
+        }
+        return groups.values
+            .filter { $0.failed && $0.count >= 2 }
+            .reduce(0) { $0 + ($1.count - 1) }
     }
 
     /// 失败/慢模式 → 规则草稿：被拒 → 出错 → 慢（各按工具去重，封顶 3 条）。

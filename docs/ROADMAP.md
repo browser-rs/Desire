@@ -1178,3 +1178,13 @@ Trace/Stats/Memory 页面已在；差距在**内容浏览（白板）**、**未�
 与同一份价格表；任何一处未定价不给总额。
 
 **贯穿**：数字类改动三处同源校验；新旁路必须带模型与 token，否则不记账。
+
+> **实况（2026-10-21 开发中）**：六件全部落地——crew 运行观察面（逐 worker
+> token/模型/成本、终态保留、两处提前失败不结算与取消句柄修复）；收件箱批量重试
+> （失败任务 `fireNow` + 旧条目稍后隐藏）、单条 snooze/ignore、类型筛选 chips、
+> 桥 `/inbox/batch`；旁路记账收尾（heartbeat/readingList/bilingual/skillDistill/
+> shareCard/tabGroup，统一 `AgentSessionStore.recordBypassUsage`）；轨迹复盘卡
+> （耗时分布条、同参数失败重试计数、按模型/旁路成本拆分）；评估集闭环（JSONL →
+> 脱敏 fixture、列表/删除、桥三端点）；记忆冲突注入保护（待复核事实不进
+> `<user_memory>`、批量保留新/旧）。harness **1113/0**、Debug 构建绿；桥探针与
+> 发布待做。

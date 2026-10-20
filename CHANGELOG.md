@@ -1,3 +1,19 @@
+## [Unreleased]
+### Added
+
+- **crew 运行观察面收尾（v0.7.27 旗舰）**：逐 worker 记录模型与 token，面板/桥按 worker 展示 token 与金额（未定价只显 token，沿用 `AgentUsage` 口径）；终态 worker 不再从条子里消失（保留已用时/工具数/结果悬停）。顺带修两个真 bug：tab 消失与模型异常这两条提前失败路径此前**不调用 `settleIfDone`**，最后一个 worker 这样失败时 crew 永远不落定；`WorkerTask.task` 从未赋值（取消实际靠 state 标志），已移除死句柄并让取消立即发布终态。验收：harness（解析/汇总）、Debug 构建绿；逐 worker 金额待真端点 crew 探针。
+- **收件箱批处理补齐（v0.7.27）**：多选批量**重试失败任务**（`AgentScheduler.fireNow` 逐任务触发，旧失败条目自动稍后一小时隐藏）、任意条目右键「稍后 1 小时 / 忽略」、按类型筛选 chips（只隐藏 UI，不改数据）、桥 `POST /inbox/batch`（retry/ignore/snooze）。任务名从条目 id `run-<任务名>-<时间戳>` 解析（名字可含连字符），纯逻辑进 harness（5 项）。验收：harness **1100/0**；桥探针 **2/2**（`/inbox` 正常、`/inbox/batch` 对不存在的任务返回 skipped 且不产生副作用）。
+- **旁路成本入账收尾（v0.7.27）**：新增 `AgentSessionStore.recordBypassUsage`（记到最新活会话的尾助手消息），补齐此前完全不记账的六类旁路——**心跳巡检 / 阅读列表摘要 / 双语对照 / 技能提炼 / 网页分享卡 / 标签聚类**（`kind` 分别为 heartbeat/readingList/bilingual/skillDistill/shareCard/tabGroup）。没有活会话时静默丢弃（这些调用不属于任何对话成本）。至此除 failover（复用主回合用量）外，所有旁路模型调用都进入 `bypassUsage`，面板成本弹层/轨迹/统计自动可见。验收：Debug 构建绿；六类调用点均带 `onUsage`（逐类真端点回执待 crew/心跳探针）。
+- **轨迹复盘卡增强（v0.7.27）**：每回合展开新增**耗时分布条**（按工具聚合、占比前三分色标注）、**同参数失败重试计数**（`(工具, 参数)` 归组且至少失败一次 → 多出的次数；折叠摘要显示 `N retries`）、**按模型/旁路的成本拆分**（复用 `CostBreakdown`，主回合/子代理/旁路逐组 token 与金额）。纯逻辑 `TurnReview.timeDistribution/retryCount` 进 harness（4 项）。
+- **评估集闭环（v0.7.27）**：轨迹页的导出菜单可把一份 JSONL 导出**登记为 agent-eval fixture**（应用层 `SecretRedactor` 脱敏后写 `~/Documents/DesireAgent/eval/fixtures/fixtures-<时间>.json`，格式与 `tests/agent-eval.py --fixtures` 完全一致），并可在应用内列出/删除 fixture；桥新增 `POST /agent/eval-fixture/register`、`GET /agent/eval-fixtures`、`POST /agent/eval-fixture/delete`。纯逻辑 `EvalFixture.convert` 进 harness（8 项：坏行/空 goal/去重/上限/截断/round-trip）；**桥 4/4**（登记 2 条并去重、列表 1、删除、列表 0；fixture JSON 与 CLI 同构）。
+- **记忆冲突注入保护（v0.7.27）**：自动抽取的新事实若进入待复核队列，**在用户确认前不再注入 `<user_memory>`**（此前已入库并参与提示，矛盾内容会直接影响回复）；面板冲突横幅新增「Keep all new / Keep all old」批量决议（保留新 = 删相关旧条，保留旧 = 删新入库条），一次清队列一次落盘。纯逻辑 `MemoryModels.injectableFacts` 进 harness（2 项）。
+
+
+
+
+
+
+
 ## [v0.7.26] - 2026-10-21
 ### Added
 

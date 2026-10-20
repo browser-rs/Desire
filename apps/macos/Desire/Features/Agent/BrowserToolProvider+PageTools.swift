@@ -1255,7 +1255,11 @@ extension BrowserToolProvider {
             let clusterRaw = await MemoryExtractor.collectText(
                 preference: clusterSession.preference,
                 system: "把浏览器的标签页按主题聚类。只输出 JSON：{\"groups\":[{\"name\":\"组名(≤12字)\",\"indices\":[索引数组]}]}。每组 2-5 个标签、最多 6 组；不相关的标签可不入任何组；不要解释、不要代码围栏。",
-                user: listing)
+                user: listing,
+                onUsage: { p, c, m in
+                    clusterSession.attributeAssistantBypassUsage(
+                        kind: "tabGroup", prompt: p, completion: c, model: m)
+                })
             guard let clusterPlan = TabGroupCluster.parse(clusterRaw, tabCount: clusterTabs.count) else {
                 return Self.fail("Could not parse a grouping plan from the model output — try again")
             }

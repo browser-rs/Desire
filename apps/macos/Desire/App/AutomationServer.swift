@@ -444,9 +444,13 @@ final class AutomationServer {
         ep("POST", "/agent/eval-export", "Export 👍-rated turns as eval JSONL (AgentTrace-derived); path = target directory", params: ["path?:string"], example: "-d '{}'")
         ep("GET", "/agent/eval-exports", "Existing eval exports (newest first)", example: "…/agent/eval-exports")
         ep("POST", "/agent/eval-export/delete", "Delete one eval export (only eval-thumbsup-*.jsonl)", params: ["path:string"], example: #"-d '{"path":"/…"}'"#)
+        ep("POST", "/agent/eval-fixture/register", "Turn an eval JSONL export into an agent-eval --fixtures JSON (redacted)", params: ["path:string"], example: #"-d '{"path":"/…/eval-thumbsup-….jsonl"}'"#)
+        ep("GET", "/agent/eval-fixtures", "Existing eval fixtures (agent-eval --fixtures directory)", example: "…/agent/eval-fixtures")
+        ep("POST", "/agent/eval-fixture/delete", "Delete one eval fixture (only fixtures-*.json)", params: ["path:string"], example: #"-d '{"path":"/…"}'"#)
         ep("GET", "/crew", "Tab-crew observation: per-worker state/currentStep/elapsed/toolCalls + tokens", example: "…/crew")
         ep("POST", "/crew", "Crew control: action=clear (dismiss settled strip) | cancel (cancel running workers)", params: ["action"], example: #"-d '{"action":"clear"}'"#)
         ep("POST", "/inbox/dismiss", "Hide inbox items: action=ignore (permanent) | snooze (hours? or until epoch)", params: ["ids:[string]", "action", "hours?/until?"], example: #"-d '{"ids":["…"],"action":"snooze","hours":2}'"#)
+        ep("POST", "/inbox/batch", "Batch inbox actions: retry failed scheduled tasks | ignore | snooze", params: ["action: retry|ignore|snooze", "ids:[string]", "hours?/until?"], example: #"-d '{"action":"retry","ids":["run-daily-1800000000"]}'"#)
         ep("POST", "/inbox/restore", "Restore hidden inbox items (ids omitted = all)", params: ["ids?:[string]"], example: "-d '{}'")
         ep("GET", "/inbox", "Inbox: 等你处理 + 变化与结果（与 Agent 窗口收件箱页同源）", example: "…/inbox")
         ep("GET", "/session-archives", "Archived sessions of closed windows (newest first)", example: "…/session-archives")
@@ -1741,6 +1745,8 @@ final class AutomationServer {
                 return try Self.json(Self.workspacesList())
             case ("POST", "/inbox/dismiss"):
                 return try Self.json(Self.inboxDismiss(body: body))
+            case ("POST", "/inbox/batch"):
+                return try Self.json(Self.inboxBatch(body: body))
             case ("POST", "/inbox/restore"):
                 return try Self.json(Self.inboxRestore(ids: body["ids"] as? [String]))
             case ("POST", "/agent/eval-export"):
@@ -1749,6 +1755,12 @@ final class AutomationServer {
                 return try Self.json(Self.evalExportsList())
             case ("POST", "/agent/eval-export/delete"):
                 return try Self.json(Self.evalExportDelete(path: Self.string(body, "path") ?? ""))
+            case ("POST", "/agent/eval-fixture/register"):
+                return try Self.json(Self.evalFixtureRegister(path: Self.string(body, "path")))
+            case ("GET", "/agent/eval-fixtures"):
+                return try Self.json(Self.evalFixturesList())
+            case ("POST", "/agent/eval-fixture/delete"):
+                return try Self.json(Self.evalFixtureDelete(path: Self.string(body, "path") ?? ""))
             case ("GET", "/crew"):
                 return try Self.json(Self.crewState())
             case ("POST", "/crew"):
@@ -6829,6 +6841,38 @@ final class AutomationServer {
         return ["ok": true]
     }
 
+    /// 登记为 agent-eval fixtures（v0.7.27）：JSONL → 脱敏 JSON。
+    private static func evalFixtureRegister(path: String?) throws -> [String: Any] {
+        guard let path, !path.isEmpty else { return ["error": "missing path"] }
+        do {
+            let result = try EvalExporter.registerAsFixture(from: URL(fileURLWithPath: path))
+            return ["ok": true, "path": result.url.path, "count": result.count]
+        } catch {
+            return ["error": "register failed: \(error.localizedDescription)"]
+        }
+    }
+
+    /// 已有 fixtures（新→旧）。
+    private static func evalFixturesList() throws -> [String: Any] {
+        let fixtures = EvalExporter.listFixtures().map { entry in
+            ["name": entry.url.lastPathComponent,
+             "path": entry.url.path,
+             "count": entry.count,
+             "modified": entry.modified.timeIntervalSince1970] as [String: Any]
+        }
+        return ["ok": true, "fixtures": fixtures,
+                "directory": EvalExporter.fixturesDirectory.path]
+    }
+
+    private static func evalFixtureDelete(path: String) throws -> [String: Any] {
+        let url = URL(fileURLWithPath: path)
+        guard url.lastPathComponent.hasPrefix("fixtures-"), url.pathExtension == "json" else {
+            return ["error": "仅允许删除 fixtures-*.json"]
+        }
+        EvalExporter.deleteFixture(url)
+        return ["ok": true]
+    }
+
     /// Tab Crew 运行观察（面板条子的桥等价；进度字段见 AgentCrewStore.noteProgress）。
     private static func crewState() -> [String: Any] {
         let store = AgentCrewStore.shared
@@ -6889,6 +6933,38 @@ final class AutomationServer {
             return ["error": "action must be ignore | snooze"]
         }
         return ["ok": true, "hiddenCount": store.hiddenCount]
+    }
+
+    /// 收件箱批量动作（v0.7.27）：retry = 重跑失败任务（并把旧失败条目稍后
+    /// 一小时隐藏，避免重跑期间仍在列表里）；ignore / snooze 与 dismiss 同源。
+    private static func inboxBatch(body: [String: Any]) throws -> [String: Any] {
+        let ids = ((body["ids"] as? [Any]) ?? []).compactMap { $0 as? String }
+        guard !ids.isEmpty else { return ["error": "missing ids"] }
+        switch Self.string(body, "action") ?? "retry" {
+        case "ignore", "snooze":
+            return try inboxDismiss(body: body)
+        case "retry":
+            var retried: [String] = []
+            var skipped: [String] = []
+            var retryIDs: [String] = []
+            for id in ids {
+                guard let name = AgentInbox.taskName(fromItemID: id),
+                      AgentScheduler.shared.fireNow(named: name) else {
+                    skipped.append(id)
+                    continue
+                }
+                retried.append(name)
+                retryIDs.append(id)
+            }
+            if !retryIDs.isEmpty {
+                AgentInboxDismissalStore.shared.snooze(retryIDs,
+                                                       until: Date().addingTimeInterval(3600))
+            }
+            return ["ok": true, "retried": retried, "skipped": skipped,
+                    "hiddenCount": AgentInboxDismissalStore.shared.hiddenCount]
+        default:
+            return ["error": "action must be retry | ignore | snooze"]
+        }
     }
 
     /// 恢复隐藏条目（ids 缺省/null = 全部）。

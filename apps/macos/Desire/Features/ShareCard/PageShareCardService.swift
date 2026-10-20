@@ -79,7 +79,11 @@ enum PageShareCardService {
             let raw = await MemoryExtractor.collectText(
                 preference: sidePrefs,
                 system: "Summarize this web page in at most 2 sentences in the user's language. Plain text only.",
-                user: String(pageText.prefix(3000)))
+                user: String(pageText.prefix(3000)),
+                onUsage: { p, c, m in
+                    AgentSessionStore.recordBypassUsage(kind: "shareCard", prompt: p,
+                                                        completion: c, model: m)
+                })
             if let cleaned = PageShareCardLayout.cleanSummary(raw) {
                 summaryLines = PageShareCardLayout.wrap(cleaned)
             }

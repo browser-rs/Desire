@@ -21,25 +21,59 @@ struct AgentInboxView: View {
     var onOpenTasks: () -> Void = {}
 
     @State private var flushNote: String?
-    /// 批处理（v0.7.22）：选择模式 + 批量条。
+    @State private var retryNote: String?
+    /// 批处理（v0.7.22）：选择模式 + 批量条；v0.7.27 补批量重试与类型筛选。
     @ObservedObject private var dismissals = AgentInboxDismissalStore.shared
     @State private var isSelecting = false
     @State private var selectedIDs: Set<String> = []
+    /// 类型筛选（v0.7.27）：点击 chip 隐藏/显示一类条目（仅 UI 状态）。
+    @State private var hiddenKinds: Set<AgentInbox.Kind> = []
 
-    private var sections: [AgentInbox.Section] {
+    private var allSections: [AgentInbox.Section] {
         let store = AgentInboxDismissalStore.shared
         return AgentInbox.build(AgentInboxCollector.liveInputs(conversationStore: conversationStore),
                                 hidden: { store.isHidden($0) })
             .filter { !$0.items.isEmpty }
     }
 
+    private var sections: [AgentInbox.Section] {
+        allSections.compactMap { section in
+            let items = section.items.filter { !hiddenKinds.contains($0.kind) }
+            return items.isEmpty ? nil
+                : AgentInbox.Section(id: section.id, title: section.title, items: items)
+        }
+    }
+
+    private var presentKinds: [(kind: AgentInbox.Kind, count: Int)] {
+        let items = allSections.flatMap(\.items)
+        return AgentInbox.Kind.allCases.compactMap { kind in
+            let count = items.filter { $0.kind == kind }.count
+            return count > 0 ? (kind, count) : nil
+        }
+    }
+
     private var totalItems: Int { sections.reduce(0) { $0 + $1.items.count } }
+
+    /// 选中条目里可重跑的任务名（failedRun）。
+    private var selectedRunTaskNames: [String] {
+        allSections.flatMap(\.items)
+            .filter { selectedIDs.contains($0.id) }
+            .compactMap { AgentInbox.taskName(fromItemID: $0.id) }
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             header
+            if presentKinds.count > 1 || !hiddenKinds.isEmpty {
+                kindFilterBar
+                Divider().opacity(0.4)
+            }
             if sections.isEmpty {
-                emptyState
+                if allSections.isEmpty {
+                    emptyState
+                } else {
+                    filteredEmptyState
+                }
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
@@ -67,6 +101,14 @@ struct AgentInboxView: View {
             Text(String(localized: "Selected") + " \(selectedIDs.count)")
                 .font(.system(size: 11.5, weight: .medium))
             Spacer()
+            if !selectedRunTaskNames.isEmpty {
+                Button(String(localized: "Retry tasks")) {
+                    retrySelectedTasks()
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(appAccent)
+            }
             Button(String(localized: "Snooze 1 Hour")) {
                 dismissals.snooze(Array(selectedIDs), until: Date().addingTimeInterval(3600))
                 finishBatch()
@@ -99,6 +141,30 @@ struct AgentInboxView: View {
         isSelecting = false
     }
 
+    /// 批量重试失败任务（v0.7.27）：`fireNow` 逐任务触发；旧失败条目先稍后
+    /// 1 小时隐藏（否则重跑期间它仍躺在收件箱里，看起来像没生效）。
+    private func retrySelectedTasks() {
+        let names = Set(selectedRunTaskNames)
+        var retried = 0
+        for name in names where scheduler.fireNow(named: name) {
+            retried += 1
+        }
+        let runIDs = Array(selectedIDs.filter { AgentInbox.taskName(fromItemID: $0) != nil })
+        if !runIDs.isEmpty {
+            dismissals.snooze(runIDs, until: Date().addingTimeInterval(3600))
+        }
+        showRetryNote(String(localized: "Retried \(retried) task(s)"))
+        finishBatch()
+    }
+
+    private func showRetryNote(_ text: String) {
+        withAnimation(.transitionNormal) { retryNote = text }
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            withAnimation(.transitionNormal) { retryNote = nil }
+        }
+    }
+
     // MARK: - Header
 
     private var header: some View {
@@ -110,8 +176,8 @@ struct AgentInboxView: View {
             Text("Inbox")
                 .font(.system(size: 13, weight: .semibold))
             Spacer()
-            if let flushNote {
-                Text(flushNote)
+            if let note = retryNote ?? flushNote {
+                Text(note)
                     .font(.system(size: 10.5, weight: .medium))
                     .foregroundStyle(appAccent)
             } else if totalItems > 0 {
@@ -152,6 +218,65 @@ struct AgentInboxView: View {
     }
 
     // MARK: - Sections
+
+    /// 类型筛选（v0.7.27）：只在出现 ≥2 类时显示；点击切换该类的显隐。
+    private var kindFilterBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(presentKinds, id: \.kind) { entry in
+                    let active = !hiddenKinds.contains(entry.kind)
+                    Button {
+                        if active {
+                            hiddenKinds.insert(entry.kind)
+                        } else {
+                            hiddenKinds.remove(entry.kind)
+                        }
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: icon(for: entry.kind))
+                                .font(.system(size: 9))
+                            Text(kindLabel(entry.kind))
+                                .font(.system(size: 10, weight: .medium))
+                            Text("\(entry.count)")
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Capsule().fill(active ? appAccent.opacity(0.12) : Color.clear))
+                        .overlay(Capsule().stroke(active ? appAccent.opacity(0.35)
+                                                         : Color.secondary.opacity(0.25),
+                                                  lineWidth: 0.7))
+                        .foregroundStyle(active ? AnyShapeStyle(appAccent)
+                                                : AnyShapeStyle(.secondary))
+                    }
+                    .buttonStyle(.plain)
+                    .help(active ? "Hide this type" : "Show this type")
+                }
+                if !hiddenKinds.isEmpty {
+                    Button(String(localized: "Show all")) {
+                        hiddenKinds.removeAll()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+        }
+    }
+
+    private func kindLabel(_ kind: AgentInbox.Kind) -> String {
+        switch kind {
+        case .interrupted: return String(localized: "Interrupted")
+        case .unanswered: return String(localized: "Waiting")
+        case .interaction: return String(localized: "Interactions")
+        case .heldNotification: return String(localized: "Held")
+        case .watchChange: return String(localized: "Watches")
+        case .failedRun: return String(localized: "Failed runs")
+        }
+    }
 
     private func sectionView(_ section: AgentInbox.Section) -> some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -213,6 +338,23 @@ struct AgentInboxView: View {
                 selectedIDs.remove(item.id)
             } else {
                 selectedIDs.insert(item.id)
+            }
+        }
+        .contextMenu {
+            if item.kind == .failedRun, let name = AgentInbox.taskName(fromItemID: item.id) {
+                Button(String(localized: "Retry task")) {
+                    let ok = scheduler.fireNow(named: name)
+                    dismissals.snooze([item.id], until: Date().addingTimeInterval(3600))
+                    showRetryNote(ok
+                        ? String(localized: "Retried task “\(name)”")
+                        : String(localized: "Task “\(name)” is not available"))
+                }
+            }
+            Button(String(localized: "Snooze 1 Hour")) {
+                dismissals.snooze([item.id], until: Date().addingTimeInterval(3600))
+            }
+            Button(String(localized: "Ignore")) {
+                dismissals.ignore([item.id])
             }
         }
     }
@@ -292,6 +434,27 @@ struct AgentInboxView: View {
             Text("Nothing needs you — no page changes or task results either.")
                 .font(.system(size: 10.5))
                 .foregroundStyle(.tertiary)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// 有内容但被类型筛选全部隐藏。
+    private var filteredEmptyState: some View {
+        VStack(spacing: 8) {
+            Spacer()
+            Image(systemName: "line.3.horizontal.decrease.circle")
+                .font(.system(size: 22))
+                .foregroundStyle(.tertiary)
+            Text("No items match the filter")
+                .font(.system(size: 12.5, weight: .medium))
+                .foregroundStyle(.secondary)
+            Button(String(localized: "Show all")) {
+                hiddenKinds.removeAll()
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 11))
+            .foregroundStyle(appAccent)
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)

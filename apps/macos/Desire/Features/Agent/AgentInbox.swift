@@ -7,7 +7,7 @@ import Foundation
 /// 待回复会话），另外补：待处理互动、被扣下的通知。**构建逻辑是纯函数**
 /// （输入抽象成值类型，进 tests/run.sh）；真实收集在 `AgentInboxCollector`。
 nonisolated enum AgentInbox {
-    enum Kind: String {
+    enum Kind: String, CaseIterable {
         case interrupted
         case unanswered
         case interaction
@@ -190,5 +190,18 @@ nonisolated enum AgentInbox {
     /// 待办角标（侧栏）：只数"等你处理"，变化类不催。
     static func actionCount(_ sections: [Section]) -> Int {
         sections.first(where: { $0.id == "action" })?.items.count ?? 0
+    }
+
+    /// 从失败任务条目的 id 取回任务名（v0.7.27 批量重试）：id 形状是
+    /// `run-<任务名>-<时间戳>`；任务名本身可含连字符，所以只剥最后一个
+    /// **纯数字**段。不是 run 条目 / 缺时间戳 → nil。
+    static func taskName(fromItemID id: String) -> String? {
+        guard id.hasPrefix("run-") else { return nil }
+        let rest = id.dropFirst("run-".count)
+        guard let dash = rest.lastIndex(of: "-") else { return nil }
+        let suffix = rest[rest.index(after: dash)...]
+        guard !suffix.isEmpty, suffix.allSatisfy(\.isNumber) else { return nil }
+        let name = rest[..<dash]
+        return name.isEmpty ? nil : String(name)
     }
 }

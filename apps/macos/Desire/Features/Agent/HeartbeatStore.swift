@@ -114,7 +114,11 @@ final class HeartbeatStore: ObservableObject {
         let text = await MemoryExtractor.collectText(
             preference: prefs,
             system: HeartbeatDecision.systemPrompt(),
-            user: prompt)
+            user: prompt,
+            onUsage: { p, c, m in
+                AgentSessionStore.recordBypassUsage(kind: "heartbeat", prompt: p,
+                                                    completion: c, model: m)
+            })
         let outcome = HeartbeatDecision.parse(text)
         let decision: String
         let message: String

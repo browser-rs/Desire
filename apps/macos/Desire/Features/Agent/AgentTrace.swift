@@ -110,6 +110,19 @@ enum AgentTrace {
                 if let usd = usage.usd { turn["cost"] = (usd * 1_000_000).rounded() / 1_000_000 }
                 if usage.hasUnpriced { turn["costIncomplete"] = true }
             }
+            // 成本拆分（v0.7.27）：主回合/子代理/旁路逐组（复用 CostBreakdown，
+            // 与面板成本弹层同一口径）；最多 8 组，避免轨迹膨胀。
+            let breakdown = CostBreakdown.derive(Array(slice), price: price ?? { _ in nil })
+            if !breakdown.groups.isEmpty {
+                turn["costGroups"] = breakdown.groups.prefix(8).map { group -> [String: Any] in
+                    var row: [String: Any] = ["category": group.category,
+                                              "tokens": group.totalTokens]
+                    if let kind = group.kind { row["kind"] = kind }
+                    if let model = group.model { row["model"] = model }
+                    if let usd = group.usd { row["usd"] = (usd * 1_000_000).rounded() / 1_000_000 }
+                    return row
+                }
+            }
             // 这一回合实际用的模型（一轮里换过就记最后一个——它给出了最终回答）。
             if let model = slice.last(where: { $0.role == .assistant })?.model, !model.isEmpty {
                 turn["model"] = model

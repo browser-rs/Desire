@@ -81,12 +81,36 @@ struct AgentTraceView: View {
             .tint(.secondary)
             Menu {
                 Button(String(localized: "Export 👍 turns as eval set")) { exportEvalSet() }
-                let existing = EvalExporter.listExports().prefix(5)
+                let existing = Array(EvalExporter.listExports().prefix(5))
                 if !existing.isEmpty {
                     Divider()
-                    ForEach(Array(existing.enumerated()), id: \.offset) { _, entry in
-                        Button(entry.url.lastPathComponent) {
-                            NSWorkspace.shared.activateFileViewerSelecting([entry.url])
+                    ForEach(existing, id: \.url) { entry in
+                        Menu(entry.url.lastPathComponent) {
+                            Button(String(localized: "Reveal in Finder")) {
+                                NSWorkspace.shared.activateFileViewerSelecting([entry.url])
+                            }
+                            Button(String(localized: "Register as eval fixture")) {
+                                if let result = try? EvalExporter.registerAsFixture(from: entry.url) {
+                                    NSWorkspace.shared.activateFileViewerSelecting([result.url])
+                                }
+                            }
+                            Button(String(localized: "Delete"), role: .destructive) {
+                                EvalExporter.delete(entry.url)
+                            }
+                        }
+                    }
+                }
+                let fixtures = Array(EvalExporter.listFixtures().prefix(5))
+                if !fixtures.isEmpty {
+                    Divider()
+                    ForEach(fixtures, id: \.url) { entry in
+                        Menu("fixture: \(entry.url.lastPathComponent) · \(entry.count)") {
+                            Button(String(localized: "Reveal in Finder")) {
+                                NSWorkspace.shared.activateFileViewerSelecting([entry.url])
+                            }
+                            Button(String(localized: "Delete"), role: .destructive) {
+                                EvalExporter.deleteFixture(entry.url)
+                            }
                         }
                     }
                 }
@@ -298,6 +322,7 @@ struct AgentTraceView: View {
 
 /// 一个回合：折叠状态只显示目标与摘要，展开后是完整的 Step 列表。
 private struct TurnTraceCard: View {
+    @Environment(\.appAccent) private var appAccent: Color
     let turn: [String: Any]
     /// 复盘卡（v0.7.22）：把本回合的失败/慢模式写成输出规则草稿（宿主弹 sheet）。
     var onDraftRules: (([TurnReview.RuleDraft]) -> Void)? = nil
@@ -318,6 +343,8 @@ private struct TurnTraceCard: View {
             }
         }
         if let vote = turn["feedback"] as? String { parts.append(vote == "up" ? "👍" : "👎") }
+        let retries = TurnReview.retryCount(from: TurnReview.stepFacts(fromTurn: turn))
+        if retries > 0 { parts.append(String(format: String(localized: "%lld retries"), retries)) }
         if let note = turn["verificationNote"] as? String, !note.isEmpty { parts.append("⚠") }
         return parts.joined(separator: " · ")
     }
@@ -353,6 +380,8 @@ private struct TurnTraceCard: View {
                     ForEach(Array(steps.enumerated()), id: \.offset) { _, step in
                         stepRow(step)
                     }
+                    timeDistributionView
+                    costSplitView
                     if let answer = turn["answer"] as? String, !answer.isEmpty {
                         labelled("Answer", answer)
                     }
@@ -383,6 +412,59 @@ private struct TurnTraceCard: View {
         }
         .padding(8)
         .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(Color.secondary.opacity(0.06)))
+    }
+
+    /// 耗时分布条（v0.7.27）：按工具聚合的比例条 + 前三名文字。
+    @ViewBuilder
+    private var timeDistributionView: some View {
+        let slices = TurnReview.timeDistribution(from: TurnReview.stepFacts(fromTurn: turn))
+        if !slices.isEmpty {
+            VStack(alignment: .leading, spacing: 3) {
+                Text("Time")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                GeometryReader { geo in
+                    HStack(spacing: 1) {
+                        ForEach(Array(slices.enumerated()), id: \.offset) { index, slice in
+                            RoundedRectangle(cornerRadius: 1.5)
+                                .fill(sliceColor(index))
+                                .frame(width: max(2, geo.size.width * slice.share))
+                        }
+                    }
+                }
+                .frame(height: 6)
+                Text(slices.prefix(3).map {
+                    "\($0.tool) \(Int(($0.share * 100).rounded()))%"
+                }.joined(separator: " · "))
+                .font(.system(size: 9))
+                .foregroundStyle(.tertiary)
+                .lineLimit(1)
+            }
+            .padding(.top, 1)
+        }
+    }
+
+    private func sliceColor(_ index: Int) -> Color {
+        let colors: [Color] = [appAccent, .orange, .teal, .purple, .secondary]
+        return colors[index % colors.count]
+    }
+
+    /// 成本拆分（v0.7.27）：主回合 / 子代理 / 旁路逐组（未定价的组不显示 $）。
+    @ViewBuilder
+    private var costSplitView: some View {
+        if let groups = turn["costGroups"] as? [[String: Any]], !groups.isEmpty {
+            let text = groups.map { group -> String in
+                let category = group["category"] as? String ?? "?"
+                let kind = group["kind"] as? String
+                let label = kind.map { "\(category)/\($0)" } ?? category
+                var part = "\(label) \(AgentUsage.formatTokens(group["tokens"] as? Int ?? 0))"
+                if let usd = group["usd"] as? Double {
+                    part += " " + AgentUsage.formatUSD(usd)
+                }
+                return part
+            }.joined(separator: " · ")
+            labelled("Cost split", text)
+        }
     }
 
     private func stepRow(_ step: [String: Any]) -> some View {

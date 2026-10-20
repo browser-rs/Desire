@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import MetricKit
+import OSLog
 import os
 
 /// Receives MetricKit payloads and files them under
@@ -48,6 +49,10 @@ final class MetricsManager: NSObject, MXMetricManagerSubscriber {
     func exportDiagnosticsArchive() -> URL? {
         let fm = FileManager.default
         let directory = DiagnosticsStore.directory
+        // v0.7.28：导出前把"活体"证据也写进同一个包——最近 30 分钟的 OSLog
+        //（只有当前进程，不含系统其它应用）与内容进程崩溃计数。
+        writeSystemLog(into: directory)
+        writeCrashSummary(into: directory)
         guard let entries = try? fm.contentsOfDirectory(atPath: directory.path),
               !entries.isEmpty else { return nil }
         let formatter = DateFormatter()
@@ -66,6 +71,47 @@ final class MetricsManager: NSObject, MXMetricManagerSubscriber {
             return nil
         }
         return process.terminationStatus == 0 ? destination : nil
+    }
+
+    /// 最近 30 分钟的进程内 OSLog（`currentProcessIdentifier` 不需要额外
+    /// entitlement，且只含本进程）。失败静默——诊断包其余部分照常导出。
+    private func writeSystemLog(into directory: URL) {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        formatter.timeZone = .current
+        let stamp = formatter.string(from: Date())
+        do {
+            let store = try OSLogStore(scope: .currentProcessIdentifier)
+            let entries = try store.getEntries(at: Date().addingTimeInterval(-30 * 60))
+            var lines: [String] = []
+            for entry in entries {
+                lines.append("\(entry.date.ISO8601Format()) \(entry.composedMessage)")
+            }
+            let url = directory.appendingPathComponent("oslog-\(stamp).log")
+            try lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
+            pruneSystemLogs(in: directory, keep: 3)
+        } catch {
+            Log.app.error("oslog export failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    private func pruneSystemLogs(in directory: URL, keep: Int) {
+        let fm = FileManager.default
+        guard let entries = try? fm.contentsOfDirectory(at: directory,
+                                                        includingPropertiesForKeys: nil) else { return }
+        let logs = entries.filter { $0.lastPathComponent.hasPrefix("oslog-") }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        guard logs.count > keep else { return }
+        for stale in logs.prefix(logs.count - keep) { try? fm.removeItem(at: stale) }
+    }
+
+    /// 崩溃计数也进同一個诊断包（与设置行/桥同源）。
+    private func writeCrashSummary(into directory: URL) {
+        let summary = BrowserDiagnostics.shared.summary()
+        guard let data = try? JSONSerialization.data(withJSONObject: summary,
+                                                     options: [.prettyPrinted, .sortedKeys]) else { return }
+        try? data.write(to: directory.appendingPathComponent("browser-crashes.json"),
+                        options: .atomic)
     }
 
     /// Daily/weekly performance metrics: launch times, hang rate, memory,

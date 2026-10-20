@@ -416,6 +416,7 @@ final class AutomationServer {
         ep("POST", "/history/remove", "Remove one history entry by id (test hygiene)", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
         ep("GET", "/diag/browser", "Browser diagnostics: content-process crash count + recent crashes", example: "…/diag/browser")
+        ep("POST", "/diag/export", "Export a diagnostics zip (MetricKit + crash counters + last 30 min OSLog)", example: "-d '{}'")
         ep("POST", "/backup/export", "Write a full backup JSON (settings/bookmarks/history/reading list/quick dials/Agent memory; no keys)", params: ["path:string (file or directory)"], example: #"-d '{"path":"/tmp/desire-backup.json"}'"#)
         ep("POST", "/backup/import", "Restore a backup: mode=merge (add missing) | replace (overwrite); optional domains filter", params: ["path:string", "mode?:merge|replace", "domains?:[settings|bookmarks|history|readingList|quickDials|agentMemory]"], example: #"-d '{"path":"/tmp/desire-backup.json","mode":"merge","domains":["bookmarks"]}'"#)
         ep("POST", "/backup/preview", "Preview a backup file: version/date/domain counts (no changes)", params: ["path:string"], example: #"-d '{"path":"/tmp/desire-backup.json"}'"#)
@@ -837,6 +838,8 @@ final class AutomationServer {
                 return try Self.json(Self.geometry(index: Self.index(query)))
             case ("GET", "/diag/browser"):
                 return try Self.json(BrowserDiagnostics.shared.summary())
+            case ("POST", "/diag/export"):
+                return try Self.json(Self.diagExport())
             case ("POST", "/backup/export"):
                 return try Self.json(Self.backupExport(body: body))
             case ("POST", "/backup/import"):
@@ -6924,8 +6927,15 @@ final class AutomationServer {
         }
     }
 
-    private static func backupPreview(body: [String: Any]) throws -> [String: Any] {
-        guard let path = Self.string(body, "path"), !path.isEmpty else {
+    /// 诊断包（v0.7.28）：MetricKit 报告 + 崩溃计数 + 最近 30 分钟 OSLog。
+    private static func diagExport() throws -> [String: Any] {
+        guard let url = MetricsManager.shared.exportDiagnosticsArchive() else {
+            return ["error": "diagnostics export failed"]
+        }
+        return ["ok": true, "path": url.path]
+    }
+
+    private static func backupPreview(body: [String: Any]) throws -> [String: Any] {        guard let path = Self.string(body, "path"), !path.isEmpty else {
             return ["error": "missing path"]
         }
         do {

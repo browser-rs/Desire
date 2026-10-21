@@ -155,6 +155,8 @@ enum BrowserCommand {
     case newWindow, newTab, newIncognitoTab, closeTab, previousTab, nextTab
     case reopenClosedTab, selectTab(Int)
     case showHistory, showBookmarks, showSettings, showDownloads, showWorkspaces
+    /// v0.7.29：⌘K 直达设置分区（rawValue 来自 SettingsView.Section）。
+    case showSettingsSection(String)
     /// v0.7.29：网页工作流面板（录制/回放）。
     case showWorkflows
     case searchEverywhere

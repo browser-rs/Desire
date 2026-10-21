@@ -194,6 +194,12 @@ struct CommandDispatcher {
         case .showSettings:
             openSettings()
 
+        case .showSettingsSection(let raw):
+            if let section = SettingsView.Section(rawValue: raw) {
+                SettingsView.SettingsSectionNavigator.shared.selected = section
+            }
+            openSettings()
+
         case .toggleWhiteboard:
             toggleWhiteboard()
 

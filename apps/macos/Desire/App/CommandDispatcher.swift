@@ -50,7 +50,6 @@ struct CommandDispatcher {
         var showTabSwitcher: Binding<Bool>
         var showSidebar: Binding<Bool>
         var isFindBarVisible: Binding<Bool>
-        var showDownloads: Binding<Bool>
         var showWorkspaces: Binding<Bool>
         var showSearchEverywhere: Binding<Bool>
         var showReadingList: Binding<Bool>
@@ -233,7 +232,7 @@ struct CommandDispatcher {
             if let tab = tabManager.selectedTab { tab.browser.webView.reloadFromOrigin() }
 
         case .showDownloads:
-            bindings.showDownloads.wrappedValue = true
+            DownloadsPresentation.shared.isPresented = true
 
         case .showWorkspaces:
             bindings.showWorkspaces.wrappedValue = true

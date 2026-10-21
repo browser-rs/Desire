@@ -164,10 +164,6 @@ struct ContentView: View {
                 showTabSwitcher: $showTabSwitcher,
                 showSidebar: $showSidebar,
                 isFindBarVisible: $isFindBarVisible,
-                showDownloads: Binding(
-                    get: { appState.showDownloadsPanel },
-                    set: { appState.showDownloadsPanel = $0 }
-                ),
                 showWorkspaces: Binding(
                     get: { appState.showWorkspacesPanel },
                     set: { appState.showWorkspacesPanel = $0 }

@@ -3991,9 +3991,9 @@ final class AutomationServer {
             ]
         }
         guard name == "downloads" else { return ["error": "unknown panel"] }
-        guard let app = AppState.live else { return ["error": "app state not ready"] }
-        let visible = show ?? !app.showDownloadsPanel
-        app.showDownloadsPanel = visible
+        // v0.7.30：下载面板状态独立于 AppState（避免整个窗口重绘导致弹出卡顿）。
+        let visible = show ?? !DownloadsPresentation.shared.isPresented
+        DownloadsPresentation.shared.isPresented = visible
         return ["ok": true, "visible": visible]
     }
 

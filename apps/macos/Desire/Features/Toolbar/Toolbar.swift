@@ -119,9 +119,9 @@ struct Toolbar: View {
         let onSelectCustom: (UUID) -> Void
     }
 
-    /// Downloads-popover visibility. Owned by `AppState` (not local state)
-    /// so the automation bridge can open the panel for screenshots.
-    @Binding var showDownloads: Bool
+    /// 下载 popover 的展示状态由独立单例持有（v0.7.30）：不再挂在
+    /// AppState 的 @Published 上，避免开关面板让整个 ContentView/WebView 重绘。
+    @ObservedObject private var downloadsPresentation = DownloadsPresentation.shared
     @Binding var showWorkspaces: Bool
     @State private var showPasswords = false
     @State private var showMoreMenu = false
@@ -736,7 +736,7 @@ struct Toolbar: View {
             .foregroundStyle(isDevModeEnabled ? appAccent : .primary)
             .help("Developer Tools")
 
-            DownloadButton(store: downloadStore, showDownloads: $showDownloads)
+            DownloadButton(store: downloadStore, showDownloads: $downloadsPresentation.isPresented)
 
             Button {
                 showMoreMenu = true
@@ -817,7 +817,9 @@ struct Toolbar: View {
                 moreMenuItem("Bookmarks", "bookmark") { showBookmarks = true }
                 moreMenuItem("Search History", "magnifyingglass") { showSearchHistory = true }
                 moreMenuItem("Passwords", "key.fill") { showPasswords = true }
-                moreMenuItem("Downloads", "arrow.down.circle") { showDownloads = true }
+                moreMenuItem("Downloads", "arrow.down.circle") {
+                    downloadsPresentation.isPresented = true
+                }
             }
             moreMenuSection("Collections") {
                 moreMenuItem("Workspaces", "square.stack.3d.up") { showWorkspaces = true }

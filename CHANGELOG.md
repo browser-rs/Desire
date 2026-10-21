@@ -2,6 +2,8 @@
 ### Fixed
 
 - **钥匙串连环授权弹窗修复（v0.7.30）**：一个模型回合里正文/标题/记忆/自评/guard 会各自读一次 API Key（5–6 次），每次 `SecItemCopyMatching` 在 ACL 认不出 adhoc 构建时都会弹钥匙串授权。现在 `AgentPreferenceStore` 做**进程内 Key 缓存**（读取命中即复用；写入/删除同步更新；用户点"拒绝"后本进程不再重试），`refreshKeyState` 逐档案只做非交互读、**交互读仅限当前活动档案**（此前保存/切档案会把所有档案各弹一次）。验收：构建零警告；同一构建内一次授权后可覆盖整回合的 5–6 次调用。已知边界：ad-hoc 重建/升级后首个调用仍可能询问一次（ACL 认签名），点"始终允许"可持久。
+- **下载面板弹出卡顿（v0.7.30）**：popover 的显隐此前绑在 `AppState.showDownloadsPanel`（@Published）上——每次打开/关闭都会让整个 ContentView（含 WKWebView representable）重绘，用户实测"下载窗口弹出卡顿"。现在改用独立的 `DownloadsPresentation` 单例（桥 `/panel` 与 `.showDownloads` 命令同源，只有工具栏观察它）；下载面板也不再观察批量媒体/媒体导出 store（进入"视频任务"后才由子视图观察），并去掉重复的文件存在性扫描。验收：构建零警告；桥 `/panel show:true` 能正常弹出（截图核对）。
+
 
 
 ## [v0.7.29] - 2026-10-21

@@ -19,13 +19,10 @@ struct DownloadPanel: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: DownloadStore
-    // 第十一批：批量视频任务观察入口（用户："批量任务没有观察入口"）。
-    @ObservedObject var batchStore = BatchMediaExportStore.shared
     /// 批量下载默认参数面板（齿轮）+ 首次进入视频任务栏的引导。
     @State private var showBatchSettings = false
     @AppStorage("batch.onboardingDone") private var batchOnboardingDone = false
     @State private var showBatchOnboarding = false
-    @ObservedObject var mediaStore = MediaExportStore.shared
     /// 预览 sheet 的文件（v0.7.19）。
     @State private var previewURL: URL?
 
@@ -53,17 +50,12 @@ struct DownloadPanel: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            // 面板打开即后台扫描下载文件存在性（渲染只读缓存，防主线程 stat 卡顿）。
-            .task {
-            let t0 = Date()
-            store.scanFilePresence()
-            let ms = Int(-t0.timeIntervalSinceNow * 1000)
-            Log.app.info("DL panel: onAppear scan done in \(ms)ms, rows=\(store.downloads.count)")
-        }
             // 视图切换即头部本身：Tab 组并入标题行（方案 B），不再单独占一行
             Divider()
             if showBatchTasks {
-                BatchMediaPanel(store: batchStore, mediaStore: mediaStore)
+                // 媒体/批量进度只在进入"视频任务"后由子视图观察——
+                // 否则后台批量任务的每次进度发布会重绘下载列表（v0.7.30）。
+                BatchMediaPanel(store: .shared, mediaStore: .shared)
             } else {
                 if !store.downloads.isEmpty {
                     filterBar

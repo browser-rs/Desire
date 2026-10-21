@@ -34,7 +34,6 @@ class AppState: ObservableObject {
     /// Whether the downloads popover is open. Lives here (not in Toolbar
     /// local state) so the automation bridge can open the panel to
     /// screenshot SwiftUI chrome that the webview-only /screenshot misses.
-    @Published var showDownloadsPanel = false
     /// 工作区面板（0.7.13）：命名标签组保存/恢复。
     @Published var showWorkspacesPanel = false
     /// 集中搜索面板（0.7.14）：⌘⇧F 四源同搜。

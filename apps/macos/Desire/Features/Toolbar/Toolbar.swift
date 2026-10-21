@@ -748,8 +748,13 @@ struct Toolbar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .popover(isPresented: $showMoreMenu) {
-                moreMenuContent
+            .popover(isPresented: $showMoreMenu, arrowEdge: .top) {
+                // 30+ 项的溢出菜单（v0.7.29 用户反馈）：固定 VStack 在 14 寸屏上
+                // 会超出屏幕。按可见高度封顶并让内容滚动；高屏一屏放下，矮屏可滚。
+                ScrollView(.vertical, showsIndicators: true) {
+                    moreMenuContent
+                }
+                .frame(width: 280, height: moreMenuHeight)
             }
 
             if !profiles.isEmpty {
@@ -794,6 +799,12 @@ struct Toolbar: View {
     }
 
     // MARK: - More Menu
+
+    /// 溢出菜单最大高度：可见高度的 ~2/3（14 寸屏约 540pt），至少 320pt。
+    private var moreMenuHeight: CGFloat {
+        let visible = NSScreen.main?.visibleFrame.height ?? 800
+        return min(560, max(320, visible * 0.68))
+    }
 
     private var moreMenuContent: some View {
         VStack(spacing: 0) {

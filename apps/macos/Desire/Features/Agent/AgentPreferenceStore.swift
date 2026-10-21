@@ -576,15 +576,19 @@ class AgentPreferenceStore: ObservableObject {
         // thread"，也是首窗超 400ms 预算的元凶之一。后台读完回主线程发布
         // （hasAPIKey/hasKeyByProfile 都是 @Published，首帧几十 ms 的
         // "未配置 Key" 窗口由 UI 自刷新补上）。
+        // **只查属性、不取 data**（2026-10-22）：ACL 保护的是 data，属性查询
+        // 不弹钥匙串授权。此前这里对每个档案 readString 一遍，6 个档案 = 7 次
+        // 授权弹窗（用户实测"每个 key 弹一次"）。真正要 Key 的时候
+        //（loadAPIKey，Agent 回合）才读一次。
         if !skipKeyStateRefresh {
             let snapshot = profiles.map { (id: $0.id, account: $0.keychainAccount) }
             let activeAccount = account(for: nil)
             Task.detached(priority: .userInitiated) { [weak self] in
-                let activeHas = activeAccount.flatMap {
-                    KeychainService.readString(account: $0, service: Self.keychainServiceName, interactive: false)
-                } != nil
-                let byProfilePairs = snapshot.map { (id: $0.id, has: KeychainService.readString(
-                        account: $0.account, service: Self.keychainServiceName, interactive: false) != nil) }
+                let activeHas = activeAccount.map {
+                    KeychainService.exists(account: $0, service: Self.keychainServiceName)
+                } ?? false
+                let byProfilePairs = snapshot.map { (id: $0.id, has: KeychainService.exists(
+                        account: $0.account, service: Self.keychainServiceName)) }
                 await MainActor.run { [weak self] in
                     guard let self else { return }
                     hasAPIKey = activeHas
@@ -637,19 +641,19 @@ class AgentPreferenceStore: ObservableObject {
         refreshKeyState()
     }
 
-    /// 刷新 `hasAPIKey`（当前档案是否有 Key）。Keychain 读是系统调用，不放在
-    /// 计算属性里每次渲染都读——只在切换/读写 Key 时更新一次。
-    /// `interactive: false` 用于启动路径：ACL 失配时失败成"无 Key"而不是卡死启动。
-    func refreshKeyState(interactive: Bool = true) {
-        hasAPIKey = loadAPIKey(interactive: interactive) != nil
-        // 逐档案刷新（档案数很小；非交互路径 ACL 失配时失败成"无 Key"——
-        // 与 hasAPIKey 同一取舍）。
-        // 逐档案只做**非交互**读；交互读仅限当前活动档案（避免设置页/保存后
-        // 为每个档案各弹一次钥匙串授权——5–6 个档案正好是用户看到的连续弹窗）。
+    /// 刷新 `hasAPIKey`（当前档案是否有 Key）。
+    ///
+    /// **只看属性、不取 data**（2026-10-22）：`kSecReturnData` 才会触发
+    /// Keychain 的 ACL 授权，属性查询不会。此前这里逐档案 `loadAPIKey`，
+    /// 6 个档案 = 7 个授权弹窗（用户实测"每条不同的 key 各弹一次"）。
+    /// 真正读取（Agent 回合/设置页显示 Key）仍走 `loadAPIKey`，进程内缓存。
+    func refreshKeyState() {
+        hasAPIKey = account(for: nil).map {
+            KeychainService.exists(account: $0, service: keychainService)
+        } ?? false
         for profile in profiles {
-            let perProfileInteractive = interactive && profile.id == activeProfileID
             hasKeyByProfile[profile.id] =
-                loadAPIKey(profileID: profile.id, interactive: perProfileInteractive) != nil
+                KeychainService.exists(account: profile.keychainAccount, service: keychainService)
         }
     }
 

@@ -63,7 +63,11 @@ class PasswordStore: ObservableObject {
     }
 
     init() {
-        loadAll()
+        // **只列元数据，不读密码**（2026-10-22）：读 data 会为每条条目弹一次
+        // 钥匙串授权；旧实现启动时 readAll 把 service 下 26 条（含 AI Key/
+        // 同步令牌/网站密码）全读一遍，用户看到"每条不同的 key 各弹一次"。
+        // 密码在显示/复制/填入/导出时按需读（一次一条）。
+        loadMetadata()
     }
 
     func save(domain: String, username: String, password: String) {
@@ -81,8 +85,55 @@ class PasswordStore: ObservableObject {
         addToKeychain(domain: entry.domain, username: entry.username, password: newPassword)
     }
 
-    func find(domain: String) -> [PasswordEntry] {
-        entries.filter { $0.domain == domain || $0.domain.hasSuffix("." + domain) || domain.hasSuffix("." + $0.domain) }
+    /// 某域名下的存档凭据。
+    /// `loadSecrets`：true 时对命中条目按需读取密码（一次一条；用于登录提交
+    /// / Agent fillLogin 这类用户动作）。**页面加载中的自动填充必须传 false**
+    /// ——读 data 会弹授权，不能因为打开一个登录页就打扰用户。
+    func find(domain: String, loadSecrets: Bool = true, interactive: Bool = true) -> [PasswordEntry] {
+        var matches = entries.filter {
+            $0.domain == domain || $0.domain.hasSuffix("." + domain) || domain.hasSuffix("." + $0.domain)
+        }
+        guard loadSecrets else { return matches }
+        for i in matches.indices where matches[i].password.isEmpty {
+            if let p = readPassword(domain: matches[i].domain,
+                                    username: matches[i].username,
+                                    interactive: interactive) {
+                matches[i].password = p
+                if let index = entries.firstIndex(where: { $0.id == matches[i].id }) {
+                    entries[index].password = p
+                }
+            }
+        }
+        return matches
+    }
+
+    /// 单条密码的按需读取（面板显示/复制用）。读到的值回填内存，之后不再读。
+    func password(for entry: PasswordEntry, interactive: Bool = true) -> String? {
+        if !entry.password.isEmpty { return entry.password }
+        guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return nil }
+        if !entries[index].password.isEmpty { return entries[index].password }
+        guard let p = readPassword(domain: entries[index].domain,
+                                   username: entries[index].username,
+                                   interactive: interactive) else { return nil }
+        entries[index].password = p
+        return p
+    }
+
+    private func readPassword(domain: String, username: String, interactive: Bool) -> String? {
+        KeychainService.readString(account: username, service: serviceName,
+                                   server: domain, httpsOnly: true, interactive: interactive)
+    }
+
+    /// 显式动作（CSV 导出）前把所有密码读进内存——会逐条触发授权，**绝不能
+    /// 放在启动/自动路径**。
+    func loadAllSecrets() {
+        for index in entries.indices where entries[index].password.isEmpty {
+            if let p = readPassword(domain: entries[index].domain,
+                                    username: entries[index].username,
+                                    interactive: true) {
+                entries[index].password = p
+            }
+        }
     }
 
     func delete(_ entry: PasswordEntry) {
@@ -116,7 +167,9 @@ class PasswordStore: ObservableObject {
     }
 
     /// Exports all entries as CSV (Chrome-compatible column order).
+    /// 显式导出：先把密码按需读齐（会逐条触发授权，仅此路径允许）。
     func exportCSV() -> String {
+        loadAllSecrets()
         var out = "name,url,username,password\n"
         for entry in entries {
             out += Self.csvLine([entry.domain, "https://" + entry.domain, entry.username, entry.password])
@@ -241,12 +294,12 @@ class PasswordStore: ObservableObject {
         KeychainService.delete(account: username, service: nil, server: domain)
     }
 
-    private func loadAll() {
-        // init 在启动路径上跑 → 非交互枚举（ACL 失配失败成空面板，
-        // 用户重存/授权一次即恢复——2026-09-24 隐窗授权教训）。
-        entries = KeychainService.readAll(service: serviceName).map {
+    private func loadMetadata() {
+        // 属性枚举：拿到域名/用户名用于列表，**不取密码**（无授权弹窗）。
+        // httpsOnly 排除同一 service 下的 AI Key / 同步令牌条目。
+        entries = KeychainService.listAttributes(service: serviceName, httpsOnly: true).map {
             PasswordEntry(id: UUID(), domain: $0.server, username: $0.account,
-                          password: String(data: $0.data, encoding: .utf8) ?? "", createdAt: Date())
+                          password: "", createdAt: Date())
         }
     }
 }

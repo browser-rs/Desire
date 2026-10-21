@@ -1390,12 +1390,16 @@ try {
             } else if message.name == "passwordDetect", let dict = message.body as? [String: String],
                        let usernameName = dict["username"],
                        let host = parent.state.webView.url?.host {
-                let entries = parent.passwordStore.find(domain: host)
-                guard !entries.isEmpty else { return }
+                // **页面加载不读 Keychain**：读密码会为这条凭据弹一次授权，
+                // 不能因为打开一个登录页就打扰用户。只使用本次进程里已经
+                // 读过的密码（面板显示/复制、Agent fillLogin 之后）；
+                // 否则不自动填，等用户显式操作。
+                let entries = parent.passwordStore.find(domain: host, loadSecrets: false)
+                guard let credential = entries.first, !credential.password.isEmpty else { return }
                 // 秘密进 JS 字符串字面量统一走 JSString.literal（旧两段式
                 // 转义漏 \n/\r/\u2028——密码含这些字符时整段注入即语法错）。
-                let username = JSString.literal(entries[0].username)
-                let password = JSString.literal(entries[0].password)
+                let username = JSString.literal(credential.username)
+                let password = JSString.literal(credential.password)
                 let nameLiteral = JSString.literal(usernameName)
                 let js = """
                 (function() {
@@ -1419,12 +1423,15 @@ try {
                     ?? parent.state.webView.url?.host
                 guard let host else { return }
                 if parent.passwordStore.isSuppressed(domain: host) { return }
-                let existing = parent.passwordStore.find(domain: host)
+                let existing = parent.passwordStore.find(domain: host, loadSecrets: false)
                 // Same username + same password = an ordinary re-login, not
                 // worth a prompt. Same username + a different password is a
                 // password change — offer to update instead of staying silent.
+                // **不在这里读 Keychain**：列表只有元数据，密码未加载时无法
+                // 比较；为一次普通登录弹钥匙串授权不值得。密码在面板显示/
+                // 复制或 Agent fillLogin 时会加载到内存，那时才做变更检测。
                 if let match = existing.first(where: { $0.username == username }) {
-                    guard match.password != password else { return }
+                    if match.password.isEmpty || match.password == password { return }
                     // Non-blocking: the ContentView notice bar renders the prompt
                     // (a sheet here stole focus mid-Agent-task; an earlier
                     // runModal froze the whole app on every login submit).

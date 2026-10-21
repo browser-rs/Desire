@@ -55,6 +55,10 @@ final class SyncStore: ObservableObject {
     @Published private(set) var enabledDomains: [SyncDomain: Bool] = [:]
     /// E2E 主密钥是否已在 Keychain。没有密钥时同步被阻止（无法加解密）。
     @Published private(set) var hasSyncKey = false
+    /// 旧安装的三条同步凭据尚未合并成 `sync-secrets-v1`。为 true 时**不自动
+    /// 启动同步**——读取三条旧条目会为每条弹一次钥匙串授权。设置页提供显式
+    /// "重新授权"按钮（读一次、写成单条目，之后每次升级最多只弹一次）。
+    @Published private(set) var needsSecretMigration = false
     /// 密钥指纹（16 位 hex），设置页展示用于跨设备核对。
     @Published private(set) var syncKeyFingerprint: String?
     /// 当前待用的注册验证码（nil = 未加载/已消费）
@@ -92,6 +96,9 @@ final class SyncStore: ObservableObject {
     private var pathMonitor = NWPathMonitor()
     private var wakeObserver: NSObjectProtocol?
     private var cancellables: Set<AnyCancellable> = []
+    /// 进程内同步凭据缓存（单条目）。读一次后不再碰 Keychain。
+    private var secretBundle: SyncSecretBundle?
+    private var secretBundleLoaded = false
 
     // 常量 nonisolated：默认参数值等非隔离上下文也要读（Swift 6 下是错误）。
     nonisolated static let changeDebounceSeconds: TimeInterval = 5
@@ -162,18 +169,27 @@ final class SyncStore: ObservableObject {
         // 在启动后 3s 的 Task 里，晚于回填。
         let savedUsername = defaults.string(forKey: usernameKey)
         Task.detached(priority: .userInitiated) { [weak self] in
-            let masterData = KeychainService.read(account: Self.masterKeyAccountName, service: Self.keychainServiceName, interactive: false)
-            let hasAccess = KeychainService.read(account: Self.accessAccountName, service: Self.keychainServiceName, interactive: false) != nil
-            let hasRefresh = KeychainService.read(account: Self.refreshAccountName, service: Self.keychainServiceName, interactive: false) != nil
+            // **只查属性、不取 data**（2026-10-22）：ACL 保护 data，读 data
+            // 会为每条令牌弹一次授权（启动三条 = 三次）。存在性用属性查询；
+            // 指纹在主密钥真正读到后再算（设置页显示"已配置/锁定"）。
+            let hasMaster = KeychainService.exists(account: Self.masterKeyAccountName, service: Self.keychainServiceName)
+            let hasAccess = KeychainService.exists(account: Self.accessAccountName, service: Self.keychainServiceName)
+            let hasRefresh = KeychainService.exists(account: Self.refreshAccountName, service: Self.keychainServiceName)
             await MainActor.run { [weak self] in
                 guard let self else { return }
-                if let data = masterData {
+                if hasMaster {
                     hasSyncKey = true
-                    syncKeyFingerprint = try? SyncCrypto.fingerprint(masterKeyBase64: data.base64EncodedString())
                 }
                 if let savedUsername, hasAccess || hasRefresh {
                     authState = .signedIn(username: savedUsername)
-                    startSyncInfrastructure()
+                    if KeychainService.exists(account: SyncSecretBundle.account,
+                                              service: Self.keychainServiceName) {
+                        startSyncInfrastructure()
+                    } else {
+                        // 旧安装：凭据还是三条独立条目。别自动读——每条都会
+                        // 弹一次授权；等用户在同步设置里点"重新授权"。
+                        needsSecretMigration = true
+                    }
                 }
             }
         }
@@ -225,7 +241,8 @@ final class SyncStore: ObservableObject {
     /// 排一次防抖同步（已有排程则合并）。isSyncing 时不特殊处理：syncNow
     /// 会把这次调用转成"轮次结束后补排"，脏标记不会丢。
     private func scheduleChangeSync(after delay: TimeInterval = changeDebounceSeconds) {
-        guard case .signedIn = authState, hasSyncKey, changeSyncTask == nil else { return }
+        guard case .signedIn = authState, hasSyncKey,
+              !needsSecretMigration, changeSyncTask == nil else { return }
         changeSyncTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             guard let self else { return }
@@ -237,7 +254,8 @@ final class SyncStore: ObservableObject {
     /// 一轮结束后的收尾：还有脏域（轮次中途新变更 / push 失败）就再排一场；
     /// 失败场景指数退避，避免对挂掉的服务器 5 秒一撞。
     private func settleAutoFollowUp(hadFailure: Bool) {
-        guard case .signedIn = authState, hasSyncKey, !dirtyDomains.isEmpty else { return }
+        guard case .signedIn = authState, hasSyncKey,
+              !needsSecretMigration, !dirtyDomains.isEmpty else { return }
         if hadFailure {
             changeSyncDelay = min(changeSyncDelay * 2, Self.maxRetryDelaySeconds)
         } else {
@@ -392,6 +410,13 @@ final class SyncStore: ObservableObject {
         // 每 5min 空转一次 syncNow 仅 guard 返回）——登录成功（authenticate）时
         // 再启，logout 时停。
         guard case .signedIn = authState, hasSyncKey else { return }
+        // 旧安装（凭据仍是三条独立条目）不自动同步：读三条 = 三次授权弹窗。
+        // 设置页有显式"重新授权"入口；迁移后本条目存在，之后自动同步只读一条。
+        guard KeychainService.exists(account: SyncSecretBundle.account,
+                                     service: Self.keychainServiceName) else {
+            needsSecretMigration = true
+            return
+        }
         startSyncInfrastructure()
         // 启动首轮全脏：对账本地未上推的变更（含上次会话遗留的 tombstone）。
         dirtyDomains = Set(SyncDomain.allCases)
@@ -399,6 +424,19 @@ final class SyncStore: ObservableObject {
             try? await Task.sleep(for: .seconds(3))
             await self.syncNow(isAuto: true)
         }
+    }
+
+    /// 把旧的三条同步凭据合并成单条目并恢复自动同步。**显式用户动作**：
+    /// 读取旧条目会为每条弹一次 Keychain 授权（macOS 没有批量授权 API）；
+    /// 迁移后每次升级最多只为这一条弹一次。
+    func migrateSyncSecrets() async {
+        guard case .signedIn = authState else { return }
+        let bundle = loadSecretBundle()
+        if bundle.master != nil { hasSyncKey = true }
+        needsSecretMigration = false
+        startSyncInfrastructure()
+        dirtyDomains = Set(SyncDomain.allCases)
+        await syncNow(isAuto: false)
     }
 
     /// 定时器 + 网络监视 + 唤醒观察者（幂等）。登录成功路径调用。
@@ -573,7 +611,9 @@ final class SyncStore: ObservableObject {
     }
 
     func logout() {
-        if let refresh = keychainReadString(refreshAccount) {
+        // 只为"通知服务端注销"取 refresh：单条目/内存里有才取，**不迁移旧三条**
+        // （登出不该触发一次三连授权）。
+        if let refresh = secretBundle?.refresh ?? readSecretVault()?.refresh {
             let base = serverBaseURL
             Task.detached {
                 _ = try? await SyncAPIClient.logout(baseURL: base, refreshToken: refresh)
@@ -706,6 +746,14 @@ final class SyncStore: ObservableObject {
         guard hasSyncKey else {
             if !isAuto {
                 lastError = String(localized: "Set a sync key first — sync stays local until then.")
+            }
+            return
+        }
+        // 迁移前不跑同步：凭证还在旧三条里，读它们会逐条弹授权。
+        // 设置页的"重新授权"负责迁移；迁移完成后本标志为 false。
+        guard !needsSecretMigration else {
+            if !isAuto {
+                lastError = String(localized: "Re-authorize sync in Settings to resume.")
             }
             return
         }
@@ -1790,21 +1838,108 @@ final class SyncStore: ObservableObject {
 
     // MARK: - Keychain（照 AgentPreferenceStore 的既有范式）
 
-    /// Keychain 原语收口到共享 KeychainService（全部非交互——同步启动/
-    /// 回合中路径绝不等授权窗）。
+    /// 同步凭据收口：**单条目** `sync-secrets-v1`（2026-10-22）。
+    ///
+    /// 旧实现三条独立条目 + 每条一次 ACL 授权；现在一次读/写一整个 bundle。
+    /// `loadSecretBundle()` 在条目不存在时会读旧三条（迁移）——只允许从
+    /// `migrateSyncSecrets()` 触发，自动路径绝不调用（否则又是每条弹一次）。
     private func keychainReadData(_ account: String) -> Data? {
-        KeychainService.read(account: account, service: keychainService, interactive: false)
+        let bundle = loadSecretBundle()
+        switch account {
+        case Self.masterKeyAccountName: return bundle.master.flatMap { Data(base64Encoded: $0) }
+        case Self.accessAccountName: return bundle.access.flatMap { Data($0.utf8) }
+        case Self.refreshAccountName: return bundle.refresh.flatMap { Data($0.utf8) }
+        default: return nil
+        }
     }
 
     private func keychainReadString(_ account: String) -> String? {
-        KeychainService.readString(account: account, service: keychainService, interactive: false)
+        let bundle = loadSecretBundle()
+        switch account {
+        case Self.masterKeyAccountName: return bundle.master
+        case Self.accessAccountName: return bundle.access
+        case Self.refreshAccountName: return bundle.refresh
+        default: return nil
+        }
     }
 
     private func keychainWrite(_ data: Data, account: String) {
-        KeychainService.write(data, account: account, service: keychainService)
+        var bundle = secretsForWrite()
+        switch account {
+        case Self.masterKeyAccountName: bundle.master = data.base64EncodedString()
+        case Self.accessAccountName: bundle.access = String(data: data, encoding: .utf8)
+        case Self.refreshAccountName: bundle.refresh = String(data: data, encoding: .utf8)
+        default: return
+        }
+        secretBundle = bundle
+        secretBundleLoaded = true
+        saveSecretBundle(bundle)
+        updateFingerprintIfNeeded(bundle)
     }
 
     private func keychainDelete(_ account: String) {
-        KeychainService.delete(account: account, service: keychainService)
+        // 迁移前（没有单条目）不要为了删除去读旧三条——那是三次授权。
+        guard var bundle = secretBundle ?? readSecretVault() else { return }
+        switch account {
+        case Self.masterKeyAccountName: bundle.master = nil
+        case Self.accessAccountName: bundle.access = nil
+        case Self.refreshAccountName: bundle.refresh = nil
+        default: return
+        }
+        secretBundle = bundle
+        secretBundleLoaded = true
+        saveSecretBundle(bundle)
+    }
+
+    /// 写路径用的 bundle：**只读单条目**（不迁移旧三条），没有就新建。
+    private func secretsForWrite() -> SyncSecretBundle {
+        secretBundle ?? readSecretVault() ?? SyncSecretBundle()
+    }
+
+    private func readSecretVault() -> SyncSecretBundle? {
+        guard let data = KeychainService.read(account: SyncSecretBundle.account,
+                                              service: keychainService, interactive: false),
+              let bundle = try? JSONDecoder().decode(SyncSecretBundle.self, from: data) else {
+            return nil
+        }
+        return bundle
+    }
+
+    /// 读同步凭据：单条目优先；没有则从旧三条迁移并写回单条目。
+    /// **只从显式迁移或已确认存在单条目的同步路径调用**。
+    private func loadSecretBundle() -> SyncSecretBundle {
+        if secretBundleLoaded, let secretBundle { return secretBundle }
+        if let vault = readSecretVault() {
+            secretBundle = vault
+            secretBundleLoaded = true
+            if vault.master != nil { hasSyncKey = true }
+            updateFingerprintIfNeeded(vault)
+            return vault
+        }
+        var bundle = SyncSecretBundle()
+        bundle.master = KeychainService.read(account: Self.masterKeyAccountName,
+                                             service: keychainService,
+                                             interactive: false)?.base64EncodedString()
+        bundle.access = KeychainService.readString(account: Self.accessAccountName,
+                                                   service: keychainService, interactive: false)
+        bundle.refresh = KeychainService.readString(account: Self.refreshAccountName,
+                                                    service: keychainService, interactive: false)
+        secretBundle = bundle
+        secretBundleLoaded = true
+        if !bundle.isEmpty { saveSecretBundle(bundle) }
+        if bundle.master != nil { hasSyncKey = true }
+        updateFingerprintIfNeeded(bundle)
+        return bundle
+    }
+
+    private func saveSecretBundle(_ bundle: SyncSecretBundle) {
+        guard let data = try? JSONEncoder().encode(bundle) else { return }
+        KeychainService.write(data, account: SyncSecretBundle.account, service: keychainService)
+        if !bundle.isEmpty { needsSecretMigration = false }
+    }
+
+    private func updateFingerprintIfNeeded(_ bundle: SyncSecretBundle) {
+        guard syncKeyFingerprint == nil, let master = bundle.master, !master.isEmpty else { return }
+        syncKeyFingerprint = try? SyncCrypto.fingerprint(masterKeyBase64: master)
     }
 }

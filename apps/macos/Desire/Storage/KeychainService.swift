@@ -1,5 +1,6 @@
 import Foundation
 import LocalAuthentication
+import os
 import Security
 
 /// 全仓统一的 Keychain 访问（kSecClassInternetPassword 条目）。
@@ -9,12 +10,16 @@ import Security
 /// service 名还硬编码——收口一处后，Keychain 相关的修复（隐窗授权、ACL 失配、
 /// service 过滤）只改这里。见 CODEBASE-AUDIT ARCH-5。
 ///
-/// **非交互读**（`interactive: false`）：启动、脱敏这类用户不在场路径必须
-/// 非交互——条目 ACL 认不出当前构建（adhoc 重建换 cdhash）时，交互读会向
-/// SecurityAgent 申请授权，而那个授权窗可能永远不渲染（隐窗排队，2026-09-24
-/// 实测：`SecItemCopyMatching` 同步等它 = 主线程启动即卡死，v0.3.13 同样中招）。
-/// 失败成 nil/空，调用方按"未配置"呈现，用户在场时再交互读/重存。
+/// **启动路径不许读 secret data**（2026-10-22 用户实测：首次安装每条不同
+/// 的 key 各弹一次钥匙串授权，26 条条目 = 26 次）。macOS 的 ACL 保护的是
+/// `kSecReturnData`，**只查属性（`kSecReturnAttributes`）不会弹授权**——
+/// "有没有配 Key / 已保存哪些站点"一律走 `exists` / `listAttributes`；
+/// 真正需要秘密时（用户点显示/复制、Agent 回合、显式同步）才 `read`，
+/// 一次只读一条。`interactive: false` 只屏蔽生物识别/密码框，**挡不住
+/// ACL 的"允许访问"授权窗**，别拿它当"不弹窗"的保证。
 nonisolated enum KeychainService {
+
+    private static let log = Logger(subsystem: "me.siwi.Desire", category: "keychain")
 
     /// 本应用条目的默认 service 属性（loadAll 枚举按它圈范围——
     /// 不过滤会扫到其他应用的 Internet Password、连环弹授权）。
@@ -22,30 +27,76 @@ nonisolated enum KeychainService {
 
     // MARK: - Read
 
-    /// 读一条（service/server/account 过滤；`service: nil` = 不过滤 service，
-    /// 仅 PasswordStore 的按域名查找走这一形态，别用于新代码）。
+    /// 读一条（service/server/account 过滤；`service: nil` = 不过滤 service）。
+    /// `httpsOnly`：只看网站密码条目（写入时带了 kSecAttrProtocolHTTPS），
+    /// 用来把 AI Key/同步令牌排除在外。
     static func read(account: String, service: String? = defaultService,
-                     server: String? = nil, interactive: Bool = false) -> Data? {
+                     server: String? = nil, httpsOnly: Bool = false,
+                     interactive: Bool = false) -> Data? {
         var query = baseQuery(service: service, server: server)
         query[kSecAttrAccount as String] = account
+        if httpsOnly { query[kSecAttrProtocol as String] = kSecAttrProtocolHTTPS }
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         if !interactive { query[kSecUseAuthenticationContext as String] = nonInteractiveContext() }
         var result: AnyObject?
-        guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
-              let data = result as? Data else { return nil }
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        log.info("read account=\(account, privacy: .public) service=\(service ?? "-", privacy: .public) server=\(server ?? "-", privacy: .public) interactive=\(interactive, privacy: .public) status=\(status, privacy: .public)")
+        guard status == errSecSuccess, let data = result as? Data else { return nil }
         return data
     }
 
     static func readString(account: String, service: String? = defaultService,
-                           server: String? = nil, interactive: Bool = false) -> String? {
-        read(account: account, service: service, server: server, interactive: interactive)
+                           server: String? = nil, httpsOnly: Bool = false,
+                           interactive: Bool = false) -> String? {
+        read(account: account, service: service, server: server,
+             httpsOnly: httpsOnly, interactive: interactive)
             .flatMap { String(data: $0, encoding: .utf8) }
     }
 
-    /// 枚举某 service 下的全部条目（PasswordStore.loadAll 用）。
+    /// 只查存在性——**不取 data**，不会触发 Keychain 授权。启动路径专用。
+    static func exists(account: String, service: String? = defaultService,
+                       server: String? = nil, httpsOnly: Bool = false) -> Bool {
+        var query = baseQuery(service: service, server: server)
+        query[kSecAttrAccount as String] = account
+        if httpsOnly { query[kSecAttrProtocol as String] = kSecAttrProtocolHTTPS }
+        query[kSecReturnAttributes as String] = true
+        query[kSecMatchLimit as String] = kSecMatchLimitOne
+        query[kSecUseAuthenticationContext as String] = nonInteractiveContext()
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        log.info("exists account=\(account, privacy: .public) service=\(service ?? "-", privacy: .public) status=\(status, privacy: .public)")
+        return status == errSecSuccess
+    }
+
+    /// 枚举条目的**元数据**（server/account），不取 data、不弹授权。
+    /// `httpsOnly` = 只要网站密码（AI Key/同步令牌没有 HTTPS protocol 属性）。
+    static func listAttributes(service: String = defaultService,
+                               httpsOnly: Bool = false) -> [(server: String, account: String)] {
+        var query: [String: Any] = [
+            kSecClass as String: kSecClassInternetPassword,
+            kSecAttrService as String: service,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitAll,
+        ]
+        if httpsOnly { query[kSecAttrProtocol as String] = kSecAttrProtocolHTTPS }
+        query[kSecUseAuthenticationContext as String] = nonInteractiveContext()
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let items = result as? [[String: Any]] ?? []
+        log.info("listAttributes service=\(service, privacy: .public) httpsOnly=\(httpsOnly, privacy: .public) status=\(status, privacy: .public) count=\(items.count, privacy: .public)")
+        return items.compactMap { dict in
+            guard let server = dict[kSecAttrServer as String] as? String,
+                  let account = dict[kSecAttrAccount as String] as? String else { return nil }
+            return (server, account)
+        }
+    }
+
+    /// 枚举某 service 下的全部条目**并读取 data**（PasswordStore 的显式 CSV
+    /// 导出用）。**会逐条触发授权**——绝不能在启动/自动路径调用。
     /// **必须带 service 过滤**；启动路径 → 非交互。
-    static func readAll(service: String = defaultService) -> [(server: String, account: String, data: Data)] {
+    static func readAll(service: String = defaultService,
+                        httpsOnly: Bool = false) -> [(server: String, account: String, data: Data)] {
         var query: [String: Any] = [
             kSecClass as String: kSecClassInternetPassword,
             kSecAttrService as String: service,
@@ -53,6 +104,7 @@ nonisolated enum KeychainService {
             kSecReturnData as String: true,
             kSecMatchLimit as String: kSecMatchLimitAll,
         ]
+        if httpsOnly { query[kSecAttrProtocol as String] = kSecAttrProtocolHTTPS }
         query[kSecUseAuthenticationContext as String] = nonInteractiveContext()
         var result: AnyObject?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,

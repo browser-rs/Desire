@@ -37,7 +37,11 @@ struct PasswordPanel: View {
                 ScrollView {
                     LazyVStack(spacing: 0) {
                         ForEach(Array(filtered.enumerated()), id: \.element.id) { idx, entry in
-                            PasswordRow(entry: entry, onDelete: { passwordStore.delete(entry) })
+                            PasswordRow(
+                                entry: entry,
+                                onDelete: { passwordStore.delete(entry) },
+                                loadPassword: { passwordStore.password(for: entry) }
+                            )
                             if idx < filtered.count - 1 {
                                 Divider().opacity(0.5)
                             }
@@ -225,7 +229,11 @@ private struct PasswordRow: View {
     @Environment(\.appAccent) private var appAccent: Color
     let entry: PasswordEntry
     let onDelete: () -> Void
+    /// 密码懒加载：列表只取元数据（读 data 会弹钥匙串授权），
+    /// 显示/复制这一条时才读，一次一条。
+    let loadPassword: () -> String?
     @State private var showPassword = false
+    @State private var revealedPassword: String?
     /// 复制成功的短暂反馈：对应字段图标换成对勾，1.2s 后还原。
     @State private var copiedField: CopiedField?
     @State private var copyResetTask: Task<Void, Never>?
@@ -251,7 +259,7 @@ private struct PasswordRow: View {
             Spacer(minLength: 8)
 
             if showPassword {
-                Text(entry.password)
+                Text(revealedPassword ?? entry.password)
                     .font(.system(size: 11, design: .monospaced))
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -269,7 +277,7 @@ private struct PasswordRow: View {
             HStack(spacing: 2) {
                 HoverIcon(
                     systemName: showPassword ? "eye.slash" : "eye",
-                    action: { withAnimation(.hoverFast) { showPassword.toggle() } },
+                    action: { toggleReveal() },
                     help: showPassword ? String(localized: "Hide Password") : String(localized: "Show Password")
                 )
                 HoverIcon(
@@ -279,7 +287,13 @@ private struct PasswordRow: View {
                 )
                 HoverIcon(
                     systemName: copiedField == .password ? "checkmark" : "doc.on.doc",
-                    action: { copy(entry.password, field: .password) },
+                    action: {
+                        let secret = entry.password.isEmpty
+                            ? (loadPassword() ?? revealedPassword ?? "")
+                            : entry.password
+                        guard !secret.isEmpty else { return }
+                        copy(secret, field: .password)
+                    },
                     help: String(localized: "Copy Password")
                 )
                 HoverIcon(
@@ -304,6 +318,14 @@ private struct PasswordRow: View {
                 .foregroundStyle(appAccent)
         }
         .frame(width: 28, height: 28)
+    }
+
+    /// 显示密码是显式用户动作——此时才读 Keychain（一条）；隐藏不读。
+    private func toggleReveal() {
+        if !showPassword, revealedPassword == nil, entry.password.isEmpty {
+            revealedPassword = loadPassword()
+        }
+        withAnimation(.hoverFast) { showPassword.toggle() }
     }
 
     private func copy(_ text: String, field: CopiedField) {

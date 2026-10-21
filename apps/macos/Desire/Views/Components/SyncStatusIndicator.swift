@@ -15,12 +15,21 @@ struct SyncStatusIndicator: View {
     }
 
     private var color: Color {
+        // 旧安装的三条同步凭据还没合并：同步暂停等用户显式重新授权。
+        if store.needsSecretMigration { return .orange }
         switch health {
-        case .signedOut: .secondary
-        case .syncing: .blue
-        case .error: .orange
-        case .ok: .green
+        case .signedOut: return .secondary
+        case .syncing: return .blue
+        case .error: return .orange
+        case .ok: return .green
         }
+    }
+
+    private var helpText: String {
+        if store.needsSecretMigration {
+            return String(localized: "Sync paused — click to re-authorize")
+        }
+        return health.title + " · 点击打开同步设置"
     }
 
     var body: some View {
@@ -34,7 +43,7 @@ struct SyncStatusIndicator: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(health.title + " · 点击打开同步设置")
-        .accessibilityLabel(health.title)
+        .help(helpText)
+        .accessibilityLabel(helpText)
     }
 }

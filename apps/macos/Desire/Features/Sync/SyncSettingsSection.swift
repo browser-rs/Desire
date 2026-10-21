@@ -430,12 +430,31 @@ struct SyncSettingsSection: View {
                 SettingsRow("Last Sync", subtitle: lastSyncText) {
                     SettingsCapsuleButton(
                         "Sync Now",
-                        isDisabled: store.isSyncing
+                        isDisabled: store.isSyncing || store.needsSecretMigration
                     ) {
                         isWorking = true
                         Task {
                             await store.syncNow()
                             isWorking = false
+                        }
+                    }
+                }
+                if store.needsSecretMigration {
+                    SettingsRowDivider()
+                    SettingsRow(
+                        "Resume Sync",
+                        subtitle: "Sync is paused once after this update so macOS doesn't prompt for every saved secret. Re-authorize reads the existing sync credentials once and stores them in a single Keychain item — later updates ask at most once."
+                    ) {
+                        SettingsCapsuleButton(
+                            "Re-authorize",
+                            style: .secondary,
+                            isDisabled: isWorking
+                        ) {
+                            isWorking = true
+                            Task {
+                                await store.migrateSyncSecrets()
+                                isWorking = false
+                            }
                         }
                     }
                 }
@@ -473,7 +492,9 @@ struct SyncSettingsSection: View {
             subtitle: "End-to-end encrypted with your account password. The server stores only scrambled data and cannot read it.",
             icon: "key.fill"
         ) {
-            SettingsRow("Key Fingerprint", subtitle: store.syncKeyFingerprint ?? localizedSettingText("Not set")) {
+            SettingsRow("Key Fingerprint",
+                        subtitle: store.syncKeyFingerprint
+                            ?? (store.hasSyncKey ? "••••••••" : localizedSettingText("Not set"))) {
                 EmptyView()
             }
         }

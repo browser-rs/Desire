@@ -4510,7 +4510,8 @@ final class AutomationServer {
     /// Deletes every saved credential for a domain (test cleanup).
     private static func deletePasswords(domain: String) throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
-        let victims = app.passwordStore.find(domain: domain)
+        // 删除只需要 domain/username（元数据）；别为删除去读密码（会弹授权）。
+        let victims = app.passwordStore.find(domain: domain, loadSecrets: false)
         for entry in victims {
             app.passwordStore.delete(entry)
         }
@@ -4750,6 +4751,7 @@ final class AutomationServer {
             "syncKey": [
                 "has": store.hasSyncKey,
                 "fingerprint": store.syncKeyFingerprint ?? "",
+                "needsMigration": store.needsSecretMigration,
             ],
             "enabled": Dictionary(
                 uniqueKeysWithValues: SyncDomain.allCases.map { ($0.rawValue, app.syncStore.isEnabled($0)) }

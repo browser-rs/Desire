@@ -1387,32 +1387,11 @@ try {
                     guard !Task.isCancelled, let self else { return }
                     await self.parsePageProtocol(webView: reparseWebView)
                 }
-            } else if message.name == "passwordDetect", let dict = message.body as? [String: String],
-                       let usernameName = dict["username"],
-                       let host = parent.state.webView.url?.host {
-                // **页面加载不读 Keychain**：读密码会为这条凭据弹一次授权，
-                // 不能因为打开一个登录页就打扰用户。只使用本次进程里已经
-                // 读过的密码（面板显示/复制、Agent fillLogin 之后）；
-                // 否则不自动填，等用户显式操作。
-                let entries = parent.passwordStore.find(domain: host, loadSecrets: false)
-                guard let credential = entries.first, !credential.password.isEmpty else { return }
-                // 秘密进 JS 字符串字面量统一走 JSString.literal（旧两段式
-                // 转义漏 \n/\r/\u2028——密码含这些字符时整段注入即语法错）。
-                let username = JSString.literal(credential.username)
-                let password = JSString.literal(credential.password)
-                let nameLiteral = JSString.literal(usernameName)
-                let js = """
-                (function() {
-                    var f = document.querySelector('input[type=password]').closest('form');
-                    if (!f) return;
-                    var nameLit = \(nameLiteral);
-                    var u = f.querySelector('input[name="' + nameLit + '"], input[id="' + nameLit + '"], input[type=text], input[type=email]');
-                    if (u) u.value = \(username);
-                    var p = f.querySelector('input[type=password]');
-                    if (p) p.value = \(password);
-                })();
-                """
-                parent.state.webView.evaluateJavaScript(js, completionHandler: nil)
+            } else if message.name == "passwordDetect",
+                      let host = parent.state.webView.url?.host {
+                // **页面加载不读 Keychain**：只登记一个元数据提示，用户点
+                // “Fill saved password”后才读这一条并注入（见 PasswordFillBar）。
+                parent.passwordStore.suggestFill(domain: host)
             } else if message.name == "passwordSave", let dict = message.body as? [String: String],
                        let username = dict["username"], let password = dict["password"],
                        !username.isEmpty, !password.isEmpty {

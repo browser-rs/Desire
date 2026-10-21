@@ -40,9 +40,43 @@ class PasswordStore: ObservableObject {
     /// A save-password sheet awaiting the user's (or the automation bridge's)
     /// decision. nil when nothing is pending.
     @Published var pendingSave: PendingPasswordSave?
+    /// 页面检出登录表单、且有存档凭据时的非模态填充提示（元数据-only）。
+    @Published var fillSuggestion: PasswordFillSuggestion?
 
     private let serviceName = "me.siwi.Desire"
     private static let suppressedKey = "passwordSaveSuppressedDomains"
+
+    /// 页面加载时调用：只查内存里的域名/用户名元数据，**绝不读密码**。
+    /// 同一域名/条目重复调用不重复发布（passwordDetect 会多次触发）。
+    func suggestFill(domain: String) {
+        let match = entries.first {
+            $0.domain == domain || $0.domain.hasSuffix("." + domain) || domain.hasSuffix("." + $0.domain)
+        }
+        guard let match else {
+            if fillSuggestion?.domain == domain { fillSuggestion = nil }
+            return
+        }
+        if let current = fillSuggestion, current.domain == domain,
+           current.entryID == match.id, current.username == match.username {
+            return
+        }
+        fillSuggestion = PasswordFillSuggestion(
+            id: UUID(), domain: domain, entryID: match.id, username: match.username)
+    }
+
+    func dismissFillSuggestion() {
+        fillSuggestion = nil
+    }
+
+    /// 用户点 “Fill” 后才读这一条 Keychain（一次授权）。失败（拒绝/超时）返回 nil。
+    func resolveFillSuggestion(_ fill: Bool) -> (username: String, password: String)? {
+        guard let suggestion = fillSuggestion else { return nil }
+        fillSuggestion = nil
+        guard fill,
+              let entry = entries.first(where: { $0.id == suggestion.entryID }),
+              let password = password(for: entry) else { return nil }
+        return (entry.username, password)
+    }
 
     /// Resolves the pending save-password prompt (bar button or bridge).
     func resolvePendingSave(_ save: Bool) {
@@ -139,6 +173,7 @@ class PasswordStore: ObservableObject {
     func delete(_ entry: PasswordEntry) {
         deleteFromKeychain(domain: entry.domain, username: entry.username)
         entries.removeAll { $0.id == entry.id }
+        if fillSuggestion?.entryID == entry.id { fillSuggestion = nil }
     }
 
     func clearAll() {
@@ -146,6 +181,7 @@ class PasswordStore: ObservableObject {
             deleteFromKeychain(domain: entry.domain, username: entry.username)
         }
         entries.removeAll()
+        fillSuggestion = nil
     }
 
     // MARK: - Password Center (0.2.6)

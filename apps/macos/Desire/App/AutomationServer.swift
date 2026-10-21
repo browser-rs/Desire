@@ -551,7 +551,7 @@ final class AutomationServer {
         ep("POST", "/passwords/add", "Seed a credential (domain/username/password)", params: ["domain:string", "username:string", "password:string"], example: "-d '{\"domain\":\"example.com\",\"username\":\"u\",\"password\":\"p\"}'")
         ep("POST", "/passwords/import", "Import CSV (Chrome format) into the store", params: ["csv:string"], example: "-d '{\"csv\":\"name,url,username,password\\n…\"}'")
         ep("POST", "/passwords/resolve", "Resolve save/update-password prompt", params: ["save:bool"], example: "-d '{\"save\":true}'")
-        ep("POST", "/passwords/delete", "Delete credentials for domain", params: ["domain:string"], example: "-d '{\"domain\":\"example.com\"}'")
+        ep("POST", "/passwords/delete", "Delete credentials for a domain (optional username = one account)", params: ["domain:string", "username?:string"], example: "-d '{\"domain\":\"example.com\",\"username\":\"u\"}'")
         ep("GET", "/split", "Split-view state (selected + partner tab index)", example: "…/split")
         ep("POST", "/split", "Set the split-view right pane to a tab index", params: ["index:int"], example: "-d '{\"index\":1}'")
         ep("POST", "/split/close", "Leave split view", example: "-d '{}'")
@@ -1660,7 +1660,9 @@ final class AutomationServer {
             case ("POST", "/passwords/resolve"):
                 return try Self.json(Self.resolvePasswordSave(body["save"] as? Bool ?? true))
             case ("POST", "/passwords/delete"):
-                return try Self.json(Self.deletePasswords(domain: Self.string(body, "domain") ?? ""))
+                return try Self.json(Self.deletePasswords(
+                    domain: Self.string(body, "domain") ?? "",
+                    username: Self.string(body, "username")))
             case ("POST", "/containers/remove"):
                 return try Self.json(Self.removeContainer(Self.string(body, "name") ?? ""))
             case ("GET", "/site-settings"):
@@ -4507,11 +4509,13 @@ final class AutomationServer {
         return ["ok": true, "save": save]
     }
 
-    /// Deletes every saved credential for a domain (test cleanup).
-    private static func deletePasswords(domain: String) throws -> [String: Any] {
+    /// Deletes saved credentials for a domain; optional username narrows it to
+    /// one account (test cleanup and the password panel's per-row delete).
+    private static func deletePasswords(domain: String, username: String? = nil) throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         // 删除只需要 domain/username（元数据）；别为删除去读密码（会弹授权）。
         let victims = app.passwordStore.find(domain: domain, loadSecrets: false)
+            .filter { username == nil || $0.username == username }
         for entry in victims {
             app.passwordStore.delete(entry)
         }

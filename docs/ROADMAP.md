@@ -1372,3 +1372,189 @@ Trace/Stats/Memory 页面已在；差距在**内容浏览（白板）**、**未�
 > 问题：批量删除会话崩溃/卡死（分组稳定 ID + SwiftUI alert + 分两拍删除）、工具栏
 > 溢出菜单 14 寸截断/排版（分组 + 28pt 行 + hover + 封顶滚动）。harness **1167/0**、
 > Debug 零警告、用户 UI 实测通过；发版走云端同编译器双架构零警告构建。
+
+---
+
+## v0.8.0 规划稿（2026-10-22）—— 当主力用（搬得进来 · 装得起来 · 找得到 · 托得住）
+
+> 叙事：0.7.x 把 Agent 和浏览器揉在一起；这一版反过来补**浏览器该有的地基**。
+> 目标不是再加一个 AI 按钮，而是让 Desire 能当日常主力：从别的浏览器把书签/
+> 历史搬过来；把常用站点装成独立窗口；读过的东西能按正文搜到；大下载能排到
+> 夜里；密码只在用户点时读一次；崩溃/强杀后标签还在；自动化能定时、能按站点
+> 触发，并且钥匙串和签名不再每条 key 弹一次。
+>
+> **版本原则**：这一版不再走“三个修复就发版”。下面 12 项按 P0/P1 排，P0 全部
+> 完成、harness/Release 冒烟/双架构零警告全绿、你过目后才发版；中途只提交，
+> 不发 Release。
+
+### 现状依据（2026-10-22 逐项核实）
+
+- **数据迁移**：只有书签 HTML 导入（`BookmarkHTMLParser` / `BookmarkImportDedupe`）
+  与密码 CSV；没有 Chrome/Edge/Brave/Arc/Safari 的整包导入（history/bookmarks/
+  settings）。`HistoryEntry` 只有 url/title/timestamp/visitCount，无正文。
+- **网页应用**：`Tab`/`BrowserState` 只有普通标签与弹窗；没有 chrome-less 的
+  站点窗口、独立 data store、Web Apps 管理器。`grep WebApp/PWA` 为空。
+- **历史全文**：`HistoryPanel` 只按 title/url 过滤；没有正文快照/索引。
+- **下载**：`DownloadStore.maxConcurrentDownloads` 只有全局并发；批量媒体有
+  `maxConcurrent`/磁盘预留/断点续传，但没有**时段调度**、低电量暂停、通用下载
+  的自动分类/重复检测。
+- **密码**：v0.7.31 的钥匙串修复（a593c0b）已把启动读 data 改成属性查询，页面
+  加载不再自动填充；目前只有密码面板显示/复制与 Agent `fillLogin` 能读，缺一个
+  用户可见的“填充本站密码”入口。
+- **会话恢复**：`session-index` + 各 `session-<uuid>.json` 只在**优雅退出**时
+  可靠落盘；`pkill -9`/崩溃后可能回到旧会话或首启无主窗（v0.7.26 只做了工具侧
+  兜底与“首启补窗”缓解）。
+- **Agent 多窗口**：已有 per-window session registry / `window` 工具参数 /
+  scheduled-task 按最新窗口投递；**没有**“把正在跑的任务从 A 窗交接到 B 窗”。
+- **标签组**：`TabGroupStore`/`TabGroupPanel` 已有手动分组；没有按主题/站点自动
+  整理，也没有撤销。
+- **工作流**：`WorkflowStore`/`WorkflowPlayer` 有录制/回放/桥/Agent 工具，但
+  `Workflow` 没有 schedule/trigger 字段；站点访问不会提示“这里有个工作流”。
+- **监视**：`PageWatchStore` 已有单页 diff、数值阈值、opt-in AI 分析、通知；
+  没有跨页面的“监视中心”视图与每日变更摘要。
+- **可发现性**：没有“更新后新功能”页，也没有把一次性迁移（钥匙串/同步）做成
+  可见引导。
+- **签名**：Release 资产是 adhoc/linker-signed（designated requirement = cdhash）；
+  Keychain ACL 认签名，所以每次换构建仍可能为首个条目弹一次。
+
+主题分布：浏览器基础 5 · Agent 基础 1 · 融合 3 · 替人干活 1 · 可靠性 2 · 可发现性 1（共 12 项，部分项跨主题）。
+
+### 旗舰 A：浏览器数据导入（搬得进来）
+
+- **范围**：Chrome / Edge / Brave / Arc（Chromium 系）与 Safari。
+  - 书签：Chromium `Bookmarks` JSON、Safari `Bookmarks.plist`；复用
+    `BookmarkImportDedupe` 的 URL 归一化与撞库折叠。
+  - 历史：复制 Chromium `History` SQLite 到临时目录后只读查询（原库常被锁）；
+    Safari `History.db` 同理；按 URL+访问时间去重，保留 visitCount 合并策略。
+  - 设置：默认搜索引擎、主页/新标签页、下载目录（只映射能对应的项，逐项报告）。
+  - 密码：不直接解 Chromium 的加密库（Safe Storage/Keychain 依赖）；保留 CSV
+    导入并在报告里给出一句指引。
+  - 文件选择用 `NSOpenPanel`（用户显式授权，绕开 TCC 全盘访问）；导入前预览
+    计数，导入后给逐项结果（成功/折叠/跳过）。
+- **验收**：Chromium/Safari 两套 fixture profile；书签/历史计数与折叠断言；
+  重复导入幂等；不写目标浏览器目录；导入报告可桥查询。
+
+### 旗舰 B：网页应用（App Mode，装得起来）
+
+- **范围**：把站点装成**独立窗口**（不是 Dock 里的 .app bundle）：
+  - 站点信息：读取 `/manifest.json` 的 name/icons/short_name，失败回退 host +
+    favicon；名称可编辑。
+  - 独立 `WKWebsiteDataStore`（cookie/缓存与主浏览器隔离；可在安装时选“共享登录”）。
+  - 窗口：无地址栏/标签栏的最小 chrome，保留红绿灯、刷新、后退与“在浏览器打开”；
+    记住尺寸/位置；启动时可选择自动恢复。
+  - 管理器：设置/⌘K 里的 Web Apps 列表（打开/编辑/重置数据/卸载）；卸载删除
+    对应 data store。
+- **验收**：fixture 站点（含 manifest）安装→独立窗口无浏览器 chrome→cookies
+  与主窗隔离→退出重开仍在→卸载后数据目录消失；harness（manifest 解析/合并）。
+
+### 主力件（P0 / P1）
+
+1. **密钥单入口 + 稳定签名（P0，可靠性；起点已落地 a593c0b）**
+   - 现状：启动已只查属性、同步已合并为 `sync-secrets-v1`；剩余是 6 个 AI Key
+     仍是独立条目（首次 Agent 回合各弹一次）与 adhoc 签名导致每次升级一条 prompt。
+   - 落地：新增/扩展单条目 `app-secrets-v1`（`aiKeys` map + `sync` 子结构），
+     AI Key 首次读取时懒迁移；同步的 `sync-secrets-v1` 一并并入或保留兼容读取。
+     发布流水线用**稳定自签名 identity**（CI secrets 保存 .p12/口令；本地
+     `codesign` 同一 identity），让 designated requirement 跨构建稳定。
+   - 验收：启动零 data 读（仅属性查询）；多档案/多密码场景不再逐 key 弹；
+     连续两个签名构建读同一条目**不再弹**；无 identity 时退化为“每次升级最多一条”。
+
+2. **崩溃/强杀会话恢复 2.0（P0，可靠性）**
+   - 现状：强杀/崩溃可能丢标签或首启无主窗；只在优雅退出路径可靠落盘。
+   - 落地：每 N 秒或标签结构变化时写轻量快照（窗口 id/标签 URL/顺序/pinned/
+     group/active，滚动位置复用既有 `scroll-memory`）；启动检测 unclean exit
+     （运行标记 + 时间戳），快照比 session-index 新则采纳；无窗口时强制开一扇；
+     菜单/⌘K 增加 “Restore Previous Session”；快照损坏时逐窗降级。
+   - 验收：`kill -9` → 重启恢复标签/组/活动标签；三次连续强杀不退化为空窗；
+     快照损坏 fixture 能起主窗。
+
+3. **历史全文检索（P0，浏览器基础/融合）**
+   - 现状：History 只有标题/URL；读过但记不住标题的页面搜不到。
+   - 落地：页面 `didFinish` 后按**opt-in**抓取正文前 N 千字（去脚本/样式/重复
+     空白）写入独立索引文件（不进 `HistoryEntry`、默认不随云同步）；本地倒排/
+     BM25（复用记忆检索的纯逻辑），History 面板与 ⌘K 展示命中片段+高亮；设置页
+     提供开关、索引大小、清除索引；隐私说明。
+   - 验收：fixture 两页正文各含唯一词；搜正文命中并给片段；关闭开关不抓取；
+     清索引后搜不到；索引大小封顶；harness（分词语料/BM25/片段截取）。
+
+4. **下载中心 2.0（P0，浏览器基础/替人干活）**
+   - 现状：全局并发上限有；没有时段调度、低电量暂停、通用下载归类/去重。
+   - 落地：队列项加 `scheduledStart`/`timeWindow`（开始时间/夜间窗口）；到点由
+     Timer 启动；`ProcessInfo.isLowPowerModeEnabled` + 电池状态暂停并在恢复后
+     续跑；通用下载支持按类型/日期/站点自动归档（规则可编辑）与同 URL/同名
+     文件重复检测；完成通知合并。
+   - 验收：fixture 下载排到 1 分钟后自动开始；低电量暂停/恢复；重复 URL 只留
+     一份并提示；批量媒体引擎不回归（并发/磁盘预留/断点续传）。
+
+5. **密码填充显式入口（P0，浏览器基础；修复 v0.7.31 回归）**
+   - 现状：页面加载不再读 Keychain（避免弹窗），但也没有替代的填充入口。
+   - 落地：`passwordDetect` 只在内存里查元数据；有存档凭据时在页面顶部/
+     工具栏显示**非模态** “Fill saved password for host” chip；点击才读**这一条**
+     （一次授权），填完可撤销；面板显示/复制与 Agent `fillLogin` 保留。
+     绝不在页面加载时读 data。
+   - 验收：fixture 登录页无存档→无 chip；有存档→chip；点击前零 data 读，
+     点击后只读一条并填入；取消不发请求；密码不落日志。
+
+6. **Agent 任务跨窗口接力（P1，Agent 基础）**
+   - 现状：多窗口 session/工具寻址已有；没有把运行中任务从一个窗口交到另一个。
+   - 落地：`AgentSessionStore` 增加 handoff（目标 window id、迁移消息/工具状态/
+     队列/审批挂起；源窗口停机但不重发）；通知/菜单入口“移动到窗口…”；交接
+     期间锁定输入，失败回滚；scheduled task 可改投递窗口。
+   - 验收：A 窗发起长任务→交接 B 窗→B 继续同一回合且消息/用量不重复；A 窗
+     状态为“已移交”；交接失败回滚到 A；桥/窗口注册表可断言。
+
+7. **AI 标签整理（P1，融合）**
+   - 现状：TabGroup 手动分组；没有按主题/站点自动整理与撤销。
+   - 落地：⌘K/标签菜单 “Organize Tabs”：本地启发式（同站/标题关键词/时间簇）
+     先分组；可选“用模型再细分”（仅发送标题+URL，确认后调用，成本入账）；
+     生成组名/颜色、折叠、保留 active；一次撤销快照；不关闭任何标签。
+   - 验收：15 个混合 fixture 标签→3–5 组、名称可读、active 不变；撤销恢复原
+     顺序/组；模型失败回退启发式；不产生标签关闭。
+
+8. **工作流定时与站点触发（P1，融合）**
+   - 现状：录制/回放/桥/Agent 工具齐全；`Workflow` 无 schedule/trigger。
+   - 落地：`Workflow` 增加 `schedule`（复用 `AgentScheduler` 的 recurrence）与
+     `offerOnVisit`；定时到点在后台新建标签回放（不调模型），结果写活动中心+
+     通知；访问匹配 host 的页面时给一次性 chip “运行工作流 X”（默认不自动跑）；
+     敏感值仍走运行前的输入 sheet。
+   - 验收：定时 fixture 工作流按时跑；站点访问出现 chip 且可忽略；不自动创建
+     重复标签；失败步骤如实报告；harness（调度/触发解析）。
+
+9. **监视中心 2.0（P1，替人干活/融合）**
+   - 现状：PageWatch 单页 diff/阈值/AI 分析/通知都有；没有跨页汇总与每日摘要。
+   - 落地：监视面板改为“监视中心”列表（状态/上次检查/最近变化）；新增每日/
+     每周摘要（把各页 diff 汇总成一条，可写到备注/通知）；“只看有意义的变化”
+     （忽略空白/时间戳噪声，可选 AI 判定）；一键暂停/恢复全部。
+   - 验收：3 个 fixture 监视页产生变化→摘要含三页要点；噪声变化被过滤；摘要
+     成本入账；暂停后不再检查/通知。
+
+10. **更新后 What's New + 迁移助手（P0，可发现性）**
+    - 现状：无更新说明页；钥匙串/同步迁移只能靠设置页发现。
+    - 落地：按 `CFBundleVersion` 记录已读版本；更新后首启弹**一次**可关闭的
+      What's New（本版亮点 + 发布页链接 + 需要的迁移 CTA：重新授权同步/钥匙串
+      说明）；Help 菜单常驻 “What's New”；迁移完成后不再显示；不阻塞首窗。
+    - 验收：版本号变化只弹一次；同一版本重启不弹；CTA 直达对应设置分区；
+      无网络时静默降级不阻塞。
+
+### 贯穿（不占独立条目）
+
+- **质量门**：每项完成即跑 harness + 相关桥/fixture 探针；P0 全部完成后跑
+  `tests/run.sh`、`tests/release-smoke.py`、clean Release 双架构零警告；**全绿且
+  你过目后**才发版。
+- **隐私**：历史正文索引、AI 标签整理、监视摘要都明确“发送了什么”；默认不进
+  云同步；所有新密钥/令牌只进单条目 vault，不进日志。
+- **兼容**：旧数据（session 快照/历史/工作流/密钥）缺字段即降级，不做破坏性迁移。
+- **i18n**：新增文案补三语或确认走目录自动抽取；桥端点同步更新文档。
+- **可发现性**：每个新能力至少有一个入口（菜单/⌘K/工具栏/设置），不做“只有桥
+  能触发”的功能。
+
+### 明确不在本版（避免范围失控）
+
+- **Web 通知**：macOS WKWebView 没有公开的 notification permission delegate
+  （本机 SDK 头文件核实），不做假 UI；等 WebKit 公开 API。
+- **Dock 级 PWA .app 安装**：本版只做 App Mode 窗口；真正的独立 .app bundle/
+  Dock 图标另立版本。
+- **字节级带宽限速**：URLSession 无公开限速 API；本版做时段/并发/电源策略，
+  不承诺 bytes/sec 滑动条。
+- **Chromium 加密密码库直读**：涉及 Safe Storage/Keychain 依赖，保留 CSV。
+- **跨源 iframe 工作流/DPP**、passkey、DASH 下载：平台/既有决策边界，维持现状。

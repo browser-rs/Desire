@@ -111,11 +111,37 @@ extension ContentView {
     /// replacing these sheets was 0.1.2: sheets steal focus mid-Agent-task).
     @ViewBuilder
     func noticeBars(for tab: Tab) -> some View {
+        let host = tab.browser.webView.url?.host
+        let canFill = passwordStore.fillSuggestion.map { suggestion in
+            guard let host else { return false }
+            return host == suggestion.domain
+                || host.hasSuffix("." + suggestion.domain)
+                || suggestion.domain.hasSuffix("." + host)
+        } ?? false
         let hasNotice = passwordStore.pendingSave != nil
+            || canFill
             || tab.browser.pendingBeforeUnload != nil
             || tab.browser.pendingDangerousDownload != nil
             || tab.browser.pendingOTPHint != nil
         VStack(spacing: 0) {
+            PasswordFillBar(store: passwordStore, canFill: canFill) { username, password in
+                let js = """
+                (function() {
+                    var p = document.querySelector('input[type=password]');
+                    if (!p) return;
+                    var f = p.closest('form') || document;
+                    var u = f.querySelector('input[type=email], input[type=text], input[name*="user" i], input[id*="user" i], input[name*="login" i], input[id*="login" i]');
+                    if (u) {
+                        u.value = \(JSString.literal(username));
+                        u.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                    p.value = \(JSString.literal(password));
+                    p.dispatchEvent(new Event('input', { bubbles: true }));
+                    p.dispatchEvent(new Event('change', { bubbles: true }));
+                })();
+                """
+                tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
+            }
             PasswordSaveBar(store: passwordStore)
             BeforeUnloadBar(browser: tab.browser)
             DangerousDownloadBar(browser: tab.browser)
@@ -275,6 +301,32 @@ private struct DangerousDownloadBar: View {
                 secondaryTitle: String(localized: "Dismiss"),
                 onPrimary: { pending.respond(true) },
                 onSecondary: { pending.respond(false) }
+            )
+        }
+    }
+}
+
+private struct PasswordFillBar: View {
+    @Environment(\.appAccent) private var appAccent
+    @ObservedObject var store: PasswordStore
+    let canFill: Bool
+    let onFill: (String, String) -> Void
+
+    var body: some View {
+        if canFill, let suggestion = store.fillSuggestion {
+            NoticeBar(
+                icon: "key.fill",
+                tint: appAccent,
+                title: String(localized: "Fill Saved Password for \(suggestion.domain)?"),
+                subtitle: String(localized: "Username: \(suggestion.username)"),
+                primaryTitle: String(localized: "Fill"),
+                secondaryTitle: String(localized: "Not Now"),
+                onPrimary: {
+                    if let credentials = store.resolveFillSuggestion(true) {
+                        onFill(credentials.username, credentials.password)
+                    }
+                },
+                onSecondary: { store.dismissFillSuggestion() }
             )
         }
     }

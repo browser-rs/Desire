@@ -56,6 +56,7 @@ SOURCES=(
   apps/macos/Desire/Features/Workflows/Workflow.swift
   apps/macos/Desire/Features/Workflows/WorkflowDistill.swift
   apps/macos/Desire/Features/Reader/ReaderHighlight.swift
+  apps/macos/Desire/Features/Activity/ActivityCenter.swift
   apps/macos/Desire/Features/Settings/BackupArchive.swift
   apps/macos/Desire/Features/Whiteboard/WhiteboardSpec.swift
   apps/macos/Desire/Features/Whiteboard/WhiteboardComment.swift

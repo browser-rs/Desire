@@ -230,6 +230,7 @@ struct AppCommands: Commands {
             Button("Element Blocker") { postCommand(.showElementBlock) }
             Button("Password Manager") { postCommand(.showPasswordManager) }
             Button("Web Workflows…") { postCommand(.showWorkflows) }
+            Button("Activity…") { postCommand(.showActivity) }
             Button("Ad Blocking Stats") { postCommand(.showAdBlockStats) }
             Divider()
             // 免打扰时段（主动通知分级）：routine 通知扣下合并成摘要。

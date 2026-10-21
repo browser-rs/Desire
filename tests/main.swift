@@ -3784,6 +3784,43 @@ func testMemoryConflict() {
 }
 testMemoryConflict()
 
+func testActivityCenter() {
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    var inputs = ActivityCenter.Inputs()
+    inputs.downloads = [.init(id: "d1", filename: "a.zip", state: "inProgress",
+                              progress: 0.5, error: nil, timestamp: now)]
+    inputs.batches = [.init(id: "b1", folder: "Show", state: "running",
+                            settled: 1, total: 3, timestamp: now.addingTimeInterval(-10))]
+    inputs.exports = [.init(id: "e1", title: "clip", state: "failed",
+                            summary: "oops", timestamp: now.addingTimeInterval(-20))]
+    inputs.runs = [.init(id: "r1", taskName: "daily", status: "success", error: nil,
+                         firedAt: now.addingTimeInterval(-30),
+                         finishedAt: now.addingTimeInterval(-25))]
+    inputs.sessions = [.init(id: "s1", title: "Window 1", busy: true, timestamp: now)]
+    inputs.crew = .init(objective: "research", done: 1, total: 2,
+                        settled: false, timestamp: now)
+
+    let items = ActivityCenter.build(inputs)
+    check("活动：全部来源入列", items.count == 6)
+    check("活动：运行中置顶", items.prefix(4).allSatisfy(\.active)
+          && items.suffix(2).allSatisfy { !$0.active })
+    check("活动：批量进度", items.first { $0.kind == .batch }?.progress == 1.0 / 3.0)
+    check("活动：失败导出保留原因",
+          items.first { $0.kind == .export }?.detail == "oops")
+
+    let summary = ActivityCenter.summary(items)
+    check("活动：摘要 active=4 total=6",
+          summary["active"] as? Int == 4 && summary["total"] as? Int == 6)
+    let byKind = summary["byKind"] as? [String: Int] ?? [:]
+    check("活动：按来源计数", byKind["download"] == 1 && byKind["crew"] == 1)
+
+    var queued = ActivityCenter.Inputs()
+    queued.downloads = [.init(id: "q", filename: "q.zip", state: "queued",
+                              progress: nil, error: nil, timestamp: now)]
+    check("活动：排队视为活跃", ActivityCenter.build(queued).first?.active == true)
+}
+testActivityCenter()
+
 func testWorkflowDistill() {
     let turn: [String: Any] = ["steps": [
         ["action": "navigate", "args": "{\"url\":\"https://example.com/login\"}"],

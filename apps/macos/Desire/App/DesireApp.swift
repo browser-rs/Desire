@@ -159,6 +159,8 @@ enum BrowserCommand {
     case showSettingsSection(String)
     /// v0.7.29：网页工作流面板（录制/回放）。
     case showWorkflows
+    /// v0.7.29：活动中心（下载/批量/导出/任务/Agent 聚合）。
+    case showActivity
     case searchEverywhere
     case showPlugins, showElementBlock, showPasswordManager, showAdBlockStats
     case bookmarkPage, toggleFullScreen, toggleFind, tabSearch, toggleSidebar

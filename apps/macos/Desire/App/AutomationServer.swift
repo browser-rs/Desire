@@ -416,6 +416,7 @@ final class AutomationServer {
         ep("POST", "/history/remove", "Remove one history entry by id (test hygiene)", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
         ep("GET", "/diag/browser", "Browser diagnostics: content-process crash count + recent crashes", example: "…/diag/browser")
+        ep("GET", "/activity", "Activity center: downloads/batch media/exports/scheduled runs/agent sessions/crew", example: "…/activity")
         ep("POST", "/diag/export", "Export a diagnostics zip (MetricKit + crash counters + last 30 min OSLog)", example: "-d '{}'")
         ep("POST", "/workflow/start", "Start recording a web workflow on the active tab", example: "-d '{}'")
         ep("POST", "/workflow/stop", "Stop recording and save the workflow", params: ["name:string"], example: #"-d '{"name":"login flow"}'"#)
@@ -843,6 +844,9 @@ final class AutomationServer {
                 return try Self.json(Self.geometry(index: Self.index(query)))
             case ("GET", "/diag/browser"):
                 return try Self.json(BrowserDiagnostics.shared.summary())
+            case ("GET", "/activity"):
+                return try Self.json(ActivityCenter.summary(
+                    ActivityCenter.build(ActivityCenterCollector.liveInputs())))
             case ("POST", "/diag/export"):
                 return try Self.json(Self.diagExport())
             case ("POST", "/workflow/start"):

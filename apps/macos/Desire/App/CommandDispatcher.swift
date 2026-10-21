@@ -41,6 +41,7 @@ struct CommandDispatcher {
     struct Bindings {
         var showHistory: Binding<Bool>
         var showWorkflows: Binding<Bool>
+        var showActivity: Binding<Bool>
         var showBookmarks: Binding<Bool>
         var showPlugins: Binding<Bool>
         var showElementBlock: Binding<Bool>
@@ -140,6 +141,9 @@ struct CommandDispatcher {
 
         case .showWorkflows:
             bindings.showWorkflows.wrappedValue = true
+
+        case .showActivity:
+            bindings.showActivity.wrappedValue = true
 
         case .previousTab:
             guard tabManager.selectedIndex > 0 else { return }

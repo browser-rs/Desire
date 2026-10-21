@@ -155,6 +155,7 @@ struct ContentView: View {
             bindings: .init(
                 showHistory: $showHistory,
                 showWorkflows: $showWorkflows,
+                showActivity: $showActivity,
                 showBookmarks: $showBookmarks,
                 showPlugins: $showPlugins,
                 showElementBlock: $showElementBlock,
@@ -219,6 +220,7 @@ struct ContentView: View {
     @State var isFindBarVisible = false
     @State var showHistory = false
     @State var showWorkflows = false
+    @State var showActivity = false
     @State var showBookmarks = false
     @State var showPlugins = false
     @State var showReadingList = false
@@ -563,6 +565,7 @@ struct ContentView: View {
             readingListStoreRef: readingListStore,
             showHistory: $showHistory,
             showWorkflows: $showWorkflows,
+            showActivity: $showActivity,
             showBookmarks: $showBookmarks,
             showSearchHistory: $showSearchHistory,
             showPlugins: $showPlugins,

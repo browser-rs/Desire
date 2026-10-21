@@ -28,6 +28,7 @@ struct PanelsRouter: ViewModifier {
     let readingListStoreRef: ReadingListStore
     @Binding var showHistory: Bool
     @Binding var showWorkflows: Bool
+    @Binding var showActivity: Bool
     @Binding var showBookmarks: Bool
     @Binding var showSearchHistory: Bool
     @Binding var showPlugins: Bool
@@ -54,6 +55,9 @@ struct PanelsRouter: ViewModifier {
             }
             .sheet(isPresented: $showWorkflows) {
                 WorkflowPanel(onClose: { showWorkflows = false })
+            }
+            .sheet(isPresented: $showActivity) {
+                ActivityPanel(onClose: { showActivity = false })
             }
             .sheet(isPresented: $showBookmarks) {
                 BookmarkPanel(store: bookmarkStore, onSelect: { url in

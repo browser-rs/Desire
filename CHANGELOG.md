@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.7.29] - 2026-10-21
 ### Fixed
 
 - **会话批量删除崩溃/卡死修复（v0.7.29）**：崩溃报告显示 SwiftUI `ForEach.IDGenerator` 在分组 diff 时越界（SIGTRAP），根因是 `AgentHistoryGroup.id = UUID()` 每次重建都变；改为稳定的分组标题 ID。另修「全选 → 取消几条 → 删除」卡死：删除确认从阻塞 run loop 的 `NSAlert.runModal()` 换成 SwiftUI `.alert`，并把删除拆成两拍（先退出多选/清空选区，下一拍再改 store）。验收：用户实测通过。

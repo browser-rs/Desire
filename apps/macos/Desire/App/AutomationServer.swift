@@ -417,6 +417,11 @@ final class AutomationServer {
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
         ep("GET", "/diag/browser", "Browser diagnostics: content-process crash count + recent crashes", example: "…/diag/browser")
         ep("POST", "/diag/export", "Export a diagnostics zip (MetricKit + crash counters + last 30 min OSLog)", example: "-d '{}'")
+        ep("POST", "/workflow/start", "Start recording a web workflow on the active tab", example: "-d '{}'")
+        ep("POST", "/workflow/stop", "Stop recording and save the workflow", params: ["name:string"], example: #"-d '{"name":"login flow"}'"#)
+        ep("GET", "/workflow/list", "Saved web workflows (host/steps/sensitive count)", example: "…/workflow/list")
+        ep("POST", "/workflow/run", "Replay a workflow on the active tab (sensitive values via values map)", params: ["id?/name?", "values?:{stepId:value}"], example: #"-d '{"name":"login flow","values":{"<step-uuid>":"…"}}'"#)
+        ep("POST", "/workflow/delete", "Delete a saved workflow", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/backup/export", "Write a full backup JSON (settings/bookmarks/history/reading list/quick dials/Agent memory; no keys)", params: ["path:string (file or directory)"], example: #"-d '{"path":"/tmp/desire-backup.json"}'"#)
         ep("POST", "/backup/import", "Restore a backup: mode=merge (add missing) | replace (overwrite); optional domains filter", params: ["path:string", "mode?:merge|replace", "domains?:[settings|bookmarks|history|readingList|quickDials|agentMemory]"], example: #"-d '{"path":"/tmp/desire-backup.json","mode":"merge","domains":["bookmarks"]}'"#)
         ep("POST", "/backup/preview", "Preview a backup file: version/date/domain counts (no changes)", params: ["path:string"], example: #"-d '{"path":"/tmp/desire-backup.json"}'"#)
@@ -840,6 +845,16 @@ final class AutomationServer {
                 return try Self.json(BrowserDiagnostics.shared.summary())
             case ("POST", "/diag/export"):
                 return try Self.json(Self.diagExport())
+            case ("POST", "/workflow/start"):
+                return try Self.json(Self.workflowStart())
+            case ("POST", "/workflow/stop"):
+                return try Self.json(Self.workflowStop(name: Self.string(body, "name") ?? ""))
+            case ("GET", "/workflow/list"):
+                return try Self.json(Self.workflowList())
+            case ("POST", "/workflow/run"):
+                return try Self.json(await Self.workflowRun(body: body))
+            case ("POST", "/workflow/delete"):
+                return try Self.json(Self.workflowDelete(id: Self.string(body, "id") ?? ""))
             case ("POST", "/backup/export"):
                 return try Self.json(Self.backupExport(body: body))
             case ("POST", "/backup/import"):
@@ -6939,6 +6954,97 @@ final class AutomationServer {
         } catch {
             return ["error": "import failed: \(error.localizedDescription)"]
         }
+    }
+
+    // MARK: - Workflow recorder/replay（v0.7.29）
+
+    private static func workflowStart() throws -> [String: Any] {
+        guard let tm = try shared.tabManager, let tab = tm.selectedTab else {
+            return ["error": "no active tab"]
+        }
+        let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
+        guard WorkflowLogic.host(of: url) != nil else {
+            return ["error": "the active tab has no site"]
+        }
+        WorkflowStore.shared.startRecording(url: url)
+        tab.browser.webView.evaluateJavaScript("window.__desireWorkflowRecording = true",
+                                               completionHandler: nil)
+        return ["ok": true, "host": WorkflowStore.shared.recordingHost ?? ""]
+    }
+
+    private static func workflowStop(name: String) throws -> [String: Any] {
+        guard let tm = try shared.tabManager, let tab = tm.selectedTab else {
+            return ["error": "no active tab"]
+        }
+        tab.browser.webView.evaluateJavaScript("window.__desireWorkflowRecording = false",
+                                               completionHandler: nil)
+        guard let workflow = WorkflowStore.shared.stopRecording(name: name) else {
+            return ["error": "nothing recorded"]
+        }
+        return workflowSummary(workflow)
+    }
+
+    private static func workflowList() throws -> [String: Any] {
+        ["ok": true, "workflows": WorkflowStore.shared.workflows.map(workflowSummary)]
+    }
+
+    private static func workflowSummary(_ workflow: Workflow) -> [String: Any] {
+        ["id": workflow.id.uuidString,
+         "name": workflow.name,
+         "host": workflow.host,
+         "startURL": workflow.startURL,
+         "steps": workflow.steps.count,
+         "sensitive": workflow.steps.filter(\.sensitive).count,
+         "updatedAt": workflow.updatedAt.timeIntervalSince1970,
+         "stepDetails": workflow.steps.map { step -> [String: Any] in
+             var row: [String: Any] = ["id": step.id.uuidString,
+                                       "kind": step.kind.rawValue,
+                                       "selectors": step.selectors,
+                                       "sensitive": step.sensitive]
+             if let value = step.value { row["value"] = value }
+             if let url = step.url { row["url"] = url }
+             return row
+         }]
+    }
+
+    private static func workflowRun(body: [String: Any]) async throws -> [String: Any] {
+        let workflows = WorkflowStore.shared.workflows
+        var workflow: Workflow?
+        if let rawID = Self.string(body, "id"), let id = UUID(uuidString: rawID) {
+            workflow = workflows.first { $0.id == id }
+        } else if let name = Self.string(body, "name"), !name.isEmpty {
+            workflow = workflows.first { $0.name == name }
+        }
+        guard let workflow else { return ["error": "workflow not found"] }
+        guard let tm = try shared.tabManager, let tab = tm.selectedTab else {
+            return ["error": "no active tab"]
+        }
+        var values: [UUID: String] = [:]
+        if let raw = body["values"] as? [String: Any] {
+            for (key, value) in raw {
+                if let id = UUID(uuidString: key), let text = value as? String {
+                    values[id] = text
+                }
+            }
+        }
+        let missing = WorkflowLogic.missingSensitiveValues(workflow, values: values)
+        guard missing.isEmpty else {
+            return ["error": "missing sensitive values", "missing": missing.map(\.uuidString)]
+        }
+        let result = await WorkflowPlayer.run(workflow, values: values, in: tab.browser.webView)
+        return ["ok": result.ok,
+                "results": result.results.map {
+                    ["index": $0.index,
+                     "kind": $0.kind.rawValue,
+                     "ok": $0.ok,
+                     "message": $0.message] as [String: Any]
+                }]
+    }
+
+    private static func workflowDelete(id: String) throws -> [String: Any] {
+        guard let uuid = UUID(uuidString: id) else { return ["error": "invalid id"] }
+        WorkflowStore.shared.delete(uuid)
+        return ["ok": true]
     }
 
     /// 诊断包（v0.7.28）：MetricKit 报告 + 崩溃计数 + 最近 30 分钟 OSLog。

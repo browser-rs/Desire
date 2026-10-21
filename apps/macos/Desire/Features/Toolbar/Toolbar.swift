@@ -748,13 +748,17 @@ struct Toolbar: View {
                     .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .help("More")
+            .accessibilityLabel("More")
             .popover(isPresented: $showMoreMenu, arrowEdge: .top) {
                 // 30+ 项的溢出菜单（v0.7.29 用户反馈）：固定 VStack 在 14 寸屏上
                 // 会超出屏幕。按可见高度封顶并让内容滚动；高屏一屏放下，矮屏可滚。
-                ScrollView(.vertical, showsIndicators: true) {
+                // 宽度/行高/分组由 moreMenuContent 统一（不再是裸 Label 堆）。
+                ScrollView(.vertical) {
                     moreMenuContent
                 }
-                .frame(width: 280, height: moreMenuHeight)
+                .scrollIndicators(.visible)
+                .frame(width: 300, height: moreMenuHeight)
             }
 
             if !profiles.isEmpty {
@@ -807,66 +811,101 @@ struct Toolbar: View {
     }
 
     private var moreMenuContent: some View {
-        VStack(spacing: 0) {
-            moreMenuItem("History", "clock.arrow.circlepath", shortcut: "⌘Y") { showHistory = true }
-            moreMenuItem("Bookmarks", "bookmark") { showBookmarks = true }
-            moreMenuItem("Search History", "magnifyingglass") { showSearchHistory = true }
-            moreMenuItem("Passwords", "key.fill") { showPasswords = true }
-            moreMenuItem("Downloads", "arrow.down.circle") { showDownloads = true }
-            moreMenuItem("Workspaces", "square.stack.3d.up") { showWorkspaces = true }
-            moreMenuItem("Reading List", "bookmark.slash") { showReadingList = true }
-            moreMenuItem("Plugins", "applescript", shortcut: "⇧⌘P") { showPlugins = true }
-            moreMenuItem("Element Blocker", "eye.slash") { showElementBlock = true }
-            moreMenuItem(isBookmarked ? "Remove Bookmark" : "Bookmark This Page", isBookmarked ? "bookmark.slash" : "bookmark.fill", shortcut: "⌘D") { actions.toggleBookmark() }
-                .disabled(tab.isOnNewTabPage)
-            moreMenuItem("Add to Reading List", "bookmark.slash") {
-                let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
-                let title = tab.browser.pageTitle
-                actions.addToReadingList(title, url)
+        VStack(spacing: 1) {
+            moreMenuSection("Browse") {
+                moreMenuItem("History", "clock.arrow.circlepath", shortcut: "⌘Y") { showHistory = true }
+                moreMenuItem("Bookmarks", "bookmark") { showBookmarks = true }
+                moreMenuItem("Search History", "magnifyingglass") { showSearchHistory = true }
+                moreMenuItem("Passwords", "key.fill") { showPasswords = true }
+                moreMenuItem("Downloads", "arrow.down.circle") { showDownloads = true }
             }
-            .disabled(tab.isOnNewTabPage)
-            moreMenuItem("Dark Mode", isDarkMode ? "moon.circle.fill" : "moon.circle") { actions.toggleDarkMode() }
-                .disabled(tab.isOnNewTabPage)
-            moreMenuItem("Page Font…", "textformat.size") {
-                fontSheetHost = tab.browser.webView.url?.host ?? ""
-                showFontSheet = true
+            moreMenuSection("Collections") {
+                moreMenuItem("Workspaces", "square.stack.3d.up") { showWorkspaces = true }
+                moreMenuItem("Reading List", "bookmark.slash") { showReadingList = true }
+                moreMenuItem("Plugins", "applescript", shortcut: "⇧⌘P") { showPlugins = true }
+                moreMenuItem("Element Blocker", "eye.slash") { showElementBlock = true }
             }
-            .disabled(tab.isOnNewTabPage)
-            moreMenuItem(isSiteAutoPlayAllowed ? "Site Auto-Play On" : "Site Auto-Play Off",
-                         isSiteAutoPlayAllowed ? "play.circle.fill" : "play.circle") { actions.toggleSiteAutoPlay() }
+            moreMenuSection("This Page") {
+                moreMenuItem(isBookmarked ? "Remove Bookmark" : "Bookmark This Page",
+                             isBookmarked ? "bookmark.slash" : "bookmark.fill",
+                             shortcut: "⌘D") { actions.toggleBookmark() }
+                    .disabled(tab.isOnNewTabPage)
+                moreMenuItem("Add to Reading List", "bookmark.slash") {
+                    let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
+                    let title = tab.browser.pageTitle
+                    actions.addToReadingList(title, url)
+                }
                 .disabled(tab.isOnNewTabPage)
-            moreMenuItem("Picture in Picture", "pip") { actions.togglePictureInPicture() }
+                moreMenuItem("Dark Mode", isDarkMode ? "moon.circle.fill" : "moon.circle") {
+                    actions.toggleDarkMode()
+                }
                 .disabled(tab.isOnNewTabPage)
-            moreMenuItem("Share…", "square.and.arrow.up") { shareCurrentPage() }
+                moreMenuItem("Page Font…", "textformat.size") {
+                    fontSheetHost = tab.browser.webView.url?.host ?? ""
+                    showFontSheet = true
+                }
                 .disabled(tab.isOnNewTabPage)
-            moreMenuItem("Page Share Card", "rectangle.on.rectangle.angled") {
-                Task { await generateShareCard() }
+                moreMenuItem(isSiteAutoPlayAllowed ? "Site Auto-Play On" : "Site Auto-Play Off",
+                             isSiteAutoPlayAllowed ? "play.circle.fill" : "play.circle") {
+                    actions.toggleSiteAutoPlay()
+                }
+                .disabled(tab.isOnNewTabPage)
+                moreMenuItem("Picture in Picture", "pip") { actions.togglePictureInPicture() }
+                    .disabled(tab.isOnNewTabPage)
+                moreMenuItem("Share…", "square.and.arrow.up") { shareCurrentPage() }
+                    .disabled(tab.isOnNewTabPage)
+                moreMenuItem("Page Share Card", "rectangle.on.rectangle.angled") {
+                    Task { await generateShareCard() }
+                }
+                .disabled(tab.isOnNewTabPage)
             }
-            .disabled(tab.isOnNewTabPage)
-            Divider()
-            moreMenuItem("Zoom In", "plus.magnifyingglass", shortcut: "⌘=") { actions.zoomIn() }
-            moreMenuItem("Zoom Out", "minus.magnifyingglass", shortcut: "⌘-") { actions.zoomOut() }
-            moreMenuItem("Reset Zoom", "1.magnifyingglass", shortcut: "⌘0") { actions.resetZoom() }
-            moreMenuItem("Print…", "printer", shortcut: "⌘P") { actions.printPage() }
-            moreMenuItem("Full Page PDF…", "photo.on.rectangle.angled") { actions.captureFullPage() }
-            moreMenuItem("Screenshot Region…", "crop", shortcut: "⇧⌘5") { actions.captureScreenshot() }
-            Divider()
-            moreMenuItem("Translate…", "translate") { actions.toggleTranslate() }
-            moreMenuItem(isBilingualOn ? "Bilingual Reading On" : "Bilingual Reading",
-                         isBilingualOn ? "character.book.closed.fill" : "character.book.closed") {
-                actions.toggleBilingual()
+            moreMenuSection("View") {
+                moreMenuItem("Zoom In", "plus.magnifyingglass", shortcut: "⌘=") { actions.zoomIn() }
+                moreMenuItem("Zoom Out", "minus.magnifyingglass", shortcut: "⌘-") { actions.zoomOut() }
+                moreMenuItem("Reset Zoom", "1.magnifyingglass", shortcut: "⌘0") { actions.resetZoom() }
+                moreMenuItem("Print…", "printer", shortcut: "⌘P") { actions.printPage() }
+                moreMenuItem("Full Page PDF…", "photo.on.rectangle.angled") { actions.captureFullPage() }
+                moreMenuItem("Screenshot Region…", "crop", shortcut: "⇧⌘5") { actions.captureScreenshot() }
             }
-            .disabled(tab.isOnNewTabPage)
-            moreMenuItem("Safari Web Inspector", "ladybug", shortcut: "⇧⌘I") { actions.inspectElement() }
-            moreMenuItem("DevTools Panel (Beta)", "hammer", shortcut: "⇧⌘D") { actions.toggleDevTools() }
-            moreMenuItem("Responsive Design Mode", "rectangle.on.rectangle", shortcut: "⇧⌘M") { actions.toggleResponsiveMode() }
-            moreMenuItem("Full Screen", "arrow.up.left.and.arrow.down.right", shortcut: "⌃⌘F") { actions.toggleFullScreen() }
-            Divider()
-            moreMenuItem("Agent", "wand.and.stars") { actions.toggleAgentPanel() }
-            moreMenuItem("Preferences…", "gearshape", shortcut: "⌘,") { openWindow("settings") }
+            moreMenuSection("Tools") {
+                moreMenuItem("Translate…", "translate") { actions.toggleTranslate() }
+                moreMenuItem(isBilingualOn ? "Bilingual Reading On" : "Bilingual Reading",
+                             isBilingualOn ? "character.book.closed.fill" : "character.book.closed") {
+                    actions.toggleBilingual()
+                }
+                .disabled(tab.isOnNewTabPage)
+                moreMenuItem("Safari Web Inspector", "ladybug", shortcut: "⇧⌘I") { actions.inspectElement() }
+                moreMenuItem("DevTools Panel (Beta)", "hammer", shortcut: "⇧⌘D") { actions.toggleDevTools() }
+                moreMenuItem("Responsive Design Mode", "rectangle.on.rectangle", shortcut: "⇧⌘M") {
+                    actions.toggleResponsiveMode()
+                }
+                moreMenuItem("Full Screen", "arrow.up.left.and.arrow.down.right", shortcut: "⌃⌘F") {
+                    actions.toggleFullScreen()
+                }
+            }
+            moreMenuSection("App") {
+                moreMenuItem("Agent", "wand.and.stars") { actions.toggleAgentPanel() }
+                moreMenuItem("Preferences…", "gearshape", shortcut: "⌘,") { openWindow("settings") }
+            }
         }
-        .padding(4)
-        .frame(width: 240)
+        .padding(.vertical, 6)
+    }
+
+    private func moreMenuSection<Content: View>(
+        _ title: LocalizedStringKey,
+        @ViewBuilder content: () -> Content
+    ) -> some View {
+        VStack(spacing: 1) {
+            Text(title)
+                .font(.system(size: 9.5, weight: .semibold))
+                .textCase(.uppercase)
+                .foregroundStyle(.tertiary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.top, 8)
+                .padding(.bottom, 3)
+            content()
+        }
     }
 
     private func moreMenuItem(
@@ -875,24 +914,10 @@ struct Toolbar: View {
         shortcut: String? = nil,
         action: @escaping () -> Void
     ) -> some View {
-        Button(action: {
+        MoreMenuRow(titleKey: titleKey, icon: icon, shortcut: shortcut) {
             showMoreMenu = false
             action()
-        }) {
-            HStack(spacing: 6) {
-                Label(titleKey, systemImage: icon)
-                Spacer()
-                if let shortcut {
-                    Text(shortcut)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .buttonStyle(.plain)
-        .padding(8)
     }
 
     private func shareCurrentPage() {
@@ -997,5 +1022,48 @@ private struct DownloadButton: View {
         .popover(isPresented: $showDownloads) {
             DownloadPanel(store: store)
         }
+    }
+}
+
+/// 工具栏溢出菜单的一行：统一 28pt 高、图标列固定、hover 高亮、快捷键右对齐。
+/// 与原生菜单的密度/对齐一致，避免裸 Label 堆出来的"不和谐"。
+private struct MoreMenuRow: View {
+    @Environment(\.isEnabled) private var isEnabled
+    let titleKey: LocalizedStringKey
+    let icon: String
+    let shortcut: String?
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 12))
+                    .frame(width: 18, alignment: .leading)
+                    .foregroundStyle(isEnabled ? AnyShapeStyle(.secondary)
+                                               : AnyShapeStyle(.tertiary))
+                Text(titleKey)
+                    .font(.system(size: 12.5))
+                    .lineLimit(1)
+                Spacer(minLength: 12)
+                if let shortcut {
+                    Text(shortcut)
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 28)
+            .background(
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(isHovering && isEnabled ? Color.primary.opacity(0.07) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
+        .onHover { isHovering = $0 }
     }
 }

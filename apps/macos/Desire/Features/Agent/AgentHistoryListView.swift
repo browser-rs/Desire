@@ -34,6 +34,10 @@ struct AgentHistoryListView: View {
         var out: [Conversation] = []
     }
     @State private var filterCache = FilterCacheBox()
+    /// 删除确认改用 SwiftUI alert（v0.7.29）：NSAlert.runModal 在 List 选区
+    /// 更新事务里会卡住主循环（用户实测"全选→取消几条→删除→卡死"）。
+    @State private var pendingDeleteIDs: Set<UUID> = []
+    @State private var showDeleteConfirmation = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -60,6 +64,29 @@ struct AgentHistoryListView: View {
             // Esc 退出多选模式（重命名态有自己的 onExitCommand，先于这里）。
             if isSelectionMode { exitSelectionMode() }
         }
+        .alert(deleteConfirmationTitle, isPresented: $showDeleteConfirmation) {
+            Button("Delete", role: .destructive) {
+                performDelete(pendingDeleteIDs)
+            }
+            Button("Cancel", role: .cancel) {
+                pendingDeleteIDs = []
+            }
+        } message: {
+            Text(deleteConfirmationMessage)
+        }
+    }
+
+    private var deleteConfirmationTitle: LocalizedStringKey {
+        pendingDeleteIDs.count == 1 ? "Delete Conversation" : "Delete Conversations"
+    }
+
+    private var deleteConfirmationMessage: String {
+        if pendingDeleteIDs.count == 1, let id = pendingDeleteIDs.first,
+           let conv = conversationStore.conversations.first(where: { $0.id == id }) {
+            return String(format: String(localized: "Are you sure you want to delete \"%@\"? This cannot be undone."),
+                          conv.title)
+        }
+        return String(localized: "This cannot be undone.")
     }
 
     // MARK: - Header
@@ -312,26 +339,21 @@ struct AgentHistoryListView: View {
     /// 删除确认（单条与批量共用）。多选时只确认一次。
     private func confirmDelete(ids: Set<UUID>) {
         guard !ids.isEmpty else { return }
-        let alert = NSAlert()
-        if ids.count == 1, let id = ids.first,
-           let conv = conversationStore.conversations.first(where: { $0.id == id }) {
-            alert.messageText = String(localized: "Delete Conversation")
-            alert.informativeText = "Are you sure you want to delete \"\(conv.title)\"? This cannot be undone."
-        } else {
-            alert.messageText = String(localized: "Delete Conversations")
-            alert.informativeText = String(localized: "This cannot be undone.")
-        }
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: String(localized: "Delete"))
-        alert.addButton(withTitle: String(localized: "Cancel"))
-        if alert.runModal() == .alertFirstButtonReturn {
-            // 先清选区再删（v0.7.29）：selection 里残留已删 id 时，List 在同一
-            // 次 diff 中会对不上行，叠加分组收缩会触发 ForEach 越界断言。
-            selection.removeAll()
-            conversationStore.delete(ids)
-            // 删的是面板正在显示的会话（删全部必然包含）→ 面板重置回初始空态；
-            // 不重置的话残留消息还在显示，下一回合还会把已删文件写回复活。
-            sessionStore.handleConversationsDeleted(ids)
+        pendingDeleteIDs = ids
+        showDeleteConfirmation = true
+    }
+
+    /// 真正执行删除：先退出多选并清空 selection，让 List 处理完选区；
+    /// 下一拍再改 store，避免选区失效与分组收缩挤在同一次 diff（SIGTRAP/卡死）。
+    private func performDelete(_ ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        pendingDeleteIDs = []
+        let deleting = ids
+        selection.removeAll()
+        isSelectionMode = false
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            conversationStore.delete(deleting)
+            sessionStore.handleConversationsDeleted(deleting)
         }
     }
 

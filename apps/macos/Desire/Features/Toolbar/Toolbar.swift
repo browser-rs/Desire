@@ -130,6 +130,9 @@ struct Toolbar: View {
     /// 站点设置（字体弹层 + 控制中心共用；非观察引用：Toolbar 只把它交给
     /// 弹层构造，不读它的状态——同 downloadStore/passwordStore 的传递方式）。
     let siteSettingsStore: SiteSettingsStore
+    /// 全局自动播放档（父视图传入）：站点控制中心据此解析"生效值"——
+    /// 视频平台在"需要用户手势"档下默认豁免，开关不能只看站点覆写。
+    let globalAutoPlay: AutoPlayPolicy
     /// 本站拦截规则数（父视图按 host 派生；弹层打开时取当次渲染值）。
     var blockedElementCount: Int? = nil
     @State private var showFontSheet = false
@@ -259,6 +262,7 @@ struct Toolbar: View {
                         SiteControlsView(
                             host: host,
                             store: siteSettingsStore,
+                            globalAutoPlay: globalAutoPlay,
                             pageZoom: tab.browser.pageZoom,
                             blockedCount: blockedElementCount ?? 0,
                             actions: SiteControlsView.Actions(

@@ -312,21 +312,23 @@ extension BrowsingActions {
         tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
     }
 
-    /// 当前站点是否已"允许自动播放"（工具栏菜单勾选态）。
+    /// 当前站点是否**生效**为允许自动播放（工具栏菜单勾选态）。
+    /// 视频平台默认豁免也要算进来，否则菜单显示 Off 而实际能播。
     func isSiteAutoPlayAllowed(for tab: Tab) -> Bool {
         guard let host = tab.browser.webView.url?.host else { return false }
-        return siteSettingsStore.autoPlayOverride(for: host) == .allow
+        return siteSettingsStore.isAutoPlayAllowed(for: host, global: settings.autoPlayPolicy)
     }
 
-    /// 站点自动播放切换：允许 ↔ 移除（回到跟随全局）。生效点在 Tab 构造
-    /// （公开 API 只在 webview 创建期可配播放策略），所以**授予**时把当前
-    /// 标签原 URL 重开一遍（新 webview 带新策略、旧标签随即关闭）——用户
-    /// 视角是"点了立即生效"，不用自己摸索"要重开标签"。移除不需要重开
-    /// （当前页继续播，新标签恢复跟随全局）。
+    /// 站点自动播放切换：允许 ↔ 阻断。生效点在 Tab 构造（公开 API 只在
+    /// webview 创建期可配播放策略），所以**授予**时把当前标签原 URL 重开
+    /// 一遍（新 webview 带新策略、旧标签随即关闭）——用户视角是"点了立即
+    /// 生效"，不用自己摸索"要重开标签"。阻断不需要重开（当前页继续播，
+    /// 新标签不再自动播放）。想回到"跟随全局 / 视频平台默认"，走站点控制
+    /// 中心的 Clear Site Overrides。
     func toggleSiteAutoPlay(for tab: Tab) {
         guard let host = tab.browser.webView.url?.host, !host.isEmpty else { return }
         if isSiteAutoPlayAllowed(for: tab) {
-            siteSettingsStore.setAutoPlay(nil, for: host)
+            siteSettingsStore.setAutoPlay(.block, for: host)
             return
         }
         siteSettingsStore.setAutoPlay(.allow, for: host)

@@ -64,9 +64,20 @@ class SiteSettingsStore: ObservableObject {
         settings[domain]?.blockedSelectors ?? []
     }
 
-    /// 该站点的自动播放覆写（nil = 跟随全局 autoPlayPolicy）。
+    /// 该站点的自动播放覆写（nil = 跟随全局 / 视频平台默认）。
     func autoPlayOverride(for domain: String) -> SiteSettings.AutoPlay? {
         settings[domain]?.autoPlay
+    }
+
+    /// 该站点上**生效**的自动播放档位（覆写 > 视频平台默认 > 全局）。
+    /// 菜单勾选态与重开标签都走这一处，避免"显示 Off 实际却允许"的错位。
+    func effectiveAutoPlay(for domain: String, global: AutoPlayPolicy) -> AutoPlayPolicy {
+        .resolved(global: global, host: domain,
+                  siteOverrideRaw: autoPlayOverride(for: domain)?.rawValue)
+    }
+
+    func isAutoPlayAllowed(for domain: String, global: AutoPlayPolicy) -> Bool {
+        effectiveAutoPlay(for: domain, global: global) == .allowAll
     }
 
     // MARK: - 站点字体（最小字号 + 字体族）

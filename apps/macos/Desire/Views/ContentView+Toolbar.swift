@@ -14,7 +14,9 @@ extension ContentView {
     func toolbarSection(for tab: Tab) -> some View {
         let host = tab.browser.webView.url?.host
         let isDark = host.map { siteSettingsStore.darkModeEnabled(for: $0) } ?? false
-        let isSiteAutoPlayAllowed = host.map { siteSettingsStore.autoPlayOverride(for: $0) == .allow } ?? false
+        let isSiteAutoPlayAllowed = host.map {
+            siteSettingsStore.isAutoPlayAllowed(for: $0, global: settings.autoPlayPolicy)
+        } ?? false
         let isBilingual = bilingualService.isOn(tabID: tab.id)
         let isBookmarked: Bool = {
             guard let url = tab.browser.webView.url?.absoluteString, !tab.isOnNewTabPage else { return false }
@@ -158,6 +160,7 @@ extension ContentView {
                 set: { appState.showWorkspacesPanel = $0 }
             ),
             siteSettingsStore: siteSettingsStore,
+            globalAutoPlay: settings.autoPlayPolicy,
             blockedElementCount: host.map { elementBlockStore.matchingRules(for: $0).count },
             isBookmarked: isBookmarked
         )

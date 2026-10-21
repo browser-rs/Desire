@@ -215,9 +215,16 @@ class BrowserState: ObservableObject {
     var elementPickIntent: ElementPickIntent = .block
     let videoAdBlocker: VideoAdBlocker?
 
+    /// webview 创建时烙入的自动播放策略（公开 API 只能在创建期设置）。用于
+    /// 识别"创建时被全局档压住、但当前 host 按视频站默认已允许"的边界：
+    /// 空白新标签里输入/打开 YouTube 时策略已定格为 requireUserAction，
+    /// didFinish 时由 `Coordinator` 用一次可信的 evaluateJavaScript 补播。
+    let createdAutoPlayPolicy: AutoPlayPolicy
+
     init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, containerDataStore: WKWebsiteDataStore? = nil) {
         self.isIncognito = incognito
         self.videoAdBlocker = videoAdBlocker
+        self.createdAutoPlayPolicy = autoPlayPolicy
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         let webpagePrefs = WKWebpagePreferences()
@@ -309,6 +316,17 @@ class BrowserState: ObservableObject {
         // (removeAllUserScripts is the only removal API available).
         for script in UserScriptLoader.builtinScripts() {
             config.userContentController.addUserScript(script)
+        }
+        // YouTube 起播补刀 + 黑屏海报守卫（2026-10-21）。allowAll 由
+        // **本标签生效的策略**决定（站点覆写/视频平台默认已在 Tab 构造算好），
+        // 不能在脚本里读全局档，否则"站点已阻断"仍会被补刀拉起来。
+        let playbackGuard = UserScriptLoader.load("yt-playback-guard")
+            .replacingOccurrences(of: "__DESIRE_AUTOPLAY_ALLOWED__",
+                                  with: autoPlayPolicy == .allowAll ? "true" : "false")
+        if !playbackGuard.isEmpty {
+            config.userContentController.addUserScript(
+                WKUserScript(source: playbackGuard, injectionTime: .atDocumentEnd,
+                             forMainFrameOnly: true))
         }
         // Cookie 弹窗自动处理（0.6.5）：policy 变化对新导航生效（与站点
         // 偏好模式一致）；内插偏好给 cookie-banner-guard.js。
@@ -2036,6 +2054,50 @@ try {
                           let total = dict["total"], let scripts = dict["scripts"] else { return }
                     self.parent.state.mixedContentTotal = total
                     self.parent.state.mixedContentScripts = scripts
+                }
+            }
+            kickStaleAutoplayIfNeeded(in: webView)
+        }
+
+        /// 补齐"webview 创建时策略更严、但当前 host 现已允许自动播放"的边界。
+        ///
+        /// 公开 API 只能在创建期烙入播放策略：空白新标签里输入/打开 YouTube
+        /// 时策略是 requireUserAction，后面即使站点控制或视频平台默认解析为
+        /// allowAll 也追不回来（页面内 setTimeout 后再 play 会被 NotAllowedError
+        /// 拒）。`evaluateJavaScript` 的调用本身带可信手势，所以这里在 didFinish
+        /// 后补一次 playVideo()/play()——**只补"视频平台默认/站点覆写已允许"
+        /// 的页面**；全局 never 或站点 block 一律不补（effectiveAutoPlay 判据）。
+        private func kickStaleAutoplayIfNeeded(in webView: WKWebView) {
+            guard parent.state.createdAutoPlayPolicy != .allowAll,
+                  let host = webView.url?.host,
+                  let app = AppState.live,
+                  app.siteSettingsStore.effectiveAutoPlay(
+                    for: host, global: app.settings.autoPlayPolicy) == .allowAll
+            else { return }
+            let js = """
+            (function() {
+                if (document.visibilityState === 'hidden') return 'hidden';
+                if (document.querySelector('.ad-showing')) return 'ad';
+                var v = document.querySelector('video');
+                if (!v) return 'no-video';
+                if (!v.paused) return 'playing';
+                if (!v.duration || v.duration < 5) return 'short';
+                var p = document.getElementById('movie_player');
+                try { if (p && p.playVideo) p.playVideo(); } catch (e) {}
+                if (v.paused) { try { v.play(); } catch (e2) {} }
+                return 'kicked';
+            })()
+            """
+            // didFinish 时播放器可能还没建好：两次机会。延迟本身不丢手势——
+            // 每次 evaluateJavaScript 调用都单独带可信激活（与页面内 setTimeout
+            // 不同）。
+            for delay in [1.2, 3.2] {
+                Task { @MainActor [weak webView] in
+                    try? await Task.sleep(for: .seconds(delay))
+                    // 延迟窗口内页面可能已经导航走：host 变了就不再补播
+                    // （新页面的自动播放资格要按它自己的策略重新判定）。
+                    guard let webView, webView.url?.host == host else { return }
+                    _ = try? await webView.evaluateJavaScript(js)
                 }
             }
         }

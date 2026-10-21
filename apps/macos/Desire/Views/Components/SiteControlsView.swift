@@ -18,6 +18,8 @@ struct SiteControlsView: View {
 
     let host: String
     @ObservedObject var store: SiteSettingsStore
+    /// 全局自动播放档（视频平台默认豁免的解析基准）。
+    let globalAutoPlay: AutoPlayPolicy
     /// 当前页缩放（Tab.applyPageZoom 的真实值，1.0 = 100%）。
     let pageZoom: Double
     /// 本站元素拦截规则数（父视图按 host 派生）。
@@ -82,7 +84,7 @@ struct SiteControlsView: View {
                     .font(.system(size: 12.5))
                 Spacer()
                 Toggle("", isOn: Binding(
-                    get: { store.autoPlayOverride(for: host) == .allow },
+                    get: { store.isAutoPlayAllowed(for: host, global: globalAutoPlay) },
                     set: { _ in actions.toggleAutoPlay() }))
                     .labelsHidden()
                     .toggleStyle(.switch)

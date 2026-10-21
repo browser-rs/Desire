@@ -3494,6 +3494,42 @@ func testSiteFont() {
 }
 testSiteFont()
 
+func testAutoPlayPolicyResolution() {
+    // 视频平台默认豁免：全局"需要用户手势"时视频站仍自动播放。
+    check("自动播放：YouTube 默认放行",
+          AutoPlayPolicy.resolved(global: .requireUserAction, host: "www.youtube.com",
+                                  siteOverrideRaw: nil) == .allowAll)
+    check("自动播放：youtu.be 短链放行",
+          AutoPlayPolicy.resolved(global: .requireUserAction, host: "youtu.be",
+                                  siteOverrideRaw: nil) == .allowAll)
+    check("自动播放：B 站子域放行",
+          AutoPlayPolicy.resolved(global: .requireUserAction, host: "m.bilibili.com",
+                                  siteOverrideRaw: nil) == .allowAll)
+    // 非视频站跟随全局。
+    check("自动播放：普通站点跟随 requireUserAction",
+          AutoPlayPolicy.resolved(global: .requireUserAction, host: "example.com",
+                                  siteOverrideRaw: nil) == .requireUserAction)
+    // 显式站点覆写优先于平台默认与全局。
+    check("自动播放：站点 block 压过视频默认",
+          AutoPlayPolicy.resolved(global: .requireUserAction, host: "www.youtube.com",
+                                  siteOverrideRaw: "block") == .never)
+    check("自动播放：站点 allow 压过全局 never",
+          AutoPlayPolicy.resolved(global: .never, host: "example.com",
+                                  siteOverrideRaw: "allow") == .allowAll)
+    // 全局 never = 用户显式收紧，视频站也遵守。
+    check("自动播放：全局 never 也约束视频站",
+          AutoPlayPolicy.resolved(global: .never, host: "www.youtube.com",
+                                  siteOverrideRaw: nil) == .never)
+    // 域名匹配必须是后缀边界，不能子串误伤。
+    check("自动播放：仿名不误伤",
+          !AutoPlayPolicy.isVideoHost("notyoutube.com")
+          && !AutoPlayPolicy.isVideoHost("youtube.com.evil.test"))
+    check("自动播放：空 host 跟随全局",
+          AutoPlayPolicy.resolved(global: .allowAll, host: "",
+                                  siteOverrideRaw: nil) == .allowAll)
+}
+testAutoPlayPolicyResolution()
+
 func testBookmarkImportDedupe() {
     // 归一化：结构等价折叠（尾斜杠/fragment/大小写/默认端口），http≠https、查询保留
     check("去重：尾斜杠折叠", BookmarkImportDedupe.normalize("https://A.b/X/") == "https://a.b/X")

@@ -514,6 +514,7 @@ final class AutomationServer {
         ep("POST", "/site-settings/darkmode", "Set per-host dark mode", params: ["host:string", "enabled:bool"], example: #"-d '{"host":"example.com","enabled":true}'"#)
         ep("POST", "/site-settings/zoom", "Set per-host zoom", params: ["host:string", "zoom:double"], example: #"-d '{"host":"example.com","zoom":1.5}'"#)
         ep("POST", "/site-settings/font", "Per-site fonts: minFontSize (0=off)/fontFamily (''=off)/null=follow default; re-injects immediately", params: ["host", "minFontSize?", "fontFamily?"], example: #"-d '{"host":"a.b","minFontSize":16}'"#)
+        ep("POST", "/site-settings/autoplay", "Per-site auto-play override: mode allow|block|follow (follow = global / video-site default). Takes effect on the next webview (new tab).", params: ["host:string", "mode:string"], example: #"-d '{"host":"www.youtube.com","mode":"block"}'"#)
         ep("POST", "/site-settings/clear", "Clear all per-site UI overrides (zoom/dark/auto-play/fonts; blocked rules untouched) and re-apply to the active tab", params: ["host:string"], example: #"-d '{"host":"a.b"}'"#)
         ep("GET", "/agent/weekly-digest", "Weekly report state (enabled/weekday/hour/due/lastDeliveredAt/lastText)", example: "…/agent/weekly-digest")
         ep("POST", "/agent/weekly-digest", "Weekly report actions: run-now (templated digest → session note + routine notification) / run-pipeline (digest → seed weekly board template → append digest block → optional Notes write) / enable / disable", params: ["action", "writeToNotes?:bool (run-pipeline)", "conversationId?:uuid (run-pipeline; default = delivery target)"], example: #"-d '{"action":"run-pipeline"}'"#)
@@ -1676,6 +1677,8 @@ final class AutomationServer {
                 ))
             case ("POST", "/site-settings/font"):
                 return try Self.json(Self.setSiteFont(body: body))
+            case ("POST", "/site-settings/autoplay"):
+                return try Self.json(Self.setSiteAutoPlay(body: body))
             case ("POST", "/site-settings/clear"):
                 return try Self.json(Self.clearSiteSettings(host: Self.string(body, "host") ?? ""))
             case ("GET", "/palette"):
@@ -4610,6 +4613,15 @@ final class AutomationServer {
         guard !host.isEmpty else { return ["error": "missing host"] }
         let font = store.effectiveFont(for: host)
         let own = store.fontOverride(for: host)
+        // 注意别写 `optional?.rawValue.map { … }`：可选链会让 `.map` 落到
+        // **String 自己的 map**（逐字符 → [Any]），JSONSerialization 遇到
+        // __SwiftValue 直接抛 NSInvalidArgumentException（主 actor 僵尸）。
+        let siteAutoPlay: Any
+        if let raw = store.autoPlayOverride(for: host)?.rawValue {
+            siteAutoPlay = raw
+        } else {
+            siteAutoPlay = NSNull()
+        }
         return ["host": host,
                 "zoom": store.zoom(for: host),
                 "darkMode": store.darkModeEnabled(for: host),
@@ -4618,7 +4630,39 @@ final class AutomationServer {
                 "minFontSize": font.minFontSize,
                 "fontFamily": font.fontFamily,
                 "siteMinFontSize": own.min.map { $0 as Any } ?? NSNull(),
-                "siteFontFamily": own.family.map { $0 as Any } ?? NSNull()]
+                "siteFontFamily": own.family.map { $0 as Any } ?? NSNull(),
+                // 自动播放：显式覆写（null = 跟随）+ 生效档位（含视频平台默认豁免）。
+                "siteAutoPlay": siteAutoPlay,
+                "autoPlay": store.effectiveAutoPlay(
+                    for: host, global: app.settings.autoPlayPolicy).rawValue,
+                "globalAutoPlay": app.settings.autoPlayPolicy.rawValue]
+    }
+
+    /// 站点自动播放覆写。mode：allow / block / follow（清除覆写）。
+    /// 生效点在 webview 创建期，因此注释里明确"下一个标签生效"——桥测试别
+    /// 拿当前页断言播放策略。
+    private static func setSiteAutoPlay(body: [String: Any]) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let host = Self.string(body, "host") ?? ""
+        guard !host.isEmpty else { return ["error": "missing host"] }
+        let mode = (Self.string(body, "mode") ?? "follow").lowercased()
+        let store = app.siteSettingsStore
+        switch mode {
+        case "allow": store.setAutoPlay(.allow, for: host)
+        case "block": store.setAutoPlay(.block, for: host)
+        case "follow", "": store.setAutoPlay(nil, for: host)
+        default: return ["error": "mode must be allow|block|follow"]
+        }
+        let siteAutoPlay: Any
+        if let raw = store.autoPlayOverride(for: host)?.rawValue {
+            siteAutoPlay = raw
+        } else {
+            siteAutoPlay = NSNull()
+        }
+        return ["ok": true, "host": host,
+                "siteAutoPlay": siteAutoPlay,
+                "autoPlay": store.effectiveAutoPlay(
+                    for: host, global: app.settings.autoPlayPolicy).rawValue]
     }
 
     private static func setSiteDarkMode(host: String, enabled: Bool) throws -> [String: Any] {

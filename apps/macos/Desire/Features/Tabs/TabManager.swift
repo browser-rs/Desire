@@ -169,14 +169,13 @@ class Tab: ObservableObject {
         // 所以算在 Tab 构造这个咽喉点——外链/中键新标签/target=_blank/Agent
         // 开页/会话恢复全走 addTab → 这里，一处挂钩全路径生效。已知边界：
         // 空白新标签里同标签导航到已授权站点不吃覆写（策略已随 webview 定格）。
-        // 全局默认档"需要用户手势"会拦新文档直达的自动播放——页面内点缩略图
-        // 有激活所以能播，这就是"YouTube 时好时坏"的来源。
+        // 2026-10-21：视频平台在全局"需要用户手势"档下**默认豁免**（见
+        // AutoPlayPolicy.isVideoHost）——否则直开视频详情页只会得到黑屏 +
+        // 播放键。用户仍可用站点覆写 .block 或全局 .never 收紧。
         let effectiveAutoPlay: AutoPlayPolicy = {
-            guard let host = url.flatMap({ URL(string: $0)?.host }),
-                  let override = AppState.live?.siteSettingsStore.autoPlayOverride(for: host) else {
-                return autoPlayPolicy
-            }
-            return override == .allow ? .allowAll : .never
+            guard let host = url.flatMap({ URL(string: $0)?.host }) else { return autoPlayPolicy }
+            let override = AppState.live?.siteSettingsStore.autoPlayOverride(for: host)?.rawValue
+            return .resolved(global: autoPlayPolicy, host: host, siteOverrideRaw: override)
         }()
         browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: effectiveAutoPlay, containerDataStore: resolvedDataStore)
         // 超级拖拽（0.7.13）：webview 侧链接上报 → MouseGestureStore 判定。

@@ -3,6 +3,8 @@
 
 - **钥匙串连环授权弹窗修复（v0.7.30）**：一个模型回合里正文/标题/记忆/自评/guard 会各自读一次 API Key（5–6 次），每次 `SecItemCopyMatching` 在 ACL 认不出 adhoc 构建时都会弹钥匙串授权。现在 `AgentPreferenceStore` 做**进程内 Key 缓存**（读取命中即复用；写入/删除同步更新；用户点"拒绝"后本进程不再重试），`refreshKeyState` 逐档案只做非交互读、**交互读仅限当前活动档案**（此前保存/切档案会把所有档案各弹一次）。验收：构建零警告；同一构建内一次授权后可覆盖整回合的 5–6 次调用。已知边界：ad-hoc 重建/升级后首个调用仍可能询问一次（ACL 认签名），点"始终允许"可持久。
 - **下载面板弹出卡顿（v0.7.30）**：popover 的显隐此前绑在 `AppState.showDownloadsPanel`（@Published）上——每次打开/关闭都会让整个 ContentView（含 WKWebView representable）重绘，用户实测"下载窗口弹出卡顿"。现在改用独立的 `DownloadsPresentation` 单例（桥 `/panel` 与 `.showDownloads` 命令同源，只有工具栏观察它）；下载面板也不再观察批量媒体/媒体导出 store（进入"视频任务"后才由子视图观察），并去掉重复的文件存在性扫描。验收：构建零警告；桥 `/panel show:true` 能正常弹出（截图核对）。
+- **YouTube 视频页黑屏与不自动播放**：全局"需要用户手势"档下，播放器的 `play()` 被拒后 YouTube 会把海报图留成 `display:none!important`——只剩纯黑 + 播放键，看起来像广告过滤"假加载"。现在视频平台（YouTube / B 站 / 腾讯视频 / 爱奇艺 / 优酷 / 芒果 TV / Vimeo / Dailymotion）在全局档下默认允许自动播放，站点控制中心与工具栏菜单可把单站改回阻断；同时新增 YouTube 起播补刀（画面停在 0 秒时调用 `playVideo()`，后台标签不抢播）与海报守卫（策略确实阻断时恢复缩略图）；空白新标签里再输入视频地址的"策略已在创建期定格"边界，也在 `didFinish` 用一次可信求值补播。桥新增 `POST /site-settings/autoplay` 与 `GET /site-settings` 的 `autoPlay/globalAutoPlay/siteAutoPlay` 字段。
+
 
 
 

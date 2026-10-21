@@ -1,3 +1,25 @@
+## [Unreleased]
+### Fixed
+
+- **会话批量删除崩溃/卡死修复（v0.7.29）**：崩溃报告显示 SwiftUI `ForEach.IDGenerator` 在分组 diff 时越界（SIGTRAP），根因是 `AgentHistoryGroup.id = UUID()` 每次重建都变；改为稳定的分组标题 ID。另修「全选 → 取消几条 → 删除」卡死：删除确认从阻塞 run loop 的 `NSAlert.runModal()` 换成 SwiftUI `.alert`，并把删除拆成两拍（先退出多选/清空选区，下一拍再改 store）。验收：用户实测通过。
+- **工具栏溢出菜单显示不全/UI 不和谐（v0.7.29）**：30+ 项的自定义 popover 在 14 寸屏被截断。现在按 **Browse / Collections / This Page / View / Tools / App** 分组，统一 28pt 行高、图标列对齐、快捷键右对齐、hover 高亮、300pt 宽度；高度按屏幕可见高度的约 2/3 封顶并内部滚动，最后一项不再截半行。验收：用户实测通过。
+
+
+### Added
+
+- **网页工作流录制与回放（v0.7.29 旗舰）**：把用户在页面上的点击/输入/选择/SPA 导航录成可重放的步骤——注入 `workflow-recorder.js`（主框架、capture 阶段），每步存**多候选选择器**（data-testid → id → name → aria-label → 文本 → nth-child 路径）；**敏感字段（password / cc-* / 名字含 pass·card·cvv·token·otp·secret）只存占位符，值绝不落盘**。`WorkflowStore` 做站点过滤/200 步上限；`WorkflowPlayer` 按步骤执行（不调模型），支持起点导航、失败即停、逐步回执；入口 = 工具栏 Tools 菜单/⌘K 的 Workflows 面板、桥 `/workflow/start|stop|list|run|delete`、Agent 工具 `listWorkflows/startWorkflowRecording/stopWorkflowRecording/runWorkflow`；另可**从 Agent 轨迹回合一键提炼**（只取 navigate/click/fill，纯逻辑进 harness）。验收：本地表单 fixture 录制 4 步（密码敏感且值缺失）→ 重放终态一致；工作流/高亮纳入备份。
+- **阅读高亮与笔记（v0.7.29）**：阅读视图选中文本 → 高亮（黄/绿/蓝/粉 + 可选备注），按页面 URL 持久化；锚点 = `quote + 前后各 40 字`，字号/主题重建 DOM 后仍能定位（`ReaderHighlightAnchor.locate` 纯逻辑进 harness）；阅读工具栏新增高亮/列表按钮，列表可跳转/改色/编辑备注/删除、**Copy Markdown**；数据纳入备份域 `readerHighlights`。验收：harness（锚点/唯一化/Markdown/Codable）+ 用户 UI 实测通过。
+- **备份口令加密 v2（v0.7.29）**：导出时可选用口令保护——PBKDF2-HMAC-SHA256（60 万次）+ AES-GCM 包裹**整个归档**，文件头只留 `format/version/kdf/iterations/salt/ct`；导入自动识别加密文件并要求口令，**错误口令明确拒绝**，v1 明文备份继续可读；UI 在保存面板后询问「Encrypt / Plain JSON」，导入预览显示加密标记。验收：桥 E2E（加密导出无 `payloads`/书签名、预览 encrypted=true、错口令拒绝、正确口令按域导入、v1 预览 encrypted=false）。
+- **活动中心（v0.7.29）**：⌘K / Tools 菜单新增 Activity——聚合**下载、批量媒体任务、媒体导出、定时任务、运行中的 Agent 会话与 crew**，统一状态/进度/相对时间，运行中置顶；面板每 3 秒刷新，可按来源筛选；桥 `GET /activity` 同源。验收：纯逻辑构建/排序/摘要进 harness（+8）；桥探针字段齐全。
+- **崩溃后滚动位置恢复（v0.7.29）**：注入 `scroll-memory.js` 节流上报 scrollY，内容进程崩溃时先记住位置、重载完成后 `scrollTo` 恢复（普通导航不清错位置）；`/state` 暴露 `scrollY` 便于探针。验收：构建零警告 + 捕获路径桥探针；真实崩溃恢复走查。
+- **设置直达与阅读站点偏好（v0.7.29）**：⌘K 收录 10 个设置分区（General/Agent/Floating Ball/Page Watch/Sync/Remote/Privacy/Autofill/Keyboard Shortcuts/Batch Downloads），执行即打开设置并选中该分区；阅读工具栏新增「Remember for this site / Use global settings」，字号/行距/主题可按 host 记忆。验收：构建/面板走查。
+
+
+
+
+
+
+
 ## [v0.7.28] - 2026-10-21
 ### Fixed
 

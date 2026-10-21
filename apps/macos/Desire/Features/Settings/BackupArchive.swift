@@ -70,3 +70,40 @@ nonisolated enum BackupSettingValue: Codable, Equatable {
     case bool(Bool)
     case number(Double)
 }
+
+/// v2 加密信封（v0.7.29）：口令 → PBKDF2-SHA256 → AES-GCM 包裹**整个**明文
+/// 归档。文件头只留 KDF 参数与密文，磁盘/传输上看不到书签/历史/记忆内容。
+nonisolated struct EncryptedBackupEnvelope: Codable, Equatable {
+    static let format = "desire-backup-encrypted"
+    static let currentVersion = 2
+    static let kdfName = "pbkdf2-sha256"
+
+    var format: String
+    var version: Int
+    var kdf: String
+    var iterations: Int
+    /// base64(16B random salt)
+    var salt: String
+    /// base64(AES-GCM combined: nonce+ciphertext+tag)
+    var ct: String
+    var exportedAt: Date
+    var appVersion: String
+
+    var isSupported: Bool {
+        format == Self.format
+            && version >= 2 && version <= Self.currentVersion
+            && kdf == Self.kdfName
+            && iterations > 0
+            && !salt.isEmpty && !ct.isEmpty
+    }
+
+    static func encode(_ envelope: EncryptedBackupEnvelope) -> Data? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        return try? encoder.encode(envelope)
+    }
+
+    static func decode(_ data: Data) -> EncryptedBackupEnvelope? {
+        try? JSONDecoder().decode(EncryptedBackupEnvelope.self, from: data)
+    }
+}

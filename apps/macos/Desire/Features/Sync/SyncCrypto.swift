@@ -88,7 +88,9 @@ nonisolated enum SyncCrypto {
 
     /// KEK = PBKDF2-HMAC-SHA256(密码, 盐, 60 万次, 32B)。阻塞 ~0.3-0.6s,
     /// 仅在登录/注册/改密时调用,禁止放进同步周期。
-    static func deriveKEK(password: String, saltBase64: String) throws -> SymmetricKey {
+    /// `iterations` 可显式给（备份文件头会记录自己的迭代次数）。
+    static func deriveKEK(password: String, saltBase64: String,
+                          iterations: UInt32 = UInt32(kdfIterations)) throws -> SymmetricKey {
         guard let salt = Data(base64Encoded: saltBase64) else {
             throw CryptoError.invalidKeyFormat
         }
@@ -101,7 +103,7 @@ nonisolated enum SyncCrypto {
                     &passwordBytes, passwordBytes.count - 1,
                     saltPtr.baseAddress?.assumingMemoryBound(to: UInt8.self), salt.count,
                     CCPseudoRandomAlgorithm(kCCPRFHmacAlgSHA256),
-                    UInt32(kdfIterations),
+                    iterations,
                     derivedPtr.baseAddress?.assumingMemoryBound(to: UInt8.self),
                     32
                 )

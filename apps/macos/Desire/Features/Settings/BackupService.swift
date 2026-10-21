@@ -1,3 +1,4 @@
+import CryptoKit
 import Foundation
 
 /// 统一备份/恢复（v0.7.28 旗舰）：把设置、书签树、历史、阅读列表、快拨与
@@ -17,6 +18,9 @@ enum BackupService {
         case appNotReady
         case invalidArchive
         case unsupportedVersion(Int)
+        case passphraseRequired
+        case wrongPassphrase
+        case encryptionFailed
 
         var errorDescription: String? {
             switch self {
@@ -24,6 +28,12 @@ enum BackupService {
             case .invalidArchive: return String(localized: "This file is not a Desire backup.")
             case .unsupportedVersion(let v):
                 return String(format: String(localized: "Backup format %lld is newer than this app supports."), v)
+            case .passphraseRequired:
+                return String(localized: "This backup is encrypted — enter its passphrase.")
+            case .wrongPassphrase:
+                return String(localized: "Wrong passphrase (or the file is damaged).")
+            case .encryptionFailed:
+                return String(localized: "Could not encrypt the backup.")
             }
         }
     }
@@ -44,7 +54,7 @@ enum BackupService {
 
     /// 写到调用方指定的**文件 URL**（UI 用保存面板，桥直接给路径）。
     @discardableResult
-    static func export(to url: URL) throws -> (url: URL, counts: [String: Int]) {
+    static func export(to url: URL, passphrase: String? = nil) throws -> (url: URL, counts: [String: Int]) {
         guard let app = AppState.live else { throw BackupError.appNotReady }
 
         var payloads: [String: Data] = [:]
@@ -101,8 +111,30 @@ enum BackupService {
                                     appVersion: version,
                                     payloads: payloads,
                                     counts: counts)
-        guard let data = BackupArchive.encode(archive) else {
+        guard let plaintext = BackupArchive.encode(archive) else {
             throw CocoaError(.fileWriteUnknown)
+        }
+        let data: Data
+        if let passphrase, !passphrase.isEmpty {
+            let salt = SyncCrypto.generateSalt()
+            let key = try SyncCrypto.deriveKEK(password: passphrase, saltBase64: salt)
+            let sealed = try AES.GCM.seal(plaintext, using: key)
+            guard let combined = sealed.combined else { throw BackupError.encryptionFailed }
+            let envelope = EncryptedBackupEnvelope(
+                format: EncryptedBackupEnvelope.format,
+                version: EncryptedBackupEnvelope.currentVersion,
+                kdf: EncryptedBackupEnvelope.kdfName,
+                iterations: SyncCrypto.kdfIterations,
+                salt: salt,
+                ct: combined.base64EncodedString(),
+                exportedAt: Date(),
+                appVersion: version)
+            guard let encoded = EncryptedBackupEnvelope.encode(envelope) else {
+                throw BackupError.encryptionFailed
+            }
+            data = encoded
+        } else {
+            data = plaintext
         }
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
                                                 withIntermediateDirectories: true)
@@ -112,8 +144,10 @@ enum BackupService {
 
     /// 桥的便捷形式：给目录就自动取默认文件名。
     @discardableResult
-    static func export(toDirectory directory: URL) throws -> (url: URL, counts: [String: Int]) {
-        try export(to: directory.appendingPathComponent(suggestedFileName()))
+    static func export(toDirectory directory: URL,
+                       passphrase: String? = nil) throws -> (url: URL, counts: [String: Int]) {
+        try export(to: directory.appendingPathComponent(suggestedFileName()),
+                   passphrase: passphrase)
     }
 
     // MARK: - Import
@@ -125,28 +159,37 @@ enum BackupService {
         var appVersion: String
         var counts: [String: Int]
         var supported: Bool
+        var encrypted: Bool
     }
 
     static func preview(from url: URL) throws -> Preview {
         let data = try Data(contentsOf: url)
-        guard let archive = BackupArchive.decode(data), !archive.payloads.isEmpty else {
-            throw BackupError.invalidArchive
+        if let archive = BackupArchive.decode(data), !archive.payloads.isEmpty {
+            return Preview(version: archive.version,
+                           exportedAt: archive.exportedAt,
+                           appVersion: archive.appVersion,
+                           counts: archive.counts,
+                           supported: archive.isSupported,
+                           encrypted: false)
         }
-        return Preview(version: archive.version,
-                       exportedAt: archive.exportedAt,
-                       appVersion: archive.appVersion,
-                       counts: archive.counts,
-                       supported: archive.isSupported)
+        if let envelope = EncryptedBackupEnvelope.decode(data), envelope.isSupported {
+            return Preview(version: envelope.version,
+                           exportedAt: envelope.exportedAt,
+                           appVersion: envelope.appVersion,
+                           counts: [:],
+                           supported: true,
+                           encrypted: true)
+        }
+        throw BackupError.invalidArchive
     }
 
     @discardableResult
     static func importArchive(from url: URL, mode: Mode,
-                              domains: Set<BackupArchive.Domain>? = nil) throws -> [String: Int] {
+                              domains: Set<BackupArchive.Domain>? = nil,
+                              passphrase: String? = nil) throws -> [String: Int] {
         guard let app = AppState.live else { throw BackupError.appNotReady }
         let data = try Data(contentsOf: url)
-        guard let archive = BackupArchive.decode(data), !archive.payloads.isEmpty else {
-            throw BackupError.invalidArchive
-        }
+        let archive = try decodeArchive(from: data, passphrase: passphrase)
         guard archive.isSupported else {
             throw BackupError.unsupportedVersion(archive.version)
         }
@@ -274,6 +317,33 @@ enum BackupService {
     }
 
     // MARK: - Helpers
+
+    /// 明文 v1 直接读；v2 信封必须给对口令（错误口令与损坏文件同报）。
+    private static func decodeArchive(from data: Data, passphrase: String?) throws -> BackupArchive {
+        if let archive = BackupArchive.decode(data), !archive.payloads.isEmpty {
+            return archive
+        }
+        guard let envelope = EncryptedBackupEnvelope.decode(data) else {
+            throw BackupError.invalidArchive
+        }
+        guard envelope.isSupported else {
+            throw BackupError.unsupportedVersion(envelope.version)
+        }
+        guard let passphrase, !passphrase.isEmpty else {
+            throw BackupError.passphraseRequired
+        }
+        let key = try SyncCrypto.deriveKEK(password: passphrase,
+                                           saltBase64: envelope.salt,
+                                           iterations: UInt32(envelope.iterations))
+        guard let combined = Data(base64Encoded: envelope.ct),
+              let box = try? AES.GCM.SealedBox(combined: combined),
+              let plaintext = try? AES.GCM.open(box, using: key),
+              let archive = BackupArchive.decode(plaintext),
+              !archive.payloads.isEmpty else {
+            throw BackupError.wrongPassphrase
+        }
+        return archive
+    }
 
     private static func backupValue(_ value: SettingsSyncValue) -> BackupSettingValue {
         switch value {

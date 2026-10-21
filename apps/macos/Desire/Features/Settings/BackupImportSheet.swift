@@ -10,6 +10,7 @@ struct BackupImportSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var mode: BackupService.Mode = .merge
     @State private var selected: Set<BackupArchive.Domain>
+    @State private var passphrase = ""
 
     init(url: URL, preview: BackupService.Preview, onFinish: @escaping (String) -> Void) {
         self.url = url
@@ -53,36 +54,45 @@ struct BackupImportSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-            ScrollView {
-                VStack(alignment: .leading, spacing: 8) {
-                    ForEach(BackupArchive.Domain.allCases, id: \.self) { domain in
-                        if let count = preview.counts[domain.rawValue] {
-                            Toggle(isOn: Binding(
-                                get: { selected.contains(domain) },
-                                set: { on in
-                                    if on { selected.insert(domain) } else { selected.remove(domain) }
-                                })) {
-                                HStack {
-                                    Text(domain.title)
-                                    Spacer()
-                                    Text("\(count)")
-                                        .monospacedDigit()
-                                        .foregroundStyle(.secondary)
+            if preview.encrypted {
+                SecureField("Passphrase", text: $passphrase)
+                    .textFieldStyle(.roundedBorder)
+                Text("Encrypted backup — all domains will be restored with the chosen mode.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(BackupArchive.Domain.allCases, id: \.self) { domain in
+                            if let count = preview.counts[domain.rawValue] {
+                                Toggle(isOn: Binding(
+                                    get: { selected.contains(domain) },
+                                    set: { on in
+                                        if on { selected.insert(domain) } else { selected.remove(domain) }
+                                    })) {
+                                    HStack {
+                                        Text(domain.title)
+                                        Spacer()
+                                        Text("\(count)")
+                                            .monospacedDigit()
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                             }
                         }
                     }
+                    .padding(.trailing, 4)
                 }
-                .padding(.trailing, 4)
+                .frame(maxHeight: 220)
             }
-            .frame(maxHeight: 220)
 
             HStack {
                 Spacer()
                 Button("Cancel") { dismiss() }
                 Button(mode == .replace ? "Replace…" : "Merge") { apply() }
                     .buttonStyle(.borderedProminent)
-                    .disabled(selected.isEmpty || !preview.supported)
+                    .disabled(!preview.supported
+                              || (preview.encrypted ? passphrase.isEmpty : selected.isEmpty))
             }
         }
         .padding(20)
@@ -91,8 +101,10 @@ struct BackupImportSheet: View {
 
     private func apply() {
         do {
-            let applied = try BackupService.importArchive(from: url, mode: mode,
-                                                          domains: selected)
+            let applied = try BackupService.importArchive(
+                from: url, mode: mode,
+                domains: preview.encrypted ? nil : selected,
+                passphrase: preview.encrypted ? passphrase : nil)
             let total = applied.values.reduce(0, +)
             onFinish(String(format: String(localized: "Imported: %lld item(s)"), total))
             dismiss()

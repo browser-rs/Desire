@@ -3935,6 +3935,27 @@ func testBackupArchive() {
     check("备份：设置值 round-trip",
           settings?["flag"] == .bool(true) && settings?["count"] == .number(3))
     check("备份：坏数据解码 nil", BackupArchive.decode(Data("{}".utf8)) == nil)
+
+    // v2 加密信封
+    let envelope = EncryptedBackupEnvelope(
+        format: EncryptedBackupEnvelope.format, version: 2,
+        kdf: EncryptedBackupEnvelope.kdfName, iterations: 600_000,
+        salt: "c2FsdA==", ct: "Y3Q=",
+        exportedAt: Date(timeIntervalSince1970: 1_800_000_000),
+        appVersion: "0.7.29")
+    guard let envelopeData = EncryptedBackupEnvelope.encode(envelope),
+          let envelopeBack = EncryptedBackupEnvelope.decode(envelopeData) else {
+        check("备份：加密信封 round-trip", false)
+        return
+    }
+    check("备份：加密信封 round-trip", envelopeBack == envelope)
+    check("备份：加密信封受支持", envelopeBack.isSupported)
+    var badEnvelope = envelope
+    badEnvelope.format = "other"
+    check("备份：错误信封格式拒绝", !badEnvelope.isSupported)
+    var futureEnvelope = envelope
+    futureEnvelope.version = 3
+    check("备份：未来信封版本拒绝", !futureEnvelope.isSupported)
 }
 testBackupArchive()
 

@@ -1157,8 +1157,25 @@ private struct BackupRow: View {
         panel.canCreateDirectories = true
         panel.allowedContentTypes = [.json]
         guard panel.runModal() == .OK, let url = panel.url else { return }
+
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Protect this backup?")
+        alert.informativeText = String(localized: "Encrypt with a passphrase (PBKDF2 + AES-GCM) or save plain JSON.")
+        alert.addButton(withTitle: String(localized: "Encrypt"))
+        alert.addButton(withTitle: String(localized: "Plain JSON"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        let field = NSSecureTextField(frame: NSRect(x: 0, y: 0, width: 260, height: 24))
+        field.placeholderString = String(localized: "Passphrase")
+        alert.accessoryView = field
+        let response = alert.runModal()
+        if response == .alertThirdButtonReturn { return }
+        let passphrase: String? = response == .alertFirstButtonReturn ? field.stringValue : nil
+        if response == .alertFirstButtonReturn, field.stringValue.isEmpty {
+            note = String(localized: "Enter a passphrase first.")
+            return
+        }
         do {
-            let result = try BackupService.export(to: url)
+            let result = try BackupService.export(to: url, passphrase: passphrase)
             let total = result.counts.values.reduce(0, +)
             note = String(format: String(localized: "Backup written: %lld item(s)"), total)
             NSWorkspace.shared.activateFileViewerSelecting([result.url])

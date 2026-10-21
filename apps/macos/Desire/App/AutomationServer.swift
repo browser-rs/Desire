@@ -6923,14 +6923,15 @@ final class AutomationServer {
             return ["error": "missing path"]
         }
         let url = URL(fileURLWithPath: path)
+        let passphrase = Self.string(body, "passphrase")
         do {
             let isDirectory = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
             let result: (url: URL, counts: [String: Int])
             if isDirectory || !path.hasSuffix(".json") {
                 try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-                result = try BackupService.export(toDirectory: url)
+                result = try BackupService.export(toDirectory: url, passphrase: passphrase)
             } else {
-                result = try BackupService.export(to: url)
+                result = try BackupService.export(to: url, passphrase: passphrase)
             }
             return ["ok": true, "path": result.url.path, "counts": result.counts]
         } catch {
@@ -6949,7 +6950,8 @@ final class AutomationServer {
         do {
             let applied = try BackupService.importArchive(from: URL(fileURLWithPath: path),
                                                           mode: mode,
-                                                          domains: domains)
+                                                          domains: domains,
+                                                          passphrase: Self.string(body, "passphrase"))
             return ["ok": true, "mode": mode.rawValue, "applied": applied]
         } catch {
             return ["error": "import failed: \(error.localizedDescription)"]
@@ -7065,7 +7067,8 @@ final class AutomationServer {
                     "exportedAt": preview.exportedAt.timeIntervalSince1970,
                     "appVersion": preview.appVersion,
                     "counts": preview.counts,
-                    "supported": preview.supported]
+                    "supported": preview.supported,
+                    "encrypted": preview.encrypted]
         } catch {
             return ["error": "preview failed: \(error.localizedDescription)"]
         }

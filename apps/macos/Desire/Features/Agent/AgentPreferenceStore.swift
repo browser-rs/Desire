@@ -619,10 +619,27 @@ class AgentPreferenceStore: ObservableObject {
         guard let account = account(for: profileID) else { return nil }
         if let cached = Self.apiKeyCache[account] { return cached }
         if Self.apiKeyDenied.contains(account) { return nil }
+
+        // 单条目优先：app vault 里的 AI Key（不触发逐条授权）。
+        let vault = AppSecretsVault.shared.ensureLoaded()
+        if let key = vault.aiKeys[account] {
+            Self.apiKeyCache[account] = key
+            return key
+        }
+        // 已迁移/已删除：别再回读旧条目（否则删掉的 Key 会复活）。
+        if vault.aiChecked.contains(account) { return nil }
+
+        // 旧安装：首次使用这个档案时才读它那一条，读完写进 vault。
         guard let key = keychainRead(account: account, interactive: interactive) else {
-            if interactive { Self.apiKeyDenied.insert(account) }
+            if !KeychainService.exists(account: account, service: keychainService) {
+                // 旧条目本来就不存在：记下来，避免每个回合都去读一次空条目。
+                AppSecretsVault.shared.markAIChecked(account)
+            } else if interactive {
+                Self.apiKeyDenied.insert(account)
+            }
             return nil
         }
+        AppSecretsVault.shared.setAIKey(key, for: account)
         Self.apiKeyCache[account] = key
         return key
     }
@@ -648,12 +665,19 @@ class AgentPreferenceStore: ObservableObject {
     /// 6 个档案 = 7 个授权弹窗（用户实测"每条不同的 key 各弹一次"）。
     /// 真正读取（Agent 回合/设置页显示 Key）仍走 `loadAPIKey`，进程内缓存。
     func refreshKeyState() {
-        hasAPIKey = account(for: nil).map {
-            KeychainService.exists(account: $0, service: keychainService)
-        } ?? false
+        let vault = AppSecretsVault.shared
+        func hasKey(_ account: String) -> Bool {
+            if vault.isLoaded {
+                if vault.cachedAIKey(account) != nil { return true }
+                if vault.isAIChecked(account) { return false }
+                // 已加载但未迁移 → 旧条目还在不在（属性查询，不弹授权）
+                return KeychainService.exists(account: account, service: keychainService)
+            }
+            return KeychainService.exists(account: account, service: keychainService)
+        }
+        hasAPIKey = account(for: nil).map(hasKey) ?? false
         for profile in profiles {
-            hasKeyByProfile[profile.id] =
-                KeychainService.exists(account: profile.keychainAccount, service: keychainService)
+            hasKeyByProfile[profile.id] = hasKey(profile.keychainAccount)
         }
     }
 
@@ -664,16 +688,16 @@ class AgentPreferenceStore: ObservableObject {
         KeychainService.readString(account: account, service: keychainService, interactive: interactive)
     }
 
+    /// AI Key 写进单条目 vault（不再写独立 Keychain 条目）。
     private func keychainWrite(data: Data, account: String) {
-        KeychainService.write(data, account: account, service: keychainService)
-        if let text = String(data: data, encoding: .utf8) {
-            Self.apiKeyCache[account] = text
-            Self.apiKeyDenied.remove(account)
-        }
+        guard let text = String(data: data, encoding: .utf8) else { return }
+        _ = AppSecretsVault.shared.setAIKey(text, for: account)
+        Self.apiKeyCache[account] = text
+        Self.apiKeyDenied.remove(account)
     }
 
     private func keychainDelete(account: String) {
-        KeychainService.delete(account: account, service: keychainService)
+        _ = AppSecretsVault.shared.removeAIKey(for: account)
         Self.apiKeyCache.removeValue(forKey: account)
         Self.apiKeyDenied.remove(account)
     }

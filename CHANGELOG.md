@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- **密钥单条目 `app-secrets-v1`（v0.8.0）**：AI Key 与同步主密钥/access/refresh 合并进一条 Keychain 条目——启动/同步/Agent 首次读取都只碰这一条（一次授权），不再按档案/令牌各弹一次。同步沿用上一版 `sync-secrets-v1` 自动做种子并写回；旧 AI Key 首次使用某档案时才读那一条并迁入（不批量读），删除/更新也只改单条。`refreshKeyState` 继续只查属性，启动零逐档案读取。验收：启动 keychain 日志只有 `read app-secrets-v1`；同步状态指纹/登录态正常；harness 新增 AppSecrets round-trip（1181/0）。
+
 ### Added
 
 - **密码填充显式入口（v0.8.0）**：页面检测到登录表单且本站有存档凭据时，显示非模态 "Fill Saved Password" 提示条——**页面加载零 Keychain 读取**（v0.7.31 为消除逐条弹窗关掉了自动填充，本版补上显式入口），点击才读这一条（一次授权）并注入；"Not Now" 关闭、无存档不显示。桥 `/passwords/delete` 支持按用户名删除单条（此前整域全删）。验收：fixture 登录页——加载前/加载中零 data 读、chip 出现、点击后恰好读一条并填入、取消不留痕。

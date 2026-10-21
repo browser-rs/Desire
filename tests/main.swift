@@ -4282,6 +4282,25 @@ func testSyncOnboardingSteps() {
 }
 testSyncOnboardingSteps()
 
+func testAppSecretsVaultModel() {
+    var secrets = AppSecrets()
+    check("密钥单条目：空结构", secrets.isEmpty)
+    secrets.aiKeys["ai-key-profile-a"] = "sk-a"
+    secrets.aiChecked.insert("ai-key-profile-a")
+    secrets.sync.master = "bWFzdGVy"
+    secrets.sync.refresh = "r"
+    check("密钥单条目：非空", !secrets.isEmpty)
+    guard let data = try? JSONEncoder().encode(secrets),
+          let decoded = try? JSONDecoder().decode(AppSecrets.self, from: data) else {
+        check("密钥单条目：round-trip", false)
+        return
+    }
+    check("密钥单条目：AI Key 往返", decoded.aiKeys["ai-key-profile-a"] == "sk-a")
+    check("密钥单条目：迁移标记往返", decoded.aiChecked.contains("ai-key-profile-a"))
+    check("密钥单条目：同步凭据往返", decoded.sync.master == "bWFzdGVy" && decoded.sync.refresh == "r")
+}
+testAppSecretsVaultModel()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

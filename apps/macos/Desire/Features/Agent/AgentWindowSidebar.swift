@@ -26,7 +26,13 @@ struct AgentWindowSidebar: View {
     var body: some View {
         VStack(spacing: 0) {
             sidebarHeader
-            destinationsSection
+            // 9 个目的地固定堆叠在 14 寸屏上会挤掉会话列表（v0.7.29 用户反馈
+            // "侧边栏 menu 太多显示不全"）。给目的地区封顶并允许滚动：高窗口
+            // 一屏放下，矮窗口滚动，会话列表始终保留可用高度。
+            ScrollView(.vertical, showsIndicators: true) {
+                destinationsSection
+            }
+            .frame(maxHeight: 300)
             Divider().opacity(0.6)
             conversationsHeader
             searchField

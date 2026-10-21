@@ -77,7 +77,15 @@ ARTICLE = """<!DOCTYPE html><html><head><meta charset="utf-8"><title>Smoke Reade
 <p>First paragraph with enough words for the reader extractor to pick this article as the main content of the page.</p>
 <p>Second paragraph with a <a href="next.html">relative link</a> for the absolute-URL pass.</p>
 <p>Third paragraph to make the extracted text comfortably longer than the minimum threshold.</p>
-</article><footer>FOOTER</footer></body></html>"""
+</article>
+<form id="f" onsubmit="event.preventDefault(); document.getElementById('result').textContent='submitted:' + document.getElementById('name').value + ':' + document.getElementById('email').value; document.title='Smoke Done';">
+  <input id="name" name="name" placeholder="Name">
+  <input id="email" name="email" type="email" placeholder="Email">
+  <input id="password" name="password" type="password" placeholder="Password">
+  <button id="submit" type="submit">Submit</button>
+</form>
+<div id="result"></div>
+<footer>FOOTER</footer></body></html>"""
 
 
 class FixtureHandler(BaseHTTPRequestHandler):
@@ -126,12 +134,22 @@ def main():
     server = None
     backup_path = pathlib.Path(f"/tmp/desire-release-smoke-{os.getpid()}.json")
     diag_path = None
+    enc_path = None
     try:
         # 1) 阅读模式：提取 + baseURL + 导航后退出
         server, fixture_url = start_fixture()
         br("POST", "/navigate", {"url": fixture_url})
         loaded = wait_for(lambda: selected_tab().get("title") == "Smoke Reader", 20)
         ok("阅读模式：fixture 页面加载", loaded, selected_tab().get("title", ""))
+        # documentEnd 脚本可能还没装好；/command 也需要应用在前台。两者都等一下，
+        # 避免把时序问题误报成阅读模式回归（v0.7.29 冒烟第一跑栽在这里）。
+        for _ in range(20):
+            probe = br("POST", "/execute", {"js": "typeof window._desireReader"})
+            if probe.get("result") == "function":
+                break
+            time.sleep(0.3)
+        os.system('osascript -e \'tell application "Desire" to activate\' >/dev/null 2>&1')
+        time.sleep(0.4)
         br("POST", "/command", {"name": "toggleReader"})
         reader_ok = wait_for(
             lambda: (state().get("reader") or {}).get("active") is True
@@ -144,6 +162,41 @@ def main():
         if reader.get("active"):
             br("POST", "/command", {"name": "toggleReader"})
             time.sleep(0.5)
+
+        # 2) 工作流：录制 → 重放（v0.7.29 旗舰）
+        started = br("POST", "/workflow/start", {})
+        ok("工作流：开始录制", started.get("ok") is True)
+        fill_js = ("(function(){function set(id,v){var el=document.getElementById(id);"
+                   "var s=Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set;"
+                   "s.call(el,v);el.dispatchEvent(new Event('input',{bubbles:true}));"
+                   "el.dispatchEvent(new Event('change',{bubbles:true}));}"
+                   "set('name','Ada');set('email','ada@example.com');"
+                   "set('password','SMOKE_PW_V29');return 'ok';})()")
+        br("POST", "/execute", {"js": fill_js})
+        br("POST", "/execute", {"js": "document.getElementById('submit').click(); document.getElementById('result').textContent"})
+        time.sleep(0.6)
+        saved = br("POST", "/workflow/stop", {"name": "smoke-flow"})
+        details = saved.get("stepDetails") or []
+        sensitive = [step for step in details if step.get("sensitive")]
+        ok("工作流：录制到 4 步且密码敏感",
+           len(details) >= 4 and len(sensitive) >= 1,
+           json.dumps(details, ensure_ascii=False)[:300])
+        ok("工作流：密码值不落盘",
+           "SMOKE_PW_V29" not in json.dumps(saved, ensure_ascii=False))
+        br("POST", "/navigate", {"url": fixture_url})
+        wait_for(lambda: selected_tab().get("title") == "Smoke Reader", 20)
+        run = (br("POST", "/workflow/run",
+                  {"name": "smoke-flow", "values": {sensitive[0]["id"]: "SMOKE_PW_V29"}},
+                  timeout=90) if sensitive else {})
+        ok("工作流：重放全部步骤成功",
+           run.get("ok") is True and all(step.get("ok") for step in run.get("results", [])),
+           json.dumps(run, ensure_ascii=False)[:300])
+        final = br("POST", "/execute", {"js": "document.getElementById('result').textContent"})
+        ok("工作流：终态正确", final.get("result") == "submitted:Ada:ada@example.com",
+           str(final))
+        for workflow in br("GET", "/workflow/list").get("workflows", []):
+            if workflow.get("name") == "smoke-flow":
+                br("POST", "/workflow/delete", {"id": workflow["id"]})
 
         # 恢复原页面 + 清掉 fixture 历史（不污染用户历史）
         if original_url.startswith("http"):
@@ -173,6 +226,32 @@ def main():
            applied.get("ok") and set((applied.get("applied") or {}).keys()) == {"history"},
            json.dumps(applied, ensure_ascii=False))
 
+        # 2b) 备份：加密导出 / 预览 / 错口令 / 正确口令按域导入
+        enc_path = pathlib.Path(f"/tmp/desire-release-smoke-enc-{os.getpid()}.json")
+        enc = br("POST", "/backup/export",
+                 {"path": str(enc_path), "passphrase": "SMOKE-PASS-V29"})
+        raw = enc_path.read_bytes() if enc_path.exists() else b""
+        ok("备份：加密导出（无明文 payloads）",
+           enc.get("ok") is True and b"desire-backup-encrypted" in raw
+           and b'"payloads"' not in raw)
+        enc_preview = br("POST", "/backup/preview", {"path": str(enc_path)})
+        ok("备份：加密预览标记", enc_preview.get("encrypted") is True)
+        wrong = br("POST", "/backup/import",
+                   {"path": str(enc_path), "mode": "merge", "passphrase": "wrong"})
+        ok("备份：错口令拒绝", "error" in wrong)
+        unlocked = br("POST", "/backup/import",
+                      {"path": str(enc_path), "mode": "merge", "domains": ["history"],
+                       "passphrase": "SMOKE-PASS-V29"})
+        ok("备份：正确口令按域导入",
+           unlocked.get("ok") is True
+           and set((unlocked.get("applied") or {}).keys()) == {"history"})
+        enc_path.unlink(missing_ok=True)
+
+        # 2c) 活动中心
+        activity = br("GET", "/activity")
+        ok("活动中心：/activity 可用",
+           activity.get("ok") is True and isinstance(activity.get("items"), list))
+
         # 3) 诊断包：OSLog + 崩溃摘要
         diag = br("POST", "/diag/export", {})
         diag_path = pathlib.Path(diag.get("path", "")) if diag.get("ok") else None
@@ -200,6 +279,11 @@ def main():
         if diag_path:
             try:
                 diag_path.unlink(missing_ok=True)
+            except Exception:
+                pass
+        if enc_path:
+            try:
+                enc_path.unlink(missing_ok=True)
             except Exception:
                 pass
         if args.quit:

@@ -11,7 +11,19 @@ struct ReaderView: View {
     /// 阅读视图里点到链接：关闭阅读模式并在原标签打开（v0.7.28）。
     let onOpenURL: (URL) -> Void
 
-    @State private var settings = ReaderSettings.load()
+    /// 站点级偏好（v0.7.29）：打开时套用该 host 的覆盖（没有则跟随全局）。
+    init(title: String, contentHTML: String, baseURL: URL?, isLoading: Bool,
+         onClose: @escaping () -> Void, onOpenURL: @escaping (URL) -> Void) {
+        self.title = title
+        self.contentHTML = contentHTML
+        self.baseURL = baseURL
+        self.isLoading = isLoading
+        self.onClose = onClose
+        self.onOpenURL = onOpenURL
+        _settings = State(initialValue: ReaderSettings.load(host: baseURL?.host))
+    }
+
+    @State private var settings: ReaderSettings
     @ObservedObject private var speech = ReaderSpeechService.shared
     /// 高亮（v0.7.29）：控制器桥接阅读 webview，store 负责持久化。
     @StateObject private var readerController = ReaderController()
@@ -159,6 +171,23 @@ struct ReaderView: View {
                 }
                 .menuStyle(.borderlessButton)
                 .frame(width: 20)
+
+                // 站点级偏好（v0.7.29）：把当前字号/行距/主题钉到本站。
+                Menu {
+                    Button(String(localized: "Remember for this site")) {
+                        settings.saveForSite(baseURL?.host)
+                    }
+                    Button(String(localized: "Use global settings")) {
+                        ReaderSettings.clearSiteOverride(baseURL?.host)
+                        settings = ReaderSettings.load()
+                    }
+                } label: {
+                    Image(systemName: "pin")
+                        .font(.system(size: 12))
+                }
+                .menuStyle(.borderlessButton)
+                .frame(width: 20)
+                .help("Use these settings for this site only")
 
                 if isLoading {
                     ProgressView()

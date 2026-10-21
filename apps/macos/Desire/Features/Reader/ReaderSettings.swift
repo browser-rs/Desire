@@ -21,10 +21,44 @@ struct ReaderSettings {
         )
     }
 
+    /// 站点级覆盖（v0.7.29）：没有覆盖时跟随全局。
+    static func load(host: String?) -> ReaderSettings {
+        var settings = load()
+        guard let host, !host.isEmpty else { return settings }
+        let prefix = "reader.site.\(host.lowercased())."
+        let d = UserDefaults.standard
+        if let size = d.object(forKey: prefix + "fontSize") as? Int { settings.fontSize = size }
+        if let raw = d.string(forKey: prefix + "theme"),
+           let theme = Theme(rawValue: raw) { settings.theme = theme }
+        if let spacing = d.object(forKey: prefix + "lineSpacing") as? Double {
+            settings.lineSpacing = spacing
+        }
+        return settings
+    }
+
     func save() {
         let d = UserDefaults.standard
         d.set(fontSize, forKey: "reader.fontSize")
         d.set(theme.rawValue, forKey: "reader.theme")
         d.set(lineSpacing, forKey: "reader.lineSpacing")
+    }
+
+    /// 把当前设置钉在该站点（阅读模式工具栏"Remember for this site"）。
+    func saveForSite(_ host: String?) {
+        guard let host, !host.isEmpty else { return }
+        let prefix = "reader.site.\(host.lowercased())."
+        let d = UserDefaults.standard
+        d.set(fontSize, forKey: prefix + "fontSize")
+        d.set(theme.rawValue, forKey: prefix + "theme")
+        d.set(lineSpacing, forKey: prefix + "lineSpacing")
+    }
+
+    static func clearSiteOverride(_ host: String?) {
+        guard let host, !host.isEmpty else { return }
+        let prefix = "reader.site.\(host.lowercased())."
+        let d = UserDefaults.standard
+        d.removeObject(forKey: prefix + "fontSize")
+        d.removeObject(forKey: prefix + "theme")
+        d.removeObject(forKey: prefix + "lineSpacing")
     }
 }

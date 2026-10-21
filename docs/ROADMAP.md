@@ -1288,3 +1288,78 @@ Trace/Stats/Memory 页面已在；差距在**内容浏览（白板）**、**未�
 > 站点筛选/云归档 UI）、阅读列表搜索筛选、记忆搜索筛选、Agent 回复朗读、
 > 命令面板/菜单收录。harness **1129/0**、Debug 构建零警告；E2E 套件与 CI 待跑，
 > 全绿后才发版。
+
+---
+
+## v0.7.29 — 把活干完（可回放的自动化 × 读有所得）
+
+> 叙事：v0.7.28 把"带得走、读得顺、找得到"补齐；这一版让浏览器**替人重复干活**——
+> 把一次网页操作录下来、下次一键重放；把读到的重点留住；把散落的任务收进一个
+> 活动中心；备份再补一层口令加密。Agent 侧提供录制/重放的工具面，但重放本身
+> **不烧模型**。
+>
+> **现状依据（2026-10-21 审计）**：
+> - 没有任何"录制用户网页操作并回放"的能力：只有 Agent 的 click/fill/navigate
+>   工具、DPP 适配器与 DevTools 的请求 Replay；用户想重复一套操作只能再让模型跑一遍。
+> - 阅读模式没有高亮/笔记：`ReaderView` 只有字号/主题/朗读/离线保存。
+> - 备份是明文 JSON；`SyncCrypto` 已有 PBKDF2-SHA256 + AES-GCM（wrap/unwrap）可复用。
+> - 内容进程崩溃只自动重载，滚动位置丢失（挂起恢复走 `interactionState`，崩溃后不可用）。
+> - 下载、批量媒体、媒体导出、定时任务、crew 分散在各自面板，没有一个"现在在跑什么"的聚合页。
+> - 命令面板只收录 `showSettings` 一个设置入口；设置分区（Agent/Sync/Privacy…）无法直达。
+>
+> 主题分布：替人干活 2 · 浏览器基础 3 · Agent 基础 1 · 可靠性 2 · 可发现性 1。
+
+**旗舰：网页工作流录制与回放**
+- 现状依据：Agent 已能 click/fill/navigate，但没有"把用户自己的操作序列存下来"。
+- 落地：
+  - `Workflow` 模型（站点 host、名称、步骤：navigate/click/input/select/key/waitFor；
+    每步存**多候选选择器**：data-testid → id → aria-label → 文本 → nth-child 路径）。
+  - 注入 `workflow-recorder.js`（main frame，capture 阶段）：记录 click/change/submit
+    与 SPA URL 变化；**敏感字段不存值**（password / autocomplete cc-* / name/id 含
+    pass/card/cvv/token/secret → 存占位符，回放时提示用户输入）。
+  - 回放器：打开目标 URL → 逐步解析选择器、滚动到元素、执行、收集每步成败；
+    支持 dry-run 预览与失败中止；**不调用模型**。
+  - 入口：工具栏菜单（开始/停止录制）、`WorkflowPanel`（列表/运行/改名/删除/导出）、
+    桥 `/workflow/*`、Agent 工具 `startWorkflowRecording/stopWorkflowRecording/
+    listWorkflows/runWorkflow`。
+- 验收：fixture 表单（姓名/邮箱/密码/提交）+ SPA 跳转；录制 → 重放 → 终态一致；
+  **密码值绝不出现在存储/日志**；选择器失效时如实报"第 N 步失败"；harness（模型/
+  选择器校验/脱敏/站点匹配/回放计划）。
+
+**主力件**
+1. **阅读高亮与笔记**：阅读视图选中文本 → 高亮（颜色/备注），按 URL 持久化；
+   侧栏列表可跳转/删除；导出 Markdown、进白板/备忘录；随备份（新增域
+   `readerMarks`）。验收：选区→锚点（quote+前后缀）在重开/字号变化后仍能定位；
+   harness（锚点匹配/模型）；备份 round-trip。
+2. **备份口令加密（v2）**：可选口令 → PBKDF2-SHA256 + AES-GCM 包裹整个归档；
+   文件头带 `encrypted/kdf/iter/salt`；导入自动识别并提示口令，错误口令明确拒绝；
+   v1 明文备份继续可读。验收：加密文件 grep 无明文/密钥；错误口令拒绝；v1/v2
+   往返；桥 `passphrase` 参数。
+3. **从 Agent 轨迹提炼工作流**：把一次成功回合里的 click/fill/navigate 工具序列
+   （含参数脱敏）转成工作流草稿，用户确认后保存；纯逻辑进 harness。验收：给定
+   trace 断言步骤顺序、敏感参数占位、非操作类工具被忽略。
+4. **崩溃后滚动恢复**：注入节流的滚动位置上报（scroll + visibilitychange，
+   ~1s），按 tab 保存；内容进程崩溃重载完成后 `scrollTo` 恢复；不影响挂起恢复
+   既有的 interactionState。验收：长页 fixture 滚到中部→重载/崩溃路径→位置恢复
+   （桥可模拟 reload 对照；真实崩溃手动走查）。
+5. **活动中心（Activity Center）**：聚合下载/批量媒体任务/媒体导出/定时任务/
+   运行中的 Agent 与 crew；统一状态（运行/暂停/失败/完成）、进度与时间；工具栏
+   入口带角标；桥 `GET /activity`。纯逻辑分组排序进 harness。验收：桥字段齐全；
+   面板走查；角标随任务数变化。
+6. **设置直达（可发现性）**：⌘K 命令面板收录各设置分区（General/Agent/Sync/
+   Privacy/Autofill/Page Watch/Batch Downloads/Remote/快捷键），执行即打开设置
+   并选中该分区（复用 `SettingsSectionNavigator`）。不做全局全文搜索（设置页是
+   手写 section，全文索引需大改，留待以后）。验收：面板搜索"同步/隐私/批量"直达。
+7. **阅读模式站点级偏好**：字号/行距/主题可按 host 记忆（默认跟随全局）；阅读
+   工具栏提供"仅本站"切换。验收：harness（偏好解析优先级）；两站点对照走查。
+
+**收口**
+- 工作流/高亮/活动数据纳入备份（域版本兼容：旧文件缺域即跳过）；
+- 隐私：敏感输入永不落盘（grep 断言）；导出/重放都走本地，不上传；
+- 新增文案补三语；harness 全绿、双架构零警告、targeted smoke 扩到本版链路。
+
+**明确不在本版**
+- 跨源 iframe 内的录制/回放（先主框架；跨源需要 frame 级注入与权限模型）；
+- 工作流的云端同步（先本地文件 + 备份域，跨端另行设计）；
+- 全局设置全文搜索（先做分区直达）；
+- passkey、真网络节流、DASH 下载（平台/API 限制）。

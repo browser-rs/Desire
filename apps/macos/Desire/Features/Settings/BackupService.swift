@@ -83,6 +83,18 @@ enum BackupService {
             counts[BackupArchive.Domain.agentMemory.rawValue] = memory.facts.count + memory.summaries.count
         }
 
+        let highlights = ReaderHighlightStore.shared.highlights
+        if let data = BackupArchive.encodePayload(highlights) {
+            payloads[BackupArchive.Domain.readerHighlights.rawValue] = data
+            counts[BackupArchive.Domain.readerHighlights.rawValue] = highlights.count
+        }
+
+        let workflows = WorkflowStore.shared.workflows
+        if let data = BackupArchive.encodePayload(workflows) {
+            payloads[BackupArchive.Domain.workflows.rawValue] = data
+            counts[BackupArchive.Domain.workflows.rawValue] = workflows.count
+        }
+
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let archive = BackupArchive(version: BackupArchive.currentVersion,
                                     exportedAt: Date(),
@@ -230,6 +242,32 @@ enum BackupService {
             let result = AgentMemoryStore.shared.importArchive(
                 memory, mode: mode == .replace ? .replace : .merge)
             applied[BackupArchive.Domain.agentMemory.rawValue] = result.facts + result.summaries
+        }
+
+        if wanted(.readerHighlights),
+           let payload = archive.payloads[BackupArchive.Domain.readerHighlights.rawValue],
+           let items = try? decoder.decode([ReaderHighlight].self, from: payload) {
+            switch mode {
+            case .replace:
+                ReaderHighlightStore.shared.replaceAll(items)
+                applied[BackupArchive.Domain.readerHighlights.rawValue] = items.count
+            case .merge:
+                applied[BackupArchive.Domain.readerHighlights.rawValue] =
+                    ReaderHighlightStore.shared.merge(items)
+            }
+        }
+
+        if wanted(.workflows),
+           let payload = archive.payloads[BackupArchive.Domain.workflows.rawValue],
+           let items = try? decoder.decode([Workflow].self, from: payload) {
+            switch mode {
+            case .replace:
+                WorkflowStore.shared.replaceAll(items)
+                applied[BackupArchive.Domain.workflows.rawValue] = items.count
+            case .merge:
+                applied[BackupArchive.Domain.workflows.rawValue] =
+                    WorkflowStore.shared.merge(items)
+            }
         }
 
         return applied

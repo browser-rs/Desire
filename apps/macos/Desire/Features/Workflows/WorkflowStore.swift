@@ -124,6 +124,26 @@ final class WorkflowStore: ObservableObject {
         save()
     }
 
+    // MARK: - 备份
+
+    func replaceAll(_ items: [Workflow]) {
+        workflows = items
+        save()
+    }
+
+    @discardableResult
+    func merge(_ items: [Workflow]) -> Int {
+        var ids = Set(workflows.map(\.id))
+        var added = 0
+        for workflow in items where !ids.contains(workflow.id) {
+            workflows.append(workflow)
+            ids.insert(workflow.id)
+            added += 1
+        }
+        if added > 0 { save() }
+        return added
+    }
+
     private func load() {
         guard let data = UserDefaults.standard.data(forKey: Self.key),
               let decoded = try? JSONDecoder().decode([Workflow].self, from: data) else { return }

@@ -63,6 +63,7 @@ enum ToolRisk: Int, Comparable {
         // Listing / inspection
         "listContainers", "listTabs", "listBookmarks", "getHistory", "searchHistory", "listPlugins",
         "listBlockedElements", "listTabGroups", "listQuickDials", "listDownloads",
+        "listWorkflows",
         // Navigation that doesn't lose state (history traversal)
         "goBack", "goForward",
         // View toggles (reversible, local to current view)

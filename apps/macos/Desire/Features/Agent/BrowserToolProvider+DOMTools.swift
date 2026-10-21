@@ -1686,6 +1686,63 @@ extension BrowserToolProvider {
             if skills.isEmpty { return "No skills installed (drop .md files into Application Support/Desire/skills)" }
             return "Installed skills:\n" + skills.map { "- \($0.name): \($0.description)" }.joined(separator: "\n")
 
+        case "listWorkflows":
+            let workflows = WorkflowStore.shared.workflows
+            if workflows.isEmpty { return "No saved workflows. Use startWorkflowRecording to record one." }
+            return "Workflows:\n" + workflows.map { workflow in
+                let sensitive = workflow.steps.filter(\.sensitive).count
+                return "- \(workflow.name) [\(workflow.host)] \(workflow.steps.count) step(s)"
+                    + (sensitive > 0 ? ", \(sensitive) need input at run time" : "")
+            }.joined(separator: "\n")
+
+        case "startWorkflowRecording":
+            guard let url = webView.url?.absoluteString,
+                  WorkflowLogic.host(of: url) != nil else {
+                return Self.fail("Current tab has no site to record")
+            }
+            WorkflowStore.shared.startRecording(url: url)
+            _ = try? await webView.evaluateJavaScript("window.__desireWorkflowRecording = true")
+            return "Recording started on \(WorkflowStore.shared.recordingHost ?? "?"). Perform the steps, then call stopWorkflowRecording(name:)."
+
+        case "stopWorkflowRecording":
+            guard let name = args["name"] as? String, !name.isEmpty else {
+                return Self.fail("Missing name")
+            }
+            _ = try? await webView.evaluateJavaScript("window.__desireWorkflowRecording = false")
+            guard let workflow = WorkflowStore.shared.stopRecording(name: name) else {
+                return "Nothing was recorded."
+            }
+            let sensitive = workflow.steps.filter(\.sensitive).count
+            return "Saved workflow \"\(workflow.name)\" (\(workflow.steps.count) steps, \(sensitive) sensitive)."
+
+        case "runWorkflow":
+            guard let name = args["name"] as? String, !name.isEmpty else {
+                return Self.fail("Missing name")
+            }
+            guard let workflow = WorkflowStore.shared.workflows.first(where: { $0.name == name }) else {
+                return Self.fail("No workflow named \(name)")
+            }
+            var values: [UUID: String] = [:]
+            if let raw = args["values"] as? [String: Any] {
+                for (key, value) in raw {
+                    if let id = UUID(uuidString: key), let text = value as? String {
+                        values[id] = text
+                    }
+                }
+            }
+            let missing = WorkflowLogic.missingSensitiveValues(workflow, values: values)
+            guard missing.isEmpty else {
+                return Self.fail("Missing sensitive values for steps: "
+                                 + missing.map(\.uuidString).joined(separator: ", "))
+            }
+            let result = await WorkflowPlayer.run(workflow, values: values, in: webView)
+            let lines = result.results.map { step in
+                "#\(step.index + 1) \(step.kind.rawValue): \(step.ok ? "ok" : "FAILED") — \(step.message)"
+            }
+            return (result.ok ? "Workflow \"\(workflow.name)\" completed:\n"
+                              : "Workflow \"\(workflow.name)\" stopped:\n")
+                + lines.joined(separator: "\n")
+
         case "saveDPPAdapter":
             // DPP 适配包自生成闭环（2026-10-12）：Agent 探查当前页 DOM 后把
             // 声明写进适配包——用户说"帮我给这个站做个点赞适配"即可达成。

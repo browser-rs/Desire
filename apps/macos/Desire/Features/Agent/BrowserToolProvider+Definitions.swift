@@ -191,6 +191,27 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listWorkflows", description: "List saved web workflows (recorded click/type/navigate sequences) with their site and step count. Replay with runWorkflow — it does not call the model.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "startWorkflowRecording", description: "Start recording the user's clicks, typing and navigation on the current page as a reusable workflow. Call stopWorkflowRecording(name:) when the steps are done. Sensitive fields (password/card/OTP) are stored as placeholders, never as values.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "stopWorkflowRecording", description: "Stop the active workflow recording and save it under a name.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Short workflow name, e.g. login-and-export"),
+                ], required: ["name"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "runWorkflow", description: "Replay a saved web workflow by name on the current tab. Provide values for sensitive steps (ids from listWorkflows) when needed. Returns per-step results; no model calls.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Workflow name"),
+                    "values": AgentJSONSchemaValue(type: "object", description: "Optional map of sensitive step id → value for this run"),
+                ], required: ["name"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "saveSkill", description: "Persist a reusable workflow as a skill so future conversations can load it with useSkill. Use after completing a multi-step task worth repeating — capture the steps, exact commands and gotchas while they are fresh. Same name overwrites.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "name": AgentJSONSchemaValue(type: "string", description: "Short kebab-case skill name, e.g. mux-audio-video"),

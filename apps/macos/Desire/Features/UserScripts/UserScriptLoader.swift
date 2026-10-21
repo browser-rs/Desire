@@ -66,6 +66,8 @@ enum UserScriptLoader {
         add("selection-ai", at: .atDocumentEnd, mainFrameOnly: true)
         // v0.7.29：网页工作流录制（主框架；宿主翻 __desireWorkflowRecording 才生效）。
         add("workflow-recorder", at: .atDocumentStart, mainFrameOnly: true)
+        // v0.7.29：崩溃后的滚动位置恢复（节流上报，宿主按标签保存）。
+        add("scroll-memory", at: .atDocumentEnd, mainFrameOnly: true)
         add("audio-state", at: .atDocumentEnd)
         add("super-drag", at: .atDocumentStart)
         add("password-detect", at: .atDocumentEnd)

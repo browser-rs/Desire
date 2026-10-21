@@ -153,6 +153,9 @@ class BrowserState: ObservableObject {
     /// 防崩溃循环命中（v0.7.28）：10s 内二次崩溃时不再自动重载——横幅要
     /// 如实写"已停止自动刷新"，不能再说"页面已自动恢复"。
     @Published var crashAutoReloadSuppressed = false
+    /// 最近一次滚动位置（v0.7.29）：内容进程崩溃后用于恢复；正常导航清零。
+    @Published var lastScrollY: Double = 0
+    var pendingScrollRestore: Double?
     /// 大页面守护代理指标（page-perf.js 每 5s 上报；WebKit 无公开 per-tab 内存）。
     @Published var lastDomNodeCount = 0
     /// 视频速度接管值（0.6.5；1 = 未接管）。
@@ -757,7 +760,7 @@ struct WebView: NSViewRepresentable {
         private static let scriptMessageHandlers = [
             "audioState", "mediaFound", "passwordDetect", "passwordSave",
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
-            "workflowEvent",
+            "workflowEvent", "scrollPosition",
             "elementPicker", "videoAdBlocked", "otpDetect", "pagePerf", "superDragLink",
             "cookieGuardHandled",
             // "devConsole"/"netEntry" 不在此列：DevToolsRecorder（0.7.5）
@@ -1441,6 +1444,10 @@ try {
                 // 录制事件（v0.7.29）：宿主做站点过滤与敏感值清空，页面脚本不做策略。
                 WorkflowStore.shared.recordEvent(
                     dict, tabURL: parent.state.webView.url?.absoluteString ?? "")
+            } else if message.name == "scrollPosition", let dict = message.body as? [String: Any] {
+                if let y = dict["y"] as? Double, y >= 0 {
+                    parent.state.lastScrollY = y
+                }
             } else if message.name == "hoverLink", let url = message.body as? String {
                 parent.state.hoveredLinkURL = url.isEmpty ? nil : url
             } else if message.name == "middleClickLink", let raw = message.body as? String {
@@ -1523,11 +1530,14 @@ try {
             Log.app.error("WebContent process crashed — auto-reloading \(crashedURL, privacy: .public)")
             parent.state.contentProcessCrashed = true
             parent.state.crashAutoReloadSuppressed = false
+            parent.state.pendingScrollRestore = parent.state.lastScrollY > 0
+                ? parent.state.lastScrollY : nil
             BrowserDiagnostics.shared.recordContentProcessCrash(url: crashedURL, autoReloaded: true)
             webView.reload()
         }
 
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
+            parent.state.lastScrollY = 0
             // 只清这个标签页的日志：导航的是它，别的标签页的日志不该被顺手抹掉。
             if parent.devToolsStore.clearConsoleOnNavigate {
                 parent.devToolsStore.clearConsole(tabID: parent.tabID)
@@ -1893,6 +1903,11 @@ try {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            if let y = parent.state.pendingScrollRestore, y > 0 {
+                parent.state.pendingScrollRestore = nil
+                let script = "setTimeout(function(){ window.scrollTo(0, \(y)); }, 250);"
+                webView.evaluateJavaScript(script, completionHandler: nil)
+            }
             parent.isLoading = false
             parent.state.estimatedProgress = 1
             parent.canGoBack = webView.canGoBack

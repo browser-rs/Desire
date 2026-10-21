@@ -3055,6 +3055,7 @@ final class AutomationServer {
                 "suspended": tab.isSuspended,
                 "loading": tab.isLoading,
                 "domNodes": tab.browser.lastDomNodeCount,
+                "scrollY": tab.browser.lastScrollY,
             ]
         }
         return [

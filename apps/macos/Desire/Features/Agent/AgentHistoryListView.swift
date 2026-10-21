@@ -325,11 +325,13 @@ struct AgentHistoryListView: View {
         alert.addButton(withTitle: String(localized: "Delete"))
         alert.addButton(withTitle: String(localized: "Cancel"))
         if alert.runModal() == .alertFirstButtonReturn {
+            // 先清选区再删（v0.7.29）：selection 里残留已删 id 时，List 在同一
+            // 次 diff 中会对不上行，叠加分组收缩会触发 ForEach 越界断言。
+            selection.removeAll()
             conversationStore.delete(ids)
             // 删的是面板正在显示的会话（删全部必然包含）→ 面板重置回初始空态；
             // 不重置的话残留消息还在显示，下一回合还会把已删文件写回复活。
             sessionStore.handleConversationsDeleted(ids)
-            selection.removeAll()
         }
     }
 
@@ -440,9 +442,13 @@ struct AgentHistoryListView: View {
 /// 按“今天/昨天/本周/更早”分桶（历史页与 Agent 窗口侧栏共用——两边必须
 /// 长同一副分组口径，改一处就够）。入参须已按 updatedAt 新→旧排序。
 struct AgentHistoryGroup: Identifiable {
-    let id = UUID()
     let title: String
     let items: [Conversation]
+    /// 稳定身份（v0.7.29 批量删除崩溃修复）：此前 `id = UUID()` 每次重建都变，
+    /// 批量删除让分组数量收缩时，SwiftUI 的 ForEach diff 拿着旧下标去新数组取值
+    /// 直接 SIGTRAP（crash 报告：ForEach.IDGenerator.makeID + AgentHistoryGroup
+    /// 的 value witness）。分组标题就是天然唯一键。
+    var id: String { title }
 
     static func buckets(_ conversations: [Conversation]) -> [AgentHistoryGroup] {
         let cal = Calendar.current

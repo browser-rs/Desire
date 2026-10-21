@@ -604,9 +604,23 @@ class AgentPreferenceStore: ObservableObject {
     /// 脱敏这类不在用户点击现场的路径必须非交互**——授权窗可能永远不显示（隐窗
     /// 排队，2026-09-24 实测：`SecItemCopyMatching` 同步等它 = 主线程启动即卡死，
     /// v0.3.13 同样中招），宁可让这次读失败也不等 UI。
+    /// 进程内 Key 缓存（v0.7.30）：一个回合里正文/标题/记忆/自评/guard 会读
+    /// 5–6 次 Key——每次都走 `SecItemCopyMatching`，ACL 认不出当前 adhoc 构建时
+    /// 就会连环弹钥匙串授权。读成功即缓存；写入/删除同步更新。**只存内存**。
+    /// 用户点了"拒绝"后本进程不再重试（否则模型调用每次都会再弹一次）。
+    private static var apiKeyCache: [String: String] = [:]
+    private static var apiKeyDenied: Set<String> = []
+
     func loadAPIKey(profileID: UUID? = nil, interactive: Bool = true) -> String? {
         guard let account = account(for: profileID) else { return nil }
-        return keychainRead(account: account, interactive: interactive)
+        if let cached = Self.apiKeyCache[account] { return cached }
+        if Self.apiKeyDenied.contains(account) { return nil }
+        guard let key = keychainRead(account: account, interactive: interactive) else {
+            if interactive { Self.apiKeyDenied.insert(account) }
+            return nil
+        }
+        Self.apiKeyCache[account] = key
+        return key
     }
 
     func saveAPIKey(_ key: String, profileID: UUID? = nil) {
@@ -630,8 +644,12 @@ class AgentPreferenceStore: ObservableObject {
         hasAPIKey = loadAPIKey(interactive: interactive) != nil
         // 逐档案刷新（档案数很小；非交互路径 ACL 失配时失败成"无 Key"——
         // 与 hasAPIKey 同一取舍）。
+        // 逐档案只做**非交互**读；交互读仅限当前活动档案（避免设置页/保存后
+        // 为每个档案各弹一次钥匙串授权——5–6 个档案正好是用户看到的连续弹窗）。
         for profile in profiles {
-            hasKeyByProfile[profile.id] = loadAPIKey(profileID: profile.id, interactive: interactive) != nil
+            let perProfileInteractive = interactive && profile.id == activeProfileID
+            hasKeyByProfile[profile.id] =
+                loadAPIKey(profileID: profile.id, interactive: perProfileInteractive) != nil
         }
     }
 
@@ -644,10 +662,16 @@ class AgentPreferenceStore: ObservableObject {
 
     private func keychainWrite(data: Data, account: String) {
         KeychainService.write(data, account: account, service: keychainService)
+        if let text = String(data: data, encoding: .utf8) {
+            Self.apiKeyCache[account] = text
+            Self.apiKeyDenied.remove(account)
+        }
     }
 
     private func keychainDelete(account: String) {
         KeychainService.delete(account: account, service: keychainService)
+        Self.apiKeyCache.removeValue(forKey: account)
+        Self.apiKeyDenied.remove(account)
     }
 
     /// A previously persisted copy of a BUILT-IN default prompt (never

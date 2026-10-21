@@ -35,6 +35,9 @@ enum SessionRestore {
         let openFreshTab: () -> Void
         /// 按启动设置打开一组 URL（主页/指定页集）；多条时都开。
         let openStartupURLs: (([String]) -> Void)?
+        /// 崩溃后补开其他窗口（v0.8.0 多窗口恢复）：由 ContentView 的
+        /// `openWindow(id:"main", value: UUID())` 提供；nil = 不补开。
+        let openWindowForRestore: (() -> Void)?
     }
 
     /// 执行恢复。返回窗口应绑定的会话 UUID（可能因采纳而改变）。
@@ -50,6 +53,21 @@ enum SessionRestore {
             return Result(sessionID: sessionID, sessionKey: sessionKey)
         }
 
+        // 崩溃多窗口恢复：首窗在下面把其余 live key 入队，随后补开的每个
+        // 新窗口在这里认领自己的那一份，而不是开成空白新标签。
+        if let pendingKey = TabSessionCoordinator.shared.takePendingRestoreKey(),
+           let session = TabSessionCoordinator.shared.session(forKey: pendingKey),
+           !session.tabs.isEmpty {
+            manager.sessionKey = pendingKey
+            manager.apply(
+                session: session,
+                javaScriptEnabled: context.settings.isJavaScriptEnabled,
+                contentBlocker: context.contentBlocker,
+                videoAdBlocker: context.videoAdBlocker
+            )
+            return Result(sessionID: sessionID, sessionKey: pendingKey)
+        }
+
         if manager.restoreSession(
             forKey: sessionKey,
             javaScriptEnabled: context.settings.isJavaScriptEnabled,
@@ -57,6 +75,7 @@ enum SessionRestore {
             videoAdBlocker: context.videoAdBlocker
         ) {
             // This window's own tabs are back.
+            restoreAdditionalWindows(excluding: sessionKey, context: context)
             return Result(sessionID: sessionID, sessionKey: sessionKey)
         }
 
@@ -93,6 +112,7 @@ enum SessionRestore {
             // Deliberately NOT pruning here: consuming the index would leave the
             // next launch with nothing to adopt. This window now persists under
             // `lastKey`, and the next clean quit rewrites the index with it.
+            restoreAdditionalWindows(excluding: lastKey, context: context)
             return Result(sessionID: sessionID, sessionKey: lastKey)
         }
 
@@ -139,5 +159,20 @@ enum SessionRestore {
                 String(localized: "Last quit was unexpected — started with a fresh tab"))
         }
         return Result(sessionID: sessionID, sessionKey: sessionKey)
+    }
+
+    /// 崩溃后补开其他窗口：首窗已认领一个会话，其余 live key 入队；每开一扇
+    /// 新窗，它的 `run` 会在顶部 `takePendingRestoreKey()` 认领一份。
+    /// 只在崩溃 + "恢复上次会话"启动设置下动作；最多补开 4 扇（防窗口爆炸）。
+    private static func restoreAdditionalWindows(excluding key: String?, context: Context) {
+        guard TabSessionCoordinator.shared.launchedAfterCrash,
+              context.settings.startupBehavior == .restoreSession,
+              context.openWindowForRestore != nil else { return }
+        let others = TabSessionCoordinator.shared.crashRestoreSessionKeys(excluding: key)
+        guard !others.isEmpty else { return }
+        TabSessionCoordinator.shared.enqueueRestoreKeys(others)
+        for _ in others {
+            context.openWindowForRestore?()
+        }
     }
 }

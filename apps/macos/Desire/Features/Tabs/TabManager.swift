@@ -1042,11 +1042,19 @@ final class TabSessionCoordinator {
     }
 
     /// Persists every registered window (15s timer / willTerminate).
+    ///
+    /// 同时把**当前存活窗口的会话 key** 写进 index：崩溃/强杀时多窗口恢复
+    /// 依赖它（此前 index 只在优雅退出写，崩溃后只剩"最新文件"一个窗口可
+    /// 采纳）。index 在每次 tick 覆盖为 live 集合；正常退出路径也会再写一次。
     func persistAll(force: Bool) {
         managers.removeAll { $0.manager == nil }
         for box in managers {
             guard let manager = box.manager, let key = manager.sessionKey else { continue }
             persistWindow(manager, key: key, force: force)
+        }
+        let keys = managers.compactMap { $0.manager?.sessionKey }
+        if !keys.isEmpty {
+            DiskStore.save(keys, key: Self.indexKey)
         }
     }
 
@@ -1268,6 +1276,40 @@ final class TabSessionCoordinator {
 
     /// 启动哨兵：进程起来即置位；prepareForTermination 清除。
     /// （键值在 launchedAfterCrash 初始化器处内联。）
+
+    // MARK: - 崩溃多窗口恢复（v0.8.0）
+
+    private var pendingRestoreKeys: [String] = []
+
+    /// 崩溃后除首窗外的其他存活窗口会话（最多 `limit` 个）。
+    /// index 由 `persistAll` 每 15s 写成 live 集合；没有 index（升级前的旧
+    /// 崩溃）时退回只恢复首窗（不猜文件归属）。
+    func crashRestoreSessionKeys(excluding: String?, limit: Int = 4) -> [String] {
+        guard launchedAfterCrash,
+              let index: [String] = DiskStore.load([String].self, key: Self.indexKey) else { return [] }
+        let fm = FileManager.default
+        var seen = Set<String>()
+        var keys: [String] = []
+        for key in index where key != excluding {
+            guard seen.insert(key).inserted else { continue }
+            let path = DiskStore.directory.appendingPathComponent("\(key).json").path
+            guard fm.fileExists(atPath: path),
+                  let session = session(forKey: key),
+                  !session.tabs.isEmpty else { continue }
+            keys.append(key)
+            if keys.count >= limit { break }
+        }
+        return keys
+    }
+
+    func enqueueRestoreKeys(_ keys: [String]) {
+        pendingRestoreKeys = keys
+    }
+
+    /// 新开的窗口在普通恢复前先认领一个待恢复会话（崩溃多窗口恢复用）。
+    func takePendingRestoreKey() -> String? {
+        pendingRestoreKeys.isEmpty ? nil : pendingRestoreKeys.removeFirst()
+    }
 
     /// 扫描 session-*.json，返回 mtime 最新的 key。
     private func newestSessionFileKey() -> String? {

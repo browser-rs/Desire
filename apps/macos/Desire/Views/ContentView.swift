@@ -425,6 +425,11 @@ struct ContentView: View {
                                     newTabPosition: .end
                                 )
                             }
+                        },
+                        openWindowForRestore: {
+                            // 崩溃多窗口恢复：新窗带全新 UUID，由 SessionRestore
+                            // 认领 pending key（不是这个 UUID 自己的会话）。
+                            openWindow(id: "main", value: UUID())
                         }
                     )
                 ) {

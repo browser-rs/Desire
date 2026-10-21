@@ -18,6 +18,13 @@ struct AgentTraceView: View {
     @State private var stats: [String: Any] = [:]
     /// 复盘卡 → 输出规则草稿的编辑文本（nil = sheet 关着）。
     @State private var ruleDraftText: String?
+    /// 工作流提炼草稿（nil = sheet 关着）。
+    @State private var workflowDraft: WorkflowDraftPayload?
+
+    private struct WorkflowDraftPayload: Identifiable {
+        let id = UUID()
+        let draft: WorkflowDistill.Draft
+    }
     /// 评估集导出回执（"已导出 N 回合"）。
     @State private var evalExportNote: String?
 
@@ -46,6 +53,9 @@ struct AgentTraceView: View {
             get: { ruleDraftText != nil },
             set: { if !$0 { ruleDraftText = nil } })) {
             ruleDraftSheet
+        }
+        .sheet(item: $workflowDraft) { payload in
+            WorkflowSaveSheet(draft: payload.draft)
         }
     }
 
@@ -211,9 +221,13 @@ struct AgentTraceView: View {
                     .foregroundStyle(.secondary)
             }
             ForEach(Array(turns.enumerated()), id: \.offset) { _, turn in
-                TurnTraceCard(turn: turn) { drafts in
-                    ruleDraftText = drafts.map(TurnReview.ruleText(for:)).joined(separator: "\n")
-                }
+                TurnTraceCard(turn: turn,
+                              onDraftRules: { drafts in
+                                  ruleDraftText = drafts.map(TurnReview.ruleText(for:)).joined(separator: "\n")
+                              },
+                              onSaveWorkflow: { draft in
+                                  workflowDraft = WorkflowDraftPayload(draft: draft)
+                              })
             }
         }
     }
@@ -326,9 +340,15 @@ private struct TurnTraceCard: View {
     let turn: [String: Any]
     /// 复盘卡（v0.7.22）：把本回合的失败/慢模式写成输出规则草稿（宿主弹 sheet）。
     var onDraftRules: (([TurnReview.RuleDraft]) -> Void)? = nil
+    /// 工作流提炼（v0.7.29）：把本回合的 navigate/click/fill 存成可回放草稿。
+    var onSaveWorkflow: ((WorkflowDistill.Draft) -> Void)? = nil
     @State private var expanded = false
 
     private var steps: [[String: Any]] { (turn["steps"] as? [[String: Any]]) ?? [] }
+
+    private var workflowDraft: WorkflowDistill.Draft? {
+        WorkflowDistill.draft(fromTurn: turn)
+    }
 
     private var summary: String {
         let ms = steps.compactMap { ($0["ms"] as? Double) }.reduce(0, +)
@@ -404,6 +424,14 @@ private struct TurnTraceCard: View {
             if !drafts.isEmpty, let onDraftRules {
                 Button(String(localized: "Write failure patterns into Output Rules…")) {
                     onDraftRules(drafts)
+                }
+                .font(.system(size: 11))
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+            if let draft = workflowDraft, let onSaveWorkflow {
+                Button(String(localized: "Save as workflow…")) {
+                    onSaveWorkflow(draft)
                 }
                 .font(.system(size: 11))
                 .buttonStyle(.plain)
@@ -504,5 +532,45 @@ private struct TurnTraceCard: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(4)
         }
+    }
+}
+
+/// 保存轨迹提炼的工作流（v0.7.29）：命名后写入本地工作流库。
+private struct WorkflowSaveSheet: View {
+    let draft: WorkflowDistill.Draft
+    @Environment(\.dismiss) private var dismiss
+    @State private var name: String
+
+    init(draft: WorkflowDistill.Draft) {
+        self.draft = draft
+        _name = State(initialValue: draft.name)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Save as workflow")
+                .font(.headline)
+            Text("\(draft.host) · \(draft.steps.count) step(s)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("Name", text: $name)
+                .textFieldStyle(.roundedBorder)
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                Button("Save") { save() }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(20)
+        .frame(width: 360)
+    }
+
+    private func save() {
+        var copy = draft
+        copy.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        WorkflowStore.shared.merge([WorkflowDistill.workflow(from: copy)])
+        dismiss()
     }
 }

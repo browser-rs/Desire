@@ -3784,6 +3784,38 @@ func testMemoryConflict() {
 }
 testMemoryConflict()
 
+func testWorkflowDistill() {
+    let turn: [String: Any] = ["steps": [
+        ["action": "navigate", "args": "{\"url\":\"https://example.com/login\"}"],
+        ["action": "click", "args": "{\"text\":\"Sign in\"}"],
+        ["action": "fill", "args": "{\"selector\":\"input[name=email]\",\"value\":\"a@b.com\"}"],
+        ["action": "fill", "args": "{\"selector\":\"input[name=password]\",\"value\":\"hunter2\"}"],
+        ["action": "readURL", "args": "{\"url\":\"https://example.com/x\"}"],
+        ["action": "click", "args": "{\"selector\":\"#submit\"}"],
+    ]]
+    guard let draft = WorkflowDistill.draft(fromTurn: turn) else {
+        check("工作流提炼：生成草稿", false)
+        return
+    }
+    check("工作流提炼：只保留操作类步骤", draft.steps.count == 5)
+    check("工作流提炼：起点/站点", draft.host == "example.com"
+          && draft.startURL == "https://example.com/login")
+    check("工作流提炼：点击优先文本选择器",
+          draft.steps[1].selectors.contains("text:Sign in"))
+    check("工作流提炼：邮箱值保留",
+          draft.steps[2].value == "a@b.com" && !draft.steps[2].sensitive)
+    check("工作流提炼：密码值不落盘",
+          draft.steps[3].sensitive && draft.steps[3].value == nil)
+
+    let noStart: [String: Any] = ["steps": [["action": "click", "args": "{}"]]]
+    check("工作流提炼：无导航不生成", WorkflowDistill.draft(fromTurn: noStart) == nil)
+
+    let workflow = WorkflowDistill.workflow(from: draft)
+    check("工作流提炼：落成 Workflow", workflow.host == "example.com"
+          && workflow.steps.count == 5)
+}
+testWorkflowDistill()
+
 func testReaderHighlightAnchor() {
     let text = "The quick brown fox jumps over the lazy dog. The quick brown fox sleeps."
     let quote = "quick brown fox"

@@ -154,6 +154,7 @@ struct ContentView: View {
             },
             bindings: .init(
                 showHistory: $showHistory,
+                showWorkflows: $showWorkflows,
                 showBookmarks: $showBookmarks,
                 showPlugins: $showPlugins,
                 showElementBlock: $showElementBlock,
@@ -217,6 +218,7 @@ struct ContentView: View {
     @State var isAgentConfigured = false
     @State var isFindBarVisible = false
     @State var showHistory = false
+    @State var showWorkflows = false
     @State var showBookmarks = false
     @State var showPlugins = false
     @State var showReadingList = false
@@ -560,6 +562,7 @@ struct ContentView: View {
             bookmarkStoreRef: bookmarkStore,
             readingListStoreRef: readingListStore,
             showHistory: $showHistory,
+            showWorkflows: $showWorkflows,
             showBookmarks: $showBookmarks,
             showSearchHistory: $showSearchHistory,
             showPlugins: $showPlugins,

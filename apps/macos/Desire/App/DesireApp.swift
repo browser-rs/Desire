@@ -155,6 +155,8 @@ enum BrowserCommand {
     case newWindow, newTab, newIncognitoTab, closeTab, previousTab, nextTab
     case reopenClosedTab, selectTab(Int)
     case showHistory, showBookmarks, showSettings, showDownloads, showWorkspaces
+    /// v0.7.29：网页工作流面板（录制/回放）。
+    case showWorkflows
     case searchEverywhere
     case showPlugins, showElementBlock, showPasswordManager, showAdBlockStats
     case bookmarkPage, toggleFullScreen, toggleFind, tabSearch, toggleSidebar

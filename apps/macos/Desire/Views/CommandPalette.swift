@@ -63,6 +63,7 @@ struct CommandPalette: View {
         cmd("cmd.inspectElement", "Inspect Element", "Develop", "scope", .inspectElement),
         cmd("cmd.toggleFind", "Find in Page…", "Edit", "magnifyingglass", .toggleFind),
         cmd("cmd.showHistory", "Show History", "History", "clock.arrow.circlepath", .showHistory),
+        cmd("cmd.showWorkflows", "Web Workflows…", "Tools", "rectangle.stack.badge.play", .showWorkflows),
         cmd("cmd.clearHistory", "Clear History…", "History", "trash", .clearHistory),
         cmd("cmd.showBookmarks", "Bookmarks Panel", "Bookmarks", "book", .showBookmarks),
         cmd("cmd.bookmarkPage", "Add Bookmark", "Bookmarks", "bookmark", .bookmarkPage),

@@ -20,6 +20,13 @@ enum WorkflowPlayer {
     static func run(_ workflow: Workflow, values: [UUID: String],
                     in webView: WKWebView) async -> RunResult {
         let steps = WorkflowLogic.stepsForReplay(workflow, values: values)
+        // 从录制起点开始（第一步本身就是 navigate 时由它负责）。
+        if steps.first?.kind != .navigate,
+           let start = URL(string: workflow.startURL),
+           webView.url?.absoluteString != workflow.startURL {
+            webView.load(URLRequest(url: start))
+            _ = await waitForLoad(webView)
+        }
         var results: [StepResult] = []
         for (index, step) in steps.enumerated() {
             let (ok, message) = await perform(step, index: index, in: webView)

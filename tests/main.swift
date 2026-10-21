@@ -3784,6 +3784,52 @@ func testMemoryConflict() {
 }
 testMemoryConflict()
 
+func testWorkflowLogic() {
+    let wf = Workflow(
+        name: "login", host: "example.com", startURL: "https://example.com/login",
+        steps: [
+            .init(kind: .navigate, url: "https://example.com/login"),
+            .init(kind: .click, selectors: ["#submit"]),
+            .init(kind: .input, selectors: ["[name=email]"], value: "a@b.com"),
+            .init(kind: .input, selectors: ["[name=password]"], sensitive: true),
+        ])
+    check("工作流：host 解析", WorkflowLogic.host(of: "https://Example.COM/x") == "example.com")
+    check("工作流：站点匹配含子域", WorkflowLogic.matchesSite(wf, url: "https://www.example.com/a"))
+    check("工作流：异站不匹配", !WorkflowLogic.matchesSite(wf, url: "https://evil.com/"))
+
+    check("工作流：密码字段敏感",
+          WorkflowLogic.isSensitiveField(type: "password", autocomplete: nil, name: nil, id: nil, placeholder: nil))
+    check("工作流：卡号字段敏感",
+          WorkflowLogic.isSensitiveField(type: nil, autocomplete: "cc-number", name: nil, id: nil, placeholder: nil))
+    check("工作流：字段名命中敏感",
+          WorkflowLogic.isSensitiveField(type: "text", autocomplete: nil, name: "cardNumber", id: nil, placeholder: nil))
+    check("工作流：邮箱不敏感",
+          !WorkflowLogic.isSensitiveField(type: "email", autocomplete: "email", name: "email", id: nil, placeholder: nil))
+
+    let cleaned = WorkflowLogic.sanitized(wf.steps[3], sensitive: true)
+    check("工作流：敏感值清空", cleaned.value == nil && cleaned.sensitive)
+
+    let pwID = wf.steps[3].id
+    check("工作流：缺敏感值可检测",
+          WorkflowLogic.missingSensitiveValues(wf, values: [:]) == [pwID])
+    let filled = WorkflowLogic.stepsForReplay(wf, values: [pwID: "s3cret"])
+    check("工作流：回放值只在本轮填入", filled[3].value == "s3cret" && wf.steps[3].value == nil)
+
+    check("工作流：选择器校验", WorkflowLogic.isValidSelector("#submit")
+          && WorkflowLogic.isValidSelector("text: Sign in")
+          && !WorkflowLogic.isValidSelector("")
+          && !WorkflowLogic.isValidSelector("text:")
+          && !WorkflowLogic.isValidSelector("a\u{0}b"))
+
+    guard let data = try? JSONEncoder().encode(wf),
+          let back = try? JSONDecoder().decode(Workflow.self, from: data) else {
+        check("工作流：Codable round-trip", false)
+        return
+    }
+    check("工作流：Codable round-trip", back == wf)
+}
+testWorkflowLogic()
+
 func testMemoryFactFilter() {
     let a = MemoryFact(content: "偏好宋体阅读", category: "preference",
                        pinned: true, scope: "global", source: "阅读会话")

@@ -1023,6 +1023,13 @@ Features/Bookmarks/
 构建，**零警告闸门** + 版本核对 + x86 架构校验。作用 = 每次 push 就发现编译/警告
 问题，而不是等到发版；失败会在 Actions 里附构建日志 artifact。
 
+**本地验证矩阵（2026-10-21 用户定调）**：每次发版 = `bash tests/run.sh`
+（40 秒）+ `python3 tests/release-smoke.py`（约 2 分钟，覆盖本版关键链路）
++ 按 CHANGELOG 验收项做桥/快照探针。**全量 `tests/execution-e2e.py` 只在改核心
+浏览/Agent 回合循环/会话恢复时、或每 3 个版本/里程碑跑一次**——190 项约 15 分钟，
+多数与单次迭代无关；套件的预算 5 项存在测试时序不稳，已用最小假端点探针
+（460→warning；续跑→920/stopLevel=2/无 B-DONE）单独证明预算逻辑正确。
+
 **发版（release.yml，仅 workflow_dispatch）**：
 1. `scripts/release.sh <版本号>`（约 30 秒返回）：冻结 CHANGELOG、同步
    website/pbxproj 版本号（幂等）、跑纯逻辑单测、提交推送、触发云端；之后开发继续。

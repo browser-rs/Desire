@@ -3784,6 +3784,44 @@ func testMemoryConflict() {
 }
 testMemoryConflict()
 
+func testReaderHighlightAnchor() {
+    let text = "The quick brown fox jumps over the lazy dog. The quick brown fox sleeps."
+    let quote = "quick brown fox"
+    let firstStart = text.distance(from: text.startIndex, to: text.range(of: quote)!.lowerBound)
+    let secondStart = text.distance(from: text.startIndex, to: text.range(of: quote, options: .backwards)!.lowerBound)
+
+    check("高亮：prefix+suffix 定位第一条",
+          ReaderHighlightAnchor.locate(quote: quote, prefix: "The ", suffix: " jumps", in: text)
+          == firstStart..<(firstStart + quote.count))
+    check("高亮：suffix 区分第二次出现",
+          ReaderHighlightAnchor.locate(quote: quote, prefix: "The ", suffix: " sleeps", in: text)
+          == secondStart..<(secondStart + quote.count))
+    check("高亮：无上下文仍可定位",
+          ReaderHighlightAnchor.locate(quote: "lazy dog", prefix: "", suffix: "", in: text) != nil)
+    check("高亮：找不到返回 nil",
+          ReaderHighlightAnchor.locate(quote: "missing text", prefix: "", suffix: "", in: text) == nil)
+    check("高亮：空 quote 返回 nil",
+          ReaderHighlightAnchor.locate(quote: "", prefix: "", suffix: "", in: text) == nil)
+    check("高亮：prefix 不匹配退回全文",
+          ReaderHighlightAnchor.locate(quote: quote, prefix: "Nope", suffix: "", in: text)
+          == firstStart..<(firstStart + quote.count))
+
+    let markdown = ReaderHighlightAnchor.markdown(url: "https://example.com/a", highlights: [
+        ReaderHighlight(url: "https://example.com/a", quote: "quick brown fox", note: "重点"),
+    ])
+    check("高亮：Markdown 含引用与备注",
+          markdown.contains("> quick brown fox") && markdown.contains("重点"))
+
+    let item = ReaderHighlight(url: "https://example.com/a", quote: "quick brown fox", note: "x")
+    guard let data = try? JSONEncoder().encode(item),
+          let back = try? JSONDecoder().decode(ReaderHighlight.self, from: data) else {
+        check("高亮：Codable round-trip", false)
+        return
+    }
+    check("高亮：Codable round-trip", back == item)
+}
+testReaderHighlightAnchor()
+
 func testWorkflowLogic() {
     let wf = Workflow(
         name: "login", host: "example.com", startURL: "https://example.com/login",

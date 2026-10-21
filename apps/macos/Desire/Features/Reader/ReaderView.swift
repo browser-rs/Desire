@@ -13,10 +13,23 @@ struct ReaderView: View {
 
     @State private var settings = ReaderSettings.load()
     @ObservedObject private var speech = ReaderSpeechService.shared
+    /// 高亮（v0.7.29）：控制器桥接阅读 webview，store 负责持久化。
+    @StateObject private var readerController = ReaderController()
+    @ObservedObject private var highlightStore = ReaderHighlightStore.shared
+    @State private var showHighlights = false
     /// 朗读源剥离 HTML 后的纯文本（body 出现一次后缓存，避免每帧重剥）。
     @State private var plainText: String = ""
     /// "保存离线"的瞬时反馈（v0.7.28）。
     @State private var offlineNote: String?
+
+    private var pageURLString: String { baseURL?.absoluteString ?? "" }
+
+    /// 只在高亮集合/颜色变化时重绘标记（备注输入不应每次重包 DOM）。
+    private var highlightRenderKey: String {
+        highlightStore.list(for: pageURLString)
+            .map { "\($0.id.uuidString)-\($0.color.rawValue)" }
+            .joined(separator: "|")
+    }
 
     private var speechText: String { plainText.isEmpty ? Self.stripHTML(contentHTML) : plainText }
 
@@ -104,6 +117,20 @@ struct ReaderView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help("Save offline copy")
+                Button { addHighlight() } label: {
+                    Image(systemName: "highlighter")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Highlight selection")
+                Button { showHighlights = true } label: {
+                    Image(systemName: "list.bullet.rectangle")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Highlights")
                 Menu {
                     ForEach([1.4, 1.7, 2.0], id: \.self) { spacing in
                         Button(spacing == 1.4 ? "Tight" : spacing == 1.7 ? "Normal" : "Loose") {
@@ -171,6 +198,7 @@ struct ReaderView: View {
                 ReaderWebView(html: wrappedHTML,
                               baseURL: baseURL,
                               urlKey: baseURL?.absoluteString ?? "",
+                              controller: readerController,
                               onOpenURL: onOpenURL)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .id(settingsIdentity) // 设置变化重载（HTML 模板内联样式）
@@ -178,6 +206,17 @@ struct ReaderView: View {
         }
         // 离开阅读模式即停朗读（切标签/关面板不残留语音）。
         .onDisappear { speech.stop() }
+        .sheet(isPresented: $showHighlights) {
+            ReaderHighlightsSheet(url: pageURLString,
+                                  store: highlightStore,
+                                  onJump: { id in
+                                      Task { await readerController.scrollTo(id) }
+                                  },
+                                  onClose: { showHighlights = false })
+        }
+        .onChange(of: highlightRenderKey) { _, _ in
+            Task { await readerController.apply(highlightStore.list(for: pageURLString)) }
+        }
     }
 
     private var settingsIdentity: String {
@@ -187,6 +226,23 @@ struct ReaderView: View {
     private func stepFont(_ delta: Int) {
         settings.fontSize = max(14, min(26, settings.fontSize + delta))
         settings.save()
+    }
+
+    /// 高亮当前选区（v0.7.29）：值/锚点存本地，阅读视图立即重绘。
+    private func addHighlight() {
+        guard !pageURLString.isEmpty else { return }
+        Task { @MainActor in
+            guard let anchor = await readerController.selectedAnchor() else {
+                offlineNote = String(localized: "Select text first")
+                return
+            }
+            _ = highlightStore.add(url: pageURLString, quote: anchor.quote,
+                                   prefix: anchor.prefix, suffix: anchor.suffix)
+            await readerController.apply(highlightStore.list(for: pageURLString))
+            offlineNote = String(localized: "Highlighted")
+            try? await Task.sleep(for: .seconds(1.5))
+            offlineNote = nil
+        }
     }
 
     /// 保存离线（v0.7.28）：把干净的阅读正文挂到阅读列表条目的离线缓存上
@@ -285,16 +341,18 @@ private struct ReaderWebView: NSViewRepresentable {
     let html: String
     let baseURL: URL?
     let urlKey: String
+    let controller: ReaderController
     let onOpenURL: (URL) -> Void
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(urlKey: urlKey, onOpenURL: onOpenURL)
+        Coordinator(urlKey: urlKey, controller: controller, onOpenURL: onOpenURL)
     }
 
     func makeNSView(context: Context) -> WKWebView {
         let wv = WKWebView()
         wv.navigationDelegate = context.coordinator
         wv.uiDelegate = context.coordinator
+        controller.attach(wv)
         // baseURL 让相对图片/链接可解析（v0.7.28：此前是 nil，图全裂）。
         wv.loadHTMLString(html, baseURL: baseURL)
         return wv
@@ -311,10 +369,13 @@ private struct ReaderWebView: NSViewRepresentable {
     @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         let urlKey: String
+        let controller: ReaderController
         let onOpenURL: (URL) -> Void
 
-        init(urlKey: String, onOpenURL: @escaping (URL) -> Void) {
+        init(urlKey: String, controller: ReaderController,
+             onOpenURL: @escaping (URL) -> Void) {
             self.urlKey = urlKey
+            self.controller = controller
             self.onOpenURL = onOpenURL
         }
 
@@ -331,9 +392,14 @@ private struct ReaderWebView: NSViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            guard !urlKey.isEmpty,
-                  let y = ReaderScrollMemory.restore(for: urlKey), y > 0 else { return }
-            webView.evaluateJavaScript("window.scrollTo(0, \(y));", completionHandler: nil)
+            if !urlKey.isEmpty,
+               let y = ReaderScrollMemory.restore(for: urlKey), y > 0 {
+                webView.evaluateJavaScript("window.scrollTo(0, \(y));", completionHandler: nil)
+            }
+            // 重开/换字号后重绘高亮（v0.7.29）。
+            Task { @MainActor [controller, urlKey] in
+                await controller.apply(ReaderHighlightStore.shared.list(for: urlKey))
+            }
         }
 
         func webView(_ webView: WKWebView,

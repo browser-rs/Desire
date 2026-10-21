@@ -64,6 +64,8 @@ enum UserScriptLoader {
                                      forMainFrameOnly: false, in: WebView.agentToolWorld))
         add("network-tools", at: .atDocumentStart)
         add("selection-ai", at: .atDocumentEnd, mainFrameOnly: true)
+        // v0.7.29：网页工作流录制（主框架；宿主翻 __desireWorkflowRecording 才生效）。
+        add("workflow-recorder", at: .atDocumentStart, mainFrameOnly: true)
         add("audio-state", at: .atDocumentEnd)
         add("super-drag", at: .atDocumentStart)
         add("password-detect", at: .atDocumentEnd)

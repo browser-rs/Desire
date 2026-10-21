@@ -757,6 +757,7 @@ struct WebView: NSViewRepresentable {
         private static let scriptMessageHandlers = [
             "audioState", "mediaFound", "passwordDetect", "passwordSave",
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
+            "workflowEvent",
             "elementPicker", "videoAdBlocked", "otpDetect", "pagePerf", "superDragLink",
             "cookieGuardHandled",
             // "devConsole"/"netEntry" 不在此列：DevToolsRecorder（0.7.5）
@@ -1436,6 +1437,10 @@ try {
                 // v0.7.28：阅读视图的 baseURL（相对资源可用）+ 导航退出判据。
                 parent.state.readerBaseURLString = dict["url"] ?? dict["baseURI"] ?? ""
                 parent.state.isReaderLoading = false
+            } else if message.name == "workflowEvent", let dict = message.body as? [String: Any] {
+                // 录制事件（v0.7.29）：宿主做站点过滤与敏感值清空，页面脚本不做策略。
+                WorkflowStore.shared.recordEvent(
+                    dict, tabURL: parent.state.webView.url?.absoluteString ?? "")
             } else if message.name == "hoverLink", let url = message.body as? String {
                 parent.state.hoveredLinkURL = url.isEmpty ? nil : url
             } else if message.name == "middleClickLink", let raw = message.body as? String {
@@ -1632,6 +1637,15 @@ try {
                webView.url?.absoluteString != parent.state.readerBaseURLString {
                 parent.state.isReadingMode = false
                 parent.state.isReaderLoading = false
+            }
+            // 录制跨页面延续（v0.7.29）：脚本每个新文档都会重置开关，导航提交后
+            // 在录制中的站点上重新打开它。
+            if WorkflowStore.shared.isRecording,
+               let host = webView.url?.host?.lowercased(),
+               let scope = WorkflowStore.shared.recordingHost,
+               host == scope || host.hasSuffix("." + scope) {
+                webView.evaluateJavaScript("window.__desireWorkflowRecording = true",
+                                           completionHandler: nil)
             }
             // Response headers arrived — the watchdog did its job.
             disarmLoadTimeout()

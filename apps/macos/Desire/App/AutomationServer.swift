@@ -2585,6 +2585,11 @@ final class AutomationServer {
                 return try Self.json(Self.listWatches())
             case ("GET", "/watches/digest"):
                 return try Self.json(Self.watchDigest())
+            case ("POST", "/watches/digest/config"):
+                PageWatchStore.shared.setDigest(
+                    enabled: body["enabled"] as? Bool ?? PageWatchStore.shared.digestEnabled,
+                    hour: body["hour"] as? Int)
+                return try Self.json(Self.watchDigest())
             case ("POST", "/watches/add"):
                 return try Self.json(Self.addWatch(
                     name: Self.string(body, "name") ?? "",
@@ -7153,11 +7158,16 @@ final class AutomationServer {
     // MARK: Page watches
 
     private static func watchDigest() -> [String: Any] {
-        let summary = PageWatchDigest.make(watches: PageWatchStore.shared.watches)
+        let store = PageWatchStore.shared
+        let summary = PageWatchDigest.make(watches: store.watches)
         return ["text": summary.text,
                 "changed": summary.changed,
                 "errors": summary.errors,
-                "alerts": summary.alerts]
+                "alerts": summary.alerts,
+                "digestEnabled": store.digestEnabled,
+                "digestHour": store.digestHour,
+                "lastDigestDay": UserDefaults.standard.string(
+                    forKey: "pageWatch.digest.lastDay") ?? ""]
     }
 
     private static func listWatches() throws -> [String: Any] {        let store = PageWatchStore.shared

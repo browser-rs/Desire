@@ -14,6 +14,19 @@ final class PageWatchStore: ObservableObject {
 
     @Published private(set) var watches: [PageWatch] = []
     @Published private(set) var isChecking = false
+    /// 每日摘要（v0.8.1）：到点把 24h 内变化/告警/错误汇总成一条通知。
+    /// 由设置页或桥修改；跨启动记忆"今天已发过"。
+    @Published var digestEnabled: Bool {
+        didSet { defaults.set(digestEnabled, forKey: Self.digestEnabledKey) }
+    }
+    @Published var digestHour: Int {
+        didSet { defaults.set(digestHour, forKey: Self.digestHourKey) }
+    }
+
+    private let defaults = UserDefaults.standard
+    private static let digestEnabledKey = "pageWatch.digest.enabled"
+    private static let digestHourKey = "pageWatch.digest.hour"
+    private static let lastDigestDayKey = "pageWatch.digest.lastDay"
 
     private var clock: Timer?
     private var offscreenWebView: WKWebView?
@@ -22,6 +35,9 @@ final class PageWatchStore: ObservableObject {
     private static let maxTextLength = 20_000
 
     private init() {
+        digestEnabled = UserDefaults.standard.object(forKey: Self.digestEnabledKey) as? Bool ?? false
+        let storedHour = UserDefaults.standard.object(forKey: Self.digestHourKey) as? Int ?? 9
+        digestHour = min(23, max(0, storedHour))
         watches = DiskStore.load([PageWatch].self, key: Self.storageKey) ?? []
         startClock()
     }
@@ -89,11 +105,51 @@ final class PageWatchStore: ObservableObject {
         DiskStore.save(watches, key: Self.storageKey)
     }
 
+    // MARK: - Daily digest
+
+    /// 设置页/桥：开关每日摘要并可选改小时（0–23）。
+    func setDigest(enabled: Bool, hour: Int? = nil) {
+        digestEnabled = enabled
+        if let hour { digestHour = min(23, max(0, hour)) }
+    }
+
+    private var lastDigestDay: String? {
+        get { defaults.string(forKey: Self.lastDigestDayKey) }
+        set { defaults.set(newValue, forKey: Self.lastDigestDayKey) }
+    }
+
+    /// 每个时钟 tick 调一次：到点且今天未发过 → 把 24h 摘要作为 routine
+    /// 通知投递（免打扰/预算照旧由通知策略收口）。**无变化不发**，但仍记
+    /// “今天已处理”，避免每 20 秒重复判断。
+    private func maybeDeliverDailyDigest(now: Date = Date()) {
+        guard digestEnabled else { return }
+        guard Calendar.current.component(.hour, from: now) >= digestHour else { return }
+        let today = Self.dayKey(now)
+        guard lastDigestDay != today else { return }
+        lastDigestDay = today
+        let summary = PageWatchDigest.make(watches: watches, now: now)
+        guard summary.changed > 0 || summary.alerts > 0 || summary.errors > 0 else {
+            Self.log.info("page watch daily digest: nothing to report")
+            return
+        }
+        ProactiveNotificationStore.shared.deliver(
+            title: String(localized: "Page Watch daily digest"),
+            body: summary.text,
+            tier: .routine)
+        Self.log.info("page watch daily digest delivered: \(summary.changed) changed, \(summary.alerts) alerts, \(summary.errors) errors")
+    }
+
+    private static func dayKey(_ date: Date) -> String {
+        let c = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        return String(format: "%04d-%02d-%02d", c.year ?? 0, c.month ?? 0, c.day ?? 0)
+    }
+
     // MARK: - Checks
 
     /// Fires every due, enabled watch — serialized (the offscreen webview
     /// is shared).
     private func evaluate() {
+        maybeDeliverDailyDigest()
         guard !isChecking else { return }
         for idx in watches.indices where watches[idx].isEnabled {
             let watch = watches[idx]
@@ -209,11 +265,9 @@ final class PageWatchStore: ObservableObject {
 
     /// Whitespace-collapsed comparison key.
     private func normalize(_ text: String) -> String {
-        text.split(whereSeparator: \.isNewline).joined(separator: "\n")
-            .replacingOccurrences(of: "\r", with: "")
-            .split(whereSeparator: { $0 == " " || $0 == "\t" })
-            .joined(separator: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        // 噪声过滤（0.8.1）：时间戳/相对时间/计数不参与 diff，避免
+        // “每 20 秒都变”的假更新（见 PageWatchNoise）。
+        PageWatchNoise.normalize(text)
     }
 
     // MARK: - Offscreen fetch

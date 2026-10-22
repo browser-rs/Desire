@@ -4574,6 +4574,26 @@ func testResearchRanking() {
 }
 testResearchRanking()
 
+func testPageWatchNoise() {
+    let a = PageWatchNoise.normalize(
+        "更新于 2026-10-22 12:30:45 · 3 分钟前 · 1,234 views\n正文甲")
+    let b = PageWatchNoise.normalize(
+        "更新于 2026-10-23 09:05:01 · 12 分钟前 · 2,345 views\n正文甲")
+    check("监视噪声：时间/计数归一后相同", a == b)
+    check("监视噪声：正文变化仍可见",
+          PageWatchNoise.normalize("正文甲 价格 100") != PageWatchNoise.normalize("正文乙 价格 100"))
+    check("监视噪声：带单位计数归一",
+          PageWatchNoise.normalize("45 次浏览") == PageWatchNoise.normalize("46 次浏览"))
+    check("监视噪声：正文普通数字保留",
+          PageWatchNoise.normalize("温度 62") != PageWatchNoise.normalize("温度 63"))
+    check("监视噪声：相对时间中文",
+          PageWatchNoise.normalize("刚刚更新") == PageWatchNoise.normalize("2 小时前更新"))
+    check("监视噪声：英文相对时间",
+          PageWatchNoise.normalize("updated 5 minutes ago")
+              == PageWatchNoise.normalize("updated 2 hours ago"))
+}
+testPageWatchNoise()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

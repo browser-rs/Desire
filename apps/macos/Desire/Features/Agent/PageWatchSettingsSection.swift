@@ -42,6 +42,27 @@ struct PageWatchSettingsSection: View {
                     }
                 }
                 SettingsRowDivider(leading: 14)
+                SettingsRow(String(localized: "Daily digest"),
+                            subtitle: String(localized: "Once a day, notify one 24h summary of changes, alerts and errors. Timestamps, relative times and view counters are ignored when diffing (noise filter).")) {
+                    HStack(spacing: 8) {
+                        Picker("", selection: Binding(
+                            get: { store.digestHour },
+                            set: { store.setDigest(enabled: store.digestEnabled, hour: $0) })) {
+                            ForEach(0..<24, id: \.self) { hour in
+                                Text(String(format: "%02d:00", hour)).tag(hour)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: 78)
+                        .disabled(!store.digestEnabled)
+                        Toggle("", isOn: Binding(
+                            get: { store.digestEnabled },
+                            set: { store.setDigest(enabled: $0) }))
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                    }
+                }
+                SettingsRowDivider(leading: 14)
                 if store.watches.isEmpty {
                     Text(String(localized: "No watches yet — add one below."))
                         .font(.system(size: 12))

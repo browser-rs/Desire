@@ -1,12 +1,12 @@
 ## [Unreleased]
 ### Fixed
 
-- **Keychain 授权不再卡死主线程（v0.9.0）**：2026-10-22 实测新构建启动时 SecurityAgent 授权窗未答，主线程卡在 `SecItemCopyMatching`，桥/UI 全部无响应（与"启动即死"只差一个看不见的系统弹窗）。现在 app vault 的读取走 `AppSecretsVault.preload()` 后台任务（主 actor 只 await），AppState 启动与同步首轮都先 preload；授权进行中 `syncNow` 返回"等待钥匙串授权"，`loadAPIKey` 返回 nil 而不是同步阻塞。验收：新构建带 pending 授权窗时 `/state` 仍响应、`sample` 主线程空闲在 run loop；`pkill SecurityAgent` 后应用继续可用（同步显示未登录，可重启/重新授权恢复）。稳定签名生效后授权窗本身也会消失。
+- **Keychain 授权不再卡死主线程（v0.8.1）**：2026-10-22 实测新构建启动时 SecurityAgent 授权窗未答，主线程卡在 `SecItemCopyMatching`，桥/UI 全部无响应（与"启动即死"只差一个看不见的系统弹窗）。现在 app vault 的读取走 `AppSecretsVault.preload()` 后台任务（主 actor 只 await），AppState 启动与同步首轮都先 preload；授权进行中 `syncNow` 返回"等待钥匙串授权"，`loadAPIKey` 返回 nil 而不是同步阻塞。验收：新构建带 pending 授权窗时 `/state` 仍响应、`sample` 主线程空闲在 run loop；`pkill SecurityAgent` 后应用继续可用（同步显示未登录，可重启/重新授权恢复）。稳定签名生效后授权窗本身也会消失。
 
 ### Added
 
-- **稳定签名流水线（v0.9.0）**：新增 `scripts/setup-signing.sh`（生成固定 self-signed 代码签名 identity + p12/口令，打印 GitHub secrets 命令，**不自动上传**）与 `scripts/sign-app.sh`（CI 用临时 keychain 导入 p12、`codesign --force --deep --options runtime --timestamp=none`、验签）。`release.yml` 两个架构在版本校验后调用签名；secrets 缺失时明确打印 "leaving app unsigned (adhoc)" 并保持旧行为。`docs/SIGNING.md` 记明：adhoc 的 designated requirement 是 cdhash，固定证书后变成 `identifier + certificate root`，跨版本稳定；本机用临时证书对两份 app 副本签名验证 requirement 完全一致、`codesign --verify --deep --strict` 通过。**待你一次性执行脚本并上传 4 个 secrets 后生效**；私钥目录已进 `.gitignore`。
-- **设置全文检索 + 深链（v0.9.0）**：设置侧栏顶部搜索框（53 条目录：分区/标题/副标题/中英文关键词，多词 AND、标题精确/前缀优先），命中后切换到对应分区；桥新增 `GET /settings/search?q=`（返回 section/title/subtitle/score/total）。验收：中文「同步」→ sync 5 条、「低电量」→ general Downloads、「keychain」→ AI/Sync/Autofill 相关；harness 7 项（1216/0）。
+- **稳定签名流水线（v0.8.1）**：新增 `scripts/setup-signing.sh`（生成固定 self-signed 代码签名 identity + p12/口令，打印 GitHub secrets 命令，**不自动上传**）与 `scripts/sign-app.sh`（CI 用临时 keychain 导入 p12、`codesign --force --deep --options runtime --timestamp=none`、验签）。`release.yml` 两个架构在版本校验后调用签名；secrets 缺失时明确打印 "leaving app unsigned (adhoc)" 并保持旧行为。`docs/SIGNING.md` 记明：adhoc 的 designated requirement 是 cdhash，固定证书后变成 `identifier + certificate root`，跨版本稳定；本机用临时证书对两份 app 副本签名验证 requirement 完全一致、`codesign --verify --deep --strict` 通过。**待你一次性执行脚本并上传 4 个 secrets 后生效**；私钥目录已进 `.gitignore`。
+- **设置全文检索 + 深链（v0.8.1）**：设置侧栏顶部搜索框（53 条目录：分区/标题/副标题/中英文关键词，多词 AND、标题精确/前缀优先），命中后切换到对应分区；桥新增 `GET /settings/search?q=`（返回 section/title/subtitle/score/total）。验收：中文「同步」→ sync 5 条、「低电量」→ general Downloads、「keychain」→ AI/Sync/Autofill 相关；harness 7 项（1216/0）。
 
 
 

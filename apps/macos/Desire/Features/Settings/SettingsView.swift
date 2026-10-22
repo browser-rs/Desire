@@ -87,7 +87,7 @@ struct SettingsView: View {
     /// 选中分区**提升到导航状态**（桥 `POST /settings/section` 可写）——
     /// 自动化验证设置页分区不再靠坐标点击侧栏。
     @ObservedObject private var navigator = SettingsSectionNavigator.shared
-    /// 设置全文检索（v0.9.0）：命中后跳到对应分区并清空查询。
+    /// 设置全文检索（v0.8.1）：命中后跳到对应分区并清空查询。
     @State private var searchQuery = ""
 
     var body: some View {

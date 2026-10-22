@@ -199,6 +199,8 @@ class BrowserState: ObservableObject {
     /// A beforeunload confirmation awaiting a decision (also resolvable via
     /// the automation bridge). nil when nothing is pending.
     @Published var pendingBeforeUnload: PendingBeforeUnload?
+    /// 站点触发的工作流提示（v0.8.0）：非模态条，点 Run 才回放。
+    @Published var pendingWorkflowSuggestion: WorkflowSuggestion?
     /// Media resources sniffed on this page (network + DOM scan). Cleared
     /// when a navigation commits to a new page. Consumed by the AI
     /// `listPageVideos` tool; capped, session-scoped, never persisted.
@@ -724,6 +726,8 @@ struct WebView: NSViewRepresentable {
         var lastCrashReloadAt: Date?
         var parent: WebView
         var lastNavigatedURL: String?
+        /// 站点触发的工作流提示去重（同一 URL 只提示一次，导航后重置）。
+        var lastWorkflowSuggestionKey: String?
         private var observations: [NSKeyValueObservation] = []
         private var activeDownloads: [ObjectIdentifier: DownloadInfo] = [:]
         /// 并发上限（v0.7.19）：名额空出通知的观察句柄（一次安装）。
@@ -1644,6 +1648,9 @@ try {
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
             parent.state.contentProcessCrashed = false
             parent.state.crashAutoReloadSuppressed = false
+            // 新文档：清掉上一页的工作流提示（是否再提示由 didFinish 决定）。
+            parent.state.pendingWorkflowSuggestion = nil
+            lastWorkflowSuggestionKey = nil
             // v0.7.28：主文档真正导航到别的 URL → 阅读模式自动退出（否则
             // 地址栏/前进后退切页后仍显示上一篇的阅读内容）。
             if parent.state.isReadingMode,
@@ -2058,6 +2065,17 @@ try {
                         HistoryContentStore.shared.capture(
                             url: url, title: title, text: text, isPrivate: false)
                     }
+                }
+            }
+            // 站点触发的工作流（v0.8.0）：匹配 host 且用户开启提示时，给出
+            // 一次性非模态建议；不自动回放、不读 Keychain。
+            if !parent.state.isIncognito,
+               let url = webView.url?.absoluteString,
+               let suggestion = WorkflowStore.shared.suggestion(for: url) {
+                let key = suggestion.workflowID.uuidString + "|" + url
+                if lastWorkflowSuggestionKey != key {
+                    lastWorkflowSuggestionKey = key
+                    parent.state.pendingWorkflowSuggestion = suggestion
                 }
             }
             kickStaleAutoplayIfNeeded(in: webView)

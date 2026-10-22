@@ -4409,6 +4409,24 @@ func testTabOrganizePlan() {
 }
 testTabOrganizePlan()
 
+func testWorkflowOfferCodable() {
+    let workflow = Workflow(name: "W", host: "a.test", startURL: "https://a.test",
+                            steps: [], offerOnVisit: true)
+    if let data = try? JSONEncoder().encode(workflow),
+       let decoded = try? JSONDecoder().decode(Workflow.self, from: data) {
+        check("工作流：offer 往返", decoded.offerOnVisit == true)
+    } else {
+        check("工作流：offer 往返", false)
+    }
+    let legacy = """
+    {"id":"00000000-0000-0000-0000-000000000001","name":"Old","host":"a.test",
+     "startURL":"https://a.test","createdAt":0,"updatedAt":0,"steps":[]}
+    """
+    let old = try? JSONDecoder().decode(Workflow.self, from: Data(legacy.utf8))
+    check("工作流：旧文件缺 offer 解码 nil", old != nil && old?.offerOnVisit == nil)
+}
+testWorkflowOfferCodable()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

@@ -120,6 +120,7 @@ extension ContentView {
         } ?? false
         let hasNotice = passwordStore.pendingSave != nil
             || canFill
+            || tab.browser.pendingWorkflowSuggestion != nil
             || tab.browser.pendingBeforeUnload != nil
             || tab.browser.pendingDangerousDownload != nil
             || tab.browser.pendingOTPHint != nil
@@ -143,6 +144,7 @@ extension ContentView {
                 tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
             }
             PasswordSaveBar(store: passwordStore)
+            WorkflowSuggestionBar(browser: tab.browser)
             BeforeUnloadBar(browser: tab.browser)
             DangerousDownloadBar(browser: tab.browser)
             OTPHintBar(browser: tab.browser)
@@ -302,6 +304,37 @@ private struct DangerousDownloadBar: View {
                 onPrimary: { pending.respond(true) },
                 onSecondary: { pending.respond(false) }
             )
+        }
+    }
+}
+
+/// 站点触发的工作流提示（v0.8.0）：点 Run 才回放，Not Now 关闭。
+private struct WorkflowSuggestionBar: View {
+    @Environment(\.appAccent) private var appAccent
+    @ObservedObject var browser: BrowserState
+
+    var body: some View {
+        if let suggestion = browser.pendingWorkflowSuggestion {
+            NoticeBar(
+                icon: "wand.and.stars",
+                tint: appAccent,
+                title: String(localized: "Run workflow \"\(suggestion.name)\" for this site?"),
+                subtitle: suggestion.host,
+                primaryTitle: String(localized: "Run"),
+                secondaryTitle: String(localized: "Not Now"),
+                onPrimary: { run(suggestion) },
+                onSecondary: { browser.pendingWorkflowSuggestion = nil }
+            )
+        }
+    }
+
+    private func run(_ suggestion: WorkflowSuggestion) {
+        browser.pendingWorkflowSuggestion = nil
+        guard let workflow = WorkflowStore.shared.workflows.first(where: {
+            $0.id == suggestion.workflowID
+        }) else { return }
+        Task { @MainActor in
+            _ = await WorkflowPlayer.run(workflow, values: [:], in: browser.webView)
         }
     }
 }

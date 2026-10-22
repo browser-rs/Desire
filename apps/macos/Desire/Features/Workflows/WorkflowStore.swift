@@ -110,11 +110,31 @@ final class WorkflowStore: ObservableObject {
         workflows.filter { WorkflowLogic.matchesSite($0, url: url) }
     }
 
+    /// 页面加载后的站点触发建议：只挑"开启提示且没有敏感步骤"的工作流
+    /// （敏感值必须由用户在运行前输入，不能自动弹回放）。
+    func suggestion(for url: String) -> WorkflowSuggestion? {
+        guard !isRecording else { return nil }
+        guard let workflow = workflows(forURL: url).first(where: {
+            ($0.offerOnVisit ?? false) && !$0.steps.contains(where: { $0.sensitive })
+        }) else { return nil }
+        return WorkflowSuggestion(workflowID: workflow.id,
+                                  name: workflow.name,
+                                  host: workflow.host)
+    }
+
     func rename(_ id: UUID, to name: String) {
         guard let index = workflows.firstIndex(where: { $0.id == id }) else { return }
         let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         workflows[index].name = trimmed
+        workflows[index].updatedAt = Date()
+        save()
+    }
+
+    /// 站点访问提示开关（v0.8.0）。
+    func setOfferOnVisit(_ id: UUID, _ offer: Bool) {
+        guard let index = workflows.firstIndex(where: { $0.id == id }) else { return }
+        workflows[index].offerOnVisit = offer
         workflows[index].updatedAt = Date()
         save()
     }

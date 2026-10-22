@@ -15,6 +15,8 @@ nonisolated struct Workflow: Codable, Identifiable, Equatable {
     var createdAt: Date
     var updatedAt: Date
     var steps: [Step]
+    /// 访问匹配站点时是否提示运行（v0.8.0）。Optional：旧文件缺键解码为 nil。
+    var offerOnVisit: Bool? = nil
 
     struct Step: Codable, Identifiable, Equatable {
         var id: UUID
@@ -48,7 +50,8 @@ nonisolated struct Workflow: Codable, Identifiable, Equatable {
     }
 
     init(id: UUID = UUID(), name: String, host: String, startURL: String,
-         createdAt: Date = Date(), updatedAt: Date = Date(), steps: [Step]) {
+         createdAt: Date = Date(), updatedAt: Date = Date(), steps: [Step],
+         offerOnVisit: Bool? = nil) {
         self.id = id
         self.name = name
         self.host = host
@@ -56,7 +59,16 @@ nonisolated struct Workflow: Codable, Identifiable, Equatable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.steps = steps
+        self.offerOnVisit = offerOnVisit
     }
+}
+
+/// 站点触发的工作流提示（v0.8.0）：页面加载后显示非模态条，用户点 Run 才执行。
+nonisolated struct WorkflowSuggestion: Identifiable, Equatable {
+    let id = UUID()
+    let workflowID: UUID
+    let name: String
+    let host: String
 }
 
 nonisolated enum WorkflowLogic {

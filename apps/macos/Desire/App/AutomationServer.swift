@@ -434,6 +434,8 @@ final class AutomationServer {
         ep("GET", "/workflow/list", "Saved web workflows (host/steps/sensitive count)", example: "…/workflow/list")
         ep("POST", "/workflow/run", "Replay a workflow on the active tab (sensitive values via values map)", params: ["id?/name?", "values?:{stepId:value}"], example: #"-d '{"name":"login flow","values":{"<step-uuid>":"…"}}'"#)
         ep("POST", "/workflow/delete", "Delete a saved workflow", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
+        ep("POST", "/workflow/offer", "Toggle 'offer on visit' for a workflow (id or name)", params: ["id?:string", "name?:string", "offer:bool"], example: "-d '{\"name\":\"login flow\",\"offer\":true}'")
+        ep("POST", "/workflow/suggestion/dismiss", "Dismiss the current page's workflow suggestion", example: "-d '{}'")
         ep("POST", "/backup/export", "Write a full backup JSON (settings/bookmarks/history/reading list/quick dials/Agent memory; no keys)", params: ["path:string (file or directory)"], example: #"-d '{"path":"/tmp/desire-backup.json"}'"#)
         ep("POST", "/backup/import", "Restore a backup: mode=merge (add missing) | replace (overwrite); optional domains filter", params: ["path:string", "mode?:merge|replace", "domains?:[settings|bookmarks|history|readingList|quickDials|agentMemory|readerHighlights|workflows]"], example: #"-d '{"path":"/tmp/desire-backup.json","mode":"merge","domains":["bookmarks"]}'"#)
         ep("POST", "/backup/preview", "Preview a backup file: version/date/domain counts (no changes)", params: ["path:string"], example: #"-d '{"path":"/tmp/desire-backup.json"}'"#)
@@ -879,6 +881,12 @@ final class AutomationServer {
                 return try Self.json(await Self.workflowRun(body: body))
             case ("POST", "/workflow/delete"):
                 return try Self.json(Self.workflowDelete(id: Self.string(body, "id") ?? ""))
+            case ("POST", "/workflow/offer"):
+                return try Self.json(Self.workflowOffer(body: body))
+            case ("POST", "/workflow/suggestion/dismiss"):
+                TabSessionCoordinator.shared.activeTabManager?.selectedTab?
+                    .browser.pendingWorkflowSuggestion = nil
+                return try Self.json(["ok": true])
             case ("POST", "/backup/export"):
                 return try Self.json(Self.backupExport(body: body))
             case ("POST", "/backup/import"):
@@ -3134,6 +3142,9 @@ final class AutomationServer {
                 "loading": tab.isLoading,
                 "domNodes": tab.browser.lastDomNodeCount,
                 "scrollY": tab.browser.lastScrollY,
+                "workflowSuggestion": tab.browser.pendingWorkflowSuggestion.map { suggestion -> Any in
+                    ["name": suggestion.name, "host": suggestion.host]
+                } ?? NSNull(),
             ]
         }
         return [
@@ -7336,6 +7347,20 @@ final class AutomationServer {
         return workflowSummary(workflow)
     }
 
+    private static func workflowOffer(body: [String: Any]) throws -> [String: Any] {
+        let workflows = WorkflowStore.shared.workflows
+        var workflow: Workflow?
+        if let raw = Self.string(body, "id"), let id = UUID(uuidString: raw) {
+            workflow = workflows.first { $0.id == id }
+        } else if let name = Self.string(body, "name"), !name.isEmpty {
+            workflow = workflows.first { $0.name == name }
+        }
+        guard let workflow else { return ["error": "workflow not found"] }
+        let offer = body["offer"] as? Bool ?? true
+        WorkflowStore.shared.setOfferOnVisit(workflow.id, offer)
+        return ["ok": true, "id": workflow.id.uuidString, "offer": offer]
+    }
+
     private static func workflowList() throws -> [String: Any] {
         ["ok": true, "workflows": WorkflowStore.shared.workflows.map(workflowSummary)]
     }
@@ -7347,6 +7372,7 @@ final class AutomationServer {
          "startURL": workflow.startURL,
          "steps": workflow.steps.count,
          "sensitive": workflow.steps.filter(\.sensitive).count,
+         "offerOnVisit": workflow.offerOnVisit ?? false,
          "updatedAt": workflow.updatedAt.timeIntervalSince1970,
          "stepDetails": workflow.steps.map { step -> [String: Any] in
              var row: [String: Any] = ["id": step.id.uuidString,

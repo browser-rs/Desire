@@ -128,6 +128,14 @@ struct WorkflowPanel: View {
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            Toggle("Offer", isOn: Binding(
+                get: { workflow.offerOnVisit ?? false },
+                set: { store.setOfferOnVisit(workflow.id, $0) }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .font(.system(size: 10))
+            .help("Suggest this workflow when you visit \(workflow.host)")
             Button(String(localized: "Run")) { beginRun(workflow) }
                 .controlSize(.small)
             Button {

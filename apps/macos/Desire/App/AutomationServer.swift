@@ -615,6 +615,7 @@ final class AutomationServer {
         ep("POST", "/media/batch", "Batch video download: mode=page queues every stream sniffed on the tab; mode=list resolves each detail-page URL in a hidden browser (serialized, Cloudflare-aware)", params: ["mode:page|list", "urls?:[string] (mode=list)", "folderName?:string", "index?:int (mode=page)"], example: #"-d '{"mode":"list","urls":["https://…/v1","https://…/v2"],"folderName":"demo"}'"#)
         ep("POST", "/settings/section", "Select the settings window section (automation; also opens the settings window)", params: ["section:string (general|ai|sync|remote|privacy|autofill|keyboardShortcuts|batchDownloads)"], example: #"-d '{"section":"batchDownloads"}'"#)
         ep("GET", "/settings/search", "Search the settings catalog (section/title/subtitle/keywords); returns section raw values", params: ["q:string", "limit?:int"], example: "…/settings/search?q=sync")
+        ep("GET", "/research", "Ranked local research sources (current page/open tabs/page-text index/history/reading list/bookmarks) with citation numbers", params: ["q:string", "limit?:int", "scope?:all|tabs|history"], example: "…/research?q=quantum%20cookware")
         ep("GET", "/notifications/policy", "Proactive notification policy (quiet hours / daily routine budget) + digest queue state", example: "…/notifications/policy")
         ep("POST", "/notifications/policy", "Update the notification policy (omit fields to keep)", params: ["quietHoursEnabled?:bool", "quietStart?:HH:mm", "quietEnd?:HH:mm", "dailyRoutineLimit?:int (0 = unlimited)"], example: #"-d '{"quietHoursEnabled":true,"quietStart":"23:00","quietEnd":"08:00"}'"#)
         ep("POST", "/notifications/test", "Push a test notification through the tiering gate (E2E): reports held vs delivered", params: ["tier:routine|urgent", "title?:string", "body?:string"], example: #"-d '{"tier":"routine","title":"T"}'"#)
@@ -2485,6 +2486,11 @@ final class AutomationServer {
                 return try Self.json(Self.settingsSearch(
                     query: Self.string(query, "q") ?? "",
                     limit: Int(Self.string(query, "limit") ?? "") ?? 30))
+            case ("GET", "/research"):
+                return try Self.json(await Self.researchSources(
+                    query: Self.string(query, "q") ?? "",
+                    limit: Int(Self.string(query, "limit") ?? "") ?? 8,
+                    scope: Self.string(query, "scope") ?? "all"))
             case ("GET", "/notifications/policy"):
                 let store = ProactiveNotificationStore.shared
                 return try Self.json([
@@ -3936,6 +3942,33 @@ final class AutomationServer {
         }
         return ["query": query, "hits": hits, "total": all.count,
                 "entries": SettingsSearch.entries.count]
+    }
+
+    /// Bridge entry for the research assistant: runs the SAME `researchSources`
+    /// tool a chat turn would call, against the active window's surface, and
+    /// returns its citation block. Read-only, no model call.
+    private static func researchSources(query: String, limit: Int,
+                                        scope: String) async -> [String: Any] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return ["error": "missing q"] }
+        guard let app = AppState.live,
+              let manager = TabSessionCoordinator.shared.activeTabManager,
+              let tab = manager.selectedTab else {
+            return ["error": "no active tab"]
+        }
+        let surface = WindowToolSurface(app: app, tabManager: manager)
+        let provider = BrowserToolProvider()
+        provider.attach(surface: surface)
+        let payload: [String: Any] = ["query": trimmed,
+                                      "limit": max(1, min(limit, 20)),
+                                      "scope": scope.lowercased()]
+        let json = (try? JSONSerialization.data(withJSONObject: payload))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        let call = AgentToolCall(
+            id: "research-\(UUID().uuidString.prefix(8))", type: "function",
+            function: AgentToolFunction(name: "researchSources", arguments: json))
+        let result = await provider.execute(call, in: tab.browser.webView)
+        return ["query": trimmed, "scope": scope.lowercased(), "result": result]
     }
 
     private static func historyContentSearch(query: String, limit: Int) throws -> [String: Any] {

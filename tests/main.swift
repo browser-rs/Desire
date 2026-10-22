@@ -4539,6 +4539,41 @@ func testApprovalPolicyHost() {
 }
 testApprovalPolicyHost()
 
+func testResearchRanking() {
+    let now = Date()
+    let current = ResearchSource(
+        url: "https://news.test/a#top", title: "量子火锅指南",
+        text: "介绍量子火锅的原理与做法", kind: .currentPage, lastVisited: now)
+    let duplicate = ResearchSource(
+        url: "https://news.test/a", title: "旧标题", text: "",
+        kind: .history, lastVisited: now.addingTimeInterval(-100))
+    let bodyOnly = ResearchSource(
+        url: "https://blog.test/b", title: "一篇无关文章", text: "顺带提到量子火锅",
+        kind: .history, lastVisited: now)
+    let merged = ResearchRanking.merge([current, duplicate, bodyOnly])
+    check("研究：同 URL 去重", merged.count == 2)
+    check("研究：去重保留当前页",
+          merged.first(where: { $0.url.contains("news.test/a") })?.kind == .currentPage)
+
+    let ranked = ResearchRanking.rank(query: "量子火锅",
+                                      candidates: [current, duplicate, bodyOnly], limit: 5)
+    check("研究：标题命中优先", ranked.first?.url.contains("news.test/a") == true)
+    check("研究：正文命中保留", ranked.count == 2)
+    check("研究：空查询仍返回候选",
+          ResearchRanking.rank(query: "", candidates: [current, bodyOnly], limit: 5).count == 2)
+    check("研究：无关查询为空",
+          ResearchRanking.rank(query: "zorbax", candidates: [current], limit: 5).isEmpty)
+
+    let block = ResearchRanking.promptBlock(query: "量子火锅", sources: ranked)
+    check("研究：引用块带编号/URL/引用要求",
+          block.contains("[1]") && block.contains("news.test/a")
+              && block.contains("Cite factual claims"))
+    check("研究：无来源明确不编造",
+          ResearchRanking.promptBlock(query: "zorbax", sources: [])
+              .contains("No local sources"))
+}
+testResearchRanking()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

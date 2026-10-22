@@ -119,6 +119,8 @@ enum ToolRisk: Int, Comparable {
         "stopSpeaking",
         // Past-conversation search / reading (local files, read-only)
         "searchConversations", "readConversation",
+        // 研究来源汇总（当前页/标签/正文索引/历史/阅读列表/书签；只读）
+        "researchSources",
         // Reads back an already-stored tool result (session memory, read-only)
         "getToolResult",
         // Self-critique (one extra model call; changes nothing)

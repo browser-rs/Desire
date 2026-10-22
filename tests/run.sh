@@ -126,6 +126,8 @@ SOURCES=(
   apps/macos/Desire/Features/Settings/SettingsSearch.swift
   apps/macos/Desire/Features/Agent/AgentActionRecord.swift
   apps/macos/Desire/Features/Agent/ApprovalPolicy.swift
+  apps/macos/Desire/Features/Research/ResearchSource.swift
+  apps/macos/Desire/Features/Research/ResearchRanking.swift
   apps/macos/Desire/Features/History/HistoryContentIndex.swift
   apps/macos/Desire/Features/BrowserImport/BrowserImport.swift
   apps/macos/Desire/Features/BrowserImport/ChromiumBookmarksParser.swift

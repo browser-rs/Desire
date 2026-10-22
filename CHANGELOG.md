@@ -9,6 +9,8 @@
 - **设置全文检索 + 深链（v0.8.1）**：设置侧栏顶部搜索框（53 条目录：分区/标题/副标题/中英文关键词，多词 AND、标题精确/前缀优先），命中后切换到对应分区；桥新增 `GET /settings/search?q=`（返回 section/title/subtitle/score/total）。验收：中文「同步」→ sync 5 条、「低电量」→ general Downloads、「keychain」→ AI/Sync/Autofill 相关；harness 7 项（1216/0）。
 - **Agent 操作审计与撤销（v0.8.1）**：`writeFile`/`editFile` 成功后记录一条审计——动作前内容快照（≤8MB，存 `Application Support/Desire/agent-undo/`）、动作后 SHA-256；撤销前先比对当前文件哈希，文件被用户/其他工具改过就拒绝覆盖（不猜）；新文件撤销 = 删除。工作流回放记一条不可撤销审计。工具栏 ⋯ → "Agent Actions…" 面板可查看/撤销/清空；桥新增 `GET /agent/actions`、`POST /agent/actions/undo|clear`。验收：harness 模型 4 项（1220/0）；真模型/假端点 writeFile→editFile→undo 的全链 E2E 待补。
 - **Agent 按站点审批（v0.8.1）**：审批策略从"按工具名"扩展到"工具 × 站点"——审批卡在已知页面 host 时提供 `Always on <host>` 与 ⋯ 菜单里的 `Never allow <tool> on <host>`，决定写入持久规则，之后只在**该站点**免问/直接拒绝；离开站点回到全局规则，host 规则优先于全局规则。dangerous 普通工具（executeJS 等）仍保持每次必问、不提供站点长期放行；DPP pageAction 沿用更细的「站点 × 动作」授权。审批历史带 host，桥 `/approvals/policy` 支持 `host` 增删、`/agent/approvals/resolve` 支持 `siteGrant`。验收：harness 匹配语义 7 项（host 归一/优先级/旧文件兼容/Codable，1232/0）+ 桥 CRUD 实测（`Bank.Test.` → `bank.test`，host 规则可增删）。
+- **研究助手与引用（v0.8.1）**：新增只读工具 `researchSources(query, scope, limit)`——把当前页正文、打开的标签、历史正文索引、浏览历史、阅读列表与书签汇总去重后排序，返回带 `[n]` 编号、URL 与命中片段的引用块，模型据此写带来源的答案；无命中时明确要求"不编造引用"。排序复用历史正文检索的中英文切词（标题命中加权、当前页/标签优先、近因决胜），纯逻辑进 harness 8 项。研究模式提示词要求先收集来源并用 `[n]` 标注。桥新增 `GET /research?q=&scope=&limit=`（同一工具实现，非模型调用）。验收：fixture 页「量子火锅」→ 当前页 [1] 带正文片段；`scope=history` 命中同一 URL 的历史条目；无结果返回明确的"无来源"提示（1240/0）。
+
 
 
 

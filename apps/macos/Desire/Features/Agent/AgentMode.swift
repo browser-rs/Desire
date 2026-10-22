@@ -39,7 +39,7 @@ nonisolated enum AgentMode: String, CaseIterable {
         case .standard:
             return nil
         case .research:
-            return "当前处于研究模式：以信息收集、核实与综合为主，变更性操作（执行代码、系统命令、下载、定时任务、子代理）不开放。"
+            return "当前处于研究模式：以信息收集、核实与综合为主。先调用 researchSources 汇总当前页/标签/历史正文，答案用 [n] 标注来源（没有来源就直说，不编造）；变更性操作（执行代码、系统命令、下载、定时任务、子代理）不开放。"
         case .writing:
             return "当前处于写作模式：以内容创作为主（白板、文件、摘要、页面读取），系统命令与下载类操作不开放。"
         }

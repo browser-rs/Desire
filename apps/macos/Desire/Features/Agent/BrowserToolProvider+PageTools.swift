@@ -949,6 +949,70 @@ extension BrowserToolProvider {
             }
             return lines.prefix(limit).joined(separator: "\n") + archiveNote
 
+        case "researchSources":
+            // 研究助手（0.8.1）：把本地可用来源汇总、去重、排序后交给模型，
+            // 输出带 [n] 编号与 URL——模型据此写带引用的答案。全程只读、零网络、
+            // 零模型调用（排序是确定性纯逻辑，见 ResearchRanking）。
+            let rawQuery = (args["query"] as? String ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !rawQuery.isEmpty else { return Self.fail("Missing query") }
+            let limit = min(20, max(1, args["limit"] as? Int ?? 8))
+            let scope = (args["scope"] as? String ?? "all").lowercased()
+            var candidates: [ResearchSource] = []
+
+            if scope != "history", let manager = surface.tabManager {
+                if let current = manager.selectedTab {
+                    let url = current.browser.webView.url?.absoluteString ?? ""
+                    if !isNewTabPage(url), !current.isSuspended {
+                        let raw = await eval(current.browser.webView,
+                                             "document.body ? document.body.innerText : ''")
+                        let text = raw.hasPrefix("Error:") ? "" : String(raw.prefix(6000))
+                        candidates.append(ResearchSource(
+                            url: url, title: current.displayTitle, text: text,
+                            kind: .currentPage, lastVisited: Date()))
+                    }
+                }
+                for tab in manager.tabs where tab.id != manager.selectedTab?.id {
+                    guard !tab.isSuspended else { continue }
+                    let url = tab.browser.webView.url?.absoluteString ?? ""
+                    guard !isNewTabPage(url) else { continue }
+                    candidates.append(ResearchSource(
+                        url: url, title: tab.displayTitle, text: "",
+                        kind: .openTab, lastVisited: nil))
+                }
+            }
+
+            if scope != "tabs" {
+                for record in HistoryContentStore.shared.records {
+                    candidates.append(ResearchSource(
+                        url: record.url, title: record.title, text: record.text,
+                        kind: .pageText, lastVisited: record.updatedAt))
+                }
+                for entry in surface.historyStore.entries {
+                    candidates.append(ResearchSource(
+                        url: entry.url, title: entry.title, text: "",
+                        kind: .history, lastVisited: entry.timestamp))
+                }
+            }
+
+            if scope == "all" {
+                for item in surface.readingListStore.items {
+                    candidates.append(ResearchSource(
+                        url: item.url, title: item.title, text: "",
+                        kind: .readingList, lastVisited: item.savedDate))
+                }
+                for (bookmark, _) in surface.bookmarkStore.bookmarks.flatMap({ $0.flattened() }) {
+                    guard let url = bookmark.url else { continue }
+                    candidates.append(ResearchSource(
+                        url: url, title: bookmark.title, text: "",
+                        kind: .bookmark, lastVisited: bookmark.updatedAt))
+                }
+            }
+
+            let ranked = ResearchRanking.rank(query: rawQuery,
+                                              candidates: candidates, limit: limit)
+            return ResearchRanking.promptBlock(query: rawQuery, sources: ranked)
+
         case "clearHistory":
             surface.historyStore.clearAll()
             return "History cleared"

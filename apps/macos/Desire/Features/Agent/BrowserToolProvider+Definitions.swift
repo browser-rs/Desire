@@ -626,6 +626,15 @@ extension BrowserToolProvider {
                 ])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "researchSources",
+                description: "Gather CITED local sources for a research question: the current page's text, open tabs, the opt-in page-text index, browsing history, reading list and bookmarks. Returns ranked sources numbered [1], [2]… with snippets — cite them by number in the answer. Local only (no network); use readURL/openTab for more depth.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "query": AgentJSONSchemaValue(type: "string", description: "What to research (title/body/URL terms; Chinese and English both supported)"),
+                    "limit": AgentJSONSchemaValue(type: "number", description: "Max sources (default 8, cap 20)"),
+                    "scope": AgentJSONSchemaValue(type: "string", description: "all (default) | tabs (current page + open tabs) | history (history + page-text index)")
+                ], required: ["query"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "clearHistory", description: "Clear all browsing history",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

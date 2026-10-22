@@ -414,6 +414,10 @@ final class AutomationServer {
         ep("GET", "/history", "History, newest first", params: ["count?:int"], example: "…/history?count=10")
         ep("GET", "/history?grouped=1", "History aggregated by domain (panel site-grouping equivalent, same pure logic)", params: ["grouped:1"], example: "…/history?grouped=1")
         ep("POST", "/history/remove", "Remove one history entry by id (test hygiene)", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
+        ep("GET", "/history/content", "Search locally indexed page text (opt-in). Returns url/title/snippet/score", params: ["q:string", "limit?:int"], example: "…/history/content?q=rust")
+        ep("GET", "/history/content/stats", "Page-text index state (enabled/count)", example: "…/history/content/stats")
+        ep("POST", "/history/content", "Enable/disable page-text indexing", params: ["enabled:bool"], example: "-d '{\"enabled\":true}'")
+        ep("POST", "/history/content/clear", "Delete the local page-text index", example: "-d '{}'")
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
         ep("GET", "/diag/browser", "Browser diagnostics: content-process crash count + recent crashes", example: "…/diag/browser")
         ep("GET", "/activity", "Activity center: downloads/batch media/exports/scheduled runs/agent sessions/crew", example: "…/activity")
@@ -932,6 +936,17 @@ final class AutomationServer {
                 }
                 app.historyStore.removeEntry(id: id)
                 return try Self.json(["ok": true])
+            case ("GET", "/history/content"):
+                return try Self.json(Self.historyContentSearch(
+                    query: Self.string(query, "q") ?? "",
+                    limit: Int(Self.string(query, "limit") ?? "") ?? 20))
+            case ("GET", "/history/content/stats"):
+                return try Self.json(Self.historyContentStats())
+            case ("POST", "/history/content"):
+                return try Self.json(Self.historyContentSetEnabled(
+                    body["enabled"] as? Bool ?? false))
+            case ("POST", "/history/content/clear"):
+                return try Self.json(Self.historyContentClear())
             case ("GET", "/reader"):
                 return try Self.json(Self.readerState(index: Self.index(query)))
             case ("GET", "/console"):
@@ -3836,6 +3851,36 @@ final class AutomationServer {
         return ["groups": groups,
                 "total": historyStore.entries.count,
                 "groupedTotal": groups.reduce(0) { $0 + ($1["count"] as? Int ?? 0) }]
+    }
+
+    // MARK: - History content index (v0.8.0)
+
+    private static func historyContentSearch(query: String, limit: Int) throws -> [String: Any] {
+        let hits = HistoryContentStore.shared.search(query: query,
+                                                     limit: max(1, min(limit, 50)))
+        return ["query": query,
+                "hits": hits.map { hit -> [String: Any] in
+                    ["url": hit.record.url,
+                     "title": hit.record.title,
+                     "snippet": hit.snippet,
+                     "score": hit.score,
+                     "updatedAt": hit.record.updatedAt.timeIntervalSince1970]
+                }]
+    }
+
+    private static func historyContentStats() throws -> [String: Any] {
+        ["enabled": HistoryContentStore.shared.isEnabled,
+         "count": HistoryContentStore.shared.count]
+    }
+
+    private static func historyContentSetEnabled(_ enabled: Bool) throws -> [String: Any] {
+        HistoryContentStore.shared.setEnabled(enabled)
+        return try historyContentStats()
+    }
+
+    private static func historyContentClear() throws -> [String: Any] {
+        HistoryContentStore.shared.clear()
+        return try historyContentStats()
     }
 
     private static func bookmarks(tree: Bool = false) throws -> [String: Any] {

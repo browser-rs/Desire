@@ -19,6 +19,10 @@ struct HistoryPanel: View {
     @State private var archiveHits: [HistoryArchiveSearch.Hit] = []
     @State private var archiveLoading = false
     @State private var archiveError: String?
+    /// 正文索引（v0.8.0）：开启后按 query 本地搜已访问页面正文。
+    @ObservedObject private var contentIndex = HistoryContentStore.shared
+    @State private var contentHits: [HistoryContentHit] = []
+    @State private var contentSearchTask: Task<Void, Never>?
 
     enum GroupMode: String, CaseIterable {
         case date, site
@@ -226,10 +230,36 @@ struct HistoryPanel: View {
                     .padding(.bottom, 4)
             }
 
-            if filtered.isEmpty && archiveHits.isEmpty && !archiveLoading {
+            if filtered.isEmpty && archiveHits.isEmpty && contentHits.isEmpty && !archiveLoading {
                 EmptyState(message: searchText.isEmpty ? String(localized: "No Browsing History") : String(localized: "No Matching Records"))
             } else {
                 List {
+                    if !contentHits.isEmpty {
+                        Section(String(localized: "Found in page text")) {
+                            ForEach(contentHits, id: \.record.url) { hit in
+                                Button {
+                                    onSelect(hit.record.url)
+                                } label: {
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(hit.record.title)
+                                            .font(.system(size: 12.5, weight: .medium))
+                                            .lineLimit(1)
+                                        Text(hit.record.url)
+                                            .font(.system(size: 10.5))
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(1)
+                                        Text(hit.snippet)
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.secondary)
+                                            .lineLimit(2)
+                                    }
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .padding(.vertical, 2)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
                     if archiveLoading || !archiveHits.isEmpty {
                         Section(String(localized: "Cloud archive")) {
                             if archiveLoading {
@@ -349,7 +379,19 @@ struct HistoryPanel: View {
             // 查询变了，旧的归档结果立即作废（避免看到上一词的命中）。
             archiveHits = []
             archiveError = nil
+            contentSearchTask?.cancel()
+            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard contentIndex.isEnabled, !query.isEmpty else {
+                contentHits = []
+                return
+            }
+            contentSearchTask = Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(220))
+                guard !Task.isCancelled else { return }
+                contentHits = contentIndex.search(query: query, limit: 20)
+            }
         }
+        .onDisappear { contentSearchTask?.cancel() }
         .safeAreaInset(edge: .bottom) {
             if isSelecting && !selectedIDs.isEmpty {
                 HStack(spacing: 10) {

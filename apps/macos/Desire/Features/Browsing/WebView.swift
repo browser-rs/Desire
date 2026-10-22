@@ -2042,6 +2042,24 @@ try {
                     self.parent.state.mixedContentScripts = scripts
                 }
             }
+            // 历史正文索引（v0.8.0，opt-in）：只在开启时抓一次正文前 3000 字。
+            if HistoryContentStore.shared.isEnabled,
+               !parent.state.isIncognito,
+               let url = webView.url?.absoluteString,
+               url.hasPrefix("http") {
+                webView.evaluateJavaScript(
+                    "(function(){try{var t=document.body?document.body.innerText.slice(0,3000):'';return [document.title||'',t];}catch(e){return ['',''];}})()"
+                ) { value, _ in
+                    guard let parts = value as? [String], parts.count == 2 else { return }
+                    let title = parts[0]
+                    let text = parts[1]
+                    guard !text.isEmpty else { return }
+                    Task { @MainActor in
+                        HistoryContentStore.shared.capture(
+                            url: url, title: title, text: text, isPrivate: false)
+                    }
+                }
+            }
             kickStaleAutoplayIfNeeded(in: webView)
         }
 

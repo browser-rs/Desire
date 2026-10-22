@@ -4364,6 +4364,24 @@ func testWebAppModel() {
 }
 testWebAppModel()
 
+func testHistoryContentSearch() {
+    let cn = HistoryContentRecord(url: "https://cn.test", title: "校园",
+                                  text: "北京大学今天开学，食堂排起了长队。", updatedAt: Date())
+    let cnHits = HistoryContentSearch.search(query: "北大", records: [cn])
+    check("正文检索：中文单字/双字命中", cnHits.count == 1)
+    check("正文检索：中文片段", cnHits.first?.snippet.contains("北京大学") == true)
+    let latin = HistoryContentRecord(url: "https://en.test", title: "Rust browser",
+                                     text: "A small browser written in Rust with tabs and history.",
+                                     updatedAt: Date())
+    check("正文检索：英文词命中", HistoryContentSearch.search(query: "rust", records: [latin]).count == 1)
+    check("正文检索：不相关不命中", HistoryContentSearch.search(query: "python", records: [latin]).isEmpty)
+    let other = HistoryContentRecord(url: "https://other.test", title: "Other",
+                                     text: "Rust appears in the body only.", updatedAt: Date().addingTimeInterval(60))
+    let ranked = HistoryContentSearch.search(query: "rust", records: [other, latin])
+    check("正文检索：标题命中优先", ranked.first?.record.url == "https://en.test")
+}
+testHistoryContentSearch()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

@@ -1032,6 +1032,8 @@ private struct SystemSection: View {
             BackupRow()
             SettingsRowDivider()
             BrowserImportRow(settings: settings)
+            SettingsRowDivider()
+            HistoryContentIndexRow()
         }
         .onAppear(perform: checkDefaultBrowser)
     }
@@ -1457,6 +1459,35 @@ private struct BrowserImportRow: View {
         }
         .sheet(isPresented: $showsSheet) {
             BrowserImportSheet(settings: settings)
+        }
+    }
+}
+
+/// 历史正文检索（v0.8.0）：默认关闭；开启后只在本机索引正文片段。
+private struct HistoryContentIndexRow: View {
+    @ObservedObject private var index = HistoryContentStore.shared
+
+    var body: some View {
+        SettingsRow(
+            "Search Page Text",
+            subtitle: index.isEnabled
+                ? "\(index.count) page(s) indexed. Text stays on this Mac and is never synced."
+                : "Also search the text of pages you've visited. Off by default; text stays on this Mac."
+        ) {
+            HStack(spacing: 10) {
+                if index.isEnabled && index.count > 0 {
+                    SettingsCapsuleButton("Clear", style: .secondary) {
+                        index.clear()
+                    }
+                }
+                Toggle("", isOn: Binding(
+                    get: { index.isEnabled },
+                    set: { index.setEnabled($0) }
+                ))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+            }
         }
     }
 }

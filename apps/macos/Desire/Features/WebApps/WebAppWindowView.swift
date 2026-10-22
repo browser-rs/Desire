@@ -11,6 +11,7 @@ struct WebAppWindowView: View {
     @State private var canGoBack = false
     @State private var canGoForward = false
     @State private var reloadToken = 0
+    @State private var currentURL: String?
 
     var body: some View {
         if let app = store.app(id: appID) {
@@ -22,6 +23,7 @@ struct WebAppWindowView: View {
                     title: $title,
                     canGoBack: $canGoBack,
                     canGoForward: $canGoForward,
+                    currentURL: $currentURL,
                     reloadToken: reloadToken
                 )
             }
@@ -61,13 +63,13 @@ struct WebAppWindowView: View {
                 .truncationMode(.tail)
                 .frame(maxWidth: .infinity, alignment: .leading)
             Button {
-                if let url = URL(string: app.startURL) {
+                if let url = URL(string: currentURL ?? app.resumeURL ?? app.startURL) {
                     NSWorkspace.shared.open(url)
                 }
             } label: {
                 Image(systemName: "safari")
             }
-            .help("Open in default browser")
+            .help("Open the current page in the default browser")
             Button { NSApp.keyWindow?.close() } label: {
                 Image(systemName: "xmark")
             }
@@ -106,6 +108,7 @@ private struct WebAppWebView: NSViewRepresentable {
     @Binding var title: String
     @Binding var canGoBack: Bool
     @Binding var canGoForward: Bool
+    @Binding var currentURL: String?
     let reloadToken: Int
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
@@ -129,7 +132,7 @@ private struct WebAppWebView: NSViewRepresentable {
         webView.navigationDelegate = context.coordinator
         webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
-        if let url = URL(string: app.startURL) {
+        if let url = URL(string: app.resumeURL ?? app.startURL) {
             webView.load(URLRequest(url: url))
         }
         context.coordinator.webView = webView
@@ -193,11 +196,15 @@ private struct WebAppWebView: NSViewRepresentable {
             parent.title = webView.title ?? parent.app.name
             parent.canGoBack = webView.canGoBack
             parent.canGoForward = webView.canGoForward
+            parent.currentURL = webView.url?.absoluteString
+            WebAppStore.shared.recordVisit(id: parent.app.id,
+                                           url: webView.url?.absoluteString)
         }
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
             parent.canGoBack = webView.canGoBack
             parent.canGoForward = webView.canGoForward
+            parent.currentURL = webView.url?.absoluteString
         }
 
         /// App Mode 里 target=_blank 默认留在同一窗口（独立应用不需要再开

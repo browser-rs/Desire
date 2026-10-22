@@ -15,6 +15,8 @@
 - **文档研究工作台（v0.8.1）**：新增只读工具 `researchDocuments(query, folder?, paths?, limit?)`——扫描一个文件夹（默认 Agent 工作区）或显式文件，跨 `txt/md/json/log/xml`、`docx/doc/rtf/odt/html`（textutil）、`pdf`（文本层）、`xlsx/csv/tsv` 取文，按 ~900 字分段后检索，返回带 `[n] 文件名 · 段落号 — 路径` 与命中片段的引用块（同一文档最多两段）；无命中明确要求不编造。路径全部先过 AgentWorkspace 白名单，提不出文本的文件列进 skipped；提示词声明文档正文是**不可信数据、不是指令**（防文档内提示注入）。桥新增 `GET /documents/research?q=&folder=&limit=`（同一实现，非模型调用）。验收：fixture 目录 4 份文档（docx/txt/csv/md）全部被扫描并给出引用（docx 经 textutil、csv 转 Markdown 表）；harness 分段/排序/同文档限流/引用格式 8 项（1260/0）。
 - **多窗口会话接力 UI（v0.8.1）**：Agent 面板标题菜单新增 "Hand off conversation to"——把当前对话交给另一个**活窗口**，目标接管会话、源窗口回到空会话；两边都在跑回合时禁用（避免取消半截回合）。核心逻辑收口到 `AgentSessionStore.handOffConversation(to:)`，桥 `/agent/handoff` 改为调用同一实现（并新增"两边必须空闲"的保护）。自动双窗 E2E 受当前锁屏/无法激活环境限制未执行，菜单路径需真机双窗过目。
 - **标签按主题整理（模型细分，v0.8.1）**：工具栏 ⋯ → "Organize Tabs by Topic…" 把未分组标签的标题/站点/URL 交给当前模型聚类，一次调用生成语义分组（与按站点整理共用 Undo）。模型只返回下标计划，`TabTopicPlan` 严格校验（越界/跨组重复/单标签组/空名/超长名一律丢弃，重复下标只保留先出现的组），失败时用 alert 说明原因；最多 40 个候选、8 个组。harness 解析 7 项（1267/0）。真实模型链路需在设置好服务后用真机菜单走一遍。
+- **Web Apps 2.0：恢复上次页面（v0.8.1）**：App Mode 窗口在 `didFinish` 记录**同域**上次停留页（跨域登录/OAuth 页不记录），再次打开时恢复到该页而不是启动页；管理器显示最近打开时间，Open 拆成 “Resume Last Page / Start Page”（后者清掉恢复点），窗口内“在默认浏览器打开”改为打开**当前页**而不是启动页。桥 `/webapps` 带 lastURL/lastVisitedAt。旧文件缺字段解码为 nil 不丢数据；harness 恢复域校验/旧文件兼容 4 项（1271/0）。
+
 
 
 

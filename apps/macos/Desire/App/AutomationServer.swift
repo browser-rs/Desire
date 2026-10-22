@@ -4748,11 +4748,16 @@ final class AutomationServer {
     }
 
     private static func webAppDict(_ app: WebApp) -> [String: Any] {
-        ["id": app.id.uuidString,
-         "name": app.name,
-         "url": app.startURL,
-         "host": app.host,
-         "shareSession": app.shareSession]
+        var row: [String: Any] = ["id": app.id.uuidString,
+                                  "name": app.name,
+                                  "url": app.startURL,
+                                  "host": app.host,
+                                  "shareSession": app.shareSession]
+        if let lastURL = app.lastURL { row["lastURL"] = lastURL }
+        if let last = app.lastVisitedAt {
+            row["lastVisitedAt"] = ISO.string(from: last)
+        }
+        return row
     }
 
     /// Detected browser profiles for the import sheet / E2E.

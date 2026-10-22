@@ -50,15 +50,26 @@ struct WebAppsPanel: View {
             VStack(alignment: .leading, spacing: 1) {
                 Text(app.name)
                     .font(.system(size: 12.5, weight: .medium))
-                Text(app.host + (app.shareSession ? " · shared sign-in" : " · isolated"))
+                Text(app.host + (app.shareSession ? " · shared sign-in" : " · isolated")
+                     + lastVisitSuffix(app))
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
             }
             Spacer(minLength: 8)
-            Button("Open") {
-                openWindow(id: "webapp", value: app.id)
-                dismiss()
+            Menu(String(localized: "Open")) {
+                Button(String(localized: "Resume Last Page")) {
+                    openWindow(id: "webapp", value: app.id)
+                    dismiss()
+                }
+                .disabled(app.lastURL == nil)
+                Button(String(localized: "Start Page")) {
+                    store.clearLastVisit(id: app.id)
+                    openWindow(id: "webapp", value: app.id)
+                    dismiss()
+                }
             }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
             .font(.system(size: 11))
             Button("Delete", role: .destructive) {
                 store.remove(app)
@@ -67,5 +78,12 @@ struct WebAppsPanel: View {
         }
         .padding(.horizontal, 4)
         .padding(.vertical, 8)
+    }
+
+    private func lastVisitSuffix(_ app: WebApp) -> String {
+        guard let last = app.lastVisitedAt else { return "" }
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return " · \(formatter.localizedString(for: last, relativeTo: Date()))"
     }
 }

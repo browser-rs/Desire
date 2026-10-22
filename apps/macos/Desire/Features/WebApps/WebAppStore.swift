@@ -55,6 +55,27 @@ final class WebAppStore: ObservableObject {
         apps.first { $0.id == id }
     }
 
+    /// 记录上次停留页（v0.8.1）：同域才记，避免登录跳转把一次性地址留成
+    /// 恢复点。didFinish 时调用。
+    func recordVisit(id: UUID, url: String?) {
+        guard let url, !url.isEmpty,
+              let idx = apps.firstIndex(where: { $0.id == id }) else { return }
+        guard let host = URL(string: url)?.host?.lowercased(), !host.isEmpty else { return }
+        let scope = apps[idx].host.lowercased()
+        guard host == scope || host.hasSuffix("." + scope) else { return }
+        apps[idx].lastVisitedAt = Date()
+        if apps[idx].lastURL != url { apps[idx].lastURL = url }
+        save()
+    }
+
+    /// 清掉恢复点（管理器「Open Start Page」用）。
+    func clearLastVisit(id: UUID) {
+        guard let idx = apps.firstIndex(where: { $0.id == id }) else { return }
+        apps[idx].lastURL = nil
+        apps[idx].lastVisitedAt = nil
+        save()
+    }
+
     private func save() {
         DiskStore.save(apps, key: storageKey)
     }

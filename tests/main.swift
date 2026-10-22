@@ -4361,6 +4361,20 @@ func testWebAppModel() {
         url: URL(string: "https://example.com/a")!, name: "  ", shareSession: true)
     check("Web App：空名回退 host", app?.name == "example.com" && app?.shareSession == true)
     check("Web App：保留完整启动 URL", app?.startURL == "https://example.com/a")
+    var resumed = app!
+    resumed.lastURL = "https://example.com/thread/9"
+    check("Web App：同域上次页面可恢复", resumed.resumeURL == "https://example.com/thread/9")
+    resumed.lastURL = "https://sub.example.com/x"
+    check("Web App：子域可恢复", resumed.resumeURL != nil)
+    resumed.lastURL = "https://evil.test/x"
+    check("Web App：跨域不恢复", resumed.resumeURL == nil)
+    let legacy = """
+    {"id":"00000000-0000-0000-0000-000000000001","name":"Old",
+     "startURL":"https://old.test","host":"old.test","shareSession":true,"createdAt":0}
+    """
+    let decoded = try? JSONDecoder().decode(WebApp.self, from: Data(legacy.utf8))
+    check("Web App：旧文件缺 lastURL 解码 nil",
+          decoded != nil && decoded?.lastURL == nil && decoded?.lastVisitedAt == nil)
 }
 testWebAppModel()
 

@@ -12,6 +12,20 @@ nonisolated struct WebApp: Identifiable, Codable, Equatable {
     /// true = 与主浏览器共享 cookies/登录；false = 独立 data store。
     var shareSession: Bool
     var createdAt: Date
+    /// 上次停留的页面（v0.8.1）：再次打开时回到这里。Optional + 合成 Codable
+    /// = 旧文件缺键解码为 nil，不丢数据。
+    var lastURL: String? = nil
+    var lastVisitedAt: Date? = nil
+
+    /// 恢复地址：只接受**本应用域名（含子域）**的页面——登录跳到第三方
+    /// OAuth 页时不要把窗口恢复到那个一次性地址。
+    var resumeURL: String? {
+        guard let raw = lastURL, let url = URL(string: raw),
+              let lastHost = url.host?.lowercased(), !lastHost.isEmpty else { return nil }
+        let scope = host.lowercased()
+        guard lastHost == scope || lastHost.hasSuffix("." + scope) else { return nil }
+        return raw
+    }
 
     static func make(url: URL, name: String?, shareSession: Bool) -> WebApp? {
         guard let scheme = url.scheme?.lowercased(),

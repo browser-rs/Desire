@@ -435,6 +435,11 @@ final class AutomationServer {
         ep("POST", "/workflow/run", "Replay a workflow on the active tab (sensitive values via values map)", params: ["id?/name?", "values?:{stepId:value}"], example: #"-d '{"name":"login flow","values":{"<step-uuid>":"…"}}'"#)
         ep("POST", "/workflow/delete", "Delete a saved workflow", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/workflow/offer", "Toggle 'offer on visit' for a workflow (id or name)", params: ["id?:string", "name?:string", "offer:bool"], example: "-d '{\"name\":\"login flow\",\"offer\":true}'")
+        ep("GET", "/workflow/schedules", "Scheduled workflows (off-screen replay, no model)", example: "…/workflow/schedules")
+        ep("POST", "/workflow/template", "Create a generic workflow from the template library (url defaults to the active tab)", params: ["template:dismiss-banners|load-more|expand-read-more", "url?:string"], example: #"-d '{"template":"load-more"}'"#)
+        ep("POST", "/workflow/schedule", "Schedule a workflow: everyMinutes (>=5) or dailyAt \"HH:MM\"", params: ["id?/name?", "everyMinutes?:string", "dailyAt?:string"], example: #"-d '{"name":"Load more","dailyAt":"09:00"}'"#)
+        ep("POST", "/workflow/unschedule", "Remove a workflow's schedule (id or name)", params: ["id?/name?"], example: #"-d '{"name":"Load more"}'"#)
+        ep("POST", "/workflow/run-offscreen", "Replay a workflow now in an off-screen webview (no tab switch)", params: ["id?/name?"], example: #"-d '{"name":"Load more"}'"#)
         ep("POST", "/workflow/suggestion/dismiss", "Dismiss the current page's workflow suggestion", example: "-d '{}'")
         ep("POST", "/backup/export", "Write a full backup JSON (settings/bookmarks/history/reading list/quick dials/Agent memory; no keys)", params: ["path:string (file or directory)"], example: #"-d '{"path":"/tmp/desire-backup.json"}'"#)
         ep("POST", "/backup/import", "Restore a backup: mode=merge (add missing) | replace (overwrite); optional domains filter", params: ["path:string", "mode?:merge|replace", "domains?:[settings|bookmarks|history|readingList|quickDials|agentMemory|readerHighlights|workflows]"], example: #"-d '{"path":"/tmp/desire-backup.json","mode":"merge","domains":["bookmarks"]}'"#)
@@ -888,6 +893,16 @@ final class AutomationServer {
                 return try Self.json(Self.workflowDelete(id: Self.string(body, "id") ?? ""))
             case ("POST", "/workflow/offer"):
                 return try Self.json(Self.workflowOffer(body: body))
+            case ("GET", "/workflow/schedules"):
+                return try Self.json(Self.workflowSchedules())
+            case ("POST", "/workflow/template"):
+                return try Self.json(Self.workflowAddTemplate(body: body))
+            case ("POST", "/workflow/schedule"):
+                return try Self.json(Self.workflowSchedule(body: body))
+            case ("POST", "/workflow/unschedule"):
+                return try Self.json(Self.workflowUnschedule(body: body))
+            case ("POST", "/workflow/run-offscreen"):
+                return try Self.json(await Self.workflowRunOffscreen(body: body))
             case ("POST", "/workflow/suggestion/dismiss"):
                 TabSessionCoordinator.shared.activeTabManager?.selectedTab?
                     .browser.pendingWorkflowSuggestion = nil
@@ -7484,6 +7499,100 @@ final class AutomationServer {
         let offer = body["offer"] as? Bool ?? true
         WorkflowStore.shared.setOfferOnVisit(workflow.id, offer)
         return ["ok": true, "id": workflow.id.uuidString, "offer": offer]
+    }
+
+    private static func resolveWorkflow(_ body: [String: Any]) -> Workflow? {
+        let workflows = WorkflowStore.shared.workflows
+        if let raw = Self.string(body, "id"), let id = UUID(uuidString: raw) {
+            return workflows.first { $0.id == id }
+        }
+        if let name = Self.string(body, "name"), !name.isEmpty {
+            return workflows.first { $0.name == name }
+        }
+        return nil
+    }
+
+    private static func workflowSchedules() -> [String: Any] {
+        let formatter = ISO8601DateFormatter()
+        let rows: [[String: Any]] = AgentScheduler.shared.tasks.compactMap { task in
+            guard let builtin = task.builtin,
+                  let workflowID = AgentScheduler.workflowID(in: builtin) else { return nil }
+            var row: [String: Any] = [
+                "workflowID": workflowID.uuidString,
+                "name": task.name,
+                "recurrence": task.recurrenceText,
+                "enabled": task.isEnabled,
+            ]
+            if let last = task.lastFiredAt { row["lastFiredAt"] = formatter.string(from: last) }
+            if let result = task.lastResult { row["lastResult"] = result }
+            return row
+        }
+        return ["schedules": rows]
+    }
+
+    private static func workflowAddTemplate(body: [String: Any]) -> [String: Any] {
+        guard let templateID = Self.string(body, "template"),
+              let template = WorkflowTemplates.all.first(where: { $0.id == templateID }) else {
+            return ["error": "unknown template (use \(WorkflowTemplates.all.map(\.id).joined(separator: "|")))"]
+        }
+        let url = Self.string(body, "url")
+            ?? TabSessionCoordinator.shared.activeTabManager?.selectedTab?
+                .browser.webView.url?.absoluteString
+            ?? ""
+        guard let workflow = WorkflowStore.shared.addTemplate(template, url: url) else {
+            return ["error": "no page URL — pass url or open a page"]
+        }
+        return ["ok": true, "workflow": workflowSummary(workflow)]
+    }
+
+    private static func workflowSchedule(body: [String: Any]) -> [String: Any] {
+        guard let workflow = resolveWorkflow(body) else {
+            return ["error": "workflow not found"]
+        }
+        guard !workflow.steps.contains(where: { $0.sensitive }) else {
+            return ["error": "workflow has sensitive steps; scheduled runs can't fill values"]
+        }
+        let recurrence: AgentScheduler.ScheduledTask.Recurrence
+        if let dailyAt = Self.string(body, "dailyAt") {
+            let parts = dailyAt.split(separator: ":")
+            guard parts.count == 2, let hour = Int(parts[0]), let minute = Int(parts[1]),
+                  (0...23).contains(hour), (0...59).contains(minute) else {
+                return ["error": "invalid dailyAt — expected HH:MM"]
+            }
+            recurrence = .daily(hour: hour, minute: minute)
+        } else if let raw = Self.string(body, "everyMinutes"), let minutes = Int(raw) {
+            recurrence = .everyMinutes(max(5, minutes))
+        } else if let minutes = body["everyMinutes"] as? Int {
+            recurrence = .everyMinutes(max(5, minutes))
+        } else {
+            return ["error": "provide everyMinutes (>= 5) or dailyAt (HH:MM)"]
+        }
+        guard let task = AgentScheduler.shared.scheduleWorkflow(workflow, recurrence: recurrence) else {
+            return ["error": "could not schedule workflow"]
+        }
+        return ["ok": true, "workflowID": workflow.id.uuidString,
+                "name": task.name, "recurrence": task.recurrenceText]
+    }
+
+    private static func workflowUnschedule(body: [String: Any]) -> [String: Any] {
+        guard let workflow = resolveWorkflow(body) else {
+            return ["error": "workflow not found"]
+        }
+        AgentScheduler.shared.removeWorkflowSchedule(workflow.id)
+        return ["ok": true, "workflowID": workflow.id.uuidString]
+    }
+
+    private static func workflowRunOffscreen(body: [String: Any]) async -> [String: Any] {
+        guard let workflow = resolveWorkflow(body) else {
+            return ["error": "workflow not found"]
+        }
+        let result = await WorkflowScheduledRunner.run(workflow)
+        return ["ok": result.ok,
+                "workflow": workflow.name,
+                "steps": result.results.map { step -> [String: Any] in
+                    ["index": step.index, "kind": step.kind.rawValue,
+                     "ok": step.ok, "message": step.message]
+                }]
     }
 
     private static func workflowList() throws -> [String: Any] {

@@ -248,6 +248,15 @@ extension BrowserToolProvider {
                 ], required: ["name", "prompt"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "scheduleWorkflow", description: "Run a saved web workflow on a schedule WITHOUT the model: replay happens in an off-screen webview (shares cookies, does not touch the user's tabs). Use everyMinutes (>= 5) OR dailyAt (\"HH:MM\"). Workflows with sensitive steps are rejected — those need a human to fill values.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "workflow": AgentJSONSchemaValue(type: "string", description: "Workflow name (from listWorkflows) or id"),
+                    "name": AgentJSONSchemaValue(type: "string", description: "Optional scheduled-task name (default: workflow name)"),
+                    "everyMinutes": AgentJSONSchemaValue(type: "string", description: "Interval in minutes (>= 5), e.g. \"60\""),
+                    "dailyAt": AgentJSONSchemaValue(type: "string", description: "Daily time \"HH:MM\" 24h, e.g. \"09:00\""),
+                ], required: ["workflow"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "listPageWatches", description: "List page watches (deterministic monitors: off-screen text diff, optional number tracking with thresholds).",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

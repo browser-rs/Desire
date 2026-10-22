@@ -106,6 +106,25 @@ final class WorkflowStore: ObservableObject {
 
     // MARK: - 库
 
+    /// 模板库（v0.8.1）：为当前站点生成一条通用工作流。同名已存在时追加
+    /// 序号，避免用户点两次得到两个看不出区别的条目。
+    @discardableResult
+    func addTemplate(_ template: WorkflowTemplates.Template, url: String,
+                     now: Date = Date()) -> Workflow? {
+        guard let host = WorkflowLogic.host(of: url) else { return nil }
+        var workflow = WorkflowTemplates.make(template, host: host,
+                                              startURL: url, now: now)
+        let base = workflow.name
+        var suffix = 2
+        while workflows.contains(where: { $0.name == workflow.name }) {
+            workflow.name = "\(base) \(suffix)"
+            suffix += 1
+        }
+        workflows.insert(workflow, at: 0)
+        save()
+        return workflow
+    }
+
     func workflows(forURL url: String) -> [Workflow] {
         workflows.filter { WorkflowLogic.matchesSite($0, url: url) }
     }
@@ -141,6 +160,8 @@ final class WorkflowStore: ObservableObject {
 
     func delete(_ id: UUID) {
         workflows.removeAll { $0.id == id }
+        // 删除工作流时一并清掉它的定时计划（否则会留下每次都失败的孤儿任务）。
+        AgentScheduler.shared.removeWorkflowSchedule(id)
         save()
     }
 

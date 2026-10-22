@@ -55,6 +55,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/EvalFixture.swift
   apps/macos/Desire/Features/Workflows/Workflow.swift
   apps/macos/Desire/Features/Workflows/WorkflowDistill.swift
+  apps/macos/Desire/Features/Workflows/WorkflowTemplates.swift
   apps/macos/Desire/Features/Reader/ReaderHighlight.swift
   apps/macos/Desire/Features/Activity/ActivityCenter.swift
   apps/macos/Desire/Features/Settings/BackupArchive.swift

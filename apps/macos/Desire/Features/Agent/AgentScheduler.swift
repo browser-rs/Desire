@@ -207,17 +207,25 @@ final class AgentScheduler: ObservableObject {
     }
 
     /// 内置流水线任务（v0.7.24 起；v0.7.25 泛化 kind）：prompt 仅作展示，
-    /// 到点走 `deliverBuiltin`。kind ∈ weeklyReport | dailyBrief。
+    /// 到点走 `deliverBuiltin`。kind ∈ weeklyReport | dailyBrief | workflow:<uuid>。
     @discardableResult
     func addBuiltin(name: String, recurrence: ScheduledTask.Recurrence,
                     kind: String = "weeklyReport",
                     targetSessionID: UUID? = nil) -> ScheduledTask? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty,
-              ["weeklyReport", "dailyBrief"].contains(kind) else { return nil }
-        let displayPrompt = kind == "dailyBrief"
-            ? "（内置）每日简报：今日会话/用量/收件箱 → 备注 + 通知"
-            : "（内置）周报流水线：汇总 → 上板 → 可选备忘录"
+              ["weeklyReport", "dailyBrief"].contains(kind) || Self.workflowID(in: kind) != nil
+        else { return nil }
+        let displayPrompt: String
+        if kind == "dailyBrief" {
+            displayPrompt = "（内置）每日简报：今日会话/用量/收件箱 → 备注 + 通知"
+        } else if let wid = Self.workflowID(in: kind) {
+            let workflowName = WorkflowStore.shared.workflows
+                .first(where: { $0.id == wid })?.name ?? wid.uuidString
+            displayPrompt = "（内置）定时工作流：\(workflowName)"
+        } else {
+            displayPrompt = "（内置）周报流水线：汇总 → 上板 → 可选备忘录"
+        }
         let task = ScheduledTask(
             id: UUID(),
             name: trimmedName,
@@ -233,6 +241,31 @@ final class AgentScheduler: ObservableObject {
         tasks.append(task)
         save()
         return task
+    }
+
+    /// 工作流定时（v0.8.1）：同一条工作流只保留一个计划（再次排程 = 更新）。
+    @discardableResult
+    func scheduleWorkflow(_ workflow: Workflow,
+                          recurrence: ScheduledTask.Recurrence) -> ScheduledTask? {
+        removeWorkflowSchedule(workflow.id)
+        return addBuiltin(name: workflow.name, recurrence: recurrence,
+                          kind: "workflow:\(workflow.id.uuidString)")
+    }
+
+    func workflowSchedule(for workflowID: UUID) -> ScheduledTask? {
+        tasks.first { $0.builtin == "workflow:\(workflowID.uuidString)" }
+    }
+
+    func removeWorkflowSchedule(_ workflowID: UUID) {
+        let before = tasks.count
+        tasks.removeAll { $0.builtin == "workflow:\(workflowID.uuidString)" }
+        if tasks.count != before { save() }
+    }
+
+    /// 解析 `workflow:<uuid>` 的 id；其他 kind 返回 nil。
+    static func workflowID(in kind: String) -> UUID? {
+        guard kind.hasPrefix("workflow:") else { return nil }
+        return UUID(uuidString: String(kind.dropFirst("workflow:".count)))
     }
 
     /// Removes by (case-insensitive) name — the cancelScheduledTask tool path.
@@ -381,6 +414,19 @@ final class AgentScheduler: ObservableObject {
     /// passes the SAME runID so the record accumulates attempts.
     private func deliver(task: ScheduledTask, runID: UUID = UUID(), attempts: Int = 1) {
         let taskIndex = tasks.firstIndex(where: { $0.id == task.id })
+
+        // 定时工作流（v0.8.1）：离屏回放，不需要活 Agent 会话，也不切换
+        // 用户标签页——与 prompt/builtin 两条路径分开。
+        if let builtin = task.builtin, Self.workflowID(in: builtin) != nil {
+            recordRun(RunRecord(
+                id: runID, taskName: task.name, firedAt: Date(),
+                finishedAt: nil, status: "delivered", success: nil,
+                error: nil, attempts: attempts))
+            if let i = taskIndex { tasks[i].lastResult = "delivered (workflow)" }
+            deliverBuiltin(builtin, task: task, runID: runID)
+            return
+        }
+
         // 投递路由（多窗口联动 v1）：任务可点名目标窗口（调度器注册 id）；
         // 目标已关或未点名 → 回落"最新注册的活会话"（与历史行为一致）。
         let resolvedTarget = task.targetSessionID.flatMap { session(withID: $0) }
@@ -459,6 +505,44 @@ final class AgentScheduler: ObservableObject {
                 Self.log.info("Daily brief done: \(text.count) chars")
             }
         default:
+            if let workflowID = Self.workflowID(in: builtin) {
+                Task { @MainActor [weak self] in
+                    guard let workflow = WorkflowStore.shared.workflows
+                        .first(where: { $0.id == workflowID }) else {
+                        self?.updateRun(id: runID) {
+                            $0.status = "failed"
+                            $0.finishedAt = Date()
+                            $0.error = "workflow not found (deleted?)"
+                        }
+                        if let i = self?.tasks.firstIndex(where: { $0.id == task.id }) {
+                            self?.tasks[i].lastResult = "failed — workflow not found"
+                        }
+                        return
+                    }
+                    let result = await WorkflowScheduledRunner.run(workflow)
+                    let failed = result.results.first(where: { !$0.ok })
+                    self?.updateRun(id: runID) {
+                        $0.status = result.ok ? "success" : "failed"
+                        $0.finishedAt = Date()
+                        $0.error = result.ok ? nil : failed?.message
+                    }
+                    if let i = self?.tasks.firstIndex(where: { $0.id == task.id }) {
+                        self?.tasks[i].lastResult = result.ok
+                            ? "workflow ok (\(result.results.count) steps)"
+                            : "workflow failed: \(failed?.message ?? "unknown")"
+                    }
+                    ProactiveNotificationStore.shared.deliver(
+                        title: result.ok
+                            ? String(localized: "Workflow “\(workflow.name)” finished")
+                            : String(localized: "Workflow “\(workflow.name)” failed"),
+                        body: result.ok
+                            ? "\(result.results.count) step(s) completed"
+                            : (failed?.message ?? "unknown error"),
+                        tier: .routine)
+                    Self.log.info("Scheduled workflow '\(workflow.name, privacy: .public)' \(result.ok ? "ok" : "failed", privacy: .public)")
+                }
+                return
+            }
             updateRun(id: runID) {
                 $0.status = "failed"
                 $0.finishedAt = Date()

@@ -4594,6 +4594,25 @@ func testPageWatchNoise() {
 }
 testPageWatchNoise()
 
+func testWorkflowTemplates() {
+    check("工作流模板：至少三条", WorkflowTemplates.all.count >= 3)
+    guard let template = WorkflowTemplates.all.first else {
+        check("工作流模板：可生成", false)
+        return
+    }
+    let workflow = WorkflowTemplates.make(
+        template, host: "Example.COM", startURL: "https://example.com/a")
+    check("工作流模板：host 归一", workflow.host == "example.com")
+    check("工作流模板：单步且无敏感项",
+          workflow.steps.count == 1 && !workflow.steps.contains(where: { $0.sensitive }))
+    check("工作流模板：选择器合法",
+          workflow.steps.allSatisfy(WorkflowLogic.isValid))
+    check("工作流模板：不在访问时自动提示", workflow.offerOnVisit == false)
+    check("工作流模板：cookie 模板含 Accept 文本候选",
+          workflow.steps.first?.selectors.contains("text:Accept") == true)
+}
+testWorkflowTemplates()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

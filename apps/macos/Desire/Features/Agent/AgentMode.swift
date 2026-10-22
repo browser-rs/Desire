@@ -26,6 +26,7 @@ nonisolated enum AgentMode: String, CaseIterable {
         case .research:
             return ["executeJS", "runCommand", "fillLogin", "downloadMedia",
                     "startRecording", "stopRecording", "scheduleTask",
+                    "scheduleWorkflow",
                     "cancelScheduledTask", "crewDispatch", "spawnSubagent"]
         case .writing:
             return ["runCommand", "fillLogin", "downloadMedia",

@@ -1937,6 +1937,44 @@ extension BrowserToolProvider {
             }
             return Self.fail("Failed to schedule '\(name)' (empty fields?)")
 
+        case "scheduleWorkflow":
+            // 定时工作流（v0.8.1）：纯回放、不调用模型、不需要活会话；离屏
+            // webview 共享 Cookie。敏感步骤必须由人现场填值，排程直接拒绝。
+            guard let rawWorkflow = args["workflow"] as? String, !rawWorkflow.isEmpty else {
+                return Self.fail("Missing workflow")
+            }
+            guard let workflow = WorkflowStore.shared.workflows.first(where: {
+                $0.name.caseInsensitiveCompare(rawWorkflow) == .orderedSame
+                    || $0.id.uuidString.caseInsensitiveCompare(rawWorkflow) == .orderedSame
+            }) else {
+                let names = WorkflowStore.shared.workflows.map(\.name)
+                return Self.fail("No workflow named \(rawWorkflow)"
+                                 + (names.isEmpty ? " (none saved — use listWorkflows)"
+                                                  : " (available: \(names.joined(separator: ", ")))"))
+            }
+            guard !workflow.steps.contains(where: { $0.sensitive }) else {
+                return Self.fail("Workflow \"\(workflow.name)\" has sensitive steps — scheduled runs can't fill values; run it manually")
+            }
+            let recurrence: AgentScheduler.ScheduledTask.Recurrence
+            if let dailyAt = args["dailyAt"] as? String {
+                let parts = dailyAt.split(separator: ":")
+                guard parts.count == 2, let hour = Int(parts[0]), let minute = Int(parts[1]),
+                      (0...23).contains(hour), (0...59).contains(minute) else {
+                    return Self.fail("Invalid dailyAt — expected \"HH:MM\" (24h), got: \(dailyAt)")
+                }
+                recurrence = .daily(hour: hour, minute: minute)
+            } else if let rawMinutes = args["everyMinutes"] as? String, let minutes = Int(rawMinutes) {
+                recurrence = .everyMinutes(max(5, minutes))
+            } else if let minutes = args["everyMinutes"] as? Int {
+                recurrence = .everyMinutes(max(5, minutes))
+            } else {
+                return Self.fail("Provide everyMinutes (>= 5) or dailyAt (\"HH:MM\")")
+            }
+            guard let task = AgentScheduler.shared.scheduleWorkflow(workflow, recurrence: recurrence) else {
+                return Self.fail("Could not schedule workflow \"\(workflow.name)\"")
+            }
+            return "Scheduled \"\(workflow.name)\" (\(task.recurrenceText)). It replays off-screen without the model; manage in Settings → Agent → Scheduled Tasks."
+
         case "listPageWatches":
             // 页面监视（确定性、无模型成本）：文本 diff + 可选的数值盯梢。
             let pageWatches = PageWatchStore.shared.watches

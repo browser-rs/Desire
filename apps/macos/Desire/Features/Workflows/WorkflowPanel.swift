@@ -5,6 +5,7 @@ import WebKit
 struct WorkflowPanel: View {
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject private var store = WorkflowStore.shared
+    @ObservedObject private var scheduler = AgentScheduler.shared
     var onClose: () -> Void
 
     @State private var newName = ""
@@ -103,6 +104,17 @@ struct WorkflowPanel: View {
                         .font(.system(size: 11.5))
                         .foregroundStyle(.secondary)
                     Spacer()
+                    Menu(String(localized: "Templates")) {
+                        ForEach(WorkflowTemplates.all) { template in
+                            Button(template.name) { addTemplate(template) }
+                                .help(template.detail)
+                        }
+                    }
+                    .menuStyle(.borderlessButton)
+                    .controlSize(.small)
+                    .fixedSize()
+                    .disabled(activeURL == nil)
+                    .help("Create a generic workflow for this site")
                     Button(String(localized: "Start Recording")) { startRecording() }
                         .controlSize(.small)
                         .disabled(activeURL == nil)
@@ -138,6 +150,31 @@ struct WorkflowPanel: View {
             .help("Suggest this workflow when you visit \(workflow.host)")
             Button(String(localized: "Run")) { beginRun(workflow) }
                 .controlSize(.small)
+            Menu {
+                if let scheduled = scheduler.workflowSchedule(for: workflow.id) {
+                    Text(String(localized: "Scheduled: \(scheduled.recurrenceText)"))
+                    Button(String(localized: "Remove schedule"), role: .destructive) {
+                        scheduler.removeWorkflowSchedule(workflow.id)
+                        note = nil
+                    }
+                    Divider()
+                }
+                Button(String(localized: "Every hour")) {
+                    schedule(workflow, .everyMinutes(60))
+                }
+                Button(String(localized: "Daily at 09:00")) {
+                    schedule(workflow, .daily(hour: 9, minute: 0))
+                }
+                Button(String(localized: "Daily at 18:00")) {
+                    schedule(workflow, .daily(hour: 18, minute: 0))
+                }
+            } label: {
+                Image(systemName: "clock")
+                    .font(.system(size: 11))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Run this workflow on a schedule (off-screen, no model)")
             Button {
                 store.delete(workflow.id)
             } label: {
@@ -167,8 +204,30 @@ struct WorkflowPanel: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    private func startRecording() {
-        guard let url = activeURL, let tab = activeTab else {
+    private func addTemplate(_ template: WorkflowTemplates.Template) {
+        guard let url = activeURL else {
+            note = String(localized: "Open a page first.")
+            return
+        }
+        if let workflow = store.addTemplate(template, url: url) {
+            note = String(localized: "Added “\(workflow.name)” for \(workflow.host).")
+        } else {
+            note = String(localized: "Couldn't add the template on this page.")
+        }
+    }
+
+    private func schedule(_ workflow: Workflow,
+                          _ recurrence: AgentScheduler.ScheduledTask.Recurrence) {
+        guard !workflow.steps.contains(where: { $0.sensitive }) else {
+            note = String(localized: "This workflow has sensitive steps — scheduled runs can't fill values.")
+            return
+        }
+        if let task = scheduler.scheduleWorkflow(workflow, recurrence: recurrence) {
+            note = String(localized: "Scheduled “\(workflow.name)” \(task.recurrenceText).")
+        }
+    }
+
+    private func startRecording() {        guard let url = activeURL, let tab = activeTab else {
             note = String(localized: "Open a page first.")
             return
         }

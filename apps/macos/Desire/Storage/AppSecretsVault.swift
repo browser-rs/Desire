@@ -28,32 +28,71 @@ final class AppSecretsVault {
     private var loaded = false
     private var loadFailed = false
     private var vaultExists = false
+    /// 后台加载句柄（启动 preload）。**Keychain 读取绝不能在主线程等授权窗**
+    /// ——2026-10-22 实测：新构建启动时 SecurityAgent 弹窗未答，主线程卡在
+    /// SecItemCopyMatching，桥/UI 全部无响应。preload 把读放到协作线程池外
+    /// 的串行后台任务里，主 actor 只 await 结果，不阻塞。
+    private var loadTask: Task<LoadResult, Never>?
+
+    private struct LoadResult: Sendable {
+        let secrets: AppSecrets
+        let exists: Bool
+        let failed: Bool
+    }
 
     var isLoaded: Bool { loaded }
+    var isLoading: Bool { loadTask != nil }
     var hasVault: Bool { vaultExists }
-    /// 读取 app vault 失败（用户拒绝/锁屏）时不允许覆盖写，避免丢密钥。
-    var isWritable: Bool { !loadFailed }
+    /// 读取 app vault 失败/尚在授权时不允许覆盖写，避免丢密钥。
+    var isWritable: Bool { !loadFailed && !isLoading }
 
     private init() {}
 
-    /// 显式加载。只读一条 Keychain；可能触发一次 ACL 授权。
+    /// 启动/同步前调用：Keychain 读取在后台任务里，主线程只 await，不阻塞。
+    func preload() async {
+        if loaded { return }
+        if let loadTask {
+            _ = await loadTask.value
+            return
+        }
+        let task = Task.detached(priority: .userInitiated) {
+            Self.loadFromKeychain()
+        }
+        loadTask = task
+        let result = await task.value
+        loadTask = nil
+        apply(result)
+    }
+
+    /// 显式加载（用户在场路径，如设置页保存 Key）。若后台 preload 正在进行，
+    /// 绝不在这里同步阻塞主线程：返回空结构，由调用方按"不可写"处理。
     @discardableResult
     func ensureLoaded() -> AppSecrets {
         if loaded, let cache { return cache }
+        if isLoading { return cache ?? AppSecrets() }
+        let result = Self.loadFromKeychain()
+        apply(result)
+        return result.secrets
+    }
+
+    private func apply(_ result: LoadResult) {
+        cache = result.secrets
         loaded = true
-        vaultExists = KeychainService.exists(account: Self.account, service: service)
-        if vaultExists {
+        vaultExists = result.exists
+        loadFailed = result.failed
+    }
+
+    /// 只读 Keychain；在后台任务里执行，不能访问实例状态。
+    private nonisolated static func loadFromKeychain() -> LoadResult {
+        let service = KeychainService.defaultService
+        let exists = KeychainService.exists(account: Self.account, service: service)
+        if exists {
             if let data = KeychainService.read(account: Self.account, service: service,
                                                interactive: false),
                let decoded = try? JSONDecoder().decode(AppSecrets.self, from: data) {
-                cache = decoded
-                return decoded
+                return LoadResult(secrets: decoded, exists: true, failed: false)
             }
-            // 条目存在却读不出（拒绝/权限）：标记失败，别拿空结构覆盖。
-            loadFailed = true
-            let empty = AppSecrets()
-            cache = empty
-            return empty
+            return LoadResult(secrets: AppSecrets(), exists: true, failed: true)
         }
         // 没有 app vault：用上一版的同步单条目做种子（只读这一条）。
         var seeded = AppSecrets()
@@ -62,9 +101,11 @@ final class AppSecretsVault {
            let sync = try? JSONDecoder().decode(SyncSecretBundle.self, from: data) {
             seeded.sync = sync
         }
-        cache = seeded
-        if !seeded.sync.isEmpty { save(seeded) }
-        return seeded
+        if !seeded.sync.isEmpty,
+           let data = try? JSONEncoder().encode(seeded) {
+            KeychainService.write(data, account: Self.account, service: service)
+        }
+        return LoadResult(secrets: seeded, exists: false, failed: false)
     }
 
     // MARK: - AI keys

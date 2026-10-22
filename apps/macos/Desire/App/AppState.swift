@@ -85,6 +85,9 @@ class AppState: ObservableObject {
         // 云同步：已登录才生效（内部自延迟 + 定时器，不占启动路径）。
         syncStore.startAutoSync()
         lap("startAutoSync")
+        // 密钥单条目后台预读：Keychain 授权窗可能延迟/隐藏，绝不能在启动
+        // 主线程同步等它（2026-10-22 实测主线程卡在 SecItemCopyMatching）。
+        Task { await AppSecretsVault.shared.preload() }
         // 定时下载：应用关闭期间到点的任务在首个 tick 补跑。
         DownloadScheduler.shared.start()
         // 批量下载断点续传：上次未完成的批次放回队列（内部异步，不占启动路径）。

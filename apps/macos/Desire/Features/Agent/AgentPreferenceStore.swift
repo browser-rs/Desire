@@ -619,6 +619,9 @@ class AgentPreferenceStore: ObservableObject {
         guard let account = account(for: profileID) else { return nil }
         if let cached = Self.apiKeyCache[account] { return cached }
         if Self.apiKeyDenied.contains(account) { return nil }
+        // 启动 preload 正在等 Keychain 授权：别在主线程同步读（会卡死 UI）；
+        // 这一回合按"暂时没有 Key"处理，授权完成后下一回合即可用。
+        if AppSecretsVault.shared.isLoading { return nil }
 
         // 单条目优先：app vault 里的 AI Key（不触发逐条授权）。
         let vault = AppSecretsVault.shared.ensureLoaded()

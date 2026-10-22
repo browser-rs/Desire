@@ -424,7 +424,11 @@ final class SyncStore: ObservableObject {
         startSyncInfrastructure()
         // 启动首轮全脏：对账本地未上推的变更（含上次会话遗留的 tombstone）。
         dirtyDomains = Set(SyncDomain.allCases)
-        Task { @MainActor in
+        Task { @MainActor [weak self] in
+            // Keychain 读取放后台（授权窗可能一直不渲染）；主线程只等结果，
+            // 绝不在启动路径同步 SecItemCopyMatching。
+            await AppSecretsVault.shared.preload()
+            guard let self else { return }
             try? await Task.sleep(for: .seconds(3))
             await self.syncNow(isAuto: true)
         }
@@ -435,6 +439,9 @@ final class SyncStore: ObservableObject {
     /// 迁移后每次升级最多只为这一条弹一次。
     func migrateSyncSecrets() async {
         guard case .signedIn = authState else { return }
+        // 先让 app/sync vault 在后台读（可能弹一次授权）；legacy 三条是本函数
+        // 接下来的显式同步读，用户已点"重新授权"，可以接受。
+        await AppSecretsVault.shared.preload()
         let bundle = loadLegacySyncBundle()
         if bundle.master != nil { hasSyncKey = true }
         needsSecretMigration = false
@@ -759,6 +766,14 @@ final class SyncStore: ObservableObject {
         guard !needsSecretMigration else {
             if !isAuto {
                 lastError = String(localized: "Re-authorize sync in Settings to resume.")
+            }
+            return
+        }
+        // 启动 preload 还在等 Keychain 授权：别在主线程同步读，也别把
+        // "授权中"当成同步失败刷屏；等 preload 完成后下一轮/手动再跑。
+        if AppSecretsVault.shared.isLoading {
+            if !isAuto {
+                lastError = String(localized: "Waiting for keychain authorization…")
             }
             return
         }

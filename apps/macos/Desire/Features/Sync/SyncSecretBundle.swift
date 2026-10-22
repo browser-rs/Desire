@@ -20,5 +20,5 @@ nonisolated struct SyncSecretBundle: Codable {
 
 extension SyncSecretBundle {
     /// Keychain 里的 account 名。改名字 = 旧条目全部变孤儿，别改。
-    static let account = "sync-secrets-v1"
+    nonisolated static let account = "sync-secrets-v1"
 }

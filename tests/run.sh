@@ -41,6 +41,7 @@ SOURCES=(
   apps/macos/Desire/Features/Promotion/PromotionChannel.swift
   apps/macos/Desire/Features/Promotion/PromotionCampaignBuilder.swift
   apps/macos/Desire/Features/Promotion/MentionRadar.swift
+  apps/macos/Desire/Features/Promotion/PromotionShare.swift
   apps/macos/Desire/Features/Promotion/PromotionAccount.swift
   apps/macos/Desire/Features/Promotion/PromotionLesson.swift
   apps/macos/Desire/Features/Promotion/PromotionSummary.swift

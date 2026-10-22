@@ -255,6 +255,9 @@ struct AppCommands: Commands {
             Button("What's New") {
                 WhatsNewStore.shared.show()
             }
+            Button("Share Desire…") {
+                PromotionShareCenter.shared.present()
+            }
             Button("Desire on GitHub") {
                 NSWorkspace.shared.open(URL(string: "https://github.com/browser-rs/Desire")!)
             }

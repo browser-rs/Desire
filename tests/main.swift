@@ -4835,6 +4835,25 @@ func testMentionRadar() {
 }
 testMentionRadar()
 
+func testPromotionShare() {
+    let url = PromotionShare.trackedURL(version: "v0.8.2", channel: "x")
+    check("分享：UTM 渠道与 campaign",
+          url.contains("utm_source=x")
+              && url.contains("utm_campaign=desire-share-v0-8-2"))
+    check("分享：版本号去 v", PromotionShare.normalizedVersion("v0.8.2") == "0.8.2")
+    let x = PromotionShare.caption(platform: "X", version: "0.8.2")
+    check("分享：X 文案含链接", x.contains("desire.mankong.icu") && x.contains("utm_source=x"))
+    let red = PromotionShare.caption(platform: "小红书", version: "0.8.2")
+    check("分享：小红书带标签", red.contains("#macOS") && red.contains("Desire v0.8.2"))
+    let hn = PromotionShare.caption(platform: "Hacker News", version: "0.8.2")
+    check("分享：HN 英文开头", hn.hasPrefix("Show HN:"))
+    check("分享：未知渠道回退 X",
+          PromotionShare.caption(platform: "unknown", version: "0.8.2") == x)
+    check("分享：不过度承诺",
+          !x.contains("最强") && !x.contains("100%"))
+}
+testPromotionShare()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

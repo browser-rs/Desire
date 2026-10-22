@@ -58,6 +58,7 @@ struct ContentView: View {
     @Environment(\.appAccent) var appAccent: Color
     @Environment(\.openWindow) var openWindow
     @ObservedObject private var whatsNew = WhatsNewStore.shared
+    @ObservedObject private var promotionShare = PromotionShareCenter.shared
 
     init(appState: AppState, sessionID: Binding<UUID?>) {
         let t0 = Date()
@@ -461,6 +462,9 @@ struct ContentView: View {
         }
         .sheet(isPresented: $whatsNew.isPresented) {
             WhatsNewSheet(sync: appState.syncStore)
+        }
+        .sheet(isPresented: $promotionShare.isPresented) {
+            PromotionShareSheet()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { note in
             guard let window = note.object as? NSWindow else { return }

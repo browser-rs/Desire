@@ -696,6 +696,7 @@ final class AutomationServer {
         ep("GET", "/promotion/mentions/sources", "Mention-radar sources (search/community URL templates)", example: "…/promotion/mentions/sources")
         ep("POST", "/promotion/mentions/source", "Add/remove/toggle a mention-radar source", params: ["action:add|remove|toggle", "name?:string", "platform?:string", "searchURL?:string (use {query})", "id?:uuid", "enabled?:bool"], example: #"-d '{"action":"add","name":"DuckDuckGo","platform":"Web","searchURL":"https://duckduckgo.com/html/?q={query}"}'"#)
         ep("POST", "/promotion/mentions/scan", "Scan enabled sources off-screen for a keyword; new links go to the interaction ledger (deduped)", params: ["query:string", "limit?:int"], example: #"-d '{"query":"Desire browser"}'"#)
+        ep("POST", "/promotion/share", "Build a ready-to-post Desire caption + UTM link for a channel (no network, no posting)", params: ["channel?:string (X/小红书/V2EX/掘金/即刻/Hacker News)", "version?:string"], example: #"-d '{"channel":"X"}'"#)
         ep("POST", "/promotion/goal", "Add a promotion goal", params: ["title:string", "objective?:string", "platforms?:array", "targetPosts?:int", "dueDate?:string(yyyy-MM-dd|ISO8601)"], example: #"-d '{"title":"v0.7.15 发布宣传","platforms":["掘金"],"targetPosts":2}'"#)
         ep("POST", "/promotion/goal/remove", "Remove a promotion goal by id (posts keep their history, link cleared)", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/promotion/post", "Save or update a workbench post (idea/draft/published; pass id to update, plannedFor=yyyy-MM-dd) — same semantics as the agent's promotionSave tool", params: ["id?:string", "platform?:string", "title?:string", "body?:string", "status?:idea|draft|published", "url?:string", "goal?:string", "plannedFor?:string"], example: #"-d '{"platform":"掘金","title":"…","body":"…","status":"draft","plannedFor":"2026-10-20"}'"#)
@@ -1188,6 +1189,8 @@ final class AutomationServer {
                 return try Self.json(Self.promotionMentionSourceAction(body))
             case ("POST", "/promotion/mentions/scan"):
                 return try Self.json(await Self.promotionMentionScan(body))
+            case ("POST", "/promotion/share"):
+                return try Self.json(Self.promotionShare(body))
             case ("POST", "/promotion/goal"):
                 return try Self.json(Self.promotionGoalAdd(body))
             case ("POST", "/promotion/goal/remove"):
@@ -6420,6 +6423,19 @@ final class AutomationServer {
                 "added": result.added,
                 "errors": result.errors,
                 "pendingInteractions": store.pendingInteractionCount]
+    }
+
+    private static func promotionShare(_ body: [String: Any]) -> [String: Any] {
+        let channelName = string(body, "channel") ?? "X"
+        let version = string(body, "version") ?? WhatsNewStore.shared.versionName
+        let channel = PromotionChannel.preset(platform: channelName)
+            ?? PromotionShare.defaultChannel
+        return ["ok": true,
+                "channel": channel.platform,
+                "slug": channel.slug,
+                "url": PromotionShare.trackedURL(version: version, channel: channel.slug),
+                "caption": PromotionShare.caption(platform: channel.platform,
+                                                  version: version)]
     }
 
     private static func promotionGoalAdd(_ body: [String: Any]) -> [String: Any] {

@@ -6,6 +6,8 @@
 ### Added
 
 - **密码填充显式入口（v0.8.0）**：页面检测到登录表单且本站有存档凭据时，显示非模态 "Fill Saved Password" 提示条——**页面加载零 Keychain 读取**（v0.7.31 为消除逐条弹窗关掉了自动填充，本版补上显式入口），点击才读这一条（一次授权）并注入；"Not Now" 关闭、无存档不显示。桥 `/passwords/delete` 支持按用户名删除单条（此前整域全删）。验收：fixture 登录页——加载前/加载中零 data 读、chip 出现、点击后恰好读一条并填入、取消不留痕。
+- **浏览器数据导入（v0.8.0）**：设置 → System → Import Browser Data——自动检测 Chrome / Edge / Brave / Arc 档案与 Safari，也可手动选目录或数据文件。书签保留来源文件夹结构、按 URL 去重后挂到 "Imported from X"；历史按 URL 合并（visitCount 相加、时间取较新、500 条上限，不产生云端墓碑）；主页/启动页可选导入。SQLite 先复制到临时目录再交给 `/usr/bin/sqlite3 -json`（避免浏览器锁库与子进程 TCC 限制）；密码不解 Chromium Safe Storage/Safari Keychain，面板明确引导 CSV。桥新增 `GET /import/browsers`、`POST /import/preview|run`，`GET /bookmarks?tree=1` 与按 id 删除用于回滚/清理。验收：Chromium fixture 预览 3 书签/2 历史 → 导入 2 书签（1 条导入内重复跳过）+2 历史；Safari plist/History.db 预览 1/1；导入的根文件夹按 id 删除后子树清空。
+
 
 ### Fixed
 

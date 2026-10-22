@@ -508,7 +508,7 @@ struct GeneralSettingsSection: View {
 
             // MARK: - System
 
-            SystemSection()
+            SystemSection(settings: settings)
         }
         .onChange(of: appLanguage) { _, code in
             if code == "system" {
@@ -1002,6 +1002,7 @@ private struct FolderPathRow: View {
 /// `SettingsCapsuleButton` + `SettingsRowDivider`）不是一套语言：图标圆片底色不同、
 /// 行间没有分隔线、按钮底色有四五种近似值。现在统一走共用组件。
 private struct SystemSection: View {
+    @ObservedObject var settings: Settings
     @State private var isDefault = false
 
     var body: some View {
@@ -1029,6 +1030,8 @@ private struct SystemSection: View {
             DiagnosticsRow()
             SettingsRowDivider()
             BackupRow()
+            SettingsRowDivider()
+            BrowserImportRow(settings: settings)
         }
         .onAppear(perform: checkDefaultBrowser)
     }
@@ -1435,5 +1438,25 @@ private func swiftUIColor(for name: String) -> Color {
     case "teal":   .teal
     case "indigo": .indigo
     default:       .gray
+    }
+}
+
+/// 浏览器数据导入入口（v0.8.0）：书签/历史/主页启动页；密码走 CSV。
+private struct BrowserImportRow: View {
+    @ObservedObject var settings: Settings
+    @State private var showsSheet = false
+
+    var body: some View {
+        SettingsRow(
+            "Import Browser Data",
+            subtitle: "Bring over bookmarks, history and home/startup pages from Chrome, Edge, Brave, Arc or Safari. Passwords stay CSV-only."
+        ) {
+            SettingsCapsuleButton("Import…", style: .secondary) {
+                showsSheet = true
+            }
+        }
+        .sheet(isPresented: $showsSheet) {
+            BrowserImportSheet(settings: settings)
+        }
     }
 }

@@ -94,6 +94,14 @@ class BookmarkStore: ObservableObject {
         save()
     }
 
+    /// 按 id 删除（含文件夹子树；桥的测试清理/导入回滚用）。
+    @discardableResult
+    func remove(id: UUID) -> Bool {
+        guard let node = bookmarks.find(where: { $0.id == id }) else { return false }
+        remove(node)
+        return true
+    }
+
     private static func subtreeIDs(_ root: Bookmark) -> [UUID] {
         var ids = [root.id]
         for child in root.children { ids.append(contentsOf: subtreeIDs(child)) }
@@ -170,6 +178,28 @@ class BookmarkStore: ObservableObject {
         bookmarks = tree
         rebuildURLIndex()
         save()
+    }
+
+    /// 浏览器导入（v0.8.0）：保留来源的文件夹结构，按 URL 去重后整棵挂到
+    /// 一个来源根目录下（非破坏式）。返回 (导入叶子数, 跳过重复数)。
+    @discardableResult
+    func mergeImportedTree(_ incoming: [Bookmark], rootTitle: String) -> (imported: Int, skipped: Int) {
+        let plan = BookmarkImportDedupe.plan(incoming: incoming,
+                                             existingURLs: importedURLSet())
+        guard !plan.filtered.isEmpty else { return (0, plan.duplicateCount) }
+        let now = Date()
+        func stamp(_ nodes: [Bookmark]) -> [Bookmark] {
+            nodes.map { node in
+                Bookmark(id: UUID(), title: node.title, url: node.url,
+                         children: stamp(node.children), updatedAt: now)
+            }
+        }
+        let root = Bookmark(id: UUID(), title: rootTitle, url: nil,
+                            children: stamp(plan.filtered), updatedAt: now)
+        bookmarks.append(root)
+        rebuildURLIndex()
+        save()
+        return (plan.fresh, plan.duplicateCount)
     }
 
     /// 备份合并（v0.7.28）：按 URL 去重，把缺失的书签放进一个 "Imported …"

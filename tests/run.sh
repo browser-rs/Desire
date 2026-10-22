@@ -119,6 +119,11 @@ SOURCES=(
   apps/macos/Desire/Features/Whiteboard/WhiteboardExtract.swift
   apps/macos/Desire/Features/Whiteboard/WhiteboardTemplates.swift
   apps/macos/Desire/Storage/DiskStore.swift
+  apps/macos/Desire/Features/BrowserImport/BrowserImport.swift
+  apps/macos/Desire/Features/BrowserImport/ChromiumBookmarksParser.swift
+  apps/macos/Desire/Features/BrowserImport/SafariBookmarksParser.swift
+  apps/macos/Desire/Features/BrowserImport/BrowserHistoryParser.swift
+  apps/macos/Desire/Features/BrowserImport/HistoryImportMerge.swift
   apps/macos/Desire/Features/Sync/SyncSecretBundle.swift
   apps/macos/Desire/Storage/AppSecrets.swift
   tests/main.swift

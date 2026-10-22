@@ -60,6 +60,18 @@ class HistoryStore: ObservableObject {
         save()
     }
 
+    /// 浏览器导入（v0.8.0）：按 URL 合并（次数相加、时间取较新），不产生
+    /// 云端墓碑；最后按时间倒序裁剪到既有 500 条上限。
+    @discardableResult
+    func mergeImported(_ imported: [ImportedHistoryEntry]) -> (added: Int, skipped: Int) {
+        let result = HistoryImportMerge.merge(
+            existing: entries, imported: imported, cap: maxEntries)
+        guard result.added > 0 || result.skipped > 0 else { return (0, 0) }
+        entries = result.entries
+        save()
+        return (result.added, result.skipped)
+    }
+
     /// Corrects the title of the most recent entry for `url`. WebKit's
     /// title KVO lands AFTER didFinish, so entries were being recorded with
     /// the stale placeholder title ("Desire") for fast-titling pages.

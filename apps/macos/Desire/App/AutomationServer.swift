@@ -441,9 +441,9 @@ final class AutomationServer {
         ep("POST", "/devtools/application/delete", "Delete a cookie/storage/IndexedDB/cache/service worker (cookie 的 key = name@domain，面板行 id 同款)", params: ["kind:string", "key:string", "ext?:uuid", "index?:int"], example: #"-d '{"kind":"cookie","key":"name@domain"}'"#)
         ep("GET", "/rules", "Video ad-rule sources (builtin/local/remote)", example: "…/rules")
         ep("POST", "/rules/refresh", "Reload local rule overrides + fetch remote bundle", example: "-d '{}'")
-        ep("GET", "/bookmarks", "Bookmark leaves", example: "…/bookmarks")
+        ep("GET", "/bookmarks", "Bookmark leaves; ?tree=1 returns the folder tree with ids", example: "…/bookmarks?tree=1")
         ep("POST", "/bookmarks/add", "Add bookmark", params: ["title:string", "url:string"], example: #"-d '{"title":"X","url":"https://a.b"}'"#)
-        ep("POST", "/bookmarks/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
+        ep("POST", "/bookmarks/remove", "Remove by URL or id (folder id removes its subtree)", params: ["url?:string", "id?:uuid"], example: "-d '{\"url\":\"https://a.b\"}'")
         ep("POST", "/bookmarks/import", "Import Netscape-format bookmarks (html= or path=); duplicate plan + import; dryRun plans only, strategy=skipDuplicates|keepAll", params: ["html?/path?", "dryRun?", "strategy?"], example: #"-d '{"path":"/tmp/bm.html","dryRun":true}'"#)
         ep("GET", "/bookmarks/health", "Bookmark link check state (running/progress/dead/redirected)", example: "…/bookmarks/health")
         ep("POST", "/bookmarks/health/cleanup", "Remove bookmarked dead links after review (wizard equivalent; tombstones)", params: ["urls:[string]"], example: #"-d '{"urls":["https://dead.example"]}'"#)
@@ -552,6 +552,9 @@ final class AutomationServer {
         ep("POST", "/passwords/import", "Import CSV (Chrome format) into the store", params: ["csv:string"], example: "-d '{\"csv\":\"name,url,username,password\\n…\"}'")
         ep("POST", "/passwords/resolve", "Resolve save/update-password prompt", params: ["save:bool"], example: "-d '{\"save\":true}'")
         ep("POST", "/passwords/delete", "Delete credentials for a domain (optional username = one account)", params: ["domain:string", "username?:string"], example: "-d '{\"domain\":\"example.com\",\"username\":\"u\"}'")
+        ep("GET", "/import/browsers", "Detected Chrome/Edge/Brave/Arc/Safari profiles with bookmarks/history paths", example: "…/import/browsers")
+        ep("POST", "/import/preview", "Preview a browser profile (path = profile folder or data file): bookmark/history counts, settings, warnings", params: ["path:string"], example: "-d '{\"path\":\"/Users/me/Library/Application Support/Google/Chrome/Default\"}'")
+        ep("POST", "/import/run", "Import from a browser profile (bookmarks/history/settings booleans, default all). Password import stays CSV-only.", params: ["path:string", "bookmarks?:bool", "history?:bool", "settings?:bool"], example: "-d '{\"path\":\"…/Default\",\"bookmarks\":true,\"history\":true}'")
         ep("GET", "/split", "Split-view state (selected + partner tab index)", example: "…/split")
         ep("POST", "/split", "Set the split-view right pane to a tab index", params: ["index:int"], example: "-d '{\"index\":1}'")
         ep("POST", "/split/close", "Leave split view", example: "-d '{}'")
@@ -1663,6 +1666,12 @@ final class AutomationServer {
                 return try Self.json(Self.deletePasswords(
                     domain: Self.string(body, "domain") ?? "",
                     username: Self.string(body, "username")))
+            case ("GET", "/import/browsers"):
+                return try Self.json(Self.importBrowsers())
+            case ("POST", "/import/preview"):
+                return try Self.json(Self.importPreview(path: Self.string(body, "path") ?? ""))
+            case ("POST", "/import/run"):
+                return try Self.json(Self.importRun(body: body))
             case ("POST", "/containers/remove"):
                 return try Self.json(Self.removeContainer(Self.string(body, "name") ?? ""))
             case ("GET", "/site-settings"):
@@ -1739,6 +1748,9 @@ final class AutomationServer {
                     url: Self.string(body, "url") ?? ""
                 ))
             case ("POST", "/bookmarks/remove"):
+                if let id = UUID(uuidString: Self.string(body, "id") ?? "") {
+                    return try Self.json(Self.removeBookmark(id: id))
+                }
                 return try Self.json(Self.removeBookmark(url: Self.string(body, "url") ?? ""))
             case ("POST", "/bookmarks/import"):
                 return try Self.json(Self.importBookmarksBridge(
@@ -2289,7 +2301,7 @@ final class AutomationServer {
                     height: Self.string(query, "h").flatMap { Double($0) }.map { CGFloat($0) }
                 ))
             case ("GET", "/bookmarks"):
-                return try Self.json(Self.bookmarks())
+                return try Self.json(Self.bookmarks(tree: (Self.string(query, "tree") ?? "") == "1"))
             case ("POST", "/command"):
                 return try Self.json(Self.sendCommand(
                     name: Self.string(body, "name") ?? "",
@@ -3815,12 +3827,27 @@ final class AutomationServer {
                 "groupedTotal": groups.reduce(0) { $0 + ($1["count"] as? Int ?? 0) }]
     }
 
-    private static func bookmarks() throws -> [String: Any] {
+    private static func bookmarks(tree: Bool = false) throws -> [String: Any] {
         // 读 **live 窗口 store**（与 add/remove 同源）——0.3.5 的"新实例按活跃
         // 人物开桶"在现代多档案架构下读到的是活跃档案的空桶，桥返回的书签
         // 永远是空的（0.7.1 走查实测：live 7 条 / GET 0 条）。
         guard let store = AppState.live?.bookmarkStore else {
             return ["entries": []]
+        }
+        if tree {
+            func node(_ bookmark: Bookmark) -> [String: Any] {
+                var dict: [String: Any] = [
+                    "id": bookmark.id.uuidString,
+                    "title": bookmark.title,
+                ]
+                if let url = bookmark.url {
+                    dict["url"] = url
+                } else {
+                    dict["children"] = bookmark.children.map(node)
+                }
+                return dict
+            }
+            return ["tree": store.bookmarks.map(node)]
         }
         let entries = store.leafEntries.map { ["title": $0.title, "url": $0.url] }
         return ["entries": Array(entries)]
@@ -4407,6 +4434,63 @@ final class AutomationServer {
             ["level": m.level.rawValue, "message": m.message]
         }
         return ["messages": Array(rows)]
+    }
+
+    /// Detected browser profiles for the import sheet / E2E.
+    private static func importBrowsers() throws -> [String: Any] {
+        let profiles = BrowserImportService.detectedProfiles().map { p -> [String: Any] in
+            ["source": p.source.rawValue,
+             "name": p.name,
+             "path": p.profilePath,
+             "bookmarks": p.bookmarksPath.map { $0 as Any } ?? NSNull(),
+             "history": p.historyPath.map { $0 as Any } ?? NSNull()]
+        }
+        return ["profiles": profiles]
+    }
+
+    private static func importPreview(path: String) throws -> [String: Any] {
+        guard !path.isEmpty,
+              let profile = BrowserImportService.profile(atPath: path) else {
+            return ["error": "unrecognized browser profile path"]
+        }
+        let preview = BrowserImportService.preview(profile)
+        return ["source": profile.source.rawValue,
+                "name": profile.name,
+                "path": profile.profilePath,
+                "bookmarks": preview.bookmarkCount,
+                "history": preview.historyCount,
+                "homePage": preview.settings.homePage.map { $0 as Any } ?? NSNull(),
+                "startupURLs": preview.settings.startupURLs,
+                "warnings": preview.warnings]
+    }
+
+    private static func importRun(body: [String: Any]) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let path = Self.string(body, "path") ?? ""
+        guard !path.isEmpty,
+              let profile = BrowserImportService.profile(atPath: path) else {
+            return ["error": "unrecognized browser profile path"]
+        }
+        let preview = BrowserImportService.preview(profile)
+        let report = BrowserImportService.perform(
+            profile,
+            preview: preview,
+            includeBookmarks: body["bookmarks"] as? Bool ?? true,
+            includeHistory: body["history"] as? Bool ?? true,
+            includeSettings: body["settings"] as? Bool ?? true,
+            settings: app.settings,
+            bookmarkStore: app.bookmarkStore,
+            historyStore: app.historyStore)
+        return ["ok": true,
+                "source": profile.source.rawValue,
+                "name": profile.name,
+                "path": profile.profilePath,
+                "bookmarksImported": report.bookmarksImported,
+                "bookmarksSkipped": report.bookmarksSkipped,
+                "historyImported": report.historyImported,
+                "historySkipped": report.historySkipped,
+                "settingsApplied": report.settingsApplied,
+                "warnings": report.warnings]
     }
 
     /// Saved-password metadata + pending save-prompt state (never the
@@ -5039,6 +5123,14 @@ final class AutomationServer {
     }
 
     /// Removes a bookmark by URL (test cleanup). Live store — write-safe.
+    private static func removeBookmark(id: UUID) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard app.bookmarkStore.remove(id: id) else {
+            return ["error": "no such bookmark"]
+        }
+        return ["ok": true]
+    }
+
     private static func removeBookmark(url: String) throws -> [String: Any] {
         guard let app = AppState.live, !url.isEmpty else { return ["error": "missing url"] }
         guard let bookmark = app.bookmarkStore.find(url: url) else {

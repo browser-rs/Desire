@@ -4301,6 +4301,59 @@ func testAppSecretsVaultModel() {
 }
 testAppSecretsVaultModel()
 
+func testBrowserImportParsers() {
+    let chrome = """
+    {"roots":{"bookmark_bar":{"type":"folder","name":"Bar","children":[
+      {"type":"url","name":"A","url":"https://a.test/x"},
+      {"type":"folder","name":"Sub","children":[{"type":"url","name":"B","url":"http://b.test"}]},
+      {"type":"url","name":"Junk","url":"javascript:void(0)"}
+    ]},"other":{"type":"folder","name":"Other","children":[]}}}
+    """
+    if let tree = try? ChromiumBookmarksParser.parse(data: Data(chrome.utf8)) {
+        let leaves = tree.reduce(0) { $0 + $1.flattened().filter { $0.0.isLeaf }.count }
+        check("浏览器导入：Chrome 书签树", tree.count == 1 && tree[0].children.count == 2)
+        check("浏览器导入：Chrome 过滤非 http", leaves == 2)
+    } else {
+        check("浏览器导入：Chrome 书签树", false)
+    }
+
+    let plist: [String: Any] = ["WebBookmarks": [[
+        "WebBookmarkType": "WebBookmarkTypeList",
+        "Title": "BookmarksBar",
+        "Children": [[
+            "WebBookmarkType": "WebBookmarkTypeLeaf",
+            "URLString": "https://s.test",
+            "URIDictionary": ["title": "S"],
+        ]],
+    ]]]
+    if let data = try? PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0),
+       let tree = try? SafariBookmarksParser.parse(plist: data) {
+        check("浏览器导入：Safari 书签", tree.first?.children.first?.url == "https://s.test")
+    } else {
+        check("浏览器导入：Safari 书签", false)
+    }
+
+    let historyJSON = """
+    [{"url":"https://h.test","title":"H","visit_count":3,"last_visit_time":13300000000000000}]
+    """
+    guard let entries = try? BrowserHistoryParser.chromium(data: Data(historyJSON.utf8)) else {
+        check("浏览器导入：历史换算", false)
+        return
+    }
+    check("浏览器导入：历史换算", entries.count == 1 && entries[0].visitCount == 3
+        && entries[0].timestamp.timeIntervalSince1970 > 1_600_000_000)
+
+    let existing = [HistoryEntry(id: UUID(), url: "https://h.test", title: "Old",
+                                 timestamp: Date(timeIntervalSince1970: 1_600_000_000),
+                                 updatedAt: nil, visitCount: 2)]
+    let merged = HistoryImportMerge.merge(existing: existing, imported: entries, cap: 10)
+    check("浏览器导入：历史去重累加", merged.added == 0 && merged.skipped == 1
+        && merged.entries.first?.visitCount == 5)
+    let fresh = HistoryImportMerge.merge(existing: [], imported: entries, cap: 10)
+    check("浏览器导入：历史新增", fresh.added == 1)
+}
+testBrowserImportParsers()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

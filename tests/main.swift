@@ -3466,6 +3466,24 @@ testDiskStoreStaleOpGuard()
 testAgentInbox()
 testSessionArchive()
 testAgentInboxSinceMode()
+
+func testAgentInboxJobs() {
+    let id = UUID()
+    var inputs = AgentInbox.Inputs()
+    inputs.jobs = [.init(id: id, title: "Prepare publish: post",
+                         state: "Needs review", kind: "Publish")]
+    let sections = AgentInbox.build(inputs)
+    let item = sections.first?.items.first
+    check("收件箱：作业进 Needs you", item?.kind == .jobAttention && item?.jobID == id)
+    check("收件箱：作业详情带状态/类型",
+          item?.detail.contains("Needs review") == true
+              && item?.detail.contains("Publish") == true)
+    check("收件箱：作业 id 可反解",
+          AgentInbox.jobID(fromItemID: "job-\(id.uuidString)") == id
+              && AgentInbox.jobID(fromItemID: "job-bad") == nil)
+}
+testAgentInboxJobs()
+
 testNumericWatch()
 testAgentBudget()
 testStartupPageSet()

@@ -1,6 +1,11 @@
 import AppKit
 import SwiftUI
 
+extension Notification.Name {
+    /// 收件箱/其他面板请求打开 Jobs（Toolbar 拥有 sheet 状态）。
+    static let openJobsPanel = Notification.Name("desire.jobs.open")
+}
+
 /// 统一作业面板（v0.8.2）：发布准备、提及扫描等作业的状态、产物与回执。
 /// 不声称能取消底层任务——活动作业的按钮是 Dismiss（从视图移除）。
 struct JobsPanel: View {

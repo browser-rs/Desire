@@ -275,6 +275,7 @@ struct AgentInboxView: View {
         case .heldNotification: return String(localized: "Held")
         case .watchChange: return String(localized: "Watches")
         case .failedRun: return String(localized: "Failed runs")
+        case .jobAttention: return String(localized: "Jobs")
         }
     }
 
@@ -397,6 +398,12 @@ struct AgentInboxView: View {
             .controlSize(.small)
         case .watchChange:
             EmptyView()
+        case .jobAttention:
+            Button(String(localized: "Open Jobs")) {
+                NotificationCenter.default.post(name: .openJobsPanel, object: nil)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
         }
     }
 
@@ -408,6 +415,7 @@ struct AgentInboxView: View {
         case .heldNotification: return "bell.badge"
         case .watchChange: return "eye"
         case .failedRun: return "exclamationmark.triangle"
+        case .jobAttention: return "square.stack.3d.up"
         }
     }
 
@@ -419,6 +427,7 @@ struct AgentInboxView: View {
         case .heldNotification: return .orange
         case .watchChange: return .secondary
         case .failedRun: return .red
+        case .jobAttention: return appAccent
         }
     }
 

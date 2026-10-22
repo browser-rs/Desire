@@ -14,6 +14,7 @@ nonisolated enum AgentInbox {
         case heldNotification
         case watchChange
         case failedRun
+        case jobAttention
     }
 
     struct Item: Identifiable, Equatable {
@@ -23,6 +24,8 @@ nonisolated enum AgentInbox {
         let detail: String
         /// 会话语义的行（被打断/待回复）带它——视图据此跳回对话。
         let conversationID: UUID?
+        /// 作业行（v0.8.2）：指向 Jobs 面板里的 JobRecord。
+        var jobID: UUID? = nil
     }
 
     struct Section: Identifiable, Equatable {
@@ -66,12 +69,19 @@ nonisolated enum AgentInbox {
         struct HeldNotification: Equatable {
             let line: String
         }
+        struct Job: Equatable {
+            let id: UUID
+            let title: String
+            let state: String
+            let kind: String
+        }
 
         var conversations: [Conversation] = []
         var runs: [Run] = []
         var watches: [Watch] = []
         var interactions: [Interaction] = []
         var heldNotifications: [HeldNotification] = []
+        var jobs: [Job] = []
     }
 
     // MARK: - 构建（纯逻辑）
@@ -132,6 +142,18 @@ nonisolated enum AgentInbox {
                 title: String(localized: "\(interaction.author) left a message on \(interaction.platform)"),
                 detail: interaction.excerpt,
                 conversationID: nil))
+        }
+
+        // 作业（v0.8.2）：需要审批/复核/失败的后台作业进"Needs you"；
+        // 详情里给状态与类型，Open Jobs 处理。
+        for job in inputs.jobs.prefix(perSectionItemCap) {
+            action.append(Item(
+                id: "job-\(job.id.uuidString)",
+                kind: .jobAttention,
+                title: job.title,
+                detail: "\(job.state) · \(job.kind)",
+                conversationID: nil,
+                jobID: job.id))
         }
 
         // 被扣下的通知：聚合成一行（免打扰/预算），可一键补推。
@@ -203,5 +225,11 @@ nonisolated enum AgentInbox {
         guard !suffix.isEmpty, suffix.allSatisfy(\.isNumber) else { return nil }
         let name = rest[..<dash]
         return name.isEmpty ? nil : String(name)
+    }
+
+    /// 作业条目的 id → JobRecord id（`job-<uuid>`）。
+    static func jobID(fromItemID id: String) -> UUID? {
+        guard id.hasPrefix("job-") else { return nil }
+        return UUID(uuidString: String(id.dropFirst("job-".count)))
     }
 }

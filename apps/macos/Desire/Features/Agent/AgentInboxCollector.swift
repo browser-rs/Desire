@@ -42,6 +42,16 @@ enum AgentInboxCollector {
             }
         inputs.heldNotifications = ProactiveNotificationStore.shared.heldLines
             .map { AgentInbox.Inputs.HeldNotification(line: $0) }
+        inputs.jobs = JobStore.shared.jobs
+            .filter {
+                $0.source != "activity"
+                    && ($0.state == .needsReview || $0.state == .needsApproval
+                        || $0.state == .failed)
+            }
+            .map { job in
+                AgentInbox.Inputs.Job(id: job.id, title: job.title,
+                                      state: job.state.label, kind: job.kind.label)
+            }
         return inputs
     }
 

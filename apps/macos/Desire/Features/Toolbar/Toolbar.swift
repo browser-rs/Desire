@@ -213,6 +213,9 @@ struct Toolbar: View {
         .sheet(isPresented: $showDatasetCollect) {
             DatasetCollectSheet()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .openJobsPanel)) { _ in
+            showJobs = true
+        }
         .sheet(isPresented: $showAgentActions) {
             AgentActionsPanel()
         }

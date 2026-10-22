@@ -13,6 +13,8 @@
 - **增长分析：A/B 变体标记与对比（v0.8.2）**：帖子新增可选 `variantLabel`（A/B/标题钩子等），promotionSave 工具与桥 `/promotion/post` 均可写；周报新增「A/B 变体」段，按平台 × 变体统计篇数与平均浏览（样本 <2 不出结论、无浏览数据不计入）；草稿/已发行显示变体徽标。验收：桥写入 X 平台 A/A/B/B 四条并采数据 → 周报输出 `B 平均 400 / A 平均 150`；旧帖子缺字段解码为 nil；harness 7 项（1331/0）；clean Release 零警告。
 - **后台 Agent Runner（v0.8.2）**：没有活窗口时，定时/Playbook 等 Agent 任务不再直接记 "missed"，而是在**无头标签 + 隐藏会话**里跑完整工具循环（`TabManager(headless:)` 不注册、不落盘、不起挂起/内存计时器；会话不抢投递目标、不注册成窗口）。约束：同一时刻只跑一个后台作业；强制 `.confirmChanges`（后台不允许静默 fullAccess）；需要审批时作业停在 `needsApproval`，Jobs 面板可批准/拒绝，超 `agent.background.approvalSeconds`（默认 120s）自动拒绝；整作业 wall-clock 上限 `agent.background.timeoutSeconds`（默认 600s）；桥 `/jobs/action approve|deny` 可程序化决策。自动化钩子 `agent.background.force` 可强制走后台（不动用户标签页）。验收：假端点 + force 键 → 定时任务在后台跑完，Job `done`、run success、用户 5 个标签不变；审批/超时/预算路径已接线；测试任务/run 记录/假端点/偏好已全部清理；clean Release 零警告。
 - **列表 → 表格采集作业（v0.8.2）**：新工具 `collectDataset` / 桥 `POST /dataset/collect` / 工具栏 ⋯ → "Collect Table…"——给起始 URL、行选择器、字段（`key=selector` 每行一条）、翻页方式（单页/下一页按钮/URL 模板 `{page}`/滚动）、上限与去重键，确定性抓取（不逐行调模型），去重后写 CSV 到 Downloads，作业进 Jobs 并带回执/产物路径。验收：3 页 fixture 共 30 行、重叠 10 行 → 去重后 20 行 CSV（表头+20 行，末行正确），pages=3；CSV 转义/字段解析/短名翻页解析 harness 6 项（1338/0）；测试 CSV 与作业已清理；clean Release 零警告。
+- **收件箱接入作业控制面（v0.8.2）**：需要复核/审批或失败的本地作业（source 非 activity）现在进 Agent 收件箱 "Needs you"，带状态与类型、Open Jobs 入口（通知 Toolbar 打开 Jobs 面板）；工具条接收跨面板通知。验收：发布准备产生 `needsReview` 作业 → `/inbox` 出现 kind=jobAttention 条目（标题/详情正确）→ 清理后消失；harness 作业条目/id 反解 3 项（1341/0）；clean Release 零警告。
+
 
 
 

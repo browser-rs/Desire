@@ -555,6 +555,9 @@ final class AutomationServer {
         ep("GET", "/import/browsers", "Detected Chrome/Edge/Brave/Arc/Safari profiles with bookmarks/history paths", example: "…/import/browsers")
         ep("POST", "/import/preview", "Preview a browser profile (path = profile folder or data file): bookmark/history counts, settings, warnings", params: ["path:string"], example: "-d '{\"path\":\"/Users/me/Library/Application Support/Google/Chrome/Default\"}'")
         ep("POST", "/import/run", "Import from a browser profile (bookmarks/history/settings booleans, default all). Password import stays CSV-only.", params: ["path:string", "bookmarks?:bool", "history?:bool", "settings?:bool"], example: "-d '{\"path\":\"…/Default\",\"bookmarks\":true,\"history\":true}'")
+        ep("GET", "/webapps", "Installed web apps (App Mode) with id/name/url/shareSession", example: "…/webapps")
+        ep("POST", "/webapps/add", "Install a URL as a Web App (no window opened via bridge)", params: ["url:string", "name?:string", "shareSession?:bool"], example: "-d '{\"url\":\"https://example.com\",\"name\":\"Example\"}'")
+        ep("POST", "/webapps/delete", "Uninstall a Web App by id (clears its isolated data store)", params: ["id:uuid"], example: "-d '{\"id\":\"<uuid>\"}'")
         ep("GET", "/split", "Split-view state (selected + partner tab index)", example: "…/split")
         ep("POST", "/split", "Set the split-view right pane to a tab index", params: ["index:int"], example: "-d '{\"index\":1}'")
         ep("POST", "/split/close", "Leave split view", example: "-d '{}'")
@@ -1672,6 +1675,14 @@ final class AutomationServer {
                 return try Self.json(Self.importPreview(path: Self.string(body, "path") ?? ""))
             case ("POST", "/import/run"):
                 return try Self.json(Self.importRun(body: body))
+            case ("GET", "/webapps"):
+                return try Self.json(Self.webApps())
+            case ("POST", "/webapps/add"):
+                return try Self.json(Self.addWebApp(body: body))
+            case ("POST", "/webapps/open"):
+                return try Self.json(Self.openWebApp(id: Self.string(body, "id") ?? ""))
+            case ("POST", "/webapps/delete"):
+                return try Self.json(Self.deleteWebApp(id: Self.string(body, "id") ?? ""))
             case ("POST", "/containers/remove"):
                 return try Self.json(Self.removeContainer(Self.string(body, "name") ?? ""))
             case ("GET", "/site-settings"):
@@ -4434,6 +4445,53 @@ final class AutomationServer {
             ["level": m.level.rawValue, "message": m.message]
         }
         return ["messages": Array(rows)]
+    }
+
+    // MARK: - Web Apps (App Mode)
+
+    private static func webApps() throws -> [String: Any] {
+        ["apps": WebAppStore.shared.apps.map(webAppDict)]
+    }
+
+    private static func addWebApp(body: [String: Any]) throws -> [String: Any] {
+        guard let raw = Self.string(body, "url"),
+              let url = URL(string: raw),
+              let app = WebAppStore.shared.add(
+                url: url,
+                name: Self.string(body, "name"),
+                shareSession: body["shareSession"] as? Bool ?? false) else {
+            return ["error": "invalid url"]
+        }
+        return ["ok": true, "app": webAppDict(app)]
+    }
+
+    private static func openWebApp(id: String) throws -> [String: Any] {
+        guard let uuid = UUID(uuidString: id),
+              WebAppStore.shared.app(id: uuid) != nil else {
+            return ["error": "no such web app"]
+        }
+        NotificationCenter.default.post(name: .openWebApp, object: nil,
+                                        userInfo: ["id": uuid.uuidString])
+        return ["ok": true]
+    }
+
+    private static func deleteWebApp(id: String) throws -> [String: Any] {
+        guard let uuid = UUID(uuidString: id),
+              let app = WebAppStore.shared.app(id: uuid) else {
+            return ["error": "no such web app"]
+        }
+        NotificationCenter.default.post(name: .closeWebApp, object: nil,
+                                        userInfo: ["id": uuid.uuidString])
+        WebAppStore.shared.remove(app)
+        return ["ok": true]
+    }
+
+    private static func webAppDict(_ app: WebApp) -> [String: Any] {
+        ["id": app.id.uuidString,
+         "name": app.name,
+         "url": app.startURL,
+         "host": app.host,
+         "shareSession": app.shareSession]
     }
 
     /// Detected browser profiles for the import sheet / E2E.

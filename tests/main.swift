@@ -4354,6 +4354,16 @@ func testBrowserImportParsers() {
 }
 testBrowserImportParsers()
 
+func testWebAppModel() {
+    check("Web App：ftp 不可安装", WebApp.make(
+        url: URL(string: "ftp://example.com")!, name: nil, shareSession: false) == nil)
+    let app = WebApp.make(
+        url: URL(string: "https://example.com/a")!, name: "  ", shareSession: true)
+    check("Web App：空名回退 host", app?.name == "example.com" && app?.shareSession == true)
+    check("Web App：保留完整启动 URL", app?.startURL == "https://example.com/a")
+}
+testWebAppModel()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

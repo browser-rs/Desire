@@ -446,6 +446,13 @@ struct ContentView: View {
                 tabManager.persistSession(force: true)
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .openWebApp)) { note in
+            // 桥/深链打开 App Mode 窗口（openWindow 只在视图环境里可用）。
+            if let raw = note.userInfo?["id"] as? String,
+               let id = UUID(uuidString: raw) {
+                openWindow(id: "webapp", value: id)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { note in
             guard let window = note.object as? NSWindow else { return }
             if Self.isSiteFullscreenWindow(window, hosting: hostingWindow) {

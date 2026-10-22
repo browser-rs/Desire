@@ -73,6 +73,21 @@ struct DesireApp: App {
         mainWindow
         settingsWindow
         onboardingWindow
+        webAppWindow
+    }
+
+    /// App Mode 窗口（v0.8.0）：无浏览器 chrome 的独立站点窗口，值 = WebApp id。
+    private var webAppWindow: some Scene {
+        WindowGroup(id: "webapp", for: UUID.self) { $appID in
+            if let appID {
+                WebAppWindowView(appID: appID)
+            } else {
+                EmptyView()
+            }
+        }
+        .windowStyle(.hiddenTitleBar)
+        .windowResizability(.contentMinSize)
+        .restorationBehavior(.disabled)
     }
 
     private var mainWindow: some Scene {

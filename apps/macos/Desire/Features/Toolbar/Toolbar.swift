@@ -127,6 +127,8 @@ struct Toolbar: View {
     @State private var showMoreMenu = false
     @State private var showSecurityInfo = false
     @State private var showExtensionsPanel = false
+    @State private var showWebAppInstall = false
+    @State private var showWebApps = false
     /// 站点设置（字体弹层 + 控制中心共用；非观察引用：Toolbar 只把它交给
     /// 弹层构造，不读它的状态——同 downloadStore/passwordStore 的传递方式）。
     let siteSettingsStore: SiteSettingsStore
@@ -186,6 +188,14 @@ struct Toolbar: View {
             SiteFontSheet(host: fontSheetHost, store: siteSettingsStore) {
                 // 改一项立即重注入（不用刷新）。
                 SiteFontApplier.apply(to: tab.browser.webView, host: fontSheetHost, store: siteSettingsStore)
+            }
+        }
+        .sheet(isPresented: $showWebApps) {
+            WebAppsPanel()
+        }
+        .sheet(isPresented: $showWebAppInstall) {
+            if let url = tab.browser.webView.url {
+                WebAppInstallSheet(url: url, suggestedName: tab.browser.pageTitle)
             }
         }
         .onChange(of: isUrlFocused) { _, focused in
@@ -864,6 +874,10 @@ struct Toolbar: View {
                     Task { await generateShareCard() }
                 }
                 .disabled(tab.isOnNewTabPage)
+                moreMenuItem("Install as Web App…", "square.grid.2x2") {
+                    showWebAppInstall = true
+                }
+                .disabled(tab.isOnNewTabPage)
             }
             moreMenuSection("View") {
                 moreMenuItem("Zoom In", "plus.magnifyingglass", shortcut: "⌘=") { actions.zoomIn() }
@@ -890,6 +904,7 @@ struct Toolbar: View {
                 }
             }
             moreMenuSection("App") {
+                moreMenuItem("Web Apps…", "square.stack") { showWebApps = true }
                 moreMenuItem("Agent", "wand.and.stars") { actions.toggleAgentPanel() }
                 moreMenuItem("Preferences…", "gearshape", shortcut: "⌘,") { openWindow("settings") }
             }

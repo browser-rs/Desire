@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.0] - 2026-10-22
 ### Changed
 
 - **密钥单条目 `app-secrets-v1`（v0.8.0）**：AI Key 与同步主密钥/access/refresh 合并进一条 Keychain 条目——启动/同步/Agent 首次读取都只碰这一条（一次授权），不再按档案/令牌各弹一次。同步沿用上一版 `sync-secrets-v1` 自动做种子并写回；旧 AI Key 首次使用某档案时才读那一条并迁入（不批量读），删除/更新也只改单条。`refreshKeyState` 继续只查属性，启动零逐档案读取。验收：启动 keychain 日志只有 `read app-secrets-v1`；同步状态指纹/登录态正常；harness 新增 AppSecrets round-trip（1181/0）。

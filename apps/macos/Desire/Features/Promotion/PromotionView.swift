@@ -35,6 +35,7 @@ struct PromotionView: View {
     @ObservedObject private var scheduler = AgentScheduler.shared
     @ObservedObject private var playbookStore = PlaybookStore.shared
     @State private var runningPlaybook: Playbook?
+    @State private var editingPlaybook: Playbook?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -65,6 +66,11 @@ struct PromotionView: View {
         .sheet(item: $runningPlaybook) { playbook in
             PlaybookRunSheet(playbook: playbook) { prompt in
                 onSendToAgent?(prompt)
+            }
+        }
+        .sheet(item: $editingPlaybook) { playbook in
+            PlaybookEditorSheet(playbook: playbook) { updated in
+                _ = playbookStore.save(updated)
             }
         }
         .sheet(isPresented: $isCreatingAccount) { PromotionAccountEditorSheet() }
@@ -675,6 +681,12 @@ struct PromotionView: View {
             HStack(spacing: 6) {
                 sectionHeader(String(localized: "Playbooks"), count: playbookStore.playbooks.count)
                 Spacer()
+                Button(String(localized: "New")) {
+                    editingPlaybook = Playbook(name: "", instructions: "")
+                }
+                .buttonStyle(.plain)
+                .font(.system(size: 10.5, weight: .medium))
+                .foregroundStyle(appAccent)
                 Menu(String(localized: "Add Template")) {
                     ForEach(PlaybookTemplate.all(version: WhatsNewStore.shared.versionName)) { template in
                         Button(template.name) {
@@ -713,6 +725,31 @@ struct PromotionView: View {
                         }
                         .controlSize(.small)
                         .disabled(onSendToAgent == nil)
+                        Menu {
+                            if let task = playbookStore.scheduledTask(for: playbook) {
+                                Text(String(localized: "Scheduled: \(task.recurrenceText)"))
+                                Button(String(localized: "Remove schedule"), role: .destructive) {
+                                    playbookStore.unschedule(playbook)
+                                }
+                                Divider()
+                            }
+                            Button(String(localized: "Daily at 09:00")) {
+                                playbookStore.schedule(playbook, recurrence: .daily(hour: 9, minute: 0))
+                            }
+                            Button(String(localized: "Weekly on Monday 10:00")) {
+                                playbookStore.schedule(playbook, recurrence: .weekly(weekday: 2, hour: 10, minute: 0))
+                            }
+                        } label: {
+                            Image(systemName: "clock")
+                                .font(.system(size: 10))
+                        }
+                        .menuStyle(.borderlessButton)
+                        .fixedSize()
+                        .disabled(!PlaybookRun.missingRequired(playbook, values: [:]).isEmpty)
+                        .help("Schedule with default parameter values")
+                        HoverIcon(systemName: "pencil", action: {
+                            editingPlaybook = playbook
+                        }, help: String(localized: "Edit playbook"))
                         HoverIcon(systemName: "trash", action: {
                             playbookStore.delete(playbook.id)
                         }, help: String(localized: "Delete playbook"))

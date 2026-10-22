@@ -9,6 +9,8 @@
 - **Work Queue 2.0（v0.8.2 第一批）**：新增统一作业账本 `JobRecord`/`JobStore`（state/进度/产物/回执/错误/来源/外部 id，300 条上限只淘汰最旧终态），工具栏 ⋯ → "Jobs…" 面板按 Needs review / Running / Failed / Finished 查看，可打开 http 产物或本地文件、Dismiss 活动作业、删除/清空已完成。发布准备现在自动建作业（填完 composer → `needsReview` + 产物 URL + 回执；失败/找不到输入框 → `failed` + 原因），`Mark Published`/桥 status=published 会把对应作业标 done 并记 URL；提及扫描也自动建作业并写扫描回执。桥新增 `GET /jobs`、`POST /jobs/action`。验收：fixture 发布准备 → 作业 `needsReview` 且 artifact=composer URL → 标已发布 → `done` + URL；Dismiss 活动作业 → cancelled，clearFinished 生效；harness JobRecord 4 项（1312/0）。下载/定时/批量等旧子系统的 adapter 仍在后续批次接入。
 - **Work Queue 旧子系统 adapter（v0.8.2）**：Jobs 面板与 `/jobs` 现在合并下载、批量媒体、媒体导出、定时运行、Agent 回合与 crew（经 ActivityCenter 只读投影），不复制状态、不写回；稳定哈希 id 保证刷新不跳行，旧子系统条目只提供 Activity 入口、不提供 Dismiss/删除。验收：`/jobs` 返回 8 条历史下载（activity 来源，done）且 summary 正确；harness 状态/类型映射、稳定 id、finishedAt 6 项（1318/0）；clean Release 零警告。
 - **运营 Playbooks（v0.8.2 第一批）**：新增参数化可运行定义（名称/说明/指令/参数/输出方式/可选技能），首次启动种子 4 个运营模板：发版宣传、每周运营复盘、回复提及、网页引用简报。运营页新增 Playbooks 区块与运行表单（必填校验、默认值、选择项、Copy Prompt）；运行把参数与指令组合成一条 prompt 交给现有 Agent 回合（不是新执行引擎），并强制写明"发布/发送/提交/购买必须人工批准"与输出方式。桥新增 `GET /playbooks`、`POST /playbooks/run`（缺必填参数在发送前拒绝）。验收：4 个模板列出、缺参拒绝、prompt 含参数/规则/输出方式；harness 7 项（1325/0）；clean Release 零警告。自定义编辑器与定时运行留后续批次。
+- **Playbooks 自定义编辑器 + 定时（v0.8.2）**：运营页 Playbooks 支持新建/编辑——名称、说明、指令、可选技能、输出方式（聊天/文件/笔记）、参数列表（key/label/默认值/choices/必填），保存前校验名称/指令/参数 key 唯一。每个 Playbook 时钟菜单可按默认参数排每日 09:00 或每周一 10:00，必填参数无默认值时禁止排程；桥 `POST /playbooks/schedule` 支持 schedule/remove。验收：每周复盘模板排程成功并出现在任务列表，随后移除；页面简报模板因无默认必填参数被拒，不产生任务；clean Release 零警告。
+
 
 
 

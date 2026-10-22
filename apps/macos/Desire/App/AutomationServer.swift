@@ -701,6 +701,7 @@ final class AutomationServer {
         ep("POST", "/jobs/action", "Dismiss an active job / delete a job / clear finished jobs", params: ["action:dismiss|delete|clearFinished", "id?:uuid"], example: #"-d '{"action":"clearFinished"}'"#)
         ep("GET", "/playbooks", "Operations playbooks (parameterized runnable prompts)", example: "…/playbooks")
         ep("POST", "/playbooks/run", "Compose a playbook with values and send it to the live agent session (no auto-publish)", params: ["id:uuid", "values?:object"], example: #"-d '{"id":"<uuid>","values":{"focus":"pricing"}}'"#)
+        ep("POST", "/playbooks/schedule", "Schedule a playbook with its default parameter values (dailyAt or everyMinutes) / remove it", params: ["id:uuid", "action?:schedule|remove", "dailyAt?:HH:MM", "everyMinutes?:int"], example: #"-d '{"id":"<uuid>","dailyAt":"09:00"}'"#)
         ep("POST", "/promotion/goal", "Add a promotion goal", params: ["title:string", "objective?:string", "platforms?:array", "targetPosts?:int", "dueDate?:string(yyyy-MM-dd|ISO8601)"], example: #"-d '{"title":"v0.7.15 发布宣传","platforms":["掘金"],"targetPosts":2}'"#)
         ep("POST", "/promotion/goal/remove", "Remove a promotion goal by id (posts keep their history, link cleared)", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/promotion/post", "Save or update a workbench post (idea/draft/published; pass id to update, plannedFor=yyyy-MM-dd) — same semantics as the agent's promotionSave tool", params: ["id?:string", "platform?:string", "title?:string", "body?:string", "status?:idea|draft|published", "url?:string", "goal?:string", "plannedFor?:string"], example: #"-d '{"platform":"掘金","title":"…","body":"…","status":"draft","plannedFor":"2026-10-20"}'"#)
@@ -1204,6 +1205,8 @@ final class AutomationServer {
                 return try Self.json(Self.playbooksList())
             case ("POST", "/playbooks/run"):
                 return try Self.json(Self.playbookRun(body))
+            case ("POST", "/playbooks/schedule"):
+                return try Self.json(Self.playbookSchedule(body))
             case ("POST", "/promotion/goal"):
                 return try Self.json(Self.promotionGoalAdd(body))
             case ("POST", "/promotion/goal/remove"):
@@ -6545,6 +6548,36 @@ final class AutomationServer {
         session.sendMessage(prompt, recordHistory: false)
         return ["ok": true, "playbook": PlaybookStore.shared.playbook(id: id)?.name ?? "",
                 "prompt": prompt]
+    }
+
+    private static func playbookSchedule(_ body: [String: Any]) -> [String: Any] {
+        guard let raw = string(body, "id"), let id = UUID(uuidString: raw),
+              let playbook = PlaybookStore.shared.playbook(id: id) else {
+            return ["error": "unknown playbook id"]
+        }
+        if (string(body, "action") ?? "schedule").lowercased() == "remove" {
+            PlaybookStore.shared.unschedule(playbook)
+            return ["ok": true, "scheduled": false]
+        }
+        let recurrence: AgentScheduler.ScheduledTask.Recurrence
+        if let dailyAt = string(body, "dailyAt") {
+            let parts = dailyAt.split(separator: ":")
+            guard parts.count == 2, let hour = Int(parts[0]), let minute = Int(parts[1]),
+                  (0...23).contains(hour), (0...59).contains(minute) else {
+                return ["error": "invalid dailyAt — expected HH:MM"]
+            }
+            recurrence = .daily(hour: hour, minute: minute)
+        } else if let minutes = (body["everyMinutes"] as? Int)
+                    ?? (string(body, "everyMinutes")).flatMap(Int.init) {
+            recurrence = .everyMinutes(max(5, minutes))
+        } else {
+            return ["error": "provide dailyAt (HH:MM) or everyMinutes (>= 5)"]
+        }
+        guard PlaybookStore.shared.schedule(playbook, recurrence: recurrence) else {
+            return ["error": "playbook has required parameters without defaults — edit it first"]
+        }
+        return ["ok": true, "scheduled": true,
+                "task": PlaybookStore.shared.taskName(for: playbook)]
     }
 
     private static func promotionGoalAdd(_ body: [String: Any]) -> [String: Any] {

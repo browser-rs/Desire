@@ -58,6 +58,32 @@ final class PlaybookStore: ObservableObject {
         return PlaybookRun.compose(playbook, values: values)
     }
 
+    // MARK: - 定时
+
+    func taskName(for playbook: Playbook) -> String {
+        "Playbook: \(playbook.name)"
+    }
+
+    func scheduledTask(for playbook: Playbook) -> AgentScheduler.ScheduledTask? {
+        AgentScheduler.shared.tasks.first { $0.name == taskName(for: playbook) }
+    }
+
+    /// 用默认参数排程；必填项没有默认值则拒绝。
+    @discardableResult
+    func schedule(_ playbook: Playbook,
+                  recurrence: AgentScheduler.ScheduledTask.Recurrence) -> Bool {
+        guard PlaybookRun.missingRequired(playbook, values: [:]).isEmpty else { return false }
+        let prompt = PlaybookRun.compose(playbook, values: [:])
+        _ = AgentScheduler.shared.remove(named: taskName(for: playbook))
+        return AgentScheduler.shared.add(name: taskName(for: playbook),
+                                         prompt: prompt,
+                                         recurrence: recurrence) != nil
+    }
+
+    func unschedule(_ playbook: Playbook) {
+        _ = AgentScheduler.shared.remove(named: taskName(for: playbook))
+    }
+
     private func save() {
         DiskStore.save(playbooks, key: Self.storageKey)
     }

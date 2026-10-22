@@ -197,7 +197,10 @@ yt-related-chip-cloud-renderer[component-style="AD_SERIES_WEB"],
 .bili-video-ad, .bilibili-player-video-ad, .bilibili-player-ad,
 .bilibili-player-video-ad-bottom, .bpx-player-video-wrap ~ .bpx-player-ad,
 .bpx-player-auxiliary-area .bpx-player-ad,
-.bilibili-player-ad-bottom, .bilibili-player-promote-wrap {
+.bilibili-player-ad-bottom, .bilibili-player-promote-wrap,
+.bpx-player-ad-card, .bpx-player-ad-tips, .bpx-player-ad-report, .bpx-player-ad-mask,
+.bili-feed-card--ad, .bili-feed-card__ad, .bili-video-card-ad, .bili-ad,
+.ad-floor, .ad-floor-exp, .bili-live-card--ad, .live-card-ad, .bili-comment-ad {
     display: none !important;
 }
 
@@ -774,6 +777,7 @@ extension VideoSite {
             }
         } catch(e) {}
     };
+    var lastPostAt = 0;
     // Container selectors for video feed cards. Removing one of these
     // removes the whole sponsored video entry.
     var CARD = '.bili-video-card,.video-card,.feed-card,.bili-feed-card,.recommend-list .video-card,.bili-rank-list__item,.recommend-card';
@@ -862,7 +866,29 @@ extension VideoSite {
         document.querySelectorAll('.bili-popup, .popup-ad, .bili-guide, .nav-link .nav-link-ul .nav-link-item:nth-last-child(-n+2)').forEach(function(el) {
             if (removeCard(el)) count++;
         });
-        if (count > 0) POST({ site: 'bilibili', count: count });
+        // 6) Anti-adblock placeholder cards: B站检测到拦截插件后，会把广告位
+        // 换成「该内容被AdGuard/AdBlock类插件屏蔽 请检查插件以恢复正常内容
+        // 展示」。这是站点自己渲染的占位卡，不是广告内容本身——把整张卡
+        // 一起移除，否则会留下灰色空卡（用户截图实测）。
+        document.querySelectorAll('[class*="card"],[class*="feed"],li').forEach(function(el) {
+            if (!el.parentNode) return;
+            var text = (el.innerText || '').replace(/\\s+/g, '');
+            if (!text || text.length > 260) return;
+            var isNotice = (text.indexOf('AdGuard') >= 0 && text.indexOf('屏蔽') >= 0)
+                || (text.indexOf('请检查插件') >= 0 && text.indexOf('恢复正常') >= 0)
+                || text.indexOf('该内容被AdGuard') >= 0;
+            if (!isNotice) return;
+            var card = el.closest('[class*="card"],li');
+            if (removeCard(card || el)) count++;
+        });
+        if (count > 0) {
+            // 同一轮 SPA 重渲染会反复命中原节点；1s 节流避免统计被刷成"拦了上百个"。
+            var now = Date.now();
+            if (now - lastPostAt > 1000) {
+                lastPostAt = now;
+                POST({ site: 'bilibili', count: count });
+            }
+        }
     }
     function skipAd() {
         var adLayer = document.querySelector('.bpx-player-video-ad, .bpx-player-ad');

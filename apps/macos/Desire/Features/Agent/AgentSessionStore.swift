@@ -1391,8 +1391,20 @@ class AgentSessionStore: ObservableObject {
             .contains { lowered.contains($0) }
     }
 
-    private static func isTransientStreamError(_ error: Error) -> Bool {
-        switch error {
+    /// 模型/网关不支持所选的 `reasoning_effort`（不同服务对 high/medium 的
+    /// 词汇支持不一致）。命中后自动降级为 Off 重试一次，别把设置卡死。
+    static func isUnsupportedReasoningError(_ error: Error) -> Bool {
+        var text = String(describing: error) + " " + error.localizedDescription
+        if let localized = (error as? LocalizedError)?.errorDescription {
+            text += " " + localized
+        }
+        let lowered = text.lowercased()
+        guard lowered.contains("reasoning") || lowered.contains("thinking") else { return false }
+        return ["unsupported", "not supported", "invalid", "unknown", "unrecognized", "不支持"]
+            .contains { lowered.contains($0) }
+    }
+
+    private static func isTransientStreamError(_ error: Error) -> Bool {        switch error {
         case AgentServiceError.httpStatus(let code, _):
             return [429, 500, 502, 503, 504].contains(code)
         case AgentServiceError.network(let underlying):
@@ -2046,6 +2058,20 @@ class AgentSessionStore: ObservableObject {
                 Log.agent.info("routing: auto route failed (\(routeError.localizedDescription, privacy: .public)) — retrying once on cloud")
                 preference.routingLockedToCloud = true
                 defer { preference.routingLockedToCloud = false }
+                do {
+                    try await runStream()
+                } catch {
+                    fail(error)
+                    return
+                }
+            } catch let error where assistantMsg == nil
+                                    && preference.reasoningEffort != "off"
+                                    && Self.isUnsupportedReasoningError(error) {
+                // 服务不支持当前思考档位（不同网关对 high/medium 的词汇不一致）：
+                // 自动降到 Off 重试一次，并在对话里说明，避免用户以为聊天坏了。
+                Log.agent.info("reasoning effort unsupported — falling back to off (\(error.localizedDescription, privacy: .public))")
+                preference.reasoningEffort = "off"
+                appendLocalAssistant(String(localized: "This model doesn't support the selected thinking level — switched to Off and retrying."))
                 do {
                     try await runStream()
                 } catch {

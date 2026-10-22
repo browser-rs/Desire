@@ -5022,6 +5022,33 @@ func testDatasetSpec() {
 }
 testDatasetSpec()
 
+func testBatchStallPolicy() {
+    let now = Date()
+    let old = now.addingTimeInterval(-200)
+    let fresh = now.addingTimeInterval(-10)
+    check("批下载卡死：无任何时间戳不动",
+          BatchStallPolicy.action(lastProgressAt: nil, startedAt: nil,
+                                  cancelledAt: nil, now: now) == .none)
+    check("批下载卡死：近期有进度不动",
+          BatchStallPolicy.action(lastProgressAt: fresh, startedAt: old,
+                                  cancelledAt: nil, now: now) == .none)
+    check("批下载卡死：进度超时→取消",
+          BatchStallPolicy.action(lastProgressAt: old, startedAt: old,
+                                  cancelledAt: nil, now: now) == .cancel)
+    check("批下载卡死：从未回调但 startedAt 超时→取消",
+          BatchStallPolicy.action(lastProgressAt: nil, startedAt: old,
+                                  cancelledAt: nil, now: now) == .cancel)
+    check("批下载卡死：刚取消仍在宽限期",
+          BatchStallPolicy.action(lastProgressAt: old, startedAt: old,
+                                  cancelledAt: now.addingTimeInterval(-30),
+                                  now: now) == .none)
+    check("批下载卡死：取消后宽限期过→强制失败",
+          BatchStallPolicy.action(lastProgressAt: old, startedAt: old,
+                                  cancelledAt: now.addingTimeInterval(-61),
+                                  now: now) == .forceFail)
+}
+testBatchStallPolicy()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

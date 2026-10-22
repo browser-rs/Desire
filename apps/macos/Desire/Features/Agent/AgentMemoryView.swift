@@ -244,25 +244,19 @@ struct AgentMemoryView: View {
                 .padding(.bottom, 6)
 
                 if !memory.archive.facts.isEmpty {
-                    HStack(spacing: 8) {
-                        HStack(spacing: 5) {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundStyle(.secondary)
-                            TextField("Search memory…", text: $factSearch)
-                                .textFieldStyle(.plain)
+                    // 窄面板下搜索框 + 分段筛选会横向溢出（用户实测）：
+                    // 放得下就并排，放不下就上下两行。
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 8) {
+                            memorySearchField
+                                .frame(minWidth: 140)
+                            memoryFilterPicker
+                                .frame(width: 230)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 6))
-
-                        Picker("Filter", selection: $factFilter) {
-                            ForEach(MemoryModels.FactFilter.allCases, id: \.self) { filter in
-                                Text(filter.title).tag(filter)
-                            }
+                        VStack(alignment: .leading, spacing: 6) {
+                            memorySearchField
+                            memoryFilterPicker
                         }
-                        .pickerStyle(.segmented)
-                        .frame(width: 230)
                     }
                     .padding(.horizontal, 10)
                     .padding(.bottom, 6)
@@ -295,6 +289,28 @@ struct AgentMemoryView: View {
     }
 
     @ViewBuilder
+    private var memorySearchField: some View {
+        HStack(spacing: 5) {
+            Image(systemName: "magnifyingglass")
+                .foregroundStyle(.secondary)
+            TextField("Search memory…", text: $factSearch)
+                .textFieldStyle(.plain)
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color(nsColor: .controlBackgroundColor))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+
+    private var memoryFilterPicker: some View {
+        Picker("Filter", selection: $factFilter) {
+            ForEach(MemoryModels.FactFilter.allCases, id: \.self) { filter in
+                Text(filter.title).tag(filter)
+            }
+        }
+        .pickerStyle(.segmented)
+    }
+
     private func factRow(_ fact: MemoryFact) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Button {

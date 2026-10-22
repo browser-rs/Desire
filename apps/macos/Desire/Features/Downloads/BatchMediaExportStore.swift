@@ -74,6 +74,10 @@ final class BatchMediaExportStore: ObservableObject {
     private var itemProgress: [UUID: (done: Int, total: Int, unit: MediaExporter.ProgressUnit)] = [:]
     /// 槽位看门狗依据：每个在跑项最近一次进度回调的时间。
     private var lastProgressAt: [UUID: Date] = [:]
+    /// 进入 downloading 的时刻（看门狗兜底：没有任何进度回调的挂死项）。
+    private var downloadStartedAt: [UUID: Date] = [:]
+    /// 看门狗已发 cancel 的时刻；再过 60s 仍未收到完成回调就本机强制失败。
+    private var watchdogCancelledAt: [UUID: Date] = [:]
 
     /// 同批下载并发上限（用户可在 config 里调 1-4）。
     private var maxConcurrentDownloads: Int { BatchMediaPreferences.maxConcurrent }
@@ -607,6 +611,10 @@ final class BatchMediaExportStore: ObservableObject {
             if let jobID = batches[bi].items[ii].jobID {
                 MediaExportStore.shared.cancel(id: jobID)
             }
+            let itemID = batches[bi].items[ii].id
+            lastProgressAt[itemID] = nil
+            downloadStartedAt[itemID] = nil
+            watchdogCancelledAt[itemID] = nil
         }
         // 非终态项统一收口成 skipped，快照里不留永远停在 resolving 的行。
         for ii in batches[bi].items.indices
@@ -686,15 +694,54 @@ final class BatchMediaExportStore: ObservableObject {
                   batches[bi].state == .running,
                   !isHalted(batchID) else { return }
             let now = Date()
+            var forceFail: [UUID] = []
             for item in batches[bi].items where item.state == .downloading {
-                guard let at = lastProgressAt[item.id],
-                      now.timeIntervalSince(at) > 180,
-                      let jobID = item.jobID else { continue }
-                Log.downloads.error("item stalled (no progress for 3min) — cancelling its job to free the slot (batch \(batchID.uuidString.prefix(8), privacy: .public))")
-                lastProgressAt[item.id] = nil
-                MediaExportStore.shared.cancel(id: jobID)
+                switch BatchStallPolicy.action(
+                    lastProgressAt: lastProgressAt[item.id],
+                    startedAt: downloadStartedAt[item.id],
+                    cancelledAt: watchdogCancelledAt[item.id],
+                    now: now) {
+                case .none:
+                    continue
+                case .forceFail:
+                    // cancel 发出 60s 仍没有完成回调 = completion 丢了；
+                    // 本机强制失败，释放槽位继续队列。
+                    forceFail.append(item.id)
+                case .cancel:
+                    if let jobID = item.jobID {
+                        Log.downloads.error("item stalled (no progress for 3min) — cancelling its job to free the slot (batch \(batchID.uuidString.prefix(8), privacy: .public))")
+                        watchdogCancelledAt[item.id] = now
+                        MediaExportStore.shared.cancel(id: jobID)
+                    } else {
+                        // downloading 但没有 jobID：状态登记中途断了，没人会回调。
+                        forceFail.append(item.id)
+                    }
+                }
+            }
+            for itemID in forceFail {
+                forceFailStalled(batchID: batchID, itemID: itemID)
+            }
+            if !forceFail.isEmpty {
+                persistUnfinished()
+                pumpDownloads(batchID)
+                checkBatchSettled(batchID)
             }
         }
+    }
+
+    /// 看门狗最终兜底：标记 failed（计入 attempts），释放并发槽。
+    private func forceFailStalled(batchID: UUID, itemID: UUID) {
+        guard let bi = batches.firstIndex(where: { $0.id == batchID }),
+              let ii = batches[bi].items.firstIndex(where: { $0.id == itemID }),
+              batches[bi].items[ii].state == .downloading else { return }
+        batches[bi].items[ii].attempts += 1
+        batches[bi].items[ii].state = .failed
+        batches[bi].items[ii].summary = "download stalled (watchdog force-fail: no completion callback)"
+        blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 卡死且取消无回调，强制失败并释放并发槽")
+        Log.downloads.error("item force-failed by watchdog — slot freed (batch \(batchID.uuidString.prefix(8), privacy: .public))")
+        lastProgressAt[itemID] = nil
+        downloadStartedAt[itemID] = nil
+        watchdogCancelledAt[itemID] = nil
     }
 
     private func engineLoop(_ batchID: UUID) async {
@@ -920,6 +967,8 @@ final class BatchMediaExportStore: ObservableObject {
                 Log.downloads.info("index hit but file missing — re-downloading (\(downloaded, privacy: .public))")                
             }
             batches[bi].items[ii].state = .downloading
+            downloadStartedAt[itemID] = Date()
+            watchdogCancelledAt[itemID] = nil
             running += 1
             // **复用已下完整 .ts**：上次下载完成但合成失败/中断（.ts 完好在
             // 盘）→ 直接进合成，不重新抓全部分片（01 号 6.4GB 实测重复下载）。
@@ -1081,6 +1130,10 @@ final class BatchMediaExportStore: ObservableObject {
             if let jobID = batches[bi].items[ii].jobID {
                 MediaExportStore.shared.cancel(id: jobID)
             }
+            let itemID = batches[bi].items[ii].id
+            lastProgressAt[itemID] = nil
+            downloadStartedAt[itemID] = nil
+            watchdogCancelledAt[itemID] = nil
         }
         for ii in batches[bi].items.indices
         where [.downloading, .resolving, .needsHuman].contains(batches[bi].items[ii].state) {
@@ -1208,11 +1261,13 @@ final class BatchMediaExportStore: ObservableObject {
     // MARK: - 结果回收与自动重试
 
     private func downloadSettled(batchID: UUID, itemID: UUID, outcome: MediaExportStore.JobOutcome) {
+        itemProgress[itemID] = nil
+        lastProgressAt[itemID] = nil
+        downloadStartedAt[itemID] = nil
+        watchdogCancelledAt[itemID] = nil
         guard let bi = batches.firstIndex(where: { $0.id == batchID }),
               batches[bi].state == .running,
               let ii = batches[bi].items.firstIndex(where: { $0.id == itemID }) else { return }
-        itemProgress[itemID] = nil
-        lastProgressAt[itemID] = nil
         // 外部（skip）已定的终态不被回调改写。
         guard batches[bi].items[ii].state != .skipped else { return }
         switch outcome {

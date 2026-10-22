@@ -23,8 +23,16 @@ final class JobStore: ObservableObject {
     func job(id: UUID) -> JobRecord? { jobs.first { $0.id == id } }
 
     /// 旧子系统的只读投影（下载/批量/导出/定时/Agent/crew）。
+    /// 1 秒缓存：Jobs 面板一次渲染会取多份列表，避免反复扫全部 store。
+    private var adapterCache: (at: Date, jobs: [JobRecord])?
+
     var adapterJobs: [JobRecord] {
-        JobAdapter.jobs(from: ActivityCenter.build(ActivityCenterCollector.liveInputs()))
+        if let cache = adapterCache, Date().timeIntervalSince(cache.at) < 1 {
+            return cache.jobs
+        }
+        let jobs = JobAdapter.jobs(from: ActivityCenter.build(ActivityCenterCollector.liveInputs()))
+        adapterCache = (Date(), jobs)
+        return jobs
     }
 
     /// 账本 + 旧子系统投影，统一按更新时间倒序。

@@ -40,7 +40,6 @@ enum DatasetCollector {
         var rows: [[String: String]] = []
         var errors: [String] = []
         var pages = 0
-        var lastCount = 0
 
         for page in 1...spec.maxPages {
             if page == 1 {
@@ -81,13 +80,19 @@ enum DatasetCollector {
 
             let pageRows = await extract(webView, spec: spec)
             if pageRows.isEmpty { break }
+            let uniqueBefore = spec.pagination == .scroll
+                ? DatasetSpec.dedupe(rows, key: spec.dedupeKey).count : rows.count
             pages += 1
             rows += pageRows
             JobStore.shared.update(jobID, detail: "page \(pages) · \(rows.count) row(s)",
                                    progress: Double(min(rows.count, spec.maxRows)) / Double(spec.maxRows))
             if rows.count >= spec.maxRows { break }
-            if spec.pagination == .scroll, pageRows.count == lastCount { break }
-            lastCount = pageRows.count
+            // 滚动加载没有新增任何唯一行 → 到底（比较去重后的行数；每屏
+            // 行数相同不能当判据，否则永远误判成没增长）。
+            if spec.pagination == .scroll,
+               DatasetSpec.dedupe(rows, key: spec.dedupeKey).count == uniqueBefore {
+                break
+            }
         }
 
         let deduped = DatasetSpec.dedupe(rows, key: spec.dedupeKey)

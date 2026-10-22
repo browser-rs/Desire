@@ -4459,6 +4459,25 @@ func testPageWatchDigest() {
 }
 testPageWatchDigest()
 
+func testSettingsSearch() {
+    check("设置检索：目录条数下限", SettingsSearch.entries.count >= 50)
+    let sync = SettingsSearch.search("同步")
+    check("设置检索：中文同步命中 sync 分区", sync.contains { $0.entry.section == "sync" })
+    let low = SettingsSearch.search("低电量")
+    check("设置检索：低电量命中下载策略",
+          low.contains { $0.entry.id == "general.downloadPolicy" })
+    let key = SettingsSearch.search("keychain")
+    check("设置检索：keychain 命中密钥相关",
+          key.contains { $0.entry.section == "ai" || $0.entry.section == "sync" })
+    let both = SettingsSearch.search("下载 目录")
+    check("设置检索：多词 AND 命中下载目录",
+          both.contains { $0.entry.id == "general.downloadFolder" })
+    check("设置检索：无结果", SettingsSearch.search("zzzz-not-a-setting").isEmpty)
+    check("设置检索：标题精确优先",
+          SettingsSearch.search("Sync Account").first?.entry.id == "sync.account")
+}
+testSettingsSearch()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

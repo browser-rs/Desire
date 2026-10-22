@@ -614,6 +614,7 @@ final class AutomationServer {
         ep("POST", "/media/exports/cancel", "Cancel a running media export", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/media/batch", "Batch video download: mode=page queues every stream sniffed on the tab; mode=list resolves each detail-page URL in a hidden browser (serialized, Cloudflare-aware)", params: ["mode:page|list", "urls?:[string] (mode=list)", "folderName?:string", "index?:int (mode=page)"], example: #"-d '{"mode":"list","urls":["https://…/v1","https://…/v2"],"folderName":"demo"}'"#)
         ep("POST", "/settings/section", "Select the settings window section (automation; also opens the settings window)", params: ["section:string (general|ai|sync|remote|privacy|autofill|keyboardShortcuts|batchDownloads)"], example: #"-d '{"section":"batchDownloads"}'"#)
+        ep("GET", "/settings/search", "Search the settings catalog (section/title/subtitle/keywords); returns section raw values", params: ["q:string", "limit?:int"], example: "…/settings/search?q=sync")
         ep("GET", "/notifications/policy", "Proactive notification policy (quiet hours / daily routine budget) + digest queue state", example: "…/notifications/policy")
         ep("POST", "/notifications/policy", "Update the notification policy (omit fields to keep)", params: ["quietHoursEnabled?:bool", "quietStart?:HH:mm", "quietEnd?:HH:mm", "dailyRoutineLimit?:int (0 = unlimited)"], example: #"-d '{"quietHoursEnabled":true,"quietStart":"23:00","quietEnd":"08:00"}'"#)
         ep("POST", "/notifications/test", "Push a test notification through the tiering gate (E2E): reports held vs delivered", params: ["tier:routine|urgent", "title?:string", "body?:string"], example: #"-d '{"tier":"routine","title":"T"}'"#)
@@ -2472,6 +2473,10 @@ final class AutomationServer {
                 SettingsView.SettingsSectionNavigator.shared.selected = section
                 _ = try? Self.sendCommand(name: "showSettings", index: nil)
                 return try Self.json(["ok": true, "section": section.rawValue])
+            case ("GET", "/settings/search"):
+                return try Self.json(Self.settingsSearch(
+                    query: Self.string(query, "q") ?? "",
+                    limit: Int(Self.string(query, "limit") ?? "") ?? 30))
             case ("GET", "/notifications/policy"):
                 let store = ProactiveNotificationStore.shared
                 return try Self.json([
@@ -3898,6 +3903,21 @@ final class AutomationServer {
     }
 
     // MARK: - History content index (v0.8.0)
+
+    private static func settingsSearch(query: String, limit: Int) -> [String: Any] {
+        let all = SettingsSearch.search(query)
+        let capped = all.prefix(max(1, min(limit, 100)))
+        let hits: [[String: Any]] = capped.map { hit in
+            var row: [String: Any] = ["id": hit.entry.id,
+                                      "section": hit.entry.section,
+                                      "title": hit.entry.title,
+                                      "score": hit.score]
+            if let subtitle = hit.entry.subtitle { row["subtitle"] = subtitle }
+            return row
+        }
+        return ["query": query, "hits": hits, "total": all.count,
+                "entries": SettingsSearch.entries.count]
+    }
 
     private static func historyContentSearch(query: String, limit: Int) throws -> [String: Any] {
         let hits = HistoryContentStore.shared.search(query: query,

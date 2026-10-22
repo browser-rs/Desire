@@ -87,6 +87,8 @@ struct SettingsView: View {
     /// 选中分区**提升到导航状态**（桥 `POST /settings/section` 可写）——
     /// 自动化验证设置页分区不再靠坐标点击侧栏。
     @ObservedObject private var navigator = SettingsSectionNavigator.shared
+    /// 设置全文检索（v0.9.0）：命中后跳到对应分区并清空查询。
+    @State private var searchQuery = ""
 
     var body: some View {
         content
@@ -96,26 +98,106 @@ struct SettingsView: View {
             .appAccent(settings.accentColor.color)
     }
 
+    private var settingsSearchField: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+            TextField("Search settings…", text: $searchQuery)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+            if !searchQuery.isEmpty {
+                Button {
+                    searchQuery = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.7))
+        )
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+    }
+
+    private var settingsSearchResults: some View {
+        let hits = SettingsSearch.search(searchQuery)
+        return Group {
+            if hits.isEmpty {
+                Text("No settings found.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                List(hits, id: \.entry.id) { hit in
+                    Button {
+                        if let section = Section(rawValue: hit.entry.section) {
+                            navigator.selected = section
+                            searchQuery = ""
+                        }
+                    } label: {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(hit.entry.title)
+                                .font(.system(size: 12.5, weight: .medium))
+                                .lineLimit(1)
+                            HStack(spacing: 4) {
+                                if let section = Section(rawValue: hit.entry.section) {
+                                    Text(section.title)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
+                                }
+                                if let subtitle = hit.entry.subtitle {
+                                    Text(verbatim: "· \(subtitle)")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.tertiary)
+                                        .lineLimit(1)
+                                }
+                            }
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+                .listStyle(.sidebar)
+            }
+        }
+    }
+
     private var content: some View {
         NavigationSplitView {
-            List(Section.allCases, selection: $navigator.selected) { section in
-                // 自绘行而不是 `Label`：侧栏各 SF Symbol 的固有宽度差别很大，
-                // 系统按图标原始宽度排版时标题起始位置会参差（"远程"那一项看着
-                // 就像错位了）。固定 18pt 图标列后所有标题左边缘对齐。
-                HStack(spacing: 8) {
-                    Image(systemName: section.icon)
-                        .font(.system(size: 12.5, weight: .medium))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 18, alignment: .center)
-                    Text(section.title)
-                        .font(.system(size: 13))
-                    Spacer(minLength: 0)
+            VStack(spacing: 0) {
+                settingsSearchField
+                if searchQuery.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    List(Section.allCases, selection: $navigator.selected) { section in
+                        // 自绘行而不是 `Label`：侧栏各 SF Symbol 的固有宽度差别很大，
+                        // 系统按图标原始宽度排版时标题起始位置会参差（"远程"那一项看着
+                        // 就像错位了）。固定 18pt 图标列后所有标题左边缘对齐。
+                        HStack(spacing: 8) {
+                            Image(systemName: section.icon)
+                                .font(.system(size: 12.5, weight: .medium))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 18, alignment: .center)
+                            Text(section.title)
+                                .font(.system(size: 13))
+                            Spacer(minLength: 0)
+                        }
+                        .tag(section)
+                    }
+                    .listStyle(.sidebar)
+                } else {
+                    settingsSearchResults
                 }
-                .tag(section)
             }
-            .navigationSplitViewColumnWidth(min: 180, ideal: 200)
+            .navigationSplitViewColumnWidth(min: 180, ideal: 210)
             .navigationSplitViewStyle(.balanced)
-            .listStyle(.sidebar)
         } detail: {
             // .id(selected)：切换子页时强制重建 detail——各子页内部的
             // ScrollView 结构相同（同身份会保留滚动位置），不重置的话新

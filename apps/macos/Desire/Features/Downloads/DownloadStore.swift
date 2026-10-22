@@ -34,6 +34,10 @@ class DownloadStore: ObservableObject {
     /// data is delivered asynchronously — resuming with a nil checkpoint
     /// strands the row (unpaused, nothing transferring).
     private var pendingResumeIDs: Set<UUID> = []
+    /// Low Power：只恢复"因低电量被我们暂停"的行，不碰用户手动暂停的。
+    private var powerObserver: NSObjectProtocol?
+    private var lowPowerPaused: Set<UUID> = []
+    private var lastLowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
 
     enum GroupingMode: String, CaseIterable {
         case date, fileType, status
@@ -54,7 +58,44 @@ class DownloadStore: ObservableObject {
             }
         }
         loadHistory()
+        installPowerPolicy()
         DownloadStore.live = self
+    }
+
+    /// 低电量暂停/恢复（v0.8.0）：默认开，设置里可关。
+    private func installPowerPolicy() {
+        guard powerObserver == nil else { return }
+        lastLowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
+        powerObserver = NotificationCenter.default.addObserver(
+            forName: .NSProcessInfoPowerStateDidChange, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.applyPowerState() }
+        }
+        if lastLowPower {
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(2))
+                self?.applyPowerState(force: true)
+            }
+        }
+    }
+
+    private func applyPowerState(force: Bool = false) {
+        let low = ProcessInfo.processInfo.isLowPowerModeEnabled
+        if !force && low == lastLowPower { return }
+        lastLowPower = low
+        let pauseEnabled = UserDefaults.standard
+            .object(forKey: "downloads.pauseOnLowPower") as? Bool ?? true
+        guard pauseEnabled else { return }
+        if low {
+            for item in downloads where item.state == .inProgress && !item.isPaused {
+                lowPowerPaused.insert(item.id)
+                pause(id: item.id)
+            }
+        } else {
+            let ids = lowPowerPaused
+            lowPowerPaused.removeAll()
+            for id in ids { resume(id: id) }
+        }
     }
 
     /// 高危下载类型（0.2.15 加固）：安装器/可执行脚本/磁盘镜像——页面
@@ -637,7 +678,30 @@ class DownloadStore: ObservableObject {
     /// status (URLSession hands us the ERROR PAGE for a 404 and would happily
     /// save it as the file), classifies failures, and captures resume data
     /// when the server allows ranges. Progress arrives via StoreDownloadDelegate.
-    func startURLSessionDownload(sourceURL: URL, filename: String, resumeData: Data? = nil, isPrivate: Bool = false) {
+    @discardableResult
+    func startURLSessionDownload(sourceURL: URL, filename: String, resumeData: Data? = nil, isPrivate: Bool = false) -> Bool {
+        // 重复检测（v0.8.0）：同一来源已有进行中的传输，或完成的文件仍在盘上，
+        // 不再新建行（用户要重下可从完成行走"Download Again"→redownload 会先删）。
+        if resumeData == nil, !isPrivate {
+            let duplicate = downloads.first { item in
+                guard item.sourceURL == sourceURL else { return false }
+                switch item.state {
+                case .inProgress:
+                    return true
+                case .completed:
+                    if let url = item.fileURL {
+                        return FileManager.default.fileExists(atPath: url.path)
+                    }
+                    return false
+                case .failed, .paused:
+                    return false
+                }
+            }
+            if duplicate != nil {
+                Log.downloads.info("duplicate download skipped: \(sourceURL.absoluteString, privacy: .public)")
+                return false
+            }
+        }
         let itemId = UUID()
         let task: URLSessionDownloadTask
         if let resumeData {
@@ -662,6 +726,7 @@ class DownloadStore: ObservableObject {
         item.resumeAction = { [weak task] (_: Data?) in task?.resume() }
         _ = add(item: item)
         task.resume()
+        return true
     }
 
     /// Delegate-only: called by `StoreDownloadDelegate` (same file) with the
@@ -686,6 +751,7 @@ class DownloadStore: ObservableObject {
         }
         guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
         var destination = resolveDestination(for: downloads[i].filename)
+        var userChoseDestination = false
         // 设置 ▸ Downloads ▸ Ask where to save each file：落盘前弹保存
         // 面板（此时已有完整文件名建议，比 Safari 在开始时猜名字更准）。
         if UserDefaults.standard.object(forKey: "askWhereToSaveDownloads") as? Bool ?? false {
@@ -695,6 +761,7 @@ class DownloadStore: ObservableObject {
             panel.canCreateDirectories = true
             if panel.runModal() == .OK, let chosen = panel.url {
                 destination = chosen
+                userChoseDestination = true
             }
         }
         do {
@@ -705,8 +772,40 @@ class DownloadStore: ObservableObject {
             fail(id: id, message: "Could not move file into place: \(error.localizedDescription)")
             return
         }
+        // 自动归档（v0.8.0，默认关）：只整理落在下载目录根部的文件；用户在
+        // 保存面板里手选的目标绝不动。
+        if !userChoseDestination,
+           UserDefaults.standard.bool(forKey: "downloads.organizeByType"),
+           destination.deletingLastPathComponent().standardizedFileURL == downloadFolder.standardizedFileURL {
+            let organized = organizedDestination(for: destination,
+                                                 type: downloads[i].fileType)
+            if organized != destination {
+                do {
+                    try FileManager.default.moveItem(at: destination, to: organized)
+                    destination = organized
+                } catch {
+                    Log.downloads.error("download organize failed: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+        }
         downloads[i].fileURL = destination
         complete(id: id)
+    }
+
+    /// 完成文件按类型归档到下载目录子文件夹（Images/Documents/Archives/...）。
+    private func organizedDestination(for source: URL, type: DownloadItem.FileType) -> URL {
+        let folder: String = switch type {
+        case .image: "Images"
+        case .video: "Video"
+        case .audio: "Audio"
+        case .document: "Documents"
+        case .archive: "Archives"
+        case .application: "Apps"
+        case .other: "Other"
+        }
+        let dir = downloadFolder.appendingPathComponent(folder, isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return FilePathing.uniqueURL(in: dir, for: source.lastPathComponent)
     }
 
     /// Stashes resume data on the item (in-memory) so pause/retry can

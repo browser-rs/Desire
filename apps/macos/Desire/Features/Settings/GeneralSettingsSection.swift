@@ -1034,6 +1034,8 @@ private struct SystemSection: View {
             BrowserImportRow(settings: settings)
             SettingsRowDivider()
             HistoryContentIndexRow()
+            SettingsRowDivider()
+            DownloadPolicyRow()
         }
         .onAppear(perform: checkDefaultBrowser)
     }
@@ -1459,6 +1461,30 @@ private struct BrowserImportRow: View {
         }
         .sheet(isPresented: $showsSheet) {
             BrowserImportSheet(settings: settings)
+        }
+    }
+}
+
+/// 下载策略（v0.8.0）：低电量暂停 + 完成文件按类型归档。
+private struct DownloadPolicyRow: View {
+    @AppStorage("downloads.pauseOnLowPower") private var pauseOnLowPower = true
+    @AppStorage("downloads.organizeByType") private var organizeByType = false
+
+    var body: some View {
+        SettingsRow(
+            "Downloads",
+            subtitle: "Low Power pauses active transfers. Completed files can be organized into type folders."
+        ) {
+            VStack(alignment: .trailing, spacing: 4) {
+                Toggle("Pause on Low Power", isOn: $pauseOnLowPower)
+                    .font(.system(size: 10.5))
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                Toggle("Organize by type", isOn: $organizeByType)
+                    .font(.system(size: 10.5))
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+            }
         }
     }
 }

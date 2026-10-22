@@ -4382,6 +4382,18 @@ func testHistoryContentSearch() {
 }
 testHistoryContentSearch()
 
+func testScheduledDownloadModel() {
+    check("定时下载：文件名取 URL 尾段", ScheduledDownload.suggestedFilename(
+        for: URL(string: "https://a.test/files/report.pdf")!) == "report.pdf")
+    check("定时下载：根路径回退 download", ScheduledDownload.suggestedFilename(
+        for: URL(string: "https://a.test/")!) == "download")
+    let item = ScheduledDownload(id: UUID(), url: "https://a.test/f.zip",
+                                 filename: "f.zip", startAt: Date(), createdAt: Date())
+    check("定时下载：Codable 往返", (try? JSONDecoder().decode(
+        ScheduledDownload.self, from: JSONEncoder().encode(item))) == item)
+}
+testScheduledDownloadModel()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

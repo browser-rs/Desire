@@ -28,6 +28,8 @@ struct DownloadPanel: View {
 
     @State private var searchText = ""
     @State private var showBatchTasks = false
+    @ObservedObject private var scheduler = DownloadScheduler.shared
+    @State private var showScheduleSheet = false
 
     private var filteredDownloads: [DownloadItem] {
         guard !searchText.isEmpty else { return store.downloads }
@@ -52,6 +54,10 @@ struct DownloadPanel: View {
             header
             // 视图切换即头部本身：Tab 组并入标题行（方案 B），不再单独占一行
             Divider()
+            if !showBatchTasks && !scheduler.items.isEmpty {
+                scheduledSection
+                Divider()
+            }
             if showBatchTasks {
                 // 媒体/批量进度只在进入"视频任务"后由子视图观察——
                 // 否则后台批量任务的每次进度发布会重绘下载列表（v0.7.30）。
@@ -90,7 +96,63 @@ struct DownloadPanel: View {
                 .padding(22)
                 .frame(width: 520)
         }
+        .sheet(isPresented: $showScheduleSheet) {
+            ScheduledDownloadSheet()
+        }
         .task { store.scanFilePresence() }
+    }
+
+    /// 定时下载队列（v0.8.0）：最多展示 3 条，其余折叠成计数。
+    private var scheduledSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "clock")
+                    .font(.system(size: 10))
+                Text("Scheduled")
+                    .font(.system(size: 10.5, weight: .semibold))
+                Spacer()
+                if scheduler.items.count > 1 {
+                    Button("Cancel All") { scheduler.cancelAll() }
+                        .font(.system(size: 10))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .foregroundStyle(.secondary)
+            ForEach(Array(scheduler.items.prefix(3))) { item in
+                HStack(spacing: 8) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(item.filename)
+                            .font(.system(size: 11.5))
+                            .lineLimit(1)
+                        Text(URL(string: item.url)?.host ?? item.url)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    Spacer(minLength: 6)
+                    Text(item.startAt, style: .relative)
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    Button {
+                        scheduler.cancel(id: item.id)
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Cancel scheduled download")
+                }
+            }
+            if scheduler.items.count > 3 {
+                Text(verbatim: "+\(scheduler.items.count - 3)")
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
     }
 
     /// 面板顶部二选一 Tab 的**段**（容器胶囊见 header）：选中 = 强调色实底
@@ -144,6 +206,10 @@ struct DownloadPanel: View {
                 HoverIcon(systemName: "gearshape", action: {
                     showBatchSettings = true
                 }, help: "Batch download settings")
+            } else {
+                HoverIcon(systemName: "clock.badge.plus", action: {
+                    showScheduleSheet = true
+                }, help: "Schedule Download…")
             }
 
             HoverIcon(systemName: "folder", action: {

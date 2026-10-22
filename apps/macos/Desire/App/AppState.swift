@@ -85,6 +85,8 @@ class AppState: ObservableObject {
         // 云同步：已登录才生效（内部自延迟 + 定时器，不占启动路径）。
         syncStore.startAutoSync()
         lap("startAutoSync")
+        // 定时下载：应用关闭期间到点的任务在首个 tick 补跑。
+        DownloadScheduler.shared.start()
         // 批量下载断点续传：上次未完成的批次放回队列（内部异步，不占启动路径）。
         BatchMediaExportStore.shared.restoreIfNeeded()
         // 插件 background 运行时：启用且带 backgroundCode 的插件起常驻宿主

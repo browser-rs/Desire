@@ -410,6 +410,9 @@ final class AutomationServer {
         ep("POST", "/downloads/remove", "Remove a row from the list (file on disk untouched)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/downloads/pause", "Pause", params: ["id?:uuid"], example: "-d '{}'")
         ep("POST", "/downloads/resume", "Resume", params: ["id?:uuid"], example: "-d '{}'")
+        ep("GET", "/downloads/scheduled", "Scheduled downloads (id/url/filename/startAt)", example: "…/downloads/scheduled")
+        ep("POST", "/downloads/schedule", "Schedule a download: startAt (unix seconds) or inSeconds", params: ["url:string", "startAt?:double", "inSeconds?:double", "filename?:string"], example: "-d '{\"url\":\"https://a.b/f.zip\",\"inSeconds\":5}'")
+        ep("POST", "/downloads/scheduled/cancel", "Cancel a scheduled download", params: ["id:uuid"], example: "-d '{\"id\":\"…\"}'")
         // Data stores
         ep("GET", "/history", "History, newest first", params: ["count?:int"], example: "…/history?count=10")
         ep("GET", "/history?grouped=1", "History aggregated by domain (panel site-grouping equivalent, same pure logic)", params: ["grouped:1"], example: "…/history?grouped=1")
@@ -2323,6 +2326,13 @@ final class AutomationServer {
                 return try Self.json(Self.pauseDownload(Self.string(body, "id")))
             case ("POST", "/downloads/resume"):
                 return try Self.json(Self.resumeDownload(Self.string(body, "id")))
+            case ("GET", "/downloads/scheduled"):
+                return try Self.json(Self.scheduledDownloads())
+            case ("POST", "/downloads/schedule"):
+                return try Self.json(Self.scheduleDownload(body: body))
+            case ("POST", "/downloads/scheduled/cancel"):
+                return try Self.json(Self.cancelScheduledDownload(
+                    id: Self.string(body, "id") ?? ""))
             case ("POST", "/execute"):
                 return try await Self.json(Self.execute(
                     Self.string(body, "js") ?? "",
@@ -4033,6 +4043,51 @@ final class AutomationServer {
         }
         store.resume(id: uuid)
         return ["ok": true, "id": uuid.uuidString, "paused": false]
+    }
+
+    private static func scheduledDownloads() throws -> [String: Any] {
+        ["items": DownloadScheduler.shared.items.map(scheduledDict)]
+    }
+
+    private static func scheduleDownload(body: [String: Any]) throws -> [String: Any] {
+        guard let raw = Self.string(body, "url"),
+              let url = URL(string: raw),
+              let scheme = url.scheme?.lowercased(),
+              scheme == "http" || scheme == "https" else {
+            return ["error": "invalid url"]
+        }
+        let now = Date()
+        let startAt: Date
+        if let seconds = (body["startAt"] as? NSNumber)?.doubleValue {
+            startAt = Date(timeIntervalSince1970: seconds)
+        } else if let inSeconds = (body["inSeconds"] as? NSNumber)?.doubleValue {
+            startAt = now.addingTimeInterval(inSeconds)
+        } else {
+            startAt = now.addingTimeInterval(60)
+        }
+        guard let item = DownloadScheduler.shared.schedule(
+            url: url,
+            filename: Self.string(body, "filename"),
+            startAt: startAt) else {
+            return ["error": "could not schedule"]
+        }
+        return ["ok": true, "item": scheduledDict(item)]
+    }
+
+    private static func cancelScheduledDownload(id: String) throws -> [String: Any] {
+        guard let uuid = UUID(uuidString: id),
+              DownloadScheduler.shared.items.contains(where: { $0.id == uuid }) else {
+            return ["error": "no such scheduled download"]
+        }
+        DownloadScheduler.shared.cancel(id: uuid)
+        return ["ok": true]
+    }
+
+    private static func scheduledDict(_ item: ScheduledDownload) -> [String: Any] {
+        ["id": item.id.uuidString,
+         "url": item.url,
+         "filename": item.filename,
+         "startAt": item.startAt.timeIntervalSince1970]
     }
 
     /// Runs JS in the page and returns the result. Synthetic-event driven

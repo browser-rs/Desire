@@ -9,8 +9,7 @@ struct JobsPanel: View {
     @Environment(\.appAccent) private var appAccent: Color
 
     private var running: [JobRecord] {
-        store.jobs.filter { $0.state == .queued || $0.state == .running }
-            .sorted { $0.updatedAt > $1.updatedAt }
+        store.allJobs.filter { $0.state == .queued || $0.state == .running || $0.state == .paused }
     }
 
     private var review: [JobRecord] { store.needsReview }
@@ -39,7 +38,7 @@ struct JobsPanel: View {
                     .foregroundStyle(.secondary)
             }
 
-            if store.jobs.isEmpty {
+            if store.allJobs.isEmpty {
                 VStack(spacing: 8) {
                     Spacer()
                     Image(systemName: "square.stack.3d.up")
@@ -128,7 +127,13 @@ struct JobsPanel: View {
                 Button(String(localized: "Open")) { open(artifact) }
                     .controlSize(.small)
             }
-            if job.canDismiss {
+            if job.source == "activity" {
+                Button(String(localized: "Activity")) {
+                    CommandBus.shared.send(.showActivity)
+                    dismiss()
+                }
+                .controlSize(.small)
+            } else if job.canDismiss {
                 Button(String(localized: "Dismiss")) { store.dismiss(job.id) }
                     .controlSize(.small)
             } else {
@@ -150,7 +155,7 @@ struct JobsPanel: View {
         case .failed: .red
         case .needsReview, .needsApproval: .orange
         case .cancelled: Color.secondary
-        case .queued, .running: appAccent
+        case .queued, .running, .paused: appAccent
         }
     }
 

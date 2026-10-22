@@ -22,24 +22,30 @@ final class JobStore: ObservableObject {
 
     func job(id: UUID) -> JobRecord? { jobs.first { $0.id == id } }
 
+    /// 旧子系统的只读投影（下载/批量/导出/定时/Agent/crew）。
+    var adapterJobs: [JobRecord] {
+        JobAdapter.jobs(from: ActivityCenter.build(ActivityCenterCollector.liveInputs()))
+    }
+
+    /// 账本 + 旧子系统投影，统一按更新时间倒序。
+    var allJobs: [JobRecord] {
+        (jobs + adapterJobs).sorted { $0.updatedAt > $1.updatedAt }
+    }
+
     var active: [JobRecord] {
-        jobs.filter { $0.state.isActive }
-            .sorted { $0.updatedAt > $1.updatedAt }
+        allJobs.filter { $0.state.isActive }
     }
 
     var needsReview: [JobRecord] {
-        jobs.filter { $0.state == .needsReview || $0.state == .needsApproval }
-            .sorted { $0.updatedAt > $1.updatedAt }
+        allJobs.filter { $0.state == .needsReview || $0.state == .needsApproval }
     }
 
     var failed: [JobRecord] {
-        jobs.filter { $0.state == .failed }
-            .sorted { $0.updatedAt > $1.updatedAt }
+        allJobs.filter { $0.state == .failed }
     }
 
     var finished: [JobRecord] {
-        jobs.filter { $0.state == .done || $0.state == .cancelled }
-            .sorted { ($0.finishedAt ?? $0.updatedAt) > ($1.finishedAt ?? $1.updatedAt) }
+        allJobs.filter { $0.state == .done || $0.state == .cancelled }
     }
 
     // MARK: - 写入

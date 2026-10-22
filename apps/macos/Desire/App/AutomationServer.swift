@@ -6449,12 +6449,11 @@ final class AutomationServer {
 
     private static func jobsList(limit: Int) -> [String: Any] {
         let store = JobStore.shared
-        let capped = store.jobs
-            .sorted { $0.updatedAt > $1.updatedAt }
-            .prefix(max(1, min(limit, 300)))
+        let all = store.allJobs
+        let capped = all.prefix(max(1, min(limit, 300)))
         return [
             "jobs": capped.map(jobJSON),
-            "summary": ["total": store.jobs.count,
+            "summary": ["total": all.count,
                         "active": store.active.count,
                         "needsReview": store.needsReview.count,
                         "failed": store.failed.count,

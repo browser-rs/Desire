@@ -43,6 +43,7 @@ SOURCES=(
   apps/macos/Desire/Features/Promotion/MentionRadar.swift
   apps/macos/Desire/Features/Promotion/PromotionShare.swift
   apps/macos/Desire/Features/Jobs/JobRecord.swift
+  apps/macos/Desire/Features/Jobs/JobAdapter.swift
   apps/macos/Desire/Features/Promotion/PromotionAccount.swift
   apps/macos/Desire/Features/Promotion/PromotionLesson.swift
   apps/macos/Desire/Features/Promotion/PromotionSummary.swift

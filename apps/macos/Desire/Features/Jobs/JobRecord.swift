@@ -43,6 +43,7 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
     enum State: String, Codable, CaseIterable {
         case queued
         case running
+        case paused
         case needsReview
         case needsApproval
         case done
@@ -51,7 +52,7 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
 
         var isActive: Bool {
             switch self {
-            case .queued, .running, .needsReview, .needsApproval: true
+            case .queued, .running, .paused, .needsReview, .needsApproval: true
             case .done, .failed, .cancelled: false
             }
         }
@@ -60,6 +61,7 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
             switch self {
             case .queued: String(localized: "Queued")
             case .running: String(localized: "Running")
+            case .paused: String(localized: "Paused")
             case .needsReview: String(localized: "Needs review")
             case .needsApproval: String(localized: "Needs approval")
             case .done: String(localized: "Done")
@@ -72,6 +74,7 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
             switch self {
             case .queued: "clock"
             case .running: "arrow.triangle.2.circlepath"
+            case .paused: "pause.circle"
             case .needsReview: "eye"
             case .needsApproval: "hand.raised"
             case .done: "checkmark.circle.fill"

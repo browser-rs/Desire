@@ -4878,6 +4878,38 @@ func testJobRecord() {
 }
 testJobRecord()
 
+func testJobAdapter() {
+    let now = Date()
+    let items = [
+        ActivityCenter.Item(id: "download-a", kind: .download, title: "a.zip",
+                            detail: "50%", status: "downloading",
+                            progress: 0.5, timestamp: now),
+        ActivityCenter.Item(id: "run-a", kind: .scheduledRun, title: "Daily",
+                            detail: "success", status: "success",
+                            progress: nil, timestamp: now),
+        ActivityCenter.Item(id: "batch-a", kind: .batch, title: "Batch x",
+                            detail: "2/4", status: "paused",
+                            progress: 0.5, timestamp: now),
+        ActivityCenter.Item(id: "crew-a", kind: .crew, title: "Compare",
+                            detail: "3/3", status: "finished",
+                            progress: 1, timestamp: now),
+    ]
+    let jobs = JobAdapter.jobs(from: items)
+    check("作业适配：状态映射",
+          jobs[0].state == .running && jobs[1].state == .done
+              && jobs[2].state == .paused && jobs[3].state == .done)
+    check("作业适配：类型映射",
+          jobs[0].kind == .download && jobs[1].kind == .scheduled
+              && jobs[3].kind == .agent)
+    check("作业适配：crew 标题", jobs[3].title.contains("Crew:"))
+    check("作业适配：稳定 id",
+          JobAdapter.jobs(from: items).map(\.id) == jobs.map(\.id))
+    check("作业适配：不同来源不同 id",
+          JobAdapter.stableUUID("a") != JobAdapter.stableUUID("b"))
+    check("作业适配：完成态带 finishedAt", jobs[1].finishedAt != nil)
+}
+testJobAdapter()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

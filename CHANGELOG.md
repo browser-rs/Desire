@@ -11,6 +11,8 @@
 - **运营 Playbooks（v0.8.2 第一批）**：新增参数化可运行定义（名称/说明/指令/参数/输出方式/可选技能），首次启动种子 4 个运营模板：发版宣传、每周运营复盘、回复提及、网页引用简报。运营页新增 Playbooks 区块与运行表单（必填校验、默认值、选择项、Copy Prompt）；运行把参数与指令组合成一条 prompt 交给现有 Agent 回合（不是新执行引擎），并强制写明"发布/发送/提交/购买必须人工批准"与输出方式。桥新增 `GET /playbooks`、`POST /playbooks/run`（缺必填参数在发送前拒绝）。验收：4 个模板列出、缺参拒绝、prompt 含参数/规则/输出方式；harness 7 项（1325/0）；clean Release 零警告。自定义编辑器与定时运行留后续批次。
 - **Playbooks 自定义编辑器 + 定时（v0.8.2）**：运营页 Playbooks 支持新建/编辑——名称、说明、指令、可选技能、输出方式（聊天/文件/笔记）、参数列表（key/label/默认值/choices/必填），保存前校验名称/指令/参数 key 唯一。每个 Playbook 时钟菜单可按默认参数排每日 09:00 或每周一 10:00，必填参数无默认值时禁止排程；桥 `POST /playbooks/schedule` 支持 schedule/remove。验收：每周复盘模板排程成功并出现在任务列表，随后移除；页面简报模板因无默认必填参数被拒，不产生任务；clean Release 零警告。
 - **增长分析：A/B 变体标记与对比（v0.8.2）**：帖子新增可选 `variantLabel`（A/B/标题钩子等），promotionSave 工具与桥 `/promotion/post` 均可写；周报新增「A/B 变体」段，按平台 × 变体统计篇数与平均浏览（样本 <2 不出结论、无浏览数据不计入）；草稿/已发行显示变体徽标。验收：桥写入 X 平台 A/A/B/B 四条并采数据 → 周报输出 `B 平均 400 / A 平均 150`；旧帖子缺字段解码为 nil；harness 7 项（1331/0）；clean Release 零警告。
+- **后台 Agent Runner（v0.8.2）**：没有活窗口时，定时/Playbook 等 Agent 任务不再直接记 "missed"，而是在**无头标签 + 隐藏会话**里跑完整工具循环（`TabManager(headless:)` 不注册、不落盘、不起挂起/内存计时器；会话不抢投递目标、不注册成窗口）。约束：同一时刻只跑一个后台作业；强制 `.confirmChanges`（后台不允许静默 fullAccess）；需要审批时作业停在 `needsApproval`，Jobs 面板可批准/拒绝，超 `agent.background.approvalSeconds`（默认 120s）自动拒绝；整作业 wall-clock 上限 `agent.background.timeoutSeconds`（默认 600s）；桥 `/jobs/action approve|deny` 可程序化决策。自动化钩子 `agent.background.force` 可强制走后台（不动用户标签页）。验收：假端点 + force 键 → 定时任务在后台跑完，Job `done`、run success、用户 5 个标签不变；审批/超时/预算路径已接线；测试任务/run 记录/假端点/偏好已全部清理；clean Release 零警告。
+
 
 
 

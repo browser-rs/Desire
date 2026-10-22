@@ -127,7 +127,17 @@ struct JobsPanel: View {
                 Button(String(localized: "Open")) { open(artifact) }
                     .controlSize(.small)
             }
-            if job.source == "activity" {
+            if job.state == .needsApproval {
+                Button(String(localized: "Approve")) {
+                    BackgroundAgentRunner.shared.resolveApproval(jobID: job.id, decision: .allowOnce)
+                }
+                .controlSize(.small)
+                .buttonStyle(.borderedProminent)
+                Button(String(localized: "Deny"), role: .destructive) {
+                    BackgroundAgentRunner.shared.resolveApproval(jobID: job.id, decision: .deny)
+                }
+                .controlSize(.small)
+            } else if job.source == "activity" {
                 Button(String(localized: "Activity")) {
                     CommandBus.shared.send(.showActivity)
                     dismiss()

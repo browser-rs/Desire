@@ -432,11 +432,25 @@ final class AgentScheduler: ObservableObject {
 
         // 投递路由（多窗口联动 v1）：任务可点名目标窗口（调度器注册 id）；
         // 目标已关或未点名 → 回落"最新注册的活会话"（与历史行为一致）。
+        // `agent.background.force`（自动化/自检用）：即使有活窗口也走后台
+        // Runner——用于在不动用户标签页的前提下验证无头执行链路。
+        if UserDefaults.standard.bool(forKey: "agent.background.force") {
+            startBackground(task: task, runID: runID, attempts: attempts,
+                            taskIndex: taskIndex)
+            return
+        }
         let resolvedTarget = task.targetSessionID.flatMap { session(withID: $0) }
         if task.targetSessionID != nil, resolvedTarget == nil {
             Self.log.info("Scheduled task '\(task.name, privacy: .public)' target window is gone — falling back to the newest session")
         }
         guard let target = resolvedTarget ?? deliveryTarget else {
+            // 后台 Agent Runner（v0.8.2）：没有活窗口时在无头标签里跑完整
+            // 工具循环，不再直接记 missed（关闭开关后回到旧行为）。
+            if BackgroundAgentRunner.shared.isEnabled {
+                startBackground(task: task, runID: runID, attempts: attempts,
+                                taskIndex: taskIndex)
+                return
+            }
             if let i = taskIndex { tasks[i].lastResult = String(localized: "missed — no agent session was open") }
             if runs.firstIndex(where: { $0.id == runID }) != nil {
                 updateRun(id: runID) {
@@ -481,6 +495,31 @@ final class AgentScheduler: ObservableObject {
         }
         if let i = taskIndex { tasks[i].lastResult = "delivered" }
         Self.log.info("Scheduled task '\(task.name, privacy: .public)' delivered")
+    }
+
+    /// 无活窗口时的后台投递：无头标签 + 隐藏会话；结果回写 run 记录。
+    private func startBackground(task: ScheduledTask, runID: UUID, attempts: Int,
+                                 taskIndex: Int?) {
+        if runs.firstIndex(where: { $0.id == runID }) != nil {
+            updateRun(id: runID) {
+                $0.attempts = attempts
+                $0.status = "delivered (background)"
+                $0.finishedAt = nil
+            }
+        } else {
+            recordRun(RunRecord(
+                id: runID, taskName: task.name, firedAt: Date(),
+                finishedAt: nil, status: "delivered (background)",
+                success: nil, error: nil, attempts: attempts))
+        }
+        if let i = taskIndex { tasks[i].lastResult = "delivered (background)" }
+        Self.log.info("Scheduled task '\(task.name, privacy: .public)' running in the background runner")
+        Task { @MainActor [weak self] in
+            let outcome = await BackgroundAgentRunner.shared.run(
+                prompt: task.prompt, taskName: task.name)
+            self?.finishRun(id: runID, outcome: AgentSessionStore.TurnOutcome(
+                success: outcome.ok, error: outcome.error))
+        }
     }
 
     /// 内置流水线执行 + run 收尾（失败非致命，记录在 run 上）。

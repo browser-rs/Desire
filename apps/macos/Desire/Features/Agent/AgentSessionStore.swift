@@ -329,7 +329,8 @@ class AgentSessionStore: ObservableObject {
     /// Registry id (multi-window addressing via the automation bridge).
     let registrationID = UUID()
 
-    init(preference: AgentPreferenceStore, conversationStore: ConversationStore) {
+    init(preference: AgentPreferenceStore, conversationStore: ConversationStore,
+         registerAsWindow: Bool = true) {
         self.preference = preference
         self.conversationStore = conversationStore
         if let raw = UserDefaults.standard.object(forKey: "aiAccessLevel") as? Int,
@@ -339,6 +340,9 @@ class AgentSessionStore: ObservableObject {
             // 旧安装迁移：旧键 true = 完全访问；false = 变更前确认
             accessLevel = UserDefaults.standard.bool(forKey: "aiFullAccess") ? .fullAccess : .confirmChanges
         }
+        // 后台 Runner 的隐藏会话不抢投递目标、不注册成窗口（Jobs 面板是它的
+        // 唯一可见面；注册会让它出现在 /agent/windows 与窗口选择器里）。
+        guard registerAsWindow else { return }
         // Newest session wins scheduled-task delivery (multi-window).
         AgentScheduler.shared.deliveryTarget = self
         // Registry for per-window addressing (0.1.8).

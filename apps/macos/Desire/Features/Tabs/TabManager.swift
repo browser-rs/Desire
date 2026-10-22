@@ -317,11 +317,14 @@ class TabManager: ObservableObject {
     /// restore are no-ops for unkeyed windows.
     var sessionKey: String?
 
-    init() {
+    init(headless: Bool = false) {
         // Session persistence is process-wide (one shared storage key): each
         // window's TabManager registers with the coordinator instead of
         // running its own timer — the per-window timers used to overwrite
         // the shared key and destroy every other window's tabs.
+        // headless（后台 Agent Runner）：不注册、不落盘、不起挂起/内存计时器——
+        // 它只是一块离屏工作区，不能污染窗口会话。
+        guard !headless else { return }
         TabSessionCoordinator.shared.register(self)
         startSuspendTimer()
         startMemoryPressureMonitor()

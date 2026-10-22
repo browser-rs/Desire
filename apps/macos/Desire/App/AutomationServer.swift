@@ -698,7 +698,7 @@ final class AutomationServer {
         ep("POST", "/promotion/mentions/scan", "Scan enabled sources off-screen for a keyword; new links go to the interaction ledger (deduped)", params: ["query:string", "limit?:int"], example: #"-d '{"query":"Desire browser"}'"#)
         ep("POST", "/promotion/share", "Build a ready-to-post Desire caption + UTM link for a channel (no network, no posting)", params: ["channel?:string (X/小红书/V2EX/掘金/即刻/Hacker News)", "version?:string"], example: #"-d '{"channel":"X"}'"#)
         ep("GET", "/jobs", "Unified job ledger (publish/mention scan/campaign…) with states, artifacts and receipts", params: ["limit?:int"], example: "…/jobs")
-        ep("POST", "/jobs/action", "Dismiss an active job / delete a job / clear finished jobs", params: ["action:dismiss|delete|clearFinished", "id?:uuid"], example: #"-d '{"action":"clearFinished"}'"#)
+        ep("POST", "/jobs/action", "Dismiss an active job / delete a job / clear finished jobs / approve or deny a background approval", params: ["action:dismiss|delete|clearFinished|approve|deny", "id?:uuid"], example: #"-d '{"action":"clearFinished"}'"#)
         ep("GET", "/playbooks", "Operations playbooks (parameterized runnable prompts)", example: "…/playbooks")
         ep("POST", "/playbooks/run", "Compose a playbook with values and send it to the live agent session (no auto-publish)", params: ["id:uuid", "values?:object"], example: #"-d '{"id":"<uuid>","values":{"focus":"pricing"}}'"#)
         ep("POST", "/playbooks/schedule", "Schedule a playbook with its default parameter values (dailyAt or everyMinutes) / remove it", params: ["id:uuid", "action?:schedule|remove", "dailyAt?:HH:MM", "everyMinutes?:int"], example: #"-d '{"id":"<uuid>","dailyAt":"09:00"}'"#)
@@ -6504,8 +6504,18 @@ final class AutomationServer {
             }
             if action == "dismiss" { store.dismiss(id) } else { store.delete(id) }
             return ["ok": true, "id": id.uuidString]
+        case "approve", "deny":
+            guard let raw = string(body, "id"), let id = UUID(uuidString: raw) else {
+                return ["error": "missing or invalid id"]
+            }
+            let decision: ApprovalDecision = action == "approve" ? .allowOnce : .deny
+            guard BackgroundAgentRunner.shared.resolveApproval(jobID: id,
+                                                                decision: decision) else {
+                return ["error": "job has no pending approval"]
+            }
+            return ["ok": true, "id": id.uuidString, "decision": action]
         default:
-            return ["error": "action must be dismiss | delete | clearFinished"]
+            return ["error": "action must be dismiss | delete | clearFinished | approve | deny"]
         }
     }
 

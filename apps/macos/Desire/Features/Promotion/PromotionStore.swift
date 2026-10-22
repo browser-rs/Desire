@@ -18,12 +18,15 @@ final class PromotionStore: ObservableObject {
     @Published private(set) var accounts: [PromotionAccount] = []
     @Published private(set) var lessons: [PromotionLesson] = []
     @Published private(set) var interactions: [PromotionInteraction] = []
+    /// 运营战役（v0.8.2）：目标与帖子之间的 campaign 层。
+    @Published private(set) var campaigns: [PromotionCampaign] = []
 
     private static let goalsKey = "promotion.goals"
     private static let postsKey = "promotion.posts"
     private static let accountsKey = "promotion.accounts"
     private static let lessonsKey = "promotion.lessons"
     private static let interactionsKey = "promotion.interactions"
+    private static let campaignsKey = "promotion.campaigns"
 
     private init() {
         goals = DiskStore.load([PromotionGoal].self, key: Self.goalsKey) ?? []
@@ -31,6 +34,7 @@ final class PromotionStore: ObservableObject {
         accounts = DiskStore.load([PromotionAccount].self, key: Self.accountsKey) ?? []
         lessons = DiskStore.load([PromotionLesson].self, key: Self.lessonsKey) ?? []
         interactions = DiskStore.load([PromotionInteraction].self, key: Self.interactionsKey) ?? []
+        campaigns = DiskStore.load([PromotionCampaign].self, key: Self.campaignsKey) ?? []
     }
 
     // MARK: - 目标
@@ -94,7 +98,8 @@ final class PromotionStore: ObservableObject {
 
     @discardableResult
     func savePost(goalText: String?, platform: String, title: String, body: String,
-                  status: PromotionPost.Status, url: String?, plannedFor: Date? = nil) -> SaveOutcome {
+                  status: PromotionPost.Status, url: String?, plannedFor: Date? = nil,
+                  campaignID: UUID? = nil) -> SaveOutcome {
         var matched: PromotionGoal?
         let trimmedGoal = goalText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !trimmedGoal.isEmpty { matched = matchGoal(trimmedGoal) }
@@ -102,6 +107,7 @@ final class PromotionStore: ObservableObject {
         let cleanURL = url?.trimmingCharacters(in: .whitespacesAndNewlines)
         let post = PromotionPost(
             goalID: matched?.id,
+            campaignID: campaignID,
             platform: platform.trimmingCharacters(in: .whitespacesAndNewlines),
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             body: body,
@@ -122,7 +128,8 @@ final class PromotionStore: ObservableObject {
     func updatePost(id: UUID, goalText: String?? = nil, platform: String? = nil,
                     title: String? = nil, body: String? = nil,
                     status: PromotionPost.Status? = nil, url: String? = nil,
-                    plannedFor: Date?? = nil) -> PromotionPost? {
+                    plannedFor: Date?? = nil,
+                    campaignID: UUID?? = nil) -> PromotionPost? {
         guard let idx = posts.firstIndex(where: { $0.id == id }) else { return nil }
         let now = Date()
         if let platform, !platform.isEmpty { posts[idx].platform = platform }
@@ -140,6 +147,9 @@ final class PromotionStore: ObservableObject {
         }
         if let plannedFor {
             posts[idx].plannedFor = plannedFor
+        }
+        if let campaignID {
+            posts[idx].campaignID = campaignID
         }
         if let goalText {
             let trimmed = goalText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
@@ -336,6 +346,89 @@ final class PromotionStore: ObservableObject {
         posts.filter { $0.status == .draft }.count
     }
 
+    // MARK: - 战役（v0.8.2）
+
+    struct CampaignGeneration {
+        let campaign: PromotionCampaign
+        let posts: [PromotionPost]
+    }
+
+    func campaign(id: UUID) -> PromotionCampaign? {
+        campaigns.first { $0.id == id }
+    }
+
+    func posts(inCampaign id: UUID) -> [PromotionPost] {
+        posts.filter { $0.campaignID == id }
+            .sorted { ($0.plannedFor ?? $0.createdAt) < ($1.plannedFor ?? $1.createdAt) }
+    }
+
+    /// 生成战役 + 各平台草稿（确定性；草稿一律 draft，绝不自动发布）。
+    /// 返回 nil = 没有可用的亮点（避免生成一份空泛的营销稿）。
+    @discardableResult
+    func generateCampaign(_ brief: PromotionCampaignBuilder.Brief) -> CampaignGeneration? {
+        let cleanedHighlights = brief.highlights
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !cleanedHighlights.isEmpty else { return nil }
+        var brief = brief
+        brief.highlights = cleanedHighlights
+        let goal = brief.goalText.flatMap { matchGoal($0) }
+        let plan = PromotionCampaignBuilder.makePlan(brief, goalID: goal?.id)
+        campaigns.insert(plan.campaign, at: 0)
+        persistCampaigns()
+        var created: [PromotionPost] = []
+        for draft in plan.drafts {
+            let outcome = savePost(
+                goalText: goal?.title,
+                platform: draft.platform,
+                title: draft.title,
+                body: draft.body,
+                status: .draft,
+                url: nil,
+                plannedFor: draft.plannedFor,
+                campaignID: plan.campaign.id)
+            created.append(outcome.post)
+        }
+        return CampaignGeneration(campaign: plan.campaign, posts: created)
+    }
+
+    @discardableResult
+    func updateCampaignStatus(_ id: UUID, status: PromotionCampaign.Status) -> Bool {
+        guard let idx = campaigns.firstIndex(where: { $0.id == id }) else { return false }
+        campaigns[idx].status = status
+        campaigns[idx].updatedAt = Date()
+        persistCampaigns()
+        return true
+    }
+
+    /// 载体编辑（标题/目标/排期/素材）；nil = 保持原值。
+    @discardableResult
+    func updateCampaign(_ id: UUID, title: String? = nil, objective: String? = nil,
+                        startsAt: Date?? = nil, assets: [String]? = nil) -> PromotionCampaign? {
+        guard let idx = campaigns.firstIndex(where: { $0.id == id }) else { return nil }
+        if let title, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            campaigns[idx].title = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let objective { campaigns[idx].objective = objective }
+        if let startsAt { campaigns[idx].startsAt = startsAt }
+        if let assets { campaigns[idx].assets = assets }
+        campaigns[idx].updatedAt = Date()
+        persistCampaigns()
+        return campaigns[idx]
+    }
+
+    /// 删除战役不删帖子：历史内容保留，只解除关联（与删目标同口径）。
+    func removeCampaign(_ id: UUID) {
+        campaigns.removeAll { $0.id == id }
+        var touched = false
+        for i in posts.indices where posts[i].campaignID == id {
+            posts[i].campaignID = nil
+            touched = true
+        }
+        persistCampaigns()
+        if touched { persistPosts() }
+    }
+
     // MARK: - 持久化
 
     private func persistGoals() { DiskStore.save(goals, key: Self.goalsKey) }
@@ -343,4 +436,5 @@ final class PromotionStore: ObservableObject {
     private func persistAccounts() { DiskStore.save(accounts, key: Self.accountsKey) }
     private func persistLessons() { DiskStore.save(lessons, key: Self.lessonsKey) }
     private func persistInteractions() { DiskStore.save(interactions, key: Self.interactionsKey) }
+    private func persistCampaigns() { DiskStore.save(campaigns, key: Self.campaignsKey) }
 }

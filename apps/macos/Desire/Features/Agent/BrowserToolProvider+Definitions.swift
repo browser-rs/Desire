@@ -1366,6 +1366,22 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "promotionCampaign",
+                description: "Operations campaigns (v0.8.2): list campaigns, generate a release/feature campaign with per-platform draft posts (deterministic templates; drafts stay in review and are NEVER auto-published), or update a campaign status. Use highlights from the actual changelog/release notes; never invent features.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "action": AgentJSONSchemaValue(type: "string", description: "list (default) | generate | status"),
+                    "version": AgentJSONSchemaValue(type: "string", description: "generate: version, e.g. 0.8.2"),
+                    "title": AgentJSONSchemaValue(type: "string", description: "generate: campaign title (default: Desire vX 发布)"),
+                    "objective": AgentJSONSchemaValue(type: "string", description: "generate: campaign goal / angle"),
+                    "productURL": AgentJSONSchemaValue(type: "string", description: "generate: landing/product URL (UTM is appended per channel)"),
+                    "highlights": AgentJSONSchemaValue(type: "array", description: "generate: 3–5 factual highlights (strings)", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                    "platforms": AgentJSONSchemaValue(type: "array", description: "generate: platforms (X / 小红书 / V2EX / 掘金 / 即刻 / Hacker News); default all", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                    "goal": AgentJSONSchemaValue(type: "string", description: "generate: optional active goal title"),
+                    "id": AgentJSONSchemaValue(type: "string", description: "status: campaign id"),
+                    "status": AgentJSONSchemaValue(type: "string", description: "status: planning|drafting|scheduled|publishing|review|done|archived"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "promotionSave",
                 description: "Save or UPDATE a workbench post. Lifecycle: idea (选题 — title only, brainstorm candidates) → draft (status=draft, full body) → published (after the user approves and it goes live, with url). Pass `id` to update an existing post (e.g. promote an idea to a draft, reschedule, or attach the live URL) — omitted fields stay unchanged. 'goal' is free text matched against active goal titles. Returns the post id — keep it for promotionMetrics.",
                 parameters: AgentJSONSchema(type: "object", properties: [

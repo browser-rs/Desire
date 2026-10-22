@@ -688,6 +688,10 @@ final class AutomationServer {
         ep("GET", "/protocol/inspect", "Inspect the DPP protocol of the current page (views/signals/actions/context/warnings)", params: [], example: "…/protocol/inspect")
         ep("GET", "/search/everything", "Unified search across open tabs / history / bookmarks / reading list (Search Everywhere panel query)", params: ["q:string"], example: "…/search/everything?q=github")
         ep("GET", "/promotion/state", "Operations workbench: goals, posts (with metric history + growth), accounts (snapshots + growth), lessons, progress, digest (shared with the agent's promotionBrief tool)", example: "…/promotion/state")
+        ep("GET", "/promotion/campaigns", "Operations campaigns (v0.8.2) with linked post counts and next scheduled draft", example: "…/promotion/campaigns")
+        ep("POST", "/promotion/campaign/generate", "Generate a campaign + per-platform drafts from a release brief (deterministic, no model); drafts are never auto-published", params: ["version:string", "title?:string", "objective?:string", "productURL?:string", "highlights:[string]", "platforms?:[string]", "audience?:string", "cta?:string", "goal?:string", "startDate?:yyyy-MM-dd"], example: #"-d '{"version":"0.8.2","highlights":["后台任务","运营驾驶舱"],"platforms":["X","V2EX","小红书"]}'"#)
+        ep("POST", "/promotion/campaign/status", "Update a campaign status (planning/drafting/scheduled/publishing/review/done/archived)", params: ["id:string", "status:string"], example: #"-d '{"id":"<uuid>","status":"scheduled"}'"#)
+        ep("POST", "/promotion/campaign/remove", "Remove a campaign (linked posts are kept, link cleared)", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/promotion/goal", "Add a promotion goal", params: ["title:string", "objective?:string", "platforms?:array", "targetPosts?:int", "dueDate?:string(yyyy-MM-dd|ISO8601)"], example: #"-d '{"title":"v0.7.15 发布宣传","platforms":["掘金"],"targetPosts":2}'"#)
         ep("POST", "/promotion/goal/remove", "Remove a promotion goal by id (posts keep their history, link cleared)", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/promotion/post", "Save or update a workbench post (idea/draft/published; pass id to update, plannedFor=yyyy-MM-dd) — same semantics as the agent's promotionSave tool", params: ["id?:string", "platform?:string", "title?:string", "body?:string", "status?:idea|draft|published", "url?:string", "goal?:string", "plannedFor?:string"], example: #"-d '{"platform":"掘金","title":"…","body":"…","status":"draft","plannedFor":"2026-10-20"}'"#)
@@ -1164,6 +1168,14 @@ final class AutomationServer {
             // ── 运营工作台（0.7.15）─────────────────────────────
             case ("GET", "/promotion/state"):
                 return try Self.json(Self.promotionState())
+            case ("GET", "/promotion/campaigns"):
+                return try Self.json(Self.promotionCampaigns())
+            case ("POST", "/promotion/campaign/generate"):
+                return try Self.json(Self.promotionCampaignGenerate(body))
+            case ("POST", "/promotion/campaign/status"):
+                return try Self.json(Self.promotionCampaignStatus(body))
+            case ("POST", "/promotion/campaign/remove"):
+                return try Self.json(Self.promotionCampaignRemove(body))
             case ("POST", "/promotion/goal"):
                 return try Self.json(Self.promotionGoalAdd(body))
             case ("POST", "/promotion/goal/remove"):
@@ -6213,8 +6225,111 @@ final class AutomationServer {
         ]
     }
 
-    private static func promotionGoalAdd(_ body: [String: Any]) -> [String: Any] {
-        guard let title = string(body, "title"), !title.isEmpty else { return ["error": "missing title"] }
+    // MARK: - 运营战役（v0.8.2）
+
+    private static func promotionCampaigns() -> [String: Any] {
+        let store = PromotionStore.shared
+        return ["campaigns": store.campaigns.map { campaignJSON($0) }]
+    }
+
+    private static func campaignJSON(_ campaign: PromotionCampaign) -> [String: Any] {
+        let linked = PromotionStore.shared.posts(inCampaign: campaign.id)
+        let drafts = linked.filter { $0.status == .draft }
+        var out: [String: Any] = [
+            "id": campaign.id.uuidString,
+            "title": campaign.title,
+            "objective": campaign.objective,
+            "version": campaign.version ?? "",
+            "productURL": campaign.productURL,
+            "platforms": campaign.platforms,
+            "status": campaign.status.rawValue,
+            "assets": campaign.assets,
+            "brief": campaign.brief,
+            "totalPosts": linked.count,
+            "drafts": drafts.count,
+            "published": linked.filter { $0.status == .published }.count,
+            "createdAt": campaign.createdAt.timeIntervalSince1970,
+            "updatedAt": campaign.updatedAt.timeIntervalSince1970,
+        ]
+        if let goalID = campaign.goalID { out["goalID"] = goalID.uuidString }
+        if let starts = campaign.startsAt { out["startsAt"] = starts.timeIntervalSince1970 }
+        if let next = drafts.compactMap(\.plannedFor).min() {
+            out["nextPlannedFor"] = next.timeIntervalSince1970
+        }
+        return out
+    }
+
+    private static func promotionChannel(named raw: String) -> PromotionChannel {
+        if let preset = PromotionChannel.preset(platform: raw) { return preset }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let slug = trimmed.lowercased()
+            .filter { $0.isLetter || $0.isNumber }
+        return PromotionChannel(slug: slug.isEmpty ? "custom" : slug,
+                                platform: trimmed.isEmpty ? "Custom" : trimmed,
+                                voice: .technical,
+                                maxTitleLength: 80, maxBodyLength: 2000)
+    }
+
+    private static func promotionCampaignGenerate(_ body: [String: Any]) -> [String: Any] {
+        let version = (string(body, "version") ?? WhatsNewStore.shared.versionName)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !version.isEmpty else { return ["error": "missing version"] }
+        var highlights = (body["highlights"] as? [String]) ?? []
+        if highlights.isEmpty, let raw = string(body, "highlights") {
+            highlights = raw.split(separator: "\n").map(String.init)
+        }
+        highlights = highlights
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !highlights.isEmpty else { return ["error": "missing highlights"] }
+        let platforms = (body["platforms"] as? [String]) ?? []
+        let channels = platforms.isEmpty
+            ? PromotionChannel.presets
+            : platforms.map { promotionChannel(named: $0) }
+        let start = promotionDate(string(body, "startDate")) ?? Date()
+        let brief = PromotionCampaignBuilder.Brief(
+            version: version,
+            title: string(body, "title"),
+            objective: string(body, "objective") ?? "",
+            productURL: string(body, "productURL") ?? "https://desire.mankong.icu/",
+            highlights: highlights,
+            audience: string(body, "audience") ?? "macOS 用户、开发者、内容创作者",
+            cta: string(body, "cta") ?? "下载体验：",
+            startDate: start,
+            channels: channels,
+            goalText: string(body, "goal"))
+        guard let generation = PromotionStore.shared.generateCampaign(brief) else {
+            return ["error": "could not generate campaign (empty highlights?)"]
+        }
+        return ["ok": true,
+                "campaign": campaignJSON(generation.campaign),
+                "posts": generation.posts.map { postJSON($0) }]
+    }
+
+    private static func promotionCampaignStatus(_ body: [String: Any]) -> [String: Any] {
+        guard let raw = string(body, "id"), let id = UUID(uuidString: raw) else {
+            return ["error": "missing or invalid id"]
+        }
+        guard let statusRaw = string(body, "status"),
+              let status = PromotionCampaign.Status(rawValue: statusRaw.lowercased()) else {
+            return ["error": "status must be planning|drafting|scheduled|publishing|review|done|archived"]
+        }
+        guard PromotionStore.shared.updateCampaignStatus(id, status: status) else {
+            return ["error": "no campaign matches \(raw)"]
+        }
+        return ["ok": true, "id": id.uuidString, "status": status.rawValue]
+    }
+
+    private static func promotionCampaignRemove(_ body: [String: Any]) -> [String: Any] {
+        guard let raw = string(body, "id"), let id = UUID(uuidString: raw) else {
+            return ["error": "missing or invalid id"]
+        }
+        let existed = PromotionStore.shared.campaign(id: id) != nil
+        PromotionStore.shared.removeCampaign(id)
+        return ["ok": existed]
+    }
+
+    private static func promotionGoalAdd(_ body: [String: Any]) -> [String: Any] {        guard let title = string(body, "title"), !title.isEmpty else { return ["error": "missing title"] }
         let target = (body["targetPosts"] as? Int) ?? (body["targetPosts"] as? Double).map(Int.init)
         let domain = (string(body, "domain")).flatMap { OperationDomain(rawValue: $0.lowercased()) } ?? .promotion
         guard let goal = PromotionStore.shared.addGoal(
@@ -6538,6 +6653,7 @@ final class AutomationServer {
             "body": post.body,
         ]
         if let goalID = post.goalID { out["goalID"] = goalID.uuidString }
+        if let campaignID = post.campaignID { out["campaignID"] = campaignID.uuidString }
         if let url = post.url { out["url"] = url }
         if let published = post.publishedAt { out["publishedAt"] = published.timeIntervalSince1970 }
         if let planned = post.plannedFor { out["plannedFor"] = planned.timeIntervalSince1970 }

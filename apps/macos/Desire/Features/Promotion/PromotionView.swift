@@ -18,6 +18,7 @@ struct PromotionView: View {
     var onSendToAgent: ((String) -> Void)? = nil
 
     @State private var isCreatingGoal = false
+    @State private var isCreatingCampaign = false
     @State private var isCreatingAccount = false
     @State private var publishingPost: PromotionPost?
     @State private var metricsEditorID: UUID?
@@ -33,6 +34,7 @@ struct PromotionView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     goalsSection
+                    campaignsSection
                     accountsSection
                     interactionsSection
                     automationSection
@@ -49,6 +51,7 @@ struct PromotionView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .sheet(isPresented: $isCreatingGoal) { PromotionGoalEditorSheet() }
+        .sheet(isPresented: $isCreatingCampaign) { PromotionCampaignEditorSheet() }
         .sheet(isPresented: $isCreatingAccount) { PromotionAccountEditorSheet() }
         .sheet(item: $publishingPost) { post in
             PromotionPublishSheet(post: post)
@@ -69,6 +72,8 @@ struct PromotionView: View {
             HoverIcon(systemName: reportCopied ? "checkmark.circle" : "doc.text",
                       action: copyReport,
                       help: String(localized: "Copy weekly report"))
+            HoverIcon(systemName: "megaphone.fill", action: { isCreatingCampaign = true },
+                      help: String(localized: "New Campaign"))
             HoverIcon(systemName: "plus", action: { isCreatingGoal = true },
                       help: String(localized: "New Goal"))
         }
@@ -190,6 +195,95 @@ struct PromotionView: View {
                 }
             }
             .padding(.leading, 12)
+        }
+        .padding(10)
+        .background(cardBackground)
+    }
+
+    // MARK: - Campaigns（v0.8.2）
+
+    @ViewBuilder
+    private var campaignsSection: some View {
+        if !store.campaigns.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    sectionHeader(String(localized: "Campaigns"), count: store.campaigns.count)
+                    Spacer()
+                    Button(String(localized: "New Campaign")) { isCreatingCampaign = true }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 10.5, weight: .medium))
+                        .foregroundStyle(appAccent)
+                }
+                ForEach(store.campaigns) { campaign in
+                    campaignRow(campaign)
+                }
+            }
+        }
+    }
+
+    private func campaignRow(_ campaign: PromotionCampaign) -> some View {
+        let linked = store.posts(inCampaign: campaign.id)
+        let drafts = linked.filter { $0.status == .draft }
+        let published = linked.filter { $0.status == .published }
+        let next = drafts.compactMap(\.plannedFor).min()
+        return HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "flag.checkered")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(appAccent)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(campaign.title)
+                    .font(.system(size: 12.5, weight: .semibold))
+                HStack(spacing: 6) {
+                    Text(campaign.platforms.joined(separator: " / "))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                    if let version = campaign.version, !version.isEmpty {
+                        Text("v\(version)")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                Text("\(published.count)/\(linked.count) " + String(localized: "published")
+                     + " · \(drafts.count) " + String(localized: "draft(s)")
+                     + (next.map { " · " + String(localized: "next") + " " + PromotionSummary.shortDate($0) } ?? ""))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                if !campaign.objective.isEmpty {
+                    Text(campaign.objective)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer(minLength: 8)
+            Menu {
+                ForEach(PromotionCampaign.Status.allCases, id: \.self) { status in
+                    Button(status.label) {
+                        store.updateCampaignStatus(campaign.id, status: status)
+                    }
+                    .disabled(campaign.status == status)
+                }
+                if let onSendToAgent {
+                    Divider()
+                    Button(String(localized: "Ask Agent to continue…")) {
+                        onSendToAgent("继续推进运营战役「\(campaign.title)」：先看这条战役下的草稿与目标，按平台逐条检查/润色待审内容；任何发布或回复都必须先问我。")
+                    }
+                }
+                Divider()
+                Button(String(localized: "Delete campaign"), role: .destructive) {
+                    store.removeCampaign(campaign.id)
+                }
+            } label: {
+                Text(campaign.status.label)
+                    .font(.system(size: 10, weight: .medium))
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                    .foregroundStyle(.secondary)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
         }
         .padding(10)
         .background(cardBackground)

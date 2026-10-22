@@ -4740,6 +4740,63 @@ func testTabResourcePlan() {
 }
 testTabResourcePlan()
 
+func testPromotionCampaign() {
+    let x = PromotionChannel.preset(slug: "x")!
+    let red = PromotionChannel.preset(slug: "xiaohongshu")!
+    let start = Date(timeIntervalSince1970: 1_800_000_000)
+    let brief = PromotionCampaignBuilder.Brief(
+        version: "v0.8.2",
+        title: "测试战役",
+        objective: "让更多人试用",
+        productURL: "https://desire.test/p?id=1",
+        highlights: ["后台任务", " 运营驾驶舱 ", "后台任务", "回执", "审计", "多余的第六条"],
+        startDate: start,
+        channels: [x, red])
+    let plan = PromotionCampaignBuilder.makePlan(brief, now: start)
+    check("运营战役：版本号去 v", plan.campaign.version == "0.8.2")
+    check("运营战役：亮点去重/截断到 5 条", plan.campaign.brief.contains("运营驾驶舱")
+          && plan.campaign.brief.components(separatedBy: "后台任务").count == 2)
+    check("运营战役：按渠道生成草稿", plan.drafts.count == 2
+          && plan.drafts.map(\.platform) == ["X", "小红书"])
+    check("运营战役：草稿全部 draft", plan.campaign.status == .drafting)
+    let xDraft = plan.drafts[0]
+    check("运营战役：UTM 追加且保留原 query",
+          xDraft.trackedURL.contains("utm_source=x")
+              && xDraft.trackedURL.contains("utm_campaign=desire-v0-8-2")
+              && xDraft.trackedURL.contains("id=1"))
+    check("运营战役：标题按渠道截断",
+          xDraft.title.count <= x.maxTitleLength
+              && plan.drafts[1].title.count <= red.maxTitleLength)
+    check("运营战役：正文含链接与亮点",
+          xDraft.body.contains("https://desire.test/p?id=1")
+              && xDraft.body.contains("后台任务"))
+    check("运营战役：小红书正文带标签",
+          plan.drafts[1].body.contains("#macOS"))
+    check("运营战役：排期推进", plan.drafts[1].plannedFor > plan.drafts[0].plannedFor)
+    let clamped = PromotionCampaignBuilder.clampBody(
+        String(repeating: "长", count: 5000), max: 200, url: "https://short.test/x")
+    check("运营战役：超长正文保留链接", clamped.count <= 200
+          && clamped.contains("https://short.test/x"))
+    check("运营战役：平台名查找大小写不敏感",
+          PromotionChannel.preset(platform: "v2ex")?.slug == "v2ex")
+
+    let legacy = """
+    {"id":"00000000-0000-0000-0000-000000000001","platform":"X","title":"Old",
+     "body":"b","status":"draft","createdAt":0,"updatedAt":0}
+    """
+    let post = try? JSONDecoder().decode(PromotionPost.self, from: Data(legacy.utf8))
+    check("运营战役：旧帖子缺 campaignID 解码 nil",
+          post != nil && post?.campaignID == nil)
+    if let data = try? JSONEncoder().encode(plan.campaign),
+       let decoded = try? JSONDecoder().decode(PromotionCampaign.self, from: data) {
+        check("运营战役：Codable 往返", decoded.id == plan.campaign.id
+              && decoded.status == .drafting)
+    } else {
+        check("运营战役：Codable 往返", false)
+    }
+}
+testPromotionCampaign()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

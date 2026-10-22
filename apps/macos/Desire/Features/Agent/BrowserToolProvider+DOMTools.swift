@@ -2880,6 +2880,72 @@ extension BrowserToolProvider {
             }
             return text
 
+        case "promotionCampaign":
+            let campaignStore = PromotionStore.shared
+            let action = (args["action"] as? String ?? "list").lowercased()
+            switch action {
+            case "generate":
+                let version = ((args["version"] as? String)
+                    ?? (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String)
+                    ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !version.isEmpty else { return Self.fail("Missing version") }
+                let highlights = (args["highlights"] as? [String] ?? [])
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty }
+                guard !highlights.isEmpty else { return Self.fail("Missing highlights (use facts from CHANGELOG/release notes)") }
+                let platforms = (args["platforms"] as? [String]) ?? []
+                let channels = platforms.isEmpty
+                    ? PromotionChannel.presets
+                    : platforms.map { name -> PromotionChannel in
+                        PromotionChannel.preset(platform: name)
+                            ?? PromotionChannel(slug: name.lowercased().filter { $0.isLetter || $0.isNumber },
+                                                platform: name, voice: .technical,
+                                                maxTitleLength: 80, maxBodyLength: 2000)
+                    }
+                let brief = PromotionCampaignBuilder.Brief(
+                    version: version,
+                    title: args["title"] as? String,
+                    objective: args["objective"] as? String ?? "",
+                    productURL: args["productURL"] as? String ?? "https://desire.mankong.icu/",
+                    highlights: highlights,
+                    startDate: Date(),
+                    channels: channels,
+                    goalText: args["goal"] as? String)
+                guard let generation = campaignStore.generateCampaign(brief) else {
+                    return Self.fail("Could not generate campaign")
+                }
+                let lines = generation.posts.map { post in
+                    "- [\(post.platform)] \(post.title) — scheduled \(PromotionSummary.shortDate(post.plannedFor ?? Date()))"
+                }
+                return "Campaign \"\(generation.campaign.title)\" created with \(generation.posts.count) draft(s). Nothing was published — review and approve each post in Operations.\n"
+                    + lines.joined(separator: "\n")
+
+            case "status":
+                guard let raw = args["id"] as? String, let id = UUID(uuidString: raw),
+                      let statusRaw = args["status"] as? String,
+                      let status = PromotionCampaign.Status(rawValue: statusRaw.lowercased()) else {
+                    return Self.fail("Missing/invalid id or status")
+                }
+                guard campaignStore.updateCampaignStatus(id, status: status) else {
+                    return Self.fail("No campaign matches \(raw)")
+                }
+                return "Campaign \(raw) → \(status.rawValue)"
+
+            default:
+                let campaigns = campaignStore.campaigns
+                guard !campaigns.isEmpty else { return "No campaigns yet." }
+                return campaigns.map { campaign -> String in
+                    let linked = campaignStore.posts(inCampaign: campaign.id)
+                    let drafts = linked.filter { $0.status == .draft }.count
+                    let published = linked.filter { $0.status == .published }.count
+                    var line = "- \(campaign.title) [\(campaign.status.rawValue)] · \(published)/\(linked.count) published, \(drafts) draft(s)"
+                    if let next = linked.filter({ $0.status == .draft }).compactMap(\.plannedFor).min() {
+                        line += " · next \(PromotionSummary.shortDate(next))"
+                    }
+                    return line
+                }.joined(separator: "\n")
+            }
+
         case "promotionSave":
             // 创建或更新：带 id = 更新（选题→草稿、改排期、补 URL）；
             // 无 id = 新建。status: idea（选题，正文可空）| draft | published。

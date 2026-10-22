@@ -58,6 +58,11 @@ jobs:
         run: bash tests/run.sh
 
       - name: Build and verify version
+        env:
+          MACOS_SIGNING_P12: ${{ secrets.MACOS_SIGNING_P12 }}
+          MACOS_SIGNING_PASSWORD: ${{ secrets.MACOS_SIGNING_PASSWORD }}
+          MACOS_SIGNING_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_SIGNING_KEYCHAIN_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
         run: |
           set -euo pipefail
           V="${{ inputs.version }}"
@@ -78,6 +83,7 @@ jobs:
           APP="$RUNNER_TEMP/dd-arm64/Build/Products/Release/Desire.app"
           VER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
           [ "$VER" = "$V" ] || { echo "::error::built version $VER != expected $V"; exit 1; }
+          bash scripts/sign-app.sh "$APP"
           ditto -c -k --keepParent "$APP" "Desire-v$V-macos-arm64.zip"
           shasum -a 256 "Desire-v$V-macos-arm64.zip" > "SHASUMS256-arm64.txt"
 
@@ -104,6 +110,11 @@ jobs:
           xcodebuild -version | grep -q "Xcode 27.1" || { echo "::error::expected Xcode 27.1"; exit 1; }
 
       - name: Build and verify version/arch
+        env:
+          MACOS_SIGNING_P12: ${{ secrets.MACOS_SIGNING_P12 }}
+          MACOS_SIGNING_PASSWORD: ${{ secrets.MACOS_SIGNING_PASSWORD }}
+          MACOS_SIGNING_KEYCHAIN_PASSWORD: ${{ secrets.MACOS_SIGNING_KEYCHAIN_PASSWORD }}
+          MACOS_SIGNING_IDENTITY: ${{ secrets.MACOS_SIGNING_IDENTITY }}
         run: |
           set -euo pipefail
           V="${{ inputs.version }}"
@@ -125,6 +136,7 @@ jobs:
           APP="$RUNNER_TEMP/dd-x86/Build/Products/Release/Desire.app"
           VER=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
           [ "$VER" = "$V" ] || { echo "::error::x86_64 built version $VER != expected $V"; exit 1; }
+          bash scripts/sign-app.sh "$APP"
           ARCHS=$(lipo -archs "$APP/Contents/MacOS/Desire")
           [[ "$ARCHS" == *x86_64* ]] || { echo "::error::x86_64 binary missing: $ARCHS"; exit 1; }
           ditto -c -k --keepParent "$APP" "Desire-v$V-macos-x86_64.zip"

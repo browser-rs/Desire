@@ -1,3 +1,9 @@
+## [Unreleased]
+### Added
+
+- **稳定签名流水线（v0.9.0）**：新增 `scripts/setup-signing.sh`（生成固定 self-signed 代码签名 identity + p12/口令，打印 GitHub secrets 命令，**不自动上传**）与 `scripts/sign-app.sh`（CI 用临时 keychain 导入 p12、`codesign --force --deep --options runtime --timestamp=none`、验签）。`release.yml` 两个架构在版本校验后调用签名；secrets 缺失时明确打印 "leaving app unsigned (adhoc)" 并保持旧行为。`docs/SIGNING.md` 记明：adhoc 的 designated requirement 是 cdhash，固定证书后变成 `identifier + certificate root`，跨版本稳定；本机用临时证书对两份 app 副本签名验证 requirement 完全一致、`codesign --verify --deep --strict` 通过。**待你一次性执行脚本并上传 4 个 secrets 后生效**；私钥目录已进 `.gitignore`。
+
+
 ## [v0.8.0] - 2026-10-22
 ### Changed
 

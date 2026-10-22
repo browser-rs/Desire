@@ -71,3 +71,6 @@ node_modules/
 
 __pycache__/
 *.pyc
+
+# Local code-signing material (scripts/setup-signing.sh)
+DesireLocalSigning/

@@ -57,6 +57,7 @@ struct ContentView: View {
     /// 不能是 `private`——`ContentView+Overlays.swift` 里的 extension 也要读。
     @Environment(\.appAccent) var appAccent: Color
     @Environment(\.openWindow) var openWindow
+    @ObservedObject private var whatsNew = WhatsNewStore.shared
 
     init(appState: AppState, sessionID: Binding<UUID?>) {
         let t0 = Date()
@@ -452,6 +453,14 @@ struct ContentView: View {
                let id = UUID(uuidString: raw) {
                 openWindow(id: "webapp", value: id)
             }
+        }
+        .task {
+            // 更新后 What's New：单个窗口认领（--automation 下自动跳过）。
+            try? await Task.sleep(for: .milliseconds(700))
+            WhatsNewStore.shared.presentIfNeeded()
+        }
+        .sheet(isPresented: $whatsNew.isPresented) {
+            WhatsNewSheet(sync: appState.syncStore)
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { note in
             guard let window = note.object as? NSWindow else { return }

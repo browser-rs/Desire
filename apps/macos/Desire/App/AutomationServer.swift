@@ -418,6 +418,10 @@ final class AutomationServer {
         ep("GET", "/history/content/stats", "Page-text index state (enabled/count)", example: "…/history/content/stats")
         ep("POST", "/history/content", "Enable/disable page-text indexing", params: ["enabled:bool"], example: "-d '{\"enabled\":true}'")
         ep("POST", "/history/content/clear", "Delete the local page-text index", example: "-d '{}'")
+        ep("GET", "/whatsnew", "What's New state for the current build (hasUnseen/presented/version)", example: "…/whatsnew")
+        ep("POST", "/whatsnew/show", "Show the What's New sheet (automation; normal launches auto-show once)", example: "-d '{}'")
+        ep("POST", "/whatsnew/dismiss", "Mark What's New as seen for this build", example: "-d '{}'")
+        ep("POST", "/whatsnew/reset", "Forget the seen marker (testing/replay)", example: "-d '{}'")
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
         ep("GET", "/diag/browser", "Browser diagnostics: content-process crash count + recent crashes", example: "…/diag/browser")
         ep("GET", "/activity", "Activity center: downloads/batch media/exports/scheduled runs/agent sessions/crew", example: "…/activity")
@@ -947,6 +951,17 @@ final class AutomationServer {
                     body["enabled"] as? Bool ?? false))
             case ("POST", "/history/content/clear"):
                 return try Self.json(Self.historyContentClear())
+            case ("GET", "/whatsnew"):
+                return try Self.json(Self.whatsNewState())
+            case ("POST", "/whatsnew/show"):
+                WhatsNewStore.shared.show()
+                return try Self.json(Self.whatsNewState())
+            case ("POST", "/whatsnew/dismiss"):
+                WhatsNewStore.shared.dismiss()
+                return try Self.json(Self.whatsNewState())
+            case ("POST", "/whatsnew/reset"):
+                WhatsNewStore.shared.resetForTesting()
+                return try Self.json(Self.whatsNewState())
             case ("GET", "/reader"):
                 return try Self.json(Self.readerState(index: Self.index(query)))
             case ("GET", "/console"):
@@ -3881,6 +3896,14 @@ final class AutomationServer {
     private static func historyContentClear() throws -> [String: Any] {
         HistoryContentStore.shared.clear()
         return try historyContentStats()
+    }
+
+    private static func whatsNewState() throws -> [String: Any] {
+        let store = WhatsNewStore.shared
+        return ["version": store.versionName,
+                "buildKey": store.currentKey,
+                "hasUnseen": store.hasUnseen,
+                "presented": store.isPresented]
     }
 
     private static func bookmarks(tree: Bool = false) throws -> [String: Any] {

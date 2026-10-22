@@ -252,6 +252,9 @@ struct AppCommands: Commands {
         // MARK: - Help
 
         CommandGroup(replacing: .help) {
+            Button("What's New") {
+                WhatsNewStore.shared.show()
+            }
             Button("Desire on GitHub") {
                 NSWorkspace.shared.open(URL(string: "https://github.com/browser-rs/Desire")!)
             }

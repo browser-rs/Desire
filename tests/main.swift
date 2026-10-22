@@ -4797,6 +4797,44 @@ func testPromotionCampaign() {
 }
 testPromotionCampaign()
 
+func testMentionRadar() {
+    let templated = MentionSource(name: "DDG", platform: "Web",
+                                  searchURL: "https://duck.test/html/?q={query}")
+    let url = MentionRadar.searchURL(for: templated, query: "Desire browser")
+    check("提及雷达：模板替换并编码",
+          url?.contains("Desire%20browser") == true && url?.contains("{query}") == false)
+    let plain = MentionSource(name: "Bing", platform: "Web",
+                              searchURL: "https://bing.test/search?q=old")
+    let appended = MentionRadar.searchURL(for: plain, query: "Desire")
+    check("提及雷达：无模板时替换 q",
+          appended?.contains("q=Desire") == true && appended?.contains("q=old") == false)
+    check("提及雷达：空查询返回 nil",
+          MentionRadar.searchURL(for: templated, query: "  ") == nil)
+
+    let hits = [
+        MentionRadar.Hit(url: "https://a.test/1", title: "Desire 浏览器",
+                         snippet: "有人在讨论 Desire 的新版本"),
+        MentionRadar.Hit(url: "https://a.test/1", title: "重复",
+                         snippet: "Desire 重复链接"),
+        MentionRadar.Hit(url: "https://b.test/2", title: "无关",
+                         snippet: "这里没有关键词"),
+        MentionRadar.Hit(url: "ftp://c.test/3", title: "Desire",
+                         snippet: "Desire ftp"),
+        MentionRadar.Hit(url: "https://d.test/4", title: "另一个",
+                         snippet: "提到 desire 的大小写"),
+    ]
+    let drafts = MentionRadar.drafts(hits: hits, query: "Desire")
+    check("提及雷达：按 URL 去重", drafts.count == 2)
+    check("提及雷达：过滤无关与非法链接",
+          drafts.allSatisfy { $0.url.hasPrefix("https://") }
+              && drafts.contains { $0.url == "https://a.test/1" })
+    check("提及雷达：大小写不敏感命中",
+          drafts.contains { $0.url == "https://d.test/4" })
+    check("提及雷达：limit 生效",
+          MentionRadar.drafts(hits: hits, query: "Desire", limit: 1).count == 1)
+}
+testMentionRadar()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

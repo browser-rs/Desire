@@ -25,6 +25,12 @@ struct PromotionView: View {
     @State private var accountEditorID: UUID?
     @State private var lessonDraft = ""
     @State private var reportCopied = false
+    /// 发布准备结果（填了 composer 后提示"还需你自己按发布"）。
+    @State private var publishNote: String?
+    @State private var isAddingMentionSource = false
+    @State private var mentionQuery = "Desire"
+    @State private var mentionScanning = false
+    @State private var mentionNote: String?
     /// 自动化开关的刷新源（定时任务增删时重绘）。
     @ObservedObject private var scheduler = AgentScheduler.shared
 
@@ -35,6 +41,7 @@ struct PromotionView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     goalsSection
                     campaignsSection
+                    mentionRadarSection
                     accountsSection
                     interactionsSection
                     automationSection
@@ -52,9 +59,17 @@ struct PromotionView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .sheet(isPresented: $isCreatingGoal) { PromotionGoalEditorSheet() }
         .sheet(isPresented: $isCreatingCampaign) { PromotionCampaignEditorSheet() }
+        .sheet(isPresented: $isAddingMentionSource) { MentionSourceEditorSheet() }
         .sheet(isPresented: $isCreatingAccount) { PromotionAccountEditorSheet() }
         .sheet(item: $publishingPost) { post in
             PromotionPublishSheet(post: post)
+        }
+        .alert(String(localized: "Prepare to publish"),
+               isPresented: Binding(get: { publishNote != nil },
+                                    set: { if !$0 { publishNote = nil } })) {
+            Button(String(localized: "OK"), role: .cancel) { publishNote = nil }
+        } message: {
+            Text(publishNote ?? "")
         }
     }
 
@@ -287,6 +302,99 @@ struct PromotionView: View {
         }
         .padding(10)
         .background(cardBackground)
+    }
+
+    // MARK: - Mention Radar（v0.8.2）
+
+    @ViewBuilder
+    private var mentionRadarSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                sectionHeader(String(localized: "Mention Radar"), count: store.mentionSources.count)
+                Spacer()
+                Menu(String(localized: "Add Source")) {
+                    ForEach(MentionSource.presets) { preset in
+                        Button(preset.name) {
+                            _ = store.addMentionSource(name: preset.name,
+                                                       platform: preset.platform,
+                                                       searchURL: preset.searchURL)
+                        }
+                    }
+                    Divider()
+                    Button(String(localized: "Custom…")) { isAddingMentionSource = true }
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .font(.system(size: 10.5))
+            }
+            if store.mentionSources.isEmpty {
+                Text(String(localized: "Add a search or community entry to watch for mentions. Hits land in the interaction ledger — replies are always drafted first."))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(store.mentionSources) { source in
+                    HStack(spacing: 8) {
+                        Toggle("", isOn: Binding(
+                            get: { source.isEnabled },
+                            set: { store.setMentionSourceEnabled(source.id, enabled: $0) }))
+                            .toggleStyle(.switch)
+                            .controlSize(.mini)
+                            .labelsHidden()
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(source.name)
+                                .font(.system(size: 11.5, weight: .medium))
+                            Text(source.searchURL)
+                                .font(.system(size: 9.5, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        Spacer(minLength: 4)
+                        HoverIcon(systemName: "trash", action: {
+                            store.removeMentionSource(source.id)
+                        }, help: String(localized: "Remove source"))
+                    }
+                    .padding(8)
+                    .background(cardBackground)
+                }
+            }
+            HStack(spacing: 8) {
+                TextField(String(localized: "Keyword"), text: $mentionQuery)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(maxWidth: 220)
+                Button(mentionScanning ? String(localized: "Scanning…") : String(localized: "Scan Now")) {
+                    scanMentions()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(mentionScanning || store.enabledMentionSources.isEmpty
+                          || mentionQuery.trimmingCharacters(in: .whitespaces).isEmpty)
+                if let last = store.lastMentionScanAt {
+                    Text(String(localized: "Last scan \(PromotionSummary.shortDate(last))"))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            if let mentionNote {
+                Text(mentionNote)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func scanMentions() {
+        let query = mentionQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else { return }
+        mentionScanning = true
+        mentionNote = nil
+        Task { @MainActor in
+            let result = await MentionRadarScanner.scan(
+                query: query, sources: store.mentionSources)
+            mentionScanning = false
+            mentionNote = String(localized: "Scanned \(result.scannedSources) source(s), added \(result.added) new mention(s).")
+                + (result.errors.isEmpty ? "" : " · " + result.errors.prefix(2).joined(separator: "; "))
+        }
     }
 
     // MARK: - Accounts（自媒体 / 电商专项）
@@ -632,6 +740,8 @@ struct PromotionView: View {
             }
             HoverIcon(systemName: "doc.on.doc", action: { copyBody(post) },
                       help: String(localized: "Copy Body"))
+            HoverIcon(systemName: "safari", action: { prepare(post) },
+                      help: String(localized: "Open the composer and fill this draft (you press Publish)"))
             Button(String(localized: "Mark Published")) {
                 publishingPost = post
             }
@@ -851,6 +961,15 @@ struct PromotionView: View {
     private func copyBody(_ post: PromotionPost) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(post.body, forType: .string)
+    }
+
+    /// 发布准备：开 composer 并填入草稿；最终发布按钮仍由用户按。
+    private func prepare(_ post: PromotionPost) {
+        publishNote = String(localized: "Opening the composer…")
+        Task { @MainActor in
+            let result = await PromotionPublishHelper.prepare(post: post)
+            publishNote = result.message
+        }
     }
 
     private func accountTrendPoints(_ account: PromotionAccount) -> [(Date, Double)] {

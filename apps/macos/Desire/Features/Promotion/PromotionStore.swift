@@ -20,6 +20,8 @@ final class PromotionStore: ObservableObject {
     @Published private(set) var interactions: [PromotionInteraction] = []
     /// 运营战役（v0.8.2）：目标与帖子之间的 campaign 层。
     @Published private(set) var campaigns: [PromotionCampaign] = []
+    /// 提及雷达来源（v0.8.2）。
+    @Published private(set) var mentionSources: [MentionSource] = []
 
     private static let goalsKey = "promotion.goals"
     private static let postsKey = "promotion.posts"
@@ -27,6 +29,7 @@ final class PromotionStore: ObservableObject {
     private static let lessonsKey = "promotion.lessons"
     private static let interactionsKey = "promotion.interactions"
     private static let campaignsKey = "promotion.campaigns"
+    private static let mentionSourcesKey = "promotion.mentionSources"
 
     private init() {
         goals = DiskStore.load([PromotionGoal].self, key: Self.goalsKey) ?? []
@@ -35,6 +38,7 @@ final class PromotionStore: ObservableObject {
         lessons = DiskStore.load([PromotionLesson].self, key: Self.lessonsKey) ?? []
         interactions = DiskStore.load([PromotionInteraction].self, key: Self.interactionsKey) ?? []
         campaigns = DiskStore.load([PromotionCampaign].self, key: Self.campaignsKey) ?? []
+        mentionSources = DiskStore.load([MentionSource].self, key: Self.mentionSourcesKey) ?? []
     }
 
     // MARK: - 目标
@@ -260,6 +264,52 @@ final class PromotionStore: ObservableObject {
         persistAccounts()
     }
 
+    // MARK: - 提及雷达来源（v0.8.2）
+
+    private static let lastMentionScanKey = "promotion.mention.lastScan"
+
+    var lastMentionScanAt: Date? {
+        let raw = UserDefaults.standard.double(forKey: Self.lastMentionScanKey)
+        return raw > 0 ? Date(timeIntervalSince1970: raw) : nil
+    }
+
+    var enabledMentionSources: [MentionSource] {
+        mentionSources.filter(\.isEnabled)
+    }
+
+    @discardableResult
+    func addMentionSource(name: String, platform: String,
+                          searchURL: String) -> MentionSource? {
+        let n = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let p = platform.trimmingCharacters(in: .whitespacesAndNewlines)
+        let u = searchURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !n.isEmpty, !u.isEmpty, URL(string: u) != nil else { return nil }
+        if let existing = mentionSources.first(where: { $0.searchURL == u }) {
+            return existing
+        }
+        let source = MentionSource(name: n, platform: p.isEmpty ? "Web" : p,
+                                   searchURL: u)
+        mentionSources.append(source)
+        persistMentionSources()
+        return source
+    }
+
+    func setMentionSourceEnabled(_ id: UUID, enabled: Bool) {
+        guard let idx = mentionSources.firstIndex(where: { $0.id == id }) else { return }
+        mentionSources[idx].isEnabled = enabled
+        persistMentionSources()
+    }
+
+    func removeMentionSource(_ id: UUID) {
+        mentionSources.removeAll { $0.id == id }
+        persistMentionSources()
+    }
+
+    func markMentionScan(at date: Date = Date()) {
+        UserDefaults.standard.set(date.timeIntervalSince1970,
+                                  forKey: Self.lastMentionScanKey)
+    }
+
     // MARK: - 互动台账（评论/私信/评价）
 
     /// 批量登记（巡检发现一条登记一条；url 或 平台+帖子+作者+正文 去重跳过）。
@@ -437,4 +487,7 @@ final class PromotionStore: ObservableObject {
     private func persistLessons() { DiskStore.save(lessons, key: Self.lessonsKey) }
     private func persistInteractions() { DiskStore.save(interactions, key: Self.interactionsKey) }
     private func persistCampaigns() { DiskStore.save(campaigns, key: Self.campaignsKey) }
+    private func persistMentionSources() {
+        DiskStore.save(mentionSources, key: Self.mentionSourcesKey)
+    }
 }

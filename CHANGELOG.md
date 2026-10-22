@@ -2,6 +2,9 @@
 ### Added
 
 - **运营战役 Growth Cockpit（v0.8.2，第一批）**：运营工作台新增 Campaign 层（目标 → 渠道 → 内容 → 数据），帖子可用 `campaignID` 关联战役；新增 6 个渠道档案（X / 小红书 / V2EX / 掘金 / 即刻 / Hacker News，含语气、长度上限、标签、composer 起点）。`PromotionCampaignBuilder` 从版本 + 事实亮点确定性生成各平台草稿（标题/正文按渠道裁剪、每条带 UTM 链接、排期按渠道错开），**全部以 draft 入库，绝不自动发布**；无亮点拒绝生成，避免空泛营销稿。运营页新增 Campaign 区块（进度/下一排期/状态菜单/交给 Agent 继续），新建 Campaign 表单可填版本、亮点、渠道与起点。桥新增 `GET /promotion/campaigns`、`POST /promotion/campaign/generate|status|remove`；Agent 新增 `promotionCampaign`（list/generate/status）。验收：桥生成 X/V2EX/小红书 3 平台 3 草稿，campaignID 正确关联、正文均含 UTM，状态可切 scheduled，测试数据已清理；harness 13 项（1293/0）。发布流水线（填 composer + 人工确认发布）、提及雷达、产品内分享入口仍待后续批次。
+- **运营发布准备（v0.8.2）**：草稿行新增 Safari 按钮——打开渠道 composer（预设 composerURL，可覆盖）并把标题/正文填进常见输入框（contenteditable/textarea/input，按平台选择器尽力匹配），**绝不点发布**；界面与回执明确要求用户检查后自己按 Publish，成功后再 Mark Published 记 URL。填入失败会说"页面可能改版、请手动粘贴"，不假装成功。桥新增 `POST /promotion/publish/prepare`。验收：本地 fixture composer → 标题+正文均填入（`filledTitle/filledBody=true`），未触发发布按钮；测试草稿已清理。
+- **提及雷达（v0.8.2）**：运营页新增 Mention Radar——可添加搜索引擎/社区入口（`{query}` 模板，预置 DuckDuckGo/Bing/V2EX/HN），离屏 webview 扫描关键词，抽取包含关键词的链接与上下文，按 URL 去重后写入互动台账（kind=mention）；不登录第三方、不自动回复。支持来源开关/删除、关键词扫描、上次扫描时间；桥新增 `GET /promotion/mentions/sources`、`POST /promotion/mentions/source|scan`。验收：本地 fixture 搜索页 → 首次 added=1、重复扫描 added=0，台账只有一条 mention，测试来源与条目已清理；harness URL 模板/去重/过滤 7 项（1300/0）。
+
 
 
 ## [v0.8.1] - 2026-10-22

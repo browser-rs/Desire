@@ -692,6 +692,10 @@ final class AutomationServer {
         ep("POST", "/promotion/campaign/generate", "Generate a campaign + per-platform drafts from a release brief (deterministic, no model); drafts are never auto-published", params: ["version:string", "title?:string", "objective?:string", "productURL?:string", "highlights:[string]", "platforms?:[string]", "audience?:string", "cta?:string", "goal?:string", "startDate?:yyyy-MM-dd"], example: #"-d '{"version":"0.8.2","highlights":["后台任务","运营驾驶舱"],"platforms":["X","V2EX","小红书"]}'"#)
         ep("POST", "/promotion/campaign/status", "Update a campaign status (planning/drafting/scheduled/publishing/review/done/archived)", params: ["id:string", "status:string"], example: #"-d '{"id":"<uuid>","status":"scheduled"}'"#)
         ep("POST", "/promotion/campaign/remove", "Remove a campaign (linked posts are kept, link cleared)", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
+        ep("POST", "/promotion/publish/prepare", "Open the channel composer in a new tab and fill the draft's title/body — NEVER publishes; the human presses Publish", params: ["id:string", "composerURL?:string (test override)"], example: #"-d '{"id":"<post-uuid>"}'"#)
+        ep("GET", "/promotion/mentions/sources", "Mention-radar sources (search/community URL templates)", example: "…/promotion/mentions/sources")
+        ep("POST", "/promotion/mentions/source", "Add/remove/toggle a mention-radar source", params: ["action:add|remove|toggle", "name?:string", "platform?:string", "searchURL?:string (use {query})", "id?:uuid", "enabled?:bool"], example: #"-d '{"action":"add","name":"DuckDuckGo","platform":"Web","searchURL":"https://duckduckgo.com/html/?q={query}"}'"#)
+        ep("POST", "/promotion/mentions/scan", "Scan enabled sources off-screen for a keyword; new links go to the interaction ledger (deduped)", params: ["query:string", "limit?:int"], example: #"-d '{"query":"Desire browser"}'"#)
         ep("POST", "/promotion/goal", "Add a promotion goal", params: ["title:string", "objective?:string", "platforms?:array", "targetPosts?:int", "dueDate?:string(yyyy-MM-dd|ISO8601)"], example: #"-d '{"title":"v0.7.15 发布宣传","platforms":["掘金"],"targetPosts":2}'"#)
         ep("POST", "/promotion/goal/remove", "Remove a promotion goal by id (posts keep their history, link cleared)", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/promotion/post", "Save or update a workbench post (idea/draft/published; pass id to update, plannedFor=yyyy-MM-dd) — same semantics as the agent's promotionSave tool", params: ["id?:string", "platform?:string", "title?:string", "body?:string", "status?:idea|draft|published", "url?:string", "goal?:string", "plannedFor?:string"], example: #"-d '{"platform":"掘金","title":"…","body":"…","status":"draft","plannedFor":"2026-10-20"}'"#)
@@ -1176,6 +1180,14 @@ final class AutomationServer {
                 return try Self.json(Self.promotionCampaignStatus(body))
             case ("POST", "/promotion/campaign/remove"):
                 return try Self.json(Self.promotionCampaignRemove(body))
+            case ("POST", "/promotion/publish/prepare"):
+                return try Self.json(await Self.promotionPublishPrepare(body))
+            case ("GET", "/promotion/mentions/sources"):
+                return try Self.json(Self.promotionMentionSources())
+            case ("POST", "/promotion/mentions/source"):
+                return try Self.json(Self.promotionMentionSourceAction(body))
+            case ("POST", "/promotion/mentions/scan"):
+                return try Self.json(await Self.promotionMentionScan(body))
             case ("POST", "/promotion/goal"):
                 return try Self.json(Self.promotionGoalAdd(body))
             case ("POST", "/promotion/goal/remove"):
@@ -6329,7 +6341,89 @@ final class AutomationServer {
         return ["ok": existed]
     }
 
-    private static func promotionGoalAdd(_ body: [String: Any]) -> [String: Any] {        guard let title = string(body, "title"), !title.isEmpty else { return ["error": "missing title"] }
+    /// 发布准备（v0.8.2）：只填 composer，不点发布。测试可用 composerURL 覆盖。
+    private static func promotionPublishPrepare(_ body: [String: Any]) async -> [String: Any] {
+        guard let raw = string(body, "id"), let id = UUID(uuidString: raw),
+              let post = PromotionStore.shared.post(id: id) else {
+            return ["error": "no post matches id"]
+        }
+        let result = await PromotionPublishHelper.prepare(
+            post: post, composerURLOverride: string(body, "composerURL"))
+        return ["ok": result.ok, "message": result.message,
+                "tabURL": result.tabURL,
+                "filledTitle": result.filledTitle, "filledBody": result.filledBody]
+    }
+
+    private static func promotionMentionSources() -> [String: Any] {
+        let store = PromotionStore.shared
+        var out: [String: Any] = ["sources": store.mentionSources.map { source -> [String: Any] in
+            ["id": source.id.uuidString, "name": source.name,
+             "platform": source.platform, "searchURL": source.searchURL,
+             "enabled": source.isEnabled,
+             "createdAt": source.createdAt.timeIntervalSince1970]
+        }]
+        if let last = store.lastMentionScanAt {
+            out["lastScanAt"] = last.timeIntervalSince1970
+        }
+        return out
+    }
+
+    private static func promotionMentionSourceAction(_ body: [String: Any]) -> [String: Any] {
+        let action = (string(body, "action") ?? "add").lowercased()
+        let store = PromotionStore.shared
+        switch action {
+        case "add":
+            guard let name = string(body, "name"), !name.isEmpty,
+                  let searchURL = string(body, "searchURL"), !searchURL.isEmpty else {
+                return ["error": "missing name or searchURL"]
+            }
+            guard let source = store.addMentionSource(
+                name: name,
+                platform: string(body, "platform") ?? "Web",
+                searchURL: searchURL) else {
+                return ["error": "invalid searchURL"]
+            }
+            return ["ok": true, "id": source.id.uuidString]
+        case "remove":
+            guard let raw = string(body, "id"), let id = UUID(uuidString: raw) else {
+                return ["error": "missing or invalid id"]
+            }
+            store.removeMentionSource(id)
+            return ["ok": true]
+        case "toggle":
+            guard let raw = string(body, "id"), let id = UUID(uuidString: raw),
+                  let enabled = body["enabled"] as? Bool else {
+                return ["error": "missing id or enabled"]
+            }
+            store.setMentionSourceEnabled(id, enabled: enabled)
+            return ["ok": true, "enabled": enabled]
+        default:
+            return ["error": "action must be add | remove | toggle"]
+        }
+    }
+
+    private static func promotionMentionScan(_ body: [String: Any]) async -> [String: Any] {
+        guard let query = string(body, "query")?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty else {
+            return ["error": "missing query"]
+        }
+        let limit = min(30, max(1, (body["limit"] as? Int) ?? 15))
+        let store = PromotionStore.shared
+        guard !store.enabledMentionSources.isEmpty else {
+            return ["error": "no enabled mention sources"]
+        }
+        let result = await MentionRadarScanner.scan(
+            query: query, sources: store.mentionSources,
+            maxHitsPerSource: limit)
+        return ["ok": true, "query": query,
+                "scannedSources": result.scannedSources,
+                "added": result.added,
+                "errors": result.errors,
+                "pendingInteractions": store.pendingInteractionCount]
+    }
+
+    private static func promotionGoalAdd(_ body: [String: Any]) -> [String: Any] {
+        guard let title = string(body, "title"), !title.isEmpty else { return ["error": "missing title"] }
         let target = (body["targetPosts"] as? Int) ?? (body["targetPosts"] as? Double).map(Int.init)
         let domain = (string(body, "domain")).flatMap { OperationDomain(rawValue: $0.lowercased()) } ?? .promotion
         guard let goal = PromotionStore.shared.addGoal(

@@ -267,6 +267,18 @@ final class PromotionStore: ObservableObject {
     // MARK: - 提及雷达来源（v0.8.2）
 
     private static let lastMentionScanKey = "promotion.mention.lastScan"
+    private static let mentionQueryKey = "promotion.mention.query"
+
+    /// 默认监控关键词（分享/提及雷达共用；可改后持久化）。
+    var mentionQuery: String {
+        let raw = UserDefaults.standard.string(forKey: Self.mentionQueryKey) ?? ""
+        return raw.isEmpty ? "Desire" : raw
+    }
+
+    func setMentionQuery(_ query: String) {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        UserDefaults.standard.set(trimmed, forKey: Self.mentionQueryKey)
+    }
 
     var lastMentionScanAt: Date? {
         let raw = UserDefaults.standard.double(forKey: Self.lastMentionScanKey)

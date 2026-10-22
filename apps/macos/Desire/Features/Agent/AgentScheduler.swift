@@ -214,11 +214,14 @@ final class AgentScheduler: ObservableObject {
                     targetSessionID: UUID? = nil) -> ScheduledTask? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty,
-              ["weeklyReport", "dailyBrief"].contains(kind) || Self.workflowID(in: kind) != nil
+              ["weeklyReport", "dailyBrief", "promotionMentionScan"].contains(kind)
+                || Self.workflowID(in: kind) != nil
         else { return nil }
         let displayPrompt: String
         if kind == "dailyBrief" {
             displayPrompt = "（内置）每日简报：今日会话/用量/收件箱 → 备注 + 通知"
+        } else if kind == "promotionMentionScan" {
+            displayPrompt = "（内置）提及雷达：离屏扫描已配置来源，新提及进互动台账"
         } else if let wid = Self.workflowID(in: kind) {
             let workflowName = WorkflowStore.shared.workflows
                 .first(where: { $0.id == wid })?.name ?? wid.uuidString
@@ -503,6 +506,38 @@ final class AgentScheduler: ObservableObject {
                     $0.error = nil
                 }
                 Self.log.info("Daily brief done: \(text.count) chars")
+            }
+        case "promotionMentionScan":
+            Task { @MainActor [weak self] in
+                let store = PromotionStore.shared
+                guard !store.enabledMentionSources.isEmpty else {
+                    self?.updateRun(id: runID) {
+                        $0.status = "success"
+                        $0.finishedAt = Date()
+                        $0.error = nil
+                    }
+                    if let i = self?.tasks.firstIndex(where: { $0.id == task.id }) {
+                        self?.tasks[i].lastResult = "mention radar: no enabled sources"
+                    }
+                    return
+                }
+                let result = await MentionRadarScanner.scan(
+                    query: store.mentionQuery, sources: store.mentionSources)
+                self?.updateRun(id: runID) {
+                    $0.status = "success"
+                    $0.finishedAt = Date()
+                    $0.error = nil
+                }
+                if let i = self?.tasks.firstIndex(where: { $0.id == task.id }) {
+                    self?.tasks[i].lastResult = "mention radar: +\(result.added) new"
+                }
+                if result.added > 0 {
+                    ProactiveNotificationStore.shared.deliver(
+                        title: String(localized: "Mention radar"),
+                        body: "\(result.added) new mention(s) for “\(store.mentionQuery)” — review them in Operations.",
+                        tier: .routine)
+                }
+                Self.log.info("Mention radar done: scanned=\(result.scannedSources) added=\(result.added)")
             }
         default:
             if let workflowID = Self.workflowID(in: builtin) {

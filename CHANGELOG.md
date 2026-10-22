@@ -5,6 +5,8 @@
 - **运营发布准备（v0.8.2）**：草稿行新增 Safari 按钮——打开渠道 composer（预设 composerURL，可覆盖）并把标题/正文填进常见输入框（contenteditable/textarea/input，按平台选择器尽力匹配），**绝不点发布**；界面与回执明确要求用户检查后自己按 Publish，成功后再 Mark Published 记 URL。填入失败会说"页面可能改版、请手动粘贴"，不假装成功。桥新增 `POST /promotion/publish/prepare`。验收：本地 fixture composer → 标题+正文均填入（`filledTitle/filledBody=true`），未触发发布按钮；测试草稿已清理。
 - **提及雷达（v0.8.2）**：运营页新增 Mention Radar——可添加搜索引擎/社区入口（`{query}` 模板，预置 DuckDuckGo/Bing/V2EX/HN），离屏 webview 扫描关键词，抽取包含关键词的链接与上下文，按 URL 去重后写入互动台账（kind=mention）；不登录第三方、不自动回复。支持来源开关/删除、关键词扫描、上次扫描时间；桥新增 `GET /promotion/mentions/sources`、`POST /promotion/mentions/source|scan`。验收：本地 fixture 搜索页 → 首次 added=1、重复扫描 added=0，台账只有一条 mention，测试来源与条目已清理；harness URL 模板/去重/过滤 7 项（1300/0）。
 - **产品内“分享 Desire”（v0.8.2）**：Help 菜单新增 "Share Desire…"——渠道化文案（X / 小红书 / V2EX / 掘金 / 即刻 / Hacker News）、带 UTM 的产品链接与二维码；文案可编辑、可复制，链接可复制/打开产品页；不发网络请求、不自动打开社交平台。桥新增 `POST /promotion/share`（channel/version → caption/url）。验收：桥对三渠道返回正确 slug/UTM/文案长度；harness 文案/UTM/回退/不过度承诺 7 项（1307/0）。UI 面板需真机打开 Help → Share Desire 过目。
+- **提及雷达定时化（v0.8.2）**：每日 09:45 的内置任务直接跑确定性扫描（离屏 webview，不需要活会话/模型），扫描关键词取运营存储的 `mentionQuery`（默认 Desire），新提及进互动台账并发 routine 通知；运营页 Automation 新增开关，桥 `/promotion/review kind=mentionScan` 可安排/取消。验收：本地 fixture 来源 → 排程任务创建 → `/agent/tasks/fire` 立即执行 → 台账新增 1 条 mention；测试任务/来源/条目已全部清理。
+
 
 
 

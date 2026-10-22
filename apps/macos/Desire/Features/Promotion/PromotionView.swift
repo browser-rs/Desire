@@ -71,6 +71,9 @@ struct PromotionView: View {
         } message: {
             Text(publishNote ?? "")
         }
+        .onAppear {
+            if mentionQuery == "Desire" { mentionQuery = store.mentionQuery }
+        }
     }
 
     // MARK: - Header
@@ -386,6 +389,7 @@ struct PromotionView: View {
     private func scanMentions() {
         let query = mentionQuery.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !query.isEmpty else { return }
+        store.setMentionQuery(query)
         mentionScanning = true
         mentionNote = nil
         Task { @MainActor in
@@ -616,6 +620,10 @@ struct PromotionView: View {
                           icon: "flame",
                           label: String(localized: "Daily topic scout"),
                           detail: String(localized: "09:30 daily — scan hot lists and stock 3-5 ideas into the idea backlog"))
+            automationRow(.mentionScan,
+                          icon: "dot.radiowaves.left.and.right",
+                          label: String(localized: "Mention radar (daily)"),
+                          detail: String(localized: "09:45 daily — scan the sources above for new mentions (no model, no window needed)"))
         }
     }
 

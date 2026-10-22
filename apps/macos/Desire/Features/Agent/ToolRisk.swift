@@ -121,6 +121,8 @@ enum ToolRisk: Int, Comparable {
         "searchConversations", "readConversation",
         // 研究来源汇总（当前页/标签/正文索引/历史/阅读列表/书签；只读）
         "researchSources",
+        // 文档研究工作台（跨文档分段检索，只读）
+        "researchDocuments",
         // Reads back an already-stored tool result (session memory, read-only)
         "getToolResult",
         // Self-critique (one extra model call; changes nothing)

@@ -4613,6 +4613,46 @@ func testWorkflowTemplates() {
 }
 testWorkflowTemplates()
 
+func testDocumentResearch() {
+    let short = DocumentResearch.passages(
+        title: "report.docx", path: "/tmp/report.docx",
+        text: "第一段：预算说明。\n第二段：量子火锅的成本。")
+    check("文档研究：短段落合并", short.count == 1 && short[0].index == 1)
+
+    let long = String(repeating: "量子火锅 成本 明细 ", count: 400)
+    let chunks = DocumentResearch.passages(
+        title: "long.txt", path: "/tmp/long.txt", text: long)
+    check("文档研究：长文分段且有序", chunks.count > 1
+        && chunks[0].index == 1 && chunks[1].index == 2)
+
+    let a = DocumentPassage(title: "budget.xlsx", path: "/tmp/budget.xlsx",
+                            index: 1, text: "量子火锅 预算 100")
+    let b = DocumentPassage(title: "notes.txt", path: "/tmp/notes.txt",
+                            index: 1, text: "量子火锅 预算 200")
+    let c = DocumentPassage(title: "notes.txt", path: "/tmp/notes.txt",
+                            index: 2, text: "量子火锅 预算 300")
+    let d = DocumentPassage(title: "notes.txt", path: "/tmp/notes.txt",
+                            index: 3, text: "量子火锅 预算 400")
+    let hits = DocumentResearch.rank(query: "量子火锅 预算",
+                                     passages: [a, b, c, d], limit: 5)
+    check("文档研究：同文档最多两段", hits.count == 3)
+    check("文档研究：标题命中优先", hits.first?.passage.title == "budget.xlsx")
+    check("文档研究：未命中为空",
+          DocumentResearch.rank(query: "zorbax", passages: [a], limit: 5).isEmpty)
+
+    let block = DocumentResearch.promptBlock(query: "量子火锅 预算",
+                                             hits: hits, scanned: 2)
+    check("文档研究：引用带文件名/段落/路径",
+          block.contains("[1] budget.xlsx") && block.contains("passage 1")
+              && block.contains("/tmp/budget.xlsx"))
+    check("文档研究：声明文档是不可信数据",
+          block.contains("untrusted data"))
+    check("文档研究：无命中不编造",
+          DocumentResearch.promptBlock(query: "zorbax", hits: [], scanned: 3)
+              .contains("Do not invent"))
+}
+testDocumentResearch()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

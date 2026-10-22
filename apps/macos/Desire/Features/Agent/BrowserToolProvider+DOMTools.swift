@@ -2634,6 +2634,20 @@ extension BrowserToolProvider {
                 return head + SpreadsheetReader.markdown(from: sheet)
             }
 
+        case "researchDocuments":
+            // 文档研究工作台（v0.8.1）：跨文档分段检索，返回带文件+段落号的
+            // 引用。路径全部先过 AgentWorkspace（与 readFile 同一白名单）；
+            // 提不出文本的文件进 skipped，不让整个请求失败。
+            let docQuery = (args["query"] as? String ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !docQuery.isEmpty else { return Self.fail("Missing query") }
+            let docLimit = min(20, max(1, args["limit"] as? Int ?? 8))
+            let paths = (args["paths"] as? [String]) ?? []
+            let folder = args["folder"] as? String
+            let result = DocumentResearchService.research(
+                query: docQuery, folder: folder, paths: paths, limit: docLimit)
+            return result.report
+
         case "exportPageAsPDF":
             // 整页 PDF（含文本层）落盘；path 缺省 = 下载目录/<页面标题>.pdf。
             guard webView.window != nil else {

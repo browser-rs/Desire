@@ -621,6 +621,7 @@ final class AutomationServer {
         ep("POST", "/settings/section", "Select the settings window section (automation; also opens the settings window)", params: ["section:string (general|ai|sync|remote|privacy|autofill|keyboardShortcuts|batchDownloads)"], example: #"-d '{"section":"batchDownloads"}'"#)
         ep("GET", "/settings/search", "Search the settings catalog (section/title/subtitle/keywords); returns section raw values", params: ["q:string", "limit?:int"], example: "…/settings/search?q=sync")
         ep("GET", "/research", "Ranked local research sources (current page/open tabs/page-text index/history/reading list/bookmarks) with citation numbers", params: ["q:string", "limit?:int", "scope?:all|tabs|history"], example: "…/research?q=quantum%20cookware")
+        ep("GET", "/documents/research", "Cited passages across documents in a folder (default: agent workspace); supports docx/pdf/xlsx/csv/txt/html", params: ["q:string", "folder?:string", "limit?:int"], example: "…/documents/research?q=budget")
         ep("GET", "/notifications/policy", "Proactive notification policy (quiet hours / daily routine budget) + digest queue state", example: "…/notifications/policy")
         ep("POST", "/notifications/policy", "Update the notification policy (omit fields to keep)", params: ["quietHoursEnabled?:bool", "quietStart?:HH:mm", "quietEnd?:HH:mm", "dailyRoutineLimit?:int (0 = unlimited)"], example: #"-d '{"quietHoursEnabled":true,"quietStart":"23:00","quietEnd":"08:00"}'"#)
         ep("POST", "/notifications/test", "Push a test notification through the tiering gate (E2E): reports held vs delivered", params: ["tier:routine|urgent", "title?:string", "body?:string"], example: #"-d '{"tier":"routine","title":"T"}'"#)
@@ -2506,6 +2507,11 @@ final class AutomationServer {
                     query: Self.string(query, "q") ?? "",
                     limit: Int(Self.string(query, "limit") ?? "") ?? 8,
                     scope: Self.string(query, "scope") ?? "all"))
+            case ("GET", "/documents/research"):
+                return try Self.json(Self.documentsResearch(
+                    query: Self.string(query, "q") ?? "",
+                    folder: Self.string(query, "folder"),
+                    limit: Int(Self.string(query, "limit") ?? "") ?? 8))
             case ("GET", "/notifications/policy"):
                 let store = ProactiveNotificationStore.shared
                 return try Self.json([
@@ -3989,6 +3995,27 @@ final class AutomationServer {
             function: AgentToolFunction(name: "researchSources", arguments: json))
         let result = await provider.execute(call, in: tab.browser.webView)
         return ["query": trimmed, "scope": scope.lowercased(), "result": result]
+    }
+
+    /// 文档研究工作台桥入口：与 `researchDocuments` 工具同一实现（本地取文 +
+    /// 分段检索），纯只读、不调用模型。
+    private static func documentsResearch(query: String, folder: String?,
+                                          limit: Int) -> [String: Any] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return ["error": "missing q"] }
+        let result = DocumentResearchService.research(
+            query: trimmed, folder: folder, paths: [], limit: max(1, min(limit, 20)))
+        return ["query": trimmed,
+                "scanned": result.scannedDocuments,
+                "skipped": result.skipped,
+                "hits": result.hits.map { hit -> [String: Any] in
+                    ["title": hit.passage.title,
+                     "path": hit.passage.path,
+                     "passage": hit.passage.index,
+                     "snippet": hit.snippet,
+                     "score": hit.score]
+                },
+                "result": result.report]
     }
 
     private static func historyContentSearch(query: String, limit: Int) throws -> [String: Any] {

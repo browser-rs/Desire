@@ -4,7 +4,7 @@
 ARG REGISTRY=registry.cn-shenzhen.aliyuncs.com/pura
 
 # ---------- builder ----------
-FROM ${REGISTRY}/rust:1.98-trixie AS builder
+FROM ${REGISTRY}/rust:1.99-trixie AS builder
 WORKDIR /build
 
 COPY docker/config.toml /usr/local/cargo/config.toml

@@ -1650,6 +1650,7 @@ final class AutomationServer {
                     "tool": pending.toolCall.function.name,
                     "arguments": pending.argumentsSummary,
                     "risk": pending.risk.displayName,
+                    "siteHost": pending.siteHost ?? "",
                 ])
             case ("POST", "/agent/approvals/resolve"):
                 guard let decision = Self.string(body, "decision") else {
@@ -1666,8 +1667,12 @@ final class AutomationServer {
                 guard let pending = AgentScheduler.shared.deliveryTarget?.pendingApproval else {
                     return try Self.json(["error": "no pending approval"])
                 }
-                AgentScheduler.shared.deliveryTarget?.resolveApproval(outcome)
-                return try Self.json(["ok": true, "tool": pending.toolCall.function.name, "decision": decision])
+                // siteGrant=true 时把决定落成「工具 × 审批站点」规则（0.8.1）；
+                // DPP pageAction 仍是「站点 × 动作」授权。
+                let siteGrant = body["siteGrant"] as? Bool ?? false
+                AgentScheduler.shared.deliveryTarget?.resolveApproval(outcome, siteGrant: siteGrant)
+                return try Self.json(["ok": true, "tool": pending.toolCall.function.name,
+                                      "decision": decision, "siteGrant": siteGrant])
             case ("GET", "/dpp/action-approvals"):
                 // DPP 逐动作放行清单（0.6.7）：host × action 的用户授权。
                 return try Self.json([
@@ -3068,11 +3073,13 @@ final class AutomationServer {
             case ("POST", "/approvals/policy/add"):
                 return try Self.json(Self.addApprovalPolicy(
                     toolName: Self.string(body, "tool") ?? "",
-                    decision: Self.string(body, "decision") ?? ""
+                    decision: Self.string(body, "decision") ?? "",
+                    host: Self.string(body, "host")
                 ))
             case ("POST", "/approvals/policy/remove"):
                 return try Self.json(Self.removeApprovalPolicy(
-                    toolName: Self.string(body, "tool") ?? ""
+                    toolName: Self.string(body, "tool") ?? "",
+                    host: Self.string(body, "host")
                 ))
             case ("GET", "/approvals/history"):
                 return try Self.json(Self.approvalHistory(count: Int(query["count"] ?? "20") ?? 20))
@@ -5741,6 +5748,9 @@ final class AutomationServer {
         guard let session = resolveSession(window), session.pendingApproval != nil else {
             return ["error": "no pending approval"]
         }
+        guard let pending = session.pendingApproval else {
+            return ["error": "no pending approval"]
+        }
         let outcome: ApprovalDecision
         switch decision {
         case "allow_once": outcome = .allowOnce
@@ -5749,14 +5759,14 @@ final class AutomationServer {
         default: return ["error": "decision must be allow_once | always_allow | deny"]
         }
         ApprovalPolicyStore.shared.recordHistory(
-            toolName: session.pendingApproval?.toolCall.function.name ?? "unknown",
-            decision: decision, source: "bridge")
-        // siteGrant 必须**传下去**：DPP 逐动作审批的「本站始终允许」由
-        // store 的 resolveApproval(siteGrant:) 落成 站点×动作 规则——
-        // 此前这里收了参数却没转发，桥的显式站点授权静默退化成普通放行
-        // （2026-10-17 修，gate_e2e D 轮照出）。
+            toolName: pending.toolCall.function.name,
+            decision: decision, source: "bridge", host: pending.siteHost)
+        // siteGrant 必须**传下去**：站点级「始终允许/拒绝」由 store 的
+        // resolveApproval(siteGrant:) 落成规则——此前这里收了参数却没转发，
+        // 桥的显式站点授权静默退化成普通放行（2026-10-17 修，gate_e2e D 轮照出）。
         session.resolveApproval(outcome, siteGrant: siteGrant)
-        return ["ok": true, "resolved": decision]
+        return ["ok": true, "resolved": decision,
+                "host": pending.siteHost ?? ""]
     }
 
     /// 轨迹导出：一行一个回合的 JSONL（从会话派生，含每个工具的耗时）。
@@ -8029,29 +8039,37 @@ final class AutomationServer {
 
     private static func approvalPolicies() throws -> [String: Any] {
         ["rules": ApprovalPolicyStore.shared.rules.map { r -> [String: Any] in
-            ["tool": r.toolName, "decision": r.decision.rawValue]
+            ["tool": r.toolName, "decision": r.decision.rawValue,
+             "host": r.host ?? ""]
         }]
     }
 
-    private static func addApprovalPolicy(toolName: String, decision: String) throws -> [String: Any] {
+    private static func addApprovalPolicy(toolName: String, decision: String,
+                                          host: String? = nil) throws -> [String: Any] {
         guard let d = ApprovalPolicy.Decision(rawValue: decision) else {
             return ["error": "decision must be allow | deny"]
         }
-        ApprovalPolicyStore.shared.addRule(toolName: toolName, decision: d)
-        return ["ok": true, "tool": toolName, "decision": decision]
+        guard let rule = ApprovalPolicyStore.shared.addRule(
+            toolName: toolName, decision: d, host: host) else {
+            return ["error": "missing tool"]
+        }
+        return ["ok": true, "tool": rule.toolName, "decision": decision,
+                "host": rule.host ?? ""]
     }
 
-    private static func removeApprovalPolicy(toolName: String) throws -> [String: Any] {
-        guard let rule = ApprovalPolicyStore.shared.rules.first(where: { $0.toolName == toolName }) else {
+    private static func removeApprovalPolicy(toolName: String,
+                                             host: String? = nil) throws -> [String: Any] {
+        guard ApprovalPolicyStore.shared.removeRules(toolName: toolName, host: host) else {
             return ["error": "no such rule"]
         }
-        ApprovalPolicyStore.shared.removeRule(id: rule.id)
-        return ["ok": true]
+        return ["ok": true, "tool": toolName,
+                "host": ApprovalPolicy.normalizeHost(host) ?? ""]
     }
 
     private static func approvalHistory(count: Int) throws -> [String: Any] {
         let rows = ApprovalPolicyStore.shared.history.prefix(count).map { h -> [String: Any] in
-            ["tool": h.toolName, "decision": h.decision, "source": h.source,
+            ["tool": h.toolName, "host": h.host ?? "",
+             "decision": h.decision, "source": h.source,
              "at": ISO.string(from: h.createdAt)]
         }
         return ["history": Array(rows)]

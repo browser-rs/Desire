@@ -371,9 +371,12 @@ struct AgentPanel: View {
                     onAlwaysAllow: { store.resolveApproval(.alwaysAllow) },
                     onDeny: { store.resolveApproval(.deny) },
                     onAlwaysAllowOnSite: { _ in
-                        // DPP 逐动作放行（0.6.7）：host 从审批锚点取，
-                        // store.resolveApproval(.alwaysAllow) 内部记录 site grant。
+                        // 站点级放行（0.8.1）：通用工具落成「工具 × 站点」规则；
+                        // DPP pageAction 仍走 store 里的「站点 × 动作」授权。
                         store.resolveApproval(.alwaysAllow, siteGrant: true)
+                    },
+                    onDenyOnSite: { _ in
+                        store.resolveApproval(.deny, siteGrant: true)
                     },
                     siteHost: store.pendingApprovalSiteHost,
                     sourceFrameHost: store.pendingApprovalSourceFrameHost

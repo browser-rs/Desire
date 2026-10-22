@@ -16,9 +16,11 @@ struct ToolApprovalBar: View {
     let onAllowOnce: () -> Void
     let onAlwaysAllow: () -> Void
     let onDeny: () -> Void
-    /// DPP 逐动作放行（0.6.7）：pageAction 审批卡专属——「本站始终允许此动作」。
-    /// host 取自审批锚点；为 nil（非 pageAction/无锚点）时不显示。
+    /// 站点级放行（0.8.1）：通用工具的审批卡——「本工具 + 本网站」持久允许。
+    /// DPP pageAction 时由 store 落成「站点 × 动作」授权（0.6.7）。
     var onAlwaysAllowOnSite: ((String) -> Void)? = nil
+    /// 站点级拒绝（0.8.1）：持久拒绝该工具在此站点上执行（可吊销）。
+    var onDenyOnSite: ((String) -> Void)? = nil
     /// 审批时记录的页面 host（供按钮文案）。
     var siteHost: String? = nil
     /// 跨源标注（0.7.2）：动作声明自跨源子框架时的框架 host——nil = 主框架声明。
@@ -66,12 +68,29 @@ struct ToolApprovalBar: View {
                     Button("Deny", role: .destructive, action: onDeny)
                         .buttonStyle(.bordered)
                         .controlSize(.small)
+                    if let onDenyOnSite, let siteHost, !siteHost.isEmpty {
+                        Menu {
+                            Button(role: .destructive) {
+                                onDenyOnSite(siteHost)
+                            } label: {
+                                Label("Never allow \(approval.toolCall.function.name) on \(siteHost)",
+                                      systemImage: "hand.raised.slash")
+                            }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
+                        .menuStyle(.borderlessButton)
+                        .controlSize(.small)
+                        .fixedSize()
+                        .help("More site-scoped decisions")
+                    }
                 }
                 .padding(.top, 2)
-                // 逐动作放行的语义说明（0.6.7）：授权粒度是「站点 × 动作」，
-                // 与 Always Allow（按工具名）不同层。
-                if onAlwaysAllowOnSite != nil {
-                    Text("“Always on this site”持久放行该站点的此动作（可吊销）——即使它被标记为不可逆。")
+                // 站点维度的语义说明：授权/拒绝都只作用于「本工具 × 该站点」，
+                // 与 Always Allow（按工具名全局生效）是不同层。DPP 动作更细一层
+                // （站点 × 动作名）。
+                if onAlwaysAllowOnSite != nil, let siteHost, !siteHost.isEmpty {
+                    Text("Site scope: these decisions apply only to \(approval.toolCall.function.name) on \(siteHost), not to other sites or tools. Revocable under Agent settings / the bridge.")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }

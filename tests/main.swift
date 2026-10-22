@@ -4502,13 +4502,42 @@ func testAgentActionRecord() {
 }
 testAgentActionRecord()
 
-print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
-if !failures.isEmpty {
-    print("失败清单：")
-    for f in failures { print("  - \(f)") }
-    exit(1)
+func testApprovalPolicyHost() {
+    let globalAllow = ApprovalPolicy(toolName: "click", decision: .allow)
+    let siteDeny = ApprovalPolicy(toolName: "click", host: "Bank.Test.",
+                                  decision: .deny)
+    let rules = [globalAllow, siteDeny]
+    check("审批策略：全局允许生效",
+          ApprovalPolicy.effectiveRule(in: rules, toolName: "click", host: "a.test")?.id == globalAllow.id)
+    check("审批策略：站点规则覆盖全局",
+          ApprovalPolicy.effectiveRule(in: rules, toolName: "click", host: "bank.test")?.id == siteDeny.id)
+    check("审批策略：host 归一（小写/去尾点）", siteDeny.host == "bank.test")
+    check("审批策略：无站点时只用全局",
+          ApprovalPolicy.effectiveRule(in: rules, toolName: "click", host: nil)?.id == globalAllow.id)
+    check("审批策略：未命中返回 nil",
+          ApprovalPolicy.effectiveRule(in: rules, toolName: "type", host: "bank.test") == nil)
+    check("审批策略：空 host 归一为全局", ApprovalPolicy.normalizeHost("  . ") == nil)
+
+    let legacy = """
+    {"id":"00000000-0000-0000-0000-000000000001","toolName":"click",
+     "decision":"allow","createdAt":0}
+    """
+    if let data = legacy.data(using: .utf8),
+       let decoded = try? JSONDecoder().decode(ApprovalPolicy.self, from: data) {
+        check("审批策略：旧文件缺 host 解码为全局", decoded.host == nil)
+    } else {
+        check("审批策略：旧文件缺 host 解码为全局", false)
+    }
+
+    if let data = try? JSONEncoder().encode(siteDeny),
+       let decoded = try? JSONDecoder().decode(ApprovalPolicy.self, from: data) {
+        check("审批策略：Codable 往返保留 host",
+              decoded.host == "bank.test" && decoded.decision == .deny)
+    } else {
+        check("审批策略：Codable 往返保留 host", false)
+    }
 }
-print("全部通过 ✓")
+testApprovalPolicyHost()
 
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
@@ -4557,3 +4586,11 @@ func testDPPBridgeSafe() {
     check("bridgeSafe：mcp 拒", !mcp.isBridgeSafeLocal)
     check("bridgeSafe：danger 布尔拒", !dangerFlag.isBridgeSafeLocal)
 }
+
+print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
+if !failures.isEmpty {
+    print("失败清单：")
+    for f in failures { print("  - \(f)") }
+    exit(1)
+}
+print("全部通过 ✓")

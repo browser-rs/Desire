@@ -106,10 +106,33 @@ class AgentSessionStore: ObservableObject {
     /// (or deny) a tool call. The UI renders `ToolApprovalBar` from this.
     /// See `docs/ARCHITECTURE.md` (AgentRuntime v2, roadmap L3 stage 2).
     @Published var pendingApproval: PendingToolApproval?
-    /// 审批卡展示用：pageAction 审批时的页面 host（DPP 逐动作放行的站点名）。
+    /// 审批卡展示用：本次审批归属的页面 host。
+    /// pageAction 优先用 DPP 声明的站点 host（逐动作授权锚点）；其余工具取
+    /// 当前标签页 host。**dangerous 工具不提供站点长期放行**（ToolRisk 承诺
+    /// “每次必问”，executeJS 等不能因为某站点被永久放行）——DPP 动作例外，
+    /// 它本来就是「站点 × 动作」点名授权（0.6.7）。
     var pendingApprovalSiteHost: String? {
         guard let approval = pendingApproval else { return nil }
-        return dppActionHostByCall[approval.toolCall.id]
+        let dppHost = dppActionHostByCall[approval.toolCall.id]
+        if approval.toolCall.function.name == "pageAction", dppHost != nil {
+            return ApprovalPolicy.normalizeHost(dppHost)
+        }
+        guard approval.risk != .dangerous else { return nil }
+        return ApprovalPolicy.normalizeHost(approval.siteHost)
+    }
+
+    /// 当前活动标签页的 host（无页面时为 nil）。
+    private var activePageHost: String? {
+        toolProvider.surface?.tabManager?.selectedTab?.browser.webView.url?.host
+    }
+
+    /// 审批时的站点归属：pageAction 用 DPP 声明 host，其他工具用当前页面。
+    private func approvalHost(for toolCall: AgentToolCall) -> String? {
+        if toolCall.function.name == "pageAction",
+           let host = peekDPPActionHost(for: toolCall.id) {
+            return ApprovalPolicy.normalizeHost(host)
+        }
+        return ApprovalPolicy.normalizeHost(activePageHost)
     }
 
     /// 跨源标注（0.7.2）：pageAction 审批时，动作声明若来自**跨源子框架**
@@ -3125,12 +3148,18 @@ class AgentSessionStore: ObservableObject {
         // Safe tools always run.
         if risk == .readonly { return .allowedOnce }
 
+        // 站点维度（0.8.1）：本工具在本页面所属站点上的规则。host 点名规则
+        // 优先于全局规则；审批卡上“Always on <site>”/“Never on <site>”写入。
+        let siteHost = approvalHost(for: toolCall)
+
         // deny 规则**先于**任何等级快捷放行（显式拒绝优先于一切——此前
         // autoEdit 分支在其前面，用户建的 deny 规则全部失效）。
-        if let policy = ApprovalPolicyStore.shared.decision(for: toolCall.function.name),
+        if let policy = ApprovalPolicyStore.shared.decision(for: toolCall.function.name,
+                                                            host: siteHost),
            policy == .deny {
             ApprovalPolicyStore.shared.recordHistory(
-                toolName: toolCall.function.name, decision: "denied (policy)", source: "policy")
+                toolName: toolCall.function.name, decision: "denied (policy)",
+                source: "policy", host: siteHost)
             return .denied
         }
 
@@ -3220,12 +3249,17 @@ class AgentSessionStore: ObservableObject {
             return .allowedOnce
         }
 
-        // 审批策略引擎（0.2.6）：deny 已在上面前置；这里只处理 allow 规则
-        // （dangerous 工具除外——它们的快捷放行不走 allow 规则）。
-        if let policy = ApprovalPolicyStore.shared.decision(for: toolCall.function.name),
+        // 审批策略引擎（0.2.6）：deny 已在上面前置；这里只处理 allow 规则。
+        // 站点规则（0.8.1）同样生效——用户在某个站点上点过“Always on site”
+        // 后，该工具的审批不再逐次打断；离开该站点则回到全局规则。
+        if let policy = ApprovalPolicyStore.shared.decision(for: toolCall.function.name,
+                                                            host: siteHost),
            policy == .allow {
+            let policyDetail = siteHost.map { "allowed (site policy: \($0))" } ?? "allowed (policy)"
             ApprovalPolicyStore.shared.recordHistory(
-                toolName: toolCall.function.name, decision: "allowed (policy)", source: "policy")
+                toolName: toolCall.function.name,
+                decision: policyDetail,
+                source: "policy", host: siteHost)
             return .allowedOnce
         }
 
@@ -3252,12 +3286,14 @@ class AgentSessionStore: ObservableObject {
                 toolCall: toolCall,
                 risk: risk,
                 argumentsSummary: summary,
+                siteHost: approvalHost(for: toolCall),
                 continuation: continuation
             )
             pendingApproval = approval
             BridgeEventBus.shared.publish("approvalPending", [
                 "tool": toolCall.function.name,
                 "risk": risk.displayName,
+                "siteHost": approval.siteHost ?? "",
             ])
             approvalTimeoutTask?.cancel()
             approvalTimeoutTask = Task { [weak self] in
@@ -3295,43 +3331,60 @@ class AgentSessionStore: ObservableObject {
     }
 
     /// Called by the UI (`ToolApprovalBar`) when the user decides.
-    /// `siteGrant`：DPP 逐动作放行——把「审批锚点 host × 动作名」持久化为
-    /// 本站始终允许（0.6.7）。
+    /// `siteGrant`：把本次审批落成站点级规则（0.8.1）。
+    /// - `.alwaysAllow` + DPP pageAction → 既有「站点 × 动作」点名授权（0.6.7）；
+    /// - `.alwaysAllow` + 其他工具 → `ApprovalPolicy` 的 host 规则（allow）；
+    /// - `.deny` → `ApprovalPolicy` 的 host 规则（deny）。
+    /// dangerous 普通工具不提供站点长期放行（`pendingApprovalSiteHost` 已隐藏
+    /// 入口）；桥若强传 siteGrant，也只对 DPP 动作生效。
     func resolveApproval(_ decision: ApprovalDecision, siteGrant: Bool = false) {
         approvalTimeoutTask?.cancel()
         approvalTimeoutTask = nil
         guard let approval = pendingApproval else { return }
         pendingApproval = nil
-        if siteGrant, decision == .alwaysAllow,
-           let host = dppActionHostByCall[approval.toolCall.id],
-           let actionName = dppActionName(for: approval.toolCall) {
-            DPPActionApprovals.shared.allow(host: host,
+
+        let tool = approval.toolCall.function.name
+        let site = ApprovalPolicy.normalizeHost(approval.siteHost)
+        let dppHost = dppActionHostByCall[approval.toolCall.id]
+        let dppAction = tool == "pageAction" ? dppActionName(for: approval.toolCall) : nil
+        let isDPPAction = dppHost != nil && dppAction != nil
+        let canSiteGrant = approval.risk != .dangerous || isDPPAction
+
+        var historyDecision = decision == .deny ? "denied" : "allowed"
+
+        // DPP 逐动作放行（0.6.7）：Always Allow 与「本站始终允许」都落到
+        // 「站点 × 动作」表（后者在卡上显式标注范围）。
+        if decision == .alwaysAllow, isDPPAction,
+           let dppHost, let dppAction {
+            DPPActionApprovals.shared.allow(host: dppHost,
                                             frameHost: dppActionFrameHost(for: approval.toolCall.id),
-                                            actionName: actionName)
+                                            actionName: dppAction)
+            if siteGrant {
+                historyDecision = "allowed (site grant: \(dppHost) × \(dppAction))"
+            }
+        } else if siteGrant, canSiteGrant, let site {
+            switch decision {
+            case .alwaysAllow:
+                ApprovalPolicyStore.shared.addRule(toolName: tool, decision: .allow, host: site)
+                historyDecision = "allowed (site rule: \(site))"
+            case .deny:
+                ApprovalPolicyStore.shared.addRule(toolName: tool, decision: .deny, host: site)
+                historyDecision = "denied (site rule: \(site))"
+            case .allowOnce:
+                break
+            }
         }
+
         ApprovalPolicyStore.shared.recordHistory(
-            toolName: approval.toolCall.function.name,
-            decision: decision == .deny ? "denied" : "allowed",
-            source: "ui")
+            toolName: tool, decision: historyDecision, source: "ui", host: site)
 
         // runCommand 被批准 = 用户认可这条命令 → binary 顺带入系统访问
         // 允许列表（下次同类命令免审批）。 Dangerous 层级也入列——审批卡
         // 上展示的就是完整命令行，批准即信任。
-        // DPP 逐动作放行（0.6.7）：pageAction 的 Always Allow 升级为
-        // 「本站 × 此动作」点名授权（host 取审批时锚点，不删——执行侧复核
-        // 仍需同一锚点）。
-        if decision == .alwaysAllow, approval.toolCall.function.name == "pageAction",
-           let host = dppActionHostByCall[approval.toolCall.id],
-           let actionName = dppActionName(for: approval.toolCall) {
-            DPPActionApprovals.shared.allow(host: host,
-                                            frameHost: dppActionFrameHost(for: approval.toolCall.id),
-                                            actionName: actionName)
-        }
-
-        if decision != .deny, approval.toolCall.function.name == "runCommand",
+        if decision != .deny, tool == "runCommand",
            let args = try? JSONSerialization.jsonObject(with: Data(approval.toolCall.function.arguments.utf8)) as? [String: Any],
-           let tool = args["tool"] as? String {
-            SystemCommandStore.shared.allow(tool)
+           let commandTool = args["tool"] as? String {
+            SystemCommandStore.shared.allow(commandTool)
         }
 
         let outcome: ApprovalOutcome
@@ -3339,11 +3392,12 @@ class AgentSessionStore: ObservableObject {
         case .allowOnce:
             outcome = .allowedOnce
         case .alwaysAllow:
-            // Persist the whitelist entry. Dangerous tools never reach here
-            // because the UI disables the "Always Allow" button for them.
-            if approval.risk != .dangerous {
+            // Persist the global whitelist entry. Dangerous tools never reach
+            // here because the UI disables "Always Allow" for them; site-scoped
+            // grants must NOT widen to a global whitelist.
+            if !siteGrant && approval.risk != .dangerous {
                 var current = preference.allowedTools
-                current.insert(approval.toolCall.function.name)
+                current.insert(tool)
                 preference.allowedTools = current
             }
             outcome = .allowedAlways
@@ -3450,13 +3504,18 @@ final class PendingToolApproval: Identifiable {
     let toolCall: AgentToolCall
     let risk: ToolRisk
     let argumentsSummary: String
+    /// 本次审批归属的页面 host（0.8.1）。在弹出审批卡那一刻定格——等待期间
+    /// 用户切标签页不会把「本网站」授权写到别的站点上。
+    let siteHost: String?
     private var continuation: CheckedContinuation<ApprovalOutcome, Never>?
 
     init(toolCall: AgentToolCall, risk: ToolRisk, argumentsSummary: String,
+         siteHost: String? = nil,
          continuation: CheckedContinuation<ApprovalOutcome, Never>) {
         self.toolCall = toolCall
         self.risk = risk
         self.argumentsSummary = argumentsSummary
+        self.siteHost = siteHost
         self.continuation = continuation
     }
 

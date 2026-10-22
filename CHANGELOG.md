@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.2] - 2026-10-22
 ### Added
 
 - **运营战役 Growth Cockpit（v0.8.2，第一批）**：运营工作台新增 Campaign 层（目标 → 渠道 → 内容 → 数据），帖子可用 `campaignID` 关联战役；新增 6 个渠道档案（X / 小红书 / V2EX / 掘金 / 即刻 / Hacker News，含语气、长度上限、标签、composer 起点）。`PromotionCampaignBuilder` 从版本 + 事实亮点确定性生成各平台草稿（标题/正文按渠道裁剪、每条带 UTM 链接、排期按渠道错开），**全部以 draft 入库，绝不自动发布**；无亮点拒绝生成，避免空泛营销稿。运营页新增 Campaign 区块（进度/下一排期/状态菜单/交给 Agent 继续），新建 Campaign 表单可填版本、亮点、渠道与起点。桥新增 `GET /promotion/campaigns`、`POST /promotion/campaign/generate|status|remove`；Agent 新增 `promotionCampaign`（list/generate/status）。验收：桥生成 X/V2EX/小红书 3 平台 3 草稿，campaignID 正确关联、正文均含 UTM，状态可切 scheduled，测试数据已清理；harness 13 项（1293/0）。发布流水线（填 composer + 人工确认发布）、提及雷达、产品内分享入口仍待后续批次。

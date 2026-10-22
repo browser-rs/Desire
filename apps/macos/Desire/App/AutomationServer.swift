@@ -2564,6 +2564,8 @@ final class AutomationServer {
                 return try Self.json(Self.removeProfile(name: Self.string(body, "name") ?? ""))
             case ("GET", "/watches"):
                 return try Self.json(Self.listWatches())
+            case ("GET", "/watches/digest"):
+                return try Self.json(Self.watchDigest())
             case ("POST", "/watches/add"):
                 return try Self.json(Self.addWatch(
                     name: Self.string(body, "name") ?? "",
@@ -7044,8 +7046,15 @@ final class AutomationServer {
 
     // MARK: Page watches
 
-    private static func listWatches() throws -> [String: Any] {
-        let store = PageWatchStore.shared
+    private static func watchDigest() -> [String: Any] {
+        let summary = PageWatchDigest.make(watches: PageWatchStore.shared.watches)
+        return ["text": summary.text,
+                "changed": summary.changed,
+                "errors": summary.errors,
+                "alerts": summary.alerts]
+    }
+
+    private static func listWatches() throws -> [String: Any] {        let store = PageWatchStore.shared
         let iso = ISO8601DateFormatter()
         return ["watches": store.watches.map { w -> [String: Any] in
             var row: [String: Any] = [

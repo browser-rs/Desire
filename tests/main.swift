@@ -4427,6 +4427,38 @@ func testWorkflowOfferCodable() {
 }
 testWorkflowOfferCodable()
 
+func testPageWatchDigest() {
+    let now = Date()
+    let empty = PageWatchDigest.make(watches: [], now: now)
+    check("监视摘要：无监视无变化", empty.changed == 0 && empty.text.contains("No changes"))
+
+    var changed = PageWatch(id: UUID(), name: "Price", url: "https://a.test",
+                            selector: nil, intervalMinutes: 30, isEnabled: true,
+                            createdAt: now, lastCheckedAt: now, lastChangedAt: now,
+                            previousText: nil, changeCount: 3, lastError: nil)
+    changed.lastAnalysis = "价格从 100 变为 90"
+    changed.numericSelector = ".price"
+    changed.valueHistory = [PageWatch.ValuePoint(at: now, value: 90)]
+    let summary = PageWatchDigest.make(watches: [changed], now: now)
+    check("监视摘要：变化计数", summary.changed == 1)
+    check("监视摘要：带分析/数值", summary.text.contains("Price")
+        && summary.text.contains("价格从 100 变为 90") && summary.text.contains("90"))
+
+    var broken = PageWatch(id: UUID(), name: "Broken", url: "https://b.test",
+                           selector: nil, intervalMinutes: 30, isEnabled: true,
+                           createdAt: now, lastCheckedAt: now, lastChangedAt: nil,
+                           previousText: nil, changeCount: 0, lastError: "timeout")
+    let errorSummary = PageWatchDigest.make(watches: [broken], now: now)
+    check("监视摘要：错误计数", errorSummary.errors == 1 && errorSummary.text.contains("timeout"))
+
+    broken.lastError = nil
+    broken.lastAlert = "低于 80"
+    broken.lastAlertAt = now
+    let alertSummary = PageWatchDigest.make(watches: [broken], now: now)
+    check("监视摘要：告警计数", alertSummary.alerts == 1 && alertSummary.text.contains("低于 80"))
+}
+testPageWatchDigest()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

@@ -4,7 +4,7 @@ import Foundation
 /// webview, extracts text (whole body or a CSS selector), and reports
 /// changes. Unlike scheduled agent tasks this never touches a model —
 /// cheap enough to run every few minutes forever.
-struct PageWatch: Codable, Identifiable {
+nonisolated struct PageWatch: Codable, Identifiable, Equatable {
     let id: UUID
     var name: String
     var url: String

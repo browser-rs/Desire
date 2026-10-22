@@ -16,12 +16,16 @@ struct PageWatchSettingsSection: View {
     @State private var newAlertAbove = ""
     @State private var addError: String?
     @State private var checkingName: String?
+    @State private var showsCenter = false
 
     var body: some View {
         // SettingsContainer：720pt 限宽居中 + 内边距（其他设置子页同款——
         // 此前缺失导致卡片全宽贴边，与全页风格不符）。
         SettingsContainer {
             section
+        }
+        .sheet(isPresented: $showsCenter) {
+            PageWatchCenterSheet()
         }
     }
 
@@ -32,6 +36,12 @@ struct PageWatchSettingsSection: View {
             icon: "eye"
         ) {
             VStack(spacing: 0) {
+                SettingsRow("Watch Center", subtitle: String(localized: "All watches, latest changes and a copyable 24h digest.")) {
+                    SettingsCapsuleButton("Open", style: .secondary) {
+                        showsCenter = true
+                    }
+                }
+                SettingsRowDivider(leading: 14)
                 if store.watches.isEmpty {
                     Text(String(localized: "No watches yet — add one below."))
                         .font(.system(size: 12))

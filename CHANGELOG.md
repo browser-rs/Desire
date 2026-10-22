@@ -13,6 +13,8 @@
 - **下载中心 2.0（v0.8.0）**：定时下载（下载面板时钟 → URL/文件名/开始时间；应用关闭期间到点的任务下次启动补跑；面板顶部 Scheduled 区可单条取消/全部取消；桥 `GET /downloads/scheduled`、`POST /downloads/schedule|cancel`）；重复下载检测（同一来源已有进行中传输，或完成的文件仍在盘上 → 跳过，不新建行；完成行走 Download Again 可强制重下）；低电量自动暂停并在恢复后只续跑"被我们暂停"的行（默认开，设置可关）；完成文件按类型归档（Images/Documents/Archives/…，默认关；用户在保存面板手选的目标绝不移动）。验收：fixture 定时 2 秒后完成、同一 URL 再排被跳过（下载列表仍只 1 行）、Scheduled 清空；harness 定时模型 3 项（1198/0）。低电量切换与归档移动为代码路径 + 设置开关，需实机低电量/下载走查。
 - **标签整理（v0.8.0，第一档按站点）**：工具栏 ⋯ → "Organize Tabs" 把当前窗口**尚未分组**的标签按站点聚合——同站达到 3 个才成组（颜色按 host 稳定），已存在的分组与固定/无痕/新标签页不动；"Undo Organize Tabs" 一次还原到整理前快照。桥新增 `POST /tabgroups/organize|undo`。验收：4 个 example.com 标签 → 1 组 4 个、undo 后组消失且原组恢复；harness 分组/阈值/归一/颜色 4 项（1202/0）。模型按主题细分留待后续（当前规则确定性、零模型调用）。
 - **工作流站点触发（v0.8.0）**：每个工作流新增 "Offer" 开关（Workflows 面板行）；访问匹配站点（同域/子域）且工作流**没有敏感步骤**时，页面加载后显示非模态「Run workflow “X” for this site?」——点 Run 才回放（零模型调用），Not Now 关闭；同一 URL 只提示一次，导航后重置。桥新增 `POST /workflow/offer`、`POST /workflow/suggestion/dismiss`，`/state` 每标签暴露 `workflowSuggestion`，`/workflow/list` 带 `offerOnVisit`。验收：fixture 录一个 click → offer=true → reload 后 `/state` 出现建议 → dismiss 清空 → 删除工作流；harness offer Codable/旧文件兼容 2 项（1204/0）。定时触发留到后续批次（本批只做站点触发，未假装完成）。
+- **监视中心 2.0（v0.8.0）**：Page Watch 设置顶部新增 "Watch Center" 面板——列出所有监视（状态/最近变化/最近分析/数值/告警/错误），顶部给 24h changed/alert/error 计数；一键 Check All、Copy Digest（确定性文本，不调用模型）。桥新增 `GET /watches/digest`（text/changed/errors/alerts）。验收：空库摘要 "No changes"；新增 fixture watch 后变成 1 watched；harness 摘要（无变化/变化+分析+数值/错误/告警）5 项（1209/0）。每日定时推送与噪声过滤留后续（本批只做中心与可复制摘要，未假装完成）。
+
 
 
 

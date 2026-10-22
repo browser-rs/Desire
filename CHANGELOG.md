@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.1] - 2026-10-22
 ### Fixed
 
 - **Keychain 授权不再卡死主线程（v0.8.1）**：2026-10-22 实测新构建启动时 SecurityAgent 授权窗未答，主线程卡在 `SecItemCopyMatching`，桥/UI 全部无响应（与"启动即死"只差一个看不见的系统弹窗）。现在 app vault 的读取走 `AppSecretsVault.preload()` 后台任务（主 actor 只 await），AppState 启动与同步首轮都先 preload；授权进行中 `syncNow` 返回"等待钥匙串授权"，`loadAPIKey` 返回 nil 而不是同步阻塞。验收：新构建带 pending 授权窗时 `/state` 仍响应、`sample` 主线程空闲在 run loop；`pkill SecurityAgent` 后应用继续可用（同步显示未登录，可重启/重新授权恢复）。稳定签名生效后授权窗本身也会消失。

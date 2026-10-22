@@ -2954,6 +2954,7 @@ extension BrowserToolProvider {
                 return Self.fail("status must be \"idea\", \"draft\" or \"published\"")
             }
             let goalText = args["goal"] as? String
+            let variantLabel = args["variant"] as? String
             let saveStore = PromotionStore.shared
             var plannedFor: Date?? = nil
             if let plannedRaw = args["plannedFor"] as? String {
@@ -2984,7 +2985,8 @@ extension BrowserToolProvider {
                     body: args["body"] as? String,
                     status: promoStatus,
                     url: args["url"] as? String,
-                    plannedFor: plannedFor) else {
+                    plannedFor: plannedFor,
+                    variantLabel: variantLabel.map { Optional($0) }) else {
                     return "No promotion post matches id \(idRaw) — use an id from promotionBrief/promotionSave"
                 }
                 var updateLine = "updated: id=\(updated.id.uuidString) status=\(updated.status.rawValue) platform=\(updated.platform)"
@@ -3007,7 +3009,8 @@ extension BrowserToolProvider {
             let outcome = saveStore.savePost(
                 goalText: goalText, platform: platform, title: title, body: promoBody,
                 status: promoStatus, url: args["url"] as? String,
-                plannedFor: plannedFor.flatMap { $0 })
+                plannedFor: plannedFor.flatMap { $0 },
+                variantLabel: variantLabel)
             var promoLines = ["saved: id=\(outcome.post.id.uuidString) status=\(promoStatus.rawValue) platform=\(platform)"]
             if let goal = outcome.matchedGoalTitle {
                 promoLines.append("linked to goal: \(goal)")

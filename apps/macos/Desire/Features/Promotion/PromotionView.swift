@@ -832,6 +832,14 @@ struct PromotionView: View {
                     Text(post.platform)
                         .font(.system(size: 10))
                         .foregroundStyle(appAccent)
+                    if let variant = post.variantLabel {
+                        Text(variant)
+                            .font(.system(size: 9.5, weight: .medium))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                            .foregroundStyle(.secondary)
+                    }
                     Text(PromotionSummary.shortDate(post.createdAt))
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
@@ -890,6 +898,14 @@ struct PromotionView: View {
                         Text(post.platform)
                             .font(.system(size: 10))
                             .foregroundStyle(appAccent)
+                        if let variant = post.variantLabel {
+                            Text(variant)
+                                .font(.system(size: 9.5, weight: .medium))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                                .foregroundStyle(.secondary)
+                        }
                         if let date = post.publishedAt {
                             Text(PromotionSummary.shortDate(date))
                                 .font(.system(size: 10))

@@ -1393,6 +1393,7 @@ extension BrowserToolProvider {
                     "status": AgentJSONSchemaValue(type: "string", description: "\"idea\" | \"draft\" (default) | \"published\""),
                     "url": AgentJSONSchemaValue(type: "string", description: "Published URL (fill when status=published; empty string clears)"),
                     "plannedFor": AgentJSONSchemaValue(type: "string", description: "Optional publish date, yyyy-MM-dd (empty string clears the schedule)"),
+                    "variant": AgentJSONSchemaValue(type: "string", description: "Optional A/B variant label (e.g. A / B / question-hook) for later comparison"),
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

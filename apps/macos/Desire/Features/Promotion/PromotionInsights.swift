@@ -47,6 +47,42 @@ nonisolated enum PromotionInsights {
         let sampleSize: Int
     }
 
+    /// A/B 变体对比（v0.8.2）：同一平台内按 variantLabel 分组，样本不足
+    /// （< minSamples）不出结论。
+    struct VariantStat: Equatable {
+        let platform: String
+        let variant: String
+        let publishedCount: Int
+        let averageViews: Int
+    }
+
+    static func variantStats(posts: [PromotionPost],
+                             minSamples: Int = 2) -> [VariantStat] {
+        var groups: [String: [PromotionPost]] = [:]
+        var labels: [String: (platform: String, variant: String)] = [:]
+        for post in posts where post.status == .published {
+            guard let variant = post.variantLabel?
+                .trimmingCharacters(in: .whitespacesAndNewlines), !variant.isEmpty,
+                  post.latestMetrics?.views != nil else { continue }
+            let key = post.platform + "|" + variant
+            groups[key, default: []].append(post)
+            labels[key] = (post.platform, variant)
+        }
+        return groups.compactMap { key, list -> VariantStat? in
+            guard list.count >= max(2, minSamples),
+                  let label = labels[key] else { return nil }
+            let views = list.compactMap { $0.latestMetrics?.views }
+            guard views.count == list.count else { return nil }
+            return VariantStat(platform: label.platform, variant: label.variant,
+                               publishedCount: list.count,
+                               averageViews: views.reduce(0, +) / views.count)
+        }
+        .sorted {
+            if $0.platform != $1.platform { return $0.platform < $1.platform }
+            return $0.averageViews > $1.averageViews
+        }
+    }
+
     /// 样本 < 3 不给结论（太少说明不了问题，别让模型拿着假信号做决策）。
     static func bestWeekday(posts: [PromotionPost], calendar: Calendar = .current) -> TimingInsight? {
         let withViews: [(Int, Int)] = posts.compactMap { p in

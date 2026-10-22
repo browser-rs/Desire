@@ -4942,6 +4942,35 @@ func testPlaybook() {
 }
 testPlaybook()
 
+func testPromotionVariant() {
+    func post(_ variant: String?, views: Int) -> PromotionPost {
+        var p = PromotionPost(platform: "X", title: "t", body: "b",
+                              status: .published, url: "https://x.test/\(views)")
+        p.variantLabel = variant
+        p.metrics = PromotionPost.Metrics(views: views, likes: nil, comments: nil,
+                                          collectedAt: Date())
+        return p
+    }
+    let posts = [post("A", views: 100), post("A", views: 200),
+                 post("B", views: 300), post("B", views: 500),
+                 post(nil, views: 999)]
+    let stats = PromotionInsights.variantStats(posts: posts)
+    check("A/B：两组统计", stats.count == 2)
+    check("A/B：A 组均值", stats.first(where: { $0.variant == "A" })?.averageViews == 150)
+    check("A/B：B 组均值", stats.first(where: { $0.variant == "B" })?.averageViews == 400)
+    check("A/B：无变体不参与", !stats.contains { $0.averageViews == 999 })
+    check("A/B：样本不足不出结论",
+          PromotionInsights.variantStats(posts: [post("A", views: 1)], minSamples: 2).isEmpty)
+    let legacy = """
+    {"id":"00000000-0000-0000-0000-000000000001","platform":"X","title":"Old",
+     "body":"b","status":"published","createdAt":0,"updatedAt":0}
+    """
+    let decoded = try? JSONDecoder().decode(PromotionPost.self, from: Data(legacy.utf8))
+    check("A/B：旧帖子缺 variant 解码 nil",
+          decoded != nil && decoded?.variantLabel == nil)
+}
+testPromotionVariant()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

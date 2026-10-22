@@ -103,15 +103,18 @@ final class PromotionStore: ObservableObject {
     @discardableResult
     func savePost(goalText: String?, platform: String, title: String, body: String,
                   status: PromotionPost.Status, url: String?, plannedFor: Date? = nil,
-                  campaignID: UUID? = nil) -> SaveOutcome {
+                  campaignID: UUID? = nil,
+                  variantLabel: String? = nil) -> SaveOutcome {
         var matched: PromotionGoal?
         let trimmedGoal = goalText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         if !trimmedGoal.isEmpty { matched = matchGoal(trimmedGoal) }
         let now = Date()
         let cleanURL = url?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanVariant = variantLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
         let post = PromotionPost(
             goalID: matched?.id,
             campaignID: campaignID,
+            variantLabel: (cleanVariant?.isEmpty ?? true) ? nil : cleanVariant,
             platform: platform.trimmingCharacters(in: .whitespacesAndNewlines),
             title: title.trimmingCharacters(in: .whitespacesAndNewlines),
             body: body,
@@ -133,7 +136,8 @@ final class PromotionStore: ObservableObject {
                     title: String? = nil, body: String? = nil,
                     status: PromotionPost.Status? = nil, url: String? = nil,
                     plannedFor: Date?? = nil,
-                    campaignID: UUID?? = nil) -> PromotionPost? {
+                    campaignID: UUID?? = nil,
+                    variantLabel: String?? = nil) -> PromotionPost? {
         guard let idx = posts.firstIndex(where: { $0.id == id }) else { return nil }
         let now = Date()
         if let platform, !platform.isEmpty { posts[idx].platform = platform }
@@ -154,6 +158,10 @@ final class PromotionStore: ObservableObject {
         }
         if let campaignID {
             posts[idx].campaignID = campaignID
+        }
+        if let variantLabel {
+            let clean = variantLabel?.trimmingCharacters(in: .whitespacesAndNewlines)
+            posts[idx].variantLabel = (clean?.isEmpty ?? true) ? nil : clean
         }
         if let goalText {
             let trimmed = goalText?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""

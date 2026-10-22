@@ -111,6 +111,14 @@ nonisolated enum PromotionReport {
             out.append("- \(timing.weekdayLabel) 发布的平均浏览最高（\(timing.averageViews)，样本 \(timing.sampleSize) 篇）")
             out.append("")
         }
+        let variants = PromotionInsights.variantStats(posts: posts)
+        if !variants.isEmpty {
+            out.append("## A/B 变体")
+            for stat in variants {
+                out.append("- \(stat.platform) · \(stat.variant) · \(stat.publishedCount) 篇 · 平均浏览 \(stat.averageViews)")
+            }
+            out.append("")
+        }
 
         // ── 选题与草稿 ──
         let ideas = posts.filter { $0.status == .idea }

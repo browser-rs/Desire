@@ -34,6 +34,8 @@ struct PromotionPost: Identifiable, Codable, Hashable {
     var goalID: UUID?
     /// 所属运营战役（v0.8.2）。Optional + 合成解码：旧帖子/旧文件不受影响。
     var campaignID: UUID?
+    /// A/B 变体标记（v0.8.2）：如 "A"/"B"/"标题-疑问句"；nil = 未参与实验。
+    var variantLabel: String?
     var platform: String
     var title: String
     var body: String
@@ -48,6 +50,7 @@ struct PromotionPost: Identifiable, Codable, Hashable {
     var updatedAt: Date
 
     init(id: UUID = UUID(), goalID: UUID? = nil, campaignID: UUID? = nil,
+         variantLabel: String? = nil,
          platform: String, title: String, body: String,
          status: Status = .draft, url: String? = nil, publishedAt: Date? = nil,
          plannedFor: Date? = nil, metrics: Metrics? = nil, metricHistory: [MetricSnapshot] = [],
@@ -55,6 +58,7 @@ struct PromotionPost: Identifiable, Codable, Hashable {
         self.id = id
         self.goalID = goalID
         self.campaignID = campaignID
+        self.variantLabel = variantLabel
         self.platform = platform
         self.title = title
         self.body = body
@@ -85,16 +89,17 @@ struct PromotionPost: Identifiable, Codable, Hashable {
     }
 
     private enum CodingKeys: String, CodingKey {
-        case id, goalID, campaignID, platform, title, body, status, url, publishedAt,
-             plannedFor, metrics, metricHistory, createdAt, updatedAt
+        case id, goalID, campaignID, variantLabel, platform, title, body, status, url,
+             publishedAt, plannedFor, metrics, metricHistory, createdAt, updatedAt
     }
 
-    // 容错解码（metricHistory / campaignID 是后加字段——旧数据不整份失败）。
+    // 容错解码（metricHistory / campaignID / variantLabel 是后加字段——旧数据不整份失败）。
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
         id = try c.decode(UUID.self, forKey: .id)
         goalID = try c.decodeIfPresent(UUID.self, forKey: .goalID)
         campaignID = try c.decodeIfPresent(UUID.self, forKey: .campaignID)
+        variantLabel = try c.decodeIfPresent(String.self, forKey: .variantLabel)
         platform = try c.decode(String.self, forKey: .platform)
         title = try c.decode(String.self, forKey: .title)
         body = try c.decodeIfPresent(String.self, forKey: .body) ?? ""

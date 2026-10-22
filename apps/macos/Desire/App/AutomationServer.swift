@@ -704,7 +704,7 @@ final class AutomationServer {
         ep("POST", "/playbooks/schedule", "Schedule a playbook with its default parameter values (dailyAt or everyMinutes) / remove it", params: ["id:uuid", "action?:schedule|remove", "dailyAt?:HH:MM", "everyMinutes?:int"], example: #"-d '{"id":"<uuid>","dailyAt":"09:00"}'"#)
         ep("POST", "/promotion/goal", "Add a promotion goal", params: ["title:string", "objective?:string", "platforms?:array", "targetPosts?:int", "dueDate?:string(yyyy-MM-dd|ISO8601)"], example: #"-d '{"title":"v0.7.15 发布宣传","platforms":["掘金"],"targetPosts":2}'"#)
         ep("POST", "/promotion/goal/remove", "Remove a promotion goal by id (posts keep their history, link cleared)", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
-        ep("POST", "/promotion/post", "Save or update a workbench post (idea/draft/published; pass id to update, plannedFor=yyyy-MM-dd) — same semantics as the agent's promotionSave tool", params: ["id?:string", "platform?:string", "title?:string", "body?:string", "status?:idea|draft|published", "url?:string", "goal?:string", "plannedFor?:string"], example: #"-d '{"platform":"掘金","title":"…","body":"…","status":"draft","plannedFor":"2026-10-20"}'"#)
+        ep("POST", "/promotion/post", "Save or update a workbench post (idea/draft/published; pass id to update, plannedFor=yyyy-MM-dd) — same semantics as the agent's promotionSave tool", params: ["id?:string", "platform?:string", "title?:string", "body?:string", "status?:idea|draft|published", "url?:string", "goal?:string", "plannedFor?:string", "variant?:string (A/B label)"], example: #"-d '{"platform":"掘金","title":"…","body":"…","status":"draft","plannedFor":"2026-10-20"}'"#)
         ep("POST", "/promotion/metrics", "Record engagement metrics for a post by id or published URL", params: ["idOrURL:string", "views?:int", "likes?:int", "comments?:int"], example: #"-d '{"idOrURL":"https://…","views":320,"likes":12}'"#)
         ep("POST", "/promotion/post/remove", "Remove a promotion post by id", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/promotion/account", "Register/update an operations account (upsert by domain+platform+handle)", params: ["platform:string", "handle:string", "domain?:promotion|media|ecommerce", "url?:string", "note?:string"], example: #"-d '{"platform":"掘金","handle":"siwi","domain":"media"}'"#)
@@ -6621,6 +6621,7 @@ final class AutomationServer {
             }
         }
         // 带 id = 更新既有帖子（选题→草稿、改排期、补 URL）。
+        let variantText = string(body, "variant")
         if let idRaw = string(body, "id"), !idRaw.isEmpty {
             guard let uuid = UUID(uuidString: idRaw) else { return ["error": "invalid id"] }
             let goalText = string(body, "goal")
@@ -6632,7 +6633,8 @@ final class AutomationServer {
                 body: string(body, "body"),
                 status: status,
                 url: string(body, "url"),
-                plannedFor: plannedFor) else {
+                plannedFor: plannedFor,
+                variantLabel: variantText.map { Optional($0) }) else {
                 return ["error": "no post matches \(idRaw)"]
             }
             return ["ok": true, "id": updated.id.uuidString, "status": updated.status.rawValue,
@@ -6645,7 +6647,8 @@ final class AutomationServer {
         let outcome = PromotionStore.shared.savePost(
             goalText: string(body, "goal"), platform: platform, title: title,
             body: text, status: status, url: string(body, "url"),
-            plannedFor: plannedFor.flatMap { $0 })
+            plannedFor: plannedFor.flatMap { $0 },
+            variantLabel: variantText)
         var out: [String: Any] = [
             "ok": true, "id": outcome.post.id.uuidString,
             "status": outcome.post.status.rawValue, "post": postJSON(outcome.post),
@@ -6906,6 +6909,7 @@ final class AutomationServer {
         ]
         if let goalID = post.goalID { out["goalID"] = goalID.uuidString }
         if let campaignID = post.campaignID { out["campaignID"] = campaignID.uuidString }
+        if let variant = post.variantLabel { out["variant"] = variant }
         if let url = post.url { out["url"] = url }
         if let published = post.publishedAt { out["publishedAt"] = published.timeIntervalSince1970 }
         if let planned = post.plannedFor { out["plannedFor"] = planned.timeIntervalSince1970 }

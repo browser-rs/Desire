@@ -139,6 +139,8 @@ struct Toolbar: View {
     @State private var showWebApps = false
     @State private var showJobs = false
     @State private var showDatasetCollect = false
+    @ObservedObject private var playbooks = PlaybookStore.shared
+    @State private var runPlaybook: Playbook?
     @State private var showAgentActions = false
     @State private var showTabResources = false
     /// 主题整理的异步结果（一次模型调用；成功/失败都在这里给用户一个交代）。
@@ -212,6 +214,12 @@ struct Toolbar: View {
         }
         .sheet(isPresented: $showDatasetCollect) {
             DatasetCollectSheet()
+        }
+        .sheet(item: $runPlaybook) { playbook in
+            PlaybookRunSheet(playbook: playbook) { prompt in
+                AgentScheduler.shared.deliveryTarget?
+                    .sendMessage(prompt, recordHistory: false)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .openJobsPanel)) { _ in
             showJobs = true
@@ -870,6 +878,15 @@ struct Toolbar: View {
 
     private var moreMenuContent: some View {
         VStack(spacing: 1) {
+            if !playbooks.playbooks.isEmpty {
+                moreMenuSection("Do this for me") {
+                    ForEach(playbooks.playbooks.prefix(6)) { playbook in
+                        moreMenuItem("Do: \(playbook.name)", "book.pages") {
+                            runPlaybook = playbook
+                        }
+                    }
+                }
+            }
             moreMenuSection("Browse") {
                 moreMenuItem("History", "clock.arrow.circlepath", shortcut: "⌘Y") { showHistory = true }
                 moreMenuItem("Bookmarks", "bookmark") { showBookmarks = true }

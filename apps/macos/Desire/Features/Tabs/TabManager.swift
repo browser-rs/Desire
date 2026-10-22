@@ -485,13 +485,21 @@ class TabManager: ObservableObject {
 
     func suspendAllBackgroundTabs() {
         for tab in tabs where tab.id != selectedTab?.id && tab.id != splitPartnerID && !tab.isPinned && !tab.isIncognito {
-            if !tab.isSuspended {
-                tab.captureSuspendedState()
-                tab.isSuspended = true
-                tab.browser.webView.stopLoading()
-                tab.browser.webView.loadHTMLString("", baseURL: nil)
-            }
+            // 正在出声的标签不挂起（音乐/视频会突然断掉）；资源中心会在
+            // 可挂起计数里排除它们，用户仍可显式关闭/切换。
+            guard !tab.browser.isPlayingAudio else { continue }
+            suspend(tab)
         }
+    }
+
+    /// 挂起单个标签（快照 → 清空 live page）。自动策略与资源中心共用，
+    /// 避免两处各写一遍 capture/stop/blank 的时序。
+    func suspend(_ tab: Tab) {
+        guard !tab.isSuspended else { return }
+        tab.captureSuspendedState()
+        tab.isSuspended = true
+        tab.browser.webView.stopLoading()
+        tab.browser.webView.loadHTMLString("", baseURL: nil)
     }
 
     func unsuspend(_ tab: Tab) {

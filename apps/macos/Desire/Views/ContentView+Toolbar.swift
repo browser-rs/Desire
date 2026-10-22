@@ -127,7 +127,21 @@ extension ContentView {
                         // 关弹层由 Toolbar 本地补全（showSecurityInfo 是它的状态）。
                         showElementBlock = true
                     },
-                    clearOverrides: { b.clearSiteControls(for: tab) }
+                    clearOverrides: { b.clearSiteControls(for: tab) },
+                    watchPage: {
+                        guard let url = tab.browser.webView.url?.absoluteString else { return }
+                        let host = tab.browser.webView.url?.host ?? "page"
+                        let name = "\(host) — \(tab.displayTitle.prefix(28))"
+                        guard !PageWatchStore.shared.watches.contains(where: { $0.url == url }) else { return }
+                        _ = PageWatchStore.shared.add(name: name, url: url,
+                                                      selector: nil, minutes: 30)
+                    },
+                    recordWorkflow: {
+                        guard let url = tab.browser.webView.url?.absoluteString else { return }
+                        WorkflowStore.shared.startRecording(url: url)
+                        tab.browser.webView.evaluateJavaScript(
+                            "window.__desireWorkflowRecording = true", completionHandler: nil)
+                    }
                 )
             ),
             showHistory: $showHistory,

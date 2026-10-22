@@ -548,6 +548,8 @@ final class AutomationServer {
         ep("POST", "/elements/add", "Hide matching CSS on matching hosts", params: ["selector:string", "pattern:string"], example: #"-d '{"selector":"nav","pattern":"example.com"}'"#)
         ep("POST", "/elements/remove", "Remove rule", params: ["selector:string", "pattern:string"], example: "-d '{…}'")
         ep("POST", "/tabs/pin", "Pin/unpin", params: ["index?:int", "pinned?:bool"], example: #"-d '{"index":0,"pinned":true}'"#)
+        ep("GET", "/tabs/resources", "Tab resource overview: per-site counts, suspended/audio state, duplicate URL groups", example: "…/tabs/resources")
+        ep("POST", "/tabs/resources/action", "Tab resource action: suspendBackground | closeDuplicates | closeHost (host)", params: ["action:string", "host?:string"], example: #"-d '{"action":"closeDuplicates"}'"#)
         ep("GET", "/tabgroups", "Tab groups", example: "…/tabgroups")
         ep("POST", "/tabgroups/create", "Create group (optionally absorb tab)", params: ["name:string", "index?:int"], example: #"-d '{"name":"Work","index":1}'"#)
         ep("POST", "/tabgroups/collapse", "Collapse/expand", params: ["name:string", "collapsed?:bool"], example: "-d '{\"name\":\"Work\"}'")
@@ -1866,6 +1868,10 @@ final class AutomationServer {
                                       "running": BookmarkLinkChecker.shared.isRunning])
             case ("POST", "/tabs/pin"):
                 return try Self.json(Self.setPin(index: Self.index(body), pinned: body["pinned"] as? Bool))
+            case ("GET", "/tabs/resources"):
+                return try Self.json(Self.tabResources())
+            case ("POST", "/tabs/resources/action"):
+                return try Self.json(Self.tabResourceAction(body: body))
             case ("GET", "/reading-list"):
                 return try Self.json(Self.readingList())
             case ("POST", "/reading-list/progress"):
@@ -5509,6 +5515,104 @@ final class AutomationServer {
         guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
         tab.isPinned = pinned ?? !tab.isPinned
         return ["ok": true, "index": index ?? -1, "pinned": tab.isPinned]
+    }
+
+    // MARK: - 标签资源中心（v0.8.1）
+
+    private static func tabResourceItems(_ manager: TabManager) -> [TabResourceItem] {
+        manager.tabs.map { tab in
+            let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
+            return TabResourceItem(
+                id: tab.id, url: url, title: tab.displayTitle,
+                host: URL(string: url)?.host?.lowercased() ?? "",
+                isSuspended: tab.isSuspended,
+                isPinned: tab.isPinned,
+                isIncognito: tab.isIncognito,
+                isPlayingAudio: tab.browser.isPlayingAudio,
+                groupName: AppState.live?.tabGroupStore.group(for: tab.id)?.name)
+        }
+    }
+
+    private static func tabResources() -> [String: Any] {
+        guard let manager = TabSessionCoordinator.shared.activeTabManager else {
+            return ["error": "no active window"]
+        }
+        let items = tabResourceItems(manager)
+        let rows = items.map { item -> [String: Any] in
+            var row: [String: Any] = [
+                "id": item.id.uuidString, "title": item.title, "url": item.url,
+                "host": item.host, "suspended": item.isSuspended,
+                "pinned": item.isPinned, "incognito": item.isIncognito,
+                "audio": item.isPlayingAudio,
+            ]
+            if let group = item.groupName { row["group"] = group }
+            return row
+        }
+        let duplicates = TabResourcePlan.duplicates(items).map { group -> [String: Any] in
+            ["url": group.displayURL, "key": group.keyURL,
+             "tabIDs": group.tabIDs.map(\.uuidString)]
+        }
+        let hosts = TabResourcePlan.hostRows(items).map { row -> [String: Any] in
+            ["host": row.host, "count": row.count, "suspended": row.suspended,
+             "audio": row.playingAudio, "tabIDs": row.tabIDs.map(\.uuidString)]
+        }
+        let suspendable = TabResourcePlan.suspendable(
+            items, selectedID: manager.selectedTab?.id,
+            splitID: manager.splitPartner?.id)
+        return ["tabs": rows, "hosts": hosts, "duplicates": duplicates,
+                "suspendable": suspendable.count,
+                "summary": ["total": items.count,
+                            "suspended": items.filter(\.isSuspended).count,
+                            "audio": items.filter(\.isPlayingAudio).count]]
+    }
+
+    private static func tabResourceAction(body: [String: Any]) -> [String: Any] {
+        guard let manager = TabSessionCoordinator.shared.activeTabManager else {
+            return ["error": "no active window"]
+        }
+        let action = (Self.string(body, "action") ?? "").lowercased()
+        var closed = 0
+        switch action {
+        case "suspendbackground":
+            let before = manager.tabs.filter(\.isSuspended).count
+            manager.suspendAllBackgroundTabs()
+            let after = manager.tabs.filter(\.isSuspended).count
+            return ["ok": true, "newlySuspended": after - before,
+                    "suspended": after, "total": manager.tabs.count]
+        case "closeduplicates":
+            let items = tabResourceItems(manager)
+            for group in TabResourcePlan.duplicates(items) {
+                let selected = manager.selectedTab?.id
+                let keep = selected.flatMap { group.tabIDs.contains($0) ? $0 : nil }
+                    ?? group.tabIDs[0]
+                closed += closeTabIDs(group.tabIDs.filter { $0 != keep }, in: manager)
+            }
+            return ["ok": true, "closed": closed, "remaining": manager.tabs.count]
+        case "closehost":
+            guard let host = Self.string(body, "host")?.lowercased(), !host.isEmpty else {
+                return ["error": "missing host"]
+            }
+            let selected = manager.selectedTab?.id
+            let ids = tabResourceItems(manager)
+                .filter { $0.host == host && $0.id != selected }
+                .map(\.id)
+            closed = closeTabIDs(ids, in: manager)
+            return ["ok": true, "closed": closed, "host": host,
+                    "remaining": manager.tabs.count]
+        default:
+            return ["error": "action must be suspendBackground | closeDuplicates | closeHost"]
+        }
+    }
+
+    private static func closeTabIDs(_ ids: [UUID], in manager: TabManager) -> Int {
+        var closed = 0
+        for id in ids {
+            guard manager.tabs.count > 1,
+                  let index = manager.tabs.firstIndex(where: { $0.id == id }) else { continue }
+            manager.closeTab(at: index)
+            closed += 1
+        }
+        return closed
     }
 
     /// 写阅读进度（E2E/自动化用；盖 LWW 戳随同步，与页内采集同一条路径）。

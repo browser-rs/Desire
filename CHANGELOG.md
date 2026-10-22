@@ -16,6 +16,9 @@
 - **多窗口会话接力 UI（v0.8.1）**：Agent 面板标题菜单新增 "Hand off conversation to"——把当前对话交给另一个**活窗口**，目标接管会话、源窗口回到空会话；两边都在跑回合时禁用（避免取消半截回合）。核心逻辑收口到 `AgentSessionStore.handOffConversation(to:)`，桥 `/agent/handoff` 改为调用同一实现（并新增"两边必须空闲"的保护）。自动双窗 E2E 受当前锁屏/无法激活环境限制未执行，菜单路径需真机双窗过目。
 - **标签按主题整理（模型细分，v0.8.1）**：工具栏 ⋯ → "Organize Tabs by Topic…" 把未分组标签的标题/站点/URL 交给当前模型聚类，一次调用生成语义分组（与按站点整理共用 Undo）。模型只返回下标计划，`TabTopicPlan` 严格校验（越界/跨组重复/单标签组/空名/超长名一律丢弃，重复下标只保留先出现的组），失败时用 alert 说明原因；最多 40 个候选、8 个组。harness 解析 7 项（1267/0）。真实模型链路需在设置好服务后用真机菜单走一遍。
 - **Web Apps 2.0：恢复上次页面（v0.8.1）**：App Mode 窗口在 `didFinish` 记录**同域**上次停留页（跨域登录/OAuth 页不记录），再次打开时恢复到该页而不是启动页；管理器显示最近打开时间，Open 拆成 “Resume Last Page / Start Page”（后者清掉恢复点），窗口内“在默认浏览器打开”改为打开**当前页**而不是启动页。桥 `/webapps` 带 lastURL/lastVisitedAt。旧文件缺字段解码为 nil 不丢数据；harness 恢复域校验/旧文件兼容 4 项（1271/0）。
+- **标签资源中心（v0.8.1）**：工具栏 ⋯ → "Tab Resources…"——按站点汇总当前窗口标签（数量/挂起/播放音频），列出重复 URL 组，提供 **Suspend Background Tabs / Close Duplicates / 按站关闭**（关闭前确认，保留当前标签）。挂起会跳过正在出声的标签（自动挂起策略同步修正，不会再把音乐掐掉）；当前/分屏/固定/无痕标签不会被批量挂起；固定标签不参与去重、私密与普通页不跨模式合并。明确不展示 WebKit 拿不到的“每标签内存”。桥新增 `GET /tabs/resources` 与 `POST /tabs/resources/action`。验收：两个相同 URL 标签 → duplicates 1 组 → closeDuplicates 关闭 1 个；harness URL 归一/重复识别/站点汇总/可挂起排除/固定与私密去重 9 项（1280/0）。
+- **站点动作栏（v0.8.1）**：锁图标弹层的站点设置新增 "Site Actions"——**Reader Mode**（当前阅读状态）、**Watch This Page**（30 分钟盯这一页，已盯则显示 Watching 并禁用）、**Record Workflow**（立即开始录制本站操作，录制中禁用）。把“针对本站做一件事”的入口集中到同一弹层，动作仍走既有 store/动作层，不新增平行实现。UI 需真机点开锁图标过目。
+
 
 
 

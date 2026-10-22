@@ -4692,6 +4692,54 @@ func testTabTopicPlan() {
 }
 testTabTopicPlan()
 
+func testTabResourcePlan() {
+    let a = UUID(), b = UUID(), c = UUID(), d = UUID()
+    func item(_ id: UUID, _ url: String, host: String = "a.test",
+              suspended: Bool = false, pinned: Bool = false,
+              incognito: Bool = false, audio: Bool = false) -> TabResourceItem {
+        TabResourceItem(id: id, url: url, title: "t", host: host,
+                        isSuspended: suspended, isPinned: pinned,
+                        isIncognito: incognito, isPlayingAudio: audio,
+                        groupName: nil)
+    }
+    check("资源中心：URL 归一去 fragment/尾斜杠",
+          TabResourcePlan.normalizeURL("HTTPS://A.Test/path/#x")
+              == TabResourcePlan.normalizeURL("https://a.test/path"))
+    check("资源中心：保留 query 区分页面",
+          TabResourcePlan.normalizeURL("https://a.test/p?id=1")
+              != TabResourcePlan.normalizeURL("https://a.test/p?id=2"))
+    check("资源中心：新标签页不参与去重",
+          TabResourcePlan.normalizeURL("about:blank").isEmpty)
+
+    let items = [
+        item(a, "https://a.test/x", host: "a.test"),
+        item(b, "https://a.test/x#top", host: "a.test", audio: true),
+        item(c, "https://b.test/y", host: "b.test", suspended: true),
+        item(d, "https://b.test/z", host: "b.test", pinned: true),
+    ]
+    let dup = TabResourcePlan.duplicates(items)
+    check("资源中心：识别重复页面", dup.count == 1 && dup[0].tabIDs.count == 2)
+    check("资源中心：固定标签不参与去重",
+          TabResourcePlan.duplicates([
+            item(UUID(), "https://p.test/x", pinned: true),
+            item(UUID(), "https://p.test/x", pinned: true),
+          ]).isEmpty)
+    check("资源中心：私密与普通页不合并去重",
+          TabResourcePlan.duplicates([
+            item(UUID(), "https://q.test/x", incognito: true),
+            item(UUID(), "https://q.test/x"),
+          ]).isEmpty)
+    let hosts = TabResourcePlan.hostRows(items)
+    check("资源中心：按站点计数排序", hosts.count == 2 && hosts[0].host == "a.test"
+          && hosts[0].count == 2 && hosts[0].playingAudio == 1)
+    check("资源中心：可挂起排除当前/固定/无痕/已挂起",
+          TabResourcePlan.suspendable(items, selectedID: a, splitID: nil).isEmpty)
+    let more = items + [item(UUID(), "https://c.test/1", host: "c.test")]
+    check("资源中心：可挂起普通后台标签",
+          TabResourcePlan.suspendable(more, selectedID: a, splitID: nil).count == 1)
+}
+testTabResourcePlan()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

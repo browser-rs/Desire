@@ -14,16 +14,26 @@ struct SiteControlsView: View {
         let editFont: () -> Void
         let manageBlocked: () -> Void
         let clearOverrides: () -> Void
+        /// 站点动作栏（v0.8.1）：读文章 / 盯这一页 / 录制工作流。
+        let toggleReader: () -> Void
+        let watchPage: () -> Void
+        let recordWorkflow: () -> Void
     }
 
     let host: String
     @ObservedObject var store: SiteSettingsStore
+    /// 站点动作栏的状态观察：已盯页面 + 是否正在录制。
+    @ObservedObject private var pageWatches = PageWatchStore.shared
+    @ObservedObject private var workflows = WorkflowStore.shared
     /// 全局自动播放档（视频平台默认豁免的解析基准）。
     let globalAutoPlay: AutoPlayPolicy
     /// 当前页缩放（Tab.applyPageZoom 的真实值，1.0 = 100%）。
     let pageZoom: Double
     /// 本站元素拦截规则数（父视图按 host 派生）。
     let blockedCount: Int
+    /// 当前页 URL / 阅读模式状态（站点动作栏用）。
+    let currentURL: String?
+    let isReaderActive: Bool
     let actions: Actions
 
     @Environment(\.appAccent) private var appAccent: Color
@@ -91,6 +101,30 @@ struct SiteControlsView: View {
                     .controlSize(.mini)
             }
 
+            // 站点动作栏（v0.8.1）：阅读 / 盯页 / 录制——把“针对本站做一件事”
+            // 的入口集中到同一个弹层，而不是散落在菜单里。
+            Divider()
+            Text("Site Actions")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+            siteActionRow(
+                icon: "doc.richtext",
+                title: "Reader Mode",
+                value: isReaderActive ? "On" : "Off",
+                action: actions.toggleReader)
+            siteActionRow(
+                icon: "eye",
+                title: "Watch This Page",
+                value: currentURL == nil ? "—" : (isWatched ? "Watching" : "every 30 min"),
+                enabled: currentURL != nil && !isWatched,
+                action: actions.watchPage)
+            siteActionRow(
+                icon: "record.circle",
+                title: "Record Workflow",
+                value: workflows.isRecording && workflows.recordingHost == host ? "Recording…" : "",
+                enabled: currentURL != nil && !workflows.isRecording,
+                action: actions.recordWorkflow)
+
             // 字体（摘要行 → 打开既有站点字体弹层）
             Button {
                 actions.editFont()
@@ -151,5 +185,35 @@ struct SiteControlsView: View {
         parts.append(font.minFontSize > 0 ? "\(font.minFontSize) px" : String(localized: "Off"))
         if !font.fontFamily.isEmpty { parts.append(font.fontFamily) }
         return parts.joined(separator: " · ")
+    }
+
+    private var isWatched: Bool {
+        guard let currentURL else { return false }
+        return pageWatches.watches.contains { $0.url == currentURL }
+    }
+
+    private func siteActionRow(icon: String, title: String, value: String,
+                               enabled: Bool = true,
+                               action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                Image(systemName: icon)
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                Text(title)
+                    .font(.system(size: 12.5))
+                Spacer()
+                if !value.isEmpty {
+                    Text(value)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.5)
     }
 }

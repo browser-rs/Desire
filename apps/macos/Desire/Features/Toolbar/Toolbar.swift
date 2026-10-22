@@ -52,6 +52,9 @@ struct Toolbar: View {
         let toggleAutoPlay: () -> Void
         let manageBlocked: () -> Void
         let clearOverrides: () -> Void
+        /// 站点动作栏（v0.8.1）。
+        let watchPage: () -> Void
+        let recordWorkflow: () -> Void
     }
 
     @ObservedObject var tab: Tab
@@ -135,6 +138,7 @@ struct Toolbar: View {
     @State private var showWebAppInstall = false
     @State private var showWebApps = false
     @State private var showAgentActions = false
+    @State private var showTabResources = false
     /// 主题整理的异步结果（一次模型调用；成功/失败都在这里给用户一个交代）。
     @State private var topicOrganizeNote: String?
     /// 站点设置（字体弹层 + 控制中心共用；非观察引用：Toolbar 只把它交给
@@ -203,6 +207,11 @@ struct Toolbar: View {
         }
         .sheet(isPresented: $showAgentActions) {
             AgentActionsPanel()
+        }
+        .sheet(isPresented: $showTabResources) {
+            if let manager = TabSessionCoordinator.shared.activeTabManager {
+                TabResourceCenterSheet(manager: manager)
+            }
         }
         .sheet(isPresented: $showWebAppInstall) {
             if let url = tab.browser.webView.url {
@@ -294,6 +303,8 @@ struct Toolbar: View {
                             globalAutoPlay: globalAutoPlay,
                             pageZoom: tab.browser.pageZoom,
                             blockedCount: blockedElementCount ?? 0,
+                            currentURL: tab.browser.webView.url?.absoluteString,
+                            isReaderActive: isReadingMode,
                             actions: SiteControlsView.Actions(
                                 zoomIn: actions.siteControls.zoomIn,
                                 zoomOut: actions.siteControls.zoomOut,
@@ -308,7 +319,10 @@ struct Toolbar: View {
                                     showSecurityInfo = false
                                     actions.siteControls.manageBlocked()
                                 },
-                                clearOverrides: actions.siteControls.clearOverrides))
+                                clearOverrides: actions.siteControls.clearOverrides,
+                                toggleReader: actions.toggleReader,
+                                watchPage: actions.siteControls.watchPage,
+                                recordWorkflow: actions.siteControls.recordWorkflow))
                     }
                 }
             }
@@ -854,6 +868,7 @@ struct Toolbar: View {
                     downloadsPresentation.isPresented = true
                 }
                 moreMenuItem("Organize Tabs", "square.grid.3x3") { actions.organizeTabs() }
+                moreMenuItem("Tab Resources…", "gauge.with.dots.needle.33percent") { showTabResources = true }
                 moreMenuItem("Organize Tabs by Topic…", "sparkles") {
                     Task { @MainActor in
                         let count = await actions.organizeTabsByTopic()

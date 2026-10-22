@@ -2634,6 +2634,46 @@ extension BrowserToolProvider {
                 return head + SpreadsheetReader.markdown(from: sheet)
             }
 
+        case "collectDataset":
+            guard let datasetURL = args["url"] as? String, !datasetURL.isEmpty,
+                  let rowSelector = args["rowSelector"] as? String, !rowSelector.isEmpty else {
+                return Self.fail("Missing url / rowSelector")
+            }
+            var fields: [DatasetSpec.Field] = []
+            if let rawFields = args["fields"] as? [[String: String]] {
+                fields = rawFields.compactMap { row in
+                    guard let key = row["key"], let selector = row["selector"],
+                          !key.isEmpty, !selector.isEmpty else { return nil }
+                    return DatasetSpec.Field(key: key, selector: selector)
+                }
+            } else if let text = args["fieldsText"] as? String {
+                fields = DatasetSpec.parseFields(text)
+            }
+            guard !fields.isEmpty else {
+                return Self.fail("Missing fields — pass fields [{key,selector}] or fieldsText \"key=selector\" lines")
+            }
+            let pagination = DatasetSpec.parsePagination(args["pagination"] as? String ?? "none")
+            let spec = DatasetSpec(
+                startURL: datasetURL,
+                rowSelector: rowSelector,
+                fields: fields,
+                pagination: pagination,
+                nextSelector: args["nextSelector"] as? String,
+                urlTemplate: args["urlTemplate"] as? String,
+                maxPages: (args["maxPages"] as? Int) ?? 10,
+                maxRows: (args["maxRows"] as? Int) ?? 2000,
+                dedupeKey: args["dedupeKey"] as? String)
+            let result = await DatasetCollector.collect(spec, fileName: args["fileName"] as? String)
+            if !result.ok {
+                return Self.fail("Collection failed: " + result.errors.joined(separator: "; "))
+            }
+            var lines = ["Collected \(result.rowCount) row(s) from \(result.pageCount) page(s) → \(result.path ?? "?")"]
+            if !result.errors.isEmpty {
+                lines.append("Issues: " + result.errors.joined(separator: "; "))
+            }
+            lines.append("Job id: \(result.jobID.uuidString) (see Jobs for the receipt)")
+            return lines.joined(separator: "\n")
+
         case "researchDocuments":
             // 文档研究工作台（v0.8.1）：跨文档分段检索，返回带文件+段落号的
             // 引用。路径全部先过 AgentWorkspace（与 readFile 同一白名单）；

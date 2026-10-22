@@ -46,6 +46,7 @@ SOURCES=(
   apps/macos/Desire/Features/Promotion/Playbook.swift
   apps/macos/Desire/Features/Promotion/PlaybookTemplate.swift
   apps/macos/Desire/Features/Jobs/JobAdapter.swift
+  apps/macos/Desire/Features/Datasets/DatasetSpec.swift
   apps/macos/Desire/Features/Promotion/PromotionAccount.swift
   apps/macos/Desire/Features/Promotion/PromotionLesson.swift
   apps/macos/Desire/Features/Promotion/PromotionSummary.swift

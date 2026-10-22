@@ -702,6 +702,7 @@ final class AutomationServer {
         ep("GET", "/playbooks", "Operations playbooks (parameterized runnable prompts)", example: "…/playbooks")
         ep("POST", "/playbooks/run", "Compose a playbook with values and send it to the live agent session (no auto-publish)", params: ["id:uuid", "values?:object"], example: #"-d '{"id":"<uuid>","values":{"focus":"pricing"}}'"#)
         ep("POST", "/playbooks/schedule", "Schedule a playbook with its default parameter values (dailyAt or everyMinutes) / remove it", params: ["id:uuid", "action?:schedule|remove", "dailyAt?:HH:MM", "everyMinutes?:int"], example: #"-d '{"id":"<uuid>","dailyAt":"09:00"}'"#)
+        ep("POST", "/dataset/collect", "Deterministic list→CSV collection (row selector + field selectors + pagination); writes to Downloads, creates a Job", params: ["url:string", "rowSelector:string", "fields:[{key,selector}]|fieldsText:string", "pagination?:none|next|url|scroll", "nextSelector?:string", "urlTemplate?:string", "maxPages?:int", "maxRows?:int", "dedupeKey?:string", "fileName?:string"], example: #"-d '{"url":"https://…","rowSelector":".item","fieldsText":"title=.title\nprice=.price"}'"#)
         ep("POST", "/promotion/goal", "Add a promotion goal", params: ["title:string", "objective?:string", "platforms?:array", "targetPosts?:int", "dueDate?:string(yyyy-MM-dd|ISO8601)"], example: #"-d '{"title":"v0.7.15 发布宣传","platforms":["掘金"],"targetPosts":2}'"#)
         ep("POST", "/promotion/goal/remove", "Remove a promotion goal by id (posts keep their history, link cleared)", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/promotion/post", "Save or update a workbench post (idea/draft/published; pass id to update, plannedFor=yyyy-MM-dd) — same semantics as the agent's promotionSave tool", params: ["id?:string", "platform?:string", "title?:string", "body?:string", "status?:idea|draft|published", "url?:string", "goal?:string", "plannedFor?:string", "variant?:string (A/B label)"], example: #"-d '{"platform":"掘金","title":"…","body":"…","status":"draft","plannedFor":"2026-10-20"}'"#)
@@ -1207,6 +1208,8 @@ final class AutomationServer {
                 return try Self.json(Self.playbookRun(body))
             case ("POST", "/playbooks/schedule"):
                 return try Self.json(Self.playbookSchedule(body))
+            case ("POST", "/dataset/collect"):
+                return try Self.json(await Self.datasetCollect(body))
             case ("POST", "/promotion/goal"):
                 return try Self.json(Self.promotionGoalAdd(body))
             case ("POST", "/promotion/goal/remove"):
@@ -6588,6 +6591,42 @@ final class AutomationServer {
         }
         return ["ok": true, "scheduled": true,
                 "task": PlaybookStore.shared.taskName(for: playbook)]
+    }
+
+    private static func datasetCollect(_ body: [String: Any]) async -> [String: Any] {
+        guard let url = string(body, "url"), !url.isEmpty,
+              let rowSelector = string(body, "rowSelector"), !rowSelector.isEmpty else {
+            return ["error": "missing url or rowSelector"]
+        }
+        var fields: [DatasetSpec.Field] = []
+        if let raw = body["fields"] as? [[String: String]] {
+            fields = raw.compactMap { row in
+                guard let key = row["key"], let selector = row["selector"],
+                      !key.isEmpty, !selector.isEmpty else { return nil }
+                return DatasetSpec.Field(key: key, selector: selector)
+            }
+        } else if let text = string(body, "fieldsText") {
+            fields = DatasetSpec.parseFields(text)
+        }
+        guard !fields.isEmpty else { return ["error": "missing fields"] }
+        let pagination = DatasetSpec.parsePagination(string(body, "pagination") ?? "none")
+        let spec = DatasetSpec(
+            startURL: url,
+            rowSelector: rowSelector,
+            fields: fields,
+            pagination: pagination,
+            nextSelector: string(body, "nextSelector"),
+            urlTemplate: string(body, "urlTemplate"),
+            maxPages: (body["maxPages"] as? Int) ?? 10,
+            maxRows: (body["maxRows"] as? Int) ?? 2000,
+            dedupeKey: string(body, "dedupeKey"))
+        let result = await DatasetCollector.collect(spec, fileName: string(body, "fileName"))
+        return ["ok": result.ok,
+                "rows": result.rowCount,
+                "pages": result.pageCount,
+                "path": result.path ?? "",
+                "errors": result.errors,
+                "jobID": result.jobID.uuidString]
     }
 
     private static func promotionGoalAdd(_ body: [String: Any]) -> [String: Any] {

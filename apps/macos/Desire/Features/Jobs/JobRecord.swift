@@ -10,6 +10,7 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
         case publish
         case mentionScan
         case campaign
+        case dataset
         case scheduled
         case download
         case agent
@@ -20,6 +21,7 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
             case .publish: String(localized: "Publish")
             case .mentionScan: String(localized: "Mention scan")
             case .campaign: String(localized: "Campaign")
+            case .dataset: String(localized: "Data collection")
             case .scheduled: String(localized: "Scheduled task")
             case .download: String(localized: "Download")
             case .agent: String(localized: "Agent task")
@@ -32,6 +34,7 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
             case .publish: "paperplane"
             case .mentionScan: "dot.radiowaves.left.and.right"
             case .campaign: "flag.checkered"
+            case .dataset: "tablecells"
             case .scheduled: "clock.arrow.circlepath"
             case .download: "arrow.down.circle"
             case .agent: "sparkles"

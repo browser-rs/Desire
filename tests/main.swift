@@ -4971,6 +4971,39 @@ func testPromotionVariant() {
 }
 testPromotionVariant()
 
+func testDatasetSpec() {
+    let fields = DatasetSpec.parseFields("""
+    title=.title
+    price: .price
+    junk line
+    """)
+    check("采集：字段解析", fields.count == 2 && fields[0].key == "title"
+          && fields[1].selector == ".price")
+    let rows = [
+        ["title": "A", "price": "1"],
+        ["title": "A", "price": "1"],
+        ["title": "B", "price": "2"],
+    ]
+    check("采集：整行去重", DatasetSpec.dedupe(rows, key: nil).count == 2)
+    check("采集：按字段去重", DatasetSpec.dedupe(rows, key: "title").count == 2)
+    let csv = DatasetSpec.csv(rows: [["title": "a,b", "price": "say \"hi\""]],
+                              fields: fields)
+    check("采集：CSV 转义", csv.contains("\"a,b\"") && csv.contains("\"say \"\"hi\"\"\""))
+    check("采集：URL 模板",
+          DatasetSpec.pageURL("https://x.test/p/{page}", page: 3)
+              == "https://x.test/p/3"
+          && DatasetSpec.pageURL(nil, page: 2) == nil)
+    check("采集：翻页短名解析",
+          DatasetSpec.parsePagination("url") == .urlTemplate
+              && DatasetSpec.parsePagination("next") == .nextButton
+              && DatasetSpec.parsePagination("scroll") == .scroll
+              && DatasetSpec.parsePagination("bogus") == .none)
+    check("采集：上限钳制",
+          DatasetSpec(startURL: "u", rowSelector: "r", fields: fields,
+                      maxPages: 999, maxRows: 999999).maxPages == 50)
+}
+testDatasetSpec()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

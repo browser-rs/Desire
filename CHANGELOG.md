@@ -8,6 +8,8 @@
 - **提及雷达定时化（v0.8.2）**：每日 09:45 的内置任务直接跑确定性扫描（离屏 webview，不需要活会话/模型），扫描关键词取运营存储的 `mentionQuery`（默认 Desire），新提及进互动台账并发 routine 通知；运营页 Automation 新增开关，桥 `/promotion/review kind=mentionScan` 可安排/取消。验收：本地 fixture 来源 → 排程任务创建 → `/agent/tasks/fire` 立即执行 → 台账新增 1 条 mention；测试任务/来源/条目已全部清理。
 - **Work Queue 2.0（v0.8.2 第一批）**：新增统一作业账本 `JobRecord`/`JobStore`（state/进度/产物/回执/错误/来源/外部 id，300 条上限只淘汰最旧终态），工具栏 ⋯ → "Jobs…" 面板按 Needs review / Running / Failed / Finished 查看，可打开 http 产物或本地文件、Dismiss 活动作业、删除/清空已完成。发布准备现在自动建作业（填完 composer → `needsReview` + 产物 URL + 回执；失败/找不到输入框 → `failed` + 原因），`Mark Published`/桥 status=published 会把对应作业标 done 并记 URL；提及扫描也自动建作业并写扫描回执。桥新增 `GET /jobs`、`POST /jobs/action`。验收：fixture 发布准备 → 作业 `needsReview` 且 artifact=composer URL → 标已发布 → `done` + URL；Dismiss 活动作业 → cancelled，clearFinished 生效；harness JobRecord 4 项（1312/0）。下载/定时/批量等旧子系统的 adapter 仍在后续批次接入。
 - **Work Queue 旧子系统 adapter（v0.8.2）**：Jobs 面板与 `/jobs` 现在合并下载、批量媒体、媒体导出、定时运行、Agent 回合与 crew（经 ActivityCenter 只读投影），不复制状态、不写回；稳定哈希 id 保证刷新不跳行，旧子系统条目只提供 Activity 入口、不提供 Dismiss/删除。验收：`/jobs` 返回 8 条历史下载（activity 来源，done）且 summary 正确；harness 状态/类型映射、稳定 id、finishedAt 6 项（1318/0）；clean Release 零警告。
+- **运营 Playbooks（v0.8.2 第一批）**：新增参数化可运行定义（名称/说明/指令/参数/输出方式/可选技能），首次启动种子 4 个运营模板：发版宣传、每周运营复盘、回复提及、网页引用简报。运营页新增 Playbooks 区块与运行表单（必填校验、默认值、选择项、Copy Prompt）；运行把参数与指令组合成一条 prompt 交给现有 Agent 回合（不是新执行引擎），并强制写明"发布/发送/提交/购买必须人工批准"与输出方式。桥新增 `GET /playbooks`、`POST /playbooks/run`（缺必填参数在发送前拒绝）。验收：4 个模板列出、缺参拒绝、prompt 含参数/规则/输出方式；harness 7 项（1325/0）；clean Release 零警告。自定义编辑器与定时运行留后续批次。
+
 
 
 

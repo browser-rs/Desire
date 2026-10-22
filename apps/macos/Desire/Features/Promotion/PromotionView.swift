@@ -33,6 +33,8 @@ struct PromotionView: View {
     @State private var mentionNote: String?
     /// 自动化开关的刷新源（定时任务增删时重绘）。
     @ObservedObject private var scheduler = AgentScheduler.shared
+    @ObservedObject private var playbookStore = PlaybookStore.shared
+    @State private var runningPlaybook: Playbook?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -45,6 +47,7 @@ struct PromotionView: View {
                     accountsSection
                     interactionsSection
                     automationSection
+                    playbooksSection
                     ideasSection
                     draftsSection
                     publishedSection
@@ -59,8 +62,13 @@ struct PromotionView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .sheet(isPresented: $isCreatingGoal) { PromotionGoalEditorSheet() }
         .sheet(isPresented: $isCreatingCampaign) { PromotionCampaignEditorSheet() }
-        .sheet(isPresented: $isAddingMentionSource) { MentionSourceEditorSheet() }
+        .sheet(item: $runningPlaybook) { playbook in
+            PlaybookRunSheet(playbook: playbook) { prompt in
+                onSendToAgent?(prompt)
+            }
+        }
         .sheet(isPresented: $isCreatingAccount) { PromotionAccountEditorSheet() }
+        .sheet(isPresented: $isAddingMentionSource) { MentionSourceEditorSheet() }
         .sheet(item: $publishingPost) { post in
             PromotionPublishSheet(post: post)
         }
@@ -657,6 +665,63 @@ struct PromotionView: View {
         }
         .padding(10)
         .background(cardBackground)
+    }
+
+    // MARK: - Playbooks（v0.8.2）
+
+    @ViewBuilder
+    private var playbooksSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                sectionHeader(String(localized: "Playbooks"), count: playbookStore.playbooks.count)
+                Spacer()
+                Menu(String(localized: "Add Template")) {
+                    ForEach(PlaybookTemplate.all(version: WhatsNewStore.shared.versionName)) { template in
+                        Button(template.name) {
+                            _ = playbookStore.save(template)
+                        }
+                    }
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .font(.system(size: 10.5))
+            }
+            if playbookStore.playbooks.isEmpty {
+                Text(String(localized: "No playbooks — add a template or ask the agent to create one."))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(playbookStore.playbooks) { playbook in
+                    HStack(spacing: 8) {
+                        Image(systemName: "book.pages")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(appAccent)
+                            .frame(width: 16)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(playbook.name)
+                                .font(.system(size: 11.5, weight: .medium))
+                            if !playbook.summary.isEmpty {
+                                Text(playbook.summary)
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+                        Spacer(minLength: 4)
+                        Button(String(localized: "Run")) {
+                            runningPlaybook = playbook
+                        }
+                        .controlSize(.small)
+                        .disabled(onSendToAgent == nil)
+                        HoverIcon(systemName: "trash", action: {
+                            playbookStore.delete(playbook.id)
+                        }, help: String(localized: "Delete playbook"))
+                    }
+                    .padding(8)
+                    .background(cardBackground)
+                }
+            }
+        }
     }
 
     // MARK: - Ideas（选题库）

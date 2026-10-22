@@ -4910,6 +4910,38 @@ func testJobAdapter() {
 }
 testJobAdapter()
 
+func testPlaybook() {
+    let playbook = Playbook(
+        name: "Brief",
+        summary: "Answer with citations",
+        instructions: "Use researchSources, cite [n].",
+        parameters: [
+            .init(key: "focus", label: "Focus", required: true),
+            .init(key: "tone", label: "Tone", defaultValue: "concise", choices: ["concise", "long"]),
+        ],
+        output: .file)
+    check("Playbook：必填缺失", PlaybookRun.missingRequired(playbook, values: [:]).count == 1)
+    check("Playbook：默认值满足必填",
+          PlaybookRun.missingRequired(playbook, values: ["focus": "pricing"]).isEmpty)
+    let prompt = PlaybookRun.compose(playbook, values: ["focus": "pricing"])
+    check("Playbook：prompt 含名称/参数/规则",
+          prompt.contains("Brief") && prompt.contains("focus") && prompt.contains("pricing")
+              && prompt.contains("Never publish"))
+    check("Playbook：输出方式写入 prompt", prompt.contains("Write the result to a file"))
+    check("Playbook：模板数量", PlaybookTemplate.all(version: "0.8.2").count == 4)
+    check("Playbook：发布模板带版本默认值",
+          PlaybookTemplate.releaseCampaign(version: "0.8.2")
+              .parameters.first(where: { $0.key == "version" })?.defaultValue == "0.8.2")
+    if let data = try? JSONEncoder().encode(playbook),
+       let decoded = try? JSONDecoder().decode(Playbook.self, from: data) {
+        check("Playbook：Codable 往返", decoded.id == playbook.id
+              && decoded.parameters.count == 2 && decoded.output == .file)
+    } else {
+        check("Playbook：Codable 往返", false)
+    }
+}
+testPlaybook()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

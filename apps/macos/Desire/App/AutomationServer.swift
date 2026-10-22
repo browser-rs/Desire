@@ -699,6 +699,8 @@ final class AutomationServer {
         ep("POST", "/promotion/share", "Build a ready-to-post Desire caption + UTM link for a channel (no network, no posting)", params: ["channel?:string (X/小红书/V2EX/掘金/即刻/Hacker News)", "version?:string"], example: #"-d '{"channel":"X"}'"#)
         ep("GET", "/jobs", "Unified job ledger (publish/mention scan/campaign…) with states, artifacts and receipts", params: ["limit?:int"], example: "…/jobs")
         ep("POST", "/jobs/action", "Dismiss an active job / delete a job / clear finished jobs", params: ["action:dismiss|delete|clearFinished", "id?:uuid"], example: #"-d '{"action":"clearFinished"}'"#)
+        ep("GET", "/playbooks", "Operations playbooks (parameterized runnable prompts)", example: "…/playbooks")
+        ep("POST", "/playbooks/run", "Compose a playbook with values and send it to the live agent session (no auto-publish)", params: ["id:uuid", "values?:object"], example: #"-d '{"id":"<uuid>","values":{"focus":"pricing"}}'"#)
         ep("POST", "/promotion/goal", "Add a promotion goal", params: ["title:string", "objective?:string", "platforms?:array", "targetPosts?:int", "dueDate?:string(yyyy-MM-dd|ISO8601)"], example: #"-d '{"title":"v0.7.15 发布宣传","platforms":["掘金"],"targetPosts":2}'"#)
         ep("POST", "/promotion/goal/remove", "Remove a promotion goal by id (posts keep their history, link cleared)", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/promotion/post", "Save or update a workbench post (idea/draft/published; pass id to update, plannedFor=yyyy-MM-dd) — same semantics as the agent's promotionSave tool", params: ["id?:string", "platform?:string", "title?:string", "body?:string", "status?:idea|draft|published", "url?:string", "goal?:string", "plannedFor?:string"], example: #"-d '{"platform":"掘金","title":"…","body":"…","status":"draft","plannedFor":"2026-10-20"}'"#)
@@ -1198,6 +1200,10 @@ final class AutomationServer {
                     limit: Int(Self.string(query, "limit") ?? "") ?? 100))
             case ("POST", "/jobs/action"):
                 return try Self.json(Self.jobsAction(body))
+            case ("GET", "/playbooks"):
+                return try Self.json(Self.playbooksList())
+            case ("POST", "/playbooks/run"):
+                return try Self.json(Self.playbookRun(body))
             case ("POST", "/promotion/goal"):
                 return try Self.json(Self.promotionGoalAdd(body))
             case ("POST", "/promotion/goal/remove"):
@@ -6498,6 +6504,47 @@ final class AutomationServer {
         default:
             return ["error": "action must be dismiss | delete | clearFinished"]
         }
+    }
+
+    private static func playbooksList() -> [String: Any] {
+        let store = PlaybookStore.shared
+        return ["playbooks": store.playbooks.map { playbook -> [String: Any] in
+            var row: [String: Any] = [
+                "id": playbook.id.uuidString,
+                "name": playbook.name,
+                "summary": playbook.summary,
+                "output": playbook.output.rawValue,
+                "parameters": playbook.parameters.map { parameter -> [String: Any] in
+                    ["key": parameter.key, "label": parameter.label,
+                     "required": parameter.required,
+                     "default": parameter.defaultValue,
+                     "choices": parameter.choices]
+                },
+            ]
+            if let skill = playbook.skillName { row["skill"] = skill }
+            return row
+        }]
+    }
+
+    private static func playbookRun(_ body: [String: Any]) -> [String: Any] {
+        guard let raw = string(body, "id"), let id = UUID(uuidString: raw) else {
+            return ["error": "missing or invalid id"]
+        }
+        var values: [String: String] = [:]
+        if let dict = body["values"] as? [String: Any] {
+            for (key, value) in dict {
+                values[key] = String(describing: value)
+            }
+        }
+        guard let prompt = PlaybookStore.shared.compose(id: id, values: values) else {
+            return ["error": "unknown playbook or missing required parameters"]
+        }
+        guard let session = AgentScheduler.shared.deliveryTarget else {
+            return ["error": "no live agent session — open the Agent panel first"]
+        }
+        session.sendMessage(prompt, recordHistory: false)
+        return ["ok": true, "playbook": PlaybookStore.shared.playbook(id: id)?.name ?? "",
+                "prompt": prompt]
     }
 
     private static func promotionGoalAdd(_ body: [String: Any]) -> [String: Any] {

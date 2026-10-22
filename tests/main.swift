@@ -4653,6 +4653,31 @@ func testDocumentResearch() {
 }
 testDocumentResearch()
 
+func testTabTopicPlan() {
+    let ids = (0..<4).map { _ in UUID() }
+    let raw = """
+    Here is the plan:
+    ```json
+    [{"name":"研究","tabs":[0,1]},
+     {"name":"单标签","tabs":[2]},
+     {"name":"规划","tabs":[2,3]}]
+    ```
+    """
+    let groups = TabTopicPlan.parse(raw, tabIDs: ids)
+    check("主题分组：丢弃单标签组并回滚下标", groups.count == 2)
+    check("主题分组：第一组名称", groups.first?.name == "研究")
+    check("主题分组：重复下标只出现一次",
+          groups.flatMap(\.tabIDs).count == Set(groups.flatMap(\.tabIDs)).count)
+    check("主题分组：越界下标导致不足两组则丢弃",
+          TabTopicPlan.parse("[{\"name\":\"x\",\"tabs\":[0,99]}]", tabIDs: ids).isEmpty)
+    check("主题分组：抠出代码围栏里的 JSON",
+          TabTopicPlan.extractJSONArray(from: raw)?.hasPrefix("[") == true)
+    check("主题分组：非 JSON 返回空", TabTopicPlan.parse("no plan", tabIDs: ids).isEmpty)
+    check("主题分组：空名丢弃", TabTopicPlan.parse(
+        "[{\"name\":\"  \",\"tabs\":[0,1]}]", tabIDs: ids).isEmpty)
+}
+testTabTopicPlan()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

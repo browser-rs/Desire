@@ -123,6 +123,7 @@ SOURCES=(
   apps/macos/Desire/Features/WebApps/WebApp.swift
   apps/macos/Desire/Features/Downloads/ScheduledDownload.swift
   apps/macos/Desire/Features/TabGroups/TabOrganizePlan.swift
+  apps/macos/Desire/Features/TabGroups/TabTopicPlan.swift
   apps/macos/Desire/Features/PageWatch/PageWatchDigest.swift
   apps/macos/Desire/Features/PageWatch/PageWatchNoise.swift
   apps/macos/Desire/Features/Settings/SettingsSearch.swift

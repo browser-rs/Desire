@@ -31,6 +31,9 @@ struct Toolbar: View {
         let toggleSiteAutoPlay: () -> Void
         let organizeTabs: () -> Void
         let undoOrganizeTabs: () -> Void
+        /// 按主题整理（一次模型调用）；返回创建的组数，失败原因在
+        /// `TabOrganizer.shared.lastError`。
+        let organizeTabsByTopic: () async -> Int
         let toggleAgentPanel: () -> Void
         let toggleAgentFloatingPanel: () -> Void
         let toggleDevTools: () -> Void
@@ -132,6 +135,8 @@ struct Toolbar: View {
     @State private var showWebAppInstall = false
     @State private var showWebApps = false
     @State private var showAgentActions = false
+    /// 主题整理的异步结果（一次模型调用；成功/失败都在这里给用户一个交代）。
+    @State private var topicOrganizeNote: String?
     /// 站点设置（字体弹层 + 控制中心共用；非观察引用：Toolbar 只把它交给
     /// 弹层构造，不读它的状态——同 downloadStore/passwordStore 的传递方式）。
     let siteSettingsStore: SiteSettingsStore
@@ -203,6 +208,14 @@ struct Toolbar: View {
             if let url = tab.browser.webView.url {
                 WebAppInstallSheet(url: url, suggestedName: tab.browser.pageTitle)
             }
+        }
+        .alert(String(localized: "Organize Tabs by Topic"),
+               isPresented: Binding(
+                get: { topicOrganizeNote != nil },
+                set: { if !$0 { topicOrganizeNote = nil } })) {
+            Button(String(localized: "OK"), role: .cancel) { topicOrganizeNote = nil }
+        } message: {
+            Text(topicOrganizeNote ?? "")
         }
         .onChange(of: isUrlFocused) { _, focused in
             // **聚焦时不要播种缓冲**：未聚焦期间 `.onChange(of: displayedURL)` 已经把它
@@ -841,6 +854,17 @@ struct Toolbar: View {
                     downloadsPresentation.isPresented = true
                 }
                 moreMenuItem("Organize Tabs", "square.grid.3x3") { actions.organizeTabs() }
+                moreMenuItem("Organize Tabs by Topic…", "sparkles") {
+                    Task { @MainActor in
+                        let count = await actions.organizeTabsByTopic()
+                        if count > 0 {
+                            topicOrganizeNote = String(localized: "Created \(count) topic group(s). Undo with “Undo Organize Tabs”.")
+                        } else {
+                            topicOrganizeNote = TabOrganizer.shared.lastError
+                                ?? String(localized: "No topic groups were created.")
+                        }
+                    }
+                }
                 moreMenuItem("Undo Organize Tabs", "arrow.uturn.backward") { actions.undoOrganizeTabs() }
             }
             moreMenuSection("Collections") {

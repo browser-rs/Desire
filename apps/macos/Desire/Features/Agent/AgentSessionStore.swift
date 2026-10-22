@@ -1286,6 +1286,22 @@ class AgentSessionStore: ObservableObject {
         DiskStore.flushSync()
     }
 
+    /// 会话接力（v0.8.1 UI 入口）：把当前对话交给另一个窗口，源回到空会话。
+    /// 两个窗口都必须空闲——回合中交接会取消源回合，且当前回答没有落盘时
+    /// 目标会看到半截对话（宁可不做）。
+    @discardableResult
+    func handOffConversation(to target: AgentSessionStore) -> Bool {
+        guard target !== self,
+              !isProcessing, !target.isProcessing,
+              let conversation = conversationId else { return false }
+        flushConversation()
+        target.loadConversation(conversation)
+        AgentScheduler.shared.deliveryTarget = target
+        clear()
+        Log.agent.info("handoff: conversation \(conversation.uuidString, privacy: .public) → window \(target.registryID?.uuidString ?? "?", privacy: .public)")
+        return true
+    }
+
     private func saveCurrentConversation() {
         let id = conversationId ?? UUID()
         conversationId = id

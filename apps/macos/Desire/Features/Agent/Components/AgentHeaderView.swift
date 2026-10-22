@@ -32,6 +32,13 @@ struct AgentHeaderView: View {
     /// 多 Agent roster：人设名册观察 + 本窗口绑定切换。
     @ObservedObject var roster = AgentRosterStore.shared
 
+    /// 会话接力（v0.8.1）：其它活窗口（排除本窗口与没有会话的壳）。
+    private var handoffTargets: [AgentScheduler.RegisteredSession] {
+        AgentScheduler.shared.liveSessions().filter {
+            $0.store !== nil && $0.store !== store && $0.store?.conversationId != nil
+        }
+    }
+
     var body: some View {
         HStack(spacing: 8) {
             // 两栏布局（独立窗口）的侧栏开关：置顶最左，macOS 惯例位。
@@ -219,6 +226,20 @@ struct AgentHeaderView: View {
                         store.modeBinding = mode
                     }
                     .disabled(store.effectiveMode == mode)
+                }
+                if !handoffTargets.isEmpty {
+                    Divider()
+                    Menu(String(localized: "Hand off conversation to")) {
+                        ForEach(handoffTargets) { entry in
+                            if let target = entry.store {
+                                Button(entry.windowTitle ?? entry.displayLabel) {
+                                    store.handOffConversation(to: target)
+                                }
+                                .disabled(store.isProcessing || target.isProcessing)
+                            }
+                        }
+                    }
+                    .disabled(store.conversationId == nil || store.isProcessing)
                 }
                 if let onDistillSkill {
                     Divider()

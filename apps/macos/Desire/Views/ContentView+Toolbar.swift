@@ -112,6 +112,7 @@ extension ContentView {
                 toggleSiteAutoPlay: { b.toggleSiteAutoPlay(for: tab) },
                 organizeTabs: { b.organizeTabs() },
                 undoOrganizeTabs: { b.undoOrganizeTabs() },
+                organizeTabsByTopic: { await b.organizeTabsByTopic() },
                 toggleAgentPanel: { showAgentPanel.toggle() },
                 toggleAgentFloatingPanel: { aiFloatingPanel?.toggle() },
                 toggleDevTools: { toggleDevTools() },

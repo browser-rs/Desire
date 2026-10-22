@@ -324,6 +324,15 @@ extension BrowsingActions {
         TabOrganizer.shared.undo(store: store)
     }
 
+    /// 按主题整理（v0.8.1）：一次模型调用把未分组标签聚类成语义分组。
+    @discardableResult
+    func organizeTabsByTopic() async -> Int {
+        guard let app = AppState.live else { return 0 }
+        return await TabOrganizer.shared.organizeByTopic(
+            tabs: tabManager.tabs, store: app.tabGroupStore,
+            preference: app.aiPreference)
+    }
+
     /// 当前站点是否**生效**为允许自动播放（工具栏菜单勾选态）。
     /// 视频平台默认豁免也要算进来，否则菜单显示 Off 而实际能播。
     func isSiteAutoPlayAllowed(for tab: Tab) -> Bool {

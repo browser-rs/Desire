@@ -6018,10 +6018,9 @@ final class AutomationServer {
         guard let conversation = source.conversationId else {
             return ["error": "source session has no conversation to hand off"]
         }
-        source.flushConversation()
-        target.loadConversation(conversation)
-        AgentScheduler.shared.deliveryTarget = target
-        source.clear()
+        guard source.handOffConversation(to: target) else {
+            return ["error": "handoff unavailable — both windows must be idle (no running turn)"]
+        }
         return ["ok": true, "conversation": conversation.uuidString,
                 "target": targetID.uuidString]
     }

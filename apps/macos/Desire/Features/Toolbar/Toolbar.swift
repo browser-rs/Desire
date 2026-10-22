@@ -29,6 +29,8 @@ struct Toolbar: View {
         let toggleTranslate: () -> Void
         let toggleDarkMode: () -> Void
         let toggleSiteAutoPlay: () -> Void
+        let organizeTabs: () -> Void
+        let undoOrganizeTabs: () -> Void
         let toggleAgentPanel: () -> Void
         let toggleAgentFloatingPanel: () -> Void
         let toggleDevTools: () -> Void
@@ -834,6 +836,8 @@ struct Toolbar: View {
                 moreMenuItem("Downloads", "arrow.down.circle") {
                     downloadsPresentation.isPresented = true
                 }
+                moreMenuItem("Organize Tabs", "square.grid.3x3") { actions.organizeTabs() }
+                moreMenuItem("Undo Organize Tabs", "arrow.uturn.backward") { actions.undoOrganizeTabs() }
             }
             moreMenuSection("Collections") {
                 moreMenuItem("Workspaces", "square.stack.3d.up") { showWorkspaces = true }

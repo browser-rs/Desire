@@ -49,6 +49,14 @@ class TabGroupStore: ObservableObject {
         save()
     }
 
+    /// 一键整理/撤销的快照（v0.8.0）。
+    func snapshot() -> [TabGroup] { groups }
+
+    func replaceAll(_ snapshot: [TabGroup]) {
+        groups = snapshot
+        save()
+    }
+
     func setCollapsed(_ id: UUID, _ collapsed: Bool) {
         guard let i = groups.firstIndex(where: { $0.id == id }) else { return }
         groups[i].isCollapsed = collapsed

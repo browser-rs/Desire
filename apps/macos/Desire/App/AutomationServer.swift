@@ -545,6 +545,8 @@ final class AutomationServer {
         ep("POST", "/tabgroups/create", "Create group (optionally absorb tab)", params: ["name:string", "index?:int"], example: #"-d '{"name":"Work","index":1}'"#)
         ep("POST", "/tabgroups/collapse", "Collapse/expand", params: ["name:string", "collapsed?:bool"], example: "-d '{\"name\":\"Work\"}'")
         ep("POST", "/tabgroups/delete", "Delete group (tabs survive)", params: ["name:string"], example: "-d '{\"name\":\"Work\"}'")
+        ep("POST", "/tabgroups/organize", "Group ungrouped tabs of the active window by site (>=3 tabs/site)", example: "-d '{}'")
+        ep("POST", "/tabgroups/undo", "Undo the last organize", example: "-d '{}'")
         ep("POST", "/containers/remove", "Remove container by name", params: ["name:string"], example: "-d '{\"name\":\"Shop\"}'")
         ep("GET", "/downloads/dangerous", "Pending dangerous-download confirmation (bar)", example: "…/downloads/dangerous")
         ep("POST", "/downloads/dangerous/resolve", "Resolve the confirmation (allow=true reloads the URL as a download)", params: ["allow:bool"], example: "-d '{\"allow\":true}'")
@@ -2021,6 +2023,10 @@ final class AutomationServer {
                 ))
             case ("POST", "/tabgroups/delete"):
                 return try Self.json(Self.deleteTabGroup(name: Self.string(body, "name") ?? ""))
+            case ("POST", "/tabgroups/organize"):
+                return try Self.json(Self.organizeTabGroups())
+            case ("POST", "/tabgroups/undo"):
+                return try Self.json(Self.undoTabGroups())
             case ("GET", "/elements"):
                 return try Self.json(Self.elementRules())
             case ("POST", "/elements/add"):
@@ -5552,6 +5558,22 @@ final class AutomationServer {
     }
 
     // MARK: Tab groups
+
+    private static func organizeTabGroups() throws -> [String: Any] {
+        guard let app = AppState.live,
+              let tm = TabSessionCoordinator.shared.activeTabManager else {
+            return ["error": "no active window"]
+        }
+        let count = TabOrganizer.shared.organize(tabs: tm.tabs, store: app.tabGroupStore)
+        return ["ok": true, "groups": count,
+                "canUndo": TabOrganizer.shared.canUndo]
+    }
+
+    private static func undoTabGroups() throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        TabOrganizer.shared.undo(store: app.tabGroupStore)
+        return ["ok": true]
+    }
 
     private static func tabGroups() throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }

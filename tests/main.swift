@@ -4394,6 +4394,21 @@ func testScheduledDownloadModel() {
 }
 testScheduledDownloadModel()
 
+func testTabOrganizePlan() {
+    let a = UUID(), b = UUID(), c = UUID(), d = UUID()
+    let plan = TabOrganizePlan.groups(for: [
+        (a, "www.github.com"), (b, "github.com"), (c, "github.com"), (d, "news.test"),
+    ])
+    check("标签整理：同站 3 个成组", plan.count == 1 && plan[0].host == "github.com"
+        && plan[0].tabIDs.count == 3)
+    check("标签整理：低于阈值不成组",
+          TabOrganizePlan.groups(for: [(a, "x.test"), (b, "x.test")]).isEmpty)
+    check("标签整理：www 归一", TabOrganizePlan.normalize("WWW.Example.COM") == "example.com")
+    check("标签整理：颜色稳定",
+          TabOrganizePlan.colorIndex(for: "github.com") == TabOrganizePlan.colorIndex(for: "github.com"))
+}
+testTabOrganizePlan()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

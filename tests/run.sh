@@ -121,6 +121,7 @@ SOURCES=(
   apps/macos/Desire/Storage/DiskStore.swift
   apps/macos/Desire/Features/WebApps/WebApp.swift
   apps/macos/Desire/Features/Downloads/ScheduledDownload.swift
+  apps/macos/Desire/Features/TabGroups/TabOrganizePlan.swift
   apps/macos/Desire/Features/History/HistoryContentIndex.swift
   apps/macos/Desire/Features/BrowserImport/BrowserImport.swift
   apps/macos/Desire/Features/BrowserImport/ChromiumBookmarksParser.swift

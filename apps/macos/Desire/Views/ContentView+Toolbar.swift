@@ -110,6 +110,8 @@ extension ContentView {
                 },
                 toggleDarkMode: { b.toggleDarkMode(for: tab) },
                 toggleSiteAutoPlay: { b.toggleSiteAutoPlay(for: tab) },
+                organizeTabs: { b.organizeTabs() },
+                undoOrganizeTabs: { b.undoOrganizeTabs() },
                 toggleAgentPanel: { showAgentPanel.toggle() },
                 toggleAgentFloatingPanel: { aiFloatingPanel?.toggle() },
                 toggleDevTools: { toggleDevTools() },

@@ -312,6 +312,18 @@ extension BrowsingActions {
         tab.browser.webView.evaluateJavaScript(js, completionHandler: nil)
     }
 
+    /// 一键按站点整理当前窗口的未分组标签（v0.8.0）。
+    @discardableResult
+    func organizeTabs() -> Int {
+        guard let store = AppState.live?.tabGroupStore else { return 0 }
+        return TabOrganizer.shared.organize(tabs: tabManager.tabs, store: store)
+    }
+
+    func undoOrganizeTabs() {
+        guard let store = AppState.live?.tabGroupStore else { return }
+        TabOrganizer.shared.undo(store: store)
+    }
+
     /// 当前站点是否**生效**为允许自动播放（工具栏菜单勾选态）。
     /// 视频平台默认豁免也要算进来，否则菜单显示 Off 而实际能播。
     func isSiteAutoPlayAllowed(for tab: Tab) -> Bool {

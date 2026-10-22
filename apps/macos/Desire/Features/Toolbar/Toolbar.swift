@@ -137,6 +137,7 @@ struct Toolbar: View {
     @State private var showExtensionsPanel = false
     @State private var showWebAppInstall = false
     @State private var showWebApps = false
+    @State private var showJobs = false
     @State private var showAgentActions = false
     @State private var showTabResources = false
     /// 主题整理的异步结果（一次模型调用；成功/失败都在这里给用户一个交代）。
@@ -204,6 +205,9 @@ struct Toolbar: View {
         }
         .sheet(isPresented: $showWebApps) {
             WebAppsPanel()
+        }
+        .sheet(isPresented: $showJobs) {
+            JobsPanel()
         }
         .sheet(isPresented: $showAgentActions) {
             AgentActionsPanel()
@@ -952,6 +956,7 @@ struct Toolbar: View {
             }
             moreMenuSection("App") {
                 moreMenuItem("Web Apps…", "square.stack") { showWebApps = true }
+                moreMenuItem("Jobs…", "square.stack.3d.up") { showJobs = true }
                 moreMenuItem("Agent Actions…", "clock.arrow.circlepath") { showAgentActions = true }
                 moreMenuItem("Agent", "wand.and.stars") { actions.toggleAgentPanel() }
                 moreMenuItem("Preferences…", "gearshape", shortcut: "⌘,") { openWindow("settings") }

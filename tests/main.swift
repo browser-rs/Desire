@@ -4854,6 +4854,30 @@ func testPromotionShare() {
 }
 testPromotionShare()
 
+func testJobRecord() {
+    check("作业：活动状态", JobRecord.State.running.isActive
+          && JobRecord.State.needsReview.isActive
+          && !JobRecord.State.done.isActive)
+    check("作业：终止态不可 dismiss",
+          !JobRecord(title: "x", kind: .publish, state: .done).canDismiss)
+    var job = JobRecord(title: "Prepare publish", kind: .publish,
+                        state: .needsReview, detail: "X",
+                        artifactURL: "https://example.test/compose",
+                        externalID: UUID().uuidString)
+    check("作业：进行中可 dismiss", job.canDismiss)
+    job.state = .failed
+    job.error = "composer changed"
+    check("作业：失败态记录原因", job.isTerminal && job.error != nil)
+    if let data = try? JSONEncoder().encode(job),
+       let decoded = try? JSONDecoder().decode(JobRecord.self, from: data) {
+        check("作业：Codable 往返", decoded.id == job.id
+              && decoded.state == .failed && decoded.kind == .publish)
+    } else {
+        check("作业：Codable 往返", false)
+    }
+}
+testJobRecord()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

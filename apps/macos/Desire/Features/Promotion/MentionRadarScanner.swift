@@ -12,13 +12,24 @@ enum MentionRadarScanner {
         let scannedSources: Int
         let added: Int
         let errors: [String]
+        let jobID: UUID?
     }
 
     static func scan(query: String, sources: [MentionSource],
                      maxHitsPerSource: Int = 15) async -> Result {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return Result(scannedSources: 0, added: 0, errors: []) }
+        guard !trimmed.isEmpty else {
+            return Result(scannedSources: 0, added: 0, errors: [], jobID: nil)
+        }
         let enabled = sources.filter(\.isEnabled).prefix(6)
+        guard !enabled.isEmpty else {
+            return Result(scannedSources: 0, added: 0, errors: [], jobID: nil)
+        }
+        let jobID = JobStore.shared.start(
+            title: "Mention scan: \(trimmed)",
+            kind: .mentionScan,
+            detail: "\(enabled.count) source(s)",
+            source: "operations")
         var added = 0
         var scanned = 0
         var errors: [String] = []
@@ -56,7 +67,14 @@ enum MentionRadarScanner {
             added += PromotionStore.shared.logInteractions(interactions)
         }
         PromotionStore.shared.markMentionScan()
-        return Result(scannedSources: scanned, added: added, errors: errors)
+        let receipt = "Scanned \(scanned) source(s), added \(added) new mention(s)."
+            + (errors.isEmpty ? "" : " Errors: " + errors.prefix(3).joined(separator: "; "))
+        if scanned == 0, !errors.isEmpty {
+            JobStore.shared.finish(jobID, state: .failed, error: receipt)
+        } else {
+            JobStore.shared.finish(jobID, state: .done, receipt: receipt)
+        }
+        return Result(scannedSources: scanned, added: added, errors: errors, jobID: jobID)
     }
 
     private static func parseHits(_ raw: String) -> [MentionRadar.Hit] {

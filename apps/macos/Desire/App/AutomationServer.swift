@@ -697,6 +697,8 @@ final class AutomationServer {
         ep("POST", "/promotion/mentions/source", "Add/remove/toggle a mention-radar source", params: ["action:add|remove|toggle", "name?:string", "platform?:string", "searchURL?:string (use {query})", "id?:uuid", "enabled?:bool"], example: #"-d '{"action":"add","name":"DuckDuckGo","platform":"Web","searchURL":"https://duckduckgo.com/html/?q={query}"}'"#)
         ep("POST", "/promotion/mentions/scan", "Scan enabled sources off-screen for a keyword; new links go to the interaction ledger (deduped)", params: ["query:string", "limit?:int"], example: #"-d '{"query":"Desire browser"}'"#)
         ep("POST", "/promotion/share", "Build a ready-to-post Desire caption + UTM link for a channel (no network, no posting)", params: ["channel?:string (X/小红书/V2EX/掘金/即刻/Hacker News)", "version?:string"], example: #"-d '{"channel":"X"}'"#)
+        ep("GET", "/jobs", "Unified job ledger (publish/mention scan/campaign…) with states, artifacts and receipts", params: ["limit?:int"], example: "…/jobs")
+        ep("POST", "/jobs/action", "Dismiss an active job / delete a job / clear finished jobs", params: ["action:dismiss|delete|clearFinished", "id?:uuid"], example: #"-d '{"action":"clearFinished"}'"#)
         ep("POST", "/promotion/goal", "Add a promotion goal", params: ["title:string", "objective?:string", "platforms?:array", "targetPosts?:int", "dueDate?:string(yyyy-MM-dd|ISO8601)"], example: #"-d '{"title":"v0.7.15 发布宣传","platforms":["掘金"],"targetPosts":2}'"#)
         ep("POST", "/promotion/goal/remove", "Remove a promotion goal by id (posts keep their history, link cleared)", params: ["id:string"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/promotion/post", "Save or update a workbench post (idea/draft/published; pass id to update, plannedFor=yyyy-MM-dd) — same semantics as the agent's promotionSave tool", params: ["id?:string", "platform?:string", "title?:string", "body?:string", "status?:idea|draft|published", "url?:string", "goal?:string", "plannedFor?:string"], example: #"-d '{"platform":"掘金","title":"…","body":"…","status":"draft","plannedFor":"2026-10-20"}'"#)
@@ -1191,6 +1193,11 @@ final class AutomationServer {
                 return try Self.json(await Self.promotionMentionScan(body))
             case ("POST", "/promotion/share"):
                 return try Self.json(Self.promotionShare(body))
+            case ("GET", "/jobs"):
+                return try Self.json(Self.jobsList(
+                    limit: Int(Self.string(query, "limit") ?? "") ?? 100))
+            case ("POST", "/jobs/action"):
+                return try Self.json(Self.jobsAction(body))
             case ("POST", "/promotion/goal"):
                 return try Self.json(Self.promotionGoalAdd(body))
             case ("POST", "/promotion/goal/remove"):
@@ -6354,6 +6361,7 @@ final class AutomationServer {
             post: post, composerURLOverride: string(body, "composerURL"))
         return ["ok": result.ok, "message": result.message,
                 "tabURL": result.tabURL,
+                "jobID": result.jobID?.uuidString ?? "",
                 "filledTitle": result.filledTitle, "filledBody": result.filledBody]
     }
 
@@ -6422,6 +6430,7 @@ final class AutomationServer {
                 "scannedSources": result.scannedSources,
                 "added": result.added,
                 "errors": result.errors,
+                "jobID": result.jobID?.uuidString ?? "",
                 "pendingInteractions": store.pendingInteractionCount]
     }
 
@@ -6436,6 +6445,60 @@ final class AutomationServer {
                 "url": PromotionShare.trackedURL(version: version, channel: channel.slug),
                 "caption": PromotionShare.caption(platform: channel.platform,
                                                   version: version)]
+    }
+
+    private static func jobsList(limit: Int) -> [String: Any] {
+        let store = JobStore.shared
+        let capped = store.jobs
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .prefix(max(1, min(limit, 300)))
+        return [
+            "jobs": capped.map(jobJSON),
+            "summary": ["total": store.jobs.count,
+                        "active": store.active.count,
+                        "needsReview": store.needsReview.count,
+                        "failed": store.failed.count,
+                        "finished": store.finished.count],
+        ]
+    }
+
+    private static func jobJSON(_ job: JobRecord) -> [String: Any] {
+        var out: [String: Any] = [
+            "id": job.id.uuidString,
+            "title": job.title,
+            "kind": job.kind.rawValue,
+            "state": job.state.rawValue,
+            "detail": job.detail,
+            "createdAt": ISO.string(from: job.createdAt),
+            "updatedAt": ISO.string(from: job.updatedAt),
+        ]
+        if let progress = job.progress { out["progress"] = progress }
+        if let artifact = job.artifactURL { out["artifactURL"] = artifact }
+        if let receipt = job.receipt { out["receipt"] = receipt }
+        if let error = job.error { out["error"] = error }
+        if let source = job.source { out["source"] = source }
+        if let external = job.externalID { out["externalID"] = external }
+        if let finished = job.finishedAt { out["finishedAt"] = ISO.string(from: finished) }
+        return out
+    }
+
+    private static func jobsAction(_ body: [String: Any]) -> [String: Any] {
+        let action = (string(body, "action") ?? "").lowercased()
+        let store = JobStore.shared
+        switch action {
+        case "clearfinished":
+            let before = store.jobs.count
+            store.clearFinished()
+            return ["ok": true, "removed": before - store.jobs.count]
+        case "dismiss", "delete":
+            guard let raw = string(body, "id"), let id = UUID(uuidString: raw) else {
+                return ["error": "missing or invalid id"]
+            }
+            if action == "dismiss" { store.dismiss(id) } else { store.delete(id) }
+            return ["ok": true, "id": id.uuidString]
+        default:
+            return ["error": "action must be dismiss | delete | clearFinished"]
+        }
     }
 
     private static func promotionGoalAdd(_ body: [String: Any]) -> [String: Any] {

@@ -161,6 +161,9 @@ final class PromotionStore: ObservableObject {
         }
         posts[idx].updatedAt = now
         persistPosts()
+        if posts[idx].status == .published {
+            JobStore.shared.completePublishJob(for: id, url: posts[idx].url)
+        }
         return posts[idx]
     }
 
@@ -175,6 +178,7 @@ final class PromotionStore: ObservableObject {
         if let cleanURL, !cleanURL.isEmpty { posts[idx].url = cleanURL }
         posts[idx].updatedAt = now
         persistPosts()
+        JobStore.shared.completePublishJob(for: id, url: posts[idx].url)
         return true
     }
 

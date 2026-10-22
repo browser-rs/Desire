@@ -15,6 +15,7 @@ enum PromotionPublishHelper {
         let tabURL: String
         let filledTitle: Bool
         let filledBody: Bool
+        let jobID: UUID?
     }
 
     static func prepare(post: PromotionPost,
@@ -26,23 +27,35 @@ enum PromotionPublishHelper {
         guard let target, let url = URL(string: target) else {
             return Result(ok: false,
                           message: "No composer URL for \(post.platform). Add one in the channel profile or open the site manually.",
-                          tabURL: "", filledTitle: false, filledBody: false)
+                          tabURL: "", filledTitle: false, filledBody: false, jobID: nil)
         }
         guard let manager = TabSessionCoordinator.shared.activeTabManager else {
             return Result(ok: false, message: "No active browser window.",
-                          tabURL: "", filledTitle: false, filledBody: false)
+                          tabURL: "", filledTitle: false, filledBody: false, jobID: nil)
         }
+        let jobID = JobStore.shared.start(
+            title: "Prepare publish: \(post.title)",
+            kind: .publish,
+            detail: "\(post.platform) · \(post.title)",
+            source: "operations",
+            externalID: post.id.uuidString)
         manager.addTab(url: url.absoluteString,
                        javaScriptEnabled: true,
                        contentBlocker: AppState.live?.contentBlocker)
         guard let tab = manager.selectedTab else {
+            JobStore.shared.finish(jobID, state: .failed,
+                                   error: "Could not open a composer tab.")
             return Result(ok: false, message: "Could not open a composer tab.",
-                          tabURL: url.absoluteString, filledTitle: false, filledBody: false)
+                          tabURL: url.absoluteString, filledTitle: false, filledBody: false,
+                          jobID: jobID)
         }
         let webView = tab.browser.webView
         guard await waitReady(webView) else {
+            JobStore.shared.finish(jobID, state: .failed,
+                                   error: "Composer page did not finish loading.")
             return Result(ok: false, message: "Composer page did not finish loading.",
-                          tabURL: url.absoluteString, filledTitle: false, filledBody: false)
+                          tabURL: url.absoluteString, filledTitle: false, filledBody: false,
+                          jobID: jobID)
         }
         let script = fillScript(title: post.title, body: post.body,
                                 voice: channel?.voice ?? .technical)
@@ -55,14 +68,20 @@ enum PromotionPublishHelper {
         if filledTitle || filledBody {
             let parts = [filledTitle ? "title" : nil, filledBody ? "body" : nil]
                 .compactMap { $0 }.joined(separator: " + ")
-            return Result(ok: true,
-                          message: "Filled \(parts) in the composer. Review it and press Publish yourself; then use Mark Published to record the URL.",
+            let message = "Filled \(parts) in the composer. Review it and press Publish yourself; then use Mark Published to record the URL."
+            JobStore.shared.finish(jobID, state: .needsReview,
+                                   receipt: message, artifactURL: url.absoluteString)
+            return Result(ok: true, message: message,
                           tabURL: url.absoluteString,
-                          filledTitle: filledTitle, filledBody: filledBody)
+                          filledTitle: filledTitle, filledBody: filledBody,
+                          jobID: jobID)
         }
-        return Result(ok: false,
-                      message: "Composer opened, but no title/body field was found — the site likely changed. Copy the draft and paste it manually.",
-                      tabURL: url.absoluteString, filledTitle: false, filledBody: false)
+        let message = "Composer opened, but no title/body field was found — the site likely changed. Copy the draft and paste it manually."
+        JobStore.shared.finish(jobID, state: .failed,
+                               artifactURL: url.absoluteString, error: message)
+        return Result(ok: false, message: message,
+                      tabURL: url.absoluteString, filledTitle: false, filledBody: false,
+                      jobID: jobID)
     }
 
     private static func waitReady(_ webView: WKWebView,

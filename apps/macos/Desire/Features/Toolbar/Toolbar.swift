@@ -131,6 +131,7 @@ struct Toolbar: View {
     @State private var showExtensionsPanel = false
     @State private var showWebAppInstall = false
     @State private var showWebApps = false
+    @State private var showAgentActions = false
     /// 站点设置（字体弹层 + 控制中心共用；非观察引用：Toolbar 只把它交给
     /// 弹层构造，不读它的状态——同 downloadStore/passwordStore 的传递方式）。
     let siteSettingsStore: SiteSettingsStore
@@ -194,6 +195,9 @@ struct Toolbar: View {
         }
         .sheet(isPresented: $showWebApps) {
             WebAppsPanel()
+        }
+        .sheet(isPresented: $showAgentActions) {
+            AgentActionsPanel()
         }
         .sheet(isPresented: $showWebAppInstall) {
             if let url = tab.browser.webView.url {
@@ -909,6 +913,7 @@ struct Toolbar: View {
             }
             moreMenuSection("App") {
                 moreMenuItem("Web Apps…", "square.stack") { showWebApps = true }
+                moreMenuItem("Agent Actions…", "clock.arrow.circlepath") { showAgentActions = true }
                 moreMenuItem("Agent", "wand.and.stars") { actions.toggleAgentPanel() }
                 moreMenuItem("Preferences…", "gearshape", shortcut: "⌘,") { openWindow("settings") }
             }

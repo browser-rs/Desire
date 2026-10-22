@@ -833,8 +833,12 @@ extension BrowserToolProvider {
             case .granted(let fileURL):
                 try? FileManager.default.createDirectory(
                     at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                let before = FileManager.default.contents(atPath: fileURL.path)
                 do {
                     try content.write(to: fileURL, atomically: true, encoding: .utf8)
+                    AgentActionStore.shared.recordFileMutation(
+                        tool: "writeFile", path: fileURL.path,
+                        before: before, after: Data(content.utf8))
                     return "Wrote \(content.count) chars → \(fileURL.path)"
                 } catch {
                     return Self.fail("Write failed: \(error.localizedDescription)")
@@ -2489,6 +2493,9 @@ extension BrowserToolProvider {
                 case .replaced(let updated, let count):
                     do {
                         try updated.write(to: fileURL, atomically: true, encoding: .utf8)
+                        AgentActionStore.shared.recordFileMutation(
+                            tool: "editFile", path: fileURL.path,
+                            before: data, after: Data(updated.utf8))
                         return "Edited \(fileURL.path): \(count) replacement\(count == 1 ? "" : "s") (\(updated.count) chars now)"
                     } catch {
                         return Self.fail("Write failed: \(error.localizedDescription)")

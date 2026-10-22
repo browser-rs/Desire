@@ -646,6 +646,9 @@ final class AutomationServer {
         ep("GET", "/agent/hooks", "Lifecycle hooks state (enabled + per-file list)", example: "…/agent/hooks")
         ep("POST", "/agent/hooks", "Enable/disable hooks globally", params: ["enabled:bool"], example: #"-d '{"enabled":true}'"#)
         ep("POST", "/agent/hooks/reload", "Rescan the hooks folder and rebuild the JS contexts", example: "-d '{}'")
+        ep("GET", "/agent/actions", "Agent side-effect audit (fileWrite/fileEdit/workflowRun/…); file actions may be undoable", params: ["limit?:int"], example: "…/agent/actions?limit=20")
+        ep("POST", "/agent/actions/undo", "Undo an undoable file action (verifies the file hasn't changed since)", params: ["id:uuid"], example: "-d '{\"id\":\"<uuid>\"}'" )
+        ep("POST", "/agent/actions/clear", "Clear the audit log and undo snapshots", example: "-d '{}'")
         ep("POST", "/agent/new", "Start a fresh agent conversation (old conversation file untouched)", example: "-d '{}'")
         ep("POST", "/update/install", "Self-update: download the latest release zip, verify SHA256, replace /Applications bundle, relaunch (only when installed in /Applications)", example: "-d '{}'")
         ep("POST", "/agent/resume", "Re-run the trailing unanswered user prompt (mid-turn crash recovery)", example: "-d '{}'")
@@ -2601,6 +2604,15 @@ final class AutomationServer {
             case ("POST", "/update/install"):
                 UpdateChecker.shared.startCheckThenInstall()
                 return try Self.json(["ok": true, "started": true])
+            case ("GET", "/agent/actions"):
+                return try Self.json(Self.agentActions(
+                    limit: Int(Self.string(query, "limit") ?? "") ?? 50))
+            case ("POST", "/agent/actions/undo"):
+                return try Self.json(Self.undoAgentAction(
+                    id: Self.string(body, "id") ?? ""))
+            case ("POST", "/agent/actions/clear"):
+                AgentActionStore.shared.clear()
+                return try Self.json(["ok": true])
             case ("POST", "/agent/new"):
                 // 开新会话（面板"新对话"按钮同路径：store.clear()——旧会话
                 // 文件不动）。E2E/自动化从这里拿干净的会话。
@@ -5874,6 +5886,37 @@ final class AutomationServer {
     /// 会话接力（v0.7.25）：源（当前投递会话）先落盘 → 目标 loadConversation →
     /// 投递目标切到目标 → 源 clear() 回空会话（不持有旧对话，避免退出时旧副本
     /// 覆盖目标的新内容）。
+    private static func agentActions(limit: Int) -> [String: Any] {
+        let records = AgentActionStore.shared.records.prefix(max(1, min(limit, 200)))
+        let rows: [[String: Any]] = records.map { record in
+            var row: [String: Any] = [
+                "id": record.id.uuidString,
+                "tool": record.tool,
+                "kind": record.kind.rawValue,
+                "summary": record.summary,
+                "undoable": record.undoable,
+                "canUndo": record.canUndo,
+                "undone": record.isUndone,
+                "createdAt": record.createdAt.timeIntervalSince1970,
+            ]
+            if let host = record.host { row["host"] = host }
+            if let path = record.path { row["path"] = path }
+            if let undoneAt = record.undoneAt { row["undoneAt"] = undoneAt.timeIntervalSince1970 }
+            return row
+        }
+        return ["actions": rows]
+    }
+
+    private static func undoAgentAction(id: String) -> [String: Any] {
+        guard let uuid = UUID(uuidString: id) else { return ["error": "invalid id"] }
+        do {
+            let message = try AgentActionStore.shared.undo(uuid)
+            return ["ok": true, "message": message]
+        } catch {
+            return ["error": error.localizedDescription]
+        }
+    }
+
     private static func agentHandoff(window: String?) -> [String: Any] {
         guard let window, let targetID = UUID(uuidString: window),
               let target = AgentScheduler.shared.session(withID: targetID) else {

@@ -34,8 +34,15 @@ enum WorkflowPlayer {
             if !ok { break }
             try? await Task.sleep(for: .milliseconds(120))
         }
-        return RunResult(ok: results.allSatisfy(\.ok) && results.count == steps.count,
-                         results: results)
+        let runResult = RunResult(ok: results.allSatisfy(\.ok) && results.count == steps.count,
+                                  results: results)
+        // 审计（v0.8.1）：工作流回放不可撤销，但必须留一条记录。
+        AgentActionStore.shared.record(
+            tool: "runWorkflow",
+            kind: .workflowRun,
+            summary: "Workflow \"\(workflow.name)\" on \(workflow.host): \(runResult.ok ? "ok" : "failed")",
+            host: workflow.host)
+        return runResult
     }
 
     // MARK: - 单步

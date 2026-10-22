@@ -4478,6 +4478,30 @@ func testSettingsSearch() {
 }
 testSettingsSearch()
 
+func testAgentActionRecord() {
+    let id = UUID()
+    var record = AgentActionRecord(
+        id: id, tool: "writeFile", kind: .fileWrite, host: nil,
+        summary: "writeFile: /tmp/a.txt", path: "/tmp/a.txt",
+        backupPath: "/tmp/a.bak", existedBefore: true, undoable: true,
+        afterSHA256: "abc", createdAt: Date(), undoneAt: nil)
+    check("审计：文件动作可撤销", record.canUndo)
+    record.undoneAt = Date()
+    check("审计：已撤销不可再撤销", !record.canUndo)
+    let workflow = AgentActionRecord(
+        id: UUID(), tool: "runWorkflow", kind: .workflowRun, host: "a.test",
+        summary: "wf", path: nil, backupPath: nil, existedBefore: false,
+        undoable: false, afterSHA256: nil, createdAt: Date(), undoneAt: nil)
+    check("审计：工作流记录不可撤销", !workflow.canUndo && workflow.kind == .workflowRun)
+    if let data = try? JSONEncoder().encode(record),
+       let decoded = try? JSONDecoder().decode(AgentActionRecord.self, from: data) {
+        check("审计：Codable 往返", decoded.id == id && decoded.kind == .fileWrite)
+    } else {
+        check("审计：Codable 往返", false)
+    }
+}
+testAgentActionRecord()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

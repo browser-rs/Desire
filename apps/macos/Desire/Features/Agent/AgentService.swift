@@ -288,7 +288,14 @@ struct CloudOpenAIProvider: ModelProvider {
                     req.setValue(sessionID, forHTTPHeaderField: "x-opencode-session")
                 }
 
-                req.httpBody = Self.buildBody(messages: messages, tools: tools, model: prefs.model, maxTokens: prefs.maxTokens, temperature: prefs.temperature, reasoningEffort: prefs.reasoningEffort)
+                // 思考档位按该服务**实际支持的词**映射（有的网关最大档叫
+                // xhigh/max，直接发 high 会 400）。未知时用标准拼写；学到
+                // "不支持可调档"时得到 nil → 请求体里完全不出现该参数。
+                let supported = ReasoningEffortPolicy.supportedValues(
+                    endpoint: prefs.endpoint, model: prefs.model)
+                let wireEffort = ReasoningEffortPolicy.wireValue(
+                    for: prefs.reasoningEffort, supported: supported)
+                req.httpBody = Self.buildBody(messages: messages, tools: tools, model: prefs.model, maxTokens: prefs.maxTokens, temperature: prefs.temperature, reasoningEffort: wireEffort)
 
                 #if DEBUG
                 Self.logRequest(url: url, model: prefs.model, messages: messages, tools: tools, body: req.httpBody)
@@ -312,7 +319,7 @@ struct CloudOpenAIProvider: ModelProvider {
         }
     }
 
-    static func buildBody(messages: [AgentMessage], tools: [AgentToolDef], model: String, maxTokens: Int, temperature: Double, reasoningEffort: String = "off") -> Data? {
+    static func buildBody(messages: [AgentMessage], tools: [AgentToolDef], model: String, maxTokens: Int, temperature: Double, reasoningEffort: String? = nil) -> Data? {
         var body: [String: Any] = [
             "model": model,
             "messages": messages.map(OpenAICompatSSE.encodeMessage),
@@ -320,9 +327,9 @@ struct CloudOpenAIProvider: ModelProvider {
             "max_tokens": maxTokens,
             "temperature": temperature,
         ]
-        // 思考等级只在用户显式选了档位时发送：OpenAI 兼容服务对不认识的参数
+        // 思考等级只在映射出线值时发送：OpenAI 兼容服务对不认识的参数
         // 处理不一（有的忽略、有的直接 400），默认态必须保持请求体与旧版一致。
-        if reasoningEffort != "off" {
+        if let reasoningEffort, reasoningEffort != "off" {
             body["reasoning_effort"] = reasoningEffort
         }
         if !tools.isEmpty {

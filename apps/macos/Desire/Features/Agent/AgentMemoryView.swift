@@ -244,19 +244,13 @@ struct AgentMemoryView: View {
                 .padding(.bottom, 6)
 
                 if !memory.archive.facts.isEmpty {
-                    // 窄面板下搜索框 + 分段筛选会横向溢出（用户实测）：
-                    // 放得下就并排，放不下就上下两行。
-                    ViewThatFits(in: .horizontal) {
-                        HStack(spacing: 8) {
-                            memorySearchField
-                                .frame(minWidth: 140)
-                            memoryFilterPicker
-                                .frame(width: 230)
-                        }
-                        VStack(alignment: .leading, spacing: 6) {
-                            memorySearchField
-                            memoryFilterPicker
-                        }
+                    // 窄面板下"搜索框 + 三段式筛选"会横向溢出（用户实测截图：
+                    // 右侧 "Pending review" 被窗口裁掉）。三段控件的最小宽度
+                    // 由系统决定，ViewThatFits 也压不下去——改成紧凑筛选菜单：
+                    // 搜索框吃掉剩余宽度，菜单只占自身内容宽，任何面板宽度都不会溢出。
+                    HStack(spacing: 8) {
+                        memorySearchField
+                        memoryFilterMenu
                     }
                     .padding(.horizontal, 10)
                     .padding(.bottom, 6)
@@ -298,17 +292,42 @@ struct AgentMemoryView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: 6))
     }
 
-    private var memoryFilterPicker: some View {
-        Picker("Filter", selection: $factFilter) {
+    /// 紧凑筛选菜单（替代三段式 Picker）：宽度只随当前筛选名变化，
+    /// 窄侧栏里也不会把右侧内容挤出窗口。当前项在菜单里打勾。
+    private var memoryFilterMenu: some View {
+        Menu {
             ForEach(MemoryModels.FactFilter.allCases, id: \.self) { filter in
-                Text(filter.title).tag(filter)
+                Button {
+                    factFilter = filter
+                } label: {
+                    if factFilter == filter {
+                        Label(filter.title, systemImage: "checkmark")
+                    } else {
+                        Text(filter.title)
+                    }
+                }
             }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "line.3.horizontal.decrease.circle")
+                    .font(.system(size: 10.5, weight: .medium))
+                Text(factFilter.title)
+                    .font(.system(size: 11))
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color(nsColor: .controlBackgroundColor))
+            .clipShape(RoundedRectangle(cornerRadius: 6))
         }
-        .pickerStyle(.segmented)
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help(String(localized: "Filter"))
     }
 
     private func factRow(_ fact: MemoryFact) -> some View {

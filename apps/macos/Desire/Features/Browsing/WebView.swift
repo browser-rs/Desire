@@ -440,6 +440,89 @@ class BrowserState: ObservableObject {
         }
     }
 
+    /// **视频页补播**（2026-10-23 收口）：WebKit 的自动播放策略只能在 webview
+    /// 创建期烙入——空白新标签/从非视频页同标签跳进视频站时策略已定格为
+    /// requireUserAction，页面自己 setTimeout 的 play() 会被 NotAllowedError
+    /// 拒绝，表现就是"转圈、点一下播放键立刻能播"。
+    ///
+    /// 实测（macOS 26.5 / WKWebView，2026-10-23）：`evaluateJavaScript` 调
+    /// `playVideo()`/`play()` **确实带可信手势**，在 requireUserAction 下也能
+    /// 起播。原有补播只试两次、且页面在后台时直接跳过——开在后台标签的视频
+    /// 永远等不到，切回来也没有第二次机会（用户"时灵时不灵"）。
+    ///
+    /// 现在：延长时间窗重试 + 每次重试前看页面可见性（隐藏就继续等）+
+    /// 切标签时再起一轮；用户一旦交互/视频已经开始就停手。
+    func kickStaleAutoplayIfNeeded(restart: Bool = false) {
+        guard createdAutoPlayPolicy != .allowAll,
+              let host = webView.url?.host,
+              let app = AppState.live,
+              app.siteSettingsStore.effectiveAutoPlay(for: host, global: app.settings.autoPlayPolicy) == .allowAll
+        else { return }
+        autoplayKickTask?.cancel()
+        autoplayKickGeneration += 1
+        let generation = autoplayKickGeneration
+        let delays: [Double] = restart
+            ? [0, 1.5, 4, 8, 14, 22]
+            : [0.8, 1.8, 3.2, 5.5, 8.5, 12.5, 18, 25]
+        let js = """
+        (function() {
+            if (!window.__desireAutoKickWatch) {
+                window.__desireAutoKickWatch = true;
+                // 只有点在播放器/视频上的交互才算"用户接管"——点页面别处、
+                // 滚动不该让后台标签里的补播放弃。
+                ['pointerdown','touchstart'].forEach(function(t) {
+                    document.addEventListener(t, function(e) {
+                        try {
+                            var el = e.target;
+                            if (el && el.closest && (el.closest('#movie_player') || el.closest('video'))) {
+                                window.__desireUserInteracted = true;
+                            }
+                        } catch (err) {}
+                    }, { capture: true, passive: true });
+                });
+            }
+            // SPA 换视频（YouTube 站内点击）URL 会变：新一轮起播重新判定，
+            // 不继承上一页的用户交互标记。
+            if (window.__desireAutoKickURL !== location.href) {
+                window.__desireAutoKickURL = location.href;
+                window.__desireUserInteracted = false;
+            }
+            if (window.__desireUserInteracted) return 'user';
+            if (location.pathname.indexOf('/watch') !== 0 &&
+                location.pathname.indexOf('/shorts') !== 0 &&
+                location.pathname.indexOf('/embed') !== 0) return 'not-video';
+            if (document.visibilityState === 'hidden') return 'hidden';
+            var v = document.querySelector('video');
+            if (!v) return 'no-video';
+            if (!v.paused || v.currentTime > 0.5) return 'playing';
+            var p = document.getElementById('movie_player');
+            try { if (p && p.playVideo) p.playVideo(); } catch (e) {}
+            if (!v.paused) return 'kicked';
+            try { v.play().catch(function() {}); } catch (e2) {}
+            return v.paused ? 'blocked' : 'kicked';
+        })()
+        """
+        autoplayKickTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            for delay in delays {
+                if delay > 0 {
+                    try? await Task.sleep(for: .seconds(delay))
+                }
+                guard !Task.isCancelled, generation == self.autoplayKickGeneration,
+                      self.webView.url?.host == host else { return }
+                let value = try? await self.webView.evaluateJavaScript(js)
+                guard let status = value as? String else { continue }
+                if status == "playing" || status == "user" || status == "not-video" {
+                    return
+                }
+                Log.tabs.debug("autoplay kick: \(status, privacy: .public) after \(delay, format: .fixed(precision: 1))s")
+            }
+        }
+    }
+
+    private var autoplayKickTask: Task<Void, Never>?
+    private var autoplayKickGeneration = 0
+
     /// **二级挂起的 webview 重建**（PERF-9 完整版）：释放旧 WKWebView 骨架
     /// （13 个 script handler + 全套 userScript + WebKit 内部结构——挂起省
     /// 页面内存，骨架此前却常驻），换上同配置的空白新视图。挂起标签的
@@ -903,6 +986,15 @@ try {
                         DispatchQueue.main.async { [weak self] in
                             self?.parent.state.pageTitle = title
                         }
+                    }
+                },
+                // SPA 换视频（YouTube 站内点推荐）不触发 didFinish：URL KVO 是
+                // 唯一可靠的"又换了一个视频页"信号。补播按新 URL 重起一轮，
+                // 否则创建时被 requireUserAction 定格的标签只能自动播第一个视频。
+                webView.observe(\.url, options: [.new]) { [weak self] wv, _ in
+                    DispatchQueue.main.async { [weak self] in
+                        guard let self, wv.url?.host != nil else { return }
+                        self.parent.state.kickStaleAutoplayIfNeeded(restart: true)
                     }
                 },
             ]
@@ -2078,50 +2170,7 @@ try {
                     parent.state.pendingWorkflowSuggestion = suggestion
                 }
             }
-            kickStaleAutoplayIfNeeded(in: webView)
-        }
-
-        /// 补齐"webview 创建时策略更严、但当前 host 现已允许自动播放"的边界。
-        ///
-        /// 公开 API 只能在创建期烙入播放策略：空白新标签里输入/打开 YouTube
-        /// 时策略是 requireUserAction，后面即使站点控制或视频平台默认解析为
-        /// allowAll 也追不回来（页面内 setTimeout 后再 play 会被 NotAllowedError
-        /// 拒）。`evaluateJavaScript` 的调用本身带可信手势，所以这里在 didFinish
-        /// 后补一次 playVideo()/play()——**只补"视频平台默认/站点覆写已允许"
-        /// 的页面**；全局 never 或站点 block 一律不补（effectiveAutoPlay 判据）。
-        private func kickStaleAutoplayIfNeeded(in webView: WKWebView) {
-            guard parent.state.createdAutoPlayPolicy != .allowAll,
-                  let host = webView.url?.host,
-                  let app = AppState.live,
-                  app.siteSettingsStore.effectiveAutoPlay(
-                    for: host, global: app.settings.autoPlayPolicy) == .allowAll
-            else { return }
-            let js = """
-            (function() {
-                if (document.visibilityState === 'hidden') return 'hidden';
-                if (document.querySelector('.ad-showing')) return 'ad';
-                var v = document.querySelector('video');
-                if (!v) return 'no-video';
-                if (!v.paused) return 'playing';
-                if (!v.duration || v.duration < 5) return 'short';
-                var p = document.getElementById('movie_player');
-                try { if (p && p.playVideo) p.playVideo(); } catch (e) {}
-                if (v.paused) { try { v.play(); } catch (e2) {} }
-                return 'kicked';
-            })()
-            """
-            // didFinish 时播放器可能还没建好：两次机会。延迟本身不丢手势——
-            // 每次 evaluateJavaScript 调用都单独带可信激活（与页面内 setTimeout
-            // 不同）。
-            for delay in [1.2, 3.2] {
-                Task { @MainActor [weak webView] in
-                    try? await Task.sleep(for: .seconds(delay))
-                    // 延迟窗口内页面可能已经导航走：host 变了就不再补播
-                    // （新页面的自动播放资格要按它自己的策略重新判定）。
-                    guard let webView, webView.url?.host == host else { return }
-                    _ = try? await webView.evaluateJavaScript(js)
-                }
-            }
+            parent.state.kickStaleAutoplayIfNeeded()
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {

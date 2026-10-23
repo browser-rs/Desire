@@ -179,6 +179,20 @@ class AgentPreferenceStore: ObservableObject {
     }
     /// 合法档位（OpenAI `reasoning_effort` 词汇 + off）。UI 与请求侧都以它为准。
     static let reasoningEfforts = ["off", "low", "medium", "high"]
+    /// **学到的服务能力表**（`endpoint|model` → 该服务接受的线值；`[]` = 明确
+    /// 不支持可调档位）。来源是服务端的 "Supported types are …" 报错（见
+    /// `ReasoningEffortPolicy`）——菜单据此只列这个模型真正能用的档位。
+    @Published private(set) var reasoningSupport: [String: [String]] = ReasoningEffortPolicy.all()
+
+    func reasoningCapabilities(endpoint: String, model: String) -> [String]? {
+        reasoningSupport[ReasoningEffortPolicy.supportKey(endpoint: endpoint, model: model)]
+    }
+
+    /// 学习结果落在 UserDefaults（key 按 endpoint|model），这里只负责把
+    /// 菜单观察的镜像刷新到最新——请求侧重试直接读 `ReasoningEffortPolicy`。
+    func refreshReasoningSupport() {
+        reasoningSupport = ReasoningEffortPolicy.all()
+    }
     // 说明：曾有一个跨服务共用的 `cachedModels`（UserDefaults `aiCachedModels`）给
     // 输入栏的模型下拉当缓存——但它不区分服务，切过服务之后上一个服务的模型会留在
     // 列表里（用户："不同 Provider 模型混在一起不合理"）。现在模型清单只认

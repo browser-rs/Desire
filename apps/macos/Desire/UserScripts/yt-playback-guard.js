@@ -24,10 +24,26 @@
     window.__desireYTPlaybackGuard = true;
 
     var AUTOPLAY_ALLOWED = __DESIRE_AUTOPLAY_ALLOWED__;
-    var KICK_DELAYS = [1200, 2600, 4500, 7000];
+    // 2026-10-23：原来只试 4 次（7s 内）。播放器/网络慢时全部落空，用户看到
+    // 的就是"转圈、点播放立刻能播"。窗口拉长到 30s，并允许切回前台后重试。
+    var KICK_DELAYS = [1200, 2600, 4500, 7000, 11000, 16000, 22000, 30000];
     var timers = [];
     var currentKey = '';
     var tries = 0;
+
+    // 用户点在播放器/视频上的交互才算接管（点页面别处/滚动不算）。
+    // SPA 换视频（schedule 里 URL 变化）会重置——新视频的起播由新一轮决定。
+    var userTouched = false;
+    ['pointerdown', 'touchstart'].forEach(function(t) {
+        document.addEventListener(t, function(e) {
+            try {
+                var el = e.target;
+                if (el && el.closest && (el.closest('#movie_player') || el.closest('video'))) {
+                    userTouched = true;
+                }
+            } catch (err) {}
+        }, { capture: true, passive: true });
+    });
 
     function clearTimers() {
         for (var i = 0; i < timers.length; i++) clearTimeout(timers[i]);
@@ -58,22 +74,24 @@
         restorePoster();
     }
 
+    function nudgeElement() {
+        var vv = video();
+        if (vv && vv.paused && vv.currentTime <= 0.5 && !userTouched) {
+            try { vv.play().catch(function() {}); } catch (e2) {}
+        }
+    }
+
     function kick() {
-        if (!AUTOPLAY_ALLOWED || !isWatchPage()) return;
+        if (!AUTOPLAY_ALLOWED || !isWatchPage() || userTouched) return;
         if (document.visibilityState !== 'visible') return;
         var v = video(), p = player();
         if (!v || !p) return;
         if (!v.paused || v.currentTime > 0.5) return;
-        if (adShowing()) return;
+        // 广告播放中也不要跳过：暂停在起点说明播放器根本没起来，playVideo()
+        // 会把广告/正片推进到播放态（YouTube 自己的播放键也是同一个入口）。
         tries++;
-        try { p.playVideo(); } catch (e) {}
-        // playVideo() 偶尔只把状态机推进到缓冲；再补一次元素级 play()。
-        setTimeout(function () {
-            var vv = video();
-            if (vv && vv.paused && vv.currentTime <= 0.5 && !adShowing()) {
-                try { vv.play().catch(function () {}); } catch (e2) {}
-            }
-        }, 700);
+        try { if (p.playVideo) p.playVideo(); } catch (e) {}
+        setTimeout(nudgeElement, 700);
     }
 
     function schedule() {
@@ -82,6 +100,7 @@
         currentKey = key;
         clearTimers();
         tries = 0;
+        userTouched = false;
         if (!isWatchPage()) return;
         if (AUTOPLAY_ALLOWED) {
             for (var i = 0; i < KICK_DELAYS.length; i++) {

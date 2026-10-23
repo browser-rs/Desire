@@ -2067,11 +2067,27 @@ class AgentSessionStore: ObservableObject {
             } catch let error where assistantMsg == nil
                                     && preference.reasoningEffort != "off"
                                     && Self.isUnsupportedReasoningError(error) {
-                // 服务不支持当前思考档位（不同网关对 high/medium 的词汇不一致）：
-                // 自动降到 Off 重试一次，并在对话里说明，避免用户以为聊天坏了。
-                Log.agent.info("reasoning effort unsupported — falling back to off (\(error.localizedDescription, privacy: .public))")
-                preference.reasoningEffort = "off"
-                appendLocalAssistant(String(localized: "This model doesn't support the selected thinking level — switched to Off and retrying."))
+                // 服务不认当前思考档位的词（不同网关对 high/medium 的叫法不同，
+                // 例如有的只接受 xhigh/medium/low）。主流做法是**按服务声明
+                // 的能力映射后重试**，而不是把错误甩给用户或偷偷改成 Off：
+                // 从错误文本里解析 "Supported types are …"，记进能力表再重发。
+                var text = String(describing: error) + " " + error.localizedDescription
+                if let localized = (error as? LocalizedError)?.errorDescription {
+                    text += " " + localized
+                }
+                let prefs = streamPreference
+                if let supported = ReasoningEffortPolicy.parseSupportedValues(from: text) {
+                    ReasoningEffortPolicy.remember(supported: supported, endpoint: prefs.endpoint, model: prefs.model)
+                    Log.agent.info("reasoning: learned supported values [\(supported.joined(separator: ","), privacy: .public)] for \(prefs.model, privacy: .public) — retrying")
+                } else {
+                    // 连支持列表都没给（参数本身不被接受）：记为该模型不可调档，
+                    // 重发一次不带参数；菜单随后只显示 Off 并说明原因。
+                    ReasoningEffortPolicy.remember(supported: [], endpoint: prefs.endpoint, model: prefs.model)
+                    Log.agent.info("reasoning: not adjustable on \(prefs.model, privacy: .public) — retrying without the parameter")
+                }
+                // 菜单在**主** store 上观察这张表（streamPreference 可能是绑定
+                // 档案的游离视图），学习后统一刷新它。
+                preference.refreshReasoningSupport()
                 do {
                     try await runStream()
                 } catch {

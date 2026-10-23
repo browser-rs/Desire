@@ -260,6 +260,15 @@ yt-related-chip-cloud-renderer[component-style="AD_SERIES_WEB"],
 .up-share-goods, .bili-share-goods {
     display: none !important;
 }
+
+/* 反广告拦截占位卡：B站检测到拦截后把广告位换成「该内容被 AdGuard/AdBlock
+   类插件屏蔽」的灰色提示卡（真实 DOM = 首页推荐轮播里的 .extension-tips-v2）。
+   :has() 让提示一出现就整卡不渲染，JS 还没扫到的那一帧也不闪。 */
+.extension-tips-v2,
+.vui_carousel__slide:has(.extension-tips-v2),
+.carousel-area:has(.extension-tips-v2) {
+    display: none !important;
+}
 """
 
     static let tencentCSS = """
@@ -868,17 +877,26 @@ extension VideoSite {
         });
         // 6) Anti-adblock placeholder cards: B站检测到拦截插件后，会把广告位
         // 换成「该内容被AdGuard/AdBlock类插件屏蔽 请检查插件以恢复正常内容
-        // 展示」。这是站点自己渲染的占位卡，不是广告内容本身——把整张卡
-        // 一起移除，否则会留下灰色空卡（用户截图实测）。
-        document.querySelectorAll('[class*="card"],[class*="feed"],li').forEach(function(el) {
+        // 展示」。真实 DOM（2026-10-23 离屏实测）= 首页推荐轮播里的
+        // .extension-tips-v2，宿主是 .vui_carousel__slide/.carousel-area
+        // ——**没有 card/feed/li 类名**，此前按类名扫描完全命中不到，所以
+        // 用户看到的灰卡一直在。这里先按占位组件的类名整卡移除，再保留
+        // 同文案兜底（站点改版/其它容器）。
+        document.querySelectorAll('.extension-tips-v2').forEach(function(tip) {
+            var host = tip.closest('.vui_carousel__slide, .carousel-area, [class*="card"], [class*="feed"], li');
+            if (removeCard(host || tip)) count++;
+        });
+        document.querySelectorAll('[class*="card"],[class*="feed"],li,.carousel-area,.vui_carousel__slide').forEach(function(el) {
             if (!el.parentNode) return;
-            var text = (el.innerText || '').replace(/\\s+/g, '');
+            // 用 textContent 而非 innerText：CSS 已经把占位卡 display:none，
+            // 隐藏元素的 innerText 是空串（这正是旧兜底失效的第二个原因）。
+            var text = (el.textContent || '').replace(/\\s+/g, '');
             if (!text || text.length > 260) return;
             var isNotice = (text.indexOf('AdGuard') >= 0 && text.indexOf('屏蔽') >= 0)
                 || (text.indexOf('请检查插件') >= 0 && text.indexOf('恢复正常') >= 0)
                 || text.indexOf('该内容被AdGuard') >= 0;
             if (!isNotice) return;
-            var card = el.closest('[class*="card"],li');
+            var card = el.closest('.vui_carousel__slide, .carousel-area, [class*="card"], li');
             if (removeCard(card || el)) count++;
         });
         if (count > 0) {

@@ -740,6 +740,10 @@ class TabManager: ObservableObject {
                 "index": index,
             ])
         }
+        // 视频页补播（2026-10-23）：开在后台标签的视频，页面里的可见性检查会
+        // 让补播一直等到切回来——但页面内定时器的 play() 没有用户手势，只能由
+        // 原生侧在切标签时重新起一轮 evaluateJavaScript（它带可信激活）。
+        tabs[index].browser.kickStaleAutoplayIfNeeded(restart: true)
     }
 
     // MARK: - 分屏浏览（0.2.15）

@@ -5049,6 +5049,55 @@ func testBatchStallPolicy() {
 }
 testBatchStallPolicy()
 
+// ---------- 思考等级线值适配（v0.8.3）----------
+
+func testReasoningEffortPolicy() {
+    // 用户实测的 AMD 网关报错：最大档叫 xhigh，发 high 会 400。
+    let amd = "HTTP 200: Unexpected reasoning effort high. Supported types are xhigh (default), medium, and low."
+    let parsed = ReasoningEffortPolicy.parseSupportedValues(from: amd)
+    check("思考等级：解析 Supported types 列表",
+          parsed == ["xhigh", "medium", "low"])
+    check("思考等级：Highest 映射到服务最大档 xhigh",
+          ReasoningEffortPolicy.wireValue(for: "high", supported: parsed) == "xhigh")
+    check("思考等级：Medium 保持 medium",
+          ReasoningEffortPolicy.wireValue(for: "medium", supported: parsed) == "medium")
+    check("思考等级：Low 保持 low",
+          ReasoningEffortPolicy.wireValue(for: "low", supported: parsed) == "low")
+    check("思考等级：Off 不发参数",
+          ReasoningEffortPolicy.wireValue(for: "off", supported: parsed) == nil)
+    check("思考等级：未学到能力表时用标准拼写",
+          ReasoningEffortPolicy.wireValue(for: "high", supported: nil) == "high")
+    check("思考等级：只支持 high 时向下映射",
+          ReasoningEffortPolicy.wireValue(for: "medium", supported: ["high"]) == "high")
+    check("思考等级：标准 high + xhigh 同时存在时取 xhigh",
+          ReasoningEffortPolicy.wireValue(for: "high", supported: ["low", "medium", "high", "xhigh"]) == "xhigh")
+    check("思考等级：菜单只列支持的档位",
+          ReasoningEffortPolicy.offeredLevels(supported: parsed) == ["off", "low", "medium", "high"])
+    check("思考等级：只支持 low/high 时菜单不含 medium",
+          ReasoningEffortPolicy.offeredLevels(supported: ["low", "high"]) == ["off", "low", "high"])
+    check("思考等级：明确不支持时只剩 Off",
+          ReasoningEffortPolicy.offeredLevels(supported: []) == ["off"])
+    check("思考等级：未知时列全部档位",
+          ReasoningEffortPolicy.offeredLevels(supported: nil) == ["off", "low", "medium", "high"])
+    check("思考等级：参数名不被接受的报错解析不出列表",
+          ReasoningEffortPolicy.parseSupportedValues(from: "Unsupported parameter: reasoning_effort") == nil)
+    check("思考等级：另一种 Supported values 写法",
+          ReasoningEffortPolicy.parseSupportedValues(from: "Supported values: low, medium, high.") == ["low", "medium", "high"])
+    // 学习表按 endpoint|model 隔离（用独立 suite，避免污染真实偏好）。
+    let suite = UserDefaults(suiteName: "reasoning-policy-test-\(UUID().uuidString)")!
+    ReasoningEffortPolicy.remember(supported: ["xhigh", "medium", "low"],
+                                   endpoint: "https://gateway.example/v1", model: "m1",
+                                   defaults: suite)
+    check("思考等级：能力表按端点+模型记住",
+          ReasoningEffortPolicy.supportedValues(endpoint: "https://gateway.example/v1", model: "m1", defaults: suite) == ["xhigh", "medium", "low"])
+    check("思考等级：另一个模型不受影响",
+          ReasoningEffortPolicy.supportedValues(endpoint: "https://gateway.example/v1", model: "m2", defaults: suite) == nil)
+    ReasoningEffortPolicy.forget(endpoint: "https://gateway.example/v1", model: "m1", defaults: suite)
+    check("思考等级：可清除学习结果",
+          ReasoningEffortPolicy.supportedValues(endpoint: "https://gateway.example/v1", model: "m1", defaults: suite) == nil)
+}
+testReasoningEffortPolicy()
+
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
 

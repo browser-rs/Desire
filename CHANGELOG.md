@@ -1,10 +1,13 @@
 ## [Unreleased]
 ### Fixed
 
-- **思考等级不支持时自动降级（0.8.3）**：部分网关不支持 `reasoning_effort=high/medium`，选择 Highest 后整轮直接报错。现在命中"reasoning/thinking + unsupported/invalid"类错误时自动切到 Off 重试一次，并在对话里说明"该模型不支持所选思考等级，已切换 Off"；不再让一轮对话直接失败。
-- **记忆面板搜索行溢出（0.8.3）**：搜索框 + 分段筛选（固定 230pt）在窄面板下会横向超出窗口。改为 `ViewThatFits`：放得下并排，放不下自动改成上下两行。
+- **思考等级按服务能力映射（0.8.3）**：部分网关的取值表不是标准词——实测 AMD 网关返回 `Supported types are xhigh (default), medium, and low`，发 `high` 会 400（用户看到的"最高不支持"）。现在从服务端报错里解析支持列表并按 `endpoint|model` 记住：UI 选 Highest（high）映射到该服务的最大档 `xhigh`/`max`，Medium/Low 各取对应词；菜单只列这个模型真正支持的档位，明确不支持时才显示 Off + 原因。不再自动把全局设置改成 Off，也不再往对话里塞降级提示。
+- **记忆面板搜索行溢出（0.8.3）**：搜索框 + 三段式筛选（全部/Pinned/Pending review）在窄面板下会横向超出窗口，右侧 "Pending review" 被裁掉。三段控件的最小宽度由系统决定，`ViewThatFits` 也压不下去；改为「搜索框吃掉剩余宽度 + 紧凑筛选菜单（当前项打勾）」，菜单只占自身内容宽，300pt 离屏渲染实测不溢出。
 - **批量下载卡死占用并发槽（0.8.3）**：看门狗此前只处理"有进度时间 + 有 jobID"的项；从未回调进度、或 cancel 后 completion 丢失的项会永久占槽（第 10 个卡住、11/12 不开始）。现在无进度时回退到进入 downloading 的时刻；cancel 后 60s 仍无收尾则本机强制失败（attempts+1、释放槽位、继续队列），纯判定逻辑 `BatchStallPolicy` 进 harness。
-- **B 站反广告拦截占位卡（0.8.3）**：B 站检测到广告拦截后会把广告位换成「该内容被 AdGuard/AdBlock 类插件屏蔽…」的灰色占位卡。B 站脚本现在识别这段文案并移除整张卡片（不再只留灰卡），同时给拦截统计加 1s 节流避免 SPA 重渲染把计数刷爆；补充了新版播放器/信息流广告选择器。本机已放入临时本地规则覆盖（`VideoAdRules/bilibili.js|.css`），重启应用并刷新 B 站即可验证；下个构建会把同样内容内置，届时可删除覆盖文件。
+- **B 站反广告拦截占位卡（0.8.3）**：B 站检测到广告拦截后会把广告位换成「该内容被 AdGuard/AdBlock 类插件屏蔽…」的灰色占位卡。离屏 WKWebView 实测真实 DOM：占位组件是首页推荐轮播里的 `.extension-tips-v2`，宿主为 `.vui_carousel__slide/.carousel-area`——**没有 card/feed/li 类名**，此前按类名扫描完全命中不到；且 CSS 隐藏后 `innerText` 为空，文案兜底也失效。现在按 `.extension-tips-v2` 整卡移除、CSS 用 `:has()` 首帧就不渲染、文案兜底改 `textContent`；同时补了新版播放器/信息流选择器与 1s 统计节流。本机本地规则覆盖已更新（`VideoAdRules/bilibili.js|.css`），重启并刷新 B 站可立即验证；下个构建内置后即可删除覆盖文件。
+- **YouTube 假加载 / 自动播放时灵时不灵（0.8.3）**：实测同一条视频在 `allowAll` 策略下正常自动播放；在 `requireUserAction` 下画面已缓冲 20s 却 `paused=true, currentTime=0`，点播放立刻起播——根因是 WebKit 播放策略只在 webview 创建期烙入（空白新标签/从非视频页同标签跳进 YouTube 时已定格）。原补播只试两次（1.2s/3.2s），且页面在后台时直接跳过，开在后台标签的视频永远等不到。现在补播延到 30s 多档重试、每次按页面可见性等待、切回该标签时再起一轮；用户点在播放器/视频上即停手，SPA 换视频重置。离屏实测：requireUserAction 下 6s 补播从 `paused/0s` 进入播放。
+- **批量视频任务在重新构建后消失（0.8.3）**：启动恢复此前只落盘 `running` 批次，完成的批次（面板里可回看/重试/删除的任务记录）从不写盘，进程一换就整行消失。现在 running 全部 + 最近 12 条 finished 一起持久化；启动时按原状态恢复（running 仍以暂停态等待继续，finished 保留完成/失败/跳过行，不自动续跑），取消的批次仍不落盘。文件仍沿用 `batch-media-unfinished.json`，旧文件没有 state 键按 running 处理。
+
 
 
 ## [v0.8.2] - 2026-10-22

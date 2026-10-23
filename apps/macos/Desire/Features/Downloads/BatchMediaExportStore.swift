@@ -453,6 +453,11 @@ final class BatchMediaExportStore: ObservableObject {
         let userAgent: String?
         var force: Bool = false
         var items: [PersistedItem]
+        /// running / finished（旧文件没有这个键，解码为 nil → 按 running 处理）。
+        /// **finished 也要持久化**：面板里完成的批次是用户会回看的任务记录，
+        /// 以前只存 running，重新构建后整行凭空消失（用户实测"视频任务经常
+        /// 不见了"）。
+        var state: String? = nil
         // 用户指定的目标目录与分卷规则必须随批存活——此前 restore 丢
         // saveRoot，恢复后整批回落默认 Downloads（用户实测）。
         var saveRoot: String? = nil
@@ -460,10 +465,29 @@ final class BatchMediaExportStore: ObservableObject {
     }
 
     private static let persistenceKey = "batch-media-unfinished"
+    /// 完成批次最多保留多少条（在跑的全部保留）。够回看/重试，又不至于让
+    /// 几百项的批次把 JSON 撑成大文件。
+    private static let maxPersistedFinishedBatches = 12
 
-    /// 把所有 running 批次写入 DiskStore（debounce 写，热路径安全）。
+    /// 把 running + finished 批次写入 DiskStore（debounce 写，热路径安全）。
+    /// cancelled 不落盘（用户主动取消的批次没有恢复语义）。
     private func persistUnfinished() {
-        let pending = batches.filter { $0.state == .running }.map { batch -> PersistedBatch in
+        var kept: [BatchMediaBatch] = []
+        var finished = 0
+        for batch in batches {
+            switch batch.state {
+            case .running:
+                kept.append(batch)
+            case .finished:
+                if finished < Self.maxPersistedFinishedBatches {
+                    kept.append(batch)
+                    finished += 1
+                }
+            case .cancelled:
+                continue
+            }
+        }
+        let pending = kept.map { batch -> PersistedBatch in
             PersistedBatch(
                 id: batch.id, mode: batch.mode.rawValue, folderName: batch.folderName,
                 createdAt: batch.createdAt, userAgent: batchUserAgents[batch.id],
@@ -477,6 +501,7 @@ final class BatchMediaExportStore: ObservableObject {
                         tsFileURL: item.tsFileURL
                     )
                 },
+                state: batch.state.rawValue,
                 saveRoot: batch.saveRoot, splitEvery: batch.splitEvery
             )
         }
@@ -487,9 +512,9 @@ final class BatchMediaExportStore: ObservableObject {
         }
     }
 
-    /// 启动恢复：把上次未完成的批次放回队列（**暂停态**，摘要
-    /// "restored after app restart"），用户/Agent resume 继续或取消。
-    /// AppState.init 调用（幂等）。
+    /// 启动恢复：把上次 running 的批次放回队列（**暂停态**，摘要
+    /// "restored after app restart"），finished 批次按原状态放回列表（只是
+    /// 任务记录，不自动续跑）。AppState.init 调用（幂等）。
     func restoreIfNeeded() {
         guard !didRestore else { return }
         didRestore = true
@@ -497,14 +522,18 @@ final class BatchMediaExportStore: ObservableObject {
             guard let self else { return }
             let persisted = DiskStore.load([PersistedBatch].self, key: Self.persistenceKey) ?? []
             guard !persisted.isEmpty else { return }
-            var restoredFolders: [String] = []
+            var restoredRunning: [String] = []
+            var restoredFinished = 0
             for persistedBatch in persisted {
                 let mode = BatchMediaBatch.Mode(rawValue: persistedBatch.mode) ?? .list
+                let restoredState = BatchMediaBatch.BatchState(rawValue: persistedBatch.state ?? "running") ?? .running
                 let items = persistedBatch.items.map { item -> BatchMediaItem in
                     var state = BatchMediaItem.State(rawValue: item.state) ?? .pending
                     var summary = item.summary
-                    // 在途状态随进程死了，收回到 pending 等待续跑
-                    if [.downloading, .resolving, .needsHuman].contains(state) {
+                    // 在途状态随进程死了，收回到 pending 等待续跑（只对未完成批次；
+                    // 已结束批次保留原始终态，failed 行也要能回看/重试）。
+                    if restoredState == .running,
+                       [.downloading, .resolving, .needsHuman].contains(state) {
                         state = .pending
                         summary = "restored after app restart"
                     }
@@ -532,7 +561,7 @@ final class BatchMediaExportStore: ObservableObject {
                     id: persistedBatch.id, mode: mode,
                     saveRoot: persistedBatch.saveRoot, splitEvery: persistedBatch.splitEvery,
                     folderName: folder,
-                    items: items, state: .running, createdAt: persistedBatch.createdAt
+                    items: items, state: restoredState, createdAt: persistedBatch.createdAt
                 )
                 batches.append(batch)
                 for item in items {
@@ -540,14 +569,20 @@ final class BatchMediaExportStore: ObservableObject {
                 }
                 batchUserAgents[batch.id] = persistedBatch.userAgent
                 if persistedBatch.force { forceDownloadBatches.insert(batch.id) }
-                pausedBatches.insert(batch.id)
-                restoredFolders.append(batch.folderName)
+                if restoredState == .running {
+                    pausedBatches.insert(batch.id)
+                    restoredRunning.append(batch.folderName)
+                } else {
+                    restoredFinished += 1
+                }
             }
-            Log.downloads.info("restored \(restoredFolders.count, privacy: .public) unfinished batch(es) from last launch")
-            MediaExportStore.shared.deliverNote(
-                String(localized: "Batch downloads restored"),
-                body: restoredFolders.joined(separator: ", ") + " — paused; resume to continue"
-            )
+            Log.downloads.info("restored \(restoredRunning.count, privacy: .public) unfinished + \(restoredFinished, privacy: .public) finished batch(es) from last launch")
+            if !restoredRunning.isEmpty {
+                MediaExportStore.shared.deliverNote(
+                    String(localized: "Batch downloads restored"),
+                    body: restoredRunning.joined(separator: ", ") + " — paused; resume to continue"
+                )
+            }
             persistUnfinished()
         }
     }
@@ -1362,6 +1397,9 @@ final class BatchMediaExportStore: ObservableObject {
     private func finalize(_ batchID: UUID) {
         guard let bi = batches.firstIndex(where: { $0.id == batchID }) else { return }
         batches[bi].state = .finished
+        // 先落盘再清理运行时资源：UA/force 对"重启后重试失败项"仍有用
+        //（finished 批次现在也会恢复，见 persistUnfinished）。
+        persistUnfinished()
         let elapsed = Date().timeIntervalSince(batches[bi].createdAt)
         let mins = Int(elapsed) / 60, secs = Int(elapsed) % 60
         let doneN = batches[bi].items.filter { $0.state == .finished }.count
@@ -1379,7 +1417,6 @@ final class BatchMediaExportStore: ObservableObject {
         spaceMonitorTasks[batchID]?.cancel()
         spaceMonitorTasks[batchID] = nil
         suspendedReasons[batchID] = nil
-        persistUnfinished()
         cleanOrphanParts(batchID)
         BatchVerifyWindowController.shared.dismiss()
 

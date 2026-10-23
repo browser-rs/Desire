@@ -22,6 +22,8 @@ final class PromotionStore: ObservableObject {
     @Published private(set) var campaigns: [PromotionCampaign] = []
     /// 提及雷达来源（v0.8.2）。
     @Published private(set) var mentionSources: [MentionSource] = []
+    /// 增长实验（v0.8.3）：假设/变体/计划样本/决策。
+    @Published private(set) var experiments: [PromotionExperiment] = []
 
     private static let goalsKey = "promotion.goals"
     private static let postsKey = "promotion.posts"
@@ -30,6 +32,7 @@ final class PromotionStore: ObservableObject {
     private static let interactionsKey = "promotion.interactions"
     private static let campaignsKey = "promotion.campaigns"
     private static let mentionSourcesKey = "promotion.mentionSources"
+    private static let experimentsKey = "promotion.experiments"
 
     private init() {
         goals = DiskStore.load([PromotionGoal].self, key: Self.goalsKey) ?? []
@@ -39,6 +42,7 @@ final class PromotionStore: ObservableObject {
         interactions = DiskStore.load([PromotionInteraction].self, key: Self.interactionsKey) ?? []
         campaigns = DiskStore.load([PromotionCampaign].self, key: Self.campaignsKey) ?? []
         mentionSources = DiskStore.load([MentionSource].self, key: Self.mentionSourcesKey) ?? []
+        experiments = DiskStore.load([PromotionExperiment].self, key: Self.experimentsKey) ?? []
     }
 
     // MARK: - 目标
@@ -535,6 +539,42 @@ final class PromotionStore: ObservableObject {
         updatePost(id: postID, plannedFor: .some(date))
     }
 
+    // MARK: - 增长实验（v0.8.3）
+
+    @discardableResult
+    func saveExperiment(_ experiment: PromotionExperiment) -> PromotionExperiment {
+        var value = experiment
+        value.variants = PromotionExperiment.cleanVariants(experiment.variants)
+        value.updatedAt = Date()
+        if let idx = experiments.firstIndex(where: { $0.id == value.id }) {
+            experiments[idx] = value
+        } else {
+            experiments.insert(value, at: 0)
+        }
+        persistExperiments()
+        return value
+    }
+
+    func removeExperiment(_ id: UUID) {
+        experiments.removeAll { $0.id == id }
+        persistExperiments()
+    }
+
+    @discardableResult
+    func setExperimentDecision(_ id: UUID,
+                               decision: PromotionExperiment.Decision) -> PromotionExperiment? {
+        guard let idx = experiments.firstIndex(where: { $0.id == id }) else { return nil }
+        experiments[idx].decision = decision
+        experiments[idx].endedAt = decision.isOpen ? nil : Date()
+        experiments[idx].updatedAt = Date()
+        persistExperiments()
+        return experiments[idx]
+    }
+
+    func experiment(id: UUID) -> PromotionExperiment? {
+        experiments.first { $0.id == id }
+    }
+
     // MARK: - 持久化
 
     private func persistGoals() { DiskStore.save(goals, key: Self.goalsKey) }
@@ -543,6 +583,7 @@ final class PromotionStore: ObservableObject {
     private func persistLessons() { DiskStore.save(lessons, key: Self.lessonsKey) }
     private func persistInteractions() { DiskStore.save(interactions, key: Self.interactionsKey) }
     private func persistCampaigns() { DiskStore.save(campaigns, key: Self.campaignsKey) }
+    private func persistExperiments() { DiskStore.save(experiments, key: Self.experimentsKey) }
     private func persistMentionSources() {
         DiskStore.save(mentionSources, key: Self.mentionSourcesKey)
     }

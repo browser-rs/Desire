@@ -9,11 +9,13 @@ nonisolated enum PromotionReport {
     static func markdown(goals: [PromotionGoal], posts: [PromotionPost],
                          accounts: [PromotionAccount], lessons: [PromotionLesson],
                          interactions: [PromotionInteraction] = [],
+                         experiments: [PromotionExperiment] = [],
                          now: Date = Date(), periodDays: Int = 7) -> String {
         let from = now.addingTimeInterval(-Double(periodDays) * 86_400)
         var out: [String] = []
 
-        if goals.isEmpty && posts.isEmpty && accounts.isEmpty && lessons.isEmpty && interactions.isEmpty {
+        if goals.isEmpty && posts.isEmpty && accounts.isEmpty && lessons.isEmpty
+            && interactions.isEmpty && experiments.isEmpty {
             return "# 运营周报（\(PromotionSummary.shortDate(from)) ~ \(PromotionSummary.shortDate(now))）\n\n"
                 + "工作台为空：还没有目标、账号或内容。先对智能体说「帮我运营」定目标、建账号。\n"
         }
@@ -116,6 +118,15 @@ nonisolated enum PromotionReport {
             out.append("## A/B 变体")
             for stat in variants {
                 out.append("- \(stat.platform) · \(stat.variant) · \(stat.publishedCount) 篇 · 平均浏览 \(stat.averageViews)")
+            }
+            out.append("")
+        }
+        if !experiments.isEmpty {
+            out.append("## 实验")
+            for experiment in experiments.sorted(by: { $0.updatedAt > $1.updatedAt }) {
+                let summary = PromotionExperimentAnalysis.summaryLine(experiment: experiment, posts: posts)
+                let decision = experiment.decision == .running ? "" : " · \(experiment.decision.label)"
+                out.append("- \(summary)\(decision)")
             }
             out.append("")
         }

@@ -3101,6 +3101,7 @@ extension BrowserToolProvider {
                 goals: reportStore.goals, posts: reportStore.posts,
                 accounts: reportStore.accounts, lessons: reportStore.lessons,
                 interactions: reportStore.interactions,
+                experiments: reportStore.experiments,
                 periodDays: periodDays)
 
         case "promotionMetrics":

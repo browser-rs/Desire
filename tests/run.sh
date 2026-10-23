@@ -58,6 +58,7 @@ SOURCES=(
   apps/macos/Desire/Features/Promotion/PromotionInteraction.swift
   apps/macos/Desire/Features/Promotion/PromotionReplyDesk.swift
   apps/macos/Desire/Features/Promotion/PromotionAccountHealth.swift
+  apps/macos/Desire/Features/Promotion/PromotionExperiment.swift
   apps/macos/Desire/Features/Promotion/PromotionPreflight.swift
   apps/macos/Desire/Features/Agent/RoutingDecision.swift
   apps/macos/Desire/Features/Agent/Conversation.swift

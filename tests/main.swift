@@ -512,18 +512,26 @@ do {
     let rich = DailyBrief.compose(DailyBrief.Input(
         conversationCount: 3, messageCount: 42, windowTokens: 12_345, windowTurns: 7,
         newFactCount: 2, newFactSamples: ["偏好宋体", "常用端口 8877"],
-        inboxActionCount: 2, inboxByTitle: [("待回答", 1), ("失败任务", 1)]))
+        inboxActionCount: 2, inboxByTitle: [("待回答", 1), ("失败任务", 1)],
+        opsDueToday: 2, opsOverdue: 1, opsPendingReplies: 5, opsOverdueReplies: 2,
+        opsCampaigns: [.init(title: "v0.8.3", done: 3, total: 8)],
+        opsAdaptersEnabled: 4, opsChannels: 6))
     check("每日简报：含标题与日期", rich.hasPrefix("今日简报 — "))
     check("每日简报：会话行", rich.contains("3") && rich.contains("42"))
     check("每日简报：用量行含 token 格式化", rich.contains("12,345") || rich.contains("12.3k"))
     check("每日简报：记忆行含样例", rich.contains("偏好宋体"))
     check("每日简报：收件箱行含明细", rich.contains("待回答"))
+    check("每日简报：运营段含到期/逾期", rich.contains("Operations") && rich.contains("1"))
+    check("每日简报：回复段", rich.contains("Replies waiting"))
+    check("每日简报：战役进度段", rich.contains("Campaigns") && rich.contains("3/8"))
+    check("每日简报：DPP 适配段", rich.contains("DPP ops adapters") && rich.contains("4/6"))
     let lean = DailyBrief.compose(DailyBrief.Input(
         conversationCount: 0, messageCount: 0, windowTokens: 0, windowTurns: 0,
         newFactCount: 0, newFactSamples: [], inboxActionCount: 0, inboxByTitle: []))
     check("每日简报：空日只有两行（不编造）", lean.components(separatedBy: "\n").count == 3)
-    check("每日简报：空日无记忆/收件箱行",
-          !lean.contains("记忆") && !lean.contains("收件箱"))
+    check("每日简报：空日无记忆/收件箱/运营行",
+          !lean.contains("记忆") && !lean.contains("收件箱")
+          && !lean.contains("Operations") && !lean.contains("Campaigns"))
 }
 
 // ---------- 路由审计字段（v0.7.26，消息级）----------
@@ -3151,6 +3159,78 @@ func testPromotionAccountHealth() {
                                           composerFound: false).state == .unknown)
 }
 testPromotionAccountHealth()
+
+
+// ---------- 增长实验（v0.8.3） ----------
+
+func testPromotionExperiment() {
+    let now = Date()
+    let campaignID = UUID()
+    func post(_ variant: String, views: Int, likes: Int = 0,
+              campaign: UUID? = nil,
+              status: PromotionPost.Status = .published) -> PromotionPost {
+        PromotionPost(campaignID: campaign, variantLabel: variant,
+                      platform: "X", title: "post-\(variant)", body: "…",
+                      status: status,
+                      publishedAt: status == .published ? now : nil,
+                      metrics: .init(views: views, likes: likes, comments: nil, collectedAt: now),
+                      createdAt: now)
+    }
+    var experiment = PromotionExperiment(title: "Hook A/B", hypothesis: "疑问句更高",
+                                         campaignID: campaignID, metric: .views,
+                                         variants: ["A", "B"], plannedSamples: 2)
+    let posts = [
+        post("A", views: 100, campaign: campaignID),
+        post("A", views: 200, campaign: campaignID),
+        post("B", views: 400, campaign: campaignID),
+        post("B", views: 500, campaign: campaignID),
+        post("C", views: 900, campaign: campaignID),
+        post("A", views: 999, campaign: UUID()),        // 别的战役不算
+        post("A", views: 777, status: .draft),          // 未发不算
+    ]
+    let report = PromotionExperimentAnalysis.report(experiment: experiment, posts: posts)
+    check("experiment：两个变体", report.variants.count == 2)
+    eq("experiment：A 样本", report.variants[0].samples, 2)
+    eq("experiment：A 均值", Int(report.variants[0].average ?? -1), 150)
+    eq("experiment：B 均值", Int(report.variants[1].average ?? -1), 450)
+    check("experiment：样本达标", report.isReady)
+    eq("experiment：B 领先", report.leader, "B")
+    check("experiment：摘要含均值与领先", PromotionExperimentAnalysis.summaryLine(experiment: experiment, posts: posts).contains("B"))
+
+    experiment.plannedSamples = 3
+    let notReady = PromotionExperimentAnalysis.report(experiment: experiment, posts: posts)
+    check("experiment：样本不足不下结论", !notReady.isReady && notReady.leader == nil)
+    check("experiment：样本不足说明", notReady.detail.contains("Not enough"))
+
+    experiment.plannedSamples = 2
+    let tiedPosts = [
+        post("A", views: 300, campaign: campaignID),
+        post("A", views: 300, campaign: campaignID),
+        post("B", views: 300, campaign: campaignID),
+        post("B", views: 300, campaign: campaignID),
+    ]
+    let tied = PromotionExperimentAnalysis.report(experiment: experiment, posts: tiedPosts)
+    check("experiment：并列不选赢家", tied.isReady && tied.leader == nil)
+    check("experiment：并列说明", tied.detail.contains("Tied"))
+
+    var likesExperiment = experiment
+    likesExperiment.metric = .likes
+    let likesPosts = [
+        post("A", views: 1, likes: 5, campaign: campaignID),
+        post("A", views: 1, likes: 7, campaign: campaignID),
+        post("B", views: 1, likes: 20, campaign: campaignID),
+        post("B", views: 1, likes: 30, campaign: campaignID),
+    ]
+    eq("experiment：按点赞指标",
+       PromotionExperimentAnalysis.report(experiment: likesExperiment, posts: likesPosts).leader, "B")
+
+    check("experiment：变体清理去空/去重",
+          PromotionExperiment.cleanVariants([" A ", "a", "B", ""]) == ["A", "B"])
+    check("experiment：变体少于 2 仍可构造（UI 阻止保存）",
+          PromotionExperiment.cleanVariants(["A"]).count == 1)
+}
+testPromotionExperiment()
+
 
 // ---------- 运营周报（PromotionReport 纯逻辑） ----------
 

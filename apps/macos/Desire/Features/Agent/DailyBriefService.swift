@@ -60,6 +60,41 @@ enum DailyBriefService {
             .filter { $0.1 > 0 }
             .sorted { $0.1 > $1.1 }
 
+        // 运营段（v0.8.3）：日历今日/逾期 + 回复台 + 进行中战役 + DPP 适配就绪。
+        let promo = PromotionStore.shared
+        let calendarEntries = PromotionCalendar.entries(posts: promo.posts,
+                                                         campaigns: promo.campaigns,
+                                                         now: now)
+        let queue = PromotionCalendar.todayQueue(calendarEntries, now: now)
+        let dueToday = queue.filter { !$0.overdue }.count
+        let overdue = queue.filter(\.overdue).count
+        let replySummary = PromotionReplyDesk.summary(interactions: promo.interactions, now: now)
+        let campaignLines: [DailyBrief.CampaignLine] = promo.campaigns
+            .filter { $0.status.isOpen }
+            .compactMap { campaign -> DailyBrief.CampaignLine? in
+                let linked = promo.posts(inCampaign: campaign.id)
+                if let runbook = campaign.runbook, !runbook.isEmpty {
+                    let progress = PromotionRunbook.progress(steps: runbook,
+                                                              campaignID: campaign.id,
+                                                              posts: linked)
+                    return DailyBrief.CampaignLine(title: campaign.title,
+                                                   done: progress.done,
+                                                   total: progress.total)
+                }
+                guard !linked.isEmpty else { return nil }
+                return DailyBrief.CampaignLine(
+                    title: campaign.title,
+                    done: linked.filter { $0.status == .published }.count,
+                    total: linked.count)
+            }
+        let channels = PromotionChannel.presets.filter(\.isEnabled)
+        let adaptersEnabled = channels.filter { channel in
+            guard let host = channel.composerURL.flatMap(URL.init)?.host else { return false }
+            return DPPAdapterStore.shared.adapters.contains {
+                $0.matchesHost(host) && DPPAdapterStore.shared.isEnabled($0)
+            }
+        }.count
+
         return DailyBrief.Input(
             conversationCount: todayConversations.count,
             messageCount: messageCount,
@@ -68,6 +103,13 @@ enum DailyBriefService {
             newFactCount: newFacts.count,
             newFactSamples: samples,
             inboxActionCount: inboxCount,
-            inboxByTitle: inboxByTitle)
+            inboxByTitle: inboxByTitle,
+            opsDueToday: dueToday,
+            opsOverdue: overdue,
+            opsPendingReplies: replySummary.pending,
+            opsOverdueReplies: replySummary.overdue,
+            opsCampaigns: campaignLines,
+            opsAdaptersEnabled: adaptersEnabled,
+            opsChannels: channels.count)
     }
 }

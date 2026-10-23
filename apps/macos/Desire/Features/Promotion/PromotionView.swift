@@ -41,6 +41,8 @@ struct PromotionView: View {
     @State private var checkingHosts: Set<String> = []
     @State private var runbookCampaign: PromotionCampaign?
     @State private var replyInteraction: PromotionInteraction?
+    @State private var isCreatingExperiment = false
+    @State private var editingExperiment: PromotionExperiment?
     @State private var runningPlaybook: Playbook?
     @State private var editingPlaybook: Playbook?
 
@@ -53,6 +55,7 @@ struct PromotionView: View {
                     campaignsSection
                     dppOpsSection
                     PromotionCalendarSection(onSendToAgent: onSendToAgent)
+                    experimentsSection
                     mentionRadarSection
                     accountsSection
                     interactionsSection
@@ -80,6 +83,12 @@ struct PromotionView: View {
         }
         .sheet(item: $replyInteraction) { item in
             PromotionReplySheet(interaction: item, onSendToAgent: onSendToAgent)
+        }
+        .sheet(isPresented: $isCreatingExperiment) {
+            PromotionExperimentEditorSheet()
+        }
+        .sheet(item: $editingExperiment) { experiment in
+            PromotionExperimentEditorSheet(experiment: experiment)
         }
         .sheet(item: $runningPlaybook) { playbook in
             PlaybookRunSheet(playbook: playbook) { prompt in
@@ -119,6 +128,13 @@ struct PromotionView: View {
             Text("Operations")
                 .font(.system(size: 13, weight: .semibold))
             Spacer()
+            if let onSendToAgent {
+                HoverIcon(systemName: "play.circle",
+                          action: {
+                              onSendToAgent("开始今天的运营：先看运营日历的今日队列与互动台账；按 Runbook 到期步骤推进，采数据/拟回复；任何发布或回复必须先问我。")
+                          },
+                          help: String(localized: "Start today's operations"))
+            }
             HoverIcon(systemName: reportCopied ? "checkmark.circle" : "doc.text",
                       action: copyReport,
                       help: String(localized: "Copy weekly report"))
@@ -155,7 +171,8 @@ struct PromotionView: View {
         let markdown = PromotionReport.markdown(
             goals: store.goals, posts: store.posts,
             accounts: store.accounts, lessons: store.lessons,
-            interactions: store.interactions)
+            interactions: store.interactions,
+            experiments: store.experiments)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(markdown, forType: .string)
         withAnimation(.transitionNormal) { reportCopied = true }
@@ -345,6 +362,119 @@ struct PromotionView: View {
         }
         .padding(10)
         .background(cardBackground)
+    }
+
+    // MARK: - Experiments（v0.8.3）
+
+    @ViewBuilder
+    private var experimentsSection: some View {
+        let items = store.experiments.sorted { $0.updatedAt > $1.updatedAt }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                sectionHeader(String(localized: "Experiments"), count: items.count)
+                Spacer()
+                Button(String(localized: "New Experiment")) { isCreatingExperiment = true }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(appAccent)
+            }
+            if items.isEmpty {
+                Text(String(localized: "Define a hypothesis and variants; conclusions unlock only after each variant reaches the planned sample size."))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.tertiary)
+            } else {
+                ForEach(items) { experiment in
+                    experimentRow(experiment)
+                }
+            }
+        }
+    }
+
+    private func experimentRow(_ experiment: PromotionExperiment) -> some View {
+        let report = PromotionExperimentAnalysis.report(experiment: experiment, posts: store.posts)
+        let campaignName = experiment.campaignID.flatMap { id in
+            store.campaigns.first { $0.id == id }?.title
+        }
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Image(systemName: "flask")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(appAccent)
+                Text(experiment.title)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                Text(experiment.metric.label)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.tertiary)
+                if let campaignName {
+                    Text(campaignName)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 4)
+                experimentDecisionMenu(experiment)
+                HoverIcon(systemName: "pencil", action: { editingExperiment = experiment },
+                          help: String(localized: "Edit"))
+                HoverIcon(systemName: "trash", action: { store.removeExperiment(experiment.id) },
+                          help: String(localized: "Delete"))
+            }
+            HStack(spacing: 8) {
+                ForEach(Array(report.variants.enumerated()), id: \.offset) { _, result in
+                    let average = result.average.map { String(format: "%.0f", $0) } ?? "—"
+                    Text("\(result.variant) \(result.samples)/\(experiment.plannedSamples) · \(average)")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(result.samples >= experiment.plannedSamples ? Color.secondary : Color.orange)
+                }
+                Spacer(minLength: 4)
+                Text(experimentVerdict(report))
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(report.isReady ? (report.leader == nil ? Color.secondary : Color.green) : Color.orange)
+            }
+            if !experiment.hypothesis.isEmpty {
+                Text(experiment.hypothesis)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+            }
+        }
+        .padding(10)
+        .background(cardBackground)
+    }
+
+    private func experimentDecisionMenu(_ experiment: PromotionExperiment) -> some View {
+        Menu {
+            ForEach(PromotionExperiment.Decision.allCases, id: \.self) { decision in
+                Button(decision.label) {
+                    _ = store.setExperimentDecision(experiment.id, decision: decision)
+                }
+                .disabled(decision == experiment.decision)
+            }
+        } label: {
+            Text(experiment.decision.label)
+                .font(.system(size: 9.5, weight: .medium))
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Capsule().fill(experimentDecisionColor(experiment.decision).opacity(0.12)))
+                .foregroundStyle(experimentDecisionColor(experiment.decision))
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+    }
+
+    private func experimentVerdict(_ report: PromotionExperimentAnalysis.Report) -> String {
+        if !report.isReady { return String(localized: "Not enough samples") }
+        if let leader = report.leader { return String(localized: "\(leader) leads") }
+        return String(localized: "Tied")
+    }
+
+    private func experimentDecisionColor(_ decision: PromotionExperiment.Decision) -> Color {
+        switch decision {
+        case .running: .blue
+        case .adopted: .green
+        case .rejected: .orange
+        case .inconclusive: .secondary
+        }
     }
 
     // MARK: - DPP Ops readiness（v0.8.3）

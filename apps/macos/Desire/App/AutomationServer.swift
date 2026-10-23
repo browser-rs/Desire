@@ -6770,6 +6770,7 @@ final class AutomationServer {
             goals: store.goals, posts: store.posts,
             accounts: store.accounts, lessons: store.lessons,
             interactions: store.interactions,
+            experiments: store.experiments,
             periodDays: max(1, days))
         return ["markdown": markdown]
     }

@@ -16,6 +16,8 @@ use utoipa::OpenApi;
     crate::modules::auth::auth_controller::revoke_device,
     crate::modules::sync::sync_controller::pull,
     crate::modules::sync::sync_controller::push,
+    crate::modules::growth::growth_controller::event,
+    crate::modules::growth::growth_controller::summary,
   ),
   components(schemas(
     crate::modules::auth::auth_model::RegisterReq,
@@ -33,9 +35,15 @@ use utoipa::OpenApi;
     crate::modules::sync::sync_model::SyncPullResp,
     crate::modules::sync::sync_model::SyncPushResp,
     crate::modules::sync::sync_model::SyncPushResultItem,
+    crate::modules::growth::growth_model::GrowthEventReq,
+    crate::modules::growth::growth_model::GrowthBucket,
+    crate::modules::growth::growth_model::GrowthDay,
+    crate::modules::growth::growth_model::GrowthBreakdown,
+    crate::modules::growth::growth_model::GrowthSummary,
   )),
   tags((name = "auth", description = "账号 / 设备 / 令牌"),
-       (name = "sync", description = "跨设备同步(按域 push/pull)")),
+       (name = "sync", description = "跨设备同步(按域 push/pull)"),
+       (name = "growth", description = "匿名增长事件与聚合（无 IP/Cookie/PII）")),
 )]
 struct ApiDoc;
 

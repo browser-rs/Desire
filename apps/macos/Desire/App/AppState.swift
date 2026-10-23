@@ -97,6 +97,8 @@ class AppState: ObservableObject {
         PluginBackgroundRuntime.shared.syncAll()
         // 远程控制：开关开着且已登录才连中继。
         remoteControlStore.startIfEnabled()
+        // 匿名归因：首启事件只上报一次（默认开、可在运营页关闭；不发 PII）。
+        GrowthReporter.shared.reportFirstLaunchIfNeeded()
     }
 
     // MARK: - Forwarding accessors

@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod demo;
+pub mod growth;
 pub mod remote;
 pub mod sync;
 
@@ -18,6 +19,7 @@ pub fn build_router(state: AppState) -> Router {
   let protected = Router::new()
     .merge(auth::protected())
     .merge(sync::router())
+    .merge(growth::protected())
     .merge(remote::router())
     .layer(middleware::from_fn_with_state(state.clone(), jwt_auth));
 
@@ -27,11 +29,14 @@ pub fn build_router(state: AppState) -> Router {
   let demo = Router::new()
     .merge(demo::router())
     .layer(tower_http::cors::CorsLayer::permissive());
+  // 增长事件：公开匿名 + 限定产品页 CORS。
+  let growth = growth::public();
 
   let root = Router::new()
     .route("/health", get(health))
     .merge(auth::public())
     .merge(demo)
+    .merge(growth)
     .merge(protected);
   // OpenAPI 契约仅 dev 暴露(prod 不对外公开接口文档)
   let root = if matches!(state.config.env, crate::configs::Env::Dev) {

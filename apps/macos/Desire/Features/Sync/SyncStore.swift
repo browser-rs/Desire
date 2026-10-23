@@ -917,6 +917,13 @@ final class SyncStore: ObservableObject {
     @Published private(set) var devicesError: String?
 
     /// 拉取设备清单（需登录态；失败如实记录，不清空旧数据）。
+    /// 归因仪表盘（v0.8.3）：与同步共用登录态；401 由调用方展示"登录过期"。
+    func fetchGrowthSummary(days: Int) async throws -> GrowthSummary {
+        let token = try await validAccessToken()
+        return try await SyncAPIClient.growthSummary(
+            baseURL: serverBaseURL, accessToken: token, days: days)
+    }
+
     func refreshDevices() async {
         guard authState != .signedOut else { return }
         do {

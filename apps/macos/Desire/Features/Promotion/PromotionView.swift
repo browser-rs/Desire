@@ -58,6 +58,7 @@ struct PromotionView: View {
                     PromotionCalendarSection(onSendToAgent: onSendToAgent)
                     experimentsSection
                     PromotionMarketWatchSection(onSendToAgent: onSendToAgent)
+                    PromotionGrowthSection()
                     mentionRadarSection
                     accountsSection
                     interactionsSection

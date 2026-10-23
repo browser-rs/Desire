@@ -3296,6 +3296,40 @@ func testPromotionMetricsImport() {
 testPromotionMetricsImport()
 
 
+// ---------- 归因聚合模型（v0.8.3） ----------
+
+func testGrowthSummary() {
+    let json = """
+    {"days":30,
+     "totals":{"page_view":100,"download_click":10,"first_launch":3},
+     "daily":[{"day":"2026-10-01","page_view":60,"download_click":6,"first_launch":2},
+              {"day":"2026-10-03","page_view":40,"download_click":4,"first_launch":1}],
+     "campaigns":[{"key":"v0.8.3","page_view":100,"download_click":10,"first_launch":3}],
+     "sources":[{"key":"x","page_view":50,"download_click":5,"first_launch":1}],
+     "last_event_at":"2026-10-03T12:00:00"}
+    """
+    let summary = try? JSONDecoder().decode(GrowthSummary.self, from: Data(json.utf8))
+    check("growth：snake_case 解码", summary != nil)
+    eq("growth：总事件", summary?.totals.total ?? -1, 113)
+    check("growth：点击率", abs((summary?.clickRate ?? 0) - 0.1) < 0.0001)
+    check("growth：安装率", abs((summary?.installRate ?? 0) - 0.3) < 0.0001)
+    check("growth：非空", summary?.isEmpty == false)
+    let padded = summary.map(GrowthSummary.paddedDaily) ?? []
+    check("growth：补零成连续三天", padded.count == 3)
+    eq("growth：中间缺日补零", padded.dropFirst().first?.pageView ?? -1, 0)
+    eq("growth：末尾保留", padded.last?.pageView ?? -1, 40)
+
+    let empty = GrowthSummary(
+        days: 7,
+        totals: .init(pageView: 0, downloadClick: 0, firstLaunch: 0),
+        daily: [], campaigns: [], sources: [], lastEventAt: nil)
+    check("growth：空数据", empty.isEmpty)
+    check("growth：分母为零不给转化率", empty.clickRate == nil && empty.installRate == nil)
+}
+testGrowthSummary()
+
+
+
 
 // ---------- 运营周报（PromotionReport 纯逻辑） ----------
 

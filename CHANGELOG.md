@@ -12,6 +12,8 @@
 - **增长实验生命周期（0.8.3 第三批）**：新增 Experiment——假设、主指标（浏览/点赞/评论）、变体、每个变体的计划样本数、战役范围、决策（进行中/采纳/否决/证据不足）。按 `variantLabel` + 已发状态 + 战役过滤统计；**每个变体都达到计划样本量才允许下结论**，并列不选赢家，样本不足只报进度；周报新增实验段，决策与结论随报告导出。纯逻辑 `PromotionExperimentAnalysis` 进 harness（1467/0）。
 - **竞品/市场监测（0.8.3 第三批）**：运营页新增 Market Watch——添加竞品价格/功能/更新日志页面，Check 时在**后台标签**只读打开，优先用适配包 `opsCompetitor` 视图展平成行、否则读正文文本；与上次快照按行归一化 diff，只报告新增/删除行，无变化保持安静。变化可一键交给 Agent 转成选题；不登录、不点击、不做批量爬取。纯逻辑 `PromotionCompetitorDiff` 进 harness。
 - **平台指标导入（0.8.3 第三批）**：无 DPP 适配/无采集端点时的兜底——导入平台导出的 CSV/TSV，自动识别分隔符与中英文列名（浏览/播放/阅读、赞/点赞、评论、URL/标题、日期），按 URL 优先、标题精确匹配帖子；导入前预览匹配结果，同一天快照覆盖而不是重复堆叠。纯逻辑 `PromotionMetricsImport` 进 harness（1488/0）。
+- **归因转化 v1（0.8.3 第三批，跨栈）**：desire-api 新增迁移 `0017_growth_events`、公开匿名事件 `POST /growth/event`（page_view/download_click/first_launch，120 次/分钟/IP，限定产品页 CORS）与登录态聚合 `GET /growth/summary?days=`（总量/逐日/战役/来源）；**只存事件与 UTM 标签，不存 IP/Cookie/UA/账号标识**，表结构已核验无 PII 列。产品页新增 `website/growth-beacon.js`（UTM 透传、下载点击、DNT/localStorage 关闭、无 Cookie）；App 新增 Attribution 面板（与同步登录态共用，展示页面浏览→下载→首启漏斗 + 点击/安装率 + 逐日柱状 + 战役/来源 Top；未登录/无数据/未部署都有明确空态）与首启上报开关。本地 E2E 已验证：4 条事件入库、非法事件 422、未登录 401、campaign/source 聚合正确、CORS preflight 通过。**发版日需要部署 API 迁移与新二进制、并部署产品页 beacon**，步骤见 `docs/GROWTH-ATTRIBUTION.md`。
+
 
 
 

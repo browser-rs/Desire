@@ -301,6 +301,13 @@ nonisolated enum SyncAPIClient {
         return resp.data
     }
 
+    /// 归因聚合（v0.8.3）：登录态可读的匿名计数。
+    static func growthSummary(baseURL: String, accessToken: String,
+                              days: Int) async throws -> GrowthSummary {
+        let clamped = max(1, min(days, 180))
+        return try await send("GET", baseURL, "/growth/summary?days=\(clamped)", token: accessToken)
+    }
+
     /// 批量推送（LWW 仲裁在服务端）。
     static func push<P: Codable>(
         baseURL: String, domain: String, items: [SyncWireItem<P>], accessToken: String

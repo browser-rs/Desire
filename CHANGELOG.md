@@ -26,6 +26,8 @@
 - **B 站反广告拦截占位卡（0.8.3）**：B 站检测到广告拦截后会把广告位换成「该内容被 AdGuard/AdBlock 类插件屏蔽…」的灰色占位卡。离屏 WKWebView 实测真实 DOM：占位组件是首页推荐轮播里的 `.extension-tips-v2`，宿主为 `.vui_carousel__slide/.carousel-area`——**没有 card/feed/li 类名**，此前按类名扫描完全命中不到；且 CSS 隐藏后 `innerText` 为空，文案兜底也失效。现在按 `.extension-tips-v2` 整卡移除、CSS 用 `:has()` 首帧就不渲染、文案兜底改 `textContent`；同时补了新版播放器/信息流选择器与 1s 统计节流。本机本地规则覆盖已更新（`VideoAdRules/bilibili.js|.css`），重启并刷新 B 站可立即验证；下个构建内置后即可删除覆盖文件。
 - **YouTube 假加载 / 自动播放时灵时不灵（0.8.3）**：实测同一条视频在 `allowAll` 策略下正常自动播放；在 `requireUserAction` 下画面已缓冲 20s 却 `paused=true, currentTime=0`，点播放立刻起播——根因是 WebKit 播放策略只在 webview 创建期烙入（空白新标签/从非视频页同标签跳进 YouTube 时已定格）。原补播只试两次（1.2s/3.2s），且页面在后台时直接跳过，开在后台标签的视频永远等不到。现在补播延到 30s 多档重试、每次按页面可见性等待、切回该标签时再起一轮；用户点在播放器/视频上即停手，SPA 换视频重置。离屏实测：requireUserAction 下 6s 补播从 `paused/0s` 进入播放。
 - **批量视频任务在重新构建后消失（0.8.3）**：启动恢复此前只落盘 `running` 批次，完成的批次（面板里可回看/重试/删除的任务记录）从不写盘，进程一换就整行消失。现在 running 全部 + 最近 12 条 finished 一起持久化；启动时按原状态恢复（running 仍以暂停态等待继续，finished 保留完成/失败/跳过行，不自动续跑），取消的批次仍不落盘。文件仍沿用 `batch-media-unfinished.json`，旧文件没有 state 键按 running 处理。
+- **YouTube 自动播放后一直缓冲（0.8.3，用户实测"自动播放了但马上失效"）**：广告拦截 CSS 把广告浮层/模块设为 display:none，但 DOM 节点仍在；旧版 `adShowing()` 只查选择器不看可见性，广告结束后隐藏节点仍让状态机永久判定"广告中"，媒体源被摘掉、静音，正片永远缓冲。现在浮层类信号必须真的可见（`.ad-showing/.ad-interrupting` 仍按播放器 class），并加 15s 兜底：媒体源摘除超时仍处广告态就还原并继续播放（宁可放跑一支广告也不毁正片）。本地 fixture 回归（隐藏浮层 + 广告 class 移除后 src 恢复、播放器退出广告态）通过。
+
 
 
 

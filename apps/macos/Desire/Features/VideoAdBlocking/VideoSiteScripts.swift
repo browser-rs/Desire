@@ -513,6 +513,7 @@ extension VideoSite {
     var lastSkipClick = 0;
     var adSrcSaved = null;      // 摘下来的广告媒体 src（含 blob:）
     var adKillActive = false;   // 终结态：class 抖动期间不重复摘/不提前还原
+    var adKillSince = 0;        // 媒体源摘除时刻（15s 兜底还原）
     var SKIP_SELECTORS = '.ytp-ad-skip-button,.ytp-ad-skip-button-modern,.ytp-skip-ad-button,' +
         '.ytp-ad-skip-button-slot button,.ytp-ad-skip-button-container button,' +
         '.ytp-ad-action-interstitial-skip-button,.ytp-ad-overlay-close-button';
@@ -527,9 +528,32 @@ extension VideoSite {
     // Multi-signal ad detection — class names alone break whenever
     // YouTube renames them. The video_id trick is the reliable one: real
     // videos always carry an id, ad creatives report an EMPTY one.
+    //
+    // 2026-10-23 用户实测"自动播放后一直加载"：本站 CSS 会把广告浮层/模块
+    // `display:none`，但 DOM 节点仍在；旧版只查选择器不看可见性，广告结束后
+    // 隐藏节点仍让 adShowing() 永久为 true → 媒体源一直被摘掉/静音，正片
+    // 永远缓冲。现在浮层类信号必须**真的可见**；`.ad-showing/.ad-interrupting`
+    // 类仍按播放器 class 判断（广告结束 YouTube 自己会摘）。
+    function elementVisible(el) {
+        if (!el) return false;
+        try {
+            var r = el.getBoundingClientRect();
+            if (r.width < 2 || r.height < 2) return false;
+            var cs = getComputedStyle(el);
+            return cs.display !== 'none' && cs.visibility !== 'hidden' && cs.opacity !== '0';
+        } catch(e) { return false; }
+    }
     function adShowing() {
-        if (document.querySelector('.ad-showing,.ad-interrupting,.ytp-ad-player-overlay,.ytp-ad-module-active')) return true;
         var p = document.querySelector('#movie_player');
+        if (p && (p.classList.contains('ad-showing') || p.classList.contains('ad-interrupting'))) return true;
+        var marked = document.querySelectorAll('.ad-showing,.ad-interrupting');
+        for (var i = 0; i < marked.length; i++) {
+            if (elementVisible(marked[i])) return true;
+        }
+        var overlays = document.querySelectorAll('.ytp-ad-player-overlay,.ytp-ad-overlay-slot,.ytp-ad-module-active');
+        for (var j = 0; j < overlays.length; j++) {
+            if (elementVisible(overlays[j])) return true;
+        }
         if (p && p.getVideoData) {
             try {
                 var vd = p.getVideoData();
@@ -555,7 +579,32 @@ extension VideoSite {
         }
         return stableAd;
     }
+    function restoreAdMedia() {
+        adKillActive = false;
+        adKillSince = 0;
+        var v = document.querySelector('video.html5-main-video') ||
+                document.querySelector('#movie_player video');
+        if (v && adSrcSaved) {
+            try {
+                if (!v.getAttribute('src')) {
+                    v.setAttribute('src', adSrcSaved);
+                    v.load();
+                    var p = document.querySelector('#movie_player');
+                    if (p && p.playVideo) { try { p.playVideo(); } catch(e) {} }
+                }
+            } catch(e) {}
+        }
+        adSrcSaved = null;
+        if (v && mutedByUs) { try { v.muted = false; } catch(e) {} mutedByUs = false; }
+    }
     function fastTick() {
+        // 媒体源摘除超过 15s 仍未退出广告态：还原并继续（宁可放跑一支广告，
+        // 也不能让正片永久缓冲）。
+        if (adKillActive && adKillSince > 0 && Date.now() - adKillSince > 15000) {
+            stableAd = false;
+            adOnTicks = 0;
+            restoreAdMedia();
+        }
         var ad = stableAdShowing();
         var v = document.querySelector('video.html5-main-video') ||
                 document.querySelector('#movie_player video');
@@ -579,6 +628,7 @@ extension VideoSite {
                 if (currentSrc) {
                     adSrcSaved = currentSrc;
                     adKillActive = true;
+                    adKillSince = Date.now();
                     try { v.removeAttribute('src'); v.load(); } catch(e) {}
                 }
             } else if (!skip && v && v.getAttribute('src') && !hasRealVideo()) {
@@ -637,6 +687,7 @@ extension VideoSite {
             // 播放器切正片时自己会重设 src，不冲突）。
             if (adKillActive) {
                 adKillActive = false;
+                adKillSince = 0;
                 if (v) {
                     try {
                         // 还原条件只看"src 空且有保存值"（幂等）：hasRealVideo 在

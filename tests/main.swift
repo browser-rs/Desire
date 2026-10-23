@@ -2996,6 +2996,162 @@ func testPromotionSummary() {
 }
 testPromotionSummary()
 
+// ---------- 运营日历 + 发布日 Runbook（v0.8.3） ----------
+
+func testPromotionCalendarAndRunbook() {
+    var cal = Calendar(identifier: .gregorian)
+    cal.timeZone = TimeZone(secondsFromGMT: 0)!
+    cal.firstWeekday = 2 // Monday
+    let start = cal.date(from: DateComponents(year: 2026, month: 10, day: 26, hour: 10))!
+    let campaignID = UUID()
+
+    let steps = PromotionRunbook.steps(template: .release, version: "0.8.3",
+                                       platforms: ["X", "V2EX"], start: start, calendar: cal)
+    check("runbook：release 每平台 4 步", steps.count == 8)
+    check("runbook：时间点 T-1/T0/T+1/T+7",
+          steps.prefix(4).map(\.offsetDays) == [-1, 0, 1, 7])
+    check("runbook：平台跟随", steps.prefix(4).allSatisfy { $0.platform == "X" })
+    let prepare = steps[0]
+    eq("runbook：日期 = 开始日 + offset",
+       PromotionRunbook.date(for: prepare, start: start, calendar: cal),
+       cal.date(byAdding: .day, value: -1, to: start)!)
+
+    let draft = PromotionPost(campaignID: campaignID, platform: "X", title: "待发",
+                              body: "…", status: .draft, plannedFor: start, createdAt: start)
+    let published = PromotionPost(campaignID: campaignID, platform: "X", title: "已发",
+                                  body: "…", status: .published,
+                                  publishedAt: cal.date(byAdding: .day, value: 1, to: start)!,
+                                  createdAt: start)
+    let publishStep = steps[1]
+    check("runbook：发布步骤由已发帖满足",
+          PromotionRunbook.isSatisfied(publishStep, campaignID: campaignID, posts: [published]))
+    check("runbook：别的战役不算",
+          !PromotionRunbook.isSatisfied(publishStep, campaignID: UUID(), posts: [published]))
+    check("runbook：progress 统计", PromotionRunbook.progress(
+        steps: steps, campaignID: campaignID, posts: [published]).done == 1)
+
+    var campaign = PromotionCampaign(id: campaignID, title: "v0.8.3 发布",
+                                     version: "0.8.3", platforms: ["X", "V2EX"],
+                                     startsAt: start)
+    campaign.runbook = steps
+    let entries = PromotionCalendar.entries(posts: [draft, published],
+                                            campaigns: [campaign], now: start,
+                                            calendar: cal)
+    check("calendar：草稿/已发/战役/8 步 = 11 条", entries.count == 11)
+    check("calendar：草稿过期标记", entries.first { $0.postID == draft.id }?.overdue == false)
+    check("calendar：Runbook 条目带 stepID", entries.contains { $0.stepID == prepare.id })
+    check("calendar：发布步骤已满足显示 done",
+          entries.first { $0.stepID == publishStep.id }?.done == true)
+
+    let queue = PromotionCalendar.todayQueue(entries, now: start, calendar: cal)
+    check("calendar：今日队列含到期/逾期待办", queue.contains { $0.postID == draft.id }
+          && queue.contains { $0.stepID == prepare.id })
+    check("calendar：已满足的发布步骤不进今日队列",
+          !queue.contains { $0.stepID == publishStep.id })
+    check("calendar：已发不进今日队列", !queue.contains { $0.kind == .published })
+
+    let grid = PromotionCalendar.monthGrid(containing: start, entries: entries,
+                                           now: start, calendar: cal)
+    check("calendar：月视图 42 格", grid.count == 42)
+    check("calendar：十月 31 天在月内", grid.filter(\.isInMonth).count == 31)
+    check("calendar：今天恰好一格", grid.filter(\.isToday).count == 1)
+    eq("calendar：本周渠道计数", PromotionCalendar.weekCount(
+        platform: "X", posts: [draft, published], now: start, calendar: cal), 2)
+
+    // 未来日期不算逾期；idea 不进日历。
+    let future = PromotionPost(platform: "X", title: "未来草稿", body: "…",
+                               status: .draft,
+                               plannedFor: cal.date(byAdding: .day, value: 3, to: start)!,
+                               createdAt: start)
+    let idea = PromotionPost(platform: "X", title: "选题", body: "", status: .idea, createdAt: start)
+    let later = PromotionCalendar.entries(posts: [future, idea], campaigns: [], now: start, calendar: cal)
+    check("calendar：未来草稿不逾期", later.first?.overdue == false)
+    check("calendar：idea 不入日历", later.count == 1)
+}
+testPromotionCalendarAndRunbook()
+
+// ---------- 回复台（v0.8.3） ----------
+
+func testPromotionReplyDesk() {
+    let now = Date()
+    func interaction(_ kind: PromotionInteraction.Kind, _ status: PromotionInteraction.Status,
+                     hours: Double, text: String = "hello") -> PromotionInteraction {
+        PromotionInteraction(kind: kind, platform: "X", author: "user", text: text,
+                             status: status, createdAt: now.addingTimeInterval(-hours * 3600))
+    }
+    let mention = interaction(.mention, .pending, hours: 100)
+    let comment = interaction(.comment, .pending, hours: 30)
+    let replied = interaction(.comment, .replied, hours: 1)
+    let rows = PromotionReplyDesk.rows(interactions: [comment, replied, mention], now: now)
+    check("reply：待处理/超时优先", rows.first?.interaction.id == mention.id)
+    check("reply：超时桶", rows.first?.bucket == .overdue)
+    check("reply：aging 桶", rows.dropFirst().first?.bucket == .aging)
+    check("reply：已回复排最后", rows.last?.interaction.id == replied.id)
+    check("reply：提及优先级高", rows.first?.priority == .high)
+
+    let summary = PromotionReplyDesk.summary(interactions: [mention, comment, replied], now: now)
+    check("reply：pending 计数", summary.pending == 2)
+    check("reply：overdue 计数", summary.overdue == 1)
+    check("reply：回复率", summary.replyRate == 33)
+
+    var proto = DesireProtocol()
+    proto.actions = [
+        DesireProtocol.ProtocolAction(name: "opsReply", effects: "outbound",
+                                      run: #"[{"fill":{"textarea.reply":"{text}"}}]"#),
+    ]
+    eq("reply：DPP opsReply 选择器", PromotionReplyDesk.dppReplySelector(from: proto), "textarea.reply")
+    var clickOnly = DesireProtocol()
+    clickOnly.actions = [
+        DesireProtocol.ProtocolAction(name: "opsReply", effects: "outbound",
+                                      run: #"[{"click":".send"}]"#),
+    ]
+    check("reply：没有 fill 步骤不返回选择器",
+          PromotionReplyDesk.dppReplySelector(from: clickOnly) == nil)
+    check("reply：无协议不返回选择器",
+          PromotionReplyDesk.dppReplySelector(from: nil) == nil)
+
+    let prompt = PromotionReplyDesk.draftPrompt(for: mention)
+    check("reply：拟稿提示带 id/平台/opsReply",
+          prompt.contains(mention.id.uuidString) && prompt.contains("X") && prompt.contains("opsReply"))
+    check("reply：模板不承诺功能/时间",
+          !PromotionReplyDesk.template(for: .comment).lowercased().contains("guarantee"))
+}
+testPromotionReplyDesk()
+
+// ---------- 账号健康（v0.8.3） ----------
+
+func testPromotionAccountHealth() {
+    check("account health：无适配 → adapterMissing",
+          PromotionAccountHealth.declaredState(adapter: nil, enabled: true).state == .adapterMissing)
+
+    var proto = DesireProtocol()
+    proto.profile = "ops"
+    proto.signals["opsLoginRequired"] = ".login"
+    let adapter = DPPAdapter(name: "x-ops", hosts: ["x.com"], protocolBody: proto)
+    check("account health：禁用 → adapterDisabled",
+          PromotionAccountHealth.declaredState(adapter: adapter, enabled: false).state == .adapterDisabled)
+    check("account health：有登录信号 → 待实检",
+          PromotionAccountHealth.declaredState(adapter: adapter, enabled: true).state == .unknown)
+
+    let empty = DPPAdapter(name: "n-ops", hosts: ["n.com"], protocolBody: DesireProtocol())
+    check("account health：无信号 → noSignal",
+          PromotionAccountHealth.declaredState(adapter: empty, enabled: true).state == .noSignal)
+
+    check("account health：登录信号命中优先",
+          PromotionAccountHealth.evaluate(loginMatched: true, accountItems: 0,
+                                          composerFound: true).state == .loginRequired)
+    check("account health：账号条目 → ready",
+          PromotionAccountHealth.evaluate(loginMatched: false, accountItems: 3,
+                                          composerFound: false).state == .ready)
+    check("account health：composer 可达 → ready",
+          PromotionAccountHealth.evaluate(loginMatched: false, accountItems: 0,
+                                          composerFound: true).state == .ready)
+    check("account health：都未命中 → unknown",
+          PromotionAccountHealth.evaluate(loginMatched: false, accountItems: 0,
+                                          composerFound: false).state == .unknown)
+}
+testPromotionAccountHealth()
+
 // ---------- 运营周报（PromotionReport 纯逻辑） ----------
 
 func testPromotionReport() {

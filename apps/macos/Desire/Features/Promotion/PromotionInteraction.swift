@@ -3,7 +3,7 @@ import Foundation
 /// 互动台账（运营中心的第五类数据）：评论 / 私信 / 提及 / 评价——
 /// 智能体巡检时登记，用户在面板过目，拟稿 → 确认后回复 → 状态闭环。
 /// 「替人干活」里最容易漏掉的一环：评论不回，运营等于没做。
-struct PromotionInteraction: Identifiable, Codable, Hashable {
+nonisolated struct PromotionInteraction: Identifiable, Codable, Hashable {
     enum Kind: String, Codable {
         case comment
         case dm

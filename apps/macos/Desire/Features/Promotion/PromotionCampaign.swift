@@ -45,6 +45,8 @@ nonisolated struct PromotionCampaign: Identifiable, Codable, Equatable {
     var startsAt: Date?
     /// 素材（分享卡图片路径 / 截图路径 / URL）。
     var assets: [String]
+    /// 发布日 Runbook（v0.8.3）：相对战役开始日的时间线；nil = 还没生成。
+    var runbook: [PromotionRunbookStep]? = nil
     /// 战役简报（生成的 highlights/受众/CTA 摘要，便于复盘）。
     var brief: String
     var createdAt: Date
@@ -53,6 +55,7 @@ nonisolated struct PromotionCampaign: Identifiable, Codable, Equatable {
     init(id: UUID = UUID(), title: String, objective: String = "", goalID: UUID? = nil,
          version: String? = nil, productURL: String = "", platforms: [String] = [],
          status: Status = .planning, startsAt: Date? = nil, assets: [String] = [],
+         runbook: [PromotionRunbookStep]? = nil,
          brief: String = "", createdAt: Date = Date(), updatedAt: Date = Date()) {
         self.id = id
         self.title = title
@@ -64,6 +67,7 @@ nonisolated struct PromotionCampaign: Identifiable, Codable, Equatable {
         self.status = status
         self.startsAt = startsAt
         self.assets = assets
+        self.runbook = runbook
         self.brief = brief
         self.createdAt = createdAt
         self.updatedAt = updatedAt

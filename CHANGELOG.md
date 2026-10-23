@@ -4,6 +4,11 @@
 - **DPP 运营契约 `ops/1`（0.8.3 第一批）**：把运营工作台需要的能力变成 DPP 的稳定声明名——`opsAccount/opsPosts/opsMetrics/opsComments/opsMentions/opsSearch/opsComposer/opsAnalytics/opsCompetitor` 视图，`opsCompose`（只填表，local）/`opsPublish`（persist，必须批准）/`opsReply`（outbound，必须批准）/`opsSearch`/`opsRefresh` 动作，`opsReady/opsLoginRequired/opsBusy/opsPosted/opsError` 信号。纯逻辑校验器强制安全不变量（填表与提交分离、发布/回复必须走审批、run/视图结构完整），并输出能力集与警告；进 harness（1408/0）。
 - **DPP Studio 自定义适配包工作台（0.8.3 第一批）**：设置 › AI › DPP 协议 › 第三方适配新增 Author…——载入 ops 模板或已安装包、编辑协议 JSON、校验契约、在当前标签页**只读试抽取**（打印前几条字段值，不执行 compose/publish/reply 动作），保存为**禁用草稿**（可显式勾选立即启用）。运营页新增 DPP Ops 就绪矩阵：每个渠道显示适配包/`ops/1` 能力/健康度（ok/suspect/autoDisabled），无适配时明确标注"通用降级"并提供 Author 入口。
 - **官方运营适配包（0.8.3 第一批）**：`docs/dpp-adapters/ops/` 新增经公开 DOM 核对的 `v2ex-ops`（主题回复）、`hackernews-ops`（条目/用户评论）、`juejin-ops`（文章评论 + 只填不发的回复）、`juejin-compose-ops`（沸点填表 + 人工批准的发布）；README 写明契约、安装、验证与"需登录的渠道用 Studio 自建"的边界。适配包元数据新增 `opsVersion/verifiedAt`，健康记录持久化（最近成功/失败/错误），桥 `/dpp/adapters` 透出能力、ops 版本、校验错误与健康明细；Agent `saveDPPAdapter` 接入 ops 校验，默认保存为禁用草稿（`enabled=true` 才直接启用）。
+- **运营日历 + 今日队列（0.8.3 第二批）**：运营页新增月视图，聚合草稿排期、已发帖、战役开始日与 Runbook 步骤；今日队列列出到期/逾期的草稿与步骤，可直接改期（明天/下周/清除）或交给 Agent。纯逻辑 `PromotionCalendar` 进 harness（月视图 42 格、逾期判定、周渠道计数）。
+- **发布日 Runbook（0.8.3 第二批）**：战役菜单新增 Runbook…——按版本发布/功能发布/复盘模板生成 T-1/T0/T+1/T+7 时间线（每平台 4 步），落到日历并显示完成进度；发布步骤由同战役同平台的已发帖自动满足，其余步骤可手动勾选；重新生成会明确提示清空手动勾选。
+- **互动回复台（0.8.3 第二批）**：互动台账改为按待处理/超时/优先级排序的回复台（SLA 24h 提醒、72h 逾期），每行显示等待时长与回复率；点开回复台可套模板、让 Agent 拟稿，或「Open & Fill」——优先用 DPP `opsReply` 声明的选择器填入回复（只读取声明，不执行动作），退回复用安全选择器，**永远停在发送前**；用户自己发送后 Mark Replied。
+- **账号健康检查（0.8.3 第二批）**：DPP Ops 每个渠道新增 Check——在**后台标签**打开 composer，只读检查 `opsLoginRequired` 可见性 / `opsAccount` 条目 / `opsComposer` 是否可达，给出 Ready / Login required / Adapter missing / 无信号，然后自动关掉标签；不读 Keychain、不发布。判定逻辑进 harness。
+
 
 ### Fixed
 

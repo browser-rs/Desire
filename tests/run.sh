@@ -39,6 +39,8 @@ SOURCES=(
   apps/macos/Desire/Features/Promotion/PromotionGoal.swift
   apps/macos/Desire/Features/Promotion/PromotionPost.swift
   apps/macos/Desire/Features/Promotion/PromotionCampaign.swift
+  apps/macos/Desire/Features/Promotion/PromotionRunbook.swift
+  apps/macos/Desire/Features/Promotion/PromotionCalendar.swift
   apps/macos/Desire/Features/Promotion/PromotionChannel.swift
   apps/macos/Desire/Features/Promotion/PromotionCampaignBuilder.swift
   apps/macos/Desire/Features/Promotion/MentionRadar.swift
@@ -54,6 +56,8 @@ SOURCES=(
   apps/macos/Desire/Features/Promotion/PromotionReport.swift
   apps/macos/Desire/Features/Promotion/PromotionInsights.swift
   apps/macos/Desire/Features/Promotion/PromotionInteraction.swift
+  apps/macos/Desire/Features/Promotion/PromotionReplyDesk.swift
+  apps/macos/Desire/Features/Promotion/PromotionAccountHealth.swift
   apps/macos/Desire/Features/Promotion/PromotionPreflight.swift
   apps/macos/Desire/Features/Agent/RoutingDecision.swift
   apps/macos/Desire/Features/Agent/Conversation.swift

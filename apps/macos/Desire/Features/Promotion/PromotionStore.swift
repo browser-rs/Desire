@@ -503,6 +503,38 @@ final class PromotionStore: ObservableObject {
         if touched { persistPosts() }
     }
 
+    // MARK: - Runbook / 排期（v0.8.3）
+
+    /// 写入/替换战役的发布日 Runbook。传 nil = 清除。
+    @discardableResult
+    func setRunbook(_ id: UUID, steps: [PromotionRunbookStep]?) -> PromotionCampaign? {
+        guard let idx = campaigns.firstIndex(where: { $0.id == id }) else { return nil }
+        campaigns[idx].runbook = steps
+        campaigns[idx].updatedAt = Date()
+        persistCampaigns()
+        return campaigns[idx]
+    }
+
+    /// 勾选/取消 Runbook 步骤（发布步骤的"已满足"由帖子状态派生，不写这里）。
+    @discardableResult
+    func markRunbookStep(_ campaignID: UUID, stepID: UUID, done: Bool) -> PromotionCampaign? {
+        guard let idx = campaigns.firstIndex(where: { $0.id == campaignID }),
+              var steps = campaigns[idx].runbook,
+              let stepIdx = steps.firstIndex(where: { $0.id == stepID }) else { return nil }
+        steps[stepIdx].isDone = done
+        steps[stepIdx].doneAt = done ? Date() : nil
+        campaigns[idx].runbook = steps
+        campaigns[idx].updatedAt = Date()
+        persistCampaigns()
+        return campaigns[idx]
+    }
+
+    /// 改期一条草稿（日历拖拽/菜单用）。传 nil 清空排期。
+    @discardableResult
+    func reschedule(postID: UUID, to date: Date?) -> PromotionPost? {
+        updatePost(id: postID, plannedFor: .some(date))
+    }
+
     // MARK: - 持久化
 
     private func persistGoals() { DiskStore.save(goals, key: Self.goalsKey) }

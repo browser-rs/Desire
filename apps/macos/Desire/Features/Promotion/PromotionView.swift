@@ -37,6 +37,10 @@ struct PromotionView: View {
     /// DPP 运营就绪矩阵（v0.8.3）：渠道 → 适配包/能力/健康度。
     @ObservedObject private var dppAdapters = DPPAdapterStore.shared
     @State private var dppStudioRequest: DPPStudioRequest?
+    @State private var accountChecks: [String: PromotionAccountHealth.Assessment] = [:]
+    @State private var checkingHosts: Set<String> = []
+    @State private var runbookCampaign: PromotionCampaign?
+    @State private var replyInteraction: PromotionInteraction?
     @State private var runningPlaybook: Playbook?
     @State private var editingPlaybook: Playbook?
 
@@ -48,6 +52,7 @@ struct PromotionView: View {
                     goalsSection
                     campaignsSection
                     dppOpsSection
+                    PromotionCalendarSection(onSendToAgent: onSendToAgent)
                     mentionRadarSection
                     accountsSection
                     interactionsSection
@@ -69,6 +74,12 @@ struct PromotionView: View {
         .sheet(isPresented: $isCreatingCampaign) { PromotionCampaignEditorSheet() }
         .sheet(item: $dppStudioRequest) { request in
             DPPStudioSheet(initialHost: request.host, initialPlatform: request.platform)
+        }
+        .sheet(item: $runbookCampaign) { campaign in
+            PromotionRunbookSheet(campaign: campaign)
+        }
+        .sheet(item: $replyInteraction) { item in
+            PromotionReplySheet(interaction: item, onSendToAgent: onSendToAgent)
         }
         .sheet(item: $runningPlaybook) { playbook in
             PlaybookRunSheet(playbook: playbook) { prompt in
@@ -265,6 +276,9 @@ struct PromotionView: View {
         let drafts = linked.filter { $0.status == .draft }
         let published = linked.filter { $0.status == .published }
         let next = drafts.compactMap(\.plannedFor).min()
+        let runbookProgress = campaign.runbook.map {
+            PromotionRunbook.progress(steps: $0, campaignID: campaign.id, posts: linked)
+        }
         return HStack(alignment: .top, spacing: 10) {
             Image(systemName: "flag.checkered")
                 .font(.system(size: 12, weight: .medium))
@@ -285,7 +299,8 @@ struct PromotionView: View {
                 }
                 Text("\(published.count)/\(linked.count) " + String(localized: "published")
                      + " · \(drafts.count) " + String(localized: "draft(s)")
-                     + (next.map { " · " + String(localized: "next") + " " + PromotionSummary.shortDate($0) } ?? ""))
+                     + (next.map { " · " + String(localized: "next") + " " + PromotionSummary.shortDate($0) } ?? "")
+                     + (runbookProgress.map { " · Runbook \($0.done)/\($0.total)" } ?? ""))
                     .font(.system(size: 10.5))
                     .foregroundStyle(.secondary)
                 if !campaign.objective.isEmpty {
@@ -308,6 +323,10 @@ struct PromotionView: View {
                     Button(String(localized: "Ask Agent to continue…")) {
                         onSendToAgent("继续推进运营战役「\(campaign.title)」：先看这条战役下的草稿与目标，按平台逐条检查/润色待审内容；任何发布或回复都必须先问我。")
                     }
+                }
+                Divider()
+                Button(String(localized: "Runbook…")) {
+                    runbookCampaign = campaign
                 }
                 Divider()
                 Button(String(localized: "Delete campaign"), role: .destructive) {
@@ -405,16 +424,63 @@ struct PromotionView: View {
                         .font(.system(size: 10.5))
                         .foregroundStyle(.secondary)
                 }
+                if let assessment = accountChecks[host] {
+                    HStack(spacing: 4) {
+                        Image(systemName: assessment.state == .ready ? "checkmark.circle" : "info.circle")
+                        Text(assessment.state.label)
+                        if !assessment.detail.isEmpty {
+                            Text("· " + assessment.detail)
+                                .lineLimit(2)
+                        }
+                    }
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(accountStateColor(assessment.state))
+                }
             }
             Spacer(minLength: 8)
-            Button(String(localized: "Author…")) {
-                dppStudioRequest = DPPStudioRequest(host: host, platform: channel.platform)
+            HStack(spacing: 6) {
+                Button {
+                    checkAccount(channel: channel, host: host, adapter: adapter)
+                } label: {
+                    if checkingHosts.contains(host) {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        Text(String(localized: "Check"))
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(adapter == nil || checkingHosts.contains(host))
+                .help(String(localized: "Open the composer in a background tab and check login/composer readiness (read-only)"))
+                Button(String(localized: "Author…")) {
+                    dppStudioRequest = DPPStudioRequest(host: host, platform: channel.platform)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
             }
-            .buttonStyle(.bordered)
-            .controlSize(.small)
         }
         .padding(10)
         .background(cardBackground)
+    }
+
+    private func checkAccount(channel: PromotionChannel, host: String, adapter: DPPAdapter?) {
+        guard let adapter else { return }
+        checkingHosts.insert(host)
+        accountChecks[host] = nil
+        Task { @MainActor in
+            let result = await PromotionAccountHealthChecker.check(channel: channel, adapter: adapter)
+            checkingHosts.remove(host)
+            accountChecks[host] = result
+        }
+    }
+
+    private func accountStateColor(_ state: PromotionAccountHealth.State) -> Color {
+        switch state {
+        case .ready: .green
+        case .loginRequired: .orange
+        case .adapterMissing, .adapterDisabled: .red
+        case .noSignal, .unknown: .secondary
+        }
     }
 
     /// 渠道对应的适配包匹配 host：优先 composer URL 的 host，其次平台名
@@ -628,25 +694,37 @@ struct PromotionView: View {
 
     @ViewBuilder
     private var interactionsSection: some View {
-        let inbox = PromotionSummary.inbox(store.interactions)
-        let pending = store.pendingInteractionCount
-        sectionHeader(String(localized: "Interactions"),
-                      count: pending > 0 ? pending : store.interactions.count)
+        let rows = PromotionReplyDesk.rows(interactions: store.interactions)
+        let summary = PromotionReplyDesk.summary(interactions: store.interactions)
+        HStack(spacing: 6) {
+            sectionHeader(String(localized: "Inbox"),
+                          count: summary.pending > 0 ? summary.pending : store.interactions.count)
+            if summary.overdue > 0 {
+                Text(String(localized: "\(summary.overdue) overdue"))
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.red)
+            }
+            Spacer()
+            Text(String(localized: "\(summary.replyRate)% replied"))
+                .font(.system(size: 9.5))
+                .foregroundStyle(.tertiary)
+        }
         if store.interactions.isEmpty {
             Text("Comments and inquiries the agent finds land here — review replies before they go out.")
                 .font(.system(size: 10.5))
                 .foregroundStyle(.tertiary)
         } else {
             VStack(spacing: 4) {
-                ForEach(inbox.prefix(30)) { item in
-                    interactionRow(item)
+                ForEach(rows.prefix(30)) { row in
+                    interactionRow(row)
                 }
             }
         }
     }
 
-    private func interactionRow(_ item: PromotionInteraction) -> some View {
-        HStack(alignment: .top, spacing: 6) {
+    private func interactionRow(_ row: PromotionReplyDesk.Row) -> some View {
+        let item = row.interaction
+        return HStack(alignment: .top, spacing: 6) {
             Image(systemName: interactionIcon(item.kind))
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
@@ -660,6 +738,11 @@ struct PromotionView: View {
                         .font(.system(size: 10.5, weight: .medium))
                         .lineLimit(1)
                     statusChip(item.status)
+                    if item.status == .pending {
+                        Text(ageLabel(row))
+                            .font(.system(size: 9, weight: .medium, design: .monospaced))
+                            .foregroundStyle(ageColor(row))
+                    }
                     Spacer(minLength: 0)
                 }
                 Text(item.text)
@@ -679,13 +762,10 @@ struct PromotionView: View {
                 }
             }
             Spacer(minLength: 4)
-            if item.status == .pending, onSendToAgent != nil {
-                HoverIcon(systemName: "paperplane", action: {
-                    var ask = "处理互动台账里的这条（id=\(item.id.uuidString)）：[\(item.platform)] \(item.author) 说「\(item.text)」"
-                    if let url = item.url { ask += "（\(url)）" }
-                    ask += "。拟一条回复贴给我确认；我点头后发出去，再用 promotionInteractionReply 标记 replied；我不想回的标 ignored。"
-                    onSendToAgent?(ask)
-                }, help: String(localized: "Reply with the agent"))
+            if item.status == .pending {
+                HoverIcon(systemName: "bubble.left.and.bubble.right", action: {
+                    replyInteraction = item
+                }, help: String(localized: "Open reply desk"))
                 HoverIcon(systemName: "xmark.circle", action: {
                     _ = store.replyInteraction(id: item.id, reply: nil, status: .ignored)
                 }, help: String(localized: "Mark ignored"))
@@ -695,6 +775,19 @@ struct PromotionView: View {
         }
         .padding(8)
         .background(cardBackground)
+    }
+
+    private func ageLabel(_ row: PromotionReplyDesk.Row) -> String {
+        if row.ageHours < 24 { return "\(Int(row.ageHours))h" }
+        return "\(Int(row.ageHours / 24))d"
+    }
+
+    private func ageColor(_ row: PromotionReplyDesk.Row) -> Color {
+        switch row.bucket {
+        case .fresh: return .secondary
+        case .aging: return .orange
+        case .overdue: return .red
+        }
     }
 
     private func interactionIcon(_ kind: PromotionInteraction.Kind) -> String {

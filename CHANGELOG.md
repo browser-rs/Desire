@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.3] - 2026-10-23
 ### Added
 
 - **DPP 运营契约 `ops/1`（0.8.3 第一批）**：把运营工作台需要的能力变成 DPP 的稳定声明名——`opsAccount/opsPosts/opsMetrics/opsComments/opsMentions/opsSearch/opsComposer/opsAnalytics/opsCompetitor` 视图，`opsCompose`（只填表，local）/`opsPublish`（persist，必须批准）/`opsReply`（outbound，必须批准）/`opsSearch`/`opsRefresh` 动作，`opsReady/opsLoginRequired/opsBusy/opsPosted/opsError` 信号。纯逻辑校验器强制安全不变量（填表与提交分离、发布/回复必须走审批、run/视图结构完整），并输出能力集与警告；进 harness（1408/0）。

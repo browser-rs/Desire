@@ -83,3 +83,13 @@
 本目录的 GitHub raw 链接就是现成包源：
 `https://raw.githubusercontent.com/browser-rs/Desire/main/docs/dpp-adapters/<包名>.json`
 （推送合入后即生效）。
+
+## 运营适配包（ops/1，v0.8.3）
+
+运营工作台（日历/Runbook/回复台/指标/竞品/账号健康）优先读 DPP 运营契约；
+`opsAccount` / `opsMetrics` / `opsComments` / `opsComposer` / `opsCompose` /
+`opsPublish` / `opsReply` 等名字与安全规则见 [`ops/README.md`](ops/README.md)。
+现有公开核对包：`ops/v2ex-ops.json`、`ops/hackernews-ops.json`、
+`ops/juejin-ops.json`、`ops/juejin-compose-ops.json`。需要登录的创作后台
+（X / 小红书等）用设置里的 **DPP Studio** 在你已登录的页面上现场生成，
+保存为禁用草稿后再启用。

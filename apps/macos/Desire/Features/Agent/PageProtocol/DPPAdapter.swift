@@ -29,6 +29,11 @@ nonisolated struct DPPAdapter: Codable, Equatable, Identifiable {
     var sourceURL: String?
     /// 最近一次安装/更新的时间（陈旧提示用）。
     var installedAt: Date?
+    /// 运营契约版本（v0.8.3）：nil = 非运营包；1 = `ops/1`。旧包缺键 = nil。
+    var opsVersion: Int? = nil
+    /// 最近一次**真实页面核对/测试**的时间（运营包的健康展示基准；与
+    /// installedAt 区分：安装/覆盖不等于核对过）。
+    var verifiedAt: Date? = nil
 
     var id: String { name }
 
@@ -36,7 +41,8 @@ nonisolated struct DPPAdapter: Codable, Equatable, Identifiable {
     // 默认值不兜底而要求键存在——适配包作者不该被逼着写 format）。
     init(name: String, hosts: [String], pathPrefixes: [String] = [],
          protocolBody: DesireProtocol = DesireProtocol(), notes: String = "",
-         sourceURL: String? = nil, installedAt: Date? = nil) {
+         sourceURL: String? = nil, installedAt: Date? = nil,
+         opsVersion: Int? = nil, verifiedAt: Date? = nil) {
         self.format = "desire/adapter-1"
         self.name = name
         self.hosts = hosts
@@ -45,6 +51,8 @@ nonisolated struct DPPAdapter: Codable, Equatable, Identifiable {
         self.notes = notes
         self.sourceURL = sourceURL
         self.installedAt = installedAt
+        self.opsVersion = opsVersion
+        self.verifiedAt = verifiedAt
     }
 
     init(from decoder: Decoder) throws {
@@ -57,10 +65,13 @@ nonisolated struct DPPAdapter: Codable, Equatable, Identifiable {
         notes = (try? c.decodeIfPresent(String.self, forKey: .notes)) ?? ""
         sourceURL = (try? c.decodeIfPresent(String.self, forKey: .sourceURL)) ?? nil
         installedAt = (try? c.decodeIfPresent(Date.self, forKey: .installedAt)) ?? nil
+        opsVersion = (try? c.decodeIfPresent(Int.self, forKey: .opsVersion)) ?? nil
+        verifiedAt = (try? c.decodeIfPresent(Date.self, forKey: .verifiedAt)) ?? nil
     }
 
     private enum CodingKeys: String, CodingKey {
-        case format, name, hosts, pathPrefixes, protocolBody, notes, sourceURL, installedAt
+        case format, name, hosts, pathPrefixes, protocolBody, notes, sourceURL, installedAt,
+             opsVersion, verifiedAt
     }
 
     func encode(to encoder: Encoder) throws {
@@ -73,6 +84,8 @@ nonisolated struct DPPAdapter: Codable, Equatable, Identifiable {
         try c.encode(notes, forKey: .notes)
         try c.encodeIfPresent(sourceURL, forKey: .sourceURL)
         try c.encodeIfPresent(installedAt, forKey: .installedAt)
+        try c.encodeIfPresent(opsVersion, forKey: .opsVersion)
+        try c.encodeIfPresent(verifiedAt, forKey: .verifiedAt)
     }
 
     // MARK: - Matching

@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import WebKit
 
 /// AI 设置页里的「DPP 协议」区块：Agent 智能接管的统一开关面。
 /// 此前事件三档只有桥端点（`/dpp/mode`）可改、协议解析与提示注入
@@ -11,6 +12,7 @@ struct DPPSettingsSection: View {
     @ObservedObject private var adapters = DPPAdapterStore.shared
     @Environment(\.appAccent) private var appAccent: Color
     @State private var importError: String?
+    @State private var showStudio = false
 
     var body: some View {
         SettingsSection(
@@ -86,6 +88,10 @@ struct DPPSettingsSection: View {
         } message: {
             Text(importError ?? "")
         }
+        .sheet(isPresented: $showStudio) {
+            DPPStudioSheet(initialHost: TabSessionCoordinator.shared.activeTabManager?
+                .selectedTab?.browser.webView.url?.host)
+        }
     }
 
     /// 第三方适配包：站点没接入 DPP 时由社区声明（页面声明优先，适配器
@@ -98,6 +104,15 @@ struct DPPSettingsSection: View {
             subtitle: String(localized: "Community-written DPP declarations for popular sites (applied only when the page has no native declaration). Drop JSON files or import below.")
         ) {
             HStack(spacing: 8) {
+                Button {
+                    showStudio = true
+                } label: {
+                    Text(String(localized: "Author…"))
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(String(localized: "Open DPP Studio and author a custom adapter for the current site (saved disabled)"))
                 Button {
                     pickAndImport()
                 } label: {
@@ -149,15 +164,46 @@ struct DPPSettingsSection: View {
 
     /// 陈旧提示（设计评审 #8 存活度展示面）：installedAt 超 90 天未核对 → 标注。
     private func stalenessSuffix(_ adapter: DPPAdapter) -> String {
-        guard let at = adapter.installedAt else { return "" }
+        guard let at = adapter.verifiedAt ?? adapter.installedAt else { return "" }
         let days = Calendar.current.dateComponents([.day], from: at, to: Date()).day ?? 0
         return days >= 90 ? "（\(days) 天未核对，站点改版可能失效）" : ""
+    }
+
+    /// 运营包/健康度的紧凑副标题（v0.8.3）：ops/1 · 能力 · 最近成功/失败。
+    private func adapterHealthSuffix(_ adapter: DPPAdapter) -> String {
+        var parts: [String] = []
+        let report = DPPOpsContract.report(for: adapter.protocolBody)
+        if report.isOps {
+            parts.append("ops/\(adapter.opsVersion ?? DPPOpsContract.version)")
+            if !report.capabilities.isEmpty {
+                parts.append(report.orderedCapabilities.map(\.shortLabel).joined(separator: "/"))
+            }
+        }
+        let state = adapters.health(of: adapter.name)
+        if state != "ok" { parts.append(state) }
+        if let record = adapters.healthRecord(for: adapter.name) {
+            if let success = record.lastSuccessAt {
+                parts.append("last ok \(Self.shortDate(success))")
+            } else if let failure = record.lastFailureAt {
+                parts.append("last fail \(Self.shortDate(failure))")
+            }
+            if let error = record.lastError, !error.isEmpty, state != "ok" {
+                parts.append(error.prefix(60).description)
+            }
+        }
+        return parts.isEmpty ? "" : " · " + parts.joined(separator: " · ")
+    }
+
+    private static func shortDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM-dd HH:mm"
+        return formatter.string(from: date)
     }
 
     private func adapterRow(_ adapter: DPPAdapter) -> some View {
         SettingsRow(
             adapter.name,
-            subtitle: "\(adapter.hosts.joined(separator: ", "))\(stalenessSuffix(adapter))\(adapter.notes.isEmpty ? "" : " — \(adapter.notes)")",
+            subtitle: "\(adapter.hosts.joined(separator: ", "))\(stalenessSuffix(adapter))\(adapterHealthSuffix(adapter))\(adapter.notes.isEmpty ? "" : " — \(adapter.notes)")",
             systemImage: "puzzlepiece.extension"
         ) {
             HStack(spacing: 8) {

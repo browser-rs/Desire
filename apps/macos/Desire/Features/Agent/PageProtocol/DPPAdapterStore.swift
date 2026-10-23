@@ -30,6 +30,7 @@ final class DPPAdapterStore: ObservableObject {
     private init() {
         disabled = Set(UserDefaults.standard.stringArray(forKey: Self.disabledKey) ?? [])
         autoDisabled = Set(UserDefaults.standard.stringArray(forKey: Self.autoDisabledKey) ?? [])
+        health = Self.loadHealth()
         reload()
     }
 
@@ -58,16 +59,36 @@ final class DPPAdapterStore: ObservableObject {
     // MARK: - 存活度（设计评审 #8）：适配包会随站点改版静默失效——
     // 记录每个包的抽取/动作失败次数，连续失败达到阈值在 inspect/设置页
     // 亮"疑似失效"，达到硬阈值自动禁用（用户可重新启用）。
+    //
+    // v0.8.3：健康记录**持久化**（此前只在内存里，重启即忘），并补上
+    // 最近成功/失败时间与最近错误——运营页"这个渠道还能不能用"直接读它。
+
+    struct Health: Codable, Equatable {
+        var lastSuccessAt: Date?
+        var lastFailureAt: Date?
+        var successCount: Int = 0
+        var failureCount: Int = 0
+        var lastError: String?
+    }
+
+    @Published private(set) var health: [String: Health] = [:]
 
     private var failureCounts: [String: Int] = [:]
     private let softThreshold = 3
     private let hardThreshold = 8
     private static let autoDisabledKey = "dpp.adapter.autodisabled"
+    private static let healthKey = "dpp.adapter.health"
 
     private(set) var autoDisabled: Set<String> = []
 
     /// 适配包参与的抽取/动作失败时上报（名字来自 warnings 戳）。
-    func reportFailure(adapterName: String) {
+    func reportFailure(adapterName: String, error: String? = nil) {
+        var record = health[adapterName] ?? Health()
+        record.failureCount += 1
+        record.lastFailureAt = Date()
+        if let error, !error.isEmpty { record.lastError = error }
+        health[adapterName] = record
+        persistHealth()
         failureCounts[adapterName, default: 0] += 1
         if failureCounts[adapterName] == hardThreshold {
             autoDisabled.insert(adapterName)
@@ -77,6 +98,13 @@ final class DPPAdapterStore: ObservableObject {
     }
 
     func reportSuccess(adapterName: String) {
+        var record = health[adapterName] ?? Health()
+        record.successCount += 1
+        record.lastSuccessAt = Date()
+        record.failureCount = 0
+        record.lastError = nil
+        health[adapterName] = record
+        persistHealth()
         failureCounts[adapterName] = 0
         if autoDisabled.contains(adapterName) {
             autoDisabled.remove(adapterName)
@@ -87,9 +115,24 @@ final class DPPAdapterStore: ObservableObject {
     /// 存活度状态（设置页/inspect 透出）：ok / suspect / autoDisabled。
     func health(of name: String) -> String {
         if autoDisabled.contains(name) { return "autoDisabled" }
-        let n = failureCounts[name] ?? 0
+        let n = health[name]?.failureCount ?? failureCounts[name] ?? 0
         if n >= softThreshold { return "suspect" }
         return "ok"
+    }
+
+    func healthRecord(for name: String) -> Health? { health[name] }
+
+    private func persistHealth() {
+        guard let data = try? JSONEncoder().encode(health) else { return }
+        UserDefaults.standard.set(data, forKey: Self.healthKey)
+    }
+
+    private static func loadHealth() -> [String: Health] {
+        guard let data = UserDefaults.standard.data(forKey: healthKey),
+              let decoded = try? JSONDecoder().decode([String: Health].self, from: data) else {
+            return [:]
+        }
+        return decoded
     }
 
     // MARK: - 加载
@@ -168,6 +211,22 @@ final class DPPAdapterStore: ObservableObject {
         try enriched.write(to: target, options: .atomic)
         reload()
         return adapter
+    }
+
+    /// Studio / Agent 草稿落盘（v0.8.3）：写入后**默认禁用**——适配包会真实
+    /// 参与页面解析与动作，未经用户过目不得生效。同名覆盖同样回到禁用态，
+    /// 逼一次显式启用（避免"悄悄换了选择器"）。
+    func saveDraft(_ adapter: DPPAdapter) throws {
+        let name = adapter.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty, !name.contains("/") else {
+            throw ImportError.invalid("adapter name is required and cannot contain /")
+        }
+        let data = try JSONEncoder().encode(adapter)
+        let target = Self.directory.appendingPathComponent("\(name).json")
+        try data.write(to: target, options: .atomic)
+        disabled.insert(name)
+        UserDefaults.standard.set(Array(disabled).sorted(), forKey: Self.disabledKey)
+        reload()
     }
 
     func remove(_ name: String) {

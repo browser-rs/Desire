@@ -220,15 +220,16 @@ extension BrowserToolProvider {
                 ], required: ["name", "description", "instructions"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "saveDPPAdapter", description: "Create a DPP adapter pack for the CURRENT site. IMPORTANT: before calling, clarify with the user WHICH capabilities they want (reading/lists/actions) and the scope (whole site vs specific page types) — big sites do not need everything. Workflow: (1) probe the page with executeJS (querySelector candidates), (2) confirm the capability list and scope with the user via askUser, (3) call this tool with verified selectors only. Applies site-wide (natively-declared pages always win). Same name overwrites.",
+                name: "saveDPPAdapter", description: "Create a DPP adapter pack for the CURRENT site. IMPORTANT: before calling, clarify with the user WHICH capabilities they want (reading/lists/actions) and the scope (whole site vs specific page types) — big sites do not need everything. Workflow: (1) probe the page with executeJS (querySelector candidates), (2) confirm the capability list and scope with the user via askUser, (3) call this tool with verified selectors only. Saved DISABLED by default — pass enabled=true only after the user explicitly approved enabling it. If the pack uses ops* names it is validated against the ops/1 contract (opsCompose must be local fill-only; opsPublish/opsReply must be persist/outbound or danger so they require approval). Applies site-wide (natively-declared pages always win). Same name overwrites.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "name": AgentJSONSchemaValue(type: "string", description: "Short site name, e.g. juejin"),
                     "hosts": AgentJSONSchemaValue(type: "array", description: "Host list: exact hosts or .domain for all subdomains, e.g. [\"juejin.cn\", \".juejin.cn\"]"),
                     "pathPrefixes": AgentJSONSchemaValue(type: "array", description: "Optional path prefixes to scope the pack, e.g. [\"/post/\"]; empty = whole site"),
                     "notes": AgentJSONSchemaValue(type: "string", description: "One line: what this pack covers and when it was verified"),
-                    "views": AgentJSONSchemaValue(type: "object", description: "Named views: { name: { item: selector, fields: { field: selector or {selector, type} } } }"),
-                    "signals": AgentJSONSchemaValue(type: "object", description: "Optional readiness signals: { ready: selector, busy: selector }"),
-                    "actions": AgentJSONSchemaValue(type: "array", description: "Optional declared actions: [{ name, description, params, run: [{click|fill|navigate...}], effects }] - effects must reflect REAL impact; persist/outbound force approval"),
+                    "views": AgentJSONSchemaValue(type: "object", description: "Named views: { name: { item: selector, fields: { field: selector or {selector, type} } } }. Operations contract names: opsAccount/opsPosts/opsMetrics/opsComments/opsMentions/opsSearch/opsComposer/opsAnalytics/opsCompetitor."),
+                    "signals": AgentJSONSchemaValue(type: "object", description: "Optional readiness signals: { ready: selector, busy: selector }; ops names: opsReady/opsLoginRequired/opsBusy/opsPosted/opsError"),
+                    "actions": AgentJSONSchemaValue(type: "array", description: "Optional declared actions: [{ name, description, params, run: [{click|fill|navigate...}], effects }] - effects must reflect REAL impact; persist/outbound force approval. ops names: opsCompose (local fill only), opsPublish (persist/danger), opsReply (outbound/danger), opsSearch/opsRefresh (local)"),
+                    "enabled": AgentJSONSchemaValue(type: "boolean", description: "Enable immediately after saving (default false = saved as a disabled draft for user review)"),
                 ], required: ["name", "hosts", "views"]),
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

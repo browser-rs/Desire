@@ -1,0 +1,76 @@
+{
+  "format": "desire/adapter-1",
+  "name": "juejin-ops",
+  "hosts": [
+    "juejin.cn",
+    ".juejin.cn"
+  ],
+  "pathPrefixes": [
+    "/entry/",
+    "/post/"
+  ],
+  "notes": "ops/1（复用 2026-10-11 核对过的掘金文章页选择器）：评论 → opsComments；回复填入 → opsReply（只填，不提交）。",
+  "opsVersion": 1,
+  "protocolBody": {
+    "protocolVersion": "desire/1",
+    "profile": "ops",
+    "pageType": "ops",
+    "contentMain": "article",
+    "sections": {
+      "article": "article",
+      "comments": "[class*='comment-list'], [class*='comment-list-box']"
+    },
+    "ignore": [
+      "nav",
+      "footer",
+      "aside",
+      "[class*='sidebar']",
+      "[class*='recommend']",
+      "[class*='banner']",
+      "[class*='sidenav']",
+      "[class*='auth-card']"
+    ],
+    "views": {
+      "opsComments": {
+        "item": ".comment-card.comment-item, [class*='comment-list'] [class*='comment-item']",
+        "fields": {
+          "author": ".comment-header .username .name, .comment-header .name",
+          "text": ".comment-content .content, .comment-content",
+          "meta": ".comment-action"
+        }
+      },
+      "opsMentions": {
+        "item": ".comment-card.comment-item, [class*='comment-list'] [class*='comment-item']",
+        "fields": {
+          "author": ".comment-header .username .name, .comment-header .name",
+          "text": ".comment-content .content, .comment-content"
+        }
+      }
+    },
+    "signals": {
+      "opsReady": "article .markdown-body",
+      "opsLoginRequired": ".login-btn, a[href*='/login'], [class*='auth-card']",
+      "opsBusy": "[class*='loading']"
+    },
+    "actions": [
+      {
+        "name": "opsReply",
+        "description": "把回复填入评论输入框（只填，不提交）。用户检查后自己按发送；提交动作故意不声明。",
+        "params": {
+          "text": {
+            "type": "string",
+            "required": true,
+            "description": "回复正文"
+          }
+        },
+        "run": "[{\"fill\": {\".comment-input [contenteditable]\": \"{text}\"}}]",
+        "effects": "outbound",
+        "danger": true
+      }
+    ],
+    "context": {
+      "channelSlug": "juejin",
+      "note": "掘金文章页。评论读取 + 回复填入（不提交）；发布/点赞在创作页适配包里。"
+    }
+  }
+}

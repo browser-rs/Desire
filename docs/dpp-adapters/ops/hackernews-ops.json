@@ -1,0 +1,56 @@
+{
+  "format": "desire/adapter-1",
+  "name": "hackernews-ops",
+  "hosts": [
+    "news.ycombinator.com"
+  ],
+  "pathPrefixes": [
+    "/item",
+    "/threads"
+  ],
+  "notes": "ops/1（2026-10-23 公开 DOM 核对）：HN 条目/用户评论页 → opsComments + opsMentions（只读；HN 无发布动作）。",
+  "opsVersion": 1,
+  "protocolBody": {
+    "protocolVersion": "desire/1",
+    "profile": "ops",
+    "pageType": "ops",
+    "contentMain": "#hnmain",
+    "sections": {
+      "comments": ".comment-tree"
+    },
+    "ignore": [
+      ".navs",
+      ".votelinks",
+      ".reply",
+      ".age",
+      ".yclinks"
+    ],
+    "views": {
+      "opsComments": {
+        "item": "tr.athing.comtr",
+        "fields": {
+          "author": ".hnuser",
+          "text": ".commtext",
+          "url": ".comhead a[href^='item?id=']@href",
+          "age": ".age"
+        }
+      },
+      "opsMentions": {
+        "item": "tr.athing.comtr",
+        "fields": {
+          "author": ".hnuser",
+          "text": ".commtext",
+          "url": ".comhead a[href^='item?id=']@href"
+        }
+      }
+    },
+    "signals": {
+      "opsReady": "#hnmain",
+      "opsLoginRequired": "a[href^='login'], a[href='login']"
+    },
+    "context": {
+      "channelSlug": "hackernews",
+      "note": "Hacker News 条目页/用户评论页。只读（HN 无官方发布 API 动作）；提到产品名时进互动台账。"
+    }
+  }
+}

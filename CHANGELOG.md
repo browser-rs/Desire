@@ -1,4 +1,10 @@
 ## [Unreleased]
+### Added
+
+- **DPP 运营契约 `ops/1`（0.8.3 第一批）**：把运营工作台需要的能力变成 DPP 的稳定声明名——`opsAccount/opsPosts/opsMetrics/opsComments/opsMentions/opsSearch/opsComposer/opsAnalytics/opsCompetitor` 视图，`opsCompose`（只填表，local）/`opsPublish`（persist，必须批准）/`opsReply`（outbound，必须批准）/`opsSearch`/`opsRefresh` 动作，`opsReady/opsLoginRequired/opsBusy/opsPosted/opsError` 信号。纯逻辑校验器强制安全不变量（填表与提交分离、发布/回复必须走审批、run/视图结构完整），并输出能力集与警告；进 harness（1408/0）。
+- **DPP Studio 自定义适配包工作台（0.8.3 第一批）**：设置 › AI › DPP 协议 › 第三方适配新增 Author…——载入 ops 模板或已安装包、编辑协议 JSON、校验契约、在当前标签页**只读试抽取**（打印前几条字段值，不执行 compose/publish/reply 动作），保存为**禁用草稿**（可显式勾选立即启用）。运营页新增 DPP Ops 就绪矩阵：每个渠道显示适配包/`ops/1` 能力/健康度（ok/suspect/autoDisabled），无适配时明确标注"通用降级"并提供 Author 入口。
+- **官方运营适配包（0.8.3 第一批）**：`docs/dpp-adapters/ops/` 新增经公开 DOM 核对的 `v2ex-ops`（主题回复）、`hackernews-ops`（条目/用户评论）、`juejin-ops`（文章评论 + 只填不发的回复）、`juejin-compose-ops`（沸点填表 + 人工批准的发布）；README 写明契约、安装、验证与"需登录的渠道用 Studio 自建"的边界。适配包元数据新增 `opsVersion/verifiedAt`，健康记录持久化（最近成功/失败/错误），桥 `/dpp/adapters` 透出能力、ops 版本、校验错误与健康明细；Agent `saveDPPAdapter` 接入 ops 校验，默认保存为禁用草稿（`enabled=true` 才直接启用）。
+
 ### Fixed
 
 - **思考等级按服务能力映射（0.8.3）**：部分网关的取值表不是标准词——实测 AMD 网关返回 `Supported types are xhigh (default), medium, and low`，发 `high` 会 400（用户看到的"最高不支持"）。现在从服务端报错里解析支持列表并按 `endpoint|model` 记住：UI 选 Highest（high）映射到该服务的最大档 `xhigh`/`max`，Medium/Low 各取对应词；菜单只列这个模型真正支持的档位，明确不支持时才显示 Off + 原因。不再自动把全局设置改成 Off，也不再往对话里塞降级提示。

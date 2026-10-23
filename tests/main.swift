@@ -2004,6 +2004,170 @@ func testDPPAdapter() {
 }
 testDPPAdapter()
 
+// ---------- DPP 运营契约（v0.8.3：ops profile） ----------
+
+func testDPPOpsContract() {
+    func view(_ item: String, _ fields: [String: String]) -> DesireProtocol.ProtocolView {
+        DesireProtocol.ProtocolView(
+            item: item,
+            fields: fields.mapValues { DesireProtocol.FieldSpec(expression: $0) },
+            pagination: nil)
+    }
+    func action(_ name: String, effects: String?, danger: Bool? = nil,
+                run: String? = #"[{"click":".x"}]"#,
+                params: [String: DesireProtocol.ProtocolParam]? = nil,
+                precondition: String? = nil) -> DesireProtocol.ProtocolAction {
+        DesireProtocol.ProtocolAction(
+            name: name, description: nil, params: params,
+            precondition: precondition, effects: effects, danger: danger,
+            run: run, success: nil)
+    }
+
+    // 非 ops 协议不受影响
+    var plain = DesireProtocol()
+    plain.views["article"] = view("article", ["title": "h1"])
+    let plainReport = DPPOpsContract.report(for: plain)
+    check("ops 契约：普通协议不算 ops", !plainReport.isOps)
+    check("ops 契约：普通协议无错误/警告", plainReport.errors.isEmpty && plainReport.warnings.isEmpty)
+
+    var valid = DesireProtocol()
+    valid.profile = "ops"
+    valid.views["opsAccount"] = view(".account", ["handle": ".handle", "followers": ".followers"])
+    valid.views["opsMetrics"] = view(".metric", ["views": ".views", "likes": ".likes"])
+    valid.views["opsComments"] = view(".comment", ["author": ".author", "text": ".text"])
+    valid.views["opsComposer"] = view(".composer", ["title": "input.title", "body": "textarea"])
+    valid.actions = [
+        action("opsCompose", effects: "local",
+               run: #"[{"fill":{"input.title":"{title}"}},{"fill":{"textarea":"{body}"}}]"#,
+               params: ["title": .init(type: "string", description: nil, required: true),
+                        "body": .init(type: "string", description: nil, required: true)]),
+        action("opsPublish", effects: "persist", danger: true,
+               precondition: ".composer"),
+        action("opsReply", effects: "outbound", danger: true,
+               run: #"[{"fill":{"textarea.reply":"{text}"}}]"#),
+        action("opsSearch", effects: "local",
+               run: #"[{"fill":{"input.search":"{q}"}},{"pressKey":{"Enter":true}}]"#),
+    ]
+    valid.signals["opsReady"] = ".composer"
+    valid.signals["opsLoginRequired"] = "a[href*=login]"
+    let report = DPPOpsContract.report(for: valid)
+    check("ops 契约：识别 ops 协议", report.isOps)
+    check("ops 契约：能力含账户/指标/评论/发布/回复",
+          report.capabilities.isSuperset(of: [.account, .metrics, .comments, .composer,
+                                              .compose, .publish, .reply, .search]))
+    check("ops 契约：合法协议无错误", report.errors.isEmpty)
+    check("ops 契约：合法协议无警告", report.warnings.isEmpty)
+    check("ops 契约：validate 同口径", DPPOpsContract.validate(valid).errors.isEmpty)
+
+    // 安全不变量：填表动作不得提交/危险
+    var badCompose = valid
+    badCompose.actions = valid.actions.map { a in
+        var x = a
+        if x.name == "opsCompose" { x.effects = "persist" }
+        return x
+    }
+    check("ops 契约：compose 用 persist 被拒",
+          DPPOpsContract.report(for: badCompose).errors.contains { $0.contains("opsCompose") })
+    var dangerCompose = valid
+    dangerCompose.actions = valid.actions.map { a in
+        var x = a
+        if x.name == "opsCompose" { x.danger = true }
+        return x
+    }
+    check("ops 契约：compose 标 danger 被拒",
+          DPPOpsContract.report(for: dangerCompose).errors.contains { $0.contains("opsCompose") })
+
+    // 发布/回复必须走审批
+    var badPublish = valid
+    badPublish.actions = valid.actions.map { a in
+        var x = a
+        if x.name == "opsPublish" { x.effects = "local"; x.danger = nil }
+        return x
+    }
+    check("ops 契约：publish 用 local 被拒",
+          DPPOpsContract.report(for: badPublish).errors.contains { $0.contains("opsPublish") })
+    var badReply = valid
+    badReply.actions = valid.actions.map { a in
+        var x = a
+        if x.name == "opsReply" { x.effects = "local"; x.danger = nil }
+        return x
+    }
+    check("ops 契约：reply 用 local 被拒",
+          DPPOpsContract.report(for: badReply).errors.contains { $0.contains("opsReply") })
+
+    // 结构：run / 视图 / 重复动作 / 空信号
+    var badRun = valid
+    badRun.actions = valid.actions.map { a in
+        var x = a
+        if x.name == "opsPublish" { x.run = nil }
+        return x
+    }
+    check("ops 契约：缺 run 被拒",
+          DPPOpsContract.report(for: badRun).errors.contains { $0.contains("opsPublish.run") })
+    var badView = valid
+    badView.views["opsMetrics"] = view("", [:])
+    let badViewReport = DPPOpsContract.report(for: badView)
+    check("ops 契约：空 item/fields 被拒",
+          badViewReport.errors.contains { $0.contains("opsMetrics.item") }
+          && badViewReport.errors.contains { $0.contains("opsMetrics.fields") })
+    var duplicate = valid
+    duplicate.actions.append(action("opsCompose", effects: "local"))
+    check("ops 契约：重复动作名被拒",
+          DPPOpsContract.report(for: duplicate).errors.contains { $0.contains("duplicate") })
+    var emptySignal = valid
+    emptySignal.signals["opsReady"] = "  "
+    check("ops 契约：空信号选择器被拒",
+          DPPOpsContract.report(for: emptySignal).errors.contains { $0.contains("opsReady") })
+
+    // 模板：能解码成 adapter，结构合法（占位符只给警告）
+    let template = DPPOpsContract.templateAdapterJSON(host: "example.com", platform: "X")
+    let (templateAdapter, templateError) = DPPAdapter.decode(Data(template.utf8))
+    check("ops 契约：模板可解码为 adapter", templateAdapter != nil && templateError == nil)
+    let templateReport = DPPOpsContract.report(for: templateAdapter?.protocolBody ?? DesireProtocol())
+    check("ops 契约：模板被识别为 ops", templateReport.isOps)
+    check("ops 契约：模板结构无错误", templateReport.errors.isEmpty)
+    check("ops 契约：模板占位符给警告", templateReport.warnings.contains { $0.contains("placeholder") })
+    check("ops 契约：模板覆盖 compose/publish/reply",
+          templateReport.capabilities.isSuperset(of: [.compose, .publish, .reply]))
+    check("ops 契约：建议包名", DPPOpsContract.suggestedName(host: "www.example.com", platform: "X") == "example-ops")
+
+    // missing profile 只警告
+    var noProfile = valid
+    noProfile.profile = nil
+    let noProfileReport = DPPOpsContract.report(for: noProfile)
+    check("ops 契约：缺 profile 仍识别", noProfileReport.isOps)
+    check("ops 契约：缺 profile 给警告",
+          noProfileReport.warnings.contains { $0.contains("profile") })
+}
+testDPPOpsContract()
+
+// ---------- 官方运营适配包（ops/1）----------
+
+func testOpsAdapterPack() {
+    let dir = "docs/dpp-adapters/ops"
+    let files = ((try? FileManager.default.contentsOfDirectory(atPath: dir)) ?? [])
+        .filter { $0.hasSuffix(".json") }
+        .sorted()
+    check("ops 包：至少 3 个运营适配包", files.count >= 3)
+    for file in files {
+        let path = "\(dir)/\(file)"
+        guard let data = try? Data(contentsOf: URL(fileURLWithPath: path)) else {
+            check("ops 包：\(file) 可读", false)
+            continue
+        }
+        let (adapter, error) = DPPAdapter.decode(data)
+        check("ops 包：\(file) 解码", adapter != nil && error == nil)
+        guard let adapter else { continue }
+        check("ops 包：\(file) 标 opsVersion", adapter.opsVersion == 1)
+        let report = DPPOpsContract.report(for: adapter.protocolBody)
+        check("ops 包：\(file) 识别为 ops", report.isOps)
+        check("ops 包：\(file) 无契约错误",
+              report.errors.isEmpty)
+        check("ops 包：\(file) 至少一项能力", !report.capabilities.isEmpty)
+    }
+}
+testOpsAdapterPack()
+
 func testDPPSections() {
     // 嵌套 content.sections（页面声明标准形态）
     let nested = dppDecode("""

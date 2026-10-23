@@ -1,0 +1,56 @@
+{
+  "format": "desire/adapter-1",
+  "name": "v2ex-ops",
+  "hosts": [
+    "v2ex.com",
+    ".v2ex.com"
+  ],
+  "pathPrefixes": [
+    "/t/"
+  ],
+  "notes": "ops/1（2026-10-23 公开 DOM 核对）：主题页回复 → opsComments。回复/发帖需登录，未声明动作（用 Studio 自建）。",
+  "opsVersion": 1,
+  "protocolBody": {
+    "protocolVersion": "desire/1",
+    "profile": "ops",
+    "pageType": "ops",
+    "contentMain": "#Main",
+    "sections": {
+      "topic": "#Main .box:first-child",
+      "replies": "#Main .box"
+    },
+    "ignore": [
+      "#Top",
+      "#Bottom",
+      ".box .cell .fr",
+      "[class*='ad']",
+      "[class*='banner']"
+    ],
+    "views": {
+      "opsComments": {
+        "item": "div[id^='r_'].cell",
+        "fields": {
+          "author": "a[href^='/member/']",
+          "text": ".reply_content",
+          "floor": ".no"
+        }
+      },
+      "opsMentions": {
+        "item": "div[id^='r_'].cell",
+        "fields": {
+          "author": "a[href^='/member/']",
+          "text": ".reply_content"
+        }
+      }
+    },
+    "signals": {
+      "opsReady": "#Main",
+      "opsLoginRequired": "a[href='/signin'], a[href^='/signin']",
+      "opsBusy": ".loading, .cell .fr img[src*='loading']"
+    },
+    "context": {
+      "channelSlug": "v2ex",
+      "note": "V2EX 主题页。回复是服务端渲染（结构稳定）；回复框需要登录，登录后可在 Studio 里补 opsComposer/opsReply。"
+    }
+  }
+}

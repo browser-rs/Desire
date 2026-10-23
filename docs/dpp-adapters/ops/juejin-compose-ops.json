@@ -1,0 +1,69 @@
+{
+  "format": "desire/adapter-1",
+  "name": "juejin-compose-ops",
+  "hosts": [
+    "juejin.cn",
+    ".juejin.cn"
+  ],
+  "pathPrefixes": [
+    "/pins/",
+    "/editor/"
+  ],
+  "notes": "ops/1（复用 2026-10-11 核对过的掘金创作页选择器）：填沸点 → opsCompose（只填）；发布 → opsPublish（persist，人工批准）。",
+  "opsVersion": 1,
+  "protocolBody": {
+    "protocolVersion": "desire/1",
+    "profile": "ops",
+    "pageType": "ops",
+    "contentMain": "[class*='pin-editor'], [class*='editor']",
+    "ignore": [
+      "nav",
+      "footer",
+      "[class*='sidebar']",
+      "[class*='banner']"
+    ],
+    "views": {
+      "opsComposer": {
+        "item": "[class*='pin-editor'], [class*='editor'], .CodeMirror",
+        "fields": {
+          "body": ".rich-editor[contenteditable], .rich-editor",
+          "title": "input.title-input",
+          "articleBody": ".CodeMirror",
+          "submit": ".pin-editor-bottom button.submit, .pin-editor-bottom button"
+        }
+      }
+    },
+    "signals": {
+      "opsReady": ".rich-editor, input.title-input, .CodeMirror",
+      "opsLoginRequired": ".login-btn, a[href*='/login']",
+      "opsBusy": "[class*='loading']"
+    },
+    "actions": [
+      {
+        "name": "opsCompose",
+        "description": "把正文填入沸点编辑器（只填，不发布）。空内容时发布按钮 disabled；用户检查后自己点发布。",
+        "params": {
+          "body": {
+            "type": "string",
+            "required": true,
+            "description": "沸点正文"
+          }
+        },
+        "run": "[{\"fill\": {\".rich-editor[contenteditable]\": \"{body}\"}}]",
+        "effects": "local"
+      },
+      {
+        "name": "opsPublish",
+        "description": "发布已填好的沸点（公开可见）。必须人工批准；发布前向用户复述全文。",
+        "run": "[{\"click\": \".pin-editor-bottom button.submit, .pin-editor-bottom button\"}]",
+        "effects": "persist",
+        "danger": true,
+        "precondition": ".pin-editor-bottom button"
+      }
+    ],
+    "context": {
+      "channelSlug": "juejin",
+      "note": "掘金创作页（沸点）。填表与发布是两个动作；正文 CodeMirror 走 executeJS，不在此声明。"
+    }
+  }
+}

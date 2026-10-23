@@ -730,6 +730,7 @@ final class AutomationServer {
         ep("GET", "/dpp/adapters", "Third-party DPP adapter packages (list + enabled + loadErrors)", example: "…/dpp/adapters")
         ep("POST", "/dpp/adapters/verify", "Live-verify adapter packs against open matching tabs — reports per-view element counts (rot detection, design review #8)", example: "-d '{}'")
         ep("POST", "/dpp/adapters/import", "Import an adapter JSON file by absolute path (same-name = overwrite)", params: ["path:string"], example: #"-d '{"path":"/tmp/juejin.json"}'"#)
+        ep("POST", "/dpp/adapters/draft", "Validate and save a DPP adapter as a DISABLED draft (ops/1 safety contract enforced); enabled=true enables it immediately", params: ["name:string", "hosts:[string]", "pathPrefixes?:[string]", "notes?:string", "protocolBody:object", "enabled?:bool"], example: #"-d '{"name":"demo-ops","hosts":["example.com"],"protocolBody":{"profile":"ops","views":{}},"enabled":false}'"#)
         ep("POST", "/dpp/adapters/install", "Install an adapter JSON from an http(s) URL (community distribution)", params: ["url:string"], example: #"-d '{"url":"https://…/juejin.json"}'"#)
         ep("POST", "/dpp/adapters/toggle", "Enable/disable an adapter by name", params: ["name:string", "enabled:bool"], example: #"-d '{"name":"juejin","enabled":false}'"#)
         ep("POST", "/dpp/adapters/remove", "Delete an adapter package", params: ["name:string"], example: #"-d '{"name":"juejin"}'"#)
@@ -1593,9 +1594,20 @@ final class AutomationServer {
                 let store = DPPAdapterStore.shared
                 return try Self.json([
                     "adapters": store.adapters.map { a in
-                        ["name": a.name, "hosts": a.hosts, "pathPrefixes": a.pathPrefixes,
+                        let ops = DPPOpsContract.report(for: a.protocolBody)
+                        let record = store.healthRecord(for: a.name)
+                        return ["name": a.name, "hosts": a.hosts, "pathPrefixes": a.pathPrefixes,
                          "enabled": store.isEnabled(a), "notes": a.notes,
                          "health": store.health(of: a.name),
+                         "lastSuccessAt": record?.lastSuccessAt?.timeIntervalSince1970 ?? 0,
+                         "lastFailureAt": record?.lastFailureAt?.timeIntervalSince1970 ?? 0,
+                         "lastError": record?.lastError ?? "",
+                         "failureCount": record?.failureCount ?? 0,
+                         "successCount": record?.successCount ?? 0,
+                         "opsVersion": a.opsVersion ?? 0,
+                         "verifiedAt": a.verifiedAt?.timeIntervalSince1970 ?? 0,
+                         "capabilities": ops.orderedCapabilities.map(\.rawValue),
+                         "opsErrors": ops.errors,
                          "sourceURL": a.sourceURL ?? "",
                          "installedAt": a.installedAt?.timeIntervalSince1970 ?? 0,
                          "views": Array(a.protocolBody.views.keys),
@@ -1610,6 +1622,49 @@ final class AutomationServer {
                 do {
                     let a = try DPPAdapterStore.shared.importFile(at: URL(fileURLWithPath: path))
                     return try Self.json(["ok": true, "name": a.name, "hosts": a.hosts])
+                } catch {
+                    return try Self.json(["error": error.localizedDescription])
+                }
+            case ("POST", "/dpp/adapters/draft"):
+                // Studio/自动化的落盘入口（v0.8.3）：校验 ops 契约后保存为
+                // 禁用草稿；enabled=true 才直接启用。协议体是内联 JSON。
+                guard let name = Self.string(body, "name") else {
+                    return try Self.json(["error": "missing name"])
+                }
+                guard let hosts = body["hosts"] as? [String], !hosts.isEmpty else {
+                    return try Self.json(["error": "missing hosts"])
+                }
+                let paths = (body["pathPrefixes"] as? [String]) ?? []
+                guard let protoRaw = body["protocolBody"],
+                      JSONSerialization.isValidJSONObject(protoRaw),
+                      let protoData = try? JSONSerialization.data(withJSONObject: protoRaw),
+                      let proto = try? JSONDecoder().decode(DesireProtocol.self, from: protoData) else {
+                    return try Self.json(["error": "protocolBody must be a valid DPP JSON object"])
+                }
+                let structural = DPPAdapterAuthoring.validate(name: name, hosts: hosts, pathPrefixes: paths)
+                guard structural.isEmpty else {
+                    return try Self.json(["error": structural.joined(separator: "; ")])
+                }
+                let ops = DPPOpsContract.report(for: proto)
+                guard ops.errors.isEmpty else {
+                    return try Self.json(["error": ops.errors.joined(separator: "; "),
+                                          "warnings": ops.warnings])
+                }
+                let adapter = DPPAdapter(
+                    name: name, hosts: hosts, pathPrefixes: paths,
+                    protocolBody: proto,
+                    notes: (body["notes"] as? String) ?? "",
+                    opsVersion: ops.isOps ? DPPOpsContract.version : nil,
+                    verifiedAt: ops.isOps ? Date() : nil)
+                do {
+                    try DPPAdapterStore.shared.saveDraft(adapter)
+                    let enabled = (body["enabled"] as? Bool) ?? false
+                    if enabled { DPPAdapterStore.shared.setEnabled(true, for: name) }
+                    return try Self.json([
+                        "ok": true, "name": name, "enabled": enabled,
+                        "capabilities": ops.orderedCapabilities.map(\.rawValue),
+                        "warnings": ops.warnings,
+                    ])
                 } catch {
                     return try Self.json(["error": error.localizedDescription])
                 }

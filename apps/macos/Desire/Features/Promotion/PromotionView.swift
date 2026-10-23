@@ -34,6 +34,9 @@ struct PromotionView: View {
     /// 自动化开关的刷新源（定时任务增删时重绘）。
     @ObservedObject private var scheduler = AgentScheduler.shared
     @ObservedObject private var playbookStore = PlaybookStore.shared
+    /// DPP 运营就绪矩阵（v0.8.3）：渠道 → 适配包/能力/健康度。
+    @ObservedObject private var dppAdapters = DPPAdapterStore.shared
+    @State private var dppStudioRequest: DPPStudioRequest?
     @State private var runningPlaybook: Playbook?
     @State private var editingPlaybook: Playbook?
 
@@ -44,6 +47,7 @@ struct PromotionView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     goalsSection
                     campaignsSection
+                    dppOpsSection
                     mentionRadarSection
                     accountsSection
                     interactionsSection
@@ -63,6 +67,9 @@ struct PromotionView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .sheet(isPresented: $isCreatingGoal) { PromotionGoalEditorSheet() }
         .sheet(isPresented: $isCreatingCampaign) { PromotionCampaignEditorSheet() }
+        .sheet(item: $dppStudioRequest) { request in
+            DPPStudioSheet(initialHost: request.host, initialPlatform: request.platform)
+        }
         .sheet(item: $runningPlaybook) { playbook in
             PlaybookRunSheet(playbook: playbook) { prompt in
                 onSendToAgent?(prompt)
@@ -319,6 +326,104 @@ struct PromotionView: View {
         }
         .padding(10)
         .background(cardBackground)
+    }
+
+    // MARK: - DPP Ops readiness（v0.8.3）
+
+    /// 渠道 → DPP 运营适配包就绪矩阵：有适配包的显示能力与健康度，
+    /// 没有的明确标"通用降级"并提供 Studio 入口。页面原生声明优先于适配包
+    /// （这里只能看到已安装的包；站点自带声明在页面上生效）。
+    @ViewBuilder
+    private var dppOpsSection: some View {
+        let channels = PromotionChannel.presets.filter(\.isEnabled)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                sectionHeader(String(localized: "DPP Ops"), count: channels.count)
+                Spacer()
+                Button(String(localized: "Reload")) { dppAdapters.reload() }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 10.5, weight: .medium))
+                    .foregroundStyle(appAccent)
+            }
+            ForEach(channels) { channel in
+                dppOpsRow(channel)
+            }
+            Text(String(localized: "Adapters are declarative JSON (no code). Publish/reply actions always require your approval; adapters you author are saved disabled until you enable them."))
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func dppOpsRow(_ channel: PromotionChannel) -> some View {
+        let host = channelHost(channel)
+        let adapter = dppAdapters.adapters.first { !host.isEmpty && $0.matchesHost(host) }
+        let report = adapter.map { DPPOpsContract.report(for: $0.protocolBody) }
+        let capabilities = report?.orderedCapabilities ?? []
+        let health = adapter.map { dppAdapters.health(of: $0.name) } ?? "ok"
+        return HStack(alignment: .top, spacing: 10) {
+            Image(systemName: adapter == nil ? "exclamationmark.triangle" : "checkmark.seal")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(adapter == nil ? .orange : appAccent)
+                .frame(width: 18)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(channel.platform)
+                        .font(.system(size: 12.5, weight: .semibold))
+                    if let adapter {
+                        Text(adapter.name)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                        if let version = adapter.opsVersion {
+                            Text("ops/\(version)")
+                                .font(.system(size: 9.5, weight: .medium))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                                .foregroundStyle(.secondary)
+                        }
+                        if !dppAdapters.isEnabled(adapter) {
+                            Text(String(localized: "disabled"))
+                                .font(.system(size: 9.5, weight: .medium))
+                                .foregroundStyle(.orange)
+                        }
+                        if health != "ok" {
+                            Text(health)
+                                .font(.system(size: 9.5, weight: .medium))
+                                .foregroundStyle(health == "autoDisabled" ? .red : .orange)
+                        }
+                    }
+                }
+                Text(host.isEmpty ? String(localized: "No host configured") : host)
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                if capabilities.isEmpty {
+                    Text(String(localized: "No ops adapter — generic agent fallback (author one to make it deterministic)."))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text(capabilities.map(\.shortLabel).joined(separator: " · "))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer(minLength: 8)
+            Button(String(localized: "Author…")) {
+                dppStudioRequest = DPPStudioRequest(host: host, platform: channel.platform)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(10)
+        .background(cardBackground)
+    }
+
+    /// 渠道对应的适配包匹配 host：优先 composer URL 的 host，其次平台名
+    /// 归一化（适配包作者常用站点主域，匹配仍按 matchesHost 的精确/子域语义）。
+    private func channelHost(_ channel: PromotionChannel) -> String {
+        if let raw = channel.composerURL, let host = URL(string: raw)?.host, !host.isEmpty {
+            return host.lowercased()
+        }
+        return channel.platform.lowercased().replacingOccurrences(of: " ", with: "")
     }
 
     // MARK: - Mention Radar（v0.8.2）

@@ -1834,14 +1834,29 @@ extension BrowserToolProvider {
             body.signals = signals
             body.actions = actions
 
+            // 运营契约（v0.8.3）：声明了任何 ops* 名字就按 ops/1 校验——
+            // 填表与提交分离、发布/回复必须走审批。错误拒收，警告随回执透出。
+            let opsReport = DPPOpsContract.report(for: body)
+            if opsReport.isOps {
+                body.profile = DPPOpsContract.profileName
+                guard opsReport.errors.isEmpty else {
+                    return Self.fail("Ops contract violation: " + opsReport.errors.joined(separator: "; "))
+                }
+            }
+
             // 校验（名字/hosts/前缀）+ 渲染带 adapter 戳的包 JSON
             let errors = DPPAdapterAuthoring.validate(name: name, hosts: hosts, pathPrefixes: pathPrefixes)
             guard errors.isEmpty else {
                 return Self.fail("Invalid adapter: " + errors.joined(separator: "; "))
             }
+            // 默认保存为**禁用草稿**：适配包会真实参与解析与动作，启用是用户的
+            // 显式动作（enabled=true 时才是已确认后的直接启用）。
+            let enabled = args["enabled"] as? Bool ?? false
             guard let data = DPPAdapterAuthoring.markdown(
                 name: name, hosts: hosts, pathPrefixes: pathPrefixes,
-                notes: notes, protocolBody: body) else {
+                notes: notes, protocolBody: body,
+                opsVersion: opsReport.isOps ? DPPOpsContract.version : nil,
+                verifiedAt: opsReport.isOps ? Date() : nil) else {
                 return Self.fail("Failed to render adapter JSON")
             }
             let fileName = FilePathing.sanitizeFileName(name) + ".json"
@@ -1853,6 +1868,7 @@ extension BrowserToolProvider {
                 return Self.fail("write failed: \(error.localizedDescription)")
             }
             DPPAdapterStore.shared.reload()
+            DPPAdapterStore.shared.setEnabled(enabled, for: name)
             // 当前页就是该站点时立即生效提示（原生声明优先——若页面已自带声明，适配包只补空白）。
             let currentHost = surface.tabManager?.selectedTab?.browser.webView.url?.host ?? ""
             let applyNote = hosts.contains { h in
@@ -1865,7 +1881,14 @@ extension BrowserToolProvider {
             let riskNote = actions.contains { $0.effects?.lowercased() == "persist" || $0.effects?.lowercased() == "outbound" || $0.danger == true }
                 ? " Actions with persist/outbound effects still go through the approval flow on every use."
                 : ""
-            return "DPP adapter \(existed ? "updated" : "saved"): \(name) (\(views.count) view(s), \(actions.count) action(s)) for \(hosts.joined(separator: ", ")).\(applyNote)\(riskNote)"
+            let opsNote = opsReport.isOps
+                ? " ops/1: \(opsReport.orderedCapabilities.map(\.shortLabel).joined(separator: ", "))"
+                + (opsReport.warnings.isEmpty ? "" : " · warnings: " + opsReport.warnings.joined(separator: "; "))
+                : ""
+            let stateNote = enabled
+                ? " Saved enabled."
+                : " Saved DISABLED — review it in Settings › AI › DPP Protocol › Third-Party Adapters and enable it."
+            return "DPP adapter \(existed ? "updated" : "saved"): \(name) (\(views.count) view(s), \(actions.count) action(s)) for \(hosts.joined(separator: ", ")).\(opsNote)\(stateNote)\(applyNote)\(riskNote)"
 
         case "saveSkill":
             // 技能自沉淀闭环：模型把刚跑通的多步工作流存成

@@ -26660,6 +26660,28 @@
         }
       }
     },
+    "Not supported" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not supported"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支持"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不支援"
+          }
+        }
+      }
+    },
     "Note" : {
       "localizations" : {
         "en" : {
@@ -35934,6 +35956,28 @@
         }
       }
     },
+    "Sent to this service as %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent to this service as %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按此服务的取值发送：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "依此服務的取值傳送：%@"
+          }
+        }
+      }
+    },
     "Server" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -40679,8 +40723,27 @@
         }
       }
     },
-    "This model doesn't support the selected thinking level — switched to Off and retrying." : {
-
+    "This model doesn't support adjustable thinking levels." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This model doesn't support adjustable thinking levels."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此模型不支持调节思考等级。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此模型不支援調整思考等級。"
+          }
+        }
+      }
     },
     "This Month" : {
       "localizations" : {
@@ -40863,6 +40926,28 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "將清零全部計數與最近攔截列表，不可恢復。"
+          }
+        }
+      }
+    },
+    "This service supports: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This service supports: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此服务支持：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此服務支援：%@"
           }
         }
       }
@@ -46702,90 +46787,574 @@
         }
       }
     },
-    "Not supported" : {
+    "DPP Studio" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Not supported"
+            "value" : "DPP Studio"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "不支持"
+            "value" : "DPP 工作台"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "不支援"
+            "value" : "DPP 工作臺"
           }
         }
       }
     },
-    "This model doesn't support adjustable thinking levels." : {
+    "Author a custom adapter for a site that doesn't declare DPP. Saved disabled — enable it yourself after review." : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This model doesn't support adjustable thinking levels."
+            "value" : "Author a custom adapter for a site that doesn't declare DPP. Saved disabled — enable it yourself after review."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此模型不支持调节思考等级。"
+            "value" : "为一个尚未声明 DPP 的站点编写自定义适配包。默认保存为禁用，复核后由你手动启用。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此模型不支援調整思考等級。"
+            "value" : "為一個尚未宣告 DPP 的站點編寫自訂適配包。預設儲存為停用，複核後由你手動啟用。"
           }
         }
       }
     },
-    "Sent to this service as %@" : {
+    "Load Ops Template" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sent to this service as %@"
+            "value" : "Load Ops Template"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "按此服务的取值发送：%@"
+            "value" : "载入运营模板"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "依此服務的取值傳送：%@"
+            "value" : "載入營運範本"
           }
         }
       }
     },
-    "This service supports: %@" : {
+    "Load Installed Adapter" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This service supports: %@"
+            "value" : "Load Installed Adapter"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此服务支持：%@"
+            "value" : "载入已安装适配包"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此服務支援：%@"
+            "value" : "載入已安裝適配包"
+          }
+        }
+      }
+    },
+    "Format JSON" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Format JSON"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "格式化 JSON"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "格式化 JSON"
+          }
+        }
+      }
+    },
+    "Validate" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Validate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "校验"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "校驗"
+          }
+        }
+      }
+    },
+    "Test extraction (read-only)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Test extraction (read-only)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "测试抽取（只读）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "測試擷取（唯讀）"
+          }
+        }
+      }
+    },
+    "Run on Current Tab" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Run on Current Tab"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在当前标签页运行"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在目前分頁執行"
+          }
+        }
+      }
+    },
+    "Read-only: the studio never runs compose/publish/reply actions. It only counts items and prints the first few field values." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read-only: the studio never runs compose/publish/reply actions. It only counts items and prints the first few field values."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只读：工作台不会执行 compose/publish/reply 动作，只统计条目数并显示前几个字段值。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "唯讀：工作臺不會執行 compose/publish/reply 動作，只統計條目數並顯示前幾個欄位值。"
+          }
+        }
+      }
+    },
+    "Enable immediately" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enable immediately"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存后立即启用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存後立即啟用"
+          }
+        }
+      }
+    },
+    "Save Draft" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save Draft"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存为草稿"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存為草稿"
+          }
+        }
+      }
+    },
+    "Protocol JSON is invalid: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Protocol JSON is invalid: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "协议 JSON 无效：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "協定 JSON 無效：%@"
+          }
+        }
+      }
+    },
+    "No view named %@." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No view named %@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有名为 %@ 的视图。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有名為 %@ 的檢視。"
+          }
+        }
+      }
+    },
+    "No active browser tab." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No active browser tab."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有活动的浏览器标签页。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有使用中的瀏覽器分頁。"
+          }
+        }
+      }
+    },
+    "Note: this page already declares DPP — native declarations win over adapters.\n\n" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Note: this page already declares DPP — native declarations win over adapters.\n\n"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "注意：此页面已自带 DPP 声明——页面原生声明优先于适配包。\n\n"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "注意：此頁面已自帶 DPP 宣告——頁面原生宣告優先於適配包。\n\n"
+          }
+        }
+      }
+    },
+    "Saved and enabled: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved and enabled: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保存并启用：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已儲存並啟用：%@"
+          }
+        }
+      }
+    },
+    "Saved disabled: %@. Enable it in Settings › AI › DPP Protocol › Third-Party Adapters." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved disabled: %@. Enable it in Settings › AI › DPP Protocol › Third-Party Adapters."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已保存为禁用：%@。在 设置 › AI › DPP 协议 › 第三方适配 中启用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已儲存為停用：%@。在 設定 › AI › DPP 協定 › 第三方適配 中啟用。"
+          }
+        }
+      }
+    },
+    "Hosts (comma separated)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hosts (comma separated)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hosts（逗号分隔）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hosts（逗號分隔）"
+          }
+        }
+      }
+    },
+    "Path prefixes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Path prefixes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路径前缀"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "路徑前綴"
+          }
+        }
+      }
+    },
+    "Notes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "备注"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "備註"
+          }
+        }
+      }
+    },
+    "Author…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Author…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "编写…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編寫…"
+          }
+        }
+      }
+    },
+    "Open DPP Studio and author a custom adapter for the current site (saved disabled)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open DPP Studio and author a custom adapter for the current site (saved disabled)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 DPP 工作台，为当前站点编写自定义适配包（默认禁用）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟 DPP 工作臺，為目前站點編寫自訂適配包（預設停用）"
+          }
+        }
+      }
+    },
+    "DPP Ops" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DPP Ops"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DPP 运营"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DPP 營運"
+          }
+        }
+      }
+    },
+    "No host configured" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No host configured"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未配置 host"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未設定 host"
+          }
+        }
+      }
+    },
+    "No ops adapter — generic agent fallback (author one to make it deterministic)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No ops adapter — generic agent fallback (author one to make it deterministic)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有运营适配包——回退到通用智能体（编写适配包可获得确定性）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有營運適配包——回退到通用智慧體（編寫適配包可獲得確定性）。"
+          }
+        }
+      }
+    },
+    "Adapters are declarative JSON (no code). Publish/reply actions always require your approval; adapters you author are saved disabled until you enable them." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adapters are declarative JSON (no code). Publish/reply actions always require your approval; adapters you author are saved disabled until you enable them."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "适配包是声明式 JSON（零代码）。发布/回复动作始终需要你批准；你编写的适配包在启用前保持禁用。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "適配包是宣告式 JSON（零程式碼）。發布/回覆動作始終需要你批准；你編寫的適配包在啟用前保持停用。"
           }
         }
       }

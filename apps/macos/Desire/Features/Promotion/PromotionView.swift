@@ -43,6 +43,7 @@ struct PromotionView: View {
     @State private var replyInteraction: PromotionInteraction?
     @State private var isCreatingExperiment = false
     @State private var editingExperiment: PromotionExperiment?
+    @State private var showMetricsImport = false
     @State private var runningPlaybook: Playbook?
     @State private var editingPlaybook: Playbook?
 
@@ -56,6 +57,7 @@ struct PromotionView: View {
                     dppOpsSection
                     PromotionCalendarSection(onSendToAgent: onSendToAgent)
                     experimentsSection
+                    PromotionMarketWatchSection(onSendToAgent: onSendToAgent)
                     mentionRadarSection
                     accountsSection
                     interactionsSection
@@ -89,6 +91,9 @@ struct PromotionView: View {
         }
         .sheet(item: $editingExperiment) { experiment in
             PromotionExperimentEditorSheet(experiment: experiment)
+        }
+        .sheet(isPresented: $showMetricsImport) {
+            PromotionMetricsImportSheet()
         }
         .sheet(item: $runningPlaybook) { playbook in
             PlaybookRunSheet(playbook: playbook) { prompt in
@@ -128,6 +133,9 @@ struct PromotionView: View {
             Text("Operations")
                 .font(.system(size: 13, weight: .semibold))
             Spacer()
+            HoverIcon(systemName: "square.and.arrow.down",
+                      action: { showMetricsImport = true },
+                      help: String(localized: "Import platform metrics (CSV/TSV)"))
             if let onSendToAgent {
                 HoverIcon(systemName: "play.circle",
                           action: {

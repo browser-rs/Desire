@@ -3232,6 +3232,71 @@ func testPromotionExperiment() {
 testPromotionExperiment()
 
 
+// ---------- 竞品/市场监测 diff（v0.8.3） ----------
+
+func testPromotionCompetitorDiff() {
+    let first = PromotionCompetitorDiff.diff(old: nil, new: "价格 99\n功能 A")
+    check("competitor：首次快照标记变化", first.changed && first.summary.contains("First snapshot"))
+    let normalized = PromotionCompetitorDiff.normalize("  价格   99  \r\n\n功能\tA  ")
+    eq("competitor：归一化空白/空行", normalized, "价格 99\n功能 A")
+    let same = PromotionCompetitorDiff.diff(old: normalized, new: normalized)
+    check("competitor：无变化安静", !same.changed && same.summary.isEmpty)
+    let changed = PromotionCompetitorDiff.diff(old: "价格 99\n功能 A", new: "价格 199\n功能 A\n新增 B")
+    check("competitor：变化标记", changed.changed)
+    check("competitor：摘要含新增与删除", changed.summary.contains("+") && changed.summary.contains("-") && changed.summary.contains("新增 B"))
+}
+
+testPromotionCompetitorDiff()
+
+// ---------- 指标导入（v0.8.3） ----------
+
+func testPromotionMetricsImport() {
+    let csv = """
+    title,views,likes,comments,url,date
+    "Hello, world","1,200",30,10,https://example.com/a,2026-10-20
+    "Second",3k,2,1,https://example.com/b,2026-10-21
+    """
+    let parsed = PromotionMetricsImport.parse(text: csv)
+    check("导入：CSV 解析两行", parsed.rows.count == 2)
+    check("导入：引号内逗号不拆列", parsed.rows.first?.title == "Hello, world")
+    eq("导入：千分位数字", parsed.rows.first?.views, 1200)
+    eq("导入：k 后缀", parsed.rows.last?.views, 3000)
+    check("导入：日期解析", parsed.rows.first?.date != nil)
+    eq("导入：逗号分隔符", parsed.delimiter, ",")
+
+    let tsv = "标题\t播放\t点赞\t评论\n视频一\t1.2万\t10\t2"
+    let tab = PromotionMetricsImport.parse(text: tsv)
+    check("导入：TSV + 中文表头", tab.rows.count == 1)
+    eq("导入：万后缀", tab.rows.first?.views, 12000)
+    eq("导入：tab 分隔符", tab.delimiter, "\t")
+
+    let bad = PromotionMetricsImport.parse(text: "title,url\nA,https://x")
+    check("导入：缺指标列报错", !bad.errors.isEmpty && bad.errors.contains { $0.contains("metric") })
+
+    eq("导入：数字 1,234", PromotionMetricsImport.parseNumber("1,234"), 1234)
+    eq("导入：数字 2m", PromotionMetricsImport.parseNumber("2m"), 2_000_000)
+    eq("导入：数字 3千", PromotionMetricsImport.parseNumber("3千"), 3000)
+    check("导入：非数字返回 nil", PromotionMetricsImport.parseNumber("abc") == nil)
+
+    let postUrl = PromotionPost(platform: "X", title: "网址匹配", body: "…",
+                                status: .published, url: "https://example.com/a")
+    let postTitle = PromotionPost(platform: "X", title: "标题匹配", body: "…",
+                                  status: .published)
+    let byURL = PromotionMetricsImport.match(
+        row: .init(url: "https://example.com/a/", title: nil, views: 1, likes: nil,
+                   comments: nil, date: nil, raw: []),
+        posts: [postUrl, postTitle])
+    check("导入：URL 末尾斜杠匹配", byURL?.id == postUrl.id)
+    let byTitle = PromotionMetricsImport.match(
+        row: .init(url: nil, title: "标题匹配", views: 1, likes: nil, comments: nil,
+                   date: nil, raw: []),
+        posts: [postUrl, postTitle])
+    check("导入：标题匹配", byTitle?.id == postTitle.id)
+}
+testPromotionMetricsImport()
+
+
+
 // ---------- 运营周报（PromotionReport 纯逻辑） ----------
 
 func testPromotionReport() {

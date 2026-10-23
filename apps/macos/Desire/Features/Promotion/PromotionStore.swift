@@ -24,6 +24,8 @@ final class PromotionStore: ObservableObject {
     @Published private(set) var mentionSources: [MentionSource] = []
     /// 增长实验（v0.8.3）：假设/变体/计划样本/决策。
     @Published private(set) var experiments: [PromotionExperiment] = []
+    /// 竞品/市场监测来源（v0.8.3）。
+    @Published private(set) var competitorSources: [PromotionCompetitorSource] = []
 
     private static let goalsKey = "promotion.goals"
     private static let postsKey = "promotion.posts"
@@ -33,6 +35,7 @@ final class PromotionStore: ObservableObject {
     private static let campaignsKey = "promotion.campaigns"
     private static let mentionSourcesKey = "promotion.mentionSources"
     private static let experimentsKey = "promotion.experiments"
+    private static let competitorSourcesKey = "promotion.competitorSources"
 
     private init() {
         goals = DiskStore.load([PromotionGoal].self, key: Self.goalsKey) ?? []
@@ -43,6 +46,8 @@ final class PromotionStore: ObservableObject {
         campaigns = DiskStore.load([PromotionCampaign].self, key: Self.campaignsKey) ?? []
         mentionSources = DiskStore.load([MentionSource].self, key: Self.mentionSourcesKey) ?? []
         experiments = DiskStore.load([PromotionExperiment].self, key: Self.experimentsKey) ?? []
+        competitorSources = DiskStore.load([PromotionCompetitorSource].self,
+                                           key: Self.competitorSourcesKey) ?? []
     }
 
     // MARK: - 目标
@@ -575,6 +580,90 @@ final class PromotionStore: ObservableObject {
         experiments.first { $0.id == id }
     }
 
+    // MARK: - 竞品/市场监测（v0.8.3）
+
+    @discardableResult
+    func addCompetitorSource(name: String, url: String, note: String = "") -> PromotionCompetitorSource? {
+        let cleanName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleanURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleanName.isEmpty,
+              let parsed = URL(string: cleanURL),
+              parsed.scheme == "http" || parsed.scheme == "https" else { return nil }
+        let source = PromotionCompetitorSource(name: cleanName, url: cleanURL, note: note)
+        competitorSources.insert(source, at: 0)
+        persistCompetitorSources()
+        return source
+    }
+
+    @discardableResult
+    func updateCompetitorSource(_ id: UUID, name: String? = nil, url: String? = nil,
+                                note: String? = nil, enabled: Bool? = nil) -> PromotionCompetitorSource? {
+        guard let idx = competitorSources.firstIndex(where: { $0.id == id }) else { return nil }
+        if let name, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            competitorSources[idx].name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let url {
+            let clean = url.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let parsed = URL(string: clean), parsed.scheme == "http" || parsed.scheme == "https" {
+                competitorSources[idx].url = clean
+            }
+        }
+        if let note { competitorSources[idx].note = note }
+        if let enabled { competitorSources[idx].isEnabled = enabled }
+        persistCompetitorSources()
+        return competitorSources[idx]
+    }
+
+    func removeCompetitorSource(_ id: UUID) {
+        competitorSources.removeAll { $0.id == id }
+        persistCompetitorSources()
+    }
+
+    func competitorSource(id: UUID) -> PromotionCompetitorSource? {
+        competitorSources.first { $0.id == id }
+    }
+
+    func recordCompetitorCheck(_ id: UUID, snapshot: String, changed: Bool,
+                               summary: String, at date: Date = Date()) {
+        guard let idx = competitorSources.firstIndex(where: { $0.id == id }) else { return }
+        competitorSources[idx].lastCheckedAt = date
+        competitorSources[idx].lastSnapshot = snapshot
+        if changed {
+            competitorSources[idx].lastChangeAt = date
+            competitorSources[idx].lastChangeSummary = summary
+        }
+        persistCompetitorSources()
+    }
+
+    // MARK: - 指标导入（v0.8.3）
+
+    /// 导入一条指标；同一天已有快照就覆盖该天数值（同日不重复堆叠）。
+    @discardableResult
+    func recordImportedMetrics(postID: UUID, views: Int?, likes: Int?,
+                               comments: Int?, at date: Date = Date()) -> PromotionPost? {
+        guard let idx = posts.firstIndex(where: { $0.id == postID }) else { return nil }
+        let calendar = Calendar.current
+        if let snapIdx = posts[idx].metricHistory.firstIndex(where: {
+            calendar.isDate($0.at, inSameDayAs: date)
+        }) {
+            if let views { posts[idx].metricHistory[snapIdx].views = views }
+            if let likes { posts[idx].metricHistory[snapIdx].likes = likes }
+            if let comments { posts[idx].metricHistory[snapIdx].comments = comments }
+        } else {
+            posts[idx].metricHistory.append(
+                .init(at: date, views: views, likes: likes, comments: comments))
+        }
+        var metrics = posts[idx].metrics ?? .init()
+        if let views { metrics.views = views }
+        if let likes { metrics.likes = likes }
+        if let comments { metrics.comments = comments }
+        metrics.collectedAt = date
+        posts[idx].metrics = metrics
+        posts[idx].updatedAt = Date()
+        persistPosts()
+        return posts[idx]
+    }
+
     // MARK: - 持久化
 
     private func persistGoals() { DiskStore.save(goals, key: Self.goalsKey) }
@@ -584,6 +673,9 @@ final class PromotionStore: ObservableObject {
     private func persistInteractions() { DiskStore.save(interactions, key: Self.interactionsKey) }
     private func persistCampaigns() { DiskStore.save(campaigns, key: Self.campaignsKey) }
     private func persistExperiments() { DiskStore.save(experiments, key: Self.experimentsKey) }
+    private func persistCompetitorSources() {
+        DiskStore.save(competitorSources, key: Self.competitorSourcesKey)
+    }
     private func persistMentionSources() {
         DiskStore.save(mentionSources, key: Self.mentionSourcesKey)
     }

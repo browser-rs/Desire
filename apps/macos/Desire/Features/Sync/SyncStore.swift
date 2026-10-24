@@ -76,6 +76,7 @@ final class SyncStore: ObservableObject {
     private let settings: Settings
     private let agentPreferenceStore: AgentPreferenceStore
     private let agentMemoryStore = AgentMemoryStore.shared
+    private let promotionStore = PromotionStore.shared
     private var syncTimer: Timer?
     private let defaults = UserDefaults.standard
 
@@ -221,6 +222,7 @@ final class SyncStore: ObservableObject {
         observeLocalChanges(historyStore.objectWillChange, domain: .history)
         observeLocalChanges(WhiteboardStore.shared.objectWillChange, domain: .whiteboard)
         observeLocalChanges(WorkspaceStore.shared.objectWillChange, domain: .workspace)
+        observeLocalChanges(promotionStore.objectWillChange, domain: .promotion)
     }
 
     private func observeLocalChanges(
@@ -886,6 +888,7 @@ final class SyncStore: ObservableObject {
             DomainAdapter(domain: .settings, collect: collectSettings, apply: applySettings, clear: { _, _ in },
                           commit: { self.commitSettingsSnapshot() }),
             DomainAdapter(domain: .agentMemory, collect: collectAgentMemory, apply: applyAgentMemory, clear: clearAgentMemoryPending),
+            DomainAdapter(domain: .promotion, collect: collectPromotion, apply: applyPromotion, clear: clearPromotionPending),
             DomainAdapter(domain: .agentPrefs, collect: collectAgentPrefs, apply: applyAgentPrefs, clear: { _, _ in },
                           commit: { self.commitAgentPrefsSnapshot() }),
             DomainAdapter(domain: .history, collect: collectHistory, apply: applyHistory, clear: clearHistoryPending),
@@ -970,6 +973,7 @@ final class SyncStore: ObservableObject {
             .quickDials: quickDialStore.pendingDeletions.count,
             .readingList: readingListStore.pendingDeletions.count,
             .agentMemory: agentMemoryStore.pendingDeletions.count,
+            .promotion: promotionStore.pendingDeletions.count,
             .history: historyStore.pendingDeletions.count,
             .whiteboard: WhiteboardStore.shared.pendingDeletions.count,
         ]
@@ -1446,6 +1450,124 @@ final class SyncStore: ObservableObject {
     private func clearAgentMemoryPending(_ serverIDs: Set<String>, master: String) {
         agentMemoryStore.clearPendingDeletions(serverIDs) { realID in
             (try? SyncCrypto.hmacClientID(realID, domain: .agentMemory, masterKeyBase64: master)) ?? ""
+        }
+    }
+
+    // MARK: - Promotion sync（v0.9.0 第十一类域）
+
+    private func collectPromotion(master: String) -> [SyncWireItem<SyncEncryptedPayload>] {
+        var items: [SyncWireItem<SyncEncryptedPayload>] = []
+        let promo = promotionStore
+
+        func wire(_ id: UUID, _ updatedAt: Date, _ payload: SyncPromotion.SyncPayload) {
+            items.append(encryptedWire(
+                domain: .promotion, realID: id.uuidString,
+                clientUpdatedAt: updatedAt, deleted: false,
+                payload: payload, master: master))
+        }
+
+        for goal in promo.goals {
+            wire(goal.id, goal.createdAt, .goal(goal))
+        }
+        for post in promo.posts {
+            wire(post.id, post.updatedAt, .post(post))
+        }
+        for account in promo.accounts {
+            wire(account.id, account.createdAt, .account(account))
+        }
+        for exp in promo.experiments {
+            wire(exp.id, exp.updatedAt, .experiment(exp))
+        }
+        for interaction in promo.interactions {
+            wire(interaction.id, interaction.updatedAt, .interaction(interaction))
+        }
+        for campaign in promo.campaigns {
+            wire(campaign.id, campaign.updatedAt, .campaign(campaign))
+        }
+        for source in promo.competitorSources {
+            wire(source.id, source.createdAt, .competitor(source))
+        }
+        // Tombstone
+        for (id, deletedAt) in promo.pendingDeletions {
+            items.append(encryptedTombstone(
+                domain: .promotion, realID: id, clientUpdatedAt: deletedAt, master: master))
+        }
+        return items
+    }
+
+    private func applyPromotion(_ items: [SyncWireItem<SyncEncryptedPayload>], master: String) {
+        let promo = promotionStore
+        var remotePayloads: [(id: String, payload: SyncPromotion.SyncPayload, updatedAt: Date, deleted: Bool)] = []
+        for item in items {
+            guard let encrypted = item.payload,
+                  let decrypted: SyncPromotion.SyncPayload = try? SyncCrypto.decrypt(
+                encrypted, domain: .promotion,
+                masterKeyBase64: master, as: SyncPromotion.SyncPayload.self) else { continue }
+            remotePayloads.append((
+                id: item.clientId,
+                payload: decrypted,
+                updatedAt: item.clientUpdatedAt,
+                deleted: item.deleted ?? false
+            ))
+        }
+        guard !remotePayloads.isEmpty else { return }
+
+        // HMAC 反查表
+        var hmacToEntity: [String: Date] = [:]
+        func register(_ id: UUID, _ updatedAt: Date) {
+            hmacToEntity[SyncPromotion.clientID(for: id.uuidString, masterKeyBase64: master)] = updatedAt
+        }
+        promo.goals.forEach { register($0.id, $0.createdAt) }
+        promo.posts.forEach { register($0.id, $0.updatedAt) }
+        promo.accounts.forEach { register($0.id, $0.createdAt) }
+        promo.experiments.forEach { register($0.id, $0.updatedAt) }
+        promo.interactions.forEach { register($0.id, $0.updatedAt) }
+        promo.campaigns.forEach { register($0.id, $0.updatedAt) }
+        promo.competitorSources.forEach { register($0.id, $0.createdAt) }
+
+        applyRemotely {
+            for (_, payload, updatedAt, deleted) in remotePayloads {
+                switch payload {
+                case .goal(let v):
+                    if deleted { promo.removeGoal(v.id); continue }
+                    if let l = hmacToEntity[SyncPromotion.clientID(for: v.id.uuidString, masterKeyBase64: master)], updatedAt <= l { continue }
+                    _ = promo.saveGoal(v)
+                case .post(let v):
+                    if deleted { promo.removePost(v.id); continue }
+                    if let l = hmacToEntity[SyncPromotion.clientID(for: v.id.uuidString, masterKeyBase64: master)], updatedAt <= l { continue }
+                    _ = promo.savePost(v)
+                case .account(let v):
+                    if deleted { promo.removeAccount(v.id); continue }
+                    if let l = hmacToEntity[SyncPromotion.clientID(for: v.id.uuidString, masterKeyBase64: master)], updatedAt <= l { continue }
+                    _ = promo.saveAccount(v)
+                case .experiment(let v):
+                    if deleted { promo.removeExperiment(v.id); continue }
+                    if let l = hmacToEntity[SyncPromotion.clientID(for: v.id.uuidString, masterKeyBase64: master)], updatedAt <= l { continue }
+                    _ = promo.saveExperiment(v)
+                case .interaction(let v):
+                    if deleted { promo.removeInteraction(v.id); continue }
+                    if let l = hmacToEntity[SyncPromotion.clientID(for: v.id.uuidString, masterKeyBase64: master)], updatedAt <= l { continue }
+                    if promo.interactions.contains(where: { $0.id == v.id }) {
+                        _ = promo.replyInteraction(id: v.id, reply: v.reply, status: v.status)
+                    } else {
+                        promo.logInteractions([v])
+                    }
+                case .campaign(let v):
+                    if deleted { promo.removeCampaign(v.id); continue }
+                    if let l = hmacToEntity[SyncPromotion.clientID(for: v.id.uuidString, masterKeyBase64: master)], updatedAt <= l { continue }
+                    _ = promo.updateCampaignFull(v)
+                case .competitor(let v):
+                    if deleted { promo.removeCompetitorSource(v.id); continue }
+                    if let l = hmacToEntity[SyncPromotion.clientID(for: v.id.uuidString, masterKeyBase64: master)], updatedAt <= l { continue }
+                    _ = promo.saveCompetitorSource(v)
+                }
+            }
+        }
+    }
+
+    private func clearPromotionPending(_ serverIDs: Set<String>, master: String) {
+        promotionStore.clearPendingDeletions(serverIDs) { realID in
+            SyncPromotion.clientID(for: realID, masterKeyBase64: master)
         }
     }
 

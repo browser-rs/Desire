@@ -26,6 +26,8 @@ final class PromotionStore: ObservableObject {
     @Published private(set) var experiments: [PromotionExperiment] = []
     /// 竞品/市场监测来源（v0.8.3）。
     @Published private(set) var competitorSources: [PromotionCompetitorSource] = []
+    /// 同步 tombstone：实体 UUID → 删除时刻（v0.9.0 同步域）。
+    @Published private(set) var pendingDeletions: [String: Date] = [:]
 
     private static let goalsKey = "promotion.goals"
     private static let postsKey = "promotion.posts"
@@ -662,6 +664,74 @@ final class PromotionStore: ObservableObject {
         posts[idx].updatedAt = Date()
         persistPosts()
         return posts[idx]
+    }
+
+    // MARK: - Sync upserts（v0.9.0 同步域）
+
+    /// 同步 apply 的 upsert 入口（LWW 合并由 SyncPromotion 决定）。
+    @discardableResult func saveGoal(_ goal: PromotionGoal) -> PromotionGoal {
+        if let idx = goals.firstIndex(where: { $0.id == goal.id }) {
+            goals[idx] = goal
+        } else {
+            goals.append(goal)
+        }
+        persistGoals()
+        return goal
+    }
+
+    @discardableResult func savePost(_ post: PromotionPost) -> PromotionPost {
+        if let idx = posts.firstIndex(where: { $0.id == post.id }) {
+            posts[idx] = post
+        } else {
+            posts.insert(post, at: 0)
+        }
+        persistPosts()
+        return post
+    }
+
+    @discardableResult func saveAccount(_ account: PromotionAccount) -> PromotionAccount {
+        if let idx = accounts.firstIndex(where: { $0.id == account.id }) {
+            accounts[idx] = account
+        } else {
+            accounts.append(account)
+        }
+        persistAccounts()
+        return account
+    }
+
+    @discardableResult func saveCompetitorSource(_ source: PromotionCompetitorSource) -> PromotionCompetitorSource {
+        if let idx = competitorSources.firstIndex(where: { $0.id == source.id }) {
+            competitorSources[idx] = source
+        } else {
+            competitorSources.insert(source, at: 0)
+        }
+        persistCompetitorSources()
+        return source
+    }
+
+    /// 全量 upsert（同步 apply 用；不走逐字段 update 路径）。
+    @discardableResult func updateCampaignFull(_ campaign: PromotionCampaign) -> PromotionCampaign {
+        if let idx = campaigns.firstIndex(where: { $0.id == campaign.id }) {
+            campaigns[idx] = campaign
+            persistCampaigns()
+            return campaign
+        }
+        campaigns.insert(campaign, at: 0)
+        persistCampaigns()
+        return campaign
+    }
+
+    /// 清 tombstone（push applied 后由 SyncStore 调）。
+    func clearPendingDeletions(_ serverIDs: Set<String>, resolver: (String) -> String) {
+        let serverSet = Set(serverIDs.map(resolver))
+        pendingDeletions = pendingDeletions.filter { key, _ in
+            !serverSet.contains(SyncPromotion.clientID(for: key, masterKeyBase64: ""))
+        }
+    }
+
+    /// 标记删除（同步 tombstone）。
+    func trackDeletion(_ id: UUID) {
+        pendingDeletions[id.uuidString] = Date()
     }
 
     // MARK: - 持久化

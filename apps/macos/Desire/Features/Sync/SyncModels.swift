@@ -22,6 +22,8 @@ enum SyncDomain: String, CaseIterable {
     case whiteboard
     /// 工作区（v0.7.25 第十域）：标签组快照跨端；默认关（同白板——个人上下文）。
     case workspace
+    /// 运营数据（v0.9.0 第十一类域）：目标/帖子/账号/实验/互动/战役/竞品来源
+    case promotion
 
     /// 展示名（键与设置页既有文案共用，目录里已有三语）。
     var displayName: String {
@@ -36,6 +38,7 @@ enum SyncDomain: String, CaseIterable {
         case .history: String(localized: "Browsing History")
         case .whiteboard: String(localized: "Whiteboard")
         case .workspace: String(localized: "Workspaces")
+        case .promotion: String(localized: "Operations")
         }
     }
 }

@@ -3557,6 +3557,45 @@ func testFormFillPlan() {
 testFormFillPlan()
 
 
+// ---------- 运营同步 LWW 合并（v0.9.0） ----------
+
+func testSyncPromotionMerge() {
+    let now = Date()
+    // 远端比本机新 → applied
+    // 本机比远端新 → kept
+    // 远端 tombstone → deleted
+    // 远端新条目 → added
+    let local: [(id: String, updatedAt: Date)] = [
+        ("a", now.addingTimeInterval(-3600)),  // 远端更新
+        ("b", now.addingTimeInterval(+3600)),  // 本机更新
+        ("c", now),                            // 远端 tombstone
+    ]
+    let remote: [(id: String, updatedAt: Date, deleted: Bool)] = [
+        ("a", now, false),
+        ("b", now.addingTimeInterval(-3600), false),
+        ("c", now, true),
+        ("d", now, false),
+    ]
+    let result = SyncPromotion.merge(local: local, remote: remote)
+    check("sync promotion：远端新 applied", result.appliedRemote == ["a"])
+    check("sync promotion：本机新 kept", result.keptLocal == ["b"])
+    check("sync promotion：tombstone deleted", result.deleted == ["c"])
+    check("sync promotion：新增 added", result.added == ["d"])
+
+    // 空 local → 全部 added
+    let empty = SyncPromotion.merge(local: [], remote: remote.filter { !$0.deleted })
+    check("sync promotion：空 local 全 added", empty.added.count == 3 && empty.deleted.isEmpty)
+
+    // 同时刻 → kept（LWW 平局保留本机）
+    let tie = SyncPromotion.merge(
+        local: [("x", now)],
+        remote: [("x", now, false)])
+    check("sync promotion：同时刻 kept", tie.keptLocal == ["x"] && tie.appliedRemote.isEmpty)
+}
+testSyncPromotionMerge()
+
+
+
 
 
 

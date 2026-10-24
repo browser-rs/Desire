@@ -233,6 +233,10 @@ extension BrowserToolProvider {
                 ], required: ["name", "hosts", "views"]),
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "pickElement", description: "Activate the element picker on the current tab and wait for the user to click an element. Returns the CSS selector + outerHTML snippet. Use this to get precise selectors for saveDPPAdapter, element blocking, or any tool that needs a selector. The user must click within 30 seconds or the call times out.",
+                parameters: AgentJSONSchema(type: "object", properties: [:], required: []),
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                                 name: "downloadFile", description: "Download a file from a URL into the Downloads folder (store-owned transfer: pause/resume in the downloads panel). Use for reports, CSV exports, media files — anything with a direct URL. Returns immediately; check listDownloads for progress.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "url": AgentJSONSchemaValue(type: "string", description: "Direct download URL"),

@@ -206,6 +206,8 @@ class BrowserState: ObservableObject {
     /// `listPageVideos` tool; capped, session-scoped, never persisted.
     @Published var detectedMedia: [MediaResource] = []
     var onAIElementPicked: ((String, String) -> Void)?
+    /// DPP Studio 圈选回调（v0.8.4）：选择器 + outerHTML 摘要。
+    var onDPPStudioPick: ((String, String) -> Void)?
 
     /// 元素拾取器这次是给谁用的。
     ///
@@ -213,7 +215,7 @@ class BrowserState: ObservableObject {
     /// Element 页签、元素屏蔽弹窗、AI 上下文。此前原生侧无条件优先 AI 分支，
     /// 于是 Element 页签永远是空的、屏蔽弹窗也弹不出来。现在由"谁启动拾取"
     /// 显式声明意图，原生侧按意图分发。
-    enum ElementPickIntent { case block, devTools, ai }
+    enum ElementPickIntent { case block, devTools, ai, dppStudio }
     var elementPickIntent: ElementPickIntent = .block
     let videoAdBlocker: VideoAdBlocker?
 
@@ -1592,6 +1594,22 @@ try {
                     } else {
                         parent.onElementPicked?(selector, xpath)
                     }
+                case .dppStudio:
+                    if let dppHandler = parent.state.onDPPStudioPick {
+                        parent.state.webView.evaluateJavaScript("""
+                        (function() {
+                            var el = document.querySelector(\(JSString.literal(selector)));
+                            return el ? el.outerHTML.substring(0, 2000) : '';
+                        })()
+                        """) { result, _ in
+                            if let html = result as? String {
+                                dppHandler(selector, html)
+                            }
+                        }
+                    } else {
+                        parent.onElementPicked?(selector, xpath)
+                    }
+                    parent.state.elementPickIntent = .block
                 case .block:
                     parent.onElementPicked?(selector, xpath)
                 }

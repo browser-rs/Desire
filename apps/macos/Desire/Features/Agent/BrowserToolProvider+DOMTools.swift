@@ -1747,6 +1747,39 @@ extension BrowserToolProvider {
                               : "Workflow \"\(workflow.name)\" stopped:\n")
                 + lines.joined(separator: "\n")
 
+        case "pickElement":
+            // DPP Studio 圈选（v0.8.4）：激活元素拾取器等用户点击，返回选择器。
+            guard let tab = surface.tabManager?.selectedTab else {
+                return Self.fail("No active tab — open the target page first.")
+            }
+            let browser = tab.browser
+            guard !browser.isPickingElement else {
+                return Self.fail("Element picker is already active — click an element or wait.")
+            }
+            let picked: (String, String)? = await withCheckedContinuation { cont in
+                var resumed = false
+                browser.onDPPStudioPick = { selector, html in
+                    guard !resumed else { return }
+                    resumed = true
+                    browser.onDPPStudioPick = nil
+                    cont.resume(returning: (selector, html))
+                }
+                browser.elementPickIntent = .dppStudio
+                browser.isPickingElement = true
+                browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 30) {
+                    guard !resumed else { return }
+                    resumed = true
+                    browser.onDPPStudioPick = nil
+                    browser.isPickingElement = false
+                    cont.resume(returning: nil)
+                }
+            }
+            guard let (sel, html) = picked else {
+                return Self.fail("Element picker timed out (30s) — try again.")
+            }
+            return "Picked element:\nSelector: \(sel)\nouterHTML:\n\(String(html.prefix(500)))"
+
         case "saveDPPAdapter":
             // DPP 适配包自生成闭环（2026-10-12）：Agent 探查当前页 DOM 后把
             // 声明写进适配包——用户说"帮我给这个站做个点赞适配"即可达成。

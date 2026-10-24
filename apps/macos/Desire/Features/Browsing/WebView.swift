@@ -332,6 +332,12 @@ class BrowserState: ObservableObject {
                 WKUserScript(source: playbackGuard, injectionTime: .atDocumentEnd,
                              forMainFrameOnly: true))
         }
+        // Vim 模式（v0.8.6）：可选开关。JS 按键捕获 + 原生消息回调。
+        if VimMode.isEnabled {
+            if let vimScript = VimMode.userScript {
+                config.userContentController.addUserScript(vimScript)
+            }
+        }
         // Cookie 弹窗自动处理（0.6.5）：policy 变化对新导航生效（与站点
         // 偏好模式一致）；内插偏好给 cookie-banner-guard.js。
         let cookiePolicy = AppState.live?.settings.cookieBannerPolicy ?? "off"
@@ -865,7 +871,7 @@ struct WebView: NSViewRepresentable {
         }
 
         private static let scriptMessageHandlers = [
-            "audioState", "mediaFound", "passwordDetect", "passwordSave",
+            "audioState", "mediaFound", "passwordDetect", "passwordSave", "vimAction",
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
             "workflowEvent", "scrollPosition",
             "elementPicker", "videoAdBlocked", "otpDetect", "pagePerf", "superDragLink",
@@ -1565,6 +1571,19 @@ try {
                 } else if let x = (dict["x"] as? NSNumber)?.doubleValue,
                           let y = (dict["y"] as? NSNumber)?.doubleValue {
                     parent.state.selectionAI = SelectionAIInfo(text: text, viewportX: x, viewportY: y)
+                }
+            } else if message.name == "vimAction", let dict = message.body as? [String: String],
+                      let action = dict["action"] {
+                Task { @MainActor in
+                    switch action {
+                    case "closeTab":
+                        CommandBus.shared.send(.closeTab)
+                    case "newTab":
+                        CommandBus.shared.send(.newTab)
+                    case "find":
+                        CommandBus.shared.send(.toggleFind)
+                    default: break
+                    }
                 }
             } else if message.name == "elementPicker", let dict = message.body as? [String: String],
                       let selector = dict["cssSelector"] {

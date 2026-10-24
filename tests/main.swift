@@ -3509,6 +3509,32 @@ func testFileOrganizerPlan() {
 testFileOrganizerPlan()
 
 
+// ---------- 素材库变体规格（v0.8.4） ----------
+
+func testCampaignAssetPlan() {
+    let slug = ChannelAssetSpec.spec(for: "x")
+    check("asset：X 规格 1200×675", slug?.width == 1200 && slug?.height == 675)
+    check("asset：小红书 3:4", ChannelAssetSpec.spec(for: "xiaohongshu")?.height ?? 0 > ChannelAssetSpec.spec(for: "xiaohongshu")?.width ?? 0)
+    check("asset：OG 1200×630", ChannelAssetSpec.spec(for: "og")?.height == 630)
+    check("asset：未知 slug 返回 nil", ChannelAssetSpec.spec(for: "nonexistent") == nil)
+
+    let campaignID = UUID()
+    let source = "/tmp/screenshot.png"
+    let variants = CampaignAssetPlan.variants(
+        sourcePath: source, campaignID: campaignID,
+        channelSlugs: ["x", "xiaohongshu", "og"])
+    check("asset：三渠道变体", variants.count == 3)
+    check("asset：X 变体路径含尺寸", variants[0].path.contains("x_1200x675"))
+    check("asset：路径含 campaignID", variants.allSatisfy { $0.path.contains(campaignID.uuidString) })
+    check("asset：保留扩展名", variants.allSatisfy { $0.path.hasSuffix(".png") })
+
+    let dir = CampaignAssetPlan.assetDirectory(campaignID: campaignID)
+    check("asset：目录含 CampaignAssets", dir.contains("CampaignAssets"))
+}
+testCampaignAssetPlan()
+
+
+
 
 
 

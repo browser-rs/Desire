@@ -51174,6 +51174,28 @@
           }
         }
       }
+    },
+    "Asset added: %lld variant(s) generated." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Asset added: %lld variant(s) generated."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "素材已添加：%lld 个变体已生成。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "素材已添加：%lld 個變體已生成。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -233,6 +233,14 @@ extension BrowserToolProvider {
                 ], required: ["name", "hosts", "views"]),
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "addCampaignAsset", description: "Add an image (screenshot/share card/uploaded file) to a campaign's asset library and generate channel-specific size variants. Use to prepare visuals for multi-channel publishing.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "campaignId": AgentJSONSchemaValue(type: "string", description: "Campaign UUID (from promotionBrief)"),
+                    "sourcePath": AgentJSONSchemaValue(type: "string", description: "Absolute path to the source image"),
+                    "channelSlugs": AgentJSONSchemaValue(type: "array", description: "Channel slugs for variants: x/xiaohongshu/og/juejin/v2ex"),
+                ], required: ["campaignId", "sourcePath", "channelSlugs"]),
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "passwordHealth", description: "Scan saved passwords for weak/duplicate/old credentials. READ-ONLY — never exposes passwords, only reports findings (domain + issue). Use to give the user a security report.",
                 parameters: AgentJSONSchema(type: "object", properties: [:], required: []),
             )),

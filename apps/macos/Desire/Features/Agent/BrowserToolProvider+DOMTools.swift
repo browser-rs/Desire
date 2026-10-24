@@ -1747,6 +1747,66 @@ extension BrowserToolProvider {
                               : "Workflow \"\(workflow.name)\" stopped:\n")
                 + lines.joined(separator: "\n")
 
+        case "addCampaignAsset":
+            guard let campaignIDRaw = args["campaignId"] as? String,
+                  let campaignID = UUID(uuidString: campaignIDRaw) else {
+                return Self.fail("Missing or invalid campaignId")
+            }
+            guard let sourcePath = args["sourcePath"] as? String, !sourcePath.isEmpty else {
+                return Self.fail("Missing sourcePath")
+            }
+            guard let slugs = args["channelSlugs"] as? [String], !slugs.isEmpty else {
+                return Self.fail("Missing channelSlugs")
+            }
+            guard FileManager.default.fileExists(atPath: sourcePath) else {
+                return Self.fail("Source file not found: " + sourcePath)
+            }
+            guard let sourceImage = NSImage(contentsOfFile: sourcePath) else {
+                return Self.fail("Cannot read image from " + sourcePath)
+            }
+            // 确保目标目录存在
+            let assetDir = CampaignAssetPlan.assetDirectory(campaignID: campaignID)
+            try? FileManager.default.createDirectory(
+                atPath: assetDir, withIntermediateDirectories: true)
+            // 复制源图
+            let sourceCopy = (assetDir as NSString).appendingPathComponent(
+                (sourcePath as NSString).lastPathComponent)
+            try? FileManager.default.removeItem(atPath: sourceCopy)
+            try? FileManager.default.copyItem(atPath: sourcePath, toPath: sourceCopy)
+            // 生成渠道变体
+            var generated: [String] = []
+            let variants = CampaignAssetPlan.variants(
+                sourcePath: sourceCopy, campaignID: campaignID, channelSlugs: slugs)
+            for (spec, path) in variants {
+                guard let cgImage = sourceImage.cgImage(forProposedRect: nil, context: nil, hints: nil) else { continue }
+                let targetSize = CGSize(width: spec.width, height: spec.height)
+                // 保持宽高比，居中裁剪
+                let sourceSize = CGSize(width: cgImage.width, height: cgImage.height)
+                let scale = max(targetSize.width / sourceSize.width,
+                                targetSize.height / sourceSize.height)
+                let scaledSize = CGSize(width: sourceSize.width * scale,
+                                        height: sourceSize.height * scale)
+                let cropRect = CGRect(
+                    x: (scaledSize.width - targetSize.width) / 2 / scale,
+                    y: (scaledSize.height - targetSize.height) / 2 / scale,
+                    width: targetSize.width / scale,
+                    height: targetSize.height / scale)
+                guard let cropped = cgImage.cropping(to: cropRect) else { continue }
+                let rep = NSBitmapImageRep(cgImage: cropped)
+                guard let data = rep.representation(using: .png, properties: [:]) else { continue }
+                do {
+                    try data.write(to: URL(fileURLWithPath: path))
+                    generated.append(path)
+                } catch {
+                    Log.agent.warning("asset variant write failed: \(error.localizedDescription, privacy: .public)")
+                }
+            }
+            // 挂到战役
+            _ = PromotionStore.shared.updateCampaign(campaignID, assets: generated)
+            var result = String(format: String(localized: "Asset added: %lld variant(s) generated."), generated.count)
+            for path in generated { result += "\n  " + path }
+            return result
+
         case "passwordHealth":
             guard let app = AppState.live else {
                 return Self.fail("App not ready.")

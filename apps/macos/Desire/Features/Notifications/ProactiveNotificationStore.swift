@@ -103,6 +103,7 @@ final class ProactiveNotificationStore: ObservableObject {
     }
 
     private func deliverNow(title: String, body: String) {
+        Self.registerCategoriesIfNeeded()
         // 不把 UNUserNotificationCenter 捕获进 @Sendable 回调——需要时各自取 .current()。
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             switch settings.authorizationStatus {
@@ -119,16 +120,47 @@ final class ProactiveNotificationStore: ObservableObject {
         }
     }
 
+    private nonisolated static let categoriesLock = NSLock()
+    private nonisolated(unsafe) static var _categoriesRegistered = false
+
+    private nonisolated static func registerCategoriesIfNeeded() {
+        categoriesLock.lock()
+        defer { categoriesLock.unlock() }
+        guard !_categoriesRegistered else { return }
+        _categoriesRegistered = true
+        let open = UNNotificationAction(identifier: "OPEN_DOWNLOAD", title: "Open",
+                                        options: [.foreground])
+        let finder = UNNotificationAction(identifier: "SHOW_IN_FINDER", title: "Show in Finder",
+                                          options: [])
+        let downloadCategory = UNNotificationCategory(
+            identifier: "DOWNLOAD_COMPLETE", actions: [open, finder],
+            intentIdentifiers: [], options: [])
+        UNUserNotificationCenter.current().setNotificationCategories([downloadCategory])
+    }
+
     private nonisolated static func post(title: String, body: String) {
         let center = UNUserNotificationCenter.current()
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
-        // 深链标记：点击由 NotificationRouter 接住（激活应用并确保面板打开）。
         content.userInfo = ["deepLink": "agent"]
         center.add(UNNotificationRequest(
             identifier: "desire.agent.\(UUID().uuidString)", content: content, trigger: nil))
+    }
+
+    /// 下载完成通知（v0.8.5）：带"打开 / Show in Finder"操作按钮。
+    private nonisolated static func postDownloadComplete(title: String, body: String, filePath: String) {
+        registerCategoriesIfNeeded()
+        let center = UNUserNotificationCenter.current()
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.categoryIdentifier = "DOWNLOAD_COMPLETE"
+        content.userInfo = ["deepLink": "downloads", "filePath": filePath]
+        center.add(UNNotificationRequest(
+            identifier: "desire.download.\(UUID().uuidString)", content: content, trigger: nil))
     }
 
     private static func minutesNow() -> Int {

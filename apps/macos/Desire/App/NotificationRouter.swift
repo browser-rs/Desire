@@ -32,13 +32,25 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         let userInfo = response.notification.request.content.userInfo
         let isUpdate = identifier.hasPrefix("desire.update.")
         let isAgent = identifier.hasPrefix("desire.agent.")
+        let isDownload = identifier.hasPrefix("desire.download.")
         let url = userInfo["url"] as? String
+        let filePath = userInfo["filePath"] as? String ?? ""
+        let actionID = response.actionIdentifier
         Task { @MainActor in
             NSApp.activate(ignoringOtherApps: true)
             if isUpdate {
                 UpdateChecker.handleTap(userInfo: ["url": url ?? ""])
             } else if isAgent {
                 Self.ensureAgentPanel()
+            } else if isDownload {
+                if actionID == "OPEN_DOWNLOAD", FileManager.default.fileExists(atPath: filePath) {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: filePath))
+                } else if actionID == "SHOW_IN_FINDER", FileManager.default.fileExists(atPath: filePath) {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: filePath)])
+                } else {
+                    // 普通点击已在 activate(ignoringOtherApps:) 激活应用——
+                    // 用户可从工具栏打开下载面板。
+                }
             }
             completionHandler()
         }

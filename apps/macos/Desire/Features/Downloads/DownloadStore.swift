@@ -521,7 +521,7 @@ class DownloadStore: ObservableObject {
             "id": id.uuidString, "file": downloads[i].filename,
             "bytes": downloads[i].downloadedBytes, "private": downloads[i].isPrivate,
         ])
-        queueCompletionNotification(filename: downloads[i].filename)
+        queueCompletionNotification(filename: downloads[i].filename, fileURL: downloads[i].fileURL)
         postSlotFreed()
     }
 
@@ -880,7 +880,7 @@ class DownloadStore: ObservableObject {
     private var completedBuffer = 0
     private var notificationTask: Task<Void, Never>?
 
-    private func queueCompletionNotification(filename: String) {
+    private func queueCompletionNotification(filename: String, fileURL: URL?) {
         completedBuffer += 1
         notificationTask?.cancel()
         notificationTask = Task { [weak self] in
@@ -888,11 +888,11 @@ class DownloadStore: ObservableObject {
             guard !Task.isCancelled, let self, self.completedBuffer > 0 else { return }
             let count = self.completedBuffer
             self.completedBuffer = 0
-            self.notifyCompleted(count: count, lastFilename: filename)
+            self.notifyCompleted(count: count, lastFilename: filename, fileURL: fileURL)
         }
     }
 
-    private func notifyCompleted(count: Int, lastFilename: String) {
+    private func notifyCompleted(count: Int, lastFilename: String, fileURL: URL?) {
         // 设置 ▸ General ▸ Downloads ▸ 通知开关。直读 UserDefaults（与
         // suspendAfterMinutes 同款模式）——改设置即时生效，无需重启。
         guard UserDefaults.standard.object(forKey: "downloadNotifications") as? Bool ?? true else {
@@ -903,6 +903,9 @@ class DownloadStore: ObservableObject {
         center.requestAuthorization(options: [.alert]) { granted, _ in
             guard granted else { return }
             let content = UNMutableNotificationContent()
+            // v0.8.5：下载完成通知带操作按钮（Open / Show in Finder）。
+            content.categoryIdentifier = "DOWNLOAD_COMPLETE"
+            if let fileURL { content.userInfo = ["filePath": fileURL.path] }
             if count == 1 {
                 content.title = String(localized: "Download Complete")
                 content.body = lastFilename

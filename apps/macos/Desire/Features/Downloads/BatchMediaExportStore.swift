@@ -72,6 +72,11 @@ final class BatchMediaExportStore: ObservableObject {
     /// 逐项进度（itemID → done/total/单位）。**不进 @Published**——段级
     /// 回调很密，发布会让桥/UI 跟着抖；快照读取时现取。
     private var itemProgress: [UUID: (done: Int, total: Int, unit: MediaExporter.ProgressUnit)] = [:]
+    /// 速率差分采样点（上次记录的 done 与时刻）：≥1.5s 两个样本才计速率，
+    /// 避免进度回调的抖动让数字乱跳。
+    private var rateSamples: [UUID: (at: Date, done: Int, unit: MediaExporter.ProgressUnit)] = [:]
+    /// 每项当前速率（unit/秒；seconds 单位 = 实时倍速，segments = seg/s）。
+    @Published private(set) var itemRates: [UUID: Double] = [:]
     /// 槽位看门狗依据：每个在跑项最近一次进度回调的时间。
     private var lastProgressAt: [UUID: Date] = [:]
     /// 进入 downloading 的时刻（看门狗兜底：没有任何进度回调的挂死项）。
@@ -1112,9 +1117,27 @@ final class BatchMediaExportStore: ObservableObject {
         itemProgress[itemID]
     }
 
+    /// 快照读取逐项速率（unit/秒；面板用它显示 seg/s 或实时倍速）。
+    func rate(for itemID: UUID) -> Double? {
+        itemRates[itemID]
+    }
+
     private func recordProgress(itemID: UUID, done: Int, total: Int, unit: MediaExporter.ProgressUnit) {
         itemProgress[itemID] = (done, total, unit)
         lastProgressAt[itemID] = Date()
+        // 速率差分：同单位连续两个样本（间隔 ≥1.5s）才算一次速率；
+        // 合成阶段不计时（remux 速率对用户没意义）。
+        if unit == .merging {
+            itemRates[itemID] = nil
+        } else if let last = rateSamples[itemID], last.unit == unit {
+            let dt = Date().timeIntervalSince(last.at)
+            if dt >= 1.5 {
+                itemRates[itemID] = Double(done - last.done) / dt
+                rateSamples[itemID] = (Date(), done, unit)
+            }
+        } else {
+            rateSamples[itemID] = (Date(), done, unit)
+        }
         // 合成（remux）阶段入日志：分片全部完成后的"黑盒期"从此可查。
         if unit == .merging, done == 0,
            let bi = batches.firstIndex(where: { $0.items.contains(where: { $0.id == itemID }) }) {
@@ -1300,6 +1323,8 @@ final class BatchMediaExportStore: ObservableObject {
         lastProgressAt[itemID] = nil
         downloadStartedAt[itemID] = nil
         watchdogCancelledAt[itemID] = nil
+        itemRates[itemID] = nil
+        rateSamples[itemID] = nil
         guard let bi = batches.firstIndex(where: { $0.id == batchID }),
               batches[bi].state == .running,
               let ii = batches[bi].items.firstIndex(where: { $0.id == itemID }) else { return }

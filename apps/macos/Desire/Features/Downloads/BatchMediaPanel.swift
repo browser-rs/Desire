@@ -209,6 +209,11 @@ struct BatchMediaPanel: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    if let rate = store.rate(for: item.id), rate > 0, item.state == .downloading {
+                        Text(Self.rateLabel(rate, unit: store.progress(for: item.id)?.unit))
+                            .font(.system(size: 10).monospacedDigit())
+                            .foregroundStyle(appAccent.opacity(0.85))
+                    }
                     // 逐项移除：排队/失败项可删（从队列移除）；成品不在此删
                     //（文件在盘上，删除文件超出面板语义）。
                     if item.state == .pending || item.state == .failed {
@@ -225,6 +230,14 @@ struct BatchMediaPanel: View {
             }
         }
         .padding(.leading, 14)
+    }
+
+    /// 速率文案：媒体秒进度 = 实时倍速（2.0×），分片进度 = seg/s。
+    static func rateLabel(_ rate: Double, unit: MediaExporter.ProgressUnit?) -> String {
+        switch unit {
+        case .seconds: String(format: "%.1f×", rate)
+        default: String(format: "%.1f seg/s", rate)
+        }
     }
 
     /// 批任务日志（展开区）：打开时刻的快照（BatchMediaLogStore 静态读），

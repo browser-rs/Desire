@@ -108,6 +108,15 @@ class BookmarkStore: ObservableObject {
         return ids
     }
 
+    /// 全部不重复标签（排序）。面板的标签过滤条用它。
+    var allTags: [String] {
+        var seen = Set<String>()
+        for (node, _) in bookmarks.flatMap({ $0.flattened() }) {
+            if let tags = node.tags { seen.formUnion(tags) }
+        }
+        return seen.sorted()
+    }
+
     func update(_ bookmark: Bookmark) {
         _ = bookmarks.update(id: bookmark.id) {
             $0 = bookmark

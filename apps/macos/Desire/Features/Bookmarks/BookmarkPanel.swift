@@ -27,14 +27,22 @@ struct BookmarkPanel: View {
     @State private var pendingImport: PendingBookmarkImport?
     /// 书签健康（死链清理向导）弹层。
     @State private var showHealthSheet = false
+    /// 标签过滤（v0.8.6）：nil = 不过滤；点标签条切换。
+    @State private var selectedTag: String?
 
     private var flatItems: [FlatBookmark] {
+        if let tag = selectedTag {
+            return store.bookmarks.flatMap { $0.flattened() }
+                .filter { $0.0.isLeaf && $0.0.tags?.contains(tag) == true }
+                .map { FlatBookmark(id: $0.0.id, bookmark: $0.0, level: 0) }
+        }
         guard !searchText.isEmpty else {
             return flattenBookmarks(store.bookmarks, level: 0)
         }
         return store.bookmarks.flatMap { $0.flattened() }.filter { item in
             item.0.title.localizedCaseInsensitiveContains(searchText) ||
-            (item.0.url?.localizedCaseInsensitiveContains(searchText) ?? false)
+            (item.0.url?.localizedCaseInsensitiveContains(searchText) ?? false) ||
+            (item.0.tags?.contains { $0.localizedCaseInsensitiveContains(searchText) } ?? false)
         }.map { FlatBookmark(id: $0.0.id, bookmark: $0.0, level: $0.1) }
     }
 
@@ -122,6 +130,31 @@ struct BookmarkPanel: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 8)
+            }
+
+            // 标签过滤条（v0.8.6）：有标签才出现；点击切换过滤。
+            if !store.allTags.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(store.allTags, id: \.self) { tag in
+                            Button {
+                                selectedTag = selectedTag == tag ? nil : tag
+                            } label: {
+                                Text(tag)
+                                    .font(.system(size: 10.5, weight: .medium))
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 3)
+                                    .background(
+                                        Capsule().fill(selectedTag == tag ? appAccent.opacity(0.18) : Color.secondary.opacity(0.09))
+                                    )
+                                    .foregroundStyle(selectedTag == tag ? appAccent : Color.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
+                }
             }
 
             // Content
@@ -350,6 +383,21 @@ private struct BookmarkEditor: View {
                     TextField("URL", text: Binding(
                         get: { bookmark.url ?? "" },
                         set: { bookmark.url = $0.isEmpty ? nil : $0 }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Tags").font(.caption).foregroundStyle(.secondary)
+                    TextField("tag1, tag2", text: Binding(
+                        get: { bookmark.tags?.joined(separator: ", ") ?? "" },
+                        set: { newValue in
+                            let parts = newValue
+                                .split(separator: ",")
+                                .map { $0.trimmingCharacters(in: .whitespaces) }
+                                .filter { !$0.isEmpty }
+                            bookmark.tags = parts.isEmpty ? nil : parts
+                        }
                     ))
                     .textFieldStyle(.roundedBorder)
                 }

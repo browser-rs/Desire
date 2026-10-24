@@ -105,6 +105,9 @@ struct Toolbar: View {
     let onTextChange: (String) -> Void
     /// 扩展面板（0.2.17）：插件列表/固定管理 + 固定图标点击运行。
     @ObservedObject var pluginStore: PluginStore
+    /// Tab-to-Search（v0.8.6）：输入恰为引擎关键字时返回该关键字（Tab 补成
+    /// "kw " 进入搜索模式）；nil = 不是关键字，Tab 走"接受首条建议"。
+    var tabToSearch: ((String) -> String?)? = nil
     var onRunPlugin: ((Plugin) -> Void)? = nil
     /// 当前弹 popup 的插件（0.3.3）。
     @State var popupPlugin: Plugin?
@@ -380,7 +383,14 @@ struct Toolbar: View {
                     return true
                 },
                 onTabCompletion: { reverse in
-                    guard !reverse, !suggestionModel.isEmpty else { return false }
+                    guard !reverse else { return false }
+                    // Tab-to-Search 优先于"接受首条建议"（同 Chrome：关键字
+                    // 刚打完时 Tab 是进入搜索模式，不是补全候选）。
+                    if let keyword = tabToSearch?(editingURL) {
+                        editingURL = keyword + " "
+                        return true
+                    }
+                    guard !suggestionModel.isEmpty else { return false }
                     if let first = suggestionModel.suggestion(at: 0) {
                         editingURL = first.url
                         return true

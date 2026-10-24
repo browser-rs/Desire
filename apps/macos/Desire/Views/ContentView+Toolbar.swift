@@ -155,6 +155,9 @@ extension ContentView {
                 suggestionModel.build(query: newValue, settings: st, bookmarks: bm, history: hist)
             },
             pluginStore: pluginStore,
+            tabToSearch: { input in
+                URLResolution.tabToSearchKeyword(in: input, settings: settings)
+            },
             onRunPlugin: { plugin in
                 // 固定图标点击：在当前页运行一次（隔离世界，绕过 URL 匹配）。
                 let target = tab.browser.webView

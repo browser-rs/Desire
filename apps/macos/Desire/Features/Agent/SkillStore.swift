@@ -210,6 +210,51 @@ final class SkillStore: ObservableObject {
         return installed
     }
 
+    // MARK: - 打包分发（v0.8.6）
+
+    /// 导出为 .skill 包（zip：SKILL.md + companion 文件整目录打包；
+    /// 散 md 技能单文件直拷）。目录技能用 --keepParent 保留目录形态，
+    /// importArchive 的"唯一子目录含 SKILL.md"分支正好吃得下。
+    @discardableResult
+    func exportPackage(named name: String, to destination: URL) throws -> URL {
+        guard let skill = skills.first(where: { $0.name == name }) else {
+            throw ImportError.noSkill
+        }
+        if let dir = skill.directory {
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            proc.arguments = ["-c", "-k", "--keepParent", dir.path, destination.path]
+            let errPipe = Pipe()
+            proc.standardError = errPipe
+            try proc.run()
+            proc.waitUntilExit()
+            guard proc.terminationStatus == 0 else {
+                let err = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                throw ImportError.unpack(String(err.suffix(200)))
+            }
+        } else {
+            try FileManager.default.copyItem(at: skill.url, to: destination)
+        }
+        Self.log.info("skill exported: \(name, privacy: .public) → \(destination.lastPathComponent, privacy: .public)")
+        return destination
+    }
+
+    /// 从远程 URL 安装（GitHub raw 的 zip / md）。下载到临时文件后走
+    /// importArchive，校验与落位语义完全一致。
+    @discardableResult
+    func installFromURL(_ remote: URL) async throws -> Skill {
+        let (data, response) = try await URLSession.shared.data(from: remote)
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw ImportError.unpack("HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+        }
+        let ext = remote.pathExtension.lowercased() == "zip" ? "zip" : "md"
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("skill-download-\(UUID().uuidString).\(ext)")
+        try data.write(to: tmp)
+        defer { try? FileManager.default.removeItem(at: tmp) }
+        return try importArchive(at: tmp)
+    }
+
     func body(for name: String) -> String? {
         guard let skill = skills.first(where: { $0.name == name }) else { return nil }
         return try? String(contentsOf: skill.url, encoding: .utf8)

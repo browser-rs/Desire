@@ -18,6 +18,12 @@ struct AgentSkillsView: View {
     @State private var riskSummaries: [String: String] = [:]
     @State private var previewSkill: SkillStore.Skill?
     @State private var importFailure: String?
+    /// 从 URL 安装（v0.8.6）：alert 里的输入。
+    @State private var showInstallURL = false
+    @State private var installURLText = ""
+    @State private var isInstallingFromURL = false
+    /// 导出落盘成功提示（skill 名 → 路径）。
+    @State private var exportedPath: String?
     /// nil = 新建；非 nil = 编辑该技能（写入它的 url，同名即覆盖）。
     @State private var editingSkill: SkillStore.Skill?
     @State private var isCreating = false
@@ -37,7 +43,8 @@ struct AgentSkillsView: View {
                                 riskSummary: riskSummaries[skill.name],
                                 onPreview: { previewSkill = skill },
                                 onEdit: { editingSkill = skill },
-                                onUse: onUseSkill
+                                onUse: onUseSkill,
+                                onExport: { exportSkill($0) }
                             )
                         }
                     }
@@ -74,6 +81,31 @@ struct AgentSkillsView: View {
             Button(String(localized: "OK")) { importFailure = nil }
         } message: {
             Text(importFailure ?? "")
+        }
+        .alert(String(localized: "Install from URL"), isPresented: $showInstallURL) {
+            TextField("https://…/SKILL.md or .zip", text: $installURLText)
+            Button(String(localized: "Install")) {
+                installFromURL()
+            }
+            Button(String(localized: "Cancel"), role: .cancel) {}
+        } message: {
+            Text("Paste a direct link to a .skill zip or a SKILL.md file (e.g. a GitHub raw URL).")
+        }
+        .alert(
+            String(localized: "Skill exported"),
+            isPresented: Binding(
+                get: { exportedPath != nil },
+                set: { if !$0 { exportedPath = nil } }
+            )
+        ) {
+            Button(String(localized: "Show in Finder")) {
+                if let path = exportedPath {
+                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+                }
+            }
+            Button(String(localized: "OK")) { exportedPath = nil }
+        } message: {
+            Text(exportedPath ?? "")
         }
     }
 
@@ -144,6 +176,17 @@ struct AgentSkillsView: View {
             .help(String(localized: "Import"))
 
             Button {
+                installURLText = ""
+                showInstallURL = true
+            } label: {
+                Image(systemName: "globe.badge.chevron.backward")
+                    .font(.system(size: 12))
+                    .frame(width: 26, height: 24)
+            }
+            .buttonStyle(.plain)
+            .help(String(localized: "Install from URL"))
+
+            Button {
                 store.reload()
                 scanRisks()
             } label: {
@@ -191,6 +234,40 @@ struct AgentSkillsView: View {
             do {
                 _ = try store.importArchive(at: url)
                 scanRisks()
+            } catch {
+                importFailure = error.localizedDescription
+            }
+        }
+    }
+
+    private func installFromURL() {
+        let trimmed = installURLText.trimmingCharacters(in: .whitespaces)
+        guard let url = URL(string: trimmed), let host = url.host, !host.isEmpty else {
+            importFailure = String(localized: "Not a valid URL")
+            return
+        }
+        isInstallingFromURL = true
+        Task { @MainActor in
+            defer { isInstallingFromURL = false }
+            do {
+                _ = try await store.installFromURL(url)
+                scanRisks()
+            } catch {
+                importFailure = error.localizedDescription
+            }
+        }
+    }
+
+    /// 导出为 .skill 包（Save 面板选落点）。
+    private func exportSkill(_ skill: SkillStore.Skill) {
+        let panel = NSSavePanel()
+        panel.title = String(localized: "Export Skill")
+        panel.nameFieldStringValue = skill.directory != nil ? "\(skill.name).skill" : "\(skill.name).md"
+        panel.begin { response in
+            guard response == .OK, let dest = panel.url else { return }
+            do {
+                _ = try store.exportPackage(named: skill.name, to: dest)
+                exportedPath = dest.path
             } catch {
                 importFailure = error.localizedDescription
             }
@@ -246,6 +323,8 @@ private struct AgentSkillCard: View {
     let onPreview: () -> Void
     let onEdit: () -> Void
     let onUse: ((String) -> Void)?
+    /// 导出 .skill 包（v0.8.6 分发）。
+    var onExport: ((SkillStore.Skill) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -304,6 +383,9 @@ private struct AgentSkillCard: View {
                 }
             }
             Button("Edit") { onEdit() }
+            if let onExport {
+                Button(String(localized: "Export…")) { onExport(skill) }
+            }
             Button("Show in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting([skill.url])
             }

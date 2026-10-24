@@ -49,6 +49,7 @@ class AppState: ObservableObject {
         let t0 = Date()
         func lap(_ what: String) {
             Log.app.info("launch phase: AppState.\(what, privacy: .public) +\(Int(Date().timeIntervalSince(t0) * 1000), privacy: .public)ms")
+            LaunchAudit.mark("AppState.\(what)")
         }
         browsing = BrowsingState()
         lap("BrowsingState")

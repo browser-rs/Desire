@@ -64,6 +64,7 @@ struct ContentView: View {
         let t0 = Date()
         defer {
             Log.app.info("launch phase: ContentView.init +\(Int(Date().timeIntervalSince(t0) * 1000), privacy: .public)ms")
+            LaunchAudit.mark("ContentView.init")
         }
         self.appState = appState
         _sessionID = sessionID
@@ -344,6 +345,8 @@ struct ContentView: View {
         .onAppear {
             // 首窗相位（0.6.4 启动分段第三拍；每个窗口都会打，首条即首窗）。
             Log.app.info("launch phase: first window content appeared +\(Int(Date().timeIntervalSince(DesireApp.launchStart) * 1000), privacy: .public)ms")
+            LaunchAudit.mark("first window")
+            LaunchAudit.summarize()
             // 后台标签页缩略图轮捕的 tab 源（hover 预览秒开，见 TabThumbnailStore）。
             thumbnailStore.setTabsProvider { [tabManager] in tabManager.tabs }
             if aiFloatingPanel == nil {

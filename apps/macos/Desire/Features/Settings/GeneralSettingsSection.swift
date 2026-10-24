@@ -1115,9 +1115,47 @@ private struct DiagnosticsRow: View {
                         }
                     }
                 }
+                SettingsCapsuleButton("Memory Snapshot") {
+                    Self.logMemorySnapshot()
+                }
+                .help("Log this process's memory plus per-window tab and webview counts (for regression comparison)")
             }
         }
         .onAppear { reportCount = MetricsManager.shared.reportCount }
+    }
+
+    /// 内存快照（v0.8.6 可靠性）：本进程 phys_footprint/resident + 各窗口
+    /// 标签数与 webview 计数，一次性打进日志。手动触发、不做 UI 展示——
+    /// 用于版本间回归对比。
+    private static func logMemorySnapshot() {
+        var taskEventInfo = task_vm_info_data_t()
+        var count = mach_msg_type_number_t(
+            MemoryLayout<task_vm_info_data_t>.size / MemoryLayout<natural_t>.size)
+        var footprint: Int64 = 0
+        var resident: Int64 = 0
+        let kr = withUnsafeMutablePointer(to: &taskEventInfo) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) {
+                task_info(mach_task_self_, task_flavor_t(TASK_VM_INFO), $0, &count)
+            }
+        }
+        if kr == KERN_SUCCESS {
+            footprint = Int64(taskEventInfo.phys_footprint)
+            resident = Int64(taskEventInfo.resident_size)
+        }
+        func mb(_ bytes: Int64) -> String { String(format: "%.1f MB", Double(bytes) / 1_048_576) }
+        var lines = [
+            "memory snapshot: phys_footprint \(mb(footprint)), resident \(mb(resident))",
+        ]
+        var webviewCount = 0
+        var tabLines: [String] = []
+        for (i, manager) in TabSessionCoordinator.shared.liveManagers().enumerated() {
+            let tabs = manager.tabs.count
+            webviewCount += tabs
+            tabLines.append("window\(i + 1): \(tabs) tabs")
+        }
+        lines.append("tabs (webviews): \(webviewCount) — \(tabLines.joined(separator: ", "))")
+        let text = lines.joined(separator: " | ")
+        Log.app.info("\(text, privacy: .public)")
     }
 }
 

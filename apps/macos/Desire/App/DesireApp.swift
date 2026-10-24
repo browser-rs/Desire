@@ -51,6 +51,7 @@ struct DesireApp: App {
 
     init() {
         Log.app.info("launch phase: app init +\(Int(Date().timeIntervalSince(DesireApp.launchStart) * 1000), privacy: .public)ms")
+        LaunchAudit.mark("app init")
         StartupMetric.anchorLaunch()
         // 系统通知统一路由（深链：agent 通知点击开面板、更新通知开 release 页）。
         // 必须先装委托再发任何通知。
@@ -308,6 +309,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         Log.app.info("launch phase: didFinishLaunching +\(Int(Date().timeIntervalSince(DesireApp.launchStart) * 1000), privacy: .public)ms")
+        LaunchAudit.mark("didFinishLaunching")
         installSignalHandlers()
         // 菜单栏快速入口（v19）：NSStatusItem 宿主。放这里而不是 Scene——
         // SwiftUI MenuBarExtra 的 isInserted 动态绑定会在本应用触发启动

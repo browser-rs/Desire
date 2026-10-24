@@ -255,6 +255,8 @@ private struct KeyboardShortcutsEditorView: View {
     @State private var showRecorder = false
     @State private var showConflict = false
     @State private var conflicts: [ShortcutMapping] = []
+    /// 速查表（v0.8.6 可发现性）：打印友好全量视图。
+    @State private var showCheatSheet = false
 
     var body: some View {
         SettingsContainer {
@@ -286,6 +288,17 @@ private struct KeyboardShortcutsEditorView: View {
                             }
                             .buttonStyle(.plain)
                         }
+                        Button {
+                            showCheatSheet = true
+                        } label: {
+                            Label("Cheat Sheet", systemImage: "list.bullet.rectangle")
+                                .font(.system(size: 11))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.tint)
+                    }
+                    .sheet(isPresented: $showCheatSheet) {
+                        ShortcutCheatSheetView(store: store)
                     }
                     .padding(.horizontal, 10)
                     .padding(.vertical, 7)

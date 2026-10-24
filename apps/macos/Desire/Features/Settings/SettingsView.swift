@@ -233,7 +233,8 @@ struct SettingsView: View {
                 contentBlocker: contentBlocker,
                 permissionStore: permissionStore,
                 historyStore: historyStore,
-                privacyModeStore: privacyModeStore
+                privacyModeStore: privacyModeStore,
+                videoAdBlocker: videoAdBlocker
             )
         case .autofill:
             FormAutofillSettingsView(store: formAutofillStore)

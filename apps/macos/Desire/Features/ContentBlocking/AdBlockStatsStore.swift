@@ -138,4 +138,15 @@ final class AdBlockStatsStore: ObservableObject {
         default: key
         }
     }
+
+    /// 某站点的累计拦截数：视频广告事件按内置站点键（如 youtube）入库，
+    /// 首击防护按域名入库——两键相加才是该站全貌（两类事件键不重叠）。
+    /// 锁弹层的"本站拦截"行用它。
+    func count(forHost host: String) -> Int {
+        var total = perDomain[host] ?? 0
+        if let siteKey = VideoSite.allCases.first(where: { $0.matches(host) })?.key {
+            total += perDomain[siteKey] ?? 0
+        }
+        return total
+    }
 }

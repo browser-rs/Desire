@@ -38,9 +38,27 @@ class PermissionStore: ObservableObject {
         save()
     }
 
+    func remove(host: String, type: PermissionType) {
+        rules.removeAll { $0.host == host && $0.type == type }
+        save()
+    }
+
+    func removeAll(type: PermissionType) {
+        rules.removeAll { $0.type == type }
+        save()
+    }
+
     func removeAll() {
         rules.removeAll()
         save()
+    }
+
+    /// 隐私面板矩阵单元格的三态循环写入口（未设置 → 允许 → 拒绝 → 未设置）。
+    func cycle(host: String, type: PermissionType) {
+        switch PermissionMatrix.cycled(decision(for: host, type: type)) {
+        case .some(let d): set(host: host, type: type, decision: d)
+        case nil: remove(host: host, type: type)
+        }
     }
 
     private func save() {

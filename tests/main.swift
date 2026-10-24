@@ -3612,6 +3612,29 @@ func testInlineCalculator() {
 }
 testInlineCalculator()
 
+func testPermissionMatrix() {
+    let rules: [PermissionRule] = [
+        .init(host: "b.example.com", type: .camera, decision: .allow),
+        .init(host: "b.example.com", type: .camera, decision: .deny),      // 同键覆盖
+        .init(host: "a.example.com", type: .geolocation, decision: .deny),
+        .init(host: "a.example.com", type: .cameraAndMicrophone, decision: .allow),
+    ]
+    let rows = PermissionMatrix.build(from: rules)
+    check("矩阵：按 host 聚合去重", rows.count == 2)
+    check("矩阵：按 host 排序", rows[0].host == "a.example.com")
+    check("矩阵：同键覆盖取最新", rows[1].decisions[.camera] == .deny)
+    check("矩阵：联合权限独立成键", rows[0].decisions[.cameraAndMicrophone] == .allow)
+    check("矩阵：行内规则计数", rows[0].decisions.count == 2)
+
+    // 三态循环：nil → allow → deny → nil
+    check("循环：未设置→允许", PermissionMatrix.cycled(nil) == .allow)
+    check("循环：允许→拒绝", PermissionMatrix.cycled(.allow) == .deny)
+    check("循环：拒绝→未设置", PermissionMatrix.cycled(.deny) == nil)
+    check("循环：列清单", PermissionMatrix.columns.count == 4)
+}
+
+testPermissionMatrix()
+
 
 
 

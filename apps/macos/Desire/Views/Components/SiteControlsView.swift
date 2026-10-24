@@ -25,6 +25,8 @@ struct SiteControlsView: View {
     /// 站点动作栏的状态观察：已盯页面 + 是否正在录制。
     @ObservedObject private var pageWatches = PageWatchStore.shared
     @ObservedObject private var workflows = WorkflowStore.shared
+    /// 本站广告拦截计数（视频广告规则 + 首击防护，锁弹层只读展示）。
+    @ObservedObject private var adStats = AdBlockStatsStore.shared
     /// 全局自动播放档（视频平台默认豁免的解析基准）。
     let globalAutoPlay: AutoPlayPolicy
     /// 当前页缩放（Tab.applyPageZoom 的真实值，1.0 = 100%）。
@@ -147,6 +149,21 @@ struct SiteControlsView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+
+            // 本站广告拦截（计数 = 该站视频广告 + 首击防护的累计值）
+            HStack(spacing: 8) {
+                Image(systemName: "shield.lefthalf.filled")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                Text("Ads Blocked Here")
+                    .font(.system(size: 12.5))
+                Spacer()
+                Text("\(adStats.count(forHost: host))")
+                    .font(.system(size: 11.5, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            .help(String(format: String(localized: "All-time video-ad blocks recorded for this site: %d"), adStats.count(forHost: host)))
 
             // 元素拦截
             Button {

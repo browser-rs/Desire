@@ -26,7 +26,33 @@ struct SecurityInfoView: View {
             }
         }
 
+        // 证书摘要（v0.8.6）：组织 + 有效期窗口——从 SecCertificateCopyValues
+        // 取标准 OID，解析失败就地省略（不阻塞弹层）。
+        if let values = SecCertificateCopyValues(leaf, [
+            kSecOIDOrganizationName, kSecOIDX509V1ValidityNotBefore, kSecOIDX509V1ValidityNotAfter,
+        ] as CFArray, nil) as? [String: Any] {
+            if let orgEntry = (values[kSecOIDOrganizationName as String] as? [[String: Any]])?.first,
+               let org = orgEntry[kSecPropertyKeyValue as String] as? String {
+                info.append((String(localized: "Organization"), org))
+            }
+            if let notBefore = Self.dateValue(values[kSecOIDX509V1ValidityNotBefore as String]),
+               let notAfter = Self.dateValue(values[kSecOIDX509V1ValidityNotAfter as String]) {
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd"
+                info.append((
+                    String(localized: "Valid Period"),
+                    "\(formatter.string(from: notBefore)) — \(formatter.string(from: notAfter))"
+                ))
+            }
+        }
+
         return info
+    }
+
+    /// SecCertificateCopyValues 的日期条目：[{label/type/value}]，value 是 Date。
+    private static func dateValue(_ entry: Any?) -> Date? {
+        guard let entries = entry as? [[String: Any]] else { return nil }
+        return entries.compactMap { $0[kSecPropertyKeyValue as String] as? Date }.first
     }
 
     var body: some View {

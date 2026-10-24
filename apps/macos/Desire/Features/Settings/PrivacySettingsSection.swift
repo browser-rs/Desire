@@ -7,6 +7,7 @@ struct PrivacySettingsStoreSection: View {
     @ObservedObject var permissionStore: PermissionStore
     @ObservedObject var historyStore: HistoryStore
     @ObservedObject var privacyModeStore: PrivacyModeStore
+    @ObservedObject var videoAdBlocker: VideoAdBlocker
 
     @State private var showClearConfirm = false
     @State private var clearCookies = true
@@ -140,7 +141,11 @@ struct PrivacySettingsStoreSection: View {
 
             // MARK: - Permissions
 
-            PermissionSection(store: permissionStore)
+            PrivacyDashboardSection(
+                permissionStore: permissionStore,
+                contentBlocker: contentBlocker,
+                videoAdBlocker: videoAdBlocker
+            )
 
             // MARK: - Clear Data
 
@@ -366,94 +371,72 @@ private struct SiteDataSection: View {
     }
 }
 
-// MARK: - Permissions
+// MARK: - Privacy Dashboard entry
 
-private struct PermissionSection: View {
-    @ObservedObject var store: PermissionStore
-    @State private var showClear = false
+/// 设置页里的入口行：一行摘要 + 打开隐私与安全面板（矩阵/统计都在面板里）。
+/// 此前的平铺权限列表按 host 去重展示有缺陷（多类型规则只显示一条），
+/// v0.8.6 起由面板矩阵取代。
+private struct PrivacyDashboardSection: View {
+    @ObservedObject var permissionStore: PermissionStore
+    @ObservedObject var contentBlocker: ContentBlockerStore
+    @ObservedObject var videoAdBlocker: VideoAdBlocker
+    @State private var showDashboard = false
+
+    private var summary: String {
+        let hosts = Set(permissionStore.rules.map(\.host)).count
+        if hosts == 0 { return String(localized: "No saved permission settings") }
+        return String(localized: "\(hosts) site\(hosts == 1 ? "" : "s") with saved permissions")
+    }
 
     var body: some View {
         SettingsSection(
             title: "Website Permissions",
-            subtitle: "Camera, microphone, location and notification grants per site.",
+            subtitle: "Camera, microphone, location decisions per site.",
             icon: "checkmark.shield"
         ) {
-            VStack(spacing: 0) {
-                if store.rules.isEmpty {
-                    Text("No saved permission settings")
-                        .font(.system(size: 12))
+            HStack(spacing: 12) {
+                Image(systemName: "hand.raised")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.tint)
+                    .frame(width: 22, height: 22)
+                    .background(Circle().fill(.tint.opacity(0.10)))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Privacy Dashboard")
+                        .font(.system(size: 12, weight: .medium))
+                    Text(summary)
+                        .font(.system(size: 11))
                         .foregroundStyle(.secondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 18)
-                } else {
-                    ForEach(Array(store.rules.enumerated()), id: \.element.host) { index, rule in
-                        ruleRow(rule)
-                        if index < store.rules.count - 1 {
-                            SettingsRowDivider()
-                        }
-                    }
-                    SettingsRowDivider()
-                    HStack {
-                        Spacer()
-                        Button {
-                            showClear = true
-                        } label: {
-                            Text("Reset All")
-                                .font(.system(size: 12, weight: .medium))
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 5)
-                                .background(Capsule().fill(Color.red.opacity(0.12)))
-                                .foregroundStyle(.red)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 10)
                 }
+                Spacer()
+                Button {
+                    showDashboard = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("Open")
+                            .font(.system(size: 12, weight: .medium))
+                        Image(systemName: "arrow.up.right")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(.tint.opacity(0.14)))
+                    .foregroundStyle(.tint)
+                }
+                .buttonStyle(.plain)
             }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+            .frame(minHeight: 44)
         }
-        .alert("Reset All Permissions", isPresented: $showClear) {
-            Button("Cancel", role: .cancel) {}
-            Button("Reset", role: .destructive) { store.removeAll() }
-        } message: {
-            Text("This will clear all saved camera, microphone, and location permission settings for all websites.")
-        }
-    }
-
-    private func ruleRow(_ rule: PermissionRule) -> some View {
-        HStack(alignment: .center, spacing: 12) {
-            Image(systemName: rule.decision == .deny ? "xmark.shield" : "checkmark.shield")
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(rule.decision == .deny ? .red : .green)
-                .frame(width: 22, height: 22)
-                .background(
-                    Circle().fill((rule.decision == .deny ? Color.red : .green).opacity(0.10))
-                )
-
-            Text(rule.host)
-                .font(.system(size: 12, weight: .medium))
-                .lineLimit(1)
-            Spacer()
-            StatusPill(
-                text: rule.decision == .deny ? "Denied" : "Allowed",
-                kind: rule.decision == .deny ? .error : .success
+        .sheet(isPresented: $showDashboard) {
+            PrivacyDashboardView(
+                permissions: permissionStore,
+                contentBlocker: contentBlocker,
+                videoAdBlocker: videoAdBlocker
             )
-            Button {
-                store.remove(host: rule.host)
-            } label: {
-                Image(systemName: "minus.circle")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Revoke")
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .frame(minHeight: 44)
     }
 }
-
 
 // MARK: - Filter Lists
 

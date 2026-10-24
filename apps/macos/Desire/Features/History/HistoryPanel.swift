@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct HistoryPanel: View {
+    @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: HistoryStore
     var onSelect: (String) -> Void
     var onClose: () -> Void
@@ -25,7 +26,7 @@ struct HistoryPanel: View {
     @State private var contentSearchTask: Task<Void, Never>?
 
     enum GroupMode: String, CaseIterable {
-        case date, site
+        case date, site, timeline
     }
 
     private var filtered: [HistoryEntry] {
@@ -115,6 +116,67 @@ struct HistoryPanel: View {
         }
     }
 
+    // MARK: - 时间线（v0.8.6）
+
+    /// 按天分节的 24 格小时直方图（点击小时格 → 过滤该小时段的条目，
+    /// 复用 siteFilter 上方那行提示位的空间：这里直接滚动到当天条目）。
+    private var timelineSection: some View {
+        let buckets = HistoryTimeline.build(from: filtered)
+        return VStack(spacing: 14) {
+            if buckets.isEmpty {
+                Text("No visits to chart")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 30)
+            } else {
+                ForEach(buckets, id: \.dayKey) { bucket in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 6) {
+                            Text(Self.timelineDayTitle(bucket.date))
+                                .font(.system(size: 11, weight: .semibold))
+                            Spacer()
+                            Text("\(bucket.total)")
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                            if let peak = bucket.peakHour, bucket.total > 0 {
+                                Text(String(format: String(localized: "peak %02d:00"), peak))
+                                    .font(.system(size: 9.5))
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        hourBars(bucket)
+                    }
+                    .padding(.horizontal, 4)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+    }
+
+    /// 24 根小时柱（高度按全天峰值归一）。hover 显示"HH:00 · N 次"。
+    private func hourBars(_ bucket: HistoryTimeline.DayBucket) -> some View {
+        let peak = max(1, bucket.hourly.max() ?? 1)
+        return HStack(alignment: .bottom, spacing: 2) {
+            ForEach(0..<24, id: \.self) { hour in
+                let count = bucket.hourly[hour]
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(count == 0 ? Color.secondary.opacity(0.15) : appAccent.opacity(0.65))
+                    .frame(height: 4 + CGFloat(count) / CGFloat(peak) * 26)
+                    .frame(maxHeight: 30, alignment: .bottom)
+                    .help(String(format: String(localized: "%02d:00 — %d visit(s)"), hour, count))
+            }
+        }
+        .frame(height: 32)
+    }
+
+    private static func timelineDayTitle(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM d"
+        return formatter.string(from: date)
+    }
+
     private func domainFromURL(_ urlString: String) -> String? {
         URL(string: urlString)?.host
     }
@@ -185,9 +247,10 @@ struct HistoryPanel: View {
                     Picker("Group by", selection: $groupMode) {
                         Image(systemName: "calendar").tag(GroupMode.date)
                         Image(systemName: "globe").tag(GroupMode.site)
+                        Image(systemName: "chart.bar").tag(GroupMode.timeline)
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 70)
+                    .frame(width: 100)
 
                     Button { searchArchive() } label: {
                         if archiveLoading {
@@ -233,7 +296,11 @@ struct HistoryPanel: View {
             if filtered.isEmpty && archiveHits.isEmpty && contentHits.isEmpty && !archiveLoading {
                 EmptyState(message: searchText.isEmpty ? String(localized: "No Browsing History") : String(localized: "No Matching Records"))
             } else {
-                List {
+                Group {
+                    if groupMode == .timeline {
+                        timelineSection
+                    } else {
+                    List {
                     if !contentHits.isEmpty {
                         Section(String(localized: "Found in page text")) {
                             ForEach(contentHits, id: \.record.url) { hit in
@@ -373,6 +440,8 @@ struct HistoryPanel: View {
                     }
                 }
                 .listStyle(.plain)
+                    }
+                }
             }
         }
         .onChange(of: searchText) { _, _ in

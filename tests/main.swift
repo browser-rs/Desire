@@ -3667,6 +3667,39 @@ func testToolUsageStats() {
 
 testToolUsageStats()
 
+func testHistoryTimeline() {
+    var cal = Calendar(identifier: .gregorian)
+    cal.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+    func date(_ y: Int, _ m: Int, _ d: Int, _ h: Int) -> Date {
+        cal.date(from: DateComponents(year: y, month: m, day: d, hour: h))!
+    }
+    func entry(_ u: String, _ d: Date) -> HistoryEntry {
+        HistoryEntry(id: UUID(), url: u, title: u, timestamp: d)
+    }
+    let entries = [
+        entry("a", date(2026, 10, 24, 9)),
+        entry("b", date(2026, 10, 24, 9)),
+        entry("c", date(2026, 10, 24, 14)),
+        entry("d", date(2026, 10, 23, 22)),
+    ]
+    let buckets = HistoryTimeline.build(from: entries, calendar: cal)
+    check("时间线：天数", buckets.count == 2)
+    check("时间线：天序新→旧", buckets[0].dayKey == "2026-10-24")
+    check("时间线：小时聚合", buckets[0].hourly[9] == 2 && buckets[0].hourly[14] == 1)
+    check("时间线：全天计数", buckets[0].total == 3 && buckets[1].total == 1)
+    check("时间线：峰值小时", buckets[0].peakHour == 9)
+    check("时间线：夜访归昨日", buckets[1].hourly[22] == 1)
+    check("时间线：空输入", HistoryTimeline.build(from: [], calendar: cal).isEmpty)
+    // limitDays 截断
+    var many: [HistoryEntry] = []
+    for day in 1...10 {
+        many.append(entry("u\(day)", date(2026, 10, day, 1)))
+    }
+    check("时间线：天限截断", HistoryTimeline.build(from: many, calendar: cal, limitDays: 3).count == 3)
+}
+
+testHistoryTimeline()
+
 
 
 

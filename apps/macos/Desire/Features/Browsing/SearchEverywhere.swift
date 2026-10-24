@@ -16,8 +16,14 @@ nonisolated enum SearchEverywhere {
         let id: String
         let title: String
         let url: String
-        /// 命中来源字段（title/url——高亮定位与调试用）。
+        /// 命中来源字段（title/url/content——高亮定位与调试用）。
         let matchedIn: String
+        /// content 命中时命中处前后的一小段原文（列表副标题显示）。
+        var snippet: String? = nil
+        /// Agent 会话命中消息（打开会话后跳转高亮这一轮）。
+        var targetMessageID: UUID? = nil
+        /// 触发命中的查询（打开后查找框预填）。
+        var matchedQuery: String? = nil
 
         static func == (lhs: Hit, rhs: Hit) -> Bool {
             lhs.source == rhs.source && lhs.id == rhs.id
@@ -47,6 +53,12 @@ nonisolated enum SearchEverywhere {
         let id: String
         let title: String
         let url: String
+        /// 额外正文（Agent 会话消息文本；调用方已算好命中片段）。
+        var snippet: String? = nil
+        /// Agent 会话命中消息（跳转高亮目标）；其他源为 nil。
+        var targetMessageID: UUID? = nil
+        /// 触发命中的查询（打开后查找框预填）。
+        var matchedQuery: String? = nil
     }
 
     // MARK: - Query
@@ -65,10 +77,14 @@ nonisolated enum SearchEverywhere {
             guard (counts[source] ?? 0) < limitPerSource else { continue }
             let titleHit = item.title.lowercased().contains(q)
             let urlHit = item.url.lowercased().contains(q)
-            guard titleHit || urlHit else { continue }
+            let contentHit = item.snippet?.lowercased().contains(q) == true
+            guard titleHit || urlHit || contentHit else { continue }
             let hit = Hit(source: item.source, id: item.id,
                           title: item.title, url: item.url,
-                          matchedIn: titleHit ? "title" : "url")
+                          matchedIn: titleHit ? "title" : (contentHit ? "content" : "url"),
+                          snippet: contentHit ? item.snippet : nil,
+                          targetMessageID: item.targetMessageID,
+                          matchedQuery: item.matchedQuery)
             switch source {
             case .tab: result.tabs.append(hit)
             case .history: result.history.append(hit)

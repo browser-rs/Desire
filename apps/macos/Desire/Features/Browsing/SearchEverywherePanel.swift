@@ -66,14 +66,34 @@ struct SearchEverywherePanel: View {
                     SearchEverywhere.Item(source: .readingList, id: $0.id.uuidString,
                                           title: $0.title, url: $0.url)
                 }
-                // Agent 会话（第五源）：标题 + 消息文本。
+                // Agent 会话（第五源）：标题 + 消息正文（v0.8.6 补内容搜索的
+                // 命中片段——此前正文命中行会被第二阶段 title/url 匹配滤掉）。
                 if let agentSession {
                     for c in agentSession.conversationStore.conversations {
                         let titleHit = c.title.lowercased().contains(q.lowercased())
-                        let msgHit = c.messages.contains { ($0.content ?? "").lowercased().contains(q.lowercased()) }
-                        if titleHit || msgHit {
-                            items.append(.init(source: .agentConversation, id: c.id.uuidString,
-                                               title: c.title, url: "desire://conversation/\(c.id.uuidString)"))
+                        let matchedMessage = c.messages.first {
+                            ($0.content ?? "").lowercased().contains(q.lowercased())
+                        }
+                        if titleHit || matchedMessage != nil {
+                            var snippet: String?
+                            var hitMessageID: UUID?
+                            if let message = matchedMessage, let text = message.content {
+                                hitMessageID = message.id
+                                let lowered = text.lowercased()
+                                if let range = lowered.range(of: q.lowercased()) {
+                                    let lower = text.index(range.lowerBound, offsetBy: -50, limitedBy: text.startIndex) ?? text.startIndex
+                                    let upper = text.index(range.upperBound, offsetBy: 90, limitedBy: text.endIndex) ?? text.endIndex
+                                    snippet = (lower > text.startIndex ? "…" : "")
+                                        + text[lower..<upper].replacingOccurrences(of: "\n", with: " ")
+                                }
+                            }
+                            items.append(.init(
+                                source: .agentConversation, id: c.id.uuidString,
+                                title: c.title, url: "desire://conversation/\(c.id.uuidString)",
+                                snippet: snippet,
+                                // v0.8.6：带上命中消息 id，打开后跳转并高亮该轮。
+                                targetMessageID: hitMessageID,
+                                matchedQuery: q))
                         }
                     }
                 }
@@ -252,7 +272,7 @@ struct SearchEverywherePanel: View {
                     Text(attributedTitle(hit.title.isEmpty ? hit.url : hit.title))
                         .font(.system(size: 12.5, weight: .medium))
                         .lineLimit(1)
-                    Text(hit.url)
+                    Text(hit.snippet ?? hit.url)
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                         .lineLimit(1)
@@ -321,8 +341,19 @@ struct SearchEverywherePanel: View {
             }
         case .agentConversation:
             // Agent 会话：载入会话并打开 Agent 面板（宿主回调）。
+            // content 命中时带消息 id——面板载入后跳转并高亮那一轮（v0.8.6）。
             if let id = UUID(uuidString: hit.id), let agentSession {
                 agentSession.loadConversation(id)
+                if let messageID = hit.targetMessageID {
+                    NotificationCenter.default.post(
+                        name: .agentJumpToMessage,
+                        object: nil,
+                        userInfo: [
+                            "conversationID": id.uuidString,
+                            "messageID": messageID.uuidString,
+                            "query": hit.matchedQuery ?? "",
+                        ])
+                }
                 onOpenAgentPanel?()
             }
         case .history, .bookmark, .readingList:

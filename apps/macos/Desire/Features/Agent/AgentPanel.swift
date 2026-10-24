@@ -44,6 +44,8 @@ struct AgentPanel: View {
     @State private var findText = ""
     @State private var findMatches: [UUID] = []
     @State private var findIndex = 0
+    /// 集中搜索的"跳到命中轮"（v0.8.6）：载入会话后滚动到该消息并开查找框。
+    @State private var pendingJumpMessageID: UUID?
     @State private var scrollProxy: ScrollViewProxy?
     @FocusState private var isFindFieldFocused: Bool
     @State private var showCapabilities = false
@@ -982,6 +984,36 @@ struct AgentPanel: View {
                     proxy.scrollTo("__bottom__", anchor: .bottom)
                 }
             }
+            // 集中搜索跳转（v0.8.6）：收到通知时若正在展示该会话，滚动到
+            // 命中消息并开查找框预填查询词。跳一帧（Task）——通知可能
+            // 恰在 loadConversation 的状态写入事务里到达。
+            .onReceive(NotificationCenter.default.publisher(for: .agentJumpToMessage)) { note in
+                guard let info = note.userInfo,
+                      let convID = info["conversationID"] as? String,
+                      convID == (store.conversationId?.uuidString ?? ""),
+                      let messageID = info["messageID"] as? String,
+                      let target = UUID(uuidString: messageID) else { return }
+                let query = info["query"] as? String ?? ""
+                Task { @MainActor in
+                    pendingJumpMessageID = target
+                    if !query.isEmpty {
+                        findText = query
+                        showFind = true
+                        recomputeFind(reset: true)
+                        if let idx = findMatches.firstIndex(of: target) { findIndex = idx }
+                    }
+                }
+            }
+            // 载入新会话（集中搜索先 loadConversation 再发通知）后，滚动
+            // 到跳转目标：消息列表此时已换血，须等本轮 body 完成布局。
+            .onChange(of: store.conversationId) { _, _ in
+                guard let target = pendingJumpMessageID else { return }
+                pendingJumpMessageID = nil
+                Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 120_000_000)
+                    scrollProxy?.scrollTo(target, anchor: .center)
+                }
+            }
             .onChange(of: store.messages.count) { _, _ in
                 // Force-follow when the USER sent something; otherwise only
                 // while pinned (tool results streaming in shouldn't yank a
@@ -1259,4 +1291,11 @@ struct CrewProgressStrip: View {
             ? String(format: "%d:%02d", Int(seconds) / 60, Int(seconds) % 60)
             : String(format: "%.0fs", seconds)
     }
+}
+
+
+extension Notification.Name {
+    /// 集中搜索命中会话正文后请求跳转：userInfo 带 conversationID/messageID/query。
+    /// 面板已展示该会话才响应（多窗口各面板按会话 id 认领）。
+    static let agentJumpToMessage = Notification.Name("desire.agent.jumpToMessage")
 }

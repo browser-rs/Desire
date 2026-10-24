@@ -73,6 +73,14 @@ class AddressSuggestionsModel: ObservableObject {
     /// R2-12：本地扫描防抖任务（此前每击键同步全量扫描 500 条历史 + 书签）。
     private var localDebounceTask: Task<Void, Never>?
 
+    struct OpenTabInfo: Equatable {
+        let id: UUID
+        let title: String
+        let url: String
+    }
+
+    var openTabs: [OpenTabInfo] = []
+
     func build(query: String,
                settings: Settings,
                bookmarks: BookmarkStore,
@@ -88,10 +96,20 @@ class AddressSuggestionsModel: ObservableObject {
 
     /// 100ms 防抖后的实际构建（原 build 体）。桥端点（无击键时序）直接调
     /// 这一个同步入口。
-    func buildImmediate(query: String,
+    private func buildImmediate(query: String,
                                 settings: Settings,
                                 bookmarks: BookmarkStore,
                                 history: HistoryStore) {
+        buildImmediate(query: query, settings: settings,
+                       bookmarks: bookmarks, history: history,
+                       openTabs: openTabs)
+    }
+
+    func buildImmediate(query: String,
+                                settings: Settings,
+                                bookmarks: BookmarkStore,
+                                history: HistoryStore,
+                                openTabs: [OpenTabInfo] = []) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             reset()
@@ -99,11 +117,36 @@ class AddressSuggestionsModel: ObservableObject {
         }
         currentQuery = trimmed
 
+        var results: [AddressSuggestion] = []
+
+        // -- 切换到已打开标签 (v0.8.6) --
+        let lower = trimmed.lowercased()
+        var tabMatches: [AddressSuggestion] = []
+        for tab in openTabs {
+            let tabURL = tab.url.lowercased()
+            let tabTitle = tab.title.lowercased()
+            if tabURL.contains(lower) || tabTitle.contains(lower) {
+                tabMatches.append(AddressSuggestion(
+                    kind: .openTab, title: tab.title, url: tab.url,
+                    domain: nil, tabID: tab.id))
+            }
+        }
+        results.append(contentsOf: tabMatches.prefix(2))
+
+        // -- 内联计算器 (v0.8.6) --
+        if let calcResult = InlineCalculator.evaluate(trimmed) {
+            results.append(AddressSuggestion(
+                kind: .calculator, title: trimmed + " = " + calcResult,
+                url: "calculator://" + calcResult, domain: nil))
+            suggestions = results
+            selectedIndex = 0
+            return
+        }
+
         // Resolve through the SAME layer navigation uses, so what the first
         // row promises is exactly what Enter does.
         let destination = URLResolution.resolve(trimmed, settings: settings)
 
-        var results: [AddressSuggestion] = []
         var isURL = false
         switch destination {
         case .url(let urlString):

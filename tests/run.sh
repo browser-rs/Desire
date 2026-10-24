@@ -69,6 +69,7 @@ SOURCES=(
   apps/macos/Desire/Features/Promotion/CampaignAssetPlan.swift
   apps/macos/Desire/Features/Agent/FormFillPlan.swift
   apps/macos/Desire/Features/Sync/SyncPromotion.swift
+  apps/macos/Desire/Features/AddressBar/InlineCalculator.swift
   apps/macos/Desire/Features/Promotion/PromotionPreflight.swift
   apps/macos/Desire/Features/Agent/RoutingDecision.swift
   apps/macos/Desire/Features/Agent/Conversation.swift

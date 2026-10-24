@@ -3595,6 +3595,25 @@ func testSyncPromotionMerge() {
 testSyncPromotionMerge()
 
 
+// ---------- 内联计算器（v0.8.6） ----------
+
+func testInlineCalculator() {
+    eq("calc：乘法", InlineCalculator.evaluate("123*456"), "56088")
+    eq("calc：加法", InlineCalculator.evaluate("1+2+3"), "6")
+    eq("calc：除法", InlineCalculator.evaluate("10/4"), "2.5")
+    eq("calc：括号", InlineCalculator.evaluate("(1+2)*3"), "9")
+    eq("calc：负数", InlineCalculator.evaluate("-5+10"), "5")
+    eq("calc：百分比", InlineCalculator.evaluate("50%"), "0.5")
+    check("calc：复杂浮点", InlineCalculator.evaluate("1.5*2") == "3" || InlineCalculator.evaluate("1.5*2") == "3.0")
+    check("calc：除以零返回nil", InlineCalculator.evaluate("1/0") == nil)
+    check("calc：非数学返回nil", InlineCalculator.evaluate("hello world") == nil)
+    check("calc：纯数字不算", InlineCalculator.evaluate("123") == nil)
+    eq("calc：中文乘号", InlineCalculator.evaluate("3×4"), "12")
+}
+testInlineCalculator()
+
+
+
 
 
 

@@ -110,6 +110,14 @@ struct AddressSuggestionsView: View {
                 .frame(width: 16, height: 16)
         case .history:
             FaviconView(urlString: suggestion.url, size: 16)
+        case .openTab:
+            Image(systemName: "square.on.square")
+                .foregroundStyle(appAccent)
+                .frame(width: 16, height: 16)
+        case .calculator:
+            Image(systemName: "equal.circle")
+                .foregroundStyle(.secondary)
+                .frame(width: 16, height: 16)
         }
     }
 
@@ -127,6 +135,8 @@ struct AddressSuggestionsView: View {
         case .navigate, .bookmark, .history:
             return true
         case .searchDefault, .searchSuggestion:
+            return false
+        case .openTab, .calculator:
             return false
         }
     }

@@ -1,3 +1,15 @@
+## [Unreleased]
+### Added
+
+- **每日运营循环（0.8.4 第一批）**：新增 OperationsLoop——把散落的采集/提及/排期/回复/竞品/归因收进一条循环，汇总为一条 Jobs 条目 + routine 通知（"今日运营：N 件事"）；可定时 09:00 或手动 ▶ 触发，触发后把待办清单交给 Agent 逐件处理。纯逻辑 `OperationsLoopPlan` 进 harness（1513/0）。
+- **归因→选题回流（0.8.4 第一批）**：Attribution 面板新增"表现最佳"——已发帖按浏览增长排序，top 3 + 最差，每条可一键生成同角度选题（交给 Agent 改写入库）；周报新增归因洞察段。
+- **DPP Studio 圈选（0.8.4 第一批）**：新增 `pickElement` Agent 工具——激活当前标签的元素拾取器，等用户点击 30s 内返回 CSS 选择器 + outerHTML；模型用它获取精确选择器再调 `saveDPPAdapter`，闭环自定义渠道适配。
+- **密码健康（0.8.4 第二批）**：`passwordHealth` Agent 工具——扫已保存密码的弱密码（短/常见/无混合）/重复（同密码跨域名）/过期（180 天+），只报域名和问题，不暴露密码。纯逻辑 `PasswordHealth` 进 harness。
+- **文件整理作业（0.8.4 第二批）**：`organizeFiles` Agent 工具——按扩展名/日期/正则计划文件移动，先预览 → 用户批准 → execute=true 执行；跳过文件如实报告。纯逻辑 `FileOrganizerPlan` 进 harness。
+- **素材库渠道变体生成（0.8.4 第二批）**：`addCampaignAsset` Agent 工具——复制源图到战役素材目录，按渠道规格（X 1200×675 / 小红书 1080×1440 / OG 1200×630 / 掘金/V2EX）用 CoreGraphics 居中裁剪生成变体，挂到战役 `assets`。纯逻辑 `CampaignAssetPlan` 进 harness。
+- **表单填充（0.8.4 第三批）**：`fillForm` Agent 工具——按 selector+value+kind（text/select/checkbox）填表；提交按钮只定位不点击（人工批准红线）。纯逻辑 `FormFillPlan` 进 harness。
+
+
 ## [v0.8.3] - 2026-10-23
 ### Added
 

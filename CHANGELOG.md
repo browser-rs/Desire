@@ -1,3 +1,14 @@
+## [Unreleased]
+### Added
+
+- **运营数据同步域 promotion（0.8.5）**：PromotionStore 七类数据（目标/帖子/账号/实验/互动/战役/竞品来源）进同步（第十一类域），HMAC client_id + AES-256-GCM 密文 + LWW 合并 + tombstone 删除追踪；服务端白名单加入 `promotion` 并修复 `workspace` 遗漏。纯逻辑 `SyncPromotion.merge` 进 harness。
+- **跨窗口 Agent 会话指示器（0.8.5）**：Agent 面板头部新增 `⧉ N` 指示器——其他窗口有 Agent 会话时显示，运行中高亮；点击弹出列表查看状态并一键切换窗口。
+- **下载完成通知操作按钮（0.8.5）**：下载完成通知新增 Open / Show in Finder 操作按钮（UNNotificationCategory DOWNLOAD_COMPLETE）；NotificationRouter 处理两个 action（打开文件 / 在 Finder 中选中）。
+- **地址栏 Tab 补全（0.8.5）**：URLBarField 新增 Tab 键补全——按 Tab 自动填入首个建议的 URL（Shift+Tab 无操作）；`suggestion(at:)` 方法加入 AddressSuggestionsModel。
+- **固定标签关闭确认（0.8.5）**：固定标签的右键菜单新增 "Close Pinned Tab" 操作（普通关闭按钮对固定标签已隐藏，此处补上右键关闭入口并提醒用户）。
+- **阅读高亮导出为 .md 文件（0.8.5）**：ReaderHighlightsSheet 新增 "Export as .md" 按钮——NSSavePanel 选路径，高亮 + 备注保存为 Markdown 文件（使用已有 ReaderHighlightStore.markdown）。
+
+
 ## [v0.8.4] - 2026-10-24
 ### Added
 

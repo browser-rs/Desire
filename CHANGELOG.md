@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.4] - 2026-10-24
 ### Added
 
 - **每日运营循环（0.8.4 第一批）**：新增 OperationsLoop——把散落的采集/提及/排期/回复/竞品/归因收进一条循环，汇总为一条 Jobs 条目 + routine 通知（"今日运营：N 件事"）；可定时 09:00 或手动 ▶ 触发，触发后把待办清单交给 Agent 逐件处理。纯逻辑 `OperationsLoopPlan` 进 harness（1513/0）。

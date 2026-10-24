@@ -71,6 +71,9 @@ struct AgentHeaderView: View {
 
             Spacer(minLength: 4)
 
+            // 跨窗口 Agent 会话指示器（v0.9.0）：其他窗口有活跃会话时显示。
+            CrossWindowSessionsIndicator(currentStore: store)
+
             if store.fullAccess {
                 fullAccessBadge
             }

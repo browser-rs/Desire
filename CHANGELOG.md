@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.5] - 2026-10-25
 ### Added
 
 - **运营数据同步域 promotion（0.8.5）**：PromotionStore 七类数据（目标/帖子/账号/实验/互动/战役/竞品来源）进同步（第十一类域），HMAC client_id + AES-256-GCM 密文 + LWW 合并 + tombstone 删除追踪；服务端白名单加入 `promotion` 并修复 `workspace` 遗漏。纯逻辑 `SyncPromotion.merge` 进 harness。

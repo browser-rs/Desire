@@ -74,6 +74,7 @@ SOURCES=(
   apps/macos/Desire/Features/Settings/PermissionMatrix.swift
   apps/macos/Desire/Features/Agent/ToolUsageStats.swift
   apps/macos/Desire/Features/History/HistoryTimeline.swift
+  apps/macos/Desire/Features/Agent/MediaURLDetector.swift
   apps/macos/Desire/Features/Promotion/PromotionPreflight.swift
   apps/macos/Desire/Features/Agent/RoutingDecision.swift
   apps/macos/Desire/Features/Agent/Conversation.swift

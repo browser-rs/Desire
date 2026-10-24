@@ -3700,6 +3700,50 @@ func testHistoryTimeline() {
 
 testHistoryTimeline()
 
+func testMediaURLDetector() {
+    check("建议：无 URL 不建议", MediaURLDetector.suggest(for: "just text") == nil)
+    check("建议：普通网页链接不建议",
+          MediaURLDetector.suggest(for: "https://example.com/page") == nil)
+    let single = MediaURLDetector.suggest(for: "看看这个 https://cdn.example.com/a.mp4?t=1")
+    if case .single(let url, let host, let kind)? = single {
+        check("建议：单视频 URL", url.contains("a.mp4") && host == "cdn.example.com" && kind == .video)
+    } else {
+        check("建议：单视频 URL", false)
+    }
+    let playlist = MediaURLDetector.suggest(for: "https://hls.example.com/live/manifest.m3u8")
+    if case .single(_, _, let kind)? = playlist {
+        check("建议：m3u8 归播放列表", kind == .playlist)
+    } else {
+        check("建议：m3u8 归播放列表", false)
+    }
+    let batch = MediaURLDetector.suggest(for: "https://a.example.com/1.mp4\nhttps://a.example.com/2.mp4")
+    if case .batch(let urls, let hosts)? = batch {
+        check("建议：两 URL 走批量", urls.count == 2 && hosts == ["a.example.com"])
+    } else {
+        check("建议：两 URL 走批量", false)
+    }
+    // 混普通链接 + 媒体：仍建议（媒体在就行）
+    let mixed = MediaURLDetector.suggest(for: "来源 https://example.com/post 和 https://cdn.example.com/x.zip")
+    if case .single(_, _, let kind)? = mixed {
+        check("建议：混合文本命中压缩包", kind == .archive)
+    } else {
+        check("建议：混合文本命中压缩包", false)
+    }
+    // 站点关闭
+    let muted = MediaURLDetector.suggest(for: "https://cdn.example.com/a.mp4",
+                                         disabledHosts: ["cdn.example.com"])
+    check("建议：被静音站点不提示", muted == nil)
+    // 无扩展 manifest 形态
+    let manifest = MediaURLDetector.suggest(for: "https://v.example.com/hls/manifest?id=3")
+    if case .single(_, _, let kind)? = manifest {
+        check("建议：无扩展 manifest 命中", kind == .playlist)
+    } else {
+        check("建议：无扩展 manifest 命中", false)
+    }
+}
+
+testMediaURLDetector()
+
 
 
 

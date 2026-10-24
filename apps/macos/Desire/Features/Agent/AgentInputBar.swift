@@ -78,6 +78,7 @@ struct AgentInputBar: View {
             if awaitingQuestion {
                 contextStrip
             }
+            downloadSuggestStrip
             if !attachments.isEmpty {
                 attachmentStrip
             }
@@ -86,6 +87,9 @@ struct AgentInputBar: View {
                 slashMenu
             }
             inputCapsule
+                .onChange(of: text) { _, _ in
+                    if downloadSuggestDismissed { downloadSuggestDismissed = false }
+                }
             voiceStatusLine
         }
         .padding(.horizontal, 12)
@@ -95,6 +99,96 @@ struct AgentInputBar: View {
         .overlay(alignment: .top) {
             Divider().opacity(0.5)
         }
+    }
+
+    // MARK: - 下载智能建议（v0.8.6）
+
+    /// 检测输入里的媒体/文件 URL（≥2 个建议批量引擎）。可按站点关闭
+    /// （UserDefaults `downloadSuggest.disabledHosts`）。
+    @State private var downloadSuggestDismissed = false
+    private var disabledDownloadHosts: Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: "downloadSuggest.disabledHosts") ?? [])
+    }
+
+    private var downloadSuggest: MediaURLDetector.Suggestion? {
+        // slash 命令输入时不打扰。
+        guard !text.hasPrefix("/"), !downloadSuggestDismissed else { return nil }
+        return MediaURLDetector.suggest(for: text, disabledHosts: disabledDownloadHosts)
+    }
+
+    @ViewBuilder
+    private var downloadSuggestStrip: some View {
+        if let suggestion = downloadSuggest, !isProcessing {
+            HStack(spacing: 6) {
+                Image(systemName: "arrow.down.circle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(appAccent)
+                switch suggestion {
+                case .single(let url, let host, let kind):
+                    Text(String(localized: "检测到\(kind.label)链接 — 用下载引擎？"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    Button(String(localized: "下载它")) {
+                        text = String(format: String(localized: "用 downloadMedia 下载这个文件：%@（来源 %@）"), url, host)
+                        downloadSuggestDismissed = true
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(appAccent)
+                case .batch(let urls, let hosts):
+                    Text(String(localized: "检测到 \(urls.count) 个媒体链接 — 用批量引擎？"))
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    Button(String(localized: "批量下载")) {
+                        text = String(format: String(localized: "用批量下载引擎下载以下 %@ 个链接（站点 %@），保存到默认下载目录：\n%@"), urls.count, hosts.joined(separator: ", "), urls.joined(separator: "\n"))
+                        downloadSuggestDismissed = true
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(appAccent)
+                }
+                Button {
+                    muteThisSite(suggestion)
+                    downloadSuggestDismissed = true
+                } label: {
+                    Image(systemName: "bell.slash")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .help(String(localized: "不再提示此站点"))
+                Button {
+                    downloadSuggestDismissed = true
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+                .help(String(localized: "忽略"))
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(appAccent.opacity(0.07))
+            )
+        }
+    }
+
+    private func muteThisSite(_ suggestion: MediaURLDetector.Suggestion) {
+        let hosts: [String]
+        switch suggestion {
+        case .single(_, let host, _): hosts = [host]
+        case .batch(_, let list): hosts = list
+        }
+        var set = disabledDownloadHosts
+        set.formUnion(hosts)
+        UserDefaults.standard.set(Array(set), forKey: "downloadSuggest.disabledHosts")
     }
 
     // MARK: - Context strip

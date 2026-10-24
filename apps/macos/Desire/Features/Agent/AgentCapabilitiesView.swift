@@ -11,9 +11,25 @@ struct AgentCapabilitiesView: View {
     var onBack: () -> Void
 
     @State private var searchText = ""
+    /// 工具使用徽标（v0.8.6）：30 天窗口的调用次数/失败率。init 即读盘
+    /// （离屏快照可拍——.task 在离屏宿主不触发）。
+    @State private var usage: [ToolUsageStats.ToolStat]
+
+    init(onBack: @escaping () -> Void) {
+        self.onBack = onBack
+        let store = ConversationStore()
+        _usage = State(initialValue: ToolUsageStats.derive(
+            from: ToolUsageStats.samples(from: store.conversations),
+            since: Date().addingTimeInterval(-30 * 86_400)))
+    }
 
     private var allTools: [AgentToolDef] {
         BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs
+    }
+
+    /// 工具名 → 30 天统计（O(1) 查表）。
+    private var usageByName: [String: ToolUsageStats.ToolStat] {
+        Dictionary(uniqueKeysWithValues: usage.map { ($0.name, $0) })
     }
 
     var body: some View {
@@ -192,6 +208,20 @@ struct AgentCapabilitiesView: View {
                     .lineLimit(2)
             }
             Spacer(minLength: 4)
+            if let stat = usageByName[tool.function.name], stat.calls > 0 {
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("×\(stat.calls)")
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                    if stat.failures > 0 {
+                        Text(String(format: "%.0f%% fail", stat.failureRate * 100))
+                            .font(.system(size: 9))
+                            .foregroundStyle(.orange)
+                    }
+                }
+                .help(String(format: String(localized: "%d calls in 30 days, %d failed"), stat.calls, stat.failures))
+                .padding(.top, 1)
+            }
             StatusPill(text: risk.label, kind: risk.pillKind)
                 .padding(.top, 1)
         }

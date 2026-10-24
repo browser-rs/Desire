@@ -3635,6 +3635,38 @@ func testPermissionMatrix() {
 
 testPermissionMatrix()
 
+func testToolUsageStats() {
+    let now = Date()
+    func d(_ daysAgo: Double) -> Date { now.addingTimeInterval(-daysAgo * 86_400) }
+    let samples: [ToolUsageStats.Sample] = [
+        .init(name: "readFile", resultText: "ok", durationMs: 100, at: d(1)),
+        .init(name: "readFile", resultText: "Error: missing", durationMs: 300, at: d(2)),
+        .init(name: "readFile", resultText: "ok", durationMs: 200, at: d(3)),
+        .init(name: "navigate", resultText: "ok", durationMs: 900, at: d(1)),
+        .init(name: "oldTool", resultText: "ok", durationMs: 10, at: d(60)),
+    ]
+    let all = ToolUsageStats.derive(from: samples)
+    check("工具：排序按调用数", all.first?.name == "readFile")
+    check("工具：调用数", all.first?.calls == 3)
+    check("工具：失败计数（Error: 前缀）", all.first?.failures == 1)
+    check("工具：均值毫秒", all.first?.averageMs == 200)
+    let nav = all.first { $0.name == "navigate" }
+    check("工具：次序稳定", nav?.calls == 1 && nav?.failures == 0)
+
+    // 30 天窗口：60 天前的样本被滤掉
+    let windowed = ToolUsageStats.derive(from: samples, since: now.addingTimeInterval(-30 * 86_400))
+    check("工具：窗口过滤旧样本", !windowed.contains { $0.name == "oldTool" })
+    check("工具：窗口内保留", windowed.contains { $0.name == "readFile" })
+
+    // 空样本 / 无耗时
+    check("工具：空样本", ToolUsageStats.derive(from: []).isEmpty)
+    let noDur = ToolUsageStats.derive(from: [.init(name: "x", resultText: nil, durationMs: nil, at: now)])
+    check("工具：无耗时均值 nil", noDur.first?.averageMs == nil)
+    check("工具：nil 结果不计失败", noDur.first?.failures == 0)
+}
+
+testToolUsageStats()
+
 
 
 

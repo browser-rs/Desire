@@ -62,7 +62,12 @@ struct AgentStatsView: View {
         _stats = State(initialValue: UsageStats.derive(
             from: conversationStore.conversations,
             price: preference.usagePrice(for:)))
+        _toolStats = State(initialValue: ToolUsageStats.derive(
+            from: ToolUsageStats.samples(from: conversationStore.conversations)))
     }
+
+    /// 工具统计（v0.8.6）：全部历史（无窗口）——会话量级有限，全量更有用。
+    @State private var toolStats: [ToolUsageStats.ToolStat]
 
     /// 会用到的模型（按 token 降序），超过 5 个时只画前 5 条线。
     private var seriesModels: [UsageModelStat] { Array(stats.models.prefix(5)) }
@@ -79,6 +84,7 @@ struct AgentStatsView: View {
                         activityCard
                         trendCard
                         modelsCard
+                        toolsCard
                     }
                     footnote
                 }
@@ -617,7 +623,76 @@ struct AgentStatsView: View {
     private var trendDomain: [String] { seriesModels.map { displayName(for: $0.id) } }
     private var trendColors: [Color] { seriesModels.map { seriesColor(for: $0.id) } }
 
-    private var footnote: some View {
+        // MARK: - 工具统计（v0.8.6）
+
+    private var toolsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 6) {
+                Image(systemName: "wrench.and.screwdriver")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(appAccent)
+                Text("Tool Usage")
+                    .font(.system(size: 12.5, weight: .semibold))
+                Spacer()
+                Text(String(localized: "all conversations"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+
+            if toolStats.isEmpty {
+                Text("No tool calls recorded yet")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 16)
+            } else {
+                VStack(spacing: 0) {
+                    let top = Array(toolStats.prefix(12))
+                    ForEach(Array(top.enumerated()), id: \.element.name) { index, stat in
+                        HStack(spacing: 8) {
+                            Text(stat.name)
+                                .font(.system(size: 11, design: .monospaced))
+                                .lineLimit(1)
+                                .frame(width: 190, alignment: .leading)
+                            GeometryReader { geo in
+                                RoundedRectangle(cornerRadius: 2.5)
+                                    .fill(stat.failures > 0 ? Color.orange.opacity(0.65) : appAccent.opacity(0.55))
+                                    .frame(width: max(4, geo.size.width * CGFloat(stat.calls) / CGFloat(max(1, top.first?.calls ?? 1))), height: 9)
+                            }
+                            .frame(maxWidth: 180)
+                            Text("×\(stat.calls)")
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 48, alignment: .trailing)
+                            if stat.failures > 0 {
+                                Text(String(format: "%.0f%%", stat.failureRate * 100))
+                                    .font(.system(size: 9.5))
+                                    .foregroundStyle(.orange)
+                                    .frame(width: 34, alignment: .trailing)
+                                    .help(String(format: String(localized: "%d failed calls (result starts with Error:)"), stat.failures))
+                            }
+                            if let ms = stat.averageMs {
+                                Text(String(format: "%.0fms", ms))
+                                    .font(.system(size: 9.5, design: .monospaced))
+                                    .foregroundStyle(.tertiary)
+                                    .frame(width: 52, alignment: .trailing)
+                            }
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 5)
+                        if index < top.count - 1 {
+                            SettingsRowDivider()
+                        }
+                    }
+                }
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor).opacity(0.5)))
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .controlBackgroundColor).opacity(0.35)))
+    }
+
+private var footnote: some View {
         Text("Derived from saved conversations. Only calls that reported usage count — conversations from before this was recorded show 0.")
             .font(.system(size: 10))
             .foregroundStyle(.tertiary)

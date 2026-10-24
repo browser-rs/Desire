@@ -72,6 +72,7 @@ SOURCES=(
   apps/macos/Desire/Features/AddressBar/InlineCalculator.swift
   apps/macos/Desire/Features/Settings/PermissionRule.swift
   apps/macos/Desire/Features/Settings/PermissionMatrix.swift
+  apps/macos/Desire/Features/Agent/ToolUsageStats.swift
   apps/macos/Desire/Features/Promotion/PromotionPreflight.swift
   apps/macos/Desire/Features/Agent/RoutingDecision.swift
   apps/macos/Desire/Features/Agent/Conversation.swift

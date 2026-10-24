@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// 阅读高亮列表（v0.7.29）：跳转、改色、备注、删除、复制 Markdown。
 struct ReaderHighlightsSheet: View {
@@ -16,6 +17,7 @@ struct ReaderHighlightsSheet: View {
                 Text("Highlights")
                     .font(.headline)
                 Spacer()
+                Button("Export as .md") { exportToFile() }
                 Button("Copy Markdown") {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(store.markdown(for: url), forType: .string)
@@ -91,6 +93,19 @@ struct ReaderHighlightsSheet: View {
             }
         }
         .frame(width: 440, height: 460)
+    }
+
+    private func exportToFile() {
+        let host = URL(string: url)?.host ?? url
+        let text = store.markdown(for: url)
+        guard !text.isEmpty else { return }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.plainText]
+        panel.nameFieldStringValue = host + "-highlights.md"
+        panel.begin { response in
+            guard response == .OK, let saveURL = panel.url else { return }
+            try? text.write(to: saveURL, atomically: true, encoding: .utf8)
+        }
     }
 
     private func swatch(_ color: ReaderHighlight.Color) -> Color {

@@ -379,6 +379,14 @@ struct Toolbar: View {
                     suggestionModel.moveSelection(by: delta)
                     return true
                 },
+                onTabCompletion: { reverse in
+                    guard !reverse, !suggestionModel.isEmpty else { return false }
+                    if let first = suggestionModel.suggestion(at: 0) {
+                        editingURL = first.url
+                        return true
+                    }
+                    return false
+                },
                 onEscape: {
                     suggestionModel.reset()
                     isUrlFocused = false

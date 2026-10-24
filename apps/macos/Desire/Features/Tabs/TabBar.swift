@@ -597,6 +597,11 @@ private struct TabPillView: View {
         }
 
         Button(tab.isPinned ? "Unpin" : "Pin Tab") { actions.togglePin(index) }
+        if tab.isPinned {
+            Button("Close Pinned Tab", role: .destructive) {
+                actions.closeTab(index)
+            }
+        }
         Divider()
 
         Button("Close Tab") { actions.closeTab(index) }

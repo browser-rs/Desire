@@ -50,6 +50,10 @@ class AddressSuggestionsModel: ObservableObject {
 
     var isEmpty: Bool { suggestions.isEmpty }
 
+    func suggestion(at index: Int) -> AddressSuggestion? {
+        suggestions.indices.contains(index) ? suggestions[index] : nil
+    }
+
     func selected() -> AddressSuggestion? {
         suggestions.indices.contains(selectedIndex) ? suggestions[selectedIndex] : nil
     }

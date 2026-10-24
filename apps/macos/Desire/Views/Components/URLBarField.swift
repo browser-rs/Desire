@@ -21,6 +21,7 @@ struct URLBarField: NSViewRepresentable {
     /// (the field then leaves the caret alone); `false` lets up/down move
     /// the caret as usual — e.g. when the suggestion list is empty.
     var onMoveSelection: (Int) -> Bool
+    var onTabCompletion: (Bool) -> Bool
     var onEscape: () -> Void
     var onTextChange: (String) -> Void
 
@@ -227,6 +228,12 @@ struct URLBarField: NSViewRepresentable {
             if commandSelector == #selector(NSResponder.cancelOperation(_:)) {
                 parent.onEscape()
                 return true
+            }
+            if commandSelector == #selector(NSResponder.insertTab(_:)) {
+                return parent.onTabCompletion(false)
+            }
+            if commandSelector == #selector(NSResponder.insertBacktab(_:)) {
+                return parent.onTabCompletion(true)
             }
             return false
         }

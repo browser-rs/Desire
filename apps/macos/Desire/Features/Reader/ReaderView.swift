@@ -2,6 +2,7 @@ import SwiftUI
 import WebKit
 
 struct ReaderView: View {
+    @Environment(\.appAccent) private var appAccent: Color
     let title: String
     let contentHTML: String
     /// 提取时的页面 URL（v0.7.28）：相对图片/链接的解析基准。
@@ -33,6 +34,9 @@ struct ReaderView: View {
     @State private var plainText: String = ""
     /// "保存离线"的瞬时反馈（v0.7.28）。
     @State private var offlineNote: String?
+    /// AI 摘要（v0.8.6）：旁路调用模型 + 弹层开关。
+    @StateObject private var summaryModel = ReaderSummaryModel()
+    @State private var showSummary = false
 
     private var pageURLString: String { baseURL?.absoluteString ?? "" }
 
@@ -143,6 +147,13 @@ struct ReaderView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help("Highlights")
+                Button { showSummary = true } label: {
+                    Image(systemName: summaryModel.isBusy ? "sparkles" : "sparkles")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(summaryModel.isBusy ? appAccent : Color.secondary)
+                .help("AI Summary")
                 Menu {
                     ForEach([1.4, 1.7, 2.0], id: \.self) { spacing in
                         Button(spacing == 1.4 ? "Tight" : spacing == 1.7 ? "Normal" : "Loose") {
@@ -235,6 +246,11 @@ struct ReaderView: View {
         }
         // 离开阅读模式即停朗读（切标签/关面板不残留语音）。
         .onDisappear { speech.stop() }
+        .sheet(isPresented: $showSummary) {
+            ReaderSummarySheet(model: summaryModel,
+                               articleText: speechText.isEmpty
+                                   ? Self.stripHTML(contentHTML) : speechText)
+        }
         .sheet(isPresented: $showHighlights) {
             ReaderHighlightsSheet(url: pageURLString,
                                   store: highlightStore,
@@ -482,4 +498,97 @@ enum ReaderScrollMemory {
                onClose: {},
                onOpenURL: { _ in })
         .frame(width: 600, height: 400)
+}
+
+
+// MARK: - AI 摘要弹层（v0.8.6）
+
+private struct ReaderSummarySheet: View {
+    @Environment(\.appAccent) private var appAccent: Color
+    @ObservedObject var model: ReaderSummaryModel
+    let articleText: String
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .foregroundStyle(appAccent)
+                Text("AI Summary")
+                    .font(.system(size: 13, weight: .semibold))
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            HStack(spacing: 8) {
+                ForEach(ReaderSummaryModel.Kind.allCases) { kind in
+                    Button(kind.buttonLabel) {
+                        model.run(articleText: articleText, kind: kind)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 12, weight: .medium))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(Capsule().fill(appAccent.opacity(0.12)))
+                    .foregroundStyle(appAccent)
+                    .disabled(model.isBusy)
+                }
+                Spacer()
+                if model.isBusy {
+                    ProgressView().scaleEffect(0.6).frame(height: 14)
+                }
+            }
+
+            Divider()
+
+            switch model.phase {
+            case .idle:
+                Text("Summarize this article or extract its key points with a side model call — it does not open an agent turn.")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .padding(.vertical, 20)
+            case .streaming, .done:
+                ScrollView {
+                    Text(model.text.isEmpty ? "…" : model.text)
+                        .font(.system(size: 12.5))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.vertical, 4)
+                }
+                if model.phase == .done, !model.text.isEmpty {
+                    HStack {
+                        Spacer()
+                        Button(String(localized: "Copy")) {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(model.text, forType: .string)
+                        }
+                        .font(.system(size: 11.5, weight: .medium))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(appAccent)
+                    }
+                }
+            case .failed(let message):
+                VStack(spacing: 6) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text(message)
+                        .font(.system(size: 11.5))
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 16)
+            }
+        }
+        .padding(16)
+        .frame(width: 460, height: 380)
+        .onDisappear { model.reset() }
+    }
 }

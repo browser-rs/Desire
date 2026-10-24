@@ -11,14 +11,27 @@ enum SelectionAssistService {
     static func stream(text: String, mode: SelectionAssistMode,
                        onDelta: @MainActor (String) -> Void,
                        onUsage: (@MainActor (Int, Int, String?) -> Void)? = nil) async throws -> String {
+        try await stream(text: text,
+                   systemPrompt: SelectionAssistMode.systemPrompt(for: mode),
+                   userPrompt: SelectionAssistMode.userPrompt(for: text, mode: mode),
+                   onDelta: onDelta, onUsage: onUsage)
+    }
+
+    /// 复用同一旁路管道的自定义提示版本（v0.8.6：阅读模式 AI 摘要——
+    /// 不属于划词模式枚举，但档案选择/流解析/用量上报完全一致）。
+    static func stream(text: String,
+                       systemPrompt: String,
+                       userPrompt: String,
+                       onDelta: @MainActor (String) -> Void,
+                       onUsage: (@MainActor (Int, Int, String?) -> Void)? = nil) async throws -> String {
         guard let prefs = AppState.live?.aiPreference else {
             throw NSError(domain: "SelectionAssist", code: 1,
                           userInfo: [NSLocalizedDescriptionKey: "Agent 配置未就绪"])
         }
         let sidePrefs = prefs.bypassPreferences() ?? prefs
         let messages = [
-            AgentMessage(role: .system, content: SelectionAssistMode.systemPrompt(for: mode)),
-            AgentMessage(role: .user, content: SelectionAssistMode.userPrompt(for: text, mode: mode)),
+            AgentMessage(role: .system, content: systemPrompt),
+            AgentMessage(role: .user, content: userPrompt),
         ]
         var output = ""
         var usagePrompt = 0

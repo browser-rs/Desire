@@ -233,6 +233,18 @@ extension BrowserToolProvider {
                 ], required: ["name", "hosts", "views"]),
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "passwordHealth", description: "Scan saved passwords for weak/duplicate/old credentials. READ-ONLY — never exposes passwords, only reports findings (domain + issue). Use to give the user a security report.",
+                parameters: AgentJSONSchema(type: "object", properties: [:], required: []),
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "organizeFiles", description: "Plan and optionally execute file organization in a directory. Rules: byExtension (pdf→PDF/), byDate (→2026-10/), regex→destination. ALWAYS call with execute=false first to preview, then askUser to confirm before execute=true. Moves are irreversible — never execute without explicit approval.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Absolute directory path to organize"),
+                    "rules": AgentJSONSchemaValue(type: "array", description: "Rules in priority order: {\"byExtension\":true}, {\"byDate\":true}, or {\"regex\":\"pattern\",\"destination\":\"SubDir\"}"),
+                    "execute": AgentJSONSchemaValue(type: "boolean", description: "false (default) = preview only; true = execute moves (requires prior askUser approval)"),
+                ], required: ["path", "rules"]),
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "pickElement", description: "Activate the element picker on the current tab and wait for the user to click an element. Returns the CSS selector + outerHTML snippet. Use this to get precise selectors for saveDPPAdapter, element blocking, or any tool that needs a selector. The user must click within 30 seconds or the call times out.",
                 parameters: AgentJSONSchema(type: "object", properties: [:], required: []),
             )),

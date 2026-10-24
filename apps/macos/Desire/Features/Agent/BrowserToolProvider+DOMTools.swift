@@ -1747,6 +1747,83 @@ extension BrowserToolProvider {
                               : "Workflow \"\(workflow.name)\" stopped:\n")
                 + lines.joined(separator: "\n")
 
+        case "passwordHealth":
+            guard let app = AppState.live else {
+                return Self.fail("App not ready.")
+            }
+            let report = PasswordHealth.assess(entries: app.passwordStore.entries)
+            if report.isClean {
+                return String(localized: "Password health: all \(report.totalEntries) entries are clean.")
+            }
+            var lines: [String] = []
+            lines.append(String(localized: "Password health: \(report.findings.count) of \(report.totalEntries) entries have issues."))
+            lines.append(String(localized: "Weak: \(report.weakCount) · Duplicate: \(report.duplicateCount) · Old: \(report.oldCount)"))
+            for finding in report.findings.prefix(10) {
+                let issues = finding.issues.map { $0.label }.joined(separator: " + ")
+                lines.append("  \(finding.domain) (\(finding.username)): \(issues) — \(finding.detail)")
+            }
+            if report.findings.count > 10 {
+                lines.append(String(localized: "…and \(report.findings.count - 10) more"))
+            }
+            return lines.joined(separator: "\n")
+
+        case "organizeFiles":
+            guard let rawPath = args["path"] as? String, !rawPath.isEmpty else {
+                return Self.fail("Missing path")
+            }
+            let execute = args["execute"] as? Bool ?? false
+            let rulesRaw = args["rules"] as? [[String: Any]] ?? []
+            guard !rulesRaw.isEmpty else { return Self.fail("Missing rules") }
+            var rules: [FileOrganizerPlan.Rule] = []
+            for raw in rulesRaw {
+                if raw["byExtension"] as? Bool == true { rules.append(.byExtension) }
+                if raw["byDate"] as? Bool == true { rules.append(.byDate) }
+                if let pattern = raw["regex"] as? String,
+                   let dest = raw["destination"] as? String {
+                    rules.append(.regex(pattern: pattern, destination: dest))
+                }
+            }
+            guard !rules.isEmpty else { return Self.fail("No valid rules parsed") }
+            let fm = FileManager.default
+            guard let items = try? fm.contentsOfDirectory(atPath: rawPath) else {
+                return Self.fail("Cannot read directory \(rawPath)")
+            }
+            var files: [(name: String, modifiedAt: Date)] = []
+            for item in items where !item.hasPrefix(".") {
+                let fullPath = (rawPath as NSString).appendingPathComponent(item)
+                var isDir: ObjCBool = false
+                guard fm.fileExists(atPath: fullPath, isDirectory: &isDir), !isDir.boolValue else { continue }
+                let attrs = try? fm.attributesOfItem(atPath: fullPath)
+                let mtime = attrs?[.modificationDate] as? Date ?? Date()
+                files.append((name: item, modifiedAt: mtime))
+            }
+            let plan = FileOrganizerPlan.plan(files: files, rules: rules, root: rawPath)
+            guard !plan.moves.isEmpty else {
+                return String(localized: "No files to organize (\(plan.skipped.count) skipped).")
+            }
+            let preview = FileOrganizerPlan.summary(plan, maxLines: 15)
+            guard execute else {
+                return String(localized: "Preview (\(plan.moves.count) moves):\n\(preview)\n\nCall again with execute=true to apply. Ask the user to confirm first.")
+            }
+            var moved = 0
+            var errors: [String] = []
+            for move in plan.moves {
+                let from = (move.fromDirectory as NSString).appendingPathComponent(move.fileName)
+                let toDir = move.toDirectory
+                try? fm.createDirectory(atPath: toDir, withIntermediateDirectories: true)
+                do {
+                    try fm.moveItem(atPath: from, toPath: (toDir as NSString).appendingPathComponent(move.fileName))
+                    moved += 1
+                } catch {
+                    errors.append("\(move.fileName): \(error.localizedDescription)")
+                }
+            }
+            var result = String(localized: "Moved \(moved)/\(plan.moves.count) files.")
+            if !errors.isEmpty {
+                result += "\nErrors:\n" + errors.prefix(5).joined(separator: "\n")
+            }
+            return result
+
         case "pickElement":
             // DPP Studio 圈选（v0.8.4）：激活元素拾取器等用户点击，返回选择器。
             guard let tab = surface.tabManager?.selectedTab else {

@@ -3424,6 +3424,92 @@ func testOperationsLoopPlan() {
 testOperationsLoopPlan()
 
 
+// ---------- 密码健康（v0.8.4） ----------
+
+func testPasswordHealth() {
+    let now = Date()
+    func entry(_ domain: String, _ password: String, ageDays: Double = 0) -> PasswordEntry {
+        PasswordEntry(id: UUID(), domain: domain, username: "user@\(domain)",
+                      password: password, createdAt: now.addingTimeInterval(-ageDays * 86_400))
+    }
+    let entries = [
+        entry("strong.com", "X9#kP2$mQvL5"),
+        entry("weak.com", "123456"),
+        entry("short.com", "abc"),
+        entry("dup1.com", "SamePass123"),
+        entry("dup2.com", "SamePass123"),
+        entry("old.com", "OldButOk99", ageDays: 200),
+        entry("nodigit.com", "NoDigitsHere"),
+    ]
+    let report = PasswordHealth.assess(entries: entries, now: now)
+    check("health：总数", report.totalEntries == 7)
+    check("health：强密码不在结果", !report.findings.contains { $0.domain == "strong.com" })
+    check("health：弱密码标记", report.weakCount >= 3)
+    check("health：重复标记", report.duplicateCount == 2)
+    check("health：过期标记", report.oldCount == 1)
+    check("health：不干净", !report.isClean)
+
+    // 全部健康 → 空
+    let clean = PasswordHealth.assess(entries: [entry("ok.com", "X9#kP2$mQvL5")], now: now)
+    check("health：干净", clean.isClean && clean.findings.isEmpty)
+
+    // 弱密码判定
+    check("health：isWeak 短", PasswordHealth.isWeak("ab"))
+    check("health：isWeak 常见", PasswordHealth.isWeak("MyPassword123"))
+    check("health：isWeak 纯数字", PasswordHealth.isWeak("12345678"))
+    check("health：isWeak 纯字母", PasswordHealth.isWeak("abcdefghij"))
+    check("health：isWeak 强密码", !PasswordHealth.isWeak("X9#kP2$mQvL5"))
+}
+testPasswordHealth()
+
+// ---------- 文件整理计划（v0.8.4） ----------
+
+func testFileOrganizerPlan() {
+    let now = Date()
+    let root = "/Users/test/Downloads"
+    let files: [(name: String, modifiedAt: Date)] = [
+        ("report.pdf", now),
+        ("photo.jpg", now),
+        ("notes.txt", now),
+        ("archive.zip", now),
+        ("Makefile", now),
+    ]
+    // 按扩展名
+    let byExt = FileOrganizerPlan.plan(files: files, rules: [.byExtension], root: root)
+    check("organizer：按扩展名 4 个移动（Makefile 无后缀跳过）", byExt.moves.count == 4)
+    check("organizer：PDF 目录", byExt.moves.contains { $0.fileName == "report.pdf" && $0.toDirectory.hasSuffix("PDF") })
+    check("organizer：跳过无后缀", byExt.skipped.contains("Makefile"))
+
+    // 按日期
+    let byDate = FileOrganizerPlan.plan(files: files, rules: [.byDate], root: root)
+    check("organizer：按日期全部移动", byDate.moves.count == 5)
+    check("organizer：日期目录格式", byDate.moves.allSatisfy {
+        let dir = ($0.toDirectory as NSString).lastPathComponent
+        return dir.contains("-") && dir.count == 7
+    })
+
+    // 正则
+    let byRegex = FileOrganizerPlan.plan(files: files, rules: [
+        .regex(pattern: "report", destination: "Reports")], root: root)
+    check("organizer：正则匹配 1 个", byRegex.moves.count == 1)
+    check("organizer：正则目标", byRegex.moves.first?.toDirectory.hasSuffix("Reports") == true)
+
+    // 多规则优先级
+    let multi = FileOrganizerPlan.plan(files: files, rules: [
+        .regex(pattern: "report", destination: "Reports"),
+        .byExtension,
+    ], root: root)
+    check("organizer：正则优先于扩展名",
+          multi.moves.first { $0.fileName == "report.pdf" }?.toDirectory.hasSuffix("Reports") == true)
+
+    // 摘要
+    let summary = FileOrganizerPlan.summary(byExt)
+    check("organizer：摘要含箭头", summary.contains("→"))
+}
+testFileOrganizerPlan()
+
+
+
 
 
 

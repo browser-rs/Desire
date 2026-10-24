@@ -51196,6 +51196,50 @@
           }
         }
       }
+    },
+    "Filled %lld field(s). Submit button (%@) NOT clicked — press it yourself." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filled %lld field(s). Submit button (%@) NOT clicked — press it yourself."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已填 %lld 个字段。提交按钮（%@）未点击——请自己按。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已填 %lld 個欄位。提交按鈕（%@）未點擊——請自己按。"
+          }
+        }
+      }
+    },
+    "Filled %lld field(s)." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filled %lld field(s)."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已填 %lld 个字段。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已填 %lld 個欄位。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

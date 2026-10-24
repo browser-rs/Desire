@@ -1807,6 +1807,81 @@ extension BrowserToolProvider {
             for path in generated { result += "\n  " + path }
             return result
 
+        case "fillForm":
+            guard let fieldsRaw = args["fields"] as? [[String: Any]], !fieldsRaw.isEmpty else {
+                return Self.fail("Missing fields")
+            }
+            var fields: [FormFillPlan.Field] = []
+            for (idx, raw) in fieldsRaw.enumerated() {
+                guard let selector = raw["selector"] as? String, !selector.isEmpty else {
+                    return Self.fail("fields[\(idx)] missing selector")
+                }
+                let value = raw["value"] as? String ?? ""
+                let kind = FormFillPlan.Field.Kind(rawValue: raw["kind"] as? String ?? "text") ?? .text
+                fields.append(FormFillPlan.Field(selector: selector, value: value, kind: kind))
+            }
+            guard let stepsJSON = FormFillPlan.steps(fields: fields) else {
+                return Self.fail("No fillable fields after mapping")
+            }
+            // 通过 pageAction 执行器填表（审批链照常生效）。
+            let action = DesireProtocol.ProtocolAction(
+                name: "fillForm", effects: "local", run: stepsJSON)
+            guard let stepData = action.run?.data(using: .utf8),
+                  let stepList = try? JSONSerialization.jsonObject(with: stepData) as? [[String: Any]] else {
+                return Self.fail("Failed to build fill steps")
+            }
+            var filled = 0
+            var errors: [String] = []
+            for step in stepList {
+                guard let op = step.keys.first, let operand = step[op] else { continue }
+                do {
+                    switch (op, operand) {
+                    case ("fill", let dict as [String: String]):
+                        for (sel, val) in dict {
+                            let js = """
+                            (function(){
+                              var el = document.querySelector(\(JSString.literal(sel)));
+                              if (!el) return 'notfound';
+                              el.scrollIntoView({block:'center'});
+                              el.focus();
+                              if (el.isContentEditable) {
+                                el.textContent = \(JSString.literal(val));
+                                el.dispatchEvent(new InputEvent('input',{bubbles:true}));
+                              } else {
+                                var proto = el.tagName==='TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+                                Object.getOwnPropertyDescriptor(proto,'value').set.call(el, \(JSString.literal(val)));
+                                el.dispatchEvent(new Event('input',{bubbles:true}));
+                                el.dispatchEvent(new Event('change',{bubbles:true}));
+                              }
+                              return 'ok';
+                            })()
+                            """
+                            let r = try await webView.evaluateJavaScript(js) as? String
+                            if r == "ok" { filled += 1 }
+                            else { errors.append(sel) }
+                        }
+                    case ("select", let dict as [String: String]):
+                        for (sel, val) in dict {
+                            let js = "document.querySelector(\(JSString.literal(sel))).value = \(JSString.literal(val)); document.querySelector(\(JSString.literal(sel))).dispatchEvent(new Event('change',{bubbles:true})); 'ok'"
+                            let r = try await webView.evaluateJavaScript(js) as? String
+                            if r == "ok" { filled += 1 }
+                        }
+                    case ("click", let sel as String):
+                        let js = "document.querySelector(\(JSString.literal(sel))).click(); 'ok'"
+                        _ = try await webView.evaluateJavaScript(js)
+                        filled += 1
+                    default: break
+                    }
+                } catch {
+                    errors.append("\(op): \(error.localizedDescription)")
+                }
+            }
+            // Submit selector 只报告位置，不点击（人工批准红线）。
+            if let submitSel = args["submitSelector"] as? String, !submitSel.isEmpty {
+                return String(format: String(localized: "Filled %lld field(s). Submit button (%@) NOT clicked — press it yourself."), filled, submitSel)
+            }
+            return String(format: String(localized: "Filled %lld field(s)."), filled)
+
         case "passwordHealth":
             guard let app = AppState.live else {
                 return Self.fail("App not ready.")

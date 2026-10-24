@@ -67,6 +67,7 @@ SOURCES=(
   apps/macos/Desire/Features/Password/PasswordHealth.swift
   apps/macos/Desire/Features/Agent/FileOrganizerPlan.swift
   apps/macos/Desire/Features/Promotion/CampaignAssetPlan.swift
+  apps/macos/Desire/Features/Agent/FormFillPlan.swift
   apps/macos/Desire/Features/Promotion/PromotionPreflight.swift
   apps/macos/Desire/Features/Agent/RoutingDecision.swift
   apps/macos/Desire/Features/Agent/Conversation.swift

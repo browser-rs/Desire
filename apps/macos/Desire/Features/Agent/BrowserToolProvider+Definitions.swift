@@ -241,6 +241,13 @@ extension BrowserToolProvider {
                 ], required: ["campaignId", "sourcePath", "channelSlugs"]),
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "fillForm", description: "Fill a web form on the current tab. Fields are filled sequentially; if submitSelector is provided the form is NOT submitted — the user presses Submit. Use pickElement or executeJS to get selectors first.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "fields": AgentJSONSchemaValue(type: "array", description: "[{selector, value, kind}] where kind = text|select|checkbox"),
+                    "submitSelector": AgentJSONSchemaValue(type: "string", description: "Optional: fill the submit button but do NOT click — the user presses it"),
+                ], required: ["fields"]),
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "passwordHealth", description: "Scan saved passwords for weak/duplicate/old credentials. READ-ONLY — never exposes passwords, only reports findings (domain + issue). Use to give the user a security report.",
                 parameters: AgentJSONSchema(type: "object", properties: [:], required: []),
             )),

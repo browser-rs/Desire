@@ -3534,6 +3534,30 @@ func testCampaignAssetPlan() {
 testCampaignAssetPlan()
 
 
+// ---------- 表单填充计划（v0.8.4 P2） ----------
+
+func testFormFillPlan() {
+    let fields = [
+        FormFillPlan.Field(selector: "input[name='title']", value: "Hello", kind: .text),
+        FormFillPlan.Field(selector: "textarea[name='body']", value: "World", kind: .text),
+        FormFillPlan.Field(selector: "select[name='category']", value: "tech", kind: .select),
+        FormFillPlan.Field(selector: "input[name='agree']", value: "true", kind: .checkbox),
+        FormFillPlan.Field(selector: "input[name='skip']", value: "", kind: .checkbox),
+    ]
+    let steps = FormFillPlan.steps(fields: fields)
+    check("form：步骤非空", steps != nil)
+    let parsed = try? JSONSerialization.jsonObject(with: Data(steps!.utf8)) as? [[String: Any]]
+    check("form：4 步（空 checkbox 跳过）", parsed?.count == 4)
+    check("form：fill 步骤", parsed?.first?.keys.contains("fill") == true)
+    check("form：select 步骤", parsed?.contains { $0.keys.contains("select") } == true)
+
+    check("form：空字段返回 nil", FormFillPlan.steps(fields: []) == nil)
+    check("form：检测选择器非空", !FormFillPlan.detectFields("").isEmpty)
+}
+testFormFillPlan()
+
+
+
 
 
 

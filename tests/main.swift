@@ -3329,6 +3329,102 @@ func testGrowthSummary() {
 testGrowthSummary()
 
 
+// ---------- 每日运营循环（v0.8.4） ----------
+
+func testOperationsLoopPlan() {
+    let now = Date()
+    var cal = Calendar(identifier: .gregorian)
+    cal.timeZone = TimeZone(secondsFromGMT: 0)!
+    // 战役 3 天前开始：T-1/T0/T+1 已逾期，T+7 在未来
+    let start = cal.date(byAdding: .day, value: -3, to: now)!
+
+    // 逾期草稿 + Runbook 步骤
+    let campaignID = UUID()
+    let overdueDraft = PromotionPost(campaignID: campaignID, platform: "X", title: "逾期帖",
+                                     body: "…", status: .draft,
+                                     plannedFor: cal.date(byAdding: .day, value: -2, to: start)!,
+                                     createdAt: start)
+    let steps = PromotionRunbook.steps(template: .release, version: "0.8.3",
+                                       platforms: ["X"], start: start, calendar: cal)
+    var campaign = PromotionCampaign(id: campaignID, title: "v0.8.3", version: "0.8.3",
+                                     platforms: ["X"], startsAt: start)
+    campaign.runbook = steps
+
+    // 待回复互动
+    let oldInteraction = PromotionInteraction(kind: .comment, platform: "V2EX", author: "user1",
+                                              text: "问一下…", status: .pending,
+                                              createdAt: now.addingTimeInterval(-72 * 3600))
+
+    // 新提及
+    let mention = PromotionInteraction(kind: .mention, platform: "X", author: "fan",
+                                       text: "推荐 Desire！", status: .pending,
+                                       createdAt: now.addingTimeInterval(-2 * 3600))
+
+    // 竞品变化
+    let competitor = PromotionCompetitorSource(name: "竞品 A", url: "https://example.com",
+                                               isEnabled: true,
+                                               lastCheckedAt: now,
+                                               lastChangeAt: now.addingTimeInterval(-1 * 3600),
+                                               lastChangeSummary: "+ 价格 199")
+
+    // 归因变化
+    let attribution = "+5 views · +2 clicks"
+
+    let report = OperationsLoopPlan.collect(
+        posts: [overdueDraft], campaigns: [campaign],
+        interactions: [oldInteraction, mention],
+        competitorSources: [competitor],
+        attributionDelta: attribution,
+        now: now, lastRunAt: nil)
+
+    check("loop：有多个待办", report.actionCount > 0)
+    check("loop：含逾期草稿", report.items.contains { $0.kind == .overdueDraft })
+    check("loop：含 Runbook 步骤", report.items.contains { $0.kind == .dueRunbook })
+    check("loop：含待回复", report.items.contains { $0.kind == .reply })
+    check("loop：含提及", report.items.contains { $0.kind == .mention })
+    check("loop：含竞品", report.items.contains { $0.kind == .competitorChange })
+    check("loop：含归因", report.items.contains { $0.kind == .attributionChange })
+    check("loop：排序草稿在前", report.items.first?.kind == .overdueDraft)
+    check("loop：headline 非零", !report.headline.contains("clear"))
+
+    // 无数据 → 清空
+    let clear = OperationsLoopPlan.collect(
+        posts: [], campaigns: [], interactions: [],
+        competitorSources: [], attributionDelta: nil,
+        now: now, lastRunAt: nil)
+    check("loop：空工作台清空", clear.actionCount == 0)
+    check("loop：headline 清空", clear.headline.contains("clear"))
+
+    // 提及增量：lastRunAt 之后才收
+    let incremental = OperationsLoopPlan.collect(
+        posts: [], campaigns: [], interactions: [mention],
+        competitorSources: [], attributionDelta: nil,
+        now: now, lastRunAt: now.addingTimeInterval(-3 * 3600))
+    check("loop：提及增量（lastRun 3h 前）", incremental.items.contains { $0.kind == .mention })
+    let noIncrement = OperationsLoopPlan.collect(
+        posts: [], campaigns: [], interactions: [mention],
+        competitorSources: [], attributionDelta: nil,
+        now: now, lastRunAt: now)
+    check("loop：提及无增量（lastRun = now）", !noIncrement.items.contains { $0.kind == .mention })
+
+    // 竞品增量
+    let noCompetitor = OperationsLoopPlan.collect(
+        posts: [], campaigns: [], interactions: [],
+        competitorSources: [competitor], attributionDelta: nil,
+        now: now, lastRunAt: now)
+    check("loop：竞品无增量", !noCompetitor.items.contains { $0.kind == .competitorChange })
+
+    // 归因为 nil 不出条目
+    let noAttribution = OperationsLoopPlan.collect(
+        posts: [], campaigns: [], interactions: [],
+        competitorSources: [], attributionDelta: nil,
+        now: now, lastRunAt: nil)
+    check("loop：无归因变化", !noAttribution.items.contains { $0.kind == .attributionChange })
+}
+testOperationsLoopPlan()
+
+
+
 
 
 // ---------- 运营周报（PromotionReport 纯逻辑） ----------

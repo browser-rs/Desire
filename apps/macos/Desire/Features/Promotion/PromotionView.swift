@@ -46,6 +46,8 @@ struct PromotionView: View {
     @State private var showMetricsImport = false
     @State private var runningPlaybook: Playbook?
     @State private var editingPlaybook: Playbook?
+    @ObservedObject private var operationsLoop = OperationsLoop.shared
+    @State private var loopRunning = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -137,12 +139,10 @@ struct PromotionView: View {
             HoverIcon(systemName: "square.and.arrow.down",
                       action: { showMetricsImport = true },
                       help: String(localized: "Import platform metrics (CSV/TSV)"))
-            if let onSendToAgent {
-                HoverIcon(systemName: "play.circle",
-                          action: {
-                              onSendToAgent("开始今天的运营：先看运营日历的今日队列与互动台账；按 Runbook 到期步骤推进，采数据/拟回复；任何发布或回复必须先问我。")
-                          },
-                          help: String(localized: "Start today's operations"))
+            if onSendToAgent != nil {
+                HoverIcon(systemName: loopRunning ? "gearshape.2" : "play.circle",
+                          action: { runOperationsLoop() },
+                          help: loopRunning ? String(localized: "Loop running…") : String(localized: "Run operations loop now"))
             }
             HoverIcon(systemName: reportCopied ? "checkmark.circle" : "doc.text",
                       action: copyReport,
@@ -173,6 +173,21 @@ struct PromotionView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 32)
+    }
+
+    /// 运营循环：本地采集汇总 + 把待办清单交给 Agent 处理。
+    private func runOperationsLoop() {
+        guard !loopRunning else { return }
+        loopRunning = true
+        Task { @MainActor in
+            let report = await OperationsLoop.shared.runNow()
+            loopRunning = false
+            guard let report, report.actionCount > 0 else { return }
+            let todo = report.items.filter { !$0.isDone }
+                .map { "• [\($0.kind.label)] \($0.title)" }
+                .joined(separator: "\n")
+            onSendToAgent?("每日运营循环结果（\(report.actionCount) 件事）：\n\(todo)\n\n逐件处理：需要发布/回复的先问我；数据/采集类直接做并汇报。")
+        }
     }
 
     /// 复制运营周报（Markdown）到剪贴板——与 promotionReport 工具、桥 /promotion/report 同源。
@@ -975,6 +990,34 @@ struct PromotionView: View {
                           icon: "dot.radiowaves.left.and.right",
                           label: String(localized: "Mention radar (daily)"),
                           detail: String(localized: "09:45 daily — scan the sources above for new mentions (no model, no window needed)"))
+            operationsLoopRow()
+        }
+    }
+
+    private func operationsLoopRow() -> some View {
+        let isOn = OperationsLoop.shared.isScheduled
+        return HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(isOn ? appAccent : Color.secondary)
+                .frame(width: 16)
+                .padding(.top, 2)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(String(localized: "Operations daily loop"))
+                    .font(.system(size: 12, weight: .medium))
+                Text(String(localized: "09:00 daily — collect + scan + check schedule/replies/competitors → one inbox item"))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+            Toggle("", isOn: Binding(
+                get: { OperationsLoop.shared.isScheduled },
+                set: { on in
+                    if on { OperationsLoop.shared.schedule() }
+                    else { OperationsLoop.shared.unschedule() }
+                }))
+                .toggleStyle(.switch)
+                .controlSize(.small)
         }
     }
 

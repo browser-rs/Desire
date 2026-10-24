@@ -121,6 +121,23 @@ nonisolated enum PromotionReport {
             }
             out.append("")
         }
+        // ── 归因洞察 ──
+        let topPosts = posts.filter { $0.status == .published }
+            .compactMap { post -> (PromotionPost, Int)? in
+                guard let growth = post.viewsGrowth, growth > 0 else { return nil }
+                return (post, growth)
+            }
+            .sorted { $0.1 > $1.1 }
+        if !topPosts.isEmpty {
+            out.append("## 归因洞察")
+            for (post, growth) in topPosts.prefix(3) {
+                out.append("- \(post.title)（\(post.platform)）— +\(growth) 浏览增长：同角度/同渠道可复用")
+            }
+            if topPosts.count > 3 {
+                out.append("- 最差：\(topPosts.last!.0.title)（\(topPosts.last!.0.platform)）— 避免重复")
+            }
+            out.append("")
+        }
         if !experiments.isEmpty {
             out.append("## 实验")
             for experiment in experiments.sorted(by: { $0.updatedAt > $1.updatedAt }) {

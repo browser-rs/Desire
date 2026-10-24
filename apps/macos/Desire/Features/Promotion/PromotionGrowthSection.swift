@@ -6,6 +6,8 @@ import SwiftUI
 /// 明确说"未配置/还没有事件"，不编造漏斗。
 struct PromotionGrowthSection: View {
     private var sync: SyncStore? { AppState.live?.syncStore }
+    var onSendToAgent: ((String) -> Void)? = nil
+    @ObservedObject private var store = PromotionStore.shared
     @Environment(\.appAccent) private var appAccent
     @AppStorage("growth.telemetryEnabled") private var telemetryEnabled = true
 
@@ -54,6 +56,7 @@ struct PromotionGrowthSection: View {
                 } else {
                     totals(summary)
                     chart(summary)
+                    topContent
                     breakdown(summary)
                 }
                 Text(String(localized: "Anonymous aggregate only: event counts + UTM labels. No IP, cookies, UA or account identifiers are stored."))
@@ -162,6 +165,53 @@ struct PromotionGrowthSection: View {
                 Text("\(first) → \(last)")
                     .font(.system(size: 8.5, design: .monospaced))
                     .foregroundStyle(.tertiary)
+            }
+        }
+    }
+
+    /// 归因 → 选题回流：表现最好的帖子排序，一键生成同角度选题。
+    private var topContent: some View {
+        let published = store.posts.filter { $0.status == .published }
+            .compactMap { post -> (post: PromotionPost, growth: Int)? in
+                guard let growth = post.viewsGrowth, growth > 0 else { return nil }
+                return (post, growth)
+            }
+            .sorted { $0.growth > $1.growth }
+        let top = published.prefix(3)
+        let worst = published.last
+        return VStack(alignment: .leading, spacing: 3) {
+            Text(String(localized: "Top content"))
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(.secondary)
+            ForEach(Array(top.enumerated()), id: \.offset) { _, pair in
+                HStack(spacing: 5) {
+                    Text(pair.post.title)
+                        .font(.system(size: 10))
+                        .lineLimit(1)
+                    Text("+\(pair.growth)")
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.green)
+                    Spacer(minLength: 2)
+                    if let onSendToAgent {
+                        Button(String(localized: "Generate similar topic")) {
+                            onSendToAgent("归因数据显示这篇表现好：「\(pair.post.title)」（+\(pair.growth) 浏览，\(pair.post.platform)）。生成一个同角度/同渠道的新选题（promotionSave status=idea），标题和角度不要重复。")
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(appAccent)
+                    }
+                }
+            }
+            if let worst, worst.post.id != top.first?.post.id {
+                HStack(spacing: 4) {
+                    Text(String(localized: "Worst performer"))
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                    Text(worst.post.title)
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
             }
         }
     }

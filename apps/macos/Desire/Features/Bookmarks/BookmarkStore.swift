@@ -314,7 +314,12 @@ class BookmarkStore: ObservableObject {
             if item.isLeaf, let url = item.url {
                 let title = item.title.htmlEscaped
                 let href = url.htmlEscaped
-                html += "\(ind)    <DT><A HREF=\"\(href)\">\(title)</A>\n"
+                // TAGS 属性（v0.8.6）：书签标签随导出往返——不写的话
+                // 导出→导入一轮 tags 全丢。
+                let tagsAttr = item.tags.map { $0.filter { !$0.isEmpty } }
+                    .flatMap { $0.isEmpty ? nil : $0.joined(separator: ",").htmlEscaped }
+                    .map { " TAGS=\"\($0)\"" } ?? ""
+                html += "\(ind)    <DT><A HREF=\"\(href)\"\(tagsAttr)>\(title)</A>\n"
             } else {
                 html += "\(ind)    <DT><H3>\(item.title.htmlEscaped)</H3>\n"
                 html += generateBookmarksHTML(item.children, indent: indent + 1)

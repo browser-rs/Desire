@@ -4532,6 +4532,25 @@ func testBookmarkImportDedupe() {
 testBookmarkImportDedupe()
 
 func testBookmarkHTMLParser() {
+    // TAGS 往返（v0.8.6）：导出写 TAGS、导入读回。
+    let html = """
+    <DL><p>
+        <DT><A HREF="https://t.test/1" TAGS="rust,docs">Tagged</A>
+        <DT><A HREF="https://t.test/2">Plain</A>
+    </DL><p>
+    """
+    let roundtrip = BookmarkHTMLParser.parse(html)
+    check("TAGS：解析条数", roundtrip.count == 2)
+    check("TAGS：带标签读回", roundtrip.first?.tags == ["rust", "docs"])
+    check("TAGS：无标签为 nil", roundtrip.last?.tags == nil)
+    // TAGS 在 HREF 之前（属性顺序不定）+ 空项/空白清理
+    let reversed = """
+    <DL><p>
+        <DT><A TAGS="a , b , " HREF="https://t.test/3">X</A>
+    </DL><p>
+    """
+    let rp2 = BookmarkHTMLParser.parse(reversed)
+    check("TAGS：属性在前也可读", rp2.first?.tags == ["a", "b"])
     // 回归：旧实现只在"紧跟 <DT> 后"检查 </DL>，真实导出里 </DL> 出现在两个
     // <DT> 之间 → 文件夹永不回弹、整份嵌套文件解析为 0 条。以下用例都锁这条。
     let nested = """

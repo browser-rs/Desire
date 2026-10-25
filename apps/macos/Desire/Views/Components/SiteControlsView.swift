@@ -163,7 +163,7 @@ struct SiteControlsView: View {
                     .font(.system(size: 11.5, design: .monospaced))
                     .foregroundStyle(.secondary)
             }
-            .help(String(format: String(localized: "All-time video-ad blocks recorded for this site: %d"), adStats.count(forHost: host)))
+            .help(String(format: String(localized: "All-time video-ad blocks recorded for this site: %lld"), adStats.count(forHost: host)))
 
             // 元素拦截
             Button {

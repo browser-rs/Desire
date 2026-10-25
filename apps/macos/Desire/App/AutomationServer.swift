@@ -683,6 +683,7 @@ final class AutomationServer {
         ep("GET", "/console", "Console messages", params: ["count?:int"], example: "…/console?count=20")
         // Misc
         ep("GET", "/settings", "A couple of global settings", example: "…/settings")
+        ep("GET", "/permissions", "Per-site permission rules (camera/mic/location) for the privacy dashboard", example: "…/permissions")
         ep("GET", "/mcp", "MCP server configs + tools", example: "…/mcp")
         ep("POST", "/mcp/remove", "Remove an MCP server by name", params: ["name:string"], example: #"-d '{"name":"local"}'"#)
         ep("GET", "/protocol/inspect", "Inspect the DPP protocol of the current page (views/signals/actions/context/warnings)", params: [], example: "…/protocol/inspect")
@@ -2421,6 +2422,8 @@ final class AutomationServer {
                 }
                 await VideoAdRulesStore.shared.reloadAll()
                 return try Self.json(Self.videoAdRules())
+            case ("GET", "/permissions"):
+                return try Self.json(Self.permissionRules())
             case ("GET", "/settings"):
                 let st = Settings()
                 return try Self.json([
@@ -2429,6 +2432,8 @@ final class AutomationServer {
                     // 生效值（而非落盘的原始键）：旧安装里的 false 来自
                     // 2026-09-16 前的首次启动 bug，未显式选择过时按默认 ON。
                     "videoAdBlockerEnabled": VideoAdBlocker.resolvedEnabled,
+                    // Vim 模式（v0.8.6）：地址栏键盘增强的开关现值。
+                    "vimModeEnabled": VimMode.isEnabled,
                 ])
             case ("POST", "/mcp/add"):
                 // command 非空 = stdio 服务器（本地子进程）；否则 HTTP。
@@ -5532,6 +5537,21 @@ final class AutomationServer {
             }
         }
         return payload
+    }
+
+    /// 隐私面板权限规则的只读快照（v0.8.6）：读写分离惯例——查询用新实例
+    /// 读盘即可；矩阵写路径走 UI。
+    private static func permissionRules() -> [String: Any] {
+        let store = PermissionStore()
+        let rules = store.rules.map { rule -> [String: Any] in
+            ["host": rule.host, "type": rule.type.rawValue,
+             "decision": rule.decision.rawValue]
+        }
+        let matrix = PermissionMatrix.build(from: store.rules).map { row -> [String: Any] in
+            ["host": row.host,
+             "decisions": Dictionary(uniqueKeysWithValues: row.decisions.map { ($0.key.rawValue, $0.value.rawValue) })]
+        }
+        return ["rules": rules, "matrix": matrix]
     }
 
     private static func suggest(query: String) throws -> [String: Any] {

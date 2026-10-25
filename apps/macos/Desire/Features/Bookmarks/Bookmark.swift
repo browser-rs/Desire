@@ -14,8 +14,8 @@ nonisolated struct Bookmark: Identifiable, Codable, Equatable {
     var isFolder: Bool { url == nil }
     var isLeaf: Bool { url != nil }
 
-    static func leaf(title: String, url: String) -> Bookmark {
-        Bookmark(id: UUID(), title: title, url: url, children: [])
+    static func leaf(title: String, url: String, tags: [String]? = nil) -> Bookmark {
+        Bookmark(id: UUID(), title: title, url: url, children: [], tags: tags)
     }
 
     static func folder(title: String, children: [Bookmark] = []) -> Bookmark {

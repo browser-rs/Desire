@@ -62,7 +62,10 @@ enum BookmarkHTMLParser {
                             .components(separatedBy: .whitespaces).filter { !$0.isEmpty }.joined(separator: " ")
                         : ""
                     searchRange = closeTag.upperBound..<html.endIndex
-                    addToCurrent(Bookmark.leaf(title: title.isEmpty ? url : title, url: url))
+                    // 属性区 = 整个 <A …> 开标签（TAGS 可能在 HREF 前）；
+                    // rest/tagStart 同源于 html，索引可跨切片比较。
+                    addToCurrent(Bookmark.leaf(title: title.isEmpty ? url : title, url: url,
+                                               tags: Self.parseTAGS(in: rest, before: tagStart)))
 
                 } else if rest.hasPrefix("<H3") || rest.hasPrefix("<H3\t") || rest.hasPrefix("<H3\n") {
                     guard let closeTag = rest.range(of: "</H3>", options: [.caseInsensitive]) else { continue }
@@ -92,4 +95,19 @@ enum BookmarkHTMLParser {
         while let folder = stack.popLast() { addToCurrent(folder) }
         return root
     }
+    /// TAGS="a,b" 属性解析（v0.8.6）：看整个开标签属性段（TAGS 与 HREF
+    /// 顺序不定）；逗号切分、去空白、空项丢弃，无属性返回 nil。
+    private static func parseTAGS(in slice: Substring, before close: String.Index) -> [String]? {
+        guard close > slice.startIndex else { return nil }
+        let attrs = slice[..<close]
+        guard let start = attrs.range(of: "TAGS=\"", options: [.caseInsensitive]) else { return nil }
+        let valueStart = start.upperBound
+        guard let valueEnd = attrs[valueStart...].firstIndex(of: "\"") else { return nil }
+        let tags = attrs[valueStart..<valueEnd]
+            .split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+        return tags.isEmpty ? nil : tags
+    }
+
 }

@@ -31,6 +31,9 @@ nonisolated struct DPPAdapter: Codable, Equatable, Identifiable {
     var installedAt: Date?
     /// 运营契约版本（v0.8.3）：nil = 非运营包；1 = `ops/1`。旧包缺键 = nil。
     var opsVersion: Int? = nil
+    /// 登录页地址（v0.8.8 A3 登录态指引）：opsLoginRequired 命中时"打开
+    /// 登录页"按钮的目标。缺省回退站点根。
+    var loginURL: String? = nil
     /// 最近一次**真实页面核对/测试**的时间（运营包的健康展示基准；与
     /// installedAt 区分：安装/覆盖不等于核对过）。
     var verifiedAt: Date? = nil
@@ -42,7 +45,8 @@ nonisolated struct DPPAdapter: Codable, Equatable, Identifiable {
     init(name: String, hosts: [String], pathPrefixes: [String] = [],
          protocolBody: DesireProtocol = DesireProtocol(), notes: String = "",
          sourceURL: String? = nil, installedAt: Date? = nil,
-         opsVersion: Int? = nil, verifiedAt: Date? = nil) {
+         opsVersion: Int? = nil, verifiedAt: Date? = nil,
+         loginURL: String? = nil) {
         self.format = "desire/adapter-1"
         self.name = name
         self.hosts = hosts
@@ -52,6 +56,7 @@ nonisolated struct DPPAdapter: Codable, Equatable, Identifiable {
         self.sourceURL = sourceURL
         self.installedAt = installedAt
         self.opsVersion = opsVersion
+        self.loginURL = loginURL
         self.verifiedAt = verifiedAt
     }
 

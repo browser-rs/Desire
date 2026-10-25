@@ -589,6 +589,28 @@ struct PromotionView: View {
                     }
                     .font(.system(size: 9.5))
                     .foregroundStyle(accountStateColor(assessment.state))
+                    // A3 登录态指引（v0.8.8）：信号命中 → 一步式引导——打开
+                    // 登录页（适配包 loginURL，缺省站点根）、说清 OAuth 弹窗预期、
+                    // 登录完回来重新检查。
+                    if assessment.state == .loginRequired {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Button(String(localized: "Open Login Page…")) {
+                                    openLoginPage(channel: channel, host: host, adapter: adapter)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                                Button(String(localized: "Re-check After Login")) {
+                                    checkAccount(channel: channel, host: host, adapter: adapter)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                            Text(String(localized: "Login guidance: the login page opens in a new tab. Some sites use OAuth — a separate popup appears; complete it there and return. When done, click Re-check."))
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
                 }
             }
             Spacer(minLength: 8)
@@ -615,6 +637,17 @@ struct PromotionView: View {
         }
         .padding(10)
         .background(cardBackground)
+    }
+
+    /// A3（v0.8.8）：打开渠道登录页——适配包 loginURL 优先，缺省站点根。
+    private func openLoginPage(channel: PromotionChannel, host: String, adapter: DPPAdapter?) {
+        let target = adapter?.loginURL?.trimmingCharacters(in: .whitespaces) ?? ""
+        let raw = !target.isEmpty ? target : "https://\(host)"
+        guard let url = URL(string: raw), url.scheme == "http" || url.scheme == "https",
+              let manager = TabSessionCoordinator.shared.activeTabManager else { return }
+        manager.addTab(url: url.absoluteString,
+                       javaScriptEnabled: true,
+                       contentBlocker: AppState.live?.contentBlocker)
     }
 
     private func checkAccount(channel: PromotionChannel, host: String, adapter: DPPAdapter?) {

@@ -89,7 +89,36 @@
         return applied;
     };
 
+    // 替换式（v0.8.8 自研整页翻译）：原文挂在节点属性上（节点存活期间可
+    // 完整还原——不用 data- 属性，避免超长文本/引号转义问题）。
+    window.__desireBilingualReplace = function(items) {
+        if (!items || !items.length) return 0;
+        var applied = 0;
+        for (var i = 0; i < items.length; i++) {
+            var it = items[i];
+            var el = document.querySelector('[data-desire-bi="' + it.id + '"]');
+            if (!el) continue;
+            if (el.__desireOrig === undefined) el.__desireOrig = el.textContent;
+            el.textContent = it.text;
+            el.setAttribute('data-desire-bi-replaced', '1');
+            applied++;
+        }
+        return applied;
+    };
+
+    // 还原替换式的原文（对照式的清除走 clear）。
+    window.__desireBilingualRestore = function() {
+        var nodes = document.querySelectorAll('[data-desire-bi-replaced]');
+        for (var i = 0; i < nodes.length; i++) {
+            var el = nodes[i];
+            if (el.__desireOrig !== undefined) el.textContent = el.__desireOrig;
+            el.removeAttribute('data-desire-bi-replaced');
+        }
+        return nodes.length;
+    };
+
     window.__desireBilingualClear = function() {
+        window.__desireBilingualRestore();
         var nodes = document.querySelectorAll('.' + CLASS);
         for (var i = 0; i < nodes.length; i++) nodes[i].remove();
         var marked = document.querySelectorAll('[data-desire-bi]');

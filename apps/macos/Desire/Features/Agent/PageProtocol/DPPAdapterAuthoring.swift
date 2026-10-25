@@ -28,7 +28,8 @@ nonisolated enum DPPAdapterAuthoring {
     /// 由调用方（Agent 工具/Studio）在通过 ops 校验后填。
     static func markdown(name: String, hosts: [String], pathPrefixes: [String],
                          notes: String, protocolBody: DesireProtocol,
-                         opsVersion: Int? = nil, verifiedAt: Date? = nil) -> Data? {
+                         opsVersion: Int? = nil, verifiedAt: Date? = nil,
+                         loginURL: String? = nil) -> Data? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanHosts = hosts.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
                               .filter { !$0.isEmpty }
@@ -36,7 +37,8 @@ nonisolated enum DPPAdapterAuthoring {
                                  pathPrefixes: pathPrefixes,
                                  protocolBody: protocolBody,
                                  notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
-                                 opsVersion: opsVersion, verifiedAt: verifiedAt)
+                                 opsVersion: opsVersion, verifiedAt: verifiedAt,
+                                 loginURL: loginURL?.trimmingCharacters(in: .whitespaces).nilIfEmpty)
         adapter.protocolBody.warnings.append("adapter: \(trimmedName)")
         adapter.installedAt = Date()   // 创建/更新即视为已核对（陈旧提示的基准）
         let formatter = JSONEncoder()
@@ -60,4 +62,9 @@ nonisolated enum DPPAdapterAuthoring {
         }
         return String(String(cleaned).drop { $0 == "-" })
     }
+}
+
+
+nonisolated private extension String {
+    var nilIfEmpty: String? { isEmpty ? nil : self }
 }

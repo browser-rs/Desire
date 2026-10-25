@@ -258,6 +258,7 @@ extension ContentView {
                 TranslateBar(
                     service: translationService,
                     webView: tab.browser.webView,
+                    tabID: tab.id,
                     onDismiss: { showTranslateBar = false }
                 )
                 .overlayBottomTransition(visible: showTranslateBar)
@@ -347,32 +348,59 @@ private struct PasswordFillBar: View {
 
     var body: some View {
         if canFill, let suggestion = store.fillSuggestion {
-            NoticeBar(
-                icon: "key.fill",
-                tint: appAccent,
-                title: String(localized: "Fill Saved Password for \(suggestion.domain)?"),
-                subtitle: String(localized: "Username: \(suggestion.username)"),
-                primaryTitle: String(localized: "Fill"),
-                secondaryTitle: String(localized: "Not Now"),
-                onPrimary: {
-                    if let credentials = store.resolveFillSuggestion(true) {
-                        onFill(credentials.username, credentials.password)
+            VStack(spacing: 4) {
+                NoticeBar(
+                    icon: "key.fill",
+                    tint: appAccent,
+                    title: String(localized: "Fill Saved Password for \(suggestion.domain)?"),
+                    subtitle: String(localized: "Username: \(suggestion.username)"),
+                    primaryTitle: String(localized: "Fill"),
+                    secondaryTitle: String(localized: "Not Now"),
+                    onPrimary: {
+                        if let credentials = store.resolveFillSuggestion(true) {
+                            onFill(credentials.username, credentials.password)
+                        }
+                    },
+                    onSecondary: { store.dismissFillSuggestion() }
+                )
+                // 多账号（v0.8.8）：同域多条凭据 → 账号选择行。
+                if store.fillCandidates.count > 1 {
+                    HStack(spacing: 6) {
+                        ForEach(store.fillCandidates) { candidate in
+                            Button {
+                                store.selectFillCandidate(candidate)
+                            } label: {
+                                Text(candidate.username)
+                                    .font(.system(size: 10.5, weight: .medium))
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 3)
+                                    .background(
+                                        Capsule().fill(candidate.entryID == suggestion.entryID
+                                                       ? appAccent.opacity(0.2) : Color.secondary.opacity(0.1))
+                                    )
+                                    .foregroundStyle(candidate.entryID == suggestion.entryID ? appAccent : Color.secondary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        Spacer(minLength: 0)
                     }
-                },
-                onSecondary: { store.dismissFillSuggestion() }
-            )
+                    .padding(.horizontal, 10)
+                }
+            }
         }
     }
 }
 
 private struct PasswordSaveBar: View {
+    @Environment(\.appAccent) private var appAccent
     @ObservedObject var store: PasswordStore
 
     var body: some View {
         if let pending = store.pendingSave {
             NoticeBar(
                 icon: pending.isUpdate ? "key.fill" : "key.horizontal.fill",
-                tint: .accentColor,
+                tint: appAccent,
                 title: pending.isUpdate
                     ? String(localized: "Update Password for \(pending.domain)?")
                     : String(localized: "Save Password for \(pending.domain)?"),

@@ -26,6 +26,14 @@ final class BilingualReadingService: ObservableObject {
 
     /// 开着双语的标签。
     @Published private(set) var activeTabIDs: Set<UUID> = []
+    /// 模式（v0.8.8）：对照（译文插块后）或替换（原文就地换译文，可还原）。
+    enum Mode: String {
+        case interlinear
+        case replace
+    }
+    @Published private(set) var mode: Mode = .interlinear
+    /// 替换模式激活的标签（与对照模式互斥使用）。
+    @Published private(set) var replaceTabIDs: Set<UUID> = []
     @Published private(set) var isRunning = false
     @Published private(set) var doneCount = 0
     @Published private(set) var totalCount = 0
@@ -45,16 +53,12 @@ final class BilingualReadingService: ObservableObject {
     }
 
     func toggle(webView: WKWebView, tabID: UUID, preference: AgentPreferenceStore?) {
-        if isOn(tabID: tabID) {
-            stop(webView: webView, tabID: tabID)
-        } else {
-            activeTabIDs.insert(tabID)
-            translate(webView: webView, tabID: tabID, preference: preference)
-        }
+        toggleInterlinear(webView: webView, tabID: tabID, preference: preference)
     }
 
     func stop(webView: WKWebView, tabID: UUID) {
         activeTabIDs.remove(tabID)
+        replaceTabIDs.remove(tabID)
         runToken += 1
         isRunning = false
         doneCount = 0
@@ -63,6 +67,33 @@ final class BilingualReadingService: ObservableObject {
             "window.__desireBilingualClear && window.__desireBilingualClear();",
             completionHandler: nil)
     }
+
+    /// 替换式开关（v0.8.8 自研整页翻译）：开着则关（还原原文），否则以
+    /// 替换模式开跑。与对照模式互斥——开一个自动关另一个。
+    func toggleReplace(webView: WKWebView, tabID: UUID, preference: AgentPreferenceStore?) {
+        if replaceTabIDs.contains(tabID) {
+            stop(webView: webView, tabID: tabID)
+            return
+        }
+        if activeTabIDs.contains(tabID) { stop(webView: webView, tabID: tabID) }
+        mode = .replace
+        replaceTabIDs.insert(tabID)
+        translate(webView: webView, tabID: tabID, preference: preference)
+    }
+
+    /// 对照式开关（沿用既有 toggle，补互斥）。
+    func toggleInterlinear(webView: WKWebView, tabID: UUID, preference: AgentPreferenceStore?) {
+        if activeTabIDs.contains(tabID) {
+            stop(webView: webView, tabID: tabID)
+            return
+        }
+        if replaceTabIDs.contains(tabID) { stop(webView: webView, tabID: tabID) }
+        mode = .interlinear
+        activeTabIDs.insert(tabID)
+        translate(webView: webView, tabID: tabID, preference: preference)
+    }
+
+    func isReplaceOn(tabID: UUID) -> Bool { replaceTabIDs.contains(tabID) }
 
     /// 导航完成后按需重施（WebView.didFinish 调用）。
     func reapplyIfActive(webView: WKWebView, tabID: UUID) {
@@ -143,9 +174,12 @@ final class BilingualReadingService: ObservableObject {
         }
         guard let data = try? JSONSerialization.data(withJSONObject: items),
               let json = String(data: data, encoding: .utf8) else { return }
+        // 模式分派（v0.8.8）：替换式就地换文（原文在节点上可还原），
+        // 对照式插译文块（既有行为）。
+        let fn = mode == .replace ? "__desireBilingualReplace" : "__desireBilingualApply"
         Task { @MainActor in
             _ = try? await webView.callAsyncJavaScript(
-                "return window.__desireBilingualApply(\(json));",
+                "return window.\(fn)(\(json));",
                 arguments: [:], in: nil, contentWorld: .page)
         }
     }

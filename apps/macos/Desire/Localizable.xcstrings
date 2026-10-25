@@ -52956,6 +52956,204 @@
           }
         }
       }
+    },
+    "Translating (%lld/%lld)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Translating (%1$lld/%2$lld)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻译中（%1$lld/%2$lld）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻譯中（%1$lld/%2$lld）"
+          }
+        }
+      }
+    },
+    "AI translation on (replaced)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI translation on (replaced)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 翻译已开启（替换原文）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 翻譯已開啟（替換原文）"
+          }
+        }
+      }
+    },
+    "AI translation on (bilingual)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI translation on (bilingual)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 翻译已开启（双语对照）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 翻譯已開啟（雙語對照）"
+          }
+        }
+      }
+    },
+    "Translate (AI)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Translate (AI)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻译（AI）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "翻譯（AI）"
+          }
+        }
+      }
+    },
+    "Bilingual" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bilingual"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "双语对照"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "雙語對照"
+          }
+        }
+      }
+    },
+    "Third-party Google widget — page content goes to Google; kept as a fallback" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Third-party Google widget — page content goes to Google; kept as a fallback"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第三方 Google 组件——页面内容会发送到 Google；保留作后备"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第三方 Google 元件——頁面內容會傳送到 Google；保留作後備"
+          }
+        }
+      }
+    },
+    "Open Login Page…" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open Login Page…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开登录页…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟登入頁…"
+          }
+        }
+      }
+    },
+    "Re-check After Login" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Re-check After Login"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录后重新检查"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入後重新檢查"
+          }
+        }
+      }
+    },
+    "Login guidance: the login page opens in a new tab. Some sites use OAuth — a separate popup appears; complete it there and return. When done, click Re-check." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Login guidance: the login page opens in a new tab. Some sites use OAuth — a separate popup appears; complete it there and return. When done, click Re-check."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登录指引：登录页在新标签打开。部分站点用 OAuth——会另弹授权窗，在那里完成后回来；结束后点“登录后重新检查”。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登入指引：登入頁在新標籤開啟。部分網站用 OAuth——會另彈授權窗，在那裡完成後回來；結束後點「登入後重新檢查」。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

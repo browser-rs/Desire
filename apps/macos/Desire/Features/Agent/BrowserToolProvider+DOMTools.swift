@@ -2101,7 +2101,8 @@ extension BrowserToolProvider {
                 name: name, hosts: hosts, pathPrefixes: pathPrefixes,
                 notes: notes, protocolBody: body,
                 opsVersion: opsReport.isOps ? DPPOpsContract.version : nil,
-                verifiedAt: opsReport.isOps ? Date() : nil) else {
+                verifiedAt: opsReport.isOps ? Date() : nil,
+                loginURL: args["loginURL"] as? String) else {
                 return Self.fail("Failed to render adapter JSON")
             }
             let fileName = FilePathing.sanitizeFileName(name) + ".json"

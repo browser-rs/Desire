@@ -42,6 +42,9 @@ class PasswordStore: ObservableObject {
     @Published var pendingSave: PendingPasswordSave?
     /// 页面检出登录表单、且有存档凭据时的非模态填充提示（元数据-only）。
     @Published var fillSuggestion: PasswordFillSuggestion?
+    /// 同域全部候选（v0.8.8 多账号）：chip 展开账号列表用。首条与
+    /// fillSuggestion 同步；用户选中某条时把 fillSuggestion 切到它。
+    @Published var fillCandidates: [PasswordFillSuggestion] = []
 
     private let serviceName = "me.siwi.Desire"
     private static let suppressedKey = "passwordSaveSuppressedDomains"
@@ -49,23 +52,36 @@ class PasswordStore: ObservableObject {
     /// 页面加载时调用：只查内存里的域名/用户名元数据，**绝不读密码**。
     /// 同一域名/条目重复调用不重复发布（passwordDetect 会多次触发）。
     func suggestFill(domain: String) {
-        let match = entries.first {
+        // 同域/父子域全部匹配（v0.8.8 多账号：多条凭据时 chip 可展开选账号）。
+        let matches = entries.filter {
             $0.domain == domain || $0.domain.hasSuffix("." + domain) || domain.hasSuffix("." + $0.domain)
         }
-        guard let match else {
+        guard !matches.isEmpty else {
             if fillSuggestion?.domain == domain { fillSuggestion = nil }
+            fillCandidates = []
             return
+        }
+        let all = matches.map {
+            PasswordFillSuggestion(id: UUID(), domain: domain, entryID: $0.id, username: $0.username)
         }
         if let current = fillSuggestion, current.domain == domain,
-           current.entryID == match.id, current.username == match.username {
+           matches.contains(where: { $0.id == current.entryID }),
+           all.map(\.entryID) == fillCandidates.map(\.entryID) {
             return
         }
-        fillSuggestion = PasswordFillSuggestion(
-            id: UUID(), domain: domain, entryID: match.id, username: match.username)
+        fillCandidates = all
+        fillSuggestion = all.first
+    }
+
+    /// 多账号切换（chip 里选了非首条）：把当前建议切到该候选。
+    func selectFillCandidate(_ candidate: PasswordFillSuggestion) {
+        guard fillCandidates.contains(where: { $0.entryID == candidate.entryID }) else { return }
+        fillSuggestion = candidate
     }
 
     func dismissFillSuggestion() {
         fillSuggestion = nil
+        fillCandidates = []
     }
 
     /// 用户点 “Fill” 后才读这一条 Keychain（一次授权）。失败（拒绝/超时）返回 nil。

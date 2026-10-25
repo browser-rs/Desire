@@ -1384,6 +1384,7 @@ extension BrowserToolProvider {
                         "instruction": AgentJSONSchemaValue(type: "string", description: "Focused, self-contained instruction (the worker sees only this)"),
                     ]))),
                     "isolated": AgentJSONSchemaValue(type: "boolean", description: "Run all worker tabs in an ephemeral container — cookies/sessions wiped when the crew settles. Use for scraping that must not touch the user's login state"),
+                    "windowMode": AgentJSONSchemaValue(type: "boolean", description: "v2: dispatch subtasks to OTHER windows' agent sessions instead of tabs here — each window works in parallel with its own tools and profile. Requires at least one other window with an idle agent session (listWindows to check). Reports come back the same way via crewStatus"),
                 ], required: ["objective", "tasks"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

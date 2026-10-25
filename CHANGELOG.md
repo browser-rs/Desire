@@ -10,6 +10,11 @@
 - 自研整页翻译（v0.8.8 旗舰 9）：翻译条默认走用户自配模型的 AI 双模式——替换式（原文就地换译文、可完整还原）与双语对照；Google 挂件降级为"更多"里的后备（页面内容出第三方的固有缺陷在提示里写明）
 - 运营登录态指引（A3）：账号健康检出 opsLoginRequired 时给出一步式引导——打开登录页（适配包可声明 loginURL，缺省站点根）、OAuth 弹窗预期说明、登录后一键重新检查；saveDPPAdapter 工具同步支持 loginURL 参数
 - 密码填充多账号：同域多条凭据时提示条展开账号胶囊选择；登录表单字段识别放宽（autocomplete → 名称关键词 → placeholder → 相邻 label 逐档打分），div 登录布局（无 <form>）此前完全不触发检测、现可识别
+- 跨窗 crew v2：crewDispatch 新增 windowMode——子任务轮转派给其他窗口的空闲 Agent 会话（每窗独立工具作用域与档案、真并行回合），报告与用量（含逐 worker token/模型）经 crewStatus 汇总回领队；无其他空闲窗口时明确报错并提示退回标签模式
+- PageWatch 变化一键追问：收件箱监视行新增"Ask Agent"——带监视名与 AI 分析摘要发起新回合
+- 整页翻译术语表：记忆里 category=translation 的条目按站点作用域（scope=本站或 global）注入翻译系统提示，"这个站把 X 译成 Y"经记忆面板维护即生效
+- 启动审计进诊断包：LaunchAudit 快照（总耗时/逐阶段/预算判定）随诊断导出为 launch-audit.json，回归对比不再翻日志
+
 
 
 

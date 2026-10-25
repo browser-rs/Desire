@@ -19,6 +19,8 @@ struct AgentInboxView: View {
     var onOpenConversation: (UUID?) -> Void = { _ in }
     var onOpenOperations: () -> Void = {}
     var onOpenTasks: () -> Void = {}
+    /// 把一段文本发给 Agent 并切回聊天列（v0.8.8 基础件 6：监视分析一键追问）。
+    var onSendToAgent: (String) -> Void = { _ in }
 
     @State private var flushNote: String?
     @State private var retryNote: String?
@@ -397,7 +399,20 @@ struct AgentInboxView: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
         case .watchChange:
-            EmptyView()
+            // 一键转 Agent 追问（v0.8.8）：带上监视名与 AI 分析摘要；发完回聊天列。
+            Button(String(localized: "Ask Agent")) {
+                let name = String(item.id.dropFirst("watch-".count))
+                let watch = watchStore.watches.first { $0.name == name }
+                let analysis = watch?.lastAnalysis?
+                    .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let url = watch?.url ?? ""
+                let prompt = analysis.isEmpty
+                    ? String(format: String(localized: "Page watch \"%@\" changed — check what changed and whether it needs action: %@"), name, url)
+                    : String(format: String(localized: "Page watch \"%@\" changed. AI analysis: %@\nFollow up on this change: %@"), name, String(analysis.suffix(600)), url)
+                onSendToAgent(prompt)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
         case .jobAttention:
             Button(String(localized: "Open Jobs")) {
                 NotificationCenter.default.post(name: .openJobsPanel, object: nil)

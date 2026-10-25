@@ -82,7 +82,11 @@ struct AgentWindowRoot: View {
                     if let id { store.loadConversation(id) }
                 },
                 onOpenOperations: { switchDestination(.promotion) },
-                onOpenTasks: { switchDestination(.tasks) }
+                onOpenTasks: { switchDestination(.tasks) },
+                onSendToAgent: { [weak store] text in
+                    switchDestination(.chat)
+                    store?.sendMessage(text)
+                }
             )
         case .tasks:
             AgentTasksView(onBack: { switchDestination(.chat) })

@@ -22,6 +22,24 @@ enum LaunchAudit {
         marks.append(Mark(name: name, at: Date()))
     }
 
+    /// 诊断包快照（v0.8.8 基础件 7）：启动审计的可序列化视图——
+    /// 总耗时、逐阶段耗时、预算判定。summarize 前调用返回空。
+    static func snapshot() -> [String: Any] {
+        guard !marks.isEmpty else { return [:] }
+        var steps: [[String: Any]] = []
+        var previous = DesireApp.launchStart
+        for m in marks {
+            steps.append(["name": m.name,
+                          "ms": Int(m.at.timeIntervalSince(previous) * 1000)])
+            previous = m.at
+        }
+        let total = previous.timeIntervalSince(DesireApp.launchStart) * 1000
+        return ["totalMs": Int(total),
+                "budgetMs": Int(budgetMs),
+                "overBudget": total > budgetMs,
+                "steps": steps]
+    }
+
     /// 首窗出现时调用一次：打印总耗时、top 5 步骤（相邻 mark 的差分）、
     /// 超预算标红（fault 级）。幂等。
     static func summarize() {

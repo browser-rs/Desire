@@ -53,6 +53,7 @@ final class MetricsManager: NSObject, MXMetricManagerSubscriber {
         //（只有当前进程，不含系统其它应用）与内容进程崩溃计数。
         writeSystemLog(into: directory)
         writeCrashSummary(into: directory)
+        writeLaunchAudit(into: directory)
         guard let entries = try? fm.contentsOfDirectory(atPath: directory.path),
               !entries.isEmpty else { return nil }
         let formatter = DateFormatter()
@@ -177,5 +178,18 @@ private nonisolated enum DiagnosticsStore {
         for stale in files.prefix(files.count - keep) {
             try? fm.removeItem(at: stale)
         }
+    }
+}
+
+
+extension MetricsManager {
+    /// 启动审计进诊断包（v0.8.8）：LaunchAudit 快照落 launch-audit.json——
+    /// 回归对比有据可查，不用翻统一日志。空快照（异常路径没跑到首窗）不写。
+    fileprivate func writeLaunchAudit(into directory: URL) {
+        let snap = LaunchAudit.snapshot()
+        guard !snap.isEmpty,
+              let data = try? JSONSerialization.data(withJSONObject: snap,
+                                                     options: [.prettyPrinted, .sortedKeys]) else { return }
+        try? data.write(to: directory.appendingPathComponent("launch-audit.json"), options: .atomic)
     }
 }

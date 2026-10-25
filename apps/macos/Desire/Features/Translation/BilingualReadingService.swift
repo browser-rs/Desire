@@ -114,16 +114,28 @@ final class BilingualReadingService: ObservableObject {
         lastError = nil
         doneCount = 0
         totalCount = 0
+        // 术语表（v0.8.8 基础件 10）：记忆里 category=translation 的条目按
+        // 站点作用域（scope=本站 host 或 global）注入系统提示——
+        // "这个站把 X 译成 Y"这类偏好直接生效，复用既有记忆面板维护。
+        let host = (webView.url?.host ?? "").lowercased()
+        let glossary = AgentMemoryStore.shared.factsSnapshot.filter { fact in
+            guard fact.category.lowercased() == "translation" else { return false }
+            let scope = fact.scope.lowercased()
+            return scope == "global" || scope == host
+                || host.hasSuffix("." + scope)
+        }
         let install = UserScriptLoader.load("bilingual-translate")
         webView.evaluateJavaScript(install) { [weak self] _, _ in
             Task { @MainActor [weak self] in
-                await self?.run(webView: webView, tabID: tabID, preference: preference, token: token)
+                await self?.run(webView: webView, tabID: tabID, preference: preference,
+                                token: token, glossary: glossary.map(\.content))
             }
         }
     }
 
     private func run(webView: WKWebView, tabID: UUID,
-                     preference: AgentPreferenceStore, token: Int) async {
+                     preference: AgentPreferenceStore, token: Int,
+                     glossary: [String] = []) async {
         let collectJS = "return window.__desireBilingualCollect({ maxBlocks: \(Self.maxBlocks), maxChars: \(Self.maxChars) });"
         let raw: Any?
         do {
@@ -152,7 +164,8 @@ final class BilingualReadingService: ObservableObject {
         while index < blocks.count {
             guard runToken == token else { return }   // 已关掉/已重开
             let batch = Array(blocks[index..<min(index + Self.batchSize, blocks.count)])
-            if let translations = await Self.translateBatch(batch, preference: preference),
+            if let translations = await Self.translateBatch(batch, preference: preference,
+                                                            glossary: glossary),
                translations.count == batch.count {
                 apply(batch: batch, translations: translations, webView: webView)
                 doneCount += batch.count
@@ -193,15 +206,20 @@ final class BilingualReadingService: ObservableObject {
     /// 一批的翻译调用：编号行输入，模型按同序回 JSON 数组。目标语言 = 系统
     /// 首选语言（中文系统 → 简体中文）。
     private static func translateBatch(_ batch: [Block],
-                                       preference: AgentPreferenceStore) async -> [String]? {
+                                       preference: AgentPreferenceStore,
+                                       glossary: [String] = []) async -> [String]? {
         let numbered = batch.enumerated()
             .map { "\($0.offset + 1). \($0.element.text)" }
             .joined(separator: "\n")
+        // 术语表：一行一条（"原文 → 译文"或任意说明行），原样并入提示。
+        let glossarySection = glossary.isEmpty ? "" :
+            "\nGlossary (use these exact renderings where applicable):\n"
+            + glossary.joined(separator: "\n")
         let system = """
         You are a professional translator embedded in a web browser. Translate every numbered \
         paragraph below into \(targetLanguageName()). Return ONLY a JSON array of strings — one \
         translation per input paragraph, in the same order, with the same count. Never merge or \
-        split paragraphs. Keep numbers, code and proper nouns intact. (DESIRE_BILINGUAL_TRANSLATE)
+        split paragraphs. Keep numbers, code and proper nouns intact.\(glossarySection) (DESIRE_BILINGUAL_TRANSLATE)
         """
         let output = await MemoryExtractor.collectText(
             preference: preference, system: system, user: numbered,

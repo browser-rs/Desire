@@ -71,6 +71,12 @@ final class AgentCrewStore: ObservableObject {
             var isTerminal: Bool { self == .done || self == .failed || self == .cancelled }
         }
 
+        /// 跨窗 v2（v0.8.8）：目标窗口会话（nil = 本窗标签模式）。窗口模式下
+        /// tabID 为空、worker 跑在目标窗口自己的 Agent 会话里（独立工具
+        /// 作用域与档案），报告 = 该会话本回合的最后一条 assistant 消息。
+        var windowSessionID: UUID?
+        var windowLabel: String?
+
         init(index: Int, instruction: String, url: String?, tabID: UUID?) {
             self.index = index
             self.instruction = instruction
@@ -113,13 +119,17 @@ final class AgentCrewStore: ObservableObject {
 
     @discardableResult
     func dispatch(objective: String, tasks: [(url: String?, instruction: String)],
-                  surface: BrowserToolSurface, isolated: Bool = false) -> String {
+                  surface: BrowserToolSurface, isolated: Bool = false,
+                  windowMode: Bool = false) -> String {
         guard crew == nil || crew?.isSettled == true else {
             return "A crew is already running. Use crewStatus to poll or crewCancel first."
         }
         guard !tasks.isEmpty else { return "No tasks provided" }
         guard tasks.count <= 6 else { return "At most 6 subtasks per crew" }
         guard let manager = surface.tabManager else { return "No tab manager" }
+        if windowMode {
+            return dispatchAcrossWindows(objective: objective, tasks: tasks)
+        }
 
         let jsEnabled = surface.settings.isJavaScriptEnabled
         usage = TokenUsage()   // 新 crew 从零累计
@@ -162,6 +172,117 @@ final class AgentCrewStore: ObservableObject {
     }
 
     /// 单个 worker：单向流式循环，工具面钉在 worker 标签的 webview。
+    // MARK: - 跨窗 crew v2（v0.8.8）
+
+    /// 多窗分发：子任务轮转派给**其他窗口**的空闲 Agent 会话（每窗独立
+    /// 工具作用域与档案；真正的并行回合）。没有其他窗口时返回失败说明，
+    /// 模型可退回默认标签模式。本窗不参与（领队回合正占着它）。
+    private func dispatchAcrossWindows(objective: String,
+                                       tasks: [(url: String?, instruction: String)]) -> String {
+        let myStore = AgentScheduler.shared.deliveryTarget
+        let candidates = AgentScheduler.shared.liveSessions().filter { entry in
+            guard let store = entry.store, store !== myStore else { return false }
+            return !store.isProcessing && !store.awaitingQuestion
+        }
+        guard !candidates.isEmpty else {
+            return "Error: window mode needs at least one OTHER window with an idle agent session — open another window or fall back to default tab mode"
+        }
+        usage = TokenUsage()
+        var workers: [WorkerTask] = []
+        for (i, t) in tasks.enumerated() {
+            let target = candidates[i % candidates.count]
+            let worker = WorkerTask(index: i, instruction: t.instruction, url: t.url, tabID: nil)
+            worker.windowSessionID = target.id
+            worker.windowLabel = target.displayLabel
+            workers.append(worker)
+        }
+        let c = Crew(objective: objective, tasks: workers)
+        crew = c
+        BridgeEventBus.shared.publish("crewStarted", [
+            "objective": objective, "tasks": workers.count, "mode": "windows",
+        ])
+        // 各窗并行起步：每个 worker 一个独立 Task 等待目标会话的回合完成。
+        Task { [weak self] in
+            await withTaskGroup(of: Void.self) { group in
+                for worker in c.tasks {
+                    group.addTask { [weak self] in
+                        await self?.runWindowWorker(worker)
+                    }
+                }
+            }
+        }
+        return "Crew dispatched across \(candidates.count) window session(s): "
+            + candidates.map { $0.displayLabel }.joined(separator: ", ")
+            + ". Poll crewStatus."
+    }
+
+    /// 窗口 worker：把子任务发给目标窗口的会话，轮询其回合完成，取最后
+    /// 一条 assistant 消息为报告。用量按该会话本回合新增消息的 token 字段
+    /// 记账（窗口会话自己的成本台账照常随会话落盘）。
+    private func runWindowWorker(_ worker: WorkerTask) async {
+        guard let sessionID = worker.windowSessionID,
+              let entry = AgentScheduler.shared.liveSessions().first(where: { $0.id == sessionID }),
+              let store = entry.store else {
+            worker.state = .failed
+            worker.result = "target window session vanished"
+            worker.finishedAt = Date()
+            publishNow()
+            settleIfDone()
+            return
+        }
+        worker.state = .running
+        worker.startedAt = Date()
+        defer { worker.finishedAt = Date() }
+        let baselineCount = store.messages.count
+        let prompt = """
+        [Crew subtask #\(worker.index + 1)] \(worker.instruction)
+        Start URL: \(worker.url ?? "(none given — search or pick a page yourself)")
+        Work with the tools bound to THIS window, then end your turn with a concise factual report (key facts + source URLs).
+        """
+        noteProgress(worker, step: String(localized: "Dispatched to window session"))
+        store.sendMessage(prompt, recordHistory: false)
+        let deadline = Date().addingTimeInterval(6 * 60)
+        while Date() < deadline {
+            if Task.isCancelled || worker.state == .cancelled {
+                if worker.state != .cancelled { worker.state = .cancelled }
+                publishNow()
+                settleIfDone()
+                return
+            }
+            if !store.isProcessing, store.messages.count > baselineCount {
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(600))
+        }
+        guard !Task.isCancelled, worker.state != .cancelled else { return }
+        let fresh = store.messages.dropFirst(baselineCount)
+        // 报告 = 该回合最后一条 assistant 正文；用量按新增消息的 token 字段累计。
+        let report = fresh.last(where: { $0.role == .assistant })?.content?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        for m in fresh {
+            usage.promptTokens += m.promptTokens ?? 0
+            usage.completionTokens += m.completionTokens ?? 0
+            worker.promptTokens += m.promptTokens ?? 0
+            worker.completionTokens += m.completionTokens ?? 0
+            if worker.model == nil, let model = m.model { worker.model = model }
+            if usage.model == nil, let model = m.model { usage.model = model }
+        }
+        worker.toolCallCount = fresh.filter { $0.role == .tool && $0.toolName != nil }.count
+        if let report, !report.isEmpty {
+            noteProgress(worker, step: String(localized: "Report received"))
+            worker.state = .done
+            worker.result = report
+        } else if store.isProcessing {
+            worker.state = .failed
+            worker.result = "window session still busy after 6 minutes — poll crewStatus and retry the subtask yourself"
+        } else {
+            worker.state = .failed
+            worker.result = "window session produced no assistant report (turn may have failed — check that window's chat)"
+        }
+        publishNow()
+        settleIfDone()
+    }
+
     private func runWorker(_ worker: WorkerTask, surface: BrowserToolSurface) async {
         guard let tabID = worker.tabID,
               let tab = surface.tabManager?.tabs.first(where: { $0.id == tabID }) else {

@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.7] - 2026-10-25
 ### Fixed
 
 - 切换到标签建议修复两处断链：openTabs 此前无人赋值（UI 与桥都没喂，功能从未生效）；桥 /suggest 被 buildImmediate 参数默认值绕过属性——现 URL/标题命中均首位返回 openTab（桥实测）

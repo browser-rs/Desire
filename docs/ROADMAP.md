@@ -2507,6 +2507,10 @@ v0.8.1 的菜单入口只有"移交会话"，这版补齐：
 
 ### 旗舰 A：DPP 跨源 iframe（P0，融合/协议）
 
+> **开发中勘误（2026-10-26）**：1/2 两项经代码核实**已由 0.7 切片一/二落地**
+> （跨源声明聚合 + 动作/提取按 sourceFrame 路由，spike 文档在
+> docs/DPP-CROSS-ORIGIN-SPIKE.md）；本旗舰实际只剩 3（登录态指引，v0.8.8 已落）。
+
 1. **跨源 frame 的声明发现**：跨源 frame 内无法注入读取 → 改从**宿主侧**
    拿（frame 的 name/title/尺寸/schema.org 嗅探）+ 适配包显式声明
    `frames: [{origin, views}]`（适配作者知道第三方是谁）；SDK 同步加

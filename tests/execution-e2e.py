@@ -304,6 +304,37 @@ def bridge(method, path, body=None):
         return json.loads(r.read().decode())
 
 
+def current_conversation_id(timeout=10):
+    """当前会话 id（/agent/trace 读盘侧，防抖窗口内可能拿不到——轮询）。"""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        cid = bridge("GET", "/agent/trace").get("conversation")
+        if cid:
+            return cid
+        time.sleep(0.5)
+    raise RuntimeError("trace conversation id unavailable")
+
+
+def read_conversation(conv_id, marker=None, timeout=10):
+    """读会话 JSON（DiskStore 500ms 防抖：回合刚结束文件可能还是旧的——
+    带 marker 轮询到落盘为止，超时返回最后一次能读到的内容）。"""
+    path = Path.home() / "Library/Application Support/Desire/storage" / f"conversation-{conv_id}.json"
+    last = None
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            data = json.loads(path.read_text())
+        except Exception:
+            data = None
+        if data is not None:
+            last = data
+            if marker is None or any(marker in (m.get("content") or "")
+                                     for m in data.get("messages", [])):
+                return data
+        time.sleep(0.5)
+    return last or {}
+
+
 def sse(wfile, model, delta, finish):
     chunk = {"id": "chatcmpl-m", "object": "chat.completion.chunk", "created": int(time.time()),
              "model": model, "choices": [{"index": 0, "delta": delta, "finish_reason": None}]}
@@ -908,10 +939,8 @@ def main():
 
         # 断言从盘上会话文件读全量（suffix(12) 会截断长回合）。
         time.sleep(1)
-        conv_id = bridge("GET", "/agent/trace").get("conversation")
-        conv_path = (Path.home() / "Library/Application Support/Desire/storage"
-                     / f"conversation-{conv_id}.json")
-        conv = json.loads(conv_path.read_text())
+        conv_id = current_conversation_id()
+        conv = read_conversation(conv_id)
         results = [(m.get("toolCallId") or "") + " " + (m.get("content") or "")
                    for m in conv.get("messages", []) if m.get("role") == "tool"]
         print("盘上工具结果 %d 条：" % len(results))
@@ -1022,10 +1051,8 @@ def main():
                 break
             time.sleep(1)
         time.sleep(1)
-        conv2_id = bridge("GET", "/agent/trace").get("conversation")
-        conv2_path = (Path.home() / "Library/Application Support/Desire/storage"
-                      / f"conversation-{conv2_id}.json")
-        conv2 = json.loads(conv2_path.read_text())
+        conv2_id = current_conversation_id()
+        conv2 = read_conversation(conv2_id)
         tools2 = [m.get("content") or "" for m in conv2.get("messages", []) if m.get("role") == "tool"]
         nav_result = next((t for t in tools2 if "Navigated to" in t), "")
         page_result = next((t for t in tools2 if "FLAKY-FULL-OK" in t), "")
@@ -1044,9 +1071,8 @@ def main():
                 break
             time.sleep(1)
         time.sleep(1)
-        conv3_id = bridge("GET", "/agent/trace").get("conversation")
-        conv3 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                            / f"conversation-{conv3_id}.json").read_text())
+        conv3_id = current_conversation_id()
+        conv3 = read_conversation(conv3_id)
         tools3 = [m.get("content") or "" for m in conv3.get("messages", []) if m.get("role") == "tool"]
         reminder_result = next((t for t in tools3 if "dueDate" in t), "")
         ok("OS 工具拒收自然语言日期（参数前置校验）", "dueDate must be" in reminder_result)
@@ -1073,9 +1099,8 @@ def main():
                 break
             time.sleep(1)
         time.sleep(1)
-        conv4_id = bridge("GET", "/agent/trace").get("conversation")
-        conv4 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                            / f"conversation-{conv4_id}.json").read_text())
+        conv4_id = current_conversation_id()
+        conv4 = read_conversation(conv4_id)
         tools4 = [m.get("content") or "" for m in conv4.get("messages", []) if m.get("role") == "tool"]
         made = next((t for t in tools4 if "E2E 自清理提醒" in t and "Reminder added" in t), "")
         done = next((t for t in tools4 if t.startswith("Reminder completed")), "")
@@ -1101,9 +1126,8 @@ def main():
                 break
             time.sleep(1)
         time.sleep(1)
-        conv5_id = bridge("GET", "/agent/trace").get("conversation")
-        conv5 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                            / f"conversation-{conv5_id}.json").read_text())
+        conv5_id = current_conversation_id()
+        conv5 = read_conversation(conv5_id)
         tools5 = [m.get("content") or "" for m in conv5.get("messages", []) if m.get("role") == "tool"]
         split_result = next((t for t in tools5 if t.startswith("Extracted")), "")
         merge_result = next((t for t in tools5 if t.startswith("Merged")), "")
@@ -1127,9 +1151,8 @@ def main():
                 break
             time.sleep(1)
         time.sleep(1)
-        conv6_id = bridge("GET", "/agent/trace").get("conversation")
-        conv6 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                            / f"conversation-{conv6_id}.json").read_text())
+        conv6_id = current_conversation_id()
+        conv6 = read_conversation(conv6_id)
         tools6 = [m.get("content") or "" for m in conv6.get("messages", []) if m.get("role") == "tool"]
         doc_out = next((t for t in tools6 if t.startswith("Document text (docx")), "")
         xlsx_out = next((t for t in tools6 if t.startswith('Spreadsheet "报价单"')), "")
@@ -1161,9 +1184,8 @@ def main():
                 break
             time.sleep(1)
         time.sleep(1)
-        conv7_id = bridge("GET", "/agent/trace").get("conversation")
-        conv7 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                            / f"conversation-{conv7_id}.json").read_text())
+        conv7_id = current_conversation_id()
+        conv7 = read_conversation(conv7_id)
         tools7 = [m.get("content") or "" for m in conv7.get("messages", []) if m.get("role") == "tool"]
         baseline = next((l for t in tools7 for l in (t or "").splitlines()
                          if l.startswith(f"[{fixture_idx}]")), "")
@@ -1212,8 +1234,7 @@ def main():
         convA_id = next((w.get("conversationId") or "" for w in windows_live()
                          if w["id"] == old_session_id), "")
         assert convA_id, "回合 A 的会话没有 conversationId"
-        convA = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                            / f"conversation-{convA_id}.json").read_text())
+        convA = read_conversation(convA_id)
         newwin_out = next((m.get("content") or "" for m in convA.get("messages", [])
                            if m.get("role") == "tool"), "")
         wins_after = window_count()
@@ -1253,8 +1274,7 @@ def main():
                          for w in bridge("GET", "/agent/windows").get("windows", [])
                          if w["id"] == new_session_id), "")
         assert convB_id, "新窗口会话没有 conversationId"
-        convB = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                            / f"conversation-{convB_id}.json").read_text())
+        convB = read_conversation(convB_id)
         toolsB = [m.get("content") or "" for m in convB.get("messages", []) if m.get("role") == "tool"]
         save_out = next((t for t in toolsB if t.startswith('Saved workspace "E2E-MUSCLE8"')), "")
         incog_out = next((t for t in toolsB if "private tab" in t), "")
@@ -1318,9 +1338,8 @@ def main():
                 break
             time.sleep(1)
         time.sleep(1)
-        conv9_id = bridge("GET", "/agent/trace").get("conversation")
-        conv9 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                            / f"conversation-{conv9_id}.json").read_text())
+        conv9_id = current_conversation_id()
+        conv9 = read_conversation(conv9_id)
         tools9 = [m.get("content") or "" for m in conv9.get("messages", []) if m.get("role") == "tool"]
         group_add = next((t for t in tools9 if "to group: E2E 组" in t), "")
         group_rename = next((t for t in tools9 if t.startswith("Renamed group")), "")
@@ -1366,9 +1385,8 @@ def main():
                 break
             time.sleep(1)
         time.sleep(1)
-        conv10_id = bridge("GET", "/agent/trace").get("conversation")
-        conv10 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                             / f"conversation-{conv10_id}.json").read_text())
+        conv10_id = current_conversation_id()
+        conv10 = read_conversation(conv10_id)
         tools10 = [m.get("content") or "" for m in conv10.get("messages", []) if m.get("role") == "tool"]
         split_out = next((t for t in tools10 if t.startswith("Split view:")), "")
         collapse_out = next((t for t in tools10 if t.startswith("Collapsed tab group")), "")
@@ -1495,8 +1513,7 @@ def main():
         conv12_id = next((w.get("conversationId") or ""
                           for w in bridge("GET", "/agent/windows").get("windows", [])
                           if w["id"] == new12), "")
-        conv12 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                             / f"conversation-{conv12_id}.json").read_text())
+        conv12 = read_conversation(conv12_id)
         tools12 = [m.get("content") or "" for m in conv12.get("messages", []) if m.get("role") == "tool"]
         list12 = next((t for t in tools12 if arch_name in t), "")
         restore12 = next((t for t in tools12 if t.startswith("Restored archived session")), "")
@@ -1523,9 +1540,8 @@ def main():
                 break
             time.sleep(1)
         time.sleep(1)
-        conv13_id = bridge("GET", "/agent/trace").get("conversation")
-        conv13 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                             / f"conversation-{conv13_id}.json").read_text())
+        conv13_id = current_conversation_id()
+        conv13 = read_conversation(conv13_id)
         tools13 = [m.get("content") or "" for m in conv13.get("messages", []) if m.get("role") == "tool"]
         open13 = next((t for t in tools13 if "(from the open tab)" in t), "")
         offscreen13 = next((t for t in tools13 if "(loaded off-screen)" in t), "")
@@ -1551,9 +1567,8 @@ def main():
                 break
             time.sleep(1)
         time.sleep(1)
-        conv14_id = bridge("GET", "/agent/trace").get("conversation")
-        conv14 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                             / f"conversation-{conv14_id}.json").read_text())
+        conv14_id = current_conversation_id()
+        conv14 = read_conversation(conv14_id)
         tools14 = [m.get("content") or "" for m in conv14.get("messages", []) if m.get("role") == "tool"]
         add14 = next((t for t in tools14 if "Added page watch" in t), "")
         check14a = next((t for t in tools14 if t.startswith("Checked «E2E 价格»") and "latest value" in t), "")
@@ -1579,9 +1594,8 @@ def main():
                 break
             time.sleep(1)
         time.sleep(1)
-        conv15_id = bridge("GET", "/agent/trace").get("conversation")
-        conv15 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                             / f"conversation-{conv15_id}.json").read_text())
+        conv15_id = current_conversation_id()
+        conv15 = read_conversation(conv15_id)
         tools15 = [m.get("content") or "" for m in conv15.get("messages", []) if m.get("role") == "tool"]
         reset15 = next((t for t in tools15 if t == "Zoom reset to 100%"), "")
         set15 = next((t for t in tools15 if t == "Zoom set to 150%"), "")
@@ -1605,9 +1619,8 @@ def main():
                                             for m in st16.get("messages", [])):
                 break
             time.sleep(1)
-        conv16_id = bridge("GET", "/agent/trace").get("conversation")
-        conv16 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                             / f"conversation-{conv16_id}.json").read_text())
+        conv16_id = current_conversation_id()
+        conv16 = read_conversation(conv16_id)
         tools16 = [m.get("content") or "" for m in conv16.get("messages", []) if m.get("role") == "tool"]
         read16 = next((t for t in tools16 if t.startswith("Reading aloud")), "")
         ok("readAloud 文本路径回执", read16 != "" and "chars" in read16)
@@ -1632,9 +1645,8 @@ def main():
                                              for m in st16c.get("messages", [])):
                 break
             time.sleep(1)
-        conv16c_id = bridge("GET", "/agent/trace").get("conversation")
-        conv16c = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                              / f"conversation-{conv16c_id}.json").read_text())
+        conv16c_id = current_conversation_id()
+        conv16c = read_conversation(conv16c_id)
         tools16c = [m.get("content") or "" for m in conv16c.get("messages", []) if m.get("role") == "tool"]
         page16 = next((t for t in tools16c if t.startswith("Reading aloud")), "")
         ok("readAloud 页面提取路径（回执带标题）", "Article Fixture" in page16)
@@ -1666,9 +1678,8 @@ def main():
                                              for m in st17b.get("messages", [])):
                 break
             time.sleep(1)
-        conv17_id = bridge("GET", "/agent/trace").get("conversation")
-        conv17 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                             / f"conversation-{conv17_id}.json").read_text())
+        conv17_id = current_conversation_id()
+        conv17 = read_conversation(conv17_id, marker="预算已用尽")
         msgs17 = conv17.get("messages", [])
         notice17 = next((m.get("content") or "" for m in msgs17 if "预算已用尽" in (m.get("content") or "")), "")
         tools17 = [m for m in msgs17 if m.get("role") == "tool"]
@@ -1704,9 +1715,8 @@ def main():
                                             for m in st18.get("messages", [])):
                 break
             time.sleep(1)
-        conv18_id = bridge("GET", "/agent/trace").get("conversation")
-        conv18 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                             / f"conversation-{conv18_id}.json").read_text())
+        conv18_id = current_conversation_id()
+        conv18 = read_conversation(conv18_id)
         tools18 = [m.get("content") or "" for m in conv18.get("messages", []) if m.get("role") == "tool"]
         read18 = next((t for t in tools18 if "MUSCLE18HOT" in t), "")
         ok("选题：readURL 实读热榜页（话题进正文）", read18 != "" and "热榜" in read18)
@@ -1755,9 +1765,8 @@ def main():
                                             for m in st20.get("messages", [])):
                 break
             time.sleep(1)
-        conv20_id = bridge("GET", "/agent/trace").get("conversation")
-        conv20 = json.loads((Path.home() / "Library/Application Support/Desire/storage"
-                             / f"conversation-{conv20_id}.json").read_text())
+        conv20_id = current_conversation_id()
+        conv20 = read_conversation(conv20_id)
         tools20 = [m.get("content") or "" for m in conv20.get("messages", []) if m.get("role") == "tool"]
         note20 = next((t for t in tools20 if "Missing title" in t), "")
         search20 = next((t for t in tools20 if "2 characters" in t), "")

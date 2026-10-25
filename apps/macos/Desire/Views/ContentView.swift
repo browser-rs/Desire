@@ -11,6 +11,8 @@ struct ContentView: View {
     /// the value-based WindowGroup and restored across launches. nil for a
     /// brand-new ⌘N window until onAppear mints one.
     @Binding var sessionID: UUID?
+    /// B1 激活自愈的补跑计数（v0.8.8；见 didBecomeActive 安全网）。
+    @State private var restoreRepairCount = 0
 
     @StateObject var windowContext: WindowBrowsingContext
     /// 从保留的 windowContext（StateObject）派生——**不能**用 @ObservedObject 绑
@@ -394,54 +396,21 @@ struct ContentView: View {
                 isAgentConfigured = true
                 StartupMetric.markFirstWindowInteractive()
             }
-            if tabManager.tabs.isEmpty {
-                if sessionID == nil { sessionID = UUID() }
-                // 会话恢复编排（ARCH-8 抽出）：绑定身份 → 拖出接纳 → 恢复
-                // 本窗口会话 / 采纳最近会话（含崩溃提示回调）/ 兜底新标签。
-                if let restored = SessionRestore.run(
-                    for: tabManager,
-                    context: .init(
-                        tabManager: tabManager,
-                        appState: appState,
-                        settings: settings,
-                        contentBlocker: contentBlocker,
-                        videoAdBlocker: videoAdBlocker,
-                        existingSessionID: sessionID,
-                        onStartupNotice: { message in
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-                                actionToast = StatusBarToast(
-                                    icon: "arrow.counterclockwise.circle",
-                                    text: message
-                                )
-                            }
-                        },
-                        openFreshTab: { b.openFreshTab() },
-                        openStartupURLs: { urls in
-                            // 启动页集/主页（v0.7.19）：逐个开标签，末条自然
-                            // 成为选中（makeActive=true 逐条切换）。
-                            for url in urls {
-                                tabManager.addTab(
-                                    url: url,
-                                    incognito: false,
-                                    javaScriptEnabled: settings.isJavaScriptEnabled,
-                                    contentBlocker: contentBlocker,
-                                    videoAdBlocker: videoAdBlocker,
-                                    autoPlayPolicy: settings.autoPlayPolicy,
-                                    newTabPosition: .end
-                                )
-                            }
-                        },
-                        openWindowForRestore: {
-                            // 崩溃多窗口恢复：新窗带全新 UUID，由 SessionRestore
-                            // 认领 pending key（不是这个 UUID 自己的会话）。
-                            openWindow(id: "main", value: UUID())
-                        }
-                    )
-                ) {
-                    sessionID = restored.sessionID
-                    windowContext.sessionKey = restored.sessionKey
-                }
-            }
+            restoreSessionIfNeeded()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            // B1 安全网（v0.8.8）：锁屏/未激活状态下启动时，首窗内容可能
+            // 从未构建（WKWebView/窗口渲染在未激活进程不跑）——onAppear 的
+            // 恢复编排整段没执行，窗口停在零标签。应用真正活动化后重跑。
+            // 排除 isTerminating（终止流程补发事件的既有坑同源）；最多 3 次
+            // 防止与"用户手动关光标签"打架（关最后一标签默认连窗关，只剩
+            // 理论边界）。
+            guard !TabSessionCoordinator.shared.isTerminatingNow,
+                  restoreRepairCount < 3 else { return }
+            guard tabManager.tabs.isEmpty else { return }
+            restoreRepairCount += 1
+            Log.app.info("session restore re-run on activation (attempt \(self.restoreRepairCount, privacy: .public))")
+            restoreSessionIfNeeded()
         }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active {
@@ -894,6 +863,56 @@ struct ContentView: View {
     }
 
     func loadHome(for tab: Tab) { b.loadHome(for: tab) }
+
+    /// 会话恢复编排入口（onAppear 与激活自愈共用；v0.8.8 从 onAppear 抽出）。
+    /// 零标签窗口才动作——SessionRestore 内部各分支幂等（本窗口会话恢复/
+    /// 采纳最近会话/兜底新标签），重复调用不会重复开页。
+    private func restoreSessionIfNeeded() {
+        guard tabManager.tabs.isEmpty else { return }
+        if sessionID == nil { sessionID = UUID() }
+        if let restored = SessionRestore.run(
+            for: tabManager,
+            context: .init(
+                tabManager: tabManager,
+                appState: appState,
+                settings: settings,
+                contentBlocker: contentBlocker,
+                videoAdBlocker: videoAdBlocker,
+                existingSessionID: sessionID,
+                onStartupNotice: { message in
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                        actionToast = StatusBarToast(
+                            icon: "arrow.counterclockwise.circle",
+                            text: message
+                        )
+                    }
+                },
+                openFreshTab: { b.openFreshTab() },
+                openStartupURLs: { urls in
+                    // 启动页集/主页（v0.7.19）：逐个开标签，末条自然成为选中。
+                    for url in urls {
+                        tabManager.addTab(
+                            url: url,
+                            incognito: false,
+                            javaScriptEnabled: settings.isJavaScriptEnabled,
+                            contentBlocker: contentBlocker,
+                            videoAdBlocker: videoAdBlocker,
+                            autoPlayPolicy: settings.autoPlayPolicy,
+                            newTabPosition: .end
+                        )
+                    }
+                },
+                openWindowForRestore: {
+                    // 崩溃多窗口恢复：新窗带全新 UUID，由 SessionRestore
+                    // 认领 pending key（不是这个 UUID 自己的会话）。
+                    openWindow(id: "main", value: UUID())
+                }
+            )
+        ) {
+            sessionID = restored.sessionID
+            windowContext.sessionKey = restored.sessionKey
+        }
+    }
 
     func navigateToURL(_ input: String, for tab: Tab) { b.navigateToURL(input, for: tab) }
 

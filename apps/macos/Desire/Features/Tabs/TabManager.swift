@@ -999,6 +999,11 @@ final class TabSessionCoordinator {
 
     private(set) var launchedAfterCrash = UserDefaults.standard.bool(forKey: "session.running")
 
+    /// 终止流程进行中（ContentView 激活自愈等旁路据此让路——AppKit 在
+    /// applicationShouldTerminate 之后会给窗口补发 willClose，别在退出
+    /// 尾声再开标签/建窗）。
+    var isTerminatingNow: Bool { isTerminating }
+
     func sessionKey(for id: UUID) -> String { "session-" + id.uuidString }
 
     /// 全部存活窗口的 TabManager（webext windows.getAll 用；弱引用自动清理）。

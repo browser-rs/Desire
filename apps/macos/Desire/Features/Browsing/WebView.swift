@@ -224,6 +224,9 @@ class BrowserState: ObservableObject {
     /// 空白新标签里输入/打开 YouTube 时策略已定格为 requireUserAction，
     /// didFinish 时由 `Coordinator` 用一次可信的 evaluateJavaScript 补播。
     let createdAutoPlayPolicy: AutoPlayPolicy
+    /// 自动播策略补烙（v0.8.8）：本标签已因"视频站 + 创建期烙了限制策略"
+    /// 就地重开过一次（防循环；见 didFinish 钩子）。
+    var autoPlayReopenDone = false
 
     init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, containerDataStore: WKWebsiteDataStore? = nil) {
         self.isIncognito = incognito
@@ -636,6 +639,9 @@ struct WebView: NSViewRepresentable {
     /// 启用的 SponsorBlock 类别（随开关注入页面）。
     var sponsorBlockCategories: [String] = []
     var onOpenLinkInNewTab: ((URL) -> Void)?
+    /// 自动播策略补烙（v0.8.8）：didFinish 发现视频站 + 本应 allowAll 但创建期
+    /// 烙了限制 → 请求宿主按 toggleSiteAutoPlay 同款"就地重开"换新 webview。
+    var onReopenWithAutoPlay: ((URL) -> Void)?
     var onSearchText: ((String) -> Void)?
     var onPageFinished: ((URL, String) -> Void)?
     var onElementPicked: ((String, String?) -> Void)?
@@ -2063,6 +2069,23 @@ try {
                     await self.parsePageProtocol(webView: webView)
                 }
                 parent.onPageFinished?(url, parent.state.pageTitle)
+                // 自动播策略补烙（v0.8.8）：新标签页建起的 webview 烙的是默认
+                // requireUserAction，之后导航到视频站策略不变——自动播被
+                // PageConsentRequired 拦（实测：kick 的信任手势在 WebContent 进
+                // 过一次后台后失效，PreventedAutoplay）。这里在**首页落地时**就
+                // 地重开一次（与工具栏"授予即重开"同路径），用户点到详情页时
+                // 策略已正确。一次性；站点显式 block（effective != allowAll）
+                /// 不触发。
+                if !parent.state.autoPlayReopenDone,
+                   parent.state.createdAutoPlayPolicy != .allowAll,
+                   let app = AppState.live,
+                   app.siteSettingsStore.effectiveAutoPlay(
+                       for: url.host ?? "", global: app.settings.autoPlayPolicy) == .allowAll,
+                   AutoPlayPolicy.isVideoHost(url.host ?? "") {
+                    parent.state.autoPlayReopenDone = true
+                    Log.tabs.info("autoplay policy re-bake: reopening tab for \(url.host ?? "", privacy: .public) (created restrictive)")
+                    parent.onReopenWithAutoPlay?(url)
+                }
                 // 调试面板的作用域菜单要显示标题（KVO 的标题晚到，用 live title）。
                 parent.devToolsStore.noteTab(
                     id: parent.tabID,

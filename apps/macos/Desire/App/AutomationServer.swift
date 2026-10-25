@@ -3316,6 +3316,7 @@ final class AutomationServer {
                 "suspended": tab.isSuspended,
                 "loading": tab.isLoading,
                 "domNodes": tab.browser.lastDomNodeCount,
+                "autoplayPolicy": tab.browser.createdAutoPlayPolicy.rawValue,
                 "scrollY": tab.browser.lastScrollY,
                 "workflowSuggestion": tab.browser.pendingWorkflowSuggestion.map { suggestion -> Any in
                     ["name": suggestion.name, "host": suggestion.host]

@@ -1,4 +1,9 @@
 ## [Unreleased]
+### Fixed
+
+- YouTube 详情页自动播放（0.8.7 用户实测回归）：新标签页建起的 webview 烙的是默认 requireUserAction，之后导航到视频站策略不变——自动播被 PageConsentRequired 拦、kick 的信任手势在 WebContent 进过一次后台后失效（统一日志实证）。修复：didFinish 发现"视频站 + 本应 allowAll 但创建期烙了限制"时按工具栏授予同款路径就地重开一次（保留无痕/容器身份，站点显式 block 不触发）；真机验证 watch 页 paused=false 自动播。/state 的 tabs 增加 autoplayPolicy 探针字段
+- 阅读进度被"未滚动过的打开"清零（E2E 套件 189✓/1✗ 抓到）：关标签时 tracker 对从未滚动的页面采集 scrollY=0 覆盖已有进度，重开不再恢复——capture 对 ratio<2% 且已有 ≥2% 进度时跳过写入
+
 ### Changed
 
 - 执行套件确定性化：20 处"回合结束立刻读会话文件"改为带 marker 轮询（DiskStore 500ms 防抖窗口内读旧文件是预算等 5 项时序不稳的根因）；/agent/trace 取会话 id 同样轮询

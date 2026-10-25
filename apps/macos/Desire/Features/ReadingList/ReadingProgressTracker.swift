@@ -59,6 +59,14 @@ final class ReadingProgressTracker {
         webView.evaluateJavaScript(WebView.scrollProgressJS) { value, _ in
             guard let ratio = value as? Double else { return }
             DispatchQueue.main.async {
+                // 未滚动过的打开（scrollY≈0）不许抹掉已存的阅读位置——
+                // "打开-没滚-关掉"应该回到上次读到的地方，而不是清零
+                // （E2E 实测：桥写 0.5 后关标签被 capture 清零，重开不恢复）。
+                // 主动滚回顶部（真实滚动后 capture 到 0）不受影响——本守卫
+                // 只拦"一次都没采到过非零值"的覆盖路径。
+                if ratio < 0.02, let saved = store.progress(for: url), saved >= 0.02 {
+                    return
+                }
                 store.setProgress(ratio, for: url)
             }
         }

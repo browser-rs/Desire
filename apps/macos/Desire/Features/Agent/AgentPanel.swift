@@ -995,12 +995,20 @@ struct AgentPanel: View {
                       let target = UUID(uuidString: messageID) else { return }
                 let query = info["query"] as? String ?? ""
                 Task { @MainActor in
-                    pendingJumpMessageID = target
                     if !query.isEmpty {
                         findText = query
                         showFind = true
                         recomputeFind(reset: true)
                         if let idx = findMatches.firstIndex(of: target) { findIndex = idx }
+                    }
+                    if store.messages.contains(where: { $0.id == target }) {
+                        // 命中的就是当前会话：消息已在列表里，直接滚（onChange
+                        // 只覆盖"切换会话后"的路径——同会话时它不触发）。
+                        try? await Task.sleep(nanoseconds: 120_000_000)
+                        scrollProxy?.scrollTo(target, anchor: .center)
+                    } else {
+                        // 切换会话中：等 onChange(conversationId) 布局完成后滚。
+                        pendingJumpMessageID = target
                     }
                 }
             }

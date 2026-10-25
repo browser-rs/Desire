@@ -233,7 +233,15 @@ final class SkillStore: ObservableObject {
                 throw ImportError.unpack(String(err.suffix(200)))
             }
         } else {
-            try FileManager.default.copyItem(at: skill.url, to: destination)
+            // 单 md 技能：落点强制 .md——用户在 Save 面板若敲了 .skill，
+            // 拷出来的文件名与内容不符，importArchive 会按扩展名拒收。
+            var dest = destination
+            if dest.pathExtension.lowercased() != "md" {
+                dest = dest.deletingPathExtension().appendingPathExtension("md")
+            }
+            try FileManager.default.copyItem(at: skill.url, to: dest)
+            Self.log.info("skill exported: \(name, privacy: .public) → \(dest.lastPathComponent, privacy: .public)")
+            return dest
         }
         Self.log.info("skill exported: \(name, privacy: .public) → \(destination.lastPathComponent, privacy: .public)")
         return destination

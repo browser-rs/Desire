@@ -5537,9 +5537,23 @@ final class AutomationServer {
     private static func suggest(query: String) throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         let model = AddressSuggestionsModel()
+        // 切换到标签（v0.8.6）：与 UI 同源——活动窗口的打开标签。
+        if let tm = TabSessionCoordinator.shared.activeTabManager {
+            model.openTabs = tm.tabs.compactMap { tab in
+                let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
+                guard !url.isEmpty, !tab.isOnNewTabPage else { return nil }
+                return AddressSuggestionsModel.OpenTabInfo(
+                    id: tab.id,
+                    title: tab.displayTitle.isEmpty ? url : tab.displayTitle,
+                    url: url)
+            }
+        }
         // build() 带 100ms 防抖（击键路径专用）——桥同步读会拿到空数组。
+        // openTabs 必须显式传参——buildImmediate 的参数默认值是 []，走默认
+        // 会绕过刚赋的属性（首测就被它坑：属性喂了、建议里仍然没有切换项）。
         model.buildImmediate(query: query, settings: app.settings,
-                             bookmarks: app.bookmarkStore, history: app.historyStore)
+                             bookmarks: app.bookmarkStore, history: app.historyStore,
+                             openTabs: model.openTabs)
         return ["suggestions": model.suggestions.map { s -> [String: Any] in
             ["kind": s.kind.rawValue, "title": s.title, "url": s.url]
         }]

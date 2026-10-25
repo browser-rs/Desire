@@ -87,8 +87,12 @@ struct AgentInputBar: View {
                 slashMenu
             }
             inputCapsule
-                .onChange(of: text) { _, _ in
-                    if downloadSuggestDismissed { downloadSuggestDismissed = false }
+                .onChange(of: text) { _, newValue in
+                    // 只在输入**清空**时复位"忽略"——点击"下载它"填入的指令
+                    // 本身仍含媒体 URL，立即复位会让建议条去骚扰刚生成的 prompt。
+                    if downloadSuggestDismissed, newValue.trimmingCharacters(in: .whitespaces).isEmpty {
+                        downloadSuggestDismissed = false
+                    }
                 }
             voiceStatusLine
         }

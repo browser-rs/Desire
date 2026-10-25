@@ -63,9 +63,26 @@ extension ContentView {
                 toggleBookmark: { toggleBookmark() },
                 toggleFullScreen: { toggleFullScreen() },
                 inspectElement: { inspectElement() },
-                suggestionSelect: { sug in
+                suggestionSelect: { [tm = tabManager] sug in
                     suggestionModel.reset()
                     isUrlFocused = false
+                    // 切换到已打开标签（v0.8.6）：选中即切过去，不再当 URL 重复导航。
+                    if sug.kind == .openTab, let id = sug.tabID,
+                       let idx = tm.tabs.firstIndex(where: { $0.id == id }) {
+                        tm.selectTab(at: idx)
+                        return
+                    }
+                    // 内联计算器（v0.8.6）：回车 = 复制结果，不导航
+                    //（calculator://408 不是合法 URL，导航必然报错）。
+                    if sug.kind == .calculator {
+                        let result = sug.url.replacingOccurrences(of: "calculator://", with: "")
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(result, forType: .string)
+                        actionToast = StatusBarToast(
+                            icon: "plus.forwardslash.minus",
+                            text: String(format: String(localized: "已复制 %@"), result))
+                        return
+                    }
                     // Search-shaped suggestions record history here — the
                     // URL they navigate with is already resolved, so
                     // navigateToURL can no longer tell it was a search.
@@ -151,7 +168,17 @@ extension ContentView {
             showElementBlock: $showElementBlock,
             showSearchHistory: $showSearchHistory,
             openWindow: { openWindow(id: $0) },
-            onTextChange: { [bm = bookmarkStore, hist = historyStore, st = settings] newValue in
+            onTextChange: { [bm = bookmarkStore, hist = historyStore, st = settings, tm = tabManager] newValue in
+                // 切换到标签（v0.8.6 旗舰 A）：建议模型需要本窗口的打开标签——
+                // 此前 openTabs 无人赋值，切换建议从未出现在真实 UI 里。
+                suggestionModel.openTabs = tm.tabs.compactMap { tab in
+                    let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
+                    guard !url.isEmpty, !tab.isOnNewTabPage else { return nil }
+                    return AddressSuggestionsModel.OpenTabInfo(
+                        id: tab.id,
+                        title: tab.displayTitle.isEmpty ? url : tab.displayTitle,
+                        url: url)
+                }
                 suggestionModel.build(query: newValue, settings: st, bookmarks: bm, history: hist)
             },
             pluginStore: pluginStore,

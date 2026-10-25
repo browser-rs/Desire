@@ -3,8 +3,8 @@ import os
 
 /// 启动路径审计（v0.8.6）：把散在三处的 "launch phase" lap 汇进同一个内存
 /// 记录器，首窗出现时打印 **top 5 耗时步骤** + 预算判定（700ms，ROADMAP
-/// 口径）。只做日志，不做 UI。Debug 构建才汇总打印（Release 各 lap 照旧、
-/// 不多打一行——生产日志噪音控制）。
+/// 口径）。只做日志，不做 UI。Debug/Release 都打（Release 现场排查启动慢
+/// 同样需要；仅两行，噪音可忽略）。
 @MainActor
 enum LaunchAudit {
     static let budgetMs: Double = 700

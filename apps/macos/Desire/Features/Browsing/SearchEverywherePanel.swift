@@ -79,8 +79,10 @@ struct SearchEverywherePanel: View {
                             var hitMessageID: UUID?
                             if let message = matchedMessage, let text = message.content {
                                 hitMessageID = message.id
-                                let lowered = text.lowercased()
-                                if let range = lowered.range(of: q.lowercased()) {
+                                // range 必须现算现在**原文**上（caseInsensitive）——
+                                // 小写副本的 String.Index 对原串无效（lowercased()
+                                // 可能变长，跨串索引是崩溃形态）。
+                                if let range = text.range(of: q, options: .caseInsensitive) {
                                     let lower = text.index(range.lowerBound, offsetBy: -50, limitedBy: text.startIndex) ?? text.startIndex
                                     let upper = text.index(range.upperBound, offsetBy: 90, limitedBy: text.endIndex) ?? text.endIndex
                                     snippet = (lower > text.startIndex ? "…" : "")

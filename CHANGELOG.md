@@ -9,6 +9,8 @@
 - 内联计算器/切换标签建议的选中行为：计算结果复制到剪贴板（此前回车会导航 calculator:// 报错）、openTab 选中即切标签（此前重复导航）
 - release-smoke 锁屏免疫：等激活真正生效（≤8s），屏幕锁定时阅读模式检查显式 SKIP 而非假阳性（实测锁屏下 isActive 恒 false 会连挂两条）
 - 锁弹层"本站拦截"计数提示的格式键对齐（%d→%lld）
+- Skill 分发闭环（计划验收补跑）：自家导出的 .skill 包此前导入器不认（只收 zip/目录/md）——.skill 按 zip 容器导入；桥 /skills/delete 对目录技能删整目录（只删 SKILL.md 会留 companion 残壳占名挡重导入）；新增 POST /skills/export 端点，E2E 全链路（导出→删除→导入恢复 SKILL.md+伴随文件）实测通过
+
 
 
 ### Changed

@@ -106,7 +106,7 @@ final class SkillStore: ObservableObject {
 
         var errorDescription: String? {
             switch self {
-            case .unsupported: "Only .zip archives, skill directories, or .md files can be imported"
+            case .unsupported: "Only .zip/.skill packages, skill directories, or .md files can be imported"
             case .noSkill: "No SKILL.md or .md file found in the package"
             case .unpack(let detail): "Couldn't unpack: \(detail)"
             }
@@ -139,7 +139,10 @@ final class SkillStore: ObservableObject {
                 guard let md = mds.first else { throw ImportError.noSkill }
                 singleFile = md
             }
-        } else if url.pathExtension.lowercased() == "zip" {
+        } else if url.pathExtension.lowercased() == "zip"
+                  // .skill 是自家导出格式（同 zip 容器，UI Save 面板默认就叫
+                  // 这个名）——不认的话"导出→导入"自家往返都走不通（E2E 实测）。
+                  || url.pathExtension.lowercased() == "skill" {
             let proc = Process()
             proc.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
             proc.arguments = ["-x", "-k", url.path, staging.path]

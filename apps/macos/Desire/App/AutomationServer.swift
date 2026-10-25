@@ -541,6 +541,7 @@ final class AutomationServer {
         ep("GET", "/memory/conflicts", "Pending memory-conflict reviews (approximate relatedness; queue from auto-extraction)", example: "…/memory/conflicts")
         ep("POST", "/memory/conflicts/resolve", "Resolve a conflict: resolution=keepNew|keepOld|keepBoth|merge; factID (review) or newText (manual)", params: ["factID?/newText?", "relatedIDs:[uuid]", "resolution", "mergedText?"], example: #"-d '{"newText":"…","relatedIDs":["…"],"resolution":"merge"}'"#)
         ep("POST", "/skills/distill", "Distill a SKILL.md draft from the live conversation (one bypass model call); save=true writes it", params: ["save?:bool", "window?:string"], example: #"-d '{"save":true}'"#)
+        ep("POST", "/skills/export", "Export a skill as a .skill package (zip) or single .md to a local path", params: ["name:string", "to:string"], example: #"-d '{"name":"my-skill","to":"/tmp/my.skill"}'"#)
         ep("GET", "/palette", "Command-palette mixed search (commands/tabs/bookmarks/history/conversations, grouped + per-source totals)", params: ["q:string"], example: "…/palette?q=book")
         ep("GET", "/bilingual", "Bilingual reading state for the active tab (on/running/done/total/error)", example: "…/bilingual")
         ep("POST", "/bilingual", "Toggle bilingual reading (AI translations inserted under each paragraph)", params: ["on:bool", "index?:int"], example: #"-d '{"on":true}'"#)
@@ -3183,6 +3184,10 @@ final class AutomationServer {
                 return try await Self.json(Self.distillSkill(
                     window: Self.string(body, "window"),
                     save: body["save"] as? Bool ?? false))
+            case ("POST", "/skills/export"):
+                return try Self.json(Self.exportSkill(
+                    name: Self.string(body, "name") ?? "",
+                    to: Self.string(body, "to") ?? ""))
             case ("POST", "/skills/reload"):
                 return try Self.json(Self.reloadSkills())
             case ("POST", "/skills/delete"):
@@ -8736,6 +8741,17 @@ final class AutomationServer {
         return ["ok": true]
     }
 
+    /// 导出技能为 .skill 包（v0.8.6 分发）：与 UI 右键导出同一 store 路径。
+    private static func exportSkill(name: String, to: String) -> [String: Any] {
+        guard !name.isEmpty, !to.isEmpty else { return ["error": "missing name/to"] }
+        do {
+            let dest = try SkillStore.shared.exportPackage(named: name, to: URL(fileURLWithPath: to))
+            return ["ok": true, "path": dest.path]
+        } catch {
+            return ["error": error.localizedDescription]
+        }
+    }
+
     private static func listSkills() throws -> [String: Any] {
         let skills = SkillStore.shared.skills.map { s -> [String: Any] in
             ["name": s.name, "description": s.description]
@@ -8783,7 +8799,13 @@ final class AutomationServer {
         guard let skill = SkillStore.shared.skills.first(where: { $0.name == name }) else {
             return ["error": "no such skill"]
         }
-        try? FileManager.default.removeItem(at: skill.url)
+        // 目录技能删整目录（只删 SKILL.md 会留 companion 文件残壳——
+        // E2E 实测 notes.txt 残留、目录名占位挡住重导入同名）。
+        if let dir = skill.directory {
+            try? FileManager.default.removeItem(at: dir)
+        } else {
+            try? FileManager.default.removeItem(at: skill.url)
+        }
         SkillStore.shared.reload()
         return ["ok": true]
     }

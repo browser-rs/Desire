@@ -86,6 +86,14 @@ struct BatchMediaPanel: View {
                     .lineLimit(1)
                 stateBadge(batch)
                 Spacer(minLength: 8)
+                if batch.state == .running,
+                   let agg = store.aggregateSegmentRate(batchID: batch.id),
+                   agg.segmentsPerSecond > 0 {
+                    Text(String(format: "%.1f seg/s · %d↓", agg.segmentsPerSecond, agg.running))
+                        .font(.system(size: 10.5).monospacedDigit())
+                        .foregroundStyle(appAccent.opacity(0.85))
+                        .help(String(localized: "Total segment rate across running items (media-second multipliers are a different unit and are not summed)"))
+                }
                 Text("\(batch.finishedCount)/\(batch.items.count)")
                     .font(.system(size: 11, weight: .medium).monospacedDigit())
                     .foregroundStyle(.secondary)

@@ -385,7 +385,8 @@ private struct PrivacyDashboardSection: View {
     private var summary: String {
         let hosts = Set(permissionStore.rules.map(\.host)).count
         if hosts == 0 { return String(localized: "No saved permission settings") }
-        return String(localized: "\(hosts) site\(hosts == 1 ? "" : "s") with saved permissions")
+        if hosts == 1 { return String(localized: "1 site with saved permissions") }
+        return String(format: String(localized: "%lld sites with saved permissions"), hosts)
     }
 
     var body: some View {

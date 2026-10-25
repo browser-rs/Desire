@@ -8,11 +8,11 @@ struct ShortcutCheatSheetView: View {
     @Environment(\.dismiss) private var dismiss
 
     /// 硬编码键（AppCommands 未走 store——如实标注，避免"列表缺项"）。
+    /// findNext/findPrevious 在 store 里，不重复列。
     private let hardcoded: [(String, String)] = [
         ("Switch to Tab 1-9", "⌘1 … ⌘9"),
         ("Exit fullscreen / stop page load", "Esc"),
-        ("Send agent message", "⌘↩"),
-        ("Find next / previous (page)", "⌘G / ⇧⌘G"),
+        ("Send agent message (Shift/⌘ ↩ = newline)", "↩"),
     ]
 
     var body: some View {

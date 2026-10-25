@@ -203,6 +203,26 @@ struct GeneralSettingsSection: View {
                 }
             }
 
+            // MARK: - Keyboard
+
+            SettingsSection(
+                title: "Keyboard",
+                subtitle: "Vim-style page navigation (experimental).",
+                icon: "keyboard"
+            ) {
+                VStack(spacing: 0) {
+                    SettingsToggleRow(
+                        "Vim Mode",
+                        subtitle: "j/k scroll, gg/G top/bottom, x close tab, t new tab, / find. Only when the page (not a text field) has focus. Applied to new page loads.",
+                        systemImage: "command.square.arrow.left",
+                        isOn: Binding(
+                            get: { VimMode.isEnabled },
+                            set: { VimMode.setEnabled($0) }
+                        )
+                    )
+                }
+            }
+
             // MARK: - Notifications
 
             SettingsSection(
@@ -435,6 +455,8 @@ struct GeneralSettingsSection: View {
                         buttonTitle: "Change…",
                         action: { downloadStore.chooseDownloadFolder() }
                     )
+                    SettingsRowDivider()
+                    MutedDownloadHostsRow()
                     SettingsRowDivider()
                     SettingsPickerRow(
                         "Duplicate Files",
@@ -1553,5 +1575,48 @@ private struct HistoryContentIndexRow: View {
                 .controlSize(.mini)
             }
         }
+    }
+}
+
+
+// MARK: - 下载建议静音站点（v0.8.6）
+
+/// Agent 输入框"检测到媒体链接"提示的按站点关闭清单——这里统一解除。
+/// UserDefaults `downloadSuggest.disabledHosts`（与 AgentInputBar 同键）。
+private struct MutedDownloadHostsRow: View {
+    @State private var hosts: [String] = []
+
+    private func reload() {
+        hosts = (UserDefaults.standard.stringArray(forKey: "downloadSuggest.disabledHosts") ?? []).sorted()
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: "bell.slash")
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 22, height: 22)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Muted Download Suggestions")
+                    .font(.system(size: 12, weight: .medium))
+                Text(hosts.isEmpty
+                     ? String(localized: "No muted sites")
+                     : hosts.joined(separator: ", "))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            if !hosts.isEmpty {
+                SettingsCapsuleButton("Unmute All") {
+                    UserDefaults.standard.removeObject(forKey: "downloadSuggest.disabledHosts")
+                    reload()
+                }
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .frame(minHeight: 44)
+        .onAppear(perform: reload)
     }
 }

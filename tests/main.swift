@@ -3744,6 +3744,26 @@ func testMediaURLDetector() {
 
 testMediaURLDetector()
 
+func testTabToSearch() {
+    let customs: [(name: String, keyword: String?)] = [
+        ("GitHub", "gh"),
+        ("知乎", nil),
+        ("Empty", ""),
+    ]
+    check("Tab搜索：内置引擎 id", TabToSearch.keyword(in: "baidu", customEngines: customs) == "baidu")
+    check("Tab搜索：大小写不敏感", TabToSearch.keyword(in: "BAIDU", customEngines: customs) == "baidu")
+    check("Tab搜索：自定义关键字", TabToSearch.keyword(in: "gh", customEngines: customs) == "gh")
+    check("Tab搜索：自定义名（无关键字）", TabToSearch.keyword(in: "知乎", customEngines: customs) == "知乎")
+    check("Tab搜索：带空格不算", TabToSearch.keyword(in: "gh rust", customEngines: customs) == nil)
+    check("Tab搜索：空串不算", TabToSearch.keyword(in: "", customEngines: customs) == nil)
+    check("Tab搜索：空白串不算", TabToSearch.keyword(in: "   ", customEngines: customs) == nil)
+    check("Tab搜索：非关键字 nil", TabToSearch.keyword(in: "rustlang", customEngines: customs) == nil)
+    // 空关键字引擎：名字仍可命中（empty 匹配 name），关键字路径不参与
+    check("Tab搜索：空关键字引擎仍按名命中", TabToSearch.keyword(in: "empty", customEngines: customs) == "empty")
+}
+
+testTabToSearch()
+
 
 
 

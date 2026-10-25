@@ -1122,6 +1122,25 @@ final class BatchMediaExportStore: ObservableObject {
         itemRates[itemID]
     }
 
+    /// 批次总速率（v0.8.6 收尾）：**只累加同单位的分片速率**（seg/s）——
+    /// 媒体秒的倍速与分片速率不同量纲，混加是编数字。返回 (总 seg/s, 在跑项数)。
+    func aggregateSegmentRate(batchID: UUID) -> (segmentsPerSecond: Double, running: Int)? {
+        guard let batch = batches.first(where: { $0.id == batchID }) else { return nil }
+        var total = 0.0
+        var running = 0
+        var seen = false
+        for item in batch.items where item.state == .downloading {
+            running += 1
+            if let rate = itemRates[item.id],
+               let progress = itemProgress[item.id], progress.unit == .segments, rate > 0 {
+                total += rate
+                seen = true
+            }
+        }
+        guard seen || running > 0 else { return nil }
+        return (total, running)
+    }
+
     private func recordProgress(itemID: UUID, done: Int, total: Int, unit: MediaExporter.ProgressUnit) {
         itemProgress[itemID] = (done, total, unit)
         lastProgressAt[itemID] = Date()

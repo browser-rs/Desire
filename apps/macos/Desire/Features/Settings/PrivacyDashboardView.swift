@@ -187,7 +187,7 @@ struct PrivacyDashboardView: View {
             return String(localized: "Updating…")
         }
         guard !enabled.isEmpty else { return String(localized: "No lists enabled") }
-        return String(localized: "\(enabled.count) lists · \(rules) rules")
+        return String(format: String(localized: "%lld lists · %lld rules"), enabled.count, rules)
     }
 
     // MARK: - 权限矩阵
@@ -268,7 +268,7 @@ struct PrivacyDashboardView: View {
                 Text(row.host)
                     .font(.system(size: 12, weight: .medium))
                     .lineLimit(1)
-                Text("\(row.decisions.count) rule\(row.decisions.count == 1 ? "" : "s")")
+                Text(String(format: String(localized: "%lld rules"), row.decisions.count))
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
             }

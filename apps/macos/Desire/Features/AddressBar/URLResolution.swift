@@ -105,16 +105,8 @@ enum URLResolution {
     /// 返回它（内置引擎 id / 自定义引擎名 / 自定义 keyword，大小写不敏感），
     /// 否则 nil。带空格或空串不算——Tab 补全只发生在"刚打完关键字"那一刻。
     static func tabToSearchKeyword(in text: String, settings: Settings) -> String? {
-        let word = text.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !word.isEmpty, !word.contains(" ") else { return nil }
-        for engine in SearchEngine.allCases where word == engine.rawValue.lowercased() {
-            return engine.rawValue.lowercased()
-        }
-        for engine in settings.customEngines {
-            if word == engine.name.lowercased() { return engine.name.lowercased() }
-            if let kw = engine.keyword?.lowercased(), !kw.isEmpty, word == kw { return kw }
-        }
-        return nil
+        TabToSearch.keyword(in: text,
+                            customEngines: settings.customEngines.map { (name: $0.name, keyword: $0.keyword) })
     }
 
     /// Scheme-less URL plausibility: no spaces, a host-ish head, and either

@@ -443,6 +443,21 @@ final class AgentCrewStore: ObservableObject {
             "done": c.completedCount,
             "failed": c.failedCount,
         ])
+        // crew 远端通知（v0.8.11）：urgent 级直推（长任务不必盯着）——
+        // 标题带 objective，正文带完成/失败计数与总耗时；点通知开 Agent
+        // 面板（deepLink "agent" 走既有 NotificationRouter 通道）。
+        guard let finishedAt = c.finishedAt else {
+            onCrewSettled?(c)
+            return
+        }
+        let elapsed = Int(c.createdAt.distance(to: finishedAt))
+        let elapsedText = elapsed >= 60
+            ? String(localized: "\(elapsed / 60) min \(elapsed % 60) s")
+            : String(localized: "\(elapsed) s")
+        ProactiveNotificationStore.shared.deliver(
+            title: String(localized: "Crew finished: \(c.objective)"),
+            body: String(localized: "\(c.completedCount) done, \(c.failedCount) failed · \(elapsedText)"),
+            tier: .urgent)
         onCrewSettled?(c)
         if let id = ephemeralContainerID {
             ephemeralContainerID = nil

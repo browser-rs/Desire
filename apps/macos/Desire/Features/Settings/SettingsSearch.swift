@@ -60,6 +60,8 @@ nonisolated enum SettingsSearch {
               keywords: ["自动播放", "视频", "autoplay", "media"]),
         .init(id: "general.font", section: "general", title: "Page Font",
               keywords: ["字体", "字号", "font", "size"]),
+        .init(id: "ai.approvalForwarding", section: "ai", title: "Approval Forwarding",
+              keywords: ["透传", "审批", "手机", "remote", "approval", "iphone"]),
         .init(id: "general.vim", section: "general", title: "Vim Mode",
               keywords: ["Vim", "键盘", "滚动", "快捷键", "keyboard", "j/k"]),
         // Agent

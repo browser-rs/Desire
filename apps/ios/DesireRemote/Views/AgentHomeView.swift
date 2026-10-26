@@ -223,6 +223,15 @@ struct AgentHomeView: View {
                     subtitle: "当前对话每个回合做了什么、每步耗时",
                     showsChevron: false)
             }
+            NavigationLink {
+                RemoteTasksView()
+            } label: {
+                DesireNavRow(
+                    icon: "clock.arrow.circlepath",
+                    title: "定时任务",
+                    subtitle: "新建/启停/删除 Mac 上的定时任务",
+                    showsChevron: false)
+            }
         } header: {
             DesireSectionHeader(title: "用量")
         }

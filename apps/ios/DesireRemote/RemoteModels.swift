@@ -466,3 +466,21 @@ enum API {
 
     struct Empty: Codable {}
 }
+
+
+// MARK: - 定时任务（v0.8.11）
+
+struct RemoteTask: Codable, Identifiable, Equatable {
+    var id: String
+    var name: String
+    var prompt: String
+    var enabled: Bool
+    var recurrence: String
+    var lastResult: String?
+    var builtin: Bool
+}
+
+struct RemoteTasksFrame: Codable {
+    var t: String
+    var tasks: [RemoteTask]
+}

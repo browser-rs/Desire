@@ -88,6 +88,17 @@ final class RemoteControlStore: ObservableObject {
 
     @Published private(set) var isEnabled: Bool
     @Published private(set) var connection: ConnectionState = .off
+
+    /// 审批透传（v0.8.11）：手机在线时 Mac 面板**不呈现**审批卡（互斥——
+    /// 远端先响应为准），改由快照的 approval 载荷在手机上弹。开关默认开；
+    /// 手机关掉 = 两端照常各自呈现（旧行为）。连通判定含 connecting——
+    /// 弹审批的瞬间恰在重连时按"在线"处理（宁可 Mac 不弹，不要两头弹）。
+    @Published var approvalForwardingEnabled = true
+
+    var isRemoteAttached: Bool {
+        approvalForwardingEnabled &&
+        (connection == .online || connection == .connecting)
+    }
     @Published private(set) var activePairing: ActivePairing?
     @Published private(set) var pairedDevices: [SyncAPIClient.RemotePairedDevice] = []
 
@@ -617,9 +628,93 @@ final class RemoteControlStore: ObservableObject {
         case "setModel":
             applyModelChange(inner)
             pushSnapshot(force: true)
+        // ── 定时任务面（v0.8.11）：手机新建/启停/删/立即投递 ──
+        case "tasks":
+            if let frame = Self.tasksFrame() { sendInnerRaw(frame) }
+        case "createTask":
+            let name = (inner.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let prompt = (inner.body ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else {
+                sendInner(["t": "error", "message": String(localized: "Task name required")])
+                return
+            }
+            let recurrence: AgentScheduler.ScheduledTask.Recurrence?
+            if let minutes = inner.minutes, minutes >= 5 {
+                recurrence = .everyMinutes(minutes)
+            } else if let hour = inner.hour, let minute = inner.minute {
+                recurrence = .daily(hour: hour, minute: minute)
+            } else {
+                recurrence = nil
+            }
+            guard let rec = recurrence else {
+                sendInner(["t": "error", "message": String(localized: "Need minutes ≥ 5, or hour+minute")])
+                return
+            }
+            let targetID = AgentScheduler.shared.deliveryTarget?.registryID
+            if AgentScheduler.shared.add(
+                name: name, prompt: prompt, recurrence: rec,
+                targetSessionID: targetID) != nil {
+                if let frame = Self.tasksFrame() { sendInnerRaw(frame) }
+            } else {
+                sendInner(["t": "error", "message": String(localized: "Task name already in use")])
+            }
+        case "toggleTask":
+            guard let raw = inner.taskID, let id = UUID(uuidString: raw) else { return }
+            if let task = AgentScheduler.shared.tasks.first(where: { $0.id == id }) {
+                AgentScheduler.shared.setEnabled(!task.isEnabled, for: id)
+                if let frame = Self.tasksFrame() { sendInnerRaw(frame) }
+            }
+        case "removeTask":
+            guard let raw = inner.taskID, let id = UUID(uuidString: raw) else { return }
+            AgentScheduler.shared.remove(id)
+            if let frame = Self.tasksFrame() { sendInnerRaw(frame) }
+        case "fireTask":
+            guard let raw = inner.taskID, let id = UUID(uuidString: raw) else { return }
+            if let task = AgentScheduler.shared.tasks.first(where: { $0.id == id }) {
+                _ = AgentScheduler.shared.remove(named: task.name)
+                if AgentScheduler.shared.add(
+                    name: task.name, prompt: task.prompt,
+                    recurrence: task.recurrence,
+                    targetSessionID: AgentScheduler.shared.deliveryTarget?.registryID) != nil {
+                    AgentScheduler.shared.setEnabled(task.isEnabled, for: task.id)
+                }
+            }
+            if let frame = Self.tasksFrame() { sendInnerRaw(frame) }
         default:
             break
         }
+    }
+
+    /// 定时任务帧（v0.8.11）：手机任务面的数据源——id/名称/启用/周期/最近结果。
+    nonisolated struct RemoteTaskItem: Codable {
+        var id: String
+        var name: String
+        var prompt: String
+        var enabled: Bool
+        var recurrence: String
+        var lastResult: String?
+        var builtin: Bool
+    }
+
+    nonisolated struct RemoteTasksFrame: Codable {
+        var t: String
+        var tasks: [RemoteTaskItem]
+    }
+
+    private static func tasksFrame() -> String? {
+        let items = AgentScheduler.shared.tasks.map { task in
+            RemoteTaskItem(
+                id: task.id.uuidString,
+                name: task.name,
+                prompt: String(task.prompt.prefix(400)),
+                enabled: task.isEnabled,
+                recurrence: task.recurrenceText,
+                lastResult: task.lastResult.map { String($0.prefix(160)) },
+                builtin: task.builtin != nil)
+        }
+        let frame = RemoteTasksFrame(t: "tasks", tasks: Array(items))
+        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     /// 序列化 Agent 记忆（画像 + 事实 + 摘要）为手机端可读帧。
@@ -1607,6 +1702,12 @@ nonisolated struct RemoteInnerFrame: Codable {
     var model: String?
     /// 服务档案 id（setModel 用，切换服务；nil = 只改当前档案的模型）
     var profile: String?
+    /// 定时任务面（v0.8.11）：minutes / hour / minute（createTask 用）
+    var minutes: Int?
+    var hour: Int?
+    var minute: Int?
+    /// 任务名（tasks 域：toggle/remove/fire 用 id；create 用 text）
+    var taskID: String?
 }
 
 // MARK: - 记忆帧（手机拉取 Agent 记忆：画像 / 事实 / 摘要）

@@ -366,25 +366,10 @@ struct AgentPanel: View {
                 .frame(maxWidth: .infinity)
             }
 
-            if let approval = store.pendingApproval {
-                ToolApprovalBar(
-                    approval: approval,
-                    onAllowOnce: { store.resolveApproval(.allowOnce) },
-                    onAlwaysAllow: { store.resolveApproval(.alwaysAllow) },
-                    onDeny: { store.resolveApproval(.deny) },
-                    onAlwaysAllowOnSite: { _ in
-                        // 站点级放行（0.8.1）：通用工具落成「工具 × 站点」规则；
-                        // DPP pageAction 仍走 store 里的「站点 × 动作」授权。
-                        store.resolveApproval(.alwaysAllow, siteGrant: true)
-                    },
-                    onDenyOnSite: { _ in
-                        store.resolveApproval(.deny, siteGrant: true)
-                    },
-                    siteHost: store.pendingApprovalSiteHost,
-                    sourceFrameHost: store.pendingApprovalSourceFrameHost
-                )
-                .frame(maxWidth: Self.contentMaxWidth)
-                .frame(maxWidth: .infinity)
+            if store.pendingApproval != nil {
+                approvalBar
+                    .frame(maxWidth: Self.contentMaxWidth)
+                    .frame(maxWidth: .infinity)
             }
 
             // Input typed mid-turn, sent automatically when the running
@@ -1078,6 +1063,47 @@ struct AgentPanel: View {
             derived.tailCalls = tail?.toolCalls?.count ?? -1
         }
         return (derived.results, derived.chips, derived.durations)
+    }
+
+    /// 审批 UI（v0.8.11 互斥呈现）：手机在线 → 一行"已发送到手机"指引
+    /// （回合照常挂起；手机先响应为准）；点"在本机处理"关掉透传收回卡片。
+    @ViewBuilder
+    private var approvalBar: some View {
+        if (AppState.live?.remoteControlStore.isRemoteAttached) == true {
+            HStack(spacing: 6) {
+                Image(systemName: "iphone.radiowaves.left.and.right")
+                    .foregroundStyle(appAccent)
+                Text("Approval sent to your phone — handle it there")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 6)
+                Button(String(localized: "Handle Here")) {
+                    AppState.live?.remoteControlStore.approvalForwardingEnabled = false
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(RoundedRectangle(cornerRadius: 8).fill(appAccent.opacity(0.07)))
+        } else if let approval = store.pendingApproval {
+            ToolApprovalBar(
+                approval: approval,
+                onAllowOnce: { store.resolveApproval(.allowOnce) },
+                onAlwaysAllow: { store.resolveApproval(.alwaysAllow) },
+                onDeny: { store.resolveApproval(.deny) },
+                onAlwaysAllowOnSite: { _ in
+                    // 站点级放行（0.8.1）：通用工具落成「工具 × 站点」规则；
+                    // DPP pageAction 仍走 store 里的「站点 × 动作」授权。
+                    store.resolveApproval(.alwaysAllow, siteGrant: true)
+                },
+                onDenyOnSite: { _ in
+                    store.resolveApproval(.deny, siteGrant: true)
+                },
+                siteHost: store.pendingApprovalSiteHost,
+                sourceFrameHost: store.pendingApprovalSourceFrameHost
+            )
+        }
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy, force: Bool = false) {

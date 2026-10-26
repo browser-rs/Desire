@@ -267,6 +267,23 @@ struct AgentSettingsSection: View {
                 }
             }
 
+            // MARK: - Remote 审批透传（v0.8.11）
+
+            SettingsSection(
+                title: String(localized: "Approval Forwarding"),
+                subtitle: String(localized: "When your iPhone is connected, approval cards appear there instead of on the Mac (first response wins). Turn off to always show them on both."),
+                icon: "iphone.radiowaves.left.and.right"
+            ) {
+                SettingsRow("Forward to iPhone", subtitle: String(localized: "On by default. The Mac card is replaced by a pointer; Handle Here takes it back."), systemImage: "checkmark.seal") {
+                    Toggle("", isOn: Binding(
+                        get: { AppState.live?.remoteControlStore.approvalForwardingEnabled ?? true },
+                        set: { AppState.live?.remoteControlStore.approvalForwardingEnabled = $0 }
+                    ))
+                    .labelsHidden()
+                    .tint(appAccent)
+                }
+            }
+
             // MARK: - Persona（人设：名字 + 语气）
 
             SettingsSection(

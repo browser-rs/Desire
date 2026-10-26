@@ -38,7 +38,7 @@ nonisolated enum HistoryDedupePlan {
         if var items = comps.queryItems, !items.isEmpty {
             let tracked = ["utm_source", "utm_medium", "utm_campaign", "utm_term",
                            "utm_content", "fbclid", "gclid", "spm", "share_token"]
-            items.removeAll { tracked.contains(($0.name ?? "").lowercased()) }
+            items.removeAll { tracked.contains($0.name.lowercased()) }
             if items.isEmpty { comps.query = nil } else { comps.queryItems = items }
         }
         // 路径仅剩 "/" 时视为根（尾斜杠差异归一）

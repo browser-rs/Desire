@@ -154,6 +154,13 @@ extension BrowsingActions {
             tab.browser.archiveViewerURL = url
             return
         }
+
+        // 办公文文档（v0.8.12 旗舰 B）：textutil 转 html 保结构，标签页渲染。
+        if ["docx", "doc", "rtf", "rtfd", "odt"].contains(ext) {
+            tab.browser.documentViewerFileName = url.lastPathComponent
+            tab.browser.documentViewerURL = url
+            return
+        }
         if SelectedTabContent.mediaExtensions.contains(ext) {
             tab.browser.mediaViewerFileName = url.lastPathComponent
             tab.browser.mediaViewerURL = url

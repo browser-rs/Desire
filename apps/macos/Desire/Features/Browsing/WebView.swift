@@ -188,6 +188,10 @@ class BrowserState: ObservableObject {
     /// 压缩包查看器（v0.8.12 旗舰 C）：非 nil = 该标签渲染 ArchiveViewer。
     @Published var archiveViewerURL: URL?
     @Published var archiveViewerFileName = ""
+
+    /// 办公文档查看器（v0.8.12 旗舰 B）：非 nil = 该标签渲染 DocumentViewer。
+    @Published var documentViewerURL: URL?
+    @Published var documentViewerFileName = ""
     /// PDF 查看器关闭时返回的页面地址。
     @Published var pdfViewerReturnURL: URL?
     /// PDF 下载中（主框架 PDF 导航的过渡态——渲染进度条而非白页）。

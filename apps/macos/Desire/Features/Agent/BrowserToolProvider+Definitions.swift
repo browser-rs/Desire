@@ -990,6 +990,13 @@ extension BrowserToolProvider {
                     "maxChars": AgentJSONSchemaValue(type: "number", description: "Cap on returned characters (default 60000)"),
                 ], required: ["path"])
             )),    AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "listArchive",
+        description: "List the contents of a local .zip archive (names, sizes) without extracting. rar/7z are not supported. For extraction use runCommand with ditto (-x -k) within the workspace whitelist, or the UI 'Extract to…'.",
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "path": AgentJSONSchemaValue(type: "string", description: "Archive path (workspace-relative or absolute within the whitelist)"),
+        ], required: ["path"])
+    )),
+    AgentToolDef(type: "function", function: AgentToolFunctionDef(
         name: "editDocument",
         description: "Edit cells of a local .csv/.tsv file (A1-style cell refs). Writes a .bak snapshot next to the file before saving. .xlsx cached-value editing is NOT supported (no formula recalculation) and rich-text documents are read-only — say so and offer export-to-CSV instead.",
         parameters: AgentJSONSchema(type: "object", properties: [

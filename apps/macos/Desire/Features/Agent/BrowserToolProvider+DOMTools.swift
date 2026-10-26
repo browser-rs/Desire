@@ -2869,6 +2869,29 @@ extension BrowserToolProvider {
                 return "Document text (\(ext), \(fileURL.lastPathComponent)):\n\(text)"
             }
 
+        case "listArchive":
+            // zip 条目清单（v0.8.12 旗舰 C）：不解包列内容 + 总大小。
+            guard let listPath = args["path"] as? String, !listPath.isEmpty else { return Self.fail("Missing path") }
+            switch AgentWorkspace.shared.resolve(listPath, write: false) {
+            case .denied(let reason):
+                return reason
+            case .granted(let archiveURL):
+                guard archiveURL.pathExtension.lowercased() == "zip" else {
+                    return Self.fail("Only .zip is supported (rar/7z not supported)")
+                }
+                guard let entries = ArchiveKit.list(archiveURL: archiveURL), !entries.isEmpty else {
+                    return Self.fail("Not a readable zip archive")
+                }
+                let total = entries.filter { !$0.isDirectory }.reduce(Int64(0)) { $0 + max(0, $1.sizeBytes) }
+                let lines = entries.prefix(60).map { entry -> String in
+                    (entry.isDirectory ? "[dir] " : "") + entry.path
+                        + (entry.isDirectory ? "" : " (\(ArchiveKit.sizeText(entry.sizeBytes)))")
+                }
+                return "Zip contents (\(entries.count) entries, \(ArchiveKit.sizeText(total))):\n"
+                    + lines.joined(separator: "\n")
+                    + (entries.count > 60 ? "\n… +\(entries.count - 60) more" : "")
+            }
+
         case "editDocument":
             // 表格单元格写回（v0.8.12 旗舰 A 的写回层）：csv/tsv 单元格级
             // 编辑（.bak 快照 + 原子写，与查看器 ⌘S 同一语义）；xlsx 写

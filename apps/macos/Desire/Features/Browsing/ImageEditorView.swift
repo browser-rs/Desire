@@ -1,4 +1,5 @@
 import SwiftUI
+import Vision
 
 /// 图片编辑器（v0.8.12 旗舰 D，19+20）：macOS 预览量级——旋转/翻转/裁剪/
 /// 尺寸 + 画笔/箭头/矩形/文字/马赛克标注。零第三方依赖；⌘S 保存（.bak
@@ -59,6 +60,14 @@ struct ImageEditorView: View {
 
     /// 视图显示尺寸（点击坐标 → 位图像素换算用）。
     @State private var displaySize: CGSize = .zero
+    /// 调色面板（21）与 OCR（22）。
+    @State private var showAdjustments = false
+    @State private var brightness: Double = 0
+    @State private var contrast: Double = 1
+    @State private var saturation: Double = 1
+    @State private var sharpen: Double = 0
+    @State private var ocrRunning = false
+    @State private var ocrResult: String?
 
     /// 显示位图与实际位图之间的缩放比。
     private var displayScale: CGFloat {
@@ -214,6 +223,22 @@ struct ImageEditorView: View {
                 .labelsHidden()
                 .frame(width: 26)
 
+            Divider().frame(height: 16)
+            button("slider.horizontal.3", "Adjustments…") { showAdjustments.toggle() }
+                .foregroundStyle(showAdjustments ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
+            button("doc.text.viewfinder", "Extract Text (OCR)") { runOCR() }
+            Menu {
+                Button(String(localized: "Export as PNG")) { exportAs(type: "png") }
+                Button(String(localized: "Export as JPEG")) { exportAs(type: "jpg") }
+                Button(String(localized: "Export as HEIC")) { exportAs(type: "heic") }
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.plain)
+            .help("Export as…")
+
             Spacer(minLength: 8)
         }
         .padding(.horizontal, 12)
@@ -252,6 +277,17 @@ struct ImageEditorView: View {
                             .background(appAccent.opacity(0.08))
                             .frame(width: rect.width, height: rect.height)
                             .position(x: rect.midX, y: rect.midY)
+                    }
+
+                    if showAdjustments {
+                        adjustmentsPanel
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                            .padding(14)
+                    }
+                    if ocrResult != nil {
+                        ocrPanel
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                            .padding(14)
                     }
                 }
                 .padding(20)
@@ -497,6 +533,115 @@ struct ImageEditorView: View {
             context.draw(pixelated, in: rect)
         }
         _ = pixelated
+    }
+
+    /// OCR 结果浮层（22）：识别文本可复制。
+    @ViewBuilder
+    private var ocrPanel: some View {
+        if let text = ocrResult {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Extracted Text")
+                        .font(.system(size: 11, weight: .semibold))
+                    Spacer()
+                    Button(String(localized: "Copy")) {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(text, forType: .string)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    Button { ocrResult = nil } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 9))
+                    }
+                    .buttonStyle(.plain)
+                }
+                ScrollView {
+                    Text(text)
+                        .font(.system(size: 11))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 220)
+            }
+            .padding(12)
+            .frame(width: 320)
+            .background(RoundedRectangle(cornerRadius: 10).fill(.regularMaterial))
+            .shadow(radius: 4)
+        }
+    }
+
+    /// 调色滑杆浮层（21）：实时预览（apply 前 deltax 预览走同管线）。
+    private var adjustmentsPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Adjustments")
+                .font(.system(size: 11, weight: .semibold))
+            sliderRow("Brightness", value: $brightness, range: -0.3...0.3)
+            sliderRow("Contrast", value: $contrast, range: 0.5...1.8)
+            sliderRow("Saturation", value: $saturation, range: 0...2)
+            sliderRow("Sharpen", value: $sharpen, range: 0...2)
+            HStack {
+                Button(String(localized: "Apply")) {
+                    apply {
+                        ImageTransforms.adjusted($0, brightness: brightness, contrast: contrast,
+                                                 saturation: saturation, sharpen: sharpen)
+                    }
+                    showAdjustments = false
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                Button(String(localized: "Reset")) {
+                    brightness = 0; contrast = 1; saturation = 1; sharpen = 0
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding(12)
+        .frame(width: 230)
+        .background(RoundedRectangle(cornerRadius: 10).fill(.regularMaterial))
+        .shadow(radius: 4)
+    }
+
+    private func sliderRow(_ label: String, value: Binding<Double>, range: ClosedRange<Double>) -> some View {
+        HStack(spacing: 6) {
+            Text(label)
+                .font(.system(size: 10.5))
+                .frame(width: 66, alignment: .leading)
+            Slider(value: value, in: range)
+        }
+    }
+
+    /// OCR（22）：Vision 识别 → 结果浮层（可复制），复用 ocrImage 管线。
+    private func runOCR() {
+        guard let image, !ocrRunning else { return }
+        ocrRunning = true
+        ocrResult = nil
+        Task { @MainActor in
+            defer { ocrRunning = false }
+            do {
+                let result = try await VisionOCRService.recognize(cgImage: image)
+                ocrResult = result.text.isEmpty
+                    ? String(localized: "No text found in this image.")
+                    : result.text
+            } catch {
+                ocrResult = error.localizedDescription
+            }
+        }
+    }
+
+    /// 导出为新文件（NSSavePanel；格式按所选扩展名）。
+    private func exportAs(type: String) {
+        guard let image else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = (fileName as NSString).deletingPathExtension + ".\(type)"
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        do {
+            try ImageTransforms.save(image, to: dest)
+            flash(String(localized: "Exported → \(dest.lastPathComponent)"))
+        } catch {
+            flash(String(localized: "Export failed: \(error.localizedDescription)"))
+        }
     }
 
     private var cropOverlay: some View {

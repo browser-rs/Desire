@@ -86,6 +86,25 @@ nonisolated enum ImageTransforms {
         return context.makeImage()
     }
 
+    /// 调色（21）：CIColorControls——亮度/对比度/饱和度 + 锐化（CISharpenLuminance）。
+    static func adjusted(_ image: CGImage, brightness: Double, contrast: Double,
+                         saturation: Double, sharpen: Double) -> CGImage? {
+        let ciImage = CIImage(cgImage: image)
+        guard let controls = CIFilter(name: "CIColorControls") else { return nil }
+        controls.setValue(ciImage, forKey: kCIInputImageKey)
+        controls.setValue(brightness, forKey: kCIInputBrightnessKey)
+        controls.setValue(contrast, forKey: kCIInputContrastKey)
+        controls.setValue(saturation, forKey: kCIInputSaturationKey)
+        var output = controls.outputImage
+        if sharpen > 0, let sharpenFilter = CIFilter(name: "CISharpenLuminance") {
+            sharpenFilter.setValue(output, forKey: kCIInputImageKey)
+            sharpenFilter.setValue(sharpen, forKey: "inputSharpness")
+            output = sharpenFilter.outputImage
+        }
+        guard let output else { return nil }
+        return CIContext().createCGImage(output, from: output.extent)
+    }
+
     // MARK: - 编解码（含 .bak 快照语义由调用方处理）
 
     static func load(from url: URL) -> CGImage? {

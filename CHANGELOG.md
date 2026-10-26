@@ -5,6 +5,11 @@
 - Agent 表格编辑工具 editDocument：.csv/.tsv 单元格 A1 写回（与查看器同一 SpreadsheetBuffer 写层，.bak 快照 + 原子写）；xlsx 明确报错无公式重算、富文本文档只读提示导出
 - 图片编辑器（旗舰 D 核心，macOS 预览量级、零第三方依赖）：png/jpeg/heic/tiff/gif 拖入直开——旋转 90°/翻转、拖拽裁剪（自由/1:1/4:3/16:9 比例锁）、标注（画笔/箭头/矩形/椭圆/文字/像素化马赛克）；⌘S 保存（.bak 快照+原子写，heic 走 CoreImage）、⌘Z 单步撤销（20 步栈）
 - ZIP 直开浏览（旗舰 C）：zip 拖入 → 条目树（嵌套缩进/大小/中文文件名），文本/图片条目单条预览；"解压到…"后台 ditto + 完成通知（rar/7z 明确不支持）
+- Word/RTF/ODT 直开查看器（旗舰 B）：textutil 转 HTML 保结构渲染（标题/列表/图片自适应）；⌘F 文档内查找（高亮+计数）；标题大纲侧栏（h1-h3 点击滚动）
+- 图片调色（旗舰 D 21）：亮度/对比度/饱和度/锐化滑杆（CIColorControls 实时管线），Apply 烙进 ⌘Z 栈；导出为 PNG/JPEG/HEIC（NSSavePanel 选落点）
+- 图片 OCR 取文字（旗舰 D 22）：编辑器工具条一键 Vision 识别（中文/英文），结果浮层可复制——复用 ocrImage 管线
+- Agent 压缩包探查工具 listArchive：zip 条目清单（路径/大小/目录标记，60 条封顶）——zipFiles/unzipArchive 后续批次补齐，解压现走 UI 或 runCommand ditto
+
 
 
 

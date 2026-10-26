@@ -179,10 +179,21 @@ struct Toolbar: View {
     /// current page URL, or the tab's `urlString` for pages that haven't
     /// committed yet (new tab, in-flight navigation).
     private var displayedURL: String {
+        // 查看器挂载中（v0.8.12 表格/图片/zip/文档）：显示文件路径而非
+        // webview 里残留的旧页 URL——地址栏要反映"用户当前在看什么"。
+        if let path = viewerFilePath { return path }
         if let url = tab.browser.webView.url?.absoluteString, !url.isEmpty {
             return url
         }
         return tab.isOnNewTabPage ? "" : tab.urlString
+    }
+
+    /// 当前挂载的查看器文件路径（nil = 无查看器）。
+    private var viewerFilePath: String? {
+        tab.browser.spreadsheetViewerURL?.path
+            ?? tab.browser.imageEditorURL?.path
+            ?? tab.browser.archiveViewerURL?.path
+            ?? tab.browser.documentViewerURL?.path
     }
 
     var body: some View {

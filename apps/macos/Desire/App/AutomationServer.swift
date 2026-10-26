@@ -3317,13 +3317,20 @@ final class AutomationServer {
             [
                 "index": i,
                 "title": tab.browser.pageTitle,
-                "url": tab.browser.webView.url?.absoluteString ?? tab.urlString,
+                // 查看器挂载中 → 报文件路径（webview 里是旧页，不代表用户所见）。
+                "url": tab.browser.spreadsheetViewerURL?.absoluteString
+                    ?? tab.browser.imageEditorURL?.absoluteString
+                    ?? tab.browser.archiveViewerURL?.absoluteString
+                    ?? tab.browser.documentViewerURL?.absoluteString
+                    ?? tab.browser.webView.url?.absoluteString
+                    ?? tab.urlString,
                 "incognito": tab.isIncognito,
                 "selected": tm?.selectedIndex == i,
                 "suspended": tab.isSuspended,
                 "loading": tab.isLoading,
                 "domNodes": tab.browser.lastDomNodeCount,
                 "autoplayPolicy": tab.browser.createdAutoPlayPolicy.rawValue,
+                "viewer": tab.browser.spreadsheetViewerURL?.pathExtension ?? tab.browser.imageEditorURL?.pathExtension ?? tab.browser.archiveViewerURL?.pathExtension ?? tab.browser.documentViewerURL?.pathExtension,
                 "scrollY": tab.browser.lastScrollY,
                 "workflowSuggestion": tab.browser.pendingWorkflowSuggestion.map { suggestion -> Any in
                     ["name": suggestion.name, "host": suggestion.host]
@@ -3367,6 +3374,16 @@ final class AutomationServer {
     private static func navigate(_ rawURL: String?, index: Int?) async throws -> [String: Any] {
         guard let rawURL, !rawURL.isEmpty else { return ["error": "missing url"] }
         guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        // 本地路径直通（v0.8.12）：与 BrowsingActions.navigateToURL 同语义——
+        // 存在的文件路径先于 URL 启发式（否则 /tmp/x.csv 被当搜索词）。
+        if rawURL.hasPrefix("/") || rawURL.hasPrefix("~/") {
+            let expanded = (rawURL as NSString).expandingTildeInPath
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: expanded, isDirectory: &isDir),
+               !isDir.boolValue, let fileURL = URL(string: "file://" + expanded) {
+                return try await navigate(fileURL.absoluteString, index: index)
+            }
+        }
         let destination = URLResolution.resolve(rawURL, settings: Settings())
         let finalURL: String
         switch destination {
@@ -3390,6 +3407,27 @@ final class AutomationServer {
                 } else if SelectedTabContent.mediaExtensions.contains(ext) {
                     browser.mediaViewerFileName = url.lastPathComponent
                     browser.mediaViewerURL = url
+                } else if BrowsingActions.tableExtensions.contains(ext) {
+                    Log.agent.info("bridge navigate: spreadsheet viewer set for \(url.lastPathComponent, privacy: .public) tab=\(ObjectIdentifier(tab).hashValue) urlStringNow=\(tab.urlString.prefix(30), privacy: .public)")
+                    browser.spreadsheetViewerFileName = url.lastPathComponent
+                    browser.spreadsheetViewerURL = url
+                    tab.isOnNewTabPage = false
+                    tab.urlString = finalURL
+                } else if BrowsingActions.imageExtensions.contains(ext) {
+                    browser.imageEditorFileName = url.lastPathComponent
+                    browser.imageEditorURL = url
+                    tab.isOnNewTabPage = false
+                    tab.urlString = finalURL
+                } else if ext == "zip" {
+                    browser.archiveViewerFileName = url.lastPathComponent
+                    browser.archiveViewerURL = url
+                    tab.isOnNewTabPage = false
+                    tab.urlString = finalURL
+                } else if ["docx", "doc", "rtf", "rtfd", "odt"].contains(ext) {
+                    browser.documentViewerFileName = url.lastPathComponent
+                    browser.documentViewerURL = url
+                    tab.isOnNewTabPage = false
+                    tab.urlString = finalURL
                 } else {
                     tab.isOnNewTabPage = false
                     tab.urlString = finalURL

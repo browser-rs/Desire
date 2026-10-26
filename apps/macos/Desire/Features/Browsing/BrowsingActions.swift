@@ -93,6 +93,18 @@ extension BrowsingActions {
     /// recorded to history (unless incognito) only when they actually run.
     func navigateToURL(_ input: String, for tab: Tab) {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 本地路径直通（v0.8.12）：输入是磁盘上存在的文件路径 → 直接进
+        // openLocalFileInTab（查看器路由），不再被 URL 启发式当搜索词。
+        // 拖入与 Remote 打开不走这里（它们拿到的已是 URL）。
+        if text.hasPrefix("/") || text.hasPrefix("~/") {
+            let expanded = (text as NSString).expandingTildeInPath
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: expanded, isDirectory: &isDir),
+               !isDir.boolValue, let fileURL = URL(string: "file://" + expanded) {
+                openLocalFileInTab(fileURL, for: tab)
+                return
+            }
+        }
         guard let destination = URLResolution.resolve(text, settings: settings) else { return }
 
         // Always target the ACTIVE window's selected tab — never a stale

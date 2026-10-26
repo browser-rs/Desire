@@ -2075,7 +2075,14 @@ try {
             parent.canGoForward = webView.canGoForward
             parent.state.lastError = nil
             if let url = webView.url {
-                parent.urlString = url.absoluteString
+                // 查看器挂载中（表格/图片/zip/文档）：webview 的迟到回调不得
+                // 改写地址栏（会显示旧页 URL，误导用户当前在看什么）。
+                if parent.state.spreadsheetViewerURL == nil,
+                   parent.state.imageEditorURL == nil,
+                   parent.state.archiveViewerURL == nil,
+                   parent.state.documentViewerURL == nil {
+                    parent.urlString = url.absoluteString
+                }
                 lastNavigatedURL = url.absoluteString
                 parent.state.isSecure = url.scheme == "https"
                 // DPP：异步解析页面协议（解析失败 = 无协议，工具走启发式）。

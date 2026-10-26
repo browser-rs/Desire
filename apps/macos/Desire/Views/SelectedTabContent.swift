@@ -280,7 +280,11 @@ struct SelectedTabContent: View {
              "png", "jpg", "jpeg", "gif", "webp", "svg", "txt":
             return true
         default:
-            return false
+            // v0.8.12 查看器族（表格/图片编辑/zip/文档）与既有路由同源判定。
+            return BrowsingActions.tableExtensions.contains(url.pathExtension.lowercased())
+                || BrowsingActions.imageExtensions.contains(url.pathExtension.lowercased())
+                || url.pathExtension.lowercased() == "zip"
+                || ["docx", "doc", "rtf", "rtfd", "odt"].contains(url.pathExtension.lowercased())
         }
     }
 

@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- 本地文件打开断链修复（自查抓到，发布前）：isOpenableFile 白名单缺 csv/zip/docx 等新查看器类型——地址栏/拖入全被当搜索词；桥 /navigate 的 file 路径被 URL 启发式吞掉且缺四个新查看器分支（各自 setState）；本地路径直通（navigateToURL 与桥 /navigate 同语义：存在的文件路径先于 URL 启发式）；查看器挂载期间地址栏与 /state 报文件路径而非 webview 里残留的旧页 URL
+
 ### Added
 
 - 表格直开查看/编辑器（旗舰 A）：CSV/TSV/XLSX 拖入/本地打开进网格标签页（冻结表头/行号/双击单元格编辑/列头点击排序/关键字筛选/A1 跳转/状态栏）；⌘S 保存带 .bak 快照 + 原子写，xlsx 提示缓存值口径

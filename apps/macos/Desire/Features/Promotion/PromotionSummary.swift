@@ -93,6 +93,7 @@ nonisolated enum PromotionSummary {
     static func digest(goals: [PromotionGoal], posts: [PromotionPost],
                        accounts: [PromotionAccount] = [], lessons: [PromotionLesson] = [],
                        interactions: [PromotionInteraction] = [],
+                       watchLines: [String] = [],
                        now: Date = Date()) -> String {
         var lines: [String] = []
 
@@ -203,6 +204,12 @@ nonisolated enum PromotionSummary {
         if lines.isEmpty {
             lines.append("运营工作台为空：还没有目标、账号、草稿或已发记录。")
         }
+        // 页面监视变化（v0.8.10 基础件 8）：最近变化与 AI 分析摘要进简报。
+        if !watchLines.isEmpty {
+            lines.append("页面监视（\(watchLines.count) 个有变化）：")
+            lines.append(contentsOf: watchLines.map { "- " + $0 })
+        }
+
         return lines.joined(separator: "\n")
     }
 

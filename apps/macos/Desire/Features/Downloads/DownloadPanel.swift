@@ -49,6 +49,30 @@ struct DownloadPanel: View {
         }
     }
 
+    /// 失败且带源 URL 的行（最新优先）——批量重试清单（v0.8.10）。
+    private var retryableIDs: [UUID] {
+        DownloadCenterPlan.retryable(rows: store.downloads.map {
+            ($0.id, $0.sourceURL?.absoluteString, $0.state == .failed, $0.startTime)
+        })
+    }
+
+    /// 近 7 天同源重复提示（dismiss 后到列表变化前不再出现）。
+    @State private var repeatHintDismissed = false
+    private struct RepeatHint { let recentID: UUID; let text: String; let fileMissing: Bool }
+    private var repeatHint: RepeatHint? {
+        guard !repeatHintDismissed else { return nil }
+        let rows = store.downloads.map {
+            (id: $0.id, sourceURL: $0.sourceURL?.absoluteString, filename: $0.filename, startTime: $0.startTime)
+        }
+        guard let rep = DownloadCenterPlan.repeats(rows: rows).first else { return nil }
+        let item = store.downloads.first(where: { $0.id == rep.recentID })
+        let missing = !(item?.fileURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false)
+        let text = String(
+            format: String(localized: "\"%@\" was downloaded %d time(s) in the last 7 days — the newest copy is above"),
+            rep.recentFilename, rep.earlierCount + 1)
+        return RepeatHint(recentID: rep.recentID, text: text, fileMissing: missing)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
@@ -65,6 +89,39 @@ struct DownloadPanel: View {
             } else {
                 if !store.downloads.isEmpty {
                     filterBar
+                }
+                if let hint = repeatHint {
+                    HStack(spacing: 6) {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(appAccent)
+                        Text(hint.text)
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Spacer(minLength: 6)
+                        Button(String(localized: "Reopen")) {
+                            if let item = store.downloads.first(where: { $0.id == hint.recentID }),
+                               let url = item.fileURL {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                        .font(.system(size: 10.5, weight: .medium))
+                        .buttonStyle(.plain)
+                        .foregroundStyle(appAccent)
+                        .disabled(hint.fileMissing)
+                        Button {
+                            repeatHintDismissed = true
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 5)
+                    .background(appAccent.opacity(0.06))
                 }
                 Divider()
                 content
@@ -221,6 +278,15 @@ struct DownloadPanel: View {
                     .disabled(!store.hasActive)
                 Button("Resume All") { store.resumeAll() }
                     .disabled(store.pausedCount == 0)
+                // 失败项批量重试（v0.8.10 下载中心 v2）。
+                Button(String(localized: "Retry All Failed (\(retryableIDs.count))")) {
+                    for id in retryableIDs {
+                        if let item = store.downloads.first(where: { $0.id == id }) {
+                            store.retry(item)
+                        }
+                    }
+                }
+                .disabled(retryableIDs.isEmpty)
                 Divider()
                 Button("Cancel All", role: .destructive) { store.cancelAll() }
                     .disabled(!store.hasActive && store.pausedCount == 0)

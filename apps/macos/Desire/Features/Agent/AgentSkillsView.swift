@@ -1,3 +1,4 @@
+import CoreImage.CIFilterBuiltins
 import SwiftUI
 
 /// 技能库页（Agent 窗口侧栏"技能"目的地，2026-10-10）。数据全部来自
@@ -24,6 +25,8 @@ struct AgentSkillsView: View {
     @State private var isInstallingFromURL = false
     /// 导出落盘成功提示（skill 名 → 路径）。
     @State private var exportedPath: String?
+    /// 分享（v0.8.10）：出直链 + QR 的 sheet。
+    @State private var shareSkill: SkillStore.Skill?
     /// nil = 新建；非 nil = 编辑该技能（写入它的 url，同名即覆盖）。
     @State private var editingSkill: SkillStore.Skill?
     @State private var isCreating = false
@@ -44,7 +47,8 @@ struct AgentSkillsView: View {
                                 onPreview: { previewSkill = skill },
                                 onEdit: { editingSkill = skill },
                                 onUse: onUseSkill,
-                                onExport: { exportSkill($0) }
+                                onExport: { exportSkill($0) },
+                                onShare: { shareSkill = $0 }
                             )
                         }
                     }
@@ -70,6 +74,9 @@ struct AgentSkillsView: View {
                 store.reload()
                 scanRisks()
             }
+        }
+        .sheet(item: $shareSkill) { skill in
+            SkillShareSheet(skill: skill)
         }
         .alert(
             String(localized: "Import failed"),
@@ -325,6 +332,8 @@ private struct AgentSkillCard: View {
     let onUse: ((String) -> Void)?
     /// 导出 .skill 包（v0.8.6 分发）。
     var onExport: ((SkillStore.Skill) -> Void)? = nil
+    /// 分享直链+QR（v0.8.10）。
+    var onShare: ((SkillStore.Skill) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -385,6 +394,9 @@ private struct AgentSkillCard: View {
             Button("Edit") { onEdit() }
             if let onExport {
                 Button(String(localized: "Export…")) { onExport(skill) }
+            }
+            if let onShare {
+                Button(String(localized: "Share…")) { onShare(skill) }
             }
             Button("Show in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting([skill.url])
@@ -586,5 +598,94 @@ private struct AgentSkillPreviewSheet: View {
 
     private var bodyText: String {
         (try? String(contentsOf: skill.url, encoding: .utf8)) ?? ""
+    }
+}
+
+
+// MARK: - 技能分享（v0.8.10）：直链 + QR
+
+/// 分享一张技能：输入直链（GitHub raw / gist），出可扫的 QR 与可拷贝的
+/// 链接——对方「从 URL 安装」即得（installFromURL 语义：zip/md 均可）。
+private struct SkillShareSheet: View {
+    @Environment(\.appAccent) private var appAccent: Color
+    let skill: SkillStore.Skill
+    @State private var shareURL = ""
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 14) {
+            HStack(spacing: 8) {
+                Image(systemName: "qrcode")
+                    .foregroundStyle(appAccent)
+                Text(String(localized: "Share \"\(skill.name)\""))
+                    .font(.system(size: 14, weight: .semibold))
+                Spacer()
+                Button { dismiss() } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+
+            HStack(alignment: .top, spacing: 16) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(String(localized: "Direct link to the .skill zip or SKILL.md (GitHub raw works)"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    TextField("https://…", text: $shareURL)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(size: 11, design: .monospaced))
+                    HStack {
+                        Button(String(localized: "Copy Link")) {
+                            NSPasteboard.general.clearContents()
+                            NSPasteboard.general.setString(shareURL, forType: .string)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(shareURL.isEmpty)
+                        Spacer()
+                    }
+                    Text(String(localized: "The recipient installs it via Skills → Install from URL; the risk scan runs on import."))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                if let qr = Self.makeQR(shareURL) {
+                    Image(nsImage: qr)
+                        .interpolation(.none)
+                        .resizable()
+                        .frame(width: 140, height: 140)
+                        .background(Color.white)
+                        .cornerRadius(8)
+                } else {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.secondary.opacity(0.08))
+                        Text(String(localized: "Paste a link to render the QR"))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(8)
+                    }
+                    .frame(width: 140, height: 140)
+                }
+            }
+        }
+        .padding(16)
+        .frame(width: 480, height: 240)
+    }
+
+    static func makeQR(_ string: String) -> NSImage? {
+        guard !string.isEmpty else { return nil }
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(string.utf8)
+        filter.correctionLevel = "M"
+        guard let output = filter.outputImage else { return nil }
+        let scaled = output.transformed(by: CGAffineTransform(scaleX: 8, y: 8))
+        let context = CIContext()
+        guard let cg = context.createCGImage(scaled, from: scaled.extent) else { return nil }
+        return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
     }
 }

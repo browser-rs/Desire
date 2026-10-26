@@ -84,6 +84,15 @@ class HistoryStore: ObservableObject {
         save()
     }
 
+    /// 去重向导执行（v0.8.10）：保留每组最新行，吸收次数/标题，删除其余。
+    func applyDedupe(plan: HistoryDedupePlan.MergePlan, dropIDs: [UUID]) {
+        guard let idx = entries.firstIndex(where: { $0.id == plan.keepID }) else { return }
+        entries[idx].visitCount = plan.mergedVisitCount
+        if !plan.mergedTitle.isEmpty { entries[idx].title = plan.mergedTitle }
+        entries.removeAll { dropIDs.contains($0.id) }
+        save()
+    }
+
     func removeEntry(id: UUID) {
         guard let idx = entries.firstIndex(where: { $0.id == id }) else {
             // 已不在列表（可能先被裁剪）：仍要补记墓碑，服务器上的行才能删掉

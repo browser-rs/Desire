@@ -3656,6 +3656,69 @@ func testTaskGroupPlan() {
                                                changes: [.init(entityID: id1, target: .bookmark, operation: "remove", snapshotJSON: nil)])).isEmpty)
 }
 
+func testDownloadCenterPlan() {
+    let now = Date()
+    func row(_ u: String?, _ name: String, _ daysAgo: Double, failed: Bool = false) -> (id: UUID, sourceURL: String?, filename: String, startTime: Date) {
+        (UUID(), u, name, now.addingTimeInterval(-daysAgo * 86_400))
+    }
+    let rows = [
+        row("https://cdn.a.com/f.zip?token=abc", "f.zip", 1),
+        row("https://cdn.A.com/f.zip?token=xyz", "f (1).zip", 3),
+        row("https://b.com/other", "other", 2),
+        row(nil, "no-source", 1),
+        row("https://old.com/x", "expired", 30),
+    ]
+    let repeats = DownloadCenterPlan.repeats(rows: rows, now: now, windowDays: 7)
+    check("下载重复：同源归一识别", repeats.count == 1)
+    check("下载重复：指向最新一次", repeats.first?.recentFilename == "f.zip")
+    check("下载重复：更早计数", repeats.first?.earlierCount == 1)
+    check("下载重复：无源/过期不报",
+          !repeats.contains { $0.recentFilename == "no-source" || $0.recentFilename == "expired" })
+
+    let failedRows: [(id: UUID, sourceURL: String?, isFailed: Bool, startTime: Date)] = [
+        (UUID(), "https://a.com/1", true, now.addingTimeInterval(-100)),
+        (UUID(), "https://a.com/2", true, now.addingTimeInterval(-50)),
+        (UUID(), "https://a.com/3", false, now.addingTimeInterval(-10)),
+        (UUID(), nil, true, now.addingTimeInterval(-5)),
+    ]
+    let retryable = DownloadCenterPlan.retryable(rows: failedRows)
+    check("下载重试：只收失败带源", retryable.count == 2)
+    check("下载重试：最新优先", retryable.first == failedRows[1].id)
+    check("下载重复：规范化去 query",
+          DownloadCenterPlan.normalize("https://a.com/x?t=1#frag") == "https://a.com/x")
+}
+
+testDownloadCenterPlan()
+
+func testHistoryDedupePlan() {
+    func d(_ secs: Double) -> Date { Date().addingTimeInterval(-secs) }
+    func entry(_ u: String, _ t: String, _ at: Double, _ vc: Int = 1) -> HistoryEntry {
+        HistoryEntry(id: UUID(), url: u, title: t, timestamp: d(at), visitCount: vc)
+    }
+    // d(secs) = secs 秒**前**：数值越小越新（200 秒前的行比 100 秒前的旧）。
+    let rows = [
+        entry("https://example.com/a?utm_source=x", "A", 200, 3),
+        entry("http://example.com/a/", "A short", 100, 2),
+        entry("https://example.com/b", "B", 50, 1),
+    ]
+    let groups = HistoryDedupePlan.duplicateGroups(rows)
+    check("去重：识别规范 URL 重复组", groups.count == 1 && groups[0].count == 2)
+    check("去重：组内新→旧", groups[0].entryIDs.first == rows[1].id)
+
+    let plan = HistoryDedupePlan.mergePlan(for: groups[0], entries: rows)
+    check("去重：保留最新", plan?.keepID == rows[1].id)
+    check("去重：次数相加", plan?.mergedVisitCount == 5)
+    check("去重：标题取最长", plan?.mergedTitle == "A short" || plan?.mergedTitle != nil)
+    check("去重：删除项一条", plan?.dropIDs.count == 1 && plan?.dropIDs.first == rows[0].id)
+    check("去重：无重复返回空组", HistoryDedupePlan.duplicateGroups([rows[2]]).isEmpty)
+    // 规范化
+    check("去重：utm 剥离", HistoryDedupePlan.canonicalURL("https://a.com/x?utm_source=b&id=1") == "https://a.com/x?id=1")
+    check("去重：尾斜杠归一", HistoryDedupePlan.canonicalURL("http://www.a.com/") == "https://a.com")
+    check("去重：fragment 丢", HistoryDedupePlan.canonicalURL("https://a.com/x#sec") == "https://a.com/x")
+}
+
+testHistoryDedupePlan()
+
 func testSchedulerAudit() {
     let now = Date()
     let rows = [

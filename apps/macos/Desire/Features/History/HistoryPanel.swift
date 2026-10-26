@@ -8,6 +8,8 @@ struct HistoryPanel: View {
 
     @State private var searchText = ""
     @State private var groupMode: GroupMode = .date
+    /// 去重向导（v0.8.10）：非 nil = 展示。
+    @State private var dedupeGroups: [HistoryDedupePlan.DuplicateGroup]?
     /// 站点模式下折叠的组（v0.7.21：折叠聚合 + 站内相对时间）。
     @State private var collapsedDomains: Set<String> = []
     @State private var showClearOptions = false
@@ -198,6 +200,13 @@ struct HistoryPanel: View {
                     Button(isSelecting ? "Done" : "Select") {
                         isSelecting.toggle()
                         if !isSelecting { selectedIDs.removeAll() }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption)
+                }
+                if !store.entries.isEmpty {
+                    Button("Dedupe…") {
+                        dedupeGroups = HistoryDedupePlan.duplicateGroups(store.entries)
                     }
                     .buttonStyle(.plain)
                     .font(.caption)
@@ -444,6 +453,14 @@ struct HistoryPanel: View {
                 }
             }
         }
+        .sheet(item: Binding(
+            get: { dedupeGroups.map { DedupeBox(groups: $0) } },
+            set: { dedupeGroups = $0?.groups })) { box in
+            HistoryDedupeSheet(groups: box.groups) { completedKeys in
+                dedupeGroups = nil
+                _ = completedKeys
+            }
+        }
         .onChange(of: searchText) { _, _ in
             // 查询变了，旧的归档结果立即作废（避免看到上一词的命中）。
             archiveHits = []
@@ -502,5 +519,119 @@ struct HistoryPanel: View {
         }
 
         store.removeAll(before: threshold)
+    }
+}
+
+
+// MARK: - 去重向导（v0.8.10）
+
+/// sheet(item:) 载荷（DuplicateGroup 数组本身不 Identifiable）。
+private struct DedupeBox: Identifiable {
+    let groups: [HistoryDedupePlan.DuplicateGroup]
+    var id: String { "\(groups.count)-\(groups.first?.key ?? "")" }
+}
+
+/// 历史去重向导：列出语义重复组（同规范 URL），每组一键"合并"——保留
+/// 最新行、次数相加、标题取最长。全合并按钮收尾。
+private struct HistoryDedupeSheet: View {
+    let groups: [HistoryDedupePlan.DuplicateGroup]
+    /// 完成的组 key（面板据此清理并关 sheet）。
+    let onDone: ([String]) -> Void
+    @ObservedObject private var store: HistoryStore
+    @State private var completed: Set<String> = []
+    @Environment(\.appAccent) private var appAccent: Color
+    @Environment(\.dismiss) private var dismiss
+
+    init(groups: [HistoryDedupePlan.DuplicateGroup], onDone: @escaping ([String]) -> Void) {
+        self.groups = groups
+        self.onDone = onDone
+        _store = ObservedObject(wrappedValue: HistoryStore())
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.triangle.merge")
+                    .foregroundStyle(appAccent)
+                Text("Merge Duplicate History")
+                    .font(.system(size: 14, weight: .semibold))
+                Spacer()
+                Button(String(localized: "Merge All")) {
+                    mergeAll()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(completed.count == groups.count)
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.tertiary)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(14)
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(groups.filter { !completed.contains($0.key) }, id: \.key) { group in
+                        groupCard(group)
+                    }
+                    if completed.count == groups.count {
+                        Text(String(localized: "All duplicates merged"))
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 20)
+                    }
+                }
+                .padding(14)
+            }
+        }
+        .frame(width: 560, height: 480)
+    }
+
+    private func groupCard(_ group: HistoryDedupePlan.DuplicateGroup) -> some View {
+        let entries = store.entries
+        let plan = HistoryDedupePlan.mergePlan(for: group, entries: entries)
+        return VStack(alignment: .leading, spacing: 4) {
+            Text(group.key)
+                .font(.system(size: 11.5, weight: .medium, design: .monospaced))
+                .lineLimit(1)
+            ForEach(group.entryIDs.prefix(5), id: \.uuidString) { id in
+                if let e = entries.first(where: { $0.id == id }) {
+                    HStack(spacing: 6) {
+                        Text(e.title.isEmpty ? e.url : e.title)
+                            .font(.system(size: 10.5))
+                            .lineLimit(1)
+                        Spacer()
+                        Text("×\(e.visitCount)")
+                            .font(.system(size: 9.5, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
+            if let plan {
+                Button(String(localized: "Merge (keep newest, ×\(plan.mergedVisitCount))")) {
+                    store.applyDedupe(plan: plan, dropIDs: plan.dropIDs)
+                    completed.insert(group.key)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor).opacity(0.5)))
+    }
+
+    private func mergeAll() {
+        for group in groups where !completed.contains(group.key) {
+            if let plan = HistoryDedupePlan.mergePlan(for: group, entries: store.entries) {
+                store.applyDedupe(plan: plan, dropIDs: plan.dropIDs)
+                completed.insert(group.key)
+            }
+        }
     }
 }

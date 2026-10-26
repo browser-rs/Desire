@@ -423,8 +423,24 @@ final class PromotionStore: ObservableObject {
     // MARK: - 派生与摘要
 
     func digest() -> String {
-        PromotionSummary.digest(goals: goals, posts: posts, accounts: accounts,
-                                lessons: lessons, interactions: interactions)
+        // 页面监视变化（v0.8.10 基础件 8）：近 24h 有变化的监视进简报——
+        // 名称 + AI 分析首行（有分析才带；无分析只报变化次数）。
+        let dayAgo = Date().addingTimeInterval(-86_400)
+        let watchLines: [String] = PageWatchStore.shared.watches
+            .filter { ($0.lastChangedAt ?? .distantPast) > dayAgo }
+            .sorted { ($0.lastChangedAt ?? .distantPast) > ($1.lastChangedAt ?? .distantPast) }
+            .prefix(6)
+            .map { watch -> String in
+                var line = "\(watch.name)（变化 \(watch.changeCount) 次）"
+                if let analysis = watch.lastAnalysis?.trimmingCharacters(in: .whitespacesAndNewlines),
+                   !analysis.isEmpty {
+                    line += " · " + String(analysis.prefix(120)).replacingOccurrences(of: "\n", with: " ")
+                }
+                return line
+            }
+        return PromotionSummary.digest(goals: goals, posts: posts, accounts: accounts,
+                                lessons: lessons, interactions: interactions,
+                                watchLines: watchLines.map { String($0) })
     }
 
     var outstandingDraftCount: Int {

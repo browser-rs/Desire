@@ -132,6 +132,8 @@ extension BrowsingActions {
 
     func openLocalFileInTab(_ url: URL, for tab: Tab) {
         let ext = url.pathExtension.lowercased()
+        // 统一记账（v0.8.12 基础件 10）：新标签页"最近本地文件"与 Remote 文件面共用。
+        RecentLocalFiles.record(url: url)
         if ext == "pdf" {
             tab.browser.pdfViewerFileName = url.lastPathComponent
             tab.browser.pdfViewerReturnURL = tab.browser.webView.url

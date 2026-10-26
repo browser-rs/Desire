@@ -42,6 +42,7 @@ struct NewTabPage: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 32) {
                     quickDialsSection
+                    localFilesSection
 
                     if !historyStore.entries.isEmpty {
                         recentSection
@@ -231,6 +232,46 @@ struct NewTabPage: View {
                 url: entry.url,
                 host: URL(string: entry.url)?.host ?? entry.url
             )
+        }
+    }
+
+    // MARK: - 最近本地文件（v0.8.12 基础件 10）
+
+    private var localFilesSection: some View {
+        let entries = RecentLocalFiles.load().prefix(6)
+        return Group {
+            if !entries.isEmpty {
+                VStack(alignment: .leading, spacing: 14) {
+                    sectionHeader(title: "最近本地文件", icon: "doc.on.doc")
+                    VStack(spacing: 6) {
+                        ForEach(entries) { entry in
+                            Button {
+                                onNavigate(entry.url)
+                            } label: {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "doc")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                        .frame(width: 16)
+                                    Text(entry.filename)
+                                        .font(.system(size: 12))
+                                        .lineLimit(1)
+                                    Spacer()
+                                    Text(entry.kind)
+                                        .font(.system(size: 9.5, weight: .medium))
+                                        .foregroundStyle(.tertiary)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 7)
+                                .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor).opacity(0.5)))
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 

@@ -514,3 +514,17 @@ struct RemoteDownloadsFrame: Codable {
     var t: String
     var downloads: [RemoteDownload]
 }
+
+// MARK: - 最近本地文件（v0.8.12）
+
+struct RemoteRecentFile: Codable, Identifiable, Equatable {
+    var url: String
+    var filename: String
+    var kind: String
+    var id: String { url }
+}
+
+struct RemoteRecentFilesFrame: Codable {
+    var t: String
+    var files: [RemoteRecentFile]
+}

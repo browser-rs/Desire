@@ -96,7 +96,10 @@ struct PromotionView: View {
             PromotionExperimentEditorSheet(experiment: experiment)
         }
         .sheet(isPresented: $showMetricsImport) {
-            PromotionMetricsImportSheet()
+            // 直通（v0.8.12 融合 15）：当前标签开着 CSV/TSV 表格时预填其文件，
+            // 跳过文件选择器。
+            PromotionMetricsImportSheet(
+                initialFileURL: TabSessionCoordinator.shared.activeTabManager?.selectedTab.flatMap { $0.browser.spreadsheetViewerURL })
         }
         .sheet(item: $runningPlaybook) { playbook in
             PlaybookRunSheet(playbook: playbook) { prompt in

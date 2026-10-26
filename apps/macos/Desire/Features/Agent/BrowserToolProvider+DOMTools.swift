@@ -2869,6 +2869,56 @@ extension BrowserToolProvider {
                 return "Document text (\(ext), \(fileURL.lastPathComponent)):\n\(text)"
             }
 
+        case "batchDocuments":
+            // 批量文档处理（v0.8.12 替人干活 18）：白名单目录下全部表格/文档
+            // 各跑一次给定处理 → 结果写成同名 .md（工作区内）。长任务模式：
+            // 立即返回 JobRecord id，后台逐个处理。
+            guard let folder = args["folder"] as? String, !folder.isEmpty else { return Self.fail("Missing folder") }
+            let instruction = args["instruction"] as? String ?? "Summarize this file: key facts, one paragraph."
+            switch AgentWorkspace.shared.resolve(folder, write: false) {
+            case .denied(let reason):
+                return reason
+            case .granted(let dirURL):
+                var isDir: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: dirURL.path, isDirectory: &isDir), isDir.boolValue else {
+                    return Self.fail("Not a directory: \(dirURL.lastPathComponent)")
+                }
+                let exts = Set(["csv", "tsv", "txt", "md"])
+                let files = (try? FileManager.default.contentsOfDirectory(at: dirURL, includingPropertiesForKeys: nil))?
+                    .filter { exts.contains($0.pathExtension.lowercased()) }
+                    .prefix(20) ?? []
+                guard !files.isEmpty else { return Self.fail("No csv/tsv/txt/md files in that folder") }
+                let jobID = JobStore.shared.start(
+                    title: String(localized: "Batch documents: \(dirURL.lastPathComponent)"),
+                    kind: .agent,
+                    detail: String(localized: "\(files.count) file(s) → per-file .md summary"),
+                    source: "agent")
+                Task { @MainActor in
+                    var done = 0
+                    for file in files {
+                        let text: String?
+                        if BrowsingActions.tableExtensions.contains(file.pathExtension.lowercased()) {
+                            text = SpreadsheetReader.readCSV(from: file, maxRows: 200, maxCols: 40)
+                                .map { SpreadsheetReader.markdown(from: $0) }
+                        } else {
+                            text = try? String(contentsOf: file, encoding: .utf8)
+                        }
+                        guard let content = text, !content.isEmpty else { continue }
+                        let summary = await MemoryExtractor.collectText(
+                            preference: surface.agentPreference,
+                            system: "You summarize documents. \(instruction) Reply with the summary only.",
+                            user: String(content.prefix(30_000)))
+                        let out = AgentWorkspace.shared.directory
+                            .appendingPathComponent(file.deletingPathExtension().lastPathComponent + ".summary.md")
+                        try? summary.write(to: out, atomically: true, encoding: .utf8)
+                        done += 1
+                    }
+                    JobStore.shared.finish(jobID, state: .done,
+                                           receipt: String(localized: "\(done) file(s) summarized → .summary.md next to sources"))
+                }
+                return "Batch started: \(files.count) file(s) — Job \(jobID.uuidString.prefix(8)). Results land as .summary.md next to each source; poll via Jobs panel."
+            }
+
         case "listArchive":
             // zip 条目清单（v0.8.12 旗舰 C）：不解包列内容 + 总大小。
             guard let listPath = args["path"] as? String, !listPath.isEmpty else { return Self.fail("Missing path") }

@@ -17,6 +17,7 @@ struct DocumentViewerView: View {
     @State private var findText = ""
     @State private var findCount = 0
     @State private var webViewRef: WKWebView?
+    @State private var flashNote: String?
 
     var body: some View {
         HStack(spacing: 0) {
@@ -63,6 +64,23 @@ struct DocumentViewerView: View {
                 .truncationMode(.middle)
                 .foregroundStyle(.secondary)
             Spacer(minLength: 8)
+            // 加入阅读列表（v0.8.12 融合 16）：正文前 400 字作 detail。
+            Button {
+                if let store = AppState.live?.readingListStore {
+                    if store.items.first(where: { $0.url == fileURL.absoluteString }) == nil {
+                        store.add(title: fileName, url: fileURL.absoluteString)
+                    }
+                    flashNote = String(localized: "Added to Reading List")
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        if flashNote == String(localized: "Added to Reading List") { flashNote = nil }
+                    }
+                }
+            } label: {
+                Image(systemName: "book")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(String(localized: "Add to Reading List"))
             Button {
                 showOutline.toggle()
             } label: {
@@ -149,6 +167,11 @@ struct DocumentViewerView: View {
     private var statusBar: some View {
         HStack {
             Spacer()
+            if let flashNote {
+                Text(flashNote)
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(appAccent)
+            }
             Text("Converted with textutil (structure preserved, layout approximate)")
                 .font(.system(size: 9.5))
                 .foregroundStyle(.tertiary)

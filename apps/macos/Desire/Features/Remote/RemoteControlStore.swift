@@ -632,6 +632,15 @@ final class RemoteControlStore: ObservableObject {
             if let frame = Self.notificationPolicyFrame() { sendInnerRaw(frame) }
         case "downloads":
             if let frame = Self.downloadsFrame() { sendInnerRaw(frame) }
+        case "recentFiles":
+            if let frame = Self.recentFilesFrame() { sendInnerRaw(frame) }
+        case "openRecentFile":
+            // 远端打开：活动窗口加载该文件（本地查看器路由复用）。
+            guard let raw = inner.id, let url = URL(string: raw),
+                  let manager = TabSessionCoordinator.shared.activeTabManager else { return }
+            manager.addTab(url: url.absoluteString,
+                           javaScriptEnabled: true,
+                           contentBlocker: AppState.live?.contentBlocker)
         case "downloadAction":
             // 远端暂停/恢复单条（v0.8.11）：id + action ∈ pause|resume
             guard let raw = inner.id, let id = UUID(uuidString: raw),
@@ -702,6 +711,28 @@ final class RemoteControlStore: ObservableObject {
         default:
             break
         }
+    }
+
+    /// 最近本地文件帧（v0.8.12 融合 17）：与新标签页"最近本地文件"同源。
+    nonisolated struct RemoteRecentFile: Codable {
+        var url: String
+        var filename: String
+        var kind: String
+    }
+
+    nonisolated struct RemoteRecentFilesFrame: Codable {
+        var t: String
+        var files: [RemoteRecentFile]
+    }
+
+    private static func recentFilesFrame() -> String? {
+        let frame = RemoteRecentFilesFrame(
+            t: "recentFiles",
+            files: RecentLocalFiles.load().prefix(20).map {
+                RemoteRecentFile(url: $0.url, filename: $0.filename, kind: $0.kind)
+            })
+        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     /// 下载帧（v0.8.11 融合 13）：手机监控下载列表（状态/进度）。

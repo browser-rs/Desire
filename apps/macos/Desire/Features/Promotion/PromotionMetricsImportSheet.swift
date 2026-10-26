@@ -15,6 +15,9 @@ struct PromotionMetricsImportSheet: View {
         let post: PromotionPost?
     }
 
+    /// 直通路径（v0.8.12 融合 15）：从"已打开的表格标签"导入时由调用方传入，
+    /// onAppear 直接加载，跳过文件选择器。
+    var initialFileURL: URL? = nil
     @State private var fileName = ""
     @State private var result: PromotionMetricsImport.ParseResult?
     @State private var matches: [Match] = []
@@ -98,6 +101,11 @@ struct PromotionMetricsImportSheet: View {
         .padding(16)
         .frame(width: 640, height: 520)
         .background(Color(nsColor: .windowBackgroundColor))
+        .onAppear {
+            if let initialFileURL, result == nil {
+                load(initialFileURL)
+            }
+        }
     }
 
     private var matchedCount: Int { matches.filter { $0.post != nil }.count }

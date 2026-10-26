@@ -242,6 +242,16 @@ struct AgentHomeView: View {
                     subtitle: "查看进度、远端暂停/恢复",
                     showsChevron: false)
             }
+
+            NavigationLink {
+                RemoteFilesView()
+            } label: {
+                DesireNavRow(
+                    icon: "doc.on.doc",
+                    title: "最近文件",
+                    subtitle: "Mac 最近打开的本地文件，一键重开",
+                    showsChevron: false)
+            }
         } header: {
             DesireSectionHeader(title: "用量")
         }

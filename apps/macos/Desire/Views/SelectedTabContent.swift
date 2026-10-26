@@ -158,10 +158,23 @@ struct SelectedTabContent: View {
                             // 拖拽排序）走 webview 自己的 session，互不干扰。
                             .dropDestination(for: URL.self) { urls, _ in
                                 isFileHovered = false
-                                guard let fileURL = urls.first,
-                                      fileURL.isFileURL,
-                                      Self.isOpenableFile(fileURL) else { return false }
-                                openDroppedFile(fileURL)
+                                // 多文件拖入（v0.8.12 基础件 11）：各自开标签
+                                //（首个在当前标签，其余后台新标签）。
+                                let dropped = urls.filter { $0.isFileURL && Self.isOpenableFile($0) }
+                                guard !dropped.isEmpty else { return false }
+                                for (index, fileURL) in dropped.enumerated() {
+                                    if index == 0 {
+                                        openDroppedFile(fileURL)
+                                    } else {
+                                        content.tabManager.addTab(
+                                            url: fileURL.absoluteString,
+                                            incognito: tab.isIncognito,
+                                            javaScriptEnabled: content.settings.isJavaScriptEnabled,
+                                            contentBlocker: content.contentBlocker,
+                                            videoAdBlocker: content.videoAdBlocker,
+                                            makeActive: false)
+                                    }
+                                }
                                 return true
                             } isTargeted: { targeted in
                                 isFileHovered = targeted

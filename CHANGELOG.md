@@ -9,6 +9,12 @@
 - 图片调色（旗舰 D 21）：亮度/对比度/饱和度/锐化滑杆（CIColorControls 实时管线），Apply 烙进 ⌘Z 栈；导出为 PNG/JPEG/HEIC（NSSavePanel 选落点）
 - 图片 OCR 取文字（旗舰 D 22）：编辑器工具条一键 Vision 识别（中文/英文），结果浮层可复制——复用 ocrImage 管线
 - Agent 压缩包探查工具 listArchive：zip 条目清单（路径/大小/目录标记，60 条封顶）——zipFiles/unzipArchive 后续批次补齐，解压现走 UI 或 runCommand ditto
+- 最近本地文件：openLocalFileInTab 统一记账（20 条），新标签页"最近本地文件"区一键重开；多文件拖入各自开标签（首个当前、其余后台）
+- 表格 → 指标导入直通：运营指标导入 sheet 预填当前打开的 CSV/TSV 文件（跳过文件选择器）
+- 文档加入阅读列表：文档查看器头部一键（正文前 400 字作 detail）
+- Agent 批量文档处理 batchDocuments：白名单文件夹内全部 csv/tsv/txt/md 各跑旁路摘要 → 同目录 .summary.md，JobRecord 进 Jobs 面板（≤20 文件）
+- Remote 最近文件面：手机看 Mac 最近打开的本地文件，一键在 Mac 重开（recentFiles 帧 + openRecentFile 命令）
+
 
 
 

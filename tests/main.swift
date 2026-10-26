@@ -3656,6 +3656,33 @@ func testTaskGroupPlan() {
                                                changes: [.init(entityID: id1, target: .bookmark, operation: "remove", snapshotJSON: nil)])).isEmpty)
 }
 
+func testSpreadsheetBuffer() {
+    var buf = SpreadsheetBuffer(rows: [
+        ["name", "qty", "price"],
+        ["apple", "10", "3.5"],
+        ["banana", "9", "2"],
+        ["cherry", "100", "12"],
+    ])
+    buf.set(row: 1, col: 1, value: "12")
+    check("表格：编辑落格", buf.rows[1][1] == "12")
+    check("表格：dirty 记录", buf.dirtyCells.contains(SpreadsheetBuffer.CellRef(row: 1, col: 1)))
+    let sorted = SpreadsheetBuffer.sortedIndices(rowCount: buf.rowCount, by: 1, ascending: true, rows: buf.rows)
+    check("表格：数值排序", sorted == [2, 1, 3])
+    let desc = SpreadsheetBuffer.sortedIndices(rowCount: buf.rowCount, by: 1, ascending: false, rows: buf.rows)
+    check("表格：降序", desc == [3, 1, 2])
+    let filtered = SpreadsheetBuffer.filteredIndices(rows: buf.rows, keyword: "an")
+    check("表格：筛选命中 banana", filtered == [2])
+    check("表格：空关键字全量", SpreadsheetBuffer.filteredIndices(rows: buf.rows, keyword: "  ").count == 3)
+    check("表格：csv 转义", SpreadsheetBuffer.csvLine(["a", "b,c", "say \"hi\""]) == "a,\"b,c\",\"say \"\"hi\"\"\"")
+    let text = SpreadsheetBuffer.csvText(rows: buf.rows)
+    check("表格：csv 含表头与改动", text.hasPrefix("name,qty,price\n") && text.contains("12"))
+    check("表格：A1 解析", SpreadsheetBuffer.parseA1("B3") == SpreadsheetBuffer.CellRef(row: 2, col: 1))
+    check("表格：AA1 解析", SpreadsheetBuffer.parseA1("AA1") == SpreadsheetBuffer.CellRef(row: 0, col: 26))
+    check("表格：非法 A1", SpreadsheetBuffer.parseA1("3B") == nil)
+}
+
+testSpreadsheetBuffer()
+
 func testNightOwlPolicy() {
     var p = NotificationPolicy()
     p.quietHoursEnabled = true

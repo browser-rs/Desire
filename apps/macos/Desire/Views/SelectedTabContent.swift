@@ -364,6 +364,11 @@ struct SelectedTabContent: View {
                     fileName: tab.browser.mediaViewerFileName,
                     onBack: { tab.browser.mediaViewerURL = nil }
                 )
+            } else if let sheetURL = tab.browser.spreadsheetViewerURL {
+                SpreadsheetViewerView(
+                    fileURL: sheetURL,
+                    fileName: tab.browser.spreadsheetViewerFileName,
+                    onBack: { tab.browser.spreadsheetViewerURL = nil })
             } else if tab.browser.isPDFLoading {
                 VStack(spacing: 10) {
                     ProgressView()

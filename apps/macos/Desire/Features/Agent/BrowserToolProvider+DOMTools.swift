@@ -2869,6 +2869,60 @@ extension BrowserToolProvider {
                 return "Document text (\(ext), \(fileURL.lastPathComponent)):\n\(text)"
             }
 
+        case "editDocument":
+            // 表格单元格写回（v0.8.12 旗舰 A 的写回层）：csv/tsv 单元格级
+            // 编辑（.bak 快照 + 原子写，与查看器 ⌘S 同一语义）；xlsx 写
+            // 缓存值单元格不支持（无公式重算管线）→ 明确报错；富文本文档
+            // 只读（textutil 无写回）→ 提示导出。
+            guard let editPath = args["path"] as? String, !editPath.isEmpty else { return Self.fail("Missing path") }
+            let edits = (args["edits"] as? [[String: Any]]) ?? []
+            guard !edits.isEmpty else { return Self.fail("Missing edits ([{cell: \"B3\", value: \"…\"}])") }
+            switch AgentWorkspace.shared.resolve(editPath, write: true) {
+            case .denied(let reason):
+                return reason
+            case .granted(let fileURL):
+                let ext = fileURL.pathExtension.lowercased()
+                guard BrowsingActions.tableExtensions.contains(ext) else {
+                    if ext == "xlsx" {
+                        return Self.fail("Editing .xlsx cached values is not supported (no formula recalculation) — ask the user to edit in Excel, or export to CSV first")
+                    }
+                    return Self.fail("\(ext) is read-only for editDocument (only .csv/.tsv cells are writable)")
+                }
+                guard let sheet = SpreadsheetReader.readCSV(from: fileURL, maxRows: 100_000, maxCols: 500) else {
+                    return Self.fail("Could not read \(fileURL.lastPathComponent)")
+                }
+                var buffer = SpreadsheetBuffer(rows: sheet.rows)
+                var applied = 0
+                var failures: [String] = []
+                for edit in edits {
+                    guard let cellName = edit["cell"] as? String,
+                          let value = edit["value"] as? String,
+                          let ref = SpreadsheetBuffer.parseA1(cellName) else {
+                        failures.append((edit["cell"] as? String) ?? "(empty)")
+                        continue
+                    }
+                    buffer.set(row: ref.row, col: ref.col, value: value)
+                    applied += 1
+                }
+                guard applied > 0 else {
+                    return Self.fail("No valid edits — cell must be A1-style (e.g. B3). Invalid: \(failures.joined(separator: ", "))")
+                }
+                do {
+                    let fm = FileManager.default
+                    if fm.fileExists(atPath: fileURL.path) {
+                        let backup = fileURL.deletingPathExtension()
+                            .appendingPathExtension(fileURL.pathExtension + ".bak")
+                        try? fm.removeItem(at: backup)
+                        try fm.copyItem(at: fileURL, to: backup)
+                    }
+                    try SpreadsheetBuffer.csvText(rows: buffer.rows)
+                        .write(to: fileURL, atomically: true, encoding: .utf8)
+                } catch {
+                    return Self.fail("write failed: \(error.localizedDescription)")
+                }
+                return "Edited \(applied) cell(s) in \(fileURL.lastPathComponent) (.bak snapshot saved). Invalid cells skipped: \(failures.count)"
+            }
+
         case "readSpreadsheet":
             // 表格取数：xlsx（zip+XML）、csv/tsv（分隔符嗅探）。
             guard let sheetPath = args["path"] as? String, !sheetPath.isEmpty else { return Self.fail("Missing path") }

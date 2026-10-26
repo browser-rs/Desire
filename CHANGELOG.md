@@ -1,3 +1,10 @@
+## [Unreleased]
+### Added
+
+- 表格直开查看/编辑器（旗舰 A）：CSV/TSV/XLSX 拖入/本地打开进网格标签页（冻结表头/行号/双击单元格编辑/列头点击排序/关键字筛选/A1 跳转/状态栏）；⌘S 保存带 .bak 快照 + 原子写，xlsx 提示缓存值口径
+- Agent 表格编辑工具 editDocument：.csv/.tsv 单元格 A1 写回（与查看器同一 SpreadsheetBuffer 写层，.bak 快照 + 原子写）；xlsx 明确报错无公式重算、富文本文档只读提示导出
+
+
 ## [v0.8.11] - 2026-10-27
 ### Added
 

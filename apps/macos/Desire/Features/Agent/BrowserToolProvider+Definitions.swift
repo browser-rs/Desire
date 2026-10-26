@@ -989,7 +989,18 @@ extension BrowserToolProvider {
                     "path": AgentJSONSchemaValue(type: "string", description: "Document path (workspace / user folders)"),
                     "maxChars": AgentJSONSchemaValue(type: "number", description: "Cap on returned characters (default 60000)"),
                 ], required: ["path"])
-            )),
+            )),    AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "editDocument",
+        description: "Edit cells of a local .csv/.tsv file (A1-style cell refs). Writes a .bak snapshot next to the file before saving. .xlsx cached-value editing is NOT supported (no formula recalculation) and rich-text documents are read-only — say so and offer export-to-CSV instead.",
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "path": AgentJSONSchemaValue(type: "string", description: "File path (workspace-relative or absolute within the whitelist)"),
+            "edits": AgentJSONSchemaValue(type: "array", description: "Cell edits", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [
+                "cell": AgentJSONSchemaValue(type: "string", description: "A1-style cell reference, e.g. B3"),
+                "value": AgentJSONSchemaValue(type: "string", description: "New cell value (string; numbers as plain digits)"),
+            ]))),
+        ], required: ["path", "edits"])
+    )),
+
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "readSpreadsheet",
                 description: "Read a table as a Markdown table: Excel .xlsx (cached values; pick the sheet with a 1-based index) and .csv/.tsv text tables (delimiter sniffed). Dates/formulas may come back as raw numbers (no style parsing). Legacy .xls and Apple .numbers are not supported — ask the user to re-export as .xlsx/.csv.",

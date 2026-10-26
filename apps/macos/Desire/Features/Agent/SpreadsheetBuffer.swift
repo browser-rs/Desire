@@ -1,0 +1,103 @@
+import Foundation
+
+/// 表格查看/编辑缓冲（v0.8.12 旗舰 A）纯逻辑：网格数据 + 单元格编辑 +
+/// 排序/筛选 + 保存序列化。Foundation-only，进 tests/run.sh。
+/// 与 SpreadsheetReader 的分工：Reader 负责"文件 → 行数组"（读），
+/// 这里负责"行数组 → 编辑 → 文件"（写与视图状态）。
+nonisolated struct SpreadsheetBuffer: Equatable {
+    /// rows[0] 为表头（首行冻结语义）。
+    var rows: [[String]]
+    /// 编辑过的单元格（row, col）——保存提示与"未保存"角标用。
+    private(set) var dirtyCells: Set<CellRef> = []
+
+    struct CellRef: Hashable {
+        let row: Int
+        let col: Int
+    }
+
+    init(rows: [[String]]) {
+        self.rows = rows
+    }
+
+    var headers: [String] {
+        rows.first ?? []
+    }
+
+    var bodyRows: ArraySlice<[String]> {
+        rows.dropFirst()
+    }
+
+    var rowCount: Int { rows.count }
+    var columnCount: Int { rows.map(\.count).max() ?? 0 }
+
+    mutating func set(row: Int, col: Int, value: String) {
+        guard row >= 0, row < rows.count else { return }
+        while rows[row].count <= col { rows[row].append("") }
+        rows[row][col] = value
+        dirtyCells.insert(CellRef(row: row, col: col))
+    }
+
+    // MARK: - 排序 / 筛选（视图层状态，不改原 rows）
+
+    /// 按列排序的行索引（首行表头除外）；stable：等值保持原序。
+    static func sortedIndices(rowCount: Int, by column: Int, ascending: Bool,
+                              rows: [[String]]) -> [Int] {
+        guard column >= 0, rowCount > 1, rows.count > 1 else {
+            return Array(1..<max(1, rowCount))
+        }
+        struct RowIdx { let originalIndex: Int; let values: [String] }
+        let indexed: [RowIdx] = rows.indices.dropFirst().map { RowIdx(originalIndex: $0, values: rows[$0]) }
+        let sorted = indexed.sorted { (a: RowIdx, b: RowIdx) -> Bool in
+            let av = a.values.count > column ? a.values[column] : ""
+            let bv = b.values.count > column ? b.values[column] : ""
+            // 数值优先（"10" < "9" 的字典序陷阱）；都非数值退字典序。
+            if let an = Double(av), let bn = Double(bv) {
+                return ascending ? an < bn : an > bn
+            }
+            return ascending ? av.localizedStandardCompare(bv) == .orderedAscending
+                             : av.localizedStandardCompare(bv) == .orderedDescending
+        }
+        return sorted.map { $0.originalIndex }   // rows 全量下标（跳过表头已含在 originalIndex）
+    }
+
+    /// 关键字筛选（命中任意列的行下标；空关键字 = 全部）。
+    static func filteredIndices(rows: [[String]], keyword: String) -> [Int] {
+        let key = keyword.trimmingCharacters(in: .whitespaces)
+        guard !key.isEmpty else { return Array(rows.indices.dropFirst()) }
+        return rows.indices.dropFirst().filter { rowIdx in
+            rows[rowIdx].contains { $0.localizedCaseInsensitiveContains(key) }
+        }
+    }
+
+    // MARK: - 序列化（保存）
+
+    /// CSV 行序列化：含逗号/引号/换行的字段加引号转义（RFC 4180）。
+    nonisolated static func csvLine(_ fields: [String]) -> String {
+        fields.map { field in
+            guard field.contains(",") || field.contains("\"") || field.contains("\n") else {
+                return field
+            }
+            return "\"" + field.replacingOccurrences(of: "\"", with: "\"\"") + "\""
+        }
+        .joined(separator: ",")
+    }
+
+    static func csvText(rows: [[String]]) -> String {
+        rows.map { csvLine($0) }.joined(separator: "\n") + "\n"
+    }
+
+    /// A1 语法 → (row, col)（"B3" → row=2, col=1）；解析失败 nil。
+    nonisolated static func parseA1(_ a1: String) -> CellRef? {
+        let chars = Array(a1.uppercased())
+        guard !chars.isEmpty else { return nil }
+        var col = 0
+        var idx = 0
+        while idx < chars.count, chars[idx].isLetter {
+            guard let scalar = chars[idx].asciiValue else { return nil }
+            col = col * 26 + Int(scalar - 64)
+            idx += 1
+        }
+        guard col > 0, let row = Int(String(chars[idx...])), row >= 1 else { return nil }
+        return CellRef(row: row - 1, col: col - 1)
+    }
+}

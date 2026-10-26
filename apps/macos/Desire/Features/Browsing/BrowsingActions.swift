@@ -125,12 +125,20 @@ extension BrowsingActions {
 
     /// 本地文件在标签页内打开（地址栏/拖入共用）：pdf → PDF 查看器、
     /// 音视频 → AVPlayer 查看器、其余可渲染类型 → file:// 导航。
+    /// 表格类型（v0.8.12 旗舰 A）：拖入/本地打开进表格查看器。
+    static let tableExtensions: Set<String> = ["csv", "tsv", "xlsx"]
+
     func openLocalFileInTab(_ url: URL, for tab: Tab) {
         let ext = url.pathExtension.lowercased()
         if ext == "pdf" {
             tab.browser.pdfViewerFileName = url.lastPathComponent
             tab.browser.pdfViewerReturnURL = tab.browser.webView.url
             tab.browser.pdfViewerURL = url
+            return
+        }
+        if Self.tableExtensions.contains(ext) {
+            tab.browser.spreadsheetViewerFileName = url.lastPathComponent
+            tab.browser.spreadsheetViewerURL = url
             return
         }
         if SelectedTabContent.mediaExtensions.contains(ext) {

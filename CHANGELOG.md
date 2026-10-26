@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.10] - 2026-10-26
 ### Added
 
 - crew 可靠性三件：跨窗 worker 失败自动换窗重试一次（空闲会话池选 alternate）；crewStatus 摘要带逐 worker 耗时与重试标记；crewCancel/cancelAll 级联取消目标窗口已派发的回合（不再只标本地状态让那边继续烧模型）

@@ -77,6 +77,7 @@ final class SyncStore: ObservableObject {
     private let agentPreferenceStore: AgentPreferenceStore
     private let agentMemoryStore = AgentMemoryStore.shared
     private let promotionStore = PromotionStore.shared
+    private let jobStore = JobStore.shared
     private var syncTimer: Timer?
     private let defaults = UserDefaults.standard
 
@@ -223,6 +224,7 @@ final class SyncStore: ObservableObject {
         observeLocalChanges(WhiteboardStore.shared.objectWillChange, domain: .whiteboard)
         observeLocalChanges(WorkspaceStore.shared.objectWillChange, domain: .workspace)
         observeLocalChanges(promotionStore.objectWillChange, domain: .promotion)
+        observeLocalChanges(jobStore.objectWillChange, domain: .jobs)
     }
 
     private func observeLocalChanges(
@@ -889,6 +891,7 @@ final class SyncStore: ObservableObject {
                           commit: { self.commitSettingsSnapshot() }),
             DomainAdapter(domain: .agentMemory, collect: collectAgentMemory, apply: applyAgentMemory, clear: clearAgentMemoryPending),
             DomainAdapter(domain: .promotion, collect: collectPromotion, apply: applyPromotion, clear: clearPromotionPending),
+            DomainAdapter(domain: .jobs, collect: collectJobs, apply: applyJobs, clear: clearJobsPending),
             DomainAdapter(domain: .agentPrefs, collect: collectAgentPrefs, apply: applyAgentPrefs, clear: { _, _ in },
                           commit: { self.commitAgentPrefsSnapshot() }),
             DomainAdapter(domain: .history, collect: collectHistory, apply: applyHistory, clear: clearHistoryPending),
@@ -974,6 +977,7 @@ final class SyncStore: ObservableObject {
             .readingList: readingListStore.pendingDeletions.count,
             .agentMemory: agentMemoryStore.pendingDeletions.count,
             .promotion: promotionStore.pendingDeletions.count,
+            .jobs: jobStore.pendingDeletions.count,
             .history: historyStore.pendingDeletions.count,
             .whiteboard: WhiteboardStore.shared.pendingDeletions.count,
         ]
@@ -1569,6 +1573,52 @@ final class SyncStore: ObservableObject {
         promotionStore.clearPendingDeletions(serverIDs) { realID in
             SyncPromotion.clientID(for: realID, masterKeyBase64: master)
         }
+    }
+
+    // MARK: - Jobs 同步域（v0.8.10 第十二域）
+
+    private func collectJobs(master: String) -> [SyncWireItem<SyncEncryptedPayload>] {
+        var items: [SyncWireItem<SyncEncryptedPayload>] = []
+        for job in jobStore.jobs {
+            items.append(encryptedWire(
+                domain: .jobs, realID: job.id.uuidString,
+                clientUpdatedAt: job.updatedAt, deleted: false,
+                payload: job, master: master))
+        }
+        for (id, deletedAt) in jobStore.pendingDeletions {
+            items.append(encryptedTombstone(
+                domain: .jobs, realID: id.uuidString, clientUpdatedAt: deletedAt, master: master))
+        }
+        return items
+    }
+
+    private func applyJobs(_ items: [SyncWireItem<SyncEncryptedPayload>], master: String) {
+        guard !items.isEmpty else { return }
+        // HMAC 反查表：本地条目 id → updatedAt（LWW 比较基准）。
+        var hmacToLocal: [String: Date] = [:]
+        for job in jobStore.jobs {
+            hmacToLocal[SyncPromotion.clientID(for: job.id.uuidString, masterKeyBase64: master)] = job.updatedAt
+        }
+        applyRemotely {
+            for item in items {
+                guard let encrypted = item.payload,
+                      let record = try? SyncCrypto.decrypt(
+                    encrypted, domain: .jobs,
+                    masterKeyBase64: master, as: JobRecord.self) else { continue }
+                let hmac = SyncPromotion.clientID(for: record.id.uuidString, masterKeyBase64: master)
+                if item.deleted == true {
+                    if hmacToLocal[hmac] != nil { jobStore.removeForSync(id: record.id) }
+                    continue
+                }
+                if let localAt = hmacToLocal[hmac], item.clientUpdatedAt <= localAt { continue }
+                jobStore.upsertForSync(record)
+            }
+        }
+    }
+
+    private func clearJobsPending(_ serverIDs: Set<String>, master: String) {
+        let ids = serverIDs.compactMap { UUID(uuidString: $0) }
+        jobStore.clearPendingDeletions(serverIDs: Set(ids))
     }
 
     // MARK: - Agent 偏好域（自定义系统提示词）

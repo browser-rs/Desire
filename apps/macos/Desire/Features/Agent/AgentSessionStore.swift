@@ -1295,14 +1295,49 @@ class AgentSessionStore: ObservableObject {
     /// 目标会看到半截对话（宁可不做）。
     @discardableResult
     func handOffConversation(to target: AgentSessionStore) -> Bool {
-        guard target !== self,
-              !isProcessing, !target.isProcessing,
+        // v0.8.10 handoff v2：源窗口**跑着回合**也允许——回合本身不杀（自然
+        // 完成后结果落盘进同一会话文件），移交的是"后续"：排队消息与待批
+        // 审批。目标窗口必须空闲（它要接住并续跑）。
+        guard target !== self, !target.isProcessing, !target.awaitingQuestion,
               let conversation = conversationId else { return false }
+        // 带走的后续（先摘下来再移交；源回合完成后不再消费它们）。
+        let carriedQueue = queuedMessages
+        queuedMessages.removeAll()
+        let approvalNote: String?
+        if let approval = pendingApproval, isProcessing {
+            approvalNote = String(
+                format: String(localized: "上一窗口移交了一个待批操作（%@）。若需要，请在新窗口重新发起。"),
+                approval.toolCall.function.name)
+            pendingApproval?.resume(with: .denied)
+            pendingApproval = nil
+        } else {
+            approvalNote = nil
+        }
         flushConversation()
         target.loadConversation(conversation)
         AgentScheduler.shared.deliveryTarget = target
+        if isProcessing {
+            // 源还在跑：不 clear()（会话文件正被本回合写）。目标窗口已载入
+            // 同一会话；源回合结束的落盘与目标窗口的下次保存会自然收敛。
+            if !carriedQueue.isEmpty || approvalNote != nil {
+                var note = String(localized: "（此会话从另一窗口移交过来；该窗口的当前回合仍在收尾）")
+                if let approvalNote { note += "\n" + approvalNote }
+                for q in carriedQueue {
+                    target.queuedMessages.append(AgentSessionStore.QueuedMessage(text: q.text, images: q.images))
+                }
+                if !carriedQueue.isEmpty || approvalNote != nil {
+                    target.sendMessage(note, recordHistory: false)
+                }
+            }
+            Log.agent.info("handoff(live): conversation \(conversation.uuidString, privacy: .public) → window \(target.registryID?.uuidString ?? "?", privacy: .public); carried queue=\(carriedQueue.count) approval=\(approvalNote != nil)")
+            return true
+        }
+        // 空闲源：原语义不变（后续随队带走 + 源回空会话）。
+        for q in carriedQueue {
+            target.queuedMessages.append(AgentSessionStore.QueuedMessage(text: q.text, images: q.images))
+        }
         clear()
-        Log.agent.info("handoff: conversation \(conversation.uuidString, privacy: .public) → window \(target.registryID?.uuidString ?? "?", privacy: .public)")
+        Log.agent.info("handoff: conversation \(conversation.uuidString, privacy: .public) → window \(target.registryID?.uuidString ?? "?", privacy: .public); carried queue=\(carriedQueue.count)")
         return true
     }
 

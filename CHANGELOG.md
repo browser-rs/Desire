@@ -1,3 +1,11 @@
+## [Unreleased]
+### Added
+
+- crew 可靠性三件：跨窗 worker 失败自动换窗重试一次（空闲会话池选 alternate）；crewStatus 摘要带逐 worker 耗时与重试标记；crewCancel/cancelAll 级联取消目标窗口已派发的回合（不再只标本地状态让那边继续烧模型）
+- 会话移交 handoff v2：源窗口跑着回合也允许移交——排队消息与待批审批整体随会话带走（待批操作如实拒绝并留说明），源回合自然完成后结果落盘同一会话；空闲源保持原"移交+源回空会话"语义
+- JobStore 同步域（第十二域）：作业账本跨设备（dismiss 走 tombstone、upsert 不盖戳防 LWW 反转）；服务端 DOMAINS 白名单加 jobs
+
+
 ## [v0.8.9] - 2026-10-26
 ### Fixed
 

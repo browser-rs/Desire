@@ -10,12 +10,56 @@ final class JobStore: ObservableObject {
     static let shared = JobStore()
 
     @Published private(set) var jobs: [JobRecord] = []
+    /// 待推送 tombstone（v0.8.10 第十二同步域）：dismiss/清理产生的删除，
+    /// push applied 后由 SyncStore 清除。
+    @Published private(set) var pendingDeletions: [UUID: Date] = [:]
 
     private static let storageKey = "ops.jobs"
     private static let maxJobs = 300
 
+    /// tombstone 持久化条目（数组形式——DiskStore 存字典会带裸键稳定性问题）。
+    nonisolated struct SyncTombstoneEntry: Codable {
+        let id: UUID
+        let at: Date
+    }
+
+    private static let tombstoneKey = "ops.jobs.tombstones"
+
     private init() {
         jobs = DiskStore.load([JobRecord].self, key: Self.storageKey) ?? []
+        let entries = DiskStore.load([SyncTombstoneEntry].self, key: Self.tombstoneKey) ?? []
+        pendingDeletions = Dictionary(uniqueKeysWithValues: entries.map { ($0.id, $0.at) })
+    }
+
+    // MARK: - 同步（v0.8.10 第十二域）
+
+    /// 同步 upsert：远端赢 LWW 时整条落位（按 id 找不到就插）。
+    /// 不走 start/update——那些会盖新戳、触发"本地赢"的反转。
+    func upsertForSync(_ record: JobRecord) {
+        if let idx = jobs.firstIndex(where: { $0.id == record.id }) {
+            jobs[idx] = record
+        } else {
+            jobs.insert(record, at: 0)
+            trim()
+        }
+        pendingDeletions.removeValue(forKey: record.id)   // 复活清 tombstone
+        save()
+    }
+
+    /// 同步删除：远端 tombstone 命中本地条目 → 移除（记对方戳，防回灌）。
+    func removeForSync(id: UUID) {
+        if let idx = jobs.firstIndex(where: { $0.id == id }) {
+            jobs.remove(at: idx)
+            save()
+        }
+    }
+
+    /// push applied 后清 tombstone（SyncStore 回调）。
+    func clearPendingDeletions(serverIDs: Set<UUID>) {
+        guard !serverIDs.isEmpty else { return }
+        for id in serverIDs { pendingDeletions.removeValue(forKey: id) }
+        DiskStore.save(Array(pendingDeletions.map { SyncTombstoneEntry(id: $0.key, at: $0.value) }),
+                       key: Self.tombstoneKey)
     }
 
     // MARK: - 查询
@@ -106,6 +150,7 @@ final class JobStore: ObservableObject {
         jobs[idx].detail = String(localized: "Dismissed — the underlying task may still be running.")
         jobs[idx].updatedAt = Date()
         jobs[idx].finishedAt = Date()
+        pendingDeletions[jobs[idx].id] = Date()
         save()
     }
 
@@ -146,5 +191,7 @@ final class JobStore: ObservableObject {
 
     private func save() {
         DiskStore.save(jobs, key: Self.storageKey)
+        DiskStore.save(Array(pendingDeletions.map { SyncTombstoneEntry(id: $0.key, at: $0.value) }),
+                       key: Self.tombstoneKey)
     }
 }

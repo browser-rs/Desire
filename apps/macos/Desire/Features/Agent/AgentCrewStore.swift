@@ -76,6 +76,13 @@ final class AgentCrewStore: ObservableObject {
         /// 作用域与档案），报告 = 该会话本回合的最后一条 assistant 消息。
         var windowSessionID: UUID?
         var windowLabel: String?
+        /// v0.8.10 crew 可靠性：跨窗 worker 的换窗重试计数（0/1）。
+        var windowRetryCount = 0
+        /// 运行耗时（秒）——done/failed 落定时写，crew 摘要与审计用。
+        var durationSeconds: Double? {
+            guard let startedAt else { return nil }
+            return (finishedAt ?? Date()).timeIntervalSince(startedAt)
+        }
 
         init(index: Int, instruction: String, url: String?, tabID: UUID?) {
             self.index = index
@@ -220,6 +227,31 @@ final class AgentCrewStore: ObservableObject {
     /// 一条 assistant 消息为报告。用量按该会话本回合新增消息的 token 字段
     /// 记账（窗口会话自己的成本台账照常随会话落盘）。
     private func runWindowWorker(_ worker: WorkerTask) async {
+        await runWindowWorkerOnce(worker)
+        // 换窗重试（v0.8.10 crew 可靠性）：失败且还没重试过 → 找另一个空闲
+        // 窗口会话再跑一次（不含已用过的窗）。重试也失败就保持失败终态。
+        if worker.state == .failed, worker.windowRetryCount == 0 {
+            let exclude = worker.windowSessionID
+            let alt = AgentScheduler.shared.liveSessions().first { entry in
+                entry.id != exclude && entry.store != nil
+                    && !entry.store!.isProcessing && !entry.store!.awaitingQuestion
+            }
+            if let alt {
+                worker.windowRetryCount += 1
+                worker.windowSessionID = alt.id
+                worker.windowLabel = alt.displayLabel
+                worker.state = .pending
+                worker.result = nil
+                worker.startedAt = nil
+                worker.finishedAt = nil
+                noteProgress(worker, step: String(localized: "Retrying on another window"))
+                publishNow()
+                await runWindowWorkerOnce(worker)
+            }
+        }
+    }
+
+    private func runWindowWorkerOnce(_ worker: WorkerTask) async {
         guard let sessionID = worker.windowSessionID,
               let entry = AgentScheduler.shared.liveSessions().first(where: { $0.id == sessionID }),
               let store = entry.store else {
@@ -437,6 +469,12 @@ final class AgentCrewStore: ObservableObject {
                 line += String(format: " [%d tokens%@]", t.totalTokens,
                                t.model.map { " · \($0)" } ?? "")
             }
+            if let secs = t.durationSeconds, t.state != .pending, t.state != .running {
+                line += String(format: " (%.0fs)", secs)
+            }
+            if t.windowRetryCount > 0 {
+                line += String(localized: " (retried on another window ×\(t.windowRetryCount))")
+            }
             if let r = t.result { line += "\n    → \(r.prefix(600))" }
             return line
         }
@@ -454,6 +492,14 @@ final class AgentCrewStore: ObservableObject {
         // state 标志（runWorker 每轮/每个流事件都会检查），这里立刻置位。
         t.state = .cancelled
         t.finishedAt = Date()
+        // 跨窗 v2 级联（v0.8.10）：窗口 worker 的回合跑在**目标窗口的会话**
+        // 里——只标本地状态的话那边继续烧模型。给目标会话发取消。
+        if let sid = t.windowSessionID,
+           let entry = AgentScheduler.shared.liveSessions().first(where: { $0.id == sid }),
+           let store = entry.store, store.isProcessing {
+            store.cancel()
+            return "Cancelled subtask \(taskIndex) (target window turn cancelled too)"
+        }
         publishNow()
         settleIfDone()
         return "Cancelled subtask \(taskIndex)"
@@ -467,9 +513,17 @@ final class AgentCrewStore: ObservableObject {
 
     func cancelAll() {
         guard let c = crew else { return }
+        var cascaded: Set<UUID> = []
         for t in c.tasks where !t.state.isTerminal {
             t.state = .cancelled
             t.finishedAt = Date()
+            if let sid = t.windowSessionID { cascaded.insert(sid) }
+        }
+        // 级联取消全部涉事窗口的在跑回合（每窗一次）。
+        for sid in cascaded {
+            guard let entry = AgentScheduler.shared.liveSessions().first(where: { $0.id == sid }),
+                  let store = entry.store, store.isProcessing else { continue }
+            store.cancel()
         }
         publishNow()
         settleIfDone()

@@ -217,6 +217,10 @@ struct SpreadsheetViewerView: View {
 
     private func headerRow(_ buffer: SpreadsheetBuffer) -> some View {
         HStack(spacing: 0) {
+            // 行号栏占位：与数据行的行号列同宽，表头列才能对齐各自的数据列。
+            Color.clear
+                .frame(width: 34, alignment: .trailing)
+                .padding(.trailing, 4)
             ForEach(buffer.headers.indices, id: \.self) { col in
                 Button {
                     if sortColumn == col {

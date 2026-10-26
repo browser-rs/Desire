@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.12] - 2026-10-27
 ### Fixed
 
 - 本地文件打开断链修复（自查抓到，发布前）：isOpenableFile 白名单缺 csv/zip/docx 等新查看器类型——地址栏/拖入全被当搜索词；桥 /navigate 的 file 路径被 URL 启发式吞掉且缺四个新查看器分支（各自 setState）；本地路径直通（navigateToURL 与桥 /navigate 同语义：存在的文件路径先于 URL 启发式）；查看器挂载期间地址栏与 /state 报文件路径而非 webview 里残留的旧页 URL

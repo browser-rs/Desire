@@ -1,4 +1,5 @@
 import CoreImage.CIFilterBuiltins
+import CryptoKit
 import SwiftUI
 
 /// 技能库页（Agent 窗口侧栏"技能"目的地，2026-10-10）。数据全部来自
@@ -27,6 +28,8 @@ struct AgentSkillsView: View {
     @State private var exportedPath: String?
     /// 分享（v0.8.10）：出直链 + QR 的 sheet。
     @State private var shareSkill: SkillStore.Skill?
+    /// 检查更新的进行中标记（skill 名）。
+    @State private var updateChecking: String?
     /// nil = 新建；非 nil = 编辑该技能（写入它的 url，同名即覆盖）。
     @State private var editingSkill: SkillStore.Skill?
     @State private var isCreating = false
@@ -48,7 +51,8 @@ struct AgentSkillsView: View {
                                 onEdit: { editingSkill = skill },
                                 onUse: onUseSkill,
                                 onExport: { exportSkill($0) },
-                                onShare: { shareSkill = $0 }
+                                onShare: { shareSkill = $0 },
+                                onUpdateCheck: { checkForUpdate($0) }
                             )
                         }
                     }
@@ -265,6 +269,41 @@ struct AgentSkillsView: View {
         }
     }
 
+    /// 检查更新（v0.8.11）：重下远程内容 → hash 比对 → 不同则重装（同名覆盖）。
+    private func checkForUpdate(_ skill: SkillStore.Skill) {
+        guard let source = skill.sourceURL, let url = URL(string: source) else { return }
+        updateChecking = skill.name
+        Task { @MainActor in
+            defer { updateChecking = nil }
+            do {
+                let (data, response) = try await URLSession.shared.data(from: url)
+                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                    importFailure = String(localized: "Update check failed: HTTP \((response as? HTTPURLResponse)?.statusCode ?? -1)")
+                    return
+                }
+                let digest = SHA256.hash(data: data)
+                let remoteHash = digest.map { String(format: "%02x", $0) }.joined()
+                if remoteHash == skill.contentHash {
+                    importFailure = String(localized: "\"\(skill.name)\" is up to date.")
+                    return
+                }
+                let ext = url.pathExtension.lowercased() == "zip" ? "zip" : "md"
+                let tmp = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("skill-update-\(UUID().uuidString).\(ext)")
+                try data.write(to: tmp)
+                defer { try? FileManager.default.removeItem(at: tmp) }
+                let updated = try store.importArchive(at: tmp)
+                // 重装后补盖来源与**新内容的 hash**（当前盘上内容）。
+                store.stampSource(name: updated.name, sourceURL: source,
+                                  contentHash: SkillStore.currentHash(for: updated))
+                scanRisks()
+                importFailure = String(localized: "\"\(updated.name)\" updated.")
+            } catch {
+                importFailure = error.localizedDescription
+            }
+        }
+    }
+
     /// 导出为 .skill 包（Save 面板选落点）。
     private func exportSkill(_ skill: SkillStore.Skill) {
         let panel = NSSavePanel()
@@ -334,6 +373,8 @@ private struct AgentSkillCard: View {
     var onExport: ((SkillStore.Skill) -> Void)? = nil
     /// 分享直链+QR（v0.8.10）。
     var onShare: ((SkillStore.Skill) -> Void)? = nil
+    /// 检查更新（v0.8.11）：远程内容 hash 比对。
+    var onUpdateCheck: ((SkillStore.Skill) -> Void)? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -397,6 +438,9 @@ private struct AgentSkillCard: View {
             }
             if let onShare {
                 Button(String(localized: "Share…")) { onShare(skill) }
+            }
+            if skill.sourceURL != nil, let onUpdateCheck {
+                Button(String(localized: "Check for Updates")) { onUpdateCheck(skill) }
             }
             Button("Show in Finder") {
                 NSWorkspace.shared.activateFileViewerSelecting([skill.url])

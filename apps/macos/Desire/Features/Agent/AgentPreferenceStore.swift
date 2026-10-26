@@ -108,6 +108,28 @@ class AgentPreferenceStore: ObservableObject {
     /// editable in the memory view either way.
     /// 用户规则列表（2026-10-02 个性化增强）：每条一行、独立增删——比让
     /// 用户手改整段 systemPrompt 门槛低一个数量级。进 <output_rules> 层。
+    /// 默认回答长度档（v0.8.11 基础件 10）：注入 <output_rules> 层。
+    enum AnswerLength: String, CaseIterable {
+        case concise, standard, detailed
+        var instruction: String {
+            switch self {
+            case .concise:
+                return "Keep answers short: lead with the conclusion, at most 3 short paragraphs or 5 bullet lines, no preamble."
+            case .standard:
+                return "Keep answers moderate: cover the key points clearly without padding."
+            case .detailed:
+                return "Prefer thorough answers: explain reasoning, include relevant details and caveats."
+            }
+        }
+    }
+
+    @Published var answerLength: AnswerLength {
+        didSet {
+            guard answerLength != oldValue else { return }
+            UserDefaults.standard.set(answerLength.rawValue, forKey: "aiAnswerLength")
+        }
+    }
+
     @Published var outputRules: [String] {
         didSet {
             if outputRules != oldValue {
@@ -507,6 +529,7 @@ class AgentPreferenceStore: ObservableObject {
         memoryLearning = UserDefaults.standard.object(forKey: "aiMemoryLearning") as? Bool ?? true
         guardReview = UserDefaults.standard.object(forKey: "aiGuardReview") as? Bool ?? true
         outputRules = UserDefaults.standard.stringArray(forKey: "aiOutputRules") ?? []
+        answerLength = AnswerLength(rawValue: UserDefaults.standard.string(forKey: "aiAnswerLength") ?? "") ?? .standard
         agentName = UserDefaults.standard.string(forKey: "aiAgentName") ?? ""
         agentPersona = UserDefaults.standard.string(forKey: "aiAgentPersona") ?? ""
         if let data = UserDefaults.standard.data(forKey: "aiQuickTemplates"),

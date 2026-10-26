@@ -26,6 +26,8 @@ enum AgentPromptBuilder {
         /// Agent 模式说明（Loop 工程模式）：nil = 标准模式不注入。
         var modeHint: String? = nil
         var outputRules: [String] = []
+        /// 默认回答长度档（v0.8.11）：standard = 不注入（无操作）。
+        var answerLength: AgentPreferenceStore.AnswerLength? = nil
         /// 会话级临时指令（Conversation.directive）：仅本会话生效、明确不进记忆。
         var sessionDirective: String?
         var memoryBlock: String?      // AgentMemoryStore.promptBlock
@@ -80,8 +82,13 @@ enum AgentPromptBuilder {
                 + directive + "\n</session_directive>")
         }
 
-        if !rules.isEmpty {
-            let lines = rules.map { "- \($0)" }.joined(separator: "\n")
+        // 默认回答长度档（v0.8.11）：有用户规则时并入同层（档位在前）。
+        var effectiveRules = rules
+        if let length = input.answerLength, length != .standard {
+            effectiveRules.insert(length.instruction, at: 0)
+        }
+        if !effectiveRules.isEmpty {
+            let lines = effectiveRules.map { "- \($0)" }.joined(separator: "\n")
             sections.append("<output_rules>\n"
                 + "The user has set these as standing personal preferences. "
                 + "Apply them to every reply in this conversation; they take "

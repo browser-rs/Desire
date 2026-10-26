@@ -13,6 +13,45 @@ struct JobsPanel: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appAccent) private var appAccent: Color
 
+    /// 三栏并行看板（v0.8.11）：false = 传统纵向列表。
+    @State private var laneLayout = false
+
+    private var queuedOnly: [JobRecord] { store.active.filter { $0.state == .queued } }
+    private var runningOnly: [JobRecord] { store.active.filter { $0.state == .running || $0.state == .paused } }
+
+    private var lanesView: some View {
+        HStack(alignment: .top, spacing: 12) {
+            lane(String(localized: "Queued"), jobs: queuedOnly, tint: .secondary)
+            lane(String(localized: "Running"), jobs: runningOnly, tint: appAccent)
+            lane(String(localized: "Done Today"), jobs: finished, tint: .green)
+        }
+    }
+
+    private func lane(_ title: String, jobs: [JobRecord], tint: Color) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 5) {
+                Text(title)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(tint)
+                Text("\(jobs.count)")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+            ForEach(jobs.prefix(12)) { job in
+                row(job)
+            }
+            if jobs.count > 12 {
+                Text("+\(jobs.count - 12)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color(nsColor: .controlBackgroundColor).opacity(0.45)))
+    }
+
     private var running: [JobRecord] {
         store.allJobs.filter { $0.state == .queued || $0.state == .running || $0.state == .paused }
     }
@@ -28,6 +67,14 @@ struct JobsPanel: View {
                     Text("Jobs")
                         .font(.system(size: 16, weight: .semibold))
                     Text("\(store.active.count) active · \(review.count) need review · \(failed.count) failed")
+                    Button {
+                        laneLayout.toggle()
+                    } label: {
+                        Image(systemName: laneLayout ? "list.bullet" : "rectangle.split.3x1")
+                            .font(.system(size: 11))
+                    }
+                    .buttonStyle(.plain)
+                    .help(laneLayout ? "List view" : "Board view (3 lanes)")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
@@ -58,6 +105,8 @@ struct JobsPanel: View {
                     Spacer()
                 }
                 .frame(maxWidth: .infinity)
+            } else if laneLayout {
+                ScrollView { lanesView }
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 14) {

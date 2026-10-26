@@ -1,4 +1,5 @@
 import Combine
+import CryptoKit
 import Foundation
 import os
 
@@ -29,13 +30,21 @@ final class SkillStore: ObservableObject {
         /// **目录 skill**（2026-10-02 多文件支持）：目录根（含附属
         /// scripts/references）。单文件 skill 为 nil。
         let directory: URL?
+        /// 远程来源（v0.8.11 技能检查更新）：installFromURL 时记录，
+        /// "Check Updates" 比对远程内容 hash 用。本地导入为 nil。
+        var sourceURL: String?
+        /// 安装时本地内容的 SHA-256（hex）——变更检测基准。
+        var contentHash: String?
         var id: String { name }
 
-        init(name: String, description: String, url: URL, directory: URL? = nil) {
+        init(name: String, description: String, url: URL, directory: URL? = nil,
+             sourceURL: String? = nil, contentHash: String? = nil) {
             self.name = name
             self.description = description
             self.url = url
             self.directory = directory
+            self.sourceURL = sourceURL
+            self.contentHash = contentHash
         }
     }
 
@@ -60,6 +69,25 @@ final class SkillStore: ObservableObject {
         let dir = base.appendingPathComponent("Desire/skills", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
+    }
+
+    /// 来源元数据（v0.8.11 检查更新）：skill 名 → (sourceURL, contentHash)。
+    /// 技能本体在盘上由 reload 重扫——元数据单独持久化，reload 时并回。
+    private static let sourceMetaKey = "desire.skills.sourceMeta"
+    private nonisolated struct SourceMeta: Codable {
+        var sourceURL: String
+        var contentHash: String?
+    }
+
+    private func loadSourceMeta() -> [String: SourceMeta] {
+        guard let data = UserDefaults.standard.data(forKey: Self.sourceMetaKey) else { return [:] }
+        return (try? JSONDecoder().decode([String: SourceMeta].self, from: data)) ?? [:]
+    }
+
+    private func saveSourceMeta(_ meta: [String: SourceMeta]) {
+        if let data = try? SyncJSON.makeEncoder().encode(meta) {
+            UserDefaults.standard.set(data, forKey: Self.sourceMetaKey)
+        }
     }
 
     private init() {
@@ -94,7 +122,15 @@ final class SkillStore: ObservableObject {
             loaded.removeAll { $0.name == skill.name }
             loaded.append(skill)
         }
-        skills = loaded.sorted { $0.name < $1.name }
+        var merged = loaded.sorted { $0.name < $1.name }
+        let meta = loadSourceMeta()
+        for idx in merged.indices {
+            if let m = meta[merged[idx].name] {
+                merged[idx].sourceURL = m.sourceURL
+                merged[idx].contentHash = m.contentHash
+            }
+        }
+        skills = merged
     }
 
     // MARK: - 导入（zip / 目录 / 单 md，2026-10-02 多文件配套）
@@ -263,7 +299,29 @@ final class SkillStore: ObservableObject {
             .appendingPathComponent("skill-download-\(UUID().uuidString).\(ext)")
         try data.write(to: tmp)
         defer { try? FileManager.default.removeItem(at: tmp) }
-        return try importArchive(at: tmp)
+        let installed = try importArchive(at: tmp)
+        // 记来源 + 安装时内容 hash（检查更新的比对基准；内存对象上盖，
+        // 持久化跟随 reload 的 skills 重扫）。
+        stampSource(name: installed.name, sourceURL: remote.absoluteString,
+                    contentHash: Self.currentHash(for: installed))
+        return installed
+    }
+
+    /// 当前内容指纹：目录 skill = SKILL.md 文件 hash；单 md = 自身 hash。
+    nonisolated static func currentHash(for skill: Skill) -> String? {
+        guard let data = try? Data(contentsOf: skill.url) else { return nil }
+        let digest = SHA256.hash(data: data)
+        return digest.map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// 来源元数据盖戳（v0.8.11 检查更新）：installFromURL 与更新重装后调用。
+    func stampSource(name: String, sourceURL: String, contentHash: String?) {
+        guard let idx = skills.firstIndex(where: { $0.name == name }) else { return }
+        skills[idx].sourceURL = sourceURL
+        skills[idx].contentHash = contentHash
+        var meta = loadSourceMeta()
+        meta[name] = .init(sourceURL: sourceURL, contentHash: contentHash)
+        saveSourceMeta(meta)
     }
 
     func body(for name: String) -> String? {

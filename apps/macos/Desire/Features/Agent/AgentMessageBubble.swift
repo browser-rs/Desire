@@ -601,6 +601,22 @@ private struct ToolBubble: View {
         content.contains("cleared")
     }
 
+    @Environment(\.appAccent) private var appAccent: Color
+
+    /// 结果首行/前 300 字里的来源：http(s) URL 或存在的文件路径。
+    /// 每次调用现算（结果文本会变——NSRange/索引纪律）。
+    nonisolated static func sourceLink(_ content: String) -> String? {
+        let head = String(content.prefix(300))
+        if let r = head.range(of: #"https?://[^\s)\"']+"#, options: .regularExpression) {
+            return String(head[r])
+        }
+        if head.hasPrefix("/") || head.hasPrefix("~/") {
+            let path = head.split(separator: "\n").first.map(String.init) ?? head
+            if FileManager.default.fileExists(atPath: path) { return path }
+        }
+        return nil
+    }
+
     var body: some View {
         if isBoardCard {
             WhiteboardToolCard(
@@ -617,10 +633,33 @@ private struct ToolBubble: View {
                     .padding(.top, 2)
 
                 VStack(alignment: .leading, spacing: 3) {
+                    // 引用回链（v0.8.11）：URL/路径来源可点击——readTab/readFile
+                    // 的产物在浏览器/访达里回看。正则现算现用（NSRange 纪律）。
                     if let name = toolName {
                         Text(name)
                             .font(.system(size: 10, weight: .semibold))
                             .foregroundStyle(.secondary)
+                    }
+                    if let link = Self.sourceLink(content) {
+                        Button {
+                            if link.hasPrefix("http"), let url = URL(string: link) {
+                                NSWorkspace.shared.open(url)
+                            } else {
+                                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: link)])
+                            }
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: link.hasPrefix("http") ? "safari" : "doc")
+                                    .font(.system(size: 9))
+                                Text(link)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            .foregroundStyle(appAccent)
+                        }
+                        .buttonStyle(.plain)
+                        .help(String(localized: "Open this source"))
                     }
                     if let image = decodedImage {
                         ScreenshotView(image: image)

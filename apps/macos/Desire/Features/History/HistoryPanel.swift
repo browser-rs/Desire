@@ -10,6 +10,8 @@ struct HistoryPanel: View {
     @State private var groupMode: GroupMode = .date
     /// 去重向导（v0.8.10）：非 nil = 展示。
     @State private var dedupeGroups: [HistoryDedupePlan.DuplicateGroup]?
+    /// 按域名批量清理确认（v0.8.11）：非 nil = 弹确认。
+    @State private var pendingDomainWipe: (domain: String, count: Int)?
     /// 站点模式下折叠的组（v0.7.21：折叠聚合 + 站内相对时间）。
     @State private var collapsedDomains: Set<String> = []
     @State private var showClearOptions = false
@@ -402,9 +404,15 @@ struct HistoryPanel: View {
                                     }
                                     Divider()
                                     Button("Delete", role: .destructive) { store.removeEntry(id: entry.id) }
-                                    if groupMode == .site, let domain = domainFromURL(entry.url) {
-                                        Button("Delete All from \"\(domain)\"", role: .destructive) {
-                                            store.removeAll(from: domain)
+                                    // 按域名批量清理（v0.8.11）：任意分组模式都可用了
+                                    //（此前只在"站点"分组里出现，用户在日期模式下找不到）；
+                                    // 确认弹窗带估删条数。
+                                    if let domain = domainFromURL(entry.url) {
+                                        let count = store.entries.filter {
+                                            domainFromURL($0.url) == domain
+                                        }.count
+                                        Button("Delete All from \"\(domain)\" (\(count))", role: .destructive) {
+                                            pendingDomainWipe = (domain, count)
                                         }
                                     }
                                 }
@@ -460,6 +468,23 @@ struct HistoryPanel: View {
                 dedupeGroups = nil
                 _ = completedKeys
             }
+        }
+        .confirmationDialog(
+            "Delete All from \"\(pendingDomainWipe?.domain ?? "")\"?",
+            isPresented: Binding(
+                get: { pendingDomainWipe != nil },
+                set: { if !$0 { pendingDomainWipe = nil } }),
+            titleVisibility: .visible
+        ) {
+            Button(String(localized: "Delete \(pendingDomainWipe?.count ?? 0) entrie(s)"), role: .destructive) {
+                if let domain = pendingDomainWipe?.domain {
+                    store.removeAll(from: domain)
+                }
+                pendingDomainWipe = nil
+            }
+            Button("Cancel", role: .cancel) { pendingDomainWipe = nil }
+        } message: {
+            Text("All history entries for this domain will be removed. This cannot be undone.")
         }
         .onChange(of: searchText) { _, _ in
             // 查询变了，旧的归档结果立即作废（避免看到上一词的命中）。

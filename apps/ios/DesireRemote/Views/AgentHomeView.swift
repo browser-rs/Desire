@@ -232,6 +232,16 @@ struct AgentHomeView: View {
                     subtitle: "新建/启停/删除 Mac 上的定时任务",
                     showsChevron: false)
             }
+
+            NavigationLink {
+                RemoteDownloadsView()
+            } label: {
+                DesireNavRow(
+                    icon: "arrow.down.circle",
+                    title: "下载监控",
+                    subtitle: "查看进度、远端暂停/恢复",
+                    showsChevron: false)
+            }
         } header: {
             DesireSectionHeader(title: "用量")
         }

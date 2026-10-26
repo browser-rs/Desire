@@ -15,6 +15,37 @@ struct RemoteTasksView: View {
 
     var body: some View {
         List {
+            if let policy = client.notificationPolicy {
+                Section("通知（Mac）") {
+                    HStack {
+                        Text("免打扰")
+                        Spacer()
+                        Text(policy.quietEnabled ? "\(policy.quietStart) – \(policy.quietEnd)" : "关闭")
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Text("每日预算")
+                        Spacer()
+                        Text(policy.dailyLimit == 0 ? "不限" : "\(policy.dailyLimit) 条")
+                            .foregroundStyle(.secondary)
+                    }
+                    Toggle(isOn: Binding(
+                        get: { policy.nightOwl },
+                        set: { client.setNightOwl($0) })) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("夜间批处理档")
+                            Text("免打扰时段预算放宽，夜间产物照常通知")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    if policy.heldCount > 0 {
+                        Text("\(policy.heldCount) 条通知被扣下合并")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+            }
             if client.tasks.isEmpty {
                 Text("Mac 上还没有定时任务")
                     .font(.footnote)
@@ -71,7 +102,10 @@ struct RemoteTasksView: View {
                 }
             }
         }
-        .onAppear { client.requestTasks() }
+        .onAppear {
+            client.requestTasks()
+            client.requestNotificationPolicy()
+        }
         .refreshable { client.requestTasks() }
         .alert("新建定时任务", isPresented: $showCreate) {
             TextField("名称", text: $newName)

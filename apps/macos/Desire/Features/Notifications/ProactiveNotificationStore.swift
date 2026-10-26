@@ -23,6 +23,13 @@ final class ProactiveNotificationStore: ObservableObject {
     }
     /// 被扣下的 routine 通知（摘要素材，最旧先弃）。
     @Published private(set) var heldLines: [String] = []
+
+    /// 夜间批处理档开关（v0.8.11）：手机可临时改。
+    func setNightOwl(_ enabled: Bool) {
+        policy.nightOwlEnabled = enabled
+    }
+
+    var heldCount: Int { heldLines.count }
     /// 今天已直推的 routine 条数（预算依据）。
     @Published private(set) var routineDeliveredToday: Int = 0
 

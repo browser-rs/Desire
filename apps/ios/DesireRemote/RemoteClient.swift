@@ -120,6 +120,10 @@ final class RemoteClient: ObservableObject {
     @Published private(set) var trace: RemoteTrace?
     /// 定时任务面（v0.8.11）：Mac 下发的任务清单。
     @Published private(set) var tasks: [RemoteTask] = []
+    /// 免打扰策略（v0.8.11）：只读展示 + 夜间档切换。
+    @Published private(set) var notificationPolicy: RemoteNotificationPolicy?
+    /// 下载监控（v0.8.11）：状态/进度 + 单条暂停恢复。
+    @Published private(set) var downloads: [RemoteDownload] = []
     /// 模型服务档案 + 当前档案的候选模型
     @Published private(set) var models: RemoteModels?
 
@@ -730,6 +734,14 @@ final class RemoteClient: ObservableObject {
                 if let frame = try? JSONDecoder().decode(RemoteTasksFrame.self, from: data) {
                     tasks = frame.tasks
                 }
+            case "notificationPolicy":
+                if let frame = try? JSONDecoder().decode(RemoteNotificationPolicyFrame.self, from: data) {
+                    notificationPolicy = frame
+                }
+            case "downloads":
+                if let frame = try? JSONDecoder().decode(RemoteDownloadsFrame.self, from: data) {
+                    downloads = frame.downloads
+                }
             case "earlierMessages":
                 // 长会话分页（0.6.8）：追加进侧缓冲（按 id 去重），不碰 messages
                 // ——快照每秒整体替换 messages，侧缓冲绝不能混进去。
@@ -943,6 +955,10 @@ final class RemoteClient: ObservableObject {
     func requestTrace() { pushFrame(["t": "trace"], replace: false) }
     func requestModels() { pushFrame(["t": "models"], replace: false) }
     func requestTasks() { pushFrame(["t": "tasks"], replace: false) }
+    func requestNotificationPolicy() { pushFrame(["t": "notificationPolicy"], replace: false) }
+    func requestDownloads() { pushFrame(["t": "downloads"], replace: false) }
+    func downloadAction(id: String, action: String) { pushFrame(["t": "downloadAction", "id": id, "action": action], replace: false) }
+    func setNightOwl(_ enabled: Bool) { pushFrame(["t": "setNightOwl", "flag": enabled], replace: false) }
 
     // MARK: 定时任务遥控（v0.8.11）
 

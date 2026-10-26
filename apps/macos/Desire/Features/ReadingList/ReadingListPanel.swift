@@ -141,6 +141,12 @@ struct ReadingListPanel: View {
                             Button {
                                 let url = item.url
                                 onSelect(url)
+                                // 稍后读闭环（v0.8.11）：有进度的条目打开即标记
+                                // 已读的选项开启时（默认关——保守），先勾。
+                                if UserDefaults.standard.bool(forKey: "readingList.autoMarkRead"),
+                                   let progress = item.progress, progress > 0.6, !item.isRead {
+                                    store.toggleRead(item.id)
+                                }
                             } label: {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(item.title)
@@ -170,6 +176,15 @@ struct ReadingListPanel: View {
                             }
                             .buttonStyle(.plain)
                             .contextMenu {
+                                if let progress = item.progress, progress > 0.02, !item.isRead {
+                                    Button(String(localized: "Continue Reading (\(Int((progress * 100).rounded()))%))")) {
+                                        onSelect(item.url)
+                                    }
+                                }
+                                Button(String(localized: "Auto Mark Read at 60%: \(UserDefaults.standard.bool(forKey: "readingList.autoMarkRead") ? "On" : "Off")")) {
+                                    let key = "readingList.autoMarkRead"
+                                    UserDefaults.standard.set(!UserDefaults.standard.bool(forKey: key), forKey: key)
+                                }
                                 Button(item.isRead ? String(localized: "Mark as Unread") : String(localized: "Mark as Read")) { store.toggleRead(item.id) }
                                 if let cached = store.cacheURL(for: item.id) {
                                     Button(String(localized: "Open Offline Copy")) {

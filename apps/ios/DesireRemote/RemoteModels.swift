@@ -484,3 +484,33 @@ struct RemoteTasksFrame: Codable {
     var t: String
     var tasks: [RemoteTask]
 }
+
+
+// MARK: - 免打扰策略（v0.8.11）
+
+typealias RemoteNotificationPolicy = RemoteNotificationPolicyFrame
+
+struct RemoteNotificationPolicyFrame: Codable {
+    var t: String
+    var quietEnabled: Bool
+    var quietStart: String
+    var quietEnd: String
+    var dailyLimit: Int
+    var nightOwl: Bool
+    var heldCount: Int
+}
+
+// MARK: - 下载（v0.8.11）
+
+struct RemoteDownload: Codable, Identifiable, Equatable {
+    var id: String
+    var filename: String
+    var state: String
+    var progress: Double
+    var isPaused: Bool
+}
+
+struct RemoteDownloadsFrame: Codable {
+    var t: String
+    var downloads: [RemoteDownload]
+}

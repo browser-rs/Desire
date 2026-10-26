@@ -628,6 +628,25 @@ final class RemoteControlStore: ObservableObject {
         case "setModel":
             applyModelChange(inner)
             pushSnapshot(force: true)
+        case "notificationPolicy":
+            if let frame = Self.notificationPolicyFrame() { sendInnerRaw(frame) }
+        case "downloads":
+            if let frame = Self.downloadsFrame() { sendInnerRaw(frame) }
+        case "downloadAction":
+            // 远端暂停/恢复单条（v0.8.11）：id + action ∈ pause|resume
+            guard let raw = inner.id, let id = UUID(uuidString: raw),
+                let store = AppState.live?.downloadStore else { return }
+            guard let item = store.downloads.first(where: { $0.id == id }) else { return }
+            switch inner.action {
+            case "pause": store.pause(id: item.id)
+            case "resume": store.resume(id: item.id)
+            default: break
+            }
+            if let frame = Self.downloadsFrame() { sendInnerRaw(frame) }
+        case "setNightOwl":
+            guard let flag = inner.flag else { return }
+            ProactiveNotificationStore.shared.setNightOwl(flag)
+            if let frame = Self.notificationPolicyFrame() { sendInnerRaw(frame) }
         // ── 定时任务面（v0.8.11）：手机新建/启停/删/立即投递 ──
         case "tasks":
             if let frame = Self.tasksFrame() { sendInnerRaw(frame) }
@@ -683,6 +702,66 @@ final class RemoteControlStore: ObservableObject {
         default:
             break
         }
+    }
+
+    /// 下载帧（v0.8.11 融合 13）：手机监控下载列表（状态/进度）。
+    nonisolated struct RemoteDownloadItem: Codable {
+        var id: String
+        var filename: String
+        var state: String
+        var progress: Double
+        var isPaused: Bool
+    }
+
+    nonisolated struct RemoteDownloadsFrame: Codable {
+        var t: String
+        var downloads: [RemoteDownloadItem]
+    }
+
+    private static func downloadsFrame() -> String? {
+        guard let store = AppState.live?.downloadStore else { return nil }
+        let items = store.downloads.prefix(40).map { item in
+            RemoteDownloadItem(
+                id: item.id.uuidString,
+                filename: item.filename,
+                state: item.state.rawValue,
+                progress: item.totalBytes > 0
+                    ? Double(item.downloadedBytes) / Double(item.totalBytes)
+                    : 0,
+                isPaused: item.isPaused)
+        }
+        let frame = RemoteDownloadsFrame(t: "downloads", downloads: Array(items))
+        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// 免打扰策略帧（v0.8.11 融合 12）：手机只读展示 + 临时改夜间档。
+    nonisolated struct RemoteNotificationPolicyFrame: Codable {
+        var t: String
+        var quietEnabled: Bool
+        var quietStart: String
+        var quietEnd: String
+        var dailyLimit: Int
+        var nightOwl: Bool
+        var heldCount: Int
+    }
+
+    private static func notificationPolicyFrame() -> String? {
+        let store = ProactiveNotificationStore.shared
+        let policy = store.policy
+        func clock(_ minute: Int) -> String {
+            String(format: "%02d:%02d", minute / 60, minute % 60)
+        }
+        let frame = RemoteNotificationPolicyFrame(
+            t: "notificationPolicy",
+            quietEnabled: policy.quietHoursEnabled,
+            quietStart: clock(policy.quietStartMinute),
+            quietEnd: clock(policy.quietEndMinute),
+            dailyLimit: policy.dailyRoutineLimit,
+            nightOwl: policy.nightOwlEnabled,
+            heldCount: store.heldCount)
+        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     /// 定时任务帧（v0.8.11）：手机任务面的数据源——id/名称/启用/周期/最近结果。

@@ -284,6 +284,24 @@ struct AgentSettingsSection: View {
                 }
             }
 
+            // MARK: - 回答长度（v0.8.11 基础件 10）
+
+            SettingsSection(
+                title: String(localized: "Answer Length"),
+                subtitle: String(localized: "Default reply length injected as a standing rule; per-conversation instructions still override it."),
+                icon: "text.format.size"
+            ) {
+                SettingsRow("Default Length", subtitle: String(localized: "Concise = lead with conclusion; Detailed = explain reasoning."), systemImage: "text.alignleft") {
+                    Picker("", selection: $store.answerLength) {
+                        ForEach(AgentPreferenceStore.AnswerLength.allCases, id: \.self) { length in
+                            Text(length.rawValue.capitalized).tag(length)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: 130)
+                }
+            }
+
             // MARK: - Persona（人设：名字 + 语气）
 
             SettingsSection(

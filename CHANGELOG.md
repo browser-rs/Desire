@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.9] - 2026-10-26
 ### Fixed
 
 - YouTube 详情页自动播放（0.8.7 用户实测回归）：新标签页建起的 webview 烙的是默认 requireUserAction，之后导航到视频站策略不变——自动播被 PageConsentRequired 拦、kick 的信任手势在 WebContent 进过一次后台后失效（统一日志实证）。修复：didFinish 发现"视频站 + 本应 allowAll 但创建期烙了限制"时按工具栏授予同款路径就地重开一次（保留无痕/容器身份，站点显式 block 不触发）；真机验证 watch 页 paused=false 自动播。/state 的 tabs 增加 autoplayPolicy 探针字段

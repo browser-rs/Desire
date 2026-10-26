@@ -630,6 +630,25 @@ private struct DownloadRow: View {
         .contextMenu { rowMenu }
     }
 
+    /// 另存为（v0.8.11）：NSSavePanel 选落点（默认同名），移动文件；
+    /// 移出下载目录后从台账移除（面板行随文件走）。取消静默。
+    private func saveAs(_ item: DownloadItem) {
+        guard let src = item.fileURL, FileManager.default.fileExists(atPath: src.path) else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = item.filename
+        panel.directoryURL = store.downloadFolder
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        do {
+            if dest.standardizedFileURL.path == src.standardizedFileURL.path { return }
+            try FileManager.default.moveItem(at: src, to: dest)
+            if !dest.path.hasPrefix(store.downloadFolder.path) {
+                store.remove(id: item.id)
+            }
+        } catch {
+            Log.downloads.error("save-as move failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     /// 完成行的真实文件 URL（存在才给拖拽/双击用）。
     private var dragFileURL: URL? {
         guard item.state == .completed, let url = item.fileURL,
@@ -832,6 +851,11 @@ private struct DownloadRow: View {
         case .completed:
             Button("Open") { store.openFile(item) }
             Button("Show in Finder") { store.revealInFinder(item) }
+            // 另存为（v0.8.11）：选目录移动产物（downloadFolder 之外时台账
+            // 移除——文件已不在下载目录的语义）。挂 NSSavePanel 让用户改名。
+            if let url = item.fileURL, FileManager.default.fileExists(atPath: url.path) {
+                Button(String(localized: "Save As…")) { saveAs(item) }
+            }
             if let url = item.fileURL, FileManager.default.fileExists(atPath: url.path) {
                 Button("Preview") { onPreview(url) }
                 Button("Copy Path") {

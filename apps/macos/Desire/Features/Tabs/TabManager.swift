@@ -293,6 +293,31 @@ class TabManager: ObservableObject {
 
     private var recentlyClosed: [RecentlyClosedTab] = []
 
+    /// 最近关闭只读视图（v0.8.11 标签快照恢复面板；新→旧）。
+    var recentlyClosedSnapshot: [RecentlyClosedTab] {
+        recentlyClosed.reversed()
+    }
+
+    /// 按记录恢复任意一条（面板点击；从队列摘除防重复恢复）。
+    @discardableResult
+    func reopen(record: RecentlyClosedTab,
+                javaScriptEnabled: Bool,
+                contentBlocker: ContentBlockerStore?,
+                videoAdBlocker: VideoAdBlocker?) -> Bool {
+        // RecentlyClosedTab 无 id：按 url+container 组合摘除最后一条匹配。
+        if let idx = recentlyClosed.lastIndex(where: { $0.url == record.url && $0.containerID == record.containerID }) {
+            recentlyClosed.remove(at: idx)
+        } else {
+            recentlyClosed.removeAll { $0.url == record.url }
+        }
+        addTab(url: record.url, incognito: record.isIncognito,
+               javaScriptEnabled: javaScriptEnabled,
+               contentBlocker: contentBlocker,
+               videoAdBlocker: videoAdBlocker,
+               containerID: record.containerID)
+        return true
+    }
+
     /// Records a tab for ⌘⇧T before teardown. webView.url is nil for
     /// suspended tabs (the live page was blanked) — fall back to the tab's
     /// stored URL so every close path records.

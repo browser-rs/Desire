@@ -228,6 +228,8 @@ struct ContentView: View {
     @State var showTabSwitcher = false
     /// 全窗口标签概览（0.2.19）：Safari ⇧⌘\ 式缩略图网格。
     @State var showTabOverview = false
+    /// 最近关闭标签面板（v0.8.11 标签快照恢复）。
+    @State var showRecentlyClosed = false
     @State var showSidebar = false
     @State var showElementBlock = false
     @State var showAdBlockStats = false
@@ -434,6 +436,14 @@ struct ContentView: View {
         }
         .sheet(isPresented: $whatsNew.isPresented) {
             WhatsNewSheet(sync: appState.syncStore)
+        }
+
+        .sheet(isPresented: $showRecentlyClosed) {
+            RecentlyClosedPanel(
+                tabManager: tabManager,
+                settings: settings,
+                contentBlocker: contentBlocker,
+                videoAdBlocker: videoAdBlocker)
         }
         .sheet(isPresented: $promotionShare.isPresented) {
             PromotionShareSheet()

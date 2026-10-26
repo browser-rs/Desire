@@ -25,6 +25,8 @@ struct SearchEverywherePanel: View {
     @State private var searchTask: Task<Void, Never>?
     /// 键盘导航：扁平化的可选中行（分组展平，与渲染顺序一致）。
     @State private var selectedIndex: Int? = nil
+    /// 预览跟随（v0.8.11）：当前选中行的命中（nil = 无）。
+    @State private var previewHit: SearchEverywhere.Hit?
     @FocusState private var fieldFocused: Bool
 
     /// 当前选中标签 id（回车直达 switchTab 用）。
@@ -37,10 +39,16 @@ struct SearchEverywherePanel: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            header
-            searchField
-            results
+        HSplitView {
+            VStack(spacing: 0) {
+                header
+                searchField
+                results
+            }
+            .frame(minWidth: 380, idealWidth: 420)
+            // 预览面板（v0.8.11）：跟随键盘选择的命中渲染首屏；回车才真正跳转。
+            previewPane
+                .frame(minWidth: 260, idealWidth: 320, maxWidth: 420)
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .frame(minWidth: 560, minHeight: 440)
@@ -332,6 +340,100 @@ struct SearchEverywherePanel: View {
         guard !rows.isEmpty else { return }
         let current = selectedIndex ?? -1
         selectedIndex = min(max(current + delta, 0), rows.count - 1)
+    }
+
+    // MARK: - 预览面板（v0.8.11）
+
+    /// 当前预览目标：键盘选择行 → previewHit；都没选 → 第一行。
+    private var activePreview: SearchEverywhere.Hit? {
+        let rows = flatRows
+        if let idx = selectedIndex, rows.indices.contains(idx) { return rows[idx] }
+        return rows.first
+    }
+
+    @ViewBuilder
+    private var previewPane: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 8) {
+                if let hit = activePreview {
+                    HStack(spacing: 6) {
+                        Image(systemName: icon(for: hit.source))
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(appAccent)
+                        Text(Self.sourceLabel(hit.source))
+                            .font(.system(size: 10.5, weight: .semibold))
+                        Spacer()
+                    }
+                    Text(hit.title.isEmpty ? hit.url : hit.title)
+                        .font(.system(size: 13, weight: .semibold))
+                        .textSelection(.enabled)
+                    Text(hit.url)
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                        .lineLimit(3)
+                    Divider()
+                    // content 命中（Agent 会话正文）→ 命中片段；其余源 → 路径摘要。
+                    if let snippet = hit.snippet {
+                        Text(snippet)
+                            .font(.system(size: 11.5))
+                            .foregroundStyle(.primary)
+                            .textSelection(.enabled)
+                    } else if hit.source == .agentConversation, let session = agentSession,
+                              let id = UUID(uuidString: hit.id),
+                              let conv = session.conversationStore.conversation(for: id) {
+                        let recent = conv.messages.suffix(6).compactMap { message -> String? in
+                            guard let text = message.content, !text.isEmpty else { return nil }
+                            let role = message.role == .user ? "›" : "—"
+                            return role + " " + String(text.prefix(200)).replacingOccurrences(of: "\n", with: " ")
+                        }
+                        if recent.isEmpty {
+                            Text(String(localized: "(no text content)"))
+                                .font(.system(size: 11))
+                                .foregroundStyle(.tertiary)
+                        } else {
+                            ForEach(Array(recent.enumerated()), id: \.offset) { _, line in
+                                Text(line)
+                                    .font(.system(size: 11))
+                                    .lineLimit(2)
+                            }
+                        }
+                    } else {
+                        Text(String(localized: "Enter opens it; the preview shows metadata only for this source."))
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.tertiary)
+                    }
+                } else {
+                    Text(String(localized: "Preview"))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .padding(.top, 20)
+                }
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    private static func sourceLabel(_ source: SearchEverywhere.Source) -> String {
+        switch source {
+        case .tab: String(localized: "Open Tab")
+        case .history: String(localized: "History")
+        case .bookmark: String(localized: "Bookmark")
+        case .readingList: String(localized: "Reading List")
+        case .agentConversation: String(localized: "Agent Conversation")
+        }
+    }
+
+    private func icon(for source: SearchEverywhere.Source) -> String {
+        switch source {
+        case .tab: "tab"
+        case .history: "clock"
+        case .bookmark: "book"
+        case .readingList: "eyeglasses"
+        case .agentConversation: "bubble.left.and.text.bubble.right"
+        }
     }
 
     private func activate(_ hit: SearchEverywhere.Hit) {

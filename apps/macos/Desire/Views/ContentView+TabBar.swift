@@ -137,6 +137,9 @@ extension ContentView {
             onToggleTabOverview: {
                 showTabOverview.toggle()
             },
+            onShowRecentlyClosed: {
+                showRecentlyClosed = true
+            },
             onDragStarted: { tab in beginTearOutWatch(for: tab) },
             onTransferIn: { sourceSession, tabID, index in
                 transferIn(fromSession: sourceSession, tabID: tabID, index: index)

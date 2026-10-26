@@ -21,6 +21,11 @@ nonisolated struct NotificationPolicy: Codable, Equatable {
     var quietEndMinute: Int = 8 * 60
     /// routine 通知的每日预算；0 = 不限。超预算 → 扣进摘要。
     var dailyRoutineLimit: Int = 12
+    /// 夜间批处理档（v0.8.11）：免打扰时段不硬扣，预算放宽到
+    /// `dailyRoutineLimit × nightOwlBudgetFactor`——夜间跑的 crew/定时任务
+    /// 产物照常通知（仍可合并），早晨一并看到。
+    var nightOwlEnabled: Bool = false
+    static let nightOwlBudgetFactor = 3
 
     /// start == end 视为"无免打扰时段"（避免 24h 与 0h 两种解读打架）。
     func isQuietTime(minutesSinceMidnight: Int) -> Bool {
@@ -33,9 +38,18 @@ nonisolated struct NotificationPolicy: Codable, Equatable {
     }
 
     /// 这条 routine 通知是否该被扣下（免打扰时段内，或超每日预算）。
+    /// 夜间档开 → 免打扰时段内预算放宽 N 倍（不是不扣）。
     func shouldHoldRoutine(sentToday: Int, minutesSinceMidnight: Int) -> Bool {
-        if isQuietTime(minutesSinceMidnight: minutesSinceMidnight) { return true }
-        return dailyRoutineLimit > 0 && sentToday >= dailyRoutineLimit
+        let inQuiet = isQuietTime(minutesSinceMidnight: minutesSinceMidnight)
+        let effectiveLimit: Int
+        if inQuiet, nightOwlEnabled {
+            effectiveLimit = dailyRoutineLimit * Self.nightOwlBudgetFactor
+        } else if inQuiet {
+            return true
+        } else {
+            effectiveLimit = dailyRoutineLimit
+        }
+        return effectiveLimit > 0 && sentToday >= effectiveLimit
     }
 
     // MARK: - 摘要拼装

@@ -3656,6 +3656,29 @@ func testTaskGroupPlan() {
                                                changes: [.init(entityID: id1, target: .bookmark, operation: "remove", snapshotJSON: nil)])).isEmpty)
 }
 
+func testNightOwlPolicy() {
+    var p = NotificationPolicy()
+    p.quietHoursEnabled = true
+    p.dailyRoutineLimit = 4
+    let quietMinute = 23 * 60 + 30   // 23:30 在免打扰内
+    let dayMinute = 12 * 60          // 正午
+
+    // 夜间档关：免打扰内硬扣
+    p.nightOwlEnabled = false
+    check("夜间：关档时免打扰全扣", p.shouldHoldRoutine(sentToday: 0, minutesSinceMidnight: quietMinute))
+    check("夜间：关档白天预算内放行", !p.shouldHoldRoutine(sentToday: 3, minutesSinceMidnight: dayMinute))
+    check("夜间：关档白天超预算扣", p.shouldHoldRoutine(sentToday: 5, minutesSinceMidnight: dayMinute))
+
+    // 夜间档开：免打扰内预算 ×3（4→12），白天口径不变
+    p.nightOwlEnabled = true
+    check("夜间：开档免打扰预算内放行", !p.shouldHoldRoutine(sentToday: 5, minutesSinceMidnight: quietMinute))
+    check("夜间：开档免打扰超放宽预算仍扣", p.shouldHoldRoutine(sentToday: 13, minutesSinceMidnight: quietMinute))
+    check("夜间：开档不改变白天预算", p.shouldHoldRoutine(sentToday: 5, minutesSinceMidnight: dayMinute))
+    check("夜间：默认关", !NotificationPolicy().nightOwlEnabled)
+}
+
+testNightOwlPolicy()
+
 func testDownloadCenterPlan() {
     let now = Date()
     func row(_ u: String?, _ name: String, _ daysAgo: Double, failed: Bool = false) -> (id: UUID, sourceURL: String?, filename: String, startTime: Date) {

@@ -3612,6 +3612,74 @@ func testInlineCalculator() {
 }
 testInlineCalculator()
 
+func testTaskGroupPlan() {
+    let id1 = UUID(), id2 = UUID(), id3 = UUID()
+    // 命名建议：取词、去噪、限 3 词 24 字
+    let name = TaskGroupPlan.suggestedName(
+        titles: ["Rust 编译器 指南 | rustlang.org", "Rust ownership 文档", "Search: rust lifetimes"],
+        host: "rustlang.org")
+    check("任务组：命名非空", !name.isEmpty)
+    check("任务组：不含噪声词", !name.lowercased().contains("https"))
+    check("任务组：长度封顶", name.count <= 24)
+    check("任务组：空标题回退 host", TaskGroupPlan.suggestedName(titles: [], host: "a.com") == "a.com")
+    check("任务组：全空回退默认", TaskGroupPlan.suggestedName(titles: []).isEmpty == false)
+    // 校验
+    check("任务组：空选择拒绝", TaskGroupPlan.validate(tabIDs: [], alreadyGrouped: []) != nil)
+    check("任务组：单标签拒绝", TaskGroupPlan.validate(tabIDs: [id1], alreadyGrouped: []) != nil)
+    check("任务组：已分组剔除后不足拒绝",
+          TaskGroupPlan.validate(tabIDs: [id1, id2], alreadyGrouped: [id1, id2]) != nil)
+    check("任务组：重复 id 拒绝",
+          TaskGroupPlan.validate(tabIDs: [id1, id1], alreadyGrouped: []) != nil)
+    check("任务组：两个未分组通过",
+          TaskGroupPlan.validate(tabIDs: [id1, id2], alreadyGrouped: [id3]) == nil)
+    // 还原计划（AgentWriteUndo）
+    let group = AgentWriteUndo.ChangeGroup(
+        id: UUID(), conversationID: nil, startedAt: Date(),
+        changes: [
+            .init(entityID: id1, target: .bookmark, operation: "add", snapshotJSON: nil),
+            .init(entityID: id2, target: .readingItem, operation: "remove", snapshotJSON: "x"),
+        ])
+    let plan = AgentWriteUndo.revertPlan(for: group)
+    check("回滚：逆序回放", plan.count == 2)
+    if case .restore(let rid, let target, let json)? = plan.first {
+        check("回滚：先还原 remove", rid == id2 && target == .readingItem && json == "x")
+    } else {
+        check("回滚：先还原 remove", false)
+    }
+    if case .remove(let rid, _)? = plan.last {
+        check("回滚：后删 add", rid == id1)
+    } else {
+        check("回滚：后删 add", false)
+    }
+    check("回滚：remove 无快照跳过还原",
+          AgentWriteUndo.revertPlan(for: .init(id: UUID(), conversationID: nil, startedAt: Date(),
+                                               changes: [.init(entityID: id1, target: .bookmark, operation: "remove", snapshotJSON: nil)])).isEmpty)
+}
+
+func testSchedulerAudit() {
+    let now = Date()
+    let rows = [
+        TaskRunAudit.Row(taskName: "简报", firedAt: now.addingTimeInterval(-1*86400), finishedAt: now.addingTimeInterval(-1*86400+30), failed: false, error: nil),
+        TaskRunAudit.Row(taskName: "简报", firedAt: now.addingTimeInterval(-2*86400), finishedAt: now.addingTimeInterval(-2*86400+40), failed: false, error: nil),
+        TaskRunAudit.Row(taskName: "简报", firedAt: now.addingTimeInterval(-3*86400), finishedAt: nil, failed: true, error: "model timeout"),
+        TaskRunAudit.Row(taskName: "采集", firedAt: now.addingTimeInterval(-1*86400), finishedAt: now.addingTimeInterval(-1*86400+120), failed: false, error: nil),
+        TaskRunAudit.Row(taskName: "旧任务", firedAt: now.addingTimeInterval(-60*86400), finishedAt: now.addingTimeInterval(-60*86400+10), failed: false, error: nil),
+    ]
+    let audits = TaskRunAudit.derive(rows: rows, now: now, days: 30)
+    check("审计：按任务聚合", audits.count == 2)
+    let brief = audits.first { $0.taskName == "简报" }
+    check("审计：次数", brief?.totalRuns == 3)
+    check("审计：失败计数", brief?.failures == 1)
+    check("审计：均值只算有耗时的样本", abs((brief?.averageSeconds ?? 0) - 35) < 0.01)
+    check("审计：最后错误留存", brief?.lastError == "model timeout")
+    check("审计：窗口过滤旧记录", audits.first { $0.taskName == "旧任务" } == nil)
+    check("审计：排序按次数", audits.first?.taskName == "简报")
+    check("审计：空输入", TaskRunAudit.derive(rows: []).isEmpty)
+}
+
+testTaskGroupPlan()
+testSchedulerAudit()
+
 func testPermissionMatrix() {
     let rules: [PermissionRule] = [
         .init(host: "b.example.com", type: .camera, decision: .allow),

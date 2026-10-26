@@ -98,6 +98,18 @@ struct TabGroupPanel: View {
                 Label("Open Group", systemImage: "arrow.right.circle")
             }
 
+            // 整组挂起（v0.8.10）：跳过选中标签——它正在渲染。
+            Button {
+                let selectedID = tabManager.selectedTab?.id
+                store.suspendGroup(group.id) { tabID in
+                    guard tabID != selectedID,
+                          let tab = tabManager.tabs.first(where: { $0.id == tabID }) else { return }
+                    tabManager.suspend(tab)
+                }
+            } label: {
+                Label("Suspend Group", systemImage: "moon.zzz")
+            }
+
             Button(role: .destructive) {
                 store.delete(group.id)
             } label: {

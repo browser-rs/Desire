@@ -393,6 +393,8 @@ final class AutomationServer {
         ep("GET", "/conversations/search", "Search saved agent conversations (same code path as the searchConversations tool)", params: ["q:string", "limit?:int"], example: "…/conversations/search?q=github")
         ep("POST", "/conversations/delete", "Delete conversations (cleanup after tests, batch)", params: ["ids:[uuid]", "id?:uuid"], example: #"-d '{"ids":["…"]}'"#)
         ep("GET", "/agent/trace", "Conversation trace as JSONL — one line per turn (goal, steps with per-tool ms, answer, critique, verification, feedback)", params: ["conversation?:uuid (default: live)", "limit?:int"], example: "…/agent/trace?limit=3")
+        ep("GET", "/agent/undo", "Agent write-undo groups (bookmark/reading-list changes by recent turns)", example: "…/agent/undo")
+        ep("POST", "/agent/undo/revert", "Revert one write-undo group (restores snapshots, removes adds)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("GET", "/agent/stats", "Token usage statistics derived from saved conversations (same code as the panel's Usage page)", params: ["days?:int (include the daily series)"], example: "…/agent/stats?days=30")
         ep("POST", "/execute", "Run JS in the page, return result", params: ["js:string", "index?:int", "world?:string(main|extension)"], example: #"-d '{"js":"document.title"}'"#)
         ep("GET", "/screenshot", "PNG of a tab (default selected). inline=1 → base64 in response; otherwise writes ~/desire_automation.png", params: ["index?:int", "inline?:bool"], example: "…/screenshot?index=0&inline=1")
@@ -1914,6 +1916,11 @@ final class AutomationServer {
             case ("GET", "/agent/stats"):
                 return try Self.json(Self.usageStats(
                     days: Int(Self.string(query, "days") ?? "")))
+            case ("GET", "/agent/undo"):
+                return try Self.json(Self.writeUndoGroups())
+            case ("POST", "/agent/undo/revert"):
+                return try Self.json(Self.revertWriteUndo(
+                    id: Self.string(body, "id") ?? ""))
             case ("GET", "/agent/trace"):
                 return try Self.json(Self.agentTrace(
                     conversation: Self.string(query, "conversation"),
@@ -6255,6 +6262,32 @@ final class AutomationServer {
         } catch {
             return ["error": error.localizedDescription]
         }
+    }
+
+    /// 写入回滚：改动组清单（可还原的才列）。
+    private static func writeUndoGroups() -> [String: Any] {
+        let recorder = AgentWriteUndoRecorder.shared
+        let groups = recorder.groups.filter(\.isRevertible).map { g -> [String: Any] in
+            ["id": g.id.uuidString,
+             "conversation": g.conversationID?.uuidString ?? "",
+             "startedAt": ISO8601DateFormatter().string(from: g.startedAt),
+             "changes": g.changes.count,
+             "targets": Array(Set(g.changes.map(\.target.rawValue)))]
+        }
+        return ["groups": groups]
+    }
+
+    private static func revertWriteUndo(id: String) -> [String: Any] {
+        guard let uuid = UUID(uuidString: id),
+              AgentWriteUndoRecorder.shared.groups.contains(where: { $0.id == uuid }) else {
+            return ["error": "no such undo group"]
+        }
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let reverted = AgentWriteUndoRecorder.shared.revert(
+            groupID: uuid,
+            bookmarks: app.bookmarkStore,
+            readingList: app.readingListStore) ?? 0
+        return ["ok": true, "reverted": reverted]
     }
 
     private static func agentHandoff(window: String?) -> [String: Any] {

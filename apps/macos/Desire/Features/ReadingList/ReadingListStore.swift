@@ -45,6 +45,13 @@ class ReadingListStore: ObservableObject {
         save()
     }
 
+    /// 回滚还原：整条按快照重插（保留原 id；同 id 已存在跳过）。
+    func restoreForUndo(_ item: ReadingListItem) {
+        guard !items.contains(where: { $0.id == item.id }) else { return }
+        items.insert(item, at: 0)
+        save()
+    }
+
     func remove(_ id: UUID) {
         deleteCacheFile(id)
         items.removeAll { $0.id == id }

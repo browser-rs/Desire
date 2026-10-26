@@ -57,6 +57,13 @@ class TabGroupStore: ObservableObject {
         save()
     }
 
+    /// 整组挂起/恢复（v0.8.10）：组内全部标签设为挂起态（当前选中标签
+    /// 跳过——它正在渲染）。挂起动作由 TabManager 提供（组存储不依赖它）。
+    func suspendGroup(_ id: UUID, suspend: (UUID) -> Void) {
+        guard let idx = groups.firstIndex(where: { $0.id == id }) else { return }
+        for tabID in groups[idx].tabIds { suspend(tabID) }
+    }
+
     func setCollapsed(_ id: UUID, _ collapsed: Bool) {
         guard let i = groups.firstIndex(where: { $0.id == id }) else { return }
         groups[i].isCollapsed = collapsed

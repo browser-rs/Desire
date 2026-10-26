@@ -833,6 +833,10 @@ extension BrowserToolProvider {
             guard let url = webView.url?.absoluteString, !url.isEmpty, !isNewTabPage(url) else { return Self.fail("No page to bookmark") }
             let title = (args["title"] as? String) ?? (webView.title ?? url)
             surface.bookmarkStore.add(title: title, url: url)
+            if let added = surface.bookmarkStore.find(url: url) {
+                AgentWriteUndoRecorder.shared.record(
+                    target: .bookmark, operation: "add", entityID: added.id, snapshotJSON: nil)
+            }
             return "Bookmarked: \(title)"
 
         case "checkBookmarkLinks":
@@ -907,6 +911,9 @@ extension BrowserToolProvider {
 
         case "removeBookmark":
             guard let url = args["url"] as? String, let bm = surface.bookmarkStore.find(url: url) else { return Self.fail("Bookmark not found") }
+            let snapshot = try? JSONEncoder().encode(bm).base64EncodedString()
+            AgentWriteUndoRecorder.shared.record(
+                target: .bookmark, operation: "remove", entityID: bm.id, snapshotJSON: snapshot)
             surface.bookmarkStore.remove(bm)
             return "Removed bookmark: \(url)"
 
@@ -1165,6 +1172,11 @@ extension BrowserToolProvider {
             guard let url = webView.url?.absoluteString, !url.isEmpty, !isNewTabPage(url) else { return Self.fail("No page to add") }
             let title = (args["title"] as? String) ?? (webView.title ?? url)
             surface.readingListStore.add(title: title, url: url)
+            if let added = surface.readingListStore.items.first(where: { $0.url == url }) {
+                let snapshot = try? JSONEncoder().encode(added).base64EncodedString()
+                AgentWriteUndoRecorder.shared.record(
+                    target: .readingItem, operation: "add", entityID: added.id, snapshotJSON: snapshot)
+            }
             return "Added to reading list: \(title)"
 
         case "listReadingList":
@@ -1392,6 +1404,33 @@ extension BrowserToolProvider {
             }
             surface.tabGroupStore.rename(group.id, to: newName)
             return "Renamed group \"\(group.name)\" → \"\(newName)\""
+
+        case "groupTabs":
+            // 任务聚合分组（v0.8.10）：把给定的打开标签收进一个命名组。
+            guard let manager = surface.tabManager else { return Self.fail("No tab manager") }
+            guard let rawIndices = args["indices"] as? [Int], rawIndices.count >= 2 else {
+                return Self.fail("Need indices (>= 2 tabs) — call listTabs first")
+            }
+            var ids: [UUID] = []
+            var titles: [String] = []
+            for i in rawIndices where i >= 0 && i < manager.tabs.count {
+                ids.append(manager.tabs[i].id)
+                titles.append(manager.tabs[i].displayTitle)
+            }
+            if let err = TaskGroupPlan.validate(
+                tabIDs: ids,
+                alreadyGrouped: Set(ids.filter { surface.tabGroupStore.group(for: $0) != nil })) {
+                return Self.fail(err)
+            }
+            let name = (args["name"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+            let finalName = name.isEmpty
+                ? TaskGroupPlan.suggestedName(titles: titles)
+                : name
+            let group = surface.tabGroupStore.create(
+                name: finalName,
+                colorIndex: TaskGroupPlan.colorIndex(for: finalName))
+            for id in ids { surface.tabGroupStore.addTab(id, to: group.id) }
+            return "Grouped \(ids.count) tab(s) into \"\(group.name)\""
 
         case "collapseTabGroup":
             guard let groupName = args["groupName"] as? String, !groupName.isEmpty else {

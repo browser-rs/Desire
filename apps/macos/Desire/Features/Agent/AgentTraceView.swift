@@ -9,6 +9,7 @@ struct AgentTraceView: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var conversationStore: ConversationStore
+    @ObservedObject private var scheduler = AgentScheduler.shared
     /// 单价表在这里查（成本 = token × 单价）；没填单价的模型只显示 token，不显示 $0。
     @ObservedObject var preference: AgentPreferenceStore
     var onBack: () -> Void
@@ -35,6 +36,7 @@ struct AgentTraceView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     overviewSection
                     slowestSection
+                    taskAuditSection
                     if let evalExportNote {
                 Text(evalExportNote)
                     .font(.system(size: 11))
@@ -210,6 +212,63 @@ struct AgentTraceView: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(RoundedRectangle(cornerRadius: 6, style: .continuous).fill(Color.secondary.opacity(0.06)))
+    }
+
+    // MARK: - 定时任务审计（v0.8.10）
+
+    @State private var auditDays = 30
+
+    private var taskAuditSection: some View {
+        let audits = scheduler.audit(days: auditDays)
+        return VStack(alignment: .leading, spacing: 6) {
+            sectionTitle("Scheduled Task Audit")
+            if audits.isEmpty {
+                Text("No scheduled-task runs in the last \(auditDays) days")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            } else {
+                HStack(spacing: 8) {
+                    Picker("Window", selection: $auditDays) {
+                        Text("7d").tag(7)
+                        Text("30d").tag(30)
+                        Text("90d").tag(90)
+                    }
+                    .pickerStyle(.segmented)
+                    .frame(width: 160)
+                    Spacer()
+                }
+                VStack(spacing: 0) {
+                    ForEach(Array(audits.enumerated()), id: \.element.id) { index, audit in
+                        HStack(spacing: 8) {
+                            Text(audit.taskName)
+                                .font(.system(size: 11.5, weight: .medium))
+                                .lineLimit(1)
+                            Spacer(minLength: 6)
+                            Text("\(audit.totalRuns) runs")
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                            if audit.failures > 0 {
+                                Text(String(format: "%.0f%% fail", audit.failureRate * 100))
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundStyle(.orange)
+                                    .help(audit.lastError ?? "")
+                            }
+                            if let secs = audit.averageSeconds {
+                                Text(String(format: "%.0fs avg", secs))
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundStyle(.tertiary)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        if index < audits.count - 1 {
+                            Divider().opacity(0.5)
+                        }
+                    }
+                }
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor).opacity(0.45)))
+            }
+        }
     }
 
     private var turnsSection: some View {

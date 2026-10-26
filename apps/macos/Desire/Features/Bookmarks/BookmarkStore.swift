@@ -136,6 +136,19 @@ class BookmarkStore: ObservableObject {
         leafURLs
     }
 
+    /// 按 id 查找（Agent 写入回滚用）。
+    func find(id: UUID) -> Bookmark? {
+        bookmarks.flatMap { $0.flattened() }.first(where: { $0.0.id == id })?.0
+    }
+
+    /// 回滚还原：整条按快照重插（保留原 id/时间戳；已存在同 id 则跳过）。
+    func restoreForUndo(_ bookmark: Bookmark) {
+        guard find(id: bookmark.id) == nil else { return }
+        bookmarks.insert(bookmark, at: 0)
+        rebuildURLIndex()
+        save()
+    }
+
     func find(url: String) -> Bookmark? {
         bookmarks.find { $0.url == url }
     }

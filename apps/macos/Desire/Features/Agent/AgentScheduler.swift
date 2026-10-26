@@ -337,6 +337,16 @@ final class AgentScheduler: ObservableObject {
     }
 
     @Published private(set) var runs: [RunRecord] = []
+
+    /// 审计聚合（v0.8.10）：折成轻量行进 TaskRunAudit 纯核。
+    func audit(days: Int = 30) -> [TaskRunAudit.Audit] {
+        TaskRunAudit.derive(rows: runs.map {
+            .init(taskName: $0.taskName, firedAt: $0.firedAt, finishedAt: $0.finishedAt,
+                  failed: $0.success == false || $0.status == "failed" || $0.status == "missed",
+                  error: $0.error)
+        }, days: days)
+    }
+
     private static let runsKey = "agent-task-runs"
     private static let maxRuns = 100
 

@@ -1848,6 +1848,9 @@ class AgentSessionStore: ObservableObject {
         // `0..<20` iteration cap. The soft limit (`maxIterations`) prevents
         // runaway execution while allowing genuinely long multi-step tasks.
         var iterations = 0
+        // 写入回滚（v0.8.10）：本回合的 Agent 写入记成一组，收尾关闭。
+        AgentWriteUndoRecorder.shared.beginGroup(conversationID: conversationId)
+        defer { AgentWriteUndoRecorder.shared.endGroup() }
         var hitIterationCap = false
         var hitBudgetStop = false
         // 检查点：回合开工即落盘"进行中"——此后任何一步都有断点可循。

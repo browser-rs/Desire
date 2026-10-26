@@ -73,6 +73,9 @@ SOURCES=(
   apps/macos/Desire/Features/Settings/PermissionRule.swift
   apps/macos/Desire/Features/Settings/PermissionMatrix.swift
   apps/macos/Desire/Features/Agent/ToolUsageStats.swift
+  apps/macos/Desire/Features/TabGroups/TaskGroupPlan.swift
+  apps/macos/Desire/Features/Agent/AgentWriteUndo.swift
+  apps/macos/Desire/Features/Agent/TaskRunAudit.swift
   apps/macos/Desire/Features/History/HistoryTimeline.swift
   apps/macos/Desire/Features/Agent/MediaURLDetector.swift
   apps/macos/Desire/Features/Settings/SearchEngine.swift

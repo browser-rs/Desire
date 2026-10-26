@@ -871,6 +871,14 @@ extension BrowserToolProvider {
                 ], required: ["groupName", "newName"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "groupTabs",
+                description: "v2 task-grouping: collect the given open tabs into one named group (one task = one group: its search pages, docs, tool pages). Pass tab indices from listTabs plus an optional name — omit the name and one is suggested from the page titles. Use for 'collect this research into a group'.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "indices": AgentJSONSchemaValue(type: "array", description: "Tab indices (from listTabs) to put in the group", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "integer"))),
+                    "name": AgentJSONSchemaValue(type: "string", description: "Group name (optional — suggested from titles when omitted)"),
+                ], required: ["indices"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "collapseTabGroup", description: "Collapse or expand a tab group in the tab bar (by group name; default: toggle).",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "groupName": AgentJSONSchemaValue(type: "string", description: "Group name"),

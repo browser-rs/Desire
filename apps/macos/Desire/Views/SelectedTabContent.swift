@@ -369,6 +369,18 @@ struct SelectedTabContent: View {
                     fileURL: sheetURL,
                     fileName: tab.browser.spreadsheetViewerFileName,
                     onBack: { tab.browser.spreadsheetViewerURL = nil })
+
+            } else if let imageURL = tab.browser.imageEditorURL {
+                ImageEditorView(
+                    fileURL: imageURL,
+                    fileName: tab.browser.imageEditorFileName,
+                    onBack: { tab.browser.imageEditorURL = nil })
+
+            } else if let archiveURL = tab.browser.archiveViewerURL {
+                ArchiveViewerView(
+                    fileURL: archiveURL,
+                    fileName: tab.browser.archiveViewerFileName,
+                    onBack: { tab.browser.archiveViewerURL = nil })
             } else if tab.browser.isPDFLoading {
                 VStack(spacing: 10) {
                     ProgressView()

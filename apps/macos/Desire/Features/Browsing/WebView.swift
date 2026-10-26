@@ -180,6 +180,14 @@ class BrowserState: ObservableObject {
     /// 表格直开（v0.8.12 旗舰 A）：非 nil = 该标签渲染表格查看器。
     @Published var spreadsheetViewerURL: URL?
     @Published var spreadsheetViewerFileName = ""
+
+    /// 图片编辑器（v0.8.12 旗舰 D）：非 nil = 该标签渲染图片编辑器。
+    @Published var imageEditorURL: URL?
+    @Published var imageEditorFileName = ""
+
+    /// 压缩包查看器（v0.8.12 旗舰 C）：非 nil = 该标签渲染 ArchiveViewer。
+    @Published var archiveViewerURL: URL?
+    @Published var archiveViewerFileName = ""
     /// PDF 查看器关闭时返回的页面地址。
     @Published var pdfViewerReturnURL: URL?
     /// PDF 下载中（主框架 PDF 导航的过渡态——渲染进度条而非白页）。

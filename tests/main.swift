@@ -3656,6 +3656,28 @@ func testTaskGroupPlan() {
                                                changes: [.init(entityID: id1, target: .bookmark, operation: "remove", snapshotJSON: nil)])).isEmpty)
 }
 
+func testArchiveListing() {
+    let listing = """
+     Length      Date    Time    Name
+    ---------  ---------- -----   ----
+         1234  2026-01-02 03:04   docs/read me.txt
+            0  2026-01-02 03:04   docs/
+        99999  2026-02-03 04:05   中文文件夹/图片.png
+    ---------                     -------
+       101233                     3 files
+    """
+    let entries = ArchiveKit.parseListing(listing)
+    check("zip：解析条目数", entries.count == 3)
+    check("zip：带空格文件名", entries[0].path == "docs/read me.txt")
+    check("zip：目录标记", entries[1].isDirectory)
+    check("zip：中文路径", entries[2].path == "中文文件夹/图片.png")
+    check("zip：大小字段", entries[2].sizeBytes == 99999)
+    check("zip：头尾行跳过", !entries.contains { $0.path.contains("files") || $0.path.hasPrefix("---") })
+    check("zip：大小格式化", ArchiveKit.sizeText(1500) == "1.5 KB")
+}
+
+testArchiveListing()
+
 func testSpreadsheetBuffer() {
     var buf = SpreadsheetBuffer(rows: [
         ["name", "qty", "price"],

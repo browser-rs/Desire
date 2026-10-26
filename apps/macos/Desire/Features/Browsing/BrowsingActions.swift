@@ -127,6 +127,8 @@ extension BrowsingActions {
     /// 音视频 → AVPlayer 查看器、其余可渲染类型 → file:// 导航。
     /// 表格类型（v0.8.12 旗舰 A）：拖入/本地打开进表格查看器。
     static let tableExtensions: Set<String> = ["csv", "tsv", "xlsx"]
+    /// 图片类型（v0.8.12 旗舰 D）：拖入/本地打开进图片编辑器。
+    static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "heic", "tiff", "gif"]
 
     func openLocalFileInTab(_ url: URL, for tab: Tab) {
         let ext = url.pathExtension.lowercased()
@@ -139,6 +141,17 @@ extension BrowsingActions {
         if Self.tableExtensions.contains(ext) {
             tab.browser.spreadsheetViewerFileName = url.lastPathComponent
             tab.browser.spreadsheetViewerURL = url
+            return
+        }
+        if Self.imageExtensions.contains(ext) {
+            tab.browser.imageEditorFileName = url.lastPathComponent
+            tab.browser.imageEditorURL = url
+            return
+        }
+
+        if ext == "zip" {
+            tab.browser.archiveViewerFileName = url.lastPathComponent
+            tab.browser.archiveViewerURL = url
             return
         }
         if SelectedTabContent.mediaExtensions.contains(ext) {

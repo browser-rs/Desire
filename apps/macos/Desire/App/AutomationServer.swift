@@ -3330,7 +3330,7 @@ final class AutomationServer {
                 "loading": tab.isLoading,
                 "domNodes": tab.browser.lastDomNodeCount,
                 "autoplayPolicy": tab.browser.createdAutoPlayPolicy.rawValue,
-                "viewer": tab.browser.spreadsheetViewerURL?.pathExtension ?? tab.browser.imageEditorURL?.pathExtension ?? tab.browser.archiveViewerURL?.pathExtension ?? tab.browser.documentViewerURL?.pathExtension,
+                "viewer": tab.browser.spreadsheetViewerURL?.pathExtension ?? tab.browser.imageEditorURL?.pathExtension ?? tab.browser.archiveViewerURL?.pathExtension ?? tab.browser.documentViewerURL?.pathExtension ?? "",
                 "scrollY": tab.browser.lastScrollY,
                 "workflowSuggestion": tab.browser.pendingWorkflowSuggestion.map { suggestion -> Any in
                     ["name": suggestion.name, "host": suggestion.host]

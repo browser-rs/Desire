@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.13] - 2026-10-27
 ### Added
 
 - xlsx 多工作表：表格查看器底部工作表标签栏（SpreadsheetReader 新增 sheetList），切换重载（排序/筛选/编辑态随切换重置）

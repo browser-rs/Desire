@@ -241,21 +241,17 @@ struct DocumentViewerView: View {
     ///（经 NotificationCenter 走既有 askAgentAboutPage 同款通道——直接调
     /// AppState 的 aiSession 会话，含 page_context 同级注入）。
     private func askAboutDocument() {
-        guard let app = AppState.live else { return }
+        guard AppState.live != nil else { return }
         let name = fileName
         Task { @MainActor in
-            do {
-                let text = try DocumentText.extractPlainText(from: fileURL, maxChars: 12_000) ?? ""
-                let prompt = String(localized: "请阅读这份文档（\(name)）并回答我的问题。文档内容：\n\(text.prefix(8_000))\n\n我的问题：")
-                guard let session = AgentScheduler.shared.deliveryTarget else {
-                    flashNote = String(localized: "No live agent session")
-                    return
-                }
-                session.sendMessage(prompt, recordHistory: true)
-                NotificationCenter.default.post(name: .desireShowAgentPanel, object: nil)
-            } catch {
-                flashNote = String(localized: "Could not read the document")
+            let text = (try? DocumentText.extractPlainText(from: fileURL, maxChars: 12_000)) ?? ""
+            let prompt = String(localized: "请阅读这份文档（\(name)）并回答我的问题。文档内容：\n\(text.prefix(8_000))\n\n我的问题：")
+            guard let session = AgentScheduler.shared.deliveryTarget else {
+                flashNote = String(localized: "No live agent session")
+                return
             }
+            session.sendMessage(prompt, recordHistory: true)
+            NotificationCenter.default.post(name: .desireShowAgentPanel, object: nil)
         }
     }
 

@@ -609,11 +609,13 @@ struct ImageEditorView: View {
             ScrollView {
                 VStack(spacing: 2) {
                     // 栈顶在前 = 最新操作在上；index = 撤销深度。
-                    ForEach(Array(historySteps.enumerated().reversed()), id: \.offset) { revIndex, label in
-                        let depth = historySteps.count - 1 - revIndex
-                        Button(action: {
-                            jumpToHistoryStep(depth - 1 < 0 ? 0 : depth)
-                        }, label: {
+                    let steps = historySteps.enumerated().reversed().map { ($0.offset, $0.element) }
+                    ForEach(steps, id: \.0) { pair in
+                        let depth = pair.0
+                        let label = pair.1
+                        Button {
+                            jumpToHistoryStep(depth)
+                        } label: {
                             HStack(spacing: 6) {
                                 Text("\(depth + 1)")
                                     .font(.system(size: 9, design: .monospaced))

@@ -11,6 +11,8 @@ struct SpreadsheetViewerView: View {
     let onBack: () -> Void
 
     @State private var buffer: SpreadsheetBuffer?
+    @State private var canUndo = false
+    @State private var canRedo = false
     @State private var loadError: String?
     @State private var isXLSX = false
     /// 视图层状态：排序（列下标，nil = 原序）/筛选关键字/跳转文本。
@@ -88,6 +90,8 @@ struct SpreadsheetViewerView: View {
                     return
                 }
                 buffer = SpreadsheetBuffer(rows: sheet.rows)
+                canUndo = false
+                canRedo = false
             }
         }
     }
@@ -144,6 +148,26 @@ struct SpreadsheetViewerView: View {
                     .foregroundStyle(.orange)
             }
             Spacer(minLength: 8)
+            Button {
+                doUndo()
+            } label: {
+                Image(systemName: "arrow.uturn.backward")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .disabled(!canUndo)
+            .keyboardShortcut("z", modifiers: .command)
+            .help("Undo (⌘Z)")
+            Button {
+                doRedo()
+            } label: {
+                Image(systemName: "arrow.uturn.forward")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .disabled(!canRedo)
+            .keyboardShortcut("z", modifiers: [.command, .shift])
+            .help("Redo (⌘⇧Z)")
             Button {
                 save()
             } label: {
@@ -344,8 +368,26 @@ struct SpreadsheetViewerView: View {
         guard var b = buffer else { return }
         b.set(row: row, col: col, value: editingDraft)
         buffer = b
+        canUndo = !b.undoStack.isEmpty
+        canRedo = !b.redoStack.isEmpty
         hasUnsavedChanges = true
         editingCell = nil
+    }
+
+    private func doUndo() {
+        guard var b = buffer, b.undo() else { return }
+        buffer = b
+        canUndo = !b.undoStack.isEmpty
+        canRedo = !b.redoStack.isEmpty
+        hasUnsavedChanges = true
+    }
+
+    private func doRedo() {
+        guard var b = buffer, b.redo() else { return }
+        buffer = b
+        canUndo = !b.undoStack.isEmpty
+        canRedo = !b.redoStack.isEmpty
+        hasUnsavedChanges = true
     }
 
     private func jump() {

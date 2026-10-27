@@ -9,6 +9,14 @@ nonisolated struct SpreadsheetBuffer: Equatable {
     var rows: [[String]]
     /// 编辑过的单元格（row, col）——保存提示与"未保存"角标用。
     private(set) var dirtyCells: Set<CellRef> = []
+    /// 撤销/重做栈（v0.8.14 基础件 4）：每步存整表快照（表量级内存可接受）。
+    /// 包装 struct：Swift 6.4 对 nonisolated struct 里 [[String]] 元素 append
+    /// 的重载解析有 bug（实测最小复现失败），包装后正常。
+    nonisolated struct Snapshot: Equatable {
+        var rows: [[String]]
+    }
+    private(set) var undoStack: [Snapshot] = []
+    private(set) var redoStack: [Snapshot] = []
 
     struct CellRef: Hashable {
         let row: Int
@@ -32,9 +40,28 @@ nonisolated struct SpreadsheetBuffer: Equatable {
 
     mutating func set(row: Int, col: Int, value: String) {
         guard row >= 0, row < rows.count else { return }
+        undoStack.append(Snapshot(rows: rows))
+        redoStack.removeAll()
+        if undoStack.count > 100 { undoStack.removeFirst() }
         while rows[row].count <= col { rows[row].append("") }
         rows[row][col] = value
         dirtyCells.insert(CellRef(row: row, col: col))
+    }
+
+    /// ⌘Z：回退到上一快照。无可撤销返回 false。
+    mutating func undo() -> Bool {
+        guard let previous = undoStack.popLast() else { return false }
+        redoStack.append(Snapshot(rows: rows))
+        rows = previous.rows
+        return true
+    }
+
+    /// ⌘⇧Z：重做。
+    mutating func redo() -> Bool {
+        guard let next = redoStack.popLast() else { return false }
+        undoStack.append(Snapshot(rows: rows))
+        rows = next.rows
+        return true
     }
 
     // MARK: - 排序 / 筛选（视图层状态，不改原 rows）

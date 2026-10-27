@@ -990,6 +990,15 @@ extension BrowserToolProvider {
                     "maxChars": AgentJSONSchemaValue(type: "number", description: "Cap on returned characters (default 60000)"),
                 ], required: ["path"])
             )),    AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "exportDocument",
+        description: "Produce a real office document from text/Markdown/HTML content: docx (Word), rtf or html. Use for deliverables — weekly reports, meeting notes, research write-ups. Writes to the whitelisted path (workspace-relative OK). Markdown headings and lists are preserved as document structure.",
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "content": AgentJSONSchemaValue(type: "string", description: "Document content (Markdown supported: # headings, - lists, plain paragraphs)"),
+            "format": AgentJSONSchemaValue(type: "string", description: "docx (default for deliverables), rtf, or html"),
+            "path": AgentJSONSchemaValue(type: "string", description: "Output file path (.docx/.rtf/.html matching format)"),
+        ], required: ["content", "format", "path"])
+    )),
+    AgentToolDef(type: "function", function: AgentToolFunctionDef(
         name: "zipFiles",
         description: "Create a .zip from multiple whitelisted paths (files or folders) using ditto. The output lands in the agent workspace.",
         parameters: AgentJSONSchema(type: "object", properties: [

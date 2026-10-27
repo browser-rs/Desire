@@ -3692,6 +3692,24 @@ func testArchiveListing() {
 
 testArchiveListing()
 
+func testSpreadsheetUndo() {
+    var buf = SpreadsheetBuffer(rows: [["a"], ["1"]])
+    buf.set(row: 1, col: 0, value: "x")
+    buf.set(row: 1, col: 0, value: "y")
+    check("撤销：可撤", buf.undo())
+    check("撤销：回到中间值", buf.rows[1][0] == "x")
+    check("撤销：再撤回原值", buf.undo() && buf.rows[1][0] == "1")
+    check("撤销：栈空再撤失败", !buf.undo())
+    check("重做：可重做", buf.redo() && buf.rows[1][0] == "x")
+    check("重做：再重做", buf.redo() && buf.rows[1][0] == "y")
+    check("重做：栈空再重做失败", !buf.redo())
+    // 新编辑清空重做栈（标准语义）
+    buf.set(row: 1, col: 0, value: "z")
+    check("撤销：新编辑清重做栈", !buf.redo())
+}
+
+testSpreadsheetUndo()
+
 func testSpreadsheetBuffer() {
     var buf = SpreadsheetBuffer(rows: [
         ["name", "qty", "price"],

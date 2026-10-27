@@ -84,6 +84,16 @@ struct DocumentViewerView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help(String(localized: "Export PDF"))
+            Menu {
+                Button(String(localized: "Export as Word (.docx)")) { exportDocument(format: "docx") }
+                Button(String(localized: "Export as RTF")) { exportDocument(format: "rtf") }
+                Button(String(localized: "Export as HTML")) { exportDocument(format: "html") }
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(String(localized: "Export as Word/RTF/HTML"))
             // 文档问答（v0.8.13 融合 12）：取文预填 Agent 提问。
             Button {
                 askAboutDocument()
@@ -252,6 +262,29 @@ struct DocumentViewerView: View {
             }
             session.sendMessage(prompt, recordHistory: true)
             NotificationCenter.default.post(name: .desireShowAgentPanel, object: nil)
+        }
+    }
+
+    /// 导出为正式文档格式（v0.8.14 基础件 1）：当前 HTML 经 textutil 转
+    /// docx/rtf/html，NSSavePanel 选落点。
+    private func exportDocument(format: String) {
+        guard let html else { return }
+        let panel = NSSavePanel()
+        let base = (fileName as NSString).deletingPathExtension
+        panel.nameFieldStringValue = "\(base).\(format)"
+        switch format {
+        case "docx": panel.allowedContentTypes = [.init(filenameExtension: "docx") ?? .data]
+        case "rtf": panel.allowedContentTypes = [.rtf]
+        default: panel.allowedContentTypes = [.html]
+        }
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        DispatchQueue.global(qos: .userInitiated).async {
+            let ok = DocumentText.exportDocument(content: html, format: format, to: dest)
+            DispatchQueue.main.async {
+                flashNote = ok
+                    ? String(localized: "Exported → \(dest.lastPathComponent)")
+                    : String(localized: "Export failed (textutil conversion)")
+            }
         }
     }
 

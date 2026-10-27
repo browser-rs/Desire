@@ -2928,6 +2928,29 @@ extension BrowserToolProvider {
                 return "Batch started: \(files.count) file(s) — Job \(jobID.uuidString.prefix(8)). Results land as .summary.md next to each source; poll via Jobs panel."
             }
 
+        case "exportDocument":
+            // 产出正式文档（v0.8.14 写回面 P0）：md/txt/html 内容 →
+            // docx/rtf/html（textutil 正向转换），白名单写口径 + .bak。
+            guard let content = args["content"] as? String, !content.isEmpty else { return Self.fail("Missing content") }
+            guard let format = args["format"] as? String, !format.isEmpty else { return Self.fail("Missing format (docx/rtf/html)") }
+            guard let outPath = args["path"] as? String, !outPath.isEmpty else { return Self.fail("Missing path") }
+            switch AgentWorkspace.shared.resolve(outPath, write: true) {
+            case .denied(let reason):
+                return reason
+            case .granted(let dest):
+                var snapshot: String?
+                if FileManager.default.fileExists(atPath: dest.path) {
+                    snapshot = try? String(contentsOf: dest, encoding: .utf8)
+                }
+                guard DocumentText.exportDocument(content: content, format: format, to: dest) else {
+                    return Self.fail("textutil conversion failed (check format: docx/rtf/html)")
+                }
+                if snapshot != nil {
+                    return "Exported \(format) → \(dest.path) (overwrote existing; content differed)"
+                }
+                return "Exported \(format) → \(dest.path)"
+            }
+
         case "zipFiles":
             // 压缩创建（v0.8.13 基础件 8）：白名单内多路径 → 单 zip（ditto -c -k）。
             guard let paths = args["paths"] as? [String], !paths.isEmpty else { return Self.fail("Missing paths") }

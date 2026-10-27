@@ -3208,6 +3208,16 @@ v0.8.1 的菜单入口只有"移交会话"，这版补齐：
 - 下载限速（WebKit 无 API，勿做假 UI——既有红线）；垂直标签栏（多次排除）；
   passkey（等 Apple entitlement 批复）。
 
+### 存量盘点修正（2026-10-28 第三批执行时核实）
+
+- 项 5（全局默认字号与最小字号）**已交付**：Settings.defaultMinFontSize/
+  defaultFontFamily 全局档 + GeneralSettingsSection 设置 UI 均在（0.7.20
+  站点字体批次），撤项记档不写代码。
+- 项 6（下载行拖拽到 Finder）**已交付**：DownloadPanel 完成行已挂
+  CompletedFileDraggable（文件 URL 载体），撤项记档。
+- 项 11（表单截图锚点）：核实 formFillPlan 从未存在——实际表单工具是
+  fillForm；截图锚点按 fillForm 落地（字段裁图拼图附回执）。
+
 ### 批次
 
 - **第一批**：1+2+3（PDF 工作台三件——导航面/批注/页面管理）。

@@ -31,15 +31,18 @@ struct ImageEditorView: View {
 
     // 标注
     enum Tool: String, CaseIterable {
-        case none, brush, arrow, rectangle, ellipse, text, mosaic
+        case none, brush, arrow, line, rectangle, ellipse, polygon, text, bubble, mosaic
         var icon: String {
             switch self {
             case .none: "cursorarrow"
             case .brush: "paintbrush"
             case .arrow: "arrow.up.right"
+            case .line: "line.diagonal"
             case .rectangle: "rectangle"
             case .ellipse: "circle"
+            case .polygon: "diamond"
             case .text: "textformat"
+            case .bubble: "number.circle"
             case .mosaic: "square.grid.3x3"
             }
         }
@@ -51,6 +54,11 @@ struct ImageEditorView: View {
     @State private var dragCurrent: CGPoint?
     /// 画笔轨迹（当前笔画；松手烙进叠加层）。
     @State private var brushPoints: [CGPoint] = []
+    /// 多边形（v0.8.15）：单击加点，点回首点附近闭合；切换工具清空。
+    @State private var polygonPoints: [CGPoint] = []
+    @State private var polygonDragStart: CGPoint?
+    /// 序号气泡（v0.8.15）：点击落位自动编号。
+    @State private var bubbleCounter = 0
 
     // 文字标注
     @State private var textEntry = ""
@@ -87,6 +95,10 @@ struct ImageEditorView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear(perform: load)
+        .onChange(of: tool) { _, _ in
+            polygonPoints = []
+            polygonDragStart = nil
+        }
     }
 
     // MARK: - 加载 / 保存
@@ -306,6 +318,21 @@ struct ImageEditorView: View {
                             .position(x: rect.midX, y: rect.midY)
                     }
 
+                    // 多边形加点预览：已加点连线 + 首点标记（闭合目标）。
+                    if tool == .polygon, polygonPoints.count >= 1 {
+                        Path { path in
+                            path.move(to: polygonPoints[0])
+                            for p in polygonPoints.dropFirst() { path.addLine(to: p) }
+                        }
+                        .stroke(appAccent, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+                        ForEach(Array(polygonPoints.enumerated()), id: \.offset) { index, p in
+                            Circle()
+                                .fill(index == 0 ? appAccent : Color(nsColor: .controlAccentColor).opacity(0.8))
+                                .frame(width: 7, height: 7)
+                                .position(p)
+                        }
+                    }
+
                     if showAdjustments {
                         adjustmentsPanel
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
@@ -371,10 +398,12 @@ struct ImageEditorView: View {
                 switch tool {
                 case .brush:
                     brushPoints.append(point)
-                case .arrow, .rectangle, .ellipse, .mosaic:
+                case .arrow, .rectangle, .ellipse, .mosaic, .line:
                     if dragStart == nil { dragStart = point }
                     dragCurrent = point
-                case .text, .none:
+                case .polygon:
+                    if polygonDragStart == nil { polygonDragStart = point }
+                case .text, .bubble, .none:
                     break
                 }
             }
@@ -403,6 +432,9 @@ struct ImageEditorView: View {
                 case .arrow:
                     stampLineAnnotation(from: dragStart ?? value.location, to: value.location, arrow: true)
                     dragStart = nil; dragCurrent = nil
+                case .line:
+                    stampLineAnnotation(from: dragStart ?? value.location, to: value.location, arrow: false)
+                    dragStart = nil; dragCurrent = nil
                 case .rectangle:
                     stampRectAnnotation(from: dragStart ?? value.location, to: value.location, ellipse: false)
                     dragStart = nil; dragCurrent = nil
@@ -412,6 +444,30 @@ struct ImageEditorView: View {
                 case .mosaic:
                     stampMosaic(from: dragStart ?? value.location, to: value.location)
                     dragStart = nil; dragCurrent = nil
+                case .polygon:
+                    // 点击式：按下-松开几乎没位移才算点；点回首点 16pt 内闭合。
+                    let point = value.location
+                    let dragged = polygonDragStart.map {
+                        abs($0.x - point.x) > 6 || abs($0.y - point.y) > 6
+                    } ?? true
+                    polygonDragStart = nil
+                    guard !dragged else { return }
+                    if let first = polygonPoints.first, polygonPoints.count >= 3,
+                       abs(first.x - point.x) < 16, abs(first.y - point.y) < 16 {
+                        stampPolygon(polygonPoints)
+                        polygonPoints = []
+                    } else {
+                        polygonPoints.append(point)
+                    }
+                case .bubble:
+                    let point = value.location
+                    let dragged = dragStart.map {
+                        abs($0.x - point.x) > 6 || abs($0.y - point.y) > 6
+                    } ?? false
+                    dragStart = nil
+                    guard !dragged else { return }
+                    bubbleCounter += 1
+                    stampBubble(at: point, number: bubbleCounter)
                 case .text, .none:
                     break
                 }
@@ -542,6 +598,37 @@ struct ImageEditorView: View {
             } else {
                 context.stroke(rect)
             }
+        }
+    }
+
+    /// 多边形闭合（v0.8.15）：≥3 点，首尾连线。
+    private func stampPolygon(_ points: [CGPoint]) {
+        stampAnnotation(label: String(localized: "Polygon")) { context in
+            context.setStrokeColor(cgColorApp(strokeColor))
+            context.setLineWidth(strokeWidth)
+            context.addLines(between: points + [points[0]])
+            context.strokePath()
+        }
+    }
+
+    /// 序号气泡（v0.8.15）：实心圆 + 白色序号，半径随序号位数微扩。
+    private func stampBubble(at point: CGPoint, number: Int) {
+        stampAnnotation(label: String(localized: "Bubble")) { context in
+            let digits = String(number).count
+            let radius = 9.0 * displayScale + CGFloat(digits - 1) * 5.0 * displayScale
+            let rect = CGRect(x: point.x - radius, y: point.y - radius,
+                              width: radius * 2, height: radius * 2)
+            context.setFillColor(cgColorApp(strokeColor))
+            context.fillEllipse(in: rect)
+            let text = String(number) as NSString
+            let fontSize = radius * 1.05
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: NSFont.systemFont(ofSize: fontSize, weight: .bold),
+                .foregroundColor: NSColor.white,
+            ]
+            let size = text.size(withAttributes: attributes)
+            text.draw(at: CGPoint(x: point.x - size.width / 2, y: point.y - size.height / 2),
+                      withAttributes: attributes)
         }
     }
 

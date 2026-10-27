@@ -1832,6 +1832,7 @@ extension BrowserToolProvider {
             }
             var filled = 0
             var errors: [String] = []
+            var filledSelectors: [String] = []
             for step in stepList {
                 guard let op = step.keys.first, let operand = step[op] else { continue }
                 do {
@@ -1857,14 +1858,14 @@ extension BrowserToolProvider {
                             })()
                             """
                             let r = try await webView.evaluateJavaScript(js) as? String
-                            if r == "ok" { filled += 1 }
+                            if r == "ok" { filled += 1; filledSelectors.append(sel) }
                             else { errors.append(sel) }
                         }
                     case ("select", let dict as [String: String]):
                         for (sel, val) in dict {
                             let js = "document.querySelector(\(JSString.literal(sel))).value = \(JSString.literal(val)); document.querySelector(\(JSString.literal(sel))).dispatchEvent(new Event('change',{bubbles:true})); 'ok'"
                             let r = try await webView.evaluateJavaScript(js) as? String
-                            if r == "ok" { filled += 1 }
+                            if r == "ok" { filled += 1; filledSelectors.append(sel) }
                         }
                     case ("click", let sel as String):
                         let js = "document.querySelector(\(JSString.literal(sel))).click(); 'ok'"
@@ -1876,11 +1877,24 @@ extension BrowserToolProvider {
                     errors.append("\(op): \(error.localizedDescription)")
                 }
             }
-            // Submit selector 只报告位置，不点击（人工批准红线）。
-            if let submitSel = args["submitSelector"] as? String, !submitSel.isEmpty {
-                return String(format: String(localized: "Filled %lld field(s). Submit button (%@) NOT clicked — press it yourself."), filled, submitSel)
+            // 表单截图锚点（v0.8.15）：填过的字段逐个取矩形裁图、垂直拼一张
+            // 附在回执上——模型视觉自检（值落对格没有）、用户回执卡看得见。
+            // 上限 6 字段；截图失败静默（文本回执仍是主通道）。
+            var receipt = String(format: String(localized: "Filled %lld field(s)."), filled)
+            if !errors.isEmpty {
+                receipt += String(localized: " Failed: \(errors.prefix(4).joined(separator: ", "))")
             }
-            return String(format: String(localized: "Filled %lld field(s)."), filled)
+            if let submitSel = args["submitSelector"] as? String, !submitSel.isEmpty {
+                receipt += " " + String(format: String(localized: "Submit button (%@) NOT clicked — press it yourself."), submitSel)
+            }
+            if !filledSelectors.isEmpty {
+                if let stitched = await stitchFormShots(webView, selectors: filledSelectors),
+                   let uri = ImageAttachment.dataURI(from: stitched) {
+                    receipt += "\n\n" + String(localized: "Field screenshots (top to bottom): \(filledSelectors.prefix(6).count) field(s)")
+                    receipt += "\n" + uri
+                }
+            }
+            return receipt
 
         case "passwordHealth":
             guard let app = AppState.live else {
@@ -3864,5 +3878,48 @@ extension BrowserToolProvider {
         default:
             return nil
         }
+    }
+
+    /// 表单字段截图垂直拼接（表单截图锚点，v0.8.15）：逐字段取矩形 →
+    /// 裁图 → 白底拼一张（最多 6 个）。单个取不到跳过；全失败返回 nil。
+    private func stitchFormShots(_ webView: WKWebView, selectors: [String]) async -> NSImage? {
+        var shots: [NSImage] = []
+        for sel in selectors.prefix(6) {
+            guard let rectData = await callAsync(webView, function: "__desireElementRect",
+                    args: ["selector": sel, "ref": "", "text": ""]).data(using: .utf8),
+                  let obj = (try? JSONSerialization.jsonObject(with: rectData)) as? [String: Double],
+                  let x = obj["x"], let y = obj["y"],
+                  let w = obj["w"], let h = obj["h"], w > 1, h > 1 else { continue }
+            // getBoundingClientRect 是视口 CSS px，快照 rect 是视图坐标（pageZoom 桥接）。
+            let zoom = CGFloat(webView.pageZoom)
+            let bounds = webView.bounds.size
+            let rect = CGRect(
+                x: max(0, CGFloat(x) * zoom),
+                y: max(0, CGFloat(y) * zoom),
+                width: min(CGFloat(w) * zoom, bounds.width),
+                height: min(CGFloat(h) * zoom, bounds.height))
+            let snapConfig = WKSnapshotConfiguration()
+            snapConfig.rect = rect
+            snapConfig.afterScreenUpdates = true
+            if let img = try? await webView.takeSnapshot(configuration: snapConfig) {
+                shots.append(img)
+            }
+        }
+        guard !shots.isEmpty else { return nil }
+        let width = shots.map(\.size.width).max() ?? 0
+        let gap: CGFloat = 6
+        let totalHeight = shots.reduce(0) { $0 + $1.size.height } + gap * CGFloat(shots.count - 1)
+        let canvas = NSImage(size: NSSize(width: width, height: totalHeight))
+        canvas.lockFocus()
+        NSColor.white.setFill()
+        NSRect(x: 0, y: 0, width: width, height: totalHeight).fill()
+        var y = totalHeight
+        for img in shots {
+            y -= img.size.height
+            img.draw(at: NSPoint(x: 0, y: y), from: .zero, operation: .sourceOver, fraction: 1)
+            y -= gap
+        }
+        canvas.unlockFocus()
+        return canvas
     }
 }

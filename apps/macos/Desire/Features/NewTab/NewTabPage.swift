@@ -244,6 +244,9 @@ struct NewTabPage: View {
         .contentShape(Rectangle())
         .contextMenu {
             Button(String(localized: "Open")) { onNavigate(entry.url) }
+            // 转换为…（v0.8.15 融合）：DocumentConvert 管道（与 Agent
+            // convertDocument 工具共用），产物落源目录旁并入账。
+            convertMenu(entry)
             // 压缩为 zip（v0.8.14 基础件 5）：UI 侧补齐（Agent 侧 zipFiles 已通）。
             if entry.kind != "archive" {
                 Button(String(localized: "Compress to zip…")) { compressToZip(entry) }
@@ -251,6 +254,47 @@ struct NewTabPage: View {
             Divider()
             Button(String(localized: "Remove from list"), role: .destructive) {
                 RecentLocalFiles.remove(urlString: entry.url)
+            }
+        }
+    }
+
+    /// 「转换为…」子菜单（v0.8.15）：按源类型列目标格式。
+    private func convertTargets(for ext: String) -> [String] {
+        switch ext {
+        case "pdf": return ["md", "txt", "docx", "rtf", "html"]
+        case "docx", "doc", "rtf", "rtfd", "odt", "html", "htm": return ["pdf"]
+        case "png", "jpg", "jpeg", "heic", "tiff", "gif", "webp": return ["pdf"]
+        case "csv", "tsv", "xlsx": return ["md", "csv", "tsv"]
+        default: return []
+        }
+    }
+
+    @ViewBuilder
+    private func convertMenu(_ entry: RecentLocalFiles.Entry) -> some View {
+        let targets = convertTargets(for: (entry.filename as NSString).pathExtension.lowercased())
+        if !targets.isEmpty {
+            Menu(String(localized: "Convert to…")) {
+                ForEach(targets, id: \.self) { target in
+                    Button("\(target.uppercased())…") { convertEntry(entry, format: target) }
+                }
+            }
+        }
+    }
+
+    /// 转换在后台跑（文档→PDF 离屏渲染需数秒），成功入账并在 Finder 选中。
+    private func convertEntry(_ entry: RecentLocalFiles.Entry, format: String) {
+        guard let src = URL(string: entry.url) else { return }
+        let dest = src.deletingPathExtension().appendingPathExtension(format)
+        Task { @MainActor in
+            let outcome = await DocumentConvert.convert(sources: [src], format: format, to: dest)
+            if outcome.ok {
+                RecentLocalFiles.record(url: dest)
+                NSWorkspace.shared.activateFileViewerSelecting([dest])
+            } else {
+                let alert = NSAlert()
+                alert.messageText = String(localized: "Conversion failed")
+                alert.informativeText = outcome.message
+                alert.runModal()
             }
         }
     }

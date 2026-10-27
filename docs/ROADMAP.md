@@ -2998,3 +2998,96 @@ v0.8.1 的菜单入口只有"移交会话"，这版补齐：
 - **第二批**：8+9（Agent 压缩/转换三件套）+ 3（截图直通）+ 13（批量进度）。
 - **第三批**：4+5+10+11+12+14（收口）+ 1.0 前可靠性清单对账。
 - 每批独立提交；P0 全绿且你过目后才发版。
+
+## v0.8.14 规划稿（2026-10-27）—— 办公深化：从"能看"到"能改能出能管"
+
+> 按四主题骨架。v0.8.12/13 把四大查看器做成了"能看 + 轻编辑"，本版主线
+> 是**办公写回与出件**：Agent 能产出 docx/xlsx 正式文件、表格编辑器有
+> 撤销/多表写回、文档可导出多格式、打印/导出覆盖图片——把 Desire 从
+> "办公文件查看器"推进为"轻办公工作台"。
+>
+> 版本号 **v0.8.14**。只规划，过目后才开发。
+
+### 存量盘点（2026-10-27 核实）
+
+- **读取面已全**（0.8.12/13）：docx/doc/rtf/odt、xlsx 多表、csv/tsv、pdf、图片。
+- **写回面**：csv/tsv 单元格（editDocument）、纯文本（writeFile）；**缺**
+  docx 导出、xlsx 多表写回、rtf 导出。
+- **出件面**：文档打印/导出 PDF 已通；图片导出 png/jpeg/heic 已通；
+  **缺**图片打印、表格打印。
+- **压缩**：Agent zipFiles/unzipArchive/listArchive 三件套已通；
+  UI 侧有解压，**缺**"压缩为 zip"右键。
+- 其他：表单截图锚点（0.8.11 P2 遗留）、会话模板已有 /templates，
+  **缺**模板管理 UI（增删改查自定义模板）。
+
+### 一、浏览器基础能力（5 项）
+
+1. **docx 导出**（P0）：DocumentViewer/Agent 工具 exportDocument——
+   纯文本/Markdown/HTML 经 textutil 转 docx/rtf（textutil 支持 txt→docx
+   正向转换），"写回面"补上正式文档格式；白名单路径口径与既有工具一致。
+2. **表格打印**（P1）：表格查看器 ⌘P——渲染快照进系统打印面板
+   （横向自适应、表头重复）。
+3. **图片打印**（P2）：图片编辑器 ⌘P（NSSPrintOperation，适配页面方向
+   随图片横竖）。
+4. **表格编辑撤销/重做**（P1）：SpreadsheetBuffer 操作栈（编辑/粘贴），
+   ⌘Z/⌘⇧Z——现有 dirtyCells 只是标记，补真 undo。
+5. **zip 右键"压缩为…"**（P2）：访达拖入/最近文件列表对已有条目
+   右键"压缩为 zip"（UI 侧补齐——Agent 侧 zipFiles 已通）。
+
+### 二、Agent 基础能力（4 项）
+
+6. **exportDocument 工具**（P0）：Agent 产出正式文档——content
+   （md/txt/html）+ format（docx/rtf/html）+ path；经 textutil 转换，
+   白名单写口径。运营周报/研究纪要可交付为正式文件（写回面旗舰）。
+7. **editDocument xlsx 多表写回**（P1）：sheet 参数 + 按 sheet 写缓存
+   值单元格（报错口径不变：公式重算提示）——多表 xlsx 只能读不能改的
+   缺口补齐。
+8. **readSpreadsheet 分页参数**（P2）：offset/limit（现只有截断）——
+   大表逐页读，Agent 可遍历全量。
+9. **listRecentFiles 工具**（P2）：Agent 查询最近本地文件清单（Recent
+   LocalFiles 同源）——"我刚打开的那个文件"类指令可直接命中。
+
+### 三、融合能力（3 项）
+
+10. **表格选区 → Agent 分析**（P1）：表格查看器选中区域 →"让 Agent
+    分析此选区"（选区内容注入提问，与文档问答同模式）。
+11. **指标导入直通 v2**（P2）：metrics 导入 sheet 支持从已打开表格的
+    **选中范围**导入（不只整文件）。
+12. **会话模板变量表单**（P1）：/templates 套用时弹变量表单（每变量
+    一个输入框，替代"复制后手改"），填完即发——模板从"骨架参考"
+    变"一键产出"。
+
+### 四、替人干活（2 项）
+
+13. **定时任务产物导出**（P1）：定时任务产出的 .summary.md/报告
+    自动可选导出为 docx（走 1 的转换管线）——给老板的周报不用手动转。
+14. **批量重命名工具**（P2）：Agent 工具 batchRename（白名单内、
+    模式化改名 + 预览确认）——下载文件名整理的高频痛点。
+
+### 贯穿⑤ 可靠性
+
+- exportDocument/editDocument xlsx 写回走白名单 + .bak + 原子写三件套
+  （与既有口径一致）；textutil 转换失败报错明确（不静默出空文件）。
+- ImageTransforms/SpreadsheetBuffer undo/ArchiveKit 补单测；表格打印
+  快照一张。
+- 规划稿外零新增依赖（textutil/ditto/CoreImage 口径不变）。
+
+### 贯穿⑥ 可发现性
+
+- exportDocument/editDocument 扩展参数进能力页（toolDefs 自动）；
+  表格/图片/文档查看器的新工具条按钮带 help 文案；设置搜索登记
+  "导出/打印/模板"。
+
+### 明确不在本版
+
+- xlsx 公式重算/单元格样式（写缓存值口径不变）。
+- 在线协作/云文档（Numbers/Google Docs 编辑）。
+- PPT/Keynote（textutil 不覆盖；提示导出 PDF）。
+- 表单截图锚点（0.8.11 P2 再顺延——依赖 DPP signals 深水区）。
+
+### 批次
+
+- **第一批**：1（docx 导出）+ 6（exportDocument P0）+ 4（表格 undo）。
+- **第二批**：7（xlsx 多表写回）+ 2（表格打印）+ 12（模板变量表单）。
+- **第三批**：3+5+9+10+11+13+14（收口）。
+- 每批独立提交；P0 全绿且你过目后才发版。

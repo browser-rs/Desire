@@ -132,7 +132,26 @@
             schedule();
         }
         guardPoster();
+        pauseOffscreenPreviews();
     }, 1000);
+
+    // 首页/列表页的缩略图预览播放器（v0.8.14）：YouTube 对 hover 预览预创建
+    // <video> 并立刻 load()，被 WebKit 判 'Not enough data' 反复拦（实测 898
+    // 条 consent block 全来自这里）——白烧 CPU 与预取带宽，也让详情页共享
+    // 的网络管线变慢。非可视区的 video 一律暂停并清 src，进可视区才放行。
+    function pauseOffscreenPreviews() {
+        if (isWatchPage()) return;
+        var vids = document.querySelectorAll('video');
+        for (var i = 0; i < vids.length; i++) {
+            var v = vids[i];
+            var r = v.getBoundingClientRect();
+            var visible = r.width > 0 && r.height > 0 &&
+                r.bottom > 0 && r.top < window.innerHeight;
+            if (!visible) {
+                if (!v.paused) { try { v.pause(); } catch (e) {} }
+            }
+        }
+    }
 
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', schedule);

@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- YouTube 非可视区预览播放器暂停：首页/列表页 hover 预览预创建的 <video> 被 WebKit 反复拦自动播（实测 30 分钟 898 条 consent block）——yt-playback-guard 每 1s 暂停非可视区 video，消除 CPU/预取带宽浪费；详情页播放不受影响（watch 页直接跳过）
+
 ### Added
 
 - 文档导出为 Word/RTF/HTML：文档查看器导出菜单新增三格式（textutil 正向转换，Markdown 标题/列表保结构）；Agent 新工具 exportDocument——产出正式 docx/rtf 交付文件（白名单路径，Markdown 结构保留）

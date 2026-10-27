@@ -2685,7 +2685,7 @@ func testSlashParsing() {
     check("slash：未知命令不拦", AgentSlashParsing.parse("/usr/bin 就是路径") == nil)
     check("slash：裸斜杠不拦", AgentSlashParsing.parse("/") == nil)
     check("slash：非 slash 不拦", AgentSlashParsing.parse("帮我查 /etc/hosts 配置") == nil)
-    check("slash：known 含全部 23 命令", AgentSlashParsing.known.count == 23)
+    check("slash：known 含全部 24 命令", AgentSlashParsing.known.count == 24)
     check("slash：/model 解析", AgentSlashParsing.parse("/model amd")?.argument == "amd")
     check("slash：/persona off 解析", AgentSlashParsing.parse("/persona off")?.argument == "off")
     check("slash：/promote 无参数", AgentSlashParsing.parse("/promote")?.command == "promote" && AgentSlashParsing.parse("/promote")?.argument.isEmpty == true)

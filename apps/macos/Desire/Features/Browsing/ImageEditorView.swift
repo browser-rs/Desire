@@ -611,9 +611,9 @@ struct ImageEditorView: View {
                     // 栈顶在前 = 最新操作在上；index = 撤销深度。
                     ForEach(Array(historySteps.enumerated().reversed()), id: \.offset) { revIndex, label in
                         let depth = historySteps.count - 1 - revIndex
-                        Button {
+                        Button(action: {
                             jumpToHistoryStep(depth - 1 < 0 ? 0 : depth)
-                        } label: {
+                        }, label: {
                             HStack(spacing: 6) {
                                 Text("\(depth + 1)")
                                     .font(.system(size: 9, design: .monospaced))

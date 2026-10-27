@@ -4,6 +4,8 @@
 PDF 工作台（第一批：导航/批注/页面管理）：大纲+缩略图+批注三 tab 侧栏（缩略图懒生成、右键旋转/删除/上下移/提取本页）、页码跳转框与 "n/N" 指示、⌘F 全文查找（命中计数/上下条跳转）；批注工具条——高亮/下划线（划选即落注）、文字便签（点击落点弹输入）、箭头/矩形（拖拽绘制），批注列表点击跳转、右键删除，⌘S 另存带批注 PDF（PDF 多来自临时下载文件，统一另存而非写回）；页面操作 ⌘Z 可撤销（删除/重排/旋转记录逆操作）。PDFKit 操作收口 PDFWorkbenchModel（Store 层），视图零业务逻辑。
 Agent×PDF 五件：readPdf 支持 pages 页码范围（"1-5,8"、"3-" 开放区间，解析器进 harness）并按页分节带 [pN] 标记（长文档分段读、引用可溯源）；convertDocument 一体转换工具（pdf→md/txt/docx/rtf/html、文档→PDF 离屏渲染分页、多图合成 PDF、表格→md/csv/tsv，全部端上、只写产物不碰源）；PDF 查看器 ⌘⇧A 问 Agent（取文预填提问进活会话，对齐文档问答管道）；Jobs 面板本地 md/txt/csv 产出行内一键转 docx/rtf（转好在 Finder 选中）；crew 收尾报告自动落盘工作区（crew-<时间>-<主题>.md，逐任务状态/耗时/报告全文）并入账最近本地文件。
 UI「转换为…」与表单锚点：最近本地文件卡片右键按源类型列目标格式（PDF→md/txt/docx/rtf/html、文档/图片→PDF、表格→md/csv/tsv，与 Agent convertDocument 共用 DocumentConvert 管道，转好入账并在 Finder 选中）；图片编辑器新增直线、多边形（单击加点、点回首点闭合、虚线预览）与序号气泡（点击落位自动编号）三种标注工具；fillForm 回执带字段截图（逐字段取矩形裁图、垂直拼一张附回执——模型可视觉自检、用户回执可见，上限 6 字段）。
+PDF 选区上白板：PDF 工作台工具条新增"上板"——当前选区文本块带页码引用（文件名 · pN）进白板，与网页选区/截图上板同管线；运营周报一键导出 docx/rtf（复制按钮旁新增导出菜单，exportDocument 管道，转好在 Finder 选中）；⌘⇧F 集中搜索第六源——最近 50 个本地文件按文件名与内容快照命中（后台预热索引、内容命中带片段、回车进查看器，桥 /search/everything 同步）；下载完成自动摘要（opt-in 默认关）：PDF/Word/RTF 等文档下载完成后旁路生成一句话摘要进通知（设置页 Downloads 段开关）。核实撤项两项（均已交付）：全局默认字号 UI（0.7.20 已有）、下载行拖拽到 Finder（CompletedFileDraggable 已有）；Remote 文件面类型 chip 与远端打开核实为已交付（recentFiles 帧含 kind + iOS macwindow 打开）。
+
 
 
 

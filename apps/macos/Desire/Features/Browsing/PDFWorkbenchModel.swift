@@ -339,6 +339,15 @@ final class PDFWorkbenchModel: ObservableObject {
         attachedView?.setCurrentSelection(nil, animate: false)
     }
 
+    /// 当前选区文本 + 起始页号（选区上白板用；无选区返回 nil）。
+    func currentSelectionWithPage() -> (text: String, pageIndex: Int)? {
+        guard let selection = attachedView?.currentSelection,
+              let text = selection.string, !text.isEmpty else { return nil }
+        let page = selection.pages.first ?? attachedView?.currentPage
+        let index = (page.flatMap { document.index(for: $0) }) ?? pageIndex
+        return (text, index)
+    }
+
     /// 便签落点（视图层点击 → 输入层 → addNote）。
     struct PendingNote: Equatable {
         let pageIndex: Int

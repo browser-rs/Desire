@@ -303,6 +303,14 @@ struct PDFViewerView: View {
                 .disabled(!model.canUndoPage)
                 .keyboardShortcut("z", modifiers: .command)
                 .help(String(localized: "Undo page change (⌘Z)"))
+                Button {
+                    sendSelectionToWhiteboard(model)
+                } label: {
+                    Image(systemName: "square.and.arrow.up.on.square")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help(String(localized: "Send the selected text to the whiteboard"))
             } else {
                 Spacer(minLength: 8)
             }
@@ -596,6 +604,24 @@ struct PDFViewerView: View {
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 10).fill(.regularMaterial).shadow(radius: 6))
+    }
+
+    /// 选区上白板（v0.8.15 融合）：文本块带页码引用（from:"pdf-selection"
+    /// 语义），与网页选区/截图上板同管线。
+    private func sendSelectionToWhiteboard(_ model: PDFWorkbenchModel) {
+        guard let selection = model.currentSelectionWithPage() else {
+            model.statusNote = String(localized: "Select text first")
+            return
+        }
+        let block = WhiteboardBlock(
+            type: WhiteboardBlock.Kind.note,
+            title: String(localized: "\(fileName) · p\(selection.pageIndex + 1)"),
+            content: selection.text)
+        WhiteboardStore.shared.append(
+            [block],
+            title: String(localized: "PDF selection"),
+            conversationID: AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString)
+        model.statusNote = String(localized: "Sent to the whiteboard")
     }
 
     private func commitNote(_ model: PDFWorkbenchModel, pending: PDFWorkbenchModel.PendingNote) {

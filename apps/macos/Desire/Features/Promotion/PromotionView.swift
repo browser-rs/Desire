@@ -1,6 +1,7 @@
 import AppKit
 import Charts
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// 运营中心页（Agent 窗口侧栏「运营」目的地）：推广 / 自媒体 / 电商三专项
 /// 共用一块工作台——目标、账号、帖子（草稿/已发/增长）、运营经验。
@@ -150,6 +151,17 @@ struct PromotionView: View {
             HoverIcon(systemName: reportCopied ? "checkmark.circle" : "doc.text",
                       action: copyReport,
                       help: String(localized: "Copy weekly report"))
+            // 周报导出正式格式（v0.8.15）：docx/rtf（exportDocument 管道）——
+            // 周报发出去就是附件而不是聊天气泡。
+            Menu {
+                Button(String(localized: "Word (.docx)")) { exportReport("docx") }
+                Button(String(localized: "RTF (.rtf)")) { exportReport("rtf") }
+            } label: {
+                Image(systemName: "arrow.up.doc")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help(String(localized: "Export weekly report as a document"))
             HoverIcon(systemName: "megaphone.fill", action: { isCreatingCampaign = true },
                       help: String(localized: "New Campaign"))
             HoverIcon(systemName: "plus", action: { isCreatingGoal = true },
@@ -207,6 +219,24 @@ struct PromotionView: View {
             try? await Task.sleep(for: .seconds(2))
             withAnimation(.transitionNormal) { reportCopied = false }
         }
+    }
+
+    /// 周报导出为 docx/rtf（v0.8.15 融合）：exportDocument 管道，
+    /// 转好在 Finder 选中。
+    private func exportReport(_ format: String) {
+        let markdown = PromotionReport.markdown(
+            goals: store.goals, posts: store.posts,
+            accounts: store.accounts, lessons: store.lessons,
+            interactions: store.interactions,
+            experiments: store.experiments)
+        let panel = NSSavePanel()
+        let stamp = DateFormatter()
+        stamp.dateFormat = "yyyy-MM-dd"
+        panel.nameFieldStringValue = "operations-weekly-\(stamp.string(from: Date())).\(format)"
+        panel.allowedContentTypes = [format == "docx" ? .data : .rtf]
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        guard DocumentText.exportDocument(content: markdown, format: format, to: dest) else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([dest])
     }
 
     // MARK: - Goals

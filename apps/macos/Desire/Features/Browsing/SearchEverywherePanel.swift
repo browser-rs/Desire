@@ -52,7 +52,10 @@ struct SearchEverywherePanel: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .frame(minWidth: 560, minHeight: 440)
-        .onAppear { fieldFocused = true }
+        .onAppear {
+            LocalFileContentIndex.shared.warmUp()
+            fieldFocused = true
+        }
         .onChange(of: query) { _, newValue in
             searchTask?.cancel()
             let q = newValue
@@ -107,6 +110,8 @@ struct SearchEverywherePanel: View {
                         }
                     }
                 }
+                // 最近本地文件（第六源，v0.8.15）：文件名 + 内容快照命中。
+                items += LocalFileContentIndex.shared.matchingItems(query: q)
                 let r = SearchEverywhere.search(q, items: items)
                 await MainActor.run {
                     result = r
@@ -243,6 +248,7 @@ struct SearchEverywherePanel: View {
                     if !result.history.isEmpty { group("History", result.history, systemImage: "clock") }
                     if !result.bookmarks.isEmpty { group("Bookmarks", result.bookmarks, systemImage: "book") }
                     if !result.readingList.isEmpty { group("Reading List", result.readingList, systemImage: "eyeglasses") }
+                    if !result.localFiles.isEmpty { group("Local Files", result.localFiles, systemImage: "doc") }
                     if !result.agentConversations.isEmpty {
                         group("Agent Conversations", result.agentConversations,
                               systemImage: "bubble.left.and.text.bubble.right")
@@ -296,6 +302,10 @@ struct SearchEverywherePanel: View {
                     Text("Chat")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(appAccent)
+                } else if hit.source == .localFile {
+                    Text("File")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(appAccent)
                 }
             }
             .padding(.horizontal, 10)
@@ -327,7 +337,7 @@ struct SearchEverywherePanel: View {
     // MARK: - Actions
 
     private func openFirst() {
-        for hits in [result.tabs, result.history, result.bookmarks, result.readingList] {
+        for hits in [result.tabs, result.history, result.bookmarks, result.readingList, result.localFiles] {
             if let first = hits.first {
                 activate(first)
                 return
@@ -423,6 +433,7 @@ struct SearchEverywherePanel: View {
         case .bookmark: String(localized: "Bookmark")
         case .readingList: String(localized: "Reading List")
         case .agentConversation: String(localized: "Agent Conversation")
+        case .localFile: String(localized: "Local File")
         }
     }
 
@@ -433,6 +444,7 @@ struct SearchEverywherePanel: View {
         case .bookmark: "book"
         case .readingList: "eyeglasses"
         case .agentConversation: "bubble.left.and.text.bubble.right"
+        case .localFile: "doc"
         }
     }
 
@@ -460,7 +472,8 @@ struct SearchEverywherePanel: View {
                 }
                 onOpenAgentPanel?()
             }
-        case .history, .bookmark, .readingList:
+        case .history, .bookmark, .readingList, .localFile:
+            // 本地文件走 file:// 导航 → 查看器路由（PDF/表格/图片/文档直开）。
             tabManager.addTab(url: hit.url, makeActive: true)
         }
         onClose()

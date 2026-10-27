@@ -1179,6 +1179,11 @@ final class AutomationServer {
                     items.append(["source": "readingList", "title": i.title, "url": i.url])
                 }
             }
+            // 最近本地文件（第六源，v0.8.15）：触发预热后按当前快照命中。
+            LocalFileContentIndex.shared.warmUp()
+            for i in LocalFileContentIndex.shared.matchingItems(query: q) {
+                items.append(["source": "localFile", "title": i.title, "url": i.url])
+            }
             return try Self.json(["q": q, "results": items])
 
             // ── 运营工作台（0.7.15）─────────────────────────────

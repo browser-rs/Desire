@@ -498,6 +498,40 @@ class DownloadStore: ObservableObject {
         downloads[i].isQueued = false
     }
 
+    /// 下载完成自动分析（v0.8.15 替人干活 18，opt-in 默认关）：文档类下载
+    /// 完成后旁路生成一句话摘要进通知（routine 档）。不进会话、不烧回合；
+    /// 摘要失败静默（下载完成通知仍是主通道）。
+    private func maybeAutoSummarize(_ item: DownloadItem) {
+        guard UserDefaults.standard.bool(forKey: "downloadAutoSummarize") else { return }
+        let ext = (item.filename as NSString).pathExtension.lowercased()
+        let supported = ["pdf", "docx", "doc", "rtf", "odt", "txt", "md"]
+        guard supported.contains(ext), let url = item.fileURL else { return }
+        let filename = item.filename
+        Task { @MainActor in
+            let text: String?
+            if ext == "pdf" {
+                text = PDFTextExtractor.extractText(from: url, maxChars: 12_000)
+            } else if ext == "md" || ext == "txt" {
+                text = try? String(contentsOf: url, encoding: .utf8)
+            } else {
+                text = DocumentText.extractPlainText(from: url, maxChars: 12_000)
+            }
+            guard let text, !text.isEmpty, let app = AppState.live else { return }
+            let summary = await MemoryExtractor.collectText(
+                preference: app.aiPreference,
+                system: "You summarize downloaded documents. Reply with ONE sentence in the document's language: what it is and its key point. No preamble.",
+                user: String(text.prefix(10_000)))
+            let clean = summary.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !clean.isEmpty,
+                  !clean.localizedCaseInsensitiveContains("error"),
+                  !clean.localizedCaseInsensitiveContains("无法") else { return }
+            ProactiveNotificationStore.shared.deliver(
+                title: String(localized: "Finished: \(filename)"),
+                body: clean,
+                tier: .routine)
+        }
+    }
+
     /// 名额可能空出的统一出口（完成/失败/移除/暂停）——等待队列回泵。
     private func postSlotFreed() {
         NotificationCenter.default.post(name: .downloadSlotFreed, object: nil)
@@ -517,6 +551,7 @@ class DownloadStore: ObservableObject {
         saveHistory()
         scanFilePresence()
         syncDockBadge()
+        maybeAutoSummarize(downloads[i])
         BridgeEventBus.shared.publish("downloadCompleted", [
             "id": id.uuidString, "file": downloads[i].filename,
             "bytes": downloads[i].downloadedBytes, "private": downloads[i].isPrivate,

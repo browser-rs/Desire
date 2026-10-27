@@ -456,6 +456,13 @@ struct GeneralSettingsSection: View {
                         action: { downloadStore.chooseDownloadFolder() }
                     )
                     SettingsRowDivider()
+                    SettingsToggleRow(
+                        "Summarize Finished Documents",
+                        subtitle: "When a document (PDF/Word/RTF…) finishes downloading, generate a one-line summary in a notification. Uses your configured model; off by default.",
+                        systemImage: "doc.text.magnifyingglass",
+                        isOn: $settings.downloadAutoSummarize
+                    )
+                    SettingsRowDivider()
                     MutedDownloadHostsRow()
                     SettingsRowDivider()
                     SettingsPickerRow(

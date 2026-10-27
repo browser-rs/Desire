@@ -3208,6 +3208,12 @@ v0.8.1 的菜单入口只有"移交会话"，这版补齐：
 - 下载限速（WebKit 无 API，勿做假 UI——既有红线）；垂直标签栏（多次排除）；
   passkey（等 Apple entitlement 批复）。
 
+### 存量盘点修正（2026-10-28 第四批执行时补充）
+
+- 项 16（Remote 文件面深化）核实为**已交付**：recentFiles 帧已含 kind 字段、
+  iOS RemoteFilesView 已显示类型与 macwindow 一键打开（0.8.12/13 顺带落地），
+  撤项记档。
+
 ### 存量盘点修正（2026-10-28 第三批执行时核实）
 
 - 项 5（全局默认字号与最小字号）**已交付**：Settings.defaultMinFontSize/

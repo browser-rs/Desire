@@ -9,6 +9,8 @@ nonisolated enum SearchEverywhere {
         case tab, history, bookmark, readingList
         /// Agent 会话（0.7.14 第五源：标题/消息文本命中，回车直达会话）。
         case agentConversation
+        /// 最近本地文件（v0.8.15 第六源：文件名 + 内容快照命中，回车进查看器）。
+        case localFile
     }
 
     struct Hit: Identifiable, Equatable, Sendable {
@@ -36,13 +38,16 @@ nonisolated enum SearchEverywhere {
         var bookmarks: [Hit] = []
         var readingList: [Hit] = []
         var agentConversations: [Hit] = []
+        var localFiles: [Hit] = []
 
         var isEmpty: Bool {
             tabs.isEmpty && history.isEmpty && bookmarks.isEmpty
                 && readingList.isEmpty && agentConversations.isEmpty
+                && localFiles.isEmpty
         }
         var totalCount: Int {
-            tabs.count + history.count + bookmarks.count + readingList.count + agentConversations.count
+            tabs.count + history.count + bookmarks.count + readingList.count
+                + agentConversations.count + localFiles.count
         }
     }
 
@@ -91,6 +96,7 @@ nonisolated enum SearchEverywhere {
             case .bookmark: result.bookmarks.append(hit)
             case .readingList: result.readingList.append(hit)
             case .agentConversation: result.agentConversations.append(hit)
+            case .localFile: result.localFiles.append(hit)
             }
             counts[source, default: 0] += 1
         }

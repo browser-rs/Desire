@@ -100,6 +100,12 @@ class Settings: ObservableObject {
     @Published var defaultFontFamily: String {
         didSet { UserDefaults.standard.set(defaultFontFamily, forKey: "defaultFontFamily") }
     }
+
+    /// 下载完成自动摘要（v0.8.15 替人干活，opt-in 默认关）：pdf/docx 等
+    /// 文档完成后旁路一句话摘要进通知。
+    @Published var downloadAutoSummarize: Bool {
+        didSet { UserDefaults.standard.set(downloadAutoSummarize, forKey: "downloadAutoSummarize") }
+    }
     /// 高危文件类型（.dmg/.pkg/.sh 等）下载前弹确认。WebView 决策点直读
     /// UserDefaults，改动即时生效。
     @Published var warnDangerousDownloads: Bool {
@@ -165,6 +171,7 @@ class Settings: ObservableObject {
         downloadDockBadge = UserDefaults.standard.object(forKey: "downloadDockBadge") as? Bool ?? true
         askWhereToSaveDownloads = UserDefaults.standard.object(forKey: "askWhereToSaveDownloads") as? Bool ?? false
         defaultPageZoom = UserDefaults.standard.object(forKey: "defaultPageZoom") as? Double ?? 1.0
+        downloadAutoSummarize = UserDefaults.standard.bool(forKey: "downloadAutoSummarize")
         defaultMinFontSize = UserDefaults.standard.object(forKey: "defaultMinFontSize") as? Int ?? 0
         defaultFontFamily = UserDefaults.standard.string(forKey: "defaultFontFamily") ?? ""
         warnDangerousDownloads = UserDefaults.standard.object(forKey: "warnDangerousDownloads") as? Bool ?? true

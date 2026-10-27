@@ -244,7 +244,7 @@ struct DocumentViewerView: View {
         guard AppState.live != nil else { return }
         let name = fileName
         Task { @MainActor in
-            let text = (try? DocumentText.extractPlainText(from: fileURL, maxChars: 12_000)) ?? ""
+            let text = DocumentText.extractPlainText(from: fileURL, maxChars: 12_000) ?? ""
             let prompt = String(localized: "请阅读这份文档（\(name)）并回答我的问题。文档内容：\n\(text.prefix(8_000))\n\n我的问题：")
             guard let session = AgentScheduler.shared.deliveryTarget else {
                 flashNote = String(localized: "No live agent session")

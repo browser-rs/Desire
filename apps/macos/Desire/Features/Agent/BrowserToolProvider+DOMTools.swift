@@ -2832,6 +2832,7 @@ extension BrowserToolProvider {
         case "readPdf":
             guard let pdfPath = args["path"] as? String, !pdfPath.isEmpty else { return Self.fail("Missing path") }
             let pdfMax = (args["maxChars"] as? Int) ?? 60_000
+            let pagesSpec = args["pages"] as? String
             switch AgentWorkspace.shared.resolve(pdfPath, write: false) {
             case .denied(let reason):
                 return reason
@@ -2840,13 +2841,54 @@ extension BrowserToolProvider {
                     return Self.fail("File not found: \(fileURL.path)")
                 }
                 let pages = PDFTextExtractor.pageCount(of: fileURL)
-                guard let text = PDFTextExtractor.extractText(from: fileURL, maxChars: pdfMax) else {
+                if let pagesSpec, !pagesSpec.trimmingCharacters(in: .whitespaces).isEmpty,
+                   let total = pages,
+                   PageRangeParser.parse(pagesSpec, pageCount: total) == nil {
+                    return Self.fail("Invalid pages spec '\(pagesSpec)' — use 1-based ranges like '1-5,8' or '3-' (document has \(total) page(s))")
+                }
+                guard let text = PDFTextExtractor.extractText(from: fileURL, maxChars: pdfMax, pages: pagesSpec) else {
                     let sizeNote = pages.map { "\($0) page(s)" } ?? "unreadable"
                     return "No text layer extracted (\(sizeNote)) — scanned PDF? Screenshot the pages and use ocrImage instead"
                 }
-                let head = pages.map { "PDF text (\($0) page(s)):\n" } ?? "PDF text:\n"
+                let head = pages.map { "PDF text (\($0) page(s), sections marked [pN]):\n" } ?? "PDF text:\n"
                 return head + text
             }
+
+        case "convertDocument":
+            // 一体转换（v0.8.15）：pdf→md/txt/docx/rtf/html、文档→pdf、
+            // 图片→pdf（可逗号分隔多图合成）、表格→md/csv/tsv。
+            // 管道收口 DocumentConvert（UI「转换为…」菜单共用）；端上完成。
+            guard let srcArg = args["src"] as? String, !srcArg.isEmpty else { return Self.fail("Missing src") }
+            guard let format = (args["format"] as? String)?.lowercased(), !format.isEmpty else {
+                return Self.fail("Missing format (md/txt/docx/rtf/html/pdf/csv/tsv)")
+            }
+            var srcs: [URL] = []
+            for piece in srcArg.split(separator: ",") {
+                switch AgentWorkspace.shared.resolve(piece.trimmingCharacters(in: .whitespaces), write: false) {
+                case .granted(let u): srcs.append(u)
+                case .denied(let reason): return reason
+                }
+            }
+            guard let first = srcs.first else { return Self.fail("No readable source") }
+            let destURL: URL
+            if let outArg = args["path"] as? String, !outArg.isEmpty {
+                switch AgentWorkspace.shared.resolve(outArg, write: true) {
+                case .granted(let u): destURL = u
+                case .denied(let reason): return reason
+                }
+            } else {
+                let base = first.deletingPathExtension().lastPathComponent
+                let fallback = first.deletingLastPathComponent()
+                    .appendingPathComponent("\(base).\(format)")
+                switch AgentWorkspace.shared.resolve(fallback.path, write: true) {
+                case .granted(let u): destURL = u
+                case .denied(let reason): return reason
+                }
+            }
+            let outcome = await DocumentConvert.convert(sources: srcs, format: format, to: destURL)
+            return outcome.ok
+                ? "\(outcome.message) → \(destURL.path)"
+                : Self.fail(outcome.message)
 
         case "readDocument":
             // Word/RTF 富文本取文（textutil）。表格/PDF/扫描件各有专门工具。

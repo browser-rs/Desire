@@ -180,6 +180,18 @@ struct JobsPanel: View {
             if let artifact = job.artifactURL, !artifact.isEmpty {
                 Button(String(localized: "Open")) { open(artifact) }
                     .controlSize(.small)
+                // 任务产出统一出件（v0.8.15）：本地 md/txt/csv 产物一键转
+                // docx/rtf 正式文件（exportDocument 管道），转好在 Finder 选中。
+                if isExportableArtifact(artifact) {
+                    Menu {
+                        Button(String(localized: "Word (.docx)")) { exportArtifact(artifact, format: "docx") }
+                        Button(String(localized: "RTF (.rtf)")) { exportArtifact(artifact, format: "rtf") }
+                    } label: {
+                        Image(systemName: "square.and.arrow.up")
+                    }
+                    .controlSize(.small)
+                    .help(String(localized: "Convert to a shareable document"))
+                }
             }
             if job.state == .needsApproval {
                 Button(String(localized: "Approve")) {
@@ -238,5 +250,19 @@ struct JobsPanel: View {
         } else {
             NSWorkspace.shared.open(URL(fileURLWithPath: artifact))
         }
+    }
+
+    private func isExportableArtifact(_ artifact: String) -> Bool {
+        guard artifact.hasPrefix("/") else { return false }
+        return ["md", "txt", "csv"].contains(
+            (artifact as NSString).pathExtension.lowercased())
+    }
+
+    private func exportArtifact(_ artifact: String, format: String) {
+        let src = URL(fileURLWithPath: artifact)
+        guard let content = try? String(contentsOf: src, encoding: .utf8) else { return }
+        let dest = src.deletingPathExtension().appendingPathExtension(format)
+        guard DocumentText.exportDocument(content: content, format: format, to: dest) else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([dest])
     }
 }

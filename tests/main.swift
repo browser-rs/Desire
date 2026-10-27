@@ -3776,6 +3776,32 @@ func testSpreadsheetTsvSelection() {
 
 testSpreadsheetTsvSelection()
 
+func testPageRangeParser() {
+    // 基本：单页/闭区间/逗号混排（1-based，输出 0-based 去重升序保序）
+    let a = PageRangeParser.parse("1,3-5,8", pageCount: 10)
+    check("页码：混排", a == [0, 2, 3, 4, 7])
+    // 开放区间到末尾
+    let b = PageRangeParser.parse("3-", pageCount: 5)
+    check("页码：开放区间", b == [2, 3, 4])
+    // 越界裁掉 + 去重（"9-99" 在 10 页文档里裁成 9、10 两页）
+    let c = PageRangeParser.parse("9-99,2,2", pageCount: 10)
+    check("页码：越界与去重", c == [8, 9, 1])
+    // 非法：空/垃圾/反向区间/多余片段
+    check("页码：空串 nil", PageRangeParser.parse("  ", pageCount: 10) == nil)
+    check("页码：垃圾 nil", PageRangeParser.parse("abc", pageCount: 10) == nil)
+    check("页码：反向 nil", PageRangeParser.parse("5-2", pageCount: 10) == nil)
+    check("页码：半开缺起点 nil", PageRangeParser.parse("-3", pageCount: 10) == nil)
+    check("页码：三段 nil", PageRangeParser.parse("1-2-3", pageCount: 10) == nil)
+    check("页码：零页文档 nil", PageRangeParser.parse("1", pageCount: 0) == nil)
+    // 空白容忍
+    let d = PageRangeParser.parse(" 2 - 4 , 7 ", pageCount: 10)
+    check("页码：空白容忍", d == [1, 2, 3, 6])
+    // 越界后全空 → nil
+    check("页码：全越界 nil", PageRangeParser.parse("50-60", pageCount: 10) == nil)
+}
+
+testPageRangeParser()
+
 func testNightOwlPolicy() {
     var p = NotificationPolicy()
     p.quietHoursEnabled = true

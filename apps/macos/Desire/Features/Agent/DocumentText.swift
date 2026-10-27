@@ -33,6 +33,27 @@ enum DocumentText {
         return text.count > maxChars ? String(text.prefix(maxChars)) + "…[truncated]" : text
     }
 
+    /// 富文本 → HTML（textutil -convert html -stdout，保结构：标题/列表/粗体）。
+    /// 文档转 PDF 的中间步；失败返回 nil。
+    static func htmlContent(from url: URL) -> String? {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/textutil")
+        process.arguments = ["-convert", "html", "-stdout", url.path]
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError = Pipe()
+        do {
+            try process.run()
+        } catch {
+            return nil
+        }
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0, !data.isEmpty else { return nil }
+        guard let html = String(data: data, encoding: .utf8), !html.isEmpty else { return nil }
+        return html
+    }
+
     /// 正向导出（v0.8.14 基础件 1）：txt/md/html → docx/rtf/html。
     /// textutil 双向可用——此前只用了读取半边。原子写；失败返回 nil。
     static func exportDocument(content: String, format: String, to url: URL) -> Bool {

@@ -174,6 +174,16 @@ struct PDFViewerView: View {
                 .keyboardShortcut("s", modifiers: .command)
                 .disabled(!model.hasUnsavedChanges)
                 .help(String(localized: "Export annotated PDF (⌘S)"))
+
+                Button {
+                    askAgentAboutPDF(model)
+                } label: {
+                    Image(systemName: "sparkles")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .keyboardShortcut("a", modifiers: [.command, .shift])
+                .help(String(localized: "Ask Agent about this PDF (⌘⇧A)"))
             }
 
             Button {
@@ -229,6 +239,20 @@ struct PDFViewerView: View {
         panel.allowedContentTypes = [.pdf]
         guard panel.runModal() == .OK, let dest = panel.url else { return }
         _ = model.save(to: dest)
+    }
+
+    /// PDF 问 Agent（⌘⇧A，v0.8.15）：取文预填提问进活会话，
+    /// 管道对齐文档查看器的 askAboutDocument。
+    private func askAgentAboutPDF(_ model: PDFWorkbenchModel) {
+        guard let session = AgentScheduler.shared.deliveryTarget else {
+            model.statusNote = String(localized: "No live agent session")
+            return
+        }
+        let text = PDFTextExtractor.extractText(from: fileURL, maxChars: 8_000) ?? ""
+        let prompt = String(localized: "请阅读这份 PDF（\(fileName)）并回答我的问题。内容：\n\(text)\n\n我的问题：")
+        session.sendMessage(prompt, recordHistory: true)
+        NotificationCenter.default.post(name: .desireShowAgentPanel, object: nil)
+        model.statusNote = String(localized: "Sent to the Agent")
     }
 
     // MARK: - 工具条（侧栏切换 + 批注工具）

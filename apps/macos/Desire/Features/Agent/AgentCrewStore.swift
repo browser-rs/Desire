@@ -459,6 +459,10 @@ final class AgentCrewStore: ObservableObject {
             body: String(localized: "\(c.completedCount) done, \(c.failedCount) failed · \(elapsedText)"),
             tier: .urgent)
         onCrewSettled?(c)
+        // crew 报告落盘（v0.8.15）：各窗报告合成一份 Markdown 进工作区并入账
+        // 最近本地文件——跑完的成果不再只活在聊天记录里；Remote 端 recentFiles
+        // 帧随之可见。失败（盘满等）静默：会话内摘要仍是主通道。
+        writeCrewReport(c)
         if let id = ephemeralContainerID {
             ephemeralContainerID = nil
             Task { @MainActor in
@@ -470,6 +474,44 @@ final class AgentCrewStore: ObservableObject {
     }
 
     // MARK: - Status / Cancel（crew 工具 + 桥共用）
+
+    /// crew 报告 → 工作区 `crew-<时间>-<主题>.md`（主题取 objective 前 24 字符、
+    /// 路径非法字符折叠）。每任务一节：状态/耗时/（跨窗时）窗口标签 + 报告全文。
+    private func writeCrewReport(_ c: Crew) {
+        let stamp = DateFormatter()
+        stamp.dateFormat = "yyyy-MM-dd-HHmmss"
+        let theme = c.objective
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let safeTheme = String(theme.prefix(24)).isEmpty ? "crew" : String(theme.prefix(24))
+        let url = AgentWorkspace.shared.directory
+            .appendingPathComponent("crew-\(stamp.string(from: c.createdAt))-\(safeTheme).md")
+        var md = "# Crew: \(c.objective)\n\n"
+        md += "- \(c.completedCount)/\(c.tasks.count) done"
+        if c.failedCount > 0 { md += "，\(c.failedCount) failed" }
+        if let finishedAt = c.finishedAt {
+            let secs = Int(c.createdAt.distance(to: finishedAt))
+            md += " · \(secs)s"
+        }
+        md += "\n"
+        for t in c.tasks {
+            md += "\n---\n\n## Task \(t.index): \(t.instruction)\n\n"
+            if let urlText = t.url, !urlText.isEmpty { md += "- url: \(urlText)\n" }
+            if let label = t.windowLabel { md += "- window: \(label)\n" }
+            if let secs = t.durationSeconds { md += String(format: "- duration: %.0fs\n", secs) }
+            md += "- state: \(t.state.rawValue)\n"
+            if let r = t.result, !r.isEmpty {
+                md += "\n\(r)\n"
+            }
+        }
+        do {
+            try md.write(to: url, atomically: true, encoding: .utf8)
+            RecentLocalFiles.record(url: url)
+        } catch {
+            Log.agent.error("crew report write failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
 
     func statusReport() -> String {
         var usageLine = ""

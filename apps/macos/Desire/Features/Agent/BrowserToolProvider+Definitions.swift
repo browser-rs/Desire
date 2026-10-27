@@ -976,9 +976,10 @@ extension BrowserToolProvider {
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "readPdf",
-                description: "Extract the text layer of a PDF file (contracts, reports, papers) — local, no page needed. Returns up to ~60k chars; pageCount is included so you can gauge size. Scanned PDFs without a text layer return nothing — screenshot the page and use ocrImage for those.",
+                description: "Extract the text layer of a PDF file (contracts, reports, papers) — local, no page needed. Returns up to ~60k chars, one [pN]-marked section per page (cite pages as [p3]); pageCount is included so you can gauge size. Use pages (e.g. '1-5,8' or '3-') for long documents instead of reading everything. Scanned PDFs without a text layer return nothing — screenshot the page and use ocrImage for those.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "path": AgentJSONSchemaValue(type: "string", description: "PDF path (workspace / user folders)"),
+                    "pages": AgentJSONSchemaValue(type: "string", description: "Optional 1-based page ranges, e.g. '1-5,8' or '3-' (to end); omit for the whole document"),
                     "maxChars": AgentJSONSchemaValue(type: "number", description: "Cap on returned characters (default 60000)"),
                 ], required: ["path"])
             )),
@@ -997,6 +998,15 @@ extension BrowserToolProvider {
             "format": AgentJSONSchemaValue(type: "string", description: "docx (default for deliverables), rtf, or html"),
             "path": AgentJSONSchemaValue(type: "string", description: "Output file path (.docx/.rtf/.html matching format)"),
         ], required: ["content", "format", "path"])
+    )),
+    AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "convertDocument",
+        description: "Convert a file between formats, all on-device. Routing by source type: pdf → md/txt/docx/rtf/html (text layer; scanned PDFs fail — OCR first); docx/doc/rtf/odt/html → pdf (A4 paginated); images png/jpg/heic/tiff/gif/webp → pdf (pass multiple comma-separated src to merge into one PDF, in order); csv/tsv/xlsx → md/csv/tsv. Writes a new file, never touches the source.",
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "src": AgentJSONSchemaValue(type: "string", description: "Source path; comma-separated multiple images merge into one PDF"),
+            "format": AgentJSONSchemaValue(type: "string", description: "Target format: md/txt/docx/rtf/html/pdf/csv/tsv (valid set depends on source type)"),
+            "path": AgentJSONSchemaValue(type: "string", description: "Output path (optional; default <source>.<format> next to the source)"),
+        ], required: ["src", "format"])
     )),
     AgentToolDef(type: "function", function: AgentToolFunctionDef(
         name: "zipFiles",

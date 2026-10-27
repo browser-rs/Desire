@@ -873,6 +873,26 @@ class AgentSessionStore: ObservableObject {
                     self?.appendLocalAssistant(String(localized: "Export failed: \(error.localizedDescription)"))
                 }
             }
+        case "templates":
+            // 会话模板（v0.8.14 融合 12）：无参 = 列表；带名 = 骨架发到会话
+            //（{{变量}} 由用户直接改后发送——变量表单 UI 见面板侧）。
+            let all = SessionTemplates.all()
+            if parsed.argument.isEmpty {
+                var lines = [String(localized: "Session templates — /templates <名称> 套用：")]
+                for t in all {
+                    lines.append("- \(t.name) — \(t.descriptionText)\(t.builtin ? "" : String(localized: " (custom)"))")
+                }
+                appendLocalAssistant(lines.joined(separator: "\n"))
+            } else if let t = all.first(where: { $0.name == parsed.argument }) {
+                let vars = SessionTemplates.variables(in: t.body)
+                var text = String(localized: "Template \"\(t.name)\" — 填入变量后发送：") + "\n"
+                for v in vars { text += "• {{\(v)}} = （待填）\n" }
+                text += "---\n\(t.body)"
+                appendLocalAssistant(text)
+            } else {
+                appendLocalAssistant(String(localized: "No such template: \(parsed.argument). Available: \(all.map { $0.name }.joined(separator: ", "))"))
+            }
+
         case "promote":
             // 运营工作台（2026-10-14）：无参 = 摘要；带参 = 新建目标。
             let promotion = PromotionStore.shared

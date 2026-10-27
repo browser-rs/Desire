@@ -7,6 +7,9 @@
 
 - 文档导出为 Word/RTF/HTML：文档查看器导出菜单新增三格式（textutil 正向转换，Markdown 标题/列表保结构）；Agent 新工具 exportDocument——产出正式 docx/rtf 交付文件（白名单路径，Markdown 结构保留）
 - 表格编辑撤销/重做：⌘Z/⌘⇧Z 与头部按钮（快照栈上限 100 步）；SpreadsheetBuffer 快照栈纯逻辑进 harness（Swift 6.4 对 nonisolated struct 的 [[String]] append 重载解析 bug 以 Snapshot 包装 struct 绕过）
+- 表格打印：表格查看器 ⌘P——网格转 HTML table 经隐藏 WKWebView 走系统打印面板（表头底色/边框/防跨页断行）
+- /templates 会话模板命令：无参列出全部（内建周报/翻译/比价 + 自定义），带名输出骨架与待填变量清单
+
 
 
 ## [v0.8.13] - 2026-10-27

@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 /// 表格直开查看/编辑器（v0.8.12 旗舰 A）：CSV/TSV/XLSX 拖入即网格视图。
 /// 读取复用 SpreadsheetReader；编辑/排序/筛选/保存走 SpreadsheetBuffer。
@@ -178,11 +179,62 @@ struct SpreadsheetViewerView: View {
             .foregroundStyle(appAccent)
             .disabled(buffer == nil)
             .keyboardShortcut("s", modifiers: .command)
+            Button {
+                printTable()
+            } label: {
+                Image(systemName: "printer")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .disabled(buffer == nil)
+            .keyboardShortcut("p", modifiers: .command)
+            .help(String(localized: "Print (⌘P)"))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(Color(nsColor: .controlBackgroundColor))
         .overlay(alignment: .bottom) { Divider() }
+    }
+
+    /// 打印（v0.8.14 基础件 2）：表格 → HTML table → 隐藏 WKWebView →
+    /// 系统打印面板（横向内容自动分页）。
+    private func printTable() {
+        guard let buffer else { return }
+        var table = "<table><thead><tr>"
+        for cell in buffer.headers { table += "<th>\(cell)</th>" }
+        table += "</tr></thead><tbody>"
+        for row in buffer.rows.dropFirst() {
+            table += "<tr>"
+            for cell in row { table += "<td>\(cell)</td>" }
+            table += "</tr>"
+        }
+        table += "</tbody></table>"
+        let html = """
+        <!doctype html><html><head><meta charset="utf-8"><style>
+        body { font-family: -apple-system, sans-serif; font-size: 11px; }
+        table { border-collapse: collapse; width: 100%; }
+        th, td { border: 1px solid #bbb; padding: 4px 6px; text-align: left; }
+        th { background: #eee; }
+        tr { page-break-inside: avoid; }
+        </style></head><body>\(table)</body></html>
+        """
+        let webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 800, height: 600))
+        let coordinator = PrintCoordinator()
+        printCoordinator = coordinator
+        webView.navigationDelegate = coordinator
+        webView.loadHTMLString(html, baseURL: nil)
+        printWebView = webView
+    }
+
+    @State private var printWebView: WKWebView?
+    @State private var printCoordinator: PrintCoordinator?
+
+    private final class PrintCoordinator: NSObject, WKNavigationDelegate {
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                webView.printOperation(with: NSPrintInfo.shared).run()
+            }
+        }
     }
 
     private var toolbar: some View {

@@ -8,6 +8,10 @@
 - Agent 压缩三件套：zipFiles（多路径 → 单 zip，工作区内）、unzipArchive（解压到指定目录或工作区默认文件夹）、tableExport（xlsx/csv/tsv → csv/md，写工作区）——与 listArchive 凑齐压缩包与转换工具面
 - batchDocuments 逐文件进度：JobRecord.progress/detail 逐文件更新（N/M: 文件名），Jobs 面板与桥可见——整批不再黑盒
 - 截图直通编辑器：截图保存的 PNG 自动在当前标签打开（图片编辑器），立刻标注/裁剪
+- 文档打印与导出 PDF：文档查看器头部新增打印（⌘P 同款系统面板）与"导出 PDF"（整页高度 createPDF，NSSavePanel 选落点）
+- 文档问答：文档查看器一键取文预填 Agent 提问（DocumentText 取文 8000 字注入），问文档不用复制粘贴
+- 定时/批量产文件自动入账：batchDocuments 生成的 .summary.md 记入最近本地文件（新标签页与 Remote 文件面可见）——产出可追溯
+
 
 
 

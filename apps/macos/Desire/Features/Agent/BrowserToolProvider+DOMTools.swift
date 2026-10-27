@@ -2918,6 +2918,7 @@ extension BrowserToolProvider {
                         let out = AgentWorkspace.shared.directory
                             .appendingPathComponent(file.deletingPathExtension().lastPathComponent + ".summary.md")
                         try? summary.write(to: out, atomically: true, encoding: .utf8)
+                        RecentLocalFiles.record(url: out)   // 产文件入账（v0.8.13 基础件 14）
                         done += 1
                         JobStore.shared.update(jobID, progress: Double(index) / Double(files.count))
                     }

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import WebKit
 
 /// 办公文档查看器（v0.8.12 旗舰 B，4+5）：docx/doc/rtf/rtfd/odt →
@@ -64,6 +65,34 @@ struct DocumentViewerView: View {
                 .truncationMode(.middle)
                 .foregroundStyle(.secondary)
             Spacer(minLength: 8)
+            // 打印 / 导出 PDF（v0.8.13 基础件 4）。
+            Button {
+                if let webView = webViewRef {
+                    webView.printOperation(with: NSPrintInfo.shared).run()
+                }
+            } label: {
+                Image(systemName: "printer")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(String(localized: "Print (⌘P)"))
+            Button {
+                exportPDF()
+            } label: {
+                Image(systemName: "arrow.down.doc")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(String(localized: "Export PDF"))
+            // 文档问答（v0.8.13 融合 12）：取文预填 Agent 提问。
+            Button {
+                askAboutDocument()
+            } label: {
+                Image(systemName: "sparkles.rectangle.stack")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(String(localized: "Ask agent about this document"))
             // 加入阅读列表（v0.8.12 融合 16）：正文前 400 字作 detail。
             Button {
                 if let store = AppState.live?.readingListStore {
@@ -179,6 +208,55 @@ struct DocumentViewerView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
         .overlay(alignment: .top) { Divider() }
+    }
+
+    private func exportPDF() {
+        guard let webView = webViewRef else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = (fileName as NSString).deletingPathExtension + ".pdf"
+        panel.allowedContentTypes = [.pdf]
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        let config = WKPDFConfiguration()
+        // WKWebView.scrollView 非 public——整页高度经 JS 取（scrollHeight）。
+        webView.evaluateJavaScript("document.documentElement.scrollHeight") { height, _ in
+            config.rect = CGRect(x: 0, y: 0, width: webView.frame.width,
+                                 height: (height as? CGFloat) ?? webView.frame.height)
+            webView.createPDF(configuration: config) { result in
+                switch result {
+                case .success(let data):
+                    try? data.write(to: dest, options: .atomic)
+                    DispatchQueue.main.async {
+                        flashNote = String(localized: "Exported → \(dest.lastPathComponent)")
+                    }
+                case .failure(let error):
+                    DispatchQueue.main.async {
+                        flashNote = String(localized: "Export failed: \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
+    }
+
+    /// 文档问答（v0.8.13 融合 12）：DocumentText 取文 → Agent 会话预填提问
+    ///（经 NotificationCenter 走既有 askAgentAboutPage 同款通道——直接调
+    /// AppState 的 aiSession 会话，含 page_context 同级注入）。
+    private func askAboutDocument() {
+        guard let app = AppState.live else { return }
+        let name = fileName
+        Task { @MainActor in
+            do {
+                let text = try DocumentText.extractPlainText(from: fileURL, maxChars: 12_000) ?? ""
+                let prompt = String(localized: "请阅读这份文档（\(name)）并回答我的问题。文档内容：\n\(text.prefix(8_000))\n\n我的问题：")
+                guard let session = AgentScheduler.shared.deliveryTarget else {
+                    flashNote = String(localized: "No live agent session")
+                    return
+                }
+                session.sendMessage(prompt, recordHistory: true)
+                NotificationCenter.default.post(name: .desireShowAgentPanel, object: nil)
+            } catch {
+                flashNote = String(localized: "Could not read the document")
+            }
+        }
     }
 
     // MARK: - 加载

@@ -127,7 +127,7 @@ struct ImageEditorView: View {
     }
 
     /// 应用一个变换（压栈 undo、标记未保存）。
-    private func apply(_ transform: (CGImage) -> CGImage?, label: String = String(localized: "Transform")) {
+    private func apply(label: String = String(localized: "Transform"), transform: (CGImage) -> CGImage?) {
         guard let current = image, let next = transform(current) else {
             flash(String(localized: "Transform failed"))
             return
@@ -224,13 +224,13 @@ struct ImageEditorView: View {
     private var toolbar: some View {
         HStack(spacing: 8) {
             // 变换
-            button("rotateleft", "Rotate 90° Left") { apply(label: String(localized: "Rotate left")) { ImageTransforms.rotated($0, clockwise: false) } }
-            button("rotateright", "Rotate 90° Right") { apply(label: String(localized: "Rotate right")) { ImageTransforms.rotated($0, clockwise: true) } }
+            button("rotateleft", "Rotate 90° Left") { apply(label: String(localized: "Rotate left"), transform: { ImageTransforms.rotated($0, clockwise: false) }) }
+            button("rotateright", "Rotate 90° Right") { apply(label: String(localized: "Rotate right"), transform: { ImageTransforms.rotated($0, clockwise: true) }) }
             button("arrow.left.and.right.righttriangle.left.righttriangle.right", "Flip Horizontal") {
-                apply(label: String(localized: "Flip horizontal")) { ImageTransforms.flipped($0, horizontal: true) }
+                apply(label: String(localized: "Flip horizontal"), transform: { ImageTransforms.flipped($0, horizontal: true) })
             }
             button("arrow.up.and.down.righttriangle.left.righttriangle.right", "Flip Vertical") {
-                apply(label: String(localized: "Flip vertical")) { ImageTransforms.flipped($0, horizontal: false) }
+                apply(label: String(localized: "Flip vertical"), transform: { ImageTransforms.flipped($0, horizontal: false) })
             }
             button("crop", "Crop") { cropMode.toggle() }
                 .foregroundStyle(cropMode ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
@@ -385,7 +385,7 @@ struct ImageEditorView: View {
                             y: rect.minY * displayScale,
                             width: rect.width * displayScale,
                             height: rect.height * displayScale)
-                        apply(label: String(localized: "Crop")) { ImageTransforms.cropped($0, rect: pixel) }
+                        apply(label: String(localized: "Crop"), transform: { ImageTransforms.cropped($0, rect: pixel) })
                         return
                     }
                     cropRect = nil
@@ -672,10 +672,10 @@ struct ImageEditorView: View {
             sliderRow("Sharpen", value: $sharpen, range: 0...2)
             HStack {
                 Button(String(localized: "Apply")) {
-                    apply(label: String(localized: "Adjustments")) {
+                    apply(label: String(localized: "Adjustments"), transform: {
                         ImageTransforms.adjusted($0, brightness: brightness, contrast: contrast,
                                                  saturation: saturation, sharpen: sharpen)
-                    }
+                    })
                     showAdjustments = false
                 }
                 .buttonStyle(.borderedProminent)
@@ -770,7 +770,7 @@ struct ImageEditorView: View {
                         if let rect = cropRect {
                             let pixel = CGRect(x: rect.minX * displayScale, y: rect.minY * displayScale,
                                                width: rect.width * displayScale, height: rect.height * displayScale)
-                            apply(label: String(localized: "Crop")) { ImageTransforms.cropped($0, rect: pixel) }
+                            apply(label: String(localized: "Crop"), transform: { ImageTransforms.cropped($0, rect: pixel) })
                         }
                     }
                     .buttonStyle(.borderedProminent)

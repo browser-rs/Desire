@@ -249,6 +249,11 @@ extension BrowsingActions {
                 case .cancelled: break
                 case .saved(let url):
                     self.screenshotToast = String(format: String(localized: "Saved to %@"), url.lastPathComponent)
+                    // 截图直通编辑器（v0.8.13 基础件 3）：保存的 PNG 自动在
+                    // 当前标签打开（查看器路由），可立刻标注/裁剪。
+                    if let tab = self.tabManager.selectedTab {
+                        self.openLocalFileInTab(url, for: tab)
+                    }
                 case .copied:
                     self.screenshotToast = String(localized: "Copied to clipboard")
                 case .failed(let message):

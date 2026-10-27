@@ -5,6 +5,10 @@
 - 图片操作历史面板：编辑器工具条新增历史按钮——每步操作带名入栈（旋转/裁剪/标注/调色…），点击任意一步跳回（其后步骤丢弃），栈底为原图
 - 引用角标深化：Agent 回答下方渲染本回合工具结果里的来源 chips（[1][2] + 文件名/域名），点击浏览器/访达直达
 - 会话模板 /templates：内置周报/翻译/比价三骨架（{{变量}} 占位、未填保留），自定义模板 UserDefaults 持久化；/templates 列表、/templates <名> 输出"复制即用"骨架
+- Agent 压缩三件套：zipFiles（多路径 → 单 zip，工作区内）、unzipArchive（解压到指定目录或工作区默认文件夹）、tableExport（xlsx/csv/tsv → csv/md，写工作区）——与 listArchive 凑齐压缩包与转换工具面
+- batchDocuments 逐文件进度：JobRecord.progress/detail 逐文件更新（N/M: 文件名），Jobs 面板与桥可见——整批不再黑盒
+- 截图直通编辑器：截图保存的 PNG 自动在当前标签打开（图片编辑器），立刻标注/裁剪
+
 
 
 ## [v0.8.12] - 2026-10-27

@@ -990,6 +990,30 @@ extension BrowserToolProvider {
                     "maxChars": AgentJSONSchemaValue(type: "number", description: "Cap on returned characters (default 60000)"),
                 ], required: ["path"])
             )),    AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "zipFiles",
+        description: "Create a .zip from multiple whitelisted paths (files or folders) using ditto. The output lands in the agent workspace.",
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "paths": AgentJSONSchemaValue(type: "array", description: "Paths to compress", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+            "output": AgentJSONSchemaValue(type: "string", description: "Output file name (.zip appended if missing)"),
+        ], required: ["paths", "output"])
+    )),
+    AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "unzipArchive",
+        description: "Extract a whitelisted .zip into a destination folder (default: a folder named after the archive inside the workspace). Only .zip — rar/7z not supported.",
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "path": AgentJSONSchemaValue(type: "string", description: "Archive path"),
+            "destination": AgentJSONSchemaValue(type: "string", description: "Destination folder (optional)"),
+        ], required: ["path"])
+    )),
+    AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "tableExport",
+        description: "Convert a local .xlsx/.csv/.tsv table to CSV or Markdown in the agent workspace (read cached values for xlsx). Returns the output file path.",
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "path": AgentJSONSchemaValue(type: "string", description: "Source table path"),
+            "format": AgentJSONSchemaValue(type: "string", description: "csv (default) or md"),
+        ], required: ["path"])
+    )),
+    AgentToolDef(type: "function", function: AgentToolFunctionDef(
         name: "listArchive",
         description: "List the contents of a local .zip archive (names, sizes) without extracting. rar/7z are not supported. For extraction use runCommand with ditto (-x -k) within the workspace whitelist, or the UI 'Extract to…'.",
         parameters: AgentJSONSchema(type: "object", properties: [

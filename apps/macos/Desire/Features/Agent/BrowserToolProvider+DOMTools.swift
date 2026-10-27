@@ -2895,7 +2895,14 @@ extension BrowserToolProvider {
                     source: "agent")
                 Task { @MainActor in
                     var done = 0
+                    var index = 0
                     for file in files {
+                        index += 1
+                        // 逐文件进度（v0.8.13 基础件 13）：JobRecord.progress 更新，
+                        // Jobs 面板与桥可见——整批不再黑盒。
+                        JobStore.shared.update(jobID,
+                                               detail: String(localized: "\(index)/\(files.count): \(file.lastPathComponent)"),
+                                               progress: Double(index - 1) / Double(files.count))
                         let text: String?
                         if BrowsingActions.tableExtensions.contains(file.pathExtension.lowercased()) {
                             text = SpreadsheetReader.readCSV(from: file, maxRows: 200, maxCols: 40)
@@ -2912,11 +2919,109 @@ extension BrowserToolProvider {
                             .appendingPathComponent(file.deletingPathExtension().lastPathComponent + ".summary.md")
                         try? summary.write(to: out, atomically: true, encoding: .utf8)
                         done += 1
+                        JobStore.shared.update(jobID, progress: Double(index) / Double(files.count))
                     }
                     JobStore.shared.finish(jobID, state: .done,
-                                           receipt: String(localized: "\(done) file(s) summarized → .summary.md next to sources"))
+                                           receipt: String(localized: "\(done)/\(files.count) file(s) summarized → .summary.md next to sources"))
                 }
                 return "Batch started: \(files.count) file(s) — Job \(jobID.uuidString.prefix(8)). Results land as .summary.md next to each source; poll via Jobs panel."
+            }
+
+        case "zipFiles":
+            // 压缩创建（v0.8.13 基础件 8）：白名单内多路径 → 单 zip（ditto -c -k）。
+            guard let paths = args["paths"] as? [String], !paths.isEmpty else { return Self.fail("Missing paths") }
+            guard let outName = args["output"] as? String, !outName.isEmpty else { return Self.fail("Missing output (file name, .zip)") }
+            var resolved: [URL] = []
+            for raw in paths {
+                switch AgentWorkspace.shared.resolve(raw, write: false) {
+                case .granted(let u): resolved.append(u)
+                case .denied(let reason): return reason
+                }
+            }
+            let safeOut = outName.hasSuffix(".zip") ? outName : outName + ".zip"
+            let outURL = AgentWorkspace.shared.directory.appendingPathComponent(safeOut)
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            process.arguments = ["-c", "-k", "--keepParent"] + resolved.map(\.path) + [outURL.path]
+            let errPipe = Pipe()
+            process.standardError = errPipe
+            do {
+                try process.run()
+                process.waitUntilExit()
+            } catch {
+                return Self.fail("zip failed: \(error.localizedDescription)")
+            }
+            guard process.terminationStatus == 0 else {
+                let message = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                return Self.fail("zip failed: \(message.suffix(200))")
+            }
+            return "Created \(outURL.lastPathComponent) (\(resolved.count) item(s), \(ArchiveKit.sizeText((try? FileManager.default.attributesOfItem(atPath: outURL.path))?[.size] as? Int64 ?? 0)))"
+
+        case "unzipArchive":
+            // 解压（v0.8.13 基础件 8）：白名单内 zip → 白名单目录（ditto -x -k）。
+            guard let zipPath = args["path"] as? String, !zipPath.isEmpty else { return Self.fail("Missing path") }
+            let unzipAccess = AgentWorkspace.shared.resolve(zipPath, write: false)
+            guard case .granted(let zipURL) = unzipAccess else {
+                if case .denied(let reason) = unzipAccess { return reason }
+                return Self.fail("resolve failed")
+            }
+            guard zipURL.pathExtension.lowercased() == "zip" else {
+                return Self.fail("Only .zip is supported (rar/7z not supported)")
+            }
+            var destURL = AgentWorkspace.shared.directory.appendingPathComponent(
+                zipURL.deletingPathExtension().lastPathComponent, isDirectory: true)
+            if let destArg = args["destination"] as? String, !destArg.isEmpty {
+                switch AgentWorkspace.shared.resolve(destArg, write: true) {
+                case .granted(let granted):
+                    destURL = granted.hasDirectoryPath
+                        ? granted
+                        : granted.appendingPathComponent(zipURL.deletingPathExtension().lastPathComponent, isDirectory: true)
+                case .denied(let reason):
+                    return reason
+                }
+            }
+            do {
+                let result = try ArchiveKit.extract(archiveURL: zipURL, to: destURL)
+                return "Extracted \(result.files) file(s), \(ArchiveKit.sizeText(result.bytes)) → \(destURL.path)"
+            } catch {
+                return Self.fail("extract failed: \(error.localizedDescription)")
+            }
+
+        case "tableExport":
+            // 表格格式转换（v0.8.13 基础件 9）：xlsx/csv/tsv → csv 或 md（写工作区）。
+            guard let srcArg = args["path"] as? String, !srcArg.isEmpty else { return Self.fail("Missing path") }
+            let format = (args["format"] as? String)?.lowercased() ?? "csv"
+            guard ["csv", "md"].contains(format) else { return Self.fail("format must be csv or md") }
+            switch AgentWorkspace.shared.resolve(srcArg, write: false) {
+            case .denied(let reason):
+                return reason
+            case .granted(let srcURL):
+                let ext = srcURL.pathExtension.lowercased()
+                guard ["xlsx", "csv", "tsv"].contains(ext) else {
+                    return Self.fail("Unsupported table type .\(ext) — use .xlsx / .csv / .tsv")
+                }
+                let sheet: SpreadsheetReader.Sheet
+                if ext == "xlsx" {
+                    guard let s = SpreadsheetReader.readXLSX(from: srcURL, maxRows: 100_000, maxCols: 500) else {
+                        return Self.fail("Could not read \(srcURL.lastPathComponent)")
+                    }
+                    sheet = s
+                } else {
+                    guard let s = SpreadsheetReader.readCSV(from: srcURL, maxRows: 100_000, maxCols: 500) else {
+                        return Self.fail("Could not read \(srcURL.lastPathComponent)")
+                    }
+                    sheet = s
+                }
+                let out: String
+                if format == "csv" {
+                    out = SpreadsheetBuffer.csvText(rows: sheet.rows)
+                } else {
+                    out = SpreadsheetReader.markdown(from: sheet)
+                }
+                let dest = AgentWorkspace.shared.directory.appendingPathComponent(
+                    srcURL.deletingPathExtension().lastPathComponent + ".\(format)")
+                try? out.write(to: dest, atomically: true, encoding: .utf8)
+                return "Converted \(srcURL.lastPathComponent) → \(dest.lastPathComponent) (\(sheet.rows.count) rows incl. header)"
             }
 
         case "listArchive":

@@ -9,6 +9,12 @@
 - 表格编辑撤销/重做：⌘Z/⌘⇧Z 与头部按钮（快照栈上限 100 步）；SpreadsheetBuffer 快照栈纯逻辑进 harness（Swift 6.4 对 nonisolated struct 的 [[String]] append 重载解析 bug 以 Snapshot 包装 struct 绕过）
 - 表格打印：表格查看器 ⌘P——网格转 HTML table 经隐藏 WKWebView 走系统打印面板（表头底色/边框/防跨页断行）
 - /templates 会话模板命令：无参列出全部（内建周报/翻译/比价 + 自定义），带名输出骨架与待填变量清单
+- 图片打印：图片编辑器 ⌘P（横竖向随图、居中适配上纸）
+- zip 右键压缩为…：新标签页最近本地文件卡片右键一键压缩（同目录落同名 zip）
+- readSpreadsheet 分页：offset 参数跳行 + maxRows 截断，大表可逐页遍历全量
+- Agent 新工具 listRecentFiles（最近本地文件清单，可按类型过滤）与 batchRename（批量重命名，逐对校验存在/冲突）
+- 产文件入账补全：zipFiles 产物记入最近本地文件
+
 
 
 

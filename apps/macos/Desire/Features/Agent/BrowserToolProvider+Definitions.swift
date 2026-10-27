@@ -1013,7 +1013,24 @@ extension BrowserToolProvider {
             "path": AgentJSONSchemaValue(type: "string", description: "Archive path"),
             "destination": AgentJSONSchemaValue(type: "string", description: "Destination folder (optional)"),
         ], required: ["path"])
+    )),    AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "listRecentFiles",
+        description: "List the user's recently opened local files (PDFs, media, tables, images, archives, documents — newest first, up to 20). Use to find 'the file I just had open' without asking for a path.",
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "kind": AgentJSONSchemaValue(type: "string", description: "Optional filter: pdf / media / sheet / image / archive / document / file"),
+        ])
     )),
+    AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "batchRename",
+        description: "Rename files in a whitelisted folder with a preview-confirm step: pass the mapping of old → new names; the tool verifies each old file exists, renames, and reports per-file results. Use for cleaning up downloaded filenames.",
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "renames": AgentJSONSchemaValue(type: "array", description: "Rename pairs", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [
+                "from": AgentJSONSchemaValue(type: "string", description: "Current file path"),
+                "to": AgentJSONSchemaValue(type: "string", description: "New file path (same folder recommended)"),
+            ]))),
+        ], required: ["renames"])
+    )),
+
     AgentToolDef(type: "function", function: AgentToolFunctionDef(
         name: "tableExport",
         description: "Convert a local .xlsx/.csv/.tsv table to CSV or Markdown in the agent workspace (read cached values for xlsx). Returns the output file path.",
@@ -1047,6 +1064,7 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "path": AgentJSONSchemaValue(type: "string", description: "Table path (.xlsx/.csv/.tsv)"),
                     "sheet": AgentJSONSchemaValue(type: "number", description: ".xlsx sheet index (1-based, default 1)"),
+                    "offset": AgentJSONSchemaValue(type: "number", description: "Skip this many data rows first (for paging through big tables with maxRows; default 0)"),
                     "maxRows": AgentJSONSchemaValue(type: "number", description: "Cap on rows (default 200)"),
                 ], required: ["path"])
             )),

@@ -224,6 +224,54 @@ struct NewTabPage: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
+    private func localFileCard(_ entry: RecentLocalFiles.Entry) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "doc")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(entry.filename)
+                .font(.system(size: 12))
+                .lineLimit(1)
+            Spacer()
+            Text(entry.kind)
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor).opacity(0.5)))
+        .contentShape(Rectangle())
+        .contextMenu {
+            Button(String(localized: "Open")) { onNavigate(entry.url) }
+            // 压缩为 zip（v0.8.14 基础件 5）：UI 侧补齐（Agent 侧 zipFiles 已通）。
+            if entry.kind != "archive" {
+                Button(String(localized: "Compress to zip…")) { compressToZip(entry) }
+            }
+            Divider()
+            Button(String(localized: "Remove from list"), role: .destructive) {
+                RecentLocalFiles.remove(urlString: entry.url)
+            }
+        }
+    }
+
+    /// 压缩为 zip（v0.8.14 基础件 5）：ditto -c -k 同目录落同名 zip。
+    private func compressToZip(_ entry: RecentLocalFiles.Entry) {
+        let src = URL(string: entry.url)?.path ?? ""
+        guard FileManager.default.fileExists(atPath: src) else { return }
+        let dest = (src as NSString).deletingPathExtension + ".zip"
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.arguments = ["-c", "-k", src, dest]
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {}
+        if let url = URL(string: "file://" + dest) {
+            onNavigate(url.absoluteString)
+        }
+    }
+
     private var recentEntries: [RecentEntry] {
         historyStore.entries.prefix(8).map { entry in
             RecentEntry(
@@ -245,28 +293,7 @@ struct NewTabPage: View {
                     sectionHeader(title: "最近本地文件", icon: "doc.on.doc")
                     VStack(spacing: 6) {
                         ForEach(entries) { entry in
-                            Button {
-                                onNavigate(entry.url)
-                            } label: {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "doc")
-                                        .font(.system(size: 11))
-                                        .foregroundStyle(.secondary)
-                                        .frame(width: 16)
-                                    Text(entry.filename)
-                                        .font(.system(size: 12))
-                                        .lineLimit(1)
-                                    Spacer()
-                                    Text(entry.kind)
-                                        .font(.system(size: 9.5, weight: .medium))
-                                        .foregroundStyle(.tertiary)
-                                }
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 7)
-                                .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor).opacity(0.5)))
-                                .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
+                            localFileCard(entry)
                         }
                     }
                 }

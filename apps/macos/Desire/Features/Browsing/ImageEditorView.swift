@@ -253,6 +253,7 @@ struct ImageEditorView: View {
             button("slider.horizontal.3", "Adjustments…") { showAdjustments.toggle() }
                 .foregroundStyle(showAdjustments ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
             button("doc.text.viewfinder", "Extract Text (OCR)") { runOCR() }
+            button("printer", "Print") { printImage() }
             Menu {
                 Button(String(localized: "Export as PNG")) { exportAs(type: "png") }
                 Button(String(localized: "Export as JPEG")) { exportAs(type: "jpg") }
@@ -659,6 +660,24 @@ struct ImageEditorView: View {
         .frame(width: 200)
         .background(RoundedRectangle(cornerRadius: 10).fill(.regularMaterial))
         .shadow(radius: 4)
+    }
+
+    /// 打印（v0.8.14 基础件 3）：当前位图适配上纸（横竖向随图）。
+    private func printImage() {
+        guard let image, let nsImage = makeNSImage(image) else { return }
+        let printInfo = NSPrintInfo.shared.copy() as! NSPrintInfo
+        let isLandscape = image.width > image.height
+        printInfo.isVerticallyCentered = true
+        printInfo.isHorizontallyCentered = true
+        printInfo.orientation = isLandscape ? .landscape : .portrait
+        let printView = NSImageView(frame: NSRect(
+            origin: .zero,
+            size: nsImage.size))
+        printView.image = nsImage
+        printView.imageScaling = .scaleProportionallyUpOrDown
+        let op = NSPrintOperation(view: printView, printInfo: printInfo)
+        op.showsPrintPanel = true
+        op.run()
     }
 
     /// 调色滑杆浮层（21）：实时预览（apply 前 deltax 预览走同管线）。

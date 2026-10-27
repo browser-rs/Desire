@@ -2979,6 +2979,7 @@ extension BrowserToolProvider {
                 let message = String(data: errPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
                 return Self.fail("zip failed: \(message.suffix(200))")
             }
+            RecentLocalFiles.record(url: outURL)   // 产文件入账（v0.8.13 基础件 14 同款）
             return "Created \(outURL.lastPathComponent) (\(resolved.count) item(s), \(ArchiveKit.sizeText((try? FileManager.default.attributesOfItem(atPath: outURL.path))?[.size] as? Int64 ?? 0)))"
 
         case "unzipArchive":
@@ -3047,6 +3048,57 @@ extension BrowserToolProvider {
                 try? out.write(to: dest, atomically: true, encoding: .utf8)
                 return "Converted \(srcURL.lastPathComponent) → \(dest.lastPathComponent) (\(sheet.rows.count) rows incl. header)"
             }
+
+        case "listRecentFiles":
+            // 最近本地文件（v0.8.14 基础件 9）：与新标签页/Remote 同源。
+            let kindFilter = (args["kind"] as? String)?.lowercased()
+            var items = RecentLocalFiles.load()
+            if let kindFilter, !kindFilter.isEmpty {
+                items = items.filter { $0.kind == kindFilter }
+            }
+            guard !items.isEmpty else { return "No recently opened local files" }
+            let lines = items.prefix(20).map { entry -> String in
+                "- [\(entry.kind)] \(entry.filename) — \(entry.url)"
+            }
+            return "Recently opened local files (\(items.count)):\n" + lines.joined(separator: "\n")
+
+        case "batchRename":
+            // 批量重命名（v0.8.14 替人干活 14）：逐对校验 from 存在、to 不存在。
+            guard let renames = args["renames"] as? [[String: Any]], !renames.isEmpty else {
+                return Self.fail("Missing renames ([{from, to}])")
+            }
+            var done = 0
+            var errors: [String] = []
+            for pair in renames {
+                guard let from = pair["from"] as? String, let to = pair["to"] as? String else {
+                    errors.append("(missing field)")
+                    continue
+                }
+                switch (AgentWorkspace.shared.resolve(from, write: true), AgentWorkspace.shared.resolve(to, write: true)) {
+                case (.denied(let reason), _):
+                    errors.append("\(from): \(reason)")
+                case (_, .denied(let reason)):
+                    errors.append("\(to): \(reason)")
+                case (.granted(let src), .granted(let dst)):
+                    guard FileManager.default.fileExists(atPath: src.path) else {
+                        errors.append("\(from): not found")
+                        continue
+                    }
+                    if FileManager.default.fileExists(atPath: dst.path) {
+                        errors.append("\(to): already exists")
+                        continue
+                    }
+                    do {
+                        try FileManager.default.moveItem(at: src, to: dst)
+                        done += 1
+                    } catch {
+                        errors.append("\(src.lastPathComponent): \(error.localizedDescription)")
+                    }
+                }
+            }
+            var out = "Renamed \(done)/\(renames.count)"
+            if !errors.isEmpty { out += "; failures:\n" + errors.joined(separator: "\n") }
+            return out
 
         case "listArchive":
             // zip 条目清单（v0.8.12 旗舰 C）：不解包列内容 + 总大小。
@@ -3130,6 +3182,7 @@ extension BrowserToolProvider {
             guard let sheetPath = args["path"] as? String, !sheetPath.isEmpty else { return Self.fail("Missing path") }
             let sheetIndex = (args["sheet"] as? Int) ?? 1
             let rowCap = (args["maxRows"] as? Int) ?? 200
+            let rowOffset = max(0, (args["offset"] as? Int) ?? 0)
             switch AgentWorkspace.shared.resolve(sheetPath, write: false) {
             case .denied(let reason):
                 return reason
@@ -3138,12 +3191,20 @@ extension BrowserToolProvider {
                     return Self.fail("File not found: \(fileURL.path)")
                 }
                 let ext = fileURL.pathExtension.lowercased()
+                func paged(_ sheet: SpreadsheetReader.Sheet?) -> SpreadsheetReader.Sheet? {
+                    // 分页（v0.8.14 基础件 8）：跳过 offset 行数据（保留表头），
+                    // 再截 maxRows——大表可逐页遍历全量。
+                    guard var s = sheet, rowOffset > 0, s.rows.count > 1 else { return sheet }
+                    let keep = s.rows[0]
+                    s.rows = [keep] + Array(s.rows.dropFirst().dropFirst(rowOffset))
+                    return s
+                }
                 let sheet: SpreadsheetReader.Sheet?
                 switch ext {
                 case "csv", "tsv", "txt":
-                    sheet = SpreadsheetReader.readCSV(from: fileURL, maxRows: rowCap)
+                    sheet = paged(SpreadsheetReader.readCSV(from: fileURL, maxRows: rowOffset + rowCap))
                 case "xlsx":
-                    sheet = SpreadsheetReader.readXLSX(from: fileURL, sheetIndex: sheetIndex, maxRows: rowCap)
+                    sheet = paged(SpreadsheetReader.readXLSX(from: fileURL, sheetIndex: sheetIndex, maxRows: rowOffset + rowCap))
                 case "xls":
                     return Self.fail("Legacy .xls is not supported — ask the user to re-save as .xlsx or .csv")
                 case "numbers":

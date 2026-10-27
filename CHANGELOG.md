@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.14] - 2026-10-27
 ### Changed
 
 - YouTube 非可视区预览播放器暂停：首页/列表页 hover 预览预创建的 <video> 被 WebKit 反复拦自动播（实测 30 分钟 898 条 consent block）——yt-playback-guard 每 1s 暂停非可视区 video，消除 CPU/预取带宽浪费；详情页播放不受影响（watch 页直接跳过）

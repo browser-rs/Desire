@@ -127,4 +127,37 @@ nonisolated struct SpreadsheetBuffer: Equatable {
         guard col > 0, let row = Int(String(chars[idx...])), row >= 1 else { return nil }
         return CellRef(row: row - 1, col: col - 1)
     }
+
+    // MARK: - 选区导出（v0.8.14 融合：选区 → Agent 画图）
+
+    /// 选区子矩阵 → TSV（rows[0] 为表头行，恒在首行）。单元格内的
+    /// 制表符/换行摊平为空格防破格；行列封顶（超出截断）。
+    /// 返回 (文本, 是否发生截断)。行区间不含表头行（row ≥ 1 才是数据）。
+    nonisolated static func tsvSelection(rows: [[String]],
+                                         rowRange: ClosedRange<Int>,
+                                         colRange: ClosedRange<Int>,
+                                         maxRows: Int = 60, maxCols: Int = 12) -> (text: String, truncated: Bool) {
+        guard rowRange.lowerBound <= rowRange.upperBound,
+              colRange.lowerBound <= colRange.upperBound else { return ("", false) }
+        let cols = Array(colRange.lowerBound...min(colRange.upperBound, colRange.lowerBound + maxCols - 1))
+        let dataRows = Array(rowRange.lowerBound...min(rowRange.upperBound, rowRange.lowerBound + maxRows - 1))
+            .filter { $0 >= 1 && $0 < rows.count }
+        let truncated = rowRange.count > maxRows || colRange.count > maxCols
+        func cell(_ row: Int, _ col: Int) -> String {
+            let raw = col < rows[row].count ? rows[row][col] : ""
+            return raw
+                .replacingOccurrences(of: "\t", with: " ")
+                .replacingOccurrences(of: "\n", with: " ")
+                .replacingOccurrences(of: "\r", with: " ")
+        }
+        var lines: [String] = []
+        let headerRow = rows.first ?? []
+        lines.append(cols.map { $0 < headerRow.count ? headerRow[$0] : "" }
+            .map { $0.replacingOccurrences(of: "\t", with: " ") }
+            .joined(separator: "\t"))
+        for row in dataRows {
+            lines.append(cols.map { cell(row, $0) }.joined(separator: "\t"))
+        }
+        return (lines.joined(separator: "\n"), truncated)
+    }
 }

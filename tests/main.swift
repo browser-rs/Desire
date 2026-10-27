@@ -3737,6 +3737,45 @@ func testSpreadsheetBuffer() {
 
 testSpreadsheetBuffer()
 
+func testSpreadsheetTsvSelection() {
+    let rows: [[String]] = [
+        ["name", "qty", "price", "note"],
+        ["apple", "10", "3.5", ""],
+        ["banana", "9", "2", "a\tb"],
+        ["cherry", "100", "12", "line1\nline2"],
+    ]
+    // 基本子矩阵（含表头行）
+    let t = SpreadsheetBuffer.tsvSelection(rows: rows, rowRange: 1...2, colRange: 0...1)
+    check("TSV：子矩阵", t.text == "name\tqty\napple\t10\nbanana\t9")
+    check("TSV：未截断", t.truncated == false)
+    // 制表符/换行摊平
+    let s = SpreadsheetBuffer.tsvSelection(rows: rows, rowRange: 2...3, colRange: 3...3)
+    check("TSV：Tab 摊平", s.text.contains("a b"))
+    check("TSV：换行摊平", s.text.contains("line1 line2"))
+    // 行封顶
+    var big: [[String]] = [["h"]]
+    for i in 1...100 { big.append(["v\(i)"]) }
+    let capped = SpreadsheetBuffer.tsvSelection(rows: big, rowRange: 1...100, colRange: 0...0)
+    check("TSV：行封顶 60", capped.text.components(separatedBy: "\n").count == 61)
+    check("TSV：行截断标记", capped.truncated == true)
+    // 列封顶
+    var wide: [[String]] = []
+    wide.append((0..<20).map { "c\($0)" })
+    wide.append((0..<20).map { "v\($0)" })
+    let wideCut = SpreadsheetBuffer.tsvSelection(rows: wide, rowRange: 1...1, colRange: 0...19)
+    check("TSV：列封顶 12", wideCut.text.components(separatedBy: "\n").first!.components(separatedBy: "\t").count == 12)
+    check("TSV：列截断标记", wideCut.truncated == true)
+    // 短行（锯齿）补空
+    let jag: [[String]] = [["a", "b", "c"], ["only"]]
+    let j = SpreadsheetBuffer.tsvSelection(rows: jag, rowRange: 1...1, colRange: 0...2)
+    check("TSV：短行补空", j.text == "a\tb\tc\nonly\t\t")
+    // 单格选区
+    let one = SpreadsheetBuffer.tsvSelection(rows: rows, rowRange: 2...2, colRange: 1...1)
+    check("TSV：单格", one.text == "qty\n9")
+}
+
+testSpreadsheetTsvSelection()
+
 func testNightOwlPolicy() {
     var p = NotificationPolicy()
     p.quietHoursEnabled = true

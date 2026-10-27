@@ -25166,6 +25166,98 @@
         }
       }
     },
+    "Could not read this table." : {
+      "comment" : "Spreadsheet viewer",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Could not read this table."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "无法读取此表格。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "無法讀取此表格。"
+          }
+        }
+      }
+    },
+    "Chart with AI" : {
+      "comment" : "Spreadsheet viewer toolbar",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chart with AI"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让 AI 画图"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讓 AI 繪圖"
+          }
+        }
+      }
+    },
+    "Send the selected cells to the Agent for a whiteboard chart" : {
+      "comment" : "Chart with AI help",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send the selected cells to the Agent for a whiteboard chart"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把选中的单元格交给 Agent，在白板上画成图表"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把選取的儲存格交給 Agent，在白板上畫成圖表"
+          }
+        }
+      }
+    },
+    "Selection sent to the Agent" : {
+      "comment" : "Spreadsheet viewer status",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selection sent to the Agent"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选区已发给 Agent"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選取範圍已送給 Agent"
+          }
+        }
+      }
+    },
     "No live agent session — open a Desire window first." : {
       "localizations" : {
         "en" : {

@@ -1,3 +1,5 @@
+import AppKit
+import CryptoKit
 import SwiftUI
 import WebKit
 
@@ -29,6 +31,13 @@ struct SpreadsheetViewerView: View {
     /// xlsx 多工作表（v0.8.13）：清单 + 当前选中 index（1-based）。
     @State private var sheets: [(index: Int, name: String)] = []
     @State private var activeSheetIndex = 1
+    /// 选区（v0.8.14 融合）：锚点格 + ⇧点扩展的终点（nil = 单格选区）。
+    @State private var selectionAnchor: SpreadsheetBuffer.CellRef?
+    @State private var selectionEnd: SpreadsheetBuffer.CellRef?
+    /// 列宽覆盖（列下标 → 宽度）：拖表头右缘调整，按文件+工作表记忆。
+    @State private var columnWidths: [Int: CGFloat] = [:]
+    @State private var dragColumn: Int?
+    @State private var dragBaseWidth: CGFloat = 0
 
     private var displayRows: [[Int]] {
         guard let buffer else { return [] }
@@ -93,6 +102,9 @@ struct SpreadsheetViewerView: View {
                 buffer = SpreadsheetBuffer(rows: sheet.rows)
                 canUndo = false
                 canRedo = false
+                selectionAnchor = nil
+                selectionEnd = nil
+                loadColumnWidths()
             }
         }
     }
@@ -265,6 +277,16 @@ struct SpreadsheetViewerView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
+            Button {
+                chartSelectionWithAI()
+            } label: {
+                Label(String(localized: "Chart with AI"), systemImage: "chart.bar.xaxis")
+                    .font(.system(size: 10.5, weight: .medium))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(appAccent)
+            .disabled(selectionAnchor == nil)
+            .help(String(localized: "Send the selected cells to the Agent for a whiteboard chart"))
             if let sortColumn {
                 Button {
                     self.sortColumn = nil
@@ -292,6 +314,8 @@ struct SpreadsheetViewerView: View {
                     sortColumn = nil
                     filterText = ""
                     selectedRow = nil
+                    selectionAnchor = nil
+                    selectionEnd = nil
                     editingCell = nil
                     hasUnsavedChanges = false
                     load()
@@ -359,10 +383,11 @@ struct SpreadsheetViewerView: View {
                     }
                     .padding(.horizontal, 8)
                     .padding(.vertical, 5)
-                    .frame(minWidth: 72, alignment: .leading)
+                    .frame(width: columnWidth(col), alignment: .leading)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
+                .overlay(alignment: .trailing) { resizeHandle(col) }
                 Divider()
             }
         }
@@ -405,7 +430,8 @@ struct SpreadsheetViewerView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .frame(minWidth: 72, alignment: .leading)
+        .frame(width: columnWidth(col), alignment: .leading)
+        .background(isCellSelected(row: row, col: col) ? appAccent.opacity(0.18) : Color.clear)
         .contentShape(Rectangle())
         .onTapGesture(count: 2) {
             editingCell = .init(row: row, col: col)
@@ -413,6 +439,7 @@ struct SpreadsheetViewerView: View {
         }
         .onTapGesture {
             selectedRow = row
+            handleCellTap(row: row, col: col)
         }
     }
 
@@ -451,6 +478,115 @@ struct SpreadsheetViewerView: View {
         selectedRow = target.row
         flash(String(localized: "Jumped to \(jumpText.uppercased())"))
         _ = buffer
+    }
+
+    // MARK: - 选区画图（v0.8.14 融合：选区 → Agent 白板）
+
+    /// 点击选中单元格；按住 ⇧ 点击把选区从锚点扩展成矩形。
+    private func handleCellTap(row: Int, col: Int) {
+        if NSApp.currentEvent?.modifierFlags.contains(.shift) == true, selectionAnchor != nil {
+            selectionEnd = SpreadsheetBuffer.CellRef(row: row, col: col)
+        } else {
+            selectionAnchor = SpreadsheetBuffer.CellRef(row: row, col: col)
+            selectionEnd = nil
+        }
+    }
+
+    private func isCellSelected(row: Int, col: Int) -> Bool {
+        guard let a = selectionAnchor else { return false }
+        let b = selectionEnd ?? a
+        return row >= min(a.row, b.row) && row <= max(a.row, b.row)
+            && col >= min(a.col, b.col) && col <= max(a.col, b.col)
+    }
+
+    /// 选区子矩阵 → TSV → 活 Agent 会话：要求模型用 whiteboard 工具按数据
+    /// 形态挑图型出图（图型选择交给模型；超 60 行/12 列在提示词里注明截断）。
+    private func chartSelectionWithAI() {
+        guard let buffer, let a = selectionAnchor else { return }
+        let b = selectionEnd ?? a
+        let tsv = SpreadsheetBuffer.tsvSelection(
+            rows: buffer.rows,
+            rowRange: min(a.row, b.row)...max(a.row, b.row),
+            colRange: min(a.col, b.col)...max(a.col, b.col))
+        guard !tsv.text.isEmpty else { return }
+        let truncation = tsv.truncated ? "（超出 60 行/12 列的部分已截断）" : ""
+        let prompt = String(localized: "请把下面这段表格数据（来自文件 \(fileName)）画成图表：用 whiteboard 工具，按数据形态挑合适的图型（趋势选折线、构成选饼图、对比选柱状图），把可视化结果渲染到白板上。数据为 TSV，首行是表头\(truncation)：\n\(tsv.text)")
+        guard let session = AgentScheduler.shared.deliveryTarget else {
+            flash(String(localized: "No live agent session"))
+            return
+        }
+        session.sendMessage(prompt, recordHistory: true)
+        NotificationCenter.default.post(name: .desireShowAgentPanel, object: nil)
+        flash(String(localized: "Selection sent to the Agent"))
+    }
+
+    // MARK: - 列宽调整与记忆（v0.8.14 基础件：按文件路径哈希 + 工作表）
+
+    private let defaultColumnWidth: CGFloat = 96
+
+    private func columnWidth(_ col: Int) -> CGFloat {
+        columnWidths[col] ?? defaultColumnWidth
+    }
+
+    /// 表头右缘 6pt 拖拽手柄：拖动调宽、松手落盘；手势吃掉窄条上的点击，
+    /// 不会误触排序按钮。
+    private func resizeHandle(_ col: Int) -> some View {
+        Color.clear
+            .frame(width: 6)
+            .contentShape(Rectangle())
+            .onHover { inside in
+                if inside { NSCursor.resizeLeftRight.push() } else { NSCursor.pop() }
+            }
+            .gesture(DragGesture(minimumDistance: 0)
+                .onChanged { value in
+                    if dragColumn != col {
+                        dragColumn = col
+                        dragBaseWidth = columnWidths[col] ?? defaultColumnWidth
+                    }
+                    columnWidths[col] = min(640, max(56, dragBaseWidth + value.translation.width))
+                }
+                .onEnded { _ in
+                    dragColumn = nil
+                    persistColumnWidths()
+                })
+    }
+
+    /// 键 = 文件路径 SHA256 前 8 字节（defaults 不落明文路径）；
+    /// 值 = { 工作表 index → 列宽表 }（0 = 未调整过，用默认宽）。
+    private var layoutDefaultsKey: String {
+        let digest = SHA256.hash(data: Data(fileURL.path.utf8))
+        let hex = digest.prefix(8).map { String(format: "%02x", $0) }.joined()
+        return "viewer.table.layout.\(hex)"
+    }
+
+    private func loadColumnWidths() {
+        guard let data = UserDefaults.standard.data(forKey: layoutDefaultsKey),
+              let all = try? JSONDecoder().decode([String: [Double]].self, from: data),
+              let widths = all[String(activeSheetIndex)] else {
+            columnWidths = [:]
+            return
+        }
+        var mapped: [Int: CGFloat] = [:]
+        for (index, width) in widths.enumerated() where width > 0 {
+            mapped[index] = CGFloat(width)
+        }
+        columnWidths = mapped
+    }
+
+    private func persistColumnWidths() {
+        var all: [String: [Double]] = [:]
+        if let data = UserDefaults.standard.data(forKey: layoutDefaultsKey),
+           let decoded = try? JSONDecoder().decode([String: [Double]].self, from: data) {
+            all = decoded
+        }
+        let maxCol = max(buffer?.columnCount ?? 0,
+                         columnWidths.keys.max().map { $0 + 1 } ?? 0)
+        var widths = [Double](repeating: 0, count: maxCol)
+        for (index, width) in columnWidths { widths[index] = Double(width) }
+        all[String(activeSheetIndex)] = widths
+        if let data = try? JSONEncoder().encode(all) {
+            UserDefaults.standard.set(data, forKey: layoutDefaultsKey)
+        }
     }
 
     private func errorPane(_ message: String) -> some View {

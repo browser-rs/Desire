@@ -19,6 +19,8 @@ nonisolated enum AgentSlashParsing {
         "access", "directive", "tasks", "tools", "mcp", "title", "retry", "export",
         // 2026-10-14 三批：自推广工作台（无参 = 状态摘要；带参 = 新建目标）。
         "promote",
+        // v0.8.13：会话模板（无参 = 列表；带名 = 套用预填）。
+        "templates",
     ]
 
     /// 命令一句话说明（/help 输出与输入框候选菜单同源，防漂移）。
@@ -46,6 +48,7 @@ nonisolated enum AgentSlashParsing {
         "retry": String(localized: "re-run the last answer"),
         "export": String(localized: "save this conversation as a Markdown file"),
         "promote": String(localized: "operations workbench: goals, accounts, lessons, drafts — /promote <goal> adds a goal"),
+        "templates": String(localized: "list session templates, or apply: /templates <名称>"),
     ]
 
     static func parse(_ text: String) -> Parsed? {

@@ -23,6 +23,9 @@ struct SpreadsheetViewerView: View {
     @State private var hasUnsavedChanges = false
     @State private var statusNote: String?
     @State private var selectedRow: Int?
+    /// xlsx 多工作表（v0.8.13）：清单 + 当前选中 index（1-based）。
+    @State private var sheets: [(index: Int, name: String)] = []
+    @State private var activeSheetIndex = 1
 
     private var displayRows: [[Int]] {
         guard let buffer else { return [] }
@@ -42,6 +45,9 @@ struct SpreadsheetViewerView: View {
         VStack(spacing: 0) {
             header
             toolbar
+            if sheets.count > 1 {
+                sheetTabs
+            }
             if let buffer {
                 grid(buffer)
             } else if let loadError {
@@ -63,10 +69,16 @@ struct SpreadsheetViewerView: View {
         loadError = nil
         let ext = fileURL.pathExtension.lowercased()
         isXLSX = ext == "xlsx"
+        if isXLSX {
+            sheets = SpreadsheetReader.sheetList(of: fileURL)
+        } else {
+            sheets = []
+        }
         DispatchQueue.global(qos: .userInitiated).async {
             let sheet: SpreadsheetReader.Sheet?
             if ext == "xlsx" {
-                sheet = SpreadsheetReader.readXLSX(from: fileURL, maxRows: 5_000, maxCols: 100)
+                sheet = SpreadsheetReader.readXLSX(from: fileURL, sheetIndex: activeSheetIndex,
+                                                   maxRows: 5_000, maxCols: 100)
             } else {
                 sheet = SpreadsheetReader.readCSV(from: fileURL, maxRows: 5_000, maxCols: 100)
             }
@@ -190,6 +202,36 @@ struct SpreadsheetViewerView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 5)
+    }
+
+    private var sheetTabs: some View {
+        HStack(spacing: 4) {
+            Image(systemName: "rectangle.on.rectangle")
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+            ForEach(sheets, id: \.index) { sheet in
+                Button(sheet.name) {
+                    guard activeSheetIndex != sheet.index else { return }
+                    activeSheetIndex = sheet.index
+                    sortColumn = nil
+                    filterText = ""
+                    selectedRow = nil
+                    editingCell = nil
+                    hasUnsavedChanges = false
+                    load()
+                }
+                .font(.system(size: 10.5, weight: activeSheetIndex == sheet.index ? .semibold : .regular))
+                .buttonStyle(.plain)
+                .foregroundStyle(activeSheetIndex == sheet.index ? appAccent : Color.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(
+                    Capsule().fill(activeSheetIndex == sheet.index ? appAccent.opacity(0.12) : Color.secondary.opacity(0.08))
+                )
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
     }
 
     private func grid(_ buffer: SpreadsheetBuffer) -> some View {

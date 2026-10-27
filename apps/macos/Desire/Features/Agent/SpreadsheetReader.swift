@@ -36,6 +36,14 @@ enum SpreadsheetReader {
     /// .xlsx：`unzip -p` 取 sharedStrings / 工作表 XML，XMLParser 直接解析。
     /// 系统自带 `/usr/bin/unzip`；条目缺失（inline string 工作簿没有
     /// sharedStrings.xml）按空表处理。
+    /// 工作表清单（v0.8.13 基础件 1）：sheetIndex → 显示名（workbook.xml 顺序）。
+    /// 表格查看器底部标签栏的数据源；非 xlsx 返回空。
+    static func sheetList(of url: URL) -> [(index: Int, name: String)] {
+        guard let xml = unzipEntry(url, "xl/workbook.xml") else { return [] }
+        return parseSheetNames(xml: xml).enumerated()
+            .map { (index: $0.offset + 1, name: $0.element) }
+    }
+
     static func readXLSX(from url: URL, sheetIndex: Int = 1, maxRows: Int = 200, maxCols: Int = 40) -> Sheet? {
         let index = max(1, sheetIndex)
         let shared = unzipEntry(url, "xl/sharedStrings.xml").map(parseSharedStrings) ?? []

@@ -16,6 +16,9 @@ struct ImageEditorView: View {
     @State private var image: CGImage?
     /// 操作历史（undo 栈；上限 20）。
     @State private var history: [CGImage] = []
+    /// 历史面板（v0.8.13 基础件 2）：每步的操作名与栈（栈底=原图）。
+    @State private var historySteps: [String] = []
+    @State private var showHistory = false
     @State private var loadError: String?
     @State private var hasUnsavedChanges = false
     @State private var statusNote: String?
@@ -124,21 +127,42 @@ struct ImageEditorView: View {
     }
 
     /// 应用一个变换（压栈 undo、标记未保存）。
-    private func apply(_ transform: (CGImage) -> CGImage?) {
+    private func apply(_ transform: (CGImage) -> CGImage?, label: String = String(localized: "Transform")) {
         guard let current = image, let next = transform(current) else {
             flash(String(localized: "Transform failed"))
             return
         }
-        history.append(current)
-        if history.count > 20 { history.removeFirst() }
+        pushHistory(current, label: label)
         image = next
         hasUnsavedChanges = true
         cropRect = nil
         cropMode = false
     }
 
+    /// 压栈（v0.8.13 历史面板）：栈满丢弃最旧一步，历史条目同步。
+    private func pushHistory(_ snapshot: CGImage, label: String) {
+        history.append(snapshot)
+        historySteps.append(label)
+        if history.count > 20 {
+            history.removeFirst()
+            historySteps.removeFirst()
+        }
+    }
+
+    /// 跳回任意一步：撤销栈顶到目标深度（栈保留目标之前的部分）。
+    private func jumpToHistoryStep(_ depth: Int) {
+        guard history.indices.contains(depth) else { return }
+        let target = history[depth]
+        history.removeSubrange((depth + 1)...)
+        historySteps.removeSubrange((depth + 1)...)
+        image = target
+        hasUnsavedChanges = true
+        cropRect = nil
+    }
+
     private func undo() {
         guard let previous = history.popLast() else { return }
+        if !historySteps.isEmpty { historySteps.removeLast() }
         image = previous
         hasUnsavedChanges = true
     }
@@ -200,13 +224,13 @@ struct ImageEditorView: View {
     private var toolbar: some View {
         HStack(spacing: 8) {
             // 变换
-            button("rotateleft", "Rotate 90° Left") { apply { ImageTransforms.rotated($0, clockwise: false) } }
-            button("rotateright", "Rotate 90° Right") { apply { ImageTransforms.rotated($0, clockwise: true) } }
+            button("rotateleft", "Rotate 90° Left") { apply(label: String(localized: "Rotate left")) { ImageTransforms.rotated($0, clockwise: false) } }
+            button("rotateright", "Rotate 90° Right") { apply(label: String(localized: "Rotate right")) { ImageTransforms.rotated($0, clockwise: true) } }
             button("arrow.left.and.right.righttriangle.left.righttriangle.right", "Flip Horizontal") {
-                apply { ImageTransforms.flipped($0, horizontal: true) }
+                apply(label: String(localized: "Flip horizontal")) { ImageTransforms.flipped($0, horizontal: true) }
             }
             button("arrow.up.and.down.righttriangle.left.righttriangle.right", "Flip Vertical") {
-                apply { ImageTransforms.flipped($0, horizontal: false) }
+                apply(label: String(localized: "Flip vertical")) { ImageTransforms.flipped($0, horizontal: false) }
             }
             button("crop", "Crop") { cropMode.toggle() }
                 .foregroundStyle(cropMode ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
@@ -219,6 +243,8 @@ struct ImageEditorView: View {
                 button(t.icon, t.rawValue.capitalized) { tool = t }
                     .foregroundStyle(tool == t ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
             }
+            button("clock.arrow.circlepath", "History") { showHistory.toggle() }
+                .foregroundStyle(showHistory ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
             ColorPicker("", selection: $strokeColor, supportsOpacity: false)
                 .labelsHidden()
                 .frame(width: 26)
@@ -282,6 +308,11 @@ struct ImageEditorView: View {
                     if showAdjustments {
                         adjustmentsPanel
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                            .padding(14)
+                    }
+                    if showHistory {
+                        historyPanel
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                             .padding(14)
                     }
                     if ocrResult != nil {
@@ -354,7 +385,7 @@ struct ImageEditorView: View {
                             y: rect.minY * displayScale,
                             width: rect.width * displayScale,
                             height: rect.height * displayScale)
-                        apply { ImageTransforms.cropped($0, rect: pixel) }
+                        apply(label: String(localized: "Crop")) { ImageTransforms.cropped($0, rect: pixel) }
                         return
                     }
                     cropRect = nil
@@ -363,7 +394,7 @@ struct ImageEditorView: View {
                 switch tool {
                 case .brush:
                     if brushPoints.count >= 2 {
-                        stampAnnotation { overlay in
+                        stampAnnotation(label: String(localized: "Brush")) { overlay in
                             drawPolyline(brushPoints, in: overlay)
                         }
                     }
@@ -428,7 +459,7 @@ struct ImageEditorView: View {
         guard !text.isEmpty else { showTextEntry = false; return }
         let nsColor = NSColor(strokeColor)
         let fontSize = max(14, 16 * displayScale)
-        stampAnnotation { overlay in
+        stampAnnotation(label: String(localized: "Text")) { overlay in
             let paragraph = NSMutableParagraphStyle()
             paragraph.alignment = .left
             let attributes: [NSAttributedString.Key: Any] = [
@@ -445,7 +476,7 @@ struct ImageEditorView: View {
     // MARK: - 标注烙印（CG 层）
 
     /// 在与当前位图同尺寸的透明画布上执行绘制 → 烙进图 → 压栈。
-    private func stampAnnotation(_ draw: (CGContext) -> Void) {
+    private func stampAnnotation(label: String, _ draw: (CGContext) -> Void) {
         guard let current = image else { return }
         let w = current.width, h = current.height
         guard let overlay = CGContext(
@@ -460,8 +491,7 @@ struct ImageEditorView: View {
         draw(overlay)
         guard let overlayImage = overlay.makeImage(),
               let merged = ImageTransforms.flattened(current, overlay: overlayImage) else { return }
-        history.append(current)
-        if history.count > 20 { history.removeFirst() }
+        pushHistory(current, label: label)
         image = merged
         hasUnsavedChanges = true
     }
@@ -479,7 +509,7 @@ struct ImageEditorView: View {
     }
 
     private func stampLineAnnotation(from: CGPoint, to: CGPoint, arrow: Bool) {
-        stampAnnotation { context in
+        stampAnnotation(label: String(localized: "Arrow")) { context in
             context.setStrokeColor(cgColorApp(strokeColor))
             context.setLineWidth(strokeWidth)
             context.move(to: from)
@@ -501,7 +531,7 @@ struct ImageEditorView: View {
     }
 
     private func stampRectAnnotation(from: CGPoint, to: CGPoint, ellipse: Bool) {
-        stampAnnotation { context in
+        stampAnnotation(label: String(localized: ellipse ? "Ellipse" : "Rectangle")) { context in
             context.setStrokeColor(cgColorApp(strokeColor))
             context.setLineWidth(strokeWidth)
             let rect = CGRect(x: min(from.x, to.x), y: min(from.y, to.y),
@@ -528,7 +558,7 @@ struct ImageEditorView: View {
                                                  height: max(1, Int(pixel.height / 12))),
               let pixelated = ImageTransforms.resized(tiny, width: Int(pixel.width),
                                                       height: Int(pixel.height)) else { return }
-        stampAnnotation { context in
+        stampAnnotation(label: String(localized: "Mosaic")) { context in
             // 视图坐标上下文里 y 已翻转；像素块贴回时同样按视图矩形。
             context.draw(pixelated, in: rect)
         }
@@ -571,6 +601,64 @@ struct ImageEditorView: View {
         }
     }
 
+    /// 操作历史面板（v0.8.13）：列出每步操作，点击跳回该步（其后步骤丢弃）。
+    private var historyPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("History")
+                .font(.system(size: 11, weight: .semibold))
+            ScrollView {
+                VStack(spacing: 2) {
+                    // 栈顶在前 = 最新操作在上；index = 撤销深度。
+                    ForEach(Array(historySteps.enumerated().reversed()), id: \.offset) { revIndex, label in
+                        let depth = historySteps.count - 1 - revIndex
+                        Button {
+                            jumpToHistoryStep(depth - 1 < 0 ? 0 : depth)
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text("\(depth + 1)")
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundStyle(.tertiary)
+                                Text(label)
+                                    .font(.system(size: 10.5))
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(RoundedRectangle(cornerRadius: 5)
+                                .fill(depth == historySteps.count - 1 ? appAccent.opacity(0.14) : Color.clear))
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.primary)
+                    }
+                    // 栈底 = 原图
+                    Button {
+                        jumpToHistoryStep(0)
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("0")
+                                .font(.system(size: 9, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                            Text(String(localized: "Original"))
+                                .font(.system(size: 10.5))
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 4)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.primary)
+                }
+            }
+            .frame(maxHeight: 200)
+        }
+        .padding(12)
+        .frame(width: 200)
+        .background(RoundedRectangle(cornerRadius: 10).fill(.regularMaterial))
+        .shadow(radius: 4)
+    }
+
     /// 调色滑杆浮层（21）：实时预览（apply 前 deltax 预览走同管线）。
     private var adjustmentsPanel: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -582,7 +670,7 @@ struct ImageEditorView: View {
             sliderRow("Sharpen", value: $sharpen, range: 0...2)
             HStack {
                 Button(String(localized: "Apply")) {
-                    apply {
+                    apply(label: String(localized: "Adjustments")) {
                         ImageTransforms.adjusted($0, brightness: brightness, contrast: contrast,
                                                  saturation: saturation, sharpen: sharpen)
                     }
@@ -680,7 +768,7 @@ struct ImageEditorView: View {
                         if let rect = cropRect {
                             let pixel = CGRect(x: rect.minX * displayScale, y: rect.minY * displayScale,
                                                width: rect.width * displayScale, height: rect.height * displayScale)
-                            apply { ImageTransforms.cropped($0, rect: pixel) }
+                            apply(label: String(localized: "Crop")) { ImageTransforms.cropped($0, rect: pixel) }
                         }
                     }
                     .buttonStyle(.borderedProminent)

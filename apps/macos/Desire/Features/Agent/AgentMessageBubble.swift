@@ -4,6 +4,23 @@ import SwiftUI
 /// Renders a single message in the AI conversation, dispatching to a
 /// role-specific bubble (user / assistant / tool).
 struct AgentMessageBubble: View {
+
+    /// 引用来源（v0.8.13 基础件 6）：本回合各工具结果里的 URL/文件路径
+    ///（按 toolCallId 顺序去重）。纯函数供气泡与预览共用。
+    nonisolated static func citationSources(for message: AgentMessage,
+                                            toolResults: [String: String]) -> [String] {
+        var out: [String] = []
+        var seen = Set<String>()
+        for call in message.toolCalls ?? [] {
+            guard let result = toolResults[call.id] else { continue }
+            if let link = ToolBubble.sourceLink(String(result.prefix(600))),
+               seen.insert(link).inserted {
+                out.append(link)
+            }
+        }
+        return out
+    }
+
     let message: AgentMessage
     /// toolCallId -> result content, for showing what a call returned.
     var toolResults: [String: String] = [:]
@@ -37,7 +54,8 @@ struct AgentMessageBubble: View {
                 toolResults: toolResults,
                 onFeedback: onFeedback,
                 onLearnReason: onLearnReason,
-                toolDurations: toolDurations
+                toolDurations: toolDurations,
+                citationSources: Self.citationSources(for: message, toolResults: toolResults)
             )
         case .tool:
             ToolBubble(
@@ -252,6 +270,8 @@ private struct AssistantBubble: View {
     /// 点踩可选原因 → 记忆沉淀（面板侧判断 memoryLearning 开关）。
     var onLearnReason: ((String) -> Void)? = nil
     var toolDurations: [String: Double] = [:]
+    /// 引用来源（v0.8.13）：本回合工具结果里的 URL/路径，气泡底部渲染角标条。
+    var citationSources: [String] = []
     @State private var isHovering = false
     /// 回复朗读（v0.7.28）：复用端上 TTS，不产生网络/费用。
     @ObservedObject private var speech = ReaderSpeechService.shared
@@ -298,6 +318,41 @@ private struct AssistantBubble: View {
 
                     if let critique = message.critique, !critique.isEmpty {
                         CritiqueBlock(text: critique)
+                    }
+
+                    // 引用来源条（v0.8.13 基础件 6）：本回合工具结果里的
+                    // URL/路径渲染成 [n] 角标 chips，点击用浏览器/访达打开。
+                    if !citationSources.isEmpty {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(Array(citationSources.enumerated()), id: \.offset) { idx, link in
+                                    Button {
+                                        if link.hasPrefix("http"), let url = URL(string: link) {
+                                            NSWorkspace.shared.open(url)
+                                        } else {
+                                            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: link)])
+                                        }
+                                    } label: {
+                                        HStack(spacing: 3) {
+                                            Text("[\(idx + 1)]")
+                                                .font(.system(size: 9.5, weight: .bold, design: .monospaced))
+                                                .foregroundStyle(appAccent)
+                                            Text((link as NSString).lastPathComponent)
+                                                .font(.system(size: 10))
+                                                .lineLimit(1)
+                                                .truncationMode(.middle)
+                                        }
+                                        .padding(.horizontal, 7)
+                                        .padding(.vertical, 3)
+                                        .background(Capsule().fill(appAccent.opacity(0.10)))
+                                        .contentShape(Rectangle())
+                                    }
+                                    .buttonStyle(.plain)
+                                    .help(link)
+                                }
+                            }
+                            .padding(.horizontal, 2)
+                        }
                     }
 
                     if let note = message.verificationNote, !note.isEmpty {

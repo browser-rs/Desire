@@ -3656,6 +3656,20 @@ func testTaskGroupPlan() {
                                                changes: [.init(entityID: id1, target: .bookmark, operation: "remove", snapshotJSON: nil)])).isEmpty)
 }
 
+func testSessionTemplates() {
+    let body = "写周报：{{done}}；数据 {{data}}；备用 {{done}}"
+    let vars = SessionTemplates.variables(in: body)
+    check("模板：变量去重按序", vars == ["done", "data"])
+    let rendered = SessionTemplates.render(body, values: ["done": "发版 v0.8.12"])
+    check("模板：已提供替换", rendered.contains("发版 v0.8.12"))
+    check("模板：未提供保留", rendered.contains("{{data}}"))
+    check("模板：内建非空", !SessionTemplates.builtins.isEmpty)
+    check("模板：builtin 标记", SessionTemplates.builtins.allSatisfy { $0.builtin })
+    check("模板：无变量原样", SessionTemplates.variables(in: "no placeholders") == [])
+}
+
+testSessionTemplates()
+
 func testArchiveListing() {
     let listing = """
      Length      Date    Time    Name

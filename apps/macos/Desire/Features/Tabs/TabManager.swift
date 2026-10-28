@@ -34,6 +34,8 @@ class Tab: ObservableObject {
     @Published var displayTitle = "新标签页"
     @Published var isPinned = false
     @Published var isSuspended = false
+    /// 挂起时长展示（v0.8.19 挂起管理）：suspend 时盖戳、唤醒清除。
+    @Published var suspendedAt: Date?
     @Published var responsiveConfig = ResponsiveConfig()
     var lastAccessed = Date()
     var suppressHistoryOnce = false
@@ -526,6 +528,7 @@ class TabManager: ObservableObject {
         guard !tab.isSuspended else { return }
         tab.captureSuspendedState()
         tab.isSuspended = true
+        tab.suspendedAt = Date()
         tab.browser.webView.stopLoading()
         tab.browser.webView.loadHTMLString("", baseURL: nil)
     }
@@ -536,6 +539,7 @@ class TabManager: ObservableObject {
         }
         guard tab.isSuspended else { return }
         tab.isSuspended = false
+        tab.suspendedAt = nil
         tab.restoreSuspendedState()
     }
 

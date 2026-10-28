@@ -18,6 +18,9 @@ struct TabOverviewView: View {
     let onCloseTab: (Int) -> Void
     let onAddTab: () -> Void
     let onClose: () -> Void
+    /// 挂起管理（v0.8.19）：默认直连 tabManager（概览已持有）。
+    var onSuspendTab: ((Int) -> Void)? = nil
+    var onResumeTab: ((Int) -> Void)? = nil
 
     /// 瓦片内 webview 的基准布局尺寸（页面按此宽度渲染，再整体缩小）。
     private static let baseSize = CGSize(width: 1280, height: 800)
@@ -50,6 +53,20 @@ struct TabOverviewView: View {
         .background(Color(red: 0.13, green: 0.16, blue: 0.21).onTapGesture { onClose() })
         .onExitCommand { onClose() } // Esc
     }
+
+    private func resolve(_ action: ((Int) -> Void)?, fallback: (TabManager, Int) -> Void, index: Int) {
+        if let action {
+            action(index)
+        } else {
+            fallback(tabManager, index)
+        }
+    }
+
+    private static let relativeFormatter: RelativeDateTimeFormatter = {
+        let f = RelativeDateTimeFormatter()
+        f.unitsStyle = .abbreviated
+        return f
+    }()
 
     // MARK: - Card
 
@@ -109,11 +126,48 @@ struct TabOverviewView: View {
                             lineWidth: isSelected ? 3 : 1)
             )
             .contentShape(Rectangle())
+            .contextMenu { tileMenu(tab, index: index) }
             .onTapGesture {
                 onSelectTab(index)
                 onClose()
             }
             .onHover { hovering in hoverStates[tab.id] = hovering }
+        }
+    }
+
+    /// 挂起管理（v0.8.19 基础件 6）：瓦片右键挂起/唤醒/关闭；
+    /// 挂起瓦片显示时长（moon.zzz 占位上叠加）。
+    @ViewBuilder
+    private func tileMenu(_ tab: Tab, index: Int) -> some View {
+        if tab.isOnNewTabPage {
+            Button(String(localized: "Close Tab"), role: .destructive) {
+                onCloseTab(index)
+            }
+        } else if tab.isSuspended {
+            if let since = tab.suspendedAt {
+                Text(String(localized: "Suspended \(Self.relativeFormatter.localizedString(for: since, relativeTo: Date()) )"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+            Button(String(localized: "Wake Up")) {
+                resolve(onResumeTab, fallback: { tm, i in
+                    if tm.tabs.indices.contains(i) { tm.unsuspend(tm.tabs[i]) }
+                }, index: index)
+            }
+            Divider()
+            Button(String(localized: "Close Tab"), role: .destructive) {
+                onCloseTab(index)
+            }
+        } else {
+            Button(String(localized: "Suspend")) {
+                resolve(onSuspendTab, fallback: { tm, i in
+                    if tm.tabs.indices.contains(i), i != tm.selectedIndex { tm.suspend(tm.tabs[i]) }
+                }, index: index)
+            }
+            Divider()
+            Button(String(localized: "Close Tab"), role: .destructive) {
+                onCloseTab(index)
+            }
         }
     }
 

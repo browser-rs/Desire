@@ -52,6 +52,7 @@ struct CommandDispatcher {
         var isFindBarVisible: Binding<Bool>
         var showWorkspaces: Binding<Bool>
         var showSearchEverywhere: Binding<Bool>
+        var showClipboardHistory: Binding<Bool>
         var showReadingList: Binding<Bool>
         var showCommandPalette: Binding<Bool>
         var showAgentPanel: Binding<Bool>
@@ -239,6 +240,9 @@ struct CommandDispatcher {
 
         case .searchEverywhere:
             bindings.showSearchEverywhere.wrappedValue = true
+
+        case .showClipboardHistory:
+            bindings.showClipboardHistory.wrappedValue = true
 
         case .inspectElement:
             if let tab = tabManager.selectedTab, !tab.isOnNewTabPage {

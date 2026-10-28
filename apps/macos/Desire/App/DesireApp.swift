@@ -178,6 +178,8 @@ enum BrowserCommand {
     /// v0.7.29：活动中心（下载/批量/导出/任务/Agent 聚合）。
     case showActivity
     case searchEverywhere
+    /// 剪贴板历史（v0.8.19 ⌘⇧V）。
+    case showClipboardHistory
     case showPlugins, showElementBlock, showPasswordManager, showAdBlockStats
     case bookmarkPage, toggleFullScreen, toggleFind, tabSearch, toggleSidebar
     case toggleResponsiveMode, toggleReader

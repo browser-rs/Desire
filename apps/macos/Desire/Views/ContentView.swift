@@ -177,6 +177,10 @@ struct ContentView: View {
                     get: { appState.showSearchEverywhere },
                     set: { appState.showSearchEverywhere = $0 }
                 ),
+                showClipboardHistory: Binding(
+                    get: { appState.showClipboardHistory },
+                    set: { appState.showClipboardHistory = $0 }
+                ),
                 showReadingList: $showReadingList,
                 showCommandPalette: $showCommandPalette,
                 showAgentPanel: $showAgentPanel,
@@ -583,6 +587,10 @@ struct ContentView: View {
             showSearchEverywhere: Binding(
                 get: { appState.showSearchEverywhere },
                 set: { appState.showSearchEverywhere = $0 }
+            ),
+            showClipboardHistory: Binding(
+                get: { appState.showClipboardHistory },
+                set: { appState.showClipboardHistory = $0 }
             ),
             onNavigate: { url in
                 if let tab = tabManager.selectedTab { navigateToURL(url, for: tab) }

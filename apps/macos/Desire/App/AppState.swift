@@ -38,6 +38,8 @@ class AppState: ObservableObject {
     @Published var showWorkspacesPanel = false
     /// 集中搜索面板（0.7.14）：⌘⇧F 四源同搜。
     @Published var showSearchEverywhere = false
+    /// 剪贴板历史面板（v0.8.19 ⌘⇧V）。
+    @Published var showClipboardHistory = false
 
     /// Tracks whether the launch session has been restored. Set to true by
     /// the first window's `onAppear`; subsequent user-opened windows skip
@@ -84,6 +86,7 @@ class AppState: ObservableObject {
         }
         lap("profile-restore")
         // 云同步：已登录才生效（内部自延迟 + 定时器，不占启动路径）。
+        ClipboardHistoryStore.shared.startPolling()
         syncStore.startAutoSync()
         lap("startAutoSync")
         // 密钥单条目后台预读：Keychain 授权窗可能延迟/隐藏，绝不能在启动

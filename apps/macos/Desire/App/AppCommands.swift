@@ -231,6 +231,8 @@ struct AppCommands: Commands {
             Button("Password Manager") { postCommand(.showPasswordManager) }
             Button("Web Workflows…") { postCommand(.showWorkflows) }
             Button("Activity…") { postCommand(.showActivity) }
+            Button("Clipboard History") { postCommand(.showClipboardHistory) }
+                .keyboardShortcut(binding("clipboardHistory", "v", [.command, .shift]))
             Button("Ad Blocking Stats") { postCommand(.showAdBlockStats) }
             Divider()
             // 免打扰时段（主动通知分级）：routine 通知扣下合并成摘要。

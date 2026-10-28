@@ -329,6 +329,9 @@ private struct PasswordRow: View {
     }
 
     private func copy(_ text: String, field: CopiedField) {
+        if field == .password {
+            ClipboardHistoryStore.shared.suppressNextCapture()
+        }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
         copiedField = field

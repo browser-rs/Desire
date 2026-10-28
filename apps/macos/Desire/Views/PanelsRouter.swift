@@ -38,6 +38,7 @@ struct PanelsRouter: ViewModifier {
     @Binding var showPasswordManager: Bool
     @Binding var showWorkspacesPanel: Bool
     @Binding var showSearchEverywhere: Bool
+    @Binding var showClipboardHistory: Bool
 
     /// Navigates the selected tab (panel selection callbacks).
     let onNavigate: (String) -> Void
@@ -91,6 +92,9 @@ struct PanelsRouter: ViewModifier {
             }
             .sheet(isPresented: $showPasswordManager) {
                 PasswordPanel(passwordStore: passwordStore)
+            }
+            .sheet(isPresented: $showClipboardHistory) {
+                ClipboardHistoryPanel()
             }
             .sheet(isPresented: $showSearchEverywhere) {
                 SearchEverywherePanel(

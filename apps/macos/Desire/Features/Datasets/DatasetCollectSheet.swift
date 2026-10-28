@@ -117,6 +117,27 @@ struct DatasetCollectSheet: View {
                     .disabled(running || url.trimmingCharacters(in: .whitespaces).isEmpty
                               || rowSelector.trimmingCharacters(in: .whitespaces).isEmpty
                               || DatasetSpec.parseFields(fieldsText).isEmpty)
+                // 定时采集（v0.8.20 融合 12）：先存命名规格，再挂调度。
+                Menu {
+                    Button(String(localized: "Every hour")) {
+                        scheduleSpec(.everyMinutes(60))
+                    }
+                    Button(String(localized: "Daily at 09:00")) {
+                        scheduleSpec(.daily(hour: 9, minute: 0))
+                    }
+                    Button(String(localized: "Daily at 18:00")) {
+                        scheduleSpec(.daily(hour: 18, minute: 0))
+                    }
+                } label: {
+                    Image(systemName: "clock")
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .disabled(url.trimmingCharacters(in: .whitespaces).isEmpty
+                          || rowSelector.trimmingCharacters(in: .whitespaces).isEmpty
+                          || DatasetSpec.parseFields(fieldsText).isEmpty)
+                .help(String(localized: "Save as a named spec and schedule periodic collection"))
             }
         }
         .padding(18)
@@ -127,6 +148,36 @@ struct DatasetCollectSheet: View {
                     .browser.webView.url?.absoluteString ?? ""
             }
         }
+    }
+
+    /// 保存命名规格 + 挂 builtin 调度（v0.8.20 融合 12）。
+    private func scheduleSpec(_ recurrence: AgentScheduler.ScheduledTask.Recurrence) {
+        let fields = DatasetSpec.parseFields(fieldsText)
+        let spec = DatasetSpec(
+            startURL: url.trimmingCharacters(in: .whitespacesAndNewlines),
+            rowSelector: rowSelector.trimmingCharacters(in: .whitespacesAndNewlines),
+            fields: fields,
+            pagination: pagination,
+            nextSelector: nextSelector.trimmingCharacters(in: .whitespaces).isEmpty ? nil : nextSelector,
+            urlTemplate: urlTemplate.trimmingCharacters(in: .whitespaces).isEmpty ? nil : urlTemplate,
+            maxPages: maxPages,
+            maxRows: 2000)
+        let name = fileName.trimmingCharacters(in: .whitespaces).isEmpty
+            ? (URL(string: spec.startURL)?.host ?? "dataset")
+            : fileName.trimmingCharacters(in: .whitespaces)
+        let named = DatasetSpecStore.shared.save(name: name, spec: spec)
+        let kind = "dataset:\(named.id.uuidString)"
+        if AgentScheduler.shared.addBuiltin(name: "数据集采集：\(name)",
+                                            recurrence: recurrence, kind: kind) != nil {
+            resultText = String(localized: "Scheduled: \(recurrenceText) — named spec \(name)")
+        } else {
+            resultText = String(localized: "Schedule failed (name already in use?)")
+        }
+    }
+
+    private var recurrenceText: String {
+        // 占位文案由 addBuiltin 展示任务名即可——这里给简短说明。
+        String(localized: "see Scheduled Tasks")
     }
 
     private func start() {

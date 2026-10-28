@@ -4,6 +4,8 @@
 - 自动化管线第一批（0.8.20）：工作流 → 技能转换（旗舰——录制的回放步骤序列转 SKILL.md：navigate/click/input/select/key/wait 逐步转自然语言指令+选择器，text: 前缀转"可见文本"描述；敏感字段转 {{vars}} 参数化——"值绝不落盘"口径在技能里延续为运行时填值；单向生成，手改不回写；WorkflowSkillExport 进 harness 12 断言）；标签自动刷新（pill 右键档位 10s/30s/1m/5m/关——TabManager 5s 中央 tick 到点 reload，挂起标签不刷，胶囊 arrow.clockwise 角标）；剪贴板同步第十四域（ClipboardHistoryStore 补墓碑/同步口——FIFO 淘汰与 24h 过期都记墓碑防复活，SyncEngine adapter 照 excerpts 纪律；opt-in 默认关；api-sync-smoke 13 步含 clipboard roundtrip 实证）。
 - 会话分支（0.8.20 第二批）：assistant 消息一键 "Fork from here"——历史截断复制（含该消息）为新会话（Fork: 标题 + system 来源标注），当前会话不动、面板底部 toast 提示去会话列表找分支；流式中不挂菜单（回合未定局）。
 - 会话分支与记忆导入（0.8.20 第二批）：assistant 消息一键 "Fork from here"——历史截断复制（含该消息）为新会话（Fork: 标题 + system 来源标注），当前会话不动、面板 toast 提示；流式中不挂菜单；记忆导入（对偶 0.7.7 知识库导出）——MemoryImport 解析 markdownKB 真实形态（### 分节/★ 前缀/括号元信息"范围 host · 来源"），逐条走 addFact 由既有去重与冲突复核接管，解析器进 harness 9 断言（1788/0），记忆页导入按钮。
+- 自动化管线批（0.8.20 第三批）：数据集定时采集（DatasetSpecStore 命名规格持久化 + builtin kind dataset:<id> 白名单扩展 + deliverBuiltin 跑采集→快照落盘→diff 回执+routine 通知；采集 sheet 时钟菜单存规格并挂调度）；每日简报产物化（runNow 同步落 workspace brief-<date>.md 入账最近文件；briefs 帧推手机最近 7 份，iOS RemoteBriefsView 点按在 Mac 上打开）；下载后处理链（归档规则加 convertTo 动作——命中移入子目录后自动 convertDocument 转格式（pdf→md 等）产物入账，通知附转换结果；编辑器加目标格式列）。远程端依赖：剪贴板域与数据集域同步部署见 docs/OPS-SYNC-DEPLOY.md。
+
 
 
 

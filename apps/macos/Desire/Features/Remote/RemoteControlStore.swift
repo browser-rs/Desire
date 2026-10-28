@@ -636,6 +636,8 @@ final class RemoteControlStore: ObservableObject {
             if let frame = Self.recentFilesFrame() { sendInnerRaw(frame) }
         case "excerpts":
             if let frame = Self.excerptsFrame() { sendInnerRaw(frame) }
+        case "briefs":
+            if let frame = Self.briefsFrame() { sendInnerRaw(frame) }
         case "openExcerpt":
             // 摘录来源在 Mac 上打开（v0.8.18）：http 直接开标签；文件路径
             // 转 file URL 进查看器路由（openRecentFile 的 URL(string:) 对
@@ -771,6 +773,30 @@ final class RemoteControlStore: ObservableObject {
     nonisolated struct RemoteExcerptsFrame: Codable {
         var t: String
         var items: [RemoteExcerptItem]
+    }
+
+    /// 每日简报帧（v0.8.20 融合 13）：最近 7 份产物。
+    nonisolated struct RemoteBriefItem: Codable {
+        var date: String
+        var text: String
+        var path: String
+    }
+
+    nonisolated struct RemoteBriefsFrame: Codable {
+        var t: String
+        var items: [RemoteBriefItem]
+    }
+
+    private static func briefsFrame() -> String? {
+        let frame = RemoteBriefsFrame(
+            t: "briefs",
+            items: DailyBriefService.recentBriefs().map {
+                RemoteBriefItem(date: $0.date,
+                                text: String($0.text.prefix(1_800)),
+                                path: $0.url.path)
+            })
+        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     private static func excerptsFrame() -> String? {

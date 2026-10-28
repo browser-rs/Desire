@@ -505,7 +505,7 @@ class DownloadStore: ObservableObject {
     /// "downloadArchiveRules"（[{ext: "pdf", folder: "Documents"}, {domain: "arxiv.org", folder: "Papers"}]）
     /// 首条命中即把完成文件移入下载目录下的子目录（不越出下载根）。
     /// 移动结果写进条目 fileURL；失败静默留原地。
-    private func autoArchiveIfMatched(index: Int) {
+    private func autoArchiveIfMatched(index: Int) async {
         guard let data = UserDefaults.standard.data(forKey: "downloadArchiveRules"),
               let rules = try? JSONDecoder().decode([ArchiveRule].self, from: data),
               !rules.isEmpty else { return }
@@ -517,9 +517,21 @@ class DownloadStore: ObservableObject {
                 try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try FileManager.default.moveItem(at: fileURL, to: dest)
                 downloads[index].fileURL = dest
+                var body = String(localized: "Moved to \(dest.deletingLastPathComponent().lastPathComponent)/")
+                // 后处理链（v0.8.20 替人干活 16）：规则带 convertTo → 转换产物
+                // 落同目录并入账；失败静默（归档本身仍成立）。
+                if let convertTo = rule.convertTo?.lowercased(), !convertTo.isEmpty {
+                    let converted = dest.deletingPathExtension().appendingPathExtension(convertTo)
+                    let outcome = await DocumentConvert.convert(
+                        sources: [dest], format: convertTo, to: converted)
+                    if outcome.ok {
+                        RecentLocalFiles.record(url: converted)
+                        body += "\n" + String(localized: "Converted: \(converted.lastPathComponent)")
+                    }
+                }
                 ProactiveNotificationStore.shared.deliver(
                     title: String(localized: "Archived: \(item.filename)"),
-                    body: String(localized: "Moved to \(dest.deletingLastPathComponent().lastPathComponent)/"),
+                    body: body,
                     tier: .routine)
             } catch {
                 Log.downloads.error("auto-archive move failed: \(error.localizedDescription, privacy: .public)")
@@ -544,11 +556,13 @@ class DownloadStore: ObservableObject {
         UserDefaults.standard.set(data, forKey: "downloadArchiveRules")
     }
 
-    /// 归档规则（扩展名或来源域 → 子目录）。
+    /// 归档规则（扩展名或来源域 → 子目录；可选 convertTo 后处理动作）。
     struct ArchiveRule: Codable {
         var ext: String?
         var domain: String?
         var folder: String
+        /// 命中后触发 convertDocument 转换（如 "md"：pdf→md）。旧规则缺键 = nil。
+        var convertTo: String?
 
         func matches(item: DownloadItem) -> Bool {
             if let ext, !ext.isEmpty {
@@ -686,7 +700,9 @@ class DownloadStore: ObservableObject {
         } else {
             downloads[i].downloadedBytes = max(downloads[i].totalBytes, 0)
         }
-        autoArchiveIfMatched(index: i)
+        Task { @MainActor [weak self] in
+            await self?.autoArchiveIfMatched(index: i)
+        }
         saveHistory()
         scanFilePresence()
         syncDockBadge()

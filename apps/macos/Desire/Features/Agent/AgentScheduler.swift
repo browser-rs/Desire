@@ -246,6 +246,7 @@ final class AgentScheduler: ObservableObject {
         guard !trimmedName.isEmpty,
               ["weeklyReport", "dailyBrief", "promotionMentionScan"].contains(kind)
                 || Self.workflowID(in: kind) != nil
+                || Self.datasetID(in: kind) != nil
         else { return nil }
         let displayPrompt: String
         if kind == "dailyBrief" {
@@ -624,6 +625,12 @@ final class AgentScheduler: ObservableObject {
     }
 
     /// 内置流水线执行 + run 收尾（失败非致命，记录在 run 上）。
+    /// dataset builtin 的 id 提取（`dataset:<uuid>`）。
+    nonisolated static func datasetID(in kind: String) -> UUID? {
+        guard kind.hasPrefix("dataset:") else { return nil }
+        return UUID(uuidString: String(kind.dropFirst("dataset:".count)))
+    }
+
     private func deliverBuiltin(_ builtin: String, task: ScheduledTask, runID: UUID) {
         switch builtin {
         case "weeklyReport":
@@ -646,6 +653,37 @@ final class AgentScheduler: ObservableObject {
                     $0.error = nil
                 }
                 Self.log.info("Daily brief done: \(text.count) chars")
+            }
+        case let kind where Self.datasetID(in: kind) != nil:
+            // 数据集定时采集（v0.8.20 融合 12）：跑命名规格 → 快照落盘
+            // （Collector 自带 Job/文件），回执进 lastResult + routine 通知。
+            Task { @MainActor [weak self] in
+                guard let named = DatasetSpecStore.shared.spec(id: Self.datasetID(in: kind)!) else {
+                    self?.updateRun(id: runID) {
+                        $0.status = "failed"
+                        $0.finishedAt = Date()
+                        $0.error = "dataset spec deleted"
+                    }
+                    return
+                }
+                let result = await DatasetCollector.collect(named.spec,
+                                                            fileName: "\(named.name)-snapshot")
+                self?.updateRun(id: runID) {
+                    $0.status = result.ok ? "success" : "failed"
+                    $0.finishedAt = Date()
+                    $0.error = result.ok ? nil : result.errors.first
+                }
+                if let i = self?.tasks.firstIndex(where: { $0.id == task.id }) {
+                    self?.tasks[i].lastResult = result.ok
+                        ? String(localized: "dataset: \(result.rowCount) row(s) · \(result.pageCount) page(s)")
+                        : "dataset: failed"
+                }
+                if result.ok {
+                    ProactiveNotificationStore.shared.deliver(
+                        title: String(localized: "Dataset collected: \(named.name)"),
+                        body: String(localized: "\(result.rowCount) row(s) · \(result.pageCount) page(s) — snapshot in your files"),
+                        tier: .routine)
+                }
             }
         case "promotionMentionScan":
             Task { @MainActor [weak self] in

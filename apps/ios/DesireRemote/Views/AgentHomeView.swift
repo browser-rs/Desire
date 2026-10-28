@@ -262,6 +262,16 @@ struct AgentHomeView: View {
                     subtitle: "Mac 摘录库：阅读高亮、批注与划选",
                     showsChevron: false)
             }
+
+            NavigationLink {
+                RemoteBriefsView()
+            } label: {
+                DesireNavRow(
+                    icon: "newspaper",
+                    title: "每日简报",
+                    subtitle: "Mac 上生成的当日简报产物",
+                    showsChevron: false)
+            }
         } header: {
             DesireSectionHeader(title: "用量")
         }

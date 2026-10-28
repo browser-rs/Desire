@@ -538,6 +538,19 @@ struct RemoteExcerptsFrame: Codable {
     var items: [RemoteExcerptItem]
 }
 
+/// 每日简报（v0.8.20）：Mac 侧产物（workspace brief-*.md，最近 7 份）。
+struct RemoteBriefItem: Codable, Identifiable, Equatable {
+    var date: String
+    var text: String
+    var path: String
+    var id: String { date }
+}
+
+struct RemoteBriefsFrame: Codable {
+    var t: String
+    var items: [RemoteBriefItem]
+}
+
 struct RemoteRecentFilesFrame: Codable {
     var t: String
     var files: [RemoteRecentFile]

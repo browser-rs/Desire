@@ -4,11 +4,14 @@ import SwiftUI
 /// 扩展名或来源域命中 → 完成后移入下载根下的子目录。
 /// 存储沿用 DownloadStore.loadArchiveRules/saveArchiveRules（桥端点同源）。
 struct ArchiveRulesEditorSheet: View {
+    @Environment(\.appAccent) private var appAccent: Color
     @Environment(\.dismiss) private var dismiss
     @State private var rules: [DownloadStore.ArchiveRule] = []
     @State private var newExt = ""
     @State private var newDomain = ""
     @State private var newFolder = ""
+    /// 后处理链（v0.8.20）：命中后触发转换的目标格式（可空）。
+    @State private var newConvertTo = ""
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -44,6 +47,14 @@ struct ArchiveRulesEditorSheet: View {
                         .foregroundStyle(.tertiary)
                     Text("\(rule.folder)/")
                         .font(.system(size: 11, design: .monospaced))
+                    if let convertTo = rule.convertTo, !convertTo.isEmpty {
+                        Image(systemName: "arrow.right")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                        Text(convertTo)
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundStyle(appAccent)
+                    }
                     Spacer()
                     Button {
                         rules.remove(at: index)
@@ -64,15 +75,19 @@ struct ArchiveRulesEditorSheet: View {
                 TextField(String(localized: "ext (pdf)"), text: $newExt)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11, design: .monospaced))
-                    .frame(width: 90)
+                    .frame(width: 80)
                 TextField(String(localized: "source domain (arxiv.org)"), text: $newDomain)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11, design: .monospaced))
-                    .frame(width: 150)
+                    .frame(width: 130)
                 Image(systemName: "arrow.right")
                     .font(.system(size: 9))
                     .foregroundStyle(.tertiary)
                 TextField(String(localized: "subfolder (Papers)"), text: $newFolder)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 11, design: .monospaced))
+                    .frame(width: 100)
+                TextField(String(localized: "convert to (md, empty = no)"), text: $newConvertTo)
                     .textFieldStyle(.roundedBorder)
                     .font(.system(size: 11, design: .monospaced))
                 Button(String(localized: "Add Rule")) { addRule() }
@@ -91,10 +106,12 @@ struct ArchiveRulesEditorSheet: View {
             .trimmingCharacters(in: CharacterSet(charactersIn: "."))
         let domain = newDomain.trimmingCharacters(in: .whitespaces).lowercased()
         let folder = newFolder.trimmingCharacters(in: .whitespaces)
+        let convertTo = newConvertTo.trimmingCharacters(in: .whitespaces).lowercased()
         rules.append(DownloadStore.ArchiveRule(
             ext: ext.isEmpty ? nil : ext,
             domain: domain.isEmpty ? nil : domain,
-            folder: folder))
+            folder: folder,
+            convertTo: convertTo.isEmpty ? nil : convertTo))
         DownloadStore.saveArchiveRules(rules)
         newExt = ""
         newDomain = ""

@@ -8,10 +8,44 @@ import Foundation
 enum DailyBriefService {
     static let toBoardKey = "agent.dailyBrief.toBoard"
 
+    /// 简报产物（v0.8.20）：workspace `brief-<yyyy-MM-dd>.md`，入账最近文件。
     @discardableResult
+    static func productize(_ text: String, now: Date = Date()) -> URL? {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let url = AgentWorkspace.shared.directory
+            .appendingPathComponent("brief-\(formatter.string(from: now)).md")
+        do {
+            try text.write(to: url, atomically: true, encoding: .utf8)
+            RecentLocalFiles.record(url: url)
+            return url
+        } catch {
+            return nil
+        }
+    }
+
+    /// 最近 7 份简报（Remote briefs 帧用；文件名排序即新在前）。
+    static func recentBriefs(limit: Int = 7) -> [(date: String, text: String, url: URL)] {
+        let fm = FileManager.default
+        guard let files = try? fm.contentsOfDirectory(
+            at: AgentWorkspace.shared.directory, includingPropertiesForKeys: nil) else { return [] }
+        return files
+            .filter { $0.lastPathComponent.hasPrefix("brief-") && $0.pathExtension == "md" }
+            .sorted { $0.lastPathComponent > $1.lastPathComponent }
+            .prefix(limit)
+            .compactMap { url in
+                guard let text = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+                let name = url.deletingPathExtension().lastPathComponent
+                return (String(name.dropFirst("brief-".count)), text, url)
+            }
+    }
+
     static func runNow(now: Date = Date(), toBoard: Bool? = nil) -> String {
         let text = DailyBrief.compose(buildInput(now: now), date: now)
         AgentScheduler.shared.deliveryTarget?.appendExternalNote(text)
+        // 产物化（v0.8.20 融合 13）：落 workspace brief-<date>.md 入账，
+        // Remote 端 briefs 帧随之可见。
+        productize(text, now: now)
         let summary = text.components(separatedBy: "\n").dropFirst().first ?? text
         ProactiveNotificationStore.shared.deliver(
             title: String(localized: "Daily brief ready"),

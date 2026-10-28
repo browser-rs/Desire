@@ -1,4 +1,6 @@
+import AppKit
 import os
+import UniformTypeIdentifiers
 import SwiftUI
 
 /// Memory manager: inspect and edit the agent's layered memory — the L0
@@ -88,6 +90,31 @@ struct AgentMemoryView: View {
 
     // MARK: - 知识库导出（ReMe 式 Markdown）
 
+    /// 记忆导入（v0.8.20）：md（markdownKB 形态）→ MemoryImport.parse →
+    /// 逐条 addFact（既有去重/冲突复核接管）。
+    private func importKnowledgeBase() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.plainText, .utf8PlainText]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url,
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return }
+        let facts = MemoryImport.parse(text)
+        guard !facts.isEmpty else {
+            Log.agent.info("memory import: nothing recognized in \(url.lastPathComponent, privacy: .public)")
+            return
+        }
+        var added = 0
+        for fact in facts {
+            let before = memory.factsSnapshot.count
+            memory.addFact(content: fact.content, category: fact.category,
+                           scope: fact.scope, source: fact.source)
+            if memory.factsSnapshot.count > before { added += 1 }
+            if fact.pinned { /* pin 走 addFact 后置——API 无 pinned 参数，跳过 */ }
+        }
+        _ = added
+        Log.agent.info("memory import: \(facts.count) parsed, \(added) new")
+    }
+
     private func exportKnowledgeBase() {
         let markdown = memory.markdownKB()
         let formatter = DateFormatter()
@@ -128,6 +155,15 @@ struct AgentMemoryView: View {
             }
             .buttonStyle(.plain)
             .help("导出记忆知识库 Markdown（到“下载”文件夹）")
+            Button {
+                importKnowledgeBase()
+            } label: {
+                Image(systemName: "square.and.arrow.down")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("从 Markdown 导入记忆（知识库导出格式）")
             .disabled(memory.archive.facts.isEmpty && memory.archive.summaries.isEmpty)
             Button {
                 showClearConfirmation = true

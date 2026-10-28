@@ -85,6 +85,7 @@ SOURCES=(
   apps/macos/Desire/Features/Excerpts/Excerpt.swift
   apps/macos/Desire/Features/Agent/SkillGallery.swift
   apps/macos/Desire/Features/Agent/TaskFailureClassify.swift
+  apps/macos/Desire/Features/Agent/Memory/MemoryImport.swift
   apps/macos/Desire/Features/Workflows/Workflow.swift
   apps/macos/Desire/Features/Workflows/WorkflowSkillExport.swift
   apps/macos/Desire/Features/Agent/SkillVars.swift

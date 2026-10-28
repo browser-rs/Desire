@@ -3970,6 +3970,46 @@ func testWorkflowSkillExport() {
 
 testWorkflowSkillExport()
 
+func testMemoryImport() {
+    // markdownKB 真实形态：### 分节 + - ★内容（范围 host · 来源）
+    let md = """
+    # Desire 记忆知识库
+
+    ## 画像
+
+    - **名字**：M
+
+    ## 事实
+
+    ### 事实
+
+    - 喜欢深色主题
+    - ★每周一写周报（范围 work.example.com）
+    - 用 Rust 写后端（同事推荐）
+
+    ### 偏好
+
+    - 回复保持简短
+
+    ## 会话摘要
+
+    -（暂无）
+    """
+    let facts = MemoryImport.parse(md)
+    check("记忆导入：条数", facts.count == 4)
+    check("记忆导入：普通 fact", facts[0].content == "喜欢深色主题" && facts[0].category == "fact" && !facts[0].pinned)
+    check("记忆导入：pin + scope", facts[1].pinned && facts[1].scope == "work.example.com")
+    check("记忆导入：来源", facts[2].source == "同事推荐")
+    check("记忆导入：偏好节", facts[3].category == "preference")
+    // 画像/摘要不入事实
+    check("记忆导入：画像跳过", !facts.contains { $0.content.contains("名字") })
+    check("记忆导入：暂无占位跳过", !facts.contains { $0.content.contains("暂无") })
+    check("记忆导入：括号元整段缺省",
+          MemoryImport.parse("### 事实\n\n- 纯内容行").first?.content == "纯内容行")
+}
+
+testMemoryImport()
+
 func testTextParagraphize() {
     // 单换行折空格、双换行保留
     let a = TextParagraphize.paragraphized("first line\nsecond line\n\nnext para")

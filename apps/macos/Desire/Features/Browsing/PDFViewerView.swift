@@ -18,7 +18,7 @@ struct PDFViewerView: View {
     @State private var model: PDFWorkbenchModel?
     @State private var zoom: CGFloat = 1
     @State private var loadFailed = false
-    /// 侧栏：nil = 收起；大纲/缩略图/批注三态。
+    /// 侧栏：nil = 收起；大纲/缩略图/批注/表单四态。
     @State private var sidebar: SidebarTab?
     @State private var pageJumpText = ""
     @State private var searchVisible = false
@@ -26,9 +26,12 @@ struct PDFViewerView: View {
     @State private var noteText = ""
     /// 缩略图就绪回调自增触发重算（懒生成完成即上屏）。
     @State private var thumbnailTick = 0
+    // 加密解锁（v0.8.16）
+    @State private var passwordText = ""
+    @State private var unlockFailed = false
 
     enum SidebarTab {
-        case outline, thumbnails, annotations
+        case outline, thumbnails, annotations, forms
     }
 
     var body: some View {
@@ -36,15 +39,19 @@ struct PDFViewerView: View {
             header
             toolbar
             HStack(spacing: 0) {
-                if let sidebar, let model {
+                if let sidebar, let model, !model.isLocked {
                     sidebarPane(model, tab: sidebar)
                         .frame(width: 190)
                         .background(Color(nsColor: .underPageBackgroundColor))
                     Divider()
                 }
                 if let model {
-                    PDFKitRepresentedView(model: model, zoom: $zoom)
-                        .ignoresSafeArea(edges: .bottom)
+                    if model.isLocked {
+                        lockedPane(model)
+                    } else {
+                        PDFKitRepresentedView(model: model, zoom: $zoom)
+                            .ignoresSafeArea(edges: .bottom)
+                    }
                 } else if loadFailed {
                     errorPane
                 } else {
@@ -55,7 +62,7 @@ struct PDFViewerView: View {
         }
         .background(Color(nsColor: .controlBackgroundColor))
         .overlay(alignment: .top) {
-            if searchVisible, let model {
+            if searchVisible, let model, !model.isLocked {
                 searchBar(model)
             }
         }
@@ -76,10 +83,27 @@ struct PDFViewerView: View {
             }
         }
         .onAppear(perform: load)
+        .onDisappear {
+            model?.zoomValue = Double(zoom)
+            model?.savePosition(filePath: fileURL.path)
+        }
         .onChange(of: fileURL) { _, _ in
+            model?.zoomValue = Double(zoom)
+            model?.savePosition(filePath: fileURL.path)
             model = nil
             loadFailed = false
             load()
+        }
+        // 进度记忆：翻页/缩放即存（UserDefaults 写入廉价；恢复在 load）。
+        .onChange(of: model?.pageIndex) { _, _ in
+            guard let model, !model.isLocked else { return }
+            model.zoomValue = Double(zoom)
+            model.savePosition(filePath: fileURL.path)
+        }
+        .onChange(of: zoom) { _, newZoom in
+            guard let model, !model.isLocked else { return }
+            model.zoomValue = Double(newZoom)
+            model.savePosition(filePath: fileURL.path)
         }
     }
 
@@ -87,12 +111,67 @@ struct PDFViewerView: View {
         guard model == nil else { return }
         if let m = PDFWorkbenchModel.load(fileURL: fileURL, fileName: fileName) {
             model = m
+            if m.isLocked { return }
+            // 阅读进度记忆（v0.8.16）：恢复上次页码与缩放。
+            if let pos = PDFWorkbenchModel.loadPosition(filePath: fileURL.path),
+               pos.page < m.pageCount {
+                m.zoomValue = pos.zoom
+                zoom = CGFloat(pos.zoom)
+                m.requestGoToPage(pos.page)
+                m.statusNote = String(localized: "Back to your last position · p\(pos.page + 1)")
+            }
             if m.annotationCount > 0 {
                 m.statusNote = String(localized: "This PDF contains \(m.annotationCount) annotation(s)")
             }
         } else {
             loadFailed = true
         }
+    }
+
+    /// 加密 PDF 密码浮层（v0.8.16）：解锁前不渲染内容；错码原地重试。
+    private func lockedPane(_ model: PDFWorkbenchModel) -> some View {
+        VStack(spacing: 10) {
+            Image(systemName: "lock.shield")
+                .font(.system(size: 28))
+                .foregroundStyle(.secondary)
+            Text(String(localized: "This PDF is password-protected"))
+                .font(.system(size: 12, weight: .medium))
+            SecureField(String(localized: "Password"), text: $passwordText)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 220)
+                .onSubmit { tryUnlock(model) }
+            if unlockFailed {
+                Text(String(localized: "Wrong password — try again"))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.orange)
+            }
+            Button(String(localized: "Unlock")) { tryUnlock(model) }
+                .keyboardShortcut(.defaultAction)
+            Button(String(localized: "Back to Page")) { onBack() }
+                .buttonStyle(.plain)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func tryUnlock(_ model: PDFWorkbenchModel) {
+        guard model.unlock(withPassword: passwordText) else {
+            unlockFailed = true
+            passwordText = ""
+            return
+        }
+        unlockFailed = false
+        passwordText = ""
+        // 与 load() 同一条恢复路径。
+        if let pos = PDFWorkbenchModel.loadPosition(filePath: fileURL.path),
+           pos.page < model.pageCount {
+            model.zoomValue = pos.zoom
+            zoom = CGFloat(pos.zoom)
+            model.requestGoToPage(pos.page)
+        }
+        model.statusNote = String(localized: "Unlocked")
     }
 
     private var errorPane: some View {
@@ -266,9 +345,11 @@ struct PDFViewerView: View {
                                  help: String(localized: "Page thumbnails"))
                 sidebarTabButton("note.text", tab: .annotations,
                                  help: String(localized: "Annotations"))
+                sidebarTabButton("checklist", tab: .forms,
+                                 help: String(localized: "Form fields"))
             }
             Divider().frame(height: 14)
-            if let model {
+            if let model, !model.isLocked {
                 HStack(spacing: 3) {
                     ForEach(PDFWorkbenchModel.AnnotationTool.allCases, id: \.rawValue) { t in
                         Button {
@@ -358,6 +439,50 @@ struct PDFViewerView: View {
             thumbnailsPane(model)
         case .annotations:
             annotationsPane(model)
+        case .forms:
+            formsPane(model)
+        }
+    }
+
+    /// AcroForm 字段面板（v0.8.16）：文本字段行内编辑（提交即写、⌘S 落盘）；
+    /// 按钮/勾选/签名只读展示。
+    private func formsPane(_ model: PDFWorkbenchModel) -> some View {
+        let fields = model.formFields()
+        return ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                if fields.isEmpty {
+                    Text(String(localized: "No form fields in this PDF"))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                        .padding(12)
+                }
+                ForEach(fields) { field in
+                    VStack(alignment: .leading, spacing: 3) {
+                        if field.isText {
+                            TextField(field.name, text: Binding(
+                                get: { field.annotation.widgetStringValue ?? "" },
+                                set: { model.setFormValue(field.annotation, value: $0) }))
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(size: 11))
+                        } else {
+                            Text(field.value)
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(.secondary)
+                        }
+                        Text("p\(field.pageIndex + 1) · \(field.name)")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        model.requestGoToPage(field.pageIndex)
+                    }
+                }
+            }
+            .padding(.vertical, 6)
         }
     }
 

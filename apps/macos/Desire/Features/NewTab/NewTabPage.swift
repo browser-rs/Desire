@@ -247,6 +247,11 @@ struct NewTabPage: View {
             // 转换为…（v0.8.15 融合）：DocumentConvert 管道（与 Agent
             // convertDocument 工具共用），产物落源目录旁并入账。
             convertMenu(entry)
+            // PDF 合并/拆分（v0.8.16）：PDFWorkbenchModel 静态管道。
+            if entry.filename.lowercased().hasSuffix(".pdf") {
+                Button(String(localized: "Merge with other PDFs…")) { mergePDF(entry) }
+                Button(String(localized: "Split / extract pages…")) { splitPDF(entry) }
+            }
             // 压缩为 zip（v0.8.14 基础件 5）：UI 侧补齐（Agent 侧 zipFiles 已通）。
             if entry.kind != "archive" {
                 Button(String(localized: "Compress to zip…")) { compressToZip(entry) }
@@ -278,6 +283,66 @@ struct NewTabPage: View {
                     Button("\(target.uppercased())…") { convertEntry(entry, format: target) }
                 }
             }
+        }
+    }
+
+    /// 合并 PDF（v0.8.16）：本文件在前，选中的其他 PDF 按选择顺序接在后面。
+    private func mergePDF(_ entry: RecentLocalFiles.Entry) {
+        guard let first = URL(string: entry.url) else { return }
+        let open = NSOpenPanel()
+        open.allowedContentTypes = [.pdf]
+        open.allowsMultipleSelection = true
+        open.canChooseDirectories = false
+        open.message = String(localized: "Pick PDFs to append after \(entry.filename) (in selection order)")
+        guard open.runModal() == .OK, !open.urls.isEmpty else { return }
+        let save = NSSavePanel()
+        save.nameFieldStringValue = "merged.pdf"
+        save.allowedContentTypes = [.pdf]
+        guard save.runModal() == .OK, let dest = save.url else { return }
+        if let pages = PDFWorkbenchModel.merge(files: [first] + open.urls, to: dest) {
+            RecentLocalFiles.record(url: dest)
+            NSWorkspace.shared.activateFileViewerSelecting([dest])
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Merged \(pages) page(s) → \(dest.lastPathComponent)")
+            alert.runModal()
+        } else {
+            let alert = NSAlert()
+            alert.messageText = String(localized: "Merge failed")
+            alert.informativeText = String(localized: "One of the files may be unreadable or password-protected.")
+            alert.runModal()
+        }
+    }
+
+    /// 拆分/提取页码范围（v0.8.16）："1-3,5" → 新 PDF（PageRangeParser 1-based）。
+    private func splitPDF(_ entry: RecentLocalFiles.Entry) {
+        guard let src = URL(string: entry.url) else { return }
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Extract pages from \(entry.filename)")
+        alert.informativeText = String(localized: "1-based page ranges, e.g. 1-3,7 (comma separated)")
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 220, height: 24))
+        input.placeholderString = "1-3,7"
+        alert.accessoryView = input
+        alert.addButton(withTitle: String(localized: "Extract"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let spec = input.stringValue.trimmingCharacters(in: .whitespaces)
+        guard !spec.isEmpty else { return }
+        let base = (entry.filename as NSString).deletingPathExtension
+        let save = NSSavePanel()
+        save.nameFieldStringValue = "\(base)-pages.pdf"
+        save.allowedContentTypes = [.pdf]
+        guard save.runModal() == .OK, let dest = save.url else { return }
+        if let pages = PDFWorkbenchModel.extractPages(from: src, spec: spec, to: dest) {
+            RecentLocalFiles.record(url: dest)
+            NSWorkspace.shared.activateFileViewerSelecting([dest])
+            let done = NSAlert()
+            done.messageText = String(localized: "Extracted \(pages) page(s) → \(dest.lastPathComponent)")
+            done.runModal()
+        } else {
+            let fail = NSAlert()
+            fail.messageText = String(localized: "Extraction failed")
+            fail.informativeText = String(localized: "Check the page range (the file may also be password-protected).")
+            fail.runModal()
         }
     }
 

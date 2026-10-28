@@ -1,9 +1,12 @@
 import Combine
+import CryptoKit
 import Foundation
 import PDFKit
 
 /// PDF 工作台模型（v0.8.15 旗舰）：导航（页码/大纲/缩略图）、⌘F 查找、
 /// 批注（高亮/下划线/便签/箭头/矩形）、页面管理（旋转/删除/重排/提取）。
+/// v0.8.16 深水区：加密解锁、AcroForm 表单字段、阅读进度记忆、
+/// 合并/提取静态管道（最近文件右键共用）。
 /// View 层只渲染；PDFKit 操作全部收口在这里。
 @MainActor
 final class PDFWorkbenchModel: ObservableObject {
@@ -13,15 +16,28 @@ final class PDFWorkbenchModel: ObservableObject {
     /// ⌘S 落点（另存面板默认名）。
     let suggestedName: String
 
+    /// 打开时是否带密码锁（解锁前 PDFView 无内容可渲染）。
+    var isLocked: Bool { document.isLocked }
+
     init(document: PDFDocument, fileName: String) {
         self.document = document
         self.suggestedName = (fileName as NSString).deletingPathExtension + ".pdf"
         annotationCount = Self.totalAnnotations(of: document)
+        refreshOutline()
     }
 
     static func load(fileURL: URL, fileName: String) -> PDFWorkbenchModel? {
         guard let doc = PDFDocument(url: fileURL) else { return nil }
         return PDFWorkbenchModel(document: doc, fileName: fileName)
+    }
+
+    /// 解锁（v0.8.16）：成功后刷新批注计数与大纲。已解锁返回 true。
+    func unlock(withPassword password: String) -> Bool {
+        guard document.isLocked else { return true }
+        guard document.unlock(withPassword: password) else { return false }
+        annotationCount = Self.totalAnnotations(of: document)
+        refreshOutline()
+        return true
     }
 
     /// PDFKit 无全文档批注 API——逐页累加（页数量级小，可接受）。
@@ -85,9 +101,15 @@ final class PDFWorkbenchModel: ObservableObject {
         let destination: PDFDestination?
     }
 
-    /// 大纲树展平（indent 表示层级）；无大纲返回空。
-    lazy var outlineItems: [OutlineItem] = {
-        guard let root = document.outlineRoot else { return [] }
+    /// 大纲树展平（indent 表示层级）；无大纲返回空。stored + refresh：
+    /// 加密 PDF 解锁前 outlineRoot 拿不到——lazy 求值会把空结果定死。
+    @Published private(set) var outlineItems: [OutlineItem] = []
+
+    func refreshOutline() {
+        guard !document.isLocked, let root = document.outlineRoot else {
+            outlineItems = []
+            return
+        }
         var items: [OutlineItem] = []
         func walk(_ node: PDFOutline, indent: Int) {
             for i in 0..<node.numberOfChildren {
@@ -97,8 +119,8 @@ final class PDFWorkbenchModel: ObservableObject {
             }
         }
         walk(root, indent: 0)
-        return items
-    }()
+        outlineItems = items
+    }
 
     // MARK: - 缩略图（懒生成缓存）
 
@@ -123,6 +145,116 @@ final class PDFWorkbenchModel: ObservableObject {
             onReady()
         }
         return nil
+    }
+
+    // MARK: - AcroForm 表单字段（v0.8.16，spike 已验证往返无损）
+
+    struct FormFieldRef: Identifiable {
+        let id = UUID()
+        let annotation: PDFAnnotation
+        let pageIndex: Int
+        let name: String
+        let value: String
+        let isText: Bool   // v1 只可编辑文本字段；按钮/勾选只读展示
+    }
+
+    /// 全文档 widget 字段清单（type == "Widget" 是可靠标记）。
+    func formFields() -> [FormFieldRef] {
+        var out: [FormFieldRef] = []
+        for i in 0..<document.pageCount {
+            guard let page = document.page(at: i) else { continue }
+            for a in page.annotations where a.type == "Widget" {
+                let kind = a.widgetFieldType
+                out.append(FormFieldRef(
+                    annotation: a,
+                    pageIndex: i,
+                    name: a.fieldName ?? String(localized: "Untitled field"),
+                    value: kind == .text ? (a.widgetStringValue ?? "") : (a.fieldName == nil ? "" : kindLabel(kind)),
+                    isText: kind == .text))
+            }
+        }
+        return out
+    }
+
+    private func kindLabel(_ kind: PDFAnnotationWidgetSubtype) -> String {
+        switch kind {
+        case .button: return String(localized: "Button")
+        case .choice: return String(localized: "Choice")
+        case .signature: return String(localized: "Signature")
+        default: return String(localized: "Field")
+        }
+    }
+
+    /// 写文本字段值（TextField 提交时调用）；落 markChanged 走 ⌘S 保存。
+    func setFormValue(_ annotation: PDFAnnotation, value: String) {
+        annotation.widgetStringValue = value
+        markChanged()
+    }
+
+    // MARK: - 阅读进度记忆（v0.8.16：按路径哈希，列宽记忆同款键族）
+
+    struct ReadingPosition: Codable {
+        var page: Int
+        var zoom: Double
+    }
+
+    private static func positionKey(for path: String) -> String {
+        let digest = SHA256.hash(data: Data(path.utf8))
+        let hex = digest.prefix(8).map { String(format: "%02x", $0) }.joined()
+        return "viewer.pdf.position.\(hex)"
+    }
+
+    static func loadPosition(filePath: String) -> ReadingPosition? {
+        guard let data = UserDefaults.standard.data(forKey: positionKey(for: filePath)),
+              let pos = try? JSONDecoder().decode(ReadingPosition.self, from: data),
+              pos.page >= 0 else { return nil }
+        return pos
+    }
+
+    func savePosition(filePath: String) {
+        let pos = ReadingPosition(page: pageIndex, zoom: Double(zoomValue))
+        if let data = try? JSONEncoder().encode(pos) {
+            UserDefaults.standard.set(data, forKey: Self.positionKey(for: filePath))
+        }
+    }
+
+    /// 当前缩放（视图层经 attachView 同步进来——模型不知道 scaleFactor）。
+    var zoomValue: Double = 1
+
+    // MARK: - 合并 / 提取静态管道（v0.8.16：最近文件右键共用；
+    // Agent mergePDFs/splitPDF 工具语义一致，互不依赖）
+
+    /// 多 PDF 按序合并；返回总页数（失败 nil）。
+    @discardableResult
+    static func merge(files: [URL], to dest: URL) -> Int? {
+        let out = PDFDocument()
+        var inserted = 0
+        for file in files {
+            guard let doc = PDFDocument(url: file) else { continue }
+            for i in 0..<doc.pageCount {
+                if let page = doc.page(at: i) {
+                    out.insert(page, at: inserted)
+                    inserted += 1
+                }
+            }
+        }
+        guard inserted > 0, out.write(to: dest) else { return nil }
+        return inserted
+    }
+
+    /// 按页码范围提取（"1-3,5"，1-based，PageRangeParser）；返回提取页数。
+    @discardableResult
+    static func extractPages(from src: URL, spec: String, to dest: URL) -> Int? {
+        guard let doc = PDFDocument(url: src),
+              let indices = PageRangeParser.parse(spec, pageCount: doc.pageCount) else { return nil }
+        let out = PDFDocument()
+        for (offset, index) in indices.enumerated() {
+            if let page = doc.page(at: index) {
+                out.insert(page, at: offset)
+            }
+        }
+        guard out.pageCount > 0, out.write(to: dest) else { return nil }
+        return out.pageCount
     }
 
     // MARK: - 批注

@@ -84,6 +84,18 @@ struct PDFViewerView: View {
                     .transition(.opacity)
             }
         }
+        .background {
+            // ⇧⌘C 原样复制（v0.8.18）：⌘C 走段落化（PDFView.copy override），
+            // 需要原始断行时用这个。
+            Button {
+                if let text = model?.attachedView?.currentSelection?.string, !text.isEmpty {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(text, forType: .string)
+                    model?.statusNote = String(localized: "Copied raw text")
+                }
+            } label: { EmptyView() }
+            .keyboardShortcut("c", modifiers: [.command, .shift])
+        }
         .onAppear(perform: load)
         .onDisappear {
             model?.zoomValue = Double(zoom)
@@ -809,6 +821,18 @@ final class PDFWorkbenchMouseView: PDFView {
 
     private var dragStart: (page: PDFPage, point: CGPoint)?
     private var didDrag = false
+
+    /// ⌘C 段落化复制（v0.8.18）：PDF 文本层按视觉行断行，原样复制满行
+    /// 硬换行——重排后进剪贴板；原样复制走 ⇧⌘C（视图层的隐藏按钮）。
+    override func copy(_ sender: Any?) {
+        guard let text = currentSelection?.string, !text.isEmpty else {
+            super.copy(sender)
+            return
+        }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(TextParagraphize.paragraphized(text), forType: .string)
+    }
 
     override func mouseDown(with event: NSEvent) {
         let location = convert(event.locationInWindow, from: nil)

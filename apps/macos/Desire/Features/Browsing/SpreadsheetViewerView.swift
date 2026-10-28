@@ -39,6 +39,8 @@ struct SpreadsheetViewerView: View {
     @State private var columnWidths: [Int: CGFloat] = [:]
     @State private var dragColumn: Int?
     @State private var dragBaseWidth: CGFloat = 0
+    /// 冻结首列（v0.8.18）：行号文字按横向滚动偏移反向平移，视觉钉在左缘。
+    @State private var scrollOffsetX: CGFloat = 0
 
     private var displayRows: [[Int]] {
         guard let buffer else { return [] }
@@ -380,6 +382,11 @@ struct SpreadsheetViewerView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .onScrollGeometryChange(for: CGFloat.self) { geo in
+            geo.contentOffset.x + geo.contentInsets.leading
+        } action: { _, new in
+            scrollOffsetX = new
+        }
     }
 
     private func headerRow(_ buffer: SpreadsheetBuffer) -> some View {
@@ -421,12 +428,18 @@ struct SpreadsheetViewerView: View {
 
     private func dataRow(_ buffer: SpreadsheetBuffer, rowIndex: Int, cells: [String]) -> some View {
         HStack(spacing: 0) {
-            // 行号
-            Text("\(rowIndex + 1)")
-                .font(.system(size: 9, design: .monospaced))
-                .foregroundStyle(.tertiary)
-                .frame(width: 34, alignment: .trailing)
+            // 行号（冻结首列）：文字按滚动偏移反向平移、裁剪在槽位内——
+            // 横向滚动时视觉钉在左缘（各行同步偏移，纵向对齐自动保持）。
+            Color.clear
+                .frame(width: 34)
+                .overlay(alignment: .trailing) {
+                    Text("\(rowIndex + 1)")
+                        .font(.system(size: 9, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .offset(x: scrollOffsetX)
+                }
                 .padding(.trailing, 4)
+                .clipped()
             ForEach(cells.indices, id: \.self) { col in
                 cellView(buffer, row: rowIndex, col: col, value: cells[col])
                 Divider().opacity(0.3)

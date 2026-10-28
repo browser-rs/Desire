@@ -244,6 +244,9 @@ struct NewTabPage: View {
         .contentShape(Rectangle())
         .contextMenu {
             Button(String(localized: "Open")) { onNavigate(entry.url) }
+            // 重命名（v0.8.18 基础件 5）：同名冲突/存在性校验，
+            // 改名后台账换 URL（对应磁盘 .bak 一并跟名）。
+            Button(String(localized: "Rename…")) { renameEntry(entry) }
             // 转换为…（v0.8.15 融合）：DocumentConvert 管道（与 Agent
             // convertDocument 工具共用），产物落源目录旁并入账。
             convertMenu(entry)
@@ -285,6 +288,59 @@ struct NewTabPage: View {
                     Button("\(target.uppercased())…") { convertEntry(entry, format: target) }
                 }
             }
+        }
+    }
+
+    /// 重命名（v0.8.18 基础件 5）：同名冲突/目标存在性校验 → 磁盘
+    /// moveItem（.bak 跟名）→ 台账换 URL → 视图自动刷新。
+    private func renameEntry(_ entry: RecentLocalFiles.Entry) {
+        guard let src = URL(string: entry.url),
+              FileManager.default.fileExists(atPath: src.path) else { return }
+        let oldName = src.lastPathComponent
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Rename \(oldName)")
+        alert.informativeText = String(localized: "New file name (extension kept on .bak too)")
+        let input = NSTextField(frame: NSRect(x: 0, y: 0, width: 240, height: 24))
+        input.stringValue = oldName
+        alert.accessoryView = input
+        alert.addButton(withTitle: String(localized: "Rename"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        guard alert.runModal() == .alertFirstButtonReturn else { return }
+        let newName = input.stringValue.trimmingCharacters(in: .whitespaces)
+        guard !newName.isEmpty, newName != oldName else { return }
+        guard newName != oldName, !newName.contains("/") else {
+            let bad = NSAlert()
+            bad.messageText = String(localized: "Invalid name")
+            bad.runModal()
+            return
+        }
+        let dest = src.deletingLastPathComponent().appendingPathComponent(newName)
+        guard !FileManager.default.fileExists(atPath: dest.path) else {
+            let clash = NSAlert()
+            clash.messageText = String(localized: "A file named \(newName) already exists")
+            clash.runModal()
+            return
+        }
+        do {
+            try FileManager.default.moveItem(at: src, to: dest)
+            // .bak 备份跟名（视图保存口径的伴生件）。
+            let bakExt = (oldName as NSString).pathExtension + ".bak"
+            let oldBak = src.deletingLastPathComponent()
+                .appendingPathComponent((oldName as NSString).deletingPathExtension)
+                .appendingPathExtension(bakExt)
+            if FileManager.default.fileExists(atPath: oldBak.path) {
+                let newBak = dest.deletingLastPathComponent()
+                    .appendingPathComponent((newName as NSString).deletingPathExtension)
+                    .appendingPathExtension(bakExt)
+                try? FileManager.default.moveItem(at: oldBak, to: newBak)
+            }
+            RecentLocalFiles.remove(urlString: entry.url)
+            RecentLocalFiles.record(url: dest)
+        } catch {
+            let fail = NSAlert()
+            fail.messageText = String(localized: "Rename failed")
+            fail.informativeText = error.localizedDescription
+            fail.runModal()
         }
     }
 

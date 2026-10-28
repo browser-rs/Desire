@@ -3921,6 +3921,23 @@ func testSyncWireName() {
 
 testSyncWireName()
 
+func testTextParagraphize() {
+    // 单换行折空格、双换行保留
+    let a = TextParagraphize.paragraphized("first line\nsecond line\n\nnext para")
+    check("段落：折行合并", a == "first line second line\n\nnext para")
+    // 行尾连字符合并
+    let b = TextParagraphize.paragraphized("inter-\nnational word")
+    check("段落：连字并词", b == "international word")
+    // 折行产生的双空格压缩
+    let c = TextParagraphize.paragraphized("end.\n next")
+    check("段落：空格压缩", c == "end. next")
+    // 中文无空格连接
+    let d = TextParagraphize.paragraphized("第一行\n第二行")
+    check("段落：中文连接", d == "第一行 第二行")
+}
+
+testTextParagraphize()
+
 func testNightOwlPolicy() {
     var p = NotificationPolicy()
     p.quietHoursEnabled = true

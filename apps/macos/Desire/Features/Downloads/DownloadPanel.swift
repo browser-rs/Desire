@@ -25,6 +25,9 @@ struct DownloadPanel: View {
     @State private var showBatchOnboarding = false
     /// 预览 sheet 的文件（v0.7.19）。
     @State private var previewURL: URL?
+    /// 多选模式（v0.8.18 基础件 3）：勾选 → 批量打开/Finder 显示/删除。
+    @State private var isSelectingDownloads = false
+    @State private var selectedDownloadIDs: Set<UUID> = []
 
     @State private var searchText = ""
     @State private var showBatchTasks = false
@@ -273,6 +276,12 @@ struct DownloadPanel: View {
                 NSWorkspace.shared.open(store.downloadFolder)
             }, help: "Open Download Folder")
 
+            HoverIcon(systemName: isSelectingDownloads ? "checkmark.circle.fill" : "checkmark.circle",
+                      action: {
+                          isSelectingDownloads.toggle()
+                          if !isSelectingDownloads { selectedDownloadIDs.removeAll() }
+                      },
+                      help: isSelectingDownloads ? "Done selecting" : "Select multiple")
             Menu {
                 Button("Pause All") { store.pauseAll() }
                     .disabled(!store.hasActive)
@@ -309,6 +318,58 @@ struct DownloadPanel: View {
         .padding(.horizontal, 14)
         .padding(.top, 12)
         .padding(.bottom, 8)
+    }
+
+    /// 批量动作条（v0.8.18 基础件 3）：打开/Finder 显示/删除——
+    /// 打开与 Finder 仅对"完成且文件在"的勾选生效。
+    private var selectionBar: some View {
+        HStack(spacing: 10) {
+            Text(String(localized: "\(selectedDownloadIDs.count) selected"))
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(.secondary)
+            Button(String(localized: "Open")) { batchOpen() }
+                .disabled(selectedDownloadIDs.isEmpty)
+            Button(String(localized: "Show in Finder")) { batchReveal() }
+                .disabled(selectedDownloadIDs.isEmpty)
+            Button(String(localized: "Delete"), role: .destructive) { batchDelete() }
+                .disabled(selectedDownloadIDs.isEmpty)
+                .foregroundStyle(.red)
+            Spacer()
+            Button(String(localized: "Select All")) {
+                for item in store.downloads { selectedDownloadIDs.insert(item.id) }
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 10.5))
+            .foregroundStyle(appAccent)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+    }
+
+    private var selectedItems: [DownloadItem] {
+        store.downloads.filter { selectedDownloadIDs.contains($0.id) }
+    }
+
+    private func batchOpen() {
+        for item in selectedItems where item.state == .completed {
+            store.openFile(item)
+        }
+    }
+
+    private func batchReveal() {
+        let urls = selectedItems.compactMap { $0.fileURL }
+            .filter { FileManager.default.fileExists(atPath: $0.path) }
+        guard !urls.isEmpty else { return }
+        NSWorkspace.shared.activateFileViewerSelecting(urls)
+    }
+
+    private func batchDelete() {
+        for item in selectedItems {
+            store.remove(id: item.id)
+        }
+        selectedDownloadIDs.removeAll()
     }
 
     /// 状态摘要：小圆点 + 静文字。
@@ -462,6 +523,9 @@ struct DownloadPanel: View {
         if allSections.isEmpty || allSections.allSatisfy({ $0.1.isEmpty }) {
             emptyState
         } else {
+            if isSelectingDownloads {
+                selectionBar
+            }
             ScrollView {
                 LazyVStack(spacing: 0, pinnedViews: [.sectionHeaders]) {
                     ForEach(allSections, id: \.0) { sectionTitle, items in
@@ -469,7 +533,13 @@ struct DownloadPanel: View {
                             VStack(spacing: 0) {
                                 ForEach(items) { item in
                                     DownloadRow(item: item, store: store,
-                                                onPreview: { previewURL = $0 })
+                                                onPreview: { previewURL = $0 },
+                                                selection: isSelectingDownloads ? Binding(
+                                                    get: { selectedDownloadIDs.contains(item.id) },
+                                                    set: { flag in
+                                                        if flag { selectedDownloadIDs.insert(item.id) }
+                                                        else { selectedDownloadIDs.remove(item.id) }
+                                                    }) : nil)
                                     if item.id != items.last?.id {
                                         RowSeparator()
                                     }
@@ -592,11 +662,24 @@ private struct DownloadRow: View {
     @ObservedObject var store: DownloadStore
     /// 行内预览（v0.7.19）：完成的本地文件走 QuickLook 内嵌 sheet。
     let onPreview: (URL) -> Void
+    /// 多选勾选框（v0.8.18）：nil = 非选择模式。
+    var selection: Binding<Bool>? = nil
 
     @State private var isHovering = false
 
     var body: some View {
         HStack(alignment: .top, spacing: 11) {
+            if let selection {
+                Button {
+                    selection.wrappedValue.toggle()
+                } label: {
+                    Image(systemName: selection.wrappedValue ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 15))
+                        .foregroundStyle(selection.wrappedValue ? appAccent : Color.secondary)
+                }
+                .buttonStyle(.plain)
+                .padding(.top, 2)
+            }
             iconTile
                 .padding(.top, 1)
 

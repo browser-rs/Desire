@@ -71,6 +71,12 @@ struct ImageEditorView: View {
 
     /// 视图显示尺寸（点击坐标 → 位图像素换算用）。
     @State private var displaySize: CGSize = .zero
+    /// 缩放（v0.8.17 增补）：1 = 100% 原始像素；fitZoom = 适应窗口。
+    @State private var zoom: CGFloat = 1
+    @State private var fitZoom: CGFloat = 1
+    @State private var isFitMode = true
+    @State private var containerSize: CGSize = .zero
+    @State private var pinchBase: CGFloat = 1
     /// 调色面板（21）与 OCR（22）。
     @State private var showAdjustments = false
     @State private var brightness: Double = 0
@@ -108,6 +114,11 @@ struct ImageEditorView: View {
             image = cg
             history = []
             hasUnsavedChanges = false
+            isFitMode = true
+            zoom = 1
+            pinchBase = 1
+            // fitZoom 量完容器后由 recomputeFit 收敛；先给个保守初值防闪。
+            DispatchQueue.main.async { recomputeFit() }
         } else {
             loadError = String(localized: "Could not load this image.")
         }
@@ -129,6 +140,20 @@ struct ImageEditorView: View {
         } catch {
             flash(String(localized: "Save failed: \(error.localizedDescription)"))
         }
+    }
+
+    /// 缩放（钳 5%~800%）；手动缩放退出"适应窗口"。
+    private func setZoom(_ value: CGFloat) {
+        zoom = min(8, max(0.05, value))
+        isFitMode = false
+    }
+
+    /// 容器尺寸 → 适应窗口比例（画布 padding 20 两侧）。
+    private func recomputeFit() {
+        guard let image, containerSize.width > 40, containerSize.height > 40 else { return }
+        let w = CGFloat(image.width), h = CGFloat(image.height)
+        fitZoom = min(1, min((containerSize.width - 40) / w, (containerSize.height - 40) / h))
+        if isFitMode { zoom = fitZoom }
     }
 
     private func flash(_ text: String) {
@@ -208,6 +233,50 @@ struct ImageEditorView: View {
                     .foregroundStyle(.orange)
             }
             Spacer(minLength: 8)
+            // 缩放组（v0.8.17 增补）：-/百分比/+/适应/1:1，⌘=/⌘-/⌘0。
+            if image != nil {
+                HStack(spacing: 4) {
+                    Button { setZoom(zoom / 1.25) } label: {
+                        Image(systemName: "minus.magnifyingglass")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .keyboardShortcut("-", modifiers: .command)
+                    .help("Zoom Out (⌘-)")
+                    Text("\(Int((zoom * 100).rounded()))%")
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .frame(minWidth: 38)
+                        .contentShape(Rectangle())
+                        .onTapGesture { setZoom(1) }
+                    Button { setZoom(zoom * 1.25) } label: {
+                        Image(systemName: "plus.magnifyingglass")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .keyboardShortcut("=", modifiers: .command)
+                    .help("Zoom In (⌘=)")
+                    Button {
+                        isFitMode = true
+                        setZoom(fitZoom)
+                    } label: {
+                        Image(systemName: "arrow.down.right.and.arrow.up.left")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .keyboardShortcut("0", modifiers: .command)
+                    .help("Fit to Window (⌘0)")
+                    Button { setZoom(1) } label: {
+                        Text("1:1").font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help("Actual Pixels")
+                }
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.secondary.opacity(0.08)))
+            }
             Button { undo() } label: {
                 Image(systemName: "arrow.uturn.backward")
             }
@@ -300,38 +369,67 @@ struct ImageEditorView: View {
     @ViewBuilder
     private var canvas: some View {
         if let image, let nsImage = makeNSImage(image) {
-            ScrollView([.horizontal, .vertical]) {
+            GeometryReader { container in
+                ScrollView([.horizontal, .vertical]) {
                 ZStack {
                     Image(nsImage: nsImage)
                         .resizable()
                         .interpolation(.medium)
                         .shadow(radius: 2)
+                        .frame(width: CGFloat(image.width) * zoom,
+                               height: CGFloat(image.height) * zoom)
                         .gesture(canvasGesture)
+                        .simultaneousGesture(MagnificationGesture()
+                            .onChanged { value in
+                                if pinchBase == 1 { pinchBase = zoom }
+                                setZoom(pinchBase * value)
+                            }
+                            .onEnded { _ in pinchBase = 1 })
+                        .onTapGesture(count: 2) {
+                            // 双击：适应 ↔ 1:1
+                            if abs(zoom - fitZoom) < 0.01 {
+                                setZoom(1)
+                            } else {
+                                isFitMode = true
+                                setZoom(fitZoom)
+                            }
+                        }
+                        // displaySize 量图片本体（非带 padding 外框）——
+                        // displayScale 才是精确的像素/显示换算。
+                        .background(
+                            GeometryReader { geo in
+                                Color.clear.onAppear { displaySize = geo.size }
+                                    .onChange(of: geo.size) { _, size in
+                                        displaySize = size
+                                        recomputeFit()
+                                    }
+                            })
                         .overlay(cropOverlay)
                         .overlay(annotationOverlay)
-
-                    if cropMode, let rect = cropRect {
-                        Rectangle()
-                            .strokeBorder(appAccent, lineWidth: 1.5)
-                            .background(appAccent.opacity(0.08))
-                            .frame(width: rect.width, height: rect.height)
-                            .position(x: rect.midX, y: rect.midY)
-                    }
-
-                    // 多边形加点预览：已加点连线 + 首点标记（闭合目标）。
-                    if tool == .polygon, polygonPoints.count >= 1 {
-                        Path { path in
-                            path.move(to: polygonPoints[0])
-                            for p in polygonPoints.dropFirst() { path.addLine(to: p) }
+                        // 裁剪选框/多边形预览用图片本地坐标（原先挂在
+                        // ZStack 上与手势坐标系差一个 padding——缩放后放大暴露）。
+                        .overlay(alignment: .topLeading) {
+                            if cropMode, let rect = cropRect {
+                                Rectangle()
+                                    .strokeBorder(appAccent, lineWidth: 1.5)
+                                    .background(appAccent.opacity(0.08))
+                                    .frame(width: rect.width, height: rect.height)
+                                    .offset(x: rect.minX, y: rect.minY)
+                            }
+                            if tool == .polygon, polygonPoints.count >= 1 {
+                                Path { path in
+                                    path.move(to: polygonPoints[0])
+                                    for p in polygonPoints.dropFirst() { path.addLine(to: p) }
+                                }
+                                .stroke(appAccent, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+                                ForEach(Array(polygonPoints.enumerated()), id: \.offset) { index, p in
+                                    Circle()
+                                        .fill(index == 0 ? appAccent : Color(nsColor: .controlAccentColor).opacity(0.8))
+                                        .frame(width: 7, height: 7)
+                                        .position(p)
+                                }
+                            }
                         }
-                        .stroke(appAccent, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
-                        ForEach(Array(polygonPoints.enumerated()), id: \.offset) { index, p in
-                            Circle()
-                                .fill(index == 0 ? appAccent : Color(nsColor: .controlAccentColor).opacity(0.8))
-                                .frame(width: 7, height: 7)
-                                .position(p)
-                        }
-                    }
 
                     if showAdjustments {
                         adjustmentsPanel
@@ -350,11 +448,17 @@ struct ImageEditorView: View {
                     }
                 }
                 .padding(20)
-                .background(
-                    GeometryReader { geo in
-                        Color.clear.onAppear { displaySize = geo.size }
-                            .onChange(of: geo.size) { _, size in displaySize = size }
-                    })
+                .frame(width: CGFloat(image.width) * zoom + 40,
+                       height: CGFloat(image.height) * zoom + 40, alignment: .topLeading)
+                }
+                .onAppear {
+                    containerSize = container.size
+                    recomputeFit()
+                }
+                .onChange(of: container.size) { _, size in
+                    containerSize = size
+                    recomputeFit()
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let loadError {

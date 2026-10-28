@@ -5,6 +5,8 @@
 - 摘录同步第十三域（excerpts）：服务端 DOMAINS 白名单加行（通用表零迁移）+ 客户端 SyncEngine adapter（墓碑/LWW/HMAC 反查照 jobs 域先例）；设置页同步类目开关自动收录（枚举驱动）；api-sync-smoke 扩 excerpts roundtrip 用例。注意：服务端生产部署需更新 API 二进制后摘录才真正跨设备（客户端先行，未部署时该域报错不影响其他域）。
 - 第二批（0.8.17）：技能参数化——SKILL.md frontmatter 声明 vars 槽位（vars: 名单 + var-<名>-default/-desc 修饰行），useSkill 工具带 inputs 填值（缺失按失败约定报清单、default 兜底、{{占位符}} 替换），技能页"使用"弹填值表单（有 default 预填）；listSkills 输出带 vars 提示；SkillVars 解析/占位/渲染进 harness（9 断言）。记忆时间线：记忆页按月分节（当月单列）、批量清理模式（选择模式行首勾选、分节全选、一次删除 N 条）。同步多档案设计稿（docs/SYNC-MULTI-PROFILE-DESIGN.md）：三方案对比（domain 后缀推荐/payload 前缀否决/虚拟设备否决），服务端零迁移路线与落地拆分——待过目后实施。
 - 收官批（0.8.17）：定时任务完成链（任务 A 成功后自动投递 B——setChain API 防自环，链是便利语义非契约，目标忙/不存在静默跳过）；crew 报告模板可自定义（UserDefaults "crew.reportTemplate"，占位符 objective/done/failed/duration/usage/tasks，未设置=内置结构）+ crew 完成通知正文附报告文件名（先落盘后通知）；下载自动归档规则（默认关：UserDefaults "downloadArchiveRules" 存 [{ext|domain, folder}]，首条命中移入下载根子目录、防 ".." 穿越、移动结果进 routine 通知）；新标签页最近文件过滤框（>3 个文件时显示）；同步类目开关副标题带待删墓碑计数（长期非零=该域同步持续失败的信号）。规划对账撤项两项（spike 实证）：PDF 大纲书签编辑（PDFKit 程序化建树写入后重读 outlineRoot 为 nil——document.write 不保真大纲）；双指灵敏度/滚轮平滑滚动设置（WebKit 无公开 API，按"勿做假 UI"红线撤项）。同步多档案设计稿已交（docs/SYNC-MULTI-PROFILE-DESIGN.md，方案 A domain 后缀推荐），按规划约定待设计过目后另行实施。
+- 图片编辑器缩放与平移（用户实测反馈）：此前图片永远按原始像素显示（大图爆炸、小图不可辨、无法放大细看）——新增完整缩放体系：工具条 -/百分比/+/适应窗口/1:1（⌘=/⌘-/⌘0），捏合缩放（5%~800%），双击画布在"适应 ↔ 实际像素"间切换；平移走原生滚动（放大后两指/滚轮随意移动）；默认适应窗口不再被大图初始视图淹没。顺带修正画布坐标系既有偏差（displaySize 原来量带 padding 的外框、裁剪选框/多边形预览挂在 ZStack 上与手势坐标系差一个 padding——统一为图片本地坐标，缩放后不再放大暴露）。
+
 
 
 

@@ -43,6 +43,8 @@ struct AgentMessageBubble: View {
     var toolDurations: [String: Double] = [:]
     /// 当前会话 id（白板内嵌卡读对应会话的板；与面板同口径）。
     var conversationID: String? = nil
+    /// 会话分支（v0.8.20）：从这条消息 fork——仅 assistant 气泡挂菜单。
+    var onFork: ((UUID) -> Void)? = nil
     /// 是否为会话里最新一张白板卡：最新卡默认展开实时预览，旧卡折叠成一行
     /// （每张卡各挂一个 WKWebView，全展开既重复显示同一块板又费内存）。
     var isLatestBoardCard: Bool = true
@@ -62,7 +64,8 @@ struct AgentMessageBubble: View {
                 onFeedback: onFeedback,
                 onLearnReason: onLearnReason,
                 toolDurations: toolDurations,
-                citationSources: Self.citationSources(for: message, toolResults: toolResults)
+                citationSources: Self.citationSources(for: message, toolResults: toolResults),
+                onFork: onFork
             )
         case .tool:
             ToolBubble(
@@ -279,6 +282,8 @@ private struct AssistantBubble: View {
     var toolDurations: [String: Double] = [:]
     /// 引用来源（v0.8.13）：本回合工具结果里的 URL/路径，气泡底部渲染角标条。
     var citationSources: [String] = []
+    /// 会话分支（v0.8.20）：从这条消息 fork 新会话。
+    var onFork: ((UUID) -> Void)? = nil
     @State private var isHovering = false
     /// 回复朗读（v0.7.28）：复用端上 TTS，不产生网络/费用。
     @ObservedObject private var speech = ReaderSpeechService.shared
@@ -299,6 +304,10 @@ private struct AssistantBubble: View {
             // 气泡本体 + **下方**的操作行：操作按钮曾经叠在气泡的 topTrailing 上，
             // 短消息时正好压住正文第一行（用户实拍：这几个按钮应该放在消息下面，挡着字了）。
             VStack(alignment: .leading, spacing: 4) {
+                if let onFork {
+                    // 会话分支（v0.8.20）：非流式中的 assistant 消息一键 fork。
+                    forkMenu(onFork)
+                }
                 VStack(alignment: .leading, spacing: 6) {
                     if let reasoning = message.reasoning, !reasoning.isEmpty {
                         ReasoningBlock(
@@ -519,6 +528,20 @@ private struct AssistantBubble: View {
         }
         return Color(nsColor: .separatorColor).opacity(0.3)
     }
+    @ViewBuilder
+    private func forkMenu(_ action: @escaping (UUID) -> Void) -> some View {
+        if !isStreamingTail {
+            Button {
+                action(message.id)
+            } label: {
+                Label(String(localized: "Fork from here"), systemImage: "arrow.triangle.branch")
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 9.5))
+            .foregroundStyle(.tertiary)
+        }
+    }
+
 }
 
 // MARK: - Tool bubble

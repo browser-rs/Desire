@@ -1255,6 +1255,28 @@ class AgentSessionStore: ObservableObject {
         loadConversation(latest.id)
     }
 
+    /// 会话分支（v0.8.20 Agent 基础 7）：从指定消息 fork 新会话——历史
+    /// 截断复制（含该消息），新 conversationID；来源标记进标题。当前
+    /// 会话不受影响（不切换——fork 后用户自己去会话列表找新分支）。
+    @discardableResult
+    func forkConversation(from messageID: UUID, in conversationID: UUID) -> UUID? {
+        guard let source = conversationStore.conversation(for: conversationID),
+              let index = source.messages.firstIndex(where: { $0.id == messageID }) else {
+            return nil
+        }
+        var branch = Conversation(
+            id: UUID(),
+            title: String(localized: "Fork: \(source.title)"),
+            createdAt: Date(),
+            updatedAt: Date(),
+            messages: Array(source.messages[...index]))
+        branch.messages.append(AgentMessage(
+            role: .system,
+            content: String(localized: "Forked from conversation \(source.title) — history above is a copy; new turns continue here.")))
+        conversationStore.save(branch)
+        return branch.id
+    }
+
     func loadConversation(_ id: UUID) {
         // CONC-2：与 clear() 同理——切换走正在显示的会话前先停掉在跑回合
         //（手机端切会话直达这里）。isCancelled 保持 true，等下一次发送重置。

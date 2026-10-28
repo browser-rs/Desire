@@ -9,6 +9,9 @@ import UniformTypeIdentifiers
 /// (sidebar GeometryReader or floating NSPanel) controls the overall
 /// height, and AgentPanel fills that space.
 struct AgentPanel: View {
+    /// fork 完成提示（v0.8.20 会话分支）。
+    @State private var forkNote: String?
+
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var crewStore = AgentCrewStore.shared
@@ -766,6 +769,12 @@ struct AgentPanel: View {
                 onLearnReason: { learnFromDislike(msg.id, $0) },
                 toolDurations: toolDurations,
                 conversationID: store.conversationId?.uuidString,
+                onFork: { mid in
+                    guard let cid = store.conversationId else { return }
+                    if store.forkConversation(from: mid, in: cid) != nil {
+                        forkNote = String(localized: "Forked — find the branch in the conversation list")
+                    }
+                },
                 isLatestBoardCard: msg.id == latestBoardCardID
             )
             .id(msg.id)
@@ -913,6 +922,20 @@ struct AgentPanel: View {
             .defaultScrollAnchor(.top)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .overlay(alignment: .bottom) {
+                // fork 完成提示（v0.8.20 会话分支）。
+                if let forkNote {
+                    Text(forkNote)
+                        .font(.system(size: 10.5))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 5)
+                        .background(Capsule().fill(.regularMaterial))
+                        .padding(.bottom, 40)
+                        .transition(.opacity)
+                        .task {
+                            try? await Task.sleep(for: .seconds(3))
+                            _forkNote.wrappedValue = nil
+                        }
+                }
                 // Mainstream pattern: jump back to the live tail after
                 // scrolling up to read.
                 if !isPinnedToBottom, !store.messages.isEmpty {

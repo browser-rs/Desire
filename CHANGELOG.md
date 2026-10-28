@@ -1,9 +1,9 @@
 ## [Unreleased]
 ### Added
 
-PDF 深水区（0.8.16 第一批）：加密 PDF 密码解锁（打开即密码浮层、错码原地重试、解锁后大纲/批注刷新——此前加密件直接卡白）；AcroForm 表单填写（工作台新增"表单"侧栏——文本字段行内编辑、提交即写 ⌘S 落盘，按钮/勾选只读展示；PDFKit 往返探针先行验证通过：建字段→枚举→填值→保存→复读无损）；PDF 阅读进度记忆（按文件路径哈希记 lastPage+zoom，重开自动回到上次位置）；PDF 合并/拆分进 UI（最近文件右键"合并 PDF…"/"拆分页码范围…"，PageRangeParser 管道复用，产物入账并在 Finder 选中）。
-办公互转补全（0.8.16 第二批）：CSV→xlsx 纯数据写入器（极简工作簿 zip+XML 零依赖，数值-looking 单元格按数字写、前导零保持文本；roundtrip 写→读回直测进 harness）——表格查看器新增"导出 xlsx…"、convertDocument 与右键转换菜单支持表格→xlsx；扫描件 PDF OCR 直读（readPdf 无文本层自动 Vision OCR 兜底、显式标注 SCANNED、页上限 20，convertDocument 同步贯通——扫描件也能转出 docx/md）；pdfPageScreenshot 工具（单页位图给视觉输入，图表/版面/表单类问题不靠整页截图）；会话产物气泡（工具回执里的产物文件自动识别成可点 chip，点击直接进应用内查看器——转换/导出/crew 报告产物一键回看）。
-收口批（0.8.16）：crew 依赖编排（crewDispatch 任务可带 dependsOn 指向前序下标——前序 done 才派发、failed/cancelled 级联跳过，"先采集再汇总"两段式一条指令跑完；并行窗口模式轮询门控、标签串行模式顺序天然满足）；定时任务重试策略可配（设置页 Scheduled Tasks 节 1-3 次，指数退避 30/60/120s，耗尽才发失败通知）；下载中心本周统计（面板摘要行：近 7 天完成条数与体积，完成即刷新）；视频下载完成 ffprobe 回执（时长/分辨率/编码进通知，与文档摘要同 opt-in 开关、零模型调用）；历史与书签轻量导出（JSON/CSV，书签导出钮改三格式菜单、历史面板新增导出菜单）；Remote 最近文件搜索（iPhone 端按文件名/类型过滤）。规划对账：翻译引擎可插拔撤项（spike 证实 TranslationSession 无法脱离 .translationTask 独立初始化，整页分段管线耦合代价高，系统开放独立 session 后再入池）；DPP 跨源动作路由撤项（0.7 切片二已交付 sourceFrame→frameProtocols 执行）。
+- PDF 深水区（0.8.16 第一批）：加密 PDF 密码解锁（打开即密码浮层、错码原地重试、解锁后大纲/批注刷新——此前加密件直接卡白）；AcroForm 表单填写（工作台新增"表单"侧栏——文本字段行内编辑、提交即写 ⌘S 落盘，按钮/勾选只读展示；PDFKit 往返探针先行验证通过：建字段→枚举→填值→保存→复读无损）；PDF 阅读进度记忆（按文件路径哈希记 lastPage+zoom，重开自动回到上次位置）；PDF 合并/拆分进 UI（最近文件右键"合并 PDF…"/"拆分页码范围…"，PageRangeParser 管道复用，产物入账并在 Finder 选中）。
+- 办公互转补全（0.8.16 第二批）：CSV→xlsx 纯数据写入器（极简工作簿 zip+XML 零依赖，数值-looking 单元格按数字写、前导零保持文本；roundtrip 写→读回直测进 harness）——表格查看器新增"导出 xlsx…"、convertDocument 与右键转换菜单支持表格→xlsx；扫描件 PDF OCR 直读（readPdf 无文本层自动 Vision OCR 兜底、显式标注 SCANNED、页上限 20，convertDocument 同步贯通——扫描件也能转出 docx/md）；pdfPageScreenshot 工具（单页位图给视觉输入，图表/版面/表单类问题不靠整页截图）；会话产物气泡（工具回执里的产物文件自动识别成可点 chip，点击直接进应用内查看器——转换/导出/crew 报告产物一键回看）。
+- 收口批（0.8.16）：crew 依赖编排（crewDispatch 任务可带 dependsOn 指向前序下标——前序 done 才派发、failed/cancelled 级联跳过，"先采集再汇总"两段式一条指令跑完；并行窗口模式轮询门控、标签串行模式顺序天然满足）；定时任务重试策略可配（设置页 Scheduled Tasks 节 1-3 次，指数退避 30/60/120s，耗尽才发失败通知）；下载中心本周统计（面板摘要行：近 7 天完成条数与体积，完成即刷新）；视频下载完成 ffprobe 回执（时长/分辨率/编码进通知，与文档摘要同 opt-in 开关、零模型调用）；历史与书签轻量导出（JSON/CSV，书签导出钮改三格式菜单、历史面板新增导出菜单）；Remote 最近文件搜索（iPhone 端按文件名/类型过滤）。规划对账：翻译引擎可插拔撤项（spike 证实 TranslationSession 无法脱离 .translationTask 独立初始化，整页分段管线耦合代价高，系统开放独立 session 后再入池）；DPP 跨源动作路由撤项（0.7 切片二已交付 sourceFrame→frameProtocols 执行）。
 
 
 

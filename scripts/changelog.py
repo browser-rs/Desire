@@ -106,6 +106,10 @@ def add(etype: str, entry: str) -> None:
         if l.strip() == f"### {etype}":
             sec = i
             break
+    # 条目忘写 "- " 前缀时自动补（三次发版冻结闸被拦的同一根因）。
+    entry = entry.strip("\n")
+    if entry and not entry.startswith("- "):
+        entry = "- " + entry
     entry_lines = entry.split("\n") + [""]
     if sec is None:
         # 插入位置：Unreleased 头后（跳过紧跟的空行），新段放最前

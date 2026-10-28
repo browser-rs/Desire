@@ -710,6 +710,21 @@ final class RemoteControlStore: ObservableObject {
                 AgentScheduler.shared.setEnabled(!task.isEnabled, for: id)
                 if let frame = Self.tasksFrame() { sendInnerRaw(frame) }
             }
+        case "updateTask":
+            // 任务编辑（v0.8.19 遥控写侧）：name 定位，prompt/节奏可改。
+            guard let name = inner.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !name.isEmpty else {
+                sendInner(["t": "error", "message": String(localized: "Task name required")])
+                return
+            }
+            if AgentScheduler.shared.updateFromRemote(
+                name: name,
+                prompt: inner.body?.trimmingCharacters(in: .whitespacesAndNewlines),
+                minutes: inner.minutes, hour: inner.hour, minute: inner.minute) != nil {
+                if let frame = Self.tasksFrame() { sendInnerRaw(frame) }
+            } else {
+                sendInner(["t": "error", "message": String(localized: "Task not found")])
+            }
         case "removeTask":
             guard let raw = inner.taskID, let id = UUID(uuidString: raw) else { return }
             AgentScheduler.shared.remove(id)

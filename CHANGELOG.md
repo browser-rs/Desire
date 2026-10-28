@@ -3,6 +3,8 @@
 
 - 剪贴板历史（0.8.19 旗舰，第一批）：⌘⇧V 面板——最近 30 条文本/URL/文件路径复制记录（1.5s 轮询 changeCount 采集，24h TTL、同内容刷新时间戳不堆叠），搜索过滤、点击回灌、逐条删除/一键清空；隐私口径：密码管理器复制密文经 suppressNext 不入库、回灌自身也不自录、超长文本（>10k）不入库；Tools 菜单入口（快捷键走快捷键设置可改）。规划对账撤项两项（核实已交付）：标签悬停预览（TabBar hover 250ms + 后台缩略图缓存管线完整在）、地址栏粘贴直达（URLBarField 的 paste-and-go 菜单项已有）。
 - 标签概览挂起管理（0.8.19 基础件 6）：瓦片右键"挂起/唤醒/关闭"（挂起动作防误触——当前选中标签不给挂），挂起瓦片显示时长（suspend 盖戳 suspendedAt、唤醒清除）；Tab.suspendedAt 随会话快照走（挂起治理不再黑箱）。
+- Agent 存在感批（0.8.19 第二批）：技能 Gallery（旗舰——站上 skills/index.json 机读索引 + 应用内技能页"发现"入口：列表/一键安装（installFromURL 通吃 .md/.zip）/已安装徽标/失败原因就地显示；与 BoardGallery 同款不可信输入纪律，SkillGallery 解析进 harness 首批 4 个官方技能 .md 上站）；Remote 任务编辑（手机端创建表单外的编辑闭环：Mac updateTask 命令按名定位、prompt/节奏可改（builtin 拒改），iOS 行左滑编辑 + TaskEditSheet 预填解析既有节奏）。规划对账撤项两项（核实已交付）：子代理观察面（AgentPanel runningSubagents 实时行）；技能参数化进 Remote（vars 缺失 → Error 清单 → 模型 askUser → 手机问题卡，天然全链路）。
+
 
 
 

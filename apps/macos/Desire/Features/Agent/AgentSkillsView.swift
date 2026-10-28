@@ -15,6 +15,8 @@ struct AgentSkillsView: View {
     var onUseSkill: ((String) -> Void)? = nil
     /// 参数化技能（v0.8.17）：声明 vars 的技能使用时弹填值表单。
     @State private var varsSkill: SkillStore.Skill?
+    /// 技能 Gallery（v0.8.19 旗舰）。
+    @State private var showGallery = false
     @State private var varValues: [String: String] = [:]
 
     @State private var searchText = ""
@@ -112,6 +114,9 @@ struct AgentSkillsView: View {
         }
         .sheet(item: $shareSkill) { skill in
             SkillShareSheet(skill: skill)
+        }
+        .sheet(isPresented: $showGallery) {
+            SkillGallerySheet()
         }
         .sheet(item: $varsSkill) { skill in
             VStack(alignment: .leading, spacing: 10) {
@@ -255,6 +260,16 @@ struct AgentSkillsView: View {
             }
             .buttonStyle(.plain)
             .help(String(localized: "Install from URL"))
+
+            Button {
+                showGallery = true
+            } label: {
+                Image(systemName: "sparkles.rectangle.stack")
+                    .font(.system(size: 12))
+                    .frame(width: 26, height: 24)
+            }
+            .buttonStyle(.plain)
+            .help(String(localized: "Skill Gallery"))
 
             Button {
                 store.reload()

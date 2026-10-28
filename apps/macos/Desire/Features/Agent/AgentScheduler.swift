@@ -204,6 +204,23 @@ final class AgentScheduler: ObservableObject {
         return task
     }
 
+    /// Remote 任务编辑（v0.8.19）：prompt / 节奏可改（builtin 拒改——
+    /// 内置流水线的 prompt 只是展示，改了也不生效，拒掉防误解）。
+    @discardableResult
+    func updateFromRemote(name: String, prompt: String?,
+                          minutes: Int?, hour: Int?, minute: Int?) -> String? {
+        guard let idx = tasks.firstIndex(where: { $0.name == name }) else { return nil }
+        guard tasks[idx].builtin == nil else { return "builtin" }
+        if let prompt, !prompt.isEmpty { tasks[idx].prompt = prompt }
+        if let minutes, minutes >= 5 {
+            tasks[idx].recurrence = .everyMinutes(minutes)
+        } else if let hour, let minute {
+            tasks[idx].recurrence = .daily(hour: hour, minute: minute)
+        }
+        save()
+        return tasks[idx].id.uuidString
+    }
+
     func remove(_ id: UUID) {
         tasks.removeAll { $0.id == id }
         save()

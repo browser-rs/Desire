@@ -989,6 +989,15 @@ final class RemoteClient: ObservableObject {
 
     func toggleTask(id: String) { pushFrame(["t": "toggleTask", "taskID": id], replace: false) }
     func removeTask(id: String) { pushFrame(["t": "removeTask", "taskID": id], replace: false) }
+    // 任务编辑（v0.8.19）：Mac 端按任务名定位，prompt / 节奏可改。
+    func updateTask(name: String, prompt: String, minutes: Int?, hour: Int?, minute: Int?) {
+        var frame: [String: Any] = ["t": "updateTask", "text": name]
+        if !prompt.isEmpty { frame["body"] = prompt }
+        if let minutes { frame["minutes"] = minutes }
+        if let hour { frame["hour"] = hour }
+        if let minute { frame["minute"] = minute }
+        pushFrame(frame, replace: false)
+    }
 
     /// 切换服务档案 / 模型（`profile` 传 nil = 只改当前档案的模型）。
     /// 与桌面模型菜单同一落点：写的是 Mac 上的当前档案。

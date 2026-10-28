@@ -5,6 +5,8 @@ import SwiftUI
 struct RemoteTasksView: View {
     @EnvironmentObject var client: RemoteClient
     @State private var showCreate = false
+    /// 任务编辑（v0.8.19）：复用创建表单语义，Mac 端按名定位。
+    @State private var editingTask: RemoteTask?
     @State private var newName = ""
     @State private var newPrompt = ""
     /// 0 = 每 N 分钟模式；1 = 每天定时模式。
@@ -82,6 +84,15 @@ struct RemoteTasksView: View {
                             .lineLimit(2)
                     }
                 }
+                .swipeActions(edge: .leading) {
+                    Button {
+                        editingTask = task
+                    } label: {
+                        Label("编辑", systemImage: "pencil")
+                    }
+                    .tint(.blue)
+                    .disabled(task.builtin)
+                }
                 .swipeActions(edge: .trailing) {
                     Button(role: .destructive) {
                         client.removeTask(id: task.id)
@@ -100,6 +111,12 @@ struct RemoteTasksView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+            }
+        }
+        .sheet(item: $editingTask) { task in
+            TaskEditSheet(task: task) { name, prompt, minutes, hour, minute in
+                client.updateTask(name: name, prompt: prompt,
+                                  minutes: minutes, hour: hour, minute: minute)
             }
         }
         .onAppear {

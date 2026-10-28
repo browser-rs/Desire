@@ -1,0 +1,29 @@
+{
+  "version" : 1,
+  "skills" : [
+    {
+      "id" : "clean-page-ads",
+      "name" : "页面广告清理",
+      "description" : "AI 识别广告元素 → 列出候选与理由 → 用户确认 → 永久屏蔽该站（可含网络层拦截）。",
+      "file" : "skills/clean-page-ads.md"
+    },
+    {
+      "id" : "online-shopping",
+      "name" : "购物助手",
+      "description" : "淘宝/京东/拼多多找品比价 → 选规格加购 → 结算核对 → 停在支付页等你完成。",
+      "file" : "skills/online-shopping.md"
+    },
+    {
+      "id" : "prototype-design",
+      "name" : "原型设计",
+      "description" : "把需求变成单文件 HTML 高保真原型，浏览器内预览并按反馈可视化迭代。",
+      "file" : "skills/prototype-design.md"
+    },
+    {
+      "id" : "automation-testing",
+      "name" : "网页自动化测试",
+      "description" : "把浏览器操作变成可重复的断言（导航/点击/填表/计数），输出 Markdown 测试报告。",
+      "file" : "skills/automation-testing.md"
+    }
+  ]
+}

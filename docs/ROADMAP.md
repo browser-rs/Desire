@@ -3233,3 +3233,116 @@ v0.8.1 的菜单入口只有"移交会话"，这版补齐：
   字号/下载拖拽）。
 - **第四批（收口）**：13+14+15+16+18 + 贯穿对账。
 - 每批独立提交；P0 全绿且你过目后才发版。
+
+## v0.8.16 规划稿（2026-10-28）—— PDF 深水区与办公互转补全
+
+> 四主题骨架。0.8.15 把 PDF 做成工作台（看/批注/拆合/转换），本版往深水区走：
+> **加密解锁、AcroForm 表单、扫描件 OCR、阅读进度**；转换面补上最后一块
+> （CSV→xlsx 写入器）；融合面做**翻译引擎可插拔**与 DPP 跨源收尾；
+> 替人干活深化 crew 编排与定时任务韧性。
+>
+> 版本号 **v0.8.16**。只规划，过目后才开发。
+
+### 存量盘点（2026-10-28 核实）
+
+- 系统级 Agent 工具（提醒事项/日历/备忘录）**已交付**：EventKitBridge
+  （addReminder/listReminders/addEvent/complete/update/delete）与 NotesBridge
+  （addNote/listNotes/searchNotes）全线接通工具面——Backlog 该条撤项记档。
+- 下载面板**搜索框已交付**（Search Downloads）；定时任务**单次自动重试已交付**
+  （失败后 ~30s 重试一次）——本版 16 是"次数可配+退避"的深化，不是新建。
+- PDF：无 isLocked/unlock 处理（加密 PDF 打开即卡白）；无 AcroForm；无 OCR。
+- 翻译：自研整页翻译（替换/对照双模式）无引擎选择——Backlog"可插拔"是真项。
+- xlsx：只有读（SpreadsheetReader unzip+XMLParser）；无写入器——
+  CSV→xlsx 是转换面最后缺口。
+- DPP 跨源：切片一（声明合并+来源戳）已交付；剩余 = pageAction 的
+  per-frame 动作目标路由。
+- 定时任务产物、crew 报告落盘（0.8.15）已通。
+
+### 一、浏览器基础能力（7 项）
+
+1. **加密 PDF 密码解锁**（P1）：PDFWorkbenchModel 检测 `isLocked` →
+   密码浮层 → `unlock(with:)`；错误密码原地重试、三次后提示"受密码保护"；
+   解锁状态入会话（不落盘）。
+2. **PDF 表单填写（AcroForm）**（P1，**spike 先行**）：PDFKit formFields
+   枚举/填值/保存（可选 flatten）；工作台加"表单"侧栏 tab 列字段。
+   **平台坑深——spike 不过（字段类型渲染不全/写保存丢值）即撤项归池，
+   与表单截图锚点同纪律，不再顺延。**
+3. **CSV→xlsx 纯数据写入器**（P2）：SpreadsheetBuffer → 最小 xlsx
+   （zip + XML parts，复用读侧设施；只写值不写公式——既有口径）；
+   查看器"另存为 xlsx"与 convertDocument 双入口；roundtrip 测试进
+   harness（写 → SpreadsheetReader 读回核对）。
+4. **扫描件 PDF OCR 直读**（P2）：readPdf 无文本层时 Vision OCR fallback
+   （显式标注 scanned、页数上限 20）；convertDocument 的 pdf→docx/md 同步
+   贯通——扫描件也能转出文档。
+5. **PDF 阅读进度记忆**（P2）：按路径哈希记 lastPage + zoom（列宽记忆
+   同款 UserDefaults 键族），重开恢复并轻提示"回到上次位置"。
+6. **PDF 合并/拆分进 UI**（P2）：最近本地文件多选右键"合并为一个 PDF"
+   （mergePDFs 管道）；单 PDF 右键"拆分页码范围…"（splitPDF 管道，
+   弹页码输入）——工具能力上 UI。
+7. **历史与书签轻量导出**（P2）：历史/书签面板各加"导出"——JSON 与
+   CSV 两格式（全量备份 zip 之外的轻量迁移格式）。
+
+### 二、Agent 基础能力（4 项）
+
+8. **pdfPageScreenshot 工具**（P2）：按 path+page 返回单页位图（vision）
+   ——图表/版面问答不再依赖整页截图；readPdf 扫描件回执标注 OCR 来源。
+9. **convertDocument 表格→xlsx**（P2）：目标格式集加 xlsx（项 3 管道），
+   工具描述同步。
+10. **会话产物气泡**（P2）：回合产出的本地文件（exportDocument/
+    convertDocument/zipFiles/crew 报告…）在消息流里渲染成文件 chip——
+    点击直接进查看器；工具回执里的产物路径自动识别（复用最近文件类型图标）。
+11. **crew 依赖编排**（P1）：crewDispatch 任务加 `dependsOn`（前序任务
+    done 才派发，failed/cancelled 级联跳过并注明）——"先采集再汇总"
+    两段式一条指令跑完，不再要两轮对话。
+
+### 三、融合能力（4 项）
+
+12. **翻译引擎可插拔**（P1，Backlog 提前）：设置页三档——自研（默认）/
+    macOS 系统翻译/自定义 OpenAI 兼容端点；翻译栏快捷切换；术语表对
+    自研档继续生效（系统档透传不动）。
+13. **同步多档案**（P2，**设计稿先行**）：现状只同步活跃档案桶——
+    设计"每档案独立游标 + 域后缀"方案（服务端零迁移优先），设计稿过目
+    后再动工；动不了就只交设计稿。
+14. **DPP 跨源动作路由补全**（P2，评审遗留）：pageAction 支持 frame 指定
+    目标（同源/跨源 iframe 内动作），审批卡标注目标 frame 来源。
+15. **Remote 文件搜索**（P2）：RemoteFilesView 加搜索框（文件名/kind
+    过滤）+ ⌘⇧F 命中的本地文件可从手机远端打开（openRecentFile 已通，
+    补搜索侧）。
+
+### 四、替人干活（3 项）
+
+16. **定时任务重试策略可配**（P2）：次数（1/2/3）+ 指数退避（30s 起）
+    设置页可调、任务级可覆盖；重试耗尽才发失败通知（现状语义不变）。
+17. **下载中心统计摘要**（P2）：面板顶部一条汇总（本周条数/体积、
+    按类型分布 mini 条形）——纯本地派生。
+18. **视频下载完成回执摘要**（P2）：下载完成的视频文件 ffprobe
+    （已装时）取时长/分辨率进完成通知（与文档自动摘要同 opt-in 开关族）。
+
+### 贯穿⑤ 可靠性
+
+- 1.0 前清单月度对账：dogfooding 连续无崩溃 / 启动 P95 ≤700ms /
+  强杀探针全绿（0.8.15 后首月）。
+- YouTube 预览暂停（0.8.14）与崩溃后首启无窗：以用户实测为准，
+  仍复现才修。
+
+### 贯穿⑥ 可发现性
+
+- 新工具（pdfPageScreenshot、convertDocument xlsx、crew dependsOn）
+  进能力页（toolDefs 自动）；AcroForm spike 结论（做/不做+原因）写进
+  docs/；翻译引擎档位进设置搜索。
+
+### 明确不在本版
+
+- xlsx 公式重算（既有红线）；PDF 正文重排编辑（排版引擎量级）。
+- 下载限速（WebKit 无 API，勿做假 UI）；passkey（等 Apple 批复）。
+- 应用内更新差量化（全量 zip 够用，Backlog 保留）。
+- Notes/Reminders 系统工具（已交付——本稿盘点撤项，不再立项）。
+
+### 批次
+
+- **第一批**：1+2+5+6（PDF 深水区——加密解锁/AcroForm spike/进度记忆/
+  合并拆分 UI）。
+- **第二批**：3+4+8+9（xlsx 写入器 + OCR 直读 + 工具面扩展 + 产物气泡）。
+- **第三批**：11+12+14（crew 依赖编排 + 翻译引擎 + DPP 跨源收尾）。
+- **第四批（收口）**：7+10+13+15+16+17+18 + 贯穿对账。
+- 每批独立提交；P0 全绿且你过目后才发版。

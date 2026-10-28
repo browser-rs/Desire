@@ -27,6 +27,9 @@ enum SyncDomain: String, CaseIterable {
     case jobs
     /// 摘录库（v0.8.17 第十三域）：阅读高亮/PDF 批注/网页划选的统一沉淀。
     case excerpts
+    /// 剪贴板历史（v0.8.20 第十四域，opt-in 默认关——复制内容全量跨设备，
+    /// 隐私敏感）：文本/URL/路径条目，24h TTL 双端一致。
+    case clipboard
 
     /// 展示名（键与设置页既有文案共用，目录里已有三语）。
     var displayName: String {
@@ -44,6 +47,7 @@ enum SyncDomain: String, CaseIterable {
         case .promotion: String(localized: "Operations")
         case .jobs: String(localized: "Jobs")
         case .excerpts: String(localized: "Excerpts")
+        case .clipboard: String(localized: "Clipboard History")
         }
     }
 

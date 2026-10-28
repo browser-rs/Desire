@@ -36,6 +36,15 @@ class Tab: ObservableObject {
     @Published var isSuspended = false
     /// 挂起时长展示（v0.8.19 挂起管理）：suspend 时盖戳、唤醒清除。
     @Published var suspendedAt: Date?
+    /// 标签自动刷新（v0.8.20 基础件 1）：nil = 关；挂起的标签不刷。
+    @Published var autoRefreshInterval: TimeInterval?
+    var lastAutoRefresh = Date()
+
+    /// 档位设置（pill 右键直调；调度在 TabManager.startAutoRefreshScheduler）。
+    func setAutoRefresh(_ interval: TimeInterval?) {
+        autoRefreshInterval = interval
+        lastAutoRefresh = Date()
+    }
     @Published var responsiveConfig = ResponsiveConfig()
     var lastAccessed = Date()
     var suppressHistoryOnce = false
@@ -512,6 +521,27 @@ class TabManager: ObservableObject {
     static let deepSnapshotCap = 12
     /// 保留原 webview 骨架的挂起标签数（LRU 头部）。
     static let deepRebuildCap = 6
+
+    /// 自动刷新调度（v0.8.20 基础件 1）：5s 中央 tick，到点的非挂起
+    /// 标签 reload（手动 reload 路径复用 actions.reloadTab 的语义——
+    /// 这里直接走 browser reload，不动选中态）。
+    private var autoRefreshTimer: Timer?
+
+    func startAutoRefreshScheduler() {
+        guard autoRefreshTimer == nil else { return }
+        autoRefreshTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self else { return }
+                let now = Date()
+                for tab in self.tabs where tab.autoRefreshInterval != nil && !tab.isSuspended {
+                    guard now.timeIntervalSince(tab.lastAutoRefresh) >= (tab.autoRefreshInterval ?? 0) else { continue }
+                    tab.lastAutoRefresh = now
+                    tab.browser.webView.reload()
+                    Log.tabs.info("auto-refresh: \(tab.displayTitle, privacy: .public)")
+                }
+            }
+        }
+    }
 
     func suspendAllBackgroundTabs() {
         for tab in tabs where tab.id != selectedTab?.id && tab.id != splitPartnerID && !tab.isPinned && !tab.isIncognito {

@@ -3936,6 +3936,40 @@ func testTaskFailureClassify() {
 
 testTaskFailureClassify()
 
+func testWorkflowSkillExport() {
+    var wf = Workflow(name: "每日签到", host: "example.com",
+                      startURL: "https://example.com/login",
+                      steps: [
+                        Workflow.Step(kind: .click, selectors: ["#login-tab"]),
+                        Workflow.Step(kind: .input, selectors: ["#user"], value: "me@example.com"),
+                        Workflow.Step(kind: .input, selectors: ["#pass"], value: nil,
+                                      sensitive: true, note: "密码"),
+                        Workflow.Step(kind: .waitFor, selectors: [], value: "欢迎回来"),
+                      ])
+    let result = WorkflowSkillExport.markdown(for: wf)
+    // frontmatter：name / vars 声明
+    check("转换：frontmatter 名", result.markdown.contains("name: 每日签到"))
+    check("转换：vars 含敏感字段", result.varNames.contains("密码"))
+    check("转换：vars 行", result.markdown.contains("vars: 密码"))
+    check("转换：desc 行", result.markdown.contains("var-密码-desc:"))
+    // 步骤指令
+    check("转换：navigate 起点", result.markdown.contains("navigate 到 `https://example.com/login`"))
+    check("转换：click 选择器", result.markdown.contains("click `#login-tab`"))
+    check("转换：普通 input 保留值", result.markdown.contains("fill `#user` 为 `me@example.com`"))
+    check("转换：敏感 input 转 var", result.markdown.contains("为 `{{密码}}`"))
+    check("转换：waitFor", result.markdown.contains("waitForText `欢迎回来`"))
+    // 敏感值不落盘
+    check("转换：敏感值零落盘", !result.markdown.contains("secret123"))
+    // text: 选择器转可读
+    wf.steps.append(Workflow.Step(kind: .click, selectors: ["text:提交"]))
+    let r2 = WorkflowSkillExport.markdown(for: wf)
+    check("转换：text 选择器可读", r2.markdown.contains("可见文本为「提交」的元素"))
+    // 落点名 slug
+    check("转换：文件名", result.fileName == "每日签到.md")
+}
+
+testWorkflowSkillExport()
+
 func testTextParagraphize() {
     // 单换行折空格、双换行保留
     let a = TextParagraphize.paragraphized("first line\nsecond line\n\nnext para")

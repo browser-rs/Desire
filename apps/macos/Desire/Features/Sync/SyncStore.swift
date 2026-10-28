@@ -79,6 +79,7 @@ final class SyncStore: ObservableObject {
     private let promotionStore = PromotionStore.shared
     private let jobStore = JobStore.shared
     private let excerptStore = ExcerptStore.shared
+    private let clipboardStore = ClipboardHistoryStore.shared
     private var syncTimer: Timer?
     private let defaults = UserDefaults.standard
 
@@ -160,7 +161,8 @@ final class SyncStore: ObservableObject {
         for domain in SyncDomain.allCases {
             // opt-in 默认关：浏览历史（高频日志型 + 隐私敏感）、白板（板属个人
             // 创作，默认仅本机）；其余域默认开
-            let fallback = domain == .history || domain == .whiteboard || domain == .workspace ? false : true
+            let fallback = domain == .history || domain == .whiteboard || domain == .workspace
+                || domain == .clipboard ? false : true
             enabledDomains[domain] = defaults.object(forKey: enabledKey(domain)) as? Bool ?? fallback
         }
         // Keychain 三读移出主线程（同 AgentPreferenceStore：启动主线程的
@@ -227,6 +229,7 @@ final class SyncStore: ObservableObject {
         observeLocalChanges(promotionStore.objectWillChange, domain: .promotion)
         observeLocalChanges(jobStore.objectWillChange, domain: .jobs)
         observeLocalChanges(excerptStore.objectWillChange, domain: .excerpts)
+        observeLocalChanges(clipboardStore.objectWillChange, domain: .clipboard)
     }
 
     private func observeLocalChanges(
@@ -895,6 +898,7 @@ final class SyncStore: ObservableObject {
             DomainAdapter(domain: .promotion, collect: collectPromotion, apply: applyPromotion, clear: clearPromotionPending),
             DomainAdapter(domain: .jobs, collect: collectJobs, apply: applyJobs, clear: clearJobsPending),
             DomainAdapter(domain: .excerpts, collect: collectExcerpts, apply: applyExcerpts, clear: clearExcerptsPending),
+            DomainAdapter(domain: .clipboard, collect: collectClipboard, apply: applyClipboard, clear: clearClipboardPending),
             DomainAdapter(domain: .agentPrefs, collect: collectAgentPrefs, apply: applyAgentPrefs, clear: { _, _ in },
                           commit: { self.commitAgentPrefsSnapshot() }),
             DomainAdapter(domain: .history, collect: collectHistory, apply: applyHistory, clear: clearHistoryPending),
@@ -982,6 +986,7 @@ final class SyncStore: ObservableObject {
             .promotion: promotionStore.pendingDeletions.count,
             .jobs: jobStore.pendingDeletions.count,
             .excerpts: excerptStore.pendingDeletions.count,
+            .clipboard: clipboardStore.pendingDeletions.count,
             .history: historyStore.pendingDeletions.count,
             .whiteboard: WhiteboardStore.shared.pendingDeletions.count,
         ]
@@ -1667,6 +1672,50 @@ final class SyncStore: ObservableObject {
 
     private func clearExcerptsPending(_ serverIDs: Set<String>, master: String) {
         excerptStore.clearPendingDeletions(serverIDs: Set(serverIDs.compactMap { UUID(uuidString: $0) }))
+    }
+
+    // MARK: - 剪贴板域（v0.8.20 第十四域，opt-in 默认关）
+
+    private func collectClipboard(master: String) -> [SyncWireItem<SyncEncryptedPayload>] {
+        var items: [SyncWireItem<SyncEncryptedPayload>] = []
+        for entry in clipboardStore.entries {
+            items.append(encryptedWire(
+                domain: .clipboard, realID: entry.id.uuidString,
+                clientUpdatedAt: entry.capturedAt, deleted: false,
+                payload: entry, master: master))
+        }
+        for (id, deletedAt) in clipboardStore.pendingDeletions {
+            items.append(encryptedTombstone(
+                domain: .clipboard, realID: id, clientUpdatedAt: deletedAt, master: master))
+        }
+        return items
+    }
+
+    private func applyClipboard(_ items: [SyncWireItem<SyncEncryptedPayload>], master: String) {
+        guard !items.isEmpty else { return }
+        var hmacToLocal: [String: Date] = [:]
+        for entry in clipboardStore.entries {
+            hmacToLocal[SyncPromotion.clientID(for: entry.id.uuidString, masterKeyBase64: master)] = entry.capturedAt
+        }
+        applyRemotely {
+            for item in items {
+                guard let encrypted = item.payload,
+                      let entry = try? SyncCrypto.decrypt(
+                    encrypted, domain: .clipboard,
+                    masterKeyBase64: master, as: ClipboardHistoryStore.Entry.self) else { continue }
+                let hmac = SyncPromotion.clientID(for: entry.id.uuidString, masterKeyBase64: master)
+                if item.deleted == true {
+                    if hmacToLocal[hmac] != nil { clipboardStore.removeForSync(id: entry.id) }
+                    continue
+                }
+                if let localAt = hmacToLocal[hmac], item.clientUpdatedAt <= localAt { continue }
+                clipboardStore.upsertForSync(entry)
+            }
+        }
+    }
+
+    private func clearClipboardPending(_ serverIDs: Set<String>, master: String) {
+        clipboardStore.clearPendingDeletions(serverIDs: Set(serverIDs.compactMap { UUID(uuidString: $0) }))
     }
 
     // MARK: - Agent 偏好域（自定义系统提示词）

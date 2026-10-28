@@ -351,6 +351,7 @@ struct ContentView: View {
             appState.attach(tabManager: tabManager)
         })
         .onAppear {
+            tabManager.startAutoRefreshScheduler()
             // 首窗相位（0.6.4 启动分段第三拍；每个窗口都会打，首条即首窗）。
             Log.app.info("launch phase: first window content appeared +\(Int(Date().timeIntervalSince(DesireApp.launchStart) * 1000), privacy: .public)ms")
             LaunchAudit.mark("first window")

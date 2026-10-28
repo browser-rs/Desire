@@ -154,6 +154,13 @@ R2=$(req GET "/sync/bookmarks" "" "$TOKEN")
 echo "$R2" | grep -q "pb-1" && fail "档案域行泄漏进基础域" || true
 step "多档案域键 roundtrip + 与基础域隔离"
 
+# ---- clipboard 域(v0.8.20 第十四域,通用表) ----
+CB_PUSH="{\"items\":[{\"client_id\":\"cb-1\",\"client_updated_at\":\"$NOW_TS\",\"payload\":\"https://example.com/copied\"}]}"
+req POST /sync/clipboard "$CB_PUSH" "$TOKEN" > /dev/null
+R=$(req GET /sync/clipboard "" "$TOKEN")
+[ "$(echo "$R" | get data.items.0.client_id)" = "cb-1" ] || fail "clipboard 拉取失败: $R"
+step "clipboard 域 roundtrip"
+
 # ---- 未知域 404 ----
 expect_code 404 GET /sync/nonsense "" "$TOKEN"
 step "未知域 → 404"

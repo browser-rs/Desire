@@ -1,3 +1,9 @@
+## [Unreleased]
+### Added
+
+- 自动化管线第一批（0.8.20）：工作流 → 技能转换（旗舰——录制的回放步骤序列转 SKILL.md：navigate/click/input/select/key/wait 逐步转自然语言指令+选择器，text: 前缀转"可见文本"描述；敏感字段转 {{vars}} 参数化——"值绝不落盘"口径在技能里延续为运行时填值；单向生成，手改不回写；WorkflowSkillExport 进 harness 12 断言）；标签自动刷新（pill 右键档位 10s/30s/1m/5m/关——TabManager 5s 中央 tick 到点 reload，挂起标签不刷，胶囊 arrow.clockwise 角标）；剪贴板同步第十四域（ClipboardHistoryStore 补墓碑/同步口——FIFO 淘汰与 24h 过期都记墓碑防复活，SyncEngine adapter 照 excerpts 纪律；opt-in 默认关；api-sync-smoke 13 步含 clipboard roundtrip 实证）。
+
+
 ## [v0.8.19] - 2026-10-29
 ### Added
 

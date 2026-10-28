@@ -27,6 +27,8 @@ final class ClipboardHistoryStore: ObservableObject {
     private nonisolated static let maxRecordLength = 10_000
 
     @Published private(set) var entries: [Entry] = []   // 新在前
+    /// 待推墓碑（同步第十四域，v0.8.20）——删除/淘汰/清空都记。
+    @Published private(set) var pendingDeletions: [String: Date] = [:]
     /// 一条抑制：密码复制/回灌等"这次别记"。
     private var suppressNext = false
     private var lastChangeCount: Int
@@ -35,6 +37,9 @@ final class ClipboardHistoryStore: ObservableObject {
     private init() {
         lastChangeCount = NSPasteboard.general.changeCount
         entries = ClipboardHistoryStore.prune(DiskStore.load([Entry].self, key: Self.storeKey) ?? [])
+        if let dict = DiskStore.load([String: Date].self, key: Self.storeKey + ".pendingDeletions") {
+            pendingDeletions = dict
+        }
     }
 
     func startPolling() {
@@ -99,7 +104,14 @@ final class ClipboardHistoryStore: ObservableObject {
         }
         entries.insert(entry, at: 0)
         if entries.count > Self.cap {
+            for dropped in entries.suffix(from: Self.cap) {
+                pendingDeletions[dropped.id.uuidString] = Date()
+            }
             entries = Array(entries.prefix(Self.cap))
+        }
+        let expired = Set(Self.prune(entries).map(\.id))
+        for gone in entries where !expired.contains(gone.id) {
+            pendingDeletions[gone.id.uuidString] = Date()
         }
         entries = Self.prune(entries)
         persist()
@@ -114,16 +126,45 @@ final class ClipboardHistoryStore: ObservableObject {
 
     func remove(id: UUID) {
         entries.removeAll { $0.id == id }
+        pendingDeletions[id.uuidString] = Date()
         persist()
     }
 
     func clearAll() {
+        let now = Date()
+        for entry in entries { pendingDeletions[entry.id.uuidString] = now }
         entries.removeAll()
+        persist()
+    }
+
+    // MARK: - 同步口（SyncStore adapter 专用；命名对齐 ExcerptStore）
+
+    func upsertForSync(_ entry: Entry) {
+        if let index = entries.firstIndex(where: { $0.id == entry.id }) {
+            entries[index] = entry
+        } else {
+            entries.insert(entry, at: 0)
+            if entries.count > Self.cap {
+                entries = Array(entries.prefix(Self.cap))
+            }
+        }
+        persist()
+    }
+
+    func removeForSync(id: UUID) {
+        entries.removeAll { $0.id == id }
+        persist()
+    }
+
+    func clearPendingDeletions(serverIDs: Set<UUID>) {
+        guard !serverIDs.isEmpty else { return }
+        for id in serverIDs { pendingDeletions.removeValue(forKey: id.uuidString) }
         persist()
     }
 
     private func persist() {
         DiskStore.save(entries, key: Self.storeKey)
+        DiskStore.save(pendingDeletions, key: Self.storeKey + ".pendingDeletions")
     }
 
     private static func prune(_ items: [Entry]) -> [Entry] {

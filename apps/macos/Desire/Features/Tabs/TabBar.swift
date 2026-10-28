@@ -449,6 +449,13 @@ private struct TabPillView: View {
                 }
                 FaviconView(urlString: tab.browser.webView.url?.absoluteString ?? tab.urlString, size: 14)
             }
+            if tab.autoRefreshInterval != nil {
+                // 自动刷新角标（v0.8.20）：箭头循环——与声音开关同排同规格。
+                Image(systemName: "arrow.clockwise")
+                    .font(.caption2)
+                    .foregroundStyle(.tint)
+                    .help(String(localized: "Auto-refresh on"))
+            }
             if tab.isPlayingAudio {
                 Button {
                     tab.audioMuted.toggle()
@@ -567,6 +574,17 @@ private struct TabPillView: View {
         Button("Duplicate Tab") { actions.duplicateTab(index) }
         Button("Reload") { actions.reloadTab(tab) }
             .disabled(tab.isOnNewTabPage)
+        // 自动刷新（v0.8.20 基础件 1）：档位右键直选；挂起标签不刷。
+        Menu(tab.autoRefreshInterval == nil
+             ? String(localized: "Auto Refresh: Off")
+             : String(localized: "Auto Refresh: \(Int(tab.autoRefreshInterval!))s")) {
+            Button(String(localized: "Off")) { tab.setAutoRefresh(nil) }
+            Button(String(localized: "Every 10s")) { tab.setAutoRefresh(10) }
+            Button(String(localized: "Every 30s")) { tab.setAutoRefresh(30) }
+            Button(String(localized: "Every 1 min")) { tab.setAutoRefresh(60) }
+            Button(String(localized: "Every 5 min")) { tab.setAutoRefresh(300) }
+        }
+        .disabled(tab.isSuspended || tab.isOnNewTabPage)
         Button("Unload Tab") { unloadTab(tab) }
             .disabled(tab.isSuspended || index == selectedIndex || tab.isOnNewTabPage)
         Button("Copy URL") { actions.copyTabURL(tab) }

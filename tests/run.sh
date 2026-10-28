@@ -85,6 +85,8 @@ SOURCES=(
   apps/macos/Desire/Features/Excerpts/Excerpt.swift
   apps/macos/Desire/Features/Agent/SkillGallery.swift
   apps/macos/Desire/Features/Agent/TaskFailureClassify.swift
+  apps/macos/Desire/Features/Workflows/Workflow.swift
+  apps/macos/Desire/Features/Workflows/WorkflowSkillExport.swift
   apps/macos/Desire/Features/Agent/SkillVars.swift
   apps/macos/Desire/Features/Browsing/TextParagraphize.swift
   apps/macos/Desire/Features/Browsing/ArchiveKit.swift
@@ -103,7 +105,6 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/UsageStats.swift
   apps/macos/Desire/Features/Agent/SecretRedactor.swift
   apps/macos/Desire/Features/Agent/EvalFixture.swift
-  apps/macos/Desire/Features/Workflows/Workflow.swift
   apps/macos/Desire/Features/Workflows/WorkflowDistill.swift
   apps/macos/Desire/Features/Workflows/WorkflowTemplates.swift
   apps/macos/Desire/Features/Reader/ReaderHighlight.swift

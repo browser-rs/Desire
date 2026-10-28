@@ -150,6 +150,14 @@ struct WorkflowPanel: View {
             .help("Suggest this workflow when you visit \(workflow.host)")
             Button(String(localized: "Run")) { beginRun(workflow) }
                 .controlSize(.small)
+            // 转为技能（v0.8.20 旗舰）：回放步骤序列转 SKILL.md（敏感字段转 vars）。
+            Button {
+                convertToSkill(workflow)
+            } label: {
+                Image(systemName: "doc.plaintext")
+            }
+            .controlSize(.small)
+            .help(String(localized: "Convert to an editable skill"))
             Menu {
                 if let scheduled = scheduler.workflowSchedule(for: workflow.id) {
                     Text(String(localized: "Scheduled: \(scheduled.recurrenceText)"))
@@ -253,6 +261,19 @@ struct WorkflowPanel: View {
                                                       completionHandler: nil)
         store.cancelRecording()
         note = nil
+    }
+
+    /// 转换 → SkillStore 目录落 .md → reload；同名覆盖 = 更新。
+    private func convertToSkill(_ workflow: Workflow) {
+        let result = WorkflowSkillExport.markdown(for: workflow)
+        let dest = SkillStore.directory.appendingPathComponent(result.fileName)
+        do {
+            try result.markdown.write(to: dest, atomically: true, encoding: .utf8)
+            SkillStore.shared.reload()
+            note = String(localized: "Skill created: \(result.fileName)\(result.varNames.isEmpty ? "" : " · vars: \(result.varNames.joined(separator: ", "))")")
+        } catch {
+            note = String(localized: "Conversion failed: \(error.localizedDescription)")
+        }
     }
 
     private func beginRun(_ workflow: Workflow) {

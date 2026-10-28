@@ -3365,6 +3365,17 @@ v0.8.1 的菜单入口只有"移交会话"，这版补齐：
 >
 > 版本号 **v0.8.17**。只规划，过目后才开发。
 
+### 存量盘点修正（2026-10-28 执行期核实）
+
+- 项 1（PDF 大纲书签编辑）**撤项**：spike 实证 PDFKit 程序化建树
+  （PDFOutline + insertChild + outlineRoot 赋值）写入后重读 outlineRoot
+  为 nil——document.write 不保真大纲。
+- 项 3（双指灵敏度/滚轮平滑滚动）**撤项**：WebKit 无公开 API，按
+  "勿做假 UI"红线归池。
+- 项 13（同步状态面板）核实为**已交付 + 一处增量**：逐域状态本就在
+  类目开关副标题、设备+游标在 DevicesSection（v0.7.23）；本批补上
+  待删墓碑计数展示。
+
 ### 存量盘点（2026-10-28 核实）
 
 - 阅读高亮/笔记：ReaderHighlightStore + AnnotationStore 本地齐备；

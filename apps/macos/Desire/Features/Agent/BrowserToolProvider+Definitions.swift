@@ -181,9 +181,10 @@ extension BrowserToolProvider {
                 ], required: ["tool"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "useSkill", description: "Load a skill's full instructions into the conversation (progressive disclosure). Call before performing a task that matches a skill.",
+                name: "useSkill", description: "Load a skill's full instructions into the conversation (progressive disclosure). Call before performing a task that matches a skill. Skills declaring vars need inputs {name: value} — missing values are reported; ask the user with askUser if unclear.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "name": AgentJSONSchemaValue(type: "string", description: "Skill name from the skills list in your context"),
+                    "inputs": AgentJSONSchemaValue(type: "object", description: "Variable values for skills that declare vars (e.g. {target: 'tech team'})"),
                 ], required: ["name"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

@@ -13,6 +13,9 @@ struct AgentSkillsView: View {
     var onBack: () -> Void
     /// "在对话中使用"：切回聊天列并把使用指令发给 Agent（nil = 不显示该入口）。
     var onUseSkill: ((String) -> Void)? = nil
+    /// 参数化技能（v0.8.17）：声明 vars 的技能使用时弹填值表单。
+    @State private var varsSkill: SkillStore.Skill?
+    @State private var varValues: [String: String] = [:]
 
     @State private var searchText = ""
     /// skill name → 危险模式摘要（nil = 未扫出）。onAppear 扫一次，
@@ -34,6 +37,34 @@ struct AgentSkillsView: View {
     @State private var editingSkill: SkillStore.Skill?
     @State private var isCreating = false
 
+    private func handleUse(name: String) {
+        guard let onUseSkill else { return }
+        guard let skill = SkillStore.shared.skills.first(where: { $0.name == name }),
+              !skill.vars.isEmpty else {
+            onUseSkill(name)
+            return
+        }
+        varValues = Dictionary(uniqueKeysWithValues: skill.vars.compactMap { var_ in
+            var_.defaultValue.map { (var_.name, $0) }
+        })
+        varsSkill = skill
+    }
+
+    private func sendWithVars() {
+        guard let skill = varsSkill, let onUseSkill else { return }
+        let assignments = skill.vars.compactMap { var_ -> String? in
+            guard let value = varValues[var_.name]?.trimmingCharacters(in: .whitespaces),
+                  !value.isEmpty else { return nil }
+            return "\(var_.name)=\(value)"
+        }
+        varsSkill = nil
+        if assignments.isEmpty {
+            onUseSkill(skill.name)
+        } else {
+            onUseSkill("Use the \(skill.name) skill — variables: " + assignments.joined(separator: "; "))
+        }
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -49,7 +80,7 @@ struct AgentSkillsView: View {
                                 riskSummary: riskSummaries[skill.name],
                                 onPreview: { previewSkill = skill },
                                 onEdit: { editingSkill = skill },
-                                onUse: onUseSkill,
+                                onUse: { handleUse(name: $0) },
                                 onExport: { exportSkill($0) },
                                 onShare: { shareSkill = $0 },
                                 onUpdateCheck: { checkForUpdate($0) }
@@ -82,6 +113,34 @@ struct AgentSkillsView: View {
         .sheet(item: $shareSkill) { skill in
             SkillShareSheet(skill: skill)
         }
+        .sheet(item: $varsSkill) { skill in
+            VStack(alignment: .leading, spacing: 10) {
+                Text(String(localized: "Use \(skill.name) — fill variables"))
+                    .font(.system(size: 12.5, weight: .semibold))
+                ForEach(skill.vars, id: \.name) { var_ in
+                    HStack(spacing: 8) {
+                        Text(var_.description ?? var_.name)
+                            .font(.system(size: 11))
+                            .frame(width: 130, alignment: .leading)
+                        TextField(var_.name, text: Binding(
+                            get: { varValues[var_.name] ?? "" },
+                            set: { varValues[var_.name] = $0 }))
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(size: 11))
+                    }
+                }
+                HStack {
+                    Spacer()
+                    Button(String(localized: "Cancel")) { varsSkill = nil }
+                        .keyboardShortcut(.cancelAction)
+                    Button(String(localized: "Use")) { sendWithVars() }
+                        .keyboardShortcut(.defaultAction)
+                }
+            }
+            .padding(16)
+            .frame(width: 340)
+        }
+
         .alert(
             String(localized: "Import failed"),
             isPresented: Binding(

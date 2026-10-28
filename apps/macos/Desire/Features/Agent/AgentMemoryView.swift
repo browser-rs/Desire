@@ -23,6 +23,9 @@ struct AgentMemoryView: View {
     @State private var exportedURL: URL?
     /// 事实搜索与筛选（v0.7.28）。
     @State private var factSearch = ""
+    /// 批量清理模式（v0.8.17 记忆时间线）：勾选多条一次删除。
+    @State private var isSelectingFacts = false
+    @State private var selectedFactIDs: Set<UUID> = []
     @State private var factFilter: MemoryModels.FactFilter = .all
 
     private var filteredFacts: [MemoryFact] {
@@ -254,6 +257,31 @@ struct AgentMemoryView: View {
                     }
                     .padding(.horizontal, 10)
                     .padding(.bottom, 6)
+                    HStack(spacing: 8) {
+                        Button {
+                            isSelectingFacts.toggle()
+                            if !isSelectingFacts { selectedFactIDs.removeAll() }
+                        } label: {
+                            Label(isSelectingFacts ? String(localized: "Done") : String(localized: "Select"),
+                                  systemImage: isSelectingFacts ? "checkmark.circle.fill" : "checkmark.circle")
+                                .font(.system(size: 10.5))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(isSelectingFacts ? appAccent : Color.secondary)
+                        if isSelectingFacts, !selectedFactIDs.isEmpty {
+                            Button(String(localized: "Delete \(selectedFactIDs.count)")) {
+                                for id in selectedFactIDs { memory.removeFact(id) }
+                                selectedFactIDs.removeAll()
+                                isSelectingFacts = false
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 10.5, weight: .medium))
+                            .foregroundStyle(.red)
+                        }
+                        Spacer()
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 6)
                 }
 
                 if memory.archive.facts.isEmpty {
@@ -272,15 +300,57 @@ struct AgentMemoryView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
-                ForEach(Array(filteredFacts.enumerated()), id: \.element.id) { index, fact in
-                    factRow(fact)
-                    if index < filteredFacts.count - 1 {
+                ForEach(factSections, id: \.label) { section in
+                    HStack(spacing: 6) {
+                        Text(section.label)
+                            .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                        Spacer()
+                        if isSelectingFacts, !section.items.isEmpty {
+                            Button(String(localized: "Select all")) {
+                                for fact in section.items { selectedFactIDs.insert(fact.id) }
+                            }
+                            .buttonStyle(.plain)
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(appAccent)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.top, 8)
+                    .padding(.bottom, 3)
+                    ForEach(section.items) { fact in
+                        factRow(fact)
                         SettingsRowDivider()
                     }
                 }
             }
         }
     }
+
+    /// 时间线分节（v0.8.17）：按月聚合（当月单列"This Month"）。
+    private var factSections: [(label: String, items: [MemoryFact])] {
+        let calendar = Calendar.current
+        var sections: [(label: String, items: [MemoryFact])] = []
+        for fact in filteredFacts {
+            let isCurrentMonth = calendar.component(.month, from: fact.createdAt) == calendar.component(.month, from: Date())
+                && calendar.component(.year, from: fact.createdAt) == calendar.component(.year, from: Date())
+            let label = isCurrentMonth
+                ? String(localized: "This Month")
+                : Self.monthFormatter.string(from: fact.createdAt)
+            if sections.last?.label == label {
+                sections[sections.count - 1].items.append(fact)
+            } else {
+                sections.append((label, [fact]))
+            }
+        }
+        return sections
+    }
+
+    private static let monthFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = String(localized: "yyyy-MM")
+        return f
+    }()
 
     @ViewBuilder
     private var memorySearchField: some View {
@@ -331,6 +401,32 @@ struct AgentMemoryView: View {
     }
 
     private func factRow(_ fact: MemoryFact) -> some View {
+        if isSelectingFacts {
+            return AnyView(
+                HStack(alignment: .top, spacing: 8) {
+                    Button {
+                        if selectedFactIDs.contains(fact.id) {
+                            selectedFactIDs.remove(fact.id)
+                        } else {
+                            selectedFactIDs.insert(fact.id)
+                        }
+                    } label: {
+                        Image(systemName: selectedFactIDs.contains(fact.id)
+                              ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 13))
+                            .foregroundStyle(selectedFactIDs.contains(fact.id) ? appAccent : Color.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 2)
+                    factRowInner(fact)
+                }
+                .padding(.horizontal, 10)
+            )
+        }
+        return AnyView(factRowInner(fact).padding(.horizontal, 10))
+    }
+
+    private func factRowInner(_ fact: MemoryFact) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Button {
                 memory.togglePin(fact.id)

@@ -3876,6 +3876,35 @@ func testExcerpt() {
 
 testExcerpt()
 
+func testSkillVars() {
+    let text = """
+    ---
+    name: weekly
+    description: 周报
+    vars: target, week
+    var-week-default: 本周
+    var-target-desc: 汇报对象
+    ---
+    给 {{target}} 的 {{week}} 周报。
+    """
+    let vars = SkillVars.parse(text)
+    check("技能vars：声明两条", vars.map(\.name) == ["target", "week"])
+    check("技能vars：default", vars.first { $0.name == "week" }?.defaultValue == "本周")
+    check("技能vars：desc", vars.first { $0.name == "target" }?.description == "汇报对象")
+    check("技能vars：占位符", SkillVars.placeholders(in: "给 {{target}} 的 {{week}} 周报") == ["target", "week"])
+    check("技能vars：缺 target", SkillVars.missing(declared: vars, values: [:], body: text) == ["target"])
+    check("技能vars：default 兜底不缺", SkillVars.missing(declared: vars, values: ["target": "技术部"], body: text).isEmpty)
+    // render 是纯替换器（default 由 useSkill 层先并入 values）
+    let rendered = SkillVars.render(body: "给 {{target}} 的 {{week}} 周报",
+                                    values: ["target": "技术部", "week": "本周"])
+    check("技能vars：渲染", rendered == "给 技术部 的 本周 周报")
+    let partial = SkillVars.render(body: "给 {{target}} 的 {{week}} 周报", values: [:])
+    check("技能vars：未填保留", partial.contains("{{target}}"))
+    check("技能vars：无声明", SkillVars.parse("plain md").isEmpty)
+}
+
+testSkillVars()
+
 func testNightOwlPolicy() {
     var p = NotificationPolicy()
     p.quietHoursEnabled = true

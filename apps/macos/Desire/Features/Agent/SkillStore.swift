@@ -35,16 +35,20 @@ final class SkillStore: ObservableObject {
         var sourceURL: String?
         /// 安装时本地内容的 SHA-256（hex）——变更检测基准。
         var contentHash: String?
+        /// 参数槽位（v0.8.17）：frontmatter vars 声明，运行时填值。
+        var vars: [SkillVars.Var] = []
         var id: String { name }
 
         init(name: String, description: String, url: URL, directory: URL? = nil,
-             sourceURL: String? = nil, contentHash: String? = nil) {
+             sourceURL: String? = nil, contentHash: String? = nil,
+             vars: [SkillVars.Var] = []) {
             self.name = name
             self.description = description
             self.url = url
             self.directory = directory
             self.sourceURL = sourceURL
             self.contentHash = contentHash
+            self.vars = vars
         }
     }
 
@@ -334,6 +338,7 @@ final class SkillStore: ObservableObject {
     static func parse(_ text: String, url: URL) -> Skill {
         var name = url.deletingPathExtension().lastPathComponent
         var description = ""
+        var vars: [SkillVars.Var] = []
 
         if text.hasPrefix("---"),
            let end = text.range(of: "\n---") {
@@ -345,10 +350,11 @@ final class SkillStore: ObservableObject {
                     description = line.dropFirst("description:".count).trimmingCharacters(in: .whitespaces)
                 }
             }
+            vars = SkillVars.parse(frontmatter: String(frontmatter))
         } else {
             description = text.components(separatedBy: .newlines).first { !$0.isEmpty } ?? ""
         }
-        return Skill(name: name, description: description, url: url)
+        return Skill(name: name, description: description, url: url, vars: vars)
     }
 
     // MARK: - Seeded examples

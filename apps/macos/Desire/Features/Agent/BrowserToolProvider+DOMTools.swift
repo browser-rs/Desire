@@ -1651,8 +1651,24 @@ extension BrowserToolProvider {
                 return Self.fail("Missing skill name. Available: \(SkillStore.shared.skills.map(\.name).joined(separator: ", "))")
             }
             guard let skill = SkillStore.shared.skills.first(where: { $0.name == name }),
-                  let body = SkillStore.shared.body(for: name) else {
+                  var body = SkillStore.shared.body(for: name) else {
                 return Self.fail("Skill not found: \(name). Available: \(SkillStore.shared.skills.map(\.name).joined(separator: ", "))")
+            }
+            // 参数槽位（v0.8.17）：inputs 填 {{name}}，缺省用 default；
+            // 都没有 → 按失败约定报缺失清单（模型可 askUser 或补参重试）。
+            if !skill.vars.isEmpty {
+                let inputs = args["inputs"] as? [String: String] ?? [:]
+                let missing = SkillVars.missing(declared: skill.vars, values: inputs, body: body)
+                guard missing.isEmpty else {
+                    return Self.fail("Skill '\(name)' declares vars (\(skill.vars.map(\.name).joined(separator: ", "))) — missing inputs: \(missing.joined(separator: ", "))")
+                }
+                var values = inputs
+                for var_ in skill.vars {
+                    if values[var_.name] == nil, let fallback = var_.defaultValue {
+                        values[var_.name] = fallback
+                    }
+                }
+                body = SkillVars.render(body: body, values: values)
             }
             var output = "Skill '\(name)' loaded. Follow these instructions:\n\(body)"
             // 技能安全扫描（Skill Scanner）：内容将驱动后续动作，提示模型
@@ -1689,7 +1705,15 @@ extension BrowserToolProvider {
         case "listSkills":
             let skills = SkillStore.shared.skills
             if skills.isEmpty { return "No skills installed (drop .md files into Application Support/Desire/skills)" }
-            return "Installed skills:\n" + skills.map { "- \($0.name): \($0.description)" }.joined(separator: "\n")
+            return "Installed skills:\n" + skills.map { skill in
+                var line = "- \(skill.name): \(skill.description)"
+                if !skill.vars.isEmpty {
+                    line += " [vars: " + skill.vars.map { var_ in
+                        var_.defaultValue == nil ? var_.name : "\(var_.name)=default:\(var_.defaultValue!)"
+                    }.joined(separator: ", ") + "]"
+                }
+                return line
+            }.joined(separator: "\n")
 
         case "listWorkflows":
             let workflows = WorkflowStore.shared.workflows

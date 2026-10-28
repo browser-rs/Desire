@@ -3921,6 +3921,21 @@ func testSyncWireName() {
 
 testSyncWireName()
 
+func testTaskFailureClassify() {
+    check("诊断：超时归网络", TaskFailureClassify.classify("request timed out after 120s") == .network)
+    check("诊断：审批归审批", TaskFailureClassify.classify("approval denied by user") == .approval)
+    check("诊断：限流归模型", TaskFailureClassify.classify("HTTP 429 rate limit exceeded") == .model)
+    check("诊断：上下文", TaskFailureClassify.classify("prompt exceeds context length") == .context)
+    check("诊断：工具失败", TaskFailureClassify.classify("Error: element not found") == .toolError)
+    check("诊断：未知归 other", TaskFailureClassify.classify("weird situation") == .other)
+    check("诊断：空串 other", TaskFailureClassify.classify("") == .other)
+    check("诊断：指引非空", !TaskFailureClassify.diagnosisLine("timeout").isEmpty)
+    // 中文错误
+    check("诊断：中文超时", TaskFailureClassify.classify("网络请求超时") == .network)
+}
+
+testTaskFailureClassify()
+
 func testTextParagraphize() {
     // 单换行折空格、双换行保留
     let a = TextParagraphize.paragraphized("first line\nsecond line\n\nnext para")

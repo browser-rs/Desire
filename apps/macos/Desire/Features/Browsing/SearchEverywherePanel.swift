@@ -112,6 +112,13 @@ struct SearchEverywherePanel: View {
                 }
                 // 最近本地文件（第六源，v0.8.15）：文件名 + 内容快照命中。
                 items += LocalFileContentIndex.shared.matchingItems(query: q)
+                // 摘录库（第七源，v0.8.19）：标题/内容/备注/来源命中（Excerpt.matches）。
+                for excerpt in ExcerptStore.shared.excerpts where excerpt.matches(q) {
+                    items.append(.init(
+                        source: .excerpt, id: excerpt.id.uuidString,
+                        title: excerpt.title, url: excerpt.source,
+                        snippet: String(excerpt.content.prefix(120))))
+                }
                 let r = SearchEverywhere.search(q, items: items)
                 await MainActor.run {
                     result = r
@@ -249,6 +256,7 @@ struct SearchEverywherePanel: View {
                     if !result.bookmarks.isEmpty { group("Bookmarks", result.bookmarks, systemImage: "book") }
                     if !result.readingList.isEmpty { group("Reading List", result.readingList, systemImage: "eyeglasses") }
                     if !result.localFiles.isEmpty { group("Local Files", result.localFiles, systemImage: "doc") }
+                    if !result.excerpts.isEmpty { group("Excerpts", result.excerpts, systemImage: "text.quote") }
                     if !result.agentConversations.isEmpty {
                         group("Agent Conversations", result.agentConversations,
                               systemImage: "bubble.left.and.text.bubble.right")
@@ -306,6 +314,10 @@ struct SearchEverywherePanel: View {
                     Text("File")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(appAccent)
+                } else if hit.source == .excerpt {
+                    Text("Clip")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(appAccent)
                 }
             }
             .padding(.horizontal, 10)
@@ -337,7 +349,7 @@ struct SearchEverywherePanel: View {
     // MARK: - Actions
 
     private func openFirst() {
-        for hits in [result.tabs, result.history, result.bookmarks, result.readingList, result.localFiles] {
+        for hits in [result.tabs, result.history, result.bookmarks, result.readingList, result.localFiles, result.excerpts] {
             if let first = hits.first {
                 activate(first)
                 return
@@ -434,6 +446,7 @@ struct SearchEverywherePanel: View {
         case .readingList: String(localized: "Reading List")
         case .agentConversation: String(localized: "Agent Conversation")
         case .localFile: String(localized: "Local File")
+        case .excerpt: String(localized: "Excerpt")
         }
     }
 
@@ -445,6 +458,7 @@ struct SearchEverywherePanel: View {
         case .readingList: "eyeglasses"
         case .agentConversation: "bubble.left.and.text.bubble.right"
         case .localFile: "doc"
+        case .excerpt: "text.quote"
         }
     }
 
@@ -475,6 +489,13 @@ struct SearchEverywherePanel: View {
         case .history, .bookmark, .readingList, .localFile:
             // 本地文件走 file:// 导航 → 查看器路由（PDF/表格/图片/文档直开）。
             tabManager.addTab(url: hit.url, makeActive: true)
+        case .excerpt:
+            // 摘录来源：http 开浏览器；文件路径走查看器路由（含 #page 深链）。
+            if hit.url.hasPrefix("http"), let url = URL(string: hit.url) {
+                NSWorkspace.shared.open(url)
+            } else {
+                tabManager.addTab(url: hit.url, makeActive: true)
+            }
         }
         onClose()
     }

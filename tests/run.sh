@@ -83,6 +83,8 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/SpreadsheetXLSXWriter.swift
   apps/macos/Desire/Features/Agent/ArtifactPaths.swift
   apps/macos/Desire/Features/Excerpts/Excerpt.swift
+  apps/macos/Desire/Features/Agent/SkillGallery.swift
+  apps/macos/Desire/Features/Agent/TaskFailureClassify.swift
   apps/macos/Desire/Features/Agent/SkillVars.swift
   apps/macos/Desire/Features/Browsing/TextParagraphize.swift
   apps/macos/Desire/Features/Browsing/ArchiveKit.swift

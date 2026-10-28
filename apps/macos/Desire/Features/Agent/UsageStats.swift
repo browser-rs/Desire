@@ -5,6 +5,8 @@ struct UsageDayStat: Identifiable {
     let id: Date
     /// 这一天的 token 总量（prompt + completion）。
     let tokens: Int
+    /// 这一天的成本（用户单价核算；当日有任何无单价调用 = nil，≥ 语义）。
+    var cost: Double? = nil
     /// 这一天的"轮"数：用户发出的消息条数（与面板里一条提问 = 一轮同一口径）。
     let turns: Int
     /// 分模型：模型 id → token（供趋势图按模型画多条线）。子代理这类没有模型归属的
@@ -68,7 +70,7 @@ struct UsageStats {
         calendar.timeZone = .current
 
         // date → 累加器
-        struct DayBucket { var tokens = 0; var turns = 0; var byModel: [String: Int] = [:] }
+        struct DayBucket { var tokens = 0; var turns = 0; var byModel: [String: Int] = [:]; var cost = 0.0; var unpriced = false }
         var buckets: [Date: DayBucket] = [:]
         struct ModelBucket { var tokens = 0; var prompt = 0; var completion = 0; var cost = 0.0; var unpriced = false }
         var modelBuckets: [String: ModelBucket] = [:]
@@ -107,6 +109,12 @@ struct UsageStats {
                     let part = p + c
                     buckets[day, default: DayBucket()].tokens += part
                     buckets[day, default: DayBucket()].byModel[key, default: 0] += part
+                    if let known = price(key == subagentModelKey ? nil : key),
+                       let amount = known.cost(promptTokens: p, completionTokens: c) {
+                        buckets[day, default: DayBucket()].cost += amount
+                    } else {
+                        buckets[day, default: DayBucket()].unpriced = true
+                    }
                     modelBuckets[key, default: ModelBucket()].tokens += part
                     modelBuckets[key, default: ModelBucket()].prompt += p
                     modelBuckets[key, default: ModelBucket()].completion += c
@@ -131,8 +139,10 @@ struct UsageStats {
         if stats.unpricedTokens > 0 { stats.cost = nil }
 
         stats.days = buckets.map { date, bucket in
-            UsageDayStat(id: date, tokens: bucket.tokens,
-                         turns: bucket.turns, byModel: bucket.byModel)
+            var day = UsageDayStat(id: date, tokens: bucket.tokens,
+                                   turns: bucket.turns, byModel: bucket.byModel)
+            day.cost = bucket.unpriced ? nil : bucket.cost
+            return day
         }.sorted { $0.id < $1.id }
 
         stats.models = modelBuckets.map { key, bucket in

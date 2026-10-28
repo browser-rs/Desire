@@ -41,11 +41,24 @@ struct NewTabPage: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 32) {
-                    quickDialsSection
-                    localFilesSection
-
-                    if !historyStore.entries.isEmpty {
+                    if !isSectionHidden(.quickDials) {
+                        quickDialsSection
+                    }
+                    if !isSectionHidden(.localFiles) {
+                        localFilesSection
+                    }
+                    if !isSectionHidden(.recent), !historyStore.entries.isEmpty {
                         recentSection
+                    }
+                    if hiddenSectionsRaw.split(separator: ",").count == NewTabSection.allCases.count {
+                        Button {
+                            hiddenSectionsRaw = ""
+                        } label: {
+                            Label(String(localized: "Show all sections"), systemImage: "eye")
+                                .font(.system(size: 11))
+                                .foregroundStyle(appAccent)
+                        }
+                        .buttonStyle(.plain)
                     }
                 }
                 .padding(.horizontal, 32)
@@ -150,7 +163,7 @@ struct NewTabPage: View {
 
     private var quickDialsSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionHeader(title: "常用网站", icon: "square.grid.2x2")
+            sectionHeader(title: "常用网站", icon: "square.grid.2x2", section: .quickDials)
 
             LazyVGrid(columns: columns, spacing: 20) {
                 ForEach(Array(store.dials.enumerated()), id: \.element.id) { index, dial in
@@ -211,7 +224,7 @@ struct NewTabPage: View {
 
     private var recentSection: some View {
         VStack(alignment: .leading, spacing: 14) {
-            sectionHeader(title: "最近访问", icon: "clock")
+            sectionHeader(title: "最近访问", icon: "clock", section: .recent)
 
             VStack(spacing: 6) {
                 ForEach(recentEntries) { entry in
@@ -454,6 +467,8 @@ struct NewTabPage: View {
 
     /// 最近文件过滤（v0.8.17 基础件 5）：仅当文件多于 3 个才显示输入框。
     @State private var localFileFilter = ""
+    /// 组件开关（v0.8.19 基础件 1）：隐藏的区块键集（UserDefaults 持久化）。
+    @AppStorage("newtab.hiddenSections") private var hiddenSectionsRaw = ""
 
     private var localFilesSection: some View {
         let all = RecentLocalFiles.load()
@@ -464,7 +479,7 @@ struct NewTabPage: View {
         return Group {
             if all.count > 3 {
                 VStack(alignment: .leading, spacing: 14) {
-                    sectionHeader(title: "最近本地文件", icon: "doc.on.doc")
+                    sectionHeader(title: "最近本地文件", icon: "doc.on.doc", section: .localFiles)
                     HStack(spacing: 5) {
                         Image(systemName: "magnifyingglass")
                             .font(.system(size: 10))
@@ -496,7 +511,7 @@ struct NewTabPage: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             } else if !all.isEmpty {
                 VStack(alignment: .leading, spacing: 14) {
-                    sectionHeader(title: "最近本地文件", icon: "doc.on.doc")
+                    sectionHeader(title: "最近本地文件", icon: "doc.on.doc", section: .localFiles)
                     VStack(spacing: 6) {
                         ForEach(all.prefix(8)) { entry in
                             localFileCard(entry)
@@ -510,7 +525,32 @@ struct NewTabPage: View {
 
     // MARK: - Section Header
 
-    private func sectionHeader(title: String, icon: String) -> some View {
+    /// 可隐藏区块（v0.8.19 基础件 1）。
+    enum NewTabSection: String, CaseIterable {
+        case quickDials, localFiles, recent
+
+        var title: String {
+            switch self {
+            case .quickDials: String(localized: "Quick Sites")
+            case .localFiles: String(localized: "Recent Files")
+            case .recent: String(localized: "Recent Visits")
+            }
+        }
+    }
+
+    private func isSectionHidden(_ section: NewTabSection) -> Bool {
+        hiddenSectionsRaw.split(separator: ",").contains(Substring(section.rawValue))
+    }
+
+    private func hideSection(_ section: NewTabSection) {
+        var keys = hiddenSectionsRaw.split(separator: ",").map(String.init)
+        if !keys.contains(section.rawValue) { keys.append(section.rawValue) }
+        hiddenSectionsRaw = keys.joined(separator: ",")
+    }
+
+    private func sectionHeader(title: String, icon: String, section: NewTabSection? = nil) -> some View {
+        Group {
+
         HStack(spacing: 6) {
             Image(systemName: icon)
                 .font(.system(size: 11, weight: .medium))
@@ -520,6 +560,13 @@ struct NewTabPage: View {
                 .foregroundStyle(.secondary)
                 .textCase(.uppercase)
         }
+        .contextMenu {
+            if let section {
+                Button(String(localized: "Hide this section")) { hideSection(section) }
+            }
+        }
+    }
+
     }
 
     // MARK: - Background

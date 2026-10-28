@@ -995,6 +995,8 @@ class AgentSessionStore: ObservableObject {
         hasInterruptedTurn = false
         turnCheckpointActive = false
         saveCurrentConversation()
+        // 成本预算哨兵（v0.8.19）：回合落盘后对账（0 = 关；派生走统计页同源）。
+        CostBudgetMonitor.checkAfterTurn()
     }
 
     /// Removes everything waiting in the send queue (queue strip ✕ button).

@@ -385,9 +385,11 @@ final class AgentScheduler: ObservableObject {
     /// System notification on failed unattended runs (the user isn't
     /// watching; the failure must surface). urgent 档：免打扰时段也直推。
     private func notifyRunFailure(_ record: RunRecord) {
+        // 诊断卡（v0.8.19 替人干活 11）：错误分类 + 指引一行进通知。
+        let diagnosis = TaskFailureClassify.diagnosisLine(record.error)
         ProactiveNotificationStore.shared.deliver(
             title: String(localized: "Scheduled task failed"),
-            body: "\(record.taskName): \(record.error ?? "unknown error")",
+            body: "\(record.taskName): \(record.error ?? "unknown error")\n\(diagnosis)",
             tier: .urgent)
         BridgeEventBus.shared.publish("scheduledTaskFailed", [
             "task": record.taskName,

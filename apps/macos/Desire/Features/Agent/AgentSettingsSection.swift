@@ -145,6 +145,8 @@ struct AgentSettingsSection: View {
             ScheduledTasksSection()
             MCPServersSection()
             DPPSettingsSection()
+            CostBudgetSection()
+
             // 悬浮球已升级为独立设置子页（Settings → Floating Ball）。
             SettingsSection(
                 title: String(localized: "Provider"),
@@ -2151,6 +2153,55 @@ private struct ScheduledTaskRow: View {
             Text(String(localized: "Target: \(label)"))
                 .font(.caption2)
                 .foregroundStyle(.secondary)
+        }
+    }
+}
+
+/// 成本预算设置节（v0.8.19）：日/月预算（美元/0=关），回合收尾对账——
+/// ≥80% routine 提醒、≥100% urgent（每档每天至多一次）。
+private struct CostBudgetSection: View {
+    @AppStorage("costBudget.daily") private var daily = 0.0
+    @AppStorage("costBudget.monthly") private var monthly = 0.0
+
+    var body: some View {
+        SettingsSection(
+            title: String(localized: "Cost Budget"),
+            subtitle: String(localized: "Warn at 80% and 100% of your budget. 0 disables. Uses your model prices."),
+            icon: "dollarsign.circle"
+        ) {
+            VStack(spacing: 0) {
+                HStack(spacing: 10) {
+                    Image(systemName: "calendar.day.timeline.left")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22)
+                    Text(String(localized: "Daily budget (USD)"))
+                        .font(.system(size: 12.5))
+                    Spacer()
+                    TextField("0", value: $daily, format: .number.precision(.fractionLength(0...2)))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 90)
+                        .multilineTextAlignment(.trailing)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                SettingsRowDivider()
+                HStack(spacing: 10) {
+                    Image(systemName: "calendar.badge.clock")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22)
+                    Text(String(localized: "Monthly budget (USD)"))
+                        .font(.system(size: 12.5))
+                    Spacer()
+                    TextField("0", value: $monthly, format: .number.precision(.fractionLength(0...2)))
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 90)
+                        .multilineTextAlignment(.trailing)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+            }
         }
     }
 }

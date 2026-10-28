@@ -1,5 +1,7 @@
+import AppKit
 import Foundation
 import PDFKit
+import Vision
 
 /// 本地 PDF 取文（PDFKit，端上）：合同、报告、论文直接读文本层——
 /// 不必在页面里翻，也不用截图 OCR（有文本层时更快更准）。
@@ -35,5 +37,35 @@ enum PDFTextExtractor {
     /// 页数（给模型一个规模感；打不开返回 nil）。
     static func pageCount(of url: URL) -> Int? {
         PDFDocument(url: url)?.pageCount
+    }
+
+    // MARK: - 扫描件 OCR（v0.8.16 基础件 4）
+
+    /// 无文本层时按页渲染 → Vision 识别（页数上限 20，长扫描件请分次拆）。
+    /// 每页带 [pN] 标记；识别失败/空的页跳过。全空返回 nil（真无文字）。
+    static func ocrText(from url: URL, maxPages: Int = 20, maxChars: Int = 60_000) -> String? {
+        guard let doc = PDFDocument(url: url), !doc.isLocked else { return nil }
+        var out = ""
+        let pageCap = min(doc.pageCount, maxPages)
+        for index in 0..<pageCap {
+            guard let page = doc.page(at: index) else { continue }
+            let scale: CGFloat = 2
+            let size = CGSize(width: page.bounds(for: .mediaBox).width * scale,
+                              height: page.bounds(for: .mediaBox).height * scale)
+            let image = page.thumbnail(of: size, for: .mediaBox)
+            guard let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else { continue }
+            let request = VNRecognizeTextRequest()
+            request.recognitionLevel = .accurate
+            request.usesLanguageCorrection = true
+            let handler = VNImageRequestHandler(cgImage: cg, options: [:])
+            try? handler.perform([request])
+            let lines = (request.results ?? []).compactMap { $0.topCandidates(1).first?.string }
+            let text = lines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { continue }
+            out += "[p\(index + 1)] \(text)\n"
+            if out.count >= maxChars { break }
+        }
+        guard !out.isEmpty else { return nil }
+        return out.count > maxChars ? String(out.prefix(maxChars)) + "…[truncated]" : out
     }
 }

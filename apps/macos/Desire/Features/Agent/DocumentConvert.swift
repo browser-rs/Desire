@@ -19,7 +19,7 @@ enum DocumentConvert {
     }
 
     /// 允许的目标格式全集（工具描述里按源类型收窄）。
-    static let formats = ["md", "txt", "docx", "rtf", "html", "pdf", "csv", "tsv"]
+    static let formats = ["md", "txt", "docx", "rtf", "html", "pdf", "csv", "tsv", "xlsx"]
 
     static func convert(sources: [URL], format: String, to dest: URL) async -> Outcome {
         let fmt = format.lowercased()
@@ -54,14 +54,22 @@ enum DocumentConvert {
         guard fm.fileExists(atPath: src.path) else {
             return Outcome(ok: false, message: "source not found")
         }
-        guard let text = PDFTextExtractor.extractText(from: src, maxChars: 200_000) else {
-            return Outcome(ok: false, message: "no text layer (scanned PDF?) — convert after ocrImage, or convert page screenshots instead")
+        var scannedNote = ""
+        let text: String
+        if let extracted = PDFTextExtractor.extractText(from: src, maxChars: 200_000) {
+            text = extracted
+        } else if let ocr = PDFTextExtractor.ocrText(from: src, maxChars: 100_000) {
+            text = ocr
+            scannedNote = " [scanned — OCR, first 20 pages]"
+        } else {
+            return Outcome(ok: false, message: "no text layer and OCR found nothing (image-only PDF?)")
         }
+        _ = scannedNote
         switch format {
         case "md", "txt":
             do {
                 try text.write(to: dest, atomically: true, encoding: .utf8)
-                return Outcome(ok: true, message: "pdf → \(format) (\(text.count) chars)")
+                return Outcome(ok: true, message: "pdf → \(format) (\(text.count) chars)\(scannedNote)")
             } catch {
                 return Outcome(ok: false, message: "write failed: \(error.localizedDescription)")
             }
@@ -69,7 +77,7 @@ enum DocumentConvert {
             guard DocumentText.exportDocument(content: text, format: format, to: dest) else {
                 return Outcome(ok: false, message: "textutil conversion failed")
             }
-            return Outcome(ok: true, message: "pdf → \(format) (\(text.count) chars)")
+            return Outcome(ok: true, message: "pdf → \(format) (\(text.count) chars)\(scannedNote)")
         default:
             return Outcome(ok: false, message: "PDF converts to md/txt/docx/rtf/html only")
         }
@@ -156,6 +164,12 @@ enum DocumentConvert {
             } catch {
                 return Outcome(ok: false, message: "write failed: \(error.localizedDescription)")
             }
+        case "xlsx":
+            let name = sheet.name == src.lastPathComponent ? "Sheet1" : sheet.name
+            guard SpreadsheetXLSXWriter.write(rows: sheet.rows, sheetName: name, to: dest) else {
+                return Outcome(ok: false, message: "xlsx write failed")
+            }
+            return Outcome(ok: true, message: "\(ext) → xlsx (\(sheet.rows.count) row(s), values only)")
         case "md":
             let header = sheet.rows[0]
             var md = "| " + header.map { $0.replacingOccurrences(of: "|", with: "\\|") }.joined(separator: " | ") + " |\n"

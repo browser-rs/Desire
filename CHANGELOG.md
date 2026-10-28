@@ -2,6 +2,8 @@
 ### Added
 
 PDF 深水区（0.8.16 第一批）：加密 PDF 密码解锁（打开即密码浮层、错码原地重试、解锁后大纲/批注刷新——此前加密件直接卡白）；AcroForm 表单填写（工作台新增"表单"侧栏——文本字段行内编辑、提交即写 ⌘S 落盘，按钮/勾选只读展示；PDFKit 往返探针先行验证通过：建字段→枚举→填值→保存→复读无损）；PDF 阅读进度记忆（按文件路径哈希记 lastPage+zoom，重开自动回到上次位置）；PDF 合并/拆分进 UI（最近文件右键"合并 PDF…"/"拆分页码范围…"，PageRangeParser 管道复用，产物入账并在 Finder 选中）。
+办公互转补全（0.8.16 第二批）：CSV→xlsx 纯数据写入器（极简工作簿 zip+XML 零依赖，数值-looking 单元格按数字写、前导零保持文本；roundtrip 写→读回直测进 harness）——表格查看器新增"导出 xlsx…"、convertDocument 与右键转换菜单支持表格→xlsx；扫描件 PDF OCR 直读（readPdf 无文本层自动 Vision OCR 兜底、显式标注 SCANNED、页上限 20，convertDocument 同步贯通——扫描件也能转出 docx/md）；pdfPageScreenshot 工具（单页位图给视觉输入，图表/版面/表单类问题不靠整页截图）；会话产物气泡（工具回执里的产物文件自动识别成可点 chip，点击直接进应用内查看器——转换/导出/crew 报告产物一键回看）。
+
 
 
 ## [v0.8.15] - 2026-10-28

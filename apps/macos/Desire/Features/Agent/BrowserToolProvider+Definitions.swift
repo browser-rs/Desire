@@ -984,6 +984,14 @@ extension BrowserToolProvider {
                 ], required: ["path"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "pdfPageScreenshot",
+                description: "Render ONE page of a PDF file as an image (delivered as vision input) — for layout, charts, forms and visual questions where the text layer isn't enough. Page is 1-based. Pair with readPdf for text; scanned pages also work (render, not OCR).",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "PDF path (workspace / user folders)"),
+                    "page": AgentJSONSchemaValue(type: "number", description: "1-based page number"),
+                ], required: ["path", "page"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "readDocument",
                 description: "Read a rich-text document as plain text via the on-device text pipeline: Word .docx / legacy .doc, .rtf, .odt, .html/.htm. Use readPdf for PDFs, ocrImage for scans/screenshots, readSpreadsheet for .xlsx/.csv, readFile for plain text.",
                 parameters: AgentJSONSchema(type: "object", properties: [
@@ -1001,7 +1009,7 @@ extension BrowserToolProvider {
     )),
     AgentToolDef(type: "function", function: AgentToolFunctionDef(
         name: "convertDocument",
-        description: "Convert a file between formats, all on-device. Routing by source type: pdf → md/txt/docx/rtf/html (text layer; scanned PDFs fail — OCR first); docx/doc/rtf/odt/html → pdf (A4 paginated); images png/jpg/heic/tiff/gif/webp → pdf (pass multiple comma-separated src to merge into one PDF, in order); csv/tsv/xlsx → md/csv/tsv. Writes a new file, never touches the source.",
+        description: "Convert a file between formats, all on-device. Routing by source type: pdf → md/txt/docx/rtf/html (text layer; scanned PDFs fail — OCR first); docx/doc/rtf/odt/html → pdf (A4 paginated); images png/jpg/heic/tiff/gif/webp → pdf (pass multiple comma-separated src to merge into one PDF, in order); csv/tsv/xlsx → md/csv/tsv/xlsx (xlsx output is values-only, no formulas). Writes a new file, never touches the source.",
         parameters: AgentJSONSchema(type: "object", properties: [
             "src": AgentJSONSchemaValue(type: "string", description: "Source path; comma-separated multiple images merge into one PDF"),
             "format": AgentJSONSchemaValue(type: "string", description: "Target format: md/txt/docx/rtf/html/pdf/csv/tsv (valid set depends on source type)"),

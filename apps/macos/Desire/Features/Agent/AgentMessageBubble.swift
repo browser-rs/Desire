@@ -17,6 +17,13 @@ struct AgentMessageBubble: View {
                seen.insert(link).inserted {
                 out.append(link)
             }
+            // 产物路径全文扫描（v0.8.16 基础件 10）：转换/导出/crew 报告
+            // 等回执里的落盘文件识别成可点 chip。
+            for path in ArtifactPaths.paths(in: result) where out.count < 8 {
+                if seen.insert(path).inserted {
+                    out.append(path)
+                }
+            }
         }
         return out
     }
@@ -329,6 +336,18 @@ private struct AssistantBubble: View {
                                     Button {
                                         if link.hasPrefix("http"), let url = URL(string: link) {
                                             NSWorkspace.shared.open(url)
+                                        } else if link.hasPrefix("/") {
+                                            // 产物/来源文件进应用内查看器（PDF/表格/
+                                            // 图片/文档路由）；文件不存在退回 Finder。
+                                            let fileURL = URL(fileURLWithPath: link)
+                                            if FileManager.default.fileExists(atPath: link) {
+                                                TabSessionCoordinator.shared.activeTabManager?.addTab(
+                                                    url: fileURL.absoluteString,
+                                                    javaScriptEnabled: true,
+                                                    contentBlocker: AppState.live?.contentBlocker)
+                                            } else {
+                                                NSWorkspace.shared.activateFileViewerSelecting([fileURL])
+                                            }
                                         } else {
                                             NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: link)])
                                         }

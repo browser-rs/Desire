@@ -3802,6 +3802,52 @@ func testPageRangeParser() {
 
 testPageRangeParser()
 
+func testXLSXWriter() {
+    // cellRef
+    check("xlsx：A1", SpreadsheetXLSXWriter.cellRef(row: 1, col: 1) == "A1")
+    check("xlsx：AA10", SpreadsheetXLSXWriter.cellRef(row: 10, col: 27) == "AA10")
+    // 数值判定
+    check("xlsx：整数数值", SpreadsheetXLSXWriter.numericValue("42") == "42")
+    check("xlsx：千分位", SpreadsheetXLSXWriter.numericValue("1,234") == "1234")
+    check("xlsx：小数", SpreadsheetXLSXWriter.numericValue("3.5") == "3.5")
+    check("xlsx：前导零保文本", SpreadsheetXLSXWriter.numericValue("007") == nil)
+    check("xlsx：文本", SpreadsheetXLSXWriter.numericValue("王小明") == nil)
+    // XML 转义
+    check("xlsx：转义", SpreadsheetXLSXWriter.sheetXML(rows: [["<a&b>"]]).contains("&lt;a&amp;b&gt;"))
+    // roundtrip：写 → SpreadsheetReader 读回（zip/unzip 系统自带）。
+    // "1,000" 千分位按数值写（读回 "1000"）——设计内，非保真字段。
+    let rows = [["name", "qty", "note"], ["apple", "10", "a,b"], ["王小明", "3.5", "x<y"], ["007", "1000", ""]]
+    let tmp = FileManager.default.temporaryDirectory
+        .appendingPathComponent("xlsx-rt-\(UUID().uuidString).xlsx")
+    defer { try? FileManager.default.removeItem(at: tmp) }
+    guard SpreadsheetXLSXWriter.write(rows: rows, sheetName: "数据", to: tmp) else {
+        check("xlsx：roundtrip 写失败", false)
+        return
+    }
+    let sheet = SpreadsheetReader.readXLSX(from: tmp, maxRows: 100, maxCols: 20)
+    check("xlsx：roundtrip 读回", sheet?.rows == rows)
+    let names = SpreadsheetReader.sheetList(of: tmp)
+    check("xlsx：roundtrip 表名", names.first?.name == "数据")
+}
+
+testXLSXWriter()
+
+func testArtifactPaths() {
+    let receipt = "pdf → md (123 chars) → /Users/ming/work/report.md\nAlso wrote /tmp/x.temp.pdf"
+    let paths = ArtifactPaths.paths(in: receipt)
+    check("产物：回执提路径", paths.contains("/Users/ming/work/report.md"))
+    check("产物：cap 内含临时件也算", paths.count <= 6)
+    // 去重保序
+    let dup = ArtifactPaths.paths(in: "a.md b.md a.md /x/y.zip")
+    check("产物：去重", dup.filter { $0 == "/x/y.zip" }.count == 1)
+    // 非产物扩展名不收
+    check("产物：忽略未知扩展", ArtifactPaths.paths(in: "/etc/hosts /a/b.conf").isEmpty)
+    // 句尾标点修剪
+    check("产物：句点修剪", ArtifactPaths.paths(in: "Done: /Users/m/work/a.md.") == ["/Users/m/work/a.md"])
+}
+
+testArtifactPaths()
+
 func testNightOwlPolicy() {
     var p = NotificationPolicy()
     p.quietHoursEnabled = true

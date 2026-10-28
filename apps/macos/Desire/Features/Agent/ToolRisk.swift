@@ -79,7 +79,7 @@ enum ToolRisk: Int, Comparable {
         // Deep page data extraction (read-only)
         "getTables", "getImages", "getPageMeta", "getElementHTML", "getNetworkLog",
         // Document reading & export (local OCR / PDF text layer / page→PDF writes a file only)
-        "readPdf", "ocrImage", "exportPageAsPDF", "exportPageAsWebArchive",
+        "readPdf", "ocrImage", "exportPageAsPDF", "exportPageAsWebArchive", "pdfPageScreenshot",
         // 一体格式转换（写产物文件、不碰源与任何状态——与 exportPageAsPDF 同族）
         "convertDocument",
         // 文档/表格取文（本地解析：textutil 富文本、xlsx/csv 表格；不写任何状态）

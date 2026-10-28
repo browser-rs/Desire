@@ -1,4 +1,5 @@
 import AppKit
+import PDFKit
 import SwiftUI
 import WebKit
 import os
@@ -2903,6 +2904,33 @@ extension BrowserToolProvider {
             return outcome.ok
                 ? "\(outcome.message) → \(destURL.path)"
                 : Self.fail(outcome.message)
+
+        case "pdfPageScreenshot":
+            // 单页位图（v0.8.16 基础件 8）：版面/图表/表单类问题给视觉输入。
+            guard let pdfPath = args["path"] as? String, !pdfPath.isEmpty else { return Self.fail("Missing path") }
+            guard let pageNum = args["page"] as? Int, pageNum >= 1 else {
+                return Self.fail("Missing page (1-based)")
+            }
+            switch AgentWorkspace.shared.resolve(pdfPath, write: false) {
+            case .denied(let reason):
+                return reason
+            case .granted(let fileURL):
+                guard let doc = PDFDocument(url: fileURL) else {
+                    return Self.fail("Cannot open PDF: \(fileURL.lastPathComponent)")
+                }
+                guard !doc.isLocked else { return Self.fail("PDF is password-protected — ask the user for the password first") }
+                guard pageNum <= doc.pageCount, let page = doc.page(at: pageNum - 1) else {
+                    return Self.fail("Page \(pageNum) out of range (document has \(doc.pageCount) page(s))")
+                }
+                let scale: CGFloat = 2
+                let size = CGSize(width: page.bounds(for: .mediaBox).width * scale,
+                                  height: page.bounds(for: .mediaBox).height * scale)
+                let image = page.thumbnail(of: size, for: .mediaBox)
+                guard let uri = ImageAttachment.dataURI(from: image) else {
+                    return Self.fail("Render failed")
+                }
+                return uri
+            }
 
         case "readDocument":
             // Word/RTF 富文本取文（textutil）。表格/PDF/扫描件各有专门工具。

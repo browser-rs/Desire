@@ -269,7 +269,9 @@ struct NewTabPage: View {
         case "pdf": return ["md", "txt", "docx", "rtf", "html"]
         case "docx", "doc", "rtf", "rtfd", "odt", "html", "htm": return ["pdf"]
         case "png", "jpg", "jpeg", "heic", "tiff", "gif", "webp": return ["pdf"]
-        case "csv", "tsv", "xlsx": return ["md", "csv", "tsv"]
+        case "csv": return ["md", "tsv", "xlsx"]
+        case "tsv": return ["md", "csv", "xlsx"]
+        case "xlsx": return ["md", "csv", "tsv"]
         default: return []
         }
     }

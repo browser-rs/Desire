@@ -1,5 +1,6 @@
 import AppKit
 import CryptoKit
+import UniformTypeIdentifiers
 import SwiftUI
 import WebKit
 
@@ -130,6 +131,21 @@ struct SpreadsheetViewerView: View {
         }
     }
 
+    /// 另存为 xlsx（v0.8.16 基础件 3）：SpreadsheetXLSXWriter 管道（只写值）。
+    private func exportXLSX() {
+        guard let buffer else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue =
+            ((fileName as NSString).deletingPathExtension) + ".xlsx"
+        panel.allowedContentTypes = [.init(filenameExtension: "xlsx") ?? .data]
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        let name = sheets.first(where: { $0.index == activeSheetIndex })?.name ?? "Sheet1"
+        let ok = SpreadsheetXLSXWriter.write(rows: buffer.rows, sheetName: name, to: dest)
+        flash(ok
+            ? String(localized: "Exported → \(dest.lastPathComponent)")
+            : String(localized: "Export failed"))
+    }
+
     private func flash(_ text: String) {
         statusNote = text
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
@@ -191,6 +207,15 @@ struct SpreadsheetViewerView: View {
             .foregroundStyle(appAccent)
             .disabled(buffer == nil)
             .keyboardShortcut("s", modifiers: .command)
+            Button {
+                exportXLSX()
+            } label: {
+                Image(systemName: "tablecells")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .disabled(buffer == nil)
+            .help(String(localized: "Export as xlsx…"))
             Button {
                 printTable()
             } label: {

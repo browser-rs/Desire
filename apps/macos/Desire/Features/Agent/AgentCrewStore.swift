@@ -97,6 +97,8 @@ final class AgentCrewStore: ObservableObject {
 
     /// 全部落定回调：领队会话注入，把聚合摘要送回领队消息流。
     var onCrewSettled: ((Crew) -> Void)?
+    /// 对比矩阵（v0.8.19 替人干活 19）：落定时把各任务结论合成对比表上白板。
+    private var wantsComparison = false
 
     /// 进展发布节流（≥1s 一次）：WorkerTask 是引用类型，字段变更不会自动
     /// 触发 ObservableObject——面板靠这里手动发布，节流防每 token 一次重绘。
@@ -137,7 +139,7 @@ final class AgentCrewStore: ObservableObject {
     @discardableResult
     func dispatch(objective: String, tasks: [(url: String?, instruction: String, dependsOn: Int?)],
                   surface: BrowserToolSurface, isolated: Bool = false,
-                  windowMode: Bool = false) -> String {
+                  windowMode: Bool = false, compare: Bool = false) -> String {
         guard crew == nil || crew?.isSettled == true else {
             return "A crew is already running. Use crewStatus to poll or crewCancel first."
         }
@@ -179,6 +181,7 @@ final class AgentCrewStore: ObservableObject {
             worker.dependsOn = t.dependsOn
             workers.append(worker)
         }
+        wantsComparison = compare
         let c = Crew(objective: objective, tasks: workers)
         crew = c
         BridgeEventBus.shared.publish("crewStarted", [
@@ -514,6 +517,9 @@ final class AgentCrewStore: ObservableObject {
         // 最近本地文件——跑完的成果不再只活在聊天记录里；Remote 端 recentFiles
         // 帧随之可见。失败（盘满等）静默：会话内摘要仍是主通道。
         let reportURL = writeCrewReport(c)
+        if wantsComparison {
+            buildComparisonBoard(c)
+        }
         // 通知在报告落盘后发（v0.8.17：正文可带报告文件名）。
         var body = String(localized: "\(c.completedCount) done, \(c.failedCount) failed · \(elapsedText)")
         if let reportURL {
@@ -537,6 +543,31 @@ final class AgentCrewStore: ObservableObject {
 
     /// crew 报告 → 工作区 `crew-<时间>-<主题>.md`（主题取 objective 前 24 字符、
     /// 路径非法字符折叠）。每任务一节：状态/耗时/（跨窗时）窗口标签 + 报告全文。
+    /// 对比矩阵上白板（v0.8.19 替人干活 19）：任务 × 状态 × 关键结论的
+    /// Markdown 表（模型/用户在白板里继续编辑）。至少两个有结果的任务才合成。
+    private func buildComparisonBoard(_ c: Crew) {
+        let done = c.tasks.filter { $0.result?.isEmpty == false }
+        guard done.count >= 2 else { return }
+        var table = "| 任务 | 状态 | 关键结论（前 120 字） |\n| --- | --- | --- |\n"
+        for t in c.tasks {
+            let summary = (t.result ?? "").replacingOccurrences(of: "\n", with: " ")
+            let cell = summary.isEmpty ? "—" : String(summary.prefix(120))
+            func esc(_ s: String) -> String {
+                s.replacingOccurrences(of: "|", with: "\\|")
+            }
+            table += "| \(esc(String(t.instruction.prefix(40)))) | \(t.state.rawValue) | \(esc(cell)) |\n"
+        }
+        let blocks = [
+            WhiteboardBlock(type: WhiteboardBlock.Kind.note, title: nil,
+                            content: "## Crew 对比：\(c.objective)\n各窗结论并排——合并判断交给后续回合。"),
+            WhiteboardBlock(type: WhiteboardBlock.Kind.table, title: "对比矩阵",
+                            content: table),
+        ]
+        WhiteboardStore.shared.append(
+            blocks, title: String(localized: "Crew comparison: \(c.objective)"),
+            conversationID: AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString)
+    }
+
     /// 报告模板（v0.8.17 替人干活 15）：UserDefaults 可自定义段落结构，
     /// 占位符 {{objective}}/{{done}}/{{failed}}/{{duration}}/{{usage}}/{{tasks}}；
     /// 未设置 = 内置默认结构。{{tasks}} 展开为逐任务小节，其余为行内文本。

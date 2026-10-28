@@ -489,9 +489,10 @@ extension BrowserToolProvider {
             }
             let isolated = args["isolated"] as? Bool ?? false
             let windowMode = args["windowMode"] as? Bool ?? false
+            let compare = args["compare"] as? Bool ?? false
             return AgentCrewStore.shared.dispatch(objective: objective, tasks: tasks,
                                                   surface: surface, isolated: isolated,
-                                                  windowMode: windowMode)
+                                                  windowMode: windowMode, compare: compare)
 
         case "crewStatus":
             return AgentCrewStore.shared.statusReport()

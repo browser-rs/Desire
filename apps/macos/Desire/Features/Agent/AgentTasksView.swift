@@ -238,6 +238,8 @@ private struct AgentTaskEditorSheet: View {
     @State private var hourText = "9"
     @State private var minuteText = "0"
     @State private var failureText: String?
+    /// 夜间窗口（v0.8.19）：免打扰时段顺延到窗口结束。
+    @State private var deferQuiet = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -320,6 +322,8 @@ private struct AgentTaskEditorSheet: View {
                     }
                 }
 
+Toggle(String(localized: "Defer runs inside quiet hours"), isOn: $deferQuiet)
+                .font(.system(size: 11))
                 if let failureText {
                     Text(failureText)
                         .font(.system(size: 11))
@@ -364,6 +368,7 @@ private struct AgentTaskEditorSheet: View {
             recurrence = .everyMinutes(minutes)
         }
         if store.add(name: name, prompt: prompt, recurrence: recurrence) != nil {
+            store.setQuietDeferral(named: name, deferQuiet)
             dismiss()
         }
     }
@@ -389,6 +394,12 @@ private struct AgentTaskCard: View {
                     .font(.system(size: 12.5, weight: .semibold))
                     .lineLimit(1)
                     .truncationMode(.tail)
+                if task.deferInQuietHours == true {
+                    Image(systemName: "moon.zzz")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                        .help(String(localized: "Runs deferred to quiet-hours end"))
+                }
                 Spacer(minLength: 8)
                 Button {
                     _ = store.fireNow(named: task.name)

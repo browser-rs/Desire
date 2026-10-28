@@ -4,6 +4,9 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct GeneralSettingsSection: View {
+    /// 自动备份调度（v0.8.19 替人干活 18）。
+    @AppStorage("backup.schedule") private var backupSchedule = "off"
+    @AppStorage("backup.keep") private var backupKeep = 5
     /// 归档规则编辑（v0.8.18 替人干活 14）。
     @State private var showArchiveRules = false
     @ObservedObject var settings: Settings
@@ -459,6 +462,53 @@ struct GeneralSettingsSection: View {
                     )
                 }
             }
+            SettingsSection(
+                title: "Scheduled Backup",
+                subtitle: "Automatic full backups to the backup folder, with rotation.",
+                icon: "externaldrive.badge.timemachine"
+            ) {
+                VStack(spacing: 0) {
+                    SettingsPickerRow(
+                        "Schedule",
+                        subtitle: "Runs at the scheduled hour (catch-up after restart). Keeps the newest copies and removes older ones.",
+                        systemImage: "clock.arrow.circlepath",
+                        selection: $backupSchedule,
+                        options: ["off", "daily", "weekly"],
+                        label: { value in
+                            switch value {
+                            case "daily": String(localized: "Daily (Mon–Sun)")
+                            case "weekly": String(localized: "Weekly (Monday)")
+                            default: String(localized: "Off")
+                            }
+                        }
+                    )
+                    SettingsRowDivider()
+                    SettingsPickerRow(
+                        "Keep Copies",
+                        subtitle: "Older desire-backup-*.json files beyond this count are removed after each run.",
+                        systemImage: "tray.full",
+                        selection: $backupKeep,
+                        options: [3, 5, 10],
+                        label: { String(localized: "\($0) copies") }
+                    )
+                    SettingsRowDivider()
+                    HStack(spacing: 10) {
+                        Image(systemName: "clock.badge.checkmark")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 22)
+                        Text(String(localized: "Last scheduled run"))
+                            .font(.system(size: 12.5))
+                        Spacer()
+                        Text(UserDefaults.standard.string(forKey: "backup.lastRun") ?? "—")
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                }
+            }
+
             SettingsSection(
                 title: "Downloads",
                 subtitle: "Where files and screenshots are saved by default.",

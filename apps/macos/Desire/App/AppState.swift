@@ -87,6 +87,7 @@ class AppState: ObservableObject {
         lap("profile-restore")
         // 云同步：已登录才生效（内部自延迟 + 定时器，不占启动路径）。
         ClipboardHistoryStore.shared.startPolling()
+        BackupScheduler.start()
         syncStore.startAutoSync()
         lap("startAutoSync")
         // 密钥单条目后台预读：Keychain 授权窗可能延迟/隐藏，绝不能在启动

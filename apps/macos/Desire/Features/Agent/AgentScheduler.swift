@@ -39,6 +39,9 @@ final class AgentScheduler: ObservableObject {
         /// 完成后触发链（v0.8.17 替人干活）：本任务**成功**结束时自动投递
         /// 指定名称的任务（一次性链；防环在 setChain 校验）。旧文件缺键 → nil。
         var chainTo: String?
+        /// 夜间窗口（v0.8.19 替人干活 20）：到点落在免打扰时段时顺延到
+        /// 窗口结束集中跑（开 = true；关 = 照常夜间执行，通知走既有分级）。
+        var deferInQuietHours: Bool?
         /// Human-readable outcome of the most recent firing.
         var lastResult: String?
         /// 目标窗口（调度器注册 id，多窗口联动 v1）：nil = 跟随"最新注册的活
@@ -202,6 +205,13 @@ final class AgentScheduler: ObservableObject {
         tasks.append(task)
         save()
         return task
+    }
+
+    /// 夜间窗口开关（v0.8.19 替人干活 20）。
+    func setQuietDeferral(named name: String, _ enabled: Bool) {
+        guard let idx = tasks.firstIndex(where: { $0.name == name }) else { return }
+        tasks[idx].deferInQuietHours = enabled
+        save()
     }
 
     /// Remote 任务编辑（v0.8.19）：prompt / 节奏可改（builtin 拒改——
@@ -426,6 +436,11 @@ final class AgentScheduler: ObservableObject {
             ?? "Chain removed from \(name)"
     }
 
+    /// 当前是否在免打扰时段（读 ProactiveNotificationStore 的策略）。
+    private func inQuietHours() -> Bool {
+        ProactiveNotificationStore.shared.policy.isQuietTime(minutesSinceMidnight: { let c = Calendar.current.dateComponents([.hour, .minute], from: Date()); return (c.hour ?? 0) * 60 + (c.minute ?? 0) }())
+    }
+
     /// Retry policy: N retries (user-configurable, default 1) with
     /// exponential backoff (30s, 60s, 120s). The task may be removed/disabled
     /// while waiting — then the failure stands.
@@ -483,6 +498,26 @@ final class AgentScheduler: ObservableObject {
     /// passes the SAME runID so the record accumulates attempts.
     private func deliver(task: ScheduledTask, runID: UUID = UUID(), attempts: Int = 1) {
         let taskIndex = tasks.firstIndex(where: { $0.id == task.id })
+
+        // 夜间窗口（v0.8.19 替人干活 20）：任务开了"免打扰顺延"且当前在
+        // quiet hours → 延到窗口结束再投（一次性 Timer，不占启动路径）。
+        if task.deferInQuietHours == true, inQuietHours() {
+            let end = ProactiveNotificationStore.shared.policy.quietEndMinute
+            let now = Calendar.current.dateComponents([.hour, .minute], from: Date())
+            let nowMin = (now.hour ?? 0) * 60 + (now.minute ?? 0)
+            var wait = end - nowMin
+            if wait <= 0 { wait += 24 * 60 }
+            let taskName = task.name
+            Log.agent.info("task '\(taskName, privacy: .public)' deferred to quiet-hours end (\(wait)s)")
+            Task { [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(wait) * 1_000_000_000)
+                guard let self, !Task.isCancelled else { return }
+                guard self.tasks.contains(where: { $0.id == task.id && $0.isEnabled }) else { return }
+                self.deliver(task: task, runID: runID, attempts: attempts)
+            }
+            if let i = taskIndex { tasks[i].lastResult = String(localized: "deferred to quiet-hours end") }
+            return
+        }
 
         // 定时工作流（v0.8.1）：离屏回放，不需要活 Agent 会话，也不切换
         // 用户标签页——与 prompt/builtin 两条路径分开。

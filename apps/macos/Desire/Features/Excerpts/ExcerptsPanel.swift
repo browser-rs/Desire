@@ -196,6 +196,8 @@ struct ExcerptsPanel: View {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(excerpt.content, forType: .string)
             }
+            // 分享卡（v0.8.19 融合 13）：渲染成图 → 剪贴板 + 另存。
+            Button(String(localized: "Export Share Card…")) { exportShareCard(excerpt) }
             Button(String(localized: "Open Source")) { openSource(excerpt) }
             Divider()
             Button(String(localized: "Delete"), role: .destructive) {
@@ -244,6 +246,24 @@ struct ExcerptsPanel: View {
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
             if statusNote == text { statusNote = nil }
         }
+    }
+
+    /// 分享卡（v0.8.19 融合 13）：渲染成图，剪贴板就绪 + 另存面板。
+    private func exportShareCard(_ excerpt: Excerpt) {
+        let accent = NSColor(appAccent)
+        let image = ExcerptShareCard.render(excerpt: excerpt, accent: accent)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.writeObjects([image])
+        let panel = NSSavePanel()
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmm"
+        panel.nameFieldStringValue = "excerpt-\(formatter.string(from: Date())).png"
+        panel.allowedContentTypes = [.png]
+        guard panel.runModal() == .OK, let dest = panel.url,
+              let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else { return }
+        try? png.write(to: dest)
     }
 
     /// 网页来源开标签（file:// 走查看器路由）；其余复制路径。

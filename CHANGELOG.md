@@ -5,6 +5,8 @@
 - 标签概览挂起管理（0.8.19 基础件 6）：瓦片右键"挂起/唤醒/关闭"（挂起动作防误触——当前选中标签不给挂），挂起瓦片显示时长（suspend 盖戳 suspendedAt、唤醒清除）；Tab.suspendedAt 随会话快照走（挂起治理不再黑箱）。
 - Agent 存在感批（0.8.19 第二批）：技能 Gallery（旗舰——站上 skills/index.json 机读索引 + 应用内技能页"发现"入口：列表/一键安装（installFromURL 通吃 .md/.zip）/已安装徽标/失败原因就地显示；与 BoardGallery 同款不可信输入纪律，SkillGallery 解析进 harness 首批 4 个官方技能 .md 上站）；Remote 任务编辑（手机端创建表单外的编辑闭环：Mac updateTask 命令按名定位、prompt/节奏可改（builtin 拒改），iOS 行左滑编辑 + TaskEditSheet 预填解析既有节奏）。规划对账撤项两项（核实已交付）：子代理观察面（AgentPanel runningSubagents 实时行）；技能参数化进 Remote（vars 缺失 → Error 清单 → 模型 askUser → 手机问题卡，天然全链路）。
 - 日常个性化批（0.8.19 第三批）：新标签页组件开关（区块头右键隐藏——常用网站/最近文件/最近访问，全隐藏时显示"显示全部区块"恢复入口，@AppStorage 持久化；排序做诚实版撤项——隐藏集推不出顺序，留待专门的顺序键）；摘录库进 ⌘⇧F（第七源：标题/内容/备注/来源命中，Clip 徽标，回车开来源含 PDF #page 深链）；成本预算告警（设置 Agent 节日/月预算线：回合收尾对账，≥80% routine / ≥100% urgent，每档每天至多一次；UsageStats 按日成本为新字段——无单价日走 ≥ 语义照既有口径）；定时任务失败诊断卡（RunRecord.error 启发式分类：网络/审批/模型/上下文/工具/其他 + 指引一行进通知，TaskFailureClassify 进 harness 9 断言）。
+- 收官批（0.8.19）：crew 对比矩阵（crewDispatch 带 compare——落定时把各任务指令/状态/关键结论合成 Markdown 对比表自动上白板，≥2 个有结果任务才合成）；自动备份调度（每日/周一 → 设定小时跑全量备份 + 轮转保留最近 3/5/10 份（只动 desire-backup-* 前缀），重启错过的当天备份在设定小时后的任一 tick 补跑，完成 routine 通知；设置页新 Scheduled Backup 节 + 最近运行日期）；任务夜间窗口（编辑器开关：到点落在免打扰时段顺延到窗口结束集中跑，任务卡月亮徽标，Mac+Remote 语义一致）；摘录分享卡（单条渲染成强调色渐变图片卡——大引号+折行正文+我的批注+来源行，剪贴板+另存双通道）。规划对账（本版撤/顺延 5 项均有据）：监视历史时间线已交付（PageWatch historyCap 60 + 中心面板）；WebApp Dock 徽标受平台约束（macOS Dock 徽标是 app 级单数——per-WebApp 无系统支持，撤销）；剪贴板历史跨设备顺延 0.8.20（settings 域快照机制只收 Settings-store 键，需像 excerpts 那样的专用 adapter，不硬塞）；数据集定时采集顺延 0.8.20（builtin kind 白名单需扩 dataset:<id> 且 DatasetSpec 无 id，含选择 UI 一个批次）；每日简报进 Remote 顺延（简报文本未产物化，先产物化再推帧）。
+
 
 
 

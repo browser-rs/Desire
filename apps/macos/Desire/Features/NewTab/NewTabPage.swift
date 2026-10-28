@@ -396,14 +396,53 @@ struct NewTabPage: View {
 
     // MARK: - 最近本地文件（v0.8.12 基础件 10）
 
+    /// 最近文件过滤（v0.8.17 基础件 5）：仅当文件多于 3 个才显示输入框。
+    @State private var localFileFilter = ""
+
     private var localFilesSection: some View {
-        let entries = RecentLocalFiles.load().prefix(6)
+        let all = RecentLocalFiles.load()
+        let entries = all.prefix(8).filter { entry in
+            let q = localFileFilter.trimmingCharacters(in: .whitespaces)
+            return q.isEmpty || entry.filename.localizedCaseInsensitiveContains(q)
+        }
         return Group {
-            if !entries.isEmpty {
+            if all.count > 3 {
+                VStack(alignment: .leading, spacing: 14) {
+                    sectionHeader(title: "最近本地文件", icon: "doc.on.doc")
+                    HStack(spacing: 5) {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                        TextField(String(localized: "Filter files…"), text: $localFileFilter)
+                            .textFieldStyle(.plain)
+                            .font(.system(size: 11))
+                        if !localFileFilter.isEmpty {
+                            Button { localFileFilter = "" } label: { Image(systemName: "xmark.circle.fill") }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor).opacity(0.5)))
+                    if entries.isEmpty {
+                        Text(String(localized: "No files match"))
+                            .font(.system(size: 11))
+                            .foregroundStyle(.tertiary)
+                            .padding(.vertical, 6)
+                    }
+                    VStack(spacing: 6) {
+                        ForEach(entries) { entry in
+                            localFileCard(entry)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else if !all.isEmpty {
                 VStack(alignment: .leading, spacing: 14) {
                     sectionHeader(title: "最近本地文件", icon: "doc.on.doc")
                     VStack(spacing: 6) {
-                        ForEach(entries) { entry in
+                        ForEach(all.prefix(8)) { entry in
                             localFileCard(entry)
                         }
                     }

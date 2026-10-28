@@ -501,6 +501,62 @@ class DownloadStore: ObservableObject {
     /// 下载完成自动分析（v0.8.15 替人干活 18，opt-in 默认关）：文档类下载
     /// 完成后旁路生成一句话摘要进通知（routine 档）。不进会话、不烧回合；
     /// 摘要失败静默（下载完成通知仍是主通道）。
+    /// 下载自动归档（v0.8.17 替人干活 16，默认关）：规则表
+    /// "downloadArchiveRules"（[{ext: "pdf", folder: "Documents"}, {domain: "arxiv.org", folder: "Papers"}]）
+    /// 首条命中即把完成文件移入下载目录下的子目录（不越出下载根）。
+    /// 移动结果写进条目 fileURL；失败静默留原地。
+    private func autoArchiveIfMatched(index: Int) {
+        guard let data = UserDefaults.standard.data(forKey: "downloadArchiveRules"),
+              let rules = try? JSONDecoder().decode([ArchiveRule].self, from: data),
+              !rules.isEmpty else { return }
+        let item = downloads[index]
+        guard let fileURL = item.fileURL else { return }
+        for rule in rules where rule.matches(item: item) {
+            guard let dest = rule.destination(for: fileURL, downloadRoot: downloadFolder) else { continue }
+            do {
+                try FileManager.default.createDirectory(at: dest.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try FileManager.default.moveItem(at: fileURL, to: dest)
+                downloads[index].fileURL = dest
+                ProactiveNotificationStore.shared.deliver(
+                    title: String(localized: "Archived: \(item.filename)"),
+                    body: String(localized: "Moved to \(dest.deletingLastPathComponent().lastPathComponent)/"),
+                    tier: .routine)
+            } catch {
+                Log.downloads.error("auto-archive move failed: \(error.localizedDescription, privacy: .public)")
+            }
+            break   // 首条命中即止
+        }
+    }
+
+    /// 归档规则（扩展名或来源域 → 子目录）。
+    struct ArchiveRule: Codable {
+        var ext: String?
+        var domain: String?
+        var folder: String
+
+        func matches(item: DownloadItem) -> Bool {
+            if let ext, !ext.isEmpty {
+                return (item.filename as NSString).pathExtension.lowercased() == ext.lowercased()
+            }
+            if let domain, !domain.isEmpty {
+                return item.sourceURL?.host?.localizedCaseInsensitiveContains(domain) == true
+            }
+            return false
+        }
+
+        /// 落点（钳在下载根内，防 ".." 穿越子目录语义）。
+        func destination(for file: URL, downloadRoot: URL) -> URL? {
+            let safeFolder = folder
+                .replacingOccurrences(of: "..", with: "_")
+                .replacingOccurrences(of: "/", with: "-")
+                .trimmingCharacters(in: .whitespaces)
+            guard !safeFolder.isEmpty else { return nil }
+            return downloadRoot
+                .appendingPathComponent(safeFolder, isDirectory: true)
+                .appendingPathComponent(file.lastPathComponent)
+        }
+    }
+
     private func maybeAutoSummarize(_ item: DownloadItem) {
         guard UserDefaults.standard.bool(forKey: "downloadAutoSummarize") else { return }
         let ext = (item.filename as NSString).pathExtension.lowercased()
@@ -614,6 +670,7 @@ class DownloadStore: ObservableObject {
         } else {
             downloads[i].downloadedBytes = max(downloads[i].totalBytes, 0)
         }
+        autoArchiveIfMatched(index: i)
         saveHistory()
         scanFilePresence()
         syncDockBadge()

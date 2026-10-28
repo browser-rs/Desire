@@ -29,6 +29,8 @@ struct PDFViewerView: View {
     // 加密解锁（v0.8.16）
     @State private var passwordText = ""
     @State private var unlockFailed = false
+    /// 双页对开（v0.8.17 基础件 4）。
+    @State private var isTwoUp = false
 
     enum SidebarTab {
         case outline, thumbnails, annotations, forms
@@ -49,7 +51,7 @@ struct PDFViewerView: View {
                     if model.isLocked {
                         lockedPane(model)
                     } else {
-                        PDFKitRepresentedView(model: model, zoom: $zoom)
+                        PDFKitRepresentedView(model: model, zoom: $zoom, twoUp: isTwoUp)
                             .ignoresSafeArea(edges: .bottom)
                     }
                 } else if loadFailed {
@@ -349,6 +351,20 @@ struct PDFViewerView: View {
                                  help: String(localized: "Form fields"))
             }
             Divider().frame(height: 14)
+            Button {
+                isTwoUp.toggle()
+            } label: {
+                Image(systemName: isTwoUp ? "rectangle.split.2x1" : "rectangle")
+                    .font(.system(size: 11))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(isTwoUp ? appAccent.opacity(0.14) : Color.clear))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(isTwoUp ? appAccent : Color.secondary)
+            .help(isTwoUp ? String(localized: "Two-up view") : String(localized: "Single page"))
             if let model, !model.isLocked {
                 HStack(spacing: 3) {
                     ForEach(PDFWorkbenchModel.AnnotationTool.allCases, id: \.rawValue) { t in
@@ -843,10 +859,12 @@ final class PDFWorkbenchMouseView: PDFView {
 private struct PDFKitRepresentedView: NSViewRepresentable {
     let model: PDFWorkbenchModel
     @Binding var zoom: CGFloat
+    var twoUp = false
 
     func makeNSView(context: Context) -> PDFWorkbenchMouseView {
         let view = PDFWorkbenchMouseView()
         view.autoScales = true
+        view.displayMode = twoUp ? .twoUpContinuous : .singlePageContinuous
         view.document = model.document
         context.coordinator.view = view
         model.attachedView = view
@@ -889,6 +907,8 @@ private struct PDFKitRepresentedView: NSViewRepresentable {
     func updateNSView(_ view: PDFWorkbenchMouseView, context: Context) {
         if view.document !== model.document { view.document = model.document }
         view.annotationTool = model.tool
+        let mode: PDFDisplayMode = twoUp ? .twoUpContinuous : .singlePageContinuous
+        if view.displayMode != mode { view.displayMode = mode }
         if abs(view.scaleFactor - zoom) > 0.01 {
             view.scaleFactor = zoom
         }

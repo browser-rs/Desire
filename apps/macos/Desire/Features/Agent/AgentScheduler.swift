@@ -36,6 +36,9 @@ final class AgentScheduler: ObservableObject {
         /// Seed with `createdAt` so intervals count from creation and a
         /// daily task never fires before its first scheduled time.
         var lastFiredAt: Date?
+        /// 完成后触发链（v0.8.17 替人干活）：本任务**成功**结束时自动投递
+        /// 指定名称的任务（一次性链；防环在 setChain 校验）。旧文件缺键 → nil。
+        var chainTo: String?
         /// Human-readable outcome of the most recent firing.
         var lastResult: String?
         /// 目标窗口（调度器注册 id，多窗口联动 v1）：nil = 跟随"最新注册的活
@@ -376,6 +379,34 @@ final class AgentScheduler: ObservableObject {
         ])
     }
 
+    /// 完成链（v0.8.17 替人干活 14）：任务成功后投递 chainTo 指向的任务
+    /// （存在且启用；目标正忙/不存在则静默跳过——链是便利语义不是契约）。
+    private func deliverChainedTask(after name: String) {
+        guard let task = tasks.first(where: { $0.name == name }),
+              let chainedName = task.chainTo,
+              let chained = tasks.first(where: { $0.name == chainedName }),
+              chained.isEnabled else { return }
+        Log.agent.info("task chain: '\(name, privacy: .public)' → '\(chainedName, privacy: .public)'")
+        deliver(task: chained)
+    }
+
+    /// 设置完成链（工具/桥入口；A→B 直链，深度链由 B→C 续）。
+    @discardableResult
+    func setChain(from name: String, to chainedName: String?) -> String {
+        guard chainedName != name else { return "Error: a task cannot chain to itself" }
+        guard tasks.contains(where: { $0.name == name }) else { return "Error: no task named \(name)" }
+        if let chainedName {
+            guard tasks.contains(where: { $0.name == chainedName }) else {
+                return "Error: no task named \(chainedName)"
+            }
+        }
+        guard let idx = tasks.firstIndex(where: { $0.name == name }) else { return "Error: gone" }
+        tasks[idx].chainTo = chainedName
+        save()
+        return chainedName.map { "Chained: \(name) → \($0) (fires after a successful run)" }
+            ?? "Chain removed from \(name)"
+    }
+
     /// Retry policy: N retries (user-configurable, default 1) with
     /// exponential backoff (30s, 60s, 120s). The task may be removed/disabled
     /// while waiting — then the failure stands.
@@ -414,6 +445,7 @@ final class AgentScheduler: ObservableObject {
         guard let record = runs.first(where: { $0.id == id }) else { return }
         if outcome.success {
             BridgeEventBus.shared.publish("scheduledTaskSucceeded", ["task": record.taskName])
+            deliverChainedTask(after: record.taskName)
         } else {
             notifyRunFailure(record)
             scheduleRetry(record)   // 内部判次数上限（1+可配 N）与退避

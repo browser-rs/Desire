@@ -224,6 +224,14 @@ struct HistoryPanel: View {
                     .menuStyle(.borderlessButton)
                     .menuIndicator(.hidden)
                 }
+                Menu {
+                    Button("JSON / CSV…") { importLight() }
+                } label: {
+                    Label("Import", systemImage: "square.and.arrow.down")
+                        .foregroundStyle(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
                 if !store.entries.isEmpty {
                     Menu {
                         Button("Clear Today") {
@@ -536,6 +544,14 @@ struct HistoryPanel: View {
 
     private enum ClearRange {
         case today, yesterday, thisWeek, thisMonth
+    }
+
+    @State private var importNote: String?
+
+    private func importLight() {
+        guard let result = store.importLightFormat() else { return }
+        importNote = String(localized: "Imported \(result.added) new, merged \(result.skipped)")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) { importNote = nil }
     }
 
     private func clearHistory(_ range: ClearRange) {

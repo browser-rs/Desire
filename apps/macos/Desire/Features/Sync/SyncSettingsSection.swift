@@ -538,12 +538,19 @@ struct SyncSettingsSection: View {
     /// 逐域状态副标题：✓ + 相对时间 / ⚠ + 错误文案。禁用的域不显示（状态无意义）。
     private func domainStatusCaption(_ domain: SyncDomain) -> String? {
         guard store.isEnabled(domain), let status = store.domainStatus[domain] else { return nil }
+        var caption: String
         switch status {
         case .ok(let date):
-            return "✓ " + Self.relativeFormatter.localizedString(for: date, relativeTo: Date())
+            caption = "✓ " + Self.relativeFormatter.localizedString(for: date, relativeTo: Date())
         case .failed(let message):
-            return "⚠ " + message
+            caption = "⚠ " + message
         }
+        // 待删墓碑计数（v0.8.17 基础件 13）：正常应在裁决后归零，
+        // 长期非零 = 该域同步持续失败的信号。
+        if let pending = store.pendingTombstoneCounts[domain], pending > 0 {
+            caption += " · " + String(localized: "\(pending) pending delete")
+        }
+        return caption
     }
 
     // MARK: - 修改密码

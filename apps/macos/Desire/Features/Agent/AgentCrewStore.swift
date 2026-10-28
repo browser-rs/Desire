@@ -500,15 +500,20 @@ final class AgentCrewStore: ObservableObject {
         let elapsedText = elapsed >= 60
             ? String(localized: "\(elapsed / 60) min \(elapsed % 60) s")
             : String(localized: "\(elapsed) s")
-        ProactiveNotificationStore.shared.deliver(
-            title: String(localized: "Crew finished: \(c.objective)"),
-            body: String(localized: "\(c.completedCount) done, \(c.failedCount) failed · \(elapsedText)"),
-            tier: .urgent)
         onCrewSettled?(c)
         // crew 报告落盘（v0.8.15）：各窗报告合成一份 Markdown 进工作区并入账
         // 最近本地文件——跑完的成果不再只活在聊天记录里；Remote 端 recentFiles
         // 帧随之可见。失败（盘满等）静默：会话内摘要仍是主通道。
-        writeCrewReport(c)
+        let reportURL = writeCrewReport(c)
+        // 通知在报告落盘后发（v0.8.17：正文可带报告文件名）。
+        var body = String(localized: "\(c.completedCount) done, \(c.failedCount) failed · \(elapsedText)")
+        if let reportURL {
+            body += "\n" + String(localized: "Report: \(reportURL.lastPathComponent)")
+        }
+        ProactiveNotificationStore.shared.deliver(
+            title: String(localized: "Crew finished: \(c.objective)"),
+            body: body,
+            tier: .urgent)
         if let id = ephemeralContainerID {
             ephemeralContainerID = nil
             Task { @MainActor in
@@ -523,7 +528,38 @@ final class AgentCrewStore: ObservableObject {
 
     /// crew 报告 → 工作区 `crew-<时间>-<主题>.md`（主题取 objective 前 24 字符、
     /// 路径非法字符折叠）。每任务一节：状态/耗时/（跨窗时）窗口标签 + 报告全文。
-    private func writeCrewReport(_ c: Crew) {
+    /// 报告模板（v0.8.17 替人干活 15）：UserDefaults 可自定义段落结构，
+    /// 占位符 {{objective}}/{{done}}/{{failed}}/{{duration}}/{{usage}}/{{tasks}}；
+    /// 未设置 = 内置默认结构。{{tasks}} 展开为逐任务小节，其余为行内文本。
+    private func renderReportBody(_ c: Crew, tasksSection: String) -> String {
+        let template = UserDefaults.standard.string(forKey: "crew.reportTemplate")
+        guard var template, template.contains("{{") else {
+            var md = "# Crew: \(c.objective)\n\n"
+            md += "- \(c.completedCount)/\(c.tasks.count) done"
+            if c.failedCount > 0 { md += "，\(c.failedCount) failed" }
+            if let finishedAt = c.finishedAt {
+                md += " · \(Int(c.createdAt.distance(to: finishedAt)))s"
+            }
+            md += "\n"
+            md += tasksSection
+            return md
+        }
+        var usageLine = ""
+        if !usage.isEmpty {
+            usageLine = String(format: "%d prompt / %d completion tokens", usage.promptTokens, usage.completionTokens)
+        }
+        template = template
+            .replacingOccurrences(of: "{{objective}}", with: c.objective)
+            .replacingOccurrences(of: "{{done}}", with: "\(c.completedCount)")
+            .replacingOccurrences(of: "{{failed}}", with: "\(c.failedCount)")
+            .replacingOccurrences(of: "{{duration}}", with: c.finishedAt.map { "\(Int(c.createdAt.distance(to: $0)))s" } ?? "-")
+            .replacingOccurrences(of: "{{usage}}", with: usageLine)
+            .replacingOccurrences(of: "{{tasks}}", with: tasksSection)
+        return template
+    }
+
+    @discardableResult
+    private func writeCrewReport(_ c: Crew) -> URL? {
         let stamp = DateFormatter()
         stamp.dateFormat = "yyyy-MM-dd-HHmmss"
         let theme = c.objective
@@ -533,29 +569,25 @@ final class AgentCrewStore: ObservableObject {
         let safeTheme = String(theme.prefix(24)).isEmpty ? "crew" : String(theme.prefix(24))
         let url = AgentWorkspace.shared.directory
             .appendingPathComponent("crew-\(stamp.string(from: c.createdAt))-\(safeTheme).md")
-        var md = "# Crew: \(c.objective)\n\n"
-        md += "- \(c.completedCount)/\(c.tasks.count) done"
-        if c.failedCount > 0 { md += "，\(c.failedCount) failed" }
-        if let finishedAt = c.finishedAt {
-            let secs = Int(c.createdAt.distance(to: finishedAt))
-            md += " · \(secs)s"
-        }
-        md += "\n"
+        var tasksSection = ""
         for t in c.tasks {
-            md += "\n---\n\n## Task \(t.index): \(t.instruction)\n\n"
-            if let urlText = t.url, !urlText.isEmpty { md += "- url: \(urlText)\n" }
-            if let label = t.windowLabel { md += "- window: \(label)\n" }
-            if let secs = t.durationSeconds { md += String(format: "- duration: %.0fs\n", secs) }
-            md += "- state: \(t.state.rawValue)\n"
+            tasksSection += "\n---\n\n## Task \(t.index): \(t.instruction)\n\n"
+            if let urlText = t.url, !urlText.isEmpty { tasksSection += "- url: \(urlText)\n" }
+            if let label = t.windowLabel { tasksSection += "- window: \(label)\n" }
+            if let secs = t.durationSeconds { tasksSection += String(format: "- duration: %.0fs\n", secs) }
+            tasksSection += "- state: \(t.state.rawValue)\n"
             if let r = t.result, !r.isEmpty {
-                md += "\n\(r)\n"
+                tasksSection += "\n\(r)\n"
             }
         }
+        let md = renderReportBody(c, tasksSection: tasksSection)
         do {
             try md.write(to: url, atomically: true, encoding: .utf8)
             RecentLocalFiles.record(url: url)
+            return url
         } catch {
             Log.agent.error("crew report write failed: \(error.localizedDescription, privacy: .public)")
+            return nil
         }
     }
 

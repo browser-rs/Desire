@@ -111,6 +111,57 @@ class HistoryStore: ObservableObject {
         Array(entries.prefix(count))
     }
 
+    /// 轻量导入（v0.8.17 基础件 2）：0.8.16 导出格式的 JSON/CSV →
+    /// ImportedHistoryEntry → 既有 mergeImported（URL 合并/次数相加）。
+    static func parseImportedJSON(_ data: Data) -> [ImportedHistoryEntry]? {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let rows = obj["history"] as? [[String: Any]] else { return nil }
+        let iso = ISO8601DateFormatter()
+        var out: [ImportedHistoryEntry] = []
+        for row in rows {
+            guard let url = row["url"] as? String, !url.isEmpty else { continue }
+            let visited = (row["visited"] as? String).flatMap { iso.date(from: $0) } ?? Date()
+            out.append(ImportedHistoryEntry(
+                url: url,
+                title: row["title"] as? String ?? "",
+                timestamp: visited,
+                visitCount: row["visits"] as? Int ?? 1))
+        }
+        return out.isEmpty ? nil : out
+    }
+
+    static func parseImportedCSV(_ text: String) -> [ImportedHistoryEntry]? {
+        let rows = SpreadsheetReader.parseDelimited(text, delimiter: ",")
+        guard let header = rows.first, header.count >= 4 else { return nil }
+        let iso = ISO8601DateFormatter()
+        var out: [ImportedHistoryEntry] = []
+        for row in rows.dropFirst() where row.count >= 4 {
+            guard !row[1].isEmpty else { continue }
+            out.append(ImportedHistoryEntry(
+                url: row[1],
+                title: row[0],
+                timestamp: iso.date(from: row[3]) ?? Date(),
+                visitCount: Int(row[2]) ?? 1))
+        }
+        return out.isEmpty ? nil : out
+    }
+
+    /// 面板入口：选 JSON/CSV 文件 → 合并导入，返回 (added, skipped)。
+    func importLightFormat() -> (added: Int, skipped: Int)? {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json, .commaSeparatedText]
+        panel.allowsMultipleSelection = false
+        guard panel.runModal() == .OK, let url = panel.url else { return nil }
+        let imported: [ImportedHistoryEntry]?
+        if url.pathExtension.lowercased() == "json" {
+            imported = (try? Data(contentsOf: url)).flatMap(Self.parseImportedJSON)
+        } else {
+            imported = (try? String(contentsOf: url, encoding: .utf8)).flatMap(Self.parseImportedCSV)
+        }
+        guard let imported else { return nil }
+        return mergeImported(imported)
+    }
+
     /// 轻量导出（v0.8.16 基础件 7）：JSON（全字段）/ CSV（title,url,visits,visited）。
     func exportJSON() {
         let panel = NSSavePanel()

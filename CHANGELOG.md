@@ -4,6 +4,8 @@
 - 摘录库（0.8.17 融合旗舰）：阅读高亮、PDF 批注、网页划选统一沉淀进一个本地库（来源/类型/时间），跨文档搜索、类型过滤、一键导出 Markdown 笔记本（按来源分节、引用排版、备注加粗）；三个入口——阅读高亮列表行级"存为摘录"、PDF 批注列表右键"收进摘录库"（带页码引用）、划词工具条新增"摘录"（本地收录零模型调用）；面板挂 Agent 窗口新"摘录"目的地（计数徽标）；同来源同内容自动去重（重复收录只刷新时间戳）；上限 500 条 FIFO 淘汰（淘汰记墓碑随同步）。
 - 摘录同步第十三域（excerpts）：服务端 DOMAINS 白名单加行（通用表零迁移）+ 客户端 SyncEngine adapter（墓碑/LWW/HMAC 反查照 jobs 域先例）；设置页同步类目开关自动收录（枚举驱动）；api-sync-smoke 扩 excerpts roundtrip 用例。注意：服务端生产部署需更新 API 二进制后摘录才真正跨设备（客户端先行，未部署时该域报错不影响其他域）。
 - 第二批（0.8.17）：技能参数化——SKILL.md frontmatter 声明 vars 槽位（vars: 名单 + var-<名>-default/-desc 修饰行），useSkill 工具带 inputs 填值（缺失按失败约定报清单、default 兜底、{{占位符}} 替换），技能页"使用"弹填值表单（有 default 预填）；listSkills 输出带 vars 提示；SkillVars 解析/占位/渲染进 harness（9 断言）。记忆时间线：记忆页按月分节（当月单列）、批量清理模式（选择模式行首勾选、分节全选、一次删除 N 条）。同步多档案设计稿（docs/SYNC-MULTI-PROFILE-DESIGN.md）：三方案对比（domain 后缀推荐/payload 前缀否决/虚拟设备否决），服务端零迁移路线与落地拆分——待过目后实施。
+- 收官批（0.8.17）：定时任务完成链（任务 A 成功后自动投递 B——setChain API 防自环，链是便利语义非契约，目标忙/不存在静默跳过）；crew 报告模板可自定义（UserDefaults "crew.reportTemplate"，占位符 objective/done/failed/duration/usage/tasks，未设置=内置结构）+ crew 完成通知正文附报告文件名（先落盘后通知）；下载自动归档规则（默认关：UserDefaults "downloadArchiveRules" 存 [{ext|domain, folder}]，首条命中移入下载根子目录、防 ".." 穿越、移动结果进 routine 通知）；新标签页最近文件过滤框（>3 个文件时显示）；同步类目开关副标题带待删墓碑计数（长期非零=该域同步持续失败的信号）。规划对账撤项两项（spike 实证）：PDF 大纲书签编辑（PDFKit 程序化建树写入后重读 outlineRoot 为 nil——document.write 不保真大纲）；双指灵敏度/滚轮平滑滚动设置（WebKit 无公开 API，按"勿做假 UI"红线撤项）。同步多档案设计稿已交（docs/SYNC-MULTI-PROFILE-DESIGN.md，方案 A domain 后缀推荐），按规划约定待设计过目后另行实施。
+
 
 
 

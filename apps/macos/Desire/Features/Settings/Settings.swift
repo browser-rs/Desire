@@ -106,6 +106,12 @@ class Settings: ObservableObject {
     @Published var downloadAutoSummarize: Bool {
         didSet { UserDefaults.standard.set(downloadAutoSummarize, forKey: "downloadAutoSummarize") }
     }
+
+    /// 定时任务失败自动重试次数（v0.8.16 替人干活：1-3，默认 1；
+    /// 重试间隔指数退避 30s 起）。
+    @Published var scheduledTaskRetries: Int {
+        didSet { UserDefaults.standard.set(scheduledTaskRetries, forKey: "scheduledTaskRetries") }
+    }
     /// 高危文件类型（.dmg/.pkg/.sh 等）下载前弹确认。WebView 决策点直读
     /// UserDefaults，改动即时生效。
     @Published var warnDangerousDownloads: Bool {
@@ -172,6 +178,10 @@ class Settings: ObservableObject {
         askWhereToSaveDownloads = UserDefaults.standard.object(forKey: "askWhereToSaveDownloads") as? Bool ?? false
         defaultPageZoom = UserDefaults.standard.object(forKey: "defaultPageZoom") as? Double ?? 1.0
         downloadAutoSummarize = UserDefaults.standard.bool(forKey: "downloadAutoSummarize")
+        scheduledTaskRetries = {
+            let raw = UserDefaults.standard.integer(forKey: "scheduledTaskRetries")
+            return (1...3).contains(raw) ? raw : 1
+        }()
         defaultMinFontSize = UserDefaults.standard.object(forKey: "defaultMinFontSize") as? Int ?? 0
         defaultFontFamily = UserDefaults.standard.string(forKey: "defaultFontFamily") ?? ""
         warnDangerousDownloads = UserDefaults.standard.object(forKey: "warnDangerousDownloads") as? Bool ?? true

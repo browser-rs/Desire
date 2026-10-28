@@ -3,6 +3,16 @@ import SwiftUI
 /// 最近本地文件（v0.8.12）：看 Mac 最近打开的本地文件，一键在 Mac 上重新打开。
 struct RemoteFilesView: View {
     @EnvironmentObject var client: RemoteClient
+    @State private var searchText = ""
+
+    private var filtered: [RemoteRecentFile] {
+        let q = searchText.trimmingCharacters(in: .whitespaces)
+        guard !q.isEmpty else { return client.recentFiles }
+        return client.recentFiles.filter {
+            $0.filename.localizedCaseInsensitiveContains(q)
+                || $0.kind.localizedCaseInsensitiveContains(q)
+        }
+    }
 
     var body: some View {
         List {
@@ -12,8 +22,14 @@ struct RemoteFilesView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 24)
+            } else if filtered.isEmpty {
+                Text("没有匹配 \(searchText) 的文件")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 24)
             }
-            ForEach(client.recentFiles) { file in
+            ForEach(filtered) { file in
                 Button {
                     client.openRecentFile(file.url)
                 } label: {
@@ -38,6 +54,7 @@ struct RemoteFilesView: View {
             }
         }
         .navigationTitle("最近文件")
+        .searchable(text: $searchText, prompt: "按文件名或类型过滤")
         .onAppear { client.requestRecentFiles() }
         .refreshable { client.requestRecentFiles() }
     }

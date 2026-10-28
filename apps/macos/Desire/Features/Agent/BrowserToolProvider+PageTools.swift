@@ -484,8 +484,8 @@ extension BrowserToolProvider {
         case "crewDispatch":
             let objective = args["objective"] as? String ?? "research task"
             let rawTasks = args["tasks"] as? [[String: Any]] ?? []
-            let tasks = rawTasks.map { t -> (url: String?, instruction: String) in
-                (t["url"] as? String, t["instruction"] as? String ?? "")
+            let tasks = rawTasks.map { t -> (url: String?, instruction: String, dependsOn: Int?) in
+                (t["url"] as? String, t["instruction"] as? String ?? "", t["dependsOn"] as? Int)
             }
             let isolated = args["isolated"] as? Bool ?? false
             let windowMode = args["windowMode"] as? Bool ?? false

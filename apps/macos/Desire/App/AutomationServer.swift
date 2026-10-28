@@ -3122,8 +3122,8 @@ final class AutomationServer {
             case ("POST", "/agent/crew-dispatch"):
                 let objective = Self.string(body, "objective") ?? "research task"
                 let raw = body["tasks"] as? [[String: Any]] ?? []
-                let tasks = raw.map { t -> (url: String?, instruction: String) in
-                    (t["url"] as? String, t["instruction"] as? String ?? "")
+                let tasks = raw.map { t -> (url: String?, instruction: String, dependsOn: Int?) in
+                    (t["url"] as? String, t["instruction"] as? String ?? "", t["dependsOn"] as? Int)
                 }
                 guard let app = AppState.live, let tm = try tabManager else {
                     return try Self.json(["error": "app/tab manager not ready"])

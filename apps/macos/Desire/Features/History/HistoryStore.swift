@@ -1,5 +1,7 @@
+import AppKit
 import Combine
 import Foundation
+import UniformTypeIdentifiers
 
 @MainActor
 class HistoryStore: ObservableObject {
@@ -107,6 +109,39 @@ class HistoryStore: ObservableObject {
 
     func recentEntries(count: Int) -> [HistoryEntry] {
         Array(entries.prefix(count))
+    }
+
+    /// 轻量导出（v0.8.16 基础件 7）：JSON（全字段）/ CSV（title,url,visits,visited）。
+    func exportJSON() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "history.json"
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let rows: [[String: Any]] = entries.map { e in
+            ["title": e.title, "url": e.url, "visits": e.visitCount,
+             "visited": ISO8601DateFormatter().string(from: e.timestamp)]
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: ["history": rows], options: [.prettyPrinted, .sortedKeys]) else { return }
+        try? data.write(to: url)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    func exportCSV() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "history.csv"
+        panel.allowedContentTypes = [.commaSeparatedText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        var lines = ["title,url,visits,visited"]
+        for e in entries {
+            lines.append([
+                SpreadsheetBuffer.csvLine([e.title]),
+                SpreadsheetBuffer.csvLine([e.url]),
+                String(e.visitCount),
+                SpreadsheetBuffer.csvLine([ISO8601DateFormatter().string(from: e.timestamp)]),
+            ].joined(separator: ","))
+        }
+        try? lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
     }
 
     func clearAll() {

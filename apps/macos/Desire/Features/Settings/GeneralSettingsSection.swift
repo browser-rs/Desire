@@ -442,6 +442,22 @@ struct GeneralSettingsSection: View {
             // MARK: - Downloads
 
             SettingsSection(
+                title: "Scheduled Tasks",
+                subtitle: "How failed agent tasks are retried automatically.",
+                icon: "clock.arrow.circlepath"
+            ) {
+                VStack(spacing: 0) {
+                    SettingsPickerRow(
+                        "Automatic Retries",
+                        subtitle: "Failed turns retry with exponential backoff (30s, 60s, 120s). Exhausted retries raise a failure notification.",
+                        systemImage: "arrow.clockwise",
+                        selection: $settings.scheduledTaskRetries,
+                        options: [1, 2, 3],
+                        label: { $0 == 1 ? String(localized: "1 retry") : String(localized: "\($0) retries") }
+                    )
+                }
+            }
+            SettingsSection(
                 title: "Downloads",
                 subtitle: "Where files and screenshots are saved by default.",
                 icon: "arrow.down.circle"

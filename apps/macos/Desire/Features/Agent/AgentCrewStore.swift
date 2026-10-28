@@ -78,6 +78,9 @@ final class AgentCrewStore: ObservableObject {
         var windowLabel: String?
         /// v0.8.10 crew 可靠性：跨窗 worker 的换窗重试计数（0/1）。
         var windowRetryCount = 0
+        /// 依赖编排（v0.8.16）：前序任务下标——done 才派发，failed/cancelled
+        /// 级联跳过。只允许引用更早的下标（校验在 dispatch 入口）。
+        var dependsOn: Int?
         /// 运行耗时（秒）——done/failed 落定时写，crew 摘要与审计用。
         var durationSeconds: Double? {
             guard let startedAt else { return nil }
@@ -125,7 +128,7 @@ final class AgentCrewStore: ObservableObject {
     // MARK: - Dispatch (crewDispatch tool)
 
     @discardableResult
-    func dispatch(objective: String, tasks: [(url: String?, instruction: String)],
+    func dispatch(objective: String, tasks: [(url: String?, instruction: String, dependsOn: Int?)],
                   surface: BrowserToolSurface, isolated: Bool = false,
                   windowMode: Bool = false) -> String {
         guard crew == nil || crew?.isSettled == true else {
@@ -134,6 +137,13 @@ final class AgentCrewStore: ObservableObject {
         guard !tasks.isEmpty else { return "No tasks provided" }
         guard tasks.count <= 6 else { return "At most 6 subtasks per crew" }
         guard let manager = surface.tabManager else { return "No tab manager" }
+        // 依赖校验：只许引用更早的下标（环/前向引用直接拒绝——串行与并行
+        // 两种模式都以"更早索引先落定"为前提）。
+        for (i, t) in tasks.enumerated() {
+            if let dep = t.dependsOn, !(0..<i).contains(dep) {
+                return "Error: tasks[\(i)].dependsOn must reference an EARLIER task index (0..\(i - 1))"
+            }
+        }
         if windowMode {
             return dispatchAcrossWindows(objective: objective, tasks: tasks)
         }
@@ -155,8 +165,10 @@ final class AgentCrewStore: ObservableObject {
                            autoPlayPolicy: .never, newTabPosition: .end,
                            containerID: ephemeralContainerID)
             let tab = manager.tabs.last
-            workers.append(WorkerTask(index: i, instruction: t.instruction,
-                                      url: t.url, tabID: tab?.id))
+            let worker = WorkerTask(index: i, instruction: t.instruction,
+                                    url: t.url, tabID: tab?.id)
+            worker.dependsOn = t.dependsOn
+            workers.append(worker)
         }
         let c = Crew(objective: objective, tasks: workers)
         crew = c
@@ -169,6 +181,7 @@ final class AgentCrewStore: ObservableObject {
         Task { [weak self] in
             for worker in c.tasks {
                 guard let self, !Task.isCancelled else { return }
+                if self.shouldSkipDependent(worker) { continue }
                 await self.runWorker(worker, surface: surface)
             }
         }
@@ -185,7 +198,7 @@ final class AgentCrewStore: ObservableObject {
     /// 工具作用域与档案；真正的并行回合）。没有其他窗口时返回失败说明，
     /// 模型可退回默认标签模式。本窗不参与（领队回合正占着它）。
     private func dispatchAcrossWindows(objective: String,
-                                       tasks: [(url: String?, instruction: String)]) -> String {
+                                       tasks: [(url: String?, instruction: String, dependsOn: Int?)]) -> String {
         let myStore = AgentScheduler.shared.deliveryTarget
         let candidates = AgentScheduler.shared.liveSessions().filter { entry in
             guard let store = entry.store, store !== myStore else { return false }
@@ -201,6 +214,7 @@ final class AgentCrewStore: ObservableObject {
             let worker = WorkerTask(index: i, instruction: t.instruction, url: t.url, tabID: nil)
             worker.windowSessionID = target.id
             worker.windowLabel = target.displayLabel
+            worker.dependsOn = t.dependsOn
             workers.append(worker)
         }
         let c = Crew(objective: objective, tasks: workers)
@@ -213,7 +227,10 @@ final class AgentCrewStore: ObservableObject {
             await withTaskGroup(of: Void.self) { group in
                 for worker in c.tasks {
                     group.addTask { [weak self] in
-                        await self?.runWindowWorker(worker)
+                        guard let self else { return }
+                        // 依赖门控（v0.8.16）：前序 done 才跑；失败/取消级联跳过。
+                        guard await self.awaitDependency(worker, crew: c) else { return }
+                        await self.runWindowWorker(worker)
                     }
                 }
             }
@@ -226,6 +243,35 @@ final class AgentCrewStore: ObservableObject {
     /// 窗口 worker：把子任务发给目标窗口的会话，轮询其回合完成，取最后
     /// 一条 assistant 消息为报告。用量按该会话本回合新增消息的 token 字段
     /// 记账（窗口会话自己的成本台账照常随会话落盘）。
+    /// 等待前序任务落定（窗口模式并行路径）：done 放行；
+    /// failed/cancelled 把本任务置 cancelled 并注明后返回 false。
+    private func awaitDependency(_ worker: WorkerTask, crew c: Crew) async -> Bool {
+        guard let dep = worker.dependsOn, c.tasks.indices.contains(dep) else { return true }
+        let pred = c.tasks[dep]
+        while pred.state != .done, worker.state == .pending, !Task.isCancelled {
+            if pred.state == .failed || pred.state == .cancelled {
+                worker.state = .cancelled
+                worker.result = "skipped: predecessor #\(dep) \(pred.state.rawValue)"
+                worker.finishedAt = Date()
+                publishNow()
+                return false
+            }
+            try? await Task.sleep(for: .milliseconds(400))
+        }
+        return worker.state == .pending
+    }
+
+    /// 依赖跳过判定（标签模式串行路径）：前序非 done → 本任务取消并注明。
+    private func shouldSkipDependent(_ worker: WorkerTask) -> Bool {
+        guard let dep = worker.dependsOn, crew?.tasks.indices.contains(dep) == true,
+              let pred = crew?.tasks[dep], pred.state != .done else { return false }
+        worker.state = .cancelled
+        worker.result = "skipped: predecessor #\(dep) \(pred.state.rawValue)"
+        worker.finishedAt = Date()
+        publishNow()
+        return true
+    }
+
     private func runWindowWorker(_ worker: WorkerTask) async {
         await runWindowWorkerOnce(worker)
         // 换窗重试（v0.8.10 crew 可靠性）：失败且还没重试过 → 找另一个空闲

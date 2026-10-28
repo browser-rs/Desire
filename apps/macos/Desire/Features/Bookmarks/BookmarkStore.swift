@@ -310,6 +310,52 @@ class BookmarkStore: ObservableObject {
 
     // MARK: - Import / Export
 
+    /// 轻量导出（v0.8.16 基础件 7）：JSON（全字段）/ CSV（title,url,folder,added）。
+    func exportJSON() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "bookmarks.json"
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        var rows: [[String: Any]] = []
+        func walk(_ nodes: [Bookmark], folder: String) {
+            for b in nodes {
+                if b.isLeaf, let link = b.url {
+                    rows.append(["title": b.title, "url": link,
+                                 "folder": folder, "added": b.updatedAt.map { ISO8601DateFormatter().string(from: $0) } ?? ""])
+                }
+                walk(b.children, folder: folder.isEmpty ? b.title : folder + "/" + b.title)
+            }
+        }
+        walk(bookmarks, folder: "")
+        guard let data = try? JSONSerialization.data(withJSONObject: ["bookmarks": rows], options: [.prettyPrinted, .sortedKeys]) else { return }
+        try? data.write(to: url)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    func exportCSV() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "bookmarks.csv"
+        panel.allowedContentTypes = [.commaSeparatedText]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        var lines = ["title,url,folder,added"]
+        func walk(_ nodes: [Bookmark], folder: String) {
+            for b in nodes {
+                if b.isLeaf, let link = b.url {
+                    lines.append([
+                        SpreadsheetBuffer.csvLine([b.title]),
+                        SpreadsheetBuffer.csvLine([link]),
+                        SpreadsheetBuffer.csvLine([folder]),
+                        SpreadsheetBuffer.csvLine([b.updatedAt.map { ISO8601DateFormatter().string(from: $0) } ?? ""]),
+                    ].joined(separator: ","))
+                }
+                walk(b.children, folder: folder.isEmpty ? b.title : folder + "/" + b.title)
+            }
+        }
+        walk(bookmarks, folder: "")
+        try? lines.joined(separator: "\n").write(to: url, atomically: true, encoding: .utf8)
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
     func exportToHTML() {
         let panel = NSSavePanel()
         panel.title = String(localized: "Export Bookmarks")

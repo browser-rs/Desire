@@ -1471,12 +1471,13 @@ extension BrowserToolProvider {
             // --- Tab Crew (0.3.1) ---
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "crewDispatch",
-                description: "Dispatch a crew: split a research/comparison task into 2-6 INDEPENDENT subtasks, each worked on its own tab by a worker agent. Use for parallel research (multi-site comparison, multi-engine search). Each subtask: {url: start URL, instruction: focused self-contained goal for the worker}. Workers are read-only (navigate+read tools only) and return short factual reports.",
+                description: "Dispatch a crew: split a research/comparison task into 2-6 INDEPENDENT subtasks, each worked on its own tab by a worker agent. Use for parallel research (multi-site comparison, multi-engine search). Each subtask: {url: start URL, instruction: focused self-contained goal for the worker, dependsOn?: earlier task index — that task must finish done before this one starts; if it fails this one is skipped (use for pipelines like collect-then-summarize)}. Workers are read-only (navigate+read tools only) and return short factual reports.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "objective": AgentJSONSchemaValue(type: "string", description: "Short task name shown to the user"),
                     "tasks": AgentJSONSchemaValue(type: "array", description: "2-6 subtasks", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [
                         "url": AgentJSONSchemaValue(type: "string", description: "Start URL for this worker's tab"),
                         "instruction": AgentJSONSchemaValue(type: "string", description: "Focused, self-contained instruction (the worker sees only this)"),
+                        "dependsOn": AgentJSONSchemaValue(type: "number", description: "Optional earlier task index this task waits on (0-based within this crew); predecessor must finish done"),
                     ]))),
                     "isolated": AgentJSONSchemaValue(type: "boolean", description: "Run all worker tabs in an ephemeral container — cookies/sessions wiped when the crew settles. Use for scraping that must not touch the user's login state"),
                     "windowMode": AgentJSONSchemaValue(type: "boolean", description: "v2: dispatch subtasks to OTHER windows' agent sessions instead of tabs here — each window works in parallel with its own tools and profile. Requires at least one other window with an idle agent session (listWindows to check). Reports come back the same way via crewStatus"),

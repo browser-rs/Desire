@@ -92,10 +92,18 @@ struct BookmarkPanel: View {
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
                     .help("Check for Dead Links…")
-                Button("", systemImage: "square.and.arrow.up") { store.exportToHTML() }
-                    .labelStyle(.iconOnly)
-                    .buttonStyle(.plain)
-                    .help("Export")
+                Menu {
+                    Button("HTML") { store.exportToHTML() }
+                    Button("JSON") { store.exportJSON() }
+                    Button("CSV") { store.exportCSV() }
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                }
+                .menuStyle(.button)
+                .menuIndicator(.hidden)
+                .buttonStyle(.plain)
+                .fixedSize()
+                .help("Export")
                 Menu {
                     ForEach(BookmarkImportService.ImportSource.allCases) { source in
                         Button {

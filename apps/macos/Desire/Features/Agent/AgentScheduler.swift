@@ -376,17 +376,24 @@ final class AgentScheduler: ObservableObject {
         ])
     }
 
-    /// Retry policy: one automatic retry ~30 s after a failed turn. The task
-    /// may be removed/disabled while waiting — then the failure stands.
+    /// Retry policy: N retries (user-configurable, default 1) with
+    /// exponential backoff (30s, 60s, 120s). The task may be removed/disabled
+    /// while waiting — then the failure stands.
     private func scheduleRetry(_ record: RunRecord) {
         let taskName = record.taskName
         let runID = record.id
+        let limit = {
+            let raw = UserDefaults.standard.integer(forKey: "scheduledTaskRetries")
+            return (1...3).contains(raw) ? raw : 1
+        }()
+        guard record.attempts < 1 + limit else { return }
+        let delay = UInt64(30 * (1 << (record.attempts - 1)))
         Task { [weak self] in
-            try? await Task.sleep(for: .seconds(30))
+            try? await Task.sleep(nanoseconds: delay * 1_000_000_000)
             guard let self, !Task.isCancelled else { return }
             guard let task = self.tasks.first(where: { $0.name == taskName }),
                   task.isEnabled else { return }
-            Log.agent.info("retrying scheduled task '\(taskName, privacy: .public)'")
+            Log.agent.info("retrying scheduled task '\(taskName, privacy: .public)' (attempt \(record.attempts + 1)/\(1 + limit))")
             self.deliver(task: task, runID: runID, attempts: record.attempts + 1)
         }
     }
@@ -409,9 +416,7 @@ final class AgentScheduler: ObservableObject {
             BridgeEventBus.shared.publish("scheduledTaskSucceeded", ["task": record.taskName])
         } else {
             notifyRunFailure(record)
-            if record.attempts < 2 {
-                scheduleRetry(record)
-            }
+            scheduleRetry(record)   // 内部判次数上限（1+可配 N）与退避
         }
     }
 

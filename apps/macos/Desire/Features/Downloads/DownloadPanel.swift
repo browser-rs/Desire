@@ -156,7 +156,7 @@ struct DownloadPanel: View {
         .sheet(isPresented: $showScheduleSheet) {
             ScheduledDownloadSheet()
         }
-        .task { store.scanFilePresence() }
+        .task { store.scanFilePresence(); refreshWeeklyStats() }
     }
 
     /// 定时下载队列（v0.8.0）：最多展示 3 条，其余折叠成计数。
@@ -314,7 +314,7 @@ struct DownloadPanel: View {
     /// 状态摘要：小圆点 + 静文字。
     @ViewBuilder
     private var statusSummary: some View {
-        if store.hasActive || store.pausedCount > 0 {
+        if store.hasActive || store.pausedCount > 0 || weeklyCount > 0 {
             HStack(spacing: 10) {
                 if store.hasActive {
                     summaryItem(color: appAccent, text: String(localized: "\(store.activeCount) active"))
@@ -322,9 +322,22 @@ struct DownloadPanel: View {
                 if store.pausedCount > 0 {
                     summaryItem(color: .orange, text: String(localized: "\(store.pausedCount) paused"))
                 }
+                if weeklyCount > 0 {
+                    // 本周统计（v0.8.16）：近 7 天完成条数与体积。
+                    summaryItem(color: .secondary, text: String(localized: "\(weeklyCount) this week · \(weeklyBytes)"))
+                }
             }
             .offset(y: -0.5)
         }
+    }
+
+    @State private var weeklyCount = 0
+    @State private var weeklyBytes = ""
+
+    private func refreshWeeklyStats() {
+        let stats = store.weeklyStats()
+        weeklyCount = stats.count
+        weeklyBytes = ByteCountFormatter.string(fromByteCount: stats.bytes, countStyle: .file)
     }
 
     private func summaryItem(color: Color, text: String) -> some View {

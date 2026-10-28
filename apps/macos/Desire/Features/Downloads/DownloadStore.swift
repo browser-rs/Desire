@@ -504,9 +504,23 @@ class DownloadStore: ObservableObject {
     private func maybeAutoSummarize(_ item: DownloadItem) {
         guard UserDefaults.standard.bool(forKey: "downloadAutoSummarize") else { return }
         let ext = (item.filename as NSString).pathExtension.lowercased()
-        let supported = ["pdf", "docx", "doc", "rtf", "odt", "txt", "md"]
-        guard supported.contains(ext), let url = item.fileURL else { return }
+        guard let url = item.fileURL else { return }
         let filename = item.filename
+        // 视频文件（v0.8.16）：ffprobe 本地取时长/分辨率/编码，零模型调用。
+        let videoExts = ["mp4", "mov", "webm", "mkv", "ts", "m4v"]
+        if videoExts.contains(ext) {
+            let path = url.path
+            Task { @MainActor in
+                guard let receipt = Self.probeVideoReceipt(path: path) else { return }
+                ProactiveNotificationStore.shared.deliver(
+                    title: String(localized: "Finished: \(filename)"),
+                    body: receipt,
+                    tier: .routine)
+            }
+            return
+        }
+        let supported = ["pdf", "docx", "doc", "rtf", "odt", "txt", "md"]
+        guard supported.contains(ext) else { return }
         Task { @MainActor in
             let text: String?
             if ext == "pdf" {
@@ -532,6 +546,58 @@ class DownloadStore: ObservableObject {
         }
     }
 
+    /// ffprobe 回执（"12s · 1920x1080 · h264+aac"）：未装 ffmpeg 返回 nil。
+    /// 探测路径与 SystemCommandStore 同目录族（其 searchPaths 是 private）。
+    nonisolated private static func probeVideoReceipt(path: String) -> String? {
+        let dirs = ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin", "/bin"]
+        guard let ffprobe = dirs.map({ $0 + "/ffprobe" })
+            .first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else { return nil }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: ffprobe)
+        process.arguments = ["-v", "quiet", "-print_format", "json", "-show_format", "-show_streams", path]
+        let stdout = Pipe()
+        process.standardOutput = stdout
+        process.standardError = Pipe()
+        do { try process.run() } catch { return nil }
+        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0,
+              let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        var parts: [String] = []
+        if let format = obj["format"] as? [String: Any],
+           let durationText = format["duration"] as? String,
+           let duration = Double(durationText), duration > 0 {
+            parts.append(duration >= 60
+                ? String(format: "%.0fmin", duration / 60)
+                : String(format: "%.0fs", duration))
+        }
+        var codecs: [String] = []
+        if let streams = obj["streams"] as? [[String: Any]] {
+            for stream in streams {
+                if stream["codec_type"] as? String == "video" {
+                    if let w = stream["width"] as? Int, let h = stream["height"] as? Int {
+                        parts.append("\(w)x\(h)")
+                    }
+                    if let codec = stream["codec_name"] as? String { codecs.append(codec) }
+                } else if stream["codec_type"] as? String == "audio",
+                          let codec = stream["codec_name"] as? String {
+                    codecs.append(codec)
+                }
+            }
+        }
+        parts.append(codecs.joined(separator: "+"))
+        let receipt = parts.filter { !$0.isEmpty }.joined(separator: " · ")
+        return receipt.isEmpty ? nil : receipt
+    }
+
+    /// 本周下载统计（v0.8.16 面板摘要）：近 7 天完成条数与总字节。
+    func weeklyStats() -> (count: Int, bytes: Int64) {
+        let items = DiskStore.load([HistoryItem].self, key: historyKey) ?? []
+        let weekAgo = Calendar.current.date(byAdding: .day, value: -7, to: Date()) ?? Date()
+        let week = items.filter { $0.state == "completed" && $0.startTime >= weekAgo }
+        return (week.count, week.reduce(0) { $0 + $1.totalBytes })
+    }
+
     /// 名额可能空出的统一出口（完成/失败/移除/暂停）——等待队列回泵。
     private func postSlotFreed() {
         NotificationCenter.default.post(name: .downloadSlotFreed, object: nil)
@@ -552,6 +618,7 @@ class DownloadStore: ObservableObject {
         scanFilePresence()
         syncDockBadge()
         maybeAutoSummarize(downloads[i])
+        NotificationCenter.default.post(name: .downloadCompletedNotification, object: nil)
         BridgeEventBus.shared.publish("downloadCompleted", [
             "id": id.uuidString, "file": downloads[i].filename,
             "bytes": downloads[i].downloadedBytes, "private": downloads[i].isPrivate,
@@ -1104,4 +1171,6 @@ extension Notification.Name {
     /// 一个传输名额空出（下载完成/失败/移除/暂停）——各 webview 协调器的
     /// 等待队列监听它做回泵（v0.7.19 并发上限）。
     static let downloadSlotFreed = Notification.Name("desire.downloadSlotFreed")
+    /// 一条下载完成（v0.8.16 面板本周统计刷新用）。
+    static let downloadCompletedNotification = Notification.Name("desire.downloadCompleted")
 }

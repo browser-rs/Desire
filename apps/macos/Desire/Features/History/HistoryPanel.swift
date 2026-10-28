@@ -215,6 +215,17 @@ struct HistoryPanel: View {
                 }
                 if !store.entries.isEmpty {
                     Menu {
+                        Button("JSON") { store.exportJSON() }
+                        Button("CSV") { store.exportCSV() }
+                    } label: {
+                        Label("Export", systemImage: "square.and.arrow.up")
+                            .foregroundStyle(.secondary)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.hidden)
+                }
+                if !store.entries.isEmpty {
+                    Menu {
                         Button("Clear Today") {
                             clearHistory(.today)
                         }

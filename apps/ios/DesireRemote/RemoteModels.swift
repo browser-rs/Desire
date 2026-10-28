@@ -524,6 +524,20 @@ struct RemoteRecentFile: Codable, Identifiable, Equatable {
     var id: String { url }
 }
 
+/// 摘录（v0.8.18）：Mac 端摘录库前 20 条（内容已截断）。
+struct RemoteExcerptItem: Codable, Identifiable, Equatable {
+    var id: String
+    var title: String
+    var kind: String
+    var content: String
+    var source: String
+}
+
+struct RemoteExcerptsFrame: Codable {
+    var t: String
+    var items: [RemoteExcerptItem]
+}
+
 struct RemoteRecentFilesFrame: Codable {
     var t: String
     var files: [RemoteRecentFile]

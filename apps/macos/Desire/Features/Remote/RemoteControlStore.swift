@@ -634,6 +634,24 @@ final class RemoteControlStore: ObservableObject {
             if let frame = Self.downloadsFrame() { sendInnerRaw(frame) }
         case "recentFiles":
             if let frame = Self.recentFilesFrame() { sendInnerRaw(frame) }
+        case "excerpts":
+            if let frame = Self.excerptsFrame() { sendInnerRaw(frame) }
+        case "openExcerpt":
+            // 摘录来源在 Mac 上打开（v0.8.18）：http 直接开标签；文件路径
+            // 转 file URL 进查看器路由（openRecentFile 的 URL(string:) 对
+            // 裸路径不成立，这里补分支）。
+            guard let raw = inner.id, !raw.isEmpty,
+                  let manager = TabSessionCoordinator.shared.activeTabManager else { return }
+            let url: URL?
+            if raw.hasPrefix("/") {
+                url = URL(fileURLWithPath: raw)
+            } else {
+                url = URL(string: raw)
+            }
+            guard let resolved = url else { return }
+            manager.addTab(url: resolved.absoluteString,
+                           javaScriptEnabled: true,
+                           contentBlocker: AppState.live?.contentBlocker)
         case "openRecentFile":
             // 远端打开：活动窗口加载该文件（本地查看器路由复用）。
             guard let raw = inner.id, let url = URL(string: raw),
@@ -723,6 +741,36 @@ final class RemoteControlStore: ObservableObject {
     nonisolated struct RemoteRecentFilesFrame: Codable {
         var t: String
         var files: [RemoteRecentFile]
+    }
+
+    /// 摘录帧（v0.8.18 融合）：内容截 240 字（手机列表浏览），
+    /// 远端打开走 openExcerpt（http 与文件路径两形态）。
+    nonisolated struct RemoteExcerptItem: Codable {
+        var id: String
+        var title: String
+        var kind: String
+        var content: String
+        var source: String
+    }
+
+    nonisolated struct RemoteExcerptsFrame: Codable {
+        var t: String
+        var items: [RemoteExcerptItem]
+    }
+
+    private static func excerptsFrame() -> String? {
+        let frame = RemoteExcerptsFrame(
+            t: "excerpts",
+            items: ExcerptStore.shared.excerpts.prefix(20).map { excerpt in
+                RemoteExcerptItem(
+                    id: excerpt.id.uuidString,
+                    title: excerpt.title,
+                    kind: excerpt.kind.rawValue,
+                    content: String(excerpt.content.prefix(240)),
+                    source: excerpt.source)
+            })
+        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     private static func recentFilesFrame() -> String? {

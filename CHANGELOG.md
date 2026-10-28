@@ -1,3 +1,9 @@
+## [Unreleased]
+### Added
+
+- 同步收官三件（0.8.18 第一批）：多档案同步实施（方案 A——随档案换桶的书签/历史/快拨三域以 `@<profileUUID>` 后缀域键独立同步，服务端 is_valid_domain 放宽 base 域+后缀校验、迁移 0018 放宽 domain 列宽，游标/墓碑按档案隔离；默认档案域键与存量一致零影响，切档案自动全量对账一轮；api-sync-smoke 12 步含档案域 roundtrip+隔离实证）；Remote 摘录（iPhone 端看 Mac 摘录库前 20 条、点按在 Mac 上打开来源——http 开标签/文件路径进查看器路由）；同步服务端部署清单（docs/OPS-SYNC-DEPLOY.md：0017 归因欠账+excerpts+0018 三增量、部署机四步铁律、真端点验证命令）。
+
+
 ## [v0.8.17] - 2026-10-29
 ### Added
 

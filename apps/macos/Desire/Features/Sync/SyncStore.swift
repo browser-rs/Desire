@@ -696,7 +696,7 @@ final class SyncStore: ObservableObject {
             while pages < max(1, maxPages) {
                 pages += 1
                 let response: SyncPullResponse<SyncEncryptedPayload> = try await SyncAPIClient.pull(
-                    baseURL: serverBaseURL, domain: SyncDomain.history.rawValue,
+                    baseURL: serverBaseURL, domain: wireName(.history),
                     since: since, sinceID: sinceID, deviceID: nil, accessToken: token)
                 if response.items.isEmpty { break }
                 let decrypted = decryptItems(response.items, domain: .history, master: master,
@@ -1042,7 +1042,7 @@ final class SyncStore: ObservableObject {
         while index < items.endIndex {
             let end = items.index(index, offsetBy: Self.pushChunkSize, limitedBy: items.endIndex) ?? items.endIndex
             let chunkResults: [SyncPushResult<SyncEncryptedPayload>] = try await SyncAPIClient.push(
-                baseURL: base, domain: domain.rawValue,
+                baseURL: base, domain: wireName(domain),
                 items: Array(items[index..<end]), accessToken: token
             )
             results.append(contentsOf: chunkResults)
@@ -1113,7 +1113,7 @@ final class SyncStore: ObservableObject {
         while pages < 50 {
             pages += 1
             let response: SyncPullResponse<SyncEncryptedPayload> = try await SyncAPIClient.pull(
-                baseURL: serverBaseURL, domain: domain.rawValue,
+                baseURL: serverBaseURL, domain: wireName(domain),
                 since: since, sinceID: sinceID, deviceID: deviceID, accessToken: token
             )
             if response.items.isEmpty { break }
@@ -2045,7 +2045,14 @@ final class SyncStore: ObservableObject {
     // MARK: - 令牌 / 设备 / Keychain
 
     private func cursorKey(_ domain: SyncDomain) -> String {
-        "sync.cursor.\(domain.rawValue)"
+        "sync.cursor.\(wireName(domain))"
+    }
+
+    /// 多档案域键（v0.8.18 方案 A）：随档案换桶的域（书签/历史/快拨）拼
+    /// `@<profileUUID>` 后缀——服务端行域/游标按档案隔离；其余域全局。
+    /// 切档案时 store 换桶发布 → 脏标记 → 后缀变了游标为空 → 全量对账一轮。
+    private func wireName(_ domain: SyncDomain) -> String {
+        domain.wireName(profileID: ProfileStore.shared.activeProfileID)
     }
 
     /// access 优先；缺失/被清时用 refresh 换新（服务端轮换：旧的即 revoked）。

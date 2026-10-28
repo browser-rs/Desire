@@ -127,6 +127,7 @@ final class RemoteClient: ObservableObject {
 
     /// 最近本地文件（v0.8.12）：Mac 端最近打开清单 + 远端打开。
     @Published private(set) var recentFiles: [RemoteRecentFile] = []
+    @Published private(set) var excerpts: [RemoteExcerptItem] = []
     /// 模型服务档案 + 当前档案的候选模型
     @Published private(set) var models: RemoteModels?
 
@@ -750,6 +751,10 @@ final class RemoteClient: ObservableObject {
                 if let frame = try? JSONDecoder().decode(RemoteRecentFilesFrame.self, from: data) {
                     recentFiles = frame.files
                 }
+            case "excerpts":
+                if let frame = try? JSONDecoder().decode(RemoteExcerptsFrame.self, from: data) {
+                    excerpts = frame.items
+                }
             case "earlierMessages":
                 // 长会话分页（0.6.8）：追加进侧缓冲（按 id 去重），不碰 messages
                 // ——快照每秒整体替换 messages，侧缓冲绝不能混进去。
@@ -968,6 +973,8 @@ final class RemoteClient: ObservableObject {
     func downloadAction(id: String, action: String) { pushFrame(["t": "downloadAction", "id": id, "action": action], replace: false) }
     func requestRecentFiles() { pushFrame(["t": "recentFiles"], replace: false) }
     func openRecentFile(_ urlString: String) { pushFrame(["t": "openRecentFile", "id": urlString], replace: false) }
+    func requestExcerpts() { pushFrame(["t": "excerpts"], replace: false) }
+    func openExcerpt(_ source: String) { pushFrame(["t": "openExcerpt", "id": source], replace: false) }
     func setNightOwl(_ enabled: Bool) { pushFrame(["t": "setNightOwl", "flag": enabled], replace: false) }
 
     // MARK: 定时任务遥控（v0.8.11）

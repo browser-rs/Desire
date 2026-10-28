@@ -46,6 +46,20 @@ enum SyncDomain: String, CaseIterable {
         case .excerpts: String(localized: "Excerpts")
         }
     }
+
+    /// 多档案域键（v0.8.18 方案 A）：随档案换桶的三个域（书签/历史/快拨，
+    /// 与 applyScope 换桶口径一致）拼 `@<profileUUID>` 后缀——服务端把它当
+    /// 独立域（游标/墓碑按档案隔离），其余域全局共享不带后缀。
+    /// 默认档案（nil）= 无后缀（存量语义不变，服务端老数据不搬家）。
+    nonisolated static let profileScopedDomains: Set<SyncDomain> = [.bookmarks, .history, .quickDials]
+
+    nonisolated func wireName(profileID: UUID?) -> String {
+        guard let profileID,
+              Self.profileScopedDomains.contains(self) else {
+            return rawValue
+        }
+        return rawValue + "@" + profileID.uuidString
+    }
 }
 
 /// 单域的同步诊断计数（0.6.8 同步日志，纯值类型进 harness 无需——仅 Codable 持久化）。

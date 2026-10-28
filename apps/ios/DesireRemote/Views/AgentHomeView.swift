@@ -252,6 +252,16 @@ struct AgentHomeView: View {
                     subtitle: "Mac 最近打开的本地文件，一键重开",
                     showsChevron: false)
             }
+
+            NavigationLink {
+                RemoteExcerptsView()
+            } label: {
+                DesireNavRow(
+                    icon: "text.quote",
+                    title: "摘录",
+                    subtitle: "Mac 摘录库：阅读高亮、批注与划选",
+                    showsChevron: false)
+            }
         } header: {
             DesireSectionHeader(title: "用量")
         }

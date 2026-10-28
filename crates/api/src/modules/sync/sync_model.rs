@@ -43,7 +43,22 @@ pub fn table_for(domain: &str) -> &'static str {
 pub const HISTORY_TTL_DAYS: u32 = 90;
 
 pub fn is_valid_domain(domain: &str) -> bool {
-  DOMAINS.contains(&domain)
+  if DOMAINS.contains(&domain) {
+    return true;
+  }
+  // 多档案（v0.8.18 方案 A）：`bookmarks@<profileUUID>` 形态——基础域命中
+  // 且后缀非空、纯 ASCII 字母数字与连字符（uuid 形态；column 值参数化查询
+  // 无注入面，charset 限制只为卫生）。每个后缀 = 独立的域键（游标/墓碑
+  // 天然按档案隔离，通用表零迁移）。
+  if let Some((base, suffix)) = domain.split_once('@') {
+    return DOMAINS.contains(&base)
+      && !suffix.is_empty()
+      && suffix.len() <= 64
+      && suffix
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-');
+  }
+  false
 }
 
 /// 设备面板行（v0.7.23）：设备身份 + 最近拉取游标台账。
@@ -162,4 +177,30 @@ pub struct KeyCheckResp {
 pub struct KeyCheckBody {
   /// HMAC-SHA256(主密钥, "fingerprint") 的 64 位 hex
   pub check: String,
+}
+
+#[cfg(test)]
+mod tests {
+  use super::is_valid_domain;
+
+  #[test]
+  fn base_domains_valid() {
+    assert!(is_valid_domain("bookmarks"));
+    assert!(is_valid_domain("excerpts"));
+    assert!(!is_valid_domain("nonsense"));
+  }
+
+  #[test]
+  fn profile_suffixed_domains_valid() {
+    assert!(is_valid_domain(
+      "bookmarks@3f2b8c1e-1234-4abc-9def-001122334455"
+    ));
+    assert!(is_valid_domain("history@work"));
+    // 基础域不存在 / 空后缀 / 越界字符 / 超长 → 拒
+    assert!(!is_valid_domain("nonsense@abc"));
+    assert!(!is_valid_domain("bookmarks@"));
+    assert!(!is_valid_domain("bookmarks@a b"));
+    assert!(!is_valid_domain("bookmarks@../x"));
+    assert!(!is_valid_domain(&format!("bookmarks@{}", "a".repeat(65))));
+  }
 }

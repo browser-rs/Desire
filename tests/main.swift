@@ -3905,6 +3905,22 @@ func testSkillVars() {
 
 testSkillVars()
 
+func testSyncWireName() {
+    let pid = UUID()
+    // 随档案换桶的三域带后缀
+    check("wireName：书签带档案", SyncDomain.bookmarks.wireName(profileID: pid) == "bookmarks@" + pid.uuidString)
+    check("wireName：历史带档案", SyncDomain.history.wireName(profileID: pid) == "history@" + pid.uuidString)
+    check("wireName：快拨带档案", SyncDomain.quickDials.wireName(profileID: pid) == "quickdials@" + pid.uuidString)
+    // 全局域不带后缀
+    check("wireName：设置全局", SyncDomain.settings.wireName(profileID: pid) == "settings")
+    check("wireName：摘录全局", SyncDomain.excerpts.wireName(profileID: pid) == "excerpts")
+    // 默认档案（nil）= 无后缀（存量语义）
+    check("wireName：默认档案无后缀", SyncDomain.bookmarks.wireName(profileID: nil) == "bookmarks")
+    check("wireName：档案域集合", SyncDomain.profileScopedDomains == [.bookmarks, .history, .quickDials])
+}
+
+testSyncWireName()
+
 func testNightOwlPolicy() {
     var p = NotificationPolicy()
     p.quietHoursEnabled = true

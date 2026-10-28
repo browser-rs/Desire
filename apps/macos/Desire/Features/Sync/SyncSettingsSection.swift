@@ -506,7 +506,7 @@ struct SyncSettingsSection: View {
     private var categoriesSection: some View {
         SettingsSection(
             title: "Sync Categories",
-            subtitle: "Choose what to sync across devices. Turning one off keeps its server data.",
+            subtitle: syncCategoriesSubtitle,
             icon: "checklist"
         ) {
             VStack(spacing: 0) {
@@ -526,6 +526,16 @@ struct SyncSettingsSection: View {
 
         ConflictsSection(store: store)
         DevicesSection(store: store)
+    }
+
+    /// 类目区副标题（v0.8.18 多档案）：显示当前同步的档案——随档案换桶的
+    /// 三个域（书签/历史/快拨）以 `@<profile>` 独立域键同步，其余全局。
+    private var syncCategoriesSubtitle: String {
+        if let id = ProfileStore.shared.activeProfileID,
+           let profile = ProfileStore.shared.profile(for: id) {
+            return String(localized: "Syncing profile: \(profile.name) — bookmarks/history/quick dial are scoped to it; everything else is shared.")
+        }
+        return String(localized: "Syncing the default profile. Choose what to sync across devices. Turning one off keeps its server data.")
     }
 
     /// 相对时间文案（系统本地化，"3 分钟前"），随 app 语言走。

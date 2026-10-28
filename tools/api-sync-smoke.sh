@@ -143,6 +143,17 @@ R=$(req GET /sync/excerpts "" "$TOKEN")
 [ "$(echo "$R" | get data.items.0.client_id)" = "ex-1" ] || fail "excerpts 拉取失败: $R"
 step "excerpts 域 roundtrip"
 
+# ---- 多档案域键(v0.8.18 方案 A:bookmarks@<profile>) ----
+PROF="3f2b8c1e-1234-4abc-9def-001122334455"
+PB_PUSH="{\"items\":[{\"client_id\":\"pb-1\",\"client_updated_at\":\"$NOW_TS\",\"payload\":\"https://example.com/profiled\"}]}"
+req POST "/sync/bookmarks@$PROF" "$PB_PUSH" "$TOKEN" > /dev/null
+R=$(req GET "/sync/bookmarks@$PROF" "" "$TOKEN")
+[ "$(echo "$R" | get data.items.0.client_id)" = "pb-1" ] || fail "多档案域拉取失败: $R"
+# 同 realID 在基础域与档案域互不可见（行域隔离）
+R2=$(req GET "/sync/bookmarks" "" "$TOKEN")
+echo "$R2" | grep -q "pb-1" && fail "档案域行泄漏进基础域" || true
+step "多档案域键 roundtrip + 与基础域隔离"
+
 # ---- 未知域 404 ----
 expect_code 404 GET /sync/nonsense "" "$TOKEN"
 step "未知域 → 404"

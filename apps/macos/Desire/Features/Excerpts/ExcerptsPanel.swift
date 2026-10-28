@@ -12,6 +12,9 @@ struct ExcerptsPanel: View {
     @State private var query = ""
     @State private var kindFilter: Excerpt.Kind?
     @State private var exportCopied = false
+    /// 摘录起草（v0.8.18 融合 9）：多选 → 拼 prompt 交活会话。
+    @State private var isSelectingExcerpts = false
+    @State private var selectedExcerptIDs: Set<UUID> = []
 
     private var items: [Excerpt] { store.filtered(query: query, kind: kindFilter) }
 
@@ -60,6 +63,27 @@ struct ExcerptsPanel: View {
                 .font(.system(size: 10.5, design: .monospaced))
                 .foregroundStyle(.tertiary)
             Spacer()
+            if isSelectingExcerpts {
+                Button {
+                    draftWithAgent()
+                } label: {
+                    Label(String(localized: "Draft with Agent (\(selectedExcerptIDs.count))"),
+                          systemImage: "wand.and.stars")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(appAccent)
+                .disabled(selectedExcerptIDs.isEmpty)
+            }
+            Button {
+                if isSelectingExcerpts { selectedExcerptIDs.removeAll() }
+                isSelectingExcerpts.toggle()
+            } label: {
+                Image(systemName: isSelectingExcerpts ? "checkmark.circle.fill" : "checkmark.circle")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(isSelectingExcerpts ? appAccent : Color.secondary)
+            .help(String(localized: "Select excerpts for drafting"))
             Button {
                 copyMarkdown()
             } label: {
@@ -178,21 +202,82 @@ struct ExcerptsPanel: View {
                 store.remove(id: excerpt.id)
             }
         }
-        .onTapGesture { openSource(excerpt) }
+        .onTapGesture {
+            if isSelectingExcerpts {
+                if selectedExcerptIDs.contains(excerpt.id) {
+                    selectedExcerptIDs.remove(excerpt.id)
+                } else {
+                    selectedExcerptIDs.insert(excerpt.id)
+                }
+            } else {
+                openSource(excerpt)
+            }
+        }
+    }
+
+    /// 选中摘录 → prompt（带来源）交活会话起草周报/笔记/摘要。
+    private func draftWithAgent() {
+        let chosen = store.excerpts.filter { selectedExcerptIDs.contains($0.id) }
+        guard !chosen.isEmpty else { return }
+        guard let session = AgentScheduler.shared.deliveryTarget else {
+            statusFlash(String(localized: "No live agent session"))
+            return
+        }
+        var body = String(localized: "请基于下面这些摘录起草一份成稿（周报/笔记/摘要，按内容形态自选结构）。逐条保留来源标注。\n\n")
+        for excerpt in chosen {
+            body += "【\(excerpt.title) · \(excerpt.kindLabel)】\n\(excerpt.content)\n"
+            if let note = excerpt.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
+                body += "（我的批注：\(note)）\n"
+            }
+            body += "\n"
+        }
+        session.sendMessage(body, recordHistory: true)
+        NotificationCenter.default.post(name: .desireShowAgentPanel, object: nil)
+        statusFlash(String(localized: "Sent \(chosen.count) excerpt(s) to the Agent"))
+        isSelectingExcerpts = false
+        selectedExcerptIDs.removeAll()
+    }
+
+    @State private var statusNote: String?
+    private func statusFlash(_ text: String) {
+        statusNote = text
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+            if statusNote == text { statusNote = nil }
+        }
     }
 
     /// 网页来源开标签（file:// 走查看器路由）；其余复制路径。
+    /// PDF 来源带 #page=N fragment（保存端写入）——fragment 顺 URL 流到
+    /// PDFViewerView 解析成初始页码。
     private func openSource(_ excerpt: Excerpt) {
         if excerpt.source.hasPrefix("http"), let url = URL(string: excerpt.source) {
             NSWorkspace.shared.open(url)
-        } else if FileManager.default.fileExists(atPath: excerpt.source) {
-            TabSessionCoordinator.shared.activeTabManager?.addTab(
-                url: URL(fileURLWithPath: excerpt.source).absoluteString,
-                javaScriptEnabled: true,
-                contentBlocker: AppState.live?.contentBlocker)
-        } else if excerpt.source.hasPrefix("/") {
-            NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: excerpt.source)])
+            return
         }
+        let (path, page) = Self.splitPageFragment(excerpt.source)
+        guard FileManager.default.fileExists(atPath: path) else {
+            if excerpt.source.hasPrefix("/") {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: excerpt.source)])
+            }
+            return
+        }
+        var url = URL(fileURLWithPath: path)
+        if let page {
+            var components = URLComponents(url: url, resolvingAgainstBaseURL: false)!
+            components.fragment = "page=\(page)"
+            url = components.url!
+        }
+        TabSessionCoordinator.shared.activeTabManager?.addTab(
+            url: url.absoluteString,
+            javaScriptEnabled: true,
+            contentBlocker: AppState.live?.contentBlocker)
+    }
+
+    /// "path#page=N" → (path, N)；无 fragment → (原串, nil)。
+    nonisolated static func splitPageFragment(_ source: String) -> (path: String, page: Int?) {
+        guard let range = source.range(of: "#page=") else { return (source, nil) }
+        let page = Int(source[range.upperBound...])
+        return (String(source[..<range.lowerBound]), page)
     }
 
     // MARK: - 导出

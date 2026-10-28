@@ -11,6 +11,10 @@ struct AgentCapabilitiesView: View {
     var onBack: () -> Void
 
     @State private var searchText = ""
+    /// 审批沉淀规则（v0.8.18）。
+    @ObservedObject private var approvalStore = ApprovalPolicyStore.shared
+    @State private var showApprovalClearConfirm = false
+
     /// 工具使用徽标（v0.8.6）：30 天窗口的调用次数/失败率。init 即读盘
     /// （离屏快照可拍——.task 在离屏宿主不触发）。
     @State private var usage: [ToolUsageStats.ToolStat]
@@ -40,6 +44,7 @@ struct AgentCapabilitiesView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     abilitiesSection
                     toolsSection
+                    approvalRulesSection
                 }
                 .padding(.horizontal, 12)
                 .padding(.bottom, 20)
@@ -336,6 +341,70 @@ struct AgentCapabilitiesView: View {
         ("terminal", "系统命令执行", "运行 ffmpeg / brew / python3 等本地 CLI（白名单 + 每次批准）"),
         ("books.vertical", "技能系统", "SKILL.md 技能库按需加载完整操作手册"),
     ]
+    // MARK: - 审批沉淀规则（v0.8.18 基础件 7）
+
+    /// `.alwaysAllow`/`.deny` 沉淀的 host 规则清单：查/删/全清——
+    /// 沉淀久了用户不知道放行过什么的治理面。
+    @ViewBuilder
+    private var approvalRulesSection: some View {
+        if !approvalStore.rules.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("Approval Rules")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("\(approvalStore.rules.count)")
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                    Spacer()
+                    Button(String(localized: "Clear All")) { showApprovalClearConfirm = true }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                        .confirmationDialog(
+                            String(localized: "Remove all approval rules? Denied sites will ask again."),
+                            isPresented: $showApprovalClearConfirm, titleVisibility: .visible) {
+                            Button(String(localized: "Remove All"), role: .destructive) {
+                                for rule in approvalStore.rules { approvalStore.removeRule(id: rule.id) }
+                            }
+                        }
+                }
+                VStack(spacing: 0) {
+                    ForEach(approvalStore.rules) { rule in
+                        HStack(spacing: 8) {
+                            Image(systemName: rule.decision == .allow
+                                  ? "hand.thumbsup.fill" : "hand.raised.fill")
+                                .font(.system(size: 10))
+                                .foregroundStyle(rule.decision == .allow ? Color.green : Color.red)
+                            Text(rule.toolName)
+                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                            Text(rule.host ?? String(localized: "All sites"))
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Spacer()
+                            Text(rule.createdAt.formatted(.relative(presentation: .named)))
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.tertiary)
+                            Button {
+                                approvalStore.removeRule(id: rule.id)
+                            } label: {
+                                Image(systemName: "xmark.circle.fill")
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        if rule.id != approvalStore.rules.last?.id {
+                            Divider().padding(.leading, 10)
+                        }
+                    }
+                }
+                .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor).opacity(0.6)))
+            }
+        }
+    }
 }
 
 private extension ToolRisk {

@@ -5,6 +5,11 @@ import SwiftUI
 /// 同源）：开关、目标窗口、立即执行、删除。任务的创建走 Agent 的
 /// scheduleTask 工具（或设置页提示的口令），这里不重复造创建表单。
 struct AgentTasksView: View {
+    private static let weekdayFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "E"
+        return f
+    }()
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject private var store = AgentScheduler.shared
@@ -20,6 +25,7 @@ struct AgentTasksView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 8) {
+                        runTimeline
                         ForEach(store.tasks) { task in
                             AgentTaskCard(task: task)
                         }
@@ -27,11 +33,143 @@ struct AgentTasksView: View {
                     .padding(12)
                 }
             }
+            crewReportTemplateSection
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .sheet(isPresented: $isCreating) {
             AgentTaskEditorSheet()
         }
+    }
+
+    // MARK: - 运行时间线（v0.8.18 基础件 8）+ crew 报告模板（基础件 6）
+
+    /// 最近 7 天运行分布：手工条形（成功/失败双色），RunRecord 已有数据。
+    private var runTimeline: some View {
+        let calendar = Calendar.current
+        let days = (0..<7).reversed().map { offset -> (label: String, ok: Int, fail: Int) in
+            let day = calendar.date(byAdding: .day, value: -offset, to: Date()) ?? Date()
+            let dayRuns = store.runs.filter { calendar.isDate($0.firedAt, inSameDayAs: day) }
+            let label = Self.weekdayFormatter.string(from: day)
+            // 口径对齐 store（AgentScheduler 348 行）：success==false 或
+            // status failed/missed 都算失败。
+            return (label,
+                    dayRuns.filter { $0.success == true }.count,
+                    dayRuns.filter { $0.success == false || $0.status == "failed" || $0.status == "missed" }.count)
+        }
+        let peak = max(1, days.map { max($0.ok, $0.fail) }.max() ?? 1)
+        return HStack(alignment: .bottom, spacing: 10) {
+            ForEach(days, id: \.label) { day in
+                VStack(spacing: 2) {
+                    HStack(alignment: .bottom, spacing: 2) {
+                        if day.ok > 0 {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(appAccent.opacity(0.75))
+                                .frame(width: 8, height: CGFloat(day.ok) / CGFloat(peak) * 34 + 3)
+                        }
+                        if day.fail > 0 {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.red.opacity(0.6))
+                                .frame(width: 8, height: CGFloat(day.fail) / CGFloat(peak) * 34 + 3)
+                        }
+                        if day.ok == 0 && day.fail == 0 {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.secondary.opacity(0.12))
+                                .frame(width: 8, height: 3)
+                        }
+                    }
+                    .frame(height: 37, alignment: .bottom)
+                    Text(day.label)
+                        .font(.system(size: 8.5))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            Spacer()
+            VStack(alignment: .trailing, spacing: 2) {
+                Text(String(localized: "Last 7 days"))
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Circle().fill(appAccent.opacity(0.75)).frame(width: 5, height: 5)
+                    Text(String(localized: "ok"))
+                    Circle().fill(Color.red.opacity(0.6)).frame(width: 5, height: 5)
+                    Text(String(localized: "failed"))
+                }
+                .font(.system(size: 8.5))
+                .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .controlBackgroundColor).opacity(0.6)))
+    }
+
+    /// crew 报告模板编辑（v0.8.18 基础件 6）：占位符
+    /// {{objective}}/{{done}}/{{failed}}/{{duration}}/{{usage}}/{{tasks}}；
+    /// 空 = 内置结构。
+    @State private var reportTemplateDraft = ""
+    @State private var showReportTemplateEditor = false
+
+    private var crewReportTemplateSection: some View {
+        Button {
+            reportTemplateDraft = UserDefaults.standard.string(forKey: "crew.reportTemplate") ?? ""
+            showReportTemplateEditor = true
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: "doc.plaintext")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                Text("Crew Report Template…")
+                    .font(.system(size: 11.5))
+                Spacer()
+                if UserDefaults.standard.string(forKey: "crew.reportTemplate")?.isEmpty == false {
+                    Text(String(localized: "customized"))
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(appAccent)
+                }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showReportTemplateEditor) {
+            crewTemplateEditor
+        }
+    }
+
+    private var crewTemplateEditor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Crew Report Template")
+                .font(.system(size: 13, weight: .semibold))
+            Text(String(localized: "Placeholders: {{objective}} {{done}} {{failed}} {{duration}} {{usage}} and {{tasks}} (per-task sections). Empty = built-in structure."))
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+            TextEditor(text: $reportTemplateDraft)
+                .font(.system(size: 11, design: .monospaced))
+                .frame(width: 420, height: 180)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.25)))
+            HStack {
+                Button(String(localized: "Reset to Built-in")) {
+                    UserDefaults.standard.removeObject(forKey: "crew.reportTemplate")
+                    reportTemplateDraft = ""
+                }
+                Spacer()
+                Button(String(localized: "Cancel")) { showReportTemplateEditor = false }
+                    .keyboardShortcut(.cancelAction)
+                Button(String(localized: "Save")) {
+                    let trimmed = reportTemplateDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+                    if trimmed.isEmpty {
+                        UserDefaults.standard.removeObject(forKey: "crew.reportTemplate")
+                    } else {
+                        UserDefaults.standard.set(trimmed, forKey: "crew.reportTemplate")
+                    }
+                    showReportTemplateEditor = false
+                }
+                .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(16)
     }
 
     private var header: some View {

@@ -123,9 +123,25 @@ struct PDFViewerView: View {
 
     private func load() {
         guard model == nil else { return }
-        if let m = PDFWorkbenchModel.load(fileURL: fileURL, fileName: fileName) {
+        // fileURL 可能带 #page=N fragment（摘录库深链，v0.8.18）：
+        // PDFDocument 打开用净路径，fragment 解析成初始页码。
+        let cleanURL = URL(fileURLWithPath: fileURL.path)
+        var initialPage: Int?
+        if let fragment = fileURL.fragment(),
+           fragment.hasPrefix("page="), let n = Int(fragment.dropFirst("page=".count)), n >= 1 {
+            initialPage = n - 1
+        }
+        if let m = PDFWorkbenchModel.load(fileURL: cleanURL, fileName: fileName) {
             model = m
             if m.isLocked { return }
+            if let initialPage, initialPage < m.pageCount {
+                m.requestGoToPage(initialPage)
+                m.statusNote = String(localized: "Opened at page \(initialPage + 1)")
+                if m.annotationCount > 0 {
+                    m.statusNote = String(localized: "This PDF contains \(m.annotationCount) annotation(s)")
+                }
+                return
+            }
             // 阅读进度记忆（v0.8.16）：恢复上次页码与缩放。
             if let pos = PDFWorkbenchModel.loadPosition(filePath: fileURL.path),
                pos.page < m.pageCount {
@@ -304,7 +320,7 @@ struct PDFViewerView: View {
             .help(String(localized: "Reset Zoom"))
 
             Button {
-                NSWorkspace.shared.open(fileURL)
+                NSWorkspace.shared.open(URL(fileURLWithPath: fileURL.path))
             } label: {
                 Image(systemName: "arrow.up.forward.app")
             }

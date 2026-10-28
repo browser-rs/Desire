@@ -13,6 +13,7 @@ enum AgentWindowDestination: Hashable {
     case capabilities
     case doctor
     case promotion
+    case excerpts
 }
 
 /// 独立 Agent 窗口的**两栏布局根视图**（2026-10-10）：左栏 = 智能体侧栏
@@ -111,6 +112,8 @@ struct AgentWindowRoot: View {
             AgentCapabilitiesView(onBack: { switchDestination(.chat) })
         case .doctor:
             AgentDoctorView(onBack: { switchDestination(.chat) })
+        case .excerpts:
+            ExcerptsPanel()
         case .promotion:
             PromotionView(
                 onBack: { switchDestination(.chat) },

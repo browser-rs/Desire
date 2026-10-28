@@ -25,6 +25,8 @@ enum SyncDomain: String, CaseIterable {
     /// 运营数据（v0.9.0 第十一类域）：目标/帖子/账号/实验/互动/战役/竞品来源
     case promotion
     case jobs
+    /// 摘录库（v0.8.17 第十三域）：阅读高亮/PDF 批注/网页划选的统一沉淀。
+    case excerpts
 
     /// 展示名（键与设置页既有文案共用，目录里已有三语）。
     var displayName: String {
@@ -41,6 +43,7 @@ enum SyncDomain: String, CaseIterable {
         case .workspace: String(localized: "Workspaces")
         case .promotion: String(localized: "Operations")
         case .jobs: String(localized: "Jobs")
+        case .excerpts: String(localized: "Excerpts")
         }
     }
 }

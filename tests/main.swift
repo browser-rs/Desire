@@ -3848,6 +3848,34 @@ func testArtifactPaths() {
 
 testArtifactPaths()
 
+func testExcerpt() {
+    // 去重键：同来源+同内容同键，来源不同不同键
+    let a = Excerpt(kind: .webSelection, title: "t", source: "https://x", content: "hello")
+    let b = Excerpt(kind: .webSelection, title: "t2", source: "https://x", content: "hello")
+    let c = Excerpt(kind: .webSelection, title: "t", source: "https://y", content: "hello")
+    check("摘录：去重键同源同文", a.dedupeKey == b.dedupeKey)
+    check("摘录：去重键异源", a.dedupeKey != c.dedupeKey)
+    // 匹配：标题/内容/备注/来源
+    check("摘录：内容命中", a.matches("hello"))
+    check("摘录：标题命中", a.matches("t2") == false)
+    check("摘录：大小写不敏感", a.matches("HELLO"))
+    let noted = Excerpt(kind: .readerHighlight, title: "t", source: "s", content: "x", note: "重点")
+    check("摘录：备注命中", noted.matches("重点"))
+    check("摘录：空查询全过", a.matches("  "))
+    // Markdown 分节：引用前缀 + 备注加粗 + 时间序
+    let old = Excerpt(kind: .webSelection, title: "t", source: "s", content: "first",
+                      createdAt: Date(timeIntervalSince1970: 1_000))
+    let new = Excerpt(kind: .webSelection, title: "t", source: "s", content: "second", note: "关键",
+                      createdAt: Date(timeIntervalSince1970: 2_000))
+    let section = Excerpt.markdownSection(title: "来源", source: "https://x", items: [new, old])
+    check("摘录：分节标题", section.hasPrefix("## 来源\n\n> https://x"))
+    check("摘录：引用行", section.contains("> first"))
+    check("摘录：备注加粗", section.contains("**关键**"))
+    check("摘录：按收录时间序", section.range(of: "> first")!.lowerBound < section.range(of: "> second")!.lowerBound)
+}
+
+testExcerpt()
+
 func testNightOwlPolicy() {
     var p = NotificationPolicy()
     p.quietHoursEnabled = true

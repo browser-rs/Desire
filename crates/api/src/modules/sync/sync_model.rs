@@ -26,6 +26,7 @@ pub const DOMAINS: &[&str] = &[
   "workspace",
   "promotion",
   "jobs",
+  "excerpts",
 ];
 
 /// 域 → 存储表。history 独立成表(0007):写入频繁、体量大、有独立 TTL,

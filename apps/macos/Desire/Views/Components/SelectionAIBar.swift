@@ -6,6 +6,8 @@ struct SelectionAIBar: View {
     let onExplain: () -> Void
     let onTranslate: () -> Void
     let onAsk: () -> Void
+    /// 存为摘录（v0.8.17 摘录库）：本地收录，不烧模型。
+    var onExcerpt: (() -> Void)? = nil
     /// 复制选中文本（0.6.5 划词工具条补全）。
     var onCopy: (() -> Void)? = nil
     /// 默认搜索引擎搜选中文本（0.6.5）。
@@ -21,6 +23,9 @@ struct SelectionAIBar: View {
             }
             if let onCopy {
                 barButton("复制", icon: "doc.on.doc", action: onCopy)
+            }
+            if let onExcerpt {
+                barButton("摘录", icon: "text.quote", action: onExcerpt)
             }
             barButton("解释", icon: "text.bubble", action: onExplain)
             barButton("翻译", icon: "character.bubble", action: onTranslate)

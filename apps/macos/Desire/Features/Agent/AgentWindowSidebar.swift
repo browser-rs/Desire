@@ -16,6 +16,7 @@ struct AgentWindowSidebar: View {
     @ObservedObject private var skillStore = SkillStore.shared
     /// 推广徽标 = 待发布草稿数（行动项）。
     @ObservedObject private var promotionStore = PromotionStore.shared
+    @ObservedObject private var excerptStore = ExcerptStore.shared
     @ObservedObject private var notifications = ProactiveNotificationStore.shared
     var onNewChat: () -> Void
     /// 从侧栏点会话时把右栏带回聊天列。
@@ -89,6 +90,9 @@ struct AgentWindowSidebar: View {
                            label: String(localized: "Operations"),
                            badge: promotionStore.outstandingDraftCount == 0
                                ? nil : "\(promotionStore.outstandingDraftCount)")
+            destinationRow(.excerpts, icon: "text.quote",
+                           label: String(localized: "Excerpts"),
+                           badge: excerptStore.excerpts.isEmpty ? nil : "\(excerptStore.excerpts.count)")
         }
         .padding(.horizontal, 8)
         .padding(.top, 2)

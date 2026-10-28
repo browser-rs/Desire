@@ -71,6 +71,18 @@ struct ReaderHighlightsSheet: View {
                                 .menuStyle(.borderlessButton)
                                 .fixedSize()
                                 Button {
+                                    ExcerptStore.shared.add(
+                                        kind: .readerHighlight,
+                                        title: url,
+                                        source: url,
+                                        content: item.quote,
+                                        note: item.note)
+                                } label: {
+                                    Image(systemName: "text.quote")
+                                }
+                                .buttonStyle(.plain)
+                                .help("Save to Excerpts")
+                                Button {
                                     store.delete(item.id)
                                 } label: {
                                     Image(systemName: "trash")

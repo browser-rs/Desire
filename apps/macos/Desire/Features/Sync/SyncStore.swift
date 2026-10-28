@@ -78,6 +78,7 @@ final class SyncStore: ObservableObject {
     private let agentMemoryStore = AgentMemoryStore.shared
     private let promotionStore = PromotionStore.shared
     private let jobStore = JobStore.shared
+    private let excerptStore = ExcerptStore.shared
     private var syncTimer: Timer?
     private let defaults = UserDefaults.standard
 
@@ -225,6 +226,7 @@ final class SyncStore: ObservableObject {
         observeLocalChanges(WorkspaceStore.shared.objectWillChange, domain: .workspace)
         observeLocalChanges(promotionStore.objectWillChange, domain: .promotion)
         observeLocalChanges(jobStore.objectWillChange, domain: .jobs)
+        observeLocalChanges(excerptStore.objectWillChange, domain: .excerpts)
     }
 
     private func observeLocalChanges(
@@ -892,6 +894,7 @@ final class SyncStore: ObservableObject {
             DomainAdapter(domain: .agentMemory, collect: collectAgentMemory, apply: applyAgentMemory, clear: clearAgentMemoryPending),
             DomainAdapter(domain: .promotion, collect: collectPromotion, apply: applyPromotion, clear: clearPromotionPending),
             DomainAdapter(domain: .jobs, collect: collectJobs, apply: applyJobs, clear: clearJobsPending),
+            DomainAdapter(domain: .excerpts, collect: collectExcerpts, apply: applyExcerpts, clear: clearExcerptsPending),
             DomainAdapter(domain: .agentPrefs, collect: collectAgentPrefs, apply: applyAgentPrefs, clear: { _, _ in },
                           commit: { self.commitAgentPrefsSnapshot() }),
             DomainAdapter(domain: .history, collect: collectHistory, apply: applyHistory, clear: clearHistoryPending),
@@ -978,6 +981,7 @@ final class SyncStore: ObservableObject {
             .agentMemory: agentMemoryStore.pendingDeletions.count,
             .promotion: promotionStore.pendingDeletions.count,
             .jobs: jobStore.pendingDeletions.count,
+            .excerpts: excerptStore.pendingDeletions.count,
             .history: historyStore.pendingDeletions.count,
             .whiteboard: WhiteboardStore.shared.pendingDeletions.count,
         ]
@@ -1619,6 +1623,50 @@ final class SyncStore: ObservableObject {
     private func clearJobsPending(_ serverIDs: Set<String>, master: String) {
         let ids = serverIDs.compactMap { UUID(uuidString: $0) }
         jobStore.clearPendingDeletions(serverIDs: Set(ids))
+    }
+
+    // MARK: - 摘录域（v0.8.17 第十三域）
+
+    private func collectExcerpts(master: String) -> [SyncWireItem<SyncEncryptedPayload>] {
+        var items: [SyncWireItem<SyncEncryptedPayload>] = []
+        for excerpt in excerptStore.excerpts {
+            items.append(encryptedWire(
+                domain: .excerpts, realID: excerpt.id.uuidString,
+                clientUpdatedAt: excerpt.updatedAt, deleted: false,
+                payload: excerpt, master: master))
+        }
+        for (id, deletedAt) in excerptStore.pendingDeletions {
+            items.append(encryptedTombstone(
+                domain: .excerpts, realID: id, clientUpdatedAt: deletedAt, master: master))
+        }
+        return items
+    }
+
+    private func applyExcerpts(_ items: [SyncWireItem<SyncEncryptedPayload>], master: String) {
+        guard !items.isEmpty else { return }
+        var hmacToLocal: [String: Date] = [:]
+        for excerpt in excerptStore.excerpts {
+            hmacToLocal[SyncPromotion.clientID(for: excerpt.id.uuidString, masterKeyBase64: master)] = excerpt.updatedAt
+        }
+        applyRemotely {
+            for item in items {
+                guard let encrypted = item.payload,
+                      let excerpt = try? SyncCrypto.decrypt(
+                    encrypted, domain: .excerpts,
+                    masterKeyBase64: master, as: Excerpt.self) else { continue }
+                let hmac = SyncPromotion.clientID(for: excerpt.id.uuidString, masterKeyBase64: master)
+                if item.deleted == true {
+                    if hmacToLocal[hmac] != nil { excerptStore.removeForSync(id: excerpt.id) }
+                    continue
+                }
+                if let localAt = hmacToLocal[hmac], item.clientUpdatedAt <= localAt { continue }
+                excerptStore.upsertForSync(excerpt)
+            }
+        }
+    }
+
+    private func clearExcerptsPending(_ serverIDs: Set<String>, master: String) {
+        excerptStore.clearPendingDeletions(serverIDs: Set(serverIDs.compactMap { UUID(uuidString: $0) }))
     }
 
     // MARK: - Agent 偏好域（自定义系统提示词）

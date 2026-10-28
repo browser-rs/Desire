@@ -616,6 +616,10 @@ struct PDFViewerView: View {
                     .padding(.vertical, 5)
                     .contentShape(Rectangle())
                     .contextMenu {
+                        Button(String(localized: "Save to Excerpts")) {
+                            saveAnnotationToExcerpts(model, item: item)
+                        }
+                        Divider()
                         Button(String(localized: "Delete annotation"), role: .destructive) {
                             model.removeAnnotation(item.annotation, pageIndex: item.pageIndex)
                         }
@@ -627,6 +631,22 @@ struct PDFViewerView: View {
             }
             .padding(.vertical, 6)
         }
+    }
+
+    /// 批注收进摘录库（v0.8.17）：文本内容 + 页码引用；空内容批注跳过。
+    private func saveAnnotationToExcerpts(_ model: PDFWorkbenchModel,
+                                          item: (annotation: PDFAnnotation, pageIndex: Int)) {
+        let text = (item.annotation.contents ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            model.statusNote = String(localized: "Nothing to save (shape annotations carry no text)")
+            return
+        }
+        ExcerptStore.shared.add(
+            kind: .pdfAnnotation,
+            title: "\(fileName) · p\(item.pageIndex + 1)",
+            source: fileURL.path,
+            content: text)
+        model.statusNote = String(localized: "Saved to Excerpts")
     }
 
     private func annotionPreview(_ a: PDFAnnotation) -> String {

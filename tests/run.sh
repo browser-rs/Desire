@@ -82,6 +82,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/PageRangeParser.swift
   apps/macos/Desire/Features/Agent/SpreadsheetXLSXWriter.swift
   apps/macos/Desire/Features/Agent/ArtifactPaths.swift
+  apps/macos/Desire/Features/Excerpts/Excerpt.swift
   apps/macos/Desire/Features/Browsing/ArchiveKit.swift
   apps/macos/Desire/Features/Agent/SessionTemplates.swift
   apps/macos/Desire/Features/History/HistoryTimeline.swift

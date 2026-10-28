@@ -313,6 +313,15 @@ struct SelectedTabContent: View {
                 AgentPanelVisibilityStore.shared.record(key: content.tabManager.sessionKey, shown: true)
                 tab.browser.selectionAI = nil
             },
+            onExcerpt: {
+                // 存为摘录（v0.8.17）：本地收录（标题=页面标题，来源=当前 URL）。
+                ExcerptStore.shared.add(
+                    kind: .webSelection,
+                    title: tab.displayTitle,
+                    source: tab.browser.webView.url?.absoluteString ?? "",
+                    content: selection.text)
+                tab.browser.selectionAI = nil
+            },
             onCopy: {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(selection.text, forType: .string)

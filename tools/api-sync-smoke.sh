@@ -136,6 +136,13 @@ R=$(req GET /sync/settings "" "$TOKEN")
 [ "$(echo "$R" | get data.items.0.client_id)" = "homePage" ] || fail "settings 拉取失败: $R"
 step "settings 域 KV roundtrip"
 
+# ---- excerpts 域(v0.8.17 第十三域,通用表) ----
+EX_PUSH="{\"items\":[{\"client_id\":\"ex-1\",\"client_updated_at\":\"$NOW_TS\",\"payload\":\"quote text\"}]}"
+req POST /sync/excerpts "$EX_PUSH" "$TOKEN" > /dev/null
+R=$(req GET /sync/excerpts "" "$TOKEN")
+[ "$(echo "$R" | get data.items.0.client_id)" = "ex-1" ] || fail "excerpts 拉取失败: $R"
+step "excerpts 域 roundtrip"
+
 # ---- 未知域 404 ----
 expect_code 404 GET /sync/nonsense "" "$TOKEN"
 step "未知域 → 404"

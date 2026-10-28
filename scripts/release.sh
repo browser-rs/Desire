@@ -176,3 +176,4 @@ fi
 echo "进度   : gh run watch $RUN_ID"
 echo "状态   : scripts/release.sh --status"
 echo "tag 指向：$(printf '%s' "$HEAD_SHA" | cut -c1-8)（后续提交不影响本次发布）"
+echo "说明   : tag 由云端工作流在建 tag 后才存在于远端——本地 git fetch --tags 同步（本仓库已配 fetch.tagOpt=--tags，日常 fetch 自动带）"

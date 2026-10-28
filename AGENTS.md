@@ -1038,6 +1038,9 @@ Features/Bookmarks/
    **tag 与 Release 都不存在**（铁律：发版必须成功）。
 3. publish job 幂等（Release 已存在则更新、资产 `--clobber` 逐个上传并重试、
    最后校验远端 size/sha256）；上传/网络失败只需 `gh run rerun <id> --failed`。
+   **tag 由云端工作流创建（只存在于远端）**——本地看 tag 要 `git fetch --tags`
+   （2026-10-28 用户惊过一次"没打 tag 就发版"；仓库已配 `fetch.tagOpt --tags`
+   日常 fetch 自动带，勿再误判）。
 4. 发版前自检：`scripts/release.sh <版本号> --build-only`（publish=false，只构建，
    不建 tag）；`scripts/release.sh --status` 看进度。
 5. 产品页部署是手工步。

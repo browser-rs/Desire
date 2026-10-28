@@ -413,6 +413,8 @@ final class AutomationServer {
         ep("POST", "/downloads/pause", "Pause", params: ["id?:uuid"], example: "-d '{}'")
         ep("POST", "/downloads/resume", "Resume", params: ["id?:uuid"], example: "-d '{}'")
         ep("GET", "/downloads/scheduled", "Scheduled downloads (id/url/filename/startAt)", example: "…/downloads/scheduled")
+        ep("GET", "/downloads/rules", "Auto-archive rules (ext/domain -> subfolder)", example: "…/downloads/rules")
+        ep("POST", "/downloads/rules", "Replace the auto-archive rule table", params: ["rules:array of {ext?, domain?, folder}"], example: #"-d '{"rules":[{"ext":"pdf","folder":"Papers"}]}'"#)
         ep("POST", "/downloads/schedule", "Schedule a download: startAt (unix seconds) or inSeconds", params: ["url:string", "startAt?:double", "inSeconds?:double", "filename?:string"], example: "-d '{\"url\":\"https://a.b/f.zip\",\"inSeconds\":5}'")
         ep("POST", "/downloads/scheduled/cancel", "Cancel a scheduled download", params: ["id:uuid"], example: "-d '{\"id\":\"…\"}'")
         // Data stores
@@ -2476,6 +2478,25 @@ final class AutomationServer {
                 return try Self.json(["servers": servers, "tools": store.toolDefs.map(\.function.name), "prompts": store.allPrompts().count, "resources": store.allResources().count])
             case ("GET", "/downloads"):
                 return try Self.json(Self.downloads())
+            case ("GET", "/downloads/rules"):
+                // 自动归档规则表（v0.8.18 替人干活 16）。
+                return try Self.json(["rules": DownloadStore.loadArchiveRules().map { rule in
+                    ["ext": rule.ext as Any?, "domain": rule.domain as Any?, "folder": rule.folder]
+                }])
+            case ("POST", "/downloads/rules"):
+                // 整表替换（Agent/自动化可代管；与设置编辑器同存储）。
+                guard let rows = body["rules"] as? [[String: Any]] else {
+                    return try Self.json(["error": "missing rules array"])
+                }
+                let rules: [DownloadStore.ArchiveRule] = rows.compactMap { row in
+                    let ext = row["ext"] as? String
+                    let domain = row["domain"] as? String
+                    guard let folder = row["folder"] as? String, !folder.isEmpty,
+                          (ext?.isEmpty == false) || (domain?.isEmpty == false) else { return nil }
+                    return DownloadStore.ArchiveRule(ext: ext, domain: domain, folder: folder)
+                }
+                DownloadStore.saveArchiveRules(rules)
+                return try Self.json(["ok": true, "count": rules.count])
             case ("POST", "/downloads/batch"):
                 return try Self.json(Self.batchDownload(urls: body["urls"] as? [String] ?? []))
             case ("POST", "/downloads/start"):

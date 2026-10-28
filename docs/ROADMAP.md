@@ -3475,6 +3475,11 @@ v0.8.1 的菜单入口只有"移交会话"，这版补齐：
 >
 > 版本号 **v0.8.18**。只规划，过目后才开发。
 
+### 存量盘点修正（2026-10-29 执行期核实）
+
+- 项 4（查找栏大小写开关）**撤项**：FindBar 的 Aa 切换 + WebView JS flags
+  早已交付（findCountJS/findSnippetJS caseSensitive 全链路在）。
+
 ### 存量盘点（2026-10-29 核实）
 
 - 多档案同步：设计稿已批路线（docs/SYNC-MULTI-PROFILE-DESIGN.md 方案 A

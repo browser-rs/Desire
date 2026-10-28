@@ -528,6 +528,22 @@ class DownloadStore: ObservableObject {
         }
     }
 
+    /// 规则表读写（UI 编辑器与桥端点共用；UserDefaults "downloadArchiveRules"）。
+    static func loadArchiveRules() -> [ArchiveRule] {
+        guard let data = UserDefaults.standard.data(forKey: "downloadArchiveRules"),
+              let rules = try? JSONDecoder().decode([ArchiveRule].self, from: data) else { return [] }
+        return rules
+    }
+
+    static func saveArchiveRules(_ rules: [ArchiveRule]) {
+        guard !rules.isEmpty,
+              let data = try? JSONEncoder().encode(rules) else {
+            UserDefaults.standard.removeObject(forKey: "downloadArchiveRules")
+            return
+        }
+        UserDefaults.standard.set(data, forKey: "downloadArchiveRules")
+    }
+
     /// 归档规则（扩展名或来源域 → 子目录）。
     struct ArchiveRule: Codable {
         var ext: String?

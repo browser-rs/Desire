@@ -4,6 +4,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 struct GeneralSettingsSection: View {
+    /// 归档规则编辑（v0.8.18 替人干活 14）。
+    @State private var showArchiveRules = false
     @ObservedObject var settings: Settings
     @ObservedObject var downloadStore: DownloadStore
     /// 视频站广告拦截（YouTube / 哔哩哔哩等的播放器广告与列表页广告卡片）。
@@ -478,6 +480,41 @@ struct GeneralSettingsSection: View {
                         systemImage: "doc.text.magnifyingglass",
                         isOn: $settings.downloadAutoSummarize
                     )
+                    SettingsRowDivider()
+                    Button {
+                        showArchiveRules = true
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: "folder.badge.gearshape")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                                .frame(width: 22)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(String(localized: "Auto-Archive Rules…"))
+                                    .font(.system(size: 12.5))
+                                Text(String(localized: "Move finished downloads into subfolders by extension or source site."))
+                                    .font(.system(size: 10.5))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            let count = DownloadStore.loadArchiveRules().count
+                            if count > 0 {
+                                Text("\(count)")
+                                    .font(.system(size: 10.5, design: .monospaced))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .sheet(isPresented: $showArchiveRules) {
+                        ArchiveRulesEditorSheet()
+                    }
                     SettingsRowDivider()
                     MutedDownloadHostsRow()
                     SettingsRowDivider()

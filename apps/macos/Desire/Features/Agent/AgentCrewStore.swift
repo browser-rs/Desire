@@ -123,6 +123,13 @@ final class AgentCrewStore: ObservableObject {
         "getPageSnapshot", "getPageText", "getPageLinks", "findInPage", "extractTables",
     ]
 
+    /// crew 规模上限（v0.8.18 替人干活 15）：2-10 可配，默认 6
+    /// （UserDefaults "crew.maxTasks"；越界回落默认）。
+    static var maxTasks: Int {
+        let raw = UserDefaults.standard.integer(forKey: "crew.maxTasks")
+        return (2...10).contains(raw) ? raw : 6
+    }
+
     private init() {}
 
     // MARK: - Dispatch (crewDispatch tool)
@@ -135,7 +142,9 @@ final class AgentCrewStore: ObservableObject {
             return "A crew is already running. Use crewStatus to poll or crewCancel first."
         }
         guard !tasks.isEmpty else { return "No tasks provided" }
-        guard tasks.count <= 6 else { return "At most 6 subtasks per crew" }
+        guard tasks.count <= Self.maxTasks else {
+            return "At most \(Self.maxTasks) subtasks per crew"
+        }
         guard let manager = surface.tabManager else { return "No tab manager" }
         // 依赖校验：只许引用更早的下标（环/前向引用直接拒绝——串行与并行
         // 两种模式都以"更早索引先落定"为前提）。

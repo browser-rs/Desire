@@ -719,6 +719,9 @@ extension BrowserToolProvider {
             return "Bilingual reading started — translations stream in per batch; open paragraphs to see them below the originals."
 
         case "newWindow":
+            if AppModeStore.shared.mode == .agentFocus {
+                return Self.fail("Window creation is disabled in Agent Workspace — use the embedded browser pane, or switch to Browser/Hybrid mode.")
+            }
             // 新窗口（菜单 File ▸ New Window 同路径）。**先激活应用再发命令**：
             // CommandBus 的消费守卫是 hostingWindow === NSApp.keyWindow，
             // 应用在后台时 keyWindow 为空 → 命令会被所有窗口丢掉（实测：
@@ -893,6 +896,17 @@ extension BrowserToolProvider {
                 return Self.fail("No live agent session to review.")
             }
             return await session.reflectForTool(question: (args["question"] as? String) ?? "")
+
+        case "requestUserHelp":
+            // Peek（v0.8.23）：把"需要人"变成一次可追踪的交接，回合不阻塞。
+            guard let reason = args["reason"] as? String,
+                  !reason.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return Self.fail("Missing reason")
+            }
+            let peek = PeekCenter.shared.request(reason: reason,
+                                                 needsPage: (args["needsPage"] as? Bool) ?? true)
+            PeekCenter.shared.present()
+            return "Asked the user for help (request \(peek.id.uuidString.prefix(8))): \(reason). Keep working on other things; this surface is locked until they finish."
 
         case "reportCapabilityGap":
             // 能力缺口自述（v0.8.22）：Agent 自己说"这里缺什么"，编程工具按次数排序补。

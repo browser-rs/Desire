@@ -401,10 +401,7 @@ struct ContentView: View {
                 // window). One `configure(with:)` call replaces the former
                 // 13-parameter `configureStores`.
                 appState.attach(tabManager: tabManager)
-                let toolManager = usageMode.mode == .agentFocus
-                    ? AgentPaneManager.shared.ensure()
-                    : tabManager
-                aiSession.configure(with: WindowToolSurface(app: appState, tabManager: toolManager))
+                aiSession.configure(with: effectiveAgentSurface())
                 isAgentConfigured = true
                 StartupMetric.markFirstWindowInteractive()
             }
@@ -804,8 +801,30 @@ struct ContentView: View {
     /// 模式切换后重配 Agent 工具面（v0.8.23）：专注模式指向内嵌浏览面板，
     /// 其余模式回到本窗口。
     private func reconfigureAgentSurface(for mode: AppUsageMode) {
-        let manager = mode == .agentFocus ? AgentPaneManager.shared.ensure() : tabManager
-        aiSession.configure(with: WindowToolSurface(app: appState, tabManager: manager))
+        aiSession.configure(with: effectiveAgentSurface())
+    }
+
+    /// 工具目标规则（v0.8.23）：专注 → 内嵌面板；混合 → 用户窗口的会话默认
+    /// 指向 Agent 角色窗口；其余 → 本窗口。
+    private func effectiveAgentSurface() -> any BrowserToolSurface {
+        let base = WindowToolSurface(app: appState, tabManager: tabManager)
+        switch usageMode.mode {
+        case .agentFocus:
+            return WindowToolSurface(app: appState,
+                                     tabManager: AgentPaneManager.shared.ensure())
+        case .hybrid:
+            if WindowRoleRegistry.shared.role(for: tabManager.sessionKey) == .agent {
+                return base
+            }
+            if let agentManager = TabSessionCoordinator.shared.liveManagers().first(where: {
+                WindowRoleRegistry.shared.role(for: $0.sessionKey) == .agent
+            }) {
+                return ModeAwareToolSurface(base: base, tabManager: agentManager)
+            }
+            return base
+        case .browser:
+            return base
+        }
     }
 
     /// Agent ▸ Ask About This Page (⌘⇧A)：让活动会话的 Agent 阅读并

@@ -8,18 +8,24 @@ struct AgentWorkspaceView: View {
     @Environment(\.appAccent) private var appAccent
     @ObservedObject var modeStore = AppModeStore.shared
     @ObservedObject var paneStore = AgentPaneManager.shared
+    @ObservedObject var peek = PeekCenter.shared
     @ObservedObject var store: AgentSessionStore
     @ObservedObject var conversationStore: ConversationStore
     let content: ContentView
     var onExit: () -> Void
 
     @State private var paneExpanded = false
+    /// 面板是因为 Peek 自动展开的（结束时自动收回；用户手动展开的不动）。
+    @State private var peekAutoExpanded = false
 
     private var pane: TabManager? { paneStore.manager }
 
     var body: some View {
         VStack(spacing: 0) {
             header
+            if let request = peek.active {
+                peekBanner(request)
+            }
             Divider()
             HStack(spacing: 0) {
                 AgentPanel(store: store, conversationStore: conversationStore, promptCenter: store.promptCenter)
@@ -34,6 +40,45 @@ struct AgentWorkspaceView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear { AgentPaneManager.shared.ensure() }
+        .onChange(of: peek.active?.id) { _, newID in
+            if newID != nil {
+                if !paneExpanded { peekAutoExpanded = true }
+                withAnimation(.easeInOut(duration: 0.18)) { paneExpanded = true }
+            } else if peekAutoExpanded {
+                withAnimation(.easeInOut(duration: 0.18)) { paneExpanded = false }
+                peekAutoExpanded = false
+            }
+        }
+    }
+
+    private func peekBanner(_ request: PeekRequest) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "hand.raised.fill")
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(appAccent)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(String(localized: "Agent needs your help"))
+                    .font(.system(size: 11.5, weight: .semibold))
+                Text(request.reason)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+            }
+            Spacer()
+            Button(String(localized: "Done")) {
+                PeekCenter.shared.resolve(completed: true)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            Button(String(localized: "Dismiss")) {
+                PeekCenter.shared.resolve(completed: false)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(appAccent.opacity(0.08))
     }
 
     private var header: some View {

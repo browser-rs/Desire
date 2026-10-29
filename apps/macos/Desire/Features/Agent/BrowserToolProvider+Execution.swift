@@ -175,6 +175,12 @@ extension BrowserToolProvider {
         guard let surface else {
             return Self.fail("Tool surface not configured")
         }
+        // 接管锁（v0.8.23）：用户在手动操作这个浏览面时，Agent 工具让路，
+        // 明确报错而不是静默失败或和用户抢。
+        if let lockedManager = surface.tabManager,
+           let lockReason = SurfaceLock.shared.reason(for: lockedManager) {
+            return Self.fail("surface is being used by the user (peek: \(lockReason)); retry after they finish")
+        }
         // ARCH-2：按域拆分——先「页面/数据」域，再「DOM/系统」域，最后本文件
         // 的 Utilities 尾段（wait/waitForElement/executeJS/fillLogin 等）。
         // 域返回 nil = 不认识该工具，继续往下问。

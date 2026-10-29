@@ -824,6 +824,14 @@ extension BrowserToolProvider {
                 ], required: ["capability"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "requestUserHelp",
+                description: "Ask the user to look at the page and do something a script cannot (log in, solve a captcha, approve a visual step). Returns immediately with a request id — the turn continues; the user gets a Peek (inline panel in Agent Workspace, notification in other modes) and the surface is locked for you until they finish. A system note then tells you whether the page changed.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "reason": AgentJSONSchemaValue(type: "string", description: "Short, concrete ask shown to the user"),
+                    "needsPage": AgentJSONSchemaValue(type: "boolean", description: "Whether the page must be shown (default true)"),
+                ], required: ["reason"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "searchConversations", description: "Search the user's PAST saved conversations (title + full message text, case-insensitive) and return the closest matches with a snippet each. Use it for \"我们上次说的那个…\" / \"earlier we discussed…\" — the CURRENT conversation is already in your context and is excluded. Follow up with readConversation(id) when a snippet is not enough.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "query": AgentJSONSchemaValue(type: "string", description: "Keywords to look for (at least 2 characters)"),

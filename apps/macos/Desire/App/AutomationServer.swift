@@ -619,6 +619,8 @@ final class AutomationServer {
         ep("GET", "/review/queue", "Spaced-repetition review queue (total/due + per-entry stage/dueAt/lapses)", example: "…/review/queue")
         ep("POST", "/review/grade", "Grade a review item: remembered=true advances a stage, false resets to stage 1", params: ["id:uuid", "remembered:bool"], example: "-d '{\"id\":\"…\",\"remembered\":true}'")
         ep("POST", "/review/reset", "Clear the review queue", example: "-d '{}'")
+        ep("GET", "/peek", "Peek (user-assist) state: active request, last resolution, locked surface count", example: "…/peek")
+        ep("POST", "/peek", "Peek control: request / open / resolve / dismiss", params: ["action:string", "reason?:string", "needsPage?:bool"], example: "-d '{\"action\":\"request\",\"reason\":\"请登录\"}'")
         ep("GET", "/diag/windows", "Window roles (user/agent/agentPane), tab counts, selected URL and key-window flag — focus/mode E2E probe", example: "…/diag/windows")
         ep("GET", "/app/mode", "Usage mode (browser / agentFocus / hybrid) + available modes", example: "…/app/mode")
         ep("POST", "/app/mode", "Switch usage mode; hybrid opens an agent window if none exists", params: ["mode:string (browser|agentFocus|hybrid)"], example: "-d '{\"mode\":\"hybrid\"}'")
@@ -2900,6 +2902,25 @@ final class AutomationServer {
             case ("POST", "/review/reset"):
                 ReviewQueueStore.shared.reset()
                 return try Self.json(["ok": true, "total": 0, "due": 0])
+            case ("GET", "/peek"):
+                return try Self.json(PeekCenter.shared.payload())
+            case ("POST", "/peek"):
+                let peekAction = Self.string(body, "action") ?? "open"
+                switch peekAction {
+                case "request":
+                    let reason = Self.string(body, "reason") ?? "Agent needs you"
+                    _ = PeekCenter.shared.request(reason: reason,
+                                                  needsPage: body["needsPage"] as? Bool ?? true)
+                case "open":
+                    PeekCenter.shared.present()
+                case "resolve":
+                    PeekCenter.shared.resolve(completed: true)
+                case "dismiss":
+                    PeekCenter.shared.resolve(completed: false)
+                default:
+                    return try Self.json(["error": "unknown action: \(peekAction)"])
+                }
+                return try Self.json(PeekCenter.shared.payload())
             case ("GET", "/diag/windows"):
                 return try Self.json(Self.diagWindows())
             case ("GET", "/app/mode"):
@@ -3451,6 +3472,7 @@ final class AutomationServer {
                 "containerId": selected?.containerID?.uuidString ?? "",
                 "title": windowTitle,
                 "isKey": isKey,
+                "locked": SurfaceLock.shared.reason(for: manager) != nil,
             ]
         }
         return ["keyWindowTitle": keyTitle,

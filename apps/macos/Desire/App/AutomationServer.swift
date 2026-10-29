@@ -699,6 +699,8 @@ final class AutomationServer {
         ep("POST", "/index/rebuild", "Rebuild the semantic index (all enabled sources, or one via source)", params: ["source?:history|bookmark|excerpt|highlight|conversation"], example: "-d '{}'")
         ep("POST", "/index/clear", "Delete semantic index shards (all, or one source)", params: ["source?:string"], example: "-d '{}'")
         ep("GET", "/search/semantic", "Semantic search over the on-device index (same-language shard; literal search remains primary)", params: ["q:string", "limit?:int (default 20)", "source?:string", "minScore?:float (diagnostic override)"], example: "…/search/semantic?q=offline%20reading")
+        ep("GET", "/spotlight/status", "Spotlight indexing state (enabled / last indexed count / last error)", example: "…/spotlight/status")
+        ep("POST", "/spotlight/rebuild", "Re-index history/bookmarks/excerpts into Spotlight now", example: "-d '{}'")
         ep("POST", "/tabs/digest", "Summarize all open tabs in the background (per-tab digest + overview with [n] citations; lands as session note + notification)", params: ["urls?:[string]", "maxCharsPerTab?:int"], example: "-d '{}'")
         ep("GET", "/tabs/digest", "Latest tab digest state (running/done/total/digest/sources)", example: "…/tabs/digest")
         ep("POST", "/tabs/ask", "Answer a question from the open tabs with [n] citations (one side-model call)", params: ["question:string", "urls?:[string]", "maxTabs?:int", "maxCharsPerTab?:int"], example: #"-d '{"question":"这几篇的主要观点是否一致？"}'"#)
@@ -1187,7 +1189,12 @@ final class AutomationServer {
                     session: AgentScheduler.shared.deliveryTarget)
                 return try Self.json(["ok": true, "queued": queued,
                                       "running": TabDigestStore.shared.isRunning])
-            case ("GET", "/tabs/digest"):
+            case ("GET", "/spotlight/status"):
+                return try Self.json(SpotlightIndexer.statusPayload())
+            case ("POST", "/spotlight/rebuild"):
+                SpotlightIndexer.rebuild()
+                return try Self.json(["ok": true])
+    case ("GET", "/tabs/digest"):
                 return try Self.json(Self.tabDigestStatus())
             case ("POST", "/tabs/ask"):
                 guard let question = Self.string(body, "question"), !question.isEmpty else {

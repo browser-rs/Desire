@@ -17,6 +17,9 @@ enum SpotlightIndexer {
     private static let domain = "me.siwi.Desire.local"
     private static var started = false
     private static var scheduled: Task<Void, Never>?
+    /// 最近一次投递结果（桥 /spotlight/status 与排查用）。
+    private(set) static var lastIndexedCount = 0
+    private(set) static var lastError: String?
 
     static var isEnabled: Bool {
         UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true
@@ -91,17 +94,33 @@ enum SpotlightIndexer {
         let index = CSSearchableIndex.default()
         index.deleteSearchableItems(withDomainIdentifiers: [domain]) { _ in
             index.indexSearchableItems(items) { error in
-                if let error {
-                    Log.app.error("spotlight indexing failed: \(error.localizedDescription, privacy: .public)")
-                } else {
-                    Log.app.info("spotlight indexed \(items.count, privacy: .public) item(s)")
+                // 完成回调在系统队列：状态是 @MainActor 的，跳回主 actor 再写。
+                Task { @MainActor in
+                    if let error {
+                        lastError = error.localizedDescription
+                        Log.app.error("spotlight indexing failed: \(error.localizedDescription, privacy: .public)")
+                    } else {
+                        lastIndexedCount = items.count
+                        lastError = nil
+                        Log.app.info("spotlight indexed \(items.count, privacy: .public) item(s)")
+                    }
                 }
             }
         }
     }
 
     static func deleteAll() {
+        lastIndexedCount = 0
         CSSearchableIndex.default().deleteSearchableItems(withDomainIdentifiers: [domain]) { _ in }
+    }
+
+    /// 桥端点 `GET /spotlight/status` 的载荷。
+    static func statusPayload() -> [String: Any] {
+        [
+            "enabled": isEnabled,
+            "indexed": lastIndexedCount,
+            "lastError": lastError ?? "",
+        ]
     }
 
     /// 解析 Spotlight 结果标识 → URL（AppDelegate 的 continue 处理用）。

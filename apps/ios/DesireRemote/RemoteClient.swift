@@ -129,6 +129,7 @@ final class RemoteClient: ObservableObject {
     @Published private(set) var recentFiles: [RemoteRecentFile] = []
     @Published private(set) var excerpts: [RemoteExcerptItem] = []
     @Published private(set) var briefs: [RemoteBriefItem] = []
+    @Published private(set) var archivedSessions: [RemoteArchivedSession] = []
     /// 模型服务档案 + 当前档案的候选模型
     @Published private(set) var models: RemoteModels?
 
@@ -760,6 +761,10 @@ final class RemoteClient: ObservableObject {
                 if let frame = try? JSONDecoder().decode(RemoteBriefsFrame.self, from: data) {
                     briefs = frame.items
                 }
+            case "archivedSessions":
+                if let frame = try? JSONDecoder().decode(RemoteArchivedSessionsFrame.self, from: data) {
+                    archivedSessions = frame.items
+                }
             case "earlierMessages":
                 // 长会话分页（0.6.8）：追加进侧缓冲（按 id 去重），不碰 messages
                 // ——快照每秒整体替换 messages，侧缓冲绝不能混进去。
@@ -980,6 +985,13 @@ final class RemoteClient: ObservableObject {
     func openRecentFile(_ urlString: String) { pushFrame(["t": "openRecentFile", "id": urlString], replace: false) }
     func requestExcerpts() { pushFrame(["t": "excerpts"], replace: false) }
     func requestBriefs() { pushFrame(["t": "briefs"], replace: false) }
+    // v0.8.20：手机发起下载 / 下载批量操作 / 归档会话（Mac 端命令对偶）。
+    func startDownload(url: String) { pushFrame(["t": "startDownload", "text": url], replace: false) }
+    func downloadsBulk(_ action: String) { pushFrame(["t": "downloadsBulk", "action": action], replace: false) }
+    func requestArchivedSessions() { pushFrame(["t": "archivedSessions"], replace: false) }
+    func restoreArchivedSession(file: String) {
+        pushFrame(["t": "restoreArchivedSession", "id": file], replace: false)
+    }
     func openExcerpt(_ source: String) { pushFrame(["t": "openExcerpt", "id": source], replace: false) }
     func setNightOwl(_ enabled: Bool) { pushFrame(["t": "setNightOwl", "flag": enabled], replace: false) }
 

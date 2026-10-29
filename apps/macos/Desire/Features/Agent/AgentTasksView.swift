@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// 定时任务管理页（Agent 窗口侧栏"任务"目的地，2026-10-10）。
 /// 数据与管理 API 全部来自 `AgentScheduler`（与设置页 ScheduledTasksSection
@@ -16,6 +18,8 @@ struct AgentTasksView: View {
     var onBack: () -> Void
 
     @State private var isCreating = false
+    /// 导入结果提示（v0.8.20）。
+    @State private var importNote: String?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -172,6 +176,26 @@ struct AgentTasksView: View {
         .padding(16)
     }
 
+    /// 导出/导入任务配置（v0.8.20 替人干活 18）。
+    private func exportTasksJSON() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "desire-tasks.json"
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        try? store.exportJSON().write(to: url, atomically: true, encoding: .utf8)
+    }
+
+    private func importTasksJSON() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.json]
+        guard panel.runModal() == .OK, let url = panel.url,
+              let text = try? String(contentsOf: url, encoding: .utf8) else { return }
+        let (added, skipped) = store.importJSON(text)
+        importNote = added > 0
+            ? String(localized: "Imported \(added) task(s)\(skipped.isEmpty ? "" : ", skipped \(skipped.count) name conflict(s)")")
+            : String(localized: "Nothing imported\(skipped.isEmpty ? "" : " — \(skipped.count) name conflict(s)")")
+    }
+
     private var header: some View {
         HStack(spacing: 6) {
             HoverIcon(systemName: "chevron.left", action: onBack, help: "Back")
@@ -187,6 +211,20 @@ struct AgentTasksView: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(Capsule().fill(Color(nsColor: .controlBackgroundColor).opacity(0.6)))
+            // 任务 JSON 导出/导入（v0.8.20 查缺补漏：桥端点已有、UI 补上）。
+            Menu {
+                Button(String(localized: "Export Tasks…")) { exportTasksJSON() }
+                Button(String(localized: "Import Tasks…")) { importTasksJSON() }
+            } label: {
+                Image(systemName: "square.and.arrow.up.on.square")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24, height: 22)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help(String(localized: "Share task configs as JSON"))
             HoverIcon(systemName: "plus.bubble", action: { isCreating = true }, help: "New Task")
         }
         .padding(.horizontal, 12)

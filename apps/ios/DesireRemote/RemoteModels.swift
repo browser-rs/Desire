@@ -546,6 +546,20 @@ struct RemoteBriefItem: Codable, Identifiable, Equatable {
     var id: String { date }
 }
 
+/// 归档会话（v0.8.20）：已关窗口的会话归档，手机可恢复到 Mac。
+struct RemoteArchivedSession: Codable, Identifiable, Equatable {
+    var fileName: String
+    var tabCount: Int
+    var topURLs: String
+    var savedAt: TimeInterval
+    var id: String { fileName }
+}
+
+struct RemoteArchivedSessionsFrame: Codable {
+    var t: String
+    var items: [RemoteArchivedSession]
+}
+
 struct RemoteBriefsFrame: Codable {
     var t: String
     var items: [RemoteBriefItem]

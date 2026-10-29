@@ -482,6 +482,21 @@ extension BrowserToolProvider {
 
         // --- Tab Crew (0.3.1) ---
         case "crewDispatch":
+            // 预设（v0.8.20 查缺补漏：Preset 存储此前无工具入口）：
+            // preset = 用命名配置派发；saveAs = 把本次配置存成预设。
+            if let presetName = args["preset"] as? String, !presetName.isEmpty {
+                guard let preset = AgentCrewStore.presets.first(where: { $0.name == presetName }) else {
+                    let available = AgentCrewStore.presets.map(\.name).joined(separator: ", ")
+                    return Self.fail("No crew preset named '\(presetName)'\(available.isEmpty ? " — none saved yet" : " (available: \(available))")")
+                }
+                let tasks: [(url: String?, instruction: String, dependsOn: Int?)] =
+                    preset.tasksJSON.map {
+                        (url: $0["url"], instruction: $0["instruction"] ?? "", dependsOn: nil)
+                    }
+                return AgentCrewStore.shared.dispatch(
+                    objective: preset.objective, tasks: tasks,
+                    surface: surface, windowMode: preset.windowMode, compare: preset.compare)
+            }
             let objective = args["objective"] as? String ?? "research task"
             let rawTasks = args["tasks"] as? [[String: Any]] ?? []
             let tasks = rawTasks.map { t -> (url: String?, instruction: String, dependsOn: Int?) in
@@ -490,6 +505,16 @@ extension BrowserToolProvider {
             let isolated = args["isolated"] as? Bool ?? false
             let windowMode = args["windowMode"] as? Bool ?? false
             let compare = args["compare"] as? Bool ?? false
+            if let saveName = args["saveAs"] as? String, !saveName.isEmpty {
+                AgentCrewStore.savePreset(AgentCrewStore.Preset(
+                    id: UUID(), name: saveName, objective: objective,
+                    tasksJSON: tasks.map { t in
+                        var row: [String: String] = ["instruction": t.instruction]
+                        if let url = t.url { row["url"] = url }
+                        return row
+                    },
+                    compare: compare, windowMode: windowMode))
+            }
             return AgentCrewStore.shared.dispatch(objective: objective, tasks: tasks,
                                                   surface: surface, isolated: isolated,
                                                   windowMode: windowMode, compare: compare)

@@ -264,6 +264,16 @@ struct AgentHomeView: View {
             }
 
             NavigationLink {
+                RemoteArchivedSessionsView()
+            } label: {
+                DesireNavRow(
+                    icon: "clock.arrow.circlepath",
+                    title: "归档会话",
+                    subtitle: "已关窗口的会话，一键恢复到 Mac",
+                    showsChevron: false)
+            }
+
+            NavigationLink {
                 RemoteBriefsView()
             } label: {
                 DesireNavRow(

@@ -48,7 +48,8 @@ enum BackupScheduler {
         let hour = calendar.component(.hour, from: now)
         let scheduleHour = UserDefaults.standard.object(forKey: "backup.scheduleHour")
             as? Int ?? 9
-        guard hour == max(0, min(23, scheduleHour)) else { return }
+        // catch-up：过了计划小时之后的任一 tick 都补跑（lastRun 防重复）。
+        guard hour >= max(0, min(23, scheduleHour)) else { return }
         if schedule == .weekly, calendar.component(.weekday, from: now) != 2 { return }   // 周一
         let stamp = dayStamp(now)
         guard UserDefaults.standard.string(forKey: "backup.lastRun") != stamp else { return }

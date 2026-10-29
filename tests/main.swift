@@ -4010,6 +4010,23 @@ func testMemoryImport() {
 
 testMemoryImport()
 
+func testSkillGallery() {
+    let good = #"{"version":1,"skills":[{"id":"a","name":"A","description":"d","file":"skills/a.md"}]}"#
+    check("Gallery：解析合法索引", SkillGallery.parseIndex(Data(good.utf8))?.skills.count == 1)
+    let badVersion = #"{"version":9,"skills":[{"id":"a","name":"A","description":"d","file":"skills/a.md"}]}"#
+    check("Gallery：版本拒绝", SkillGallery.parseIndex(Data(badVersion.utf8)) == nil)
+    check("Gallery：空列表拒绝", SkillGallery.parseIndex(Data(#"{"version":1,"skills":[]}"#.utf8)) == nil)
+    check("Gallery：非 JSON 拒绝", SkillGallery.parseIndex(Data("nope".utf8)) == nil)
+    // URL 安全：相对通过、绝对/穿越拒绝
+    let base = "https://desire.mankong.icu/skills/"
+    check("Gallery：相对路径", SkillGallery.resolveFileURL("skills/a.md", base: base)?.absoluteString == "https://desire.mankong.icu/skills/skills/a.md")
+    check("Gallery：绝对拒绝", SkillGallery.resolveFileURL("https://evil/x", base: base) == nil)
+    check("Gallery：穿越拒绝", SkillGallery.resolveFileURL("../x.md", base: base) == nil)
+    check("Gallery：反斜杠拒绝", SkillGallery.resolveFileURL("a\\b.md", base: base) == nil)
+}
+
+testSkillGallery()
+
 func testTextParagraphize() {
     // 单换行折空格、双换行保留
     let a = TextParagraphize.paragraphized("first line\nsecond line\n\nnext para")

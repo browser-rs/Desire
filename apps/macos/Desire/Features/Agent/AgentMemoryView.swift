@@ -108,10 +108,18 @@ struct AgentMemoryView: View {
             let before = memory.factsSnapshot.count
             memory.addFact(content: fact.content, category: fact.category,
                            scope: fact.scope, source: fact.source)
-            if memory.factsSnapshot.count > before { added += 1 }
-            if fact.pinned { /* pin 走 addFact 后置——API 无 pinned 参数，跳过 */ }
+            if memory.factsSnapshot.count > before {
+                added += 1
+                // pin 恢复（v0.8.20 查缺补漏）：addFact 无 pinned 参数——
+                // 按内容找回刚入的那条再置位。
+                if fact.pinned,
+                   let inserted = memory.factsSnapshot.first(where: {
+                       $0.content == fact.content && $0.scope == fact.scope
+                   }) {
+                    memory.togglePin(inserted.id)
+                }
+            }
         }
-        _ = added
         Log.agent.info("memory import: \(facts.count) parsed, \(added) new")
     }
 

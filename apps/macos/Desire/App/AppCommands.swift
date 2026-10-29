@@ -28,6 +28,8 @@ struct AppCommands: Commands {
     @ObservedObject var containers: ContainerStore
     /// Agent ▸ AI 动作复查开关（标题随状态切换）。
     @ObservedObject var aiPreference: AgentPreferenceStore
+    /// 使用模式菜单的单选对勾（v0.8.23）。
+    @ObservedObject var usageMode: AppModeStore
     /// Tools ▸ 免打扰时段开关（标题随状态切换）。
     @ObservedObject var notifications: ProactiveNotificationStore
 
@@ -140,11 +142,17 @@ struct AppCommands: Commands {
         // MARK: - 使用模式（v0.8.23）
 
         CommandMenu("Mode") {
-            Button("Agent Workspace") { AppModeCoordinator.apply(.agentFocus) }
+            Toggle("Agent Workspace", isOn: Binding(
+                get: { usageMode.mode == .agentFocus },
+                set: { if $0 { AppModeCoordinator.apply(.agentFocus) } }))
                 .keyboardShortcut("1", modifiers: [.command, .control])
-            Button("Browser") { AppModeCoordinator.apply(.browser) }
+            Toggle("Browser", isOn: Binding(
+                get: { usageMode.mode == .browser },
+                set: { if $0 { AppModeCoordinator.apply(.browser) } }))
                 .keyboardShortcut("2", modifiers: [.command, .control])
-            Button("Hybrid") { AppModeCoordinator.apply(.hybrid) }
+            Toggle("Hybrid", isOn: Binding(
+                get: { usageMode.mode == .hybrid },
+                set: { if $0 { AppModeCoordinator.apply(.hybrid) } }))
                 .keyboardShortcut("3", modifiers: [.command, .control])
         }
 

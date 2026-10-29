@@ -51,7 +51,9 @@ enum SessionRestore {
         if let role = WindowRoleRegistry.shared.pendingRole {
             WindowRoleRegistry.shared.pendingRole = nil
             if role == .agent {
-                let containerID = WindowRoleRegistry.shared.agentContainerID()
+                let containerID = AppModeStore.shared.agentSharesUserProfile
+                    ? nil
+                    : WindowRoleRegistry.shared.agentContainerID()
                 manager.defaultContainerID = containerID
                 let agentKey = WindowRoleRegistry.shared.agentSessionKey() ?? sessionKey
                 manager.sessionKey = agentKey

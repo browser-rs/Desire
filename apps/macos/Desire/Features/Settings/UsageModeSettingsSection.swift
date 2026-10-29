@@ -35,6 +35,22 @@ struct UsageModeSettingsSection: View {
                 }
             }
 
+            SettingsSection(
+                title: "Login State",
+                subtitle: "How the agent's browser relates to your logins.",
+                icon: "key"
+            ) {
+                SettingsToggleRow(
+                    "Share Your Login State",
+                    subtitle: "Agent windows use this Mac's browsing profile instead of an isolated container. More convenient, less isolated.",
+                    systemImage: "person.badge.key",
+                    isOn: Binding(
+                        get: { store.agentSharesUserProfile },
+                        set: { store.setAgentSharesUserProfile($0) }
+                    )
+                )
+            }
+
             Text("Agent Workspace keeps the browser in the background and reveals it only when needed. Hybrid gives the agent its own window with an isolated container, so your tabs, focus and cookies stay separate.")
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)

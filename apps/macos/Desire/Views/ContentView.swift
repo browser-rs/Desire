@@ -684,6 +684,14 @@ struct ContentView: View {
             pendingSurfaceMode = nil
             reconfigureAgentSurface(for: pending)
         }
+        .sheet(isPresented: Binding(
+            get: { usageMode.guideMode != nil },
+            set: { if !$0 { usageMode.dismissGuide() } }
+        )) {
+            if let mode = usageMode.guideMode {
+                ModeGuideSheet(mode: mode) { usageMode.dismissGuide() }
+            }
+        }
     }
 
     @ViewBuilder

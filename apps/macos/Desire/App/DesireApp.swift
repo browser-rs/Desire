@@ -119,6 +119,7 @@ struct DesireApp: App {
             bookmarks: appState.bookmarkStore,
             containers: ContainerStore.shared,
             aiPreference: appState.aiPreference,
+            usageMode: AppModeStore.shared,
             notifications: ProactiveNotificationStore.shared
         ) }
     }

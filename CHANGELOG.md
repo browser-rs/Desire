@@ -4,6 +4,8 @@
 - **使用模式·第一批（v0.8.23）**：三模式地基——`AppUsageMode`（browser / agentFocus / hybrid）持久化 + 设置页「使用模式」+ 菜单 Mode（⌃⌘1/2/3）+ 桥 `GET/POST /app/mode`；**窗口角色注册表**（`window-roles`，sessionKey → user/agent/agentPane，随盘持久化）与收养过滤（用户窗口不再把 Agent/面板会话当成"上次会话"，孤儿清理也不归档它们）；混合模式自动补开 Agent 窗口（独立会话 + Agent 专用容器，Tab 继承容器落盘、重启按角色恢复）；专注模式单窗工作台（对话 + 可折叠内嵌浏览面板；面板是独立 TabManager，折叠时 webview 仍在后台可导航/取文/执行 JS——S1/S2 spike 验证）；`GET /diag/windows` 暴露角色/容器/选中 URL/key 供模式 E2E。实测：混合模式自动开 Agent 窗、角色与容器落盘、三种重启路径（browser / agentFocus / hybrid）均按角色恢复、用户窗未被 Agent 会话收养；50 次面板挂载无崩溃。下一批：Peek 协议、接管锁、工具目标规则细化。
 - **使用模式·第二批（v0.8.23）**：**Peek 协议**——Agent 用 `requestUserHelp` 请求人工（登录/验证码/看一眼），立刻返回请求 id、回合继续；专注模式在工作台就地展开浏览面板 + 横幅（原因/完成/忽略），完成后自动收回；把"页面前后是否变化（URL）"写成系统备注交还模型；桥 `GET/POST /peek`（request/open/resolve/dismiss）。**接管锁**——Peek 期间该浏览面的 Agent 工具返回明确 `Error: surface is being used by the user`，`/diag/windows` 暴露 `locked`。**工具目标规则**——专注模式指向内嵌面板；混合模式下**用户窗口的 Agent 会话默认作用于 Agent 角色窗口**（包装型 ToolSurface 只替换 tabManager，其余依赖转发）。**焦点修复**——`newWindow` 在专注模式禁用，不再为建窗抢焦点。实测：request→open→locked→resolve→系统备注全链通过。
 - **使用模式·第三批前半（v0.8.23）**：模式切换**不打断在跑回合**——回合进行中切模式只记下目标，回合结束再重配工具面（避免后续工具打到另一个浏览面）；工作台迷你条显示面板当前页标题与后台标签数；**拖 URL/文本进页面**（Safari 语义）——页面自己没接住时，链接开新标签、纯文本按默认引擎搜索（页面内的拖放/上传仍由 WebKit 优先处理）。
+- **使用模式·第三批后半（v0.8.23）**：Mode 菜单改为**单选对勾**（⌃⌘1/2/3）；首次切到非浏览器模式弹一次说明（界面与打扰边界，避免"切了不知道发生了什么"）；新增**登录态策略**设置——默认独立 Agent 容器（隔离优先），可切「沿用当前登录态」（Agent 窗口/面板改用本机档案，新窗口生效；便利优先、隔离性更弱）。工作台迷你条显示当前面板页标题。
+
 
 
 

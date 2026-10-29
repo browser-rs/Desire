@@ -23,7 +23,11 @@ final class AgentPaneManager: ObservableObject {
         let created = TabManager()
         created.stopSuspendTimer()
         created.sessionKey = Self.sessionKey
-        created.defaultContainerID = WindowRoleRegistry.shared.agentContainerID()
+        // 登录态策略（v0.8.23）：隔离默认；选择"沿用当前档案"时不落容器，
+        // 标签走默认 profile store（能看到用户的登录态）。
+        created.defaultContainerID = AppModeStore.shared.agentSharesUserProfile
+            ? nil
+            : WindowRoleRegistry.shared.agentContainerID()
         if let session = TabSessionCoordinator.shared.session(forKey: Self.sessionKey),
            !session.tabs.isEmpty {
             created.apply(session: session,

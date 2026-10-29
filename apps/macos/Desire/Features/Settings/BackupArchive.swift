@@ -24,6 +24,8 @@ nonisolated struct BackupArchive: Codable, Equatable {
         case agentMemory
         case readerHighlights
         case workflows
+        case excerpts          // v0.8.21
+        case clipboard         // v0.8.21（24h TTL 条目，含墓碑）
 
         var title: String {
             switch self {
@@ -35,6 +37,8 @@ nonisolated struct BackupArchive: Codable, Equatable {
             case .agentMemory: return String(localized: "Agent Memory")
             case .readerHighlights: return String(localized: "Reader Highlights")
             case .workflows: return String(localized: "Web Workflows")
+            case .excerpts: return String(localized: "Excerpts")
+            case .clipboard: return String(localized: "Clipboard History")
             }
         }
     }

@@ -110,6 +110,27 @@ final class ExcerptStore: ObservableObject {
         return out
     }
 
+    // MARK: - 备份口（v0.8.21 查缺补漏：备份此前漏了摘录库）
+
+    func replaceAllForBackup(_ items: [Excerpt], pendingDeletions: [String: Date] = [:]) {
+        excerpts = items.sorted { $0.createdAt > $1.createdAt }
+        if excerpts.count > Self.cap { excerpts = Array(excerpts.prefix(Self.cap)) }
+        self.pendingDeletions = pendingDeletions
+        persist()
+    }
+
+    /// 合并：按 id 补缺（返回新增条数）。
+    @discardableResult
+    func mergeForBackup(_ items: [Excerpt]) -> Int {
+        let existing = Set(excerpts.map(\.id))
+        let missing = items.filter { !existing.contains($0.id) }
+        excerpts.append(contentsOf: missing)
+        excerpts.sort { $0.createdAt > $1.createdAt }
+        if excerpts.count > Self.cap { excerpts = Array(excerpts.prefix(Self.cap)) }
+        persist()
+        return missing.count
+    }
+
     // MARK: - 同步口（SyncStore adapter 专用；命名对齐 JobStore）
 
     func upsertForSync(_ excerpt: Excerpt) {

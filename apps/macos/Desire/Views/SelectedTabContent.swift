@@ -382,6 +382,7 @@ struct SelectedTabContent: View {
                 PDFViewerView(
                     fileURL: pdfURL,
                     fileName: tab.browser.pdfViewerFileName,
+                    positionKey: tab.browser.pdfViewerSourceKey,
                     onBack: { tab.browser.dismissPDFViewer() }
                 )
             } else if let mediaURL = tab.browser.mediaViewerURL {

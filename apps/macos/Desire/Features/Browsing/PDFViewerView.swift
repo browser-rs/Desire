@@ -13,6 +13,8 @@ struct PDFViewerView: View {
     @Environment(\.appAccent) private var appAccent: Color
     let fileURL: URL
     let fileName: String
+    /// 进度记忆稳定键（源 URL / 本地路径回退；v0.8.21）。
+    var positionKey: String? = nil
     let onBack: () -> Void
 
     @State private var model: PDFWorkbenchModel?
@@ -23,6 +25,7 @@ struct PDFViewerView: View {
     @State private var pageJumpText = ""
     @State private var searchVisible = false
     @State private var searchQuery = ""
+    @State private var searchDebounceTask: Task<Void, Never>?
     @State private var noteText = ""
     /// 缩略图就绪回调自增触发重算（懒生成完成即上屏）。
     @State private var thumbnailTick = 0
@@ -99,11 +102,11 @@ struct PDFViewerView: View {
         .onAppear(perform: load)
         .onDisappear {
             model?.zoomValue = Double(zoom)
-            model?.savePosition(filePath: fileURL.path)
+            model?.savePosition(filePath: progressKey)
         }
         .onChange(of: fileURL) { _, _ in
             model?.zoomValue = Double(zoom)
-            model?.savePosition(filePath: fileURL.path)
+            model?.savePosition(filePath: progressKey)
             model = nil
             loadFailed = false
             load()
@@ -119,6 +122,11 @@ struct PDFViewerView: View {
             model.zoomValue = Double(newZoom)
             model.savePosition(filePath: fileURL.path)
         }
+    }
+
+    /// 进度/位置记忆键：优先稳定源键，回退文件路径（本地文件）。
+    private var progressKey: String {
+        positionKey ?? fileURL.path
     }
 
     private func load() {
@@ -143,7 +151,7 @@ struct PDFViewerView: View {
                 return
             }
             // 阅读进度记忆（v0.8.16）：恢复上次页码与缩放。
-            if let pos = PDFWorkbenchModel.loadPosition(filePath: fileURL.path),
+            if let pos = PDFWorkbenchModel.loadPosition(filePath: progressKey),
                pos.page < m.pageCount {
                 m.zoomValue = pos.zoom
                 zoom = CGFloat(pos.zoom)
@@ -195,7 +203,7 @@ struct PDFViewerView: View {
         unlockFailed = false
         passwordText = ""
         // 与 load() 同一条恢复路径。
-        if let pos = PDFWorkbenchModel.loadPosition(filePath: fileURL.path),
+        if let pos = PDFWorkbenchModel.loadPosition(filePath: progressKey),
            pos.page < model.pageCount {
             model.zoomValue = pos.zoom
             zoom = CGFloat(pos.zoom)
@@ -751,7 +759,14 @@ struct PDFViewerView: View {
                     submitSearch(model, offset: model.search.matches.isEmpty ? 0 : 1)
                 }
                 .onChange(of: searchQuery) { _, q in
-                    model.runSearch(q)
+                    // 防抖（v0.8.21 查缺补漏）：findString 全文档扫描，
+                    // 逐键跑在大 PDF 上会卡手——250ms 静默后才查。
+                    searchDebounceTask?.cancel()
+                    searchDebounceTask = Task { @MainActor in
+                        try? await Task.sleep(for: .milliseconds(250))
+                        guard !Task.isCancelled else { return }
+                        model.runSearch(q)
+                    }
                 }
             if !model.search.matches.isEmpty {
                 Text("\(model.search.current + 1)/\(model.search.matches.count)")

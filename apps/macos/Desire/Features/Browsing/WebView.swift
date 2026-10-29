@@ -177,6 +177,9 @@ class BrowserState: ObservableObject {
     /// PDFViewerView（PDFKit）。nil = 非 PDF 查看态。关闭 = 置 nil 并回
     /// 原 URL（viewerReturnURL）。
     @Published var pdfViewerURL: URL?
+    /// PDF 进度记忆的稳定身份键（v0.8.21 查缺补漏）：临时文件名带 UUID，
+    /// 网页 PDF 每次打开路径都不同——用源 URL 当键才能跨次恢复。
+    @Published var pdfViewerSourceKey: String?
     /// 表格直开（v0.8.12 旗舰 A）：非 nil = 该标签渲染表格查看器。
     @Published var spreadsheetViewerURL: URL?
     @Published var spreadsheetViewerFileName = ""
@@ -421,6 +424,7 @@ class BrowserState: ObservableObject {
     /// 下载 PDF 到临时目录并进入查看器状态（重复查看同一 URL 复用已下文件，
     /// 带 HEAD 式大小/日期校验的成本太高——临时目录由系统清）。
     func presentPDFViewer(for url: URL, suggestedName: String) {
+        pdfViewerSourceKey = url.absoluteString
         let safeName = suggestedName.isEmpty ? url.lastPathComponent : suggestedName
         let local = FileManager.default.temporaryDirectory
             .appendingPathComponent("desire-pdf-" + UUID().uuidString.prefix(8)

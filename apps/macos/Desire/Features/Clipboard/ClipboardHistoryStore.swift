@@ -137,6 +137,26 @@ final class ClipboardHistoryStore: ObservableObject {
         persist()
     }
 
+    // MARK: - 备份口（v0.8.21 查缺补漏）
+
+    func replaceAllForBackup(_ items: [Entry], pendingDeletions: [String: Date] = [:]) {
+        entries = items.sorted { $0.capturedAt > $1.capturedAt }
+        if entries.count > Self.cap { entries = Array(entries.prefix(Self.cap)) }
+        self.pendingDeletions = pendingDeletions
+        persist()
+    }
+
+    @discardableResult
+    func mergeForBackup(_ items: [Entry]) -> Int {
+        let existing = Set(entries.map(\.id))
+        let missing = items.filter { !existing.contains($0.id) }
+        entries.append(contentsOf: missing)
+        entries.sort { $0.capturedAt > $1.capturedAt }
+        if entries.count > Self.cap { entries = Array(entries.prefix(Self.cap)) }
+        persist()
+        return missing.count
+    }
+
     // MARK: - 同步口（SyncStore adapter 专用；命名对齐 ExcerptStore）
 
     func upsertForSync(_ entry: Entry) {

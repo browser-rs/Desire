@@ -490,12 +490,9 @@ struct SearchEverywherePanel: View {
             // 本地文件走 file:// 导航 → 查看器路由（PDF/表格/图片/文档直开）。
             tabManager.addTab(url: hit.url, makeActive: true)
         case .excerpt:
-            // 摘录来源：http 开浏览器；文件路径走查看器路由（含 #page 深链）。
-            if hit.url.hasPrefix("http"), let url = URL(string: hit.url) {
-                NSWorkspace.shared.open(url)
-            } else {
-                tabManager.addTab(url: hit.url, makeActive: true)
-            }
+            // 摘录来源：与应用内摘录面板同口径——http 开本浏览器标签，
+            // 文件路径走查看器路由（含 #page 深链）。
+            tabManager.addTab(url: hit.url, makeActive: true)
         }
         onClose()
     }

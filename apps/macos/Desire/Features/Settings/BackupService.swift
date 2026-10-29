@@ -105,6 +105,23 @@ enum BackupService {
             counts[BackupArchive.Domain.workflows.rawValue] = workflows.count
         }
 
+        // 摘录库（v0.8.21）：条目 + 墓碑一起存，恢复后同步语义不倒退。
+        let excerptStore = ExcerptStore.shared
+        if let data = BackupArchive.encodePayload(ExcerptBackupPayload(
+                excerpts: excerptStore.excerpts,
+                pendingDeletions: excerptStore.pendingDeletions)) {
+            payloads[BackupArchive.Domain.excerpts.rawValue] = data
+            counts[BackupArchive.Domain.excerpts.rawValue] = excerptStore.excerpts.count
+        }
+        // 剪贴板历史（v0.8.21）：同样条目 + 墓碑。
+        let clipboardStore = ClipboardHistoryStore.shared
+        if let data = BackupArchive.encodePayload(ClipboardBackupPayload(
+                entries: clipboardStore.entries,
+                pendingDeletions: clipboardStore.pendingDeletions)) {
+            payloads[BackupArchive.Domain.clipboard.rawValue] = data
+            counts[BackupArchive.Domain.clipboard.rawValue] = clipboardStore.entries.count
+        }
+
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         let archive = BackupArchive(version: BackupArchive.currentVersion,
                                     exportedAt: Date(),
@@ -313,6 +330,34 @@ enum BackupService {
             }
         }
 
+        if wanted(.excerpts),
+           let payload = archive.payloads[BackupArchive.Domain.excerpts.rawValue],
+           let bundle = try? decoder.decode(ExcerptBackupPayload.self, from: payload) {
+            switch mode {
+            case .replace:
+                ExcerptStore.shared.replaceAllForBackup(bundle.excerpts,
+                                                        pendingDeletions: bundle.pendingDeletions)
+                applied[BackupArchive.Domain.excerpts.rawValue] = bundle.excerpts.count
+            case .merge:
+                applied[BackupArchive.Domain.excerpts.rawValue] =
+                    ExcerptStore.shared.mergeForBackup(bundle.excerpts)
+            }
+        }
+
+        if wanted(.clipboard),
+           let payload = archive.payloads[BackupArchive.Domain.clipboard.rawValue],
+           let bundle = try? decoder.decode(ClipboardBackupPayload.self, from: payload) {
+            switch mode {
+            case .replace:
+                ClipboardHistoryStore.shared.replaceAllForBackup(
+                    bundle.entries, pendingDeletions: bundle.pendingDeletions)
+                applied[BackupArchive.Domain.clipboard.rawValue] = bundle.entries.count
+            case .merge:
+                applied[BackupArchive.Domain.clipboard.rawValue] =
+                    ClipboardHistoryStore.shared.mergeForBackup(bundle.entries)
+            }
+        }
+
         return applied
     }
 
@@ -368,4 +413,15 @@ enum BackupService {
     private static func totalBookmarks(_ nodes: [Bookmark]) -> Int {
         flatBookmarks(nodes).count
     }
+}
+
+/// 备份载荷（v0.8.21）：摘录/剪贴板条目 + 墓碑。
+private struct ExcerptBackupPayload: Codable {
+    var excerpts: [Excerpt]
+    var pendingDeletions: [String: Date]
+}
+
+private struct ClipboardBackupPayload: Codable {
+    var entries: [ClipboardHistoryStore.Entry]
+    var pendingDeletions: [String: Date]
 }

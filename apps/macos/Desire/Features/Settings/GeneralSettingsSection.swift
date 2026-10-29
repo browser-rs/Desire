@@ -7,6 +7,7 @@ struct GeneralSettingsSection: View {
     /// 自动备份调度（v0.8.19 替人干活 18）。
     @AppStorage("backup.schedule") private var backupSchedule = "off"
     @AppStorage("backup.keep") private var backupKeep = 5
+    @AppStorage("backup.scheduleHour") private var backupHour = 9
     /// 归档规则编辑（v0.8.18 替人干活 14）。
     @State private var showArchiveRules = false
     @ObservedObject var settings: Settings
@@ -481,6 +482,15 @@ struct GeneralSettingsSection: View {
                             default: String(localized: "Off")
                             }
                         }
+                    )
+                    SettingsRowDivider()
+                    SettingsPickerRow(
+                        "Run At",
+                        subtitle: "Hour of day when the scheduled backup runs (catch-up after the hour if the app was asleep).",
+                        systemImage: "clock",
+                        selection: $backupHour,
+                        options: Array(0...23),
+                        label: { String(format: "%02d:00", $0) }
                     )
                     SettingsRowDivider()
                     SettingsPickerRow(

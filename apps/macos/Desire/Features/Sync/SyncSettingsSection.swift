@@ -5,6 +5,8 @@ import SwiftUI
 /// 组合根（SettingsView）注入共享 SyncStore；本视图零业务逻辑，认证与同步
 /// 全部走 store 方法，错误展示用 store.lastError（登录失败是同步态的属性）。
 struct SyncSettingsSection: View {
+    /// 档案切换要重绘副标题（v0.8.21：此前读 ProfileStore 但未观察它）。
+    @ObservedObject private var profileStore = ProfileStore.shared
     @ObservedObject var store: SyncStore
     /// 冲突明细 sheet（v0.7.23）。
     @State private var showsConflicts = false
@@ -531,8 +533,8 @@ struct SyncSettingsSection: View {
     /// 类目区副标题（v0.8.18 多档案）：显示当前同步的档案——随档案换桶的
     /// 三个域（书签/历史/快拨）以 `@<profile>` 独立域键同步，其余全局。
     private var syncCategoriesSubtitle: String {
-        if let id = ProfileStore.shared.activeProfileID,
-           let profile = ProfileStore.shared.profile(for: id) {
+        if let id = profileStore.activeProfileID,
+           let profile = profileStore.profile(for: id) {
             return String(localized: "Syncing profile: \(profile.name) — bookmarks/history/quick dial are scoped to it; everything else is shared.")
         }
         return String(localized: "Syncing the default profile. Choose what to sync across devices. Turning one off keeps its server data.")

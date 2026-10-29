@@ -118,6 +118,10 @@ struct AgentSkillsView: View {
         .sheet(isPresented: $showGallery) {
             SkillGallerySheet()
         }
+        .onChange(of: showGallery) { _, shown in
+            // 安装完回来重扫风险（v0.8.21：此前新装技能的风险徽标要等下次出现）
+            if !shown { scanRisks() }
+        }
         .sheet(item: $varsSkill) { skill in
             VStack(alignment: .leading, spacing: 10) {
                 Text(String(localized: "Use \(skill.name) — fill variables"))

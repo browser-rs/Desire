@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.23] - 2026-10-30
 ### Added
 
 - **使用模式·第一批（v0.8.23）**：三模式地基——`AppUsageMode`（browser / agentFocus / hybrid）持久化 + 设置页「使用模式」+ 菜单 Mode（⌃⌘1/2/3）+ 桥 `GET/POST /app/mode`；**窗口角色注册表**（`window-roles`，sessionKey → user/agent/agentPane，随盘持久化）与收养过滤（用户窗口不再把 Agent/面板会话当成"上次会话"，孤儿清理也不归档它们）；混合模式自动补开 Agent 窗口（独立会话 + Agent 专用容器，Tab 继承容器落盘、重启按角色恢复）；专注模式单窗工作台（对话 + 可折叠内嵌浏览面板；面板是独立 TabManager，折叠时 webview 仍在后台可导航/取文/执行 JS——S1/S2 spike 验证）；`GET /diag/windows` 暴露角色/容器/选中 URL/key 供模式 E2E。实测：混合模式自动开 Agent 窗、角色与容器落盘、三种重启路径（browser / agentFocus / hybrid）均按角色恢复、用户窗未被 Agent 会话收养；50 次面板挂载无崩溃。下一批：Peek 协议、接管锁、工具目标规则细化。

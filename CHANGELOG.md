@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- **拖文件进浏览器（v0.8.22）**：此前只有起始页能拖入文件——SwiftUI 的 `dropDestination` 挂在容器上，但网页内容是 WKWebView（AppKit 视图），拖放事件被它先吃掉；而且旧行为是"首个文件塞进当前标签"。现在：① 网页区域也能拖入文件，一律**开新标签**（继承来源标签的隐私/容器身份，查看器路由照旧：PDF/表格/图片/压缩包/文档；多文件首个前台、其余后台）；② **网页自己的拖放优先**——`WKWebView.draggingEntered` 表示页面接得住（file input / JS drop zone）时完全交还 WebKit，上传与拖拽排序不受影响，只有它拒绝的落点才由宿主接管；③ WebKit 若试图把拖入文件导航进当前页，按 URL 精确拦截（3 秒窗口、只认刚拖入的文件）改开新标签；④ 起始页提示改为"松开在新标签页打开"。
+
 ### Changed
 
 - Spotlight 索引补可观测面：新增 `GET /spotlight/status`（enabled / 最近投递条数 / 最近错误）与 `POST /spotlight/rebuild`——索引失败不再静默；实测本机投递 445 条、无错误。

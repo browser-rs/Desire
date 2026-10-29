@@ -658,6 +658,8 @@ struct WebView: NSViewRepresentable {
     /// 启用的 SponsorBlock 类别（随开关注入页面）。
     var sponsorBlockCategories: [String] = []
     var onOpenLinkInNewTab: ((URL) -> Void)?
+    /// 文件拖入且网页没接住 → 宿主开新标签（v0.8.22）。
+    var onOpenFilesInNewTabs: (([URL]) -> Void)?
     /// 自动播策略补烙（v0.8.8）：didFinish 发现视频站 + 本应 allowAll 但创建期
     /// 烙了限制 → 请求宿主按 toggleSiteAutoPlay 同款"就地重开"换新 webview。
     var onReopenWithAutoPlay: ((URL) -> Void)?
@@ -815,6 +817,9 @@ struct WebView: NSViewRepresentable {
         webView.uiDelegate = context.coordinator
         webView.onOpenLinkInNewTab = { url in
             context.coordinator.parent.onOpenLinkInNewTab?(url)
+        }
+        webView.onFilesDropped = { urls in
+            context.coordinator.parent.onOpenFilesInNewTabs?(urls)
         }
         webView.onSearchText = { text in
             context.coordinator.parent.onSearchText?(text)
@@ -1115,6 +1120,7 @@ try {
             wv.navigationDelegate = nil
             wv.uiDelegate = nil
             wv.onOpenLinkInNewTab = nil
+            wv.onFilesDropped = nil
             wv.onOpenInContainer = nil
             wv.onSearchText = nil
         }
@@ -2329,6 +2335,21 @@ try {
             // 打开"（2026-10-14 E2E 实测）。交给 WKDownload 链（DownloadStore）。
             if navigationAction.shouldPerformDownload {
                 decisionHandler(.download)
+                return
+            }
+            // 文件拖入（v0.8.22）：网页没接住的拖放，WebKit 可能试图把文件
+            // 导航进当前页——拦下来改开新标签。只认刚拖入的那几个文件，
+            // 站点自己的 file:// 导航不受影响。
+            if url.isFileURL,
+               navigationAction.targetFrame?.isMainFrame == true,
+               let browserView = webView as? BrowserWKWebView,
+               !browserView.droppedFileURLs.isEmpty,
+               browserView.droppedFileURLs.contains(where: {
+                   $0.standardizedFileURL == url.standardizedFileURL
+               }) {
+                browserView.droppedFileURLs = []
+                decisionHandler(.cancel)
+                parent.onOpenFilesInNewTabs?([url])
                 return
             }
             if let scheme = url.scheme?.lowercased(), !Self.internalSchemes.contains(scheme) {

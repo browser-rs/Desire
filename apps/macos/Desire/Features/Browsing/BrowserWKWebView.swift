@@ -4,6 +4,71 @@ import WebKit
 
 @MainActor
 class BrowserWKWebView: WKWebView {
+    /// 文件拖入（v0.8.22）：网页自己处理的拖放（上传/排序）优先——`super`
+    /// 返回 true 就完全不插手；只有 WebKit 没接的才算"拖进浏览器"，交给宿主
+    /// 开新标签。
+    var onFilesDropped: (([URL]) -> Void)?
+    /// 刚拖入的文件（短窗口）：WebKit 若试图在主框架导航到它，policy 层据此
+    /// 拦截并改开新标签（只匹配这几个文件，不影响站点自己的 file:// 导航）。
+    var droppedFileURLs: [URL] = []
+    /// 上一次 `draggingEntered/Updated` 里 WebKit 自己是否接受了这次文件拖放
+    /// （= 页面的 drop zone / file input 接得住）。只有它接受了才把 drop 交给
+    /// `super`——它拒绝时硬调 `performDragOperation` 属于未定义用法。
+    private var superAcceptsFileDrag = false
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let base = super.draggingEntered(sender)
+        guard !Self.fileURLs(from: sender).isEmpty else {
+            superAcceptsFileDrag = false
+            return base
+        }
+        superAcceptsFileDrag = !base.isEmpty
+        return base.isEmpty ? .copy : base
+    }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation {
+        let base = super.draggingUpdated(sender)
+        guard !Self.fileURLs(from: sender).isEmpty else {
+            superAcceptsFileDrag = false
+            return base
+        }
+        superAcceptsFileDrag = !base.isEmpty
+        return base.isEmpty ? .copy : base
+    }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) {
+        superAcceptsFileDrag = false
+        super.draggingExited(sender)
+    }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        let urls = Self.fileURLs(from: sender)
+        if !urls.isEmpty {
+            droppedFileURLs = urls
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(3))
+                self?.droppedFileURLs = []
+            }
+        }
+        if superAcceptsFileDrag, super.performDragOperation(sender) {
+            // 网页接住了这次拖放（文件上传、拖拽排序、drop zone）。
+            superAcceptsFileDrag = false
+            return true
+        }
+        superAcceptsFileDrag = false
+        guard !urls.isEmpty else { return false }
+        droppedFileURLs = []
+        onFilesDropped?(urls)
+        return true
+    }
+
+    private static func fileURLs(from sender: NSDraggingInfo) -> [URL] {
+        let options: [NSPasteboard.ReadingOptionKey: Any] = [.urlReadingFileURLsOnly: true]
+        let objects = sender.draggingPasteboard.readObjects(forClasses: [NSURL.self],
+                                                           options: options) ?? []
+        return objects.compactMap { $0 as? URL }
+    }
+
     var onOpenLinkInNewTab: ((URL) -> Void)?
     var onSearchText: ((String) -> Void)?
     /// Opens `url` in a new tab bound to `container` (isolated cookies) —

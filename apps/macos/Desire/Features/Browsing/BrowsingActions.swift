@@ -142,6 +142,24 @@ extension BrowsingActions {
     /// 图片类型（v0.8.12 旗舰 D）：拖入/本地打开进图片编辑器。
     static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "heic", "tiff", "gif"]
 
+    /// 拖入文件的**新标签**打开（v0.8.22）：先建空标签（继承容器/隐私），
+    /// 再走 `openLocalFileInTab` 的查看器路由——`addTab(url:)` 只把 URL 交给
+    /// webview，PDF/表格/图片/压缩包/文档的查看器状态都不会设置。
+    func openLocalFileInNewTab(_ url: URL, incognito: Bool = false,
+                               containerID: UUID? = nil, makeActive: Bool = true) {
+        let existing = Set(tabManager.tabs.map(\.id))
+        tabManager.addTab(incognito: incognito,
+                          javaScriptEnabled: settings.isJavaScriptEnabled,
+                          contentBlocker: contentBlocker,
+                          videoAdBlocker: videoAdBlocker,
+                          autoPlayPolicy: settings.autoPlayPolicy,
+                          newTabPosition: settings.newTabPosition,
+                          containerID: containerID,
+                          makeActive: makeActive)
+        guard let created = tabManager.tabs.first(where: { !existing.contains($0.id) }) else { return }
+        openLocalFileInTab(url, for: created)
+    }
+
     func openLocalFileInTab(_ url: URL, for tab: Tab) {
         let ext = url.pathExtension.lowercased()
         // 统一记账（v0.8.12 基础件 10）：新标签页"最近本地文件"与 Remote 文件面共用。

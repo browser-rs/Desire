@@ -57947,6 +57947,28 @@
           }
         }
       }
+    },
+    "松开在新标签页打开" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Release to open in a new tab"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "松开在新标签页打开"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鬆開在新標籤頁開啟"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

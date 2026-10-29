@@ -158,22 +158,18 @@ struct SelectedTabContent: View {
                             // 拖拽排序）走 webview 自己的 session，互不干扰。
                             .dropDestination(for: URL.self) { urls, _ in
                                 isFileHovered = false
-                                // 多文件拖入（v0.8.12 基础件 11）：各自开标签
-                                //（首个在当前标签，其余后台新标签）。
-                                let dropped = urls.filter { $0.isFileURL && Self.isOpenableFile($0) }
+                                // 拖入文件一律**开新标签**（v0.8.22，对齐 Safari/
+                                // Chrome）：当前页保持不动，首个前台、其余后台；
+                                // 查看器路由走 openLocalFileInTab（PDF/表格/图片/
+                                // 压缩包/文档），不再把文件塞进当前标签。
+                                let dropped = urls.filter { $0.isFileURL && !Self.isDirectory($0) }
                                 guard !dropped.isEmpty else { return false }
                                 for (index, fileURL) in dropped.enumerated() {
-                                    if index == 0 {
-                                        openDroppedFile(fileURL)
-                                    } else {
-                                        content.tabManager.addTab(
-                                            url: fileURL.absoluteString,
-                                            incognito: tab.isIncognito,
-                                            javaScriptEnabled: content.settings.isJavaScriptEnabled,
-                                            contentBlocker: content.contentBlocker,
-                                            videoAdBlocker: content.videoAdBlocker,
-                                            makeActive: false)
-                                    }
+                                    content.b.openLocalFileInNewTab(
+                                        fileURL,
+                                        incognito: tab.isIncognito,
+                                        containerID: tab.containerID,
+                                        makeActive: index == 0)
                                 }
                                 return true
                             } isTargeted: { targeted in
@@ -188,7 +184,7 @@ struct SelectedTabContent: View {
                             )
                             .overlay(alignment: .top) {
                                 if isFileHovered {
-                                    Text("松开在此标签页打开")
+                                    Text("松开在新标签页打开")
                                         .font(.system(size: 11, weight: .medium))
                                         .padding(.horizontal, 12)
                                         .padding(.vertical, 5)
@@ -272,6 +268,13 @@ struct SelectedTabContent: View {
     /// WKWebView 原生渲染）。其它扩展名不接管（zip 等交系统/网页语义）。
     /// 音视频扩展名 → 本地媒体查看器（AVPlayer，不走 WKWebView 媒体管线）。
     static let mediaExtensions: Set<String> = ["mp4", "m4v", "mov", "webm", "mp3", "m4a", "wav", "aac"]
+
+    /// 文件夹不当作"文件拖入"处理（拖文件夹进浏览器是未定义行为）。
+    static func isDirectory(_ url: URL) -> Bool {
+        var isDir: ObjCBool = false
+        return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir)
+            && isDir.boolValue
+    }
 
     static func isOpenableFile(_ url: URL) -> Bool {
         switch url.pathExtension.lowercased() {
@@ -366,11 +369,6 @@ struct SelectedTabContent: View {
             containerID: tab.containerID,
             makeActive: !settings.openLinksInBackground
         )
-    }
-
-    private func openDroppedFile(_ url: URL) {
-        // 与地址栏共用一份本地文件打开实现（BrowsingActions）。
-        content.b.openLocalFileInTab(url, for: tab)
     }
 
     // MARK: - 主内容区（HSplitView 首个子视图）

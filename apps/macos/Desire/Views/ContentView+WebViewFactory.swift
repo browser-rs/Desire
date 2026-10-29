@@ -47,6 +47,15 @@ extension ContentView {
                 // a private/container tab must not leak into the default store.
                 tabManager.addTab(url: url.absoluteString, incognito: tab.isIncognito, javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition, containerID: tab.containerID, makeActive: !settings.openLinksInBackground)
             },
+            onOpenFilesInNewTabs: { urls in
+                // 继承来源标签的隐私/容器身份；首个激活，其余后台。
+                for (index, fileURL) in urls.enumerated() {
+                    b.openLocalFileInNewTab(fileURL,
+                                            incognito: tab.isIncognito,
+                                            containerID: tab.containerID,
+                                            makeActive: index == 0)
+                }
+            },
             onReopenWithAutoPlay: { [weak tab] url in
                 // 自动播策略补烙（v0.8.8）：与 toggleSiteAutoPlay 的"授予即重开"
                 // 同一条换 webview 路径——不写站点覆盖（默认视频站授权即可），

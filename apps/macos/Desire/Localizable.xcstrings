@@ -5593,19 +5593,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ask Desire %@"
+            "value" : "Ask Desire ${prompt}"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "向 Desire 智能体提问：%@"
+            "value" : "向 Desire 智能体提问：${prompt}"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "向Desire智慧體提問：%@"
+            "value" : "向Desire智慧體提問：${prompt}"
           }
         }
       }
@@ -29309,19 +29309,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Open %@ in Desire"
+            "value" : "Open ${url} in Desire"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在 Desire 中打开 %@"
+            "value" : "在 Desire 中打开 ${url}"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "在 Desire 中打開 %@"
+            "value" : "在 Desire 中打開 ${url}"
           }
         }
       }
@@ -36559,19 +36559,19 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Schedule %@ — %@ every %lld min or daily at %@"
+            "value" : "Schedule ${name} — ${prompt} every ${everyMinutes} min or daily at ${dailyAt}"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "定时任务 %@ — %2$@，每 %3$lld 分钟或每天 %4$@"
+            "value" : "定时任务 ${name} — ${prompt}，每 ${everyMinutes} 分钟或每天 ${dailyAt}"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "定時任務 %1$@ — %2$@，每 %3$lld 分鐘或每天 %4$@"
+            "value" : "定時任務 ${name} — ${prompt}，每 ${everyMinutes} 分鐘或每天 ${dailyAt}"
           }
         }
       }
@@ -37171,30 +37171,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在 %@ 中搜尋「%@」"
-          }
-        }
-      }
-    },
-    "Search in %@ for %@" : {
-      "comment" : "Address suggestion search format: engine name, query",
-      "extractionState" : "stale",
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Search in %1 for '%2'"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在%1中搜索「%2」"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "在%1中搜尋「%2」"
           }
         }
       }

@@ -390,7 +390,7 @@ final class AutomationServer {
         ep("GET", "/page/timing", "Navigation timing (ttfb/load/protocol)", params: ["index?:int"], example: "…/page/timing")
         ep("GET", "/find", "Find in page: matchFound + count + first-match snippet", params: ["q:string", "index?:int", "caseSensitive?:0|1"], example: "…/find?q=hello")
         ep("GET", "/suggest", "Address-bar suggestions (local rows)", params: ["q:string"], example: "…/suggest?q=git")
-        ep("GET", "/conversations/search", "Search saved agent conversations (same code path as the searchConversations tool)", params: ["q:string", "limit?:int"], example: "…/conversations/search?q=github")
+        ep("GET", "/conversations/search", "Search saved agent conversations (same code path as the searchConversations tool)", params: ["q:string", "limit?:int", "mode?:literal|semantic"], example: "…/conversations/search?q=github")
         ep("POST", "/conversations/delete", "Delete conversations (cleanup after tests, batch)", params: ["ids:[uuid]", "id?:uuid"], example: #"-d '{"ids":["…"]}'"#)
         ep("GET", "/agent/trace", "Conversation trace as JSONL — one line per turn (goal, steps with per-tool ms, answer, critique, verification, feedback)", params: ["conversation?:uuid (default: live)", "limit?:int"], example: "…/agent/trace?limit=3")
         ep("GET", "/agent/undo", "Agent write-undo groups (bookmark/reading-list changes by recent turns)", example: "…/agent/undo")
@@ -1997,9 +1997,13 @@ final class AutomationServer {
             case ("GET", "/windows"):
                 return try Self.json(Self.windowsList())
             case ("GET", "/conversations/search"):
-                return try Self.json(Self.searchConversations(
-                    query: Self.string(query, "q") ?? "",
-                    limit: Int(Self.string(query, "limit") ?? "") ?? 5))
+                let convQuery = Self.string(query, "q") ?? ""
+                let convLimit = Int(Self.string(query, "limit") ?? "") ?? 5
+                if Self.string(query, "mode") == "semantic" {
+                    return try Self.json(await Self.searchConversationsSemantic(
+                        query: convQuery, limit: convLimit))
+                }
+                return try Self.json(Self.searchConversations(query: convQuery, limit: convLimit))
             case ("POST", "/bookmarks/add"):
                 return try Self.json(Self.addBookmark(
                     title: Self.string(body, "title") ?? "",
@@ -5659,6 +5663,34 @@ final class AutomationServer {
              "updatedAt": ISO.string(from: hit.updatedAt),
              "messages": hit.messageCount, "matchedIn": hit.matchedIn, "snippet": hit.snippet]
         }]
+    }
+
+    /// 会话语义检索（v0.8.22）：与工具同一路径，按会话聚合去重。
+    @MainActor
+    private static func searchConversationsSemantic(query: String, limit: Int) async -> [String: Any] {
+        let store = AppState.live?.conversationStore ?? ConversationStore()
+        let hits = await SemanticIndexStore.shared.searchAsync(
+            query: query, limit: min(20, max(1, limit)) * 3, source: .conversation)
+        var rows: [[String: Any]] = []
+        var seen = Set<UUID>()
+        for hit in hits where rows.count < min(20, max(1, limit)) {
+            let parts = hit.id.split(separator: ":")
+            guard parts.count == 3,
+                  let conversationID = UUID(uuidString: String(parts[1])),
+                  !seen.contains(conversationID),
+                  let conversation = store.conversation(for: conversationID) else { continue }
+            seen.insert(conversationID)
+            rows.append([
+                "id": conversationID.uuidString,
+                "title": conversation.title,
+                "updatedAt": ISO.string(from: conversation.updatedAt),
+                "messages": conversation.messages.count,
+                "matchedIn": "semantic",
+                "score": Double(hit.score),
+                "snippet": hit.snippet,
+            ])
+        }
+        return ["query": query, "mode": "semantic", "count": rows.count, "hits": rows]
     }
 
     /// 删除会话（E2E 收尾清掉测试遗留；历史列表的批量删除同一个实现）。

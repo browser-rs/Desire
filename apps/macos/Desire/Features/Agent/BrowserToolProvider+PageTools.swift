@@ -911,6 +911,11 @@ extension BrowserToolProvider {
                 return Self.fail("Give me at least 2 characters to search for.")
             }
             let limit = min(20, max(1, (args["limit"] as? Int) ?? 5))
+            if (args["mode"] as? String) == "semantic" {
+                return await Self.semanticConversationSearch(
+                    query: query, limit: limit, store: surface.conversationStore,
+                    excluding: ownerSession?.conversationId)
+            }
             // 排除当前对话：它已经在模型的上下文里，搜它只是浪费 token。
             let current = ownerSession?.conversationId
             let hits = surface.conversationStore.search(query, limit: limit, excluding: current)
@@ -1598,6 +1603,41 @@ extension BrowserToolProvider {
         default:
             return nil
         }
+    }
+
+    /// 会话语义检索（v0.8.22）：语义索引里的会话分片 → 按会话聚合成搜索结果。
+    /// 索引关闭/未构建时给明确提示（不静默返回空）。
+    fileprivate static func semanticConversationSearch(
+        query: String, limit: Int, store: ConversationStore,
+        excluding current: UUID?
+    ) async -> String {
+        let hits = await SemanticIndexStore.shared.searchAsync(
+            query: query, limit: limit * 3, source: .conversation)
+        var rows: [[String: Any]] = []
+        var seen = Set<UUID>()
+        for hit in hits where rows.count < limit {
+            let parts = hit.id.split(separator: ":")
+            guard parts.count == 3,
+                  let conversationID = UUID(uuidString: String(parts[1])),
+                  conversationID != current,
+                  !seen.contains(conversationID),
+                  let conversation = store.conversation(for: conversationID) else { continue }
+            seen.insert(conversationID)
+            rows.append([
+                "id": conversationID.uuidString,
+                "title": conversation.title,
+                "updatedAt": ISO.string(from: conversation.updatedAt),
+                "messages": conversation.messages.count,
+                "matchedIn": "semantic",
+                "score": Double(hit.score),
+                "snippet": hit.snippet,
+            ])
+        }
+        guard !rows.isEmpty else {
+            return "No past conversations semantically matched \"\(query)\" — the conversation index may be off or still building (Settings › Search & Index)."
+        }
+        return (try? JSONSerialization.data(withJSONObject: rows, options: [.prettyPrinted]))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "search failed"
     }
 
     /// 当前窗口里可读的标签 URL（只收 http/https；新标签页/desire:// 跳过）。

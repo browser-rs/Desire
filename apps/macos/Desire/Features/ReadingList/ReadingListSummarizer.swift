@@ -80,6 +80,12 @@ final class ReadingListSummarizer: ObservableObject {
         }
         let text = read.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.count > 40 else { return false }
+        // 阅读列表正文补进历史正文索引（v0.8.22）：摘要链路本来就把正文读出来了，
+        // 顺手喂给（opt-in 的）历史正文索引，让"读过的长文"也能被语义/字面检索到。
+        HistoryContentStore.shared.capture(url: item.url,
+                                           title: read.title.isEmpty ? item.title : read.title,
+                                           text: text,
+                                           isPrivate: false)
         let head = read.title.isEmpty ? item.title : read.title
         let summary = await MemoryExtractor.collectText(
             preference: preference,

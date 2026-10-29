@@ -817,6 +817,7 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "query": AgentJSONSchemaValue(type: "string", description: "Keywords to look for (at least 2 characters)"),
                     "limit": AgentJSONSchemaValue(type: "number", description: "Max hits (default 5, max 20)"),
+                    "mode": AgentJSONSchemaValue(type: "string", description: "literal (default) or semantic — semantic ranks by meaning and requires Agent Conversations to be enabled under Settings › Search & Index"),
                 ], required: ["query"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

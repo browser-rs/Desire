@@ -6600,6 +6600,7 @@ func testReasoningEffortPolicy() {
 }
 testReasoningEffortPolicy()
 testSemanticIndex()
+testTabDigestCore()
 
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
@@ -6769,6 +6770,23 @@ func testSemanticIndex() {
     eq("semantic：聚合条数", merged.first?.itemCount, 5)
     eq("semantic：聚合体积", merged.first?.bytes, 150)
     check("semantic：聚合模型标记合并", merged.first?.model.contains("+") == true)
+}
+
+func testTabDigestCore() {
+    let entries = [
+        TabDigestCore.Entry(title: "First", url: "https://a.example/1", text: "alpha"),
+        TabDigestCore.Entry(title: "Second", url: "https://b.example/2", text: "beta"),
+    ]
+    let block = TabDigestCore.context(from: entries)
+    check("tabdigest：编号从 1 起", block.contains("[1] First\nhttps://a.example/1\nalpha"))
+    check("tabdigest：第二条编号 2", block.contains("[2] Second\nhttps://b.example/2\nbeta"))
+    check("tabdigest：条目间空行分隔", block.contains("alpha\n\n[2]"))
+    eq("tabdigest：空集合为空串", TabDigestCore.context(from: []), "")
+    let long = String(repeating: "x", count: 120)
+    eq("tabdigest：未超预算原样返回", TabDigestCore.capped(long, cap: 200), long)
+    let capped = TabDigestCore.capped(long, cap: 100)
+    check("tabdigest：超预算截断并标注", capped.hasPrefix(String(repeating: "x", count: 100)) && capped.hasSuffix("[truncated]"))
+    check("tabdigest：默认预算 = 40000", TabDigestCore.totalCharCap == 40_000)
 }
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

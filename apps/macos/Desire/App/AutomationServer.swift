@@ -699,6 +699,9 @@ final class AutomationServer {
         ep("POST", "/index/rebuild", "Rebuild the semantic index (all enabled sources, or one via source)", params: ["source?:history|bookmark|excerpt|highlight|conversation"], example: "-d '{}'")
         ep("POST", "/index/clear", "Delete semantic index shards (all, or one source)", params: ["source?:string"], example: "-d '{}'")
         ep("GET", "/search/semantic", "Semantic search over the on-device index (same-language shard; literal search remains primary)", params: ["q:string", "limit?:int (default 20)", "source?:string", "minScore?:float (diagnostic override)"], example: "…/search/semantic?q=offline%20reading")
+        ep("POST", "/tabs/digest", "Summarize all open tabs in the background (per-tab digest + overview with [n] citations; lands as session note + notification)", params: ["urls?:[string]", "maxCharsPerTab?:int"], example: "-d '{}'")
+        ep("GET", "/tabs/digest", "Latest tab digest state (running/done/total/digest/sources)", example: "…/tabs/digest")
+        ep("POST", "/tabs/ask", "Answer a question from the open tabs with [n] citations (one side-model call)", params: ["question:string", "urls?:[string]", "maxTabs?:int", "maxCharsPerTab?:int"], example: #"-d '{"question":"这几篇的主要观点是否一致？"}'"#)
         ep("GET", "/promotion/state", "Operations workbench: goals, posts (with metric history + growth), accounts (snapshots + growth), lessons, progress, digest (shared with the agent's promotionBrief tool)", example: "…/promotion/state")
         ep("GET", "/promotion/campaigns", "Operations campaigns (v0.8.2) with linked post counts and next scheduled draft", example: "…/promotion/campaigns")
         ep("POST", "/promotion/campaign/generate", "Generate a campaign + per-platform drafts from a release brief (deterministic, no model); drafts are never auto-published", params: ["version:string", "title?:string", "objective?:string", "productURL?:string", "highlights:[string]", "platforms?:[string]", "audience?:string", "cta?:string", "goal?:string", "startDate?:yyyy-MM-dd"], example: #"-d '{"version":"0.8.2","highlights":["后台任务","运营驾驶舱"],"platforms":["X","V2EX","小红书"]}'"#)
@@ -1171,6 +1174,38 @@ final class AutomationServer {
                 return try Self.json(Self.semanticSearch(query: q, limit: limit,
                                                          source: source,
                                                          minScore: minScore))
+    case ("POST", "/tabs/digest"):
+                let urls = (body["urls"] as? [String]) ?? Self.activeTabURLsBridge()
+                guard !urls.isEmpty, let digestApp = AppState.live else {
+                    return try Self.json(["ok": false, "error": "no open tabs"])
+                }
+                let maxChars = min(20_000, max(1_000, (body["maxCharsPerTab"] as? Int) ?? 6_000))
+                let queued = TabDigestStore.shared.startDigest(
+                    urls: urls,
+                    maxCharsPerTab: maxChars,
+                    preference: digestApp.aiPreference,
+                    session: AgentScheduler.shared.deliveryTarget)
+                return try Self.json(["ok": true, "queued": queued,
+                                      "running": TabDigestStore.shared.isRunning])
+            case ("GET", "/tabs/digest"):
+                return try Self.json(Self.tabDigestStatus())
+            case ("POST", "/tabs/ask"):
+                guard let question = Self.string(body, "question"), !question.isEmpty else {
+                    return try Self.json(["error": "missing question"])
+                }
+                let urls = (body["urls"] as? [String]) ?? Self.activeTabURLsBridge()
+                guard !urls.isEmpty, let askApp = AppState.live else {
+                    return try Self.json(["error": "no open tabs"])
+                }
+                let maxTabs = min(12, max(1, (body["maxTabs"] as? Int) ?? 8))
+                let maxChars = min(20_000, max(1_000, (body["maxCharsPerTab"] as? Int) ?? 6_000))
+                guard let answer = await TabDigestStore.shared.ask(
+                    question: question, urls: urls,
+                    maxCharsPerTab: maxChars, maxTabs: maxTabs,
+                    preference: askApp.aiPreference) else {
+                    return try Self.json(["error": "no readable tabs"])
+                }
+                return try Self.json(["answer": answer.answer, "sources": answer.sources])
     case ("GET", "/search/everything"):
             // 集中搜索的桥面（SearchEverywhere 同一查询）：四源结构化断言。
             guard let q = Self.string(query, "q"), !q.isEmpty else {
@@ -3315,6 +3350,26 @@ final class AutomationServer {
 
     private static func error(_ message: String) -> String {
         (try? json(["error": message])) ?? "{\"error\":\"?\"}"
+    }
+
+    private static func activeTabURLsBridge() -> [String] {
+        guard let manager = TabSessionCoordinator.shared.activeTabManager else { return [] }
+        return manager.tabs.compactMap { tab in
+            let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
+            return (url.hasPrefix("http://") || url.hasPrefix("https://")) ? url : nil
+        }
+    }
+
+    private static func tabDigestStatus() -> [String: Any] {
+        let store = TabDigestStore.shared
+        return [
+            "running": store.isRunning,
+            "done": store.done,
+            "total": store.total,
+            "digest": store.last?.digest ?? "",
+            "sources": store.last?.sources ?? [],
+            "createdAt": store.last?.createdAt.timeIntervalSince1970 ?? 0,
+        ]
     }
 
     private static func semanticSource(from raw: Any?) -> SemanticSource? {

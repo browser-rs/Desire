@@ -761,6 +761,24 @@ extension BrowserToolProvider {
                 ])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "summarizeTabs",
+                description: "Summarize ALL open tabs in this window IN THE BACKGROUND: reads each tab's text (reuses open tabs, so logins apply) and produces a per-tab 1-2 sentence digest plus an overall overview with [n] citations. Returns immediately with how many tabs were queued — the digest lands as a session note + system notification (GET /tabs/digest has the latest). Use for \"summarize my open tabs\" / \"这些标签页都在讲什么\".",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "urls": AgentJSONSchemaValue(type: "array", description: "Only these tab URLs (optional; default = all tabs in this window)", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                    "maxCharsPerTab": AgentJSONSchemaValue(type: "number", description: "Characters read per tab (default 6000)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "askTabs",
+                description: "Answer a question grounded in the text of open tabs in this window, with [n] source citations. Reads up to 8 tabs (6000 chars each, 40k total) and makes ONE side-model call. Use when the user asks something about \"my open tabs\" / \"根据这些标签页\".",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "question": AgentJSONSchemaValue(type: "string", description: "The question to answer from the open tabs"),
+                    "urls": AgentJSONSchemaValue(type: "array", description: "Only these tab URLs (optional)", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                    "maxTabs": AgentJSONSchemaValue(type: "number", description: "Max tabs to read (default 8)"),
+                    "maxCharsPerTab": AgentJSONSchemaValue(type: "number", description: "Characters per tab (default 6000)"),
+                ], required: ["question"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "cachePageForOffline",
                 description: "Save an offline copy of a reading-list item's page as a .webarchive (works with the item's open tab — keeping its login state — or by loading it in the background). The item must already be in the reading list. Returns the saved path and size.",
                 parameters: AgentJSONSchema(type: "object", properties: [

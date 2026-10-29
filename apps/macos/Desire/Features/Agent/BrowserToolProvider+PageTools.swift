@@ -1258,6 +1258,48 @@ extension BrowserToolProvider {
             }
             return "Summarizing \(started) saved page(s) in the background — summaries land on the items (Reading List panel) as they finish."
 
+        case "summarizeTabs":
+            // 跨标签摘要（v0.8.22）：长任务模式——立刻返回，后台取文+旁路模型；
+            // 完成写会话备注 + 系统通知，桥 GET /tabs/digest 可查。
+            guard let digestSession = ownerSession else { return Self.fail("No live agent session") }
+            let explicitTabs = (args["urls"] as? [String]) ?? []
+            let digestURLs = explicitTabs.isEmpty ? Self.activeTabURLs(surface) : explicitTabs
+            guard !digestURLs.isEmpty else { return Self.fail("No open tabs to summarize") }
+            let perTabChars = min(20_000, max(1_000, (args["maxCharsPerTab"] as? Int) ?? 6_000))
+            let queuedTabs = TabDigestStore.shared.startDigest(
+                urls: digestURLs,
+                maxCharsPerTab: perTabChars,
+                preference: digestSession.preference,
+                session: digestSession)
+            if queuedTabs == 0 {
+                return "A tab digest is already running."
+            }
+            return "Summarizing \(queuedTabs) open tab(s) in the background — the digest lands as a session note and a notification (GET /tabs/digest has the latest)."
+
+        case "askTabs":
+            guard let tabQuestion = args["question"] as? String,
+                  !tabQuestion.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return Self.fail("Missing question")
+            }
+            let askPreference = ownerSession?.preference ?? surface.agentPreference
+            let explicitAskTabs = (args["urls"] as? [String]) ?? []
+            let askURLs = explicitAskTabs.isEmpty ? Self.activeTabURLs(surface) : explicitAskTabs
+            guard !askURLs.isEmpty else { return Self.fail("No open tabs") }
+            let askMaxTabs = min(12, max(1, (args["maxTabs"] as? Int) ?? 8))
+            let askPerTab = min(20_000, max(1_000, (args["maxCharsPerTab"] as? Int) ?? 6_000))
+            guard let tabAnswer = await TabDigestStore.shared.ask(
+                question: tabQuestion,
+                urls: askURLs,
+                maxCharsPerTab: askPerTab,
+                maxTabs: askMaxTabs,
+                preference: askPreference) else {
+                return Self.fail("Could not read any open tab (pages may need login or not be loaded)")
+            }
+            let sourceList = tabAnswer.sources.enumerated()
+                .map { "\($0.offset + 1). \($0.element)" }
+                .joined(separator: "\n")
+            return tabAnswer.answer + "\n\nSources:\n" + sourceList
+
         // --- Downloads ---
         case "listDownloads":
             let items = surface.downloadStore.downloads
@@ -1555,6 +1597,15 @@ extension BrowserToolProvider {
 
         default:
             return nil
+        }
+    }
+
+    /// 当前窗口里可读的标签 URL（只收 http/https；新标签页/desire:// 跳过）。
+    fileprivate static func activeTabURLs(_ surface: any BrowserToolSurface) -> [String] {
+        guard let manager = surface.tabManager else { return [] }
+        return manager.tabs.compactMap { tab in
+            let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
+            return (url.hasPrefix("http://") || url.hasPrefix("https://")) ? url : nil
         }
     }
 

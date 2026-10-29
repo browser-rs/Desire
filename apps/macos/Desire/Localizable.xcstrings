@@ -57375,6 +57375,50 @@
           }
         }
       }
+    },
+    "Tab summary ready" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Tab summary ready"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "标签页摘要已就绪"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "標籤頁摘要已就緒"
+          }
+        }
+      }
+    },
+    "Summarized %lld open tab(s) — the digest is in the session note." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Summarized %lld open tab(s) — the digest is in the session note."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已摘要 %lld 个打开的标签页——详情见会话备注。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已摘要 %lld 個開啟的標籤頁——詳情見會話備註。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

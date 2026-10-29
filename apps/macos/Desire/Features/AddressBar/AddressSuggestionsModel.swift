@@ -8,6 +8,8 @@ class AddressSuggestionsModel: ObservableObject {
     @Published var selectedIndex = 0
 
     private var searchTask: Task<Void, Never>?
+    /// 语义兜底任务（v0.8.22）：新击键/重置时取消。
+    private var semanticTask: Task<Void, Never>?
 
     /// Returns the pasteboard string as a URL when it looks like one.
     /// R2-12：pasteboard 读取是跨进程 IPC，此前**每个击键**一次。2s 缓存窗口
@@ -34,6 +36,11 @@ class AddressSuggestionsModel: ObservableObject {
         return text
     }
     private let maxResults = 8
+    /// 语义兜底只收能在应用内打开的 URL（会话命中留给人用集中搜索）。
+    private static func openableRelatedURL(_ url: String) -> String? {
+        (url.hasPrefix("http://") || url.hasPrefix("https://") || url.hasPrefix("file://")) ? url : nil
+    }
+
     /// Query the currently published suggestion set was built for. Network
     /// suggestions compare against this on completion — if the user kept
     /// typing, the stale response is dropped (replaces the old brittle
@@ -65,6 +72,7 @@ class AddressSuggestionsModel: ObservableObject {
 
     func reset() {
         searchTask?.cancel()
+        semanticTask?.cancel()
         suggestions = []
         selectedIndex = 0
         currentQuery = nil
@@ -224,6 +232,36 @@ class AddressSuggestionsModel: ObservableObject {
         }
         suggestions = results
         selectedIndex = 0
+
+        // 语义兜底（v0.8.22 批二）：字面候选只有一个"打开/搜索"行时，补几条
+        // 相关页面/摘录（索引关闭或未构建时自然为空）。异步、可取消。
+        if !isURL, results.count <= 1, SemanticIndexStore.shared.isEnabled {
+            let snapshotQuery = trimmed
+            let snapshotCount = results.count
+            let seenSnapshot = seen
+            semanticTask?.cancel()
+            semanticTask = Task { [weak self] in
+                let hits = await SemanticIndexStore.shared.searchAsync(query: snapshotQuery, limit: 4)
+                guard !Task.isCancelled, let self else { return }
+                guard self.currentQuery == snapshotQuery else { return }
+                guard self.suggestions.count <= snapshotCount else { return }
+                var updated = self.suggestions
+                var seenLocal = seenSnapshot
+                for hit in hits {
+                    guard updated.count < self.maxResults else { break }
+                    let url = hit.subtitle
+                    guard Self.openableRelatedURL(url) != nil,
+                          !seenLocal.contains(url) else { continue }
+                    seenLocal.insert(url)
+                    updated.append(AddressSuggestion(
+                        kind: .related,
+                        title: hit.title.isEmpty ? url : hit.title,
+                        url: url,
+                        domain: FaviconStore.domainKey(from: url)))
+                }
+                self.suggestions = updated
+            }
+        }
 
         // Network suggestions only for search-shaped queries, only when the
         // user hasn't disabled suggestions, and only when the active engine

@@ -15,12 +15,15 @@ struct ExcerptsPanel: View {
     /// 摘录起草（v0.8.18 融合 9）：多选 → 拼 prompt 交活会话。
     @State private var isSelectingExcerpts = false
     @State private var selectedExcerptIDs: Set<UUID> = []
+    /// 查找相关（v0.8.22 批二）：跨源语义近邻小窗。
+    @State private var relatedRequest: SemanticRelatedRequest?
 
     private var items: [Excerpt] { store.filtered(query: query, kind: kindFilter) }
 
     var body: some View {
         VStack(spacing: 0) {
             header
+                .sheet(item: $relatedRequest) { SemanticRelatedSheet(request: $0) }
             filterBar
             Divider()
             if items.isEmpty {
@@ -198,6 +201,12 @@ struct ExcerptsPanel: View {
             }
             // 分享卡（v0.8.19 融合 13）：渲染成图 → 剪贴板 + 另存。
             Button(String(localized: "Export Share Card…")) { exportShareCard(excerpt) }
+            Button(String(localized: "Find Related")) {
+                relatedRequest = SemanticRelatedRequest(
+                    title: excerpt.title,
+                    query: [excerpt.content, excerpt.note ?? ""].joined(separator: " "),
+                    excludingID: "excerpt:\(excerpt.id.uuidString)")
+            }
             Button(String(localized: "Open Source")) { openSource(excerpt) }
             Divider()
             Button(String(localized: "Delete"), role: .destructive) {

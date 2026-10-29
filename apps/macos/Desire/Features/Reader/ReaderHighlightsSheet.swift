@@ -10,6 +10,8 @@ struct ReaderHighlightsSheet: View {
     let onClose: () -> Void
 
     private var items: [ReaderHighlight] { store.list(for: url) }
+    /// 查找相关（v0.8.22 批二）。
+    @State private var relatedRequest: SemanticRelatedRequest?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -83,6 +85,16 @@ struct ReaderHighlightsSheet: View {
                                 .buttonStyle(.plain)
                                 .help("Save to Excerpts")
                                 Button {
+                                    relatedRequest = SemanticRelatedRequest(
+                                        title: String(item.quote.prefix(60)),
+                                        query: [item.quote, item.note ?? ""].joined(separator: " "),
+                                        excludingID: "highlight:\(item.id.uuidString)")
+                                } label: {
+                                    Image(systemName: "sparkles")
+                                }
+                                .buttonStyle(.plain)
+                                .help(String(localized: "Find Related"))
+                                Button {
                                     store.delete(item.id)
                                 } label: {
                                     Image(systemName: "trash")
@@ -105,6 +117,7 @@ struct ReaderHighlightsSheet: View {
             }
         }
         .frame(width: 440, height: 460)
+        .sheet(item: $relatedRequest) { SemanticRelatedSheet(request: $0) }
     }
 
     private func exportToFile() {

@@ -293,7 +293,29 @@ final class SemanticIndexStore: ObservableObject {
         guard isEnabled, SemanticQueryPlan.isSemanticWorthy(query) else { return [] }
         let language = SemanticQueryPlan.primaryLanguage(for: query)
         guard let queryVector = SemanticEmbedder.embedQuery(query, language: language) else { return [] }
+        return rank(queryVector: queryVector, language: language, limit: limit,
+                    source: source, minScore: minScoreOverride)
+    }
 
+    /// UI 专用：查询嵌入放后台（bge ~4ms、NL 首次可能更久），排序仍在主线程
+    ///（几千条向量的余弦 <1ms）。防抖由调用方负责。
+    func searchAsync(query: String, limit: Int = 20,
+                     source: SemanticSource? = nil) async -> [Hit] {
+        guard isEnabled, SemanticQueryPlan.isSemanticWorthy(query) else { return [] }
+        let language = SemanticQueryPlan.primaryLanguage(for: query)
+        let embedded = await Task.detached(priority: .userInitiated) {
+            SemanticEmbedder.embedQuery(query, language: language)
+        }.value
+        guard let queryVector = embedded else { return [] }
+        return rank(queryVector: queryVector, language: language, limit: limit,
+                    source: source, minScore: nil)
+    }
+
+    private func rank(queryVector: SemanticEmbedder.Output,
+                      language: SemanticLanguage,
+                      limit: Int,
+                      source: SemanticSource?,
+                      minScore: Float?) -> [Hit] {
         var records: [SemanticVectorRecord] = []
         var items: [String: SemanticItem] = [:]
         for shard in cache.values {
@@ -309,7 +331,7 @@ final class SemanticIndexStore: ObservableObject {
             query: queryVector.vector,
             records: records,
             limit: max(1, limit),
-            minScore: minScoreOverride ?? SemanticEmbedder.minScore(for: language))
+            minScore: minScore ?? SemanticEmbedder.minScore(for: language))
         return ranked.compactMap { hit in
             guard let item = items[hit.record.id] else { return nil }
             return Hit(id: item.id,

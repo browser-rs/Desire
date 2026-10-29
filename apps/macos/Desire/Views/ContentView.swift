@@ -602,7 +602,7 @@ struct ContentView: View {
                     tab.browser.webView.evaluateJavaScript(WebView.pickerJS, completionHandler: nil)
                 }
             },
-            onDeleteBookmark: { bookmarkStore.remove($0) }
+            onDeleteBookmark: { bookmarkStore.remove($0) },
         ))
         .overlay(alignment: .center) { shortcutOverlayButtons }
         .overlay(alignment: .bottom) { undoToastOverlay }

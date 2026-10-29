@@ -29,6 +29,8 @@ struct BookmarkPanel: View {
     @State private var showHealthSheet = false
     /// 标签过滤（v0.8.6）：nil = 不过滤；点标签条切换。
     @State private var selectedTag: String?
+    /// 查找相关（v0.8.22 批二）。
+    @State private var relatedRequest: SemanticRelatedRequest?
 
     private var flatItems: [FlatBookmark] {
         if let tag = selectedTag {
@@ -324,6 +326,13 @@ struct BookmarkPanel: View {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(url, forType: .string)
                     }
+                    Button(String(localized: "Find Related")) {
+                        let tags = (item.bookmark.tags ?? []).joined(separator: " ")
+                        relatedRequest = SemanticRelatedRequest(
+                            title: item.bookmark.title,
+                            query: [item.bookmark.title, tags].joined(separator: " "),
+                            excludingID: "bookmark:\(item.bookmark.id.uuidString)")
+                    }
                     Divider()
                 }
                 Button("Edit…") { startEditing(item.bookmark) }
@@ -332,6 +341,7 @@ struct BookmarkPanel: View {
 
             Divider()
         }
+        .sheet(item: $relatedRequest) { SemanticRelatedSheet(request: $0) }
     }
 
     private func startEditing(_ bookmark: Bookmark) {

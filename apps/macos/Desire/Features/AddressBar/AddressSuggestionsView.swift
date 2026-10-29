@@ -118,6 +118,10 @@ struct AddressSuggestionsView: View {
             Image(systemName: "equal.circle")
                 .foregroundStyle(.secondary)
                 .frame(width: 16, height: 16)
+        case .related:
+            Image(systemName: "sparkles")
+                .foregroundStyle(.secondary)
+                .frame(width: 16, height: 16)
         }
     }
 
@@ -132,7 +136,7 @@ struct AddressSuggestionsView: View {
 
     private func showsSubtitle(_ suggestion: AddressSuggestion) -> Bool {
         switch suggestion.kind {
-        case .navigate, .bookmark, .history:
+        case .navigate, .bookmark, .history, .related:
             return true
         case .searchDefault, .searchSuggestion:
             return false
@@ -158,6 +162,14 @@ struct AddressSuggestionsView: View {
                 .padding(.horizontal, 6)
                 .padding(.vertical, 2)
                 .background(Color.secondary.opacity(0.12))
+                .clipShape(Capsule())
+                .foregroundStyle(.secondary)
+        case .related:
+            Text(String(localized: "Related"))
+                .font(.caption2)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(appAccent.opacity(0.12))
                 .clipShape(Capsule())
                 .foregroundStyle(.secondary)
         default:

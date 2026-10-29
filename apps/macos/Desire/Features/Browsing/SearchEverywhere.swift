@@ -13,6 +13,8 @@ nonisolated enum SearchEverywhere {
         case localFile
         /// 摘录库（v0.8.19 第七源：标题/内容/备注/来源命中，回车开来源）。
         case excerpt
+        /// 阅读高亮（v0.8.22 语义检索补的来源；字面检索不产出）。
+        case highlight
     }
 
     struct Hit: Identifiable, Equatable, Sendable {
@@ -42,15 +44,20 @@ nonisolated enum SearchEverywhere {
         var agentConversations: [Hit] = []
         var localFiles: [Hit] = []
         var excerpts: [Hit] = []
+        var highlights: [Hit] = []
+        /// 语义检索命中（v0.8.22，单独一段展示；`Hit.source` 仍是真实来源）。
+        var semantic: [Hit] = []
 
         var isEmpty: Bool {
             tabs.isEmpty && history.isEmpty && bookmarks.isEmpty
                 && readingList.isEmpty && agentConversations.isEmpty
-                && localFiles.isEmpty && excerpts.isEmpty
+                && localFiles.isEmpty && excerpts.isEmpty && highlights.isEmpty
+                && semantic.isEmpty
         }
         var totalCount: Int {
             tabs.count + history.count + bookmarks.count + readingList.count
                 + agentConversations.count + localFiles.count + excerpts.count
+                + highlights.count + semantic.count
         }
     }
 
@@ -101,6 +108,7 @@ nonisolated enum SearchEverywhere {
             case .agentConversation: result.agentConversations.append(hit)
             case .localFile: result.localFiles.append(hit)
             case .excerpt: result.excerpts.append(hit)
+            case .highlight: result.highlights.append(hit)
             }
             counts[source, default: 0] += 1
         }

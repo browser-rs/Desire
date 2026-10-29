@@ -20,7 +20,23 @@ struct SearchEverywherePanel: View {
     /// 点击 Agent 会话结果时的宿主回调（打开 Agent 面板——面板归属 ContentView 状态）。
     var onOpenAgentPanel: (() -> Void)? = nil
 
+    /// 检索档位（v0.8.22）：智能 = 字面优先 + 语义补位；字面 = 只字面；
+    /// 语义 = 只语义（按相关度）。选择记住到下次打开。
+    enum SearchMode: String, CaseIterable {
+        case smart, literal, semantic
+
+        var title: String {
+            switch self {
+            case .smart: return String(localized: "Smart")
+            case .literal: return String(localized: "Literal")
+            case .semantic: return String(localized: "Meaning")
+            }
+        }
+    }
+
     @State private var query = ""
+    @State private var mode: SearchMode =
+        SearchMode(rawValue: UserDefaults.standard.string(forKey: "search.everywhere.mode") ?? "") ?? .smart
     @State private var result = SearchEverywhere.Result()
     @State private var searchTask: Task<Void, Never>?
     /// 键盘导航：扁平化的可选中行（分组展平，与渲染顺序一致）。
@@ -43,6 +59,7 @@ struct SearchEverywherePanel: View {
             VStack(spacing: 0) {
                 header
                 searchField
+                modePicker
                 results
             }
             .frame(minWidth: 380, idealWidth: 420)
@@ -63,69 +80,112 @@ struct SearchEverywherePanel: View {
                 result = SearchEverywhere.Result()
                 return
             }
-            searchTask = Task { [historyStore, bookmarkStore, readingListStore] in
-                // 去抖 120ms（即输即滤但不逐键全扫）。
-                try? await Task.sleep(for: .milliseconds(120))
-                guard !Task.isCancelled else { return }
-                var items = openTabItems
-                items += historyStore.entries.map {
-                    SearchEverywhere.Item(source: .history, id: $0.id.uuidString,
-                                          title: $0.title, url: $0.url)
-                }
-                items += flattenBookmarks(bookmarkStore.bookmarks)
-                items += readingListStore.items.map {
-                    SearchEverywhere.Item(source: .readingList, id: $0.id.uuidString,
-                                          title: $0.title, url: $0.url)
-                }
-                // Agent 会话（第五源）：标题 + 消息正文（v0.8.6 补内容搜索的
-                // 命中片段——此前正文命中行会被第二阶段 title/url 匹配滤掉）。
-                if let agentSession {
-                    for c in agentSession.conversationStore.conversations {
-                        let titleHit = c.title.lowercased().contains(q.lowercased())
-                        let matchedMessage = c.messages.first {
-                            ($0.content ?? "").lowercased().contains(q.lowercased())
-                        }
-                        if titleHit || matchedMessage != nil {
-                            var snippet: String?
-                            var hitMessageID: UUID?
-                            if let message = matchedMessage, let text = message.content {
-                                hitMessageID = message.id
-                                // range 必须现算现在**原文**上（caseInsensitive）——
-                                // 小写副本的 String.Index 对原串无效（lowercased()
-                                // 可能变长，跨串索引是崩溃形态）。
-                                if let range = text.range(of: q, options: .caseInsensitive) {
-                                    let lower = text.index(range.lowerBound, offsetBy: -50, limitedBy: text.startIndex) ?? text.startIndex
-                                    let upper = text.index(range.upperBound, offsetBy: 90, limitedBy: text.endIndex) ?? text.endIndex
-                                    snippet = (lower > text.startIndex ? "…" : "")
-                                        + text[lower..<upper].replacingOccurrences(of: "\n", with: " ")
-                                }
+            rerunSearch(q)
+        }
+    }
+
+    /// 跑一次检索（字面 + 按档位补语义）。查询变化与档位切换都走这里。
+    private func rerunSearch(_ q: String) {
+        searchTask?.cancel()
+        searchTask = Task { [historyStore, bookmarkStore, readingListStore] in
+            // 去抖 120ms（即输即滤但不逐键全扫）。
+            try? await Task.sleep(for: .milliseconds(120))
+            guard !Task.isCancelled else { return }
+            var items = openTabItems
+            items += historyStore.entries.map {
+                SearchEverywhere.Item(source: .history, id: $0.id.uuidString,
+                                      title: $0.title, url: $0.url)
+            }
+            items += flattenBookmarks(bookmarkStore.bookmarks)
+            items += readingListStore.items.map {
+                SearchEverywhere.Item(source: .readingList, id: $0.id.uuidString,
+                                      title: $0.title, url: $0.url)
+            }
+            if let agentSession {
+                for c in agentSession.conversationStore.conversations {
+                    let titleHit = c.title.lowercased().contains(q.lowercased())
+                    let matchedMessage = c.messages.first {
+                        ($0.content ?? "").lowercased().contains(q.lowercased())
+                    }
+                    if titleHit || matchedMessage != nil {
+                        var snippet: String?
+                        var hitMessageID: UUID?
+                        if let message = matchedMessage, let text = message.content {
+                            hitMessageID = message.id
+                            if let range = text.range(of: q, options: .caseInsensitive) {
+                                let lower = text.index(range.lowerBound, offsetBy: -50, limitedBy: text.startIndex) ?? text.startIndex
+                                let upper = text.index(range.upperBound, offsetBy: 90, limitedBy: text.endIndex) ?? text.endIndex
+                                snippet = (lower > text.startIndex ? "…" : "")
+                                    + text[lower..<upper].replacingOccurrences(of: "\n", with: " ")
                             }
-                            items.append(.init(
-                                source: .agentConversation, id: c.id.uuidString,
-                                title: c.title, url: "desire://conversation/\(c.id.uuidString)",
-                                snippet: snippet,
-                                // v0.8.6：带上命中消息 id，打开后跳转并高亮该轮。
-                                targetMessageID: hitMessageID,
-                                matchedQuery: q))
                         }
+                        items.append(.init(
+                            source: .agentConversation, id: c.id.uuidString,
+                            title: c.title, url: "desire://conversation/\(c.id.uuidString)",
+                            snippet: snippet,
+                            targetMessageID: hitMessageID,
+                            matchedQuery: q))
                     }
                 }
-                // 最近本地文件（第六源，v0.8.15）：文件名 + 内容快照命中。
-                items += LocalFileContentIndex.shared.matchingItems(query: q)
-                // 摘录库（第七源，v0.8.19）：标题/内容/备注/来源命中（Excerpt.matches）。
-                for excerpt in ExcerptStore.shared.excerpts where excerpt.matches(q) {
-                    items.append(.init(
-                        source: .excerpt, id: excerpt.id.uuidString,
-                        title: excerpt.title, url: excerpt.source,
-                        snippet: String(excerpt.content.prefix(120))))
-                }
-                let r = SearchEverywhere.search(q, items: items)
-                await MainActor.run {
-                    result = r
-                    selectedIndex = nil   // 新结果集重置键盘选择
-                }
+            }
+            items += LocalFileContentIndex.shared.matchingItems(query: q)
+            for excerpt in ExcerptStore.shared.excerpts where excerpt.matches(q) {
+                items.append(.init(
+                    source: .excerpt, id: excerpt.id.uuidString,
+                    title: excerpt.title, url: excerpt.source,
+                    snippet: String(excerpt.content.prefix(120))))
+            }
+            let r = SearchEverywhere.search(q, items: items)
+            let currentMode = mode
+            var semantic: [SearchEverywhere.Hit] = []
+            if currentMode != .literal {
+                semantic = await Self.semanticHits(
+                    query: q,
+                    excluding: Set(items.compactMap { item -> String? in
+                        let trimmed = item.url.lowercased()
+                        return trimmed.isEmpty ? nil : trimmed
+                    }),
+                    limit: currentMode == .semantic ? 24 : 8)
+            }
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                var merged = r
+                merged.semantic = semantic
+                result = merged
+                selectedIndex = nil
             }
         }
+    }
+
+    /// 语义命中 → 面板行（排除字面已命中的 URL）。会话命中保留
+    /// "conversation:<conv>:<msg>" 形态的 id，`activate` 据此跳转高亮。
+    private static func semanticHits(query: String,
+                                     excluding urls: Set<String>,
+                                     limit: Int) async -> [SearchEverywhere.Hit] {
+        let raw = await SemanticIndexStore.shared.searchAsync(query: query, limit: limit + 6)
+        var out: [SearchEverywhere.Hit] = []
+        for hit in raw {
+            if out.count >= limit { break }
+            let key = hit.subtitle.lowercased()
+            if !key.isEmpty, urls.contains(key) { continue }
+            let source: SearchEverywhere.Source
+            switch hit.source {
+            case .history: source = .history
+            case .bookmark: source = .bookmark
+            case .excerpt: source = .excerpt
+            case .highlight: source = .highlight
+            case .conversation: source = .agentConversation
+            }
+            out.append(SearchEverywhere.Hit(
+                source: source,
+                id: hit.id,
+                title: hit.title,
+                url: hit.source == .conversation ? "" : hit.subtitle,
+                matchedIn: "semantic",
+                snippet: hit.snippet,
+                matchedQuery: query))
+        }
+        return out
     }
 
     private func flattenBookmarks(_ tree: [Bookmark]) -> [SearchEverywhere.Item] {
@@ -200,6 +260,27 @@ struct SearchEverywherePanel: View {
         .padding(.vertical, 10)
     }
 
+    private var modePicker: some View {
+        Picker("", selection: $mode) {
+            ForEach(SearchMode.allCases, id: \.self) { item in
+                Text(item.title).tag(item)
+            }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .controlSize(.small)
+        .padding(.horizontal, 12)
+        .padding(.bottom, 8)
+        .onChange(of: mode) { _, value in
+            UserDefaults.standard.set(value.rawValue, forKey: "search.everywhere.mode")
+            // 档位变了先作废在飞请求，避免旧档结果覆盖新档。
+            searchTask?.cancel()
+            let q = query
+            guard !q.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+            rerunSearch(q)
+        }
+    }
+
     /// 空查询默认结果 = 打开标签（验收口径 0.7.14：面板打开即有用，不用先想关键词）。
     private var defaultTabItems: [SearchEverywhere.Item] {
         tabManager.tabs.enumerated().map { idx, tab in
@@ -217,6 +298,8 @@ struct SearchEverywherePanel: View {
             }
         }
         return result.tabs + result.history + result.bookmarks + result.readingList
+            + result.localFiles + result.excerpts + result.agentConversations
+            + result.semantic
     }
 
     @ViewBuilder
@@ -260,6 +343,9 @@ struct SearchEverywherePanel: View {
                     if !result.agentConversations.isEmpty {
                         group("Agent Conversations", result.agentConversations,
                               systemImage: "bubble.left.and.text.bubble.right")
+                    }
+                    if !result.semantic.isEmpty {
+                        group("Related by Meaning", result.semantic, systemImage: "sparkles")
                     }
                 }
                 .padding(.horizontal, 12)
@@ -349,7 +435,8 @@ struct SearchEverywherePanel: View {
     // MARK: - Actions
 
     private func openFirst() {
-        for hits in [result.tabs, result.history, result.bookmarks, result.readingList, result.localFiles, result.excerpts] {
+        for hits in [result.tabs, result.history, result.bookmarks, result.readingList,
+                     result.localFiles, result.excerpts, result.agentConversations, result.semantic] {
             if let first = hits.first {
                 activate(first)
                 return
@@ -447,6 +534,7 @@ struct SearchEverywherePanel: View {
         case .agentConversation: String(localized: "Agent Conversation")
         case .localFile: String(localized: "Local File")
         case .excerpt: String(localized: "Excerpt")
+        case .highlight: String(localized: "Reading Highlight")
         }
     }
 
@@ -459,6 +547,7 @@ struct SearchEverywherePanel: View {
         case .agentConversation: "bubble.left.and.text.bubble.right"
         case .localFile: "doc"
         case .excerpt: "text.quote"
+        case .highlight: "highlighter"
         }
     }
 
@@ -470,6 +559,27 @@ struct SearchEverywherePanel: View {
                 tabManager.selectTab(at: idx)
             }
         case .agentConversation:
+            // 语义命中的会话条目 id = "conversation:<conv>:<msg>"（v0.8.22）。
+            if hit.matchedIn == "semantic" {
+                let parts = hit.id.split(separator: ":")
+                if parts.count == 3,
+                   let conversationID = UUID(uuidString: String(parts[1])),
+                   let messageID = UUID(uuidString: String(parts[2])),
+                   let agentSession {
+                    agentSession.loadConversation(conversationID)
+                    NotificationCenter.default.post(
+                        name: .agentJumpToMessage,
+                        object: nil,
+                        userInfo: [
+                            "conversationID": conversationID.uuidString,
+                            "messageID": messageID.uuidString,
+                            "query": hit.matchedQuery ?? "",
+                        ])
+                    onOpenAgentPanel?()
+                }
+                onClose()
+                return
+            }
             // Agent 会话：载入会话并打开 Agent 面板（宿主回调）。
             // content 命中时带消息 id——面板载入后跳转并高亮那一轮（v0.8.6）。
             if let id = UUID(uuidString: hit.id), let agentSession {
@@ -486,7 +596,7 @@ struct SearchEverywherePanel: View {
                 }
                 onOpenAgentPanel?()
             }
-        case .history, .bookmark, .readingList, .localFile:
+        case .history, .bookmark, .readingList, .localFile, .highlight:
             // 本地文件走 file:// 导航 → 查看器路由（PDF/表格/图片/文档直开）。
             tabManager.addTab(url: hit.url, makeActive: true)
         case .excerpt:

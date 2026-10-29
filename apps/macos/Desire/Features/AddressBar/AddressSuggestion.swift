@@ -9,6 +9,8 @@ struct AddressSuggestion: Identifiable {
         case history
         case openTab
         case calculator
+        /// 语义兜底（v0.8.22）：字面无候选时列出的相关页面/摘录。
+        case related
     }
 
     let kind: Kind

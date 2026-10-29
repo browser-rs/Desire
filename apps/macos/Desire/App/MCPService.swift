@@ -1194,5 +1194,54 @@ final class MCPService {
             ],
             "_bridge": ["method": "POST", "path": "/agent/eval-export", "body": ["path": "path"]],
         ],
+        [
+            "name": "getAgentReport",
+            "description": "Per-turn WORK REPORT for a conversation (derived from saved messages): goal, outcome (success/partial/failed), steps, tool usage counts, failures with the exact Error text, self-critique, verification note and the final answer. This is the fastest way for a coding tool to see how the browser agent worked and where it struggled.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "conversation": ["type": "string", "description": "Conversation UUID (default: live)"],
+                    "limit": ["type": "integer", "description": "Max turns (default 20, max 50)"],
+                ],
+            ],
+            "_bridge": ["method": "GET", "path": "/agent/report?conversation={conversation}&limit={limit}"],
+        ],
+        [
+            "name": "getAgentGaps",
+            "description": "Capability gaps the browser agent reported itself (missing tools/features), ranked by how often they blocked it — with the workaround it used and the page/context. Consume this to decide which capability to build next.",
+            "inputSchema": ["type": "object", "properties": [:]],
+            "_bridge": ["method": "GET", "path": "/agent/gaps"],
+        ],
+        [
+            "name": "reportCapabilityGap",
+            "description": "Record a capability gap found by YOUR tooling (same store the agent's own reportCapabilityGap tool writes). Use it when you observe a missing capability while driving the browser through Desire.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "capability": ["type": "string", "description": "Missing capability/tool, short noun phrase"],
+                    "blocked": ["type": "string"],
+                    "workaround": ["type": "string"],
+                    "severity": ["type": "string", "description": "blocker | friction | nice-to-have"],
+                    "context": ["type": "string"],
+                ],
+                "required": ["capability"],
+            ],
+            "_bridge": ["method": "POST", "path": "/agent/gaps", "body": ["capability": "capability", "blocked": "blocked", "workaround": "workaround", "severity": "severity", "context": "context"]],
+        ],
+        [
+            "name": "clearAgentGaps",
+            "description": "Clear the recorded capability gaps (after you have filed them upstream).",
+            "inputSchema": ["type": "object", "properties": [:]],
+            "_bridge": ["method": "POST", "path": "/agent/gaps/clear"],
+        ],
+        [
+            "name": "exportWorkReport",
+            "description": "Write a Markdown work report for the live conversation (per-turn facts + capability-gap table) into the agent workspace (or a directory you pass). Returns the path — read it directly from your coding environment.",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["path": ["type": "string", "description": "Target directory (default: agent workspace)"]],
+            ],
+            "_bridge": ["method": "POST", "path": "/agent/report/export", "body": ["path": "path"]],
+        ],
     ]
 }

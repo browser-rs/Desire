@@ -615,6 +615,11 @@ final class AutomationServer {
         ep("GET", "/ai/prices", "Model price table (USD per Mtok) used to turn token usage into cost", example: "…/ai/prices")
         ep("POST", "/ai/prices", "Set/clear model prices; 0 or omitted = unknown (that model shows no money)", params: ["models?:{model:{input,output}}", "remove?:[model]"], example: #"-d '{"models":{"gpt-4o":{"input":2.5,"output":10}}}'"#)
         ep("GET", "/agent/messages", "Live agent conversation + busy (+hasInterruptedTurn: 上回合被中断待继续)", example: "…/agent/messages")
+        ep("GET", "/agent/gaps", "Capability gaps the agent reported via reportCapabilityGap (ranked by count; feeds the improvement loop)", example: "…/agent/gaps")
+        ep("POST", "/agent/gaps", "Record a capability gap from outside (same store the tool writes)", params: ["capability:string", "blocked?", "workaround?", "severity?:blocker|friction|nice-to-have", "context?"], example: "-d '{\"capability\":\"批量重命名下载文件\"}'")
+        ep("POST", "/agent/gaps/clear", "Clear all recorded capability gaps", example: "-d '{}'")
+        ep("GET", "/agent/report", "Per-turn work report: goal/outcome/steps/tool counts/failures/critique/answer (derived from saved messages)", params: ["conversation?:uuid (default: live)", "limit?:int"], example: "…/agent/report?limit=10")
+        ep("POST", "/agent/report/export", "Write a Markdown work report (turns + capability gaps) into the agent workspace", params: ["path?:string (target directory)"], example: "-d '{}'")
         ep("POST", "/agent/open", "Load a conversation into the live agent panel (crash-recovery: open the interrupted one before /agent/resume)", params: ["conversationId:uuid"], example: #"-d '{"conversationId":"…"}'"#)
         ep("POST", "/agent/feedback", "Rate an assistant message (thumbs up/down); persisted with the conversation", params: ["messageId:string", "vote:up|down|none"], example: #"-d '{"messageId":"…","vote":"up"}'"#)
         ep("GET", "/filters", "Community filter lists state (enabled, lastUpdated, ruleCount, error)", example: "…/filters")
@@ -2863,6 +2868,28 @@ final class AutomationServer {
                 return try Self.json(Self.agentWindows())
             case ("GET", "/agent/messages"):
                 return try Self.json(Self.agentMessages(window: Self.string(query, "window")))
+            case ("GET", "/agent/gaps"):
+                return try Self.json(AgentGapStore.shared.payload())
+            case ("POST", "/agent/gaps"):
+                let gap = AgentGapStore.shared.add(
+                    capability: Self.string(body, "capability") ?? "",
+                    blocked: Self.string(body, "blocked") ?? "",
+                    workaround: Self.string(body, "workaround") ?? "",
+                    severity: Self.string(body, "severity") ?? "friction",
+                    context: Self.string(body, "context") ?? "",
+                    conversationID: AgentScheduler.shared.deliveryTarget?.conversationId)
+                var payload = AgentGapStore.shared.payload()
+                payload["ok"] = gap != nil
+                return try Self.json(payload)
+            case ("POST", "/agent/gaps/clear"):
+                AgentGapStore.shared.clear()
+                return try Self.json(["ok": true, "count": 0])
+            case ("GET", "/agent/report"):
+                return try Self.json(Self.agentWorkReport(
+                    conversation: Self.string(query, "conversation"),
+                    limit: Int(Self.string(query, "limit") ?? "") ?? 20))
+            case ("POST", "/agent/report/export"):
+                return try Self.json(Self.exportWorkReport(path: Self.string(body, "path")))
             case ("POST", "/update/install"):
                 UpdateChecker.shared.startCheckThenInstall()
                 return try Self.json(["ok": true, "started": true])
@@ -5670,6 +5697,101 @@ final class AutomationServer {
              "updatedAt": ISO.string(from: hit.updatedAt),
              "messages": hit.messageCount, "matchedIn": hit.matchedIn, "snippet": hit.snippet]
         }]
+    }
+
+    /// 工作自述（v0.8.22）：取会话消息（显式 id > 实时会话 > 最新落盘）后派生。
+    @MainActor
+    private static func workReportSource(conversation raw: String?)
+        -> (messages: [AgentMessage], id: String, title: String)? {
+        if let raw, !raw.isEmpty, let id = UUID(uuidString: raw) {
+            guard let store = AppState.live?.conversationStore,
+                  let conversation = store.conversation(for: id) else { return nil }
+            return (conversation.messages, id.uuidString, conversation.title)
+        }
+        if let live = AgentScheduler.shared.deliveryTarget {
+            return (live.messages, live.conversationId?.uuidString ?? "", "live")
+        }
+        guard let store = AppState.live?.conversationStore,
+              let newest = store.conversations.max(by: { $0.updatedAt < $1.updatedAt }) else {
+            return nil
+        }
+        return (newest.messages, newest.id.uuidString, newest.title)
+    }
+
+    @MainActor
+    private static func agentWorkReport(conversation raw: String?, limit: Int) -> [String: Any] {
+        guard let source = workReportSource(conversation: raw) else {
+            return ["error": "no conversation available"]
+        }
+        let reports = AgentWorkReportBuilder.build(from: source.messages,
+                                                   maxTurns: min(50, max(1, limit)))
+        let encoded: [[String: Any]] = reports.compactMap { report in
+            guard let data = try? JSONEncoder().encode(report),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                return nil
+            }
+            return object
+        }
+        return ["conversationId": source.id, "title": source.title,
+                "count": encoded.count, "turns": encoded,
+                "gaps": AgentGapStore.shared.payload()]
+    }
+
+    /// 导出 Markdown 工作自述：逐回合事实 + 能力缺口表（给编程工具直接读）。
+    @MainActor
+    private static func exportWorkReport(path rawPath: String?) -> [String: Any] {
+        guard let source = workReportSource(conversation: nil) else {
+            return ["error": "no conversation available"]
+        }
+        let reports = AgentWorkReportBuilder.build(from: source.messages, maxTurns: 50)
+        let gaps = AgentGapStore.shared.ranked
+        var markdown = "# Desire Agent Work Report\n\n"
+        markdown += "Generated: \(ISO.string(from: Date()))\n"
+        markdown += "Conversation: \(source.title) (\(source.id))\n"
+        markdown += "Turns: \(reports.count) · Capability gaps: \(gaps.count)\n\n"
+        for report in reports {
+            markdown += "## Turn \(report.turn) — \(report.outcome)\n"
+            markdown += "- Goal: \(report.goal)\n"
+            let tools = report.toolCalls
+                .map { "\($0.key)×\($0.value)" }
+                .sorted()
+                .joined(separator: ", ")
+            markdown += "- Steps: \(report.steps) · Tools: \(tools.isEmpty ? "none" : tools)\n"
+            if !report.failures.isEmpty {
+                markdown += "- Failures:\n"
+                for failure in report.failures {
+                    markdown += "  - \(failure.tool): \(failure.message)\n"
+                }
+            }
+            if let critique = report.critique { markdown += "- Critique: \(critique)\n" }
+            if let verification = report.verification { markdown += "- Verification: \(verification)\n" }
+            if !report.answer.isEmpty { markdown += "- Answer: \(report.answer)\n" }
+            markdown += "\n"
+        }
+        markdown += "## Capability gaps\n"
+        if gaps.isEmpty {
+            markdown += "None recorded (the agent did not call reportCapabilityGap).\n"
+        } else {
+            markdown += "| capability | severity | count | blocked | workaround |\n"
+            markdown += "|---|---|---|---|---|\n"
+            for gap in gaps {
+                markdown += "| \(gap.capability) | \(gap.severity) | \(gap.count) | \(gap.blocked) | \(gap.workaround) |\n"
+            }
+        }
+        let directory = (rawPath?.isEmpty == false)
+            ? URL(fileURLWithPath: rawPath!)
+            : AgentWorkspace.shared.directory
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyyMMdd-HHmmss"
+            let url = directory.appendingPathComponent("desire-work-report-\(formatter.string(from: Date())).md")
+            try markdown.write(to: url, atomically: true, encoding: .utf8)
+            return ["ok": true, "path": url.path, "turns": reports.count, "gaps": gaps.count]
+        } catch {
+            return ["error": "write failed: \(error.localizedDescription)"]
+        }
     }
 
     /// 会话语义检索（v0.8.22）：与工具同一路径，按会话聚合去重。

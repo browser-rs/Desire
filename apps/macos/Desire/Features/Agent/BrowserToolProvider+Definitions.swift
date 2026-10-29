@@ -813,6 +813,17 @@ extension BrowserToolProvider {
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "reportCapabilityGap",
+                description: "Record a missing capability or tool you ran into while working: what you needed, what blocked you, the workaround you used, and how severe it was. This feeds the app's improvement loop (external coding tools read it) and is NOT shown to the user. Call it once whenever you had to fall back to a worse approach because no tool/API covers the job (e.g. batch-renaming downloaded files, coordinate-based drag, exporting a conversation as JSON).",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "capability": AgentJSONSchemaValue(type: "string", description: "The missing capability/tool, short noun phrase"),
+                    "blocked": AgentJSONSchemaValue(type: "string", description: "What exactly blocked you (page/action)"),
+                    "workaround": AgentJSONSchemaValue(type: "string", description: "How you worked around it, or none"),
+                    "severity": AgentJSONSchemaValue(type: "string", description: "blocker | friction | nice-to-have (default friction)"),
+                    "context": AgentJSONSchemaValue(type: "string", description: "Optional: URL or goal for context"),
+                ], required: ["capability"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "searchConversations", description: "Search the user's PAST saved conversations (title + full message text, case-insensitive) and return the closest matches with a snippet each. Use it for \"我们上次说的那个…\" / \"earlier we discussed…\" — the CURRENT conversation is already in your context and is excluded. Follow up with readConversation(id) when a snippet is not enough.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "query": AgentJSONSchemaValue(type: "string", description: "Keywords to look for (at least 2 characters)"),

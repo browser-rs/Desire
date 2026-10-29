@@ -71,6 +71,34 @@ claude mcp add --transport http desire http://127.0.0.1:8798/mcp
 | `searchConversations` | 搜历史会话（字面/语义两档） |
 | `semanticSearch` | 端上语义检索历史正文/书签/摘录/高亮 |
 | `exportEval` | 把 👍 回合导出成 eval JSONL |
+| `getAgentReport` | **逐回合工作自述**：目标/结果/步数/工具计数/失败原文/自评/回答 |
+| `getAgentGaps` | Agent 自己报告的**能力缺口**（按被阻塞次数排序，带替代方案与上下文） |
+| `reportCapabilityGap` | 外部工具也能记录缺口（与 Agent 内置工具同一存储） |
+| `clearAgentGaps` | 清空缺口表（归档到上游之后） |
+| `exportWorkReport` | 导出 Markdown 工作自述（逐回合事实 + 缺口表）到 Agent 工作目录 |
+
+## Agent 自述：它怎么干的、缺什么
+
+两条互补通道，编程工具直接消费：
+
+1. **客观事实**——`getAgentReport`（或 `GET /agent/report`）：从已落盘消息派生，
+   不额外调模型。每回合给出 `outcome`（success/partial/failed）、步数、工具计数、
+   `Error:` 原文、自评与最终回答。
+2. **主观反馈**——`getAgentGaps`：Agent 在干活时如果发现"没有这个能力/工具"，
+   会调用 `reportCapabilityGap(capability, blocked, workaround, severity)` 记一条；
+   按 capability 归一化去重累计，按次数排序。系统提示词里已写入这条指引。
+
+典型消费方式（ZCode 等）：
+
+```
+getAgentGaps                       → 先看最常缺的是什么（blocker 优先）
+getAgentReport {limit: 10}         → 看最近回合的失败原文与自评
+exportWorkReport                   → 落一份 md 到 Agent 工作目录，直接读文件
+…改代码/加工具/改提示词…
+askAgent {text: 同一任务}          → 回归
+rateAgentMessage / exportEval      → 固化通过/失败样本
+clearAgentGaps                     → 归档后清空
+```
 
 ## 改进闭环（推荐用法）
 

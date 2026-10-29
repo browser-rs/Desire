@@ -6601,6 +6601,7 @@ func testReasoningEffortPolicy() {
 testReasoningEffortPolicy()
 testSemanticIndex()
 testTabDigestCore()
+testAgentWorkReport()
 
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
@@ -6787,6 +6788,48 @@ func testTabDigestCore() {
     let capped = TabDigestCore.capped(long, cap: 100)
     check("tabdigest：超预算截断并标注", capped.hasPrefix(String(repeating: "x", count: 100)) && capped.hasSuffix("[truncated]"))
     check("tabdigest：默认预算 = 40000", TabDigestCore.totalCharCap == 40_000)
+}
+
+func testAgentWorkReport() {
+    let call = AgentToolCall(id: "c1", type: "function",
+                             function: AgentToolFunction(name: "navigate", arguments: "{}"))
+    let turn1 = [
+        AgentMessage(role: .user, content: "Open example.com and read it"),
+        AgentMessage(role: .assistant, content: nil, toolCalls: [call]),
+        AgentMessage(role: .tool, content: "Error: navigation timed out",
+                     toolCallId: "c1", toolName: "navigate"),
+        AgentMessage(role: .assistant, content: "Could not open it; the page is down.",
+                     critique: "Should have retried once.",
+                     verificationNote: "Checked twice."),
+    ]
+    let turn2 = [
+        AgentMessage(role: .user, content: "Summarize this page"),
+        AgentMessage(role: .assistant, content: "It is about cats."),
+    ]
+    let reports = AgentWorkReportBuilder.build(from: turn1 + turn2)
+    eq("workreport：回合数", reports.count, 2)
+    eq("workreport：有失败有回答判 partial", reports[0].outcome, "partial")
+    eq("workreport：失败条数", reports[0].failures.count, 1)
+    eq("workreport：失败工具名", reports[0].failures.first?.tool, "navigate")
+    check("workreport：失败原文保留", reports[0].failures.first?.message.contains("timed out") == true)
+    eq("workreport：步数按工具结果计", reports[0].steps, 1)
+    eq("workreport：工具调用计数", reports[0].toolCalls["navigate"], 1)
+    eq("workreport：自评保留", reports[0].critique, "Should have retried once.")
+    eq("workreport：验证保留", reports[0].verification, "Checked twice.")
+    check("workreport：回答保留", reports[0].answer.contains("Could not open"))
+    eq("workreport：无失败有回答判 success", reports[1].outcome, "success")
+    eq("workreport：目标取用户消息", reports[1].goal, "Summarize this page")
+
+    let failed = AgentWorkReportBuilder.build(from: [AgentMessage(role: .user, content: "x")])
+    eq("workreport：无回答判 failed", failed.first?.outcome, "failed")
+    eq("workreport：回合外工具消息丢弃",
+       AgentWorkReportBuilder.build(from: [AgentMessage(role: .tool, content: "Error: x")]).count, 0)
+
+    let limited = AgentWorkReportBuilder.build(from: turn1 + turn2, maxTurns: 1)
+    eq("workreport：maxTurns 只取最近", limited.count, 1)
+    eq("workreport：maxTurns 序号从 1 起", limited.first?.turn, 1)
+    eq("workreport：maxTurns 内容正确", limited.first?.goal, "Summarize this page")
+    check("workreport：长目标截断", AgentWorkReportBuilder.clip(String(repeating: "x", count: 400), 300).count == 300)
 }
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

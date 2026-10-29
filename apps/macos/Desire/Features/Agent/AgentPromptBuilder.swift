@@ -155,6 +155,12 @@ enum AgentPromptBuilder {
             Tool failures are returned as text starting with `Error:` — when a \
             result starts with that prefix the action did NOT happen: fix the \
             arguments or pick a different approach instead of repeating the call.
+
+            If the capability you need does not exist (no tool covers it, or the \
+            platform makes it impossible), call reportCapabilityGap with \
+            capability/blocked/workaround/severity once, then continue with the \
+            best workaround. It feeds the app's improvement loop and is not shown \
+            to the user.
             </tools>
             """)
         }

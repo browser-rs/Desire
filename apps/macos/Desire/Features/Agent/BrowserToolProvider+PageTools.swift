@@ -894,6 +894,26 @@ extension BrowserToolProvider {
             }
             return await session.reflectForTool(question: (args["question"] as? String) ?? "")
 
+        case "reportCapabilityGap":
+            // 能力缺口自述（v0.8.22）：Agent 自己说"这里缺什么"，编程工具按次数排序补。
+            guard let capability = args["capability"] as? String,
+                  !capability.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return Self.fail("Missing capability")
+            }
+            let gapContext = (args["context"] as? String)
+                ?? surface.tabManager?.selectedTab?.browser.webView.url?.absoluteString
+                ?? ""
+            guard let recorded = AgentGapStore.shared.add(
+                capability: capability,
+                blocked: (args["blocked"] as? String) ?? "",
+                workaround: (args["workaround"] as? String) ?? "",
+                severity: (args["severity"] as? String) ?? "friction",
+                context: gapContext,
+                conversationID: ownerSession?.conversationId) else {
+                return Self.fail("Capability text is empty")
+            }
+            return "Recorded capability gap \u{201c}\(recorded.capability)\u{201d} (\(recorded.severity), seen \(recorded.count)x)."
+
         case "setTokenBudget":
             // 会话预算（v0.7.18）：改的是**本会话**（工具跑在哪个会话就改哪个）。
             // 档位复位——刚调过预算，从头按新额度算。

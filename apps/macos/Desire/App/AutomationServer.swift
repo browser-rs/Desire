@@ -619,6 +619,9 @@ final class AutomationServer {
         ep("GET", "/review/queue", "Spaced-repetition review queue (total/due + per-entry stage/dueAt/lapses)", example: "…/review/queue")
         ep("POST", "/review/grade", "Grade a review item: remembered=true advances a stage, false resets to stage 1", params: ["id:uuid", "remembered:bool"], example: "-d '{\"id\":\"…\",\"remembered\":true}'")
         ep("POST", "/review/reset", "Clear the review queue", example: "-d '{}'")
+        ep("GET", "/diag/windows", "Window roles (user/agent/agentPane), tab counts, selected URL and key-window flag — focus/mode E2E probe", example: "…/diag/windows")
+        ep("GET", "/app/mode", "Usage mode (browser / agentFocus / hybrid) + available modes", example: "…/app/mode")
+        ep("POST", "/app/mode", "Switch usage mode; hybrid opens an agent window if none exists", params: ["mode:string (browser|agentFocus|hybrid)"], example: "-d '{\"mode\":\"hybrid\"}'")
         ep("GET", "/agent/gaps", "Capability gaps the agent reported via reportCapabilityGap (ranked by count; feeds the improvement loop)", example: "…/agent/gaps")
         ep("POST", "/agent/gaps", "Record a capability gap from outside (same store the tool writes)", params: ["capability:string", "blocked?", "workaround?", "severity?:blocker|friction|nice-to-have", "context?"], example: "-d '{\"capability\":\"批量重命名下载文件\"}'")
         ep("POST", "/agent/gaps/clear", "Clear all recorded capability gaps", example: "-d '{}'")
@@ -2897,6 +2900,17 @@ final class AutomationServer {
             case ("POST", "/review/reset"):
                 ReviewQueueStore.shared.reset()
                 return try Self.json(["ok": true, "total": 0, "due": 0])
+            case ("GET", "/diag/windows"):
+                return try Self.json(Self.diagWindows())
+            case ("GET", "/app/mode"):
+                return try Self.json(AppModeStore.shared.payload())
+            case ("POST", "/app/mode"):
+                let rawMode = Self.string(body, "mode") ?? ""
+                guard let requested = AppUsageMode(rawValue: rawMode) else {
+                    return try Self.json(["error": "unknown mode: \(rawMode)"])
+                }
+                AppModeCoordinator.apply(requested)
+                return try Self.json(AppModeStore.shared.payload())
             case ("GET", "/agent/gaps"):
                 return try Self.json(AgentGapStore.shared.payload())
             case ("POST", "/agent/gaps"):
@@ -3417,6 +3431,31 @@ final class AutomationServer {
 
     private static func error(_ message: String) -> String {
         (try? json(["error": message])) ?? "{\"error\":\"?\"}"
+    }
+
+    /// 窗口/角色/焦点探针（v0.8.23）：模式 E2E 断言"操作没落进用户窗口、
+    /// key 没变"的机器读面。
+    @MainActor
+    private static func diagWindows() -> [String: Any] {
+        let keyTitle = NSApp.keyWindow?.title ?? ""
+        let rows: [[String: Any]] = TabSessionCoordinator.shared.liveManagers().map { manager in
+            let selected = manager.selectedTab
+            let windowTitle = selected?.browser.webView.window?.title ?? ""
+            let isKey = selected?.browser.webView.window?.isKeyWindow ?? false
+            return [
+                "sessionKey": manager.sessionKey ?? "",
+                "role": WindowRoleRegistry.shared.role(for: manager.sessionKey).rawValue,
+                "tabs": manager.tabs.count,
+                "selected": manager.selectedIndex,
+                "url": selected?.browser.webView.url?.absoluteString ?? selected?.urlString ?? "",
+                "containerId": selected?.containerID?.uuidString ?? "",
+                "title": windowTitle,
+                "isKey": isKey,
+            ]
+        }
+        return ["keyWindowTitle": keyTitle,
+                "mode": AppModeStore.shared.mode.rawValue,
+                "windows": rows]
     }
 
     private static func activeTabURLsBridge() -> [String] {

@@ -137,6 +137,17 @@ struct AppCommands: Commands {
 
         // MARK: - Agent
 
+        // MARK: - 使用模式（v0.8.23）
+
+        CommandMenu("Mode") {
+            Button("Agent Workspace") { AppModeCoordinator.apply(.agentFocus) }
+                .keyboardShortcut("1", modifiers: [.command, .control])
+            Button("Browser") { AppModeCoordinator.apply(.browser) }
+                .keyboardShortcut("2", modifiers: [.command, .control])
+            Button("Hybrid") { AppModeCoordinator.apply(.hybrid) }
+                .keyboardShortcut("3", modifiers: [.command, .control])
+        }
+
         CommandMenu("Agent") {
             Button("Show Agent Panel") { postCommand(.toggleAgentPanel) }
                 .keyboardShortcut(binding("toggleAgentPanel", "'", .command))

@@ -97,6 +97,14 @@ class AppState: ObservableObject {
         // 密钥单条目后台预读：Keychain 授权窗可能延迟/隐藏，绝不能在启动
         // 主线程同步等它（2026-10-22 实测主线程卡在 SecItemCopyMatching）。
         Task { await AppSecretsVault.shared.preload() }
+        // 使用模式（v0.8.23）：混合模式在首窗就绪后补开 Agent 窗口；专注模式
+        // 无需额外窗口（工作台在首窗内覆盖）。角色随 pendingRole 交给 SessionRestore。
+        if AppModeStore.shared.mode == .hybrid {
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(1.5))
+                AppModeCoordinator.ensureAgentWindow()
+            }
+        }
         // 定时下载：应用关闭期间到点的任务在首个 tick 补跑。
         DownloadScheduler.shared.start()
         // 批量下载断点续传：上次未完成的批次放回队列（内部异步，不占启动路径）。

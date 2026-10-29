@@ -352,6 +352,9 @@ class TabManager: ObservableObject {
     /// value-based session UUID is known). Nil until then: persistence and
     /// restore are no-ops for unkeyed windows.
     var sessionKey: String?
+    /// 本窗口新标签的默认容器（v0.8.23）：Agent 窗口 = Agent 专用容器，
+    /// 用户窗口 = nil（沿用档案）。显式 containerID 仍然优先。
+    var defaultContainerID: UUID?
 
     init(headless: Bool = false) {
         // Session persistence is process-wide (one shared storage key): each
@@ -614,7 +617,8 @@ class TabManager: ObservableObject {
         // P0-A：显式参数缺省时兜底窗口的档案 store——此前该参数全仓无人传，
         // Profile 的 cookie 隔离整条链路断在这里（切人物后登录态全进默认
         // store，跨档案串档）。
-        let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerID: containerID, profileDataStore: profileDataStore ?? self.profileDataStore)
+        let resolvedContainer = containerID ?? defaultContainerID
+        let tab = Tab(url: url, incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerID: resolvedContainer, profileDataStore: profileDataStore ?? self.profileDataStore)
         defer {
             BridgeEventBus.shared.publish("tabOpened", ["index": tabs.firstIndex(where: { $0.id == tab.id }) ?? -1, "count": tabs.count])
             ExtensionEventHub.shared.fire("tabs.onCreated", tabID: tab.id, extra: ["url": url ?? "", "index": tabs.firstIndex(where: { $0.id == tab.id }) ?? -1])
@@ -1227,7 +1231,9 @@ final class TabSessionCoordinator {
         guard let index: [String] = DiskStore.load([String].self, key: Self.indexKey) else { return }
         var archived: [String] = DiskStore.load([String].self, key: Self.archiveIndexKey) ?? []
         let fm = FileManager.default
-        for key in index where !keep.contains(key) {
+        // Agent 角色的会话永远不归档：它由 Agent 窗口按角色恢复（v0.8.23）。
+        let protected = keep.union(WindowRoleRegistry.shared.agentSessionKeys())
+        for key in index where !protected.contains(key) {
             if let name = Self.moveToArchive(key: key) {
                 archived.append(name)
             }
@@ -1350,6 +1356,8 @@ final class TabSessionCoordinator {
         return index.last {
             fm.fileExists(atPath: DiskStore.directory
                 .appendingPathComponent("\($0).json").path)
+                // 用户窗口不得把 Agent 会话当成"上次的浏览会话"（v0.8.23）。
+                && !WindowRoleRegistry.shared.isAgentSession($0)
         }
     }
 
@@ -1370,6 +1378,7 @@ final class TabSessionCoordinator {
         var seen = Set<String>()
         var keys: [String] = []
         for key in index where key != excluding {
+            guard !WindowRoleRegistry.shared.isAgentSession(key) else { continue }
             guard seen.insert(key).inserted else { continue }
             let path = DiskStore.directory.appendingPathComponent("\(key).json").path
             guard fm.fileExists(atPath: path),
@@ -1399,6 +1408,10 @@ final class TabSessionCoordinator {
         }
         let newest = files
             .filter { $0.lastPathComponent.hasPrefix("session-") && $0.pathExtension == "json" }
+            .filter {
+                !WindowRoleRegistry.shared.isAgentSession(
+                    $0.deletingPathExtension().lastPathComponent)
+            }
             .max { a, b in
                 let da = (try? a.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
                 let db = (try? b.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast

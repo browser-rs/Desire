@@ -145,6 +145,16 @@ nonisolated enum SettingsSearch {
               keywords: ["批量下载", "目录", "分卷", "folder"]),
         .init(id: "batch.reserve", section: "batchDownloads", title: "Disk Space Reserve",
               keywords: ["磁盘", "空间", "预留", "disk", "reserve"]),
+        // Usage mode (v0.8.23)
+        .init(id: "mode.usage", section: "usageMode", title: "Usage Mode",
+              subtitle: "Browser / Agent Workspace / Hybrid",
+              keywords: ["模式", "使用模式", "工作台", "混合", "mode", "workspace", "hybrid", "focus"]),
+        .init(id: "mode.agent", section: "usageMode", title: "Agent Workspace",
+              subtitle: "Single window; browser stays in the background",
+              keywords: ["专注", "单窗", "后台", "agent", "workspace", "background"]),
+        .init(id: "mode.hybrid", section: "usageMode", title: "Hybrid Windows",
+              subtitle: "Separate agent window with an isolated container",
+              keywords: ["混合", "双窗", "隔离", "hybrid", "container", "isolation"]),
         // Semantic index (v0.8.22)
         .init(id: "search.semantic", section: "search", title: "Semantic Search",
               subtitle: "On-device meaning-based index over saved content",

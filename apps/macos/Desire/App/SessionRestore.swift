@@ -47,6 +47,33 @@ enum SessionRestore {
         let sessionKey = TabSessionCoordinator.shared.sessionKey(for: sessionID)
         manager.sessionKey = sessionKey
 
+        // v0.8.23：建窗时携带的角色（混合模式由模式切换/桥发起）。
+        if let role = WindowRoleRegistry.shared.pendingRole {
+            WindowRoleRegistry.shared.pendingRole = nil
+            if role == .agent {
+                let containerID = WindowRoleRegistry.shared.agentContainerID()
+                manager.defaultContainerID = containerID
+                let agentKey = WindowRoleRegistry.shared.agentSessionKey() ?? sessionKey
+                manager.sessionKey = agentKey
+                if let session = TabSessionCoordinator.shared.session(forKey: agentKey),
+                   !session.tabs.isEmpty {
+                    manager.apply(session: session,
+                                  javaScriptEnabled: context.settings.isJavaScriptEnabled,
+                                  contentBlocker: context.contentBlocker,
+                                  videoAdBlocker: context.videoAdBlocker)
+                } else {
+                    manager.addTab(javaScriptEnabled: context.settings.isJavaScriptEnabled,
+                                   contentBlocker: context.contentBlocker,
+                                   videoAdBlocker: context.videoAdBlocker,
+                                   makeActive: true)
+                }
+                WindowRoleRegistry.shared.register(sessionKey: agentKey, role: .agent,
+                                                   containerID: containerID)
+                return Result(sessionID: sessionID, sessionKey: agentKey)
+            }
+            WindowRoleRegistry.shared.register(sessionKey: sessionKey, role: .user)
+        }
+
         // 拖出接纳：暂存区的标签直接吸收，不走会话恢复/新建流程。
         if let staged = TabTransfer.take(for: sessionID) {
             manager.absorb(staged)

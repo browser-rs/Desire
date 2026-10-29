@@ -60,6 +60,8 @@ struct ContentView: View {
     @Environment(\.appAccent) var appAccent: Color
     @Environment(\.openWindow) var openWindow
     @ObservedObject private var whatsNew = WhatsNewStore.shared
+    /// 使用模式（v0.8.23）：专注模式在工作台上覆盖浏览器壳。
+    @ObservedObject private var usageMode = AppModeStore.shared
     @ObservedObject private var promotionShare = PromotionShareCenter.shared
 
     init(appState: AppState, sessionID: Binding<UUID?>) {
@@ -399,7 +401,10 @@ struct ContentView: View {
                 // window). One `configure(with:)` call replaces the former
                 // 13-parameter `configureStores`.
                 appState.attach(tabManager: tabManager)
-                aiSession.configure(with: WindowToolSurface(app: appState, tabManager: tabManager))
+                let toolManager = usageMode.mode == .agentFocus
+                    ? AgentPaneManager.shared.ensure()
+                    : tabManager
+                aiSession.configure(with: WindowToolSurface(app: appState, tabManager: toolManager))
                 isAgentConfigured = true
                 StartupMetric.markFirstWindowInteractive()
             }
@@ -656,6 +661,23 @@ struct ContentView: View {
     /// （HSplitView 分隔条可拖，宽度由 VerticalTabBarView 的 AppStorage 持久化）；
     /// 其余情况维持顶部标签栏形态。
     var body: some View {
+        ZStack {
+            browserShell
+            if usageMode.mode == .agentFocus {
+                AgentWorkspaceView(store: aiSession,
+                                   conversationStore: conversationStore,
+                                   content: self,
+                                   onExit: { AppModeCoordinator.apply(.browser) })
+                    .transition(.opacity)
+            }
+        }
+        .onChange(of: usageMode.mode) { _, newMode in
+            reconfigureAgentSurface(for: newMode)
+        }
+    }
+
+    @ViewBuilder
+    private var browserShell: some View {
         if settings.verticalTabBar && !isSiteFullScreen {
             HSplitView {
                 VerticalTabBarView(
@@ -777,6 +799,13 @@ struct ContentView: View {
             icon: "book.read",
             text: String(localized: "Added to Reading List")
         ) }
+    }
+
+    /// 模式切换后重配 Agent 工具面（v0.8.23）：专注模式指向内嵌浏览面板，
+    /// 其余模式回到本窗口。
+    private func reconfigureAgentSurface(for mode: AppUsageMode) {
+        let manager = mode == .agentFocus ? AgentPaneManager.shared.ensure() : tabManager
+        aiSession.configure(with: WindowToolSurface(app: appState, tabManager: manager))
     }
 
     /// Agent ▸ Ask About This Page (⌘⇧A)：让活动会话的 Agent 阅读并

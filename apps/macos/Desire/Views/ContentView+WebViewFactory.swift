@@ -5,7 +5,10 @@ import UniformTypeIdentifiers
 import WebKit
 
 extension ContentView {
-    func makeWebView(for tab: Tab) -> WebView {
+    /// `manager` 覆盖：专注模式的内嵌浏览面板用它渲染面板自己的标签
+    ///（v0.8.23）；普通窗口不传 = 本窗口。
+    func makeWebView(for tab: Tab, manager overrideManager: TabManager? = nil) -> WebView {
+        let tabManager = overrideManager ?? self.tabManager
         tab.browser.onAIElementPicked = { selector, html in
             aiSession.addContext(html: html, selector: selector)
         }

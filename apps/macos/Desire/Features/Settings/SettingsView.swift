@@ -25,6 +25,7 @@ struct SettingsView: View {
 
     enum Section: String, CaseIterable, Identifiable {
         case general
+        case usageMode
         case ai
         case ball
         case pageWatch
@@ -41,6 +42,7 @@ struct SettingsView: View {
         var icon: String {
             switch self {
             case .general: "gearshape"
+            case .usageMode: "rectangle.split.2x1"
             case .ai: "brain.head.profile"
             case .ball: "circle.circle"
             case .pageWatch: "eye"
@@ -59,6 +61,7 @@ struct SettingsView: View {
         var title: LocalizedStringKey {
             switch self {
             case .general: "General"
+            case .usageMode: "Usage Mode"
             case .ai: "Agent"
             case .ball: "Floating Ball"
             case .pageWatch: "Page Watch"
@@ -220,6 +223,8 @@ struct SettingsView: View {
                 downloadStore: downloadStore,
                 videoAdBlocker: videoAdBlocker
             )
+        case .usageMode:
+            UsageModeSettingsSection(store: .shared)
         case .ai:
             AgentSettingsSection(store: aiPreference)
         case .ball:

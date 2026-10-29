@@ -57969,6 +57969,314 @@
           }
         }
       }
+    },
+    "Agent Workspace" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent Workspace"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 工作台"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 工作台"
+          }
+        }
+      }
+    },
+    "Hybrid" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hybrid"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "混合"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "混合"
+          }
+        }
+      }
+    },
+    "Browse as usual; the agent works beside you in the current window." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Browse as usual; the agent works beside you in the current window."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "像往常一样浏览，Agent 在当前窗口旁边协作。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "像往常一樣瀏覽，Agent 在目前視窗旁協作。"
+          }
+        }
+      }
+    },
+    "A single workspace for the agent. The browser stays in the background and appears only when needed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A single workspace for the agent. The browser stays in the background and appears only when needed."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "给 Agent 的单一工作台；浏览器留在后台，需要时才出现。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "給 Agent 的單一工作台；瀏覽器留在背景，需要時才出現。"
+          }
+        }
+      }
+    },
+    "Your window and an isolated agent window side by side — neither steals the other's tabs or focus." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your window and an isolated agent window side by side — neither steals the other's tabs or focus."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的窗口与隔离的 Agent 窗口并行——互不抢标签、互不抢焦点。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "你的視窗與隔離的 Agent 視窗並行——互不搶標籤、互不搶焦點。"
+          }
+        }
+      }
+    },
+    "Usage Mode" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Usage Mode"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用模式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "使用模式"
+          }
+        }
+      }
+    },
+    "How the agent and your browsing share windows, focus and cookies." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "How the agent and your browsing share windows, focus and cookies."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 与你的浏览如何分配窗口、焦点与 Cookie。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 與你的瀏覽如何分配視窗、焦點與 Cookie。"
+          }
+        }
+      }
+    },
+    "Agent Workspace keeps the browser in the background and reveals it only when needed. Hybrid gives the agent its own window with an isolated container, so your tabs, focus and cookies stay separate." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent Workspace keeps the browser in the background and reveals it only when needed. Hybrid gives the agent its own window with an isolated container, so your tabs, focus and cookies stay separate."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "专注模式把浏览器留在后台，只有需要时才显示；混合模式给 Agent 独立窗口和隔离容器，标签、焦点与 Cookie 都与你的窗口分开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "專注模式把瀏覽器留在背景，只有需要時才顯示；混合模式給 Agent 獨立視窗和隔離容器，標籤、焦點與 Cookie 都與你的視窗分開。"
+          }
+        }
+      }
+    },
+    "%lld tab(s) in the background" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld tab(s) in the background"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "后台 %lld 个标签"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "背景 %lld 個標籤"
+          }
+        }
+      }
+    },
+    "Show Browser" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Show Browser"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "显示浏览器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "顯示瀏覽器"
+          }
+        }
+      }
+    },
+    "Hide Browser" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hide Browser"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隐藏浏览器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "隱藏瀏覽器"
+          }
+        }
+      }
+    },
+    "Back to Browsing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Back to Browsing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回到浏览"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "回到瀏覽"
+          }
+        }
+      }
+    },
+    "No agent tabs" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No agent tabs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有 Agent 标签"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有 Agent 標籤"
+          }
+        }
+      }
+    },
+    "Current" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Current"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "当前"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

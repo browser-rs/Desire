@@ -6599,6 +6599,7 @@ func testReasoningEffortPolicy() {
           ReasoningEffortPolicy.supportedValues(endpoint: "https://gateway.example/v1", model: "m1", defaults: suite) == nil)
 }
 testReasoningEffortPolicy()
+testSemanticIndex()
 
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
@@ -6646,6 +6647,128 @@ func testDPPBridgeSafe() {
     check("bridgeSafe：outbound 拒", !out.isBridgeSafeLocal)
     check("bridgeSafe：mcp 拒", !mcp.isBridgeSafeLocal)
     check("bridgeSafe：danger 布尔拒", !dangerFlag.isBridgeSafeLocal)
+}
+
+func testSemanticIndex() {
+    // 语言路由
+    eq("semantic：中文判定", SemanticText.detectLanguage("语义检索与本地索引"), .chinese)
+    eq("semantic：英文判定", SemanticText.detectLanguage("On-device semantic index"), .latin)
+    eq("semantic：中英混排判中文", SemanticText.detectLanguage("Desire 的语义索引很快"), .chinese)
+    eq("semantic：纯数字按英文回退", SemanticText.detectLanguage("12345"), .latin)
+    // 哈希：确定性 + 内容敏感（FNV-1a，跨进程稳定）
+    eq("semantic：哈希确定性",
+       SemanticText.contentHash(title: "a", body: "b"),
+       SemanticText.contentHash(title: "a", body: "b"))
+    check("semantic：哈希对内容敏感",
+          SemanticText.contentHash(title: "a", body: "b")
+            != SemanticText.contentHash(title: "a", body: "c"))
+    check("semantic：哈希对标题敏感",
+          SemanticText.contentHash(title: "a", body: "b")
+            != SemanticText.contentHash(title: "b", body: "b"))
+    // 近邻：topK / 阈值 / 同分稳定
+    let records = [
+        SemanticVectorRecord(id: "a", contentHash: "h", vector: [1, 0, 0]),
+        SemanticVectorRecord(id: "b", contentHash: "h", vector: [0, 1, 0]),
+        SemanticVectorRecord(id: "c", contentHash: "h", vector: [0.9, 0.1, 0]),
+    ]
+    let top = SemanticRanking.topK(query: [1, 0, 0], records: records, limit: 2, minScore: 0.5)
+    eq("semantic：topK 数量", top.count, 2)
+    eq("semantic：topK 首位", top.first?.record.id, "a")
+    check("semantic：topK 过滤低分", !top.contains { $0.record.id == "b" })
+    let tie = [
+        SemanticVectorRecord(id: "z", contentHash: "h", vector: [1, 0]),
+        SemanticVectorRecord(id: "a", contentHash: "h", vector: [1, 0]),
+    ]
+    eq("semantic：同分按 id 升序",
+       SemanticRanking.topK(query: [1, 0], records: tie, limit: 2, minScore: 0).map(\.record.id),
+       ["a", "z"])
+    eq("semantic：维度不匹配得 0", SemanticRanking.cosine([1, 0], [1, 0, 0]), 0)
+    eq("semantic：零向量得 0", SemanticRanking.cosine([0, 0], [1, 0]), 0)
+    // 增量：未变复用、内容变重嵌、消失丢弃
+    let item1 = SemanticItem(source: .history, externalID: "u1", title: "t1",
+                             subtitle: "", body: "b1", updatedAt: Date(timeIntervalSince1970: 1))
+    let item2 = SemanticItem(source: .history, externalID: "u2", title: "t2",
+                             subtitle: "", body: "b2", updatedAt: Date(timeIntervalSince1970: 2))
+    let previous = [
+        SemanticVectorRecord(id: item1.id, contentHash: item1.contentHash, vector: [1, 0]),
+        SemanticVectorRecord(id: "history:gone", contentHash: "x", vector: [1, 0]),
+    ]
+    let plan = SemanticIncremental.plan(previous: previous, items: [item1, item2])
+    eq("semantic：增量复用未变条目", plan.reuse.count, 1)
+    eq("semantic：增量只嵌新条目", plan.pending.map(\.id), [item2.id])
+    let changed = SemanticItem(source: .history, externalID: "u1", title: "t1",
+                               subtitle: "", body: "b1 changed", updatedAt: Date(timeIntervalSince1970: 3))
+    let plan2 = SemanticIncremental.plan(previous: previous, items: [changed])
+    check("semantic：内容变了要重嵌", plan2.reuse.isEmpty && plan2.pending.map(\.id) == [changed.id])
+    // 查询门槛
+    check("semantic：单字符不做语义", !SemanticQueryPlan.isSemanticWorthy("a"))
+    check("semantic：空白不做语义", !SemanticQueryPlan.isSemanticWorthy("   "))
+    check("semantic：两字可做语义", SemanticQueryPlan.isSemanticWorthy("索引"))
+    // 快照映射
+    let historyItems = SemanticSnapshots.history([
+        HistoryContentRecord(url: "https://e.com/a", title: "Example",
+                             text: "hello world", updatedAt: Date(timeIntervalSince1970: 3)),
+    ])
+    eq("semantic：历史快照条数", historyItems.count, 1)
+    eq("semantic：历史快照 id", historyItems.first?.id, "history:https://e.com/a")
+    eq("semantic：历史快照语言", historyItems.first?.language, .latin)
+
+    let folder = Bookmark.folder(title: "Folder", children: [
+        .leaf(title: "Leaf", url: "https://e.com/offline-reading", tags: ["reading", "swift"]),
+        .folder(title: "Nested", children: [
+            .leaf(title: "Deep notes on offline reading", url: "https://e.com/d"),
+        ]),
+    ])
+    let bookmarkItems = SemanticSnapshots.bookmarks([folder])
+    eq("semantic：书签只收叶子", bookmarkItems.count, 2)
+    check("semantic：书签正文含标签", bookmarkItems.first?.body.contains("swift") == true)
+    check("semantic：书签正文不含域名", bookmarkItems.first?.body.contains("e.com") == false)
+    check("semantic：书签正文保留路径 slug", bookmarkItems.first?.body.contains("offline reading") == true)
+    check("semantic：书签跳过文件夹", !bookmarkItems.contains { $0.title == "Folder" })
+    // 语义信息量门槛：导航型短标题不入索引；有标签/够长才收
+    check("semantic：短英文书签不入索引",
+          !SemanticSnapshots.isSemanticallyRich(title: "GitHub", tags: "", path: ""))
+    check("semantic：带标签的短书签入索引",
+          SemanticSnapshots.isSemanticallyRich(title: "GitHub", tags: "code", path: ""))
+    check("semantic：四词以上英文入索引",
+          SemanticSnapshots.isSemanticallyRich(title: "Understanding vector embeddings locally",
+                                               tags: "", path: ""))
+    check("semantic：六个汉字以上入索引",
+          SemanticSnapshots.isSemanticallyRich(title: "离线阅读与稍后读", tags: "", path: ""))
+    check("semantic：过短中文不入索引",
+          !SemanticSnapshots.isSemanticallyRich(title: "咖啡笔记", tags: "", path: ""))
+
+    let excerpt = Excerpt(kind: .webSelection, title: "Article", source: "https://e.com",
+                          content: "A quote", note: "my note")
+    let excerptItems = SemanticSnapshots.excerpts([excerpt])
+    eq("semantic：摘录快照条数", excerptItems.count, 1)
+    check("semantic：摘录正文含备注", excerptItems.first?.body.contains("my note") == true)
+
+    let highlight = ReaderHighlight(url: "https://e.com/h", quote: "Highlighted line", note: "h note")
+    let highlightItems = SemanticSnapshots.highlights([highlight])
+    eq("semantic：高亮快照条数", highlightItems.count, 1)
+    check("semantic：高亮正文含备注", highlightItems.first?.body.contains("h note") == true)
+
+    // 指纹与顺序无关；来源聚合
+    eq("semantic：指纹与顺序无关",
+       SemanticFingerprint.of([item1, item2]),
+       SemanticFingerprint.of([item2, item1]))
+    let historyStatus = SemanticSourceStatus(source: .history, language: .chinese, itemCount: 3,
+                                             vectorCount: 3, bytes: 100,
+                                             builtAt: Date(timeIntervalSince1970: 10),
+                                             model: SemanticLanguage.chinese.modelKey)
+    let latinStatus = SemanticSourceStatus(source: .history, language: .latin, itemCount: 2,
+                                           vectorCount: 2, bytes: 50,
+                                           builtAt: Date(timeIntervalSince1970: 20),
+                                           model: SemanticLanguage.latin.modelKey)
+    let bookStatus = SemanticSourceStatus(source: .bookmark, language: .latin, itemCount: 1,
+                                          vectorCount: 1, bytes: 10, builtAt: nil,
+                                          model: SemanticLanguage.latin.modelKey)
+    let merged = SemanticStatusMath.aggregate([historyStatus, latinStatus, bookStatus])
+    eq("semantic：聚合来源数", merged.count, 2)
+    eq("semantic：聚合条数", merged.first?.itemCount, 5)
+    eq("semantic：聚合体积", merged.first?.bytes, 150)
+    check("semantic：聚合模型标记合并", merged.first?.model.contains("+") == true)
 }
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

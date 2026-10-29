@@ -145,6 +145,16 @@ nonisolated enum SettingsSearch {
               keywords: ["批量下载", "目录", "分卷", "folder"]),
         .init(id: "batch.reserve", section: "batchDownloads", title: "Disk Space Reserve",
               keywords: ["磁盘", "空间", "预留", "disk", "reserve"]),
+        // Semantic index (v0.8.22)
+        .init(id: "search.semantic", section: "search", title: "Semantic Search",
+              subtitle: "On-device meaning-based index over saved content",
+              keywords: ["语义", "语义搜索", "索引", "向量", "semantic", "index", "embedding", "vector"]),
+        .init(id: "search.sources", section: "search", title: "Index Sources",
+              subtitle: "History pages, bookmarks, excerpts, highlights, conversations",
+              keywords: ["来源", "书签", "摘录", "高亮", "会话", "sources", "bookmarks", "excerpts", "highlights", "conversations"]),
+        .init(id: "search.status", section: "search", title: "Index Status",
+              subtitle: "Indexed items, disk usage, rebuild",
+              keywords: ["索引状态", "重建", "清除", "体积", "rebuild", "clear", "size"]),
     ]
 
     static func normalize(_ text: String) -> String {

@@ -695,6 +695,10 @@ final class AutomationServer {
         ep("POST", "/mcp/remove", "Remove an MCP server by name", params: ["name:string"], example: #"-d '{"name":"local"}'"#)
         ep("GET", "/protocol/inspect", "Inspect the DPP protocol of the current page (views/signals/actions/context/warnings)", params: [], example: "…/protocol/inspect")
         ep("GET", "/search/everything", "Unified search across open tabs / history / bookmarks / reading list (Search Everywhere panel query)", params: ["q:string"], example: "…/search/everything?q=github")
+        ep("GET", "/index/status", "On-device semantic index state: per-source item count, bytes, last build, enabled flags", example: "…/index/status")
+        ep("POST", "/index/rebuild", "Rebuild the semantic index (all enabled sources, or one via source)", params: ["source?:history|bookmark|excerpt|highlight|conversation"], example: "-d '{}'")
+        ep("POST", "/index/clear", "Delete semantic index shards (all, or one source)", params: ["source?:string"], example: "-d '{}'")
+        ep("GET", "/search/semantic", "Semantic search over the on-device index (same-language shard; literal search remains primary)", params: ["q:string", "limit?:int (default 20)", "source?:string", "minScore?:float (diagnostic override)"], example: "…/search/semantic?q=offline%20reading")
         ep("GET", "/promotion/state", "Operations workbench: goals, posts (with metric history + growth), accounts (snapshots + growth), lessons, progress, digest (shared with the agent's promotionBrief tool)", example: "…/promotion/state")
         ep("GET", "/promotion/campaigns", "Operations campaigns (v0.8.2) with linked post counts and next scheduled draft", example: "…/promotion/campaigns")
         ep("POST", "/promotion/campaign/generate", "Generate a campaign + per-platform drafts from a release brief (deterministic, no model); drafts are never auto-published", params: ["version:string", "title?:string", "objective?:string", "productURL?:string", "highlights:[string]", "platforms?:[string]", "audience?:string", "cta?:string", "goal?:string", "startDate?:yyyy-MM-dd"], example: #"-d '{"version":"0.8.2","highlights":["后台任务","运营驾驶舱"],"platforms":["X","V2EX","小红书"]}'"#)
@@ -1149,6 +1153,24 @@ final class AutomationServer {
                 return try Self.json(Self.pluginRemove(id: Self.string(body, "id") ?? ""))
             case ("GET", "/passwords"):
                 return try Self.json(Self.passwords())
+    case ("GET", "/index/status"):
+            return try Self.json(SemanticIndexStore.shared.statusPayload())
+            case ("POST", "/index/rebuild"):
+                SemanticIndexStore.shared.rebuild(source: Self.semanticSource(from: body["source"]))
+                return try Self.json(["ok": true, "building": true])
+            case ("POST", "/index/clear"):
+                SemanticIndexStore.shared.clear(source: Self.semanticSource(from: body["source"]))
+                return try Self.json(SemanticIndexStore.shared.statusPayload())
+            case ("GET", "/search/semantic"):
+                guard let q = Self.string(query, "q"), !q.isEmpty else {
+                    return try Self.json(["error": "missing q"])
+                }
+                let limit = Int(query["limit"] ?? "") ?? 20
+                let source = Self.semanticSource(from: query["source"])
+                let minScore = Float(query["minScore"] ?? "")
+                return try Self.json(Self.semanticSearch(query: q, limit: limit,
+                                                         source: source,
+                                                         minScore: minScore))
     case ("GET", "/search/everything"):
             // 集中搜索的桥面（SearchEverywhere 同一查询）：四源结构化断言。
             guard let q = Self.string(query, "q"), !q.isEmpty else {
@@ -3293,6 +3315,35 @@ final class AutomationServer {
 
     private static func error(_ message: String) -> String {
         (try? json(["error": message])) ?? "{\"error\":\"?\"}"
+    }
+
+    private static func semanticSource(from raw: Any?) -> SemanticSource? {
+        guard let value = raw as? String, !value.isEmpty else { return nil }
+        return SemanticSource(rawValue: value)
+    }
+
+    private static func semanticSearch(query: String, limit: Int,
+                                       source: SemanticSource?,
+                                       minScore: Float?) -> [String: Any] {
+        let store = SemanticIndexStore.shared
+        let hits = store.search(query: query, limit: limit, source: source,
+                                minScoreOverride: minScore)
+        return [
+            "query": query,
+            "language": SemanticQueryPlan.primaryLanguage(for: query).rawValue,
+            "enabled": store.isEnabled,
+            "hits": hits.map { hit -> [String: Any] in
+                [
+                    "id": hit.id,
+                    "source": hit.source.rawValue,
+                    "title": hit.title,
+                    "subtitle": hit.subtitle,
+                    "snippet": hit.snippet,
+                    "score": Double(hit.score),
+                    "language": hit.language.rawValue,
+                ]
+            },
+        ]
     }
 
     private static func string(_ dict: [String: Any], _ key: String) -> String? {

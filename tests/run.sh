@@ -195,6 +195,8 @@ SOURCES=(
   apps/macos/Desire/Features/BrowserImport/HistoryImportMerge.swift
   apps/macos/Desire/Features/Sync/SyncSecretBundle.swift
   apps/macos/Desire/Storage/AppSecrets.swift
+  apps/macos/Desire/Features/Search/SemanticIndexCore.swift
+  apps/macos/Desire/Features/Search/SemanticSnapshots.swift
   tests/main.swift
 )
 swiftc -o "$OUT" "${SOURCES[@]}"

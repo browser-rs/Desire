@@ -34,6 +34,7 @@ struct SettingsView: View {
         case autofill
         case keyboardShortcuts
         case batchDownloads
+        case search
 
         var id: String { rawValue }
 
@@ -51,6 +52,7 @@ struct SettingsView: View {
             case .autofill: "doc.text.fill"
             case .keyboardShortcuts: "keyboard"
             case .batchDownloads: "square.stack.3d.up"
+            case .search: "text.magnifyingglass"
             }
         }
 
@@ -66,6 +68,7 @@ struct SettingsView: View {
             case .autofill: "Autofill"
             case .keyboardShortcuts: "Keyboard Shortcuts"
             case .batchDownloads: "Batch Downloads"
+            case .search: "Search & Index"
             }
         }
     }
@@ -242,6 +245,8 @@ struct SettingsView: View {
             KeyboardShortcutsEditorView(store: shortcutStore)
         case .batchDownloads:
             BatchDownloadSettingsSection()
+        case .search:
+            SemanticIndexSettingsSection(store: .shared)
         }
     }
 }

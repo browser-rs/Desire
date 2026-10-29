@@ -88,6 +88,8 @@ class AppState: ObservableObject {
         // 云同步：已登录才生效（内部自延迟 + 定时器，不占启动路径）。
         ClipboardHistoryStore.shared.startPolling()
         BackupScheduler.start()
+        // 端上语义索引：加载已有分片 + 错峰增量构建（不占启动路径）。
+        SemanticIndexStore.shared.start()
         syncStore.startAutoSync()
         lap("startAutoSync")
         // 密钥单条目后台预读：Keychain 授权窗可能延迟/隐藏，绝不能在启动

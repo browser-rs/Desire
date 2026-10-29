@@ -186,10 +186,11 @@ final class PDFWorkbenchModel: ObservableObject {
         }
     }
 
-    /// 写文本字段值（TextField 提交时调用）；落 markChanged 走 ⌘S 保存。
+    /// 写文本字段值（TextField 每次变更调用）：只标脏、不重算批注数
+    ///（v0.8.21：表单编辑不改批注数量，totalAnnotations 每键全页扫描是浪费）。
     func setFormValue(_ annotation: PDFAnnotation, value: String) {
         annotation.widgetStringValue = value
-        markChanged()
+        hasUnsavedChanges = true
     }
 
     // MARK: - 阅读进度记忆（v0.8.16：按路径哈希，列宽记忆同款键族）

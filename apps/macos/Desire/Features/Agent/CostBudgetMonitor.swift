@@ -42,10 +42,15 @@ enum CostBudgetMonitor {
         return (day, month)
     }
 
+    /// 节流（v0.8.21）：derive 要扫全部会话消息——60s 内不重复跑。
+    private static var lastCheck = Date.distantPast
+
     /// 回合收尾对账（AgentSessionStore.processLoop 保存后调用）。
     static func checkAfterTurn() {
         let budget = budget()
         guard budget.daily > 0 || budget.monthly > 0 else { return }
+        guard Date().timeIntervalSince(lastCheck) >= 60 else { return }
+        lastCheck = Date()
         guard let costs = currentCosts() else { return }
         let dayKey = dayStamp(Date())
         if budget.daily > 0, let spent = costs.day {

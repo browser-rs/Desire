@@ -113,9 +113,17 @@ final class ExcerptStore: ObservableObject {
     // MARK: - 备份口（v0.8.21 查缺补漏：备份此前漏了摘录库）
 
     func replaceAllForBackup(_ items: [Excerpt], pendingDeletions: [String: Date] = [:]) {
+        // 同步一致性（v0.8.21）：replace 丢掉的本机条目要记墓碑，否则
+        // 下次 pull 会把它们从服务器救活。
+        let keptIDs = Set(items.map(\.id))
+        let now = Date()
+        var tombstones = pendingDeletions
+        for old in excerpts where !keptIDs.contains(old.id) {
+            tombstones[old.id.uuidString] = now
+        }
         excerpts = items.sorted { $0.createdAt > $1.createdAt }
         if excerpts.count > Self.cap { excerpts = Array(excerpts.prefix(Self.cap)) }
-        self.pendingDeletions = pendingDeletions
+        self.pendingDeletions = tombstones
         persist()
     }
 

@@ -658,7 +658,6 @@ final class RemoteControlStore: ObservableObject {
             case "clearFinished": store.clearFinished()
             default: break
             }
-            _ = store
             if let frame = Self.downloadsFrame() { sendInnerRaw(frame) }
         case "archivedSessions":
             if let frame = Self.archivedSessionsFrame() { sendInnerRaw(frame) }

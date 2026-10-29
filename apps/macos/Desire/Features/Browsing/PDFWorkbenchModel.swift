@@ -1,3 +1,4 @@
+import AVFoundation
 import Combine
 import CryptoKit
 import Foundation
@@ -355,6 +356,55 @@ final class PDFWorkbenchModel: ObservableObject {
         markChanged()
     }
 
+    // MARK: - 全文朗读（v0.8.20 基础件 3）
+
+    /// AVSpeechSynthesizer 端上合成：逐页投递（每页一个 utterance，
+    /// didFinish 后自进下一页），游标即 pageIndex。零费用、数据不出机。
+    private let speech = SpeechCoordinator()
+
+    @Published private(set) var isSpeaking = false
+    @Published private(set) var speakingPaused = false
+
+    func toggleSpeech() {
+        if isSpeaking {
+            if speakingPaused {
+                speech.resume()
+                speakingPaused = false
+            } else {
+                speech.pause()
+                speakingPaused = true
+            }
+            return
+        }
+        isSpeaking = true
+        speakingPaused = false
+        speech.onFinish = { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, self.isSpeaking else { return }
+                self.speakPage(self.pageIndex + 1)
+            }
+        }
+        speakPage(pageIndex)
+    }
+
+    func stopSpeech() {
+        speech.stop()
+        isSpeaking = false
+        speakingPaused = false
+    }
+
+    private func speakPage(_ index: Int) {
+        guard index >= 0, index < document.pageCount,
+              let page = document.page(at: index),
+              let text = page.string?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty else {
+            stopSpeech()
+            return
+        }
+        pageIndex = index
+        speech.speak(text)
+    }
+
     // MARK: - 页面管理
 
     /// 页面操作撤销栈（记录逆操作，上限 50）。
@@ -500,4 +550,30 @@ final class PDFWorkbenchModel: ObservableObject {
             if self?.statusNote == text { self?.statusNote = nil }
         }
     }
+}
+
+/// 合成器收口（v0.8.20）：delegate 需要 NSObject 继承——独立小类持有
+/// AVSpeechSynthesizer，onFinish 回调给 model（model 不必继承 NSObject）。
+/// @MainActor 隔离（合成器主线程使用惯例）+ 显式unchecked Sendable 存储仅内部。
+@MainActor
+final class SpeechCoordinator: NSObject, AVSpeechSynthesizerDelegate {
+    // delegate 回调可能来自任意线程——nonisolated 转发主 actor。
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
+                                       didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor in self.onFinish?() }
+    }
+    private let synthesizer = AVSpeechSynthesizer()
+    var onFinish: (() -> Void)?
+
+    func speak(_ text: String) {
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = AVSpeechSynthesisVoice(language: Locale.current.identifier)
+        synthesizer.delegate = self
+        synthesizer.speak(utterance)
+    }
+
+    func pause() { synthesizer.pauseSpeaking(at: .word) }
+    func resume() { synthesizer.continueSpeaking() }
+    func stop() { synthesizer.stopSpeaking(at: .immediate) }
+
 }

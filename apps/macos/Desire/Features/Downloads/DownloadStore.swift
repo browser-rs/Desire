@@ -214,6 +214,20 @@ class DownloadStore: ObservableObject {
     @discardableResult
     func add(item: DownloadItem) -> UUID {
         let id = item.id
+        // 磁盘空间卫士（v0.8.20 基础件 4）：剩余空间低于阈值 → 新任务
+        // 直接标失败（条目仍入列表可见），防止写满卷。
+        if let free = Self.freeDiskBytes(in: downloadFolder),
+           free < Self.minFreeBytes {
+            ProactiveNotificationStore.shared.deliver(
+                title: String(localized: "Download paused: low disk space"),
+                body: String(localized: "Less than \(Self.minFreeBytes / 1_000_000_000)GB free — clean up and retry."),
+                tier: .routine)
+            BridgeEventBus.shared.publish("downloadStarted", [
+                "id": id.uuidString, "file": item.filename,
+                "source": item.sourceURL?.absoluteString ?? "",
+            ])
+            return id
+        }
         downloads.insert(item, at: 0)
         trimCompletedRows()
         syncDockBadge()
@@ -538,6 +552,17 @@ class DownloadStore: ObservableObject {
             }
             break   // 首条命中即止
         }
+    }
+
+    /// 磁盘空间卫士（v0.8.20 基础件 4）：默认 2GB，UserDefaults 可调。
+    nonisolated static var minFreeBytes: Int64 {
+        let raw = UserDefaults.standard.integer(forKey: "download.minFreeGB")
+        return Int64((1...50).contains(raw) ? raw : 2) * 1_000_000_000
+    }
+
+    nonisolated static func freeDiskBytes(in directory: URL) -> Int64? {
+        let values = try? directory.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+        return values?.volumeAvailableCapacityForImportantUsage
     }
 
     /// 规则表读写（UI 编辑器与桥端点共用；UserDefaults "downloadArchiveRules"）。

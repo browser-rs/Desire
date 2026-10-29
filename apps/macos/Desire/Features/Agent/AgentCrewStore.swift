@@ -125,6 +125,43 @@ final class AgentCrewStore: ObservableObject {
         "getPageSnapshot", "getPageText", "getPageLinks", "findInPage", "extractTables",
     ]
 
+    /// crewDispatch 预设（v0.8.20 Agent 基础 10）：命名配置（objective +
+    /// tasks JSON + compare + windowMode）存 UserDefaults "crew.presets"。
+    struct Preset: Codable, Identifiable, Equatable {
+        let id: UUID
+        var name: String
+        var objective: String
+        var tasksJSON: [[String: String]]
+        var compare: Bool
+        var windowMode: Bool
+    }
+
+    nonisolated static var presets: [Preset] {
+        guard let data = UserDefaults.standard.data(forKey: "crew.presets"),
+              let list = try? JSONDecoder().decode([Preset].self, from: data) else { return [] }
+        return list
+    }
+
+    nonisolated static func savePreset(_ preset: Preset) {
+        var list = presets
+        if let idx = list.firstIndex(where: { $0.id == preset.id }) {
+            list[idx] = preset
+        } else {
+            list.append(preset)
+        }
+        if let data = try? JSONEncoder().encode(list) {
+            UserDefaults.standard.set(data, forKey: "crew.presets")
+        }
+    }
+
+    nonisolated static func removePreset(id: UUID) {
+        var list = presets
+        list.removeAll { $0.id == id }
+        if let data = try? JSONEncoder().encode(list) {
+            UserDefaults.standard.set(data, forKey: "crew.presets")
+        }
+    }
+
     /// crew 规模上限（v0.8.18 替人干活 15）：2-10 可配，默认 6
     /// （UserDefaults "crew.maxTasks"；越界回落默认）。
     static var maxTasks: Int {

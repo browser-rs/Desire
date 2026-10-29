@@ -414,6 +414,8 @@ final class AutomationServer {
         ep("POST", "/downloads/resume", "Resume", params: ["id?:uuid"], example: "-d '{}'")
         ep("GET", "/downloads/scheduled", "Scheduled downloads (id/url/filename/startAt)", example: "…/downloads/scheduled")
         ep("GET", "/downloads/rules", "Auto-archive rules (ext/domain -> subfolder)", example: "…/downloads/rules")
+        ep("GET", "/agent/tasks/export", "Scheduled task configs as JSON (name/prompt/recurrence/chain/quiet)", example: "…/agent/tasks/export")
+        ep("POST", "/agent/tasks/import", "Import task configs (merge by name; conflicts skipped)", params: ["json:string"], example: #"-d '{"json":"{...}"}'"#)
         ep("POST", "/downloads/rules", "Replace the auto-archive rule table", params: ["rules:array of {ext?, domain?, folder}"], example: #"-d '{"rules":[{"ext":"pdf","folder":"Papers"}]}'"#)
         ep("POST", "/downloads/schedule", "Schedule a download: startAt (unix seconds) or inSeconds", params: ["url:string", "startAt?:double", "inSeconds?:double", "filename?:string"], example: "-d '{\"url\":\"https://a.b/f.zip\",\"inSeconds\":5}'")
         ep("POST", "/downloads/scheduled/cancel", "Cancel a scheduled download", params: ["id:uuid"], example: "-d '{\"id\":\"…\"}'")
@@ -2483,6 +2485,15 @@ final class AutomationServer {
                 return try Self.json(["rules": DownloadStore.loadArchiveRules().map { rule in
                     ["ext": rule.ext as Any?, "domain": rule.domain as Any?, "folder": rule.folder]
                 }])
+            case ("GET", "/agent/tasks/export"):
+                return try Self.json(["json": AgentScheduler.shared.exportJSON()])
+            case ("POST", "/agent/tasks/import"):
+                guard let json = Self.string(body, "json"), !json.isEmpty else {
+                    return try Self.json(["error": "missing json"])
+                }
+                let (added, skipped) = AgentScheduler.shared.importJSON(json)
+                return try Self.json(["ok": true, "added": added, "skipped": skipped])
+
             case ("POST", "/downloads/rules"):
                 // 整表替换（Agent/自动化可代管；与设置编辑器同存储）。
                 guard let rows = body["rules"] as? [[String: Any]] else {

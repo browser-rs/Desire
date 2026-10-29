@@ -417,6 +417,32 @@ struct PDFViewerView: View {
                         .font(.system(size: 9.5))
                         .foregroundStyle(.tertiary)
                 }
+                // 全文朗读（v0.8.20 基础件 3）：三态（播/暂停/停）。
+                if model.isSpeaking {
+                    Button {
+                        model.toggleSpeech()
+                    } label: {
+                        Image(systemName: model.speakingPaused ? "play.circle" : "pause.circle")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(appAccent)
+                    Button {
+                        model.stopSpeech()
+                    } label: {
+                        Image(systemName: "stop.circle")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                } else {
+                    Button {
+                        model.toggleSpeech()
+                    } label: {
+                        Image(systemName: "speaker.wave.2")
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help(String(localized: "Read aloud from this page"))
+                }
                 Spacer(minLength: 8)
                 Button {
                     model.undoPageOperation()

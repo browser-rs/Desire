@@ -51,6 +51,21 @@ class BrowserWKWebView: WKWebView {
             let bgImageURL = info["bgImageUrl"].flatMap(URL.init)
             let selection = info["selection"]
 
+            // 收藏此页到摘录（v0.8.20 基础件 5）：标题+URL+（选区或页面
+            // 描述）快收——与划词摘录同一去向（ExcerptStore）。
+            let clipItem = NSMenuItem(
+                title: String(localized: "Save Page to Excerpts"),
+                action: #selector(self.savePageToExcerpts(_:)), keyEquivalent: "")
+            clipItem.target = self
+            clipItem.representedObject = [
+                "url": url?.absoluteString ?? "",
+                "content": selection ?? "",
+            ]
+            if menu.item(withTag: 0xBEEF) == nil {
+                clipItem.tag = 0xBEEF
+                menu.insertItem(clipItem, at: 0)
+            }
+
             // 视频速度（0.6.5）：子菜单步进，接管值经 video-speed.js 应用到
             // 当前与未来媒体元素；对无视频页面同样可用（pre-armed）。
             let speedItem = NSMenuItem(title: String(localized: "Video Speed"), action: nil, keyEquivalent: "")
@@ -163,6 +178,32 @@ class BrowserWKWebView: WKWebView {
                     menu.addItem(containerItem)
                 }
             }
+        }
+    }
+
+    /// 收藏此页到摘录（v0.8.20 基础件 5）：representableObject 携带 url 与
+    /// 选中文本（可空）；标题/正文兜底取 document.title / meta description。
+    @objc private func savePageToExcerpts(_ sender: NSMenuItem) {
+        guard let info = sender.representedObject as? [String: String],
+              let pageURL = info["url"], !pageURL.isEmpty else { return }
+        let selection = info["content"] ?? ""
+        let js = """
+        JSON.stringify({
+          title: document.title,
+          content: \(selection.isEmpty ? "null" : "JSON.stringify(\(JSString.literal(selection)))")
+            || document.querySelector('meta[name=description]')?.content || ''
+        })
+        """
+        evaluateJavaScript(js) { result, _ in
+            guard let json = result as? String,
+                  let data = json.data(using: .utf8),
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: String] else { return }
+            let content = obj["content"] ?? ""
+            guard !content.isEmpty else { return }
+            ExcerptStore.shared.add(kind: .webSelection,
+                                    title: obj["title"] ?? "",
+                                    source: pageURL,
+                                    content: content)
         }
     }
 

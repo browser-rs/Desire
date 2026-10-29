@@ -5,6 +5,8 @@
 - 会话分支（0.8.20 第二批）：assistant 消息一键 "Fork from here"——历史截断复制（含该消息）为新会话（Fork: 标题 + system 来源标注），当前会话不动、面板底部 toast 提示去会话列表找分支；流式中不挂菜单（回合未定局）。
 - 会话分支与记忆导入（0.8.20 第二批）：assistant 消息一键 "Fork from here"——历史截断复制（含该消息）为新会话（Fork: 标题 + system 来源标注），当前会话不动、面板 toast 提示；流式中不挂菜单；记忆导入（对偶 0.7.7 知识库导出）——MemoryImport 解析 markdownKB 真实形态（### 分节/★ 前缀/括号元信息"范围 host · 来源"），逐条走 addFact 由既有去重与冲突复核接管，解析器进 harness 9 断言（1788/0），记忆页导入按钮。
 - 自动化管线批（0.8.20 第三批）：数据集定时采集（DatasetSpecStore 命名规格持久化 + builtin kind dataset:<id> 白名单扩展 + deliverBuiltin 跑采集→快照落盘→diff 回执+routine 通知；采集 sheet 时钟菜单存规格并挂调度）；每日简报产物化（runNow 同步落 workspace brief-<date>.md 入账最近文件；briefs 帧推手机最近 7 份，iOS RemoteBriefsView 点按在 Mac 上打开）；下载后处理链（归档规则加 convertTo 动作——命中移入子目录后自动 convertDocument 转格式（pdf→md 等）产物入账，通知附转换结果；编辑器加目标格式列）。远程端依赖：剪贴板域与数据集域同步部署见 docs/OPS-SYNC-DEPLOY.md。
+- 收官批（0.8.20）：PDF 全文朗读（工作条 speaker 三态——播/暂停/停，逐页合成游标即页码，SpeechCoordinator 独立 delegate 收口避免 ObservableObject 继承 NSObject）；下载磁盘空间卫士（剩余 <2GB 可配时新任务不入队 + routine 提示，防写满卷）；网页右键"收藏此页到摘录"（标题+URL+选区/meta description 快收——与划词摘录同一去向）；crewDispatch 预设（命名配置存 crew.presets，objective/tasks/compare/windowMode）；Remote 三件（手机粘贴 URL 发起下载、批量暂停/恢复/清完成、归档会话列表+一键恢复到 Mac——SessionArchive 真实 API 对偶）；定时任务 JSON 导出/导入（配置含链/夜间开关，导入按名跳过冲突；桥 GET/POST /agent/tasks/export|import）；备份自检（调度备份完成后 preview() 只读验证可导入，结果进通知）。
+
 
 
 

@@ -207,6 +207,62 @@ final class AgentScheduler: ObservableObject {
         return task
     }
 
+    /// 任务配置 JSON 导出/导入（v0.8.20 替人干活 18）：名称/提示词/节奏/
+    /// 链/夜间开关——导入按名冲突询问覆盖（返回 conflicts 让 UI 确认）。
+    func exportJSON() -> String {
+        let rows: [[String: Any]] = tasks.map { task in
+            var row: [String: Any] = [
+                "name": task.name,
+                "prompt": task.prompt,
+                "isEnabled": task.isEnabled,
+            ]
+            switch task.recurrence {
+            case .everyMinutes(let m): row["everyMinutes"] = m
+            case .daily(let h, let m): row["daily"] = [h, m]
+            case .weekly(let wd, let h, let m): row["weekly"] = [wd, h, m]
+            }
+            if let chain = task.chainTo { row["chainTo"] = chain }
+            if task.deferInQuietHours == true { row["deferQuiet"] = true }
+            return row
+        }
+        guard let data = try? JSONSerialization.data(
+            withJSONObject: ["tasks": rows], options: [.prettyPrinted, .sortedKeys]) else { return "{}" }
+        return String(data: data, encoding: .utf8) ?? "{}"
+    }
+
+    /// 导入：返回 (added, skippedByName)——按名冲突跳过（UI 可先删再导）。
+    func importJSON(_ text: String) -> (added: Int, skipped: [String]) {
+        guard let obj = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
+              let rows = obj["tasks"] as? [[String: Any]] else { return (0, []) }
+        var added = 0
+        var skipped: [String] = []
+        for row in rows {
+            guard let name = row["name"] as? String,
+                  let prompt = row["prompt"] as? String else { continue }
+            let recurrence: ScheduledTask.Recurrence?
+            if let m = row["everyMinutes"] as? Int {
+                recurrence = .everyMinutes(m)
+            } else if let pair = row["daily"] as? [Int], pair.count == 2 {
+                recurrence = .daily(hour: pair[0], minute: pair[1])
+            } else if let triple = row["weekly"] as? [Int], triple.count == 3 {
+                recurrence = .weekly(weekday: triple[0], hour: triple[1], minute: triple[2])
+            } else {
+                recurrence = nil
+            }
+            guard let rec = recurrence else { continue }
+            if tasks.contains(where: { $0.name == name }) {
+                skipped.append(name)
+                continue
+            }
+            let task = add(name: name, prompt: prompt, recurrence: rec)
+            guard task != nil else { continue }
+            if let chain = row["chainTo"] as? String { setChain(from: name, to: chain) }
+            if row["deferQuiet"] as? Bool == true { setQuietDeferral(named: name, true) }
+            added += 1
+        }
+        return (added, skipped)
+    }
+
     /// 夜间窗口开关（v0.8.19 替人干活 20）。
     func setQuietDeferral(named name: String, _ enabled: Bool) {
         guard let idx = tasks.firstIndex(where: { $0.name == name }) else { return }

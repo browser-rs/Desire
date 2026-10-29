@@ -638,6 +638,45 @@ final class RemoteControlStore: ObservableObject {
             if let frame = Self.excerptsFrame() { sendInnerRaw(frame) }
         case "briefs":
             if let frame = Self.briefsFrame() { sendInnerRaw(frame) }
+        case "startDownload":
+            // 手机发起下载（v0.8.20）：URL → URLSession 下载管线
+            // （与桥 startDownload 同源；危险扩展名/空间卫士照走各自闸）。
+            guard let raw = inner.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !raw.isEmpty, let url = URL(string: raw),
+                  url.scheme == "http" || url.scheme == "https",
+                  let store = DownloadStore.live else { return }
+            store.startURLSessionDownload(
+                sourceURL: url,
+                filename: url.lastPathComponent.isEmpty ? "download" : url.lastPathComponent)
+            sendInner(["t": "ok", "message": String(localized: "Download started: \(url.lastPathComponent)")])
+        case "downloadsBulk":
+            // 批量操作（v0.8.20）：action ∈ pauseAll|resumeAll|clearFinished。
+            guard let store = AppState.live?.downloadStore else { return }
+            switch inner.action {
+            case "pauseAll": store.pauseAll()
+            case "resumeAll": store.resumeAll()
+            case "clearFinished": store.clearFinished()
+            default: break
+            }
+            _ = store
+            if let frame = Self.downloadsFrame() { sendInnerRaw(frame) }
+        case "archivedSessions":
+            if let frame = Self.archivedSessionsFrame() { sendInnerRaw(frame) }
+        case "restoreArchivedSession":
+            // 恢复归档会话到当前窗口（遥控对偶；file 名来自 archivedSessions 帧，
+            // isSafeArchiveName 校验防穿越；恢复语义与工具一致——替换当前标签）。
+            guard let raw = inner.id?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !raw.isEmpty,
+                  TabSessionCoordinator.isSafeArchiveName(raw),
+                  let manager = TabSessionCoordinator.shared.activeTabManager,
+                  let app = AppState.live else { return }
+            let restored = TabSessionCoordinator.shared.restoreArchivedSession(
+                named: raw, into: manager,
+                settings: app.settings,
+                contentBlocker: app.contentBlocker,
+                videoAdBlocker: app.videoAdBlocker)
+            sendInner(["t": "ok",
+                       "message": String(localized: "Restored \(restored ?? 0) tab(s) on Mac")])
         case "openExcerpt":
             // 摘录来源在 Mac 上打开（v0.8.18）：http 直接开标签；文件路径
             // 转 file URL 进查看器路由（openRecentFile 的 URL(string:) 对
@@ -785,6 +824,31 @@ final class RemoteControlStore: ObservableObject {
     nonisolated struct RemoteBriefsFrame: Codable {
         var t: String
         var items: [RemoteBriefItem]
+    }
+
+    nonisolated struct RemoteArchivedSession: Codable {
+        var fileName: String
+        var tabCount: Int
+        var topURLs: String
+        var savedAt: TimeInterval
+    }
+
+    nonisolated struct RemoteArchivedSessionsFrame: Codable {
+        var t: String
+        var items: [RemoteArchivedSession]
+    }
+
+    private static func archivedSessionsFrame() -> String? {
+        let entries = SessionArchive.list(in: TabSessionCoordinator.archiveDirectory)
+        let frame = RemoteArchivedSessionsFrame(
+            t: "archivedSessions",
+            items: entries.map {
+                RemoteArchivedSession(fileName: $0.fileName, tabCount: $0.tabCount,
+                                      topURLs: $0.topURLs.prefix(2).joined(separator: ", "),
+                                      savedAt: $0.savedAt.timeIntervalSince1970)
+            })
+        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
     }
 
     private static func briefsFrame() -> String? {

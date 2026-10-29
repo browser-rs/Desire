@@ -63,9 +63,16 @@ enum BackupScheduler {
         do {
             let result = try BackupService.export(toDirectory: BackupService.defaultDirectory)
             rotate(directory: BackupService.defaultDirectory)
+            // 自检（v0.8.20 替人干活 19）：preview() 只读文件头验证可导入。
+            var selfCheck = ""
+            if let preview = try? BackupService.preview(from: result.url) {
+                selfCheck = preview.supported
+                    ? String(localized: "verified (\(preview.counts.values.reduce(0, +)) item(s))")
+                    : String(localized: "⚠ archive not importable")
+            }
             ProactiveNotificationStore.shared.deliver(
                 title: String(localized: "Scheduled backup finished"),
-                body: String(localized: "\(result.counts.values.reduce(0, +)) item(s) → \(result.url.lastPathComponent)"),
+                body: String(localized: "\(result.counts.values.reduce(0, +)) item(s) → \(result.url.lastPathComponent)\(selfCheck.isEmpty ? "" : "\n\(selfCheck)")"),
                 tier: .routine)
             log.info("scheduled backup: \(result.url.lastPathComponent, privacy: .public)")
             return result.url

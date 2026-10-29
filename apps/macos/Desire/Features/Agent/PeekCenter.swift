@@ -71,6 +71,16 @@ final class PeekCenter: ObservableObject {
         return request
     }
 
+    /// 审批"看现场"（v0.8.23）：只把页面亮出来，不额外发通知（审批本身
+    /// 已经是用户在场的动作）。
+    func showForApproval(reason: String) {
+        if active == nil {
+            active = PeekRequest(id: UUID(), reason: reason, needsPage: true,
+                                 createdAt: Date(), status: .pending)
+        }
+        present()
+    }
+
     /// 展开：专注模式锁住面板（用户接管期间 Agent 工具让路）。
     func present() {
         guard var request = active else { return }

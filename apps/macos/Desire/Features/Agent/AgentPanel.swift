@@ -1129,7 +1129,11 @@ struct AgentPanel: View {
                     store.resolveApproval(.deny, siteGrant: true)
                 },
                 siteHost: store.pendingApprovalSiteHost,
-                sourceFrameHost: store.pendingApprovalSourceFrameHost
+                sourceFrameHost: store.pendingApprovalSourceFrameHost,
+                onShowLivePage: {
+                    PeekCenter.shared.showForApproval(
+                        reason: String(localized: "Review the page before approving"))
+                }
             )
         }
     }

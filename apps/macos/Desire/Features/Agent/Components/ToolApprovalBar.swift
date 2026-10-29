@@ -25,6 +25,8 @@ struct ToolApprovalBar: View {
     var siteHost: String? = nil
     /// 跨源标注（0.7.2）：动作声明自跨源子框架时的框架 host——nil = 主框架声明。
     var sourceFrameHost: String? = nil
+    /// 看现场（v0.8.23）：专注模式展开 Agent 的浏览面板再决定是否放行。
+    var onShowLivePage: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -62,6 +64,11 @@ struct ToolApprovalBar: View {
                         .disabled(approval.risk == .dangerous)
                     if let onAlwaysAllowOnSite {
                         Button("Always on \(siteHost ?? "this site")", action: { onAlwaysAllowOnSite(siteHost ?? "") })
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
+                    if let onShowLivePage {
+                        Button(String(localized: "Show Page"), action: onShowLivePage)
                             .buttonStyle(.bordered)
                             .controlSize(.small)
                     }

@@ -2885,12 +2885,19 @@ extension BrowserToolProvider {
                    PageRangeParser.parse(pagesSpec, pageCount: total) == nil {
                     return Self.fail("Invalid pages spec '\(pagesSpec)' — use 1-based ranges like '1-5,8' or '3-' (document has \(total) page(s))")
                 }
-                guard let text = PDFTextExtractor.extractText(from: fileURL, maxChars: pdfMax, pages: pagesSpec) else {
-                    let sizeNote = pages.map { "\($0) page(s)" } ?? "unreadable"
-                    return "No text layer extracted (\(sizeNote)) — scanned PDF? Screenshot the pages and use ocrImage instead"
+                if let text = PDFTextExtractor.extractText(from: fileURL, maxChars: pdfMax, pages: pagesSpec) {
+                    let head = pages.map { "PDF text (\($0) page(s), sections marked [pN]):\n" } ?? "PDF text:\n"
+                    return head + text
                 }
-                let head = pages.map { "PDF text (\($0) page(s), sections marked [pN]):\n" } ?? "PDF text:\n"
-                return head + text
+                // 无文本层 → 扫描件 OCR fallback（v0.8.16 交付项，2026-10-29
+                // 查缺补漏发现当时未真正接线——脚本锚点静默跳过）。显式标注
+                // 来源，页范围与 pages 参数一致。
+                if let ocr = PDFTextExtractor.ocrText(from: fileURL, maxChars: pdfMax, pages: pagesSpec) {
+                    let head = pages.map { "SCANNED PDF — OCR text (\($0) page(s) total, sections marked [pN]):\n" } ?? "SCANNED PDF — OCR text:\n"
+                    return head + ocr
+                }
+                let sizeNote = pages.map { "\($0) page(s)" } ?? "unreadable"
+                return "No text layer extracted (\(sizeNote)) and OCR found nothing — image-only pages? Screenshot a page and use ocrImage to inspect visually"
             }
 
         case "convertDocument":

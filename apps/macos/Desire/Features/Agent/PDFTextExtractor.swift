@@ -43,11 +43,20 @@ enum PDFTextExtractor {
 
     /// 无文本层时按页渲染 → Vision 识别（页数上限 20，长扫描件请分次拆）。
     /// 每页带 [pN] 标记；识别失败/空的页跳过。全空返回 nil（真无文字）。
-    static func ocrText(from url: URL, maxPages: Int = 20, maxChars: Int = 60_000) -> String? {
+    static func ocrText(from url: URL, maxPages: Int = 20, maxChars: Int = 60_000,
+                        pages spec: String? = nil) -> String? {
         guard let doc = PDFDocument(url: url), !doc.isLocked else { return nil }
         var out = ""
-        let pageCap = min(doc.pageCount, maxPages)
-        for index in 0..<pageCap {
+        // pages 规格与文本层提取口径一致（0.8.21 查缺补漏：此前 OCR 忽略
+        // 调用方点名的页范围，readPdf(pages:) 对扫描件等于没生效）。
+        let indices: [Int]
+        if let spec, !spec.trimmingCharacters(in: .whitespaces).isEmpty,
+           let parsed = PageRangeParser.parse(spec, pageCount: doc.pageCount) {
+            indices = Array(parsed.prefix(maxPages))
+        } else {
+            indices = Array(0..<min(doc.pageCount, maxPages))
+        }
+        for index in indices {
             guard let page = doc.page(at: index) else { continue }
             let scale: CGFloat = 2
             let size = CGSize(width: page.bounds(for: .mediaBox).width * scale,

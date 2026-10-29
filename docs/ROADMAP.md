@@ -4085,3 +4085,59 @@ v0.8.1 的菜单入口只有"移交会话"，这版补齐：
 - **第三批**：7+8+9+10（迷你条/迁移/接管请求/接管锁）。
 - **第四批（收口）**：11–16 + 18–20 + 贯穿对账。
 - 每批独立提交；P0 全绿且你过目后才发版。
+
+### v0.8.23 设计补强（2026-10-30 调研后，覆盖上文对应条目）
+
+调研含：本仓库窗口/会话/容器/焦点机制实证 + 业界三种隔离思路对照。完整设计见
+`docs/USAGE-MODES-DESIGN.md`。以下是**对上面 20 项的修正与新增**，冲突时以本节为准。
+
+**架构修正（条目 2/3/4）**
+
+- **模式一改为"单窗工作台 + 可折叠内嵌浏览面板"**，不再"工作台 + 隐藏浏览窗口"。
+  理由：SwiftUI 无法静默创建窗口（openWindow 必前置，orderOut 会闪且抢一次 key）；
+  同窗内嵌面板零焦点问题，且离屏 webview 已有先例（URLReader 用窗口外 WKWebView）。
+- **Peek 在模式一 = 面板就地展开**（焦点不变）；**模式三 = 非激活浮层 + 徽标**
+  （点击才激活）。避免"为了看一眼把焦点从用户手里抢走"。
+- **工作台窗口**承载：对话 + 目的地侧栏 + 迷你浏览条 + 浏览面板（紧凑标签条/
+  地址栏/WebView）。复用 `AgentPanel` 与 `AgentWindowRoot` 的既有内容。
+- **混合模式**不变：用户窗口 + Agent 完整浏览器窗口，Agent 窗口默认用专用
+  容器（`ContainerStore.addContainer`）。提供菜单"并排两个窗口"（只调 frame）。
+
+**新增条目（21–24）**
+
+21. **窗口角色注册表 + 收养过滤**（P0）：`WindowRoleRegistry`（DiskStore
+    `window-roles`，sessionKey → role/containerID/createdAt）；`mostRecentSessionKey`
+    与 `crashRestoreSessionKeys` 必须跳过 agent 角色（否则 Agent 会话被首窗收养）。
+    理由：`session-index` 只是 `[String]`，且**多窗口仅在崩溃路径补开**——干净重启
+    的模式恢复要自己补开。
+22. **登录态策略**（P1，设置项）：Agent 浏览默认"独立容器"（隔离优先）；可切
+    "沿用当前档案登录态"（便利优先，审批链兜底）。不做按站点混合。
+23. **并排窗口动作**（P2）：菜单/桥一键把用户窗口与 Agent 窗口平铺左右（仅
+    `setFrame`，不做应用内分屏）。
+24. **迷你浏览条快照**（P2）：定时 `takeSnapshot` 缩略图（非 live reparent）。
+
+**焦点违规清单（并入条目 6/18）**
+
+- 必修：`newWindow` 工具无条件 `NSApp.activate` + 强制 key（模式一应静默创建，
+  模式三由 Agent 窗口自带）。
+- 保留（用户动作）：菜单栏快速入口、浮动面板、跨窗会话指示器。
+- 新增诊断端点 `GET /diag/windows`（role/key/title/frame）供 E2E 断言"焦点不变"。
+
+**Spike 闸门（S1–S4，P0；不过则降级，见设计稿 §14）**
+
+- S1 折叠（移出层级）后 webview 仍可 load/取文/执行 JS；记录定时器节流表现。
+- S2 面板反复展开/收起 50 次 + 全屏视频，无 0×0/NaN/崩溃、webview 不重建。
+- S3 混合模式静默补开 Agent 窗口不改 key window；不行则退回"用户点一次打开"。
+- S4 角色恢复在干净重启/崩溃重启/强杀三路径下都成立。
+
+**验收补充（并入条目 17）**
+
+- 混合模式 `POST /navigate` 只动 Agent 窗口；用户窗口 selected/url 与 key 均不变。
+- 专注模式折叠时 `getPageText/readTabs` 可用；`POST /peek` 展开/收起后 key 不变。
+- 接管锁期间同窗口写操作返回 `Error: surface is being used by the user`。
+- 混合模式重启后 Agent 窗口按角色恢复、不被收养成用户窗口。
+
+**批次调整**
+
+- **第零批（闸门）**：S1–S4 spike + `GET /diag/windows`。
+- 其余批次不变；21 并入第一批，22/23/24 并入第四批。

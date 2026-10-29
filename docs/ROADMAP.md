@@ -4141,3 +4141,20 @@ v0.8.1 的菜单入口只有"移交会话"，这版补齐：
 
 - **第零批（闸门）**：S1–S4 spike + `GET /diag/windows`。
 - 其余批次不变；21 并入第一批，22/23/24 并入第四批。
+
+**设计补强 2（竞品/同类实现对照后，追加条目 25–28）**
+
+可验证依据：开源 agent 浏览器框架的隔离模型文档（持久档案 / 隔离会话 / 扩展
+接管；持久档案单实例约束；storage-state 仅 cookie+localStorage 可迁移）。AI
+浏览器官方帮助页本次网络不可达，只作常识归纳、不进设计依据。
+
+25. **临时（内存）Agent 会话**（P1）：`WKWebsiteDataStore.nonPersistent()` 承载
+    一次性/敏感任务，结束即清；桥 `POST /agent/session {kind:"ephemeral"}`。
+26. **并行任务隔离策略**（P1）：持久容器是**单写者**——crew worker 与并行子任务
+    各自独立（临时会话或独立容器），禁止共用 Agent 容器；`crewDispatch` 增加
+    `isolation: persistent|ephemeral`（默认 ephemeral for windowMode? 见实现时定）。
+27. **登录态快照（仅 cookies）**（P2）：把当前档案 cookies 拷进临时会话，解决
+    "隔离但不想重登"的折中；UI 明确写"localStorage/IndexedDB 不迁移，部分站点
+    仍需重登"。
+28. **审批卡元素可读描述**（P2）：点击/输入类审批卡附元素名/角色/附近文字
+    （现在只有选择器），降低"盲批"风险；与 12（看现场）配套。

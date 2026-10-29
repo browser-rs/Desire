@@ -1,0 +1,3 @@
+#!/bin/bash
+# stdio wrapper: see docs/MCP-SERVER.md
+exec python3 "$(dirname "$0")/desire-mcp-stdio.py" "$@"

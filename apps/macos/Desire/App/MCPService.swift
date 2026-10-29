@@ -275,7 +275,7 @@ final class MCPService {
                     "resources": [:],
                     "prompts": [:],
                 ],
-                "serverInfo": ["name": "Desire", "version": "0.2.12"],
+                "serverInfo": ["name": "Desire", "version": Self.serverVersion],
             ]
             return ("200 OK", Self.rpcResult(id: id, result: result), false)
 
@@ -292,8 +292,12 @@ final class MCPService {
             let name = params["name"] as? String ?? ""
             var args = params["arguments"] as? [String: Any] ?? [:]
             // 窗口绑定：per-call window 参数 > 会话绑定 windowID。
-            if context.windowID != nil, args["window"] == nil {
-                args["window"] = context.windowID
+            if let boundWindow = context.windowID, args["window"] == nil {
+                args["window"] = boundWindow
+            }
+            // 复合工具：askAgent = 发消息 + 轮询回合结束 + 返回回复（不是单一桥端点）。
+            if name == "askAgent" {
+                return await Self.handleAskAgent(id: id, args: args, window: context.windowID)
             }
             guard let tool = Self.toolCatalog.first(where: { $0["name"] as? String == name }),
                   let mapping = tool["_bridge"] as? [String: Any] else {
@@ -520,6 +524,125 @@ final class MCPService {
             "error": ["code": code, "message": message],
         ]
         return Self.json(payload)
+    }
+
+    /// 对外报告的版本（原来是硬编码的 0.2.12）。
+    private static var serverVersion: String {
+        (Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String) ?? "0"
+    }
+
+    /// `askAgent`：发一条消息 → 轮询回合结束 → 返回助手回复与新增消息。
+    ///
+    /// 时序处理：send 是异步入队，busy 可能晚于第一次轮询才置起——所以
+    /// 结束判据是「(观测到 busy 之后又空闲) 或 (空闲且出现新消息)」，
+    /// 仅在两者都没有时继续等（宽限到超时）。
+    private static func handleAskAgent(id: Any?, args: [String: Any],
+                                       window: String?) async -> (String, String, Bool) {
+        let text = (args["text"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            return ("200 OK", Self.rpcError(id: id, code: -32602, message: "text is required"), false)
+        }
+        let wait = (args["wait"] as? Bool) ?? true
+        let timeout = min(600, max(10, (args["timeoutSeconds"] as? Int) ?? 180))
+        let targetWindow = (args["window"] as? String) ?? window
+
+        func snapshot() async -> [String: Any]? {
+            let raw = await AutomationServer.shared.callEndpoint(
+                method: "GET", path: "/agent/messages", json: nil, window: targetWindow)
+            return (try? JSONSerialization.jsonObject(with: Data(raw.utf8))) as? [String: Any]
+        }
+
+        guard let before = await snapshot() else {
+            return ("200 OK", Self.rpcError(id: id, code: -32603, message: "agent messages unavailable"), false)
+        }
+        if before["error"] != nil {
+            return ("200 OK", Self.rpcResult(id: id, result: [
+                "content": [["type": "text", "text": "No live agent session — open a Desire window with the Agent panel first."]],
+                "isError": true,
+            ]), false)
+        }
+        if (before["busy"] as? Bool) == true {
+            return ("200 OK", Self.rpcResult(id: id, result: [
+                "content": [["type": "text", "text": "Agent is busy with another turn. Retry later, or read getAgentMessages while it works."]],
+                "isError": true,
+            ]), false)
+        }
+        let beforeIDs = Set(((before["messages"] as? [[String: Any]]) ?? [])
+            .compactMap { $0["id"] as? String })
+
+        let sendRaw = await AutomationServer.shared.callEndpoint(
+            method: "POST", path: "/agent/send",
+            json: ["text": text, "recordHistory": false], window: targetWindow)
+        if let sent = (try? JSONSerialization.jsonObject(with: Data(sendRaw.utf8))) as? [String: Any],
+           let error = sent["error"] as? String {
+            return ("200 OK", Self.rpcResult(id: id, result: [
+                "content": [["type": "text", "text": "send failed: \(error)"]],
+                "isError": true,
+            ]), false)
+        }
+        guard wait else {
+            return ("200 OK", Self.rpcResult(id: id, result: [
+                "content": [["type": "text", "text": "Prompt sent. Poll getAgentMessages / getAgentTrace for the reply."]],
+                "isError": false,
+            ]), false)
+        }
+
+        let deadline = Date().addingTimeInterval(TimeInterval(timeout))
+        var sawBusy = false
+        var latest: [String: Any] = before
+        while Date() < deadline {
+            try? await Task.sleep(nanoseconds: 600_000_000)
+            guard let current = await snapshot() else { continue }
+            latest = current
+            let busy = (current["busy"] as? Bool) ?? false
+            let ids = Set(((current["messages"] as? [[String: Any]]) ?? [])
+                .compactMap { $0["id"] as? String })
+            let hasNew = !ids.subtracting(beforeIDs).isEmpty
+            if busy {
+                sawBusy = true
+                continue
+            }
+            if sawBusy || hasNew { break }
+        }
+
+        let messages = (latest["messages"] as? [[String: Any]]) ?? []
+        let newOnes = messages.filter { message in
+            guard let messageID = message["id"] as? String else { return false }
+            return !beforeIDs.contains(messageID)
+        }
+        let assistant = newOnes.last { message in
+            (message["role"] as? String) == "assistant"
+                && ((message["content"] as? String) ?? "").isEmpty == false
+        }
+        let reply = (assistant?["content"] as? String) ?? ""
+        let timedOut = (latest["busy"] as? Bool) == true
+        var summary: [String: Any] = [
+            "reply": reply,
+            "busy": latest["busy"] ?? false,
+            "timedOut": timedOut,
+            "hasInterruptedTurn": latest["hasInterruptedTurn"] ?? false,
+            "newMessages": newOnes.map { message -> [String: Any] in
+                var item: [String: Any] = ["role": message["role"] ?? ""]
+                if let content = message["content"] as? String, !content.isEmpty {
+                    item["content"] = String(content.prefix(4_000))
+                }
+                if let calls = message["toolCalls"] { item["toolCalls"] = calls }
+                return item
+            },
+        ]
+        if reply.isEmpty, !timedOut {
+            summary["note"] = "No assistant reply yet — call getAgentMessages / getAgentTrace."
+        }
+        if timedOut {
+            summary["note"] = "Timed out after \(timeout)s; the turn is still running. Read getAgentMessages/getAgentTrace."
+        }
+        let textOut = (try? JSONSerialization.data(withJSONObject: summary,
+                                                   options: [.prettyPrinted, .sortedKeys]))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        return ("200 OK", Self.rpcResult(id: id, result: [
+            "content": [["type": "text", "text": textOut]],
+            "isError": false,
+        ]), false)
     }
 
     private static func json(_ object: [String: Any]) -> String {
@@ -933,6 +1056,143 @@ final class MCPService {
                 ],
             ],
             "_bridge": ["method": "POST", "path": "/extract", "const": ["kind": "list"], "body": ["selector": "selector", "index": "index"]],
+        ],
+        // 0.8.22 — Agent 对话与自省面（外部编程工具 ↔ 浏览器 Agent）
+        [
+            "name": "askAgent",
+            "description": "Send a prompt to the live Desire agent (the chat agent that can browse and use its own tools) and wait for its reply. This is the two-way channel: the coding tool asks, the browser agent acts and answers. Returns JSON {reply, busy, timedOut, newMessages}. Follow up with getAgentTrace to inspect every step/tool call it made.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "text": ["type": "string", "description": "Prompt for the browser agent"],
+                    "wait": ["type": "boolean", "description": "Wait for the turn to finish (default true)"],
+                    "timeoutSeconds": ["type": "integer", "description": "Max wait in seconds (default 180, max 600)"],
+                    "window": ["type": "string", "description": "Target window id (usually omit — the live session is used)"],
+                ],
+                "required": ["text"],
+            ],
+        ],
+        [
+            "name": "getAgentMessages",
+            "description": "Read the live agent conversation: last messages (role/content/toolCalls/model/tokens) plus busy and hasInterruptedTurn.",
+            "inputSchema": ["type": "object", "properties": [:]],
+            "_bridge": ["method": "GET", "path": "/agent/messages"],
+        ],
+        [
+            "name": "getAgentTrace",
+            "description": "Derived per-turn trace as JSONL: goal, steps (tool, args, observation, duration, denied/threwError), answer, critique, verification note, user feedback. Best tool for diagnosing why the agent failed and for building eval fixtures.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "conversation": ["type": "string", "description": "Conversation UUID (default: live)"],
+                    "limit": ["type": "integer", "description": "Max turns (default all, newest last)"],
+                ],
+            ],
+            "_bridge": ["method": "GET", "path": "/agent/trace?conversation={conversation}&limit={limit}"],
+        ],
+        [
+            "name": "getAgentStats",
+            "description": "Usage statistics derived from saved conversations: totals, peaks, daily and per-model breakdown, streak.",
+            "inputSchema": ["type": "object", "properties": [:]],
+            "_bridge": ["method": "GET", "path": "/agent/stats"],
+        ],
+        [
+            "name": "getAgentCost",
+            "description": "Cost breakdown for the live conversation (tokens × user-configured prices; unpriced models show tokens only).",
+            "inputSchema": ["type": "object", "properties": [:]],
+            "_bridge": ["method": "GET", "path": "/agent/cost-breakdown"],
+        ],
+        [
+            "name": "getAgentBudget",
+            "description": "Conversation token budget state (budget/used/state/stopLevel/percent). Set it with setAgentBudget.",
+            "inputSchema": ["type": "object", "properties": [:]],
+            "_bridge": ["method": "GET", "path": "/agent/budget"],
+        ],
+        [
+            "name": "setAgentBudget",
+            "description": "Set the conversation token budget (0 turns it off).",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["tokens": ["type": "integer", "description": "0 = off"]],
+                "required": ["tokens"],
+            ],
+            "_bridge": ["method": "POST", "path": "/agent/budget", "body": ["tokens": "tokens"]],
+        ],
+        [
+            "name": "getAgentDoctor",
+            "description": "Agent self-check: model endpoint reachability, keys, MCP connections, ffmpeg, hooks, skills, notifications, heartbeat.",
+            "inputSchema": ["type": "object", "properties": [:]],
+            "_bridge": ["method": "GET", "path": "/agent/doctor"],
+        ],
+        [
+            "name": "addAgentNote",
+            "description": "Append a system note to the live conversation (not rendered in the chat; folded into the next turn's system prompt). Use it to hand observations from your coding tool to the browser agent.",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["text": ["type": "string"]],
+                "required": ["text"],
+            ],
+            "_bridge": ["method": "POST", "path": "/agent/note", "body": ["text": "text"]],
+        ],
+        [
+            "name": "setAgentDirective",
+            "description": "Set or clear the session-scoped instruction (e.g. answer in English, be terse); empty text clears it.",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["text": ["type": "string"]],
+                "required": ["text"],
+            ],
+            "_bridge": ["method": "POST", "path": "/agent/directive", "body": ["text": "text"]],
+        ],
+        [
+            "name": "rateAgentMessage",
+            "description": "Rate an assistant message (thumbs up/down/none). Ratings persist with the conversation and drive exportEval.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "messageId": ["type": "string", "description": "Message id from getAgentMessages"],
+                    "vote": ["type": "string", "description": "up | down | none"],
+                ],
+                "required": ["messageId", "vote"],
+            ],
+            "_bridge": ["method": "POST", "path": "/agent/feedback", "body": ["messageId": "messageId", "vote": "vote"]],
+        ],
+        [
+            "name": "searchConversations",
+            "description": "Search saved conversations by title/message text (mode=literal) or by meaning (mode=semantic — requires Agent Conversations enabled under Settings › Search & Index).",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "query": ["type": "string"],
+                    "limit": ["type": "integer"],
+                    "mode": ["type": "string", "description": "literal | semantic"],
+                ],
+                "required": ["query"],
+            ],
+            "_bridge": ["method": "GET", "path": "/conversations/search?q={query}&limit={limit}&mode={mode}"],
+        ],
+        [
+            "name": "semanticSearch",
+            "description": "On-device semantic search across history pages, bookmarks, excerpts and reading highlights (same-language shard; literal search remains primary in the app).",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "query": ["type": "string"],
+                    "limit": ["type": "integer", "description": "Default 20"],
+                    "source": ["type": "string", "description": "history | bookmark | excerpt | highlight | conversation"],
+                ],
+                "required": ["query"],
+            ],
+            "_bridge": ["method": "GET", "path": "/search/semantic?q={query}&limit={limit}&source={source}"],
+        ],
+        [
+            "name": "exportEval",
+            "description": "Export 👍-rated turns as an eval JSONL (AgentTrace-derived) — the fixture source for agent-eval regression runs.",
+            "inputSchema": [
+                "type": "object",
+                "properties": ["path": ["type": "string", "description": "Target directory (default: agent workspace exports)"]],
+            ],
+            "_bridge": ["method": "POST", "path": "/agent/eval-export", "body": ["path": "path"]],
         ],
     ]
 }

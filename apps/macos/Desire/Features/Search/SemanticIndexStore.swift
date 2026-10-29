@@ -381,6 +381,8 @@ final class SemanticIndexStore: ObservableObject {
         guard isEnabled, isSourceEnabled(source) else { return }
         dirtySources.insert(source)
         scheduleDebounce()
+        // Spotlight 走同一批变更信号（5 分钟防抖，别跟着每次击键重建）。
+        SpotlightIndexer.schedule(after: 300)
     }
 
     /// 合并 120 秒内的所有变更后再构建；构建中触发会在结束后补跑。

@@ -8,6 +8,8 @@ struct SemanticIndexSettingsSection: View {
     /// 历史正文索引的开关在隐私页——这里只读它来决定提示文案，所以要观察。
     @ObservedObject private var historyContent = HistoryContentStore.shared
     @State private var showClearConfirm = false
+    /// Spotlight 开关是 UserDefaults + 系统索引的副作用，视图用本地镜像驱动重绘。
+    @State private var spotlightEnabled = SpotlightIndexer.isEnabled
 
     var body: some View {
         SettingsContainer {
@@ -38,6 +40,25 @@ struct SemanticIndexSettingsSection: View {
                     )
                     .disabled(!store.isEnabled)
                 }
+            }
+
+            SettingsSection(
+                title: "System Integration",
+                subtitle: "Make saved pages findable outside Desire.",
+                icon: "macwindow.on.rectangle"
+            ) {
+                SettingsToggleRow(
+                    "Index in Spotlight",
+                    subtitle: "History, bookmarks and excerpts appear in Spotlight; opening a result brings it back here.",
+                    systemImage: "magnifyingglass",
+                    isOn: Binding(
+                        get: { spotlightEnabled },
+                        set: { value in
+                            spotlightEnabled = value
+                            SpotlightIndexer.setEnabled(value)
+                        }
+                    )
+                )
             }
 
             SettingsSection(

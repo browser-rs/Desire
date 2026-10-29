@@ -1,4 +1,5 @@
 import AppKit
+import CoreSpotlight
 import os
 import SwiftUI
 
@@ -220,6 +221,53 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 就绪，先入缓冲，didFinishLaunching 后多跳重试 flush。
     private var pendingOpenURLs: [URL] = []
 
+    /// Spotlight 结果（v0.8.22）：标识 = "<来源>|<url>"，解析后按外部链接打开。
+    func application(_ application: NSApplication, continue userActivity: NSUserActivity,
+                     restorationHandler: @escaping ([NSUserActivityRestoring]) -> Void) -> Bool {
+        guard userActivity.activityType == CSSearchableItemActionType,
+              let identifier = userActivity.userInfo?[CSSearchableItemActivityIdentifier] as? String,
+              let raw = SpotlightIndexer.url(fromIdentifier: identifier),
+              let url = URL(string: raw) else { return false }
+        Log.app.info("spotlight result opened: \(raw, privacy: .public)")
+        NSApp.activate(ignoringOtherApps: true)
+        pendingOpenURLs.append(url)
+        flushPendingOpenURLs()
+        return true
+    }
+
+    // MARK: - Services（v0.8.22）：选中文本 → 摘录 / 打开链接
+
+    @objc func captureSelectionToExcerpt(_ pboard: NSPasteboard, userData: String,
+                                         error: UnsafeMutablePointer<ObjCBool>) {
+        guard let text = pboard.string(forType: .string)?
+            .trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+            error.pointee = true
+            return
+        }
+        ExcerptStore.shared.add(kind: .webSelection,
+                                title: String(localized: "Captured via Services"),
+                                source: "services://selection",
+                                content: text)
+        ProactiveNotificationStore.shared.deliver(
+            title: String(localized: "Saved to Excerpts"),
+            body: String(localized: "The selection was added to your excerpts."),
+            tier: .routine)
+    }
+
+    @objc func openURLInDesire(_ pboard: NSPasteboard, userData: String,
+                               error: UnsafeMutablePointer<ObjCBool>) {
+        guard let raw = pboard.string(forType: .string)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              let url = URL(string: raw),
+              url.scheme == "http" || url.scheme == "https" else {
+            error.pointee = true
+            return
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        pendingOpenURLs.append(url)
+        flushPendingOpenURLs()
+    }
+
     /// Dock 图标点击 / `open -a` 激活：**有可见窗口时返回 false**——否则
     /// SwiftUI 对 value-based WindowGroup（for: UUID.self）的 reopen 默认
     /// 行为是再 mint 一扇新主窗（实测每次 `open -a` 涨一扇 900x632）。
@@ -317,6 +365,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // SwiftUI MenuBarExtra 的 isInserted 动态绑定会在本应用触发启动
         // 无限循环（见 MenuBarQuickEntryController 头注释）。
         MenuBarQuickEntryController.shared.install()
+        // 系统服务（v0.8.22 批四）：任意应用选中文本 → 收进摘录 / 打开链接。
+        NSApp.servicesProvider = self
         noticeAbnormalPreviousExit()
         // 冷启动带 URL 启动（默认浏览器点链接拉起 app）：窗口装配晚于
         // didFinishLaunching，走重试 flush。

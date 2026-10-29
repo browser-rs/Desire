@@ -21,6 +21,21 @@ struct MenuBarQuickEntryView: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @Environment(\.openWindow) private var openWindow
+    /// 入口模式（v0.8.22 批四）：问 Agent / 搜本地沉淀（历史·书签·摘录）。
+    enum Mode: String, CaseIterable {
+        case ask, search
+
+        var title: String {
+            switch self {
+            case .ask: return String(localized: "Ask")
+            case .search: return String(localized: "Search")
+            }
+        }
+    }
+
+    @State private var mode: Mode = .ask
+    @State private var results: [SearchEverywhere.Hit] = []
+    @State private var searchTask: Task<Void, Never>?
     @State private var draft = ""
     @State private var sentHint = false
     @FocusState private var fieldFocused: Bool
@@ -37,6 +52,15 @@ struct MenuBarQuickEntryView: View {
                     .foregroundStyle(appAccent)
                 Text("Ask Desire")
                     .font(.system(size: 12, weight: .semibold))
+                Picker("", selection: $mode) {
+                    ForEach(Mode.allCases, id: \.self) { item in
+                        Text(item.title).tag(item)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .controlSize(.mini)
+                .frame(width: 108)
                 Spacer()
                 if sentHint {
                     Text("Sent ✓")
@@ -59,6 +83,18 @@ struct MenuBarQuickEntryView: View {
                         .strokeBorder(Color(nsColor: .separatorColor).opacity(0.6))
                 )
                 .focused($fieldFocused)
+                .onChange(of: draft) { _, value in
+                    guard mode == .search else { results = []; return }
+                    scheduleSearch(value)
+                }
+                .onChange(of: mode) { _, value in
+                    if value == .search {
+                        scheduleSearch(draft)
+                    } else {
+                        searchTask?.cancel()
+                        results = []
+                    }
+                }
                 // 回车发送；Shift+回车换行。换行**必须显式插入**：返回 .ignored
                 // 直通给字段会被 SwiftUI 处理成"全选"（实测：随后的输入替换掉
                 // 整个草稿）。提交/写草稿都跳一帧——.onKeyPress 在更新事务里
@@ -68,21 +104,29 @@ struct MenuBarQuickEntryView: View {
                         Task { @MainActor in draft += "\n" }
                         return .handled
                     }
-                    Task { @MainActor in submit() }
+                    Task { @MainActor in
+                        if mode == .search { openFirstResult() } else { submit() }
+                    }
                     return .handled
                 }
 
+            if mode == .search {
+                searchResults
+            }
+
             HStack(spacing: 8) {
-                Button {
-                    submit()
-                } label: {
-                    Label("Send", systemImage: "paperplane.fill")
-                        .font(.system(size: 11.5, weight: .medium))
+                if mode == .ask {
+                    Button {
+                        submit()
+                    } label: {
+                        Label("Send", systemImage: "paperplane.fill")
+                            .font(.system(size: 11.5, weight: .medium))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .keyboardShortcut(.return, modifiers: .command)
+                    .disabled(!canSend)
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.small)
-                .keyboardShortcut(.return, modifiers: .command)
-                .disabled(!canSend)
 
                 Button {
                     openAgentPanel()
@@ -120,6 +164,111 @@ struct MenuBarQuickEntryView: View {
                 fieldFocused = true
             }
         }
+    }
+
+    @ViewBuilder
+    private var searchResults: some View {
+        if !results.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(results) { hit in
+                    Button {
+                        open(hit)
+                    } label: {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(hit.title.isEmpty ? hit.url : hit.title)
+                                .font(.system(size: 11.5, weight: .medium))
+                                .lineLimit(1)
+                            Text(hit.snippet ?? hit.url)
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 5)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(Color(nsColor: .controlBackgroundColor))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .strokeBorder(Color(nsColor: .separatorColor).opacity(0.5))
+            )
+        } else if !draft.trimmingCharacters(in: .whitespaces).isEmpty {
+            Text("No matches")
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    /// 本地沉淀检索（历史/书签/摘录；语义补位交给 ⌘⇧F —— 菜单栏是"轻量"入口）。
+    private func scheduleSearch(_ raw: String) {
+        searchTask?.cancel()
+        let query = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !query.isEmpty else {
+            results = []
+            return
+        }
+        searchTask = Task {
+            try? await Task.sleep(for: .milliseconds(160))
+            guard !Task.isCancelled else { return }
+            var items: [SearchEverywhere.Item] = []
+            if let app = AppState.live {
+                items += app.historyStore.entries.prefix(800).map {
+                    SearchEverywhere.Item(source: .history, id: $0.id.uuidString,
+                                          title: $0.title, url: $0.url)
+                }
+                func walk(_ nodes: [Bookmark]) {
+                    for node in nodes {
+                        if let url = node.url {
+                            items.append(SearchEverywhere.Item(source: .bookmark,
+                                                               id: node.id.uuidString,
+                                                               title: node.title, url: url))
+                        } else {
+                            walk(node.children)
+                        }
+                    }
+                }
+                walk(app.bookmarkStore.bookmarks)
+            }
+            items += ExcerptStore.shared.excerpts.map {
+                SearchEverywhere.Item(source: .excerpt, id: $0.id.uuidString,
+                                      title: $0.title, url: $0.source,
+                                      snippet: String($0.content.prefix(120)))
+            }
+            let found = SearchEverywhere.search(query, items: items, limitPerSource: 6)
+            let merged = found.history + found.bookmarks + found.excerpts
+            guard !Task.isCancelled else { return }
+            results = Array(merged.prefix(5))
+        }
+    }
+
+    private func openFirstResult() {
+        guard let first = results.first else { return }
+        open(first)
+    }
+
+    private func open(_ hit: SearchEverywhere.Hit) {
+        guard !hit.url.isEmpty else { return }
+        MenuBarQuickEntryController.shared.closePopover()
+        NSApp.activate(ignoringOtherApps: true)
+        if let manager = TabSessionCoordinator.shared.activeTabManager {
+            manager.addTab(url: hit.url, makeActive: true)
+        } else {
+            openWindow(id: "main", value: UUID())
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(700))
+                TabSessionCoordinator.shared.activeTabManager?
+                    .addTab(url: hit.url, makeActive: true)
+            }
+        }
+        draft = ""
+        results = []
     }
 
     private var canSend: Bool {

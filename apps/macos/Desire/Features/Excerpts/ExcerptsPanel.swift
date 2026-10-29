@@ -201,6 +201,7 @@ struct ExcerptsPanel: View {
             }
             // 分享卡（v0.8.19 融合 13）：渲染成图 → 剪贴板 + 另存。
             Button(String(localized: "Export Share Card…")) { exportShareCard(excerpt) }
+            Button(String(localized: "Share…")) { share(excerpt) }
             Button(String(localized: "Find Related")) {
                 relatedRequest = SemanticRelatedRequest(
                     title: excerpt.title,
@@ -224,6 +225,18 @@ struct ExcerptsPanel: View {
                 openSource(excerpt)
             }
         }
+    }
+
+    /// 系统分享（v0.8.22 批四）：正文 + 来源链接。
+    private func share(_ excerpt: Excerpt) {
+        var items: [Any] = [excerpt.content]
+        if !excerpt.source.hasPrefix("services://"),
+           let url = URL(string: excerpt.source) {
+            items.append(url)
+        }
+        guard let anchor = NSApp.keyWindow?.contentView else { return }
+        NSSharingServicePicker(items: items)
+            .show(relativeTo: anchor.bounds, of: anchor, preferredEdge: .minY)
     }
 
     /// 选中摘录 → prompt（带来源）交活会话起草周报/笔记/摘要。

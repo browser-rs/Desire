@@ -62,6 +62,8 @@ struct ContentView: View {
     @ObservedObject private var whatsNew = WhatsNewStore.shared
     /// 使用模式（v0.8.23）：专注模式在工作台上覆盖浏览器壳。
     @ObservedObject private var usageMode = AppModeStore.shared
+    /// 回合进行中的模式切换要等回合结束再重配工具面。
+    @State private var pendingSurfaceMode: AppUsageMode?
     @ObservedObject private var promotionShare = PromotionShareCenter.shared
 
     init(appState: AppState, sessionID: Binding<UUID?>) {
@@ -669,7 +671,18 @@ struct ContentView: View {
             }
         }
         .onChange(of: usageMode.mode) { _, newMode in
-            reconfigureAgentSurface(for: newMode)
+            // 回合进行中切模式：先记下，跑完再重配——中途换工具面会让
+            // 这一轮的后续工具打到另一个浏览面上（v0.8.23 迁移规则）。
+            if aiSession.isProcessing {
+                pendingSurfaceMode = newMode
+            } else {
+                reconfigureAgentSurface(for: newMode)
+            }
+        }
+        .onChange(of: aiSession.isProcessing) { _, processing in
+            guard !processing, let pending = pendingSurfaceMode else { return }
+            pendingSurfaceMode = nil
+            reconfigureAgentSurface(for: pending)
         }
     }
 

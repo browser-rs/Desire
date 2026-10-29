@@ -89,9 +89,12 @@ struct AgentWorkspaceView: View {
             Text(String(localized: "Agent Workspace"))
                 .font(.system(size: 13, weight: .semibold))
             if let pane {
-                Text(String(localized: "\(pane.tabs.count) tab(s) in the background"))
+                let current = pane.selectedTab?.displayTitle ?? String(localized: "New Tab")
+                let count = String(localized: "\(pane.tabs.count) tab(s) in the background")
+                Text("\(current) · \(count)")
                     .font(.system(size: 10.5))
                     .foregroundStyle(.tertiary)
+                    .lineLimit(1)
             }
             Spacer()
             Button {

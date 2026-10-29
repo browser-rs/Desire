@@ -56,10 +56,37 @@ class BrowserWKWebView: WKWebView {
             return true
         }
         superAcceptsFileDrag = false
-        guard !urls.isEmpty else { return false }
+        if urls.isEmpty {
+            // 拖 URL / 文本进页面（v0.8.23，Safari 语义）：页面自己没接住才轮到
+            // 宿主——URL 开新标签，纯文本按默认引擎搜索；页面内的拖放不受影响
+            //（super 接受的分支已在上面返回）。
+            guard let raw = sender.draggingPasteboard.string(forType: .string)?
+                .trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+                return false
+            }
+            if let url = Self.webURL(from: raw) {
+                onOpenLinkInNewTab?(url)
+            } else {
+                onSearchText?(raw)
+            }
+            return true
+        }
         droppedFileURLs = []
         onFilesDropped?(urls)
         return true
+    }
+
+    /// 把拖入的字符串解析成 http(s) URL（裸域名补 https）；不是链接返回 nil。
+    private static func webURL(from raw: String) -> URL? {
+        if let url = URL(string: raw), let scheme = url.scheme?.lowercased(),
+           scheme == "http" || scheme == "https" {
+            return url
+        }
+        let compact = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !compact.contains(" "), compact.contains("."), !compact.hasPrefix(".") else {
+            return nil
+        }
+        return URL(string: "https://" + compact)
     }
 
     private static func fileURLs(from sender: NSDraggingInfo) -> [URL] {

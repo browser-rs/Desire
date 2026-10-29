@@ -1,5 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
+import WebKit
 
 /// Composition root for the AI Assistant side panel. Renders the
 /// header, message list / empty state, quick-action strip, and input
@@ -19,6 +20,8 @@ struct AgentPanel: View {
     @ObservedObject var conversationStore: ConversationStore
 
     @State private var inputText = ""
+    /// `@` 引用的标签页（v0.8.22）：发送时读正文注入系统备注。
+    @State private var pendingTabRefs: [AgentTabReference] = []
     /// 每个对话的输入草稿：切走再切回不丢正在打的字（放在内存里，会话级）。
     @State private var drafts: [UUID: String] = [:]
     @State private var showTrace = false
@@ -529,6 +532,8 @@ struct AgentPanel: View {
                     guard pendingImages.indices.contains(idx) else { return }
                     pendingImages.remove(at: idx)
                 },
+                tabRefs: $pendingTabRefs,
+                tabCandidates: tabCandidates,
                 onSubmit: submit,
                 onCancel: {
                     // 多 store 结构：流的主人未必是这个面板的 store（另一窗口/
@@ -1168,13 +1173,38 @@ struct AgentPanel: View {
     private func submit() {
         let text = inputText
         let images = pendingImages.isEmpty ? nil : pendingImages
+        let tabRefs = pendingTabRefs
         historyIndex = nil            // 输入历史由 sendMessage 记录（按对话）
         inputText = ""
         pendingImages = []
-        if store.awaitingQuestion {
-            store.sendFollowUp(text, images: images)
-        } else {
-            store.sendMessage(text, images: images)
+        pendingTabRefs = []
+        guard !tabRefs.isEmpty else {
+            if store.awaitingQuestion {
+                store.sendFollowUp(text, images: images)
+            } else {
+                store.sendMessage(text, images: images)
+            }
+            return
+        }
+        // @ 引用：先把标签正文读成系统备注（异步，几百毫秒），再发回合——
+        // 备注会并入本轮系统提示词，聊天记录里看不到大段正文。
+        Task { @MainActor in
+            await AgentTabReferenceInjector.appendNote(tabRefs, to: store)
+            if store.awaitingQuestion {
+                store.sendFollowUp(text, images: images)
+            } else {
+                store.sendMessage(text, images: images)
+            }
+        }
+    }
+
+    /// `@` 可引用的标签（活动窗口的 http(s) 标签；新标签页/desire:// 跳过）。
+    private var tabCandidates: [AgentTabReference] {
+        guard let manager = TabSessionCoordinator.shared.activeTabManager else { return [] }
+        return manager.tabs.compactMap { tab in
+            let url = tab.browser.webView.url?.absoluteString ?? tab.urlString
+            guard url.hasPrefix("http://") || url.hasPrefix("https://") else { return nil }
+            return AgentTabReference(id: tab.id, title: tab.displayTitle, url: url)
         }
     }
 

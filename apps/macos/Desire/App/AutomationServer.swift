@@ -615,6 +615,10 @@ final class AutomationServer {
         ep("GET", "/ai/prices", "Model price table (USD per Mtok) used to turn token usage into cost", example: "…/ai/prices")
         ep("POST", "/ai/prices", "Set/clear model prices; 0 or omitted = unknown (that model shows no money)", params: ["models?:{model:{input,output}}", "remove?:[model]"], example: #"-d '{"models":{"gpt-4o":{"input":2.5,"output":10}}}'"#)
         ep("GET", "/agent/messages", "Live agent conversation + busy (+hasInterruptedTurn: 上回合被中断待继续)", example: "…/agent/messages")
+        ep("POST", "/knowledge/weekly", "Cluster this week's excerpts into themes on-device and write a Markdown digest into the agent workspace", params: ["days?:int (default 7)", "path?:string (target directory)"], example: "-d '{}'")
+        ep("GET", "/review/queue", "Spaced-repetition review queue (total/due + per-entry stage/dueAt/lapses)", example: "…/review/queue")
+        ep("POST", "/review/grade", "Grade a review item: remembered=true advances a stage, false resets to stage 1", params: ["id:uuid", "remembered:bool"], example: "-d '{\"id\":\"…\",\"remembered\":true}'")
+        ep("POST", "/review/reset", "Clear the review queue", example: "-d '{}'")
         ep("GET", "/agent/gaps", "Capability gaps the agent reported via reportCapabilityGap (ranked by count; feeds the improvement loop)", example: "…/agent/gaps")
         ep("POST", "/agent/gaps", "Record a capability gap from outside (same store the tool writes)", params: ["capability:string", "blocked?", "workaround?", "severity?:blocker|friction|nice-to-have", "context?"], example: "-d '{\"capability\":\"批量重命名下载文件\"}'")
         ep("POST", "/agent/gaps/clear", "Clear all recorded capability gaps", example: "-d '{}'")
@@ -2868,6 +2872,31 @@ final class AutomationServer {
                 return try Self.json(Self.agentWindows())
             case ("GET", "/agent/messages"):
                 return try Self.json(Self.agentMessages(window: Self.string(query, "window")))
+            case ("POST", "/knowledge/weekly"):
+                let days = min(365, max(1, (body["days"] as? Int) ?? 7))
+                let target = Self.string(body, "path").flatMap {
+                    $0.isEmpty ? nil : URL(fileURLWithPath: $0)
+                }
+                guard let outcome = await KnowledgeWeeklyDigest.run(days: days, directory: target) else {
+                    return try Self.json(["ok": false,
+                                          "error": "nothing to summarize (no excerpts in this window)"])
+                }
+                return try Self.json(["ok": true, "path": outcome.path,
+                                      "items": outcome.items, "themes": outcome.themes,
+                                      "skipped": outcome.skipped])
+            case ("GET", "/review/queue"):
+                ReviewQueueStore.shared.sync(with: ExcerptStore.shared.excerpts)
+                return try Self.json(ReviewQueueStore.shared.payload())
+            case ("POST", "/review/grade"):
+                guard let reviewID = UUID(uuidString: Self.string(body, "id") ?? "") else {
+                    return try Self.json(["error": "invalid id"])
+                }
+                ReviewQueueStore.shared.grade(id: reviewID,
+                                              remembered: body["remembered"] as? Bool ?? true)
+                return try Self.json(ReviewQueueStore.shared.payload())
+            case ("POST", "/review/reset"):
+                ReviewQueueStore.shared.reset()
+                return try Self.json(["ok": true, "total": 0, "due": 0])
             case ("GET", "/agent/gaps"):
                 return try Self.json(AgentGapStore.shared.payload())
             case ("POST", "/agent/gaps"):

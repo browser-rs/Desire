@@ -6602,6 +6602,7 @@ testReasoningEffortPolicy()
 testSemanticIndex()
 testTabDigestCore()
 testAgentWorkReport()
+testSemanticClusterAndDigest()
 
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
@@ -6830,6 +6831,50 @@ func testAgentWorkReport() {
     eq("workreport：maxTurns 序号从 1 起", limited.first?.turn, 1)
     eq("workreport：maxTurns 内容正确", limited.first?.goal, "Summarize this page")
     check("workreport：长目标截断", AgentWorkReportBuilder.clip(String(repeating: "x", count: 400), 300).count == 300)
+}
+
+func testSemanticClusterAndDigest() {
+    let a1: [Float] = [1, 0, 0]
+    let a2: [Float] = [0.98, 0.1, 0]
+    let b: [Float] = [0, 1, 0]
+    let clusters = SemanticClusterCore.cluster([
+        .init(id: "a1", vector: a1),
+        .init(id: "b", vector: b),
+        .init(id: "a2", vector: a2),
+    ], threshold: 0.7)
+    eq("cluster：两个簇", clusters.count, 2)
+    eq("cluster：相近者同簇", clusters.first { $0.contains("a1") }?.contains("a2") == true, true)
+    check("cluster：远离者单独成簇", clusters.contains { $0 == ["b"] })
+    eq("cluster：空输入", SemanticClusterCore.cluster([]).count, 0)
+    let strict = SemanticClusterCore.cluster([
+        .init(id: "a1", vector: a1),
+        .init(id: "a2", vector: a2),
+    ], threshold: 0.999)
+    eq("cluster：高阈值不合并", strict.count, 2)
+    let many = (0..<6).map {
+        SemanticClusterCore.VectorItem(id: "v\($0)", vector: [Float($0 + 1), 1])
+    }
+    check("cluster：不超过簇上限",
+          SemanticClusterCore.cluster(many, threshold: 0.99, maxClusters: 3).count <= 3)
+    eq("cluster：质心归一化", SemanticClusterCore.normalizedCentroid([3, 4], 1),
+       [0.6, 0.8])
+
+    let now = Date()
+    let items = [
+        KnowledgeDigestCore.Item(id: "1", title: "Old", text: "", kind: "Web",
+                                 date: now.addingTimeInterval(-10 * 86_400)),
+        KnowledgeDigestCore.Item(id: "2", title: "New", text: "a", kind: "Web", date: now),
+        KnowledgeDigestCore.Item(id: "3", title: "Mid", text: "b", kind: "PDF",
+                                 date: now.addingTimeInterval(-2 * 86_400)),
+    ]
+    let picked = KnowledgeDigestCore.pickRecent(items, since: now.addingTimeInterval(-7 * 86_400))
+    eq("digest：只取窗口内", picked.count, 2)
+    eq("digest：按时间倒序", picked.map(\.id), ["2", "3"])
+    let md = KnowledgeDigestCore.markdown(items: picked, clusters: [["2"]],
+                                          since: now.addingTimeInterval(-7 * 86_400), until: now)
+    check("digest：含主题标题", md.contains("主题 1"))
+    check("digest：含来源标签与条目", md.contains("[Web] New"))
+    check("digest：未聚类归其他", md.contains("其他") && md.contains("[PDF] Mid"))
 }
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

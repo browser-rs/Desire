@@ -1243,5 +1243,17 @@ final class MCPService {
             ],
             "_bridge": ["method": "POST", "path": "/agent/report/export", "body": ["path": "path"]],
         ],
+        [
+            "name": "weeklyKnowledgeDigest",
+            "description": "Cluster this week's excerpts (web selections / PDF annotations / reading highlights) into themes on-device and write a Markdown digest into the agent workspace. Deterministic: embeddings + greedy clustering, no model call.",
+            "inputSchema": [
+                "type": "object",
+                "properties": [
+                    "days": ["type": "integer", "description": "Window in days (default 7, max 365)"],
+                    "path": ["type": "string", "description": "Target directory (default: agent workspace)"],
+                ],
+            ],
+            "_bridge": ["method": "POST", "path": "/knowledge/weekly", "body": ["days": "days", "path": "path"]],
+        ],
     ]
 }

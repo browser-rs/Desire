@@ -30,6 +30,10 @@ struct AgentInboxView: View {
     @State private var selectedIDs: Set<String> = []
     /// 类型筛选（v0.7.27）：点击 chip 隐藏/显示一类条目（仅 UI 状态）。
     @State private var hiddenKinds: Set<AgentInbox.Kind> = []
+    /// 按主题分组（v0.8.22）：端上向量聚类，把同类事项收拢。
+    @State private var groupedByTopic = false
+    @State private var topicSections: [AgentInbox.Section] = []
+    @State private var groupingTopics = false
 
     private var allSections: [AgentInbox.Section] {
         let store = AgentInboxDismissalStore.shared
@@ -56,6 +60,11 @@ struct AgentInboxView: View {
 
     private var totalItems: Int { sections.reduce(0) { $0 + $1.items.count } }
 
+    /// 渲染用分节：按主题分组时用聚类结果，否则按类型（原行为）。
+    private var displaySections: [AgentInbox.Section] {
+        groupedByTopic && !topicSections.isEmpty ? topicSections : sections
+    }
+
     /// 选中条目里可重跑的任务名（failedRun）。
     private var selectedRunTaskNames: [String] {
         allSections.flatMap(\.items)
@@ -79,8 +88,16 @@ struct AgentInboxView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        ForEach(sections) { section in
+                        ForEach(displaySections) { section in
                             sectionView(section)
+                        }
+                        if groupingTopics {
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.small)
+                                Text(String(localized: "Grouping by topic…"))
+                                    .font(.system(size: 10.5))
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                     .padding(.horizontal, 12)
@@ -94,6 +111,17 @@ struct AgentInboxView: View {
             if isSelecting && !selectedIDs.isEmpty {
                 batchBar
             }
+        }
+        .task(id: groupedByTopic) {
+            guard groupedByTopic else {
+                topicSections = []
+                return
+            }
+            await computeTopicSections()
+        }
+        .onChange(of: totalItems) { _, _ in
+            guard groupedByTopic else { return }
+            Task { await computeTopicSections() }
         }
     }
 
@@ -204,6 +232,19 @@ struct AgentInboxView: View {
                 .buttonStyle(.plain)
                 .help("Restore all ignored / snoozed items")
             }
+            if totalItems >= 4, !isSelecting {
+                Button {
+                    groupedByTopic.toggle()
+                } label: {
+                    Image(systemName: groupedByTopic ? "text.alignleft" : "sparkles")
+                        .font(.system(size: 10.5))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(groupedByTopic ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+                .help(groupedByTopic
+                      ? String(localized: "Group by type")
+                      : String(localized: "Group by topic"))
+            }
             if totalItems > 0 {
                 Button(isSelecting ? String(localized: "Done") : String(localized: "Select")) {
                     isSelecting.toggle()
@@ -217,6 +258,59 @@ struct AgentInboxView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .overlay(alignment: .bottom) { Divider().opacity(0.6) }
+    }
+
+    // MARK: - 主题分组（v0.8.22）
+
+    /// 把当前可见条目按语义聚成主题（端上向量 + 贪心；不同语言分开聚）。
+    /// 条目少(<4)时不需要分组；嵌入全部失败则退回按类型。
+    private func computeTopicSections() async {
+        let items = sections.flatMap(\.items)
+        guard items.count >= 4 else {
+            topicSections = []
+            return
+        }
+        groupingTopics = true
+        defer { groupingTopics = false }
+        let clusters: [[String]] = await Task.detached(priority: .utility) {
+            var result: [[String]] = []
+            let grouped = Dictionary(grouping: items) { item in
+                SemanticText.detectLanguage(item.title + " " + item.detail)
+            }
+            for (language, group) in grouped {
+                var vectors: [SemanticClusterCore.VectorItem] = []
+                for item in group {
+                    guard let output = SemanticEmbedder.embed(
+                        SemanticText.embedInput(title: item.title, body: item.detail),
+                        language: language) else { continue }
+                    vectors.append(.init(id: item.id, vector: output.vector))
+                }
+                result.append(contentsOf: SemanticClusterCore.cluster(vectors, threshold: 0.60))
+            }
+            return result
+        }.value
+
+        let byID = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+        var built: [AgentInbox.Section] = []
+        var used = Set<String>()
+        for (index, cluster) in clusters.enumerated() {
+            let members = cluster.compactMap { byID[$0] }
+            guard !members.isEmpty else { continue }
+            used.formUnion(members.map(\.id))
+            let lead = SemanticText.clip(members[0].title, max: 30)
+            built.append(AgentInbox.Section(
+                id: "topic-\(index)",
+                title: String(localized: "Topic \(index + 1)") + " · " + lead,
+                items: members))
+        }
+        let leftovers = items.filter { !used.contains($0.id) }
+        if !leftovers.isEmpty {
+            built.append(AgentInbox.Section(
+                id: "topic-other",
+                title: String(localized: "Other"),
+                items: leftovers))
+        }
+        topicSections = built
     }
 
     // MARK: - Sections

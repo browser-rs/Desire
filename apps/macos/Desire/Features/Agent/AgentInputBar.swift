@@ -14,6 +14,10 @@ struct AgentInputBar: View {
     var attachments: [String] = []
     var onAddAttachment: () -> Void = {}
     var onRemoveAttachment: (Int) -> Void = { _ in }
+    /// `@` 引用的标签页（v0.8.22）：面板持有，这里编辑（芯片可移除）。
+    @Binding var tabRefs: [AgentTabReference]
+    /// 可引用的标签页快照（当前窗口的 http(s) 标签）。
+    var tabCandidates: [AgentTabReference] = []
     var onSubmit: () -> Void
     /// Stops a running agent turn. While processing, the send button turns
     /// into a stop button and routes here.
@@ -46,6 +50,8 @@ struct AgentInputBar: View {
     /// slash 候选菜单：输入以 "/" 开头且尚无参数空格时弹出（过滤命令）。
     @State private var slashHighlight = 0
     @State private var slashDismissed = false
+    /// `@` 候选高亮（v0.8.22）。
+    @State private var atHighlight = 0
 
     // MARK: - Slash 候选菜单
 
@@ -73,6 +79,53 @@ struct AgentInputBar: View {
         slashDismissed = false
     }
 
+    // MARK: - @ 标签引用（v0.8.22）
+
+    /// 末尾以 `@` 开头的词 = 引用查询（slash 输入时不打扰；邮箱里的 @ 不触发）。
+    private var atToken: String? {
+        guard !text.hasPrefix("/"), !slashMenuVisible else { return nil }
+        guard let trailing = text.split(separator: " ", omittingEmptySubsequences: false).last else {
+            return nil
+        }
+        let token = String(trailing)
+        guard token.hasPrefix("@") else { return nil }
+        return String(token.dropFirst())
+    }
+
+    private var tabSuggestions: [AgentTabReference] {
+        guard let token = atToken else { return [] }
+        let query = token.lowercased()
+        let matches = tabCandidates.filter { candidate in
+            query.isEmpty
+                || candidate.title.lowercased().contains(query)
+                || candidate.url.lowercased().contains(query)
+        }
+        return Array(matches.prefix(6))
+    }
+
+    private var tabMenuVisible: Bool { !tabSuggestions.isEmpty }
+
+    private var tabEffectiveIndex: Int {
+        guard !tabSuggestions.isEmpty else { return 0 }
+        return min(max(atHighlight, 0), tabSuggestions.count - 1)
+    }
+
+    /// 选中候选：加进引用列表，并删掉输入里那截 `@token`。
+    private func attachTab(at index: Int? = nil) {
+        let idx = index ?? tabEffectiveIndex
+        guard tabSuggestions.indices.contains(idx) else { return }
+        let candidate = tabSuggestions[idx]
+        if !tabRefs.contains(where: { $0.id == candidate.id }) {
+            tabRefs.append(candidate)
+        }
+        let parts = text.split(separator: " ", omittingEmptySubsequences: false)
+        if let last = parts.last, last.hasPrefix("@") {
+            text = parts.dropLast().joined(separator: " ")
+        }
+        atHighlight = 0
+        isFocused = true
+    }
+
     var body: some View {
         VStack(spacing: 6) {
             if awaitingQuestion {
@@ -82,9 +135,15 @@ struct AgentInputBar: View {
             if !attachments.isEmpty {
                 attachmentStrip
             }
+            if !tabRefs.isEmpty {
+                tabRefStrip
+            }
             // slash 候选菜单：输入框**上方**的独立浮卡（不占胶囊内部空间）
             if slashMenuVisible {
                 slashMenu
+            }
+            if tabMenuVisible {
+                tabMenu
             }
             inputCapsule
                 .onChange(of: text) { _, newValue in
@@ -298,6 +357,10 @@ struct AgentInputBar: View {
                     .padding(.bottom, 6)
                     .frame(minHeight: 32, maxHeight: 120)
                     .onKeyPress(.upArrow) {
+                        if tabMenuVisible {
+                            atHighlight = max(0, tabEffectiveIndex - 1)
+                            return .handled
+                        }
                         // slash 菜单可见时 ↑ 移动高亮（优先于历史翻阅）。
                         if slashMenuVisible {
                             slashHighlight = max(0, slashEffectiveIndex - 1)
@@ -310,6 +373,10 @@ struct AgentInputBar: View {
                         return .handled
                     }
                     .onKeyPress(.downArrow) {
+                        if tabMenuVisible {
+                            atHighlight = min(tabSuggestions.count - 1, tabEffectiveIndex + 1)
+                            return .handled
+                        }
                         if slashMenuVisible {
                             slashHighlight = min(slashSuggestions.count - 1, slashEffectiveIndex + 1)
                             return .handled
@@ -325,6 +392,10 @@ struct AgentInputBar: View {
                         if press.modifiers.contains(.shift)
                             || press.modifiers.contains(.command) {
                             return .ignored
+                        }
+                        if tabMenuVisible {
+                            attachTab()
+                            return .handled
                         }
                         // slash 菜单可见：已敲完整命令 → 直接执行；否则补全
                         // 高亮候选（保留已输入的参数文本），菜单随之关闭。
@@ -378,6 +449,78 @@ struct AgentInputBar: View {
     /// Shows listening indicator or voice input errors.
     @ViewBuilder
     // MARK: - Slash 候选菜单
+
+    /// 已引用标签的芯片行（可逐条移除）。
+    private var tabRefStrip: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(tabRefs) { ref in
+                    HStack(spacing: 4) {
+                        Image(systemName: "link")
+                            .font(.system(size: 9, weight: .medium))
+                        Text(ref.title)
+                            .font(.system(size: 10.5))
+                            .lineLimit(1)
+                        Button {
+                            tabRefs.removeAll { $0.id == ref.id }
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 8, weight: .bold))
+                        }
+                        .buttonStyle(.plain)
+                        .help(String(localized: "Remove"))
+                    }
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3)
+                    .background(Capsule().fill(appAccent.opacity(0.10)))
+                    .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    /// `@` 候选菜单：输入框上方的独立浮卡（与 slash 菜单同款材质）。
+    private var tabMenu: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ForEach(Array(tabSuggestions.enumerated()), id: \.element.id) { index, candidate in
+                Button {
+                    attachTab(at: index)
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "tab")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(candidate.title.isEmpty ? candidate.url : candidate.title)
+                                .font(.system(size: 11.5, weight: .medium))
+                                .lineLimit(1)
+                            Text(candidate.url)
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                        }
+                        Spacer(minLength: 6)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .contentShape(Rectangle())
+                    .background(
+                        index == tabEffectiveIndex
+                            ? AnyShapeStyle(.tint.opacity(0.15))
+                            : AnyShapeStyle(.clear)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.vertical, 4)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(Color(nsColor: .separatorColor).opacity(0.6), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
+    }
 
     private var slashMenu: some View {
         ScrollViewReader { proxy in

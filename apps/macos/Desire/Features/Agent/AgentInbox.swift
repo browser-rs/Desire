@@ -17,7 +17,7 @@ nonisolated enum AgentInbox {
         case jobAttention
     }
 
-    struct Item: Identifiable, Equatable {
+    struct Item: Identifiable, Equatable, Sendable {
         let id: String
         let kind: Kind
         let title: String
@@ -28,7 +28,7 @@ nonisolated enum AgentInbox {
         var jobID: UUID? = nil
     }
 
-    struct Section: Identifiable, Equatable {
+    struct Section: Identifiable, Equatable, Sendable {
         let id: String
         let title: String
         let items: [Item]

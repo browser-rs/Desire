@@ -17,6 +17,9 @@ struct ExcerptsPanel: View {
     @State private var selectedExcerptIDs: Set<UUID> = []
     /// 查找相关（v0.8.22 批二）：跨源语义近邻小窗。
     @State private var relatedRequest: SemanticRelatedRequest?
+    /// 今日回顾（v0.8.22）：间隔重复队列。
+    @ObservedObject private var reviewQueue = ReviewQueueStore.shared
+    @State private var showReview = false
 
     private var items: [Excerpt] { store.filtered(query: query, kind: kindFilter) }
 
@@ -24,6 +27,9 @@ struct ExcerptsPanel: View {
         VStack(spacing: 0) {
             header
                 .sheet(item: $relatedRequest) { SemanticRelatedSheet(request: $0) }
+                .sheet(isPresented: $showReview) {
+                    ReviewSheet(onClose: { showReview = false })
+                }
             filterBar
             Divider()
             if items.isEmpty {
@@ -51,6 +57,7 @@ struct ExcerptsPanel: View {
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
+        .task { reviewQueue.sync(with: store.excerpts) }
     }
 
     // MARK: - 头部与过滤
@@ -66,6 +73,21 @@ struct ExcerptsPanel: View {
                 .font(.system(size: 10.5, design: .monospaced))
                 .foregroundStyle(.tertiary)
             Spacer()
+            Button {
+                reviewQueue.sync(with: store.excerpts)
+                showReview = true
+            } label: {
+                if reviewQueue.due.isEmpty {
+                    Image(systemName: "clock.arrow.circlepath")
+                } else {
+                    Label(String(localized: "\(reviewQueue.due.count) due"),
+                          systemImage: "clock.arrow.circlepath")
+                        .font(.system(size: 11, weight: .medium))
+                }
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(reviewQueue.due.isEmpty ? AnyShapeStyle(.secondary) : AnyShapeStyle(appAccent))
+            .help(String(localized: "Review due excerpts"))
             if isSelectingExcerpts {
                 Button {
                     draftWithAgent()

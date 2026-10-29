@@ -4158,3 +4158,101 @@ v0.8.1 的菜单入口只有"移交会话"，这版补齐：
     仍需重登"。
 28. **审批卡元素可读描述**（P2）：点击/输入类审批卡附元素名/角色/附近文字
     （现在只有选择器），降低"盲批"风险；与 12（看现场）配套。
+
+## v0.8.24 规划稿（2026-10-30）—— 模式收口与隔离深化
+
+> 四主题骨架，20 项。v0.8.23 把三种模式的主体做出来了，但有几处"能用但
+> 不完整"的地方（混合模式 Peek 没有呈现、专注面板不能手动导航、crew 没有
+> 隔离、通知不感知模式）。本版 = **把模式做完整 + 把隔离做扎实**。
+>
+> 版本号 **v0.8.24**。只规划，过目后才开发。
+
+### 存量盘点（2026-10-30 核实）
+
+- **混合模式 Peek 无呈现**：`PeekCenter.present()` 只在 agentFocus 锁面板，
+  其他模式只置状态；用户收到的只有一条通知，没有"看一眼"的浮层/徽标。
+  （真实缺口，P0）
+- **专注面板不能手动导航**：`AgentWorkspaceView` 只有标签条 + WebView，没有
+  地址栏/前进后退/刷新/关闭；Peek 接管时用户没法办事。（真实缺口，P0）
+- **Agent 窗口没有身份标识**：标题为空、无角色徽章；Mission Control 里两窗难分。
+- **crew 无隔离参数**：`crewDispatch` 没有 `isolation`；worker 共用同一档案。
+- **通知策略不感知模式**：`NotificationPolicy` 只有 routine/urgent/免打扰，
+  没有"Agent 模式下合并 routine"。
+- **角色化解析未统一**：crew/handoff/Remote/桥仍各自用 `activeTabManager` 猜。
+- **consent/迁移提示缺**：切模式时对在跑回合/排队消息/待批审批没有提示。
+- 已有可复用件：`tabPreviewPanel` 的 `.nonactivatingPanel` 先例；
+  `WKWebsiteDataStore.nonPersistent()`（无痕已在用）；`/diag/windows`。
+
+### 一、模式收口（8 项）
+
+1. **混合模式 Peek 浮层**（P0，旗舰）：非激活 `NSPanel`
+   （`.nonactivatingPanel` + `.canJoinAllSpaces`）+ 定时 `takeSnapshot` 缩略图
+   （**非 live reparent**）+ 原因 + "去处理"；点击才激活 Agent 窗口；完成后
+   自动收起并写回备注。`/diag/windows` 与 `/peek` 暴露 visible/locked。
+2. **专注面板升级为可用浏览器**（P0）：地址栏（URL/搜索，复用 URLResolution）、
+   前进/后退/刷新/停止、新建/关闭标签、下载按钮；Peek 接管时用户能完成
+   登录/验证码/确认。面板标签的加载状态/标题实时反映到迷你条。
+3. **Agent 窗口身份**（P1）：标题"Agent 工作区"、角色徽章/细色条、最小尺寸；
+   Mission Control 可辨；关窗后保留角色，按需补开（只在用户在场时）。
+4. **启动与关窗语义**（P1）：启动严格按模式恢复（agentFocus 只开工作台；
+   hybrid 恢复两窗；browser 现状）；关掉工作台且 agentFocus → 降级 browser
+   并提示；关掉 Agent 窗不改角色，hybrid 下需要时补开（用户在场才补）。
+5. **通知 × 模式**（P1）：agentFocus 下 routine 合并成摘要、urgent 直推；
+   hybrid 下 Agent 窗口任务用菜单栏/工具栏徽标，不弹窗；免打扰仍优先。
+6. **角色化统一**（P1）：`WindowTargetResolver`（user/agent/agentPane）统一
+   crew `windowMode`、handoff、Remote、桥端点的目标解析；找不到目标时明确
+   报错，不再落到"活动窗口"。
+7. **焦点回归探针进 CI**（P1）：`tests/release-smoke.py` 增模式矩阵——
+   后台 Agent 操作前后 key 不变；切模式后角色/容器正确；Peek 前后 locked 正确。
+8. **模式对比与迁移提示**（P2）：设置页"模式对比"表（界面/隔离/登录态/
+   打扰规则）；切换时若在跑回合/有排队消息/待批审批 → 明确提示落点。
+
+### 二、隔离与登录（4 项）
+
+9. **临时（内存）Agent 会话**（P1）：`WKWebsiteDataStore.nonPersistent()` 承载
+   一次性/不可信任务，结束即清；桥/MCP `POST /agent/session {kind:"ephemeral"}`。
+10. **crew 并行隔离**（P1）：`crewDispatch` 增 `isolation: persistent|ephemeral`
+    （默认 ephemeral）；持久容器**单写者**断言（第二个会话尝试同一容器 → 明确
+    报错）；worker 的结果回执注明隔离级别。
+11. **登录态快照（仅 cookies）**（P2）：把当前档案 cookies 拷进临时会话；
+    UI 明示"localStorage/IndexedDB 不迁移，部分站点仍需重登"。
+12. **共享登录态的安全提示**（P2）：选择"沿用当前登录态"时二次确认 +
+    常驻提示（Agent 能看到你的登录态）；切换回隔离容器时清理提示。
+
+### 三、常规（5 项）
+
+13. **拖文件到标签栏/工具栏**（P2）：与页面拖放同路由（开新标签/多文件），
+    不干扰标签重排（按 pasteboard 类型分流）。
+14. **工具栏模式徽章 + Agent 活动指示**（P2）：显示当前模式、哪个窗口正被
+    Agent 操作、一键切换；browser 模式下不占额外空间（仅图标 + tooltip）。
+15. **迷你条缩略图**（P2）：定时 `takeSnapshot`（非 reparent），折叠时显示
+    Agent 当前页缩略图；展开后隐藏（省 CPU）。
+16. **Agent 窗口的面板一致性**（P2）：Agent 窗口里打开的 DevTools/分屏/侧栏
+    必须作用于该窗口的 manager（现有 WindowToolSurface 已按窗口，补 UI 标识
+    与"不会动用户窗口"的说明）。
+17. **并排窗口动作**（P3）：菜单一键平铺用户窗与 Agent 窗（仅 `setFrame`，
+    不做应用内分屏）。
+
+### 四、贯穿（3 项）
+
+18. **模式 E2E 矩阵**（P1）：Peek 请求/呈现/完成（桥 + snapshot）；临时会话
+    隔离（两个会话互不可见 cookie）；crew ephemeral（结果回执带隔离级别）；
+    关工作台降级；关 Agent 窗后补开。
+19. **文档与可发现性**（P3）：`docs/USAGE-MODES.md` 定稿（三模式速查 + 登录态
+    四策略 + 常见问题）；设置搜索目录补条目；产品页特性行（发版手工）。
+20. **可靠性取值**（P2）：强杀/崩溃下角色恢复实测（S4 崩溃路径补测）；补开
+    Agent 窗口失败（无窗口/后台）时的降级提示与重试；面板折叠 8 小时长跑无泄漏。
+
+### 明确不在本版
+
+- 同窗口双标签集/第二套标签栏；应用内任意分屏（用户可手动平铺）。
+- 云/VM 隔离；按站点混合登录态；改 `AgentMode` 语义。
+- passkey / 翻译引擎可插拔 / PDF 大纲编辑 / 站点数据定时清理等既有撤项。
+
+### 批次
+
+- **第一批**：1+2+3（Peek 浮层 + 面板升级 + 窗口身份）。
+- **第二批**：4+5+6+7（启动/关窗、通知×模式、角色统一、探针进 CI）。
+- **第三批**：9+10+11+12（临时会话 + crew 隔离 + cookies 快照 + 安全提示）。
+- **第四批（收口）**：8+13–20 + 贯穿对账。
+- 每批独立提交；P0 全绿且你过目后才发版。

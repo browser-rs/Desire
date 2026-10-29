@@ -293,6 +293,18 @@
             "state" : "new",
             "value" : "· %1$@ · %2$@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· %@ · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "· %@ · %@"
+          }
         }
       }
     },
@@ -435,6 +447,18 @@
             "state" : "new",
             "value" : "[%1$@] %2$@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "[%@] %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "[%@] %@"
+          }
         }
       }
     },
@@ -528,6 +552,18 @@
             "state" : "new",
             "value" : "#%1$lld %2$@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "#%lld %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "#%lld %@"
+          }
         }
       }
     },
@@ -586,6 +622,18 @@
             "state" : "new",
             "value" : "%1$@ — saved to Downloads (%2$lld×%3$lld)."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — 已保存到下载目录（%lld×%lld）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ — 已儲存到下載目錄（%lld×%lld）。"
+          }
         }
       }
     },
@@ -640,6 +688,18 @@
             "state" : "new",
             "value" : "%1$@ · %2$lld prompt / %3$lld completion"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %lld 输入 / %lld 输出"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %lld 輸入 / %lld 輸出"
+          }
         }
       }
     },
@@ -649,6 +709,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$@ · %2$lld step(s)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %lld 步"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@ · %lld 步"
           }
         }
       }
@@ -1038,6 +1110,18 @@
             "state" : "new",
             "value" : "%1$lld active · %2$lld need review · %3$lld failed"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 活跃 · %lld 待复核 · %lld 失败"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 活躍 · %lld 待複核 · %lld 失敗"
+          }
         }
       }
     },
@@ -1417,6 +1501,18 @@
             "state" : "new",
             "value" : "%1$lld prompt / %2$lld completion"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 输入 / %lld 输出"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 輸入 / %lld 輸出"
+          }
         }
       }
     },
@@ -1631,6 +1727,18 @@
             "state" : "new",
             "value" : "%1$lld tabs · %2$lld suspended · %3$lld playing audio · %4$lld duplicate group(s)"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 个标签页 · %lld 已挂起 · %lld 正在播放音频 · %lld 组重复"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld 個標籤頁 · %lld 已暫停 · %lld 正在播放音訊 · %lld 組重複"
+          }
         }
       }
     },
@@ -1685,6 +1793,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "%1$lld watched · %2$lld changed · %3$lld alert(s) · %4$lld error(s) in 24h"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "24 小时内 %lld 个已监视 · %lld 个有变化 · %lld 个提醒 · %lld 个错误"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "24 小時內 %lld 個已監視 · %lld 個有變化 · %lld 個提醒 · %lld 個錯誤"
           }
         }
       }
@@ -3563,6 +3683,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Added “%1$@” for %2$@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已添加“%@”（%@）。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已新增「%@」（%@）。"
           }
         }
       }
@@ -8349,6 +8481,18 @@
             "state" : "new",
             "value" : "Checked %1$lld / %2$lld"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已检查 %lld / %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已檢查 %lld / %lld"
+          }
         }
       }
     },
@@ -8358,6 +8502,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Checked %1$lld: %2$lld dead link(s), %3$lld cross-site redirect(s). Nothing has been deleted."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已检查 %lld 个：%lld 个死链、%lld 个跨站重定向。未删除任何内容。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已檢查 %lld 個：%lld 個失效連結、%lld 個跨站重新導向。未刪除任何內容。"
           }
         }
       }
@@ -9577,6 +9733,18 @@
             "state" : "new",
             "value" : "Collected %1$lld row(s) from %2$lld page(s)."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已从 %lld 个页面采集 %lld 行。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已從 %lld 個頁面採集 %lld 列。"
+          }
         }
       }
     },
@@ -10749,6 +10917,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Cookie 弹窗%1$@（%2$@）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cookie 弹窗%@（%@）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cookie 彈窗%@（%@）"
           }
         }
       }
@@ -14581,6 +14761,18 @@
             "state" : "new",
             "value" : "Dropped below %1$@ — now %2$@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已低于 %@ — 当前 %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已低於 %@ — 目前 %@"
+          }
         }
       }
     },
@@ -17606,6 +17798,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "fixture: %1$@ · %2$lld"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "夹具：%@ · %lld"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "夾具：%@ · %lld"
           }
         }
       }
@@ -22994,6 +23198,12 @@
             "state" : "translated",
             "value" : "Mermaid 導圖/流程圖"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mermaid 导图/流程图"
+          }
         }
       }
     },
@@ -23865,6 +24075,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Never allow %1$@ on %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "始终不允许 %@ 在 %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一律不允許 %@ 在 %@"
           }
         }
       }
@@ -32899,6 +33121,18 @@
             "state" : "new",
             "value" : "Recording on %1$@ · %2$lld step(s)"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在录制 %@ · %lld 步"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在錄製 %@ · %lld 步"
+          }
         }
       }
     },
@@ -35200,6 +35434,18 @@
             "state" : "new",
             "value" : "Rose above %1$@ — now %2$@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已高于 %@ — 当前 %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已高於 %@ — 目前 %@"
+          }
         }
       }
     },
@@ -36287,6 +36533,18 @@
             "state" : "new",
             "value" : "Scanned %1$lld source(s), added %2$lld new mention(s)."
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已扫描 %lld 个来源，新增 %lld 条提及。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已掃描 %lld 個來源，新增 %lld 則提及。"
+          }
         }
       }
     },
@@ -36339,6 +36597,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Scheduled “%1$@” %2$@."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已计划“%@” %@。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已排程「%@」%@。"
           }
         }
       }
@@ -39137,6 +39407,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "Site scope: these decisions apply only to %1$@ on %2$@, not to other sites or tools. Revocable under Agent settings / the bridge."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "站点范围：这些决定仅适用于 %@ 上的 %@，不影响其他站点或工具。可在 Agent 设置 / 桥中撤销。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網站範圍：這些決定僅適用於 %@ 上的 %@，不影響其他網站或工具。可在 Agent 設定 / 橋中撤銷。"
           }
         }
       }
@@ -46339,6 +46621,12 @@
             "state" : "translated",
             "value" : "便箋"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "便签"
+          }
         }
       }
     },
@@ -46400,6 +46688,12 @@
             "state" : "translated",
             "value" : "全自動"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全自动"
+          }
         }
       }
     },
@@ -46416,6 +46710,12 @@
             "state" : "translated",
             "value" : "全自動 = 頁面事件直接喚醒智慧體並行動（敏感動作仍會詢問）"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全自动 = 页面事件直接唤醒智能体并行动（敏感动作仍会询问）"
+          }
         }
       }
     },
@@ -46431,6 +46731,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "關閉"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关闭"
           }
         }
       }
@@ -46585,6 +46891,12 @@
             "state" : "translated",
             "value" : "圖表（ECharts）"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图表（ECharts）"
+          }
         }
       }
     },
@@ -46600,6 +46912,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "在工具結果中注入 DPP 提示"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在工具结果中注入 DPP 提示"
           }
         }
       }
@@ -46617,6 +46935,12 @@
             "state" : "translated",
             "value" : "在白板面板中編輯與匯出"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在白板面板中编辑与导出"
+          }
         }
       }
     },
@@ -46629,6 +46953,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "块 %1$lld · %2$@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "块 %lld · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "區塊 %lld · %@"
           }
         }
       }
@@ -46699,6 +47035,12 @@
             "state" : "translated",
             "value" : "匯入 .board（追加區塊）"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入 .board（追加块）"
+          }
         }
       }
     },
@@ -46715,6 +47057,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "匯出 .board（JSON）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出 .board（JSON）"
           }
         }
       }
@@ -46741,6 +47089,12 @@
             "state" : "translated",
             "value" : "匯出 PNG 到「下載」資料夾"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出 PNG 到下载目录"
+          }
         }
       }
     },
@@ -46763,6 +47117,12 @@
             "state" : "translated",
             "value" : "展開或收起白板預覽"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "展开或收起白板预览"
+          }
         }
       }
     },
@@ -46775,6 +47135,12 @@
           }
         },
         "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已加入白板 ✓"
+          }
+        },
+        "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "已加入白板 ✓"
@@ -47042,6 +47408,12 @@
             "state" : "translated",
             "value" : "手動新增區塊（進入原始碼編輯）"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手动添加块（进入源码编辑）"
+          }
         }
       }
     },
@@ -47064,6 +47436,12 @@
             "state" : "translated",
             "value" : "打開白板"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开白板"
+          }
         }
       }
     },
@@ -47076,6 +47454,12 @@
           }
         },
         "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "投到白板"
+          }
+        },
+        "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "投到白板"
@@ -47197,6 +47581,18 @@
             "state" : "new",
             "value" : "断点 %1$@ · %2$@"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "断点 %@ · %@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "斷點 %@ · %@"
+          }
         }
       }
     },
@@ -47234,6 +47630,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "更多設定：設定 → AI → DPP 協定"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "更多配置：设置 → AI → DPP 协议"
           }
         }
       }
@@ -47278,6 +47680,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "本站事件檔位（%@）"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "本站事件档位（%@）"
           }
         }
       }
@@ -47392,6 +47800,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此頁面宣告了 Desire Page Protocol——點按查看與設定"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "此页面声明了 Desire Page Protocol — 点击查看与配置"
           }
         }
       }
@@ -47541,6 +47955,12 @@
             "state" : "translated",
             "value" : "清空白板"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "清空白板"
+          }
         }
       }
     },
@@ -47553,6 +47973,12 @@
           }
         },
         "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "渲染 Mermaid…"
+          }
+        },
+        "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "渲染 Mermaid…"
@@ -47629,6 +48055,12 @@
             "state" : "translated",
             "value" : "點按重新命名"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点击重命名"
+          }
         }
       }
     },
@@ -47689,6 +48121,12 @@
             "state" : "translated",
             "value" : "白板"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "白板"
+          }
         }
       }
     },
@@ -47705,6 +48143,12 @@
             "state" : "translated",
             "value" : "白板 · %lld 個區塊"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "白板 · %lld 块"
+          }
         }
       }
     },
@@ -47717,6 +48161,12 @@
           }
         },
         "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "白板已清空"
+          }
+        },
+        "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "白板已清空"
@@ -47736,6 +48186,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "白板是空的——讓智慧體畫點東西。"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "白板是空的——让智能体画点什么。"
           }
         }
       }
@@ -47799,6 +48255,18 @@
           "stringUnit" : {
             "state" : "new",
             "value" : "第 %1$lld / %2$lld 块"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld / %lld 块"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld / %lld 個區塊"
           }
         }
       }
@@ -47906,6 +48374,12 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "網頁選取範圍"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "网页选区"
           }
         }
       }
@@ -48036,6 +48510,12 @@
             "state" : "translated",
             "value" : "草稿"
           }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "草稿"
+          }
         }
       }
     },
@@ -48048,6 +48528,12 @@
           }
         },
         "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表格"
+          }
+        },
+        "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "表格"

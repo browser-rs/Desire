@@ -4275,6 +4275,73 @@ v0.8.1 的菜单入口只有"移交会话"，这版补齐：
 11. 隔离默认值首启引导（询问后写默认）P2
 12. 观测节流（不可见时缩略图/快照降频）P2
 
+## v0.8.27 规划稿（2026-10-31，待过目）—— desire:// 内置页面体系 + 工具集合再扩充
+
+> 三条线：① desire:// 从"只有 tools"扩成**内置页面体系**（发挥想象的主战场）；
+> ② 工具集合第二批 +15（凑 58 项）；③ 常规迭代（Agent 接入工具箱核心、可发现性）。
+> 规划前已核实：地址栏无 desire:// 建议、新标签页无工具箱入口、Agent 无 hash/random
+> 类工具、Settings 的 11 个 Section 全是 String rawValue（可直接深链）。
+
+**一、desire:// 内置页面体系（旗舰，10 项）**
+
+1. **Router 升级**：`InternalPages.parse` 从"只认 tools"扩成内置 host 白名单——
+   `tools / newtab / settings / history / bookmarks / downloads / agent /
+   whiteboard / whatsnew / about / search / passwords / containers / plugins /
+   sync / stats / doctor / shortcuts`；`desire://<page>` 与
+   `desire://<page>/<param>?query` 两级；未知 host 落**兜底页**（列出全部内置页可点击）。
+2. **两类页面**：标签内渲染页（tools/about…）与**面板唤起页**
+   （settings/downloads/agent/whiteboard…——深链只负责打开对应面板，不抢标签）。
+3. **desire://settings/<section>**：直达设置分区（复用
+   `SettingsSectionNavigator`；11 个 Section 都是 String rawValue，天然支持）。
+4. **desire://search?q=…**：集中搜索预填并打开（复用 RelatedSearchCenter 通道）。
+5. **desire://agent/new、desire://agent/<conversationId>**：Agent 新会话 / 装载指定会话。
+6. **desire://whiteboard?text=…**：快速投递——划词/外部文本一键进白板笔记块。
+7. **desire://whatsnew、desire://about**：更新说明弹层；about 做成标签内页
+   （版本/构建/桥地址/工具数/系统信息摘要）。
+8. **desire://newtab** 转正：现在只有 agent 工具层特殊判断，Router 收编。
+9. **可发现性**：新标签页加"工具箱"快捷卡；地址栏输入 tools/工具箱 出
+   `desire://tools` 建议；命令面板与 Help 菜单收录常用内置页。
+10. **桥同步**：`/open-url` 放行全部内置 host；`/state` 的 toolsPage 字段泛化成
+    internalPage；`/diag/pages` 列出全部内置页与深链（文档用）。
+
+**二、工具集合第二批（+15 → 58 项，全部端上）**
+
+11. **roman** 罗马数字 ↔ 阿拉伯数字（1–3999）。
+12. **a1** Excel 列号 ↔ 序号（A1→1，ZZ→702；顺带行列互换）。
+13. **crc32** CRC32 校验（文本/文件）。
+14. **sha3** SHA3-256/512（CryptoKit 现成）。
+15. **base58** Base58 编解码（Bitcoin 字母表）。
+16. **regexreplace** 正则替换（模式 + 替换模板 + 实时预览，复用 RegexToolCore）。
+17. **markdown** Markdown → HTML（标题/列表/粗斜体/代码/链接，可复制 HTML）。
+18. **ascii** ASCII 码表查询（字符 ↔ 码位，含控制字符说明）。
+19. **lorem** 占位文本生成（段落/句子，中英两版）。
+20. **httpheaders** 常见 HTTP 请求/响应头速查（静态表 + 搜索）。
+21. **fileinfo** 文件信息（大小/类型/创建修改时间/图片 EXIF 摘要）。
+22. **discount** 折扣计算（原价×折数，叠加满减可先不做）。
+23. **billsplit** AA 分账（总额 + 人数 + 小费比例 → 每人应付）。
+24. **barcode** Code128 条码生成（纯逻辑编码 + 手绘条空渲染）。
+25. **uuid** 升级：加 UUID v7 选项（时间有序，落库友好）。
+
+**三、常规迭代（6 项）**
+
+26. **Agent 工具接入工具箱核心**：新增 agent 工具 `toolbox`（action 分发：
+    hash/random/roman/a1/crc32/markdown/…），纯计算不再绕 executeJS。
+27. **浏览器基础**：新标签页"工具箱"入口卡（地址栏建议同 9）。
+28. **融合**：工具详情页跨页跳转——结果卡上直接给相关 desire:// 链接
+    （如 JSON 工具 → desire://tools/csvjson）。
+29. **替人干活**：`collectDataset` 导出格式补 xlsx（复用 SpreadsheetXLSXWriter）。
+30. **可靠性**：What's New 守卫已落地（0.8.26 之后每版刷亮点，AGENTS.md 有清单）。
+31. **可发现性**：About 页 + /diag/pages 让所有内置页"能被找到"。
+
+**四、贯穿**
+
+32. i18n：新增键三语（工具名/副标题 ~120 键 + 内置页 ~60 键）。
+33. 文档：docs/DEEPLINKS.md（全部 desire:// 页面与参数），docs/TOOLBOX.md 更新到 58 项。
+
+**批次**：① Router + 兜底页 + settings/search/agent/whiteboard 深链（1/2/3/4/5/6/8/10）
+→ ② 工具第二批 + uuid v7（11–25）→ ③ Agent 工具接入 + 可发现性（26/27/28/29/31）
+→ ④ about/whatsnew 页 + i18n/文档（7/32/33）。
+
 ## v0.8.26 办公增强 + 内置工具集合（2026-10-30，开发完成待发）
 
 > 目标：把"办公文件在浏览器里能看、能转、能出活"补齐；用户点名 JSON 格式化/美化。

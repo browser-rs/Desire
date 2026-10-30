@@ -80158,6 +80158,138 @@
           }
         }
       }
+    },
+    "Timeline editing, the real thing" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Timeline editing, the real thing"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多轨时间线，来真的"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "多軌時間線，來真的"
+          }
+        }
+      }
+    },
+    "Magnetic snapping, multi-select, full keyboard control (S / ⌘Z / ⌘A / arrows), a source monitor, cross-dissolves, speed and volume per clip — then export with presets or let the agent do it via editTimeline." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magnetic snapping, multi-select, full keyboard control (S / ⌘Z / ⌘A / arrows), a source monitor, cross-dissolves, speed and volume per clip — then export with presets or let the agent do it via editTimeline."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "磁性贴齐、多选、全键盘操作（S / ⌘Z / ⌘A / 方向键）、源监视器、交叉溶解、逐片段速度与音量——导出可设预设，或一句话交给 editTimeline。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "磁性貼齊、多選、全鍵盤操作（S / ⌘Z / ⌘A / 方向鍵）、源監視器、交叉溶解、逐片段速度與音量——匯出可設預設，或一句話交給 editTimeline。"
+          }
+        }
+      }
+    },
+    "Player: A-B loop & subtitles" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Player: A-B loop & subtitles"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放器：AB 循环与字幕"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放器：AB 循環與字幕"
+          }
+        }
+      }
+    },
+    "Loop any segment with the L key, nudge subtitle timing ±0.5s, restyle size and position, and grab the current frame to the clipboard with H." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Loop any segment with the L key, nudge subtitle timing ±0.5s, restyle size and position, and grab the current frame to the clipboard with H."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L 键循环任意片段、字幕延迟 ±0.5s 微调、字号与位置随心设，H 键截当前帧进剪贴板。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "L 鍵循環任意片段、字幕延遲 ±0.5s 微調、字號與位置隨心設，H 鍵截當前幀進剪貼板。"
+          }
+        }
+      }
+    },
+    "Toolbox: 59 tools, all offline" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toolbox: 59 tools, all offline"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具箱：59 个工具，全部离线"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具箱：59 個工具，全部離線"
+          }
+        }
+      }
+    },
+    "desire://tools — video/audio editing with multi-track timeline, plus calculators, JSON, hashing, encryption, barcode and more." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "desire://tools — video/audio editing with multi-track timeline, plus calculators, JSON, hashing, encryption, barcode and more."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "desire://tools —— 多轨时间线的视频/音频剪辑，加计算器、JSON、哈希、加密、条码等。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "desire://tools —— 多軌時間線的影片/音訊剪輯，加計算機、JSON、雜湊、加密、條碼等。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

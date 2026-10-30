@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "film.stack", title: String(localized: "Video & audio editing"),
-                  detail: String(localized: "Dragged-in videos open in a real playback mode — custom controls, speed, picture-in-picture, resume where you left off. Trim and merge in desire://tools.")),
-            .init(icon: "camera.filters", title: String(localized: "Image editor: filters & tuning"),
-                  detail: String(localized: "Nine one-tap presets (Vivid, Noir, Instant…) plus exposure and color-temperature sliders — on top of crop, annotate and OCR.")),
-            .init(icon: "wrench.and.screwdriver", title: String(localized: "Toolbox: 59 built-in tools"),
-                  detail: String(localized: "Open desire://tools — Roman numerals, Excel columns, CRC32, SHA-3, Base58, Markdown→HTML, barcode and more.")),
+            .init(icon: "timeline", title: String(localized: "Timeline editing, the real thing"),
+                  detail: String(localized: "Magnetic snapping, multi-select, full keyboard control (S / ⌘Z / ⌘A / arrows), a source monitor, cross-dissolves, speed and volume per clip — then export with presets or let the agent do it via editTimeline.")),
+            .init(icon: "repeat.1.circle", title: String(localized: "Player: A-B loop & subtitles"),
+                  detail: String(localized: "Loop any segment with the L key, nudge subtitle timing ±0.5s, restyle size and position, and grab the current frame to the clipboard with H.")),
+            .init(icon: "wrench.and.screwdriver", title: String(localized: "Toolbox: 59 tools, all offline"),
+                  detail: String(localized: "desire://tools — video/audio editing with multi-track timeline, plus calculators, JSON, hashing, encryption, barcode and more.")),
             .init(icon: "link", title: String(localized: "desire:// page system"),
                   detail: String(localized: "desire://about, a fallback index of every built-in page, and deep links that work from anywhere.")),
         ]

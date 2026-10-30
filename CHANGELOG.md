@@ -1,3 +1,13 @@
+## [Unreleased]
+### Added
+
+- Multi-track video editor goes production-grade: magnetic snapping (playhead/clip edges/second ticks, ⌘ to bypass), multi-select (⌘ toggle / ⇧ range) with batch delete and mute, full keyboard control (S split, Delete, ⌘Z, ⌘A, arrows, Home/End, =/- zoom), and a source monitor (preview a pool item, mark in/out, insert the trimmed range at the playhead) (v0.8.28)
+- `editTimeline` agent tool: build a timeline from local video/audio clips (in-point, duration, speed, volume per clip) and export mp4/m4a — "merge these three clips, mute the second one, 2× the last" is now one sentence (v0.8.28)
+- Export presets (source/1080p/720p resolution, audio-only m4a) and a clip context menu (split, duplicate, transition/mute toggle, delete) (v0.8.28)
+- Player: A-B loop (button or L key, jumps back at B), subtitle delay ±0.5s, subtitle size/position settings, and H-key frame capture to the clipboard (v0.8.28)
+- Editor: per-track mute (audio tracks skip mixing entirely) and deletable extra tracks (v0.8.28)
+
+
 ## [v0.8.27] - 2026-10-31
 ### Added
 

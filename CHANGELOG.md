@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.27] - 2026-10-31
 ### Added
 
 - Toolbox grows to 59 tools: Roman numerals, Excel column letters, CRC-32, SHA-3, Base58, regex replace with capture groups, Markdown→HTML, ASCII table, placeholder text generator, HTTP header lookup, file info with EXIF, discount calculator, bill split, Code128 barcode generator, UUID v7 option, plus Video Editor and Audio Editor (v0.8.27)

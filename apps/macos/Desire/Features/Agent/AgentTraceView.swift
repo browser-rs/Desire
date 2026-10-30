@@ -402,8 +402,20 @@ private struct TurnTraceCard: View {
     /// 工作流提炼（v0.7.29）：把本回合的 navigate/click/fill 存成可回放草稿。
     var onSaveWorkflow: ((WorkflowDistill.Draft) -> Void)? = nil
     @State private var expanded = false
+    /// 失败步骤重跑（v0.8.25）：正在跑的 callId 与回执。
+    @State private var rerunningCallID: String?
+    @State private var rerunNote: String?
 
     private var steps: [[String: Any]] { (turn["steps"] as? [[String: Any]]) ?? [] }
+
+    /// 只有"正在看的会话 = 活会话"才能重跑（参数来自内存里的原调用）。
+    private var liveSession: AgentSessionStore? {
+        guard let session = AgentScheduler.shared.deliveryTarget,
+              session.conversationId?.uuidString == (turn["conversation"] as? String) else {
+            return nil
+        }
+        return session
+    }
 
     private var workflowDraft: WorkflowDistill.Draft? {
         WorkflowDistill.draft(fromTurn: turn)
@@ -458,6 +470,11 @@ private struct TurnTraceCard: View {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(Array(steps.enumerated()), id: \.offset) { _, step in
                         stepRow(step)
+                    }
+                    if let rerunNote {
+                        Text(rerunNote)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
                     }
                     timeDistributionView
                     costSplitView
@@ -554,6 +571,22 @@ private struct TurnTraceCard: View {
         }
     }
 
+    private func rerun(_ step: [String: Any]) {
+        guard let callId = step["callId"] as? String, let session = liveSession,
+              !session.isProcessing else { return }
+        rerunningCallID = callId
+        rerunNote = nil
+        Task { @MainActor in
+            let result = await session.rerunToolCall(id: callId, continueTurn: true)
+            rerunningCallID = nil
+            if result == nil {
+                rerunNote = String(localized: "Could not re-run that step (busy, or the call is no longer in this conversation).")
+            } else {
+                rerunNote = String(localized: "Re-ran \(step["action"] as? String ?? "step") — the agent continues from there.")
+            }
+        }
+    }
+
     private func stepRow(_ step: [String: Any]) -> some View {
         let denied = step["denied"] as? Bool ?? false
         let errored = step["threwError"] as? Bool ?? false
@@ -570,6 +603,24 @@ private struct TurnTraceCard: View {
                         .foregroundStyle(.tertiary)
                 }
                 Spacer(minLength: 0)
+                // 失败/被拒步骤一键重跑（v0.8.25）：沿用原参数，结果落回会话
+                // 并续跑模型。只在"看的会话就是活会话"时出现。
+                if (denied || errored), let callId = step["callId"] as? String,
+                   liveSession != nil {
+                    if rerunningCallID == callId {
+                        ProgressView().controlSize(.mini)
+                    } else {
+                        Button {
+                            rerun(step)
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help(String(localized: "Re-run this step with its original arguments"))
+                    }
+                }
             }
             if let observation = step["result"] as? String, !observation.isEmpty {
                 Text(observation)

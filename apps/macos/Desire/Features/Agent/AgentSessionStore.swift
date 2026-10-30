@@ -1002,6 +1002,50 @@ class AgentSessionStore: ObservableObject {
         return true
     }
 
+    /// 轨迹页"只重跑这一步"（v0.8.25）：按原参数重放一个工具调用，结果作为
+    /// 新的 assistant(tool_calls)+tool 消息对落进会话；`continueTurn` 为真时
+    /// 立刻续跑模型回合（与 resumeInterruptedTurn 同路，不追加用户消息）。
+    ///
+    /// 由用户点击触发 = 已在场的明确同意，不再过审批闸（否则在轨迹页点一下
+    /// 会挂起等一个可能看不见的审批卡）。返回 nil = 没跑（忙/找不到调用/无会话）。
+    @discardableResult
+    func rerunToolCall(id: String, continueTurn: Bool) async -> String? {
+        guard !isProcessing else { return nil }
+        guard let original = messages.last(where: {
+            $0.toolCalls?.contains(where: { $0.id == id }) == true
+        })?.toolCalls?.first(where: { $0.id == id }) else { return nil }
+        // 新 id：同一会话里重复的 tool_call id 会被部分服务端拒绝。
+        let call = AgentToolCall(id: "rerun_" + UUID().uuidString,
+                                 type: "function", function: original.function)
+        messages.append(AgentMessage(role: .assistant, content: nil, toolCalls: [call]))
+        let startedAt = Date()
+        let result = await toolProvider.execute(call, in: activeWebView ?? WKWebView())
+        messages.append(AgentMessage(
+            role: .tool,
+            content: SecretRedactor.redact(result, knownKeys: preference.secretsForRedaction()),
+            toolCallId: call.id,
+            toolName: call.function.name,
+            toolDurationMs: Date().timeIntervalSince(startedAt) * 1000))
+        saveCurrentConversation()
+
+        if continueTurn {
+            hasInterruptedTurn = false
+            turnCheckpointActive = true
+            isProcessing = true
+            isCancelled = false
+            refreshContextLabel()
+            streamingTokenCount = 0
+            streamingTokensPerSecond = 0
+            processingStartedAt = Date()
+            memoryProcessedCount = messages.count
+            summarizedCount = messages.count
+            saveCurrentConversation()
+            let turnID = beginTurn()
+            loopTask = Task { await processLoop(turnID: turnID) }
+        }
+        return result
+    }
+
     /// 尾部回合里"调用过但没有结果"的 tool_calls。
     private static func computePendingToolCalls(from messages: [AgentMessage]) -> [PendingToolCall] {
         guard let index = messages.lastIndex(where: {

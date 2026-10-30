@@ -637,6 +637,7 @@ final class AutomationServer {
         ep("GET", "/agent/report", "Per-turn work report: goal/outcome/steps/tool counts/failures/critique/answer (derived from saved messages)", params: ["conversation?:uuid (default: live)", "limit?:int"], example: "…/agent/report?limit=10")
         ep("POST", "/agent/report/export", "Write a Markdown work report (turns + capability gaps) into the agent workspace", params: ["path?:string (target directory)"], example: "-d '{}'")
         ep("POST", "/agent/open", "Load a conversation into the live agent panel (crash-recovery: open the interrupted one before /agent/resume)", params: ["conversationId:uuid"], example: #"-d '{"conversationId":"…"}'"#)
+        ep("POST", "/agent/rerun-step", "Re-run ONE failed/denied tool call of the live conversation with its original arguments; result is appended as a fresh assistant+tool pair, optional continue=true resumes the model", params: ["callId:string", "continue?:bool"], example: #"-d '{"callId":"call_abc","continue":false}'"#)
         ep("POST", "/agent/feedback", "Rate an assistant message (thumbs up/down); persisted with the conversation", params: ["messageId:string", "vote:up|down|none"], example: #"-d '{"messageId":"…","vote":"up"}'"#)
         ep("GET", "/filters", "Community filter lists state (enabled, lastUpdated, ruleCount, error)", example: "…/filters")
         ep("POST", "/filters/probe", "Convert ABP lines to content-blocker JSON and compile them, reporting per-line errors", params: ["abp:string (one rule per line)", "includeHiding?:bool"], example: #"-d '{"abp":"/web_ads/*$image"}'"#)
@@ -3073,6 +3074,22 @@ final class AutomationServer {
                 default:
                     return try Self.json(["error": "action must be resume or discard"])
                 }
+            case ("POST", "/agent/rerun-step"):
+                // 轨迹页"只重跑这一步"（v0.8.25）：原始参数来自内存会话，
+                // 不是一个新回合；continue=true 时顺带续跑模型。
+                guard let session = Self.resolveSession(Self.string(body, "window")) else {
+                    return try Self.json(["error": "no live agent session"])
+                }
+                guard let callId = Self.string(body, "callId"), !callId.isEmpty else {
+                    return try Self.json(["error": "callId required"])
+                }
+                let continued = body["continue"] as? Bool ?? false
+                let rerunResult = await session.rerunToolCall(id: callId, continueTurn: continued)
+                return try Self.json([
+                    "ok": rerunResult != nil,
+                    "continued": continued && rerunResult != nil,
+                    "result": rerunResult.map { String($0.prefix(2000)) } ?? "",
+                ])
             case ("POST", "/agent/open"):
                 // 装载指定会话到活跃 Agent 面板（强杀后恢复：中断的会话未必是
                 // 面板自动还原的那个，先 open 再 resume）。

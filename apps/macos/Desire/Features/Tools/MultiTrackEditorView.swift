@@ -60,7 +60,19 @@ struct MultiTrackEditorView: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
-            .disabled(store.selectedClip == nil)
+            .disabled(store.selectedClip == nil && store.multiSelection.isEmpty)
+            if store.multiSelection.count > 1 {
+                Button {
+                    store.toggleMuteSelection()
+                } label: {
+                    Label(String(localized: "Toggle Mute"), systemImage: "speaker.slash")
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Text("\(store.multiSelection.count) selected")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
             Button {
                 store.undo()
             } label: {
@@ -462,6 +474,57 @@ private struct EditorTimeline: View {
         }
         .overlay(RoundedRectangle(cornerRadius: 8)
             .strokeBorder(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5))
+        .focusable()
+        .onKeyPress(keys: [.delete]) { _ in
+            if store.multiSelection.isEmpty && store.selectedClipID != nil {
+                store.deleteSelected()
+            } else {
+                store.deleteSelectedClips()
+            }
+            return .handled
+        }
+        .onKeyPress("s") {
+            store.splitAtPlayhead()
+            return .handled
+        }
+        .onKeyPress("a") {
+            if NSEvent.modifierFlags.contains(.command) {
+                store.multiSelection = Set(store.project.tracks.flatMap { $0.clips.map { $0.id } })
+                return .handled
+            }
+            return .ignored
+        }
+        .onKeyPress("z") {
+            if NSEvent.modifierFlags.contains(.command) {
+                store.undo()
+                return .handled
+            }
+            return .ignored
+        }
+        .onKeyPress(keys: [.leftArrow]) { _ in
+            store.setPlayhead(store.playhead - (store.pixelsPerSecond > 90 ? 1 : 5))
+            return .handled
+        }
+        .onKeyPress(keys: [.rightArrow]) { _ in
+            store.setPlayhead(store.playhead + (store.pixelsPerSecond > 90 ? 1 : 5))
+            return .handled
+        }
+        .onKeyPress(keys: [.home]) { _ in
+            store.setPlayhead(0)
+            return .handled
+        }
+        .onKeyPress(keys: [.end]) { _ in
+            store.setPlayhead(store.projectDuration)
+            return .handled
+        }
+        .onKeyPress("=") {
+            store.pixelsPerSecond = min(200, store.pixelsPerSecond * 1.25)
+            return .handled
+        }
+        .onKeyPress("-") {
+            store.pixelsPerSecond = max(12, store.pixelsPerSecond / 1.25)
+            return .handled
+        }
     }
 
     private var contentWidth: CGFloat {
@@ -563,7 +626,9 @@ private struct TimelineClipView: View {
     /// 正在拖的裁边（-1 左缘 / 1 右缘 / 0 无）——决定预览从哪端伸缩。
     @State private var trimmingSide: CGFloat = 0
 
-    private var isSelected: Bool { store.selectedClipID == clip.id }
+    private var isSelected: Bool {
+        store.selectedClipID == clip.id || store.multiSelection.contains(clip.id)
+    }
 
     private var fillColor: Color {
         switch track.kind {
@@ -624,7 +689,7 @@ private struct TimelineClipView: View {
         .frame(width: width, height: laneHeight)
         .offset(x: x)
         .contentShape(Rectangle().inset(by: 1))
-        .onTapGesture { store.selectedClipID = clip.id }
+        .onTapGesture { tapSelect(with: NSEvent.modifierFlags) }
         .gesture(moveGesture)
     }
 
@@ -653,17 +718,32 @@ private struct TimelineClipView: View {
             .onChanged { value in
                 dragOffset = value.translation.width / store.pixelsPerSecond
             }
-            .onEnded { _ in
+            .onEnded { value in
                 let delta = dragOffset
                 dragOffset = 0
-                let newStart = max(0, clip.start + delta)
                 if delta != 0 {
-                    // 不合法（重叠/越界）就弹回原位——commit(nil) 无副作用。
+                    let rawStart = max(0, clip.start + delta)
+                    // 贴齐（⌘ 按住临时禁用；DragGesture.Value 无修饰键，
+                    // 读 NSEvent 的当前修饰键——松手瞬间仍按着即生效）；不合法弹回原位。
+                    let snappedStart = store.snappedTime(
+                        rawStart, movingClipID: clip.id,
+                        commandDown: NSEvent.modifierFlags.contains(.command))
                     store.commit(TimelineCore.moveClip(store.project, clipID: clip.id,
-                                                       toTrack: track.id, start: newStart))
+                                                       toTrack: track.id, start: snappedStart))
                 }
-                store.selectedClipID = clip.id
+                tapSelect(with: NSEvent.modifierFlags)
             }
+    }
+
+    /// 点击选择语义：plain=单选；⌘=翻转；⇧=区间扩展。
+    private func tapSelect(with flags: NSEvent.ModifierFlags) {
+        if flags.contains(.shift) {
+            store.select(clipID: clip.id, range: true)
+        } else if flags.contains(.command) {
+            store.select(clipID: clip.id, additive: true)
+        } else {
+            store.select(clipID: clip.id)
+        }
     }
 
     private func commitTrim(direction: CGFloat, delta: Double) {

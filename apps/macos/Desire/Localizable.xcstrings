@@ -79806,6 +79806,28 @@
           }
         }
       }
+    },
+    "Toggle Mute" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toggle Mute"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量静音/取消静音"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批次靜音/取消靜音"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

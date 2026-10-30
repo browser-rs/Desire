@@ -7975,6 +7975,37 @@ func testMediaEditCore() {
     let ids = ra.tracks.flatMap { $0.clips.map { $0.id } }
     ra = TimelineCore.deleteClips(ra, ids: Array(ids.prefix(2)))
     eq("批量删除：剩两段", ra.tracks.reduce(0) { $0 + $1.clips.count }, 2)
+
+    // ---- 贴齐与多选 ----
+    var sn = TimelineCore.Project()
+    let snTrack = sn.tracks.first { $0.kind == .video }!
+    let snURL = URL(fileURLWithPath: "/tmp/sn.mp4")
+    let snA = TimelineCore.Clip(start: 2, duration: 4, sourceURL: snURL)
+    let snB = TimelineCore.Clip(start: 8, duration: 3, sourceURL: snURL)
+    if let p = TimelineCore.upsertClip(sn, trackID: snTrack.id, clip: snA) { sn = p }
+    if let p = TimelineCore.upsertClip(sn, trackID: snTrack.id, clip: snB) { sn = p }
+    // 吸到片段边缘
+    eq("贴齐：吸片段起点", TimelineCore.snapped(time: 2.15, movingClipID: nil, project: sn,
+                                                playhead: 0, tolerance: 0.2), 2)
+    eq("贴齐：吸片段终点", TimelineCore.snapped(time: 5.9, movingClipID: nil, project: sn,
+                                                playhead: 0, tolerance: 0.2), 6)
+    // 吸播放头
+    eq("贴齐：吸播放头", TimelineCore.snapped(time: 7.9, movingClipID: nil, project: sn,
+                                              playhead: 8, tolerance: 0.2), 8)
+    // 超容差不吸
+    eq("贴齐：超容差原样", TimelineCore.snapped(time: 5.5, movingClipID: nil, project: sn,
+                                                playhead: 0, tolerance: 0.2), 5.5)
+    // 正在拖的片段自己的两端不作为参考（关整秒刻度以隔离验证）
+    eq("贴齐：排除自身", TimelineCore.snapped(time: 8.1, movingClipID: snB.id, project: sn,
+                                              playhead: 0, tolerance: 0.2, snapToIntegers: false), 8.1)
+    // 整秒刻度
+    eq("贴齐：吸整秒", TimelineCore.snapped(time: 3.96, movingClipID: nil, project: sn,
+                                            playhead: 0, tolerance: 0.1), 4)
+    // 区间多选
+    let rangeIDs = TimelineCore.clipIDs(in: sn, between: snA.id, and: snB.id)
+    eq("多选：区间含两端", rangeIDs.count, 2)
+    check("多选：跨轨退化为单选", TimelineCore.clipIDs(in: sn, between: snA.id,
+                                                       and: snTrack.id) == [snTrack.id])
 }
 
 testToolboxBatch2Cores()

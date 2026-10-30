@@ -29,6 +29,10 @@ final class VideoEditorStore: ObservableObject {
     @Published var project = TimelineCore.Project()
     @Published var playhead: Double = 0
     @Published var selectedClipID: UUID?
+    /// 多选（⌘ 点选累积；⇧ 区间；批量操作作用于全集）。
+    @Published var multiSelection: Set<UUID> = []
+    /// 贴齐开关（⌘ 按住临时反转；默认开）。
+    @Published var snappingEnabled = true
     @Published var pixelsPerSecond: Double = 60
     @Published private(set) var isPlaying = false
     @Published private(set) var sources: [SourceMedia] = []
@@ -69,6 +73,45 @@ final class VideoEditorStore: ObservableObject {
     }
 
     var projectDuration: Double { TimelineCore.projectDuration(project) }
+
+    /// 当前生效的选择集（多选非空用多选，否则单选）。
+    var effectiveSelection: [UUID] {
+        multiSelection.isEmpty
+            ? (selectedClipID.map { [$0] } ?? [])
+            : Array(multiSelection)
+    }
+
+    /// 时间线点击选择：plain=单选清多选；⌘=翻转该项；⇧=区间扩展。
+    func select(clipID: UUID, additive: Bool = false, range: Bool = false) {
+        if additive {
+            if multiSelection.contains(clipID) {
+                multiSelection.remove(clipID)
+            } else {
+                multiSelection.insert(clipID)
+            }
+            selectedClipID = clipID
+        } else if range, let anchor = selectedClipID {
+            multiSelection = Set(TimelineCore.clipIDs(in: project,
+                                                      between: anchor, and: clipID))
+        } else {
+            multiSelection = []
+            selectedClipID = clipID
+        }
+    }
+
+    func clearSelection() {
+        selectedClipID = nil
+        multiSelection = []
+    }
+
+    /// 拖移落点的贴齐换算（⌘ 按住 = 临时关闭；视图传 modifierFlags）。
+    func snappedTime(_ time: Double, movingClipID: UUID?, commandDown: Bool) -> Double {
+        let enabled = commandDown ? !snappingEnabled : snappingEnabled
+        guard enabled else { return max(0, time) }
+        return TimelineCore.snapped(time: max(0, time), movingClipID: movingClipID,
+                                    project: project, playhead: playhead,
+                                    tolerance: 8 / pixelsPerSecond)
+    }
 
     /// 播放头是否压在某个片段上（决定"分割"是否可用）。
     var playheadOverlapsClip: Bool {
@@ -156,9 +199,31 @@ final class VideoEditorStore: ObservableObject {
     }
 
     /// 批量删除选中（多选 id 集合）。
-    func deleteClips(_ ids: [UUID]) {
+    func deleteSelectedClips() {
+        let ids = effectiveSelection
+        guard !ids.isEmpty else { return }
         commit(TimelineCore.deleteClips(project, ids: ids))
-        selectedClipID = nil
+        clearSelection()
+    }
+
+    /// 批量静音/取消静音选中片段。
+    func toggleMuteSelection() {
+        let ids = effectiveSelection
+        guard !ids.isEmpty else { return }
+        pushUndo()
+        var updated = project
+        let idSet = Set(ids)
+        // 取多数派的反义：多数有声则全部静音，反之恢复。
+        let clips = project.tracks.flatMap { $0.clips }.filter { idSet.contains($0.id) }
+        let mostlyMuted = clips.filter { $0.volume == 0 }.count * 2 >= clips.count
+        for index in updated.tracks.indices {
+            for clipIndex in updated.tracks[index].clips.indices
+            where idSet.contains(updated.tracks[index].clips[clipIndex].id) {
+                updated.tracks[index].clips[clipIndex].volume = mostlyMuted ? 1 : 0
+            }
+        }
+        project = updated
+        rebuildPreview()
     }
 
     func setPlayhead(_ seconds: Double, seekPlayer: Bool = true) {

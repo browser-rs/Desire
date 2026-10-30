@@ -323,4 +323,50 @@ nonisolated enum TimelineCore {
         }
         return project
     }
+
+    // MARK: - 贴齐（v0.8.28 批次一）
+
+    /// 拖移候选的吸附：把 `time` 吸到容差内最近的参考点。参考点 = 播放头、
+    /// 其他片段两端（不含正在拖的片段）、整秒刻度（仅缩放足够时）。
+    /// 返回吸附后的时间；无命中原样返回。tolerance 与时间同单位（秒）。
+    static func snapped(time: Double,
+                        movingClipID: UUID?,
+                        project: Project,
+                        playhead: Double,
+                        tolerance: Double,
+                        snapToIntegers: Bool = true) -> Double {
+        var candidates: [Double] = [playhead]
+        for track in project.tracks {
+            for clip in track.clips where clip.id != movingClipID {
+                candidates.append(clip.start)
+                candidates.append(clip.end)
+            }
+        }
+        if snapToIntegers, tolerance >= 0.05 {
+            let second = time.rounded()
+            candidates.append(second)
+        }
+        var best = time
+        var bestDistance = tolerance
+        for candidate in candidates {
+            let distance = abs(candidate - time)
+            if distance < bestDistance {
+                bestDistance = distance
+                best = candidate
+            }
+        }
+        return max(0, best)
+    }
+
+    /// 多选辅助：⇧/⌘ 点选的区间选择（同轨两片段之间全部选中）。
+    static func clipIDs(in project: Project, between firstID: UUID, and secondID: UUID) -> [UUID] {
+        guard let (firstTrack, first) = clip(project, withID: firstID),
+              let (secondTrack, second) = clip(project, withID: secondID),
+              firstTrack.id == secondTrack.id else { return [secondID] }
+        let lower = min(first.start, second.start)
+        let upper = max(first.end, second.end)
+        return firstTrack.clips
+            .filter { $0.end > lower - 1e-6 && $0.start < upper + 1e-6 }
+            .map { $0.id }
+    }
 }

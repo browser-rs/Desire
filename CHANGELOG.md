@@ -3,6 +3,8 @@
 
 - Agent: page observations are reused within the same turn (same tab, same settings, 8s window) instead of re-serializing the DOM; side-effect actions invalidate the cache and `refresh:true` forces a fresh read (v0.8.25)
 - Accessibility: VoiceOver labels on icon-only controls that lacked them (toolbar agent/devtools/downloads/profile, history insights, download filters/grouping, bookmark header actions, excerpt clear) (v0.8.25)
+- Localization: every remaining skeleton key now has English, Simplified Chinese and Traditional Chinese values (catalog back to 0 unfinished strings) (v0.8.25)
+
 
 
 ### Fixed

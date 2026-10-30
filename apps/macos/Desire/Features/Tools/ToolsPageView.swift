@@ -28,13 +28,8 @@ struct ToolsPageView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
-            sidebar
-            Divider()
-            content
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(nsColor: .textBackgroundColor))
-        }
+        // 原生 NSSplitView 分栏：拖动由 AppKit 处理，SwiftUI 视图不随每帧重建。
+        ToolboxSplitView(sidebar: sidebar, content: content)
         .onAppear {
             if let id = ToolID(rawValue: initialTool ?? "") { select(id) }
         }
@@ -132,7 +127,6 @@ struct ToolsPageView: View {
                 .padding(.bottom, 16)
             }
         }
-        .frame(width: 232)
         .background(Color(nsColor: .controlBackgroundColor))
     }
 

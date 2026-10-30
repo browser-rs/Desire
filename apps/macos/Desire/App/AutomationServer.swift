@@ -622,6 +622,8 @@ final class AutomationServer {
         ep("GET", "/peek", "Peek (user-assist) state: active request, last resolution, locked surface count", example: "…/peek")
         ep("POST", "/peek", "Peek control: request / open / resolve / dismiss", params: ["action:string", "reason?:string", "needsPage?:bool"], example: "-d '{\"action\":\"request\",\"reason\":\"请登录\"}'")
         ep("POST", "/page/read-ephemeral", "Read a page in a throwaway in-memory session (no cookies/sessions touch the user profile)", params: ["url:string", "maxChars?:int"], example: "-d '{\"url\":\"https://example.com\"}'")
+        ep("GET", "/site-data", "Per-site website data (displayName + normalized types); optional container by name", params: ["container?:string"], example: "…/site-data")
+        ep("POST", "/site-data/remove", "Remove site data by displayName, optionally only some types (cookies/cache/localstorage/indexeddb…)", params: ["displayName:string", "types?:[string]", "container?:string"], example: "-d '{\"displayName\":\"example.com\",\"types\":[\"cookies\"]}'")
         ep("POST", "/cookies/seed", "Copy this Mac's cookies into a container (login-state snapshot; localStorage/IndexedDB not migrated)", params: ["name?:string (default Agent)"], example: "-d '{\"name\":\"Agent\"}'")
         ep("POST", "/containers/remove", "Purge and remove a tab container by name (cleanup)", params: ["name:string"], example: "-d '{\"name\":\"Agent\"}'")
         ep("GET", "/diag/windows", "Window roles (user/agent/agentPane), tab counts, selected URL and key-window flag — focus/mode E2E probe", example: "…/diag/windows")
@@ -2938,6 +2940,21 @@ final class AutomationServer {
                     "chars": read.text.count, "truncated": read.truncated,
                     "text": String(read.text.prefix(cap)),
                 ])
+            case ("GET", "/site-data"):
+                let store = Self.siteDataStore(named: Self.string(query, "container"))
+                let records = await SiteDataManager.records(in: store)
+                return try Self.json([
+                    "count": records.count,
+                    "records": records.map { ["displayName": $0.displayName, "types": $0.types] },
+                ])
+            case ("POST", "/site-data/remove"):
+                guard let name = Self.string(body, "displayName"), !name.isEmpty else {
+                    return try Self.json(["error": "missing displayName"])
+                }
+                let types = body["types"] as? [String]
+                let store = Self.siteDataStore(named: Self.string(body, "container"))
+                let removed = await SiteDataManager.remove(name, types: types, in: store)
+                return try Self.json(["ok": removed > 0, "removedTypes": removed])
             case ("POST", "/cookies/seed"):
                 let name = Self.string(body, "name") ?? "Agent"
                 let container = ContainerStore.shared.containers.first(where: { $0.name == name })
@@ -3513,6 +3530,17 @@ final class AutomationServer {
         return ["keyWindowTitle": keyTitle,
                 "mode": AppModeStore.shared.mode.rawValue,
                 "windows": rows]
+    }
+
+    /// 站点数据端点用的数据存储：按容器名，缺省 = 默认档案。
+    @MainActor
+    private static func siteDataStore(named container: String?) -> WKWebsiteDataStore {
+        guard let container, !container.isEmpty,
+              let match = ContainerStore.shared.containers.first(where: { $0.name == container }),
+              let store = ContainerStore.shared.dataStore(for: match.id) else {
+            return WKWebsiteDataStore.default()
+        }
+        return store
     }
 
     private static func activeTabURLsBridge() -> [String] {

@@ -8,6 +8,8 @@
 - **Agent 可靠性·第一批（v0.8.25）**：**动作后自动核验**——副作用动作（click/type/fill/navigate 等）执行前后各取一次页面指纹（URL/标题/正文长度/节点数），最多等 1 秒观察变化，给工具结果追加 `[verify] navigated|changed|unchanged`（动作没生效不再"看起来成功"）；**接管锁下沉到标签级**——Peek 只锁用户正在看的那一页，同窗其他标签 Agent 仍可操作（工具按 index/选中标签解析锁），`/peek` 与 `/diag/windows` 的 locked 计数含标签锁。harness 1882/0；mode-smoke 8/8 复跑通过。
 - **Agent 登录态引导（v0.8.25）**：导航/点击等动作后检测页面是否有密码输入框；有则在工具结果追加 `[hint]`——可以调用 `requestUserHelp` 让用户通过 Peek 自己登录，或建议用 `/cookies/seed` 导入当前档案的 cookies；并明确"不要自己输入密码"。实测：本地登录页检测为 true、普通页为 false；harness 1884/0。
 - **接管回放摘要（v0.8.25）**：Peek 展开时在目标页注入轻量记录器——点击元素文字、输入字段名、跳转标题（**不记输入值**，上限 60 条）；用户「完成/忽略」时读取并去重格式化为一行，作为第二条系统备注 `Peek actions observed: …` 交还 Agent——接管期间"页面变了"变成"用户在密码框输入、点了登录、跳到了首页"。harness 1888/0；fixture 实测点击/输入/跳转三类事件均被记录、输入只留字段名。
+- **站点数据管理 2.0（v0.8.25）**：新增 `SiteDataManager` 与桥端点——`GET /site-data`（按站点列出数据类型，`container` 可指定容器）、`POST /site-data/remove`（按站点 × 类型清除：cookies/cache/localstorage/indexeddb 等，缺省全清）。替代此前"按保留天数清理"的撤项方案：WebKit 记录级删除不带时间，按站点点名才安全。实测：临时容器 51 条记录 → 删除某站 cookies 后 50 条，其他站点不受影响。
+
 
 
 

@@ -296,6 +296,20 @@ struct ToolsPageView: View {
         case .fileHash: FileHashToolView()
         case .idCard: IDCardToolView()
         case .luhn: LuhnToolView()
+        case .roman: RomanToolView()
+        case .excelColumn: ExcelColumnToolView()
+        case .crc32: CRC32ToolView()
+        case .sha3: SHA3ToolView()
+        case .base58: Base58ToolView()
+        case .regexReplace: RegexReplaceToolView()
+        case .markdown: MarkdownToolView()
+        case .ascii: ASCIIToolView()
+        case .lorem: LoremToolView()
+        case .httpHeaders: HTTPHeadersToolView()
+        case .fileInfo: FileInfoToolView()
+        case .discount: DiscountToolView()
+        case .billSplit: BillSplitToolView()
+        case .barcode: BarcodeToolView()
         }
     }
 

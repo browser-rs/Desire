@@ -7646,6 +7646,86 @@ func testToolboxExpansionCores() {
 
 testToolboxExpansionCores()
 
+
+func testToolboxBatch2Cores() {
+    // 罗马数字
+    eq("罗马：2026", RomanCore.toRoman(2026), "MMXXVI")
+    eq("罗马：回转", RomanCore.fromRoman("MMXXVI"), 2026)
+    eq("罗马：3999", RomanCore.toRoman(3999), "MMMCMXCIX")
+    check("罗马：非法写法", RomanCore.fromRoman("IIII") == nil)
+    check("罗马：范围", RomanCore.toRoman(0) == nil && RomanCore.toRoman(4000) == nil)
+
+    // Excel 列号
+    eq("Excel：A", ExcelColumnCore.fromLetters("A"), 1)
+    eq("Excel：AA", ExcelColumnCore.fromLetters("AA"), 27)
+    eq("Excel：ZZ", ExcelColumnCore.fromLetters("ZZ"), 702)
+    eq("Excel：序号转列", ExcelColumnCore.toLetters(27), "AA")
+    check("Excel：非法", ExcelColumnCore.fromLetters("A1") == nil && ExcelColumnCore.toLetters(0) == nil)
+
+    // CRC32
+    eq("CRC32：标准向量", CRC32Core.hex(Data("123456789".utf8)), "cbf43926")
+
+    // Base58
+    let b58 = Base58Core.encode("hello")
+    if case .success(let decoded) = Base58Core.decode(b58) {
+        eq("Base58：往返", decoded, "hello")
+    } else { check("Base58：往返成功", false) }
+    check("Base58：前导零", Base58Core.encode(Data([0x00, 0x01])).hasPrefix("1"))
+    if case .failure = Base58Core.decode("0OIl") {} else { check("Base58：非法字符", false) }
+
+    // Markdown → HTML
+    let html = MarkdownHTMLCore.html("# Title\n\n- a\n- b\n\n**bold** and `code` <tag>")
+    check("MD：标题", html.contains("<h1>Title</h1>"))
+    check("MD：列表", html.contains("<ul><li>a</li><li>b</li></ul>"))
+    check("MD：粗体", html.contains("<strong>bold</strong>"))
+    check("MD：代码", html.contains("<code>code</code>"))
+    check("MD：转义", html.contains("&lt;tag&gt;"))
+    let linked = MarkdownHTMLCore.html("[x](https://a.com)")
+    check("MD：链接", linked.contains("<a href=\"https://a.com\">x</a>"))
+
+    // 条码
+    check("条码：规范表", BarcodeCore.validatePatterns())
+    if case .success(let widths) = BarcodeCore.widths(for: "ABC") {
+        check("条码：起始符 B", widths.hasPrefix(BarcodeCore.patterns[104]))
+        check("条码：结束符", widths.hasSuffix(BarcodeCore.patterns[106]))
+    } else { check("条码：编码成功", false) }
+    if case .failure = BarcodeCore.encode("价格€") {} else { check("条码：不支持字符", false) }
+
+    // ASCII
+    eq("ASCII：A", ASCIIInfoCore.entry(for: 65)?.character, "A")
+    eq("ASCII：LF", ASCIIInfoCore.entry(for: 10)?.description, "LF")
+    eq("ASCII：搜索", ASCIIInfoCore.search("LF").first?.decimal, 10)
+    check("ASCII：非 ASCII", ASCIIInfoCore.entry(forCharacter: "中") == nil)
+
+    // UUID v7
+    let v7 = UUIDV7Core.generate(now: Date(timeIntervalSince1970: 1_700_000_000))
+    let v7bytes = withUnsafeBytes(of: v7.uuid) { Array($0) }
+    eq("UUIDv7：版本位", v7bytes[6] >> 4, 7)
+    check("UUIDv7：变体位", v7bytes[8] >> 6 == 0b10)
+    eq("UUIDv7：时间戳", UUIDV7Core.timestamp(of: v7), 1_700_000_000_000)
+    check("UUIDv7：非 v7", UUIDV7Core.timestamp(of: UUID()) == nil)
+
+    // 折扣 / AA
+    eq("折扣：8.8 折", ShoppingCalcCore.discounted(price: 100, percent: 88), 88)
+    eq("AA：110/4", ShoppingCalcCore.splitBill(total: 110, people: 4, tipPercent: 0), 27.5)
+    check("AA：带小费", abs((ShoppingCalcCore.splitBill(total: 100, people: 2, tipPercent: 10) ?? 0) - 55) < 0.0001)
+    check("AA：非法", ShoppingCalcCore.splitBill(total: 100, people: 0, tipPercent: 0) == nil)
+
+    // 正则替换
+    if case .success(let replaced) = RegexToolCore.replace(pattern: "\\d+", template: "#", in: "a1b22") {
+        eq("正则替换：命中", replaced, "a#b#")
+    } else { check("正则替换：成功", false) }
+    if case .success(let named) = RegexToolCore.replace(pattern: "(\\w+)@(\\w+)", template: "$2:$1",
+                                                        in: "a@b") {
+        eq("正则替换：捕获组", named, "b:a")
+    } else { check("正则替换：捕获组成功", false) }
+    if case .failure = RegexToolCore.replace(pattern: "(", template: "x", in: "a") {} else {
+        check("正则替换：非法模式", false)
+    }
+}
+
+testToolboxBatch2Cores()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

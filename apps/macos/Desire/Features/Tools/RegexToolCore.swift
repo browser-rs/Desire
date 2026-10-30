@@ -7,17 +7,32 @@ nonisolated struct RegexMatchResult: Equatable, Sendable {
     var groups: [String]
 }
 
-nonisolated struct RegexToolError: Error, Equatable, Sendable {
-    var message: String
-}
-
 nonisolated enum RegexToolCore {
     static let maxMatches = 500
 
+    /// 正则替换：template 支持 $1/$2 捕获组引用（NSRegularExpression 模板语法）。
+    static func replace(pattern: String, template: String, in text: String,
+                        caseInsensitive: Bool = false,
+                        multiline: Bool = false) -> Result<String, ToolboxError> {
+        guard !pattern.isEmpty else { return .failure(ToolboxError(message: "Pattern is empty")) }
+        var options: NSRegularExpression.Options = [.dotMatchesLineSeparators]
+        if caseInsensitive { options.insert(.caseInsensitive) }
+        if multiline { options.insert(.anchorsMatchLines) }
+        do {
+            let regex = try NSRegularExpression(pattern: pattern, options: options)
+            let range = NSRange(text.startIndex..., in: text)
+            return .success(regex.stringByReplacingMatches(in: text, options: [],
+                                                           range: range,
+                                                           withTemplate: template))
+        } catch {
+            return .failure(ToolboxError(message: error.localizedDescription))
+        }
+    }
+
     static func matches(pattern: String, in text: String,
                         caseInsensitive: Bool = false,
-                        multiline: Bool = false) -> Result<[RegexMatchResult], RegexToolError> {
-        guard !pattern.isEmpty else { return .failure(RegexToolError(message: "Pattern is empty")) }
+                        multiline: Bool = false) -> Result<[RegexMatchResult], ToolboxError> {
+        guard !pattern.isEmpty else { return .failure(ToolboxError(message: "Pattern is empty")) }
         var options: NSRegularExpression.Options = [.dotMatchesLineSeparators]
         if caseInsensitive { options.insert(.caseInsensitive) }
         if multiline { options.insert(.anchorsMatchLines) }
@@ -25,7 +40,7 @@ nonisolated enum RegexToolCore {
         do {
             regex = try NSRegularExpression(pattern: pattern, options: options)
         } catch {
-            return .failure(RegexToolError(message: error.localizedDescription))
+            return .failure(ToolboxError(message: error.localizedDescription))
         }
         let ns = text as NSString
         let results = regex.matches(in: text, options: [],

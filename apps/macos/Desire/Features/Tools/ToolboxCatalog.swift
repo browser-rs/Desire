@@ -57,6 +57,10 @@ enum ToolID: String, CaseIterable, Identifiable {
     case morse, dataURI, width, csvJSON
     case diff, xml, sql, urlParse, cidr, httpStatus, mime, userAgent, cron
     case aes, hmac, fileHash, idCard, luhn
+    // 第三批（v0.8.27）
+    case roman, excelColumn, crc32, sha3, base58
+    case regexReplace, markdown, ascii, lorem, httpHeaders
+    case fileInfo, discount, billSplit, barcode
 
     var id: String { rawValue }
 
@@ -71,6 +75,11 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .morse, .dataURI, .width, .csvJSON: return .codec
         case .diff, .xml, .sql, .urlParse, .cidr, .httpStatus, .mime, .userAgent, .cron: return .dev
         case .aes, .hmac, .fileHash, .idCard, .luhn: return .security
+        case .roman, .excelColumn, .crc32, .sha3, .base58: return .codec
+        case .regexReplace, .markdown, .ascii, .lorem, .httpHeaders: return .dev
+        case .fileInfo: return .security
+        case .discount, .billSplit: return .calc
+        case .barcode: return .generate
         }
     }
 
@@ -119,6 +128,20 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .fileHash: return String(localized: "File Hash")
         case .idCard: return String(localized: "ID Card Check")
         case .luhn: return String(localized: "Luhn Check")
+        case .roman: return String(localized: "Roman Numerals")
+        case .excelColumn: return String(localized: "Excel Column")
+        case .crc32: return String(localized: "CRC32")
+        case .sha3: return String(localized: "SHA-3")
+        case .base58: return String(localized: "Base58")
+        case .regexReplace: return String(localized: "Regex Replace")
+        case .markdown: return String(localized: "Markdown → HTML")
+        case .ascii: return String(localized: "ASCII Table")
+        case .lorem: return String(localized: "Placeholder Text")
+        case .httpHeaders: return String(localized: "HTTP Headers")
+        case .fileInfo: return String(localized: "File Info")
+        case .discount: return String(localized: "Discount")
+        case .billSplit: return String(localized: "Bill Split")
+        case .barcode: return String(localized: "Barcode")
         }
     }
 
@@ -167,6 +190,20 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .fileHash: return String(localized: "MD5/SHA hashes of a local file")
         case .idCard: return String(localized: "Validate a Chinese 18-digit ID number")
         case .luhn: return String(localized: "Validate a card number or compute its check digit")
+        case .roman: return String(localized: "Convert between Roman numerals and Arabic numbers (1–3999)")
+        case .excelColumn: return String(localized: "Excel column letters ↔ column number (A=1, ZZ=702)")
+        case .crc32: return String(localized: "CRC-32 checksum of text or a file")
+        case .sha3: return String(localized: "SHA3-256 / SHA3-512 hashes")
+        case .base58: return String(localized: "Base58 encode/decode (Bitcoin alphabet)")
+        case .regexReplace: return String(localized: "Replace text with a regular expression and a template ($1, $2…)")
+        case .markdown: return String(localized: "Convert Markdown to HTML (headings, lists, inline styles)")
+        case .ascii: return String(localized: "Look up ASCII codes and control characters")
+        case .lorem: return String(localized: "Generate placeholder text in English or Chinese")
+        case .httpHeaders: return String(localized: "Common HTTP request/response headers explained")
+        case .fileInfo: return String(localized: "File size, type, dates and image EXIF summary")
+        case .discount: return String(localized: "Discounted price from the original and a percentage")
+        case .billSplit: return String(localized: "Split a bill with tip across N people")
+        case .barcode: return String(localized: "Generate a Code128 barcode image from text")
         }
     }
 
@@ -215,6 +252,20 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .fileHash: return "doc.badge.ellipsis"
         case .idCard: return "person.text.rectangle"
         case .luhn: return "creditcard"
+        case .roman: return "textformat.123"
+        case .excelColumn: return "tablecells.badge.ellipsis"
+        case .crc32: return "number"
+        case .sha3: return "number.square"
+        case .base58: return "arrow.left.arrow.right.square"
+        case .regexReplace: return "arrow.triangle.swap"
+        case .markdown: return "doc.richtext"
+        case .ascii: return "textformat.size"
+        case .lorem: return "text.justify"
+        case .httpHeaders: return "list.bullet.rectangle"
+        case .fileInfo: return "doc.badge.gearshape.2"
+        case .discount: return "percent"
+        case .billSplit: return "person.2"
+        case .barcode: return "barcode"
         }
     }
 
@@ -265,6 +316,20 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .fileHash: keywords = ["文件", "摘要", "哈希", "md5", "sha"]
         case .idCard: keywords = ["身份证", "校验", "生日"]
         case .luhn: keywords = ["银行卡", "信用卡", "校验位", "luhn"]
+        case .roman: keywords = ["罗马数字", "roman", "数字"]
+        case .excelColumn: keywords = ["excel", "列号", "a1", "表格"]
+        case .crc32: keywords = ["crc32", "校验", "哈希"]
+        case .sha3: keywords = ["sha3", "哈希", "摘要"]
+        case .base58: keywords = ["base58", "bitcoin", "编码"]
+        case .regexReplace: keywords = ["正则", "替换", "regex", "replace"]
+        case .markdown: keywords = ["markdown", "html", "预览", "转换"]
+        case .ascii: keywords = ["ascii", "码表", "字符"]
+        case .lorem: keywords = ["占位", "假文", "lorem", "placeholder"]
+        case .httpHeaders: keywords = ["http", "头", "header", "缓存"]
+        case .fileInfo: keywords = ["文件", "信息", "exif", "大小", "类型"]
+        case .discount: keywords = ["折扣", "打折", "优惠"]
+        case .billSplit: keywords = ["aa", "分账", "小费", "平摊"]
+        case .barcode: keywords = ["条码", "code128", "barcode"]
         }
         return ([rawValue, title, subtitle] + keywords).joined(separator: " ")
     }

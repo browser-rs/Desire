@@ -227,6 +227,15 @@ SOURCES=(
   apps/macos/Desire/Features/Tools/ValidationToolsCore.swift
   apps/macos/Desire/Features/Tools/AESCrypto.swift
   apps/macos/Desire/Features/Tools/ToolsCrypto.swift
+  apps/macos/Desire/Features/Tools/RomanCore.swift
+  apps/macos/Desire/Features/Tools/ExcelColumnCore.swift
+  apps/macos/Desire/Features/Tools/CRC32Core.swift
+  apps/macos/Desire/Features/Tools/Base58Core.swift
+  apps/macos/Desire/Features/Tools/MarkdownHTMLCore.swift
+  apps/macos/Desire/Features/Tools/BarcodeCore.swift
+  apps/macos/Desire/Features/Tools/ASCIIInfoCore.swift
+  apps/macos/Desire/Features/Tools/HTTPHeadersCore.swift
+  apps/macos/Desire/Features/Tools/UUIDV7Core.swift
   apps/macos/Desire/Features/Tools/SQLToolCore.swift
   apps/macos/Desire/Features/Tools/FinanceCalcCore.swift
   apps/macos/Desire/Features/Tools/UnitConvertCore.swift

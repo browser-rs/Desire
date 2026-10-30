@@ -1,3 +1,11 @@
+## [Unreleased]
+### Added
+
+- Toolbox grows to 58 tools: Roman numerals, Excel column letters, CRC-32, SHA-3, Base58, regex replace with capture groups, Markdown→HTML, ASCII table, placeholder text generator, HTTP header lookup, file info with EXIF, discount calculator, bill split, Code128 barcode generator, and UUID v7 option (v0.8.27)
+- Floating ball: new Toolbox capability opens `desire://tools` from the ball's action hub (v0.8.27)
+
+
+
 ## [v0.8.26] - 2026-10-30
 ### Changed
 

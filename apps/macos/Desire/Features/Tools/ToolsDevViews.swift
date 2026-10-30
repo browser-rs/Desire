@@ -349,14 +349,18 @@ struct NumberToolView: View {
 struct UUIDToolView: View {
     @State private var count = 5
     @State private var values: [String] = []
+    @State private var useV7 = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
                 Stepper(String(localized: "Count: \(count)"), value: $count, in: 1...50)
                     .font(.system(size: 11.5))
+                ToolToggle(title: String(localized: "UUID v7"), isOn: $useV7)
                 Button(String(localized: "Generate")) {
-                    values = (0..<count).map { _ in UUID().uuidString }
+                    values = (0..<count).map { _ in
+                        useV7 ? UUIDV7Core.generate().uuidString : UUID().uuidString
+                    }
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)

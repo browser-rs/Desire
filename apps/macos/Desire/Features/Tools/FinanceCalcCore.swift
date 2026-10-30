@@ -171,6 +171,21 @@ nonisolated enum PercentCore {
     }
 }
 
+/// 折扣 / AA 分账——纯逻辑。
+nonisolated enum ShoppingCalcCore {
+    /// 原价 price 打 percent% 折（percent=88 表示 8.8 折）→ 应付。
+    static func discounted(price: Double, percent: Double) -> Double? {
+        guard price >= 0, percent >= 0, percent <= 100 else { return nil }
+        return price * percent / 100
+    }
+
+    /// AA 分账：总额 + 人数 + 小费百分比 → 每人应付。
+    static func splitBill(total: Double, people: Int, tipPercent: Double) -> Double? {
+        guard total >= 0, people > 0, tipPercent >= 0, tipPercent <= 100 else { return nil }
+        return (total * (1 + tipPercent / 100)) / Double(people)
+    }
+}
+
 /// BMI（中国成人标准：<18.5 偏瘦，18.5–24 正常，24–28 超重，≥28 肥胖）。
 nonisolated enum BMICore {
     enum Category: String, Sendable {

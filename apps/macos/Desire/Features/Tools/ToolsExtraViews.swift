@@ -896,3 +896,496 @@ struct ImageConvertToolView: View {
         }
     }
 }
+
+// MARK: - 罗马数字
+
+struct RomanToolView: View {
+    @State private var numberText = "2026"
+    @State private var romanText = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ExtraField(title: String(localized: "Number (1–3999)"), text: $numberText, width: 160)
+            if let value = Int(numberText), let roman = RomanCore.toRoman(value) {
+                ToolValueRow(label: String(localized: "Roman"), value: roman)
+            } else {
+                ExtraField(title: String(localized: "Roman"), text: $romanText, width: 200)
+                if !romanText.isEmpty {
+                    if let value = RomanCore.fromRoman(romanText) {
+                        ToolValueRow(label: String(localized: "Number"), value: "\(value)")
+                    } else {
+                        ToolErrorText(text: String(localized: "Not a valid Roman numeral"))
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Excel 列号
+
+struct ExcelColumnToolView: View {
+    @State private var letters = "AA"
+    @State private var numberText = "27"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ExtraField(title: String(localized: "Letters"), text: $letters, width: 100)
+            if let value = ExcelColumnCore.fromLetters(letters) {
+                ToolValueRow(label: String(localized: "Number"), value: "\(value)")
+            } else if !letters.isEmpty {
+                ToolErrorText(text: String(localized: "Not valid column letters"))
+            }
+            Divider()
+            ExtraField(title: String(localized: "Number"), text: $numberText, width: 100)
+            if let number = Int(numberText), let result = ExcelColumnCore.toLetters(number) {
+                ToolValueRow(label: String(localized: "Letters"), value: result)
+            }
+        }
+    }
+}
+
+// MARK: - CRC32
+
+struct CRC32ToolView: View {
+    @State private var text = ""
+    @State private var output = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ToolEditor(title: String(localized: "Text"), text: $text, height: 100)
+            Button(String(localized: "Calculate")) {
+                output = text.isEmpty ? "" : CRC32Core.hex(Data(text.utf8))
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            ToolOutput(text: output, title: "CRC-32")
+        }
+    }
+}
+
+// MARK: - SHA3
+
+struct SHA3ToolView: View {
+    @State private var text = ""
+    @State private var variant: SHA3Core.Variant = .sha3_256
+
+    private var digest: String {
+        text.isEmpty ? "" : SHA3Core.hex(Data(text.utf8), variant: variant)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ToolEditor(title: String(localized: "Text"), text: $text, height: 100)
+            Picker("", selection: $variant) {
+                ForEach(SHA3Core.Variant.allCases, id: \.self) { value in
+                    Text(value.rawValue).tag(value)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 260)
+            ToolOutput(text: digest, title: variant.rawValue)
+        }
+    }
+}
+
+// MARK: - Base58
+
+struct Base58ToolView: View {
+    var body: some View {
+        CodecToolView(
+            inputTitle: String(localized: "Text or Base58"),
+            placeholder: "hello world",
+            encode: { Base58Core.encode($0) },
+            decode: { Base58Core.decode($0) })
+    }
+}
+
+// MARK: - 正则替换
+
+struct RegexReplaceToolView: View {
+    @State private var pattern = "(\\d+)-(\\d+)"
+    @State private var template = "[$1–$2]"
+    @State private var text = "Pages 3-7 and 12-15."
+    @State private var output = ""
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ExtraField(title: String(localized: "Pattern"), text: $pattern, width: 300)
+            ExtraField(title: String(localized: "Template"), text: $template, width: 300)
+            ToolEditor(title: String(localized: "Text"), text: $text, height: 110)
+            HStack(spacing: 8) {
+                Button(String(localized: "Replace")) { run() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+            }
+            if let error { ToolErrorText(text: error) }
+            ToolOutput(text: output)
+        }
+        .onChange(of: pattern) { _, _ in run() }
+        .onChange(of: template) { _, _ in run() }
+        .onChange(of: text) { _, _ in run() }
+    }
+
+    private func run() {
+        switch RegexToolCore.replace(pattern: pattern, template: template, in: text) {
+        case .success(let value):
+            output = value
+            error = nil
+        case .failure(let failure):
+            output = ""
+            error = failure.message
+        }
+    }
+}
+
+// MARK: - Markdown → HTML
+
+struct MarkdownToolView: View {
+    @State private var text = "# Hello\n\nSome **bold** text."
+
+    private var html: String {
+        text.isEmpty ? "" : MarkdownHTMLCore.html(text)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ToolEditor(title: "Markdown", text: $text, height: 150)
+            HStack(spacing: 8) {
+                Button(String(localized: "Copy HTML")) {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(html, forType: .string)
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(text.isEmpty)
+            }
+            ToolOutput(text: html, title: "HTML")
+        }
+    }
+}
+
+// MARK: - ASCII 表
+
+struct ASCIIToolView: View {
+    @State private var query = ""
+
+    private var rows: [ASCIIInfoCore.Entry] { ASCIIInfoCore.search(query) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ExtraField(title: String(localized: "Search"), text: $query, width: 220, mono: false)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { _, entry in
+                        HStack(spacing: 10) {
+                            Text("\(entry.decimal)")
+                                .font(.system(size: 11, design: .monospaced))
+                                .frame(width: 36, alignment: .leading)
+                            Text(entry.hex)
+                                .font(.system(size: 11, design: .monospaced))
+                                .frame(width: 36, alignment: .leading)
+                            Text(entry.character)
+                                .font(.system(size: 12, design: .monospaced))
+                                .frame(width: 30, alignment: .center)
+                            Text(entry.description)
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(.secondary)
+                            Spacer(minLength: 0)
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+            .frame(maxHeight: 360)
+        }
+    }
+}
+
+// MARK: - 占位文本
+
+struct LoremToolView: View {
+    @State private var count = 3
+    @State private var chinese = false
+    @State private var output = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 14) {
+                Stepper(String(localized: "Paragraphs: \(count)"), value: $count, in: 1...20)
+                    .font(.system(size: 11.5))
+                ToolToggle(title: String(localized: "Chinese"), isOn: $chinese)
+            }
+            Button(String(localized: "Generate")) {
+                output = LoremCore.paragraphs(count: count, chinese: chinese)
+                    .joined(separator: "\n\n")
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+            ToolOutput(text: output, minHeight: 140)
+        }
+        .onAppear(perform: { output = LoremCore.paragraphs(count: count, chinese: chinese).joined(separator: "\n\n") })
+    }
+}
+
+// MARK: - HTTP 头
+
+struct HTTPHeadersToolView: View {
+    @State private var query = ""
+
+    private var rows: [HTTPHeadersCore.Header] { HTTPHeadersCore.search(query) }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            ExtraField(title: String(localized: "Search"), text: $query, width: 220, mono: false)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(rows.enumerated()), id: \.offset) { _, header in
+                        VStack(alignment: .leading, spacing: 1) {
+                            HStack(spacing: 6) {
+                                Text(header.name)
+                                    .font(.system(size: 11.5, weight: .semibold, design: .monospaced))
+                                Text(header.direction)
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Text(header.description)
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.vertical, 3)
+                    }
+                }
+            }
+            .frame(maxHeight: 360)
+        }
+    }
+}
+
+// MARK: - 文件信息
+
+struct FileInfoToolView: View {
+    @State private var fileURL: URL?
+    @State private var info: [(String, String)] = []
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Button(String(localized: "Choose File…")) { chooseFile() }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            if let fileURL {
+                Text(fileURL.path)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(2)
+            }
+            if !info.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(info.enumerated()), id: \.offset) { _, pair in
+                        ToolValueRow(label: pair.0, value: pair.1, mono: false)
+                    }
+                }
+            }
+        }
+    }
+
+    private func chooseFile() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        guard panel.runModal() == .OK, let url = panel.url,
+              let attributes = try? FileManager.default.attributesOfItem(atPath: url.path) else { return }
+        var rows: [(String, String)] = []
+        rows.append((String(localized: "Name"), url.lastPathComponent))
+        if let size = attributes[.size] as? Int64 {
+            rows.append((String(localized: "Size"), ByteCountFormatter.string(fromByteCount: size, countStyle: .file)))
+        }
+        if let created = attributes[.creationDate] as? Date {
+            rows.append((String(localized: "Created"), created.formatted(date: .long, time: .shortened)))
+        }
+        if let modified = attributes[.modificationDate] as? Date {
+            rows.append((String(localized: "Modified"), modified.formatted(date: .long, time: .shortened)))
+        }
+        let ext = url.pathExtension.lowercased()
+        if let mime = MIMECore.mime(forExtension: ext) {
+            rows.append((String(localized: "MIME"), mime))
+        }
+        // 图片尺寸 + EXIF 摘要
+        if ["png", "jpg", "jpeg", "heic", "tiff", "webp"].contains(ext),
+           let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+           let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [String: Any] {
+            if let width = properties[kCGImagePropertyPixelWidth as String] as? Int,
+               let height = properties[kCGImagePropertyPixelHeight as String] as? Int {
+                rows.append((String(localized: "Dimensions"), "\(width) × \(height)"))
+            }
+            if let exif = properties[kCGImagePropertyExifDictionary as String] as? [String: Any],
+               let dateTime = exif[kCGImagePropertyExifDateTimeOriginal as String] as? String {
+                rows.append((String(localized: "Taken"), dateTime))
+            }
+        }
+        info = rows
+    }
+}
+
+// MARK: - 折扣 / AA
+
+struct DiscountToolView: View {
+    @State private var priceText = "100"
+    @State private var percentText = "88"
+
+    private var discounted: Double? {
+        guard let price = Double(priceText), let percent = Double(percentText) else { return nil }
+        return ShoppingCalcCore.discounted(price: price, percent: percent)
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 6) {
+                TextField("100", text: $priceText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 13, design: .monospaced))
+                    .frame(width: 120)
+                Text(String(localized: "at"))
+                    .font(.system(size: 11.5)).foregroundStyle(.secondary)
+                TextField("88", text: $percentText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 13, design: .monospaced))
+                    .frame(width: 80)
+                Text("%").font(.system(size: 11.5)).foregroundStyle(.secondary)
+                Text("=")
+                    .font(.system(size: 13)).foregroundStyle(.secondary)
+                Text(discounted.map { ToolFormat.money($0) } ?? "—")
+                    .font(.system(size: 16, weight: .semibold, design: .rounded))
+                    .foregroundStyle(.primary)
+            }
+        }
+    }
+}
+
+struct BillSplitToolView: View {
+    @State private var totalText = "200"
+    @State private var peopleCount = 4
+    @State private var tipPercent = 10
+
+    private var perPerson: Double? {
+        guard let total = Double(totalText) else { return nil }
+        return ShoppingCalcCore.splitBill(total: total, people: peopleCount, tipPercent: Double(tipPercent))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                ExtraField(title: String(localized: "Total"), text: $totalText, width: 120)
+                Stepper(String(localized: "\(peopleCount) people"), value: $peopleCount, in: 1...50)
+                    .font(.system(size: 11.5))
+                Stepper(String(localized: "Tip: \(tipPercent)%"), value: $tipPercent, in: 0...50)
+                    .font(.system(size: 11.5))
+            }
+            if let perPerson {
+                HStack(spacing: 6) {
+                    Text(String(localized: "Each person pays"))
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                    Text(ToolFormat.money(perPerson))
+                        .font(.system(size: 18, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                }
+            }
+        }
+    }
+}
+
+// MARK: - 条码
+
+struct BarcodeToolView: View {
+    @State private var text = "DESIRE-2026"
+    @State private var image: NSImage?
+    @State private var error: String?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            ToolEditor(title: String(localized: "Text"), text: $text, height: 60,
+                       placeholder: "DESIRE-2026")
+            HStack(spacing: 8) {
+                Button(String(localized: "Generate")) { generate() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                Button(String(localized: "Copy Image")) {
+                    if let image {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.writeObjects([image])
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(image == nil)
+                Button(String(localized: "Save PNG…")) { savePNG() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(image == nil)
+            }
+            if let error { ToolErrorText(text: error) }
+            if let image {
+                Image(nsImage: image)
+                    .interpolation(.none)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(maxHeight: 80)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(.white))
+            }
+        }
+        .onAppear(perform: generate)
+        .onChange(of: text) { _, _ in generate() }
+    }
+
+    private func generate() {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { image = nil; error = nil; return }
+        switch BarcodeCore.widths(for: trimmed) {
+        case .failure(let failure):
+            image = nil
+            error = failure.message
+        case .success(let widths):
+            error = nil
+            // 渲染：每字符 1 模块宽 = 2px，高 60px
+            let moduleWidth = 2
+            let totalModules = widths.reduce(0) { $0 + Int(String($1))! }
+            let width = totalModules * moduleWidth
+            let height = 60
+            guard let context = CGContext(data: nil, width: width, height: height,
+                                          bitsPerComponent: 8, bytesPerRow: width * 4,
+                                          space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+                error = String(localized: "Render failed")
+                return
+            }
+            context.setFillColor(CGColor(gray: 1, alpha: 1))
+            context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+            context.setFillColor(CGColor(gray: 0, alpha: 1))
+            var x = 0
+            var isBar = true
+            for character in widths {
+                let w = Int(String(character))! * moduleWidth
+                if isBar { context.fill(CGRect(x: x, y: 0, width: w, height: height)) }
+                isBar.toggle()
+                x += w
+            }
+            guard let cg = context.makeImage() else {
+                error = String(localized: "Could not render the barcode")
+                return
+            }
+            image = NSImage(cgImage: cg, size: NSSize(width: width, height: height))
+        }
+    }
+
+    private func savePNG() {
+        guard let image, let tiff = image.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else { return }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "barcode.png"
+        panel.allowedContentTypes = [.png]
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        try? png.write(to: dest)
+    }
+}

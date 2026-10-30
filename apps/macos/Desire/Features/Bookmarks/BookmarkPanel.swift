@@ -31,6 +31,13 @@ struct BookmarkPanel: View {
     @State private var selectedTag: String?
     /// 查找相关（v0.8.22 批二）。
     @State private var relatedRequest: SemanticRelatedRequest?
+    /// 批量标签编辑 sheet（v0.8.25）。
+    @State private var showBatchTags = false
+
+    /// 可选的目标文件夹（缩进层级；根单独一项）。
+    private var folderChoices: [(Bookmark, Int)] {
+        store.bookmarks.flatMap { $0.flattened() }.filter { $0.0.isFolder }
+    }
 
     private var flatItems: [FlatBookmark] {
         if let tag = selectedTag {
@@ -226,6 +233,40 @@ struct BookmarkPanel: View {
             } onCommit: { keepDuplicates in
                 store.saveImported(keepDuplicates ? pending.original : pending.plan.filtered)
                 pendingImport = nil
+            }
+        }
+        .sheet(isPresented: $showBatchTags) {
+            BookmarkBatchTagsSheet(store: store, ids: selectedIDs)
+        }
+        .safeAreaInset(edge: .bottom) {
+            // 多选操作条（v0.8.25）：移动 / 批量标签（删除仍在头部）。
+            if isSelecting && !selectedIDs.isEmpty {
+                HStack(spacing: 10) {
+                    Text(String(localized: "\(selectedIDs.count) selected"))
+                        .font(.caption)
+                    Spacer()
+                    Menu {
+                        Button(String(localized: "Root")) {
+                            _ = store.move(ids: selectedIDs, toFolder: nil)
+                        }
+                        if !folderChoices.isEmpty { Divider() }
+                        ForEach(folderChoices, id: \.0.id) { folder, level in
+                            Button(String(repeating: "  ", count: level) + folder.title) {
+                                _ = store.move(ids: selectedIDs, toFolder: folder.id)
+                            }
+                        }
+                    } label: {
+                        Label(String(localized: "Move to…"), systemImage: "folder")
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    Button(String(localized: "Tags…")) { showBatchTags = true }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+                .background(.bar)
             }
         }
     }
@@ -431,6 +472,69 @@ private struct BookmarkEditor: View {
         }
         .padding(20)
         .frame(width: 380)
+    }
+}
+
+// MARK: - 批量标签编辑（v0.8.25）
+
+/// 对选中书签加 / 删 / 替换标签。逗号（中英文）、顿号、分号都可作分隔。
+private struct BookmarkBatchTagsSheet: View {
+    enum Mode: String, CaseIterable, Identifiable {
+        case add, remove, replace
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .add: return String(localized: "Add")
+            case .remove: return String(localized: "Remove")
+            case .replace: return String(localized: "Replace")
+            }
+        }
+    }
+
+    @ObservedObject var store: BookmarkStore
+    let ids: Set<UUID>
+    @Environment(\.dismiss) private var dismiss
+    @State private var mode: Mode = .add
+    @State private var text = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(String(localized: "Tags for \(ids.count) bookmark(s)"))
+                .font(.system(size: 13, weight: .semibold))
+            Picker("Action", selection: $mode) {
+                ForEach(Mode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            TextField("tag1, tag2", text: $text)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { apply() }
+            Text(String(localized: "Separate tags with commas, 、 or ;"))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            HStack {
+                Spacer()
+                Button(String(localized: "Cancel")) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button(String(localized: "Apply")) { apply() }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(16)
+        .frame(width: 360)
+    }
+
+    private func apply() {
+        let tags = BookmarkBatchEdit.parseTags(text)
+        switch mode {
+        case .add: store.addTags(tags, toIDs: ids)
+        case .remove: store.removeTags(tags, fromIDs: ids)
+        case .replace: store.setTags(tags, forIDs: ids)
+        }
+        dismiss()
     }
 }
 

@@ -126,6 +126,92 @@ class BookmarkStore: ObservableObject {
         save()
     }
 
+    // MARK: - 批量编辑（v0.8.25）
+
+    /// 把选中节点移到目标文件夹（nil = 根）。移进自己/子孙、目标不是文件夹、
+    /// 节点不存在都跳过。返回实际移动数。移动与新旧父节点都盖 LWW 戳。
+    @discardableResult
+    func move(ids: Set<UUID>, toFolder folderID: UUID?) -> Int {
+        guard !ids.isEmpty else { return 0 }
+        let target: Bookmark? = folderID.flatMap { find(id: $0) }
+        if folderID != nil, target?.isFolder != true { return 0 }
+        var moved = 0
+        for id in ids {
+            guard let node = find(id: id),
+                  BookmarkBatchEdit.canMove(node, into: target) else { continue }
+            let oldParentID = parentID(of: id)
+            guard let removed = bookmarks.remove(id: id) else { continue }
+            var stamped = removed
+            stamped.updatedAt = Date()
+            if let target {
+                _ = bookmarks.update(id: target.id) { parent in
+                    parent.children.append(stamped)
+                    parent.updatedAt = Date()
+                }
+            } else {
+                bookmarks.append(stamped)
+            }
+            if let oldParentID {
+                _ = bookmarks.update(id: oldParentID) { $0.updatedAt = Date() }
+            }
+            moved += 1
+        }
+        if moved > 0 {
+            rebuildURLIndex()
+            save()
+        }
+        return moved
+    }
+
+    /// 整表替换标签（空 = 清掉标签）。
+    func setTags(_ tags: [String], forIDs ids: Set<UUID>) {
+        let normalized = BookmarkBatchEdit.normalizeTags(tags)
+        mutateTags(ids: ids) { _ in normalized.isEmpty ? nil : normalized }
+    }
+
+    /// 批量加标签（保留原有）。
+    func addTags(_ tags: [String], toIDs ids: Set<UUID>) {
+        let adding = BookmarkBatchEdit.normalizeTags(tags)
+        guard !adding.isEmpty else { return }
+        mutateTags(ids: ids) { BookmarkBatchEdit.merged(existing: $0, adding: adding) }
+    }
+
+    /// 批量删标签。
+    func removeTags(_ tags: [String], fromIDs ids: Set<UUID>) {
+        let removing = BookmarkBatchEdit.normalizeTags(tags)
+        guard !removing.isEmpty else { return }
+        mutateTags(ids: ids) { BookmarkBatchEdit.removed(existing: $0, removing: removing) }
+    }
+
+    private func mutateTags(ids: Set<UUID>, transform: ([String]?) -> [String]?) {
+        var changed = false
+        for id in ids {
+            _ = bookmarks.update(id: id) { node in
+                let next = transform(node.tags)
+                guard next != node.tags else { return }
+                node.tags = next
+                node.updatedAt = Date()
+                changed = true
+            }
+        }
+        if changed {
+            rebuildURLIndex()
+            save()
+        }
+    }
+
+    /// 节点的父文件夹 id（根部返回 nil）。
+    func parentID(of id: UUID) -> UUID? {
+        func search(_ nodes: [Bookmark], parent: UUID?) -> UUID? {
+            for node in nodes {
+                if node.id == id { return parent }
+                if let hit = search(node.children, parent: node.id) { return hit }
+            }
+            return nil
+        }
+        return search(bookmarks, parent: nil)
+    }
+
     func contains(url: String) -> Bool {
         leafURLs.contains(url)
     }

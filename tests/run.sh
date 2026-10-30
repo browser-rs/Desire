@@ -126,6 +126,7 @@ SOURCES=(
   apps/macos/Desire/App/FilePathing.swift
   apps/macos/Desire/Features/Agent/AgentTextSanitizer.swift
   apps/macos/Desire/Features/Bookmarks/Bookmark.swift
+  apps/macos/Desire/Features/Bookmarks/BookmarkBatchEdit.swift
   apps/macos/Desire/Features/Browsing/MediaResource.swift
   apps/macos/Desire/Features/Downloads/BatchMedia.swift
   apps/macos/Desire/Features/Downloads/BatchStallPolicy.swift

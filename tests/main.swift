@@ -5550,6 +5550,27 @@ func testReadingListFilter() {
 }
 testReadingListFilter()
 
+func testBookmarkBatchEdit() {
+    eq("书签批量：标签归一", BookmarkBatchEdit.normalizeTags([" A ", "a", "", "B"]), ["A", "B"])
+    eq("书签批量：解析分隔", BookmarkBatchEdit.parseTags("a, b、c；d"), ["a", "b", "c", "d"])
+    eq("书签批量：追加去重", BookmarkBatchEdit.merged(existing: ["A"], adding: ["a", "B"]), ["A", "B"])
+    eq("书签批量：删到空", BookmarkBatchEdit.removed(existing: ["a", "b"], removing: ["A"]), ["b"])
+    eq("书签批量：删除不存在的标签保持原样", BookmarkBatchEdit.removed(existing: ["a"], removing: ["z"]), ["a"])
+    eq("书签批量：空加空得 nil", BookmarkBatchEdit.merged(existing: nil, adding: []), nil)
+
+    let folderA = Bookmark.folder(title: "A")
+    let folderB = Bookmark.folder(title: "B", children: [folderA])
+    let leaf = Bookmark.leaf(title: "L", url: "https://a.com")
+    check("书签批量：可移到根", BookmarkBatchEdit.canMove(folderB, into: nil))
+    check("书签批量：不能移进自己", !BookmarkBatchEdit.canMove(folderB, into: folderB))
+    check("书签批量：不能移进子孙", !BookmarkBatchEdit.canMove(folderB, into: folderA))
+    check("书签批量：不能移到叶子节点", !BookmarkBatchEdit.canMove(leaf, into: Bookmark.leaf(title: "x", url: "https://x.com")))
+    check("书签批量：正常移入", BookmarkBatchEdit.canMove(leaf, into: folderB))
+    eq("书签批量：子树 id", BookmarkBatchEdit.subtreeIDs(folderB).count, 2)
+}
+
+testBookmarkBatchEdit()
+
 func testReadingListTags() {
     eq("标签：归一去空白去重", ReadingListTags.normalize([" 工作 ", "work", "", "WORK", "生活"]),
        ["工作", "work", "生活"])

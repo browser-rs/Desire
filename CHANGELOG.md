@@ -17,6 +17,8 @@
 - History: insights sheet (top sites, 24-hour distribution, last 7 days) opened from the panel header, sharing the same derived numbers as `/history/insights` (v0.8.25)
 - Downloads: search by name or site + status filter (active/paused/completed/failed), failure count in the summary bar and "Copy Error" on failed rows (v0.8.25)
 - Reading list: tags with filter chips, an editor sheet and a bridge endpoint (`/reading-list/tags`); tags travel in the existing sync payload (legacy clients keep local tags) (v0.8.25)
+- Bookmarks: multi-select actions — move selected items into a folder (root included) and batch add/remove/replace tags, with a subtree guard against moving a folder into itself (v0.8.25)
+
 
 
 

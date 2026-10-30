@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.28] - 2026-10-31
 ### Added
 
 - Multi-track video editor goes production-grade: magnetic snapping (playhead/clip edges/second ticks, ⌘ to bypass), multi-select (⌘ toggle / ⇧ range) with batch delete and mute, full keyboard control (S split, Delete, ⌘Z, ⌘A, arrows, Home/End, =/- zoom), and a source monitor (preview a pool item, mark in/out, insert the trimmed range at the playhead) (v0.8.28)

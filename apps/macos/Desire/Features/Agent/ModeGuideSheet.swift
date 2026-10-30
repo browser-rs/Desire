@@ -23,10 +23,33 @@ struct ModeGuideSheet: View {
             Text(String(localized: "You can switch anytime from the Mode menu (⌃⌘1–3)."))
                 .font(.system(size: 11))
                 .foregroundStyle(.tertiary)
+            if mode != .browser {
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(String(localized: "How should the agent's browser relate to your logins?"))
+                        .font(.system(size: 11.5, weight: .medium))
+                    HStack(spacing: 8) {
+                        Button(String(localized: "Isolated container (recommended)")) {
+                            AppModeStore.shared.setAgentSharesUserProfile(false)
+                            onClose()
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        Button(String(localized: "Share my login state")) {
+                            AppModeStore.shared.setAgentSharesUserProfile(true)
+                            onClose()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                    Text(String(localized: "You can change this later in Settings › Usage Mode."))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                }
+            }
             HStack {
                 Spacer()
                 Button(String(localized: "Got it")) { onClose() }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     .controlSize(.small)
                     .keyboardShortcut(.defaultAction)
             }

@@ -27,6 +27,8 @@
 - Peek overlay: quick actions — Approve (hand back and continue), Deny (tell the agent to stop this step) and Retry (re-run the agent's last step after the user deals with the page); also `POST /peek {"action":"approve|deny|retry"}` (v0.8.25)
 - Selection → related content: the in-place card and the page context menu can hand the selected text to Search Everywhere in Meaning mode (history/bookmarks/reading list/excerpts/conversations) (v0.8.25)
 - Excerpts: reverse references — each excerpt shows how many whiteboards/conversations quote it, with a sheet that opens the source conversation/board (v0.8.25)
+- Site-level agent preferences: per-host Auto-Operate / Require Confirmation / Always Isolate toggles in the site control center — Require Confirmation overrides every auto-allow path, Auto-Operate only covers state-changing tools (dangerous ones still ask), and Always Isolate routes the agent's new tabs into an `Isolated · <host>` container; exposed as `/site-agent-prefs` bridge endpoints (v0.8.25)
+
 
 
 

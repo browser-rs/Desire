@@ -470,6 +470,20 @@ extension BrowserToolProvider {
                 containerID = container.id
                 containerNote = " in container \(container.name)"
             }
+            // 站点级"始终隔离"（v0.8.25）：本站开新标签自动进独立容器
+            //（同名容器按需创建，cookie/localStorage 与默认档案隔开）。
+            if containerID == nil, let url,
+               let rawHost = URL(string: url)?.host,
+               SiteAgentPreferenceStore.shared.preference(for: rawHost)?.alwaysIsolate == true,
+               let host = SiteAgentPreferenceCore.normalizeHost(rawHost) {
+                let name = SiteAgentPreferenceCore.isolatedContainerName(for: host)
+                if let existing = ContainerStore.shared.containers.first(where: { $0.name == name }) {
+                    containerID = existing.id
+                } else {
+                    containerID = ContainerStore.shared.addContainer(name: name).id
+                }
+                containerNote = " in \(name) (site policy)"
+            }
             surface.tabManager?.addTab(url: url, javaScriptEnabled: jsEnabled, contentBlocker: surface.contentBlocker, videoAdBlocker: surface.videoAdBlocker, containerID: containerID)
             return (url.map { "Opened new tab with \($0)" } ?? "Opened new tab") + containerNote
 

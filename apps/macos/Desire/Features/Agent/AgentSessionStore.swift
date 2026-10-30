@@ -3410,6 +3410,10 @@ class AgentSessionStore: ObservableObject {
         // 站点维度（0.8.1）：本工具在本页面所属站点上的规则。host 点名规则
         // 优先于全局规则；审批卡上“Always on <site>”/“Never on <site>”写入。
         let siteHost = approvalHost(for: toolCall)
+        // 站点级 Agent 偏好（v0.8.25）：requireConfirmation 压过一切自动放行；
+        // autoOperate 只放行 sideEffect（dangerous 永远走审批）。
+        let siteAgentPref = SiteAgentPreferenceStore.shared.preference(for: siteHost)
+        let forceConfirm = siteAgentPref?.requireConfirmation == true
 
         // deny 规则**先于**任何等级快捷放行（显式拒绝优先于一切——此前
         // autoEdit 分支在其前面，用户建的 deny 规则全部失效）。
@@ -3438,6 +3442,17 @@ class AgentSessionStore: ObservableObject {
             return .allowedOnce
         }
 
+        // 站点"允许自动操作"（v0.8.25）：只放行 sideEffect；deny 规则与
+        // DPP 升级（dangerous）已在上面处理，不受影响。
+        if let siteAgentPref, siteAgentPref.autoOperate, !forceConfirm,
+           risk == .sideEffect {
+            ApprovalPolicyStore.shared.recordHistory(
+                toolName: toolCall.function.name,
+                decision: "allowed (site auto-operate: \(siteHost ?? "-"))",
+                source: "site prefs", host: siteHost)
+            return .allowedOnce
+        }
+
         // 自动编辑：浏览器内的页面编辑类自动通过；**三个例外**——runCommand
         // 受命令级允许列表/审批管控（该层有自己的协商与持久白名单，
         // 见 SystemCommandStore）；fillLogin（填存档密码并提交登录）永远
@@ -3445,7 +3460,7 @@ class AgentSessionStore: ObservableObject {
         // 站点声明为 outbound/danger 时同样例外——协议声明能力 ≠ 授权，
         // 站点自标的不可逆操作不能因访问等级静默放行（真机 E2E 实测抓到：
         // 升级 .dangerous 挡不住 autoEdit 分支，必须在此显式豁免）。
-        if accessLevel == .autoEdit,
+        if accessLevel == .autoEdit, !forceConfirm,
            toolCall.function.name != "runCommand",
            toolCall.function.name != "fillLogin",
            effectiveRisk(for: toolCall) != .dangerous {
@@ -3502,7 +3517,8 @@ class AgentSessionStore: ObservableObject {
 
         // Whitelisted side-effect tools run without prompting. Dangerous
         // tools are exempt from the whitelist and always prompt.
-        if risk != .dangerous && preference.allowedTools.contains(toolCall.function.name) {
+        if !forceConfirm, risk != .dangerous,
+           preference.allowedTools.contains(toolCall.function.name) {
             ApprovalPolicyStore.shared.recordHistory(
                 toolName: toolCall.function.name, decision: "allowed (whitelist)", source: "whitelist")
             return .allowedOnce
@@ -3511,7 +3527,8 @@ class AgentSessionStore: ObservableObject {
         // 审批策略引擎（0.2.6）：deny 已在上面前置；这里只处理 allow 规则。
         // 站点规则（0.8.1）同样生效——用户在某个站点上点过“Always on site”
         // 后，该工具的审批不再逐次打断；离开该站点则回到全局规则。
-        if let policy = ApprovalPolicyStore.shared.decision(for: toolCall.function.name,
+        if !forceConfirm,
+           let policy = ApprovalPolicyStore.shared.decision(for: toolCall.function.name,
                                                             host: siteHost),
            policy == .allow {
             let policyDetail = siteHost.map { "allowed (site policy: \($0))" } ?? "allowed (policy)"

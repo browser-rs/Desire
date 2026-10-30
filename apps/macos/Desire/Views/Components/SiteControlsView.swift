@@ -27,6 +27,9 @@ struct SiteControlsView: View {
     @ObservedObject private var workflows = WorkflowStore.shared
     /// 本站广告拦截计数（视频广告规则 + 首击防护，锁弹层只读展示）。
     @ObservedObject private var adStats = AdBlockStatsStore.shared
+    /// 站点级 Agent 偏好（v0.8.25）：允许自动操作 / 需要确认 / 始终隔离。
+    /// 面板例外：直接观察 store（与 SiteSettingsStore 同规）。
+    @ObservedObject private var agentPrefs = SiteAgentPreferenceStore.shared
     /// 全局自动播放档（视频平台默认豁免的解析基准）。
     let globalAutoPlay: AutoPlayPolicy
     /// 当前页缩放（Tab.applyPageZoom 的真实值，1.0 = 100%）。
@@ -127,6 +130,28 @@ struct SiteControlsView: View {
                 enabled: currentURL != nil && !workflows.isRecording,
                 action: actions.recordWorkflow)
 
+            // Agent on this site（v0.8.25）：与审批策略（工具 × 站点）互补的
+            // 整体姿态。开关写 SiteAgentPreferenceStore，执行侧在审批闸里读取。
+            Divider()
+            Text("Agent on This Site")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+            agentToggle("bolt.circle", "Auto-Operate",
+                        help: "Let the agent run state-changing actions here without asking (dangerous actions still ask)",
+                        isOn: Binding(
+                            get: { agentPrefs.preference(for: host)?.autoOperate ?? false },
+                            set: { agentPrefs.update(host: host, autoOperate: $0) }))
+            agentToggle("hand.raised.circle", "Require Confirmation",
+                        help: "Always ask before the agent acts on this site (overrides auto-operate and other auto-allow rules)",
+                        isOn: Binding(
+                            get: { agentPrefs.preference(for: host)?.requireConfirmation ?? false },
+                            set: { agentPrefs.update(host: host, requireConfirmation: $0) }))
+            agentToggle("shippingbox", "Always Isolate",
+                        help: "New tabs the agent opens for this site use an isolated container",
+                        isOn: Binding(
+                            get: { agentPrefs.preference(for: host)?.alwaysIsolate ?? false },
+                            set: { agentPrefs.update(host: host, alwaysIsolate: $0) }))
+
             // 字体（摘要行 → 打开既有站点字体弹层）
             Button {
                 actions.editFont()
@@ -195,6 +220,24 @@ struct SiteControlsView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(appAccent)
         }
+    }
+
+    private func agentToggle(_ icon: String, _ title: String, help: String,
+                             isOn: Binding<Bool>) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(title)
+                .font(.system(size: 12.5))
+            Spacer()
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+        }
+        .help(help)
     }
 
     private var fontSummary: String {

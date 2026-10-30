@@ -206,6 +206,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/PeekReplayCore.swift
   apps/macos/Desire/Features/Agent/PageObservationCore.swift
   apps/macos/Desire/Features/Agent/TurnCheckpointCore.swift
+  apps/macos/Desire/Features/Agent/SiteAgentPreference.swift
   apps/macos/Desire/Features/Agent/AgentWorkReport.swift
   apps/macos/Desire/Features/Search/SemanticClusterCore.swift
   apps/macos/Desire/Features/Excerpts/KnowledgeDigestCore.swift

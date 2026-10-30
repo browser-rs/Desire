@@ -540,6 +540,9 @@ final class AutomationServer {
         ep("POST", "/site-settings/zoom", "Set per-host zoom", params: ["host:string", "zoom:double"], example: #"-d '{"host":"example.com","zoom":1.5}'"#)
         ep("POST", "/site-settings/font", "Per-site fonts: minFontSize (0=off)/fontFamily (''=off)/null=follow default; re-injects immediately", params: ["host", "minFontSize?", "fontFamily?"], example: #"-d '{"host":"a.b","minFontSize":16}'"#)
         ep("POST", "/site-settings/autoplay", "Per-site auto-play override: mode allow|block|follow (follow = global / video-site default). Takes effect on the next webview (new tab).", params: ["host:string", "mode:string"], example: #"-d '{"host":"www.youtube.com","mode":"block"}'"#)
+        ep("GET", "/site-agent-prefs", "Per-site agent stance: autoOperate / requireConfirmation / alwaysIsolate", example: "…/site-agent-prefs")
+        ep("POST", "/site-agent-prefs", "Update one host's agent stance (omitted flags unchanged; turning everything off deletes the record)", params: ["host:string", "autoOperate?:bool", "requireConfirmation?:bool", "alwaysIsolate?:bool"], example: #"-d '{"host":"a.b","autoOperate":true}'"#)
+        ep("POST", "/site-agent-prefs/remove", "Forget one host's agent stance", params: ["host:string"], example: #"-d '{"host":"a.b"}'"#)
         ep("POST", "/site-settings/clear", "Clear all per-site UI overrides (zoom/dark/auto-play/fonts; blocked rules untouched) and re-apply to the active tab", params: ["host:string"], example: #"-d '{"host":"a.b"}'"#)
         ep("GET", "/agent/weekly-digest", "Weekly report state (enabled/weekday/hour/due/lastDeliveredAt/lastText)", example: "…/agent/weekly-digest")
         ep("POST", "/agent/weekly-digest", "Weekly report actions: run-now (templated digest → session note + routine notification) / run-pipeline (digest → seed weekly board template → append digest block → optional Notes write) / enable / disable", params: ["action", "writeToNotes?:bool (run-pipeline)", "conversationId?:uuid (run-pipeline; default = delivery target)"], example: #"-d '{"action":"run-pipeline"}'"#)
@@ -1972,6 +1975,27 @@ final class AutomationServer {
                 return try Self.json(Self.setSiteFont(body: body))
             case ("POST", "/site-settings/autoplay"):
                 return try Self.json(Self.setSiteAutoPlay(body: body))
+            case ("GET", "/site-agent-prefs"):
+                return try Self.json(SiteAgentPreferenceStore.shared.payload())
+            case ("POST", "/site-agent-prefs"):
+                guard let host = Self.string(body, "host"), !host.isEmpty else {
+                    return try Self.json(["error": "host required"])
+                }
+                let updated = SiteAgentPreferenceStore.shared.update(
+                    host: host,
+                    autoOperate: body["autoOperate"] as? Bool,
+                    requireConfirmation: body["requireConfirmation"] as? Bool,
+                    alwaysIsolate: body["alwaysIsolate"] as? Bool)
+                var out = SiteAgentPreferenceStore.shared.payload()
+                out["ok"] = true
+                out["updated"] = updated != nil
+                return try Self.json(out)
+            case ("POST", "/site-agent-prefs/remove"):
+                let host = Self.string(body, "host") ?? ""
+                SiteAgentPreferenceStore.shared.remove(host: host)
+                var out = SiteAgentPreferenceStore.shared.payload()
+                out["ok"] = true
+                return try Self.json(out)
             case ("POST", "/site-settings/clear"):
                 return try Self.json(Self.clearSiteSettings(host: Self.string(body, "host") ?? ""))
             case ("GET", "/palette"):

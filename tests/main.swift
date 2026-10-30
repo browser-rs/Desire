@@ -5550,6 +5550,28 @@ func testReadingListFilter() {
 }
 testReadingListFilter()
 
+func testSiteAgentPreferenceCore() {
+    eq("站点偏好：host 归一", SiteAgentPreferenceCore.normalizeHost("  Example.COM. "), "example.com")
+    eq("站点偏好：host 空", SiteAgentPreferenceCore.normalizeHost("  "), nil)
+    let now = Date()
+    var pref = SiteAgentPreference(host: "a.com")
+    pref = SiteAgentPreferenceCore.apply(existing: pref, autoOperate: true, now: now)
+    check("站点偏好：自动操作开", pref.autoOperate)
+    check("站点偏好：时间戳更新", pref.updatedAt == now)
+    pref = SiteAgentPreferenceCore.apply(existing: pref, requireConfirmation: true, now: now)
+    check("站点偏好：需要确认压过自动", pref.requireConfirmation && !pref.autoOperate)
+    pref = SiteAgentPreferenceCore.apply(existing: pref, autoOperate: true, now: now)
+    check("站点偏好：自动再压回需要确认", pref.autoOperate && !pref.requireConfirmation)
+    pref = SiteAgentPreferenceCore.apply(existing: pref, alwaysIsolate: true, now: now)
+    check("站点偏好：隔离独立", pref.alwaysIsolate && pref.autoOperate)
+    check("站点偏好：非空", !SiteAgentPreferenceCore.isEmpty(pref))
+    pref = SiteAgentPreferenceCore.apply(existing: pref, autoOperate: false, alwaysIsolate: false, now: now)
+    check("站点偏好：全关即空", SiteAgentPreferenceCore.isEmpty(pref))
+    eq("站点偏好：隔离容器名", SiteAgentPreferenceCore.isolatedContainerName(for: "a.com"), "Isolated · a.com")
+}
+
+testSiteAgentPreferenceCore()
+
 func testTurnCheckpointCore() {
     let calls = [
         PendingToolCall(id: "c1", name: "getPageSnapshot", arguments: "{}"),

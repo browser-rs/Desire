@@ -328,10 +328,27 @@ private struct SiteDataSection: View {
                     .lineLimit(1)
             }
             Spacer()
-            Button {
-                WKWebsiteDataStore.default().removeData(ofTypes: record.dataTypes, for: [record]) {
-                    loadRecords()
+            // 按类型清除（v0.8.25）：只清 cookies 保留本地存储，或反之。
+            Menu {
+                Button(String(localized: "Delete All Data")) {
+                    delete(record, types: nil)
                 }
+                Divider()
+                ForEach(Array(record.dataTypes).sorted(), id: \.self) { type in
+                    Button(String(localized: "Delete ") + label(for: type)) {
+                        delete(record, types: [type])
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help(String(localized: "Choose what to delete"))
+            Button {
+                delete(record, types: nil)
             } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 11))
@@ -347,6 +364,16 @@ private struct SiteDataSection: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 8)
         .frame(minHeight: 44)
+    }
+
+    /// 按类型删除（nil = 全部），走 SiteDataManager 的统一口径。
+    private func delete(_ record: WKWebsiteDataRecord, types: [String]?) {
+        Task {
+            _ = await SiteDataManager.remove(
+                record.displayName,
+                types: types?.map { SiteDataManager.shortName($0) })
+            loadRecords()
+        }
     }
 
     private func loadRecords() {

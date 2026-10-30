@@ -37,6 +37,13 @@ nonisolated enum PostActionVerifier {
         return .unchanged
     }
 
+    /// 登录表单提示（v0.8.25）：页面出现密码输入框时给模型明确的两条路——
+    /// 请用户处理（Peek）或建议导入当前登录态（cookies 快照）。
+    static func loginHint(hasPasswordField: Bool) -> String {
+        guard hasPasswordField else { return "" }
+        return "\n[hint] this page has a login form — if you need the user's session, call requestUserHelp (they can log in via Peek) or suggest importing cookies from the current profile (/cookies/seed). Do not type passwords yourself."
+    }
+
     /// 追加到工具结果尾部的观察行（模型与轨迹都看得到）。
     static func annotation(_ verdict: PostActionVerdict) -> String {
         switch verdict {

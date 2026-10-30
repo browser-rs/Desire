@@ -6889,6 +6889,8 @@ func testPostActionVerifier() {
     check("verify：unchanged 提示生效", PostActionVerifier.annotation(.unchanged).contains("unchanged"))
     check("verify：unknown 无文案", PostActionVerifier.annotation(.unknown).isEmpty)
     check("verify：动作工具在集合", PostActionVerifier.tools.contains("click"))
+    check("verify：登录页有提示", PostActionVerifier.loginHint(hasPasswordField: true).contains("requestUserHelp"))
+    check("verify：非登录页无提示", PostActionVerifier.loginHint(hasPasswordField: false).isEmpty)
     check("verify：只读工具不在集合", !PostActionVerifier.tools.contains("getPageText"))
 }
 

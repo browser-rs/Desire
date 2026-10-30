@@ -189,6 +189,10 @@ extension BrowserToolProvider {
             }
             result += PostActionVerifier.annotation(
                 PostActionVerifier.verdict(before: pre, after: after))
+            // 登录态引导（v0.8.25）：落到登录页时给出两条可行路径。
+            let hasPasswordField = (try? await webView.evaluateJavaScript(
+                "(function(){return !!document.querySelector('input[type=password]');})()") as? Bool) ?? false
+            result += PostActionVerifier.loginHint(hasPasswordField: hasPasswordField)
         }
         return result
     }

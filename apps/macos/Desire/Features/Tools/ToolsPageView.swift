@@ -1,6 +1,27 @@
 import AppKit
 import SwiftUI
 
+/// 工具集侧栏宽度：180–380，跨次记忆（只在拖动结束时落盘一次）。
+enum ToolboxSidebarWidth {
+    static let key = "toolbox.sidebarWidth"
+    static let minimum: CGFloat = 180
+    static let maximum: CGFloat = 380
+    static let fallback: CGFloat = 232
+
+    static func stored() -> CGFloat {
+        let value = CGFloat(UserDefaults.standard.double(forKey: key))
+        return value >= minimum && value <= maximum ? value : fallback
+    }
+
+    static func clamp(_ width: CGFloat) -> CGFloat {
+        min(max(width, minimum), maximum)
+    }
+
+    static func save(_ width: CGFloat) {
+        UserDefaults.standard.set(Double(width), forKey: key)
+    }
+}
+
 /// 内置工具集合页（v0.8.27 重构）：`desire://tools`。
 /// 左侧按分类分组 + 收藏/最近使用 + 搜索；右侧是工具详情或全部工具卡片网格。
 /// 工具清单集中在 ToolboxCatalog（新增工具 = 加 case + switch 一行）。
@@ -11,6 +32,11 @@ struct ToolsPageView: View {
     @State private var query = ""
     @State private var selected: ToolID?
     @ObservedObject private var usage = ToolboxUsageStore.shared
+    /// 侧栏宽度：拖动只改 @State（不写 UserDefaults——每帧写偏好会触发全局
+    /// didChange 通知，是此前拖动闪屏/不丝滑的元凶）；松手后落盘一次。
+    @State private var sidebarWidth: CGFloat = ToolboxSidebarWidth.stored()
+    @State private var dragBaseWidth: CGFloat?
+    @State private var hoveringDivider = false
 
     init(initialTool: String? = nil) {
         self.initialTool = initialTool
@@ -28,8 +54,15 @@ struct ToolsPageView: View {
     }
 
     var body: some View {
-        // 原生 NSSplitView 分栏：拖动由 AppKit 处理，SwiftUI 视图不随每帧重建。
-        ToolboxSplitView(sidebar: sidebar, content: content)
+        HStack(spacing: 0) {
+            sidebar
+                .frame(width: sidebarWidth)
+                .frame(maxHeight: .infinity)
+            sidebarResizeHandle
+            content
+                .frame(minWidth: 360, maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color(nsColor: .textBackgroundColor))
+        }
         .onAppear {
             if let id = ToolID(rawValue: initialTool ?? "") { select(id) }
         }
@@ -128,6 +161,46 @@ struct ToolsPageView: View {
             }
         }
         .background(Color(nsColor: .controlBackgroundColor))
+    }
+
+    /// 可拖拽分隔条（9pt 命中区）：悬停/拖动时显示强调色竖条；双击复位。
+    private var sidebarResizeHandle: some View {
+        ZStack {
+            Rectangle()
+                .fill(Color(nsColor: .separatorColor).opacity(0.6))
+                .frame(width: 1)
+            RoundedRectangle(cornerRadius: 1)
+                .fill(appAccent.opacity(hoveringDivider || dragBaseWidth != nil ? 0.95 : 0))
+                .frame(width: 2)
+        }
+        .frame(width: 9)
+        .contentShape(Rectangle())
+        .onHover { inside in
+            hoveringDivider = inside
+            if inside {
+                NSCursor.resizeLeftRight.set()
+            } else if dragBaseWidth == nil {
+                NSCursor.arrow.set()
+            }
+        }
+        .gesture(
+            DragGesture(minimumDistance: 2)
+                .onChanged { value in
+                    if dragBaseWidth == nil { dragBaseWidth = sidebarWidth }
+                    let proposed = (dragBaseWidth ?? sidebarWidth) + value.translation.width
+                    sidebarWidth = ToolboxSidebarWidth.clamp(proposed)
+                }
+                .onEnded { _ in
+                    dragBaseWidth = nil
+                    ToolboxSidebarWidth.save(sidebarWidth)
+                    if !hoveringDivider { NSCursor.arrow.set() }
+                }
+        )
+        .onTapGesture(count: 2) {
+            sidebarWidth = ToolboxSidebarWidth.fallback
+            ToolboxSidebarWidth.save(sidebarWidth)
+        }
+        .help(String(localized: "Drag to resize · double-click to reset"))
     }
 
     private var favoriteTools: [ToolID] {

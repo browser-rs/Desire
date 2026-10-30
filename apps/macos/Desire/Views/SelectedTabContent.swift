@@ -280,6 +280,7 @@ struct SelectedTabContent: View {
         switch url.pathExtension.lowercased() {
         case "pdf", "html", "htm", "xhtml",
              "mp4", "m4v", "mov", "webm", "mp3", "m4a", "wav", "aac",
+             "flac", "aiff", "aif", "caf",
              "png", "jpg", "jpeg", "gif", "webp", "svg", "txt":
             return true
         default:

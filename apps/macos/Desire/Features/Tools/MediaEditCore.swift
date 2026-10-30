@@ -32,6 +32,14 @@ nonisolated enum MediaEditCore {
         return String(format: "%d:%02d.%d", m, s, tenth)
     }
 
+    /// 秒 → "h:mm:ss"（不足一小时 "m:ss"）；播放器时间轴用（无小数，四舍五入）。
+    static func formatClock(_ seconds: Double) -> String {
+        let total = Int(max(0, seconds).rounded())
+        let h = total / 3600, m = (total % 3600) / 60, s = total % 60
+        if h > 0 { return String(format: "%d:%02d:%02d", h, m, s) }
+        return String(format: "%d:%02d", m, s)
+    }
+
     // MARK: - 剪切计划
 
     struct TrimPlan: Equatable {

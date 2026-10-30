@@ -18,7 +18,7 @@ struct WhatsNewSheet: View {
     private var highlights: [Highlight] {
         [
             .init(icon: "film.stack", title: String(localized: "Video & audio editing"),
-                  detail: String(localized: "Trim with in/out points or merge clips in desire://tools — the media player's scissors button jumps there too; audio tracks extract to m4a.")),
+                  detail: String(localized: "Dragged-in videos open in a real playback mode — custom controls, speed, picture-in-picture, resume where you left off. Trim and merge in desire://tools.")),
             .init(icon: "camera.filters", title: String(localized: "Image editor: filters & tuning"),
                   detail: String(localized: "Nine one-tap presets (Vivid, Noir, Instant…) plus exposure and color-temperature sliders — on top of crop, annotate and OCR.")),
             .init(icon: "wrench.and.screwdriver", title: String(localized: "Toolbox: 59 built-in tools"),

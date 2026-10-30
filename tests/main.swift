@@ -7737,6 +7737,10 @@ func testMediaEditCore() {
     eq("格式化：时分秒", MediaEditCore.formatTime(3723), "1:02:03.0")
     eq("格式化：零", MediaEditCore.formatTime(0), "0:00.0")
     eq("格式化：负钳零", MediaEditCore.formatTime(-3), "0:00.0")
+    eq("时钟：分秒", MediaEditCore.formatClock(83.4), "1:23")
+    eq("时钟：进位", MediaEditCore.formatClock(83.6), "1:24")
+    eq("时钟：时分秒", MediaEditCore.formatClock(3723), "1:02:03")
+    eq("时钟：零", MediaEditCore.formatClock(0), "0:00")
 
     // 剪切计划
     check("计划：合法", MediaEditCore.trimPlan(startRaw: "0:05", endRaw: "0:12.5", duration: 90) ==

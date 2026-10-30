@@ -7842,6 +7842,69 @@ func testMediaEditCore() {
     check("字幕：候选含带后缀版", candidates.contains("movie.zh.srt"))
     check("字幕：候选排除无关与隐藏", !candidates.contains("other.srt") && !candidates.contains(".hidden.srt"))
     check("字幕：无视频后缀同格式序", candidates.count == 4)
+
+    // ---- 多轨时间线 ----
+    var project = TimelineCore.Project()
+    let videoTrack = project.tracks.first { $0.kind == .video }!
+    let audioTrack = project.tracks.first { $0.kind == .audio }!
+    let url = URL(fileURLWithPath: "/tmp/a.mp4")
+    let clip1 = TimelineCore.Clip(start: 0, duration: 4, sourceURL: url, label: "a.mp4")
+    if let p = TimelineCore.upsertClip(project, trackID: videoTrack.id, clip: clip1) { project = p }
+    let clip2 = TimelineCore.Clip(start: 4, duration: 3, sourceURL: url, label: "b.mp4")
+    if let p = TimelineCore.upsertClip(project, trackID: videoTrack.id, clip: clip2) { project = p }
+    eq("时间线：时长", TimelineCore.projectDuration(project), 7)
+
+    // 重叠拒绝
+    let overlap = TimelineCore.Clip(start: 2, duration: 1)
+    check("时间线：重叠拒绝", TimelineCore.upsertClip(project, trackID: videoTrack.id, clip: overlap) == nil)
+    // 同轨内缝隙可以
+    let gap = TimelineCore.Clip(start: 8, duration: 1)
+    if let p = TimelineCore.upsertClip(project, trackID: videoTrack.id, clip: gap) { project = p }
+    // 跨类别移动拒绝
+    check("时间线：跨类别移动拒绝",
+          TimelineCore.moveClip(project, clipID: clip1.id, toTrack: audioTrack.id, start: 0) == nil)
+    // 移动贴尾
+    if let p = TimelineCore.moveClip(project, clipID: clip2.id, toTrack: videoTrack.id, start: 9) { project = p }
+    check("时间线：移动生效", TimelineCore.clip(project, withID: clip2.id)?.0.id == videoTrack.id
+        && TimelineCore.clip(project, withID: clip2.id)?.1.start == 9)
+    // 裁边：左缘后移 1s → sourceStart 顺延
+    if let p = TimelineCore.trimClip(project, clipID: clip1.id, newStart: 1) { project = p }
+    let trimmed = TimelineCore.clip(project, withID: clip1.id)?.1
+    check("时间线：裁边联动源", trimmed?.start == 1 && trimmed?.duration == 3 && trimmed?.sourceStart == 1)
+    // 裁太碎拒绝
+    check("时间线：过短拒绝", TimelineCore.trimClip(project, clipID: clip1.id, newDuration: 0.05) == nil)
+    // 分割（左段保留原 id——选中连续性；右段新 id）
+    if let p = TimelineCore.splitClip(project, clipID: clip1.id, at: 2) { project = p }
+    check("时间线：分割两段", TimelineCore.clip(project, withID: clip1.id)?.1.duration == 1
+        && project.tracks.first { $0.id == videoTrack.id }!.clips.count == 4)
+    let segs = project.tracks.first { $0.id == videoTrack.id }!.clips.sorted { $0.start < $1.start }
+    check("时间线：分割时长与源", segs[0].duration == 1 && segs[0].sourceStart == 1
+        && segs[1].duration == 2 && segs[1].sourceStart == 2)
+    check("时间线：分割点在段外拒绝", TimelineCore.splitClip(project, clipID: segs[0].id, at: 5) == nil)
+    // 删除
+    project = TimelineCore.deleteClip(project, clipID: segs[1].id)
+    eq("时间线：删除后时长", TimelineCore.projectDuration(project), 12)
+    // 轨道增删
+    project = TimelineCore.addTrack(project, kind: .audio)
+    check("时间线：加音频轨命名", project.tracks.last?.name == "音频 2")
+    let textTrack = project.tracks.first { $0.kind == .text }!
+    project = TimelineCore.removeTrack(project, trackID: textTrack.id)
+    project = TimelineCore.addTrack(project, kind: .text)
+    check("时间线：文字轨可删可加", project.tracks.first { $0.kind == .text }?.name == "文字 1")
+    project = TimelineCore.removeTrack(project, trackID: videoTrack.id)
+    check("时间线：主视频轨不可删", project.tracks.contains { $0.id == videoTrack.id })
+    // 插入空位查找（候选时长 2s：0.5 处会撞 [1,2) → 顺延到 2）
+    let insertAt = TimelineCore.makeInsertStart(project: project, trackID: videoTrack.id,
+                                                at: 0.5, duration: 2)
+    eq("时间线：插入点避让", insertAt, 2)
+    let clearAt = TimelineCore.makeInsertStart(project: project, trackID: videoTrack.id,
+                                               at: 3, duration: 2)
+    eq("时间线：空位直落", clearAt, 3)
+    // 工程编解码往返
+    if let data = try? JSONEncoder().encode(project),
+       let back = try? JSONDecoder().decode(TimelineCore.Project.self, from: data) {
+        check("时间线：工程往返", back == project)
+    } else { check("时间线：工程往返", false) }
 }
 
 testToolboxBatch2Cores()

@@ -244,6 +244,7 @@ SOURCES=(
   apps/macos/Desire/Features/Tools/RegexToolCore.swift
   apps/macos/Desire/Features/Tools/MediaEditCore.swift
   apps/macos/Desire/Features/Browsing/SubtitleCore.swift
+  apps/macos/Desire/Features/Tools/TimelineCore.swift
   tests/main.swift
 )
 swiftc -o "$OUT" "${SOURCES[@]}"

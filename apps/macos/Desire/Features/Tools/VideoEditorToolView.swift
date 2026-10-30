@@ -29,7 +29,39 @@ struct VideoEditorToolView: View {
         }
     }
 
+    enum TopMode: String, CaseIterable, Identifiable {
+        case multiTrack, quick
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .multiTrack: return String(localized: "Multi-Track")
+            case .quick: return String(localized: "Quick Cut")
+            }
+        }
+    }
+
+    @State private var topMode: TopMode = .multiTrack
+
     var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Picker("", selection: $topMode) {
+                ForEach(TopMode.allCases) { mode in
+                    Text(mode.title).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .frame(maxWidth: 200)
+            if topMode == .multiTrack {
+                MultiTrackEditorView()
+            } else {
+                quickContent
+            }
+        }
+    }
+
+    /// 快速剪切（v0.8.27 媒体批）：单文件入出点剪切与拼接，保留作轻量路径。
+    private var quickContent: some View {
         VStack(alignment: .leading, spacing: 12) {
             sourceRow
             if let source {

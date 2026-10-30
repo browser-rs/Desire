@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- Agent: page observations are reused within the same turn (same tab, same settings, 8s window) instead of re-serializing the DOM; side-effect actions invalidate the cache and `refresh:true` forces a fresh read (v0.8.25)
+
 ### Fixed
 
 - **YouTube 详情页「暂停再播放」修复（v0.8.25）**：自动播策略纠正从 `didFinish`（页面已开始播放）提前到 `decidePolicyFor`（导航提交前 cancel → 带 allowAll 策略重开 → 再加载）——首次直达视频详情页不再"播一秒 → 换 webview → 重播"。保留 didFinish 兜底（站点策略会话中途变化时仍会纠正）。实测：空白标签直达 watch 页只出现 `pre-rebake before commit`，9 秒后 `paused=false / t=6.37 / 无广告`，连续播放。

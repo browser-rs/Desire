@@ -9,6 +9,26 @@ import WebKit
 /// 返回 nil = 本域不认识该工具，主 dispatch 继续。
 extension BrowserToolProvider {
 
+    /// 观测缓存入口（v0.8.25 observe-once-act-many）：同页同参数短窗口内复用
+    /// 上一份快照；`refresh` 强制重读。命中时附一句提示（含强制刷新参数名）。
+    private func cachedPageSnapshot(_ webView: WKWebView, maxChars: Int, maxElements: Int,
+                                    ignoreSels: String, refresh: Bool) async -> String {
+        if !refresh,
+           let hit = PageObservationCache.shared.reusable(webView: webView, maxChars: maxChars,
+                                                          maxElements: maxElements,
+                                                          ignoreSels: ignoreSels) {
+            Log.agent.debug("observation reused (\(Int(hit.age))s, \(maxChars)c/\(maxElements)e)")
+            return hit.text + PageObservationCore.note(age: hit.age)
+        }
+        let snapshot = await callAsync(webView, function: "__desireSnapshot",
+                                       args: ["maxChars": maxChars, "maxElements": maxElements,
+                                              "ignoreSels": ignoreSels])
+        PageObservationCache.shared.store(webView: webView, maxChars: maxChars,
+                                          maxElements: maxElements, ignoreSels: ignoreSels,
+                                          text: snapshot)
+        return snapshot
+    }
+
     func executePageTools(_ call: AgentToolCall, args: [String: Any], surface: any BrowserToolSurface, in webView: WKWebView) async -> String? {
         switch call.function.name {
         // --- Page reading ---
@@ -17,9 +37,9 @@ extension BrowserToolProvider {
             let maxElements = args["maxElements"] as? Int ?? 60
             let ignoreSelsJSON = (try? String(data: JSONEncoder().encode(
                 surface.tabManager?.selectedTab?.browser.effectiveProtocol?.ignore ?? []), encoding: .utf8)) ?? "[]"
-            let snapshot = await callAsync(webView, function: "__desireSnapshot",
-                                   args: ["maxChars": maxChars, "maxElements": maxElements,
-                                          "ignoreSels": ignoreSelsJSON])
+            let snapshot = await cachedPageSnapshot(
+                webView, maxChars: maxChars, maxElements: maxElements,
+                ignoreSels: ignoreSelsJSON, refresh: args["refresh"] as? Bool ?? false)
             // DPP 声明页：低效工具的返回里也提示结构化通道（实测模型在翻译/
             // 总结类任务上会跳过 pageProtocol——让提示跟到最常用的工具上）。
             // 先等解析落地（didFinish 异步任务，普通页面 <300ms；与 navigate
@@ -74,9 +94,9 @@ extension BrowserToolProvider {
             }
             let targetIgnoresJSON = (try? String(data: JSONEncoder().encode(
                 target.browser.effectiveProtocol?.ignore ?? []), encoding: .utf8)) ?? "[]"
-            let snapshot = await callAsync(target.browser.webView, function: "__desireSnapshot",
-                                           args: ["maxChars": 6000, "maxElements": 25,
-                                                  "ignoreSels": targetIgnoresJSON])
+            let snapshot = await cachedPageSnapshot(
+                target.browser.webView, maxChars: 6000, maxElements: 25,
+                ignoreSels: targetIgnoresJSON, refresh: args["refresh"] as? Bool ?? false)
             let dppNote = DPPConfigStore.shared.promptHints
                 && target.browser.effectiveProtocol != nil
                 ? "[DPP] This page declares a Desire Page Protocol — pageExtract for structured data.\n"

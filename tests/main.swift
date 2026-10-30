@@ -5550,6 +5550,32 @@ func testReadingListFilter() {
 }
 testReadingListFilter()
 
+func testPageObservationCore() {
+    let now = Date()
+    let entry = PageObservationCore.makeEntry(url: "https://a.com/p", maxChars: 100, maxElements: 10,
+                                              ignoreSels: "[]", text: "{\"text\":\"x\"}", now: now)
+    let hit = PageObservationCore.reusable(entry, url: "https://a.com/p", maxChars: 100,
+                                           maxElements: 10, ignoreSels: "[]", now: now.addingTimeInterval(2))
+    eq("观测缓存：同页同参命中", hit, "{\"text\":\"x\"}")
+    eq("观测缓存：URL 变化失效", PageObservationCore.reusable(entry, url: "https://a.com/q", maxChars: 100,
+                                                          maxElements: 10, ignoreSels: "[]", now: now), nil)
+    eq("观测缓存：参数变化失效", PageObservationCore.reusable(entry, url: "https://a.com/p", maxChars: 200,
+                                                         maxElements: 10, ignoreSels: "[]", now: now), nil)
+    eq("观测缓存：ignore 变化失效", PageObservationCore.reusable(entry, url: "https://a.com/p", maxChars: 100,
+                                                            maxElements: 10, ignoreSels: "[\".ad\"]", now: now), nil)
+    eq("观测缓存：过期失效", PageObservationCore.reusable(entry, url: "https://a.com/p", maxChars: 100,
+                                                    maxElements: 10, ignoreSels: "[]",
+                                                    now: now.addingTimeInterval(30)), nil)
+    eq("观测缓存：未来时间不命中", PageObservationCore.reusable(entry, url: "https://a.com/p", maxChars: 100,
+                                                        maxElements: 10, ignoreSels: "[]",
+                                                        now: now.addingTimeInterval(-5)), nil)
+    check("观测缓存：提示带 refresh", PageObservationCore.note(age: 1.4).contains("refresh:true"))
+    check("观测缓存：空条目不复用", PageObservationCore.reusable(nil, url: "u", maxChars: 1,
+                                                       maxElements: 1, ignoreSels: "[]", now: now) == nil)
+}
+
+testPageObservationCore()
+
 func testBookmarkBatchEdit() {
     eq("书签批量：标签归一", BookmarkBatchEdit.normalizeTags([" A ", "a", "", "B"]), ["A", "B"])
     eq("书签批量：解析分隔", BookmarkBatchEdit.parseTags("a, b、c；d"), ["a", "b", "c", "d"])

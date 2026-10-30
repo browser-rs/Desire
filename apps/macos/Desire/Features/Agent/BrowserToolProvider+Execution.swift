@@ -178,6 +178,8 @@ extension BrowserToolProvider {
         let needsVerify = PostActionVerifier.tools.contains(call.function.name)
         let pre = needsVerify ? await Self.fingerprint(in: webView) : nil
         var result = await executeBody(call, in: webView)
+        // 观测缓存（v0.8.25）：副作用动作可能重排 DOM，缓存整体作废。
+        if needsVerify { PageObservationCache.shared.invalidate(webView: webView) }
         if needsVerify, !result.hasPrefix("Error:") {
             var after = await Self.fingerprint(in: webView)
             var tries = 0

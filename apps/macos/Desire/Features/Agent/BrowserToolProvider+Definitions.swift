@@ -15,6 +15,7 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "maxChars": AgentJSONSchemaValue(type: "number", description: "Max characters of text content (default 12000)"),
                     "maxElements": AgentJSONSchemaValue(type: "number", description: "Max interactive elements listed (default 60)"),
+                    "refresh": AgentJSONSchemaValue(type: "boolean", description: "Force a fresh read. By default an identical snapshot from the last few seconds is reused (marked with an [observation reused] note)"),
                 ])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
@@ -480,6 +481,8 @@ extension BrowserToolProvider {
                 name: "readTab", description: "Get a structured snapshot (text + interactive elements) of ANOTHER tab without switching to it — use with listTabs for cross-tab comparison and research tasks",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "index": AgentJSONSchemaValue(type: "number", description: "Tab index (0-based, from listTabs)"),
+                    "window": AgentJSONSchemaValue(type: "string", description: "Optional window id (from listWindows) — index is then that window's tab index"),
+                    "refresh": AgentJSONSchemaValue(type: "boolean", description: "Force a fresh read instead of reusing a snapshot from the last few seconds"),
                 ], required: ["index"])
             )),
 

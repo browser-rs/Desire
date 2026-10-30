@@ -184,6 +184,12 @@ class BrowserWKWebView: WKWebView {
                 board.target = self
                 board.representedObject = sel
                 menu.addItem(board)
+
+                // 选区 → 语义检索（v0.8.25）：打开集中搜索面板并切到语义档。
+                let related = NSMenuItem(title: String(localized: "Find Related Content"), action: #selector(self.findRelatedSelection(_:)), keyEquivalent: "")
+                related.target = self
+                related.representedObject = sel
+                menu.addItem(related)
             }
 
             if let url = imageURL ?? bgImageURL {
@@ -309,6 +315,13 @@ class BrowserWKWebView: WKWebView {
     @objc private func searchSelection(_ sender: NSMenuItem) {
         guard let text = sender.representedObject as? String else { return }
         onSearchText?(text)
+    }
+
+    /// 选区 → 语义检索（v0.8.25）。
+    @objc private func findRelatedSelection(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String, !text.isEmpty else { return }
+        RelatedSearchCenter.shared.request(text)
+        AppState.live?.showSearchEverywhere = true
     }
 
     /// 选区 → 白板 note 块（带来源标注），面板自动弹出。

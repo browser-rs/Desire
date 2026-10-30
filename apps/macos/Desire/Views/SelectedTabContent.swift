@@ -296,6 +296,50 @@ struct SelectedTabContent: View {
     @State private var assistAnchor: CGPoint?
 
     /// 划词工具条构造（0.6.5 拆出——闭包加到 6 个后 body 内 type-check 超时）。
+    /// 划词就地结果卡（v0.7.25）：闭包束单拆方法——内联在 body 里会让
+    /// 编译器 type-check 超时（0.6.5 同款先例；v0.8.25 加"相关内容"后复现）。
+    @ViewBuilder
+    private func selectionInPlaceCard() -> some View {
+        SelectionInPlaceCard(
+            model: assistModel,
+            onClose: {
+                assistAnchor = nil
+                assistModel.reset()
+            },
+            onCopy: { text in
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(text, forType: .string)
+            },
+            onSpeak: { text in
+                ReaderSpeechService.shared.speak(text)
+            },
+            onToWhiteboard: { text in
+                let note = WhiteboardBlock(
+                    type: WhiteboardBlock.Kind.note,
+                    title: assistModel.mode.title,
+                    content: text)
+                WhiteboardStore.shared.append(
+                    [note], title: String(localized: "Selection assist"),
+                    conversationID: AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString)
+            },
+            onFindRelated: { text in
+                // 划词 → 语义检索（v0.8.25）：复用集中搜索面板的语义档
+                //（历史/书签/阅读列表/摘录/会话跨源）。
+                RelatedSearchCenter.shared.request(text)
+                AppState.live?.showSearchEverywhere = true
+            },
+            onAsk: { result in
+                content.aiSession.addSelectedTextContext(assistModel.sourceText)
+                if !result.isEmpty {
+                    content.aiSession.addSelectedTextContext(result)
+                }
+                showAgentPanel = true
+                AgentPanelVisibilityStore.shared.record(key: content.tabManager.sessionKey, shown: true)
+                assistAnchor = nil
+            }
+        )
+    }
+
     private func selectionAIBar(_ selection: SelectionAIInfo) -> some View {
         SelectionAIBar(
             onExplain: {
@@ -486,38 +530,7 @@ struct SelectedTabContent: View {
                                     )
                             }
                             if let anchor = assistAnchor {
-                                SelectionInPlaceCard(
-                                    model: assistModel,
-                                    onClose: {
-                                        assistAnchor = nil
-                                        assistModel.reset()
-                                    },
-                                    onCopy: { text in
-                                        NSPasteboard.general.clearContents()
-                                        NSPasteboard.general.setString(text, forType: .string)
-                                    },
-                                    onSpeak: { text in
-                                        ReaderSpeechService.shared.speak(text)
-                                    },
-                                    onToWhiteboard: { text in
-                                        let note = WhiteboardBlock(
-                                            type: WhiteboardBlock.Kind.note,
-                                            title: assistModel.mode.title,
-                                            content: text)
-                                        WhiteboardStore.shared.append(
-                                            [note], title: String(localized: "Selection assist"),
-                                            conversationID: AgentScheduler.shared.deliveryTarget?.conversationId?.uuidString)
-                                    },
-                                    onAsk: { result in
-                                        content.aiSession.addSelectedTextContext(assistModel.sourceText)
-                                        if !result.isEmpty {
-                                            content.aiSession.addSelectedTextContext(result)
-                                        }
-                                        showAgentPanel = true
-                                        AgentPanelVisibilityStore.shared.record(key: content.tabManager.sessionKey, shown: true)
-                                        assistAnchor = nil
-                                    }
-                                )
+                                selectionInPlaceCard()
                                 .offset(
                                     x: min(max(anchor.x * tab.browser.pageZoom, 8), max(geo.size.width - 356, 8)),
                                     y: min(max(anchor.y * tab.browser.pageZoom + 10, 8), max(geo.size.height - 300, 8))

@@ -9,6 +9,7 @@ struct SelectionInPlaceCard: View {
     let onCopy: (String) -> Void
     let onSpeak: (String) -> Void
     let onToWhiteboard: (String) -> Void
+    let onFindRelated: (String) -> Void
     let onAsk: (String) -> Void
 
     private var modeIcon: String {
@@ -79,6 +80,7 @@ struct SelectionInPlaceCard: View {
                 }
                 Spacer()
                 if !model.text.isEmpty {
+                    cardButton("相关内容", "text.magnifyingglass") { onFindRelated(model.sourceText) }
                     cardButton("复制", "doc.on.doc") { onCopy(model.text) }
                     cardButton("朗读", "speaker.wave.2") { onSpeak(model.text) }
                     cardButton("进白板", "rectangle.on.rectangle") { onToWhiteboard(model.text) }

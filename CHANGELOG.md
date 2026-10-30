@@ -25,6 +25,8 @@
 - Agent: tool-level checkpoint resume — after an interrupted turn, read-only tool calls that never produced a result are re-run and their real output lands in the conversation instead of a generic "[interrupted]"; `/agent/resume` reports pending/replayable/replayed counts (v0.8.25)
 - Trace page: one-click re-run for failed or denied steps with their original arguments — the result is appended as a fresh assistant+tool pair and the agent continues; also exposed as `POST /agent/rerun-step` (v0.8.25)
 - Peek overlay: quick actions — Approve (hand back and continue), Deny (tell the agent to stop this step) and Retry (re-run the agent's last step after the user deals with the page); also `POST /peek {"action":"approve|deny|retry"}` (v0.8.25)
+- Selection → related content: the in-place card and the page context menu can hand the selected text to Search Everywhere in Meaning mode (history/bookmarks/reading list/excerpts/conversations) (v0.8.25)
+
 
 
 

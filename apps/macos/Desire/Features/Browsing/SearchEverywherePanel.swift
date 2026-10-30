@@ -44,6 +44,8 @@ struct SearchEverywherePanel: View {
     /// 预览跟随（v0.8.11）：当前选中行的命中（nil = 无）。
     @State private var previewHit: SearchEverywhere.Hit?
     @FocusState private var fieldFocused: Bool
+    /// 划词 → 语义检索（v0.8.25）：一次性请求，展开时消费。
+    @ObservedObject private var related = RelatedSearchCenter.shared
 
     /// 当前选中标签 id（回车直达 switchTab 用）。
     private var openTabItems: [SearchEverywhere.Item] {
@@ -72,6 +74,10 @@ struct SearchEverywherePanel: View {
         .onAppear {
             LocalFileContentIndex.shared.warmUp()
             fieldFocused = true
+            applyRelatedRequest()
+        }
+        .onChange(of: related.requestToken) { _, _ in
+            applyRelatedRequest()
         }
         .onChange(of: query) { _, newValue in
             searchTask?.cancel()
@@ -82,6 +88,19 @@ struct SearchEverywherePanel: View {
             }
             rerunSearch(q)
         }
+    }
+
+    /// 消费"划词找相关内容"的请求：切语义档并填入查询（同 query 时手动重跑，
+    /// 因为 `onChange(of: query)` 不会为相同值触发）。
+    private func applyRelatedRequest() {
+        guard let request = related.consume() else { return }
+        if request.semantic, mode != .semantic { mode = .semantic }
+        if query == request.text {
+            rerunSearch(request.text)
+        } else {
+            query = request.text
+        }
+        fieldFocused = true
     }
 
     /// 跑一次检索（字面 + 按档位补语义）。查询变化与档位切换都走这里。

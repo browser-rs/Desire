@@ -1,7 +1,7 @@
 ## [Unreleased]
 ### Changed
 
-- Toolbox: the sidebar is now resizable (180–380 pt). The drag only updates local view state and writes the preference once on release — the earlier per-frame `@AppStorage` write triggered app-wide UserDefaults notifications and made dragging flash/stutter; double-click resets to the default width (v0.8.26)
+- Toolbox: the sidebar is now resizable (180–380 pt) with a native NSSplitView divider — AppKit owns the drag, so the SwiftUI content tree is not rebuilt every frame (the earlier state-driven drag left ghosting and flickered the right pane). Hosting views disable sizingOptions so the sidebar is not clipped; the saved width is restored on launch and preferences are only written after the drag settles (v0.8.26)
 
 ### Fixed
 

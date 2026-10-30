@@ -380,7 +380,9 @@ struct CIDRToolView: View {
                     ToolValueRow(label: String(localized: "Mask"), value: info.mask)
                     ToolValueRow(label: String(localized: "Host range"), value: "\(info.firstHost) – \(info.lastHost)")
                     ToolValueRow(label: String(localized: "Hosts"), value: "\(info.hostCount)")
-                    ToolValueRow(label: String(localized: "Private"), value: info.isPrivate ? "Yes" : "No", mono: false)
+                    ToolValueRow(label: String(localized: "Private"),
+                                 value: info.isPrivate ? String(localized: "Yes") : String(localized: "No"),
+                                 mono: false)
                 }
             case .failure(let failure):
                 ToolErrorText(text: failure.message)
@@ -691,7 +693,9 @@ struct IDCardToolView: View {
             case .success(let info):
                 VStack(alignment: .leading, spacing: 2) {
                     ToolValueRow(label: String(localized: "Birth date"), value: info.birthDate, mono: false)
-                    ToolValueRow(label: String(localized: "Gender"), value: info.gender, mono: false)
+                    ToolValueRow(label: String(localized: "Gender"),
+                                 value: info.gender == "Male" ? String(localized: "Male") : String(localized: "Female"),
+                                 mono: false)
                     ToolValueRow(label: String(localized: "Check digit"), value: info.checkDigit)
                 }
             case .failure(let failure):

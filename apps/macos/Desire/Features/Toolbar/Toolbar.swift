@@ -179,6 +179,9 @@ struct Toolbar: View {
     /// current page URL, or the tab's `urlString` for pages that haven't
     /// committed yet (new tab, in-flight navigation).
     private var displayedURL: String {
+        // 内置页面（v0.8.27）：地址栏显示 desire://tools…，不是 webview 里
+        // 残留的旧页 URL。
+        if tab.isOnToolsPage { return tab.urlString }
         // 查看器挂载中（v0.8.12 表格/图片/zip/文档）：显示文件路径而非
         // webview 里残留的旧页 URL——地址栏要反映"用户当前在看什么"。
         if let path = viewerFilePath { return path }
@@ -190,9 +193,13 @@ struct Toolbar: View {
 
     /// 当前挂载的查看器文件路径（nil = 无查看器）。
     private var viewerFilePath: String? {
-        tab.browser.spreadsheetViewerURL?.path
+        tab.browser.pdfViewerURL?.path
+            ?? tab.browser.mediaViewerURL?.path
+            ?? tab.browser.spreadsheetViewerURL?.path
             ?? tab.browser.imageEditorURL?.path
             ?? tab.browser.archiveViewerURL?.path
+            ?? tab.browser.jsonViewerURL?.path
+            ?? tab.browser.presentationViewerURL?.path
             ?? tab.browser.documentViewerURL?.path
     }
 

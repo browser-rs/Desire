@@ -3761,18 +3761,22 @@ final class AutomationServer {
                 "index": i,
                 "title": tab.browser.pageTitle,
                 // 查看器挂载中 → 报文件路径（webview 里是旧页，不代表用户所见）。
-                "url": tab.browser.spreadsheetViewerURL?.absoluteString
-                    ?? tab.browser.imageEditorURL?.absoluteString
-                    ?? tab.browser.archiveViewerURL?.absoluteString
-                    ?? tab.browser.documentViewerURL?.absoluteString
-                    ?? tab.browser.webView.url?.absoluteString
-                    ?? tab.urlString,
+                "url": tab.isOnToolsPage
+                    ? tab.urlString
+                    : (tab.browser.spreadsheetViewerURL?.absoluteString
+                        ?? tab.browser.imageEditorURL?.absoluteString
+                        ?? tab.browser.archiveViewerURL?.absoluteString
+                        ?? tab.browser.documentViewerURL?.absoluteString
+                        ?? tab.browser.webView.url?.absoluteString
+                        ?? tab.urlString),
                 "incognito": tab.isIncognito,
                 "selected": tm?.selectedIndex == i,
                 "suspended": tab.isSuspended,
                 "loading": tab.isLoading,
                 "domNodes": tab.browser.lastDomNodeCount,
                 "autoplayPolicy": tab.browser.createdAutoPlayPolicy.rawValue,
+                "toolsPage": tab.isOnToolsPage,
+                "tool": tab.toolsPageSelection ?? "",
                 "viewer": tab.browser.pdfViewerURL?.pathExtension
                     ?? tab.browser.spreadsheetViewerURL?.pathExtension
                     ?? tab.browser.imageEditorURL?.pathExtension
@@ -3823,6 +3827,14 @@ final class AutomationServer {
     private static func navigate(_ rawURL: String?, index: Int?) async throws -> [String: Any] {
         guard let rawURL, !rawURL.isEmpty else { return ["error": "missing url"] }
         guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        // 内置页面（v0.8.27）：desire://tools[/<tool>]
+        if let destination = InternalPages.parse(rawURL) {
+            InternalPages.open(destination, in: tab)
+            return ["ok": true, "navigatedTo": destination.urlString,
+                    "viewer": true, "tools": true]
+        }
+        tab.isOnToolsPage = false
+        tab.toolsPageSelection = nil
         // 本地路径直通（v0.8.12）：与 BrowsingActions.navigateToURL 同语义——
         // 存在的文件路径先于 URL 启发式（否则 /tmp/x.csv 被当搜索词）。
         if rawURL.hasPrefix("/") || rawURL.hasPrefix("~/") {
@@ -3935,7 +3947,12 @@ final class AutomationServer {
             }
         }
         let before = tm.tabs.count
+        let existing = Set(tm.tabs.map(\.id))
         tm.addTab(url: url, incognito: incognito, containerID: containerID)
+        if let destination = InternalPages.parse(url),
+           let created = tm.tabs.first(where: { !existing.contains($0.id) }) {
+            InternalPages.open(destination, in: created)
+        }
         return ["ok": true, "index": before, "count": tm.tabs.count,
                 "containerCreated": containerCreated]
     }

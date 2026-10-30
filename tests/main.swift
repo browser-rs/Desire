@@ -7257,6 +7257,102 @@ func testImageConvertCore() {
 
 testImageConvertCore()
 
+
+func testToolboxCore() {
+    // 时间戳
+    if let parsed = ToolboxCore.parseUnix("1700000000") {
+        eq("工具箱：秒级时间戳", ToolboxCore.unixSeconds(parsed.date), 1_700_000_000)
+        eq("工具箱：单位识别", parsed.unit, .seconds)
+    } else { check("工具箱：秒级解析", false) }
+    if let parsed = ToolboxCore.parseUnix("1700000000123") {
+        eq("工具箱：毫秒时间戳", ToolboxCore.unixMilliseconds(parsed.date), 1_700_000_000_123)
+        eq("工具箱：毫秒单位", parsed.unit, .milliseconds)
+    } else { check("工具箱：毫秒解析", false) }
+    check("工具箱：非法时间戳", ToolboxCore.parseUnix("abc") == nil)
+    check("工具箱：ISO 输出", ToolboxCore.iso8601(Date(timeIntervalSince1970: 0)).hasPrefix("1970-01-01T00:00:00"))
+
+    // 进制
+    eq("工具箱：十进制解析", ToolboxCore.parseInteger("255"), 255)
+    eq("工具箱：0x 前缀", ToolboxCore.parseInteger("0xFF"), 255)
+    eq("工具箱：二进制前缀", ToolboxCore.parseInteger("0b1010"), 10)
+    eq("工具箱：八进制前缀", ToolboxCore.parseInteger("0o17"), 15)
+    eq("工具箱：负数", ToolboxCore.parseInteger("-0x10"), -16)
+    eq("工具箱：非法进制", ToolboxCore.parseInteger("xyz"), nil)
+    eq("工具箱：进制输出", ToolboxCore.bases(for: 255).binary, "0b11111111")
+    eq("工具箱：hex 输出", ToolboxCore.bases(for: 255).hexadecimal, "0xFF")
+
+    // 文本
+    eq("工具箱：拆词", ToolboxCore.words(in: "helloWorld foo_bar-baz"), ["hello", "World", "foo", "bar", "baz"])
+    eq("工具箱：snake", ToolboxCore.snakeCase("Hello World"), "hello_world")
+    eq("工具箱：kebab", ToolboxCore.kebabCase("Hello World"), "hello-world")
+    eq("工具箱：标题", ToolboxCore.titleCase("hello world"), "Hello World")
+    eq("工具箱：行排序", ToolboxCore.processLines("b\na\nc", mode: .sort), "a\nb\nc")
+    eq("工具箱：行去重", ToolboxCore.processLines("a\nb\na", mode: .dedupe), "a\nb")
+    eq("工具箱：行反转", ToolboxCore.processLines("a\nb", mode: .reverse), "b\na")
+    eq("工具箱：行编号", ToolboxCore.processLines("a\nb", mode: .numbered), "1. a\n2. b")
+    let stats = ToolboxCore.stats("hello world\nsecond line")
+    eq("工具箱：字符数", stats.characters, 23)
+    eq("工具箱：词数", stats.words, 4)
+    eq("工具箱：行数", stats.lines, 2)
+
+    // Base64 / URL
+    eq("工具箱：base64 编码", ToolboxCore.base64Encode("hello"), "aGVsbG8=")
+    if case .success(let decoded) = ToolboxCore.base64Decode("aGVsbG8=") {
+        eq("工具箱：base64 解码", decoded, "hello")
+    } else { check("工具箱：base64 解码成功", false) }
+    check("工具箱：base64 URL-safe", !ToolboxCore.base64Encode("a?b>c", urlSafe: true).contains("+")
+          && !ToolboxCore.base64Encode("a?b>c", urlSafe: true).contains("="))
+    if case .failure = ToolboxCore.base64Decode("!!!") {} else { check("工具箱：非法 base64", false) }
+    eq("工具箱：URL 编码", ToolboxCore.urlEncode("a b&c"), "a%20b%26c")
+    if case .success(let decoded) = ToolboxCore.urlDecode("a%20b") {
+        eq("工具箱：URL 解码", decoded, "a b")
+    } else { check("工具箱：URL 解码成功", false) }
+    if case .failure = ToolboxCore.urlDecode("%ZZ") {} else { check("工具箱：非法百分号编码", false) }
+
+    // JWT
+    func b64url(_ json: String) -> String {
+        Data(json.utf8).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "")
+    }
+    let token = b64url("{\"alg\":\"HS256\"}") + "." + b64url("{\"sub\":\"1\",\"exp\":1700000000}") + ".sig"
+    if let parts = ToolboxCore.jwtParts(token) {
+        check("工具箱：JWT header", parts.header.contains("\"alg\""))
+        check("工具箱：JWT payload", parts.payload.contains("\"sub\""))
+        eq("工具箱：JWT 过期时间", Int(parts.expiry?.timeIntervalSince1970 ?? 0), 1_700_000_000)
+    } else { check("工具箱：JWT 解析", false) }
+    check("工具箱：非法 JWT", ToolboxCore.jwtParts("nope") == nil)
+
+    // 颜色
+    if let color = ToolboxCore.parseHexColor("#3366CC") {
+        eq("工具箱：颜色 red", color.red, 0x33)
+        eq("工具箱：颜色 alpha", color.alpha, 1.0)
+    } else { check("工具箱：颜色解析", false) }
+    if let color = ToolboxCore.parseHexColor("#3366CC80") {
+        check("工具箱：颜色 8 位", abs(color.alpha - 0.502) < 0.01)
+    } else { check("工具箱：颜色 8 位解析", false) }
+    check("工具箱：非法颜色", ToolboxCore.parseHexColor("#GGG") == nil)
+    eq("工具箱：颜色输出", ToolboxCore.hexColor(red: 51, green: 102, blue: 204), "#3366CC")
+
+    // 密码
+    let password = ToolboxCore.generatePassword(length: 24)
+    eq("工具箱：密码长度", password.count, 24)
+    check("工具箱：密码含大小写数字符号",
+          password.contains(where: { $0.isLowercase })
+          && password.contains(where: { $0.isUppercase })
+          && password.contains(where: { $0.isNumber })
+          && password.contains(where: { !$0.isLetter && !$0.isNumber }))
+    let digitsOnly = ToolboxCore.generatePassword(length: 12, useDigits: true,
+                                                  useSymbols: false, useUppercase: false)
+    check("工具箱：密码可关闭符号", digitsOnly.allSatisfy { $0.isLowercase || $0.isNumber })
+    check("工具箱：强度分档", ToolboxCore.passwordStrength("") == 0
+          && ToolboxCore.passwordStrength("abcdefgh") == 1
+          && ToolboxCore.passwordStrength("Abcdefgh12!xyz") == 4)
+}
+
+testToolboxCore()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

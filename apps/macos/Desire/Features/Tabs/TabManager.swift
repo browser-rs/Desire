@@ -31,6 +31,10 @@ class Tab: ObservableObject {
     @Published var canGoBack = false
     @Published var canGoForward = false
     @Published var isOnNewTabPage = true
+    /// 内置工具页（v0.8.27）：true = 该标签渲染 `desire://tools` 工具集合。
+    @Published var isOnToolsPage = false
+    /// 工具页当前选中的工具 id（nil = 默认第一个）。
+    @Published var toolsPageSelection: String?
     @Published var displayTitle = "新标签页"
     @Published var isPinned = false
     @Published var isSuspended = false
@@ -638,9 +642,17 @@ class TabManager: ObservableObject {
     func duplicateTab(at index: Int, javaScriptEnabled: Bool, contentBlocker: ContentBlockerStore?, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction) {
         guard tabs.indices.contains(index) else { return }
         let source = tabs[index]
-        let url = source.browser.webView.url?.absoluteString ?? (source.isOnNewTabPage ? nil : source.urlString)
+        let url = source.isOnToolsPage
+            ? nil
+            : (source.browser.webView.url?.absoluteString
+                ?? (source.isOnNewTabPage ? nil : source.urlString))
         let newTab = Tab(url: url, incognito: source.isIncognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerID: source.containerID, profileDataStore: profileDataStore)
         newTab.isPinned = source.isPinned
+        if source.isOnToolsPage {
+            InternalPages.open(InternalPages.Destination(urlString: "desire://tools",
+                                                         toolID: source.toolsPageSelection),
+                               in: newTab)
+        }
         tabs.insert(newTab, at: index + 1)
         selectedIndex = index + 1
         persistSession()
@@ -864,7 +876,7 @@ class TabManager: ObservableObject {
             if tab.isSuspended {
                 if let url = tab.suspendedURL?.absoluteString, !url.isEmpty {
                     savedTabs.append(SavedTab(tabID: tab.id, url: url, isOnNewTabPage: false, isPinned: tab.isPinned, sessionState: tab.suspendedInteractionState, containerID: tab.containerID))
-                } else if tab.isOnNewTabPage {
+                } else if tab.isOnNewTabPage || tab.isOnToolsPage {
                     savedTabs.append(SavedTab(tabID: tab.id, url: nil, isOnNewTabPage: true, isPinned: tab.isPinned, sessionState: nil, containerID: tab.containerID))
                 } else if tab.urlString.hasPrefix("http") {
                     savedTabs.append(SavedTab(tabID: tab.id, url: tab.urlString, isOnNewTabPage: false, isPinned: tab.isPinned, sessionState: tab.suspendedInteractionState, containerID: tab.containerID))

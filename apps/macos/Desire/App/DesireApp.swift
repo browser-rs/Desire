@@ -207,6 +207,7 @@ enum BrowserCommand {
     // 菜单补全三批：停止加载/查看源代码/动态菜单导航/容器标签。
     case stopLoading, viewSource
     case openURL(String)
+    case openToolbox
     case newContainerTab(UUID)
 }
 

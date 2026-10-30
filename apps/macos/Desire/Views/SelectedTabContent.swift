@@ -422,7 +422,9 @@ struct SelectedTabContent: View {
     @ViewBuilder
     private var mainPane: some View {
         Group {
-            if let pdfURL = tab.browser.pdfViewerURL {
+            if tab.isOnToolsPage {
+                ToolsPageView(initialTool: tab.toolsPageSelection)
+            } else if let pdfURL = tab.browser.pdfViewerURL {
                 PDFViewerView(
                     fileURL: pdfURL,
                     fileName: tab.browser.pdfViewerFileName,

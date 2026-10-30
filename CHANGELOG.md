@@ -10,6 +10,8 @@
 - Office conversions: JSON/JSONL → md/txt/csv/xlsx through convertDocument (and the Recent Files "Convert to…" menu); `convertImage` converts batches of images to png/jpeg/heic/tiff with optional longest-side downscaling, never overwriting sources (v0.8.26)
 - Archive viewer: multi-select entries with "Extract Selected", extracting only the chosen paths via unzip (v0.8.26)
 - "Open With" / default-handler support for local office files: system file-open events (and the new `POST /open-file` bridge endpoint) route PDFs, tables, images, archives, JSON, PPTX, documents and media into the same viewers used by drag-and-drop and the address bar — previously file URLs were dropped silently (v0.8.26)
+- Built-in toolbox: `desire://tools` (or Tools ▸ Utility Toolbox) opens a 12-tool workbench inside a tab — hash (MD5/SHA-1/256/512), timestamp converter (seconds/ms auto-detected, local/UTC/ISO/relative), Base64, URL encoding, JSON format/minify/sort/validate, text case/line tools with stats, number bases, UUID batch, HEX↔RGB color, QR code image, password generator and a JWT decoder (no signature check); deep links like `desire://tools/timestamp`, bridge `/state` exposes `toolsPage`/`tool` (v0.8.26)
+
 
 
 

@@ -93,6 +93,11 @@ extension BrowsingActions {
     /// recorded to history (unless incognito) only when they actually run.
     func navigateToURL(_ input: String, for tab: Tab) {
         let text = input.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 内置页面（v0.8.27）：desire://tools[/<tool>] 在标签内渲染工具集合。
+        if let destination = InternalPages.parse(text) {
+            InternalPages.open(destination, in: tabManager.selectedTab ?? tab)
+            return
+        }
         // 本地路径直通（v0.8.12）：输入是磁盘上存在的文件路径 → 直接进
         // openLocalFileInTab（查看器路由），不再被 URL 启发式当搜索词。
         // 拖入与 Remote 打开不走这里（它们拿到的已是 URL）。
@@ -131,6 +136,7 @@ extension BrowsingActions {
             return
         }
         target.isOnNewTabPage = false
+        target.isOnToolsPage = false
         target.urlString = urlString
         target.browser.webView.load(URLRequest(url: url))
     }
@@ -176,6 +182,8 @@ extension BrowsingActions {
     /// 返回 false = 不是查看器类型（调用方按普通文件加载）。拖入/地址栏/
     /// "用 Desire 打开"（系统 open URLs）与桥 `/open-file` 共用同一份映射。
     static func routeLocalFile(_ url: URL, to tab: Tab) -> Bool {
+        tab.isOnToolsPage = false
+        tab.toolsPageSelection = nil
         let ext = url.pathExtension.lowercased()
         if ext == "pdf" {
             tab.browser.pdfViewerFileName = url.lastPathComponent

@@ -379,10 +379,16 @@ struct CommandDispatcher {
             bindings.showTabOverview.wrappedValue.toggle()
 
         case .goBack:
-            if let tab = tabManager.selectedTab { tab.browser.webView.goBack() }
+            if let tab = tabManager.selectedTab {
+                if tab.isOnToolsPage { InternalPages.close(in: tab) }
+                else { tab.browser.webView.goBack() }
+            }
 
         case .goForward:
-            if let tab = tabManager.selectedTab { tab.browser.webView.goForward() }
+            if let tab = tabManager.selectedTab {
+                if tab.isOnToolsPage { InternalPages.close(in: tab) }
+                else { tab.browser.webView.goForward() }
+            }
 
         case .stopLoading:
             if let tab = tabManager.selectedTab { tab.stopUserLoad() }
@@ -390,8 +396,21 @@ struct CommandDispatcher {
         case .viewSource:
             viewSource()
 
+        case .openToolbox:
+            if let tab = tabManager.selectedTab {
+                InternalPages.open(InternalPages.Destination(urlString: "desire://tools", toolID: nil),
+                                   in: tab)
+            }
+
         case .openURL(let url):
+            if let destination = InternalPages.parse(url) {
+                if let tab = tabManager.selectedTab {
+                    InternalPages.open(destination, in: tab)
+                }
+                break
+            }
             if let tab = tabManager.selectedTab, !tab.isOnNewTabPage {
+                tab.isOnToolsPage = false
                 tab.browser.webView.load(URLRequest(url: URL(string: url)!))
                 tab.urlString = url
             } else {

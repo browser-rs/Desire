@@ -253,6 +253,7 @@ struct AppCommands: Commands {
             Button("Password Manager") { postCommand(.showPasswordManager) }
             Button("Web Workflows…") { postCommand(.showWorkflows) }
             Button("Activity…") { postCommand(.showActivity) }
+            Button("Utility Toolbox") { postCommand(.openToolbox) }
             Button("Clipboard History") { postCommand(.showClipboardHistory) }
                 .keyboardShortcut(binding("clipboardHistory", "v", [.command, .shift]))
             Button("Ad Blocking Stats") { postCommand(.showAdBlockStats) }

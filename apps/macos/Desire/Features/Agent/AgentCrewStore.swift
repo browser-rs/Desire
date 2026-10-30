@@ -176,6 +176,7 @@ final class AgentCrewStore: ObservableObject {
     @discardableResult
     func dispatch(objective: String, tasks: [(url: String?, instruction: String, dependsOn: Int?)],
                   surface: BrowserToolSurface, isolated: Bool = false,
+                  workerIsolation: Bool = false,
                   windowMode: Bool = false, compare: Bool = false) -> String {
         guard crew == nil || crew?.isSettled == true else {
             return "A crew is already running. Use crewStatus to poll or crewCancel first."
@@ -198,20 +199,30 @@ final class AgentCrewStore: ObservableObject {
 
         let jsEnabled = surface.settings.isJavaScriptEnabled
         usage = TokenUsage()   // 新 crew 从零累计
-        // 任务级隔离：全 crew 标签共享一个临时容器，落定后擦除。
-        if isolated {
+        // 任务级隔离（v0.8.25）：默认整组共享一个临时容器；workerIsolation
+        // 时每个 worker 各一个（并行任务互不共享 cookie），落定后全部擦除。
+        if workerIsolation {
+            for _ in tasks {
+                let container = ContainerStore.shared.addContainer(
+                    name: "Agent 隔离-" + UUID().uuidString.prefix(6))
+                ephemeralContainerIDs.append(container.id)
+            }
+        } else if isolated {
             let container = ContainerStore.shared.addContainer(
                 name: "Agent 隔离-" + UUID().uuidString.prefix(6))
-            ephemeralContainerID = container.id
+            ephemeralContainerIDs = [container.id]
         }
         var workers: [WorkerTask] = []
         for (i, t) in tasks.enumerated() {
             // 每个子任务一个专属后台标签（不抢选中态）。
+            let workerContainer = workerIsolation
+                ? (ephemeralContainerIDs.indices.contains(i) ? ephemeralContainerIDs[i] : nil)
+                : ephemeralContainerIDs.first
             manager.addTab(url: t.url, javaScriptEnabled: jsEnabled,
                            contentBlocker: surface.contentBlocker,
                            videoAdBlocker: surface.videoAdBlocker,
                            autoPlayPolicy: .never, newTabPosition: .end,
-                           containerID: ephemeralContainerID)
+                           containerID: workerContainer)
             let tab = manager.tabs.last
             let worker = WorkerTask(index: i, instruction: t.instruction,
                                     url: t.url, tabID: tab?.id)
@@ -527,7 +538,7 @@ final class AgentCrewStore: ObservableObject {
     }
 
     /// 任务级隔离容器（isolated dispatch 时创建；落定即擦除）。
-    private var ephemeralContainerID: UUID?
+    private var ephemeralContainerIDs: [UUID] = []
 
     private func settleIfDone() {
         guard var c = crew, c.isSettled else { return }
@@ -566,12 +577,15 @@ final class AgentCrewStore: ObservableObject {
             title: String(localized: "Crew finished: \(c.objective)"),
             body: body,
             tier: .urgent)
-        if let id = ephemeralContainerID {
-            ephemeralContainerID = nil
+        if !ephemeralContainerIDs.isEmpty {
+            let ids = ephemeralContainerIDs
+            ephemeralContainerIDs = []
             Task { @MainActor in
-                await ContainerStore.shared.purgeData(for: id)
-                ContainerStore.shared.removeContainer(id)
-                Log.agent.info("isolated crew container wiped: \(id.uuidString.prefix(8), privacy: .public)")
+                for id in ids {
+                    await ContainerStore.shared.purgeData(for: id)
+                    ContainerStore.shared.removeContainer(id)
+                    Log.agent.info("isolated crew container wiped: \(id.uuidString.prefix(8), privacy: .public)")
+                }
             }
         }
     }

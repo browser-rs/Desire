@@ -517,6 +517,7 @@ extension BrowserToolProvider {
             }
             return AgentCrewStore.shared.dispatch(objective: objective, tasks: tasks,
                                                   surface: surface, isolated: isolated,
+                                                  workerIsolation: (args["isolation"] as? String) == "worker",
                                                   windowMode: windowMode, compare: compare)
 
         case "crewStatus":

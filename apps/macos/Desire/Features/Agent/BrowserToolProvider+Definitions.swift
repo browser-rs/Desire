@@ -1519,6 +1519,7 @@ extension BrowserToolProvider {
                         "dependsOn": AgentJSONSchemaValue(type: "number", description: "Optional earlier task index this task waits on (0-based within this crew); predecessor must finish done"),
                     ]))),
                     "isolated": AgentJSONSchemaValue(type: "boolean", description: "Run all worker tabs in an ephemeral container — cookies/sessions wiped when the crew settles. Use for scraping that must not touch the user's login state"),
+                    "isolation": AgentJSONSchemaValue(type: "string", description: "crew (default: one shared ephemeral container) or worker (each worker gets its own ephemeral container — parallel tasks never share cookies)"),
                     "windowMode": AgentJSONSchemaValue(type: "boolean", description: "v2: dispatch subtasks to OTHER windows' agent sessions instead of tabs here — each window works in parallel with its own tools and profile. Requires at least one other window with an idle agent session (listWindows to check). Reports come back the same way via crewStatus"),
                     "compare": AgentJSONSchemaValue(type: "boolean", description: "Settlement appends a comparison table to the whiteboard: one row per task (instruction/state/key conclusion) for side-by-side judgment"),
                     "preset": AgentJSONSchemaValue(type: "string", description: "Dispatch a saved crew preset by name (skips objective/tasks)"),

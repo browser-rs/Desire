@@ -11,6 +11,8 @@
 - **站点数据管理 2.0（v0.8.25）**：新增 `SiteDataManager` 与桥端点——`GET /site-data`（按站点列出数据类型，`container` 可指定容器）、`POST /site-data/remove`（按站点 × 类型清除：cookies/cache/localstorage/indexeddb 等，缺省全清）。替代此前"按保留天数清理"的撤项方案：WebKit 记录级删除不带时间，按站点点名才安全。实测：临时容器 51 条记录 → 删除某站 cookies 后 50 条，其他站点不受影响。
 - 站点数据管理 UI 接线（v0.8.25）：设置 ▸ 隐私 ▸ 网站数据 每行新增「按类型清除」菜单——可以只删 Cookie 保留本地存储，或只删某一类；垃圾桶按钮仍是一键全清。统一走 `SiteDataManager` 的口径（与桥端点同一实现）。
 - **观测节流（v0.8.25）**：Peek 浮层的页面快照轮询（2 秒）在应用失活或浮层不可见时自动暂停，回到前台/可见时续上——后台不空转 CPU。
+- **worker 级隔离（v0.8.25）**：`crewDispatch` 新增 `isolation` 参数——`crew`（默认，整组共享一个临时容器）或 `worker`（每个 worker 独立临时容器，并行任务互不共享 cookie）；落定后逐个擦除并删容器。持久容器单写者约束不变。
+
 
 
 

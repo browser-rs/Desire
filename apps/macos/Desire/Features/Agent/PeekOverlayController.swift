@@ -19,7 +19,20 @@ final class PeekOverlayController {
     private var timer: Timer?
     private var snapshot: NSImage?
 
-    private init() {}
+    private var observers: [NSObjectProtocol] = []
+
+    private init() {
+        // 观测节流（v0.8.25）：应用失活/切走时停掉快照轮询，回来自动续。
+        let center = NotificationCenter.default
+        observers.append(center.addObserver(forName: NSApplication.didResignActiveNotification,
+                                            object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.pauseTimer() }
+        })
+        observers.append(center.addObserver(forName: NSApplication.didBecomeActiveNotification,
+                                            object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated { self?.resumeTimerIfVisible() }
+        })
+    }
 
     func show() {
         guard let manager = PeekCenter.shared.targetManager else { return }
@@ -42,7 +55,13 @@ final class PeekOverlayController {
         rebuildContent(reason: PeekCenter.shared.active?.reason ?? "")
         position()
         panel?.orderFrontRegardless()
+        startTimer()
+    }
+
+    private func startTimer() {
         timer?.invalidate()
+        timer = nil
+        guard panel?.isVisible == true, NSApp.isActive else { return }
         timer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 guard let self, let manager = PeekCenter.shared.targetManager else { return }
@@ -50,6 +69,16 @@ final class PeekOverlayController {
                 self.rebuildContent(reason: PeekCenter.shared.active?.reason ?? "")
             }
         }
+    }
+
+    private func pauseTimer() {
+        timer?.invalidate()
+        timer = nil
+    }
+
+    private func resumeTimerIfVisible() {
+        guard panel?.isVisible == true, timer == nil else { return }
+        startTimer()
     }
 
     func hide() {

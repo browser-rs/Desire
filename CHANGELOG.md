@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- Toolbox: the sidebar is now resizable — a native NSSplitView divider (180–380 pt) handles the drag, so the page content is not re-rendered every frame (the previous SwiftUI drag flashed/stuttered); the width is remembered across launches (v0.8.26)
+
 ### Fixed
 
 - Image editor: the "Resize…" toolbar button now opens a working resize sheet (width input, height computed from the aspect ratio, undoable through history) — previously the sheet was an EmptyView and the button did nothing; export menu also gained TIFF (v0.8.26)

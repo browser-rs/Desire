@@ -7933,6 +7933,48 @@ func testMediaEditCore() {
     check("效果：淡变钳半长", fxed?.clampedFadeIn == 2 && fxed?.clampedFadeOut == 1)
     check("效果：撤销判重", !TimelineCore.shouldPushUndo([fx], fx)
         && TimelineCore.shouldPushUndo([fx], TimelineCore.Project()))
+
+    // ---- 转场（交叉溶解）/ 旋转 / 批量 ----
+    var tz = TimelineCore.Project()
+    let tzTrack = tz.tracks.first { $0.kind == .video }!
+    let tzURL = URL(fileURLWithPath: "/tmp/tz.mp4")
+    let tzA = TimelineCore.Clip(start: 0, duration: 6, sourceURL: tzURL, label: "A")
+    let tzB = TimelineCore.Clip(start: 6, duration: 6, sourceURL: tzURL, label: "B")
+    if let p = TimelineCore.upsertClip(tz, trackID: tzTrack.id, clip: tzA) { tz = p }
+    if let p = TimelineCore.upsertClip(tz, trackID: tzTrack.id, clip: tzB) { tz = p }
+    // 1s 溶解：B 前移贴进 A 尾部
+    if let p = TimelineCore.setCrossDissolve(tz, leftID: tzA.id, rightID: tzB.id, overlap: 1) { tz = p }
+    let tzBAfter = TimelineCore.clip(tz, withID: tzB.id)?.1
+    check("转场：B 前移 1s", tzBAfter?.start == 5)
+    eq("转场：查询交叠", TimelineCore.crossDissolve(after: tzA.id, in: tz), 1)
+    // 过长拒绝（超过半长）
+    check("转场：超半长拒绝", TimelineCore.setCrossDissolve(tz, leftID: tzA.id, rightID: tzB.id, overlap: 3.5) == nil)
+    // 移除：overlap=0 → B 推回贴住
+    if let p = TimelineCore.setCrossDissolve(tz, leftID: tzA.id, rightID: tzB.id, overlap: 0) { tz = p }
+    eq("转场：移除推回", TimelineCore.clip(tz, withID: tzB.id)?.1.start ?? 0, 6)
+    eq("转场：移除后查询零", TimelineCore.crossDissolve(after: tzA.id, in: tz), 0)
+    // 旋转
+    if let p = TimelineCore.rotate(tz, clipID: tzA.id, turns: 1) { tz = p }
+    eq("旋转：一步", TimelineCore.clip(tz, withID: tzA.id)?.1.quarterTurns ?? 0, 1)
+    if let p = TimelineCore.rotate(tz, clipID: tzA.id, turns: 3) { tz = p }
+    eq("旋转：wrap 4", TimelineCore.clip(tz, withID: tzA.id)?.1.quarterTurns ?? 0, 0)
+    // 分割全部轨道
+    var ra = TimelineCore.Project()
+    let raVideo = ra.tracks.first { $0.kind == .video }!
+    let raAudio = ra.tracks.first { $0.kind == .audio }!
+    let raURL = URL(fileURLWithPath: "/tmp/ra.mp4")
+    if let p = TimelineCore.upsertClip(ra, trackID: raVideo.id,
+                                       clip: TimelineCore.Clip(start: 0, duration: 8, sourceURL: raURL)) { ra = p }
+    if let p = TimelineCore.upsertClip(ra, trackID: raAudio.id,
+                                       clip: TimelineCore.Clip(start: 0, duration: 8, sourceURL: raURL)) { ra = p }
+    ra = TimelineCore.splitAllAtPlayhead(ra, at: 4)
+    let videoSegs = ra.tracks.first { $0.id == raVideo.id }!.clips.count
+    let audioSegs = ra.tracks.first { $0.id == raAudio.id }!.clips.count
+    check("razor all：两轨各两段", videoSegs == 2 && audioSegs == 2)
+    // 批量删除
+    let ids = ra.tracks.flatMap { $0.clips.map { $0.id } }
+    ra = TimelineCore.deleteClips(ra, ids: Array(ids.prefix(2)))
+    eq("批量删除：剩两段", ra.tracks.reduce(0) { $0 + $1.clips.count }, 2)
 }
 
 testToolboxBatch2Cores()

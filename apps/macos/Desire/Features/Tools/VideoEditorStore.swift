@@ -77,6 +77,13 @@ final class VideoEditorStore: ObservableObject {
         }
     }
 
+    /// 视频轨上某片段是否存在后邻（转场按钮的可用性）。
+    func hasSuccessor(of clipID: UUID) -> Bool {
+        guard let (track, clip) = TimelineCore.clip(project, withID: clipID),
+              track.kind == .video else { return false }
+        return track.clips.contains { $0.start > clip.start + 1e-6 }
+    }
+
     var selectedClip: (TimelineCore.Track, TimelineCore.Clip)? {
         guard let selectedClipID else { return nil }
         return TimelineCore.clip(project, withID: selectedClipID)
@@ -121,6 +128,37 @@ final class VideoEditorStore: ObservableObject {
                          fadeIn: Double? = nil, fadeOut: Double? = nil) {
         commit(TimelineCore.setAudioEffects(project, clipID: clipID,
                                             volume: volume, fadeIn: fadeIn, fadeOut: fadeOut))
+    }
+
+    /// 转场：选中片段与它的后邻之间设置/移除交叉溶解。
+    func toggleCrossDissolve(after clipID: UUID) {
+        let existing = TimelineCore.crossDissolve(after: clipID, in: project)
+        let right = project.tracks
+            .first { $0.kind == .video }?.clips
+            .filter { $0.start > (TimelineCore.clip(project, withID: clipID)?.1.start ?? 0) + 1e-6 }
+            .min { $0.start < $1.start }?.id
+        guard let right else { return }
+        commit(TimelineCore.setCrossDissolve(project, leftID: clipID, rightID: right,
+                                             overlap: existing > 0 ? 0 : 0.8))
+    }
+
+    /// 旋转选中片段（turns 步进）。
+    func rotateSelected(_ turns: Int) {
+        guard let selectedClipID else { return }
+        commit(TimelineCore.rotate(project, clipID: selectedClipID, turns: turns))
+    }
+
+    /// 分割全部轨道（播放头处）。
+    func splitAllTracks() {
+        pushUndo()
+        project = TimelineCore.splitAllAtPlayhead(project, at: playhead)
+        rebuildPreview()
+    }
+
+    /// 批量删除选中（多选 id 集合）。
+    func deleteClips(_ ids: [UUID]) {
+        commit(TimelineCore.deleteClips(project, ids: ids))
+        selectedClipID = nil
     }
 
     func setPlayhead(_ seconds: Double, seekPlayer: Bool = true) {
@@ -253,10 +291,14 @@ final class VideoEditorStore: ObservableObject {
         let snapshot = project
         let atPlayhead = playhead
         rebuildTask = Task { [weak self] in
-            let (composition, audioMix) = await Self.buildComposition(project: snapshot)
+            let (composition, audioMix, videoConfig) = await Self.buildComposition(project: snapshot)
             guard let self, !Task.isCancelled else { return }
             let item = AVPlayerItem(asset: composition)
             item.audioMix = audioMix
+            if let videoConfig {
+                let renderSize = await Self.compositionNaturalSize(composition)
+                item.videoComposition = AVVideoComposition(configuration: videoConfig(renderSize))
+            }
             self.player.replaceCurrentItem(with: item)
             await self.player.seek(to: CMTime(seconds: atPlayhead, preferredTimescale: 600))
         }
@@ -265,10 +307,11 @@ final class VideoEditorStore: ObservableObject {
     /// 工程的合成：视频轨/音频轨各建一条 composition track，片段按时间线落位
     /// （空隙天然留白）；速度 ≠1 的片段经 scaleTimeRange 重定时（源消耗 =
     /// 时长 × 速度）；音量/淡变经 AVMutableAudioMix 自动化（淡入淡出线性坡）。
-    /// 返回 (合成, 音频混合)，预览与导出共用同一份。
-    private nonisolated static func buildComposition(project: TimelineCore.Project) async -> (AVMutableComposition, AVMutableAudioMix?) {
+    /// 返回 (合成, 音频混合, 视频配置构造器)，预览与导出共用同一份。
+    private nonisolated static func buildComposition(project: TimelineCore.Project) async -> (AVMutableComposition, AVMutableAudioMix?, ((CGSize) -> AVVideoComposition.Configuration)?) {
         let composition = AVMutableComposition()
         var mixParameters: [AVAudioMixInputParameters] = []
+        var videoClips: [(track: AVMutableCompositionTrack, clip: TimelineCore.Clip)] = []
         for track in project.tracks where !track.clips.isEmpty {
             let mediaType: AVMediaType = track.kind == .audio ? .audio : .video
             guard track.kind != .text,
@@ -292,6 +335,9 @@ final class VideoEditorStore: ObservableObject {
                             CMTime(seconds: clip.duration, preferredTimescale: 600))
                     }
                 }
+                if mediaType == .video {
+                    videoClips.append((compositionTrack, clip))
+                }
                 // 音量自动化：片段区间内基线增益 + 首尾线性淡坡。
                 if let clipMix {
                     let start = CMTime(seconds: clip.start, preferredTimescale: 600)
@@ -314,10 +360,78 @@ final class VideoEditorStore: ObservableObject {
             }
             if let clipMix { mixParameters.append(clipMix) }
         }
-        guard !mixParameters.isEmpty else { return (composition, nil) }
+        guard !mixParameters.isEmpty else { return (composition, nil, nil) }
         let audioMix = AVMutableAudioMix()
         audioMix.inputParameters = mixParameters
-        return (composition, audioMix)
+        let clipsForVideo = videoClips
+        let configBuilder: ((CGSize) -> AVVideoComposition.Configuration) = { renderSize in
+            Self.buildVideoConfiguration(clips: clipsForVideo, renderSize: renderSize)
+        }
+        return (composition, audioMix, configBuilder)
+    }
+
+    /// 视频配置：旋转（transform）+ 相邻交叠段的交叉溶解（转场）。
+    private nonisolated static func buildVideoConfiguration(
+        clips: [(track: AVMutableCompositionTrack, clip: TimelineCore.Clip)],
+        renderSize: CGSize) -> AVVideoComposition.Configuration {
+        var config = AVVideoComposition.Configuration()
+        config.renderSize = renderSize
+        config.frameDuration = CMTime(value: 1, timescale: 30)
+        var instructions: [AVVideoCompositionInstruction] = []
+        let sorted = clips.sorted { $0.clip.start < $1.clip.start }
+        var index = 0
+        while index < sorted.count {
+            let (track, clip) = sorted[index]
+            // 与下一段的交叠 = 交叉溶解：下一段 opacity 0→1 顶上来。
+            let overlap = index + 1 < sorted.count
+                ? max(0, clip.end - sorted[index + 1].clip.start) : 0
+            // 前段指令覆盖 [start, end - overlap)（交叠期间让位）；
+            // 后段指令覆盖 [start - overlap, end)，交叠头 opacity 0→1。
+            let frontEnd = overlap > 0.05 ? clip.end - overlap : clip.end
+            var layerConfig = AVVideoCompositionLayerInstruction.Configuration(assetTrack: track)
+            layerConfig.setTransform(rotationTransform(quarterTurns: clip.quarterTurns,
+                                                       renderSize: renderSize), at: .zero)
+            let frontInstruction = AVVideoCompositionInstruction(configuration: .init(
+                layerInstructions: [AVVideoCompositionLayerInstruction(configuration: layerConfig)],
+                timeRange: CMTimeRange(
+                    start: CMTime(seconds: clip.start, preferredTimescale: 600),
+                    end: CMTime(seconds: frontEnd, preferredTimescale: 600))))
+            instructions.append(frontInstruction)
+            if overlap > 0.05, index + 1 < sorted.count {
+                let next = sorted[index + 1]
+                var nextConfig = AVVideoCompositionLayerInstruction.Configuration(assetTrack: next.track)
+                nextConfig.setTransform(rotationTransform(quarterTurns: next.clip.quarterTurns,
+                                                          renderSize: renderSize), at: .zero)
+                nextConfig.addOpacityRamp(.init(
+                    timeRange: CMTimeRange(
+                        start: CMTime(seconds: next.clip.start, preferredTimescale: 600),
+                        end: CMTime(seconds: next.clip.start + overlap, preferredTimescale: 600)),
+                    start: 0, end: 1))
+                let nextInstruction = AVVideoCompositionInstruction(configuration: .init(
+                    layerInstructions: [AVVideoCompositionLayerInstruction(configuration: nextConfig)],
+                    timeRange: CMTimeRange(
+                        start: CMTime(seconds: next.clip.start, preferredTimescale: 600),
+                        end: CMTime(seconds: next.clip.end, preferredTimescale: 600))))
+                instructions.append(nextInstruction)
+                index += 2
+                continue
+            }
+            index += 1
+        }
+        if !instructions.isEmpty {
+            config.instructions = instructions
+        }
+        return config
+    }
+
+    /// 旋转 transform：画面绕中心顺时针转 quarterTurns×90°。
+    private nonisolated static func rotationTransform(quarterTurns: Int, renderSize: CGSize) -> CGAffineTransform {
+        guard quarterTurns % 4 != 0 else { return .identity }
+        var transform = CGAffineTransform.identity
+        transform = transform.translatedBy(x: renderSize.width / 2, y: renderSize.height / 2)
+        transform = transform.rotated(by: -CGFloat(quarterTurns % 4) * .pi / 2)
+        transform = transform.translatedBy(x: -renderSize.width / 2, y: -renderSize.height / 2)
+        return transform
     }
 
     // MARK: - 导出
@@ -355,7 +469,7 @@ final class VideoEditorStore: ObservableObject {
 
     private nonisolated static func export(project: TimelineCore.Project,
                                            progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
-        let (composition, audioMix) = await buildComposition(project: project)
+        let (composition, audioMix, videoConfig) = await buildComposition(project: project)
         let hasVideo = project.tracks.contains { $0.kind == .video && !$0.clips.isEmpty }
         let destination = resolveDestination(title: project.title,
                                              ext: hasVideo ? "mp4" : "m4a")
@@ -367,10 +481,10 @@ final class VideoEditorStore: ObservableObject {
             }
             session = s
             // 渲染参数（macOS 26 起 AVMutableVideoComposition 已废弃，
-            // 新 API = Configuration + 不可变 AVVideoComposition）。
-            var config = AVVideoComposition.Configuration()
-            config.renderSize = await compositionNaturalSize(composition)
-            config.frameDuration = CMTime(value: 1, timescale: 30)
+            // 新 API = Configuration + 不可变 AVVideoComposition）——旋转/
+            // 转场由 buildComposition 的构造器产出，这里只叠文字烧录。
+            var config = videoConfig?(await compositionNaturalSize(composition))
+                ?? AVVideoComposition.Configuration()
             let textClips = project.tracks
                 .filter { $0.kind == .text }
                 .flatMap { $0.clips }

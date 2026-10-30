@@ -70,6 +70,15 @@ struct MultiTrackEditorView: View {
             .controlSize(.small)
             .disabled(!store.canUndo)
             .help(String(localized: "Undo"))
+            Button {
+                store.splitAllTracks()
+            } label: {
+                Image(systemName: "square.split.2x1")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(!store.playheadOverlapsClip)
+            .help(String(localized: "Split All Tracks at Playhead"))
             Divider().frame(height: 14)
             Menu {
                 Button(String(localized: "Video Track")) {
@@ -162,7 +171,7 @@ struct MultiTrackEditorView: View {
                     }
                     // 片段效果检查器（音视频片段：速度/音量/淡入淡出）
                     if clip.sourceURL != nil {
-                        effectsRow(clip)
+                        effectsRow(clip, track: track)
                     }
                 }
                 .padding(8)
@@ -172,8 +181,50 @@ struct MultiTrackEditorView: View {
         }
     }
 
-    private func effectsRow(_ clip: TimelineCore.Clip) -> some View {
+    private func effectsRow(_ clip: TimelineCore.Clip, track: TimelineCore.Track) -> some View {
         HStack(spacing: 14) {
+            // 旋转（视频片段）
+            if track.kind == .video {
+                HStack(spacing: 3) {
+                    Button {
+                        store.rotateSelected(-1)
+                    } label: {
+                        Image(systemName: "rotate.left")
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .help(String(localized: "Rotate Left"))
+                    Button {
+                        store.rotateSelected(1)
+                    } label: {
+                        Image(systemName: "rotate.right")
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
+                    .help(String(localized: "Rotate Right"))
+                    if clip.quarterTurns != 0 {
+                        Text("\(clip.quarterTurns * 90)°")
+                            .font(.system(size: 9.5, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+            // 转场（与后邻片段之间的交叉溶解）
+            if track.kind == .video, store.hasSuccessor(of: clip.id) {
+                Button {
+                    store.toggleCrossDissolve(after: clip.id)
+                } label: {
+                    Label(TimelineCore.crossDissolve(after: clip.id, in: store.project) > 0
+                          ? String(localized: "Remove Transition")
+                          : String(localized: "Cross Dissolve"),
+                          systemImage: "rectangle.leftthird.inset.filled")
+                        .font(.system(size: 10))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.mini)
+            }
             // 速度（0.25×–4×；改完提交重定时）
             HStack(spacing: 5) {
                 Text(String(localized: "Speed"))

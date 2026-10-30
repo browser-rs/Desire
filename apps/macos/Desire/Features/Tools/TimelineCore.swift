@@ -39,6 +39,8 @@ nonisolated enum TimelineCore {
         /// 淡入/淡出时长（秒，钳到片段时长一半以内）。
         var fadeIn: Double = 0
         var fadeOut: Double = 0
+        /// 旋转（90° 的倍数：0/1/2/3 = 0°/90°/180°/270° 顺时针）。
+        var quarterTurns: Int = 0
         var end: Double { start + duration }
 
         /// 源内出点（= 入点 + 时间线时长 × 速度）。
@@ -236,5 +238,89 @@ nonisolated enum TimelineCore {
     /// 撤销栈辅助：压栈前判重（连续同状态不重复压）。上限由调用方管。
     static func shouldPushUndo(_ stack: [Project], _ project: Project) -> Bool {
         stack.last != project
+    }
+
+    // MARK: - 转场（v0.8.27 剪辑深化批二）
+
+    /// 转场 = 视频轨上**相邻两片段的交叠**（交叉溶解）：右片段的入点提前
+    /// overlap 秒。设置转场不改变两片段总时长——左片段不动、右片段前移
+    /// overlap 并同步截短（源消耗不变，靠裁右片段的时间线时长）。
+    /// 合法性：两片段同一视频轨、左片段尾部余量 ≥ overlap、右片段时长余量
+    /// ≥ overlap、与更早/更晚的片段不产生新冲突。
+    static func setCrossDissolve(_ project: Project, leftID: UUID, rightID: UUID,
+                                 overlap: Double) -> Project? {
+        guard overlap >= 0.1 else {
+            // overlap 归零 = 移除转场：右片段推回贴住左片段尾部。
+            guard let (lt, left) = clip(project, withID: leftID),
+                  let (rt, right) = clip(project, withID: rightID),
+                  lt.id == rt.id else { return nil }
+            var moved = right
+            moved.start = left.end
+            return upsertClip(project, trackID: rt.id, clip: moved)
+        }
+        guard let (lt, left) = clip(project, withID: leftID),
+              let (rt, right) = clip(project, withID: rightID),
+              lt.id == rt.id, lt.kind == .video,
+              overlap <= left.duration / 2, overlap <= right.duration / 2 else { return nil }
+        // 左片段尾部到右片段起点的余量必须够交叠（相邻=余量 0 不够；重叠布局
+        // 本来就非法）。交叠直接把右片段左移：newRightStart = left.end - overlap，
+        // 要求不与更早的片段冲突。
+        let newRightStart = left.end - overlap
+        guard newRightStart >= left.start + overlap else { return nil }
+        // 不走 upsertClip（它把与左片段的交叠当冲突拒绝——转场交叠是唯一
+        // 合法的重叠形态），直接改轨道并保证不与其他片段冲突。
+        var project = project
+        guard let index = project.tracks.firstIndex(where: { $0.id == rt.id }) else { return nil }
+        var shifted = right
+        shifted.start = newRightStart
+        let others = project.tracks[index].clips.filter { $0.id != rightID && $0.id != leftID }
+        guard !others.contains(where: { isOverlapping(shifted, $0) }) else { return nil }
+        project.tracks[index].clips.removeAll { $0.id == rightID }
+        project.tracks[index].clips.append(shifted)
+        project.tracks[index].clips.sort { $0.start < $1.start }
+        return project
+    }
+
+    /// 查询：视频轨上某片段与后一片段的交叠（转场时长）；无则 0。
+    static func crossDissolve(after clipID: UUID, in project: Project) -> Double {
+        guard let (track, clip) = clip(project, withID: clipID), track.kind == .video,
+              let next = track.clips.filter({ $0.start > clip.start + 1e-6 })
+                  .min(by: { $0.start < $1.start }),
+              clip.end > next.start + 1e-6 else { return 0 }
+        return min(clip.end - next.start, next.duration / 2)
+    }
+
+    /// 旋转：quarterTurns 顺时针步进（wrap 4）。
+    static func rotate(_ project: Project, clipID: UUID, turns: Int) -> Project? {
+        guard let (track, clip) = clip(project, withID: clipID) else { return nil }
+        var updated = clip
+        updated.quarterTurns = ((clip.quarterTurns + turns) % 4 + 4) % 4
+        return upsertClip(project, trackID: track.id, clip: updated)
+    }
+
+    // MARK: - 批量操作（多选）
+
+    /// 批量删除：一组片段 id 一次移除（跨轨安全）。
+    static func deleteClips(_ project: Project, ids: [UUID]) -> Project {
+        var project = project
+        for index in project.tracks.indices {
+            let idSet = Set(ids)
+            project.tracks[index].clips.removeAll { idSet.contains($0.id) }
+        }
+        return project
+    }
+
+    /// 分割全部轨道（razor all）：播放头压着的每个片段各切一刀。
+    static func splitAllAtPlayhead(_ project: Project, at time: Double) -> Project {
+        var project = project
+        for track in project.tracks {
+            for clip in track.clips where time > clip.start + minClipDuration
+                && time < clip.end - minClipDuration {
+                if let split = splitClip(project, clipID: clip.id, at: time) {
+                    project = split
+                }
+            }
+        }
+        return project
     }
 }

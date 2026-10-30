@@ -472,6 +472,7 @@ final class AutomationServer {
         ep("GET", "/bookmarks/health", "Bookmark link check state (running/progress/dead/redirected)", example: "…/bookmarks/health")
         ep("POST", "/bookmarks/health/cleanup", "Remove bookmarked dead links after review (wizard equivalent; tombstones)", params: ["urls:[string]"], example: #"-d '{"urls":["https://dead.example"]}'"#)
         ep("POST", "/bookmarks/health/check", "Start a background bookmark link check (nothing deleted automatically)", params: ["urls?:[string]", "limit?:int"], example: #"-d '{"limit":100}'"#)
+        ep("POST", "/open-url", "Open an internal deep link (desire://tools[/<tool>]) in a new tab — same path external URL opens use", params: ["url:string"], example: #"-d '{"url":"desire://tools/mortgage"}'"#)
         ep("POST", "/open-file", "Open a local file through the viewer routing (PDF/tables/images/zip/JSON/PPTX/documents/media) in a new tab — same mapping as drag-and-drop and \"Open With\"", params: ["path:string"], example: #"-d '{"path":"/tmp/probe.json"}'"#)
         ep("GET", "/reading-list", "Reading list", example: "…/reading-list")
         ep("GET", "/workspaces", "Saved window workspaces (name/tabs/savedAt)", example: "…/workspaces")
@@ -2129,6 +2130,24 @@ final class AutomationServer {
                 }
                 return try Self.json(Self.setReadingTags(
                     url: Self.string(body, "url") ?? "", tags: tags))
+            case ("POST", "/open-url"):
+                guard let raw = Self.string(body, "url"), !raw.isEmpty else {
+                    return try Self.json(["error": "url required"])
+                }
+                guard let destination = InternalPages.parse(raw) else {
+                    return try Self.json(["error": "only desire:// internal URLs are supported here"])
+                }
+                guard let manager = TabSessionCoordinator.shared.activeTabManager else {
+                    return try Self.json(["error": "no window"])
+                }
+                let existing = Set(manager.tabs.map(\.id))
+                manager.addTab(makeActive: true)
+                guard let created = manager.tabs.first(where: { !existing.contains($0.id) }) else {
+                    return try Self.json(["error": "could not create a tab"])
+                }
+                InternalPages.open(destination, in: created)
+                return try Self.json(["ok": true, "url": destination.urlString,
+                                      "tool": destination.toolID ?? ""])
             case ("POST", "/open-file"):
                 guard let filePath = Self.string(body, "path"), !filePath.isEmpty else {
                     return try Self.json(["error": "path required"])

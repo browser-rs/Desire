@@ -279,6 +279,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func application(_ application: NSApplication, open urls: [URL]) {
+        Log.app.info("application(open:) \(urls.count, privacy: .public) url(s): \(urls.map { $0.scheme ?? "?" }.joined(separator: ","), privacy: .public)")
         // .board 文件（白板）：导入为当前活跃会话的白板并打开面板。
         // （双击 .board 文件 → 本应用接管。）
         let boardFiles = urls.filter { $0.pathExtension.lowercased() == "board" }
@@ -303,6 +304,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if !fileURLs.isEmpty {
             NSApp.activate(ignoringOtherApps: true)
             Self.openViewableFiles(fileURLs)
+        }
+        // 内置页面深链（v0.8.27）：desire://tools… 由系统注册后从外部点开。
+        // 冷启动时窗口可能未就绪，与网页链接共用 pending 缓冲。
+        let internalURLs = urls.filter { $0.scheme?.lowercased() == "desire" }
+        if !internalURLs.isEmpty {
+            NSApp.activate(ignoringOtherApps: true)
+            Log.app.info("open internal urls from system: \(internalURLs.count, privacy: .public)")
+            pendingOpenURLs.append(contentsOf: internalURLs)
+            flushPendingOpenURLs()
         }
         let webURLs = urls.filter { $0.scheme == "http" || $0.scheme == "https" }
         guard !webURLs.isEmpty else { return }
@@ -343,6 +353,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
         let app = AppState.live
         for url in pendingOpenURLs {
+            if let destination = InternalPages.parse(url.absoluteString) {
+                let existing = Set(tm.tabs.map(\.id))
+                tm.addTab(
+                    javaScriptEnabled: app?.settings.isJavaScriptEnabled ?? true,
+                    contentBlocker: app?.contentBlocker,
+                    videoAdBlocker: app?.videoAdBlocker,
+                    autoPlayPolicy: app?.settings.autoPlayPolicy ?? .requireUserAction
+                )
+                if let created = tm.tabs.first(where: { !existing.contains($0.id) }) {
+                    InternalPages.open(destination, in: created)
+                }
+                continue
+            }
+            // 普通网页链接：仍走 addTab(url:)（自带 isOnNewTabPage/恢复语义）。
             tm.addTab(
                 url: url.absoluteString,
                 javaScriptEnabled: app?.settings.isJavaScriptEnabled ?? true,

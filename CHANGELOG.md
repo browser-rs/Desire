@@ -2,6 +2,8 @@
 ### Fixed
 
 - Image editor: the "Resize…" toolbar button now opens a working resize sheet (width input, height computed from the aspect ratio, undoable through history) — previously the sheet was an EmptyView and the button did nothing; export menu also gained TIFF (v0.8.26)
+- External deep links: the `desire://` scheme is now registered (`CFBundleURLTypes`) and `application(_:open:)` routes `desire://tools[/<tool>]` into a toolbox tab (cold-start retry included); a new `POST /open-url` bridge endpoint drives the same path. Older installed builds still show macOS's "no application set to open URL" dialog until this build is installed (v0.8.26)
+
 
 ### Added
 

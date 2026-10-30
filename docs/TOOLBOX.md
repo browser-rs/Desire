@@ -51,3 +51,11 @@
 实现：`Features/Tools/`（纯逻辑 *Core 文件进 tests/run.sh；页面拆为
 ToolsPageView / ToolsCalcViews / ToolsCodecViews / ToolsDevViews /
 ToolboxComponents；目录与元数据在 ToolboxCatalog）。
+
+## 外部深链
+
+`desire://` 已在 Info.plist 注册（`CFBundleURLTypes`），`application(_:open:)`
+会把 `desire://tools[/<tool>]` 路由成新的工具标签页（冷启动有窗口就绪重试）。
+**只有安装了注册该 scheme 的版本后**，从 Finder / 其他应用点开深链才会生效；
+旧版本会弹 macOS「未设定用来打开 URL 的应用程序」。自动化可用桥
+`POST /open-url {"url":"desire://tools/mortgage"}`。

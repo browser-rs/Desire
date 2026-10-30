@@ -56,6 +56,16 @@ nonisolated enum TimelineCore {
         var kind: TrackKind
         var name: String = ""
         var clips: [Clip] = []
+        /// 音频轨静音（合成时音量归零；视频轨忽略）。
+        var muted: Bool = false
+    }
+
+    /// 切换轨道静音。
+    static func toggleTrackMute(_ project: Project, trackID: UUID) -> Project? {
+        guard let index = project.tracks.firstIndex(where: { $0.id == trackID }) else { return nil }
+        var updated = project
+        updated.tracks[index].muted.toggle()
+        return updated
     }
 
     struct Project: Codable, Equatable {

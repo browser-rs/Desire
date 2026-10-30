@@ -34,6 +34,9 @@ struct MediaViewerView: View {
     @State private var cursorHidden = false
     /// 命中层引用（窗口按画面比例缩放时读 window 与实际播放面积）。
     @State private var surfaceView: PlayerSurfaceView?
+    // 字幕样式（按应用记忆）。
+    @AppStorage("media.subtitleScale") private var subtitleScale = 1.0
+    @AppStorage("media.subtitlePosition") private var subtitlePosition = "bottom"
 
     init(fileURL: URL, fileName: String, onBack: @escaping () -> Void,
          onEdit: (() -> Void)? = nil, onImmersiveChange: ((Bool) -> Void)? = nil) {
@@ -93,13 +96,16 @@ struct MediaViewerView: View {
         if model.subtitlesEnabled, !model.currentSubtitleText.isEmpty {
             Text(model.currentSubtitleText)
                 .multilineTextAlignment(.center)
-                .font(.system(size: 17, weight: .medium))
+                .font(.system(size: 17 * subtitleScale, weight: .medium))
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.9), radius: 2)
                 .shadow(color: .black.opacity(0.85), radius: 6)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .frame(maxWidth: .infinity, maxHeight: .infinity,
+                       alignment: subtitlePosition == "top" ? .top
+                           : (subtitlePosition == "middle" ? .center : .bottom))
                 .padding(.horizontal, 48)
-                .padding(.bottom, controlsVisible ? 96 : 26)
+                .padding(.bottom, subtitlePosition == "bottom" ? (controlsVisible ? 96 : 26) : 0)
+                .padding(.top, subtitlePosition == "top" ? (controlsVisible ? 96 : 26) : 0)
                 .allowsHitTesting(false)
                 .transition(.opacity)
         }
@@ -210,6 +216,7 @@ struct MediaViewerView: View {
                 subtitleMenu
                 volumeGroup
                 if model.hasVideo {
+                    loopButton
                     pipButton
                     windowSizeMenu
                 }
@@ -334,6 +341,27 @@ struct MediaViewerView: View {
                 Button(String(localized: "Unload Subtitles"), role: .destructive) {
                     model.unloadSubtitles()
                 }
+                Divider()
+                Button(String(format: "Subtitle Delay: %+.1fs (−0.5)", model.subtitleOffset)) {
+                    model.subtitleOffset -= 0.5
+                }
+                Button(String(format: "Subtitle Delay: %+.1fs (+0.5)", model.subtitleOffset)) {
+                    model.subtitleOffset += 0.5
+                }
+                if model.subtitleOffset != 0 {
+                    Button(String(localized: "Reset Delay")) { model.subtitleOffset = 0 }
+                }
+                Divider()
+                Menu(String(localized: "Subtitle Size")) {
+                    ForEach([("80%", 0.8), ("100%", 1.0), ("130%", 1.3), ("160%", 1.6)], id: \.1) { label, scale in
+                        Button(label) { subtitleScale = scale }
+                    }
+                }
+                Menu(String(localized: "Subtitle Position")) {
+                    Button(String(localized: "Bottom")) { subtitlePosition = "bottom" }
+                    Button(String(localized: "Middle")) { subtitlePosition = "middle" }
+                    Button(String(localized: "Top")) { subtitlePosition = "top" }
+                }
             }
             Button(String(localized: "Load Subtitle File…")) { loadSubtitlePanel() }
         } label: {
@@ -406,6 +434,26 @@ struct MediaViewerView: View {
         .buttonStyle(.plain)
         .fixedSize()
         .help(String(localized: "Resize window to picture size"))
+    }
+
+    private var loopButton: some View {
+        Button {
+            model.cycleLoopPoint()
+        } label: {
+            Image(systemName: model.isLoopActive ? "repeat.1.circle.fill" : "repeat.1")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(model.isLoopActive ? appAccent : .white.opacity(0.9))
+        }
+        .buttonStyle(.plain)
+        .help(loopHelp)
+    }
+
+    private var loopHelp: String {
+        if model.isLoopActive, let a = model.loopA, let b = model.loopB {
+            return String(format: "A-B %.1fs–%.1fs", a, b)
+        }
+        if model.loopA != nil { return String(localized: "Mark Loop End (B)") }
+        return String(localized: "Mark Loop Start (A)")
     }
 
     private var pipButton: some View {
@@ -538,6 +586,12 @@ struct MediaViewerView: View {
         case 3:    // f
             if playbackMode { togglePlaybackMode() }
             return true
+        case 4:    // h
+            captureFrame()
+            return true
+        case 37:   // l
+            model.cycleLoopPoint()
+            return true
         case 53:   // Esc
             if playbackMode {
                 togglePlaybackMode()
@@ -546,6 +600,28 @@ struct MediaViewerView: View {
             return false
         default:
             return false
+        }
+    }
+
+    /// H 键截当前帧：AVAssetImageGenerator 精准取帧 → PNG 进剪贴板。
+    private func captureFrame() {
+        let time = model.currentTime
+        let generator = AVAssetImageGenerator(asset: AVURLAsset(url: fileURL))
+        generator.appliesPreferredTrackTransform = true
+        generator.requestedTimeToleranceBefore = .zero
+        generator.requestedTimeToleranceAfter = CMTime(seconds: 0.5, preferredTimescale: 600)
+        Task { @MainActor in
+            do {
+                let (image, _) = try await generator.image(at: CMTime(seconds: time, preferredTimescale: 600))
+                let rep = NSBitmapImageRep(cgImage: image)
+                if let png = rep.representation(using: .png, properties: [:]) {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setData(png, forType: .png)
+                    showFlash("camera.viewfinder")
+                }
+            } catch {
+                showFlash("exclamationmark.triangle")
+            }
         }
     }
 

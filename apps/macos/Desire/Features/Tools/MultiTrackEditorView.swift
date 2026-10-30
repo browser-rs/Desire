@@ -655,12 +655,35 @@ private struct EditorTimeline: View {
         return ZStack(alignment: .topLeading) {
             RoundedRectangle(cornerRadius: 5)
                 .fill(track.kind == .video ? Color.secondary.opacity(0.07) : Color.secondary.opacity(0.045))
-            Text(track.name)
-                .font(.system(size: 9, weight: .medium))
-                .foregroundStyle(.tertiary)
-                .padding(.horizontal, 6)
-                .padding(.top, 3)
-                .allowsHitTesting(false)
+            HStack(spacing: 4) {
+                Text(track.name)
+                    .font(.system(size: 9, weight: .medium))
+                    .foregroundStyle(track.muted ? AnyShapeStyle(.orange) : AnyShapeStyle(.tertiary))
+                if track.kind == .audio {
+                    Button {
+                        store.toggleTrackMute(track.id)
+                    } label: {
+                        Image(systemName: track.muted ? "speaker.slash" : "speaker.wave.1")
+                            .font(.system(size: 7.5))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(track.muted ? .orange : .secondary)
+                    .help(String(localized: "Mute Track"))
+                }
+                if track.kind != .video {
+                    Button {
+                        store.commit(TimelineCore.removeTrack(store.project, trackID: track.id))
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 7))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help(String(localized: "Delete"))
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.top, 3)
             ForEach(track.clips) { clip in
                 TimelineClipView(
                     store: store, track: track, clip: clip,

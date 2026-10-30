@@ -188,6 +188,11 @@ final class VideoEditorStore: ObservableObject {
                                              overlap: existing > 0 ? 0 : 0.8))
     }
 
+    /// 切换轨道静音（音频轨）。
+    func toggleTrackMute(_ trackID: UUID) {
+        commit(TimelineCore.toggleTrackMute(project, trackID: trackID))
+    }
+
     /// 旋转选中片段（turns 步进）。
     func rotateSelected(_ turns: Int) {
         guard let selectedClipID else { return }
@@ -413,7 +418,7 @@ final class VideoEditorStore: ObservableObject {
                   let compositionTrack = composition.addMutableTrack(
                       withMediaType: mediaType, preferredTrackID: kCMPersistentTrackID_Invalid) else { continue }
             var clipMix: AVMutableAudioMixInputParameters?
-            if mediaType == .audio {
+            if mediaType == .audio, !track.muted {
                 clipMix = AVMutableAudioMixInputParameters(track: compositionTrack)
             }
             for clip in track.clips.sorted(by: { $0.start < $1.start }) {

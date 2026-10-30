@@ -41,6 +41,11 @@ final class MediaPlayerModel: ObservableObject {
     }
     @Published private(set) var canPictureInPicture = false
     private(set) var pipController: AVPictureInPictureController?
+    // AB 循环（学语言/看教程）：A/B 都设了才激活；播到 B 跳回 A。
+    @Published private(set) var loopA: Double?
+    @Published private(set) var loopB: Double?
+    /// 字幕延迟（秒，正值=字幕延后显示）。
+    @Published var subtitleOffset: Double = 0
 
     private var timeObserverToken: Any?
     private var cancellables = Set<AnyCancellable>()
@@ -73,6 +78,11 @@ final class MediaPlayerModel: ObservableObject {
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     self.currentTime = time.seconds
+                    if let a = self.loopA, let b = self.loopB,
+                       b > a, time.seconds >= b - 0.05 {
+                        self.seek(to: a, precise: false)
+                        return
+                    }
                     self.updateCurrentSubtitle()
                     self.autosavePosition()
                 }
@@ -131,6 +141,23 @@ final class MediaPlayerModel: ObservableObject {
         autoLoadSubtitle()
     }
 
+    // MARK: - AB 循环
+
+    /// 无 A → 设 A；有 A 无 B → 设 B（激活）；已激活 → 清除。
+    func cycleLoopPoint() {
+        let now = currentTime
+        if loopA != nil, loopB != nil {
+            loopA = nil
+            loopB = nil
+        } else if loopA == nil {
+            loopA = now
+        } else if now > loopA! + 0.5 {
+            loopB = now
+        }
+    }
+
+    var isLoopActive: Bool { loopA != nil && loopB != nil }
+
     // MARK: - 外挂字幕
 
     /// 与视频同名的 srt/vtt/ass/ssa 自动挂载（IINA 惯例）；找不到就静默。
@@ -172,7 +199,7 @@ final class MediaPlayerModel: ObservableObject {
             currentSubtitleText = ""
             return
         }
-        currentSubtitleText = SubtitleCore.texts(at: currentTime, in: subtitleCues)
+        currentSubtitleText = SubtitleCore.texts(at: currentTime - subtitleOffset, in: subtitleCues)
     }
 
     // MARK: - 控制

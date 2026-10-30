@@ -3,6 +3,8 @@
 
 - Toolbox grows to 58 tools: Roman numerals, Excel column letters, CRC-32, SHA-3, Base58, regex replace with capture groups, Markdown→HTML, ASCII table, placeholder text generator, HTTP header lookup, file info with EXIF, discount calculator, bill split, Code128 barcode generator, and UUID v7 option (v0.8.27)
 - Floating ball: new Toolbox capability opens `desire://tools` from the ball's action hub (v0.8.27)
+- desire:// page system: InternalPages routes 14 built-in pages (tools, settings+section, search?q, agent+conversation, whiteboard?text, downloads, history, bookmarks, passwords, plugins, whatsnew, newtab, about, sync) — unknown hosts land on a fallback index page; new-tab page gains a Toolbox card and the address bar suggests desire:// links for tools/settings/history/downloads (v0.8.27)
+
 
 
 

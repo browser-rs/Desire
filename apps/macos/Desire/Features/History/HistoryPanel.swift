@@ -210,6 +210,7 @@ struct HistoryPanel: View {
                     }
                     .buttonStyle(.plain)
                     .help("History insights")
+                    .accessibilityLabel(Text("History insights"))
                 }
                 if !store.entries.isEmpty {
                     Button(isSelecting ? "Done" : "Select") {

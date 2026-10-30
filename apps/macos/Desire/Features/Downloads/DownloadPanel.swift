@@ -442,6 +442,7 @@ struct DownloadPanel: View {
                             .foregroundStyle(.tertiary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel(Text("Clear Search"))
                 }
             }
             .padding(.horizontal, 8)
@@ -489,6 +490,7 @@ struct DownloadPanel: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Filter by Type")
+        .accessibilityLabel(Text("Filter by Type"))
     }
 
     /// 状态过滤（v0.8.25）：四态与用户语义一致（暂停 = isPaused 或 .paused）。
@@ -522,6 +524,7 @@ struct DownloadPanel: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Filter by Status")
+        .accessibilityLabel(Text("Filter by Status"))
     }
 
     private static func statusLabel(_ filter: DownloadStatusFilter) -> String {
@@ -566,6 +569,7 @@ struct DownloadPanel: View {
                 }
                 .buttonStyle(.plain)
                 .help(mode.title)
+                .accessibilityLabel(Text(mode.title))
             }
         }
         .padding(2)

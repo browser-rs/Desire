@@ -83,6 +83,7 @@ struct BookmarkPanel: View {
                 }
                 .buttonStyle(.plain)
                 .help(isSelecting ? "Done Selecting" : "Select Multiple")
+                .accessibilityLabel(Text(isSelecting ? "Done Selecting" : "Select Multiple"))
 
                 if isSelecting && !selectedIDs.isEmpty {
                     Button {
@@ -93,6 +94,7 @@ struct BookmarkPanel: View {
                     }
                     .buttonStyle(.plain)
                     .help("Delete Selected (\(selectedIDs.count))")
+                    .accessibilityLabel(Text("Delete Selected"))
                 }
 
                 Divider().frame(height: 16)
@@ -101,6 +103,7 @@ struct BookmarkPanel: View {
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
                     .help("Check for Dead Links…")
+                    .accessibilityLabel(Text("Check for Dead Links…"))
                 Menu {
                     Button("HTML") { store.exportToHTML() }
                     Button("JSON") { store.exportJSON() }
@@ -113,6 +116,7 @@ struct BookmarkPanel: View {
                 .buttonStyle(.plain)
                 .fixedSize()
                 .help("Export")
+                .accessibilityLabel(Text("Export"))
                 Menu {
                     ForEach(BookmarkImportService.ImportSource.allCases) { source in
                         Button {
@@ -129,10 +133,12 @@ struct BookmarkPanel: View {
                 .menuIndicator(.hidden)
                 .frame(width: 24, height: 24)
                 .help("Import")
+                .accessibilityLabel(Text("Import"))
                 Button("", systemImage: "folder.badge.plus") { showNewFolder = true }
                     .labelStyle(.iconOnly)
                     .buttonStyle(.plain)
                     .help("New Folder")
+                    .accessibilityLabel(Text("New Folder"))
                 Button("Close", action: onClose)
             }
             .padding()

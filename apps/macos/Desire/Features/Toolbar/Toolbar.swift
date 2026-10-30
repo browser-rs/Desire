@@ -820,6 +820,7 @@ struct Toolbar: View {
             }
             .buttonStyle(.plain)
             .help("Agent (Floating Window)")
+            .accessibilityLabel(Text("Agent (Floating Window)"))
 
             Button { actions.toggleDevTools() } label: {
                 Image(systemName: "ladybug")
@@ -830,6 +831,7 @@ struct Toolbar: View {
             .buttonStyle(.plain)
             .foregroundStyle(isDevModeEnabled ? appAccent : .primary)
             .help("Developer Tools")
+            .accessibilityLabel(Text("Developer Tools"))
 
             DownloadButton(store: downloadStore, showDownloads: $downloadsPresentation.isPresented)
 
@@ -888,6 +890,7 @@ struct Toolbar: View {
         .menuStyle(.borderlessButton)
         .frame(width: 24)
         .help("Profile")
+        .accessibilityLabel(Text("Profile"))
     }
 
     private var activeProfileColor: Color {
@@ -1146,6 +1149,7 @@ private struct DownloadButton: View {
         }
         .buttonStyle(.plain)
         .help("Downloads")
+        .accessibilityLabel(Text("Downloads"))
         .onHover { isHovering = $0 }
         .popover(isPresented: $showDownloads) {
             DownloadPanel(store: store)

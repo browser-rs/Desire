@@ -145,6 +145,7 @@ struct ExcerptsPanel: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help(String(localized: "Clear all (tombstones sync to other devices)"))
+                .accessibilityLabel(Text("Clear all excerpts"))
             }
         }
         .padding(.horizontal, 14)

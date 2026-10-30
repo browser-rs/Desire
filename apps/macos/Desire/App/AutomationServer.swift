@@ -3062,7 +3062,11 @@ final class AutomationServer {
                 case "resume":
                     let ok = session.resumeInterruptedTurn()
                     return try Self.json(["ok": ok, "busy": session.isProcessing,
-                                          "hasInterruptedTurn": session.hasInterruptedTurn])
+                                          "hasInterruptedTurn": session.hasInterruptedTurn,
+                                          // 工具级续跑（v0.8.25）：计划/实际重放的调用数
+                                          "pendingToolCalls": session.lastResumePendingCount,
+                                          "replayableToolCalls": session.lastResumeReplayableCount,
+                                          "replayedToolCalls": session.lastResumeReplayedCount])
                 case "discard":
                     session.discardInterruptedTurn()
                     return try Self.json(["ok": true, "hasInterruptedTurn": session.hasInterruptedTurn])

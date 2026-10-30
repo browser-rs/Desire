@@ -5550,6 +5550,26 @@ func testReadingListFilter() {
 }
 testReadingListFilter()
 
+func testTurnCheckpointCore() {
+    let calls = [
+        PendingToolCall(id: "c1", name: "getPageSnapshot", arguments: "{}"),
+        PendingToolCall(id: "c2", name: "click", arguments: "{\"ref\":\"e3\"}"),
+        PendingToolCall(id: "c3", name: "getPageText", arguments: "{}"),
+    ]
+    let pending = TurnCheckpointCore.pendingCalls(toolCalls: calls, completedIDs: ["c1"])
+    eq("工具续跑：只留未完成", pending.map(\.id), ["c2", "c3"])
+    let deduped = TurnCheckpointCore.pendingCalls(toolCalls: calls + [calls[1]], completedIDs: [])
+    eq("工具续跑：按 id 去重", deduped.map(\.id), ["c1", "c2", "c3"])
+    let readonly: Set<String> = ["getPageSnapshot", "getPageText"]
+    let replay = TurnCheckpointCore.replayable(pending) { readonly.contains($0) }
+    eq("工具续跑：只自动重放只读", replay.map(\.id), ["c3"])
+    check("工具续跑：说明带数量", TurnCheckpointCore.note(replayed: 2).contains("2 read-only"))
+    eq("工具续跑：全部完成则无待办",
+       TurnCheckpointCore.pendingCalls(toolCalls: calls, completedIDs: ["c1", "c2", "c3"]), [])
+}
+
+testTurnCheckpointCore()
+
 func testPageObservationCore() {
     let now = Date()
     let entry = PageObservationCore.makeEntry(url: "https://a.com/p", maxChars: 100, maxElements: 10,

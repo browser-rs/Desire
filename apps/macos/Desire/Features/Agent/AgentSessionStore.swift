@@ -385,6 +385,12 @@ class AgentSessionStore: ObservableObject {
     @Published private(set) var hasInterruptedTurn = false
     /// 回合进行中（落盘到 Conversation.turnActive）。
     private var turnCheckpointActive = false
+    /// 工具级续跑（v0.8.25）：resume 时算出的未完成 tool_calls（只读部分自动重放）。
+    private(set) var pendingResumeToolCalls: [PendingToolCall] = []
+    /// 上次 resume 的计划/结果计数（桥端点回显，便于 E2E 断言）。
+    private(set) var lastResumePendingCount = 0
+    private(set) var lastResumeReplayableCount = 0
+    private(set) var lastResumeReplayedCount = 0
     /// 流式检查点节流（flushTail 高频，3s 一拍落盘）。
     private var lastStreamCheckpoint = Date()
     /// **最近一次**请求的 prompt token 数：累计值对用户没意义，他要的是"现在多满"。
@@ -973,6 +979,14 @@ class AgentSessionStore: ObservableObject {
     func resumeInterruptedTurn() -> Bool {
         guard !isProcessing, hasInterruptedTurn else { return false }
         hasInterruptedTurn = false
+        // 工具级续跑：找出尾部那批 tool_calls 里还没有结果的调用。
+        let pending = Self.computePendingToolCalls(from: messages)
+        pendingResumeToolCalls = pending
+        lastResumePendingCount = pending.count
+        lastResumeReplayableCount = TurnCheckpointCore.replayable(pending) {
+            ToolRisk.classify($0) == .readonly
+        }.count
+        lastResumeReplayedCount = 0
         turnCheckpointActive = true
         isProcessing = true
         isCancelled = false
@@ -986,6 +1000,23 @@ class AgentSessionStore: ObservableObject {
         let turnID = beginTurn()
         loopTask = Task { await processLoop(turnID: turnID) }
         return true
+    }
+
+    /// 尾部回合里"调用过但没有结果"的 tool_calls。
+    private static func computePendingToolCalls(from messages: [AgentMessage]) -> [PendingToolCall] {
+        guard let index = messages.lastIndex(where: {
+            $0.role == .assistant && !($0.toolCalls ?? []).isEmpty
+        }) else { return [] }
+        let calls = messages[index].toolCalls ?? []
+        var completed = Set<String>()
+        for message in messages[(index + 1)...] where message.role == .tool {
+            if let id = message.toolCallId { completed.insert(id) }
+        }
+        return TurnCheckpointCore.pendingCalls(
+            toolCalls: calls.map {
+                PendingToolCall(id: $0.id, name: $0.function.name, arguments: $0.function.arguments)
+            },
+            completedIDs: completed)
     }
 
     /// 放弃被打断的回合：只清标志（悬空的 tool_calls 由请求组装的
@@ -1905,6 +1936,39 @@ class AgentSessionStore: ObservableObject {
         windowTitle = boundTabManager?.windowTitle
         AgentScheduler.shared.updateWindowTitle(self, title: windowTitle)
         saveCurrentConversation()
+
+        // 工具级续跑（v0.8.25）：上次回合在工具批中间被打断时，只读调用在这里
+        // 补跑并把结果落进会话——模型看到的是真实结果而不是"请重做"。
+        // 副作用调用不自动重放（可能已生效），仍由模型按页面现状决定。
+        if !pendingResumeToolCalls.isEmpty {
+            let pending = pendingResumeToolCalls
+            pendingResumeToolCalls = []
+            let replay = TurnCheckpointCore.replayable(pending) {
+                ToolRisk.classify($0) == .readonly
+            }
+            var replayed = 0
+            for call in replay {
+                guard isCurrentTurn(turnID), !isCancelled, !Task.isCancelled else { return }
+                let tc = AgentToolCall(id: call.id, type: "function",
+                                       function: AgentToolFunction(name: call.name,
+                                                                   arguments: call.arguments))
+                let startedAt = Date()
+                let result = await toolProvider.execute(tc, in: activeWebView ?? WKWebView())
+                guard isCurrentTurn(turnID), !isCancelled, !Task.isCancelled else { return }
+                messages.append(AgentMessage(
+                    role: .tool,
+                    content: SecretRedactor.redact(result, knownKeys: preference.secretsForRedaction()),
+                    toolCallId: tc.id,
+                    toolName: call.name,
+                    toolDurationMs: Date().timeIntervalSince(startedAt) * 1000))
+                replayed += 1
+            }
+            lastResumeReplayedCount = replayed
+            if replayed > 0 {
+                appendExternalNote(TurnCheckpointCore.note(replayed: replayed))
+            }
+            saveCurrentConversation()
+        }
 
         while isCurrentTurn(turnID) && !isCancelled && iterations < maxIterations {
             iterations += 1

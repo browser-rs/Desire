@@ -154,6 +154,8 @@ struct AppCommands: Commands {
                 get: { usageMode.mode == .hybrid },
                 set: { if $0 { AppModeCoordinator.apply(.hybrid) } }))
                 .keyboardShortcut("3", modifiers: [.command, .control])
+            Divider()
+            Button("Open Agent Window") { AppModeCoordinator.ensureAgentWindow() }
         }
 
         CommandMenu("Agent") {

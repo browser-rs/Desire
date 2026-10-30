@@ -3461,8 +3461,10 @@ final class AutomationServer {
         let keyTitle = NSApp.keyWindow?.title ?? ""
         let rows: [[String: Any]] = TabSessionCoordinator.shared.liveManagers().map { manager in
             let selected = manager.selectedTab
-            let windowTitle = selected?.browser.webView.window?.title ?? ""
-            let isKey = selected?.browser.webView.window?.isKeyWindow ?? false
+            let hostWindow = WindowSurfaceRegistry.shared.window(for: manager.sessionKey)
+                ?? selected?.browser.webView.window
+            let windowTitle = hostWindow?.title ?? ""
+            let isKey = hostWindow?.isKeyWindow ?? false
             return [
                 "sessionKey": manager.sessionKey ?? "",
                 "role": WindowRoleRegistry.shared.role(for: manager.sessionKey).rawValue,

@@ -662,6 +662,13 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             browserShell
+            // 混合模式的 Agent 窗口标题（v0.8.24）：窗口级角色标记。
+            AgentWindowTitleMarker(title: String(localized: "Agent Workspace")) {
+                WindowRoleRegistry.shared.role(for: tabManager.sessionKey) == .agent
+            } sessionKey: {
+                tabManager.sessionKey
+            }
+            .frame(width: 0, height: 0)
             if usageMode.mode == .agentFocus {
                 AgentWorkspaceView(store: aiSession,
                                    conversationStore: conversationStore,
@@ -1101,4 +1108,51 @@ struct ContentView: View {
     func captureFullPage() { b.captureFullPage() }
 
     func togglePictureInPicture() { b.togglePictureInPicture() }
+}
+
+
+/// 按窗口角色写 NSWindow.title（v0.8.24）。SwiftUI 的 WindowGroup 没有
+/// 按角色改标题的 API；这里在视图挂上窗口后写一次，并在恢复完成后补两次
+/// （sessionKey 是在 ContentView.onAppear 的恢复流程里才写上的）。
+private struct AgentWindowTitleMarker: NSViewRepresentable {
+    let title: String
+    let isAgentWindow: () -> Bool
+    let sessionKey: () -> String?
+
+    final class Coordinator {
+        var task: Task<Void, Never>?
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        schedule(view, coordinator: context.coordinator)
+        return view
+    }
+
+    func updateNSView(_ view: NSView, context: Context) {
+        schedule(view, coordinator: context.coordinator)
+    }
+
+    private func schedule(_ view: NSView, coordinator: Coordinator) {
+        // 角色是在 ContentView.onAppear 的恢复流程里才写上的，且 SwiftUI 不会
+        // 因此重绘——所以这里轮询到成功为止（最多 6 秒），只写一次。
+        coordinator.task?.cancel()
+        coordinator.task = Task { @MainActor in
+            // 5 分钟窗口内持续校正（SwiftUI 在状态变化时会重设窗口标题）。
+            for _ in 0..<1200 {
+                if let window = view.window {
+                    // 所有窗口都登记（diag/Peek 需要），agent 角色额外写标题。
+                    let key = sessionKey()
+                    WindowSurfaceRegistry.shared.register(window, sessionKey: key)
+                    let agent = isAgentWindow()
+                    if agent, window.title != title {
+                        window.title = title
+                    }
+                }
+                try? await Task.sleep(for: .milliseconds(250))
+            }
+        }
+    }
 }

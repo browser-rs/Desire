@@ -1,4 +1,5 @@
 import SwiftUI
+import WebKit
 
 /// 专注模式的工作台（v0.8.23 第一批）：对话为主 + **可折叠的内嵌浏览面板**。
 ///
@@ -127,6 +128,14 @@ struct AgentWorkspaceView: View {
 
     private func paneColumn(_ pane: TabManager) -> some View {
         VStack(spacing: 0) {
+            if let tab = pane.selectedTab {
+                PaneBrowserControls(tab: tab, settings: content.settings) {
+                    if pane.tabs.count > 1 {
+                        pane.closeTab(at: pane.selectedIndex)
+                    }
+                }
+                Divider()
+            }
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
                     ForEach(Array(pane.tabs.enumerated()), id: \.element.id) { index, tab in
@@ -170,6 +179,83 @@ struct AgentWorkspaceView: View {
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        }
+    }
+}
+
+
+/// 专注模式面板的浏览器控件（v0.8.24）：前进/后退/刷新/停止/地址栏/关闭。
+/// Peek 把页面交给用户时，得能真的办事（登录/验证码/重新导航）。
+private struct PaneBrowserControls: View {
+    @ObservedObject var tab: Tab
+    let settings: Settings
+    var onClose: () -> Void
+
+    @State private var address = ""
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Button {
+                tab.browser.webView.goBack()
+            } label: {
+                Image(systemName: "chevron.left")
+            }
+            .disabled(!tab.canGoBack)
+
+            Button {
+                tab.browser.webView.goForward()
+            } label: {
+                Image(systemName: "chevron.right")
+            }
+            .disabled(!tab.canGoForward)
+
+            Button {
+                if tab.isLoading {
+                    tab.browser.webView.stopLoading()
+                } else {
+                    tab.browser.webView.reload()
+                }
+            } label: {
+                Image(systemName: tab.isLoading ? "xmark" : "arrow.clockwise")
+            }
+
+            TextField(String(localized: "Address"), text: $address)
+                .textFieldStyle(.plain)
+                .font(.system(size: 11, design: .monospaced))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color(nsColor: .controlBackgroundColor))
+                )
+                .onSubmit { navigate() }
+
+            Button(action: onClose) {
+                Image(systemName: "xmark.circle")
+            }
+        }
+        .font(.system(size: 11))
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .onAppear { address = tab.urlString }
+        .onChange(of: tab.urlString) { _, newValue in
+            address = newValue
+        }
+    }
+
+    private func navigate() {
+        guard let destination = URLResolution.resolve(address, settings: settings) else { return }
+        let target: URL?
+        switch destination {
+        case .url(let raw):
+            target = URL(string: raw)
+        case .search(let query, let engine):
+            target = URLResolution.searchURL(query: query, target: engine)
+        }
+        if let target {
+            tab.browser.webView.load(URLRequest(url: target))
         }
     }
 }

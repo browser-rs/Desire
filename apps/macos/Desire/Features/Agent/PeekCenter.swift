@@ -56,6 +56,10 @@ final class PeekCenter: ObservableObject {
 
     @Published private(set) var active: PeekRequest?
     @Published private(set) var lastResolution: String?
+    /// Peek 的目标浏览面（展开时锁定；完成时对比前后状态）。
+    private(set) var targetManager: TabManager?
+    /// 用户开始处理前的页面快照（URL）。
+    private var beforeSnapshot: String?
 
     private init() {}
 
@@ -81,23 +85,47 @@ final class PeekCenter: ObservableObject {
         present()
     }
 
-    /// 展开：专注模式锁住面板（用户接管期间 Agent 工具让路）。
+    /// 展开：锁定目标浏览面（用户接管期间 Agent 工具让路）；混合模式弹
+    /// 非激活浮层（不抢用户焦点）。
     func present() {
         guard var request = active else { return }
         request.status = .visible
         active = request
-        if AppModeStore.shared.mode == .agentFocus {
-            SurfaceLock.shared.lock(AgentPaneManager.shared.ensure(), reason: request.reason)
+        let manager = Self.surfaceManager()
+        targetManager = manager
+        if let manager {
+            beforeSnapshot = Self.snapshot(manager)
+            SurfaceLock.shared.lock(manager, reason: request.reason)
+        }
+        if AppModeStore.shared.mode == .hybrid {
+            PeekOverlayController.shared.show()
+        }
+    }
+
+    /// 当前模式对应的"Agent 正在操作的面"。
+    private static func surfaceManager() -> TabManager? {
+        switch AppModeStore.shared.mode {
+        case .agentFocus:
+            return AgentPaneManager.shared.ensure()
+        case .hybrid:
+            return TabSessionCoordinator.shared.liveManagers().first {
+                WindowRoleRegistry.shared.role(for: $0.sessionKey) == .agent
+            }
+        case .browser:
+            return TabSessionCoordinator.shared.activeTabManager
         }
     }
 
     /// 完成/关闭：解锁、对比页面前后状态、写系统备注告知模型。
     func resolve(completed: Bool) {
         guard let request = active else { return }
-        let manager = AgentPaneManager.shared.manager
-        let before = manager.map { Self.snapshot($0) }
+        let manager = targetManager
+        let before = beforeSnapshot
         if let manager { SurfaceLock.shared.unlock(manager) }
         let after = manager.map { Self.snapshot($0) }
+        PeekOverlayController.shared.hide()
+        targetManager = nil
+        beforeSnapshot = nil
         active = nil
 
         let note: String

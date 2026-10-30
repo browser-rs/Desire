@@ -7128,6 +7128,135 @@ func testDownloadFilterCore() {
 
 testDownloadFilterCore()
 
+
+func testJSONFormatterCore() {
+    let json = "{\"b\": 2, \"a\": [true, null, \"x,y\"]}"
+    let pretty = JSONFormatterCore.format(json)
+    if case .success(let text) = pretty {
+        check("JSON：美化有换行", text.contains("\n"))
+        check("JSON：保留键序", text.range(of: "\"b\"")!.lowerBound < text.range(of: "\"a\"")!.lowerBound)
+        check("JSON：布尔小写", text.contains("true"))
+    } else { check("JSON：美化成功", false) }
+    if case .success(let text) = JSONFormatterCore.format(json, sortKeys: true) {
+        check("JSON：键排序", text.range(of: "\"a\"")!.lowerBound < text.range(of: "\"b\"")!.lowerBound)
+    } else { check("JSON：排序成功", false) }
+    if case .success(let text) = JSONFormatterCore.format(json, minify: true) {
+        check("JSON：压缩无换行", !text.contains("\n"))
+        check("JSON：压缩紧凑", text.contains("\"b\":2"))
+    } else { check("JSON：压缩成功", false) }
+    if case .success(let text) = JSONFormatterCore.format(json, indent: 4) {
+        check("JSON：四空格缩进", text.contains("\n    \"b\""))
+    } else { check("JSON：四空格成功", false) }
+
+    if case .failure(let failure) = JSONFormatterCore.format("{\"a\": }") {
+        check("JSON：错误有描述", !failure.message.isEmpty)
+    } else { check("JSON：错误被识别", false) }
+    check("JSON：校验合法", JSONFormatterCore.validate("[1,2,3]") == nil)
+    check("JSON：标量合法", JSONFormatterCore.validate("42") == nil)
+    check("JSON：非法", JSONFormatterCore.validate("{oops") != nil)
+
+    let jsonl = "{\"a\":1}\n\n{\"b\":2}\n"
+    check("JSONL：识别", JSONFormatterCore.looksLikeJSONL(jsonl))
+    check("JSONL：单对象不算", !JSONFormatterCore.looksLikeJSONL("{\"a\":1}"))
+    if case .success(let objects) = JSONFormatterCore.parseJSONL(jsonl) {
+        eq("JSONL：条数", objects.count, 2)
+    } else { check("JSONL：解析成功", false) }
+    if case .failure(let failure) = JSONFormatterCore.parseJSONL("{\"a\":1}\nnope") {
+        eq("JSONL：错误物理行号", failure.line, 2)
+    } else { check("JSONL：错误被识别", false) }
+
+    let arrayJSON = "[{\"name\":\"a\",\"n\":1,\"ok\":true,\"x\":null},{\"name\":\"b\",\"extra\":\"z\"}]"
+    if case .success(let object) = JSONFormatterCore.parse(arrayJSON),
+       let table = JSONFormatterCore.table(from: object) {
+        eq("JSON 表：表头并集按字母序", table.header, ["extra", "n", "name", "ok", "x"])
+        eq("JSON 表：首行", table.rows.first, ["", "1", "a", "true", ""])
+        eq("JSON 表：缺列补空", table.rows[1].count, 5)
+        let csv = JSONFormatterCore.csv(from: object) ?? ""
+        check("JSON 表：CSV 表头", csv.hasPrefix("extra,n,name,ok,x\n"))
+    } else { check("JSON 表：构造成功", false) }
+    eq("JSON 表：CSV 引号", JSONFormatterCore.csvText(.init(header: ["a"], rows: [["x,y"]])),
+       "a\n\"x,y\"")
+    eq("JSON 表：标量数组", JSONFormatterCore.table(from: [1, 2] as [Any])?.rows.count, 2)
+    eq("JSON 表：布尔文本", JSONFormatterCore.cellText(true), "true")
+    eq("JSON 表：null 文本", JSONFormatterCore.cellText(NSNull()), "")
+}
+
+testJSONFormatterCore()
+
+func testJSONSyntaxHighlightCore() {
+    let text = "{\"key\": \"va\\\"lue\", \"n\": -1.5e2, \"ok\": true}"
+    let tokens = JSONSyntaxHighlightCore.tokens(in: text)
+    let kinds = tokens.map(\.kind)
+    check("JSON 高亮：键识别", kinds.contains(.key))
+    check("JSON 高亮：字符串识别", kinds.contains(.string))
+    check("JSON 高亮：数字识别", kinds.contains(.number))
+    check("JSON 高亮：字面量识别", kinds.contains(.literal))
+    let keyToken = tokens.first(where: { $0.kind == .key })
+    let ns = text as NSString
+    eq("JSON 高亮：键区间", ns.substring(with: NSRange(location: keyToken!.location, length: keyToken!.length)), "\"key\"")
+    let stringToken = tokens.first(where: { $0.kind == .string })
+    eq("JSON 高亮：转义字符串完整", ns.substring(with: NSRange(location: stringToken!.location, length: stringToken!.length)), "\"va\\\"lue\"")
+    let emoji = "{\"e\": \"😀\"}"
+    let emojiTokens = JSONSyntaxHighlightCore.tokens(in: emoji)
+    check("JSON 高亮：UTF-16 偏移", emojiTokens.allSatisfy {
+        $0.location + $0.length <= (emoji as NSString).length
+    })
+}
+
+testJSONSyntaxHighlightCore()
+
+func testPresentationReaderCore() {
+    let slideXML = """
+    <p:sld xmlns:a="a" xmlns:p="p"><p:cSld><p:spTree>
+    <p:sp><p:nvSpPr><p:nvPr><p:ph type="title"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>Quarterly Review</a:t></a:r></a:p></p:txBody></p:sp>
+    <p:sp><p:nvSpPr><p:nvPr><p:ph type="body"/></p:nvPr></p:nvSpPr><p:txBody>
+    <a:p><a:r><a:t>Revenue up 20%</a:t></a:r></a:p>
+    <a:p><a:pPr lvl="1"/><a:r><a:t>EMEA led</a:t></a:r></a:p>
+    </p:txBody></p:sp></p:spTree></p:cSld></p:sld>
+    """
+    let slide = PresentationReaderCore.slide(fromXML: slideXML, index: 1)
+    eq("PPT：标题", slide.title, "Quarterly Review")
+    eq("PPT：要点数", slide.bullets.count, 2)
+    eq("PPT：层级", slide.bullets[1].level, 1)
+    let notesXML = """
+    <p:notes xmlns:a="a" xmlns:p="p"><p:cSld><p:spTree>
+    <p:sp><p:nvSpPr><p:nvPr><p:ph type="sldNum"/></p:nvPr></p:nvSpPr><p:txBody><a:p><a:r><a:t>7</a:t></a:r></a:p></p:txBody></p:sp>
+    <p:sp><p:txBody><a:p><a:r><a:t>Mention the hiring plan.</a:t></a:r></a:p></p:txBody></p:sp>
+    </p:spTree></p:cSld></p:notes>
+    """
+    eq("PPT：备注过滤页码", PresentationReaderCore.notes(fromXML: notesXML), ["Mention the hiring plan."])
+    let md = PresentationReaderCore.markdown(title: "Deck", slides: [slide], includeNotes: true)
+    check("PPT：Markdown 含页标题", md.contains("## Slide 1 — Quarterly Review"))
+    check("PPT：Markdown 含要点", md.contains("  - EMEA led"))
+    let html = PresentationReaderCore.html(title: "A&B", slides: [slide], includeNotes: false)
+    check("PPT：HTML 转义", html.contains("A&amp;B"))
+    check("PPT：HTML 含要点", html.contains("Revenue up 20%"))
+}
+
+testPresentationReaderCore()
+
+func testImageConvertCore() {
+    eq("图片转换：jpg 归一", ImageConvertCore.format(from: ".JPG")?.rawValue, "jpeg")
+    eq("图片转换：png 识别", ImageConvertCore.format(from: "png")?.rawValue, "png")
+    eq("图片转换：未知格式", ImageConvertCore.format(from: "bmp"), nil)
+    let size = ImageConvertCore.targetSize(width: 4000, height: 2000, maxDimension: 1600)
+    eq("图片转换：等比宽", size.width, 1600)
+    eq("图片转换：等比高", size.height, 800)
+    let small = ImageConvertCore.targetSize(width: 800, height: 600, maxDimension: 1600)
+    eq("图片转换：不放大", small.width, 800)
+    eq("图片转换：不限尺寸", ImageConvertCore.targetSize(width: 800, height: 600, maxDimension: nil).height, 600)
+    eq("图片转换：竖图", ImageConvertCore.targetSize(width: 1000, height: 4000, maxDimension: 1000).height, 1000)
+    eq("图片转换：文件名", ImageConvertCore.outputFileName(sourceName: "a.png", format: .jpeg, maxDimension: 1024), "a-1024.jpg")
+    let src = URL(fileURLWithPath: "/tmp/a.png")
+    eq("图片转换：同路径加后缀",
+       ImageConvertCore.outputURL(source: src, format: .png, maxDimension: nil).lastPathComponent, "a-converted.png")
+    eq("图片转换：不同目录",
+       ImageConvertCore.outputURL(source: src, format: .jpeg, maxDimension: nil,
+                                  directory: URL(fileURLWithPath: "/tmp/out")).path, "/tmp/out/a.jpg")
+}
+
+testImageConvertCore()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

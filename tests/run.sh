@@ -211,6 +211,10 @@ SOURCES=(
   apps/macos/Desire/Features/Search/SemanticClusterCore.swift
   apps/macos/Desire/Features/Excerpts/KnowledgeDigestCore.swift
   apps/macos/Desire/Features/Excerpts/ExcerptBacklinkCore.swift
+  apps/macos/Desire/Features/Office/JSONFormatterCore.swift
+  apps/macos/Desire/Features/Office/JSONSyntaxHighlightCore.swift
+  apps/macos/Desire/Features/Office/PresentationReaderCore.swift
+  apps/macos/Desire/Features/Office/ImageConvertCore.swift
   tests/main.swift
 )
 swiftc -o "$OUT" "${SOURCES[@]}"

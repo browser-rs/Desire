@@ -42,8 +42,127 @@ enum DocumentConvert {
             return Outcome(ok: false, message: "images convert to pdf only")
         case "csv", "tsv", "xlsx":
             return convertTable(primary, format: fmt, to: dest)
+        case "pptx":
+            return await convertPresentation(primary, format: fmt, to: dest)
+        case "json", "jsonl", "ndjson":
+            return convertJSON(primary, format: fmt, to: dest)
         default:
             return Outcome(ok: false, message: "unsupported source type .\(primary.pathExtension)")
+        }
+    }
+
+    // MARK: - 演示文稿（v0.8.26）
+
+    private static func convertPresentation(_ src: URL, format: String,
+                                             to dest: URL) async -> Outcome {
+        switch PresentationReader.read(url: src, maxSlides: 500, includeNotes: true) {
+        case .failure(let error):
+            return Outcome(ok: false, message: error.message)
+        case .success(let document):
+            let markdown = PresentationReaderCore.markdown(title: document.title,
+                                                           slides: document.slides,
+                                                           includeNotes: true)
+            switch format {
+            case "md", "txt":
+                do {
+                    try markdown.write(to: dest, atomically: true, encoding: .utf8)
+                    return Outcome(ok: true, message: "pptx → \(format) (\(document.slides.count) slides)")
+                } catch {
+                    return Outcome(ok: false, message: "write failed: \(error.localizedDescription)")
+                }
+            case "html":
+                let html = PresentationReaderCore.html(title: document.title,
+                                                       slides: document.slides,
+                                                       includeNotes: true)
+                do {
+                    try html.write(to: dest, atomically: true, encoding: .utf8)
+                    return Outcome(ok: true, message: "pptx → html (\(document.slides.count) slides)")
+                } catch {
+                    return Outcome(ok: false, message: "write failed: \(error.localizedDescription)")
+                }
+            case "docx", "rtf":
+                guard DocumentText.exportDocument(content: markdown, format: format, to: dest) else {
+                    return Outcome(ok: false, message: "document conversion failed")
+                }
+                return Outcome(ok: true, message: "pptx → \(format) (\(document.slides.count) slides)")
+            case "pdf":
+                let html = PresentationReaderCore.html(title: document.title,
+                                                       slides: document.slides,
+                                                       includeNotes: true)
+                let ok = await renderHTMLToPDF(html, to: dest)
+                return Outcome(ok: ok, message: ok ? "pptx → pdf (\(document.slides.count) slides)"
+                                                    : "pdf rendering failed")
+            default:
+                return Outcome(ok: false, message: "pptx converts to md/txt/html/docx/rtf/pdf")
+            }
+        }
+    }
+
+    // MARK: - JSON（v0.8.26）
+
+    private static func convertJSON(_ src: URL, format: String, to dest: URL) -> Outcome {
+        guard let raw = try? String(contentsOf: src, encoding: .utf8) else {
+            return Outcome(ok: false, message: "cannot read the file as UTF-8 text")
+        }
+        let isJSONL = ["jsonl", "ndjson"].contains(src.pathExtension.lowercased())
+            || JSONFormatterCore.looksLikeJSONL(raw)
+        let pretty: String
+        switch JSONFormatterCore.format(raw, indent: 2, jsonl: isJSONL) {
+        case .failure(let failure):
+            return Outcome(ok: false, message: "invalid JSON at line \(failure.line), column \(failure.column): \(failure.message)")
+        case .success(let text):
+            pretty = text
+        }
+        switch format {
+        case "md":
+            let fenced = "```json\n" + pretty + "\n```"
+            do {
+                try fenced.write(to: dest, atomically: true, encoding: .utf8)
+                return Outcome(ok: true, message: "json → md (\(pretty.count) chars)")
+            } catch {
+                return Outcome(ok: false, message: "write failed: \(error.localizedDescription)")
+            }
+        case "txt":
+            do {
+                try pretty.write(to: dest, atomically: true, encoding: .utf8)
+                return Outcome(ok: true, message: "json → txt (\(pretty.count) chars)")
+            } catch {
+                return Outcome(ok: false, message: "write failed: \(error.localizedDescription)")
+            }
+        case "csv", "xlsx":
+            let object: Any
+            if isJSONL {
+                switch JSONFormatterCore.parseJSONL(raw) {
+                case .failure(let failure):
+                    return Outcome(ok: false, message: "invalid JSONL at line \(failure.line): \(failure.message)")
+                case .success(let objects):
+                    object = objects
+                }
+            } else {
+                switch JSONFormatterCore.parse(raw) {
+                case .failure(let failure):
+                    return Outcome(ok: false, message: "invalid JSON: \(failure.message)")
+                case .success(let parsed):
+                    object = parsed
+                }
+            }
+            guard let table = JSONFormatterCore.table(from: object) else {
+                return Outcome(ok: false, message: "this JSON has no tabular shape (array of objects/arrays)")
+            }
+            if format == "csv" {
+                do {
+                    try JSONFormatterCore.csvText(table).write(to: dest, atomically: true, encoding: .utf8)
+                    return Outcome(ok: true, message: "json → csv (\(table.rows.count) rows)")
+                } catch {
+                    return Outcome(ok: false, message: "write failed: \(error.localizedDescription)")
+                }
+            }
+            let ok = SpreadsheetXLSXWriter.write(rows: [table.header] + table.rows,
+                                                 sheetName: "JSON", to: dest)
+            return Outcome(ok: ok, message: ok ? "json → xlsx (\(table.rows.count) rows)"
+                                                : "xlsx write failed")
+        default:
+            return Outcome(ok: false, message: "json converts to md/txt/csv/xlsx")
         }
     }
 

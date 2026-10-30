@@ -14,6 +14,8 @@ struct ArchiveViewerView: View {
     @State private var statusNote: String?
     @State private var previewTempURL: URL?
     @State private var previewText: String?
+    /// 解压所选（v0.8.26）：勾选的条目路径。
+    @State private var selection: Set<String> = []
 
     private var totalCount: Int { entries.filter { !$0.isDirectory }.count }
     private var totalBytes: Int64 { entries.reduce(0) { $0 + max(0, $1.sizeBytes) } }
@@ -55,6 +57,18 @@ struct ArchiveViewerView: View {
                 .truncationMode(.middle)
                 .foregroundStyle(.secondary)
             Spacer(minLength: 8)
+            if !selection.isEmpty {
+                Button {
+                    extractSelectedTo()
+                } label: {
+                    Label(String(localized: "Extract Selected (\(selection.count))"),
+                          systemImage: "checkmark.square")
+                        .font(.system(size: 11, weight: .medium))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(appAccent)
+                .disabled(extracting)
+            }
             Button {
                 extractTo()
             } label: {
@@ -97,6 +111,23 @@ struct ArchiveViewerView: View {
     private func row(_ entry: ArchiveKit.Entry) -> some View {
         HStack(spacing: 8) {
             let depth = entry.path.split(separator: "/").count - 1
+            if !entry.isDirectory {
+                Button {
+                    if selection.contains(entry.path) {
+                        selection.remove(entry.path)
+                    } else {
+                        selection.insert(entry.path)
+                    }
+                } label: {
+                    Image(systemName: selection.contains(entry.path)
+                          ? "checkmark.square.fill" : "square")
+                        .font(.system(size: 11))
+                        .foregroundStyle(selection.contains(entry.path)
+                                         ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+                }
+                .buttonStyle(.plain)
+                .help(String(localized: "Select for extraction"))
+            }
             Image(systemName: entry.isDirectory ? "folder.fill" : "doc")
                 .font(.system(size: 11))
                 .foregroundStyle(entry.isDirectory ? Color.secondary : appAccent)
@@ -212,6 +243,39 @@ struct ArchiveViewerView: View {
             previewTempURL = nil
         }
         previewText = nil
+    }
+
+    /// 解压所选（v0.8.26）：只解勾选的条目 → 通知 + 回执。
+    private func extractSelectedTo() {
+        guard !selection.isEmpty else { return }
+        let panel = NSOpenPanel()
+        panel.title = String(localized: "Extract Selected")
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        guard panel.runModal() == .OK, let dest = panel.url else { return }
+        extracting = true
+        let archive = fileURL
+        let chosen = selection.sorted()
+        DispatchQueue.global(qos: .userInitiated).async {
+            do {
+                let result = try ArchiveKit.extract(archiveURL: archive, to: dest, entries: chosen)
+                DispatchQueue.main.async {
+                    extracting = false
+                    selection.removeAll()
+                    flash(String(localized: "Extracted \(result.files) file(s), \(ArchiveKit.sizeText(result.bytes)) → \(dest.lastPathComponent)"))
+                    ProactiveNotificationStore.shared.deliver(
+                        title: String(localized: "Archive extracted: \(archive.lastPathComponent)"),
+                        body: String(localized: "\(result.files) selected file(s) → \(dest.path)"),
+                        tier: .routine)
+                }
+            } catch {
+                DispatchQueue.main.async {
+                    extracting = false
+                    flash(String(localized: "Extract failed: \(error.localizedDescription)"))
+                }
+            }
+        }
     }
 
     /// 解压到…（8）：选目录 → 后台 ditto → 通知 + 回执。

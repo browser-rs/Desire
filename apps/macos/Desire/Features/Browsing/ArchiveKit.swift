@@ -43,6 +43,35 @@ nonisolated enum ArchiveKit {
         return (files, bytes)
     }
 
+    /// 只解压指定条目（v0.8.26 办公增强：查看器"解压所选"）。
+    /// 用 unzip -o -q（ditto 没有按条目选择的形态）；目录条目会连同内容一起解出。
+    static func extract(archiveURL: URL, to destination: URL,
+                        entries: [String]) throws -> (files: Int, bytes: Int64) {
+        guard !entries.isEmpty else { return (0, 0) }
+        let fm = FileManager.default
+        try fm.createDirectory(at: destination, withIntermediateDirectories: true)
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+        process.arguments = ["-o", "-q", archiveURL.path, "-d", destination.path] + entries
+        let stderr = Pipe()
+        process.standardError = stderr
+        try process.run()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            let message = String(data: stderr.fileHandleForReading.readDataToEndOfFile(),
+                                 encoding: .utf8) ?? ""
+            throw NSError(domain: "ArchiveKit", code: 2,
+                          userInfo: [NSLocalizedDescriptionKey: String(message.suffix(300))])
+        }
+        let listed = list(archiveURL: archiveURL) ?? []
+        let wanted = Set(entries)
+        let bytes = listed
+            .filter { wanted.contains($0.path) && !$0.isDirectory }
+            .reduce(Int64(0)) { $0 + max(0, $1.sizeBytes) }
+        let files = entries.filter { !$0.hasSuffix("/") }.count
+        return (files, bytes)
+    }
+
     /// 条目清单（unzip -l 解析；非 zip 或工具缺失返回 nil）。
     static func list(archiveURL: URL) -> [Entry]? {
         let process = Process()

@@ -2984,6 +2984,32 @@ extension BrowserToolProvider {
                 return "Document text (\(ext), \(fileURL.lastPathComponent)):\n\(text)"
             }
 
+        case "readPresentation":
+            // PPTX 大纲（v0.8.26 办公增强）：系统 unzip + DrawingML XML 解析。
+            guard let presPath = args["path"] as? String, !presPath.isEmpty else { return Self.fail("Missing path") }
+            let maxSlides = max(1, (args["maxSlides"] as? Int) ?? 60)
+            let includeNotes = (args["notes"] as? Bool) ?? true
+            let charCap = max(500, (args["maxChars"] as? Int) ?? 40_000)
+            switch AgentWorkspace.shared.resolve(presPath, write: false) {
+            case .denied(let reason):
+                return reason
+            case .granted(let fileURL):
+                switch PresentationReader.read(url: fileURL, maxSlides: maxSlides,
+                                               includeNotes: includeNotes) {
+                case .failure(let error):
+                    return Self.fail(error.message)
+                case .success(let document):
+                    var markdown = PresentationReaderCore.markdown(
+                        title: document.title, slides: document.slides,
+                        includeNotes: includeNotes)
+                    if markdown.count > charCap {
+                        markdown = String(markdown.prefix(charCap)) + "\n…[truncated]"
+                    }
+                    let header = "[presentation: \(document.slides.count) slide(s), notes \(includeNotes ? "included" : "skipped")]"
+                    return header + "\n" + markdown
+                }
+            }
+
         case "batchDocuments":
             // 批量文档处理（v0.8.12 替人干活 18）：白名单目录下全部表格/文档
             // 各跑一次给定处理 → 结果写成同名 .md（工作区内）。长任务模式：
@@ -3126,6 +3152,108 @@ extension BrowserToolProvider {
             } catch {
                 return Self.fail("extract failed: \(error.localizedDescription)")
             }
+
+        case "formatJSON":
+            // JSON 工作台（v0.8.26 办公增强）：与查看器/桥共用 JSONFormatterCore。
+            let action = (args["action"] as? String)?.lowercased() ?? "format"
+            let sourceText: String
+            if let inline = args["text"] as? String, !inline.isEmpty {
+                sourceText = inline
+            } else if let jsonPath = args["path"] as? String, !jsonPath.isEmpty {
+                switch AgentWorkspace.shared.resolve(jsonPath, write: false) {
+                case .denied(let reason):
+                    return reason
+                case .granted(let url):
+                    guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+                        return Self.fail("Cannot read \(url.lastPathComponent) as UTF-8 text")
+                    }
+                    sourceText = text
+                }
+            } else {
+                return Self.fail("Missing text or path")
+            }
+            let indent = (args["indent"] as? Int) == 4 ? 4 : 2
+            let jsonl = (args["jsonl"] as? Bool) ?? false
+
+            func failureText(_ failure: JSONFormatterCore.Failure, prefix: String) -> String {
+                Self.fail("\(prefix) at line \(failure.line), column \(failure.column): \(failure.message)")
+            }
+
+            var output: String
+            switch action {
+            case "validate":
+                if jsonl || JSONFormatterCore.looksLikeJSONL(sourceText) {
+                    switch JSONFormatterCore.parseJSONL(sourceText) {
+                    case .success(let objects):
+                        return "Valid JSONL — \(objects.count) record(s)"
+                    case .failure(let failure):
+                        return failureText(failure, prefix: "Invalid JSONL")
+                    }
+                }
+                if let failure = JSONFormatterCore.validate(sourceText) {
+                    return failureText(failure, prefix: "Invalid JSON")
+                }
+                return "Valid JSON"
+            case "toCSV", "csv":
+                let object: Any
+                if jsonl || JSONFormatterCore.looksLikeJSONL(sourceText) {
+                    switch JSONFormatterCore.parseJSONL(sourceText) {
+                    case .failure(let failure):
+                        return failureText(failure, prefix: "Invalid JSONL")
+                    case .success(let objects):
+                        object = objects
+                    }
+                } else {
+                    switch JSONFormatterCore.parse(sourceText) {
+                    case .failure(let failure):
+                        return failureText(failure, prefix: "Invalid JSON")
+                    case .success(let parsed):
+                        object = parsed
+                    }
+                }
+                guard let csv = JSONFormatterCore.csv(from: object) else {
+                    return Self.fail("This JSON has no tabular shape (array of objects/arrays)")
+                }
+                output = csv
+            case "minify":
+                switch JSONFormatterCore.format(sourceText, indent: indent, minify: true, jsonl: jsonl) {
+                case .failure(let failure):
+                    return failureText(failure, prefix: "Invalid JSON")
+                case .success(let text):
+                    output = text
+                }
+            case "sort":
+                switch JSONFormatterCore.format(sourceText, indent: indent, sortKeys: true, jsonl: jsonl) {
+                case .failure(let failure):
+                    return failureText(failure, prefix: "Invalid JSON")
+                case .success(let text):
+                    output = text
+                }
+            default:
+                switch JSONFormatterCore.format(sourceText, indent: indent, jsonl: jsonl) {
+                case .failure(let failure):
+                    return failureText(failure, prefix: "Invalid JSON")
+                case .success(let text):
+                    output = text
+                }
+            }
+
+            if let outPath = args["outPath"] as? String, !outPath.isEmpty {
+                switch AgentWorkspace.shared.resolve(outPath, write: true) {
+                case .denied(let reason):
+                    return reason
+                case .granted(let dest):
+                    do {
+                        try output.write(to: dest, atomically: true, encoding: .utf8)
+                        return "Wrote \(output.count) chars → \(dest.path)\n" + String(output.prefix(400))
+                    } catch {
+                        return Self.fail("Write failed: \(error.localizedDescription)")
+                    }
+                }
+            }
+            return output.count > 20_000
+                ? String(output.prefix(20_000)) + "\n…[truncated]"
+                : output
 
         case "tableExport":
             // 表格格式转换（v0.8.13 基础件 9）：xlsx/csv/tsv → csv 或 md（写工作区）。
@@ -3570,6 +3698,61 @@ extension BrowserToolProvider {
                 }
                 return "OCR text:\n" + text
             }
+
+        case "convertImage":
+            // 图片批量转换（v0.8.26 办公增强）：与编辑器导出同一套编解码。
+            let rawPaths = (args["paths"] as? [String])
+                ?? (args["path"] as? String).map { [$0] } ?? []
+            guard !rawPaths.isEmpty else { return Self.fail("Missing paths") }
+            guard let format = ImageConvertCore.format(from: (args["format"] as? String) ?? "png") else {
+                return Self.fail("format must be png / jpeg / heic / tiff")
+            }
+            let maxDimension = (args["maxDimension"] as? Int).flatMap { $0 > 0 ? $0 : nil }
+            let quality = min(1.0, max(0.1, (args["quality"] as? Double) ?? 0.9))
+            var outputDir: URL?
+            if let dirArg = args["outputDir"] as? String, !dirArg.isEmpty {
+                switch AgentWorkspace.shared.resolve(dirArg, write: true) {
+                case .denied(let reason):
+                    return reason
+                case .granted(let dirURL):
+                    try? FileManager.default.createDirectory(at: dirURL, withIntermediateDirectories: true)
+                    outputDir = dirURL
+                }
+            }
+            var produced: [String] = []
+            var skipped: [String] = []
+            for path in rawPaths.prefix(50) {
+                switch AgentWorkspace.shared.resolve(path, write: false) {
+                case .denied(let reason):
+                    skipped.append("\(path): \(reason)")
+                case .granted(let source):
+                    guard let image = ImageTransforms.load(from: source) else {
+                        skipped.append("\(source.lastPathComponent): unreadable image")
+                        continue
+                    }
+                    let target = ImageConvertCore.targetSize(width: image.width, height: image.height,
+                                                             maxDimension: maxDimension)
+                    let scaled = (target.width == image.width && target.height == image.height)
+                        ? image
+                        : (ImageTransforms.resized(image, width: target.width, height: target.height) ?? image)
+                    let dest = ImageConvertCore.outputURL(source: source, format: format,
+                                                          maxDimension: maxDimension,
+                                                          directory: outputDir)
+                    do {
+                        try ImageTransforms.save(scaled, to: dest, quality: quality)
+                        produced.append("\(dest.path) (\(target.width)×\(target.height), \(format.rawValue))")
+                        RecentLocalFiles.record(url: dest)
+                    } catch {
+                        skipped.append("\(source.lastPathComponent): \(error.localizedDescription)")
+                    }
+                }
+            }
+            guard !produced.isEmpty else {
+                return Self.fail("No image converted" + (skipped.isEmpty ? "" : ": " + skipped.joined(separator: "; ")))
+            }
+            var out = "Converted \(produced.count) image(s):\n" + produced.joined(separator: "\n")
+            if !skipped.isEmpty { out += "\nSkipped:\n" + skipped.joined(separator: "\n") }
+            return out
 
         // --- Promotion workbench (self-promotion, 0.7.15) ---
         case "promotionGoal":

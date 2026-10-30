@@ -497,6 +497,9 @@ final class AutomationServer {
         ep("POST", "/reading-list/cache", "Cache an item for offline reading (.webarchive; reuses the item's open tab when available)", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/progress", "Set reading progress (0..1) for an item (stamps LWW for sync)", params: ["url:string", "ratio:double"], example: #"-d '{"url":"https://a.b","ratio":0.42}'"#)
         ep("POST", "/reading-list/tags", "Replace an item's tags (comma-separated string or array; stamps LWW for sync)", params: ["url:string", "tags:string|[string]"], example: #"-d '{"url":"https://a.b","tags":"work, reading"}'"#)
+        ep("POST", "/json/format", "Format/minify/sort/validate JSON text with the built-in JSON engine (same code path as the viewer and formatJSON tool)", params: ["text:string", "indent?:2|4", "sortKeys?:bool", "minify?:bool", "jsonl?:bool"], example: #"-d '{"text":"{\"a\":1}","sortKeys":true}'"#)
+        ep("POST", "/json/validate", "Validate JSON/JSONL text; returns line/column on failure", params: ["text:string", "jsonl?:bool"], example: #"-d '{"text":"{\"a\":}"}'"#)
+        ep("POST", "/documents/presentation", "Read a .pptx into a Markdown outline (slides, bullets, notes) — same reader as the presentation viewer", params: ["path:string", "maxSlides?:int", "notes?:bool"], example: #"-d '{"path":"/tmp/deck.pptx"}'"#)
         ep("POST", "/reading-list/summarize", "Batch-summarize saved pages in the background (readURL + bypass model call; summaries land on the items)", params: ["limit?:int", "force?:bool", "urls?:[string]"], example: #"-d '{"limit":5}'"#)
         ep("GET", "/system/integrations", "OS integration permission state (reminders / calendar: granted|denied|restricted|notDetermined) — read-only, never prompts", example: "…/system/integrations")
         ep("GET", "/speech", "Text-to-speech state (speaking/paused) — reader TTS, also driven by the readAloud tool", example: "…/speech")
@@ -2125,6 +2128,12 @@ final class AutomationServer {
                 }
                 return try Self.json(Self.setReadingTags(
                     url: Self.string(body, "url") ?? "", tags: tags))
+            case ("POST", "/json/format"):
+                return try Self.json(Self.jsonFormat(body))
+            case ("POST", "/json/validate"):
+                return try Self.json(Self.jsonValidate(body))
+            case ("POST", "/documents/presentation"):
+                return try Self.json(Self.readPresentationEndpoint(body))
             case ("GET", "/workspaces"):
                 return try Self.json(Self.workspacesList())
             case ("POST", "/inbox/dismiss"):
@@ -6353,6 +6362,64 @@ final class AutomationServer {
         app.readingListStore.setTags(tags, for: item.id)
         let updated = app.readingListStore.items.first(where: { $0.id == item.id })?.tagList ?? []
         return ["ok": true, "url": url, "tags": updated]
+    }
+
+    /// JSON 工作台桥面（v0.8.26）：与查看器/Agent 工具同一 JSONFormatterCore。
+    private static func jsonFormat(_ body: [String: Any]) -> [String: Any] {
+        let text = Self.string(body, "text") ?? ""
+        guard !text.isEmpty else { return ["ok": false, "error": "text required"] }
+        let indent = (body["indent"] as? Int) == 4 ? 4 : 2
+        switch JSONFormatterCore.format(
+            text, indent: indent,
+            sortKeys: body["sortKeys"] as? Bool ?? false,
+            minify: body["minify"] as? Bool ?? false,
+            jsonl: body["jsonl"] as? Bool ?? false) {
+        case .success(let output):
+            return ["ok": true, "output": output, "bytes": output.utf8.count]
+        case .failure(let failure):
+            return ["ok": false, "error": failure.message,
+                    "line": failure.line, "column": failure.column]
+        }
+    }
+
+    private static func jsonValidate(_ body: [String: Any]) -> [String: Any] {
+        let text = Self.string(body, "text") ?? ""
+        guard !text.isEmpty else { return ["ok": false, "error": "text required"] }
+        if body["jsonl"] as? Bool == true || JSONFormatterCore.looksLikeJSONL(text) {
+            switch JSONFormatterCore.parseJSONL(text) {
+            case .success(let records):
+                return ["ok": true, "jsonl": true, "records": records.count]
+            case .failure(let failure):
+                return ["ok": false, "jsonl": true, "error": failure.message,
+                        "line": failure.line, "column": failure.column]
+            }
+        }
+        if let failure = JSONFormatterCore.validate(text) {
+            return ["ok": false, "jsonl": false, "error": failure.message,
+                    "line": failure.line, "column": failure.column]
+        }
+        return ["ok": true, "jsonl": false]
+    }
+
+    private static func readPresentationEndpoint(_ body: [String: Any]) throws -> [String: Any] {
+        guard let path = Self.string(body, "path"), !path.isEmpty else {
+            return ["ok": false, "error": "path required"]
+        }
+        let maxSlides = max(1, (body["maxSlides"] as? Int) ?? 60)
+        let includeNotes = (body["notes"] as? Bool) ?? true
+        switch PresentationReader.read(url: URL(fileURLWithPath: path),
+                                       maxSlides: maxSlides, includeNotes: includeNotes) {
+        case .failure(let error):
+            return ["ok": false, "error": error.message]
+        case .success(let document):
+            let markdown = PresentationReaderCore.markdown(title: document.title,
+                                                           slides: document.slides,
+                                                           includeNotes: includeNotes)
+            return ["ok": true,
+                    "title": document.title,
+                    "slides": document.slides.count,
+                    "markdown": String(markdown.prefix(40_000))]
+        }
     }
 
     private static func readingList() throws -> [String: Any] {

@@ -1040,7 +1040,18 @@ extension BrowserToolProvider {
                     "path": AgentJSONSchemaValue(type: "string", description: "Document path (workspace / user folders)"),
                     "maxChars": AgentJSONSchemaValue(type: "number", description: "Cap on returned characters (default 60000)"),
                 ], required: ["path"])
-            )),    AgentToolDef(type: "function", function: AgentToolFunctionDef(
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "readPresentation",
+                description: "Read a PowerPoint .pptx as a Markdown outline: slides in presentation order with title, bullet points (indentation preserved) and speaker notes. Legacy .ppt (binary) is not supported — ask the user to save as .pptx. Use readDocument for Word/RTF, readSpreadsheet for tables.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Presentation path (.pptx)"),
+                    "maxSlides": AgentJSONSchemaValue(type: "number", description: "Cap on slides (default 60)"),
+                    "notes": AgentJSONSchemaValue(type: "boolean", description: "Include speaker notes (default true)"),
+                    "maxChars": AgentJSONSchemaValue(type: "number", description: "Cap on returned characters (default 40000)"),
+                ], required: ["path"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
         name: "exportDocument",
         description: "Produce a real office document from text/Markdown/HTML content: docx (Word), rtf or html. Use for deliverables — weekly reports, meeting notes, research write-ups. Writes to the whitelisted path (workspace-relative OK). Markdown headings and lists are preserved as document structure.",
         parameters: AgentJSONSchema(type: "object", properties: [
@@ -1051,7 +1062,7 @@ extension BrowserToolProvider {
     )),
     AgentToolDef(type: "function", function: AgentToolFunctionDef(
         name: "convertDocument",
-        description: "Convert a file between formats, all on-device. Routing by source type: pdf → md/txt/docx/rtf/html (text layer; scanned PDFs fail — OCR first); docx/doc/rtf/odt/html → pdf (A4 paginated); images png/jpg/heic/tiff/gif/webp → pdf (pass multiple comma-separated src to merge into one PDF, in order); csv/tsv/xlsx → md/csv/tsv/xlsx (xlsx output is values-only, no formulas). Writes a new file, never touches the source.",
+        description: "Convert a file between formats, all on-device. Routing by source type: pdf → md/txt/docx/rtf/html (text layer; scanned PDFs fail — OCR first); docx/doc/rtf/odt/html → pdf (A4 paginated); images png/jpg/heic/tiff/gif/webp → pdf (pass multiple comma-separated src to merge into one PDF, in order); csv/tsv/xlsx → md/csv/tsv/xlsx (xlsx output is values-only, no formulas); pptx → md/txt/html/docx/rtf/pdf (slide outline); json/jsonl → md/txt/csv/xlsx (arrays of objects/arrays become a table). Writes a new file, never touches the source.",
         parameters: AgentJSONSchema(type: "object", properties: [
             "src": AgentJSONSchemaValue(type: "string", description: "Source path; comma-separated multiple images merge into one PDF"),
             "format": AgentJSONSchemaValue(type: "string", description: "Target format: md/txt/docx/rtf/html/pdf/csv/tsv (valid set depends on source type)"),
@@ -1098,6 +1109,18 @@ extension BrowserToolProvider {
             "path": AgentJSONSchemaValue(type: "string", description: "Source table path"),
             "format": AgentJSONSchemaValue(type: "string", description: "csv (default) or md"),
         ], required: ["path"])
+    )),
+    AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "formatJSON",
+        description: "Validate, pretty-print, minify, key-sort or tabulate JSON — the same engine as the built-in JSON viewer. Give inline text or a local .json/.jsonl path. Actions: format (default), minify, sort (pretty + keys sorted), validate (returns validity + error line/column), toCSV (array of objects/arrays → CSV text). Optional outPath writes the result (workspace whitelist) instead of only returning it.",
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "text": AgentJSONSchemaValue(type: "string", description: "Inline JSON text (mutually exclusive with path)"),
+            "path": AgentJSONSchemaValue(type: "string", description: "Local .json/.jsonl file path"),
+            "action": AgentJSONSchemaValue(type: "string", description: "format (default) / minify / sort / validate / toCSV"),
+            "indent": AgentJSONSchemaValue(type: "number", description: "Indent width for pretty output: 2 (default) or 4"),
+            "jsonl": AgentJSONSchemaValue(type: "boolean", description: "Treat input as JSON Lines (each line parsed independently)"),
+            "outPath": AgentJSONSchemaValue(type: "string", description: "Optional output file path (writes the result; source untouched)"),
+        ])
     )),
     AgentToolDef(type: "function", function: AgentToolFunctionDef(
         name: "listArchive",
@@ -1347,6 +1370,17 @@ extension BrowserToolProvider {
                     "path": AgentJSONSchemaValue(type: "string", description: "Image path (workspace / user folders), e.g. a screenshot the tool just saved"),
                     "maxChars": AgentJSONSchemaValue(type: "number", description: "Cap on returned characters (default 30000)"),
                 ], required: ["path"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "convertImage",
+                description: "Convert one or more local images to png / jpeg / heic / tiff, optionally downscaling the longest side while keeping the aspect ratio. Writes NEW files next to each source (never overwrites; a same-name output becomes <name>-converted) or into outputDir. Use for '转成 jpg / 压缩到 1600px / 批量转换图片'.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "paths": AgentJSONSchemaValue(type: "array", description: "Image paths (png/jpg/jpeg/heic/tiff/gif/webp)", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                    "format": AgentJSONSchemaValue(type: "string", description: "Target format: png (default) / jpeg / heic / tiff"),
+                    "maxDimension": AgentJSONSchemaValue(type: "number", description: "Downscale so the longest side is at most this many pixels (never upscales)"),
+                    "quality": AgentJSONSchemaValue(type: "number", description: "Encoder quality for jpeg/heic, 0.1–1.0 (default 0.9)"),
+                    "outputDir": AgentJSONSchemaValue(type: "string", description: "Optional output folder (workspace whitelist); default = next to each source"),
+                ], required: ["paths"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "fill", description: "Fill a form field with a value (fires proper input/change events, works with React/Vue forms)",

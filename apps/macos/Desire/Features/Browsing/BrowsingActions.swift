@@ -141,6 +141,10 @@ extension BrowsingActions {
     static let tableExtensions: Set<String> = ["csv", "tsv", "xlsx"]
     /// 图片类型（v0.8.12 旗舰 D）：拖入/本地打开进图片编辑器。
     static let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "heic", "tiff", "gif"]
+    /// JSON 家族（v0.8.26）：JSON 查看器（格式化/树形着色/导出）。
+    static let jsonExtensions: Set<String> = ["json", "jsonl", "ndjson", "jsonlines", "geojson"]
+    /// 演示文稿（v0.8.26）：pptx 解析大纲；ppt 给"另存为 pptx"提示。
+    static let presentationExtensions: Set<String> = ["pptx", "ppt"]
 
     /// 拖入文件的**新标签**打开（v0.8.22）：先建空标签（继承容器/隐私），
     /// 再走 `openLocalFileInTab` 的查看器路由——`addTab(url:)` 只把 URL 交给
@@ -184,6 +188,20 @@ extension BrowsingActions {
         if ext == "zip" {
             tab.browser.archiveViewerFileName = url.lastPathComponent
             tab.browser.archiveViewerURL = url
+            return
+        }
+
+        // JSON 查看器（v0.8.26）：格式化/校验/导出的只读查看面。
+        if Self.jsonExtensions.contains(ext) {
+            tab.browser.jsonViewerFileName = url.lastPathComponent
+            tab.browser.jsonViewerURL = url
+            return
+        }
+
+        // 演示文稿查看器（v0.8.26）：PPTX 大纲 + 备注。
+        if Self.presentationExtensions.contains(ext) {
+            tab.browser.presentationViewerFileName = url.lastPathComponent
+            tab.browser.presentationViewerURL = url
             return
         }
 

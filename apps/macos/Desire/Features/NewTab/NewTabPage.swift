@@ -288,6 +288,8 @@ struct NewTabPage: View {
         case "csv": return ["md", "tsv", "xlsx"]
         case "tsv": return ["md", "csv", "xlsx"]
         case "xlsx": return ["md", "csv", "tsv"]
+        case "pptx": return ["md", "txt", "html", "docx", "rtf", "pdf"]
+        case "json", "jsonl", "ndjson": return ["md", "txt", "csv", "xlsx"]
         default: return []
         }
     }

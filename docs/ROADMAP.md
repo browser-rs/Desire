@@ -4275,6 +4275,32 @@ v0.8.1 的菜单入口只有"移交会话"，这版补齐：
 11. 隔离默认值首启引导（询问后写默认）P2
 12. 观测节流（不可见时缩略图/快照降频）P2
 
+## v0.8.26 办公增强（2026-10-30，开发完成待发）
+
+> 目标：把"办公文件在浏览器里能看、能转、能出活"补齐；用户点名 JSON 格式化/美化。
+
+**JSON 工作台**
+1. ✅ `JSONFormatterCore`：校验（行列）/美化/压缩/键排序/JSONL/表格化（数组对象→表头并集）/CSV 转义，纯逻辑进 harness。
+2. ✅ `JSONViewerView`：.json/.jsonl/.ndjson/.geojson 直开——语法着色、格式化/压缩/键排序/缩进 2·4、查找定位、复制、保存（先写 .bak）、导出 CSV / Excel。
+3. ✅ 浏览器路由：拖入/地址栏/最近文件都识别 JSON 家族。
+4. ✅ Agent `formatJSON`（inline/path → format/minify/sort/validate/toCSV，可选写文件）。
+5. ✅ 桥 `POST /json/format`、`POST /json/validate`。
+
+**演示文稿（PPTX）**
+6. ✅ `PresentationReaderCore`：DrawingML 幻灯片 XML → 标题/要点（层级）/备注，Markdown/HTML 渲染，纯逻辑进 harness。
+7. ✅ `PresentationReader`：系统 unzip 解包、按 `presentation.xml` sldId 顺序、slide rels 找备注页。
+8. ✅ `PresentationViewerView`：幻灯片卡 + 备注开关 + 复制 Markdown + 导出 Markdown/PDF。
+9. ✅ 路由 .pptx（.ppt 给"另存为 pptx"提示）。
+10. ✅ Agent `readPresentation`（只读工具）。
+11. ✅ `convertDocument` 支持 pptx → md/txt/html/docx/rtf/pdf。
+
+**表格 / 图片 / 压缩包**
+12. ✅ `convertDocument` 支持 JSON/JSONL → md/txt/csv/xlsx；最近文件"转换为…"菜单同步。
+13. ✅ Agent `convertImage`：png/jpeg/heic/tiff 格式转换 + 长边缩放（不放大，同名输出加 -converted）。
+14. ✅ 图片编辑器：补上此前点了没反应的"Resize…"（历史栈可撤销）、导出 TIFF。
+15. ✅ 压缩包查看器：多选条目 + "解压所选"（`ArchiveKit.extract(entries:)`）。
+16. ✅ i18n：33 个新键三语；harness + 桥探针收口。
+
 ### v0.8.25 规划稿（扩充版，2026-10-30）—— 基础框架补齐 + Agent 可靠性
 
 > ✅ 全部 20 项已交付（2026-10-30，v0.8.25）。

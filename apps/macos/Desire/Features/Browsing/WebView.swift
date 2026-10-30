@@ -195,6 +195,12 @@ class BrowserState: ObservableObject {
     /// 办公文档查看器（v0.8.12 旗舰 B）：非 nil = 该标签渲染 DocumentViewer。
     @Published var documentViewerURL: URL?
     @Published var documentViewerFileName = ""
+    /// JSON 查看器（v0.8.26 办公增强）：非 nil = 该标签渲染 JSONViewer。
+    @Published var jsonViewerURL: URL?
+    @Published var jsonViewerFileName = ""
+    /// 演示文稿查看器（v0.8.26 办公增强）：非 nil = 该标签渲染 PPTX 大纲。
+    @Published var presentationViewerURL: URL?
+    @Published var presentationViewerFileName = ""
     /// PDF 查看器关闭时返回的页面地址。
     @Published var pdfViewerReturnURL: URL?
     /// PDF 下载中（主框架 PDF 导航的过渡态——渲染进度条而非白页）。
@@ -2090,7 +2096,9 @@ try {
                 if parent.state.spreadsheetViewerURL == nil,
                    parent.state.imageEditorURL == nil,
                    parent.state.archiveViewerURL == nil,
-                   parent.state.documentViewerURL == nil {
+                   parent.state.documentViewerURL == nil,
+                   parent.state.jsonViewerURL == nil,
+                   parent.state.presentationViewerURL == nil {
                     parent.urlString = url.absoluteString
                 }
                 lastNavigatedURL = url.absoluteString

@@ -101,6 +101,7 @@ struct ImageEditorView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear(perform: load)
+        .sheet(isPresented: $showResize) { resizeSheet }
         .onChange(of: tool) { _, _ in
             polygonPoints = []
             polygonDragStart = nil
@@ -339,6 +340,7 @@ struct ImageEditorView: View {
                 Button(String(localized: "Export as PNG")) { exportAs(type: "png") }
                 Button(String(localized: "Export as JPEG")) { exportAs(type: "jpg") }
                 Button(String(localized: "Export as HEIC")) { exportAs(type: "heic") }
+                Button(String(localized: "Export as TIFF")) { exportAs(type: "tiff") }
             } label: {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: 12, weight: .medium))
@@ -1000,7 +1002,61 @@ struct ImageEditorView: View {
         .overlay(alignment: .top) { Divider() }
     }
 
+    /// 尺寸调整（v0.8.26 办公增强：此处此前是 EmptyView，按钮点了没反应）：
+    /// 输入目标宽度、按原比例算高度，走历史栈可撤销。
     private var resizeSheet: some View {
-        EmptyView()
+        VStack(alignment: .leading, spacing: 12) {
+            Text(String(localized: "Resize Image"))
+                .font(.system(size: 14, weight: .semibold))
+            if let image {
+                Text(String(localized: "Current: \(image.width) × \(image.height) px"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    Text(String(localized: "Width (px)"))
+                        .font(.system(size: 12))
+                    TextField("", text: $resizeWidth)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 100)
+                        .onSubmit { applyResize() }
+                }
+                if let height = computedResizeHeight {
+                    Text(String(localized: "Height: \(height) px (aspect ratio kept)"))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            HStack {
+                Spacer()
+                Button(String(localized: "Cancel")) { showResize = false }
+                    .keyboardShortcut(.cancelAction)
+                Button(String(localized: "Apply")) { applyResize() }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(computedResizeHeight == nil)
+            }
+        }
+        .padding(18)
+        .frame(width: 320)
+        .onAppear {
+            if resizeWidth.isEmpty, let image { resizeWidth = "\(image.width)" }
+        }
+    }
+
+    private var computedResizeHeight: Int? {
+        guard let image, image.width > 0,
+              let width = Int(resizeWidth.trimmingCharacters(in: .whitespaces)), width > 0 else {
+            return nil
+        }
+        return max(1, Int((Double(image.height) * Double(width) / Double(image.width)).rounded()))
+    }
+
+    private func applyResize() {
+        guard let height = computedResizeHeight,
+              let width = Int(resizeWidth.trimmingCharacters(in: .whitespaces)) else { return }
+        apply(label: String(localized: "Resize \(width)×\(height)")) {
+            ImageTransforms.resized($0, width: width, height: height)
+        }
+        showResize = false
     }
 }

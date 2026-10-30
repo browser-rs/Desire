@@ -286,6 +286,8 @@ struct SelectedTabContent: View {
             // v0.8.12 查看器族（表格/图片编辑/zip/文档）与既有路由同源判定。
             return BrowsingActions.tableExtensions.contains(url.pathExtension.lowercased())
                 || BrowsingActions.imageExtensions.contains(url.pathExtension.lowercased())
+                || BrowsingActions.jsonExtensions.contains(url.pathExtension.lowercased())
+                || BrowsingActions.presentationExtensions.contains(url.pathExtension.lowercased())
                 || url.pathExtension.lowercased() == "zip"
                 || ["docx", "doc", "rtf", "rtfd", "odt"].contains(url.pathExtension.lowercased())
         }
@@ -450,6 +452,18 @@ struct SelectedTabContent: View {
                     fileURL: archiveURL,
                     fileName: tab.browser.archiveViewerFileName,
                     onBack: { tab.browser.archiveViewerURL = nil })
+
+            } else if let jsonURL = tab.browser.jsonViewerURL {
+                JSONViewerView(
+                    fileURL: jsonURL,
+                    fileName: tab.browser.jsonViewerFileName,
+                    onBack: { tab.browser.jsonViewerURL = nil })
+
+            } else if let presentationURL = tab.browser.presentationViewerURL {
+                PresentationViewerView(
+                    fileURL: presentationURL,
+                    fileName: tab.browser.presentationViewerFileName,
+                    onBack: { tab.browser.presentationViewerURL = nil })
 
             } else if let docURL = tab.browser.documentViewerURL {
                 DocumentViewerView(

@@ -125,6 +125,13 @@ nonisolated enum ImageTransforms {
                               userInfo: [NSLocalizedDescriptionKey: "JPEG representation failed"])
             }
             data = jpeg
+        case "tiff", "tif":
+            let rep = NSBitmapImageRep(cgImage: image)
+            guard let tiff = rep.representation(using: .tiff, properties: [:]) else {
+                throw NSError(domain: "ImageTransforms", code: 3,
+                              userInfo: [NSLocalizedDescriptionKey: "TIFF representation failed"])
+            }
+            data = tiff
         case "heic":
             let ciImage = CIImage(cgImage: image)
             let context = CIContext()

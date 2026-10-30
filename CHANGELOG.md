@@ -1,3 +1,19 @@
+## [Unreleased]
+### Fixed
+
+- Image editor: the "Resize…" toolbar button now opens a working resize sheet (width input, height computed from the aspect ratio, undoable through history) — previously the sheet was an EmptyView and the button did nothing; export menu also gained TIFF (v0.8.26)
+
+### Added
+
+- JSON workbench: .json/.jsonl/.ndjson/.geojson open in a built-in viewer with syntax highlighting, format/minify/key-sort, 2/4-space indent, find, copy, save (writes a .bak first) and CSV/Excel export; the same engine is exposed as the `formatJSON` agent tool and `/json/format` / `/json/validate` bridge endpoints (v0.8.26)
+- PowerPoint: .pptx opens in a presentation viewer (slides in deck order with titles, indented bullets and speaker notes) with Markdown copy/export and PDF export; `readPresentation` agent tool and `convertDocument` support pptx → md/txt/html/docx/rtf/pdf; legacy .ppt gets a "save as .pptx" hint (v0.8.26)
+- Office conversions: JSON/JSONL → md/txt/csv/xlsx through convertDocument (and the Recent Files "Convert to…" menu); `convertImage` converts batches of images to png/jpeg/heic/tiff with optional longest-side downscaling, never overwriting sources (v0.8.26)
+- Archive viewer: multi-select entries with "Extract Selected", extracting only the chosen paths via unzip (v0.8.26)
+
+
+
+
+
 ## [v0.8.25] - 2026-10-30
 ### Changed
 

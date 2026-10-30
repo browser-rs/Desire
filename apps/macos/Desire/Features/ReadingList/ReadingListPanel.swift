@@ -11,11 +11,16 @@ struct ReadingListPanel: View {
     /// 搜索与筛选（v0.7.28）。
     @State private var searchText = ""
     @State private var listFilter: ReadingListFilter = .all
+    /// 标签过滤 chip（v0.8.25）：nil = 全部。
+    @State private var tagFilter: String?
+    /// 编辑标签的条目（非 nil = 弹 sheet）。
+    @State private var tagEditing: ReadingListItem?
 
     private var filteredItems: [ReadingListItem] {
         let cached = Set(store.items.filter { store.cacheURL(for: $0.id) != nil }.map(\.id))
         return ReadingListFilter.apply(store.items, query: searchText,
-                                       filter: listFilter, cachedIDs: cached)
+                                       filter: listFilter, cachedIDs: cached,
+                                       tag: tagFilter)
     }
     /// 批量摘要（v0.7.19）：进度实时观察；preference 供旁路模型调用口径
     /// （与 Agent 面板同源——AppState 持有，WhiteboardPanel 同款取法）。
@@ -104,6 +109,25 @@ struct ReadingListPanel: View {
                 .padding(.bottom, 8)
             }
 
+            // 标签过滤 chip（v0.8.25）：有标签才占位，横向滚动不挤压搜索行。
+            if !store.allTags().isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        tagChip(String(localized: "All Tags"), active: tagFilter == nil) {
+                            tagFilter = nil
+                        }
+                        ForEach(store.allTags(), id: \.self) { tag in
+                            let active = tagFilter?.caseInsensitiveCompare(tag) == .orderedSame
+                            tagChip(tag, active: active) {
+                                tagFilter = active ? nil : tag
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 12)
+                }
+                .padding(.bottom, 8)
+            }
+
             if store.items.isEmpty {
                 EmptyState(message: String(localized: "Reading List is Empty"))
             } else if filteredItems.isEmpty {
@@ -169,6 +193,18 @@ struct ReadingListPanel: View {
                                                 .foregroundStyle(.secondary)
                                         }
                                     }
+                                    if !item.tagList.isEmpty {
+                                        HStack(spacing: 4) {
+                                            ForEach(item.tagList, id: \.self) { tag in
+                                                Text(tag)
+                                                    .font(.system(size: 9.5, weight: .medium))
+                                                    .foregroundStyle(appAccent)
+                                                    .padding(.horizontal, 5)
+                                                    .padding(.vertical, 1)
+                                                    .background(Capsule().fill(appAccent.opacity(0.12)))
+                                            }
+                                        }
+                                    }
                                     Text(item.savedDate, style: .date)
                                         .font(.caption2)
                                         .foregroundStyle(.tertiary)
@@ -186,6 +222,22 @@ struct ReadingListPanel: View {
                                     UserDefaults.standard.set(!UserDefaults.standard.bool(forKey: key), forKey: key)
                                 }
                                 Button(item.isRead ? String(localized: "Mark as Unread") : String(localized: "Mark as Read")) { store.toggleRead(item.id) }
+                                Button(String(localized: "Edit Tags…")) { tagEditing = item }
+                                if !store.allTags().isEmpty {
+                                    Menu(String(localized: "Tags")) {
+                                        ForEach(store.allTags(), id: \.self) { tag in
+                                            Button {
+                                                store.toggleTag(tag, for: item.id)
+                                            } label: {
+                                                if ReadingListTags.matches(tags: item.tagList, filter: tag) {
+                                                    Label(tag, systemImage: "checkmark")
+                                                } else {
+                                                    Text(tag)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                                 if let cached = store.cacheURL(for: item.id) {
                                     Button(String(localized: "Open Offline Copy")) {
                                         onSelect("file://\(cached.path)")
@@ -219,7 +271,71 @@ struct ReadingListPanel: View {
                 }
             }
         }
+        .sheet(item: $tagEditing) { item in
+            ReadingListTagSheet(item: item, store: store)
+        }
         .frame(width: 420, height: 400)
+    }
+
+    /// 标签 chip（v0.8.25）：只读展示 + 过滤切换。
+    private func tagChip(_ title: String, active: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 10.5, weight: active ? .semibold : .regular))
+                .foregroundStyle(active ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(
+                    active ? AnyShapeStyle(.tint.opacity(0.14))
+                           : AnyShapeStyle(Color(nsColor: .controlBackgroundColor))
+                ))
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - 标签编辑（v0.8.25）
+
+/// 逗号分隔编辑标签（中英文逗号、顿号、分号都可作分隔）。
+private struct ReadingListTagSheet: View {
+    let item: ReadingListItem
+    @ObservedObject var store: ReadingListStore
+    @Environment(\.dismiss) private var dismiss
+    @State private var text: String
+
+    init(item: ReadingListItem, store: ReadingListStore) {
+        self.item = item
+        self.store = store
+        _text = State(initialValue: item.tagList.joined(separator: ", "))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(String(localized: "Tags"))
+                .font(.system(size: 13, weight: .semibold))
+            Text(item.title)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            TextField("Separate tags with commas", text: $text)
+                .textFieldStyle(.roundedBorder)
+                .onSubmit { commit() }
+            HStack {
+                Spacer()
+                Button(String(localized: "Cancel")) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button(String(localized: "Save")) { commit() }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(16)
+        .frame(width: 340)
+    }
+
+    private func commit() {
+        store.setTags(ReadingListTags.parse(text), for: item.id)
+        dismiss()
     }
 }
 

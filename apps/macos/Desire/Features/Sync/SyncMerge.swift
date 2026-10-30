@@ -293,6 +293,9 @@ struct ReadingListSyncPayload: Codable, Equatable {
     /// naive UTC（SyncDate 编解码）
     var savedDate: Date
     var isRead: Bool
+    /// 标签（v0.8.25）。optional：旧客户端不带该键 → 合并时保留本地标签；
+    /// 空数组 = 客户端显式清空。
+    var tags: [String]? = nil
 }
 
 // MARK: - Agent 记忆域（事实 / 摘要 / 画像）
@@ -386,7 +389,8 @@ enum AgentMemorySync {
 enum ReadingListSync {
     static func payload(_ item: ReadingListItem) -> ReadingListSyncPayload {
         ReadingListSyncPayload(id: item.id, title: item.title, url: item.url,
-                               savedDate: item.savedDate, isRead: item.isRead)
+                               savedDate: item.savedDate, isRead: item.isRead,
+                               tags: item.tags)
     }
 
     static func merge(
@@ -400,7 +404,7 @@ enum ReadingListSync {
             make: { _, payload, at in
                 ReadingListItem(id: payload.id, title: payload.title, url: payload.url,
                                 savedDate: payload.savedDate, isRead: payload.isRead,
-                                updatedAt: at)
+                                updatedAt: at, tags: payload.tags)
             },
             update: { item, payload, at in
                 item.title = payload.title
@@ -408,6 +412,8 @@ enum ReadingListSync {
                 item.savedDate = payload.savedDate
                 item.isRead = payload.isRead
                 item.updatedAt = at
+                // nil = 旧客户端不带标签键 → 保留本地；[] = 显式清空。
+                if let tags = payload.tags { item.tags = tags }
             }
         )
     }

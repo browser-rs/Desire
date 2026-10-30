@@ -1132,6 +1132,25 @@ do {
     let freshMerged = ReadingListSync.merge(base: [], remote: [fresh])
     eq("阅读列表 新增", freshMerged.count, 1)
     check("阅读列表 新增带时间戳", freshMerged[0].updatedAt != nil)
+
+    // 标签（v0.8.25）：远端带标签 → 盖写；旧客户端不带键 → 保留本地；空数组 → 清空
+    var tagged = ReadingListItem(id: itemID, title: "T", url: "u", savedDate: savedAt,
+                                 isRead: false, updatedAt: now, tags: ["本地"])
+    func remoteTagged(_ tags: [String]?) -> [SyncWireItem<ReadingListSyncPayload>] {
+        [SyncWireItem<ReadingListSyncPayload>.init(
+            clientId: itemID.uuidString, clientUpdatedAt: now.addingTimeInterval(10), deleted: false,
+            payload: ReadingListSyncPayload(id: itemID, title: "T", url: "u", savedDate: savedAt,
+                                            isRead: false, tags: tags),
+            updatedAt: nil)]
+    }
+    let withTags = ReadingListSync.merge(base: [tagged], remote: remoteTagged(["远端", "work"]))
+    eq("阅读列表 标签盖写", withTags[0].tagList, ["远端", "work"])
+    let legacy = ReadingListSync.merge(base: [tagged], remote: remoteTagged(nil))
+    eq("阅读列表 旧载荷保留本地标签", legacy[0].tagList, ["本地"])
+    let cleared = ReadingListSync.merge(base: [tagged], remote: remoteTagged([]))
+    eq("阅读列表 空数组清空标签", cleared[0].tagList, [])
+    tagged.tags = ["x"]
+    eq("阅读列表 载荷携带标签", ReadingListSync.payload(tagged).tags, ["x"])
 }
 
 // ---------- 云同步：设置 KV 载荷编解码 ----------
@@ -5530,6 +5549,32 @@ func testReadingListFilter() {
           ReadingListFilter.apply(items, query: "example", filter: .unread, cachedIDs: []).count == 2)
 }
 testReadingListFilter()
+
+func testReadingListTags() {
+    eq("标签：归一去空白去重", ReadingListTags.normalize([" 工作 ", "work", "", "WORK", "生活"]),
+       ["工作", "work", "生活"])
+    eq("标签：解析中英文分隔", ReadingListTags.parse("工作, 阅读、生活；work"), ["工作", "阅读", "生活", "work"])
+    eq("标签：解析空串", ReadingListTags.parse("  "), [])
+    check("标签：匹配大小写不敏感", ReadingListTags.matches(tags: ["Work"], filter: "work"))
+    check("标签：不匹配", !ReadingListTags.matches(tags: ["Work"], filter: "life"))
+    eq("标签：全集去重排序", ReadingListTags.all(in: [["b", "A"], ["a", "c"]]), ["A", "b", "c"])
+    eq("标签：切换加入", ReadingListTags.toggling("new", in: ["old"]), ["old", "new"])
+    eq("标签：切换移除", ReadingListTags.toggling("OLD", in: ["old", "new"]), ["new"])
+    eq("标签：切换空标签不变", ReadingListTags.toggling("  ", in: ["old"]), ["old"])
+
+    let a = ReadingListItem(id: UUID(), title: "a", url: "https://a.com", savedDate: Date(), isRead: false, tags: ["Work"])
+    let b = ReadingListItem(id: UUID(), title: "b", url: "https://b.com", savedDate: Date(), isRead: false, tags: [])
+    let c = ReadingListItem(id: UUID(), title: "c", url: "https://c.com", savedDate: Date(), isRead: false)
+    eq("标签：过滤命中", ReadingListFilter.apply([a, b, c], query: "", filter: .all,
+                                            cachedIDs: [], tag: "work").map(\.id), [a.id])
+    eq("标签：过滤空标签集排除", ReadingListFilter.apply([a, b, c], query: "", filter: .all,
+                                               cachedIDs: [], tag: "工作").count, 0)
+    eq("标签：搜索含标签", ReadingListFilter.apply([a, b, c], query: "work", filter: .all,
+                                            cachedIDs: []).map(\.id), [a.id])
+}
+
+testReadingListTags()
+
 
 func testBackupArchive() {
     struct Row: Codable, Equatable { var a: String }

@@ -20,4 +20,11 @@ struct ReadingListItem: Identifiable, Codable {
     /// 重开页面自动回到读到的地方。
     var progress: Double? = nil
     var progressAt: Date? = nil
+    /// 标签（v0.8.25）：可选 + 合成 Codable（旧文件缺键为 nil，不清数据）；
+    /// 同步载荷同样 optional —— 旧客户端 payload 不带该键时保留本地标签。
+    var tags: [String]? = nil
+
+    /// 标签列表（归一在 `ReadingListTags.normalize`，写入时保证干净）。
+    /// nonisolated：`ReadingListFilter` 是纯逻辑、在非隔离上下文里读它。
+    nonisolated var tagList: [String] { tags ?? [] }
 }

@@ -16,6 +16,8 @@
 - **历史洞察（v0.8.25）**：新增纯逻辑 `HistoryInsightsBuilder`（总访问/站点数/Top 站点/24 小时分布/最近 7 天，`www.` 归一、同分按 host 排序）与桥 `GET /history/insights`——面板 UI 随后接线，数据口径已与桥同源。harness 1896/0。
 - History: insights sheet (top sites, 24-hour distribution, last 7 days) opened from the panel header, sharing the same derived numbers as `/history/insights` (v0.8.25)
 - Downloads: search by name or site + status filter (active/paused/completed/failed), failure count in the summary bar and "Copy Error" on failed rows (v0.8.25)
+- Reading list: tags with filter chips, an editor sheet and a bridge endpoint (`/reading-list/tags`); tags travel in the existing sync payload (legacy clients keep local tags) (v0.8.25)
+
 
 
 

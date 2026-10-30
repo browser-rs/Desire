@@ -496,6 +496,7 @@ final class AutomationServer {
         ep("POST", "/reading-list/remove", "Remove by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/cache", "Cache an item for offline reading (.webarchive; reuses the item's open tab when available)", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
         ep("POST", "/reading-list/progress", "Set reading progress (0..1) for an item (stamps LWW for sync)", params: ["url:string", "ratio:double"], example: #"-d '{"url":"https://a.b","ratio":0.42}'"#)
+        ep("POST", "/reading-list/tags", "Replace an item's tags (comma-separated string or array; stamps LWW for sync)", params: ["url:string", "tags:string|[string]"], example: #"-d '{"url":"https://a.b","tags":"work, reading"}'"#)
         ep("POST", "/reading-list/summarize", "Batch-summarize saved pages in the background (readURL + bypass model call; summaries land on the items)", params: ["limit?:int", "force?:bool", "urls?:[string]"], example: #"-d '{"limit":5}'"#)
         ep("GET", "/system/integrations", "OS integration permission state (reminders / calendar: granted|denied|restricted|notDetermined) — read-only, never prompts", example: "…/system/integrations")
         ep("GET", "/speech", "Text-to-speech state (speaking/paused) — reader TTS, also driven by the readAloud tool", example: "…/speech")
@@ -2085,6 +2086,20 @@ final class AutomationServer {
                 return try Self.json(Self.setReadingProgress(
                     url: Self.string(body, "url") ?? "",
                     ratio: body["ratio"] as? Double ?? 0))
+            case ("POST", "/reading-list/tags"):
+                guard let raw = body["tags"] else {
+                    return try Self.json(["error": "tags required (array or comma-separated string)"])
+                }
+                let tags: [String]
+                if let list = raw as? [String] {
+                    tags = list
+                } else if let text = raw as? String {
+                    tags = ReadingListTags.parse(text)
+                } else {
+                    tags = []
+                }
+                return try Self.json(Self.setReadingTags(
+                    url: Self.string(body, "url") ?? "", tags: tags))
             case ("GET", "/workspaces"):
                 return try Self.json(Self.workspacesList())
             case ("POST", "/inbox/dismiss"):
@@ -6282,6 +6297,17 @@ final class AutomationServer {
                 "progress": app.readingListStore.progress(for: url) ?? 0]
     }
 
+    /// 整表替换阅读列表标签（v0.8.25）：`tags` 可为数组或逗号分隔字符串。
+    private static func setReadingTags(url: String, tags: [String]) throws -> [String: Any] {
+        guard let app = AppState.live, !url.isEmpty else { return ["error": "missing url"] }
+        guard let item = app.readingListStore.items.first(where: { $0.url == url }) else {
+            return ["error": "no such reading-list item"]
+        }
+        app.readingListStore.setTags(tags, for: item.id)
+        let updated = app.readingListStore.items.first(where: { $0.id == item.id })?.tagList ?? []
+        return ["ok": true, "url": url, "tags": updated]
+    }
+
     private static func readingList() throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         return ["items": app.readingListStore.items.map { i -> [String: Any] in
@@ -6294,6 +6320,7 @@ final class AutomationServer {
             }
             if let summary = i.summary { row["summary"] = summary }
             if let progress = i.progress { row["progress"] = progress }
+            if !i.tagList.isEmpty { row["tags"] = i.tagList }
             return row
         }]
     }

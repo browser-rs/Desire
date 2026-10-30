@@ -139,6 +139,7 @@ SOURCES=(
   apps/macos/Desire/Features/UserScripts/PluginI18N.swift
   apps/macos/Desire/Features/ReadingList/ReadingListItem.swift
   apps/macos/Desire/Features/ReadingList/ReadingListFilter.swift
+  apps/macos/Desire/Features/ReadingList/ReadingListTags.swift
   apps/macos/Desire/Features/Agent/AgentQuickTemplate.swift
   apps/macos/Desire/Features/Agent/AgentTurnOwnership.swift
   apps/macos/Desire/Features/Agent/ToolRisk.swift

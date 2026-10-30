@@ -45,6 +45,33 @@ class ReadingListStore: ObservableObject {
         save()
     }
 
+    // MARK: - 标签（v0.8.25）
+
+    /// 整表替换标签（去空白/去重），盖 LWW 戳随云同步走。
+    func setTags(_ tags: [String], for id: UUID) {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return }
+        let normalized = ReadingListTags.normalize(tags)
+        if (items[index].tagList.map { $0.lowercased() }) == normalized.map({ $0.lowercased() }) {
+            return
+        }
+        // 空数组 = 用户显式清空（与"旧数据无标签"的 nil 区分，同步侧据此决定
+        // 是否覆盖远端标签）。
+        items[index].tags = normalized
+        items[index].updatedAt = Date()
+        save()
+    }
+
+    /// 加/删单个标签。
+    func toggleTag(_ tag: String, for id: UUID) {
+        guard let item = items.first(where: { $0.id == id }) else { return }
+        setTags(ReadingListTags.toggling(tag, in: item.tagList), for: id)
+    }
+
+    /// 全部标签（去重、按字母序）。
+    func allTags() -> [String] {
+        ReadingListTags.all(in: items.map(\.tagList))
+    }
+
     /// 回滚还原：整条按快照重插（保留原 id；同 id 已存在跳过）。
     func restoreForUndo(_ item: ReadingListItem) {
         guard !items.contains(where: { $0.id == item.id }) else { return }

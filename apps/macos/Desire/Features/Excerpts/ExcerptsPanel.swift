@@ -20,6 +20,9 @@ struct ExcerptsPanel: View {
     /// 今日回顾（v0.8.22）：间隔重复队列。
     @ObservedObject private var reviewQueue = ReviewQueueStore.shared
     @State private var showReview = false
+    /// 反向引用（v0.8.25）：摘录 → 引用了它的白板/会话。
+    @State private var backlinks: [UUID: [ExcerptBacklink]] = [:]
+    @State private var backlinkTarget: Excerpt?
 
     private var items: [Excerpt] { store.filtered(query: query, kind: kindFilter) }
 
@@ -29,6 +32,10 @@ struct ExcerptsPanel: View {
                 .sheet(item: $relatedRequest) { SemanticRelatedSheet(request: $0) }
                 .sheet(isPresented: $showReview) {
                     ReviewSheet(onClose: { showReview = false })
+                }
+                .sheet(item: $backlinkTarget) { excerpt in
+                    ExcerptBacklinkSheet(excerpt: excerpt,
+                                         hits: backlinks[excerpt.id] ?? [])
                 }
             filterBar
             Divider()
@@ -58,6 +65,7 @@ struct ExcerptsPanel: View {
         }
         .background(Color(nsColor: .controlBackgroundColor))
         .task { reviewQueue.sync(with: store.excerpts) }
+        .task(id: store.excerpts.count) { refreshBacklinks() }
     }
 
     // MARK: - 头部与过滤
@@ -208,6 +216,17 @@ struct ExcerptsPanel: View {
                     .lineLimit(1)
                     .truncationMode(.middle)
                 Spacer()
+                if let hits = backlinks[excerpt.id], !hits.isEmpty {
+                    Button {
+                        backlinkTarget = excerpt
+                    } label: {
+                        Label("\(hits.count)", systemImage: "arrow.uturn.backward")
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundStyle(appAccent)
+                    }
+                    .buttonStyle(.plain)
+                    .help(String(localized: "Referenced by whiteboards or conversations"))
+                }
                 Text(excerpt.createdAt.formatted(.relative(presentation: .named)))
                     .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
@@ -230,6 +249,9 @@ struct ExcerptsPanel: View {
                     query: [excerpt.content, excerpt.note ?? ""].joined(separator: " "),
                     excludingID: "excerpt:\(excerpt.id.uuidString)")
             }
+            if let hits = backlinks[excerpt.id], !hits.isEmpty {
+                Button(String(localized: "Show References (\(hits.count))")) { backlinkTarget = excerpt }
+            }
             Button(String(localized: "Open Source")) { openSource(excerpt) }
             Divider()
             Button(String(localized: "Delete"), role: .destructive) {
@@ -247,6 +269,34 @@ struct ExcerptsPanel: View {
                 openSource(excerpt)
             }
         }
+    }
+
+    /// 反向引用扫描（v0.8.25）：白板按会话各一份；会话只扫最近 40 条、
+    /// 每条最多取最后 120 条消息的正文（把成本压在可接受范围）。
+    private func refreshBacklinks() {
+        let excerpts = store.excerpts
+        let boards = WhiteboardStore.shared.boardsByConversation.map { id, spec in
+            ExcerptBacklinkCore.Board(
+                conversationID: id,
+                title: spec.title.isEmpty ? String(localized: "Whiteboard") : spec.title,
+                text: spec.blocks.map { ($0.title ?? "") + "\n" + $0.content }.joined(separator: "\n"))
+        }
+        let store2 = AgentScheduler.shared.deliveryTarget?.conversationStore ?? ConversationStore()
+        let conversations = store2.conversations
+            .sorted { $0.updatedAt > $1.updatedAt }
+            .prefix(40)
+            .map { conversation in
+                ExcerptBacklinkCore.ConversationRef(
+                    conversationID: conversation.id.uuidString,
+                    title: conversation.title,
+                    text: conversation.messages.suffix(120)
+                        .compactMap(\.content)
+                        .map { String($0.prefix(2000)) }
+                        .joined(separator: "\n"))
+            }
+        backlinks = ExcerptBacklinkCore.scan(excerpts: excerpts,
+                                             boards: boards,
+                                             conversations: Array(conversations))
     }
 
     /// 系统分享（v0.8.22 批四）：正文 + 来源链接。
@@ -364,5 +414,70 @@ struct ExcerptsPanel: View {
         guard panel.runModal() == .OK, let dest = panel.url else { return }
         try? markdown.write(to: dest, atomically: true, encoding: .utf8)
         NSWorkspace.shared.activateFileViewerSelecting([dest])
+    }
+}
+
+// MARK: - 反向引用（v0.8.25）
+
+/// "这条摘录被哪些白板/会话引用"：列出命中，点开加载对应会话（白板随后弹出）。
+private struct ExcerptBacklinkSheet: View {
+    let excerpt: Excerpt
+    let hits: [ExcerptBacklink]
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.appAccent) private var appAccent: Color
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(String(localized: "Show References"))
+                .font(.system(size: 13, weight: .semibold))
+            Text(excerpt.content)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(2)
+            Divider()
+            if hits.isEmpty {
+                Text(String(localized: "No references found."))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            } else {
+                ForEach(hits) { hit in
+                    HStack(spacing: 8) {
+                        Image(systemName: hit.kind == .whiteboard
+                              ? "rectangle.on.rectangle" : "bubble.left.and.bubble.right")
+                            .font(.system(size: 11))
+                            .foregroundStyle(appAccent)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(hit.title)
+                                .font(.system(size: 11.5, weight: .medium))
+                                .lineLimit(1)
+                            Text(hit.snippet)
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        Button(String(localized: "Open")) { open(hit) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
+                }
+            }
+            HStack {
+                Spacer()
+                Button(String(localized: "Close")) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+        }
+        .padding(16)
+        .frame(width: 440)
+    }
+
+    private func open(_ hit: ExcerptBacklink) {
+        guard let id = UUID(uuidString: hit.conversationID) else { return }
+        AgentScheduler.shared.deliveryTarget?.loadConversation(id)
+        NotificationCenter.default.post(name: .desireShowAgentPanel, object: nil)
+        if hit.kind == .whiteboard {
+            WhiteboardPanel.shared.show()
+        }
+        dismiss()
     }
 }

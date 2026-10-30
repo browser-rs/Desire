@@ -7022,6 +7022,41 @@ func testPeekReplay() {
     check("replay：未知类型也能渲染", PeekReplayCore.format([PeekReplayEntry(kind: "scroll", label: "down")]).contains("scroll"))
 }
 
+func testExcerptBacklinkCore() {
+    eq("反链：空白归一", ExcerptBacklinkCore.normalize("Hello \n  World\t!"), "hello world !")
+    eq("反链：探测串截断", ExcerptBacklinkCore.probe("aaaaaaaaaabbbbbbbbbb", maxLength: 12), "aaaaaaaaaabb")
+    let excerpt = Excerpt(kind: .webSelection, title: "src", source: "https://a.com",
+                          content: "The quick brown fox jumps over the lazy dog")
+    let short = Excerpt(kind: .webSelection, title: "s", source: "https://b.com", content: "too short")
+    let boards = [
+        ExcerptBacklinkCore.Board(conversationID: "c1", title: "Board A",
+                                  text: "some notes\nthe QUICK brown fox jumps over the lazy dog!"),
+        ExcerptBacklinkCore.Board(conversationID: "c2", title: "Board B", text: "unrelated"),
+    ]
+    let conversations = [
+        ExcerptBacklinkCore.ConversationRef(conversationID: "c3", title: "Chat",
+                                            text: "earlier\nthe quick brown fox jumps over the lazy dog, indeed"),
+    ]
+    let hits = ExcerptBacklinkCore.scan(excerpts: [excerpt, short],
+                                        boards: boards, conversations: conversations)
+    eq("反链：命中两份来源", hits[excerpt.id]?.count, 2)
+    eq("反链：白板在前", hits[excerpt.id]?.first?.kind, .whiteboard)
+    eq("反链：白板会话 id", hits[excerpt.id]?.first?.conversationID, "c1")
+    eq("反链：短摘录不参与", hits[short.id], nil)
+    check("反链：引用数封顶", ExcerptBacklinkCore.scan(
+        excerpts: [excerpt], boards: [],
+        conversations: (0..<20).map {
+            .init(conversationID: "c\($0)", title: "C\($0)", text: excerpt.content)
+        }, maxHits: 5)[excerpt.id]?.count == 5)
+    check("反链：同一白板只记一条", ExcerptBacklinkCore.scan(
+        excerpts: [excerpt],
+        boards: (0..<20).map { .init(conversationID: "b\($0)", title: "B\($0)", text: excerpt.content) },
+        conversations: [])[excerpt.id]?.count == 1)
+    check("反链：无候选返回空", ExcerptBacklinkCore.scan(excerpts: [excerpt], boards: [], conversations: []).isEmpty)
+}
+
+testExcerptBacklinkCore()
+
 func testHistoryInsights() {
     var calendar = Calendar(identifier: .gregorian)
     calendar.timeZone = TimeZone(identifier: "UTC")!

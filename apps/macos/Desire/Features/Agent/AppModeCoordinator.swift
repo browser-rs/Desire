@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import os
 
@@ -15,6 +16,24 @@ enum AppModeCoordinator {
         case .hybrid:
             ensureAgentWindow()
         }
+    }
+
+    /// 并排（v0.8.24）：把用户窗口与 Agent 窗口平铺左右。只调 frame，
+    /// 不做应用内分屏——两窗各自保留标签/焦点，互不干扰。
+    static func arrangeSideBySide() {
+        guard let user = WindowTargetResolver.userManager(),
+              let agent = WindowTargetResolver.agentManager(),
+              let userWindow = WindowSurfaceRegistry.shared.window(for: user.sessionKey),
+              let agentWindow = WindowSurfaceRegistry.shared.window(for: agent.sessionKey),
+              let screen = userWindow.screen ?? NSScreen.main else { return }
+        guard userWindow !== agentWindow else { return }
+        let frame = screen.visibleFrame
+        let half = frame.width / 2
+        userWindow.setFrame(NSRect(x: frame.minX, y: frame.minY, width: half, height: frame.height),
+                            display: true)
+        agentWindow.setFrame(NSRect(x: frame.minX + half, y: frame.minY, width: half, height: frame.height),
+                             display: true)
+        userWindow.makeKeyAndOrderFront(nil)
     }
 
     /// 混合模式：没有 Agent 角色的窗口就开一扇。建窗由现有的

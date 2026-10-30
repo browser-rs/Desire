@@ -156,6 +156,7 @@ struct AppCommands: Commands {
                 .keyboardShortcut("3", modifiers: [.command, .control])
             Divider()
             Button("Open Agent Window") { AppModeCoordinator.ensureAgentWindow() }
+            Button("Arrange Side by Side") { AppModeCoordinator.arrangeSideBySide() }
         }
 
         CommandMenu("Agent") {

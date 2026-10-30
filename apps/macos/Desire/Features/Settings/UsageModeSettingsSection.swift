@@ -37,6 +37,32 @@ struct UsageModeSettingsSection: View {
             }
 
             SettingsSection(
+                title: "At a Glance",
+                subtitle: "What changes between modes.",
+                icon: "tablecells"
+            ) {
+                comparisonRow(String(localized: "Interface"),
+                               String(localized: "Workspace window"),
+                               String(localized: "Tabs and page"),
+                               String(localized: "Two windows"))
+                SettingsRowDivider()
+                comparisonRow(String(localized: "Browser"),
+                               String(localized: "Background panel"),
+                               String(localized: "Your window"),
+                               String(localized: "Agent window"))
+                SettingsRowDivider()
+                comparisonRow(String(localized: "Login state"),
+                               String(localized: "Isolated container"),
+                               String(localized: "Your profile"),
+                               String(localized: "Isolated container"))
+                SettingsRowDivider()
+                comparisonRow(String(localized: "Interruption"),
+                               String(localized: "Peek inline"),
+                               String(localized: "Beside you"),
+                               String(localized: "Non-activating overlay"))
+            }
+
+            SettingsSection(
                 title: "Login State",
                 subtitle: "How the agent's browser relates to your logins.",
                 icon: "key"
@@ -71,5 +97,24 @@ struct UsageModeSettingsSection: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
         }
+    }
+
+    /// 对比表一行：维度 + 三种模式各一句（第一列是维度名）。
+    private func comparisonRow(_ label: String, _ agent: String, _ browser: String, _ hybrid: String) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(label)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.secondary)
+            HStack(alignment: .top, spacing: 10) {
+                Text(AppUsageMode.agentFocus.title + ": " + agent).font(.system(size: 10.5))
+                Text(AppUsageMode.browser.title + ": " + browser).font(.system(size: 10.5))
+                Text(AppUsageMode.hybrid.title + ": " + hybrid).font(.system(size: 10.5))
+            }
+            .foregroundStyle(.tertiary)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }

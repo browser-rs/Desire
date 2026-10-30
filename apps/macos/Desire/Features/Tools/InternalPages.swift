@@ -233,6 +233,7 @@ extension BrowserState {
         pdfViewerSourceKey = nil
         pdfViewerReturnURL = nil
         mediaViewerURL = nil
+        mediaPlayerImmersive = false
         spreadsheetViewerURL = nil
         imageEditorURL = nil
         archiveViewerURL = nil

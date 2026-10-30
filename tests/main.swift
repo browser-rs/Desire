@@ -7809,6 +7809,39 @@ func testMediaEditCore() {
         "-b:a", "160k", "out.m4a"])
     eq("ffmpeg：音频拼接", MediaEditCore.ffmpegConcatAudioArgs(listFile: "l.txt", output: "o.m4a"),
        ["-y", "-f", "concat", "-safe", "0", "-i", "l.txt", "-c:a", "aac", "-b:a", "160k", "o.m4a"])
+
+    // ---- 外挂字幕解析 ----
+    let srtData = Data("1\n00:00:01,000 --> 00:00:03,500\n<i>Hello</i> world\n\n2\n00:00:04,000 --> 00:00:06,000\nSecond line\ncontinues\n".utf8)
+    let srtCues = SubtitleCore.parse(srtData) ?? []
+    eq("字幕：SRT 条数", srtCues.count, 2)
+    eq("字幕：SRT 起点", srtCues.first?.start ?? 0, 1.0)
+    eq("字幕：SRT 终点", srtCues.first?.end ?? 0, 3.5)
+    eq("字幕：SRT 标签剥离", srtCues.first?.text ?? "", "Hello world")
+    eq("字幕：SRT 多行", srtCues.last?.text ?? "", "Second line\ncontinues")
+
+    let vttCues = SubtitleCore.parse(Data("WEBVTT\n\ncue-1\n00:01.000 --> 00:03.000 align:start position:10%\n你好 <b>世界</b>\n".utf8)) ?? []
+    eq("字幕：VTT 条数", vttCues.count, 1)
+    eq("字幕：VTT 秒", vttCues.first?.start ?? 0, 1.0)
+    eq("字幕：VTT 标签剥离", vttCues.first?.text ?? "", "你好 世界")
+
+    let ass = "[Script Info]\nScriptType: v4.00+\n\n[Events]\nFormat: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\nDialogue: 0,0:00:05.00,0:00:07.50,Default,,0,0,0,,{\\i1}强调{\\i0}文本\\N第二行, 带逗号\n"
+    let assCues = SubtitleCore.parse(Data(ass.utf8)) ?? []
+    eq("字幕：ASS 条数", assCues.count, 1)
+    eq("字幕：ASS 秒", assCues.first?.start ?? 0, 5.0)
+    eq("字幕：ASS 覆写标签+逗号安全", assCues.first?.text ?? "", "强调文本\n第二行, 带逗号")
+
+    check("字幕：无法识别返回 nil", SubtitleCore.parse(Data("随便一段文本".utf8)) == nil)
+    eq("字幕：查询命中", SubtitleCore.texts(at: 2.0, in: srtCues), "Hello world")
+    eq("字幕：查询未命中", SubtitleCore.texts(at: 3.9, in: srtCues), "")
+    eq("字幕：时间戳含设置", SubtitleCore.parseTimestamp("00:00:04.000"), 4.0)
+
+    let candidates = SubtitleCore.candidateSubtitleFiles(
+        forVideoName: "movie.mp4",
+        directoryContents: ["movie.zh.srt", "movie.srt", "movie.ass", "cover.jpg", "other.srt", "movie.vtt", ".hidden.srt"])
+    eq("字幕：候选精确同名优先", candidates.first, "movie.ass")
+    check("字幕：候选含带后缀版", candidates.contains("movie.zh.srt"))
+    check("字幕：候选排除无关与隐藏", !candidates.contains("other.srt") && !candidates.contains(".hidden.srt"))
+    check("字幕：无视频后缀同格式序", candidates.count == 4)
 }
 
 testToolboxBatch2Cores()

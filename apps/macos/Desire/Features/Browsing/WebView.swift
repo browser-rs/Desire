@@ -122,6 +122,10 @@ class BrowserState: ObservableObject {
     /// selection AI bar in `SelectedTabContent`.
     @Published var selectionAI: SelectionAIInfo?
     @Published var estimatedProgress: Double = 0
+    /// 本地视频「播放模式」（IINA 式）：收起标签栏/工具栏，画面占满内容区。
+    /// 由 MediaViewerView 经 SelectedTabContent 的闭包驱动；chrome gate 见
+    /// ContentView.PlayerImmersiveGate（Tab 侧有对应的选择性转发 sink）。
+    @Published var mediaPlayerImmersive = false
     @Published var pageTitle: String = "Desire"
     @Published var isSecure: Bool = false
     /// 混合内容（0.2.15 加固）：https 页面上加载的 http 子资源计数。

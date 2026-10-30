@@ -26,6 +26,13 @@ final class MediaPlayerModel: ObservableObject {
     @Published private(set) var bufferedSeconds: Double = 0
     @Published private(set) var rate: Double = 1
     @Published private(set) var loadError: String?
+    /// 视频像素尺寸（窗口按画面比例缩放用；旋转矩阵未计——桌面片源基本无旋转）。
+    @Published private(set) var videoSize: CGSize = .zero
+    // 外挂字幕（SubtitleCore 解析，浮层渲染在 MediaViewerView）。
+    @Published private(set) var subtitleCues: [SubtitleCore.Cue] = []
+    @Published private(set) var subtitleFileName: String?
+    @Published var subtitlesEnabled = false
+    @Published private(set) var currentSubtitleText: String = ""
     @Published var volume: Double = 1 {
         didSet { player.volume = Float(volume) }
     }
@@ -66,6 +73,7 @@ final class MediaPlayerModel: ObservableObject {
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     self.currentTime = time.seconds
+                    self.updateCurrentSubtitle()
                     self.autosavePosition()
                 }
             }
@@ -109,8 +117,10 @@ final class MediaPlayerModel: ObservableObject {
             guard let self, let asset = self.player.currentItem?.asset else { return }
             let videoTracks = (try? await asset.loadTracks(withMediaType: .video)) ?? []
             let loaded = (try? await asset.load(.duration).seconds) ?? 0
+            let naturalSize = (try? await videoTracks.first?.load(.naturalSize)) ?? .zero
             self.hasVideo = !videoTracks.isEmpty
             self.duration = loaded.isFinite ? max(0, loaded) : 0
+            self.videoSize = naturalSize
             // 续播：上次位置在 (10s, 结束前 5s) 才跳回（片头/片尾不折腾）。
             let saved = Self.savedPosition(for: self.fileURL)
             if saved > 10, self.duration > 0, saved < self.duration - 5 {
@@ -118,6 +128,51 @@ final class MediaPlayerModel: ObservableObject {
             }
             self.player.play()
         }
+        autoLoadSubtitle()
+    }
+
+    // MARK: - 外挂字幕
+
+    /// 与视频同名的 srt/vtt/ass/ssa 自动挂载（IINA 惯例）；找不到就静默。
+    private func autoLoadSubtitle() {
+        let contents = (try? FileManager.default.contentsOfDirectory(atPath: fileURL.deletingLastPathComponent().path)) ?? []
+        guard let candidate = SubtitleCore.candidateSubtitleFiles(
+            forVideoName: fileURL.lastPathComponent, directoryContents: contents).first else { return }
+        loadSubtitles(at: fileURL.deletingLastPathComponent().appendingPathComponent(candidate))
+    }
+
+    func loadSubtitles(at url: URL) {
+        Task { [weak self] in
+            let data = try? Data(contentsOf: url)
+            let cues = data.flatMap { SubtitleCore.parse($0) } ?? []
+            await MainActor.run { [weak self] in
+                guard let self, !cues.isEmpty else { return }
+                self.subtitleCues = cues
+                self.subtitleFileName = url.lastPathComponent
+                self.subtitlesEnabled = true
+                self.updateCurrentSubtitle()
+            }
+        }
+    }
+
+    func unloadSubtitles() {
+        subtitleCues = []
+        subtitleFileName = nil
+        subtitlesEnabled = false
+        currentSubtitleText = ""
+    }
+
+    func toggleSubtitles() {
+        subtitlesEnabled.toggle()
+        updateCurrentSubtitle()
+    }
+
+    private func updateCurrentSubtitle() {
+        guard subtitlesEnabled, !subtitleCues.isEmpty else {
+            currentSubtitleText = ""
+            return
+        }
+        currentSubtitleText = SubtitleCore.texts(at: currentTime, in: subtitleCues)
     }
 
     // MARK: - 控制

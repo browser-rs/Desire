@@ -284,6 +284,10 @@ class Tab: ObservableObject {
         browser.$estimatedProgress
             .sink { [weak self] _ in self?.objectWillChange.send() }
             .store(in: &cancellables)
+        // 播放器沉浸（本地视频播放模式）驱动 chrome 收放，需要全链路响应。
+        browser.$mediaPlayerImmersive
+            .sink { [weak self] _ in self?.objectWillChange.send() }
+            .store(in: &cancellables)
     }
 }
 

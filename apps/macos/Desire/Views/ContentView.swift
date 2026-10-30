@@ -292,11 +292,14 @@ struct ContentView: View {
     var mainStack: some View {
         VStack(spacing: 0) {
             if let tab = tabManager.selectedTab {
-                // 只有**站点自己发起的整屏**（视频/元素全屏）才收掉标签栏与
-                // 工具栏——那是 WebKit 的整屏窗口在盖屏。原生窗口全屏（⌃⌘F）
-                // 保持 chrome 可见：全屏浏览不能切标签等于没法用。
+                // 只有**站点自己发起的整屏**（视频/元素全屏）与本地视频
+                // 「播放模式」（IINA 式）才收掉标签栏与工具栏——前者是
+                // WebKit 的整屏窗口在盖屏，后者由播放器声明。原生窗口全屏
+                //（⌃⌘F）保持 chrome 可见：全屏浏览不能切标签等于没法用。
                 if !isSiteFullScreen && !settings.verticalTabBar {
-                    tabBarSection(for: tab)
+                    PlayerImmersiveGate(tab: tab) { tab in
+                        tabBarSection(for: tab)
+                    }
                 }
                 SelectedTabContent(
                     tab: tab, content: self, actions: b,
@@ -715,7 +718,9 @@ struct ContentView: View {
     private var browserShell: some View {
         if settings.verticalTabBar && !isSiteFullScreen {
             HSplitView {
-                VerticalTabBarView(
+                if let selected = tabManager.selectedTab {
+                    PlayerImmersiveGate(tab: selected) { _ in
+                        VerticalTabBarView(
                     tabManager: tabManager,
                     tabGroupStore: tabGroupStore,
                     settings: settings,
@@ -767,8 +772,10 @@ struct ContentView: View {
                     tabGroupColor: { [gColors = [Color.red, .orange, .yellow, .green, .blue, .purple, .pink, .brown]] tabId in
                         tabGroupStore.group(for: tabId).map { gColors[$0.colorIndex % gColors.count] }
                     }
-                )
-                .frame(maxHeight: .infinity)
+                    )
+                    }
+                    .frame(maxHeight: .infinity)
+                }
                 mainStack
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -1161,6 +1168,21 @@ private struct AgentWindowTitleMarker: NSViewRepresentable {
                 }
                 try? await Task.sleep(for: .milliseconds(250))
             }
+        }
+    }
+}
+
+/// 播放器沉浸（本地视频「播放模式」）时的 chrome 收放 gate。
+/// **为什么是个子视图**：ContentView 只观察 windowContext→manager 链，Tab 级
+/// 变化不会让它重算 body——判定必须放进 @ObservedObject tab 的子视图里才有
+/// 响应性（Tab 对 browser 字段是选择性转发，mediaPlayerImmersive 有专属 sink）。
+private struct PlayerImmersiveGate<Content: View>: View {
+    @ObservedObject var tab: Tab
+    @ViewBuilder var content: (Tab) -> Content
+
+    var body: some View {
+        if !tab.browser.mediaPlayerImmersive {
+            content(tab)
         }
     }
 }

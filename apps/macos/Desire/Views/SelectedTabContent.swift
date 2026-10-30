@@ -74,7 +74,8 @@ struct SelectedTabContent: View {
                 .background(Color.orange.opacity(0.12))
             }
             Group {
-                if !isFullScreen {
+                // 站点整屏或本地视频播放模式（IINA 式）都收起进度条/工具栏/书签栏。
+                if !(isFullScreen || tab.browser.mediaPlayerImmersive) {
                     GeometryReader { geo in
                         Capsule()
                             .fill(appAccent.opacity(0.15))
@@ -455,6 +456,11 @@ struct SelectedTabContent: View {
                         InternalPages.open(.tools(
                             param: MediaEditCore.isAudioFile(mediaURL) ? "audioEditor" : "videoEditor"),
                             in: tab)
+                    },
+                    // 播放模式 ↔ chrome 收放（IINA 式）：状态在 BrowserState，
+                    // ContentView 的 PlayerImmersiveGate 据此收起标签栏/工具栏。
+                    onImmersiveChange: { immersive in
+                        tab.browser.mediaPlayerImmersive = immersive
                     }
                 )
             } else if let sheetURL = tab.browser.spreadsheetViewerURL {

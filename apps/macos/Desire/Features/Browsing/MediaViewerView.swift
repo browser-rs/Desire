@@ -1,6 +1,7 @@
 import AVFoundation
 import AVKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// 本地媒体播放器（v0.8.27 播放器批）：AVPlayerLayer + 定制控制层，替代
 /// AVKit 默认控件——顶栏（返回/文件名/剪辑/QuickTime）+ 底部控制条（播放/
@@ -19,6 +20,8 @@ struct MediaViewerView: View {
     let onBack: () -> Void
     /// 「剪辑」入口：文件递给工具页的视频/音频剪辑（SelectedTabContent 接线）。
     var onEdit: (() -> Void)? = nil
+    /// 播放模式 ↔ chrome 收放（IINA 式）：写 BrowserState.mediaPlayerImmersive。
+    var onImmersiveChange: ((Bool) -> Void)? = nil
 
     @StateObject private var model: MediaPlayerModel
     @State private var playbackMode = false
@@ -29,13 +32,16 @@ struct MediaViewerView: View {
     @State private var scrubTarget: Double?
     /// 自持光标隐藏标志：NSCursor.hide/unhide 是计数栈，靠这个标志保证配对。
     @State private var cursorHidden = false
+    /// 命中层引用（窗口按画面比例缩放时读 window 与实际播放面积）。
+    @State private var surfaceView: PlayerSurfaceView?
 
     init(fileURL: URL, fileName: String, onBack: @escaping () -> Void,
-         onEdit: (() -> Void)? = nil) {
+         onEdit: (() -> Void)? = nil, onImmersiveChange: ((Bool) -> Void)? = nil) {
         self.fileURL = fileURL
         self.fileName = fileName
         self.onBack = onBack
         self.onEdit = onEdit
+        self.onImmersiveChange = onImmersiveChange
         _model = StateObject(wrappedValue: MediaPlayerModel(url: fileURL))
     }
 
@@ -49,34 +55,54 @@ struct MediaViewerView: View {
                               onActivity: userActivity,
                               onClick: handleSurfaceClick,
                               onKey: handleKey,
-                              onLayerReady: { model.setupPictureInPicture(layer: $0) })
+                              onLayerReady: { model.setupPictureInPicture(layer: $0) },
+                              onSurfaceReady: { surfaceView = $0 })
             } else {
                 // 音频模式：透明命中层接点击/键盘，艺术位不抢手势。
                 PlayerSurface(player: nil,
                               onActivity: userActivity,
                               onClick: handleSurfaceClick,
-                              onKey: handleKey)
+                              onKey: handleKey,
+                              onSurfaceReady: { surfaceView = $0 })
                 audioArtwork
             }
+            subtitleOverlay
             if model.loadError == nil {
                 controlsOverlay
             }
         }
         .id(fileURL)
         .onAppear {
-            if model.hasVideo { playbackMode = true }
+            setPlaybackMode(model.hasVideo)
             scheduleHide()
         }
         .onDisappear {
             hideTask?.cancel()
             model.savePosition()
             setCursorHidden(false)
-        }
-        .onChange(of: playbackMode) { _, _ in
-            if !playbackMode { setCursorHidden(false) }
-            scheduleHide()
+            setPlaybackMode(false)
+            surfaceView = nil
         }
         .onChange(of: model.isPlaying) { _, _ in scheduleHide() }
+    }
+
+    // MARK: - 字幕浮层（外挂字幕；不随控制条隐藏——播着就得看得见）
+
+    @ViewBuilder
+    private var subtitleOverlay: some View {
+        if model.subtitlesEnabled, !model.currentSubtitleText.isEmpty {
+            Text(model.currentSubtitleText)
+                .multilineTextAlignment(.center)
+                .font(.system(size: 17, weight: .medium))
+                .foregroundStyle(.white)
+                .shadow(color: .black.opacity(0.9), radius: 2)
+                .shadow(color: .black.opacity(0.85), radius: 6)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
+                .padding(.horizontal, 48)
+                .padding(.bottom, controlsVisible ? 96 : 26)
+                .allowsHitTesting(false)
+                .transition(.opacity)
+        }
     }
 
     // MARK: - 覆盖层
@@ -181,9 +207,11 @@ struct MediaViewerView: View {
                     .contentShape(Rectangle())
                 Spacer(minLength: 10)
                 speedMenu
+                subtitleMenu
                 volumeGroup
                 if model.hasVideo {
                     pipButton
+                    windowSizeMenu
                 }
                 modeButton
             }
@@ -295,6 +323,91 @@ struct MediaViewerView: View {
         }
     }
 
+    private var subtitleMenu: some View {
+        Menu {
+            if model.subtitleFileName != nil {
+                Button(model.subtitlesEnabled
+                       ? String(localized: "Hide Subtitles")
+                       : String(localized: "Show Subtitles")) {
+                    model.toggleSubtitles()
+                }
+                Button(String(localized: "Unload Subtitles"), role: .destructive) {
+                    model.unloadSubtitles()
+                }
+            }
+            Button(String(localized: "Load Subtitle File…")) { loadSubtitlePanel() }
+        } label: {
+            Image(systemName: model.subtitlesEnabled ? "captions.fill" : "captions")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.9))
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .fixedSize()
+        .help(model.subtitleFileName != nil
+              ? String(localized: "Subtitles: \(model.subtitleFileName ?? "")")
+              : String(localized: "Subtitles"))
+    }
+
+    private func loadSubtitlePanel() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        panel.allowedContentTypes = SubtitleCore.subtitleExtensions
+            .compactMap { UTType(filenameExtension: $0) }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        model.loadSubtitles(at: url)
+    }
+
+    /// IINA 式窗口缩放：把窗口内容面积调成「chrome 高度 + 画面 × 倍率」，
+    /// 左上角不动，钳到屏幕可见区。读命中层实测高度，播放模式（chrome 收起）
+    /// 与普通模式都成立。
+    private func resizeWindow(toScale scale: Double) {
+        guard let surface = surfaceView, let window = surface.window,
+              let contentView = window.contentView,
+              model.videoSize.width > 0, model.videoSize.height > 0 else { return }
+        let chromeWidth = contentView.bounds.width - surface.bounds.width
+        let chromeHeight = contentView.bounds.height - surface.bounds.height
+        let titlebarHeight = window.frame.height - contentView.bounds.height
+        var width = model.videoSize.width * scale + chromeWidth
+        var height = model.videoSize.height * scale + chromeHeight
+        if let screen = window.screen ?? NSScreen.main {
+            let maxContentWidth = screen.visibleFrame.width
+            let maxContentHeight = screen.visibleFrame.height - titlebarHeight
+            let fit = min(1, maxContentWidth / max(1, width), maxContentHeight / max(1, height))
+            if fit < 1 {
+                width *= fit
+                height *= fit
+            }
+        }
+        width = max(width, window.minSize.width)
+        height = max(height, window.minSize.height - titlebarHeight)
+        let newFrame = NSRect(x: window.frame.minX,
+                              y: window.frame.maxY - height - titlebarHeight,
+                              width: width, height: height + titlebarHeight)
+        window.setFrame(newFrame, display: true, animate: true)
+    }
+
+    private var windowSizeMenu: some View {
+        Menu {
+            Button("50%") { resizeWindow(toScale: 0.5) }
+            Button("100%") { resizeWindow(toScale: 1) }
+            Button("200%") { resizeWindow(toScale: 2) }
+        } label: {
+            Image(systemName: "macwindow")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.white.opacity(0.9))
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .fixedSize()
+        .help(String(localized: "Resize window to picture size"))
+    }
+
     private var pipButton: some View {
         Button {
             model.togglePictureInPicture()
@@ -389,8 +502,17 @@ struct MediaViewerView: View {
     }
 
     private func togglePlaybackMode() {
-        playbackMode.toggle()
+        setPlaybackMode(!playbackMode)
+    }
+
+    /// 播放模式切换统一收口：状态 + chrome 通知（BrowserState.mediaPlayerImmersive
+    /// → ContentView 的 PlayerImmersiveGate 收起标签栏/工具栏）+ 光标复位。
+    private func setPlaybackMode(_ on: Bool) {
+        guard playbackMode != on else { return }
+        playbackMode = on
         controlsVisible = true
+        onImmersiveChange?(on)
+        if !on { setCursorHidden(false) }
         scheduleHide()
     }
 
@@ -600,12 +722,16 @@ private struct PlayerSurface: NSViewRepresentable {
     var onClick: (Int) -> Void
     var onKey: (NSEvent) -> Bool
     var onLayerReady: ((AVPlayerLayer) -> Void)? = nil
+    var onSurfaceReady: ((PlayerSurfaceView) -> Void)? = nil
 
     func makeNSView(context: Context) -> PlayerSurfaceView {
         let view = PlayerSurfaceView()
         view.player = player
         if let onLayerReady, let videoLayer = view.layer as? AVPlayerLayer {
             onLayerReady(videoLayer)
+        }
+        if let onSurfaceReady {
+            DispatchQueue.main.async { onSurfaceReady(view) }
         }
         // 拖入即想播放：稍候夺焦（有文本编辑器在用时不抢——跳一帧的既有规矩）。
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak view] in

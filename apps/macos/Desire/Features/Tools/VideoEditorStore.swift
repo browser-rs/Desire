@@ -33,6 +33,9 @@ final class VideoEditorStore: ObservableObject {
     @Published var multiSelection: Set<UUID> = []
     /// 贴齐开关（⌘ 按住临时反转；默认开）。
     @Published var snappingEnabled = true
+    /// 导出预设：目标高度（nil=源分辨率）与仅音频。
+    @Published var exportTargetHeight: Double?
+    @Published var exportAudioOnly = false
     @Published var pixelsPerSecond: Double = 60
     @Published private(set) var isPlaying = false
     @Published private(set) var sources: [SourceMedia] = []
@@ -191,11 +194,26 @@ final class VideoEditorStore: ObservableObject {
         commit(TimelineCore.rotate(project, clipID: selectedClipID, turns: turns))
     }
 
+    /// 复制片段：贴到原片段尾部之后（同轨找空位），内容同参。
+    func duplicateClip(_ clipID: UUID) {
+        guard let (track, clip) = TimelineCore.clip(project, withID: clipID) else { return }
+        var copy = clip
+        copy.id = UUID()
+        copy.start = TimelineCore.makeInsertStart(project: project, trackID: track.id,
+                                                  at: clip.end, duration: clip.duration)
+        commit(TimelineCore.upsertClip(project, trackID: track.id, clip: copy))
+    }
+
     /// 分割全部轨道（播放头处）。
     func splitAllTracks() {
         pushUndo()
         project = TimelineCore.splitAllAtPlayhead(project, at: playhead)
         rebuildPreview()
+    }
+
+    /// 删除指定片段集合（右键单删与批量共用）。
+    func deleteClips(_ ids: [UUID]) {
+        commit(TimelineCore.deleteClips(project, ids: ids))
     }
 
     /// 批量删除选中（多选 id 集合）。
@@ -516,16 +534,18 @@ final class VideoEditorStore: ObservableObject {
     func export() {
         guard !isExporting else { return }
         let snapshot = project
+        let height = exportTargetHeight
+        let audioOnly = exportAudioOnly
         exportState = .running(0)
         // 捕获强引用局部量（不是 var）——Sendable 闭包里捕获 var self 是 Swift 6 错误。
         let store = self
         exportTask = Task { [weak self] in
             do {
-                let url = try await Self.export(project: snapshot) { fraction in
+                let url = try await Self.export(project: snapshot, progress: { fraction in
                     Task { @MainActor in
                         store.exportState = .running(min(0.99, fraction))
                     }
-                }
+                }, targetHeight: height, forceAudioOnly: audioOnly)
                 await MainActor.run { self?.exportState = .done(url) }
             } catch is CancellationError {
                 await MainActor.run { self?.exportState = .idle }
@@ -545,9 +565,12 @@ final class VideoEditorStore: ObservableObject {
     }
 
     nonisolated static func export(project: TimelineCore.Project,
-                                           progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
+                                           progress: @escaping @Sendable (Double) -> Void,
+                                           targetHeight: Double? = nil,
+                                           forceAudioOnly: Bool = false) async throws -> URL {
         let (composition, audioMix, videoConfig) = await buildComposition(project: project)
-        let hasVideo = project.tracks.contains { $0.kind == .video && !$0.clips.isEmpty }
+        let naturalHasVideo = project.tracks.contains { $0.kind == .video && !$0.clips.isEmpty }
+        let hasVideo = naturalHasVideo && !forceAudioOnly
         let destination = resolveDestination(title: project.title,
                                              ext: hasVideo ? "mp4" : "m4a")
         let session: AVAssetExportSession
@@ -562,6 +585,12 @@ final class VideoEditorStore: ObservableObject {
             // 转场由 buildComposition 的构造器产出，这里只叠文字烧录。
             var config = videoConfig?(await compositionNaturalSize(composition))
                 ?? AVVideoComposition.Configuration()
+            if let targetHeight {
+                let source = await compositionNaturalSize(composition)
+                let ratio = source.height > 0 ? targetHeight / source.height : 1
+                config.renderSize = CGSize(width: (source.width * ratio).rounded(),
+                                           height: targetHeight)
+            }
             let textClips = project.tracks
                 .filter { $0.kind == .text }
                 .flatMap { $0.clips }

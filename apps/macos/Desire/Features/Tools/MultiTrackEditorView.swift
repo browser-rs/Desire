@@ -35,6 +35,12 @@ struct MultiTrackEditorView: View {
         }
     }
 
+    private var presetSummary: String {
+        let height = store.exportTargetHeight.map { "\(Int($0))p" }
+            ?? String(localized: "Source Resolution")
+        return store.exportAudioOnly ? String(localized: "Audio Only (m4a)") : height
+    }
+
     private var timelineHeight: CGFloat {
         let lanes = store.project.tracks.reduce(CGFloat(0)) { $0 + (Self.laneHeights[$1.kind] ?? 40) }
         return Self.rulerHeight + CGFloat(store.project.tracks.count) * Self.laneGap + lanes + 8
@@ -354,6 +360,25 @@ struct MultiTrackEditorView: View {
         HStack(spacing: 10) {
             switch store.exportState {
             case .idle:
+                Menu {
+                    Button(String(localized: "Source Resolution")) {
+                        store.exportTargetHeight = nil
+                    }
+                    Button("1080p") { store.exportTargetHeight = 1080 }
+                    Button("720p") { store.exportTargetHeight = 720 }
+                    Divider()
+                    Button(store.exportAudioOnly
+                           ? String(localized: "Video + Audio")
+                           : String(localized: "Audio Only (m4a)")) {
+                        store.exportAudioOnly.toggle()
+                    }
+                } label: {
+                    Label(presetSummary, systemImage: "slider.horizontal.3")
+                }
+                .menuStyle(.button)
+                .buttonStyle(.borderless)
+                .fixedSize()
+                .help(String(localized: "Export Preset"))
                 Button {
                     store.export()
                 } label: {
@@ -361,7 +386,10 @@ struct MultiTrackEditorView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
-                .disabled(store.projectDuration <= 0)
+                .disabled(store.projectDuration <= 0
+                          || (store.exportAudioOnly
+                              && !store.project.tracks.contains { $0.kind == .video && !$0.clips.isEmpty }
+                              && false))
             case .running(let progress):
                 ProgressView(value: progress)
                     .frame(maxWidth: 260)
@@ -743,6 +771,23 @@ private struct TimelineClipView: View {
         .offset(x: x)
         .contentShape(Rectangle().inset(by: 1))
         .onTapGesture { tapSelect(with: NSEvent.modifierFlags) }
+        .contextMenu {
+            Button(String(localized: "Split")) { store.splitAtPlayhead() }
+            Button(String(localized: "Duplicate")) { store.duplicateClip(clip.id) }
+            Button(track.kind == .video
+                   ? String(localized: "Cross Dissolve")
+                   : String(localized: "Toggle Mute")) {
+                if track.kind == .video {
+                    store.toggleCrossDissolve(after: clip.id)
+                } else {
+                    store.setAudioEffects(of: clip.id, volume: clip.volume == 0 ? 1 : 0)
+                }
+            }
+            Divider()
+            Button(String(localized: "Delete"), role: .destructive) {
+                store.deleteClips([clip.id])
+            }
+        }
         .gesture(moveGesture)
     }
 

@@ -1123,6 +1123,21 @@ extension BrowserToolProvider {
         ])
     )),
     AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "editTimeline",
+        description: "Build and export a video timeline (the same engine as the built-in multi-track editor). Add clips from local video/audio files onto the video or audio track (each with optional in-point and duration in seconds), optionally set per-clip speed (0.25-4) and volume (0-2), then export to mp4 (or m4a with no video clips). Export runs in the background - the output path comes back when it finishes; this call can take minutes for long timelines.",
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "clips": AgentJSONSchemaValue(type: "array", description: "Clips in timeline order", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [
+                "path": AgentJSONSchemaValue(type: "string", description: "Local video/audio file (workspace whitelist)"),
+                "in": AgentJSONSchemaValue(type: "number", description: "Source in-point, seconds (default 0)"),
+                "duration": AgentJSONSchemaValue(type: "number", description: "Timeline duration, seconds (default: full source from in-point)"),
+                "track": AgentJSONSchemaValue(type: "string", description: "video (default) or audio"),
+                "speed": AgentJSONSchemaValue(type: "number", description: "Playback speed 0.25-4 (default 1)"),
+                "volume": AgentJSONSchemaValue(type: "number", description: "Volume 0-2 (default 1)"),
+            ]))),
+            "exportPath": AgentJSONSchemaValue(type: "string", description: "Optional output file name (mp4/m4a extension decides container). Omit to only preview the plan (no export)."),
+        ], required: ["clips"])
+    )),
+    AgentToolDef(type: "function", function: AgentToolFunctionDef(
         name: "listArchive",
         description: "List the contents of a local .zip archive (names, sizes) without extracting. rar/7z are not supported. For extraction use runCommand with ditto (-x -k) within the workspace whitelist, or the UI 'Extract to…'.",
         parameters: AgentJSONSchema(type: "object", properties: [

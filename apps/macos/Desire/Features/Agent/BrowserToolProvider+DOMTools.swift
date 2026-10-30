@@ -3343,6 +3343,88 @@ extension BrowserToolProvider {
             if !errors.isEmpty { out += "; failures:\n" + errors.joined(separator: "\n") }
             return out
 
+        case "editTimeline":
+            // 多轨时间线 Agent 化（v0.8.28 批次二）：与内置编辑器共用
+            // TimelineCore + VideoEditorStore.export。片段按序首尾相接排上
+            // 对应轨道；exportPath 省略则只回显计划不导出。
+            guard let clipArgs = args["clips"] as? [[String: Any]], !clipArgs.isEmpty else {
+                return Self.fail("Missing clips (array of {path, in?, duration?, track?, speed?, volume?})")
+            }
+            var project = TimelineCore.Project()
+            var cursors: [String: Double] = [:]
+            var plan: [String] = []
+            for (index, arg) in clipArgs.enumerated() {
+                guard let rawPath = arg["path"] as? String, !rawPath.isEmpty else {
+                    return Self.fail("clips[\(index)] missing path")
+                }
+                let sourceURL: URL
+                switch AgentWorkspace.shared.resolve(rawPath, write: false) {
+                case .denied(let reason):
+                    return reason
+                case .granted(let url):
+                    sourceURL = url
+                }
+                let kindName = (arg["track"] as? String)?.lowercased() ?? "video"
+                guard let kind: TimelineCore.TrackKind = kindName == "audio" ? .audio : (kindName == "video" ? .video : nil) else {
+                    return Self.fail("clips[\(index)] track must be video or audio")
+                }
+                let inPoint = (arg["in"] as? NSNumber)?.doubleValue ?? 0
+                guard inPoint >= 0 else {
+                    return Self.fail("clips[\(index)] in must be >= 0")
+                }
+                let speed = min(4, max(0.25, (arg["speed"] as? NSNumber)?.doubleValue ?? 1))
+                let volume = min(2, max(0, (arg["volume"] as? NSNumber)?.doubleValue ?? 1))
+                let duration: Double
+                if let requested = (arg["duration"] as? NSNumber)?.doubleValue, requested > 0 {
+                    duration = requested
+                } else {
+                    guard let probed = await MediaEditProbe.duration(sourceURL), probed > inPoint else {
+                        return Self.fail("clips[\(index)] cannot probe duration of \(sourceURL.lastPathComponent) (or in-point beyond the end); pass duration explicitly")
+                    }
+                    duration = (probed - inPoint) / speed
+                }
+                guard let track = project.tracks.first(where: { $0.kind == kind }) else {
+                    return Self.fail("no \(kindName) track")
+                }
+                let start = cursors[kind.rawValue, default: 0]
+                let clip = TimelineCore.Clip(start: start, duration: duration,
+                                             sourceStart: inPoint, sourceURL: sourceURL,
+                                             label: sourceURL.lastPathComponent,
+                                             speed: speed, volume: volume)
+                guard let next = TimelineCore.upsertClip(project, trackID: track.id, clip: clip) else {
+                    return Self.fail("clips[\(index)] rejected (overlap or too short)")
+                }
+                project = next
+                cursors[kind.rawValue, default: 0] = start + duration
+                plan.append("\(kindName): \(sourceURL.lastPathComponent) in=\(String(format: "%.1f", inPoint))s dur=\(String(format: "%.1f", duration))s speed=\(String(format: "%.2g", speed)) vol=\(String(format: "%.2g", volume)) → at \(String(format: "%.1f", start))s")
+            }
+            let total = TimelineCore.projectDuration(project)
+            guard total > 0 else { return Self.fail("Timeline is empty") }
+            guard let exportName = args["exportPath"] as? String, !exportName.isEmpty else {
+                return "Timeline plan (\(String(format: "%.1f", total))s total, not exported):\n" + plan.joined(separator: "\n") + "\nPass exportPath to render."
+            }
+            let ext = (exportName as NSString).pathExtension.lowercased()
+            guard ["mp4", "m4a"].contains(ext) else {
+                return Self.fail("exportPath must end with .mp4 or .m4a")
+            }
+            let hasVideo = project.tracks.contains { $0.kind == .video && !$0.clips.isEmpty }
+            if !hasVideo && ext == "mp4" {
+                return Self.fail("No video clips — use .m4a for audio-only timelines")
+            }
+            let destination = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent((exportName as NSString).lastPathComponent)
+            do {
+                let rendered = try await VideoEditorStore.export(project: project) { _ in }
+                if rendered.path != destination.path {
+                    try? FileManager.default.moveItem(at: rendered, to: destination)
+                }
+            } catch is CancellationError {
+                return Self.fail("Export cancelled")
+            } catch {
+                return Self.fail("Export failed: \(error.localizedDescription)")
+            }
+            return "Exported \(String(format: "%.1f", total))s timeline → \(destination.path)\n" + plan.joined(separator: "\n")
+
         case "listArchive":
             // zip 条目清单（v0.8.12 旗舰 C）：不解包列内容 + 总大小。
             guard let listPath = args["path"] as? String, !listPath.isEmpty else { return Self.fail("Missing path") }

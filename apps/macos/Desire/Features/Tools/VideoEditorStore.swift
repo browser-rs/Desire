@@ -277,6 +277,18 @@ final class VideoEditorStore: ObservableObject {
         commit(TimelineCore.upsertClip(project, trackID: track.id, clip: clip))
     }
 
+    /// 源监视器的修剪插入：片段带源内入点，落在播放头（被占顺延）。
+    func insertTrimmed(source: SourceMedia, sourceStart: Double, duration: Double) {
+        let kind: TimelineCore.TrackKind = source.hasVideo ? .video : .audio
+        guard let track = project.tracks.first(where: { $0.kind == kind }) else { return }
+        let start = TimelineCore.makeInsertStart(project: project, trackID: track.id,
+                                                 at: playhead, duration: duration)
+        let clip = TimelineCore.Clip(start: start, duration: duration,
+                                     sourceStart: sourceStart, sourceURL: source.url,
+                                     label: source.name)
+        commit(TimelineCore.upsertClip(project, trackID: track.id, clip: clip))
+    }
+
     func addTextClip() {
         guard let track = project.tracks.first(where: { $0.kind == .text }) else { return }
         let start = TimelineCore.makeInsertStart(project: project, trackID: track.id,
@@ -532,7 +544,7 @@ final class VideoEditorStore: ObservableObject {
         return false
     }
 
-    private nonisolated static func export(project: TimelineCore.Project,
+    nonisolated static func export(project: TimelineCore.Project,
                                            progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
         let (composition, audioMix, videoConfig) = await buildComposition(project: project)
         let hasVideo = project.tracks.contains { $0.kind == .video && !$0.clips.isEmpty }

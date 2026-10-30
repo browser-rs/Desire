@@ -8,6 +8,8 @@ import UniformTypeIdentifiers
 struct MultiTrackEditorView: View {
     @Environment(\.appAccent) private var appAccent: Color
     @StateObject private var store = VideoEditorStore()
+    /// 源监视器正在查看的素材（nil = 关闭）。
+    @State private var monitoring: VideoEditorStore.SourceMedia?
 
     static let laneHeights: [TimelineCore.TrackKind: CGFloat] = [.text: 30, .video: 56, .audio: 40]
     static let laneGap: CGFloat = 6
@@ -20,12 +22,16 @@ struct MultiTrackEditorView: View {
                 .frame(height: 240)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
             zoomRow
+            sourcePool
             EditorTimeline(store: store, accent: appAccent)
                 .frame(height: timelineHeight)
             if store.selectedClip != nil {
                 inspectorRow
             }
             exportRow
+        }
+        .sheet(item: $monitoring) { _ in
+            sourceMonitor
         }
     }
 
@@ -120,6 +126,53 @@ struct MultiTrackEditorView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
         }
+    }
+
+    /// 素材池（v0.8.28 批次二）：点名字开源监视器，点 + 直接插入时间线。
+    @ViewBuilder
+    private var sourcePool: some View {
+        if !store.sources.isEmpty {
+            ScrollView([.horizontal]) {
+                HStack(spacing: 6) {
+                    ForEach(store.sources) { source in
+                        HStack(spacing: 5) {
+                            Button {
+                                monitoring = source
+                            } label: {
+                                Label(source.name, systemImage: source.hasVideo ? "film" : "waveform")
+                                    .font(.system(size: 10))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.primary)
+                            .help(String(localized: "Open in Source Monitor"))
+                            Button {
+                                store.insertSource(source)
+                            } label: {
+                                Image(systemName: "plus.circle")
+                                    .font(.system(size: 10))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(appAccent)
+                            .help(String(localized: "Insert at Playhead"))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(RoundedRectangle(cornerRadius: 6)
+                            .fill(Color(nsColor: .controlBackgroundColor)))
+                    }
+                }
+                .padding(.horizontal, 2)
+            }
+        }
+    }
+
+    /// 源监视器（剪映式）：预览 + 入出点修剪 + 插入播放头。
+    private var sourceMonitor: some View {
+        SourceMonitorSheet(source: monitoring!, store: store, onClose: { monitoring = nil })
+            .padding(24)
+            .frame(minWidth: 640)
     }
 
     private var zoomRow: some View {
@@ -754,5 +807,81 @@ private struct TimelineClipView: View {
             store.commit(TimelineCore.trimClip(store.project, clipID: clip.id,
                                                newDuration: clip.duration + delta))
         }
+    }
+}
+
+// MARK: - 源监视器（v0.8.28 批次二）
+
+/// 素材预览 + 入出点修剪：插入的片段带 sourceStart（源内入点），
+/// 时间线时长 = 出 - 入。与时间线插入口径一致（播放头，被占顺延）。
+private struct SourceMonitorSheet: View {
+    @Environment(\.appAccent) private var appAccent: Color
+    let source: VideoEditorStore.SourceMedia
+    @ObservedObject var store: VideoEditorStore
+    let onClose: () -> Void
+
+    @State private var player: AVPlayer?
+    @State private var inText = "0:00"
+    @State private var outText = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                Text(source.name)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Text(MediaEditCore.formatClock(source.duration))
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button {
+                    onClose()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 14))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+            }
+            MediaPlayerPreview(url: source.url, player: $player)
+                .frame(height: 220)
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            HStack(spacing: 14) {
+                MediaTimeField(label: String(localized: "In Point"), text: $inText)
+                MediaTimeField(label: String(localized: "Out Point"), text: $outText)
+                Button(String(localized: "Mark In")) {
+                    inText = MediaEditCore.formatTime(player?.currentTime().seconds ?? 0)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Button(String(localized: "Mark Out")) {
+                    outText = MediaEditCore.formatTime(player?.currentTime().seconds ?? 0)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                Spacer()
+                Button(String(localized: "Insert at Playhead")) { insert() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(trimmedDuration <= 0)
+            }
+        }
+        .onAppear {
+            outText = MediaEditCore.formatTime(source.duration)
+        }
+    }
+
+    private var trimmedDuration: Double {
+        guard let plan = MediaEditCore.trimPlan(startRaw: inText, endRaw: outText,
+                                                duration: source.duration) else { return 0 }
+        return plan.duration
+    }
+
+    private func insert() {
+        guard let plan = MediaEditCore.trimPlan(startRaw: inText, endRaw: outText,
+                                                duration: source.duration) else { return }
+        store.insertTrimmed(source: source, sourceStart: plan.start, duration: plan.duration)
+        onClose()
     }
 }

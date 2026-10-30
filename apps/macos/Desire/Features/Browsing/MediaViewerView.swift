@@ -27,6 +27,8 @@ struct MediaViewerView: View {
     @State private var flashIcon: String?
     @State private var flashTask: Task<Void, Never>?
     @State private var scrubTarget: Double?
+    /// 自持光标隐藏标志：NSCursor.hide/unhide 是计数栈，靠这个标志保证配对。
+    @State private var cursorHidden = false
 
     init(fileURL: URL, fileName: String, onBack: @escaping () -> Void,
          onEdit: (() -> Void)? = nil) {
@@ -68,10 +70,10 @@ struct MediaViewerView: View {
         .onDisappear {
             hideTask?.cancel()
             model.savePosition()
-            NSCursor.unhide()
+            setCursorHidden(false)
         }
         .onChange(of: playbackMode) { _, _ in
-            if !playbackMode { NSCursor.unhide() }
+            if !playbackMode { setCursorHidden(false) }
             scheduleHide()
         }
         .onChange(of: model.isPlaying) { _, _ in scheduleHide() }
@@ -428,24 +430,37 @@ struct MediaViewerView: View {
     // MARK: - 控制条显隐
 
     private func userActivity() {
-        if !controlsVisible {
-            withAnimation(.easeIn(duration: 0.15)) { controlsVisible = true }
-        }
+        setControlsVisible(true)
         scheduleHide()
+    }
+
+    /// 切换沿统一收口：NSCursor.hide/unhide 是**计数栈**，每轮 hide 会叠加、
+    /// 一次 unhide 解不开——只在状态变化的那一次配对调用。
+    private func setControlsVisible(_ visible: Bool) {
+        guard visible != controlsVisible else { return }
+        withAnimation(visible ? .easeIn(duration: 0.15) : .easeOut(duration: 0.3)) {
+            controlsVisible = visible
+        }
+        setCursorHidden(playbackMode && !visible)
+    }
+
+    private func setCursorHidden(_ hidden: Bool) {
+        guard hidden != cursorHidden else { return }
+        cursorHidden = hidden
+        if hidden { NSCursor.hide() } else { NSCursor.unhide() }
     }
 
     private func scheduleHide() {
         hideTask?.cancel()
         guard playbackMode, model.isPlaying else {
-            controlsVisible = true
-            NSCursor.unhide()
+            setControlsVisible(true)
+            setCursorHidden(false)
             return
         }
         hideTask = Task {
             try? await Task.sleep(for: .seconds(3))
-            guard !Task.isCancelled else { return }
-            withAnimation(.easeOut(duration: 0.3)) { controlsVisible = false }
-            if playbackMode { NSCursor.hide() }
+            guard !Task.isCancelled, playbackMode, model.isPlaying else { return }
+            setControlsVisible(false)
         }
     }
 

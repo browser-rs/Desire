@@ -20,7 +20,10 @@ nonisolated enum ToolsCrypto {
     }
 
     static func hash(_ text: String, algorithm: Algorithm) -> String {
-        let data = Data(text.utf8)
+        hash(Data(text.utf8), algorithm: algorithm)
+    }
+
+    static func hash(_ data: Data, algorithm: Algorithm) -> String {
         switch algorithm {
         case .md5:
             return Insecure.MD5.hash(data: data).map { String(format: "%02x", $0) }.joined()
@@ -37,5 +40,42 @@ nonisolated enum ToolsCrypto {
         let symmetric = SymmetricKey(data: Data(key.utf8))
         let signature = HMAC<SHA256>.authenticationCode(for: Data(text.utf8), using: symmetric)
         return signature.map { String(format: "%02x", $0) }.joined()
+    }
+
+    /// 文件摘要（分块读取，大文件不整读进内存）。
+    static func hashFile(_ url: URL, algorithm: Algorithm) -> String? {
+        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        defer { try? handle.close() }
+        let chunkSize = 1 << 20
+        switch algorithm {
+        case .md5:
+            var hasher = Insecure.MD5()
+            while let chunk = try? handle.read(upToCount: chunkSize), !chunk.isEmpty {
+                hasher.update(data: chunk)
+            }
+            return hex(hasher.finalize())
+        case .sha1:
+            var hasher = Insecure.SHA1()
+            while let chunk = try? handle.read(upToCount: chunkSize), !chunk.isEmpty {
+                hasher.update(data: chunk)
+            }
+            return hex(hasher.finalize())
+        case .sha256:
+            var hasher = SHA256()
+            while let chunk = try? handle.read(upToCount: chunkSize), !chunk.isEmpty {
+                hasher.update(data: chunk)
+            }
+            return hex(hasher.finalize())
+        case .sha512:
+            var hasher = SHA512()
+            while let chunk = try? handle.read(upToCount: chunkSize), !chunk.isEmpty {
+                hasher.update(data: chunk)
+            }
+            return hex(hasher.finalize())
+        }
+    }
+
+    private static func hex<D: Sequence>(_ digest: D) -> String where D.Element == UInt8 {
+        digest.map { String(format: "%02x", $0) }.joined()
     }
 }

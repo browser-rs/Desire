@@ -8,6 +8,7 @@ enum ToolCategory: String, CaseIterable, Identifiable {
     case dev
     case text
     case generate
+    case security
 
     var id: String { rawValue }
 
@@ -19,6 +20,7 @@ enum ToolCategory: String, CaseIterable, Identifiable {
         case .dev: return String(localized: "Developer")
         case .text: return String(localized: "Text")
         case .generate: return String(localized: "Generate & Graphics")
+        case .security: return String(localized: "Security & Checks")
         }
     }
 
@@ -30,6 +32,7 @@ enum ToolCategory: String, CaseIterable, Identifiable {
         case .dev: return "hammer"
         case .text: return "textformat"
         case .generate: return "wand.and.stars"
+        case .security: return "lock.shield"
         }
     }
 }
@@ -49,6 +52,11 @@ enum ToolID: String, CaseIterable, Identifiable {
     case text
     // 生成与图形
     case qr, password
+    // 扩展批（2026-10-30）
+    case random, imageConvert
+    case morse, dataURI, width, csvJSON
+    case diff, xml, sql, urlParse, cidr, httpStatus, mime, userAgent, cron
+    case aes, hmac, fileHash, idCard, luhn
 
     var id: String { rawValue }
 
@@ -59,7 +67,10 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .base64, .url, .html, .unicode, .hex: return .codec
         case .hash, .json, .regex, .jwt, .uuid: return .dev
         case .text: return .text
-        case .qr, .password: return .generate
+        case .qr, .password, .random, .imageConvert: return .generate
+        case .morse, .dataURI, .width, .csvJSON: return .codec
+        case .diff, .xml, .sql, .urlParse, .cidr, .httpStatus, .mime, .userAgent, .cron: return .dev
+        case .aes, .hmac, .fileHash, .idCard, .luhn: return .security
         }
     }
 
@@ -71,7 +82,7 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .url: return String(localized: "URL Encode")
         case .json: return String(localized: "JSON")
         case .text: return String(localized: "Text")
-        case .number: return String(localized: "Numbers")
+        case .number: return String(localized: "Number Bases")
         case .uuid: return String(localized: "UUID")
         case .color: return String(localized: "Color")
         case .qr: return String(localized: "QR Code")
@@ -88,6 +99,26 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .unicode: return String(localized: "Unicode Escape")
         case .hex: return String(localized: "Hex Codec")
         case .regex: return String(localized: "Regex Test")
+        case .random: return String(localized: "Random")
+        case .imageConvert: return String(localized: "Image Convert")
+        case .morse: return String(localized: "Morse Code")
+        case .dataURI: return String(localized: "Data URI")
+        case .width: return String(localized: "Full/Half Width")
+        case .csvJSON: return String(localized: "CSV ↔ JSON")
+        case .diff: return String(localized: "Text Diff")
+        case .xml: return String(localized: "XML")
+        case .sql: return String(localized: "SQL Formatter")
+        case .urlParse: return String(localized: "URL Parser")
+        case .cidr: return String(localized: "IP / CIDR")
+        case .httpStatus: return String(localized: "HTTP Status")
+        case .mime: return String(localized: "MIME Types")
+        case .userAgent: return String(localized: "User Agent")
+        case .cron: return String(localized: "Cron")
+        case .aes: return String(localized: "AES Encrypt")
+        case .hmac: return String(localized: "HMAC-SHA256")
+        case .fileHash: return String(localized: "File Hash")
+        case .idCard: return String(localized: "ID Card Check")
+        case .luhn: return String(localized: "Luhn Check")
         }
     }
 
@@ -116,6 +147,26 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .unicode: return String(localized: "Convert text to \\uXXXX escapes and back (surrogate pairs supported)")
         case .hex: return String(localized: "Convert text to hex bytes and back")
         case .regex: return String(localized: "Test a regular expression against text")
+        case .random: return String(localized: "Random strings and numbers")
+        case .imageConvert: return String(localized: "Convert an image and/or downscale its longest side")
+        case .morse: return String(localized: "Encode text to Morse code and back")
+        case .dataURI: return String(localized: "Text or files to data: URIs and back")
+        case .width: return String(localized: "Convert between full-width and half-width characters")
+        case .csvJSON: return String(localized: "Convert CSV to JSON or JSON to CSV")
+        case .diff: return String(localized: "Compare two texts line by line")
+        case .xml: return String(localized: "Format, compact or validate XML")
+        case .sql: return String(localized: "Uppercase keywords and break SQL into clauses")
+        case .urlParse: return String(localized: "Break a URL into scheme, host, path and query")
+        case .cidr: return String(localized: "IPv4 network, broadcast, mask and host range")
+        case .httpStatus: return String(localized: "Look up common HTTP status codes")
+        case .mime: return String(localized: "Extension ↔ MIME type lookup")
+        case .userAgent: return String(localized: "Guess browser, OS and engine from a UA string")
+        case .cron: return String(localized: "Explain a 5-field cron expression and show next runs")
+        case .aes: return String(localized: "AES-GCM encrypt/decrypt with a passphrase (PBKDF2)")
+        case .hmac: return String(localized: "HMAC-SHA256 signature of text with a key")
+        case .fileHash: return String(localized: "MD5/SHA hashes of a local file")
+        case .idCard: return String(localized: "Validate a Chinese 18-digit ID number")
+        case .luhn: return String(localized: "Validate a card number or compute its check digit")
         }
     }
 
@@ -144,6 +195,26 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .unicode: return "globe.asia.australia"
         case .hex: return "number.square"
         case .regex: return "magnifyingglass.circle"
+        case .random: return "dice"
+        case .imageConvert: return "photo.on.rectangle.angled"
+        case .morse: return "dot.radiowaves.left.and.right"
+        case .dataURI: return "doc.badge.gearshape"
+        case .width: return "arrow.left.and.right.square"
+        case .csvJSON: return "tablecells"
+        case .diff: return "plusminus.circle"
+        case .xml: return "chevron.left.forwardslash.chevron.right"
+        case .sql: return "cylinder"
+        case .urlParse: return "link.badge.plus"
+        case .cidr: return "network"
+        case .httpStatus: return "number.circle"
+        case .mime: return "doc.questionmark"
+        case .userAgent: return "person.crop.circle.badge.questionmark"
+        case .cron: return "calendar.badge.clock"
+        case .aes: return "lock"
+        case .hmac: return "signature"
+        case .fileHash: return "doc.badge.ellipsis"
+        case .idCard: return "person.text.rectangle"
+        case .luhn: return "creditcard"
         }
     }
 
@@ -174,6 +245,26 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .password: keywords = ["密码", "随机", "生成"]
         case .text: keywords = ["文本", "大小写", "排序", "去重", "统计"]
         case .number: keywords = ["进制", "二进制", "十六进制", "八进制"]
+        case .random: keywords = ["随机", "抽签", "验证码", "random"]
+        case .imageConvert: keywords = ["图片", "转换", "压缩", "jpg", "png", "heic"]
+        case .morse: keywords = ["摩斯", "电码", "morse"]
+        case .dataURI: keywords = ["data uri", "base64", "内联", "图片"]
+        case .width: keywords = ["全角", "半角", "width"]
+        case .csvJSON: keywords = ["csv", "json", "表格", "转换"]
+        case .diff: keywords = ["对比", "差异", "diff", "比较"]
+        case .xml: keywords = ["xml", "格式化", "校验"]
+        case .sql: keywords = ["sql", "格式化", "数据库"]
+        case .urlParse: keywords = ["url", "解析", "参数", "查询"]
+        case .cidr: keywords = ["ip", "cidr", "子网", "网段", "掩码"]
+        case .httpStatus: keywords = ["状态码", "http", "404", "500"]
+        case .mime: keywords = ["mime", "类型", "扩展名"]
+        case .userAgent: keywords = ["ua", "浏览器", "user agent"]
+        case .cron: keywords = ["cron", "定时", "计划", "表达式"]
+        case .aes: keywords = ["加密", "解密", "aes", "对称"]
+        case .hmac: keywords = ["签名", "hmac", "密钥"]
+        case .fileHash: keywords = ["文件", "摘要", "哈希", "md5", "sha"]
+        case .idCard: keywords = ["身份证", "校验", "生日"]
+        case .luhn: keywords = ["银行卡", "信用卡", "校验位", "luhn"]
         }
         return ([rawValue, title, subtitle] + keywords).joined(separator: " ")
     }

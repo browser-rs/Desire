@@ -7509,6 +7509,143 @@ func testToolboxCodecs() {
 
 testToolboxCodecs()
 
+
+func testToolboxExpansionCores() {
+    // 文本 diff
+    let rows = DiffCore.diff(old: "a\nb\nc", new: "a\nx\nc")
+    eq("diff：行数", rows.count, 4)
+    eq("diff：删除行", rows[1].kind, .delete)
+    eq("diff：插入行", rows[2].kind, .insert)
+    eq("diff：统计", DiffCore.stats(rows).inserted, 1)
+    eq("diff：删除统计", DiffCore.stats(rows).deleted, 1)
+
+    // XML
+    if case .success(let formatted) = XMLCore.format("<root><a>1</a></root>") {
+        check("XML：格式化换行", formatted.contains("\n") && formatted.contains("<a>1</a>"))
+    } else { check("XML：格式化成功", false) }
+    check("XML：非法文档", XMLCore.validate("<root><a></root>") != nil)
+    check("XML：合法文档", XMLCore.validate("<root><a>1</a></root>") == nil)
+
+    // 摩斯
+    eq("摩斯：编码", MorseCore.encode("SOS"), "... --- ...")
+    if case .success(let decoded) = MorseCore.decode("... --- ...") {
+        eq("摩斯：解码", decoded, "SOS")
+    } else { check("摩斯：解码成功", false) }
+    if case .failure = MorseCore.decode("... ?") {} else { check("摩斯：未知码", false) }
+
+    // Data URI
+    let uri = DataURICore.make(text: "hello", mime: "text/plain")
+    check("DataURI：前缀", uri.hasPrefix("data:text/plain;base64,"))
+    if case .success(let parsed) = DataURICore.parse(uri) {
+        eq("DataURI：解析文本", parsed.text, "hello")
+        eq("DataURI：解析 mime", parsed.mime, "text/plain")
+    } else { check("DataURI：解析成功", false) }
+    if case .failure = DataURICore.parse("not a uri") {} else { check("DataURI：非法输入", false) }
+
+    // CSV → JSON
+    if case .success(let json) = CSVJSONCore.csvToJSON("name,age\n\"a,b\",2") {
+        check("CSVJSON：引号字段", json.contains("\"a,b\"") && json.contains("\"age\""))
+    } else { check("CSVJSON：转换成功", false) }
+    eq("CSVJSON：空输入失败", {
+        if case .failure = CSVJSONCore.csvToJSON("") { return true }
+        return false
+    }(), true)
+    eq("CSVJSON：CRLF 解析", CSVJSONCore.parseCSV("a,b\r\n1,2").count, 2)
+
+    // URL 解析
+    if let info = URLParseCore.parse("https://user@example.com:8080/a/b?x=1&y=2#frag") {
+        eq("URL：scheme", info.scheme, "https")
+        eq("URL：host", info.host, "example.com")
+        eq("URL：port", info.port, 8080)
+        eq("URL：query 数", info.query.count, 2)
+        eq("URL：fragment", info.fragment, "frag")
+    } else { check("URL：解析成功", false) }
+    check("URL：裸域补 https", URLParseCore.parse("example.com/a")?.scheme == "https")
+
+    // CIDR
+    if case .success(let cidr) = CIDRCore.parse("192.168.1.10/24") {
+        eq("CIDR：网络地址", cidr.network, "192.168.1.0")
+        eq("CIDR：广播地址", cidr.broadcast, "192.168.1.255")
+        eq("CIDR：可用主机数", cidr.hostCount, 254)
+        check("CIDR：私网识别", cidr.isPrivate)
+        eq("CIDR：首主机", cidr.firstHost, "192.168.1.1")
+    } else { check("CIDR：解析成功", false) }
+    if case .success(let single) = CIDRCore.parse("10.0.0.1") {
+        eq("CIDR：单地址主机数", single.hostCount, 1)
+    } else { check("CIDR：单地址", false) }
+    if case .failure = CIDRCore.parse("999.1.1.1/24") {} else { check("CIDR：非法地址", false) }
+
+    // HTTP / MIME / UA
+    eq("HTTP：404", HTTPStatusCore.lookup(404)?.title, "Not Found")
+    eq("HTTP：搜索", HTTPStatusCore.search("gateway").count, 2)
+    eq("MIME：png", MIMECore.mime(forExtension: "PNG"), "image/png")
+    eq("MIME：反查", MIMECore.extensions(forMIME: "text/html"), ["htm", "html"])
+    let chromeUA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    eq("UA：Chrome", UACore.parse(chromeUA)?.browser, "Chrome")
+    eq("UA：macOS", UACore.parse(chromeUA)?.os, "macOS")
+    let safariUA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+    eq("UA：Safari", UACore.parse(safariUA)?.browser, "Safari")
+    eq("UA：iOS", UACore.parse(safariUA)?.os, "iOS")
+
+    // Cron
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "UTC")!
+    let base = calendar.date(from: DateComponents(year: 2026, month: 1, day: 5, hour: 8, minute: 7))!
+    if case .success(let runs) = CronCore.nextRuns("*/15 * * * *", from: base, count: 3, calendar: calendar) {
+        eq("Cron：每 15 分钟", runs.count, 3)
+        eq("Cron：首分钟", calendar.component(.minute, from: runs[0]), 15)
+    } else { check("Cron：每 15 分钟成功", false) }
+    if case .success(let weekdays) = CronCore.nextRuns("0 9 * * 1-5", from: base, count: 1, calendar: calendar) {
+        let weekday = calendar.component(.weekday, from: weekdays[0])
+        check("Cron：工作日", weekday != 1 && weekday != 7)
+        eq("Cron：九点", calendar.component(.hour, from: weekdays[0]), 9)
+    } else { check("Cron：工作日成功", false) }
+    if case .failure = CronCore.parse("bad") {} else { check("Cron：非法表达式", false) }
+
+    // 身份证 / 银行卡
+    if case .success(let id) = IDCardCore.validate("11010519491231002X") {
+        eq("身份证：生日", id.birthDate, "1949-12-31")
+        eq("身份证：性别", id.gender, "Female")
+    } else { check("身份证：校验成功", false) }
+    if case .failure = IDCardCore.validate("110105194912310021") {} else { check("身份证：错误校验位", false) }
+    if case .success(let valid) = LuhnCore.validate("79927398713") {
+        check("Luhn：有效号", valid)
+    } else { check("Luhn：校验成功", false) }
+    if case .success(let digit) = LuhnCore.checkDigit(for: "7992739871") {
+        eq("Luhn：校验位", digit, 3)
+    } else { check("Luhn：校验位成功", false) }
+
+    // 全角 / 随机
+    let full = WidthCore.toFullWidth("ABC 123")
+    eq("全角：转换", full, "ＡＢＣ　１２３")
+    eq("全角：回转", WidthCore.toHalfWidth(full), "ABC 123")
+    let strings = RandomCore.strings(length: 8, alphabet: "ab", count: 3)
+    eq("随机：条数", strings.count, 3)
+    check("随机：字符集", strings.allSatisfy { $0.count == 8 && $0.allSatisfy { "ab".contains($0) } })
+    let unique = RandomCore.integers(min: 1, max: 3, count: 10, unique: true)
+    eq("随机：唯一整数", Set(unique).count, unique.count)
+    eq("随机：唯一上限", unique.count, 3)
+
+    // AES（测试用较短迭代）
+    if case .success(let encrypted) = AESCrypto.encrypt("hello 世界", password: "pw", iterations: 1200) {
+        if case .success(let decrypted) = AESCrypto.decrypt(encrypted, password: "pw", iterations: 1200) {
+            eq("AES：往返", decrypted, "hello 世界")
+        } else { check("AES：解密成功", false) }
+        if case .failure = AESCrypto.decrypt(encrypted, password: "wrong", iterations: 1200) {} else {
+            check("AES：错误口令拒绝", false)
+        }
+    } else { check("AES：加密成功", false) }
+
+    eq("摘要：Data 哈希", ToolsCrypto.hash(Data("abc".utf8), algorithm: .sha256).prefix(8), "ba7816bf")
+    let sql = SQLToolCore.format("select a,b from t where x=1 and y=2")
+    check("SQL：关键字大写", sql.contains("SELECT"))
+    check("SQL：FROM 换行", sql.contains("\n  FROM"))
+    check("SQL：WHERE 换行", sql.contains("\n  WHERE"))
+    check("SQL：AND 缩进", sql.contains("\n  AND"))
+}
+
+testToolboxExpansionCores()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

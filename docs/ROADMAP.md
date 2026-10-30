@@ -4306,6 +4306,8 @@ v0.8.1 的菜单入口只有"移交会话"，这版补齐：
 18. ✅ 页面重构：`ToolboxCatalog` 注册表（分类/图标/关键词）+ 23 个工具、收藏与最近使用（`ToolboxUsageStore`）、搜索、分类分组侧栏、首页卡片网格、详情页图标头 + 收藏星标。
 19. ✅ 新增 11 个工具：房贷计算器（等额本息/等额本金 + 还款计划表）、存款计算器（复利/单利 + 定投）、百分比、科学计算器、BMI、日期计算器（天数/工作日/加减）、单位换算、HTML 实体、Unicode 转义、Hex 编解码、正则测试；JSON 工具补"转 CSV"。
 20. ✅ `desire://tools[/<tool>]` 路由：地址栏、桥 `/navigate` `/new-tab`、`/state` 的 `toolsPage`/`tool` 字段、复制标签、goBack 关闭；会话保存退化为空白新标签；菜单 Tools ▸ Utility Toolbox；深链直达（如 `desire://tools/mortgage`）。
+21. ✅ 工具扩充第二批（43 项）：文本 diff、XML/SQL 美化、摩斯、Data URI、全角/半角、CSV↔JSON、URL 解析、IP/CIDR、HTTP 状态码、MIME、UA、Cron、AES-GCM、HMAC、文件摘要、随机生成、身份证/Luhn 校验、图片转换；悬浮球能力新增「工具箱」。
+22. ✅ 新增纯逻辑与断言：`DiffCore` / `XMLCore` / `SQLToolCore` / `MorseCore` / `DataURICore` / `CSVJSONCore` / `URLParseCore` / `NetworkToolsCore` / `CronCore` / `ValidationToolsCore` / `AESCrypto`；harness 2184/0。
 
 ### v0.8.25 规划稿（扩充版，2026-10-30）—— 基础框架补齐 + Agent 可靠性
 

@@ -277,6 +277,26 @@ extension AgentBallPanel {
             CommandBus.shared.send(.toggleFind)
         case .bookmarkPage:
             CommandBus.shared.send(.bookmarkPage)
+        case .toolbox:
+            openToolbox()
+        }
+    }
+
+    /// 打开内置工具集合（v0.8.27）：优先复用当前页标签，没有标签则新开。
+    private func openToolbox() {
+        guard let manager = TabSessionCoordinator.shared.activeTabManager else {
+            flashToast("没有可用窗口")
+            return
+        }
+        let destination = InternalPages.Destination(urlString: "desire://tools", toolID: nil)
+        if let tab = pageTabProvider?() ?? manager.selectedTab {
+            InternalPages.open(destination, in: tab)
+            return
+        }
+        let existing = Set(manager.tabs.map(\.id))
+        manager.addTab(makeActive: true)
+        if let created = manager.tabs.first(where: { !existing.contains($0.id) }) {
+            InternalPages.open(destination, in: created)
         }
     }
 

@@ -3,7 +3,7 @@
 地址栏输入 `desire://tools` 打开全部工具；`desire://tools/<id>` 直达某个工具；
 菜单 **Tools ▸ Utility Toolbox** 也可打开。左侧按分类分组（收藏 / 最近使用 /
 计算器 / 时间与换算 / 编码转换 / 开发工具 / 文本处理 / 生成与图形），
-支持搜索；首页是卡片网格。左侧栏可拖动（180–380pt；拖动期间不写偏好，松手后记住宽度）。全部端上计算，无网络请求。
+支持搜索；首页是卡片网格。左侧栏可拖动（180–380pt；拖动期间不写偏好，松手后记住宽度）。悬浮球的「全部能力」里新增「工具箱」，一键进入本页。全部端上计算，无网络请求。
 
 ## 计算器
 | id | 工具 | 说明 |
@@ -59,3 +59,43 @@ ToolboxComponents；目录与元数据在 ToolboxCatalog）。
 **只有安装了注册该 scheme 的版本后**，从 Finder / 其他应用点开深链才会生效；
 旧版本会弹 macOS「未设定用来打开 URL 的应用程序」。自动化可用桥
 `POST /open-url {"url":"desire://tools/mortgage"}`。
+
+## 扩展批（43 项，2026-10-30）
+### 计算器 / 时间
+（原有：房贷、存款、百分比、科学计算器、BMI、时间戳、日期、单位、进制、颜色）
+
+### 编码转换（新增）
+| id | 工具 | 说明 |
+|---|---|---|
+| morse | 摩斯电码 | 文本 ↔ Morse（字母/数字/常用标点） |
+| dataURI | Data URI | 文本或文件 → data URI；URI → 文本/二进制大小 |
+| width | 全角/半角 | ASCII ↔ 全角字符互转 |
+| csvJSON | CSV ↔ JSON | RFC4180 解析；JSON 表格化导出 CSV |
+
+### 开发工具（新增）
+| id | 工具 | 说明 |
+|---|---|---|
+| diff | 文本对比 | 行级 LCS diff，+/- 统计 |
+| xml | XML | 格式化 / 压缩 / 校验 |
+| sql | SQL 美化 | 关键字大写 + 子句换行 + AND/OR 缩进 |
+| urlParse | URL 解析 | scheme/host/port/path/query/fragment |
+| cidr | IP / CIDR | 网络/广播/掩码/主机范围/私网判断 |
+| httpStatus | HTTP 状态码 | 常见状态码查询 |
+| mime | MIME 类型 | 扩展名 ↔ MIME |
+| userAgent | User-Agent | 浏览器/系统/内核识别 |
+| cron | Cron | 5 段表达式 + 接下来 5 次运行 |
+
+### 安全与校验（新增）
+| id | 工具 | 说明 |
+|---|---|---|
+| aes | AES 加解密 | AES-GCM + PBKDF2-SHA256（6 万轮） |
+| hmac | HMAC-SHA256 | 文本 + 密钥签名 |
+| fileHash | 文件摘要 | 流式 MD5/SHA-1/256/512 |
+| idCard | 身份证校验 | 18 位校验位/生日/性别（本机） |
+| luhn | 银行卡 Luhn | 卡号校验 / 计算校验位 |
+
+### 生成与图形（新增）
+| id | 工具 | 说明 |
+|---|---|---|
+| random | 随机生成 | 随机字符串/整数（可去重） |
+| imageConvert | 图片转换 | PNG/JPEG/HEIC/TIFF + 长边缩放 |

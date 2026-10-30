@@ -6605,6 +6605,7 @@ testAgentWorkReport()
 testSemanticClusterAndDigest()
 testPostActionVerifier()
 testPeekReplay()
+testHistoryInsights()
 
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
@@ -6907,6 +6908,32 @@ func testPeekReplay() {
     eq("replay：条数上限", PeekReplayCore.format(entries, limit: 2).components(separatedBy: " → ").count, 2)
     eq("replay：空输入", PeekReplayCore.format([]), "")
     check("replay：未知类型也能渲染", PeekReplayCore.format([PeekReplayEntry(kind: "scroll", label: "down")]).contains("scroll"))
+}
+
+func testHistoryInsights() {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "UTC")!
+    let now = calendar.date(from: DateComponents(year: 2026, month: 10, day: 30, hour: 12))!
+    func entry(_ url: String, _ hoursAgo: Int, _ visits: Int = 1) -> HistoryEntry {
+        HistoryEntry(id: UUID(), url: url, title: "t",
+                     timestamp: now.addingTimeInterval(-Double(hoursAgo) * 3600),
+                     visitCount: visits)
+    }
+    let entries = [
+        entry("https://www.example.com/a", 1, 3),
+        entry("https://example.com/b", 2, 2),
+        entry("https://other.org/x", 26, 1),
+        entry("https://old.net/y", 24 * 9, 1),
+    ]
+    let insights = HistoryInsightsBuilder.build(from: entries, now: now, calendar: calendar)
+    eq("insights：总访问", insights.totalVisits, 7)
+    eq("insights：站点数", insights.uniqueSites, 3)
+    eq("insights：Top 站合并 www 与裸域", insights.topSites.first, HistoryInsights.Site(host: "example.com", visits: 5))
+    eq("insights：Top 站次序（同分按 host）", insights.topSites.map(\.host), ["example.com", "old.net", "other.org"])
+    eq("insights：小时桶总数（含窗口外）", insights.hourly.reduce(0, +), 7)
+    eq("insights：7 天窗口含今天", insights.lastSevenDays.last, 5)
+    eq("insights：窗口外不计", insights.lastSevenDays.reduce(0, +), 6)
+    eq("insights：host 归一", HistoryInsightsBuilder.host(of: "https://www.Example.com/x"), "example.com")
 }
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

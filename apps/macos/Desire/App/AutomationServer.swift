@@ -622,6 +622,7 @@ final class AutomationServer {
         ep("GET", "/peek", "Peek (user-assist) state: active request, last resolution, locked surface count", example: "…/peek")
         ep("POST", "/peek", "Peek control: request / open / resolve / dismiss", params: ["action:string", "reason?:string", "needsPage?:bool"], example: "-d '{\"action\":\"request\",\"reason\":\"请登录\"}'")
         ep("POST", "/page/read-ephemeral", "Read a page in a throwaway in-memory session (no cookies/sessions touch the user profile)", params: ["url:string", "maxChars?:int"], example: "-d '{\"url\":\"https://example.com\"}'")
+        ep("GET", "/history/insights", "Local history analytics: totals, top sites, 24h distribution, last 7 days", example: "…/history/insights")
         ep("GET", "/site-data", "Per-site website data (displayName + normalized types); optional container by name", params: ["container?:string"], example: "…/site-data")
         ep("POST", "/site-data/remove", "Remove site data by displayName, optionally only some types (cookies/cache/localstorage/indexeddb…)", params: ["displayName:string", "types?:[string]", "container?:string"], example: "-d '{\"displayName\":\"example.com\",\"types\":[\"cookies\"]}'")
         ep("POST", "/cookies/seed", "Copy this Mac's cookies into a container (login-state snapshot; localStorage/IndexedDB not migrated)", params: ["name?:string (default Agent)"], example: "-d '{\"name\":\"Agent\"}'")
@@ -2939,6 +2940,18 @@ final class AutomationServer {
                     "title": read.title, "url": read.finalURL,
                     "chars": read.text.count, "truncated": read.truncated,
                     "text": String(read.text.prefix(cap)),
+                ])
+            case ("GET", "/history/insights"):
+                let entries = AppState.live?.historyStore.entries ?? []
+                let insights = HistoryInsightsBuilder.build(from: entries)
+                return try Self.json([
+                    "totalVisits": insights.totalVisits,
+                    "uniqueSites": insights.uniqueSites,
+                    "topSites": insights.topSites.map {
+                        ["host": $0.host, "visits": $0.visits]
+                    },
+                    "hourly": insights.hourly,
+                    "lastSevenDays": insights.lastSevenDays,
                 ])
             case ("GET", "/site-data"):
                 let store = Self.siteDataStore(named: Self.string(query, "container"))

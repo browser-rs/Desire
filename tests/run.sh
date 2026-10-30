@@ -188,6 +188,7 @@ SOURCES=(
   apps/macos/Desire/Features/Research/ResearchRanking.swift
   apps/macos/Desire/Features/Research/DocumentResearch.swift
   apps/macos/Desire/Features/History/HistoryContentIndex.swift
+  apps/macos/Desire/Features/History/HistoryInsights.swift
   apps/macos/Desire/Features/BrowserImport/BrowserImport.swift
   apps/macos/Desire/Features/BrowserImport/ChromiumBookmarksParser.swift
   apps/macos/Desire/Features/BrowserImport/SafariBookmarksParser.swift

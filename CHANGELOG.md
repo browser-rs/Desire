@@ -11,6 +11,8 @@
 - Archive viewer: multi-select entries with "Extract Selected", extracting only the chosen paths via unzip (v0.8.26)
 - "Open With" / default-handler support for local office files: system file-open events (and the new `POST /open-file` bridge endpoint) route PDFs, tables, images, archives, JSON, PPTX, documents and media into the same viewers used by drag-and-drop and the address bar — previously file URLs were dropped silently (v0.8.26)
 - Built-in toolbox: `desire://tools` (or Tools ▸ Utility Toolbox) opens a 12-tool workbench inside a tab — hash (MD5/SHA-1/256/512), timestamp converter (seconds/ms auto-detected, local/UTC/ISO/relative), Base64, URL encoding, JSON format/minify/sort/validate, text case/line tools with stats, number bases, UUID batch, HEX↔RGB color, QR code image, password generator and a JWT decoder (no signature check); deep links like `desire://tools/timestamp`, bridge `/state` exposes `toolsPage`/`tool` (v0.8.26)
+- Toolbox redesign and expansion: 23 tools grouped into Calculators / Time & Units / Encoding / Developer / Text / Generate, with a searchable sidebar, favorites and recently-used sections, an all-tools card grid and a tool detail page with a favorite star; new calculators (mortgage with full amortization schedule, savings/compound interest, percentages, scientific expression calculator, BMI), date calculator, unit converter (8 categories), HTML entity / Unicode / hex codecs, regex tester; JSON gains "To CSV" (v0.8.26)
+
 
 
 

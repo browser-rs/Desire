@@ -7353,6 +7353,162 @@ func testToolboxCore() {
 
 testToolboxCore()
 
+
+func testFinanceCalcCore() {
+    func near(_ a: Double?, _ b: Double, _ tolerance: Double = 0.01) -> Bool {
+        guard let a else { return false }
+        return abs(a - b) <= tolerance
+    }
+    if let result = MortgageCore.calculate(principal: 1_000_000, annualRate: 4.9,
+                                           years: 30, method: .equalPayment) {
+        check("房贷：等额本息月供", near(result.monthlyPayment, 5307.27, 1.0))
+        check("房贷：总利息", near(result.totalInterest, 910_616, 2000))
+        eq("房贷：期数", result.months, 360)
+        eq("房贷：计划表行数", result.schedule.count, 360)
+        check("房贷：末期余额归零", near(result.schedule.last?.balance, 0, 0.5))
+    } else { check("房贷：等额本息计算", false) }
+    if let result = MortgageCore.calculate(principal: 1_000_000, annualRate: 4.9,
+                                           years: 30, method: .equalPrincipal) {
+        check("房贷：等额本金首月", near(result.firstPayment, 6861.11, 1.0))
+        check("房贷：等额本金末月", near(result.lastPayment, 2788.34, 1.0))
+        check("房贷：等额本金总利息", near(result.totalInterest, 737_042, 2000))
+    } else { check("房贷：等额本金计算", false) }
+    if let zero = MortgageCore.calculate(principal: 120_000, annualRate: 0,
+                                         years: 10, method: .equalPayment) {
+        check("房贷：零利率", near(zero.monthlyPayment, 1000, 0.01))
+        check("房贷：零利率无利息", near(zero.totalInterest, 0, 0.01))
+    } else { check("房贷：零利率计算", false) }
+    check("房贷：非法参数", MortgageCore.calculate(principal: 0, annualRate: 4, years: 30,
+                                               method: .equalPayment) == nil)
+
+    if let result = SavingsCore.calculate(principal: 10_000, annualRate: 5, years: 10,
+                                          compounding: .annually) {
+        check("存款：年复利终值", near(result.finalAmount, 16_288.95, 1))
+        check("存款：年复利利息", near(result.interest, 6_288.95, 1))
+        check("存款：有效年利率", near(result.effectiveAnnualRate, 0.05, 0.0001))
+    } else { check("存款：年复利", false) }
+    if let simple = SavingsCore.calculate(principal: 10_000, annualRate: 5, years: 10,
+                                          compounding: .simple) {
+        check("存款：单利终值", near(simple.finalAmount, 15_000, 0.5))
+    } else { check("存款：单利", false) }
+    if let monthly = SavingsCore.calculate(principal: 0, annualRate: 0, years: 1,
+                                           compounding: .monthly, monthlyContribution: 100) {
+        check("存款：零利率定投", near(monthly.finalAmount, 1200, 0.01))
+    } else { check("存款：零利率定投计算", false) }
+
+    check("百分比：占比值", PercentCore.percentOf(value: 150, percent: 20) == 30)
+    check("百分比：部分占比", PercentCore.ratio(part: 30, of: 150) == 20)
+    check("百分比：增长", PercentCore.change(from: 100, to: 120) == 20)
+    check("百分比：下降", abs((PercentCore.change(from: 120, to: 100) ?? 0) + 16.6667) < 0.01)
+    check("百分比：除零", PercentCore.ratio(part: 1, of: 0) == nil)
+
+    check("BMI：数值", near(BMICore.bmi(heightCM: 175, weightKG: 70), 22.857, 0.01))
+    eq("BMI：正常", BMICore.category(for: 22.8), .normal)
+    eq("BMI：偏瘦", BMICore.category(for: 18.0), .underweight)
+    eq("BMI：超重", BMICore.category(for: 26.0), .overweight)
+    eq("BMI：肥胖", BMICore.category(for: 29.0), .obese)
+}
+
+testFinanceCalcCore()
+
+func testUnitConvertCore() {
+    func near(_ a: Double?, _ b: Double, _ tolerance: Double = 0.0001) -> Bool {
+        guard let a else { return false }
+        return abs(a - b) <= tolerance
+    }
+    check("单位：千米→米", near(UnitConvertCore.convert(1, from: "km", to: "m", category: .length), 1000))
+    check("单位：英里→千米", near(UnitConvertCore.convert(1, from: "mile", to: "km", category: .length), 1.609344))
+    check("单位：斤→千克", near(UnitConvertCore.convert(1, from: "jin", to: "kg", category: .weight), 0.5))
+    check("单位：摄氏→华氏", near(UnitConvertCore.convert(100, from: "c", to: "f", category: .temperature), 212))
+    check("单位：华氏→摄氏", near(UnitConvertCore.convert(32, from: "f", to: "c", category: .temperature), 0))
+    check("单位：开尔文→摄氏", near(UnitConvertCore.convert(273.15, from: "k", to: "c", category: .temperature), 0))
+    check("单位：GB→MB", near(UnitConvertCore.convert(1, from: "gb", to: "mb", category: .data), 1024))
+    check("单位：亩→平方米", near(UnitConvertCore.convert(1, from: "mu", to: "m2", category: .area), 666.6667, 0.01))
+    check("单位：未知单位", UnitConvertCore.convert(1, from: "xx", to: "m", category: .length) == nil)
+    eq("单位：分类单位数", UnitConvertCore.units(for: .temperature).count, 3)
+}
+
+testUnitConvertCore()
+
+func testExpressionParser() {
+    func eval(_ text: String) -> Double? {
+        if case .success(let value) = ExpressionParser.evaluate(text) { return value }
+        return nil
+    }
+    check("表达式：优先级", eval("1+2*3") == 7)
+    check("表达式：括号", eval("(1+2)*3") == 9)
+    check("表达式：幂右结合", eval("2^3^2") == 512)
+    check("表达式：负号与幂", eval("-3^2") == -9)
+    check("表达式：函数", eval("sqrt(16)") == 4)
+    check("表达式：常量", abs((eval("pi") ?? 0) - 3.14159265) < 0.0001)
+    check("表达式：取余", eval("10%3") == 1)
+    check("表达式：除零失败", eval("1/0") == nil)
+    check("表达式：负数开方失败", eval("sqrt(-1)") == nil)
+    check("表达式：未闭合括号失败", eval("2*(3+4") == nil)
+    check("表达式：未知标识符失败", eval("foo(1)") == nil)
+}
+
+testExpressionParser()
+
+func testDateCalcCore() {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "UTC")!
+    let jan1 = calendar.date(from: DateComponents(year: 2026, month: 1, day: 1))!
+    let mar1 = calendar.date(from: DateComponents(year: 2026, month: 3, day: 1))!
+    let diff = DateCalcCore.difference(from: jan1, to: mar1, calendar: calendar)
+    eq("日期：相差天数", diff.days, 59)
+    eq("日期：相差月数", diff.months, 2)
+    let breakdown = DateCalcCore.breakdown(from: jan1, to: mar1, calendar: calendar)
+    eq("日期：年月日拆分", breakdown.months, 2)
+    eq("日期：拆分天数", breakdown.days, 0)
+
+    let monday = calendar.date(from: DateComponents(year: 2026, month: 1, day: 5))!
+    let nextMonday = calendar.date(from: DateComponents(year: 2026, month: 1, day: 12))!
+    let business = DateCalcCore.difference(from: monday, to: nextMonday, calendar: calendar)
+    eq("日期：工作日", business.businessDays, 5)
+    let prev = DateCalcCore.add(-1, unit: .days, to: monday, calendar: calendar)!
+    eq("日期：减一天", calendar.component(.day, from: prev), 4)
+    let monthAdd = DateCalcCore.add(1, unit: .months, to: jan1, calendar: calendar)!
+    eq("日期：加一月", calendar.component(.month, from: monthAdd), 2)
+}
+
+testDateCalcCore()
+
+func testRegexToolCore() {
+    if case .success(let matches) = RegexToolCore.matches(pattern: "(\\d+)-(\\d+)",
+                                                         in: "a 12-34 b 5-6") {
+        eq("正则：匹配数", matches.count, 2)
+        eq("正则：整段文本", matches.first?.text, "12-34")
+        eq("正则：分组", matches.first?.groups, ["12-34", "12", "34"])
+    } else { check("正则：匹配成功", false) }
+    if case .failure = RegexToolCore.matches(pattern: "(", in: "x") {} else {
+        check("正则：非法模式", false)
+    }
+    if case .success(let matches) = RegexToolCore.matches(pattern: "abc", in: "ABC abc",
+                                                          caseInsensitive: true) {
+        eq("正则：忽略大小写", matches.count, 2)
+    } else { check("正则：忽略大小写成功", false) }
+}
+
+testRegexToolCore()
+
+func testToolboxCodecs() {
+    eq("编码：HTML 转义", ToolboxCore.htmlEncode("<a & \"b\">"), "&lt;a &amp; &quot;b&quot;&gt;")
+    eq("编码：HTML 反转义", ToolboxCore.htmlDecode("&lt;a&gt; &amp; &#39;x&#39; &#x4E2D;"),
+       "<a> & 'x' 中")
+    let emoji = "中😀A"
+    let escaped = ToolboxCore.unicodeEscape(emoji)
+    check("编码：Unicode 转义", escaped.contains("\\u4E2D") && escaped.contains("\\uD83D"))
+    eq("编码：Unicode 往返", ToolboxCore.unicodeUnescape(escaped), emoji)
+    eq("编码：Hex 编码", ToolboxCore.hexEncode("hi"), "68 69")
+    if case .success(let decoded) = ToolboxCore.hexDecode("68 69") {
+        eq("编码：Hex 解码", decoded, "hi")
+    } else { check("编码：Hex 解码成功", false) }
+    if case .failure = ToolboxCore.hexDecode("6") {} else { check("编码：Hex 奇数长度", false) }
+}
+
+testToolboxCodecs()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

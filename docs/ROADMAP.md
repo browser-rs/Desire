@@ -4301,11 +4301,11 @@ v0.8.1 的菜单入口只有"移交会话"，这版补齐：
 15. ✅ 压缩包查看器：多选条目 + "解压所选"（`ArchiveKit.extract(entries:)`）。
 16. ✅ i18n：33 个新键三语；harness + 桥探针收口。
 
-**内置工具集合（desire://tools，同日追加）**
-17. ✅ `ToolboxCore`：时间戳（秒/毫秒自动识别、本地/UTC/ISO/相对）、进制、文本变换/行处理/统计、Base64、URL 编解码、JWT（不验签）、颜色、密码生成——纯逻辑进 harness。
-18. ✅ `ToolsPageView`：左侧工具清单 + 搜索，12 个工具（摘要/时间戳/Base64/URL/JSON/文本/进制/UUID/颜色/二维码/密码/JWT），全部端上。
-19. ✅ `desire://tools[/<tool>]` 路由：地址栏、桥 `/navigate` `/new-tab`、`/state` 的 `toolsPage` 字段、复制标签、goBack 关闭；会话保存退化为空白新标签。
-20. ✅ 菜单 Tools ▸ Utility Toolbox；`desire://tools/hash` 等深链直达具体工具。
+**内置工具集合（desire://tools，同日两批）**
+17. ✅ 纯逻辑：`ToolboxCore`（时间戳、进制、文本、Base64/URL、HTML 实体、Unicode 转义、Hex、颜色、密码）、`FinanceCalcCore`（房贷/存款/百分比/BMI）、`UnitConvertCore`（长度/重量/温度/面积/体积/速度/数据/时间）、`ExpressionParser`（函数与常量）、`DateCalcCore`、`RegexToolCore`、`ToolsCrypto`——全部进 harness。
+18. ✅ 页面重构：`ToolboxCatalog` 注册表（分类/图标/关键词）+ 23 个工具、收藏与最近使用（`ToolboxUsageStore`）、搜索、分类分组侧栏、首页卡片网格、详情页图标头 + 收藏星标。
+19. ✅ 新增 11 个工具：房贷计算器（等额本息/等额本金 + 还款计划表）、存款计算器（复利/单利 + 定投）、百分比、科学计算器、BMI、日期计算器（天数/工作日/加减）、单位换算、HTML 实体、Unicode 转义、Hex 编解码、正则测试；JSON 工具补"转 CSV"。
+20. ✅ `desire://tools[/<tool>]` 路由：地址栏、桥 `/navigate` `/new-tab`、`/state` 的 `toolsPage`/`tool` 字段、复制标签、goBack 关闭；会话保存退化为空白新标签；菜单 Tools ▸ Utility Toolbox；深链直达（如 `desire://tools/mortgage`）。
 
 ### v0.8.25 规划稿（扩充版，2026-10-30）—— 基础框架补齐 + Agent 可靠性
 

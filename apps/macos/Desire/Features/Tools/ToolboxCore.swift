@@ -211,6 +211,144 @@ nonisolated enum ToolboxCore {
         return .success(decoded)
     }
 
+    // MARK: - HTML 实体
+
+    static func htmlEncode(_ text: String) -> String {
+        var out = ""
+        out.reserveCapacity(text.count + 16)
+        for character in text {
+            switch character {
+            case "&": out += "&amp;"
+            case "<": out += "&lt;"
+            case ">": out += "&gt;"
+            case "\"": out += "&quot;"
+            case "'": out += "&#39;"
+            default: out.append(character)
+            }
+        }
+        return out
+    }
+
+    static func htmlDecode(_ text: String) -> String {
+        let named: [String: String] = [
+            "amp": "&", "lt": "<", "gt": ">", "quot": "\"", "apos": "'", "nbsp": "\u{00A0}",
+            "copy": "©", "reg": "®", "hellip": "…", "mdash": "—", "ndash": "–",
+            "ldquo": "“", "rdquo": "”", "lsquo": "‘", "rsquo": "’", "middot": "·",
+        ]
+        guard let regex = try? NSRegularExpression(pattern: "&(#x?[0-9A-Fa-f]+|[a-zA-Z]+);") else {
+            return text
+        }
+        let mutable = NSMutableString(string: text)
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: mutable.length))
+        for match in matches.reversed() where match.numberOfRanges >= 2 {
+            let body = (text as NSString).substring(with: match.range(at: 1))
+            let replacement: String?
+            if body.hasPrefix("#x") || body.hasPrefix("#X") {
+                replacement = UInt32(body.dropFirst(2), radix: 16).flatMap { UnicodeScalar($0) }
+                    .map(String.init)
+            } else if body.hasPrefix("#") {
+                replacement = UInt32(body.dropFirst(), radix: 10).flatMap { UnicodeScalar($0) }
+                    .map(String.init)
+            } else {
+                replacement = named[body.lowercased()]
+            }
+            if let replacement {
+                mutable.replaceCharacters(in: match.range, with: replacement)
+            }
+        }
+        return mutable as String
+    }
+
+    // MARK: - Unicode 转义
+
+    static func unicodeEscape(_ text: String) -> String {
+        var out = ""
+        for scalar in text.unicodeScalars {
+            if scalar.value >= 0x20, scalar.value <= 0x7E {
+                out.append(Character(scalar))
+                continue
+            }
+            if scalar.value > 0xFFFF {
+                let value = scalar.value - 0x10000
+                let high = 0xD800 + (value >> 10)
+                let low = 0xDC00 + (value & 0x3FF)
+                out += String(format: "\\u%04X\\u%04X", high, low)
+            } else {
+                out += String(format: "\\u%04X", scalar.value)
+            }
+        }
+        return out
+    }
+
+    static func unicodeUnescape(_ text: String) -> String {
+        var out = ""
+        let scalars = Array(text.unicodeScalars)
+        var index = 0
+        while index < scalars.count {
+            let scalar = scalars[index]
+            if scalar == "\\", index + 5 < scalars.count,
+               scalars[index + 1] == "u",
+               let value = parseHex(scalars[(index + 2)...(index + 5)]) {
+                index += 6
+                if value >= 0xD800, value <= 0xDBFF,
+                   index + 5 < scalars.count,
+                   scalars[index] == "\\", scalars[index + 1] == "u",
+                   let low = parseHex(scalars[(index + 2)...(index + 5)]),
+                   low >= 0xDC00, low <= 0xDFFF {
+                    let combined = 0x10000 + ((value - 0xD800) << 10) + (low - 0xDC00)
+                    if let output = UnicodeScalar(combined) { out.unicodeScalars.append(output) }
+                    index += 6
+                } else if let output = UnicodeScalar(value) {
+                    out.unicodeScalars.append(output)
+                }
+                continue
+            }
+            out.unicodeScalars.append(scalar)
+            index += 1
+        }
+        return out
+    }
+
+    private static func parseHex(_ scalars: ArraySlice<Unicode.Scalar>) -> UInt32? {
+        var value: UInt32 = 0
+        for scalar in scalars {
+            guard let digit = Int(String(Character(scalar)), radix: 16) else { return nil }
+            value = value << 4 | UInt32(digit)
+        }
+        return value
+    }
+
+    // MARK: - Hex 编解码
+
+    static func hexEncode(_ text: String) -> String {
+        Data(text.utf8).map { String(format: "%02x", $0) }.joined(separator: " ")
+    }
+
+    static func hexDecode(_ raw: String) -> Result<String, ToolboxError> {
+        let cleaned = raw
+            .replacingOccurrences(of: "0x", with: "")
+            .replacingOccurrences(of: "0X", with: "")
+            .filter { $0.isHexDigit }
+        guard !cleaned.isEmpty else { return .failure(ToolboxError(message: "No hex digits found")) }
+        guard cleaned.count % 2 == 0 else {
+            return .failure(ToolboxError(message: "Hex length must be even"))
+        }
+        var bytes: [UInt8] = []
+        var index = cleaned.startIndex
+        while index < cleaned.endIndex {
+            let next = cleaned.index(index, offsetBy: 2)
+            guard let byte = UInt8(cleaned[index..<next], radix: 16) else {
+                return .failure(ToolboxError(message: "Invalid hex byte"))
+            }
+            bytes.append(byte)
+            index = next
+        }
+        guard let string = String(bytes: bytes, encoding: .utf8) else {
+            return .failure(ToolboxError(message: "Decoded bytes are not UTF-8 text"))
+        }
+        return .success(string)
+    }
+
     // MARK: - JWT
 
     static func base64URLDecode(_ raw: String) -> Data? {

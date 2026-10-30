@@ -621,6 +621,9 @@ final class AutomationServer {
         ep("POST", "/review/reset", "Clear the review queue", example: "-d '{}'")
         ep("GET", "/peek", "Peek (user-assist) state: active request, last resolution, locked surface count", example: "…/peek")
         ep("POST", "/peek", "Peek control: request / open / resolve / dismiss", params: ["action:string", "reason?:string", "needsPage?:bool"], example: "-d '{\"action\":\"request\",\"reason\":\"请登录\"}'")
+        ep("POST", "/page/read-ephemeral", "Read a page in a throwaway in-memory session (no cookies/sessions touch the user profile)", params: ["url:string", "maxChars?:int"], example: "-d '{\"url\":\"https://example.com\"}'")
+        ep("POST", "/cookies/seed", "Copy this Mac's cookies into a container (login-state snapshot; localStorage/IndexedDB not migrated)", params: ["name?:string (default Agent)"], example: "-d '{\"name\":\"Agent\"}'")
+        ep("POST", "/containers/remove", "Purge and remove a tab container by name (cleanup)", params: ["name:string"], example: "-d '{\"name\":\"Agent\"}'")
         ep("GET", "/diag/windows", "Window roles (user/agent/agentPane), tab counts, selected URL and key-window flag — focus/mode E2E probe", example: "…/diag/windows")
         ep("GET", "/app/mode", "Usage mode (browser / agentFocus / hybrid) + available modes", example: "…/app/mode")
         ep("POST", "/app/mode", "Switch usage mode; hybrid opens an agent window if none exists", params: ["mode:string (browser|agentFocus|hybrid)"], example: "-d '{\"mode\":\"hybrid\"}'")
@@ -2921,6 +2924,36 @@ final class AutomationServer {
                     return try Self.json(["error": "unknown action: \(peekAction)"])
                 }
                 return try Self.json(PeekCenter.shared.payload())
+            case ("POST", "/page/read-ephemeral"):
+                guard let target = Self.string(body, "url"), !target.isEmpty else {
+                    return try Self.json(["error": "missing url"])
+                }
+                let cap = min(50_000, max(500, (body["maxChars"] as? Int) ?? 12_000))
+                guard let read = await URLReader.read(url: target, maxChars: cap,
+                                                     includeLinks: false, ephemeral: true) else {
+                    return try Self.json(["error": "read failed"])
+                }
+                return try Self.json([
+                    "title": read.title, "url": read.finalURL,
+                    "chars": read.text.count, "truncated": read.truncated,
+                    "text": String(read.text.prefix(cap)),
+                ])
+            case ("POST", "/cookies/seed"):
+                let name = Self.string(body, "name") ?? "Agent"
+                let container = ContainerStore.shared.containers.first(where: { $0.name == name })
+                    ?? ContainerStore.shared.addContainer(name: name)
+                let copied = await CookieSeeder.seed(into: container.id)
+                return try Self.json(["ok": true, "container": name,
+                                      "containerId": container.id.uuidString,
+                                      "cookies": copied])
+            case ("POST", "/containers/remove"):
+                let name = Self.string(body, "name") ?? ""
+                guard let container = ContainerStore.shared.containers.first(where: { $0.name == name }) else {
+                    return try Self.json(["error": "no such container"])
+                }
+                await ContainerStore.shared.purgeData(for: container.id)
+                ContainerStore.shared.removeContainer(container.id)
+                return try Self.json(["ok": true, "removed": name])
             case ("GET", "/diag/windows"):
                 return try Self.json(Self.diagWindows())
             case ("GET", "/app/mode"):

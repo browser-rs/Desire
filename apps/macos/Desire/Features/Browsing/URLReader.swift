@@ -21,18 +21,23 @@ enum URLReader {
     }
 
     /// 读 `url` 的正文；链接清单可选。失败（URL 非法/加载超时/取文失败）返回 nil。
-    static func read(url rawURL: String, maxChars: Int = 20_000, includeLinks: Bool = true) async -> Result? {
+    static func read(url rawURL: String, maxChars: Int = 20_000,
+                     includeLinks: Bool = true, ephemeral: Bool = false) async -> Result? {
         guard let target = normalize(rawURL) else { return nil }
 
         let webview: WKWebView
         let fromOpenTab: Bool
-        if let openView = ReadingListCache.openTabWebview(matching: target.absoluteString) {
+        if !ephemeral,
+           let openView = ReadingListCache.openTabWebview(matching: target.absoluteString) {
             webview = openView
             fromOpenTab = true
         } else {
             let configuration = WKWebViewConfiguration()
-            configuration.websiteDataStore = ProfileStore.shared.dataStore(
-                for: TabSessionCoordinator.shared.activeTabManager?.profileID)
+            // v0.8.24：一次性读（ephemeral）用内存存储——不碰用户 cookie/会话。
+            configuration.websiteDataStore = ephemeral
+                ? WKWebsiteDataStore.nonPersistent()
+                : ProfileStore.shared.dataStore(
+                    for: TabSessionCoordinator.shared.activeTabManager?.profileID)
             configuration.defaultWebpagePreferences.preferredContentMode = .desktop
             let offscreen = WKWebView(frame: .zero, configuration: configuration)
             BrowserState.applyDesktopSafariUA(to: offscreen)

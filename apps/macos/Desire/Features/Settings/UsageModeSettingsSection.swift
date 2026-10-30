@@ -4,6 +4,7 @@ import SwiftUI
 struct UsageModeSettingsSection: View {
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var store: AppModeStore
+    @State private var showShareConfirm = false
 
     var body: some View {
         SettingsContainer {
@@ -46,9 +47,23 @@ struct UsageModeSettingsSection: View {
                     systemImage: "person.badge.key",
                     isOn: Binding(
                         get: { store.agentSharesUserProfile },
-                        set: { store.setAgentSharesUserProfile($0) }
+                        set: { value in
+                            if value {
+                                showShareConfirm = true
+                            } else {
+                                store.setAgentSharesUserProfile(false)
+                            }
+                        }
                     )
                 )
+            }
+            .alert(String(localized: "Share your login state?"), isPresented: $showShareConfirm) {
+                Button(String(localized: "Cancel"), role: .cancel) {}
+                Button(String(localized: "Share"), role: .destructive) {
+                    store.setAgentSharesUserProfile(true)
+                }
+            } message: {
+                Text(String(localized: "Agent windows will be able to see every site you are signed in to. Only do this on a Mac you trust."))
             }
 
             Text("Agent Workspace keeps the browser in the background and reveals it only when needed. Hybrid gives the agent its own window with an isolated container, so your tabs, focus and cookies stay separate.")

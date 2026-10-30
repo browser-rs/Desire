@@ -1,10 +1,11 @@
 ## [Unreleased]
 ### Added
 
-- Toolbox grows to 58 tools: Roman numerals, Excel column letters, CRC-32, SHA-3, Base58, regex replace with capture groups, Markdown→HTML, ASCII table, placeholder text generator, HTTP header lookup, file info with EXIF, discount calculator, bill split, Code128 barcode generator, and UUID v7 option (v0.8.27)
+- Toolbox grows to 59 tools: Roman numerals, Excel column letters, CRC-32, SHA-3, Base58, regex replace with capture groups, Markdown→HTML, ASCII table, placeholder text generator, HTTP header lookup, file info with EXIF, discount calculator, bill split, Code128 barcode generator, UUID v7 option, plus Video Editor and Audio Editor (v0.8.27)
 - Floating ball: new Toolbox capability opens `desire://tools` from the ball's action hub (v0.8.27)
 - desire:// page system: InternalPages routes 14 built-in pages (tools, settings+section, search?q, agent+conversation, whiteboard?text, downloads, history, bookmarks, passwords, plugins, whatsnew, newtab, about, sync) — unknown hosts land on a fallback index page; new-tab page gains a Toolbox card and the address bar suggests desire:// links for tools/settings/history/downloads (v0.8.27)
-
+- Media editing (toolbox `media` category): Video Editor (in/out-point trim with fast keyframe copy or exact re-encode, multi-clip merge) and Audio Editor (trim, merge, extract a video's audio track as m4a). AVFoundation-first with automatic ffmpeg fallback for exotic containers; jobs run in background with progress and cancel; the media player gains a scissors button that hands the file to the editor.
+- Image editor: nine one-tap filter presets (Vivid/Mono/Chrome/Fade/Instant/Noir/Process/Tonal/Transfer via CIPhotoEffect family + CIVibrance) and exposure / color-temperature sliders in the adjustments panel.
 
 
 

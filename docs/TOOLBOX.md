@@ -138,3 +138,22 @@ ToolboxComponents；目录与元数据在 ToolboxCatalog）。
 | lorem | 占位文本 | 中/英段落生成 |
 | random | 随机生成 | 字符串/整数（可去重） |
 | fileInfo | 文件信息 | 大小/类型/日期/图片尺寸+EXIF |
+
+### 媒体（v0.8.27 媒体批）
+| id | 工具 | 说明 |
+|---|---|---|
+| videoEditor | 视频剪辑 | 入/出点剪切（快速流复制/精确重编码）+ 多段拼接；AVFoundation 主引擎，异形容器（mkv/webm…）自动回退 ffmpeg |
+| audioEditor | 音频剪辑 | 剪切 / 拼接 / 从视频提取音轨（统一 m4a·AAC） |
+
+媒体批附带：
+
+- **新增 `media` 分类**：图片格式转换（imageConvert）从"生成与图形"移入。
+- **媒体播放器新增「剪辑」入口**（剪刀按钮）：当前文件直接递进对应剪辑工具
+  （ToolboxHandoff 进程内交接 + `desire://tools/videoEditor|audioEditor` 深链）。
+- **引擎约定**（MediaEditStore）：任务立即登记、后台执行、进度可观察、可取消；
+  AVFoundation 用 `states(updateInterval:)` 进度流（`progress` 属性 macOS 27 已废弃），
+  ffmpeg 解析 `-progress pipe:1`；同壳同编码同尺寸的拼接自动走 concat demuxer 流复制（秒级）。
+- **深链匹配修复**：`desire://tools/<param>` 的 param 会被小写化，驼峰 rawValue
+  （excelColumn/videoEditor）此前匹配不上——现按大小写不敏感匹配。
+- **图片编辑器增强**：滤镜预设（鲜艳/黑白/铬黄/褪色/拍立得/炭黑/冲印/单色/复古，
+  CIPhotoEffect 家族 + CIVibrance）+ 曝光/色温滑杆；点击即烙印、⌘Z 可撤销。

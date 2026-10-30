@@ -1058,6 +1058,7 @@ CI/release 会在"pinned Xcode missing"一步明确失败；此时退回**本地
 `gh release create`（不带资产）→ 逐个 `gh release upload --clobber` → digest 校验 →
 非 DerivedData 路径启动冒烟。完整命令见 git 历史与 RELEASE-RETRO。
 
+- **发版前把 `WhatsNewSheet.highlights` 刷成当版亮点**（0.8.26 装上后用户看到的还是 0.8.0 的内容——那个列表是写死的，标题却是动态版本号）。
 **别绕的坑**：
 - 发布构建前**冻结发布内容**（本次要发的提交里不得混入下一版开发）；调度后继续开发
   不受影响，因为云端 run 钉在调度时的 SHA。

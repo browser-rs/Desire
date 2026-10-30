@@ -137,6 +137,7 @@ extension BrowsingActions {
         }
         target.isOnNewTabPage = false
         target.isOnToolsPage = false
+        target.browser.internalPage = nil
         target.urlString = urlString
         target.browser.webView.load(URLRequest(url: url))
     }
@@ -184,6 +185,7 @@ extension BrowsingActions {
     static func routeLocalFile(_ url: URL, to tab: Tab) -> Bool {
         tab.isOnToolsPage = false
         tab.toolsPageSelection = nil
+        tab.browser.internalPage = nil
         let ext = url.pathExtension.lowercased()
         if ext == "pdf" {
             tab.browser.pdfViewerFileName = url.lastPathComponent

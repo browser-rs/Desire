@@ -113,6 +113,29 @@ class AddressSuggestionsModel: ObservableObject {
                        openTabs: openTabs)
     }
 
+    /// 内置页建议：输入 tools/工具箱/settings/历史… 等精确关键词时给出
+    /// desire:// 深链（回车经 navigateToURL 的 InternalPages 路由打开）。
+    static func internalPageSuggestion(_ query: String) -> AddressSuggestion? {
+        let lower = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let pages: [(triggers: [String], url: String, title: String)] = [
+            (["tools", "工具箱", "toolbox", "desire://tools", "desire://tool"], "desire://tools",
+             String(localized: "Toolbox")),
+            (["settings", "设置", "偏好设置", "desire://settings"], "desire://settings",
+             String(localized: "Settings")),
+            (["history", "历史", "desire://history"], "desire://history",
+             String(localized: "History")),
+            (["downloads", "下载", "desire://downloads"], "desire://downloads",
+             String(localized: "Downloads")),
+        ]
+        for candidate in pages {
+            if candidate.triggers.contains(where: { lower == $0 || ("desire://" + lower) == candidate.url }) {
+                return AddressSuggestion(kind: .navigate, title: candidate.title,
+                                         url: candidate.url, domain: nil)
+            }
+        }
+        return nil
+    }
+
     func buildImmediate(query: String,
                                 settings: Settings,
                                 bookmarks: BookmarkStore,
@@ -140,6 +163,11 @@ class AddressSuggestionsModel: ObservableObject {
             }
         }
         results.append(contentsOf: tabMatches.prefix(2))
+
+        // -- 内置页面（v0.8.27）：精确命中关键词时给 desire:// 建议 --
+        if let internalSuggestion = Self.internalPageSuggestion(trimmed) {
+            results.append(internalSuggestion)
+        }
 
         // -- 内联计算器 (v0.8.6) --
         if let calcResult = InlineCalculator.evaluate(trimmed) {

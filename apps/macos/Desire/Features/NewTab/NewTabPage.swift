@@ -43,6 +43,41 @@ struct NewTabPage: View {
                 VStack(alignment: .leading, spacing: 32) {
                     if !isSectionHidden(.quickDials) {
                         quickDialsSection
+
+                        // 内置工具箱入口（v0.8.27）：desire://tools
+                        Button {
+                            onNavigate("desire://tools")
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: "wrench.and.screwdriver.fill")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundStyle(appAccent)
+                                    .frame(width: 30)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text("内置工具箱")
+                                        .font(.system(size: 13, weight: .semibold))
+                                    Text("房贷 · JSON · 时间戳 · 二维码 … 43 个，全在本机")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 12)
+                            .background(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .fill(Color(nsColor: .textBackgroundColor).opacity(0.6))
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                    .stroke(Color.secondary.opacity(0.18), lineWidth: 0.5)
+                            )
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
                     }
                     if !isSectionHidden(.localFiles) {
                         localFilesSection

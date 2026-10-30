@@ -2052,6 +2052,16 @@ final class AutomationServer {
             case ("GET", "/conversations"):
                 return try Self.json(Self.conversationsList(
                     limit: Self.string(query, "limit").flatMap { Int($0) } ?? 20))
+            case ("GET", "/diag/pages"):
+                return try Self.json([
+                    "pages": InternalPageKind.all.map { page -> [String: Any] in
+                        ["page": page.rawValue,
+                         "title": page.title,
+                         "url": "desire://\(page.rawValue)",
+                         "inTab": page.isRenderedInTab]
+                    },
+                    "count": InternalPageKind.all.count,
+                ])
             case ("GET", "/windows"):
                 return try Self.json(Self.windowsList())
             case ("GET", "/conversations/search"):
@@ -2140,14 +2150,19 @@ final class AutomationServer {
                 guard let manager = TabSessionCoordinator.shared.activeTabManager else {
                     return try Self.json(["error": "no window"])
                 }
-                let existing = Set(manager.tabs.map(\.id))
-                manager.addTab(makeActive: true)
-                guard let created = manager.tabs.first(where: { !existing.contains($0.id) }) else {
-                    return try Self.json(["error": "could not create a tab"])
+                if destination.page.isRenderedInTab {
+                    let existing = Set(manager.tabs.map(\.id))
+                    manager.addTab(makeActive: true)
+                    guard let created = manager.tabs.first(where: { !existing.contains($0.id) }) else {
+                        return try Self.json(["error": "could not create a tab"])
+                    }
+                    InternalPages.open(destination, in: created)
+                } else {
+                    InternalPages.open(destination, in: manager.selectedTab)
                 }
-                InternalPages.open(destination, in: created)
                 return try Self.json(["ok": true, "url": destination.urlString,
-                                      "tool": destination.toolID ?? ""])
+                                      "page": destination.page.rawValue,
+                                      "param": destination.param ?? ""])
             case ("POST", "/open-file"):
                 guard let filePath = Self.string(body, "path"), !filePath.isEmpty else {
                     return try Self.json(["error": "path required"])
@@ -3796,6 +3811,7 @@ final class AutomationServer {
                 "autoplayPolicy": tab.browser.createdAutoPlayPolicy.rawValue,
                 "toolsPage": tab.isOnToolsPage,
                 "tool": tab.toolsPageSelection ?? "",
+                "internalPage": tab.browser.internalPage?.rawValue ?? "",
                 "viewer": tab.browser.pdfViewerURL?.pathExtension
                     ?? tab.browser.spreadsheetViewerURL?.pathExtension
                     ?? tab.browser.imageEditorURL?.pathExtension
@@ -3854,6 +3870,7 @@ final class AutomationServer {
         }
         tab.isOnToolsPage = false
         tab.toolsPageSelection = nil
+        tab.browser.internalPage = nil
         // 本地路径直通（v0.8.12）：与 BrowsingActions.navigateToURL 同语义——
         // 存在的文件路径先于 URL 启发式（否则 /tmp/x.csv 被当搜索词）。
         if rawURL.hasPrefix("/") || rawURL.hasPrefix("~/") {

@@ -288,7 +288,7 @@ extension AgentBallPanel {
             flashToast("没有可用窗口")
             return
         }
-        let destination = InternalPages.Destination(urlString: "desire://tools", toolID: nil)
+        let destination = InternalDestination.tools()
         if let tab = pageTabProvider?() ?? manager.selectedTab {
             InternalPages.open(destination, in: tab)
             return

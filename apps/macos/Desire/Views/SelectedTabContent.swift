@@ -424,6 +424,14 @@ struct SelectedTabContent: View {
         Group {
             if tab.isOnToolsPage {
                 ToolsPageView(initialTool: tab.toolsPageSelection)
+            } else if tab.browser.internalPage == .about {
+                AboutPageView(onOpen: { destination in
+                    InternalPages.open(destination, in: tab)
+                })
+            } else if tab.browser.internalPage == .fallback {
+                InternalPagesIndexView(onOpen: { destination in
+                    InternalPages.open(destination, in: tab)
+                })
             } else if let pdfURL = tab.browser.pdfViewerURL {
                 PDFViewerView(
                     fileURL: pdfURL,

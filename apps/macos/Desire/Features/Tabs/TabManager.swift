@@ -649,8 +649,7 @@ class TabManager: ObservableObject {
         let newTab = Tab(url: url, incognito: source.isIncognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: autoPlayPolicy, containerID: source.containerID, profileDataStore: profileDataStore)
         newTab.isPinned = source.isPinned
         if source.isOnToolsPage {
-            InternalPages.open(InternalPages.Destination(urlString: "desire://tools",
-                                                         toolID: source.toolsPageSelection),
+            InternalPages.open(InternalDestination.tools(param: source.toolsPageSelection),
                                in: newTab)
         }
         tabs.insert(newTab, at: index + 1)

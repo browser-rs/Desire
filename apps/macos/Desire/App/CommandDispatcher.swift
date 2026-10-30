@@ -380,13 +380,13 @@ struct CommandDispatcher {
 
         case .goBack:
             if let tab = tabManager.selectedTab {
-                if tab.isOnToolsPage { InternalPages.close(in: tab) }
+                if tab.isOnToolsPage || tab.browser.internalPage != nil { InternalPages.close(in: tab) }
                 else { tab.browser.webView.goBack() }
             }
 
         case .goForward:
             if let tab = tabManager.selectedTab {
-                if tab.isOnToolsPage { InternalPages.close(in: tab) }
+                if tab.isOnToolsPage || tab.browser.internalPage != nil { InternalPages.close(in: tab) }
                 else { tab.browser.webView.goForward() }
             }
 
@@ -398,8 +398,7 @@ struct CommandDispatcher {
 
         case .openToolbox:
             if let tab = tabManager.selectedTab {
-                InternalPages.open(InternalPages.Destination(urlString: "desire://tools", toolID: nil),
-                                   in: tab)
+                InternalPages.open(InternalDestination.tools(), in: tab)
             }
 
         case .openURL(let url):
@@ -411,6 +410,7 @@ struct CommandDispatcher {
             }
             if let tab = tabManager.selectedTab, !tab.isOnNewTabPage {
                 tab.isOnToolsPage = false
+                tab.browser.internalPage = nil
                 tab.browser.webView.load(URLRequest(url: URL(string: url)!))
                 tab.urlString = url
             } else {

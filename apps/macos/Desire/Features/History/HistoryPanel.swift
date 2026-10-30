@@ -28,6 +28,8 @@ struct HistoryPanel: View {
     @ObservedObject private var contentIndex = HistoryContentStore.shared
     @State private var contentHits: [HistoryContentHit] = []
     @State private var contentSearchTask: Task<Void, Never>?
+    /// 历史洞察面板（v0.8.25）。
+    @State private var showInsights = false
 
     enum GroupMode: String, CaseIterable {
         case date, site, timeline
@@ -198,6 +200,17 @@ struct HistoryPanel: View {
             HStack {
                 Text("History").font(.headline)
                 Spacer()
+                if !store.entries.isEmpty {
+                    Button {
+                        showInsights = true
+                    } label: {
+                        Image(systemName: "chart.bar.xaxis")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("History insights")
+                }
                 if !store.entries.isEmpty {
                     Button(isSelecting ? "Done" : "Select") {
                         isSelecting.toggle()
@@ -487,6 +500,9 @@ struct HistoryPanel: View {
                 dedupeGroups = nil
                 _ = completedKeys
             }
+        }
+        .sheet(isPresented: $showInsights) {
+            HistoryInsightsView(entries: store.entries)
         }
         .confirmationDialog(
             "Delete All from \"\(pendingDomainWipe?.domain ?? "")\"?",

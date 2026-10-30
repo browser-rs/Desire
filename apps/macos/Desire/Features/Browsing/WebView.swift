@@ -2375,6 +2375,27 @@ try {
                 return
             }
 
+            // 自动播策略**预纠**（v0.8.25）：视频站首次导航时，若 webview 是按
+            // 默认限制策略创建的，在**提交前**换一次（cancel → 带正确策略重开 →
+            // 加载）。此前只在 didFinish 纠正，页面已经播了一秒才被换掉，用户
+            // 看到的就是"暂停再播放"。
+            if navigationAction.targetFrame?.isMainFrame == true,
+               navigationAction.navigationType != .backForward,
+               navigationAction.navigationType != .reload,
+               let host = url.host?.lowercased(),
+               AutoPlayPolicy.isVideoHost(host),
+               !parent.state.autoPlayReopenDone,
+               parent.state.createdAutoPlayPolicy != .allowAll,
+               let app = AppState.live,
+               app.siteSettingsStore.effectiveAutoPlay(
+                   for: host, global: app.settings.autoPlayPolicy) == .allowAll {
+                parent.state.autoPlayReopenDone = true
+                Log.tabs.info("autoplay policy pre-rebake: \(host, privacy: .public) before commit")
+                decisionHandler(.cancel)
+                parent.onReopenWithAutoPlay?(url)
+                return
+            }
+
             // Frame-less navigation (e.g. target=_blank, window.open from JS).
             // Open in a new tab instead of allowing WebKit to open a new window.
             if navigationAction.targetFrame == nil {

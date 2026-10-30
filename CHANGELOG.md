@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- **YouTube 详情页「暂停再播放」修复（v0.8.25）**：自动播策略纠正从 `didFinish`（页面已开始播放）提前到 `decidePolicyFor`（导航提交前 cancel → 带 allowAll 策略重开 → 再加载）——首次直达视频详情页不再"播一秒 → 换 webview → 重播"。保留 didFinish 兜底（站点策略会话中途变化时仍会纠正）。实测：空白标签直达 watch 页只出现 `pre-rebake before commit`，9 秒后 `paused=false / t=6.37 / 无广告`，连续播放。
+
 ### Added
 
 - **Agent 可靠性·第一批（v0.8.25）**：**动作后自动核验**——副作用动作（click/type/fill/navigate 等）执行前后各取一次页面指纹（URL/标题/正文长度/节点数），最多等 1 秒观察变化，给工具结果追加 `[verify] navigated|changed|unchanged`（动作没生效不再"看起来成功"）；**接管锁下沉到标签级**——Peek 只锁用户正在看的那一页，同窗其他标签 Agent 仍可操作（工具按 index/选中标签解析锁），`/peek` 与 `/diag/windows` 的 locked 计数含标签锁。harness 1882/0；mode-smoke 8/8 复跑通过。

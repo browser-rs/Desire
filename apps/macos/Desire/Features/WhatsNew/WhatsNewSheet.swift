@@ -17,18 +17,14 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "wrench.and.screwdriver", title: String(localized: "Toolbox: 43 built-in tools"),
-                  detail: String(localized: "Open desire://tools — mortgage, JSON, units, AES, diff and more. Also in the floating ball.")),
-            .init(icon: "curlybraces", title: String(localized: "JSON workbench"),
-                  detail: String(localized: "Open .json files to format, validate, sort keys, and export CSV or Excel.")),
-            .init(icon: "photo.on.rectangle.angled", title: String(localized: "Office files, upgraded"),
-                  detail: String(localized: "PPTX outline viewer, CSV↔JSON, image conversion, and selective zip extraction.")),
-            .init(icon: "checkmark.seal", title: String(localized: "Agent does it right"),
-                  detail: String(localized: "Post-action verification, tool-level resume after crashes, one-click re-run of failed steps.")),
-            .init(icon: "hand.raised.fill", title: String(localized: "Peek quick actions"),
-                  detail: String(localized: "Approve, Deny or Retry right from the Peek overlay; per-site agent preferences.")),
-            .init(icon: "link", title: String(localized: "desire:// deep links"),
-                  detail: String(localized: "desire://tools/... now opens from anywhere — Finder, other apps, the floating ball.")),
+            .init(icon: "film.stack", title: String(localized: "Video & audio editing"),
+                  detail: String(localized: "Trim with in/out points or merge clips in desire://tools — the media player's scissors button jumps there too; audio tracks extract to m4a.")),
+            .init(icon: "camera.filters", title: String(localized: "Image editor: filters & tuning"),
+                  detail: String(localized: "Nine one-tap presets (Vivid, Noir, Instant…) plus exposure and color-temperature sliders — on top of crop, annotate and OCR.")),
+            .init(icon: "wrench.and.screwdriver", title: String(localized: "Toolbox: 59 built-in tools"),
+                  detail: String(localized: "Open desire://tools — Roman numerals, Excel columns, CRC32, SHA-3, Base58, Markdown→HTML, barcode and more.")),
+            .init(icon: "link", title: String(localized: "desire:// page system"),
+                  detail: String(localized: "desire://about, a fallback index of every built-in page, and deep links that work from anywhere.")),
         ]
     }
 

@@ -443,7 +443,18 @@ struct SelectedTabContent: View {
                 MediaViewerView(
                     fileURL: mediaURL,
                     fileName: tab.browser.mediaViewerFileName,
-                    onBack: { tab.browser.mediaViewerURL = nil }
+                    onBack: { tab.browser.mediaViewerURL = nil },
+                    onEdit: {
+                        // 剪辑入口（v0.8.27 媒体批）：文件先存进 ToolboxHandoff 再
+                        // 深链过去——openTools 会清掉本标签的查看器状态，深链只带
+                        // 工具 id，文件走进程内交接。
+                        ToolboxHandoff.shared.setPendingFile(
+                            mediaURL,
+                            for: MediaEditCore.isAudioFile(mediaURL) ? .audioEditor : .videoEditor)
+                        InternalPages.open(.tools(
+                            param: MediaEditCore.isAudioFile(mediaURL) ? "audioEditor" : "videoEditor"),
+                            in: tab)
+                    }
                 )
             } else if let sheetURL = tab.browser.spreadsheetViewerURL {
                 SpreadsheetViewerView(

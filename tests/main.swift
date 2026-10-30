@@ -7724,7 +7724,91 @@ func testToolboxBatch2Cores() {
     }
 }
 
+func testMediaEditCore() {
+    // 时间解析
+    eq("时间：纯秒", MediaEditCore.parseTime("83.5"), 83.5)
+    eq("时间：分秒", MediaEditCore.parseTime("1:23.5"), 83.5)
+    eq("时间：时分秒", MediaEditCore.parseTime("1:02:03"), 3723)
+    check("时间：非法", MediaEditCore.parseTime("abc") == nil)
+    check("时间：负数", MediaEditCore.parseTime("-5") == nil)
+    check("时间：四段", MediaEditCore.parseTime("1:2:3:4") == nil)
+    check("时间：空串", MediaEditCore.parseTime("  ") == nil)
+    eq("格式化：分秒", MediaEditCore.formatTime(83.5), "1:23.5")
+    eq("格式化：时分秒", MediaEditCore.formatTime(3723), "1:02:03.0")
+    eq("格式化：零", MediaEditCore.formatTime(0), "0:00.0")
+    eq("格式化：负钳零", MediaEditCore.formatTime(-3), "0:00.0")
+
+    // 剪切计划
+    check("计划：合法", MediaEditCore.trimPlan(startRaw: "0:05", endRaw: "0:12.5", duration: 90) ==
+        MediaEditCore.TrimPlan(start: 5, end: 12.5))
+    check("计划：贴尾容差", MediaEditCore.trimPlan(startRaw: "0", endRaw: "1:30", duration: 90.005) !=
+        nil)
+    check("计划：起>止", MediaEditCore.trimPlan(startRaw: "0:10", endRaw: "0:05", duration: 90) == nil)
+    check("计划：越界", MediaEditCore.trimPlan(startRaw: "0", endRaw: "2:00", duration: 90) == nil)
+    check("计划：零长", MediaEditCore.trimPlan(startRaw: "0:05", endRaw: "0:05", duration: 90) == nil)
+    check("计划：非法输入", MediaEditCore.trimPlan(startRaw: "x", endRaw: "0:05", duration: 90) == nil)
+
+    // 输出命名
+    eq("命名：同壳", MediaEditCore.derivedFileName(sourceName: "movie.mp4", suffix: "trimmed"),
+       "movie.trimmed.mp4")
+    eq("命名：换壳", MediaEditCore.derivedFileName(sourceName: "movie.mp4", suffix: "audio", ext: "m4a"),
+       "movie.audio.m4a")
+    eq("命名：无扩展", MediaEditCore.derivedFileName(sourceName: "clip", suffix: "trimmed"),
+       "clip.trimmed")
+
+    // 引擎选择
+    check("引擎：mp4 走 AV", MediaEditCore.isAVFoundationFriendly(ext: "MP4"))
+    check("引擎：mkv 走 ffmpeg", !MediaEditCore.isAVFoundationFriendly(ext: "mkv"))
+    check("音频判定", MediaEditCore.isAudioFile(URL(fileURLWithPath: "/x/a.M4A")))
+    check("视频判定", MediaEditCore.isVideoFile(URL(fileURLWithPath: "/x/b.webm")))
+    eq("输出壳：AV 视频", MediaEditCore.outputExtension(source: URL(fileURLWithPath: "/x/a.mov"),
+                                                        audioOnly: false), "mp4")
+    eq("输出壳：异形沿用", MediaEditCore.outputExtension(source: URL(fileURLWithPath: "/x/a.mkv"),
+                                                        audioOnly: false), "mkv")
+    eq("输出壳：音频", MediaEditCore.outputExtension(source: URL(fileURLWithPath: "/x/a.mp4"),
+                                                     audioOnly: true), "m4a")
+
+    // ffmpeg 参数：剪切
+    let plan = MediaEditCore.TrimPlan(start: 5, end: 12.5)
+    eq("ffmpeg：剪切复制", MediaEditCore.ffmpegTrimArgs(input: "in.mp4", output: "out.mp4",
+                                                        plan: plan, reencode: false),
+       ["-y", "-ss", "5.000", "-i", "in.mp4", "-t", "7.500", "-c", "copy", "out.mp4"])
+    let reencoded = MediaEditCore.ffmpegTrimArgs(input: "in.mp4", output: "out.mp4",
+                                                 plan: plan, reencode: true)
+    check("ffmpeg：剪切重编码", reencoded.contains("-c:v") && reencoded.contains("libx264")
+        && reencoded.last == "out.mp4")
+
+    // ffmpeg 参数：拼接
+    eq("ffmpeg：清单转义", MediaEditCore.buildConcatList(["/a b.mp4", "/it's.mp4"]),
+       "file '/a b.mp4'\nfile '/it'\\''s.mp4'")
+    eq("ffmpeg：拼接复制", MediaEditCore.ffmpegConcatCopyArgs(listFile: "list.txt", output: "out.mp4"),
+       ["-y", "-f", "concat", "-safe", "0", "-i", "list.txt", "-c", "copy", "out.mp4"])
+    let withAudio = MediaEditCore.ffmpegConcatFilterArgs(inputs: ["a.mp4", "b.mp4"],
+                                                         output: "out.mp4", hasAudio: true)
+    check("ffmpeg：拼接重编码含音", withAudio.contains { $0.contains("concat=n=2:v=1:a=1[v][a]") }
+        && withAudio.contains("-map") && withAudio.last == "out.mp4")
+    let noAudio = MediaEditCore.ffmpegConcatFilterArgs(inputs: ["a.mp4", "b.mp4"],
+                                                       output: "out.mp4", hasAudio: false)
+    check("ffmpeg：拼接重编码无音", noAudio.contains { $0.contains("concat=n=2:v=1:a=0[v]") }
+        && !noAudio.contains { $0.contains("[0:a]") })
+    eq("ffmpeg：提音轨", MediaEditCore.ffmpegExtractAudioArgs(input: "in.mkv", output: "out.m4a"),
+       ["-y", "-i", "in.mkv", "-vn", "-c:a", "aac", "-b:a", "160k", "out.m4a"])
+
+    // 进度参数追加在输出文件之前
+    let withProgress = MediaEditCore.appendingProgressArgs(
+        MediaEditCore.ffmpegConcatCopyArgs(listFile: "l", output: "o.mp4"))
+    check("ffmpeg：进度参数", withProgress.last == "o.mp4"
+        && withProgress.contains("-progress") && withProgress.contains("-nostats"))
+    eq("ffmpeg：音频剪切", MediaEditCore.ffmpegTrimAudioArgs(input: "in.mp3", output: "out.m4a",
+                                                             plan: plan),
+       ["-y", "-ss", "5.000", "-i", "in.mp3", "-t", "7.500", "-vn", "-c:a", "aac",
+        "-b:a", "160k", "out.m4a"])
+    eq("ffmpeg：音频拼接", MediaEditCore.ffmpegConcatAudioArgs(listFile: "l.txt", output: "o.m4a"),
+       ["-y", "-f", "concat", "-safe", "0", "-i", "l.txt", "-c:a", "aac", "-b:a", "160k", "o.m4a"])
+}
+
 testToolboxBatch2Cores()
+testMediaEditCore()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

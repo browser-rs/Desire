@@ -8,6 +8,7 @@ enum ToolCategory: String, CaseIterable, Identifiable {
     case dev
     case text
     case generate
+    case media
     case security
 
     var id: String { rawValue }
@@ -20,6 +21,7 @@ enum ToolCategory: String, CaseIterable, Identifiable {
         case .dev: return String(localized: "Developer")
         case .text: return String(localized: "Text")
         case .generate: return String(localized: "Generate & Graphics")
+        case .media: return String(localized: "Media")
         case .security: return String(localized: "Security & Checks")
         }
     }
@@ -32,6 +34,7 @@ enum ToolCategory: String, CaseIterable, Identifiable {
         case .dev: return "hammer"
         case .text: return "textformat"
         case .generate: return "wand.and.stars"
+        case .media: return "film"
         case .security: return "lock.shield"
         }
     }
@@ -61,6 +64,8 @@ enum ToolID: String, CaseIterable, Identifiable {
     case roman, excelColumn, crc32, sha3, base58
     case regexReplace, markdown, ascii, lorem, httpHeaders
     case fileInfo, discount, billSplit, barcode
+    // 媒体批（v0.8.27）：剪切/拼接/提音轨
+    case videoEditor, audioEditor
 
     var id: String { rawValue }
 
@@ -71,7 +76,8 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .base64, .url, .html, .unicode, .hex: return .codec
         case .hash, .json, .regex, .jwt, .uuid: return .dev
         case .text: return .text
-        case .qr, .password, .random, .imageConvert: return .generate
+        case .qr, .password, .random: return .generate
+        case .videoEditor, .audioEditor, .imageConvert: return .media
         case .morse, .dataURI, .width, .csvJSON: return .codec
         case .diff, .xml, .sql, .urlParse, .cidr, .httpStatus, .mime, .userAgent, .cron: return .dev
         case .aes, .hmac, .fileHash, .idCard, .luhn: return .security
@@ -142,6 +148,8 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .discount: return String(localized: "Discount")
         case .billSplit: return String(localized: "Bill Split")
         case .barcode: return String(localized: "Barcode")
+        case .videoEditor: return String(localized: "Video Editor")
+        case .audioEditor: return String(localized: "Audio Editor")
         }
     }
 
@@ -204,6 +212,8 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .discount: return String(localized: "Discounted price from the original and a percentage")
         case .billSplit: return String(localized: "Split a bill with tip across N people")
         case .barcode: return String(localized: "Generate a Code128 barcode image from text")
+        case .videoEditor: return String(localized: "Trim a segment or merge multiple video clips (ffmpeg handles exotic containers)")
+        case .audioEditor: return String(localized: "Trim or merge audio, or extract the audio track of a video as m4a")
         }
     }
 
@@ -266,6 +276,8 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .discount: return "percent"
         case .billSplit: return "person.2"
         case .barcode: return "barcode"
+        case .videoEditor: return "film.stack"
+        case .audioEditor: return "waveform"
         }
     }
 
@@ -330,6 +342,8 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .discount: keywords = ["折扣", "打折", "优惠"]
         case .billSplit: keywords = ["aa", "分账", "小费", "平摊"]
         case .barcode: keywords = ["条码", "code128", "barcode"]
+        case .videoEditor: keywords = ["视频", "剪辑", "剪切", "拼接", "合并", "裁剪", "trim", "merge", "video"]
+        case .audioEditor: keywords = ["音频", "剪辑", "剪切", "拼接", "提取", "音轨", "mp3", "m4a", "audio"]
         }
         return ([rawValue, title, subtitle] + keywords).joined(separator: " ")
     }

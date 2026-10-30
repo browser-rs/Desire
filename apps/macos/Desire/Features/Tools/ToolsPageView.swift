@@ -14,11 +14,20 @@ struct ToolsPageView: View {
 
     init(initialTool: String? = nil) {
         self.initialTool = initialTool
-        if let id = ToolID(rawValue: initialTool ?? "") {
+        if let id = Self.match(initialTool) {
             _selected = State(initialValue: id)
         } else {
             _selected = State(initialValue: nil)
         }
+    }
+
+    /// 深链参数按小写匹配：desire://tools 会把 param 小写化
+    /// （InternalPages.parse），驼峰 rawValue（excelColumn/videoEditor）
+    /// 必须大小写不敏感地找回来。
+    private static func match(_ raw: String?) -> ToolID? {
+        guard let raw, !raw.isEmpty else { return nil }
+        let needle = raw.lowercased()
+        return ToolID.allCases.first { $0.rawValue.lowercased() == needle }
     }
 
     private var filtered: [ToolID] {
@@ -31,10 +40,10 @@ struct ToolsPageView: View {
         // 原生 NSSplitView：拖动由 AppKit 处理，SwiftUI 不随每帧重建。
         ToolboxSplitView(sidebar: sidebar, content: content)
         .onAppear {
-            if let id = ToolID(rawValue: initialTool ?? "") { select(id) }
+            if let id = Self.match(initialTool) { select(id) }
         }
         .onChange(of: initialTool) { _, newValue in
-            if let id = ToolID(rawValue: newValue ?? "") { select(id) }
+            if let id = Self.match(newValue) { select(id) }
         }
     }
 
@@ -310,6 +319,8 @@ struct ToolsPageView: View {
         case .discount: DiscountToolView()
         case .billSplit: BillSplitToolView()
         case .barcode: BarcodeToolView()
+        case .videoEditor: VideoEditorToolView()
+        case .audioEditor: AudioEditorToolView()
         }
     }
 

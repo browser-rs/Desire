@@ -77,12 +77,15 @@ struct ImageEditorView: View {
     @State private var isFitMode = true
     @State private var containerSize: CGSize = .zero
     @State private var pinchBase: CGFloat = 1
-    /// 调色面板（21）与 OCR（22）。
+    /// 调色面板（21）与滤镜预设（v0.8.27 媒体批）与 OCR（22）。
     @State private var showAdjustments = false
+    @State private var showFilters = false
     @State private var brightness: Double = 0
     @State private var contrast: Double = 1
     @State private var saturation: Double = 1
     @State private var sharpen: Double = 0
+    @State private var exposure: Double = 0
+    @State private var temperature: Double = 0
     @State private var ocrRunning = false
     @State private var ocrResult: String?
 
@@ -332,8 +335,16 @@ struct ImageEditorView: View {
                 .frame(width: 26)
 
             Divider().frame(height: 16)
-            button("slider.horizontal.3", "Adjustments…") { showAdjustments.toggle() }
+            button("slider.horizontal.3", "Adjustments…") {
+                showAdjustments.toggle()
+                if showAdjustments { showFilters = false }
+            }
                 .foregroundStyle(showAdjustments ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
+            button("camera.filters", "Filters…") {
+                showFilters.toggle()
+                if showFilters { showAdjustments = false }
+            }
+                .foregroundStyle(showFilters ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
             button("doc.text.viewfinder", "Extract Text (OCR)") { runOCR() }
             button("printer", "Print") { printImage() }
             Menu {
@@ -435,6 +446,11 @@ struct ImageEditorView: View {
 
                     if showAdjustments {
                         adjustmentsPanel
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+                            .padding(14)
+                    }
+                    if showFilters {
+                        filtersPanel
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                             .padding(14)
                     }
@@ -873,20 +889,23 @@ struct ImageEditorView: View {
         op.run()
     }
 
-    /// 调色滑杆浮层（21）：实时预览（apply 前 deltax 预览走同管线）。
+    /// 调色滑杆浮层（21；v0.8.27 媒体批补曝光/色温）：Apply 烙进位图（可撤销）。
     private var adjustmentsPanel: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Adjustments")
                 .font(.system(size: 11, weight: .semibold))
-            sliderRow("Brightness", value: $brightness, range: -0.3...0.3)
-            sliderRow("Contrast", value: $contrast, range: 0.5...1.8)
-            sliderRow("Saturation", value: $saturation, range: 0...2)
-            sliderRow("Sharpen", value: $sharpen, range: 0...2)
+            sliderRow(String(localized: "Brightness"), value: $brightness, range: -0.3...0.3)
+            sliderRow(String(localized: "Contrast"), value: $contrast, range: 0.5...1.8)
+            sliderRow(String(localized: "Saturation"), value: $saturation, range: 0...2)
+            sliderRow(String(localized: "Sharpen"), value: $sharpen, range: 0...2)
+            sliderRow(String(localized: "Exposure"), value: $exposure, range: -2...2)
+            sliderRow(String(localized: "Color Temperature"), value: $temperature, range: -100...100)
             HStack {
                 Button(String(localized: "Apply")) {
                     apply(label: String(localized: "Adjustments"), transform: {
                         ImageTransforms.adjusted($0, brightness: brightness, contrast: contrast,
-                                                 saturation: saturation, sharpen: sharpen)
+                                                 saturation: saturation, sharpen: sharpen,
+                                                 exposure: exposure, temperature: temperature)
                     })
                     showAdjustments = false
                 }
@@ -894,6 +913,7 @@ struct ImageEditorView: View {
                 .controlSize(.small)
                 Button(String(localized: "Reset")) {
                     brightness = 0; contrast = 1; saturation = 1; sharpen = 0
+                    exposure = 0; temperature = 0
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -901,6 +921,40 @@ struct ImageEditorView: View {
         }
         .padding(12)
         .frame(width: 230)
+        .background(RoundedRectangle(cornerRadius: 10).fill(.regularMaterial))
+        .shadow(radius: 4)
+    }
+
+    /// 滤镜预设浮层（v0.8.27 媒体批）：点选即烙印（历史栈可撤销）。
+    private var filtersPanel: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Filters")
+                .font(.system(size: 11, weight: .semibold))
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 6)], spacing: 6) {
+                ForEach(ImageFilterPreset.allCases.filter { $0 != .none }) { preset in
+                    Button {
+                        apply(label: preset.localizedTitle) {
+                            ImageTransforms.photoFiltered($0, preset: preset)
+                        }
+                    } label: {
+                        Text(preset.localizedTitle)
+                            .font(.system(size: 10.5))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .frame(maxWidth: .infinity)
+                            .background(RoundedRectangle(cornerRadius: 6)
+                                .fill(Color.secondary.opacity(0.1)))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.primary)
+                }
+            }
+            .frame(width: 206)
+            Text("Click a filter to bake it in — undo (⌘Z) reverts.")
+                .font(.system(size: 9.5))
+                .foregroundStyle(.tertiary)
+        }
+        .padding(12)
         .background(RoundedRectangle(cornerRadius: 10).fill(.regularMaterial))
         .shadow(radius: 4)
     }

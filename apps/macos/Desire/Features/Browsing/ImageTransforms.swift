@@ -3,12 +3,48 @@ import CoreGraphics
 import CoreImage
 import Foundation
 
+/// 照片滤镜预设（v0.8.27 媒体批）：none=原图（不参与烙印），其余一键套用。
+nonisolated enum ImageFilterPreset: String, CaseIterable, Identifiable {
+    case none, vivid, mono, chrome, fade, instant, noir, process, tonal, transfer
+
+    var id: String { rawValue }
+
+    var localizedTitle: String {
+        switch self {
+        case .none: return String(localized: "Original")
+        case .vivid: return String(localized: "Vivid")
+        case .mono: return String(localized: "Mono")
+        case .chrome: return String(localized: "Chrome")
+        case .fade: return String(localized: "Fade")
+        case .instant: return String(localized: "Instant")
+        case .noir: return String(localized: "Noir")
+        case .process: return String(localized: "Process")
+        case .tonal: return String(localized: "Tonal")
+        case .transfer: return String(localized: "Transfer")
+        }
+    }
+
+    var ciFilterName: String? {
+        switch self {
+        case .none: return nil
+        case .vivid: return "CIVibrance"
+        case .mono: return "CIPhotoEffectMono"
+        case .chrome: return "CIPhotoEffectChrome"
+        case .fade: return "CIPhotoEffectFade"
+        case .instant: return "CIPhotoEffectInstant"
+        case .noir: return "CIPhotoEffectNoir"
+        case .process: return "CIPhotoEffectProcess"
+        case .tonal: return "CIPhotoEffectTonal"
+        case .transfer: return "CIPhotoEffectTransfer"
+        }
+    }
+}
+
 /// 图片编辑变换核（v0.8.12 旗舰 D，19）：旋转/翻转/裁剪/缩放——
 /// 纯 CoreGraphics 位图操作，零第三方依赖。标注（20）在视图层用
 /// CAShapeLayer/PencilKit 叠加，导出时烙进位图（flatten）。
 /// 全部函数值语义：输入 CGImage 返回新 CGImage（不修改原图）。
 nonisolated enum ImageTransforms {
-
     /// 旋转 90°（顺时针 clockwise，否则逆时针）。宽高互换。
     static func rotated(_ image: CGImage, clockwise: Bool) -> CGImage? {
         let w = image.width, h = image.height
@@ -86,9 +122,12 @@ nonisolated enum ImageTransforms {
         return context.makeImage()
     }
 
-    /// 调色（21）：CIColorControls——亮度/对比度/饱和度 + 锐化（CISharpenLuminance）。
+    /// 调色（21）：CIColorControls——亮度/对比度/饱和度 + 锐化（CISharpenLuminance）
+    /// + 曝光（CIExposureAdjust）+ 色温（CITemperatureAndTint，v0.8.27 媒体批）。
+    /// temperature 滑杆 -100…100：正值偏暖（neutral 6500→4000），负值偏冷。
     static func adjusted(_ image: CGImage, brightness: Double, contrast: Double,
-                         saturation: Double, sharpen: Double) -> CGImage? {
+                         saturation: Double, sharpen: Double,
+                         exposure: Double = 0, temperature: Double = 0) -> CGImage? {
         let ciImage = CIImage(cgImage: image)
         guard let controls = CIFilter(name: "CIColorControls") else { return nil }
         controls.setValue(ciImage, forKey: kCIInputImageKey)
@@ -96,12 +135,34 @@ nonisolated enum ImageTransforms {
         controls.setValue(contrast, forKey: kCIInputContrastKey)
         controls.setValue(saturation, forKey: kCIInputSaturationKey)
         var output = controls.outputImage
+        if exposure != 0, let exposureFilter = CIFilter(name: "CIExposureAdjust") {
+            exposureFilter.setValue(output, forKey: kCIInputImageKey)
+            exposureFilter.setValue(exposure, forKey: kCIInputEVKey)
+            output = exposureFilter.outputImage ?? output
+        }
+        if temperature != 0, let tint = CIFilter(name: "CITemperatureAndTint") {
+            tint.setValue(output, forKey: kCIInputImageKey)
+            tint.setValue(6500 - temperature * 25, forKey: "inputNeutral")
+            tint.setValue(6500, forKey: "inputTargetNeutral")
+            output = tint.outputImage ?? output
+        }
         if sharpen > 0, let sharpenFilter = CIFilter(name: "CISharpenLuminance") {
             sharpenFilter.setValue(output, forKey: kCIInputImageKey)
             sharpenFilter.setValue(sharpen, forKey: "inputSharpness")
             output = sharpenFilter.outputImage
         }
         guard let output else { return nil }
+        return CIContext().createCGImage(output, from: output.extent)
+    }
+
+    /// 滤镜预设（v0.8.27 媒体批）：系统 CIPhotoEffect 家族 + 鲜艳（CIVibrance）。
+    static func photoFiltered(_ image: CGImage, preset: ImageFilterPreset) -> CGImage? {
+        guard let name = preset.ciFilterName else { return image }
+        let ciImage = CIImage(cgImage: image)
+        guard let filter = CIFilter(name: name) else { return nil }
+        filter.setValue(ciImage, forKey: kCIInputImageKey)
+        if preset == .vivid { filter.setValue(0.8, forKey: "inputAmount") }
+        guard let output = filter.outputImage else { return nil }
         return CIContext().createCGImage(output, from: output.extent)
     }
 

@@ -16,6 +16,10 @@ struct MediaViewerView: View {
     @State private var loadError: String?
     @State private var statusObserver: NSKeyValueObservation?
 
+    /// 「剪辑」入口（v0.8.27 媒体批）：把文件递给工具页的视频/音频剪辑，
+    /// 由调用方接线（SelectedTabContent：ToolboxHandoff + 深链）。
+    var onEdit: (() -> Void)? = nil
+
     private var isAudioOnly: Bool {
         ["mp3", "m4a", "wav", "aac"].contains(fileURL.pathExtension.lowercased())
     }
@@ -39,6 +43,16 @@ struct MediaViewerView: View {
                     .foregroundStyle(.secondary)
 
                 Spacer(minLength: 8)
+
+                if let onEdit {
+                    Button {
+                        onEdit()
+                    } label: {
+                        Image(systemName: "scissors")
+                    }
+                    .buttonStyle(.plain)
+                    .help(String(localized: "Edit (trim / merge)"))
+                }
 
                 Button {
                     NSWorkspace.shared.open(fileURL)

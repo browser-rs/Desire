@@ -23,6 +23,9 @@ final class SurfaceLock: ObservableObject {
 
     @Published private(set) var locked: Set<ObjectIdentifier> = []
     private var reasons: [ObjectIdentifier: String] = [:]
+    /// 标签级锁（v0.8.25）：用户接管某一页时，同窗其他标签仍可被 Agent 操作。
+    private var lockedTabs: [ObjectIdentifier: String] = [:]
+    var tabLockCount: Int { lockedTabs.count }
 
     private init() {}
 
@@ -43,6 +46,18 @@ final class SurfaceLock: ObservableObject {
     func isLocked(_ manager: TabManager) -> Bool {
         locked.contains(ObjectIdentifier(manager))
     }
+
+    func lock(tab: Tab, reason: String) {
+        lockedTabs[ObjectIdentifier(tab)] = reason
+    }
+
+    func unlock(tab: Tab) {
+        lockedTabs[ObjectIdentifier(tab)] = nil
+    }
+
+    func reason(for tab: Tab) -> String? {
+        lockedTabs[ObjectIdentifier(tab)]
+    }
 }
 
 /// Peek 协议（v0.8.23）：Agent 请求用户处理（登录/验证码/看一眼），
@@ -58,6 +73,8 @@ final class PeekCenter: ObservableObject {
     @Published private(set) var lastResolution: String?
     /// Peek 的目标浏览面（展开时锁定；完成时对比前后状态）。
     private(set) var targetManager: TabManager?
+    /// Peek 接管的具体标签（标签级锁）。
+    private var targetTab: Tab?
     /// 用户开始处理前的页面快照（URL）。
     private var beforeSnapshot: String?
 
@@ -95,7 +112,13 @@ final class PeekCenter: ObservableObject {
         targetManager = manager
         if let manager {
             beforeSnapshot = Self.snapshot(manager)
-            SurfaceLock.shared.lock(manager, reason: request.reason)
+            // 标签级锁：用户接管这一页，同窗其他标签仍可被 Agent 使用。
+            targetTab = manager.selectedTab
+            if let tab = targetTab {
+                SurfaceLock.shared.lock(tab: tab, reason: request.reason)
+            } else {
+                SurfaceLock.shared.lock(manager, reason: request.reason)
+            }
         }
         if AppModeStore.shared.mode == .hybrid {
             PeekOverlayController.shared.show()
@@ -119,7 +142,11 @@ final class PeekCenter: ObservableObject {
         guard let request = active else { return }
         let manager = targetManager
         let before = beforeSnapshot
+        if let tab = targetTab {
+            SurfaceLock.shared.unlock(tab: tab)
+        }
         if let manager { SurfaceLock.shared.unlock(manager) }
+        targetTab = nil
         let after = manager.map { Self.snapshot($0) }
         PeekOverlayController.shared.hide()
         targetManager = nil
@@ -138,7 +165,9 @@ final class PeekCenter: ObservableObject {
     }
 
     func payload() -> [String: Any] {
-        var result: [String: Any] = ["locked": SurfaceLock.shared.locked.count]
+        var result: [String: Any] = [
+            "locked": SurfaceLock.shared.locked.count + SurfaceLock.shared.tabLockCount,
+        ]
         if let active {
             result["active"] = [
                 "id": active.id.uuidString,

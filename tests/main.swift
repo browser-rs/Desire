@@ -6603,6 +6603,7 @@ testSemanticIndex()
 testTabDigestCore()
 testAgentWorkReport()
 testSemanticClusterAndDigest()
+testPostActionVerifier()
 
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
@@ -6875,6 +6876,20 @@ func testSemanticClusterAndDigest() {
     check("digest：含主题标题", md.contains("主题 1"))
     check("digest：含来源标签与条目", md.contains("[Web] New"))
     check("digest：未聚类归其他", md.contains("其他") && md.contains("[PDF] Mid"))
+}
+
+func testPostActionVerifier() {
+    let base = PostActionVerifier.Fingerprint(url: "https://a", title: "T", textLength: 100, nodeCount: 50)
+    let otherURL = PostActionVerifier.Fingerprint(url: "https://b", title: "T", textLength: 100, nodeCount: 50)
+    let changed = PostActionVerifier.Fingerprint(url: "https://a", title: "T", textLength: 120, nodeCount: 50)
+    eq("verify：URL 变化=navigated", PostActionVerifier.verdict(before: base, after: otherURL), .navigated)
+    eq("verify：内容变化=changed", PostActionVerifier.verdict(before: base, after: changed), .changed)
+    eq("verify：指纹相同=unchanged", PostActionVerifier.verdict(before: base, after: base), .unchanged)
+    eq("verify：缺指纹=unknown", PostActionVerifier.verdict(before: nil, after: base), .unknown)
+    check("verify：unchanged 提示生效", PostActionVerifier.annotation(.unchanged).contains("unchanged"))
+    check("verify：unknown 无文案", PostActionVerifier.annotation(.unknown).isEmpty)
+    check("verify：动作工具在集合", PostActionVerifier.tools.contains("click"))
+    check("verify：只读工具不在集合", !PostActionVerifier.tools.contains("getPageText"))
 }
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

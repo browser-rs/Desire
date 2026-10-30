@@ -1,3 +1,9 @@
+## [Unreleased]
+### Added
+
+- **Agent 可靠性·第一批（v0.8.25）**：**动作后自动核验**——副作用动作（click/type/fill/navigate 等）执行前后各取一次页面指纹（URL/标题/正文长度/节点数），最多等 1 秒观察变化，给工具结果追加 `[verify] navigated|changed|unchanged`（动作没生效不再"看起来成功"）；**接管锁下沉到标签级**——Peek 只锁用户正在看的那一页，同窗其他标签 Agent 仍可操作（工具按 index/选中标签解析锁），`/peek` 与 `/diag/windows` 的 locked 计数含标签锁。harness 1882/0；mode-smoke 8/8 复跑通过。
+
+
 ## [v0.8.24] - 2026-10-30
 ### Added
 

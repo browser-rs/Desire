@@ -152,17 +152,43 @@ extension BrowserToolProvider {
         return candidates
     }
 
+    /// 页面指纹（核验用）：URL/标题/正文长度/节点数。取不到 = nil（unknown）。
+    private static func fingerprint(in webView: WKWebView) async -> PostActionVerifier.Fingerprint? {
+        let js = "(function(){var b=document.body;return JSON.stringify({u:location.href,t:document.title||'',n:b?b.innerText.length:0,c:document.getElementsByTagName('*').length});})()"
+        guard let raw = try? await webView.evaluateJavaScript(js) as? String,
+              let data = raw.data(using: .utf8),
+              let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else {
+            return nil
+        }
+        return PostActionVerifier.Fingerprint(
+            url: object["u"] as? String ?? "",
+            title: object["t"] as? String ?? "",
+            textLength: object["n"] as? Int ?? 0,
+            nodeCount: object["c"] as? Int ?? 0)
+    }
+
     func execute(_ call: AgentToolCall, in webView: WKWebView) async -> String {
         let leasedTabID = ownerSession?.boundTabManager?.selectedTab?.id
         if let leasedTabID { AgentScheduler.shared.acquireTabLease(leasedTabID) }
         defer {
             if let leasedTabID { AgentScheduler.shared.releaseTabLease(leasedTabID) }
         }
-        let result = await executeBody(call, in: webView)
-        // 页面感知回证（0.3.2）：动作类工具执行后自动截视口快照，
-        // 面板工具条目内联展示"点完之后"的画面。
-        if AgentEvidenceStore.evidenceTools.contains(call.function.name) {
-            AgentEvidenceStore.shared.captureEvidence(for: call.id, in: webView)
+        // 动作后核验（v0.8.25）：副作用动作执行前取一次页面指纹，执行后
+        // 等到变化或稳定（≤1s），给模型一个 [verify] 结论。
+        let needsVerify = PostActionVerifier.tools.contains(call.function.name)
+        let pre = needsVerify ? await Self.fingerprint(in: webView) : nil
+        var result = await executeBody(call, in: webView)
+        if needsVerify, !result.hasPrefix("Error:") {
+            var after = await Self.fingerprint(in: webView)
+            var tries = 0
+            while tries < 4,
+                  PostActionVerifier.verdict(before: pre, after: after) == .unchanged {
+                try? await Task.sleep(nanoseconds: 250_000_000)
+                after = await Self.fingerprint(in: webView)
+                tries += 1
+            }
+            result += PostActionVerifier.annotation(
+                PostActionVerifier.verdict(before: pre, after: after))
         }
         return result
     }
@@ -177,9 +203,18 @@ extension BrowserToolProvider {
         }
         // 接管锁（v0.8.23）：用户在手动操作这个浏览面时，Agent 工具让路，
         // 明确报错而不是静默失败或和用户抢。
-        if let lockedManager = surface.tabManager,
-           let lockReason = SurfaceLock.shared.reason(for: lockedManager) {
-            return Self.fail("surface is being used by the user (peek: \(lockReason)); retry after they finish")
+        if let lockedManager = surface.tabManager {
+            if let lockReason = SurfaceLock.shared.reason(for: lockedManager) {
+                return Self.fail("surface is being used by the user (peek: \(lockReason)); retry after they finish")
+            }
+            // 标签级锁（v0.8.25）：工具目标页被用户接管时只挡这一页，其他标签照常。
+            let targetIndex = args["index"] as? Int
+            let targetTab = targetIndex.flatMap {
+                lockedManager.tabs.indices.contains($0) ? lockedManager.tabs[$0] : nil
+            } ?? lockedManager.selectedTab
+            if let targetTab, let reason = SurfaceLock.shared.reason(for: targetTab) {
+                return Self.fail("this page is being used by the user (peek: \(reason)); try another tab or wait")
+            }
         }
         // ARCH-2：按域拆分——先「页面/数据」域，再「DOM/系统」域，最后本文件
         // 的 Utilities 尾段（wait/waitForElement/executeJS/fillLogin 等）。

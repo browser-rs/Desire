@@ -75912,6 +75912,270 @@
           }
         }
       }
+    },
+    "Toolbox: 43 built-in tools" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Toolbox: 43 built-in tools"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具箱：43 个内置工具"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具箱：43 個內建工具"
+          }
+        }
+      }
+    },
+    "Open desire://tools — mortgage, JSON, units, AES, diff and more. Also in the floating ball." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open desire://tools — mortgage, JSON, units, AES, diff and more. Also in the floating ball."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 desire://tools——房贷、JSON、单位、AES、diff 等；悬浮球也能进。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打開 desire://tools——房貸、JSON、單位、AES、diff 等；懸浮球也能進。"
+          }
+        }
+      }
+    },
+    "JSON workbench" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JSON workbench"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JSON 工作台"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "JSON 工作台"
+          }
+        }
+      }
+    },
+    "Open .json files to format, validate, sort keys, and export CSV or Excel." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open .json files to format, validate, sort keys, and export CSV or Excel."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "打开 .json 文件：格式化、校验、键排序，导出 CSV/Excel。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開啟 .json 檔案：格式化、驗證、鍵排序，匯出 CSV/Excel。"
+          }
+        }
+      }
+    },
+    "Office files, upgraded" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Office files, upgraded"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "办公文件升级"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "辦公檔案升級"
+          }
+        }
+      }
+    },
+    "PPTX outline viewer, CSV↔JSON, image conversion, and selective zip extraction." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PPTX outline viewer, CSV↔JSON, image conversion, and selective zip extraction."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PPTX 大纲、CSV↔JSON、图片转换、压缩包按条目解压。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PPTX 大綱、CSV↔JSON、圖片轉換、壓縮包逐項解壓。"
+          }
+        }
+      }
+    },
+    "Agent does it right" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent does it right"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 更可靠"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 更可靠"
+          }
+        }
+      }
+    },
+    "Post-action verification, tool-level resume after crashes, one-click re-run of failed steps." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Post-action verification, tool-level resume after crashes, one-click re-run of failed steps."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "动作后核验、崩溃后工具级续跑、失败步骤一键重跑。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "動作後核驗、當機後工具級續跑、失敗步驟一鍵重跑。"
+          }
+        }
+      }
+    },
+    "Peek quick actions" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peek quick actions"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peek 快捷操作"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peek 快捷操作"
+          }
+        }
+      }
+    },
+    "Approve, Deny or Retry right from the Peek overlay; per-site agent preferences." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Approve, Deny or Retry right from the Peek overlay; per-site agent preferences."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peek 浮层直接允许/拒绝/重试；站点级 Agent 偏好。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Peek 浮層直接允許/拒絕/重試；網站級 Agent 偏好。"
+          }
+        }
+      }
+    },
+    "desire:// deep links" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "desire:// deep links"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "desire:// 深链"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "desire:// 深連結"
+          }
+        }
+      }
+    },
+    "desire://tools/... now opens from anywhere — Finder, other apps, the floating ball." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "desire://tools/... now opens from anywhere — Finder, other apps, the floating ball."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "desire://tools/… 可从任意位置打开——Finder、其他应用、悬浮球。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "desire://tools/… 可從任何位置開啟——Finder、其他 App、懸浮球。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -14,20 +14,21 @@ struct WhatsNewSheet: View {
         let detail: String
     }
 
+    /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "arrow.down.doc", title: "Import from another browser",
-                  detail: "Bring bookmarks, history and home/startup pages from Chrome, Edge, Brave, Arc or Safari."),
-            .init(icon: "square.grid.2x2", title: "Web Apps",
-                  detail: "Install a site as a standalone window with its own sign-in, no address bar."),
-            .init(icon: "doc.text.magnifyingglass", title: "Search page text",
-                  detail: "Find something you read but can't remember the title of. Off by default, stays on this Mac."),
-            .init(icon: "arrow.counterclockwise", title: "Crash-safe session restore",
-                  detail: "After a crash or force quit, all live windows come back — not just the first one."),
-            .init(icon: "key.fill", title: "One keychain prompt",
-                  detail: "AI keys and sync secrets live in one item; no more one prompt per key."),
-            .init(icon: "key.horizontal.fill", title: "Explicit password fill",
-                  detail: "A \"Fill saved password\" bar appears on login pages; it reads the keychain only when you click."),
+            .init(icon: "wrench.and.screwdriver", title: String(localized: "Toolbox: 43 built-in tools"),
+                  detail: String(localized: "Open desire://tools — mortgage, JSON, units, AES, diff and more. Also in the floating ball.")),
+            .init(icon: "curlybraces", title: String(localized: "JSON workbench"),
+                  detail: String(localized: "Open .json files to format, validate, sort keys, and export CSV or Excel.")),
+            .init(icon: "photo.on.rectangle.angled", title: String(localized: "Office files, upgraded"),
+                  detail: String(localized: "PPTX outline viewer, CSV↔JSON, image conversion, and selective zip extraction.")),
+            .init(icon: "checkmark.seal", title: String(localized: "Agent does it right"),
+                  detail: String(localized: "Post-action verification, tool-level resume after crashes, one-click re-run of failed steps.")),
+            .init(icon: "hand.raised.fill", title: String(localized: "Peek quick actions"),
+                  detail: String(localized: "Approve, Deny or Retry right from the Peek overlay; per-site agent preferences.")),
+            .init(icon: "link", title: String(localized: "desire:// deep links"),
+                  detail: String(localized: "desire://tools/... now opens from anywhere — Finder, other apps, the floating ball.")),
         ]
     }
 

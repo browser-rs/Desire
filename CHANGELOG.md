@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.25] - 2026-10-30
 ### Changed
 
 - Agent: page observations are reused within the same turn (same tab, same settings, 8s window) instead of re-serializing the DOM; side-effect actions invalidate the cache and `refresh:true` forces a fresh read (v0.8.25)

@@ -6,6 +6,8 @@
 - desire:// page system: InternalPages routes 14 built-in pages (tools, settings+section, search?q, agent+conversation, whiteboard?text, downloads, history, bookmarks, passwords, plugins, whatsnew, newtab, about, sync) — unknown hosts land on a fallback index page; new-tab page gains a Toolbox card and the address bar suggests desire:// links for tools/settings/history/downloads (v0.8.27)
 - Media editing (toolbox `media` category): Video Editor (in/out-point trim with fast keyframe copy or exact re-encode, multi-clip merge) and Audio Editor (trim, merge, extract a video's audio track as m4a). AVFoundation-first with automatic ffmpeg fallback for exotic containers; jobs run in background with progress and cancel; the media player gains a scissors button that hands the file to the editor.
 - Image editor: nine one-tap filter presets (Vivid/Mono/Chrome/Fade/Instant/Noir/Process/Tonal/Transfer via CIPhotoEffect family + CIVibrance) and exposure / color-temperature sliders in the adjustments panel.
+- Custom local media player: dragged-in videos open in a dedicated playback mode with a hand-built control layer — seek bar with buffered range, ±10s steps, playback speed 0.5–2×, volume/mute, picture-in-picture, controls and cursor auto-hide after 3s, keyboard (space, arrows, F, Esc), an artwork card for audio files, and per-file resume where you left off (v0.8.27)
+
 
 
 

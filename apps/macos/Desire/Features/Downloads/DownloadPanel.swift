@@ -35,9 +35,13 @@ struct DownloadPanel: View {
     @State private var showScheduleSheet = false
 
     private var filteredDownloads: [DownloadItem] {
-        guard !searchText.isEmpty else { return store.downloads }
-        return store.downloads.filter {
-            $0.filename.localizedCaseInsensitiveContains(searchText)
+        // v0.8.25：按文件名 / 来源 URL / 站点搜索，叠加类型与状态过滤。
+        let visible = store.visibleDownloads()
+        guard !searchText.isEmpty else { return visible }
+        return visible.filter {
+            DownloadFilterCore.matchesQuery(filename: $0.filename,
+                                            sourceURL: $0.sourceURL?.absoluteString,
+                                            query: searchText)
         }
     }
 
@@ -375,13 +379,16 @@ struct DownloadPanel: View {
     /// 状态摘要：小圆点 + 静文字。
     @ViewBuilder
     private var statusSummary: some View {
-        if store.hasActive || store.pausedCount > 0 || weeklyCount > 0 {
+        if store.hasActive || store.pausedCount > 0 || store.failedCount > 0 || weeklyCount > 0 {
             HStack(spacing: 10) {
                 if store.hasActive {
                     summaryItem(color: appAccent, text: String(localized: "\(store.activeCount) active"))
                 }
                 if store.pausedCount > 0 {
                     summaryItem(color: .orange, text: String(localized: "\(store.pausedCount) paused"))
+                }
+                if store.failedCount > 0 {
+                    summaryItem(color: .red, text: String(localized: "\(store.failedCount) failed"))
                 }
                 if weeklyCount > 0 {
                     // 本周统计（v0.8.16）：近 7 天完成条数与体积。
@@ -423,7 +430,7 @@ struct DownloadPanel: View {
                 Image(systemName: "magnifyingglass")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
-                TextField("Search Downloads…", text: $searchText)
+                TextField("Search name or site…", text: $searchText)
                     .textFieldStyle(.plain)
                     .font(.system(size: 12))
                 if !searchText.isEmpty {
@@ -445,6 +452,7 @@ struct DownloadPanel: View {
             )
 
             fileTypeFilter
+            statusFilterMenu
             groupByControl
         }
         .padding(.top, 12)
@@ -481,6 +489,59 @@ struct DownloadPanel: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .help("Filter by Type")
+    }
+
+    /// 状态过滤（v0.8.25）：四态与用户语义一致（暂停 = isPaused 或 .paused）。
+    private var statusFilterMenu: some View {
+        Menu {
+            Button(String(localized: "All Statuses")) { store.statusFilter = .all }
+            Divider()
+            ForEach(DownloadStatusFilter.allCases.filter { $0 != .all }, id: \.self) { filter in
+                Button {
+                    store.statusFilter = filter
+                } label: {
+                    Label(Self.statusLabel(filter), systemImage: Self.statusIcon(filter))
+                }
+            }
+        } label: {
+            let active = store.statusFilter != .all
+            Image(systemName: active ? Self.statusIcon(store.statusFilter)
+                                     : "arrow.up.arrow.down.circle")
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(active ? appAccent : .secondary)
+                .frame(width: 28, height: 26)
+                .background(
+                    RoundedRectangle(cornerRadius: .radiusButton).fill(
+                        active ? appAccent.opacity(0.14) : Color(nsColor: .controlBackgroundColor)
+                    )
+                )
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help("Filter by Status")
+    }
+
+    private static func statusLabel(_ filter: DownloadStatusFilter) -> String {
+        switch filter {
+        case .all: return String(localized: "All Statuses")
+        case .active: return String(localized: "In Progress")
+        case .paused: return String(localized: "Paused")
+        case .completed: return String(localized: "Completed")
+        case .failed: return String(localized: "Failed")
+        }
+    }
+
+    private static func statusIcon(_ filter: DownloadStatusFilter) -> String {
+        switch filter {
+        case .all: return "arrow.up.arrow.down.circle"
+        case .active: return "arrow.down.circle"
+        case .paused: return "pause.circle"
+        case .completed: return "checkmark.circle"
+        case .failed: return "exclamationmark.circle"
+        }
     }
 
     /// 自绘的分组切换：这里只需要三个图标，自绘后选中态（抬升 + 强调色图标）
@@ -558,18 +619,32 @@ struct DownloadPanel: View {
     }
 
     private var emptyState: some View {
-        VStack(spacing: 14) {
+        let filtered = store.fileTypeFilter != nil || store.statusFilter != .all
+        return VStack(spacing: 14) {
             Spacer()
             EmptyState(
-                title: searchText.isEmpty
+                title: searchText.isEmpty && !filtered
                     ? String(localized: "No Downloads")
                     : String(localized: "No Matching Downloads"),
-                systemImage: searchText.isEmpty ? "arrow.down.circle" : "magnifyingglass",
-                description: searchText.isEmpty
+                systemImage: searchText.isEmpty && !filtered ? "arrow.down.circle" : "magnifyingglass",
+                description: searchText.isEmpty && !filtered
                     ? String(localized: "Files you download show up here.")
                     : nil
             )
-            if searchText.isEmpty {
+            if filtered {
+                Button {
+                    store.fileTypeFilter = nil
+                    store.statusFilter = .all
+                } label: {
+                    Text("Clear Filters")
+                        .font(.system(size: 12, weight: .medium))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(.tint.opacity(0.14)))
+                        .foregroundStyle(.tint)
+                }
+                .buttonStyle(.plain)
+            } else if searchText.isEmpty {
                 Button {
                     NSWorkspace.shared.open(store.downloadFolder)
                 } label: {
@@ -961,6 +1036,13 @@ private struct DownloadRow: View {
             }
         case .failed:
             Button("Retry") { store.retry(item) }
+            // 失败原因可复制（v0.8.25）：行内只显示一行，长错误需要拿出去查。
+            if let reason = item.error, !reason.isEmpty {
+                Button(String(localized: "Copy Error")) {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(reason, forType: .string)
+                }
+            }
         }
         if let source = item.sourceURL {
             Button("Copy Link") {

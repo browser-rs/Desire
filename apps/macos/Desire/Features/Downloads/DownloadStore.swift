@@ -16,6 +16,16 @@ class DownloadStore: ObservableObject {
     @Published private(set) var downloadFolder: URL
     @Published var groupingMode: GroupingMode = .date
     @Published var fileTypeFilter: DownloadItem.FileType? = nil
+    /// 状态过滤（v0.8.25）：与类型过滤叠加，分组视图与搜索都以此为可见集。
+    @Published var statusFilter: DownloadStatusFilter = .all
+    /// 类型 + 状态过滤后的可见行（v0.8.25，统一口径）。
+    func visibleDownloads() -> [DownloadItem] {
+        downloads.filter { item in
+            (fileTypeFilter == nil || item.fileType == fileTypeFilter)
+                && DownloadFilterCore.matchesStatus(statusFilter, state: item.state.rawValue,
+                                                    isPaused: item.isPaused)
+        }
+    }
 
     private var accessedURL: URL?
     private let bookmarkKey = "desire.downloadFolder.bookmark"
@@ -46,6 +56,8 @@ class DownloadStore: ObservableObject {
     var hasActive: Bool { downloads.contains { $0.state == .inProgress && !$0.isPaused } }
     var activeCount: Int { downloads.filter { $0.state == .inProgress && !$0.isPaused }.count }
     var pausedCount: Int { downloads.filter { $0.isPaused }.count }
+    /// 失败行数（v0.8.25，状态条与过滤菜单用）。
+    var failedCount: Int { downloads.filter { $0.state == .failed }.count }
 
     init() {
         conflictPolicyRaw = UserDefaults.standard.string(forKey: "download.conflictPolicy")
@@ -394,9 +406,7 @@ class DownloadStore: ObservableObject {
         var thisMonth: [DownloadItem] = []
         var earlier: [DownloadItem] = []
 
-        let filtered = fileTypeFilter != nil
-            ? downloads.filter { $0.fileType == fileTypeFilter }
-            : downloads
+        let filtered = visibleDownloads()
 
         for item in filtered {
             if item.startTime >= todayStart {
@@ -423,7 +433,7 @@ class DownloadStore: ObservableObject {
 
     func groupedByFileType() -> [(String, [DownloadItem])] {
         var groups: [DownloadItem.FileType: [DownloadItem]] = [:]
-        for item in downloads {
+        for item in visibleDownloads() {
             groups[item.fileType, default: []].append(item)
         }
         return groups.sorted { $0.key.rawValue < $1.key.rawValue }.map { ($0.key.rawValue.capitalized, $0.value) }
@@ -435,9 +445,7 @@ class DownloadStore: ObservableObject {
         var completed: [DownloadItem] = []
         var failed: [DownloadItem] = []
 
-        let filtered = fileTypeFilter != nil
-            ? downloads.filter { $0.fileType == fileTypeFilter }
-            : downloads
+        let filtered = visibleDownloads()
 
         for item in filtered {
             if item.isPaused {

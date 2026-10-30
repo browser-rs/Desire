@@ -78,6 +78,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/TaskRunAudit.swift
   apps/macos/Desire/Features/History/HistoryDedupePlan.swift
   apps/macos/Desire/Features/Downloads/DownloadCenterPlan.swift
+  apps/macos/Desire/Features/Downloads/DownloadFilterCore.swift
   apps/macos/Desire/Features/Agent/SpreadsheetBuffer.swift
   apps/macos/Desire/Features/Agent/PageRangeParser.swift
   apps/macos/Desire/Features/Agent/SpreadsheetXLSXWriter.swift

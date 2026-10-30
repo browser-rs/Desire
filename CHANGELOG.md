@@ -15,6 +15,8 @@
 - **隔离默认值首启引导（v0.8.25）**：首次切到专注/混合模式的一次性说明里直接给出选择——「隔离容器（推荐）」或「沿用我的登录态」，选中即写入设置（之后可在 设置 › 使用模式 改），不再只是读一段说明。
 - **历史洞察（v0.8.25）**：新增纯逻辑 `HistoryInsightsBuilder`（总访问/站点数/Top 站点/24 小时分布/最近 7 天，`www.` 归一、同分按 host 排序）与桥 `GET /history/insights`——面板 UI 随后接线，数据口径已与桥同源。harness 1896/0。
 - History: insights sheet (top sites, 24-hour distribution, last 7 days) opened from the panel header, sharing the same derived numbers as `/history/insights` (v0.8.25)
+- Downloads: search by name or site + status filter (active/paused/completed/failed), failure count in the summary bar and "Copy Error" on failed rows (v0.8.25)
+
 
 
 

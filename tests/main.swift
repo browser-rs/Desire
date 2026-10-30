@@ -6936,6 +6936,29 @@ func testHistoryInsights() {
     eq("insights：host 归一", HistoryInsightsBuilder.host(of: "https://www.Example.com/x"), "example.com")
 }
 
+func testDownloadFilterCore() {
+    check("下载过滤：all 放行", DownloadFilterCore.matchesStatus(.all, state: "failed", isPaused: true))
+    check("下载过滤：active 排除暂停", !DownloadFilterCore.matchesStatus(.active, state: "inProgress", isPaused: true))
+    check("下载过滤：active 收进行中", DownloadFilterCore.matchesStatus(.active, state: "inProgress", isPaused: false))
+    check("下载过滤：paused 认 isPaused 标记", DownloadFilterCore.matchesStatus(.paused, state: "inProgress", isPaused: true))
+    check("下载过滤：paused 认 .paused 状态", DownloadFilterCore.matchesStatus(.paused, state: "paused", isPaused: false))
+    check("下载过滤：completed", DownloadFilterCore.matchesStatus(.completed, state: "completed", isPaused: false))
+    check("下载过滤：failed", DownloadFilterCore.matchesStatus(.failed, state: "failed", isPaused: false))
+    check("下载过滤：failed 不收完成", !DownloadFilterCore.matchesStatus(.failed, state: "completed", isPaused: false))
+
+    check("下载搜索：空查询恒真", DownloadFilterCore.matchesQuery(filename: "a.zip", sourceURL: nil, query: "  "))
+    check("下载搜索：文件名命中", DownloadFilterCore.matchesQuery(filename: "Report.PDF", sourceURL: nil, query: "report"))
+    check("下载搜索：站点命中", DownloadFilterCore.matchesQuery(filename: "clip.mp4", sourceURL: "https://www.Example.com/v/1", query: "example.com"))
+    check("下载搜索：无源不命中", !DownloadFilterCore.matchesQuery(filename: "a.zip", sourceURL: nil, query: "example"))
+    check("下载搜索：未命中", !DownloadFilterCore.matchesQuery(filename: "a.zip", sourceURL: "https://a.com/x", query: "zzz"))
+
+    eq("下载过滤：host 归一", DownloadFilterCore.host(of: "https://www.Example.com/x"), "example.com")
+    eq("下载过滤：host 无值", DownloadFilterCore.host(of: "not a url"), nil)
+    eq("下载过滤：host nil", DownloadFilterCore.host(of: nil), nil)
+}
+
+testDownloadFilterCore()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

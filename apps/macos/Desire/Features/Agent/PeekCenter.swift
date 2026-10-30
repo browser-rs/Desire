@@ -116,6 +116,7 @@ final class PeekCenter: ObservableObject {
             targetTab = manager.selectedTab
             if let tab = targetTab {
                 SurfaceLock.shared.lock(tab: tab, reason: request.reason)
+                tab.browser.webView.evaluateJavaScript(Self.replayJS, completionHandler: nil)
             } else {
                 SurfaceLock.shared.lock(manager, reason: request.reason)
             }
@@ -142,6 +143,7 @@ final class PeekCenter: ObservableObject {
         guard let request = active else { return }
         let manager = targetManager
         let before = beforeSnapshot
+        let replayTab = targetTab
         if let tab = targetTab {
             SurfaceLock.shared.unlock(tab: tab)
         }
@@ -162,6 +164,20 @@ final class PeekCenter: ObservableObject {
         }
         lastResolution = note
         AgentScheduler.shared.deliveryTarget?.appendExternalNote(note)
+        // 接管回放（v0.8.25）：读记录器 → 去敏摘要 → 作为第二条备注交还。
+        if let replayTab {
+            Task { @MainActor in
+                let raw = (try? await replayTab.browser.webView.evaluateJavaScript(
+                    "(function(){var p=window.__desirePeek;if(!p)return '[]';clearInterval(p.timer);return JSON.stringify(p.log||[]);})()")) as? String
+                guard let raw, let data = raw.data(using: .utf8),
+                      let entries = try? JSONDecoder().decode([PeekReplayEntry].self, from: data),
+                      !entries.isEmpty else { return }
+                let summary = PeekReplayCore.format(entries)
+                guard !summary.isEmpty else { return }
+                AgentScheduler.shared.deliveryTarget?
+                    .appendExternalNote("Peek actions observed: \(summary)")
+            }
+        }
     }
 
     func payload() -> [String: Any] {
@@ -179,6 +195,38 @@ final class PeekCenter: ObservableObject {
         if let lastResolution { result["lastResolution"] = lastResolution }
         return result
     }
+
+    /// 接管期间的轻量记录器（v0.8.25）：只记点击文字/字段名/跳转标题，
+    /// **不记输入值**；最多 60 条，Peek 结束时读取并清理定时器。
+    private static let replayJS = """
+    (function(){
+      if (window.__desirePeek) return;
+      window.__desirePeek = { log: [] };
+      function label(el){
+        if(!el) return '';
+        var t=(el.innerText||'').trim().replace(/\\s+/g,' ').slice(0,40);
+        return t || el.getAttribute('name') || el.id || el.tagName.toLowerCase();
+      }
+      document.addEventListener('click', function(e){
+        var el = e.target && e.target.closest ? e.target.closest('a,button,input,[role=button]') : e.target;
+        if(!el) return;
+        window.__desirePeek.log.push({kind:'click', label:label(el)});
+      }, true);
+      document.addEventListener('input', function(e){
+        var el = e.target; if(!el) return;
+        var name = el.getAttribute('name') || el.id || el.getAttribute('type') || 'field';
+        window.__desirePeek.log.push({kind:'input', label:name});
+      }, true);
+      var lastURL = location.href;
+      window.__desirePeek.timer = setInterval(function(){
+        if(location.href !== lastURL){
+          lastURL = location.href;
+          window.__desirePeek.log.push({kind:'navigate', label:document.title || lastURL});
+        }
+        if(window.__desirePeek.log.length > 60) window.__desirePeek.log.splice(0, window.__desirePeek.log.length - 60);
+      }, 800);
+    })();
+    """
 
     private static func snapshot(_ manager: TabManager) -> String {
         let tab = manager.selectedTab

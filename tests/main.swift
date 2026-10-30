@@ -6604,6 +6604,7 @@ testTabDigestCore()
 testAgentWorkReport()
 testSemanticClusterAndDigest()
 testPostActionVerifier()
+testPeekReplay()
 
 
 // ---------- 页面监视变化区域提取（v0.7.5 智能监视）----------
@@ -6892,6 +6893,20 @@ func testPostActionVerifier() {
     check("verify：登录页有提示", PostActionVerifier.loginHint(hasPasswordField: true).contains("requestUserHelp"))
     check("verify：非登录页无提示", PostActionVerifier.loginHint(hasPasswordField: false).isEmpty)
     check("verify：只读工具不在集合", !PostActionVerifier.tools.contains("getPageText"))
+}
+
+func testPeekReplay() {
+    let entries = [
+        PeekReplayEntry(kind: "click", label: "登录"),
+        PeekReplayEntry(kind: "click", label: "登录"),
+        PeekReplayEntry(kind: "input", label: "password"),
+        PeekReplayEntry(kind: "navigate", label: "首页"),
+    ]
+    eq("replay：格式与去重", PeekReplayCore.format(entries),
+       "clicked 登录 → typed in password → went to 首页")
+    eq("replay：条数上限", PeekReplayCore.format(entries, limit: 2).components(separatedBy: " → ").count, 2)
+    eq("replay：空输入", PeekReplayCore.format([]), "")
+    check("replay：未知类型也能渲染", PeekReplayCore.format([PeekReplayEntry(kind: "scroll", label: "down")]).contains("scroll"))
 }
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

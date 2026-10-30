@@ -199,6 +199,7 @@ SOURCES=(
   apps/macos/Desire/Features/Search/SemanticSnapshots.swift
   apps/macos/Desire/Features/Agent/TabDigestCore.swift
   apps/macos/Desire/Features/Agent/PostActionVerifier.swift
+  apps/macos/Desire/Features/Agent/PeekReplayCore.swift
   apps/macos/Desire/Features/Agent/AgentWorkReport.swift
   apps/macos/Desire/Features/Search/SemanticClusterCore.swift
   apps/macos/Desire/Features/Excerpts/KnowledgeDigestCore.swift

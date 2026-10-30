@@ -1002,6 +1002,11 @@ class AgentSessionStore: ObservableObject {
         return true
     }
 
+    /// 最近一条带 tool_calls 的调用 id（Peek 浮层的"重试"用）。
+    var lastToolCallID: String? {
+        messages.last(where: { !($0.toolCalls ?? []).isEmpty })?.toolCalls?.last?.id
+    }
+
     /// 轨迹页"只重跑这一步"（v0.8.25）：按原参数重放一个工具调用，结果作为
     /// 新的 assistant(tool_calls)+tool 消息对落进会话；`continueTurn` 为真时
     /// 立刻续跑模型回合（与 resumeInterruptedTurn 同路，不追加用户消息）。

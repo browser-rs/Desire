@@ -2935,10 +2935,12 @@ final class AutomationServer {
                                                   needsPage: body["needsPage"] as? Bool ?? true)
                 case "open":
                     PeekCenter.shared.present()
-                case "resolve":
+                case "resolve", "approve":
                     PeekCenter.shared.resolve(completed: true)
-                case "dismiss":
+                case "dismiss", "deny":
                     PeekCenter.shared.resolve(completed: false)
+                case "retry":
+                    PeekCenter.shared.retryLastStep()
                 default:
                     return try Self.json(["error": "unknown action: \(peekAction)"])
                 }

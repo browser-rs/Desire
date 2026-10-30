@@ -138,8 +138,32 @@ final class PeekCenter: ObservableObject {
         }
     }
 
+    /// 浮层快捷动作（v0.8.25）：
+    /// - 允许 = 用户已处理，交还 Agent 继续；
+    /// - 拒绝 = 明确告诉模型不要继续这一步；
+    /// - 重试 = 交还后让 Agent 重跑最后一步（工具级重放）。
+    func approve() {
+        resolve(completed: true)
+    }
+
+    func deny() {
+        resolve(completed: false,
+                extraNote: "The user declined this action — do not retry it unless they ask.")
+    }
+
+    func retryLastStep() {
+        let session = AgentScheduler.shared.deliveryTarget
+        let callId = session?.lastToolCallID
+        resolve(completed: false,
+                extraNote: "The user asked the agent to retry after handling the page.")
+        guard let session, let callId, !session.isProcessing else { return }
+        Task { @MainActor in
+            _ = await session.rerunToolCall(id: callId, continueTurn: true)
+        }
+    }
+
     /// 完成/关闭：解锁、对比页面前后状态、写系统备注告知模型。
-    func resolve(completed: Bool) {
+    func resolve(completed: Bool, extraNote: String? = nil) {
         guard let request = active else { return }
         let manager = targetManager
         let before = beforeSnapshot
@@ -155,13 +179,14 @@ final class PeekCenter: ObservableObject {
         beforeSnapshot = nil
         active = nil
 
-        let note: String
+        var note: String
         if let before, let after {
             let page = before == after ? "page unchanged" : "page changed"
             note = "Peek \(completed ? "completed" : "dismissed") — \(page) (\(before.isEmpty ? "no page" : before) → \(after.isEmpty ? "no page" : after)). Reason: \(request.reason)"
         } else {
             note = "Peek \(completed ? "completed" : "dismissed"). Reason: \(request.reason)"
         }
+        if let extraNote { note += " " + extraNote }
         lastResolution = note
         AgentScheduler.shared.deliveryTarget?.appendExternalNote(note)
         // 接管回放（v0.8.25）：读记录器 → 去敏摘要 → 作为第二条备注交还。

@@ -24,6 +24,8 @@
 - Bookmarks: multi-select actions — move selected items into a folder (root included) and batch add/remove/replace tags, with a subtree guard against moving a folder into itself (v0.8.25)
 - Agent: tool-level checkpoint resume — after an interrupted turn, read-only tool calls that never produced a result are re-run and their real output lands in the conversation instead of a generic "[interrupted]"; `/agent/resume` reports pending/replayable/replayed counts (v0.8.25)
 - Trace page: one-click re-run for failed or denied steps with their original arguments — the result is appended as a fresh assistant+tool pair and the agent continues; also exposed as `POST /agent/rerun-step` (v0.8.25)
+- Peek overlay: quick actions — Approve (hand back and continue), Deny (tell the agent to stop this step) and Retry (re-run the agent's last step after the user deals with the page); also `POST /peek {"action":"approve|deny|retry"}` (v0.8.25)
+
 
 
 

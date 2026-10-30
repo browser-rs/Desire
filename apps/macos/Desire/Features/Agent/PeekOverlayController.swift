@@ -107,8 +107,9 @@ final class PeekOverlayController {
             onGoHandle: { [weak self] in
                 self?.goHandle()
             },
-            onDone: { PeekCenter.shared.resolve(completed: true) },
-            onDismiss: { PeekCenter.shared.resolve(completed: false) })
+            onApprove: { PeekCenter.shared.approve() },
+            onDeny: { PeekCenter.shared.deny() },
+            onRetry: { PeekCenter.shared.retryLastStep() })
         if let host {
             host.rootView = content
         } else if let panel {
@@ -146,8 +147,9 @@ private struct PeekOverlayContent: View {
     let reason: String
     let snapshot: NSImage?
     let onGoHandle: () -> Void
-    let onDone: () -> Void
-    let onDismiss: () -> Void
+    let onApprove: () -> Void
+    let onDeny: () -> Void
+    let onRetry: () -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -183,10 +185,14 @@ private struct PeekOverlayContent: View {
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)
                 Spacer()
-                Button(String(localized: "Dismiss"), action: onDismiss)
+                Button(String(localized: "Retry"), action: onRetry)
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                Button(String(localized: "Done"), action: onDone)
+                    .help(String(localized: "Ask the agent to re-run its last step"))
+                Button(String(localized: "Deny"), action: onDeny)
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                Button(String(localized: "Approve"), action: onApprove)
                     .buttonStyle(.bordered)
                     .controlSize(.small)
             }

@@ -108,9 +108,7 @@ final class PeekCenter: ObservableObject {
         case .agentFocus:
             return AgentPaneManager.shared.ensure()
         case .hybrid:
-            return TabSessionCoordinator.shared.liveManagers().first {
-                WindowRoleRegistry.shared.role(for: $0.sessionKey) == .agent
-            }
+            return WindowTargetResolver.agentManager()
         case .browser:
             return TabSessionCoordinator.shared.activeTabManager
         }

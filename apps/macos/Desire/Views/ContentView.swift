@@ -662,6 +662,16 @@ struct ContentView: View {
     var body: some View {
         ZStack {
             browserShell
+            // 关窗语义（v0.8.24）：专注模式下关掉最后一扇窗 → 降级 browser，
+            // 避免下次启动又落在工作台而用户以为"浏览器不见了"。
+            WindowCloseObserver { closed in
+                guard !TabSessionCoordinator.shared.isTerminatingNow else { return }
+                guard AppModeStore.shared.mode == .agentFocus else { return }
+                let others = NSApp.windows.filter { $0 !== closed && $0.isVisible }
+                guard others.isEmpty else { return }
+                AppModeCoordinator.apply(.browser)
+            }
+            .frame(width: 0, height: 0)
             // 混合模式的 Agent 窗口标题（v0.8.24）：窗口级角色标记。
             AgentWindowTitleMarker(title: String(localized: "Agent Workspace")) {
                 WindowRoleRegistry.shared.role(for: tabManager.sessionKey) == .agent
@@ -844,9 +854,7 @@ struct ContentView: View {
             if WindowRoleRegistry.shared.role(for: tabManager.sessionKey) == .agent {
                 return base
             }
-            if let agentManager = TabSessionCoordinator.shared.liveManagers().first(where: {
-                WindowRoleRegistry.shared.role(for: $0.sessionKey) == .agent
-            }) {
+            if let agentManager = WindowTargetResolver.agentManager() {
                 return ModeAwareToolSurface(base: base, tabManager: agentManager)
             }
             return base

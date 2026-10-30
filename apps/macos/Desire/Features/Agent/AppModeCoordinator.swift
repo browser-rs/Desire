@@ -21,10 +21,7 @@ enum AppModeCoordinator {
     /// "请求新窗口"通知完成（用户动作触发，允许它成为 key），角色由
     /// `WindowRoleRegistry.pendingRole` 带给 SessionRestore。
     static func ensureAgentWindow() {
-        let hasAgentWindow = TabSessionCoordinator.shared.liveManagers().contains {
-            WindowRoleRegistry.shared.role(for: $0.sessionKey) == .agent
-        }
-        guard !hasAgentWindow else { return }
+        guard WindowTargetResolver.agentManager() == nil else { return }
         WindowRoleRegistry.shared.pendingRole = .agent
         // 通知带会话点名：窗口侧只让"持有该会话的窗口"开新窗（既有约定）。
         var info: [String: Any] = [:]

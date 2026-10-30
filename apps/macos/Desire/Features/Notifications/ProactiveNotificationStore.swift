@@ -60,6 +60,12 @@ final class ProactiveNotificationStore: ObservableObject {
         case .urgent:
             deliverNow(title: title, body: body)
         case .routine:
+            // 专注模式（v0.8.24）：例行通知不弹，全部进摘要——用户在工作台里
+            // 不该被"后台任务完成"打断；紧急通知仍直推。
+            if AppModeStore.shared.mode == .agentFocus {
+                hold(title: title, body: body)
+                return
+            }
             rollDayIfNeeded()
             if policy.shouldHoldRoutine(sentToday: routineDeliveredToday,
                                         minutesSinceMidnight: Self.minutesNow()) {

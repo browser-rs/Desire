@@ -165,60 +165,60 @@ extension BrowsingActions {
     }
 
     func openLocalFileInTab(_ url: URL, for tab: Tab) {
-        let ext = url.pathExtension.lowercased()
-        // 统一记账（v0.8.12 基础件 10）：新标签页"最近本地文件"与 Remote 文件面共用。
         RecentLocalFiles.record(url: url)
+        if Self.routeLocalFile(url, to: tab) { return }
+        tab.isOnNewTabPage = false
+        tab.urlString = url.absoluteString
+        tab.browser.webView.load(URLRequest(url: url))
+    }
+
+    /// 查看器路由（v0.8.26 抽出）：只负责把文件类型映射到标签的查看器状态位。
+    /// 返回 false = 不是查看器类型（调用方按普通文件加载）。拖入/地址栏/
+    /// "用 Desire 打开"（系统 open URLs）与桥 `/open-file` 共用同一份映射。
+    static func routeLocalFile(_ url: URL, to tab: Tab) -> Bool {
+        let ext = url.pathExtension.lowercased()
         if ext == "pdf" {
             tab.browser.pdfViewerFileName = url.lastPathComponent
             tab.browser.pdfViewerReturnURL = tab.browser.webView.url
             tab.browser.pdfViewerURL = url
-            return
+            return true
         }
-        if Self.tableExtensions.contains(ext) {
+        if tableExtensions.contains(ext) {
             tab.browser.spreadsheetViewerFileName = url.lastPathComponent
             tab.browser.spreadsheetViewerURL = url
-            return
+            return true
         }
-        if Self.imageExtensions.contains(ext) {
+        if imageExtensions.contains(ext) {
             tab.browser.imageEditorFileName = url.lastPathComponent
             tab.browser.imageEditorURL = url
-            return
+            return true
         }
-
         if ext == "zip" {
             tab.browser.archiveViewerFileName = url.lastPathComponent
             tab.browser.archiveViewerURL = url
-            return
+            return true
         }
-
-        // JSON 查看器（v0.8.26）：格式化/校验/导出的只读查看面。
-        if Self.jsonExtensions.contains(ext) {
+        if jsonExtensions.contains(ext) {
             tab.browser.jsonViewerFileName = url.lastPathComponent
             tab.browser.jsonViewerURL = url
-            return
+            return true
         }
-
-        // 演示文稿查看器（v0.8.26）：PPTX 大纲 + 备注。
-        if Self.presentationExtensions.contains(ext) {
+        if presentationExtensions.contains(ext) {
             tab.browser.presentationViewerFileName = url.lastPathComponent
             tab.browser.presentationViewerURL = url
-            return
+            return true
         }
-
-        // 办公文文档（v0.8.12 旗舰 B）：textutil 转 html 保结构，标签页渲染。
         if ["docx", "doc", "rtf", "rtfd", "odt"].contains(ext) {
             tab.browser.documentViewerFileName = url.lastPathComponent
             tab.browser.documentViewerURL = url
-            return
+            return true
         }
         if SelectedTabContent.mediaExtensions.contains(ext) {
             tab.browser.mediaViewerFileName = url.lastPathComponent
             tab.browser.mediaViewerURL = url
-            return
+            return true
         }
-        tab.isOnNewTabPage = false
-        tab.urlString = url.absoluteString
-        tab.browser.webView.load(URLRequest(url: url))
+        return false
     }
 
     func loadHome(for tab: Tab) {

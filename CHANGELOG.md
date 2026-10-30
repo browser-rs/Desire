@@ -9,6 +9,8 @@
 - PowerPoint: .pptx opens in a presentation viewer (slides in deck order with titles, indented bullets and speaker notes) with Markdown copy/export and PDF export; `readPresentation` agent tool and `convertDocument` support pptx → md/txt/html/docx/rtf/pdf; legacy .ppt gets a "save as .pptx" hint (v0.8.26)
 - Office conversions: JSON/JSONL → md/txt/csv/xlsx through convertDocument (and the Recent Files "Convert to…" menu); `convertImage` converts batches of images to png/jpeg/heic/tiff with optional longest-side downscaling, never overwriting sources (v0.8.26)
 - Archive viewer: multi-select entries with "Extract Selected", extracting only the chosen paths via unzip (v0.8.26)
+- "Open With" / default-handler support for local office files: system file-open events (and the new `POST /open-file` bridge endpoint) route PDFs, tables, images, archives, JSON, PPTX, documents and media into the same viewers used by drag-and-drop and the address bar — previously file URLs were dropped silently (v0.8.26)
+
 
 
 

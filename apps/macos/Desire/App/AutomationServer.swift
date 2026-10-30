@@ -472,6 +472,7 @@ final class AutomationServer {
         ep("GET", "/bookmarks/health", "Bookmark link check state (running/progress/dead/redirected)", example: "…/bookmarks/health")
         ep("POST", "/bookmarks/health/cleanup", "Remove bookmarked dead links after review (wizard equivalent; tombstones)", params: ["urls:[string]"], example: #"-d '{"urls":["https://dead.example"]}'"#)
         ep("POST", "/bookmarks/health/check", "Start a background bookmark link check (nothing deleted automatically)", params: ["urls?:[string]", "limit?:int"], example: #"-d '{"limit":100}'"#)
+        ep("POST", "/open-file", "Open a local file through the viewer routing (PDF/tables/images/zip/JSON/PPTX/documents/media) in a new tab — same mapping as drag-and-drop and \"Open With\"", params: ["path:string"], example: #"-d '{"path":"/tmp/probe.json"}'"#)
         ep("GET", "/reading-list", "Reading list", example: "…/reading-list")
         ep("GET", "/workspaces", "Saved window workspaces (name/tabs/savedAt)", example: "…/workspaces")
         ep("POST", "/workspaces/delete", "Delete a saved workspace by name", params: ["name:string"], example: #"-d '{"name":"…"}'"#)
@@ -2128,6 +2129,30 @@ final class AutomationServer {
                 }
                 return try Self.json(Self.setReadingTags(
                     url: Self.string(body, "url") ?? "", tags: tags))
+            case ("POST", "/open-file"):
+                guard let filePath = Self.string(body, "path"), !filePath.isEmpty else {
+                    return try Self.json(["error": "path required"])
+                }
+                let fileURL = URL(fileURLWithPath: filePath)
+                guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                    return try Self.json(["error": "file not found"])
+                }
+                guard let manager = TabSessionCoordinator.shared.activeTabManager else {
+                    return try Self.json(["error": "no window"])
+                }
+                let existing = Set(manager.tabs.map(\.id))
+                manager.addTab(makeActive: true)
+                guard let created = manager.tabs.first(where: { !existing.contains($0.id) }) else {
+                    return try Self.json(["error": "could not create a tab"])
+                }
+                RecentLocalFiles.record(url: fileURL)
+                let routed = BrowsingActions.routeLocalFile(fileURL, to: created)
+                if !routed {
+                    created.urlString = fileURL.absoluteString
+                    created.browser.webView.load(URLRequest(url: fileURL))
+                }
+                return try Self.json(["ok": true, "routed": routed,
+                                      "extension": fileURL.pathExtension.lowercased()])
             case ("POST", "/json/format"):
                 return try Self.json(Self.jsonFormat(body))
             case ("POST", "/json/validate"):
@@ -3748,7 +3773,13 @@ final class AutomationServer {
                 "loading": tab.isLoading,
                 "domNodes": tab.browser.lastDomNodeCount,
                 "autoplayPolicy": tab.browser.createdAutoPlayPolicy.rawValue,
-                "viewer": tab.browser.spreadsheetViewerURL?.pathExtension ?? tab.browser.imageEditorURL?.pathExtension ?? tab.browser.archiveViewerURL?.pathExtension ?? tab.browser.documentViewerURL?.pathExtension ?? "",
+                "viewer": tab.browser.pdfViewerURL?.pathExtension
+                    ?? tab.browser.spreadsheetViewerURL?.pathExtension
+                    ?? tab.browser.imageEditorURL?.pathExtension
+                    ?? tab.browser.archiveViewerURL?.pathExtension
+                    ?? tab.browser.jsonViewerURL?.pathExtension
+                    ?? tab.browser.presentationViewerURL?.pathExtension
+                    ?? tab.browser.documentViewerURL?.pathExtension ?? "",
                 "scrollY": tab.browser.lastScrollY,
                 "workflowSuggestion": tab.browser.pendingWorkflowSuggestion.map { suggestion -> Any in
                     ["name": suggestion.name, "host": suggestion.host]

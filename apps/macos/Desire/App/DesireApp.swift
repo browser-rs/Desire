@@ -2,6 +2,7 @@ import AppKit
 import CoreSpotlight
 import os
 import SwiftUI
+import WebKit
 
 /// Cold-start instrumentation. `launchedAt` is captured at first type touch
 /// (the earliest deterministic app-code moment); `markFirstWindowInteractive`
@@ -292,6 +293,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 Log.app.error("whiteboard import failed: \(error.localizedDescription, privacy: .public)")
             }
         }
+        // 办公文件"用 Desire 打开"（v0.8.26）：之前 file URL 被静默丢弃。
+        // 路由与拖入/地址栏同一份映射（BrowsingActions.routeLocalFile）。
+        let fileURLs = urls.filter {
+            $0.isFileURL && $0.pathExtension.lowercased() != "board"
+                && SelectedTabContent.isOpenableFile($0)
+        }
+        if !fileURLs.isEmpty {
+            NSApp.activate(ignoringOtherApps: true)
+            Self.openViewableFiles(fileURLs)
+        }
         let webURLs = urls.filter { $0.scheme == "http" || $0.scheme == "https" }
         guard !webURLs.isEmpty else { return }
         Log.app.info("open urls from system: \(webURLs.count, privacy: .public)")
@@ -300,6 +311,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         flushPendingOpenURLs()
     }
 
+
+    /// 本地办公文件 → 活动窗口的查看器（空标签就地打开，否则新标签）。
+    private static func openViewableFiles(_ files: [URL]) {
+        guard let manager = TabSessionCoordinator.shared.activeTabManager else { return }
+        for file in files {
+            if let selected = manager.selectedTab, selected.isOnNewTabPage,
+               BrowsingActions.routeLocalFile(file, to: selected) {
+                RecentLocalFiles.record(url: file)
+                continue
+            }
+            let existing = Set(manager.tabs.map(\.id))
+            manager.addTab(makeActive: true)
+            guard let created = manager.tabs.first(where: { !existing.contains($0.id) }) else { continue }
+            RecentLocalFiles.record(url: file)
+            if !BrowsingActions.routeLocalFile(file, to: created) {
+                created.urlString = file.absoluteString
+                created.browser.webView.load(URLRequest(url: file))
+            }
+        }
+    }
 
     /// 外部链接 = 活动窗口**新标签**打开（Chrome 语义：不顶掉当前页）。
     /// 活动窗口 manager 未就绪（冷启动早期）→ 留在缓冲等重试。

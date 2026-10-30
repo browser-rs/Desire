@@ -61,6 +61,15 @@ struct MultiTrackEditorView: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
             .disabled(store.selectedClip == nil)
+            Button {
+                store.undo()
+            } label: {
+                Image(systemName: "arrow.uturn.backward")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(!store.canUndo)
+            .help(String(localized: "Undo"))
             Divider().frame(height: 14)
             Menu {
                 Button(String(localized: "Video Track")) {
@@ -114,47 +123,111 @@ struct MultiTrackEditorView: View {
     private var inspectorRow: some View {
         Group {
             if let (track, clip) = store.selectedClip {
-                HStack(spacing: 12) {
-                    if let text = clip.text {
-                        Text(String(localized: "Text Content"))
-                            .font(.system(size: 10.5))
-                            .foregroundStyle(.secondary)
-                        TextField("", text: Binding(
-                            get: { text },
-                            set: { store.updateSelectedText($0) }))
-                            .textFieldStyle(.roundedBorder)
-                            .frame(maxWidth: 280)
-                    } else {
-                        Text(clip.label)
-                            .font(.system(size: 11))
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                        Text(String(localized: "In: \(MediaEditCore.formatClock(clip.start)) · Length: \(MediaEditCore.formatClock(clip.duration))"))
-                            .font(.system(size: 10.5, design: .monospaced))
-                            .foregroundStyle(.secondary)
-
-                        // 音频片段可在多条音频轨之间移动
-                        if track.kind == .audio {
-                            Menu {
-                                ForEach(store.project.tracks.filter { $0.kind == .audio }) { target in
-                                    Button(target.name) {
-                                        store.moveSelected(toTrack: target.id, start: clip.start)
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 12) {
+                        if let text = clip.text {
+                            Text(String(localized: "Text Content"))
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(.secondary)
+                            TextField("", text: Binding(
+                                get: { text },
+                                set: { store.updateSelectedText($0) }))
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: 280)
+                        } else {
+                            Text(clip.label)
+                                .font(.system(size: 11))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                            Text(String(localized: "In: \(MediaEditCore.formatClock(clip.start)) · Length: \(MediaEditCore.formatClock(clip.duration))"))
+                                .font(.system(size: 10.5, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                            // 音频片段可在多条音频轨之间移动
+                            if track.kind == .audio {
+                                Menu {
+                                    ForEach(store.project.tracks.filter { $0.kind == .audio }) { target in
+                                        Button(target.name) {
+                                            store.moveSelected(toTrack: target.id, start: clip.start)
+                                        }
                                     }
+                                } label: {
+                                    Label(String(localized: "Move to Track"), systemImage: "arrow.up.arrow.down")
                                 }
-                            } label: {
-                                Label(String(localized: "Move to Track"), systemImage: "arrow.up.arrow.down")
+                                .menuStyle(.button)
+                                .buttonStyle(.borderless)
+                                .fixedSize()
                             }
-                            .menuStyle(.button)
-                            .buttonStyle(.borderless)
-                            .fixedSize()
                         }
+                        Spacer()
                     }
-                    Spacer()
+                    // 片段效果检查器（音视频片段：速度/音量/淡入淡出）
+                    if clip.sourceURL != nil {
+                        effectsRow(clip)
+                    }
                 }
                 .padding(8)
                 .background(RoundedRectangle(cornerRadius: 8)
                     .fill(Color(nsColor: .controlBackgroundColor)))
             }
+        }
+    }
+
+    private func effectsRow(_ clip: TimelineCore.Clip) -> some View {
+        HStack(spacing: 14) {
+            // 速度（0.25×–4×；改完提交重定时）
+            HStack(spacing: 5) {
+                Text(String(localized: "Speed"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                Menu {
+                    ForEach([0.5, 0.75, 1, 1.25, 1.5, 2], id: \.self) { speed in
+                        Button(String(format: "%.2g×", speed)) {
+                            store.setSpeed(of: clip.id, speed)
+                        }
+                    }
+                } label: {
+                    Text(String(format: "%.2g×", clip.speed))
+                        .font(.system(size: 10, weight: .medium, design: .monospaced))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(Color.secondary.opacity(0.14)))
+                }
+                .menuStyle(.button)
+                .buttonStyle(.borderless)
+                .fixedSize()
+            }
+            // 音量
+            HStack(spacing: 5) {
+                Image(systemName: "speaker.wave.1")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.secondary)
+                Slider(value: Binding(
+                    get: { clip.volume },
+                    set: { store.setAudioEffects(of: clip.id, volume: $0) }), in: 0...2)
+                    .frame(width: 80)
+                Text("\(Int((clip.volume * 100).rounded()))%")
+                    .font(.system(size: 9.5, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 34)
+            }
+            // 淡入 / 淡出
+            HStack(spacing: 5) {
+                Text(String(localized: "Fade In"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                Slider(value: Binding(
+                    get: { clip.fadeIn },
+                    set: { store.setAudioEffects(of: clip.id, fadeIn: $0) }), in: 0...5)
+                    .frame(width: 60)
+                Text(String(localized: "Fade Out"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                Slider(value: Binding(
+                    get: { clip.fadeOut },
+                    set: { store.setAudioEffects(of: clip.id, fadeOut: $0) }), in: 0...5)
+                    .frame(width: 60)
+            }
+            Spacer()
         }
     }
 
@@ -470,6 +543,20 @@ private struct TimelineClipView: View {
                     .font(.system(size: 9))
                     .lineLimit(1)
                     .truncationMode(.middle)
+                if clip.speed != 1 {
+                    Text(String(format: "%.2g×", clip.speed))
+                        .font(.system(size: 8, weight: .semibold, design: .monospaced))
+                        .padding(.horizontal, 3)
+                        .background(Capsule().fill(Color.white.opacity(0.35)))
+                }
+                if clip.volume == 0 {
+                    Image(systemName: "speaker.slash")
+                        .font(.system(size: 8))
+                }
+                if clip.clampedFadeIn > 0 || clip.clampedFadeOut > 0 {
+                    Image(systemName: "chart.line.downtrend.xyaxis")
+                        .font(.system(size: 8))
+                }
                 Spacer(minLength: 0)
             }
             .foregroundStyle(.primary.opacity(0.8))

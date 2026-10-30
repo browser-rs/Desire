@@ -33,6 +33,7 @@ final class VideoEditorStore: ObservableObject {
     @Published private(set) var isPlaying = false
     @Published private(set) var sources: [SourceMedia] = []
     @Published private(set) var exportState: ExportState = .idle
+    @Published private(set) var canUndo = false
 
     let player = AVPlayer()
 
@@ -42,6 +43,8 @@ final class VideoEditorStore: ObservableObject {
     private var exportTask: Task<Void, Never>?
     /// 播放头由观察者推进时不再回写 seek（防回环）。
     private var isScrubbingProgrammatically = false
+    /// 撤销快照栈（cap 50；redo 不做——剪辑场景撤销到头重做价值有限）。
+    private var undoStack: [TimelineCore.Project] = []
 
     init() {
         timeObserver = player.addPeriodicTimeObserver(
@@ -83,11 +86,41 @@ final class VideoEditorStore: ObservableObject {
 
     func commit(_ newProject: TimelineCore.Project?) {
         guard let newProject else { return }
+        pushUndo()
         project = newProject
         selectedClipID = selectedClipID.flatMap { id in
             TimelineCore.clip(project, withID: id) != nil ? id : nil
         }
         rebuildPreview()
+    }
+
+    private func pushUndo() {
+        guard TimelineCore.shouldPushUndo(undoStack, project) else { return }
+        undoStack.append(project)
+        if undoStack.count > 50 { undoStack.removeFirst() }
+        canUndo = true
+    }
+
+    func undo() {
+        guard let previous = undoStack.popLast() else { return }
+        project = previous
+        selectedClipID = selectedClipID.flatMap { id in
+            TimelineCore.clip(project, withID: id) != nil ? id : nil
+        }
+        canUndo = !undoStack.isEmpty
+        rebuildPreview()
+    }
+
+    // MARK: - 片段效果
+
+    func setSpeed(of clipID: UUID, _ speed: Double) {
+        commit(TimelineCore.setSpeed(project, clipID: clipID, speed: speed))
+    }
+
+    func setAudioEffects(of clipID: UUID, volume: Double? = nil,
+                         fadeIn: Double? = nil, fadeOut: Double? = nil) {
+        commit(TimelineCore.setAudioEffects(project, clipID: clipID,
+                                            volume: volume, fadeIn: fadeIn, fadeOut: fadeOut))
     }
 
     func setPlayhead(_ seconds: Double, seekPlayer: Bool = true) {
@@ -220,35 +253,71 @@ final class VideoEditorStore: ObservableObject {
         let snapshot = project
         let atPlayhead = playhead
         rebuildTask = Task { [weak self] in
-            let composition = await Self.buildComposition(project: snapshot)
+            let (composition, audioMix) = await Self.buildComposition(project: snapshot)
             guard let self, !Task.isCancelled else { return }
-            self.player.replaceCurrentItem(with: AVPlayerItem(asset: composition))
+            let item = AVPlayerItem(asset: composition)
+            item.audioMix = audioMix
+            self.player.replaceCurrentItem(with: item)
             await self.player.seek(to: CMTime(seconds: atPlayhead, preferredTimescale: 600))
         }
     }
 
     /// 工程的合成：视频轨/音频轨各建一条 composition track，片段按时间线落位
-    /// （空隙天然留白）；源轨道加载失败即跳过该片段。
-    private nonisolated static func buildComposition(project: TimelineCore.Project) async -> AVComposition {
+    /// （空隙天然留白）；速度 ≠1 的片段经 scaleTimeRange 重定时（源消耗 =
+    /// 时长 × 速度）；音量/淡变经 AVMutableAudioMix 自动化（淡入淡出线性坡）。
+    /// 返回 (合成, 音频混合)，预览与导出共用同一份。
+    private nonisolated static func buildComposition(project: TimelineCore.Project) async -> (AVMutableComposition, AVMutableAudioMix?) {
         let composition = AVMutableComposition()
+        var mixParameters: [AVAudioMixInputParameters] = []
         for track in project.tracks where !track.clips.isEmpty {
             let mediaType: AVMediaType = track.kind == .audio ? .audio : .video
             guard track.kind != .text,
                   let compositionTrack = composition.addMutableTrack(
                       withMediaType: mediaType, preferredTrackID: kCMPersistentTrackID_Invalid) else { continue }
+            var clipMix: AVMutableAudioMixInputParameters?
+            if mediaType == .audio {
+                clipMix = AVMutableAudioMixInputParameters(track: compositionTrack)
+            }
             for clip in track.clips.sorted(by: { $0.start < $1.start }) {
                 guard let url = clip.sourceURL else { continue }
                 let asset = AVURLAsset(url: url)
                 if let source = try? await asset.loadTracks(withMediaType: mediaType).first {
                     let range = CMTimeRange(
                         start: CMTime(seconds: clip.sourceStart, preferredTimescale: 600),
-                        duration: CMTime(seconds: clip.duration, preferredTimescale: 600))
-                    try? compositionTrack.insertTimeRange(
-                        range, of: source, at: CMTime(seconds: clip.start, preferredTimescale: 600))
+                        duration: CMTime(seconds: clip.duration * clip.speed, preferredTimescale: 600))
+                    let at = CMTime(seconds: clip.start, preferredTimescale: 600)
+                    try? compositionTrack.insertTimeRange(range, of: source, at: at)
+                    if clip.speed != 1 {
+                        compositionTrack.scaleTimeRange(range, toDuration:
+                            CMTime(seconds: clip.duration, preferredTimescale: 600))
+                    }
+                }
+                // 音量自动化：片段区间内基线增益 + 首尾线性淡坡。
+                if let clipMix {
+                    let start = CMTime(seconds: clip.start, preferredTimescale: 600)
+                    let end = CMTime(seconds: clip.end, preferredTimescale: 600)
+                    let fadeInEnd = CMTime(seconds: clip.start + clip.clampedFadeIn, preferredTimescale: 600)
+                    let fadeOutStart = CMTime(seconds: clip.end - clip.clampedFadeOut, preferredTimescale: 600)
+                    if clip.clampedFadeIn > 0 {
+                        clipMix.setVolumeRamp(fromStartVolume: 0, toEndVolume: Float(clip.volume),
+                                              timeRange: CMTimeRange(start: start, end: fadeInEnd))
+                    }
+                    if clip.clampedFadeOut > 0 {
+                        clipMix.setVolumeRamp(fromStartVolume: Float(clip.volume), toEndVolume: 0,
+                                              timeRange: CMTimeRange(start: fadeOutStart, end: end))
+                    }
+                    if clip.volume != 1 {
+                        clipMix.setVolume(Float(clip.volume), at:
+                            CMTime(seconds: clip.start + clip.clampedFadeIn + 0.01, preferredTimescale: 600))
+                    }
                 }
             }
+            if let clipMix { mixParameters.append(clipMix) }
         }
-        return composition
+        guard !mixParameters.isEmpty else { return (composition, nil) }
+        let audioMix = AVMutableAudioMix()
+        audioMix.inputParameters = mixParameters
+        return (composition, audioMix)
     }
 
     // MARK: - 导出
@@ -286,7 +355,7 @@ final class VideoEditorStore: ObservableObject {
 
     private nonisolated static func export(project: TimelineCore.Project,
                                            progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
-        let composition = await buildComposition(project: project)
+        let (composition, audioMix) = await buildComposition(project: project)
         let hasVideo = project.tracks.contains { $0.kind == .video && !$0.clips.isEmpty }
         let destination = resolveDestination(title: project.title,
                                              ext: hasVideo ? "mp4" : "m4a")
@@ -320,6 +389,9 @@ final class VideoEditorStore: ObservableObject {
             }
             session = s
         }
+        // 变速不变调（频谱算法，质量最高档）；音量/淡变自动化。
+        session.audioTimePitchAlgorithm = .spectral
+        session.audioMix = audioMix
         try? FileManager.default.removeItem(at: destination)
         let stream = session.states(updateInterval: 0.25)
         let watcher = Task {

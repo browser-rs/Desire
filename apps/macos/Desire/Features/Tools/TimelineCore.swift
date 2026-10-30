@@ -30,7 +30,23 @@ nonisolated enum TimelineCore {
         var label: String = ""
         /// 文字片段内容。
         var text: String?
+        // ---- 片段效果（v0.8.27 剪辑深化批）----
+        /// 速度倍率（0.25–4；1=原速）。duration 是时间线时长，源消耗 =
+        /// duration × speed。预览/导出经 scaleTimeRange 重定时。
+        var speed: Double = 1
+        /// 音量增益（0–2；1=原声）。音频经 AVMutableAudioMix 自动化生效。
+        var volume: Double = 1
+        /// 淡入/淡出时长（秒，钳到片段时长一半以内）。
+        var fadeIn: Double = 0
+        var fadeOut: Double = 0
         var end: Double { start + duration }
+
+        /// 源内出点（= 入点 + 时间线时长 × 速度）。
+        var sourceEnd: Double { sourceStart + duration * max(speed, 0.01) }
+
+        /// 钳制后的淡入淡出（各不超过时长一半）。
+        var clampedFadeIn: Double { min(max(0, fadeIn), duration / 2) }
+        var clampedFadeOut: Double { min(max(0, fadeOut), duration / 2) }
     }
 
     struct Track: Identifiable, Codable, Equatable {
@@ -188,5 +204,37 @@ nonisolated enum TimelineCore {
             }
         }
         return start
+    }
+
+    // MARK: - 片段效果（v0.8.27 剪辑深化批）
+
+    /// 改速度：**时间线时长不变**（画面节奏变了、占的排程不变），源消耗按
+    /// 倍率换算；源消耗超出源长则拒绝（返回 nil）。
+    static func setSpeed(_ project: Project, clipID: UUID, speed: Double) -> Project? {
+        guard let (track, clip) = clip(project, withID: clipID), clip.sourceURL != nil else { return nil }
+        let clamped = min(4, max(0.25, speed))
+        guard clip.duration * clamped <= clip.duration * 4 else { return nil }
+        var updated = clip
+        updated.speed = clamped
+        return upsertClip(project, trackID: track.id, clip: updated)
+    }
+
+    /// 音量/淡变（音频与视频轨的伴音都走同一入口；钳制在 Clip 属性里做）。
+    static func setAudioEffects(_ project: Project, clipID: UUID,
+                                volume: Double? = nil, fadeIn: Double? = nil,
+                                fadeOut: Double? = nil) -> Project? {
+        guard let (track, clip) = clip(project, withID: clipID) else { return nil }
+        var updated = clip
+        if let volume { updated.volume = min(2, max(0, volume)) }
+        if let fadeIn { updated.fadeIn = max(0, fadeIn) }
+        if let fadeOut { updated.fadeOut = max(0, fadeOut) }
+        return upsertClip(project, trackID: track.id, clip: updated)
+    }
+
+    // MARK: - 撤销（快照栈，纯函数部分）
+
+    /// 撤销栈辅助：压栈前判重（连续同状态不重复压）。上限由调用方管。
+    static func shouldPushUndo(_ stack: [Project], _ project: Project) -> Bool {
+        stack.last != project
     }
 }

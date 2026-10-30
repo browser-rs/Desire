@@ -7905,6 +7905,34 @@ func testMediaEditCore() {
        let back = try? JSONDecoder().decode(TimelineCore.Project.self, from: data) {
         check("时间线：工程往返", back == project)
     } else { check("时间线：工程往返", false) }
+
+    // ---- 片段效果（速度/音量/淡变）----
+    var fx = TimelineCore.Project()
+    let fxTrack = fx.tracks.first { $0.kind == .video }!
+    let fxURL = URL(fileURLWithPath: "/tmp/fx.mp4")
+    let fxClip = TimelineCore.Clip(start: 0, duration: 4, sourceURL: fxURL, label: "fx")
+    if let p = TimelineCore.upsertClip(fx, trackID: fxTrack.id, clip: fxClip) { fx = p }
+    // 速度：时长不变、源消耗按倍率
+    if let p = TimelineCore.setSpeed(fx, clipID: fxClip.id, speed: 2) { fx = p }
+    let spedUp = TimelineCore.clip(fx, withID: fxClip.id)?.1
+    check("效果：2× 时长不变源翻倍", spedUp?.duration == 4 && spedUp?.sourceEnd == 8 && spedUp?.speed == 2)
+    if let p = TimelineCore.setSpeed(fx, clipID: fxClip.id, speed: 100) { fx = p }
+    eq("效果：速度钳制", TimelineCore.clip(fx, withID: fxClip.id)?.1.speed ?? 0, 4)
+    check("效果：文字片段无速度", {
+        var p2 = fx
+        let t = p2.tracks.first { $0.kind == .text }!
+        let c = TimelineCore.Clip(start: 0, duration: 2, text: "hi")
+        guard let p3 = TimelineCore.upsertClip(p2, trackID: t.id, clip: c) else { return false }
+        p2 = p3
+        return TimelineCore.setSpeed(p2, clipID: c.id, speed: 2) == nil
+    }())
+    // 音量/淡变
+    if let p = TimelineCore.setAudioEffects(fx, clipID: fxClip.id, volume: 3, fadeIn: 50, fadeOut: 1) { fx = p }
+    let fxed = TimelineCore.clip(fx, withID: fxClip.id)?.1
+    check("效果：音量钳 2", fxed?.volume == 2)
+    check("效果：淡变钳半长", fxed?.clampedFadeIn == 2 && fxed?.clampedFadeOut == 1)
+    check("效果：撤销判重", !TimelineCore.shouldPushUndo([fx], fx)
+        && TimelineCore.shouldPushUndo([fx], TimelineCore.Project()))
 }
 
 testToolboxBatch2Cores()

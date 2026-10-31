@@ -520,6 +520,29 @@ struct MultiTrackEditorView: View {
             }
             Spacer()
         }
+        .padding(.vertical, 2)
+        .background {
+            if !store.exportHistory.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Divider()
+                    ForEach(Array(store.exportHistory.prefix(3).enumerated()),
+                            id: \.offset) { _, url in
+                        Button {
+                            NSWorkspace.shared.activateFileViewerSelecting([url])
+                        } label: {
+                            Label(url.lastPathComponent, systemImage: "film")
+                                .font(.system(size: 10))
+                                .lineLimit(1)
+                                .truncationMode(.middle)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(appAccent.opacity(0.85))
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.top, 4)
+            }
+        }
     }
 
     // MARK: - 面板

@@ -77,6 +77,27 @@ enum BallQuickActions {
         return "已开始下载（后台进行，完成会通知）"
     }
 
+    /// 下载"正在看的那个"视频，完成后自动进多轨时间线（v0.8.30 批次三）。
+    static func downloadAndEditPageVideo(on tab: Tab) -> String {
+        let candidate = tab.browser.detectedMedia.first {
+            $0.kind != .audio && !$0.url.hasPrefix("blob:")
+        }
+        guard let candidate else {
+            return "未检测到视频——先播放一下再试"
+        }
+        guard let url = URL(string: candidate.url) else {
+            return "视频地址无效"
+        }
+        MediaExportStore.shared.pendingEditIntent = true
+        MediaExportStore.shared.start(
+            url: url,
+            referer: tab.browser.webView.url,
+            userAgent: tab.browser.webView.customUserAgent,
+            fileNameHint: nil
+        )
+        return "已开始下载，完成后自动进时间线剪辑"
+    }
+
     // MARK: - 下载全部视频（批量）
 
     /// 页面嗅探到的媒体全部入队（blob/DASH/纯音频的过滤在批量引擎的

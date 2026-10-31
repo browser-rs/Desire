@@ -41,6 +41,8 @@ final class VideoEditorStore: ObservableObject {
     @Published private(set) var sources: [SourceMedia] = []
     @Published private(set) var exportState: ExportState = .idle
     @Published private(set) var canUndo = false
+    /// 会话内导出历史（新→旧，cap 8）——对齐下载中心的产物直达体感。
+    @Published private(set) var exportHistory: [URL] = []
 
     let player = AVPlayer()
 
@@ -603,7 +605,15 @@ final class VideoEditorStore: ObservableObject {
                         store.exportState = .running(min(0.99, fraction))
                     }
                 }, targetHeight: height, forceAudioOnly: audioOnly)
-                await MainActor.run { self?.exportState = .done(url) }
+                await MainActor.run {
+                    self?.exportState = .done(url)
+                    if let self, !self.exportHistory.contains(url) {
+                        self.exportHistory.insert(url, at: 0)
+                        if self.exportHistory.count > 8 {
+                            self.exportHistory.removeLast(self.exportHistory.count - 8)
+                        }
+                    }
+                }
             } catch is CancellationError {
                 await MainActor.run { self?.exportState = .idle }
             } catch {

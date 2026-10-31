@@ -169,6 +169,10 @@ final class MediaExportStore: ObservableObject {
 
     // MARK: - 完成 / 失败
 
+    /// 「下载并剪辑」意图（v0.8.30 批次三，单槽）：登记后下一次成功落地的
+    /// 产物自动进多轨时间线（悬浮球入口）。
+    @Published var pendingEditIntent: Bool = false
+
     private func finish(id: UUID, result: MediaExporter.Result) {
         guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
         var summary = "\(result.fileURL.lastPathComponent) — \(result.displayDetail), \(result.displayBytes)"
@@ -192,6 +196,11 @@ final class MediaExportStore: ObservableObject {
         tasks[id] = nil
         progressHandlers[id] = nil
         settle(id: id, outcome: .finished(result))
+        if pendingEditIntent {
+            pendingEditIntent = false
+            ToolboxHandoff.shared.setPendingFile(result.fileURL, for: .videoEditor)
+            InternalPages.openAnywhere(.tools(param: "videoEditor"))
+        }
         if notifyEnabled(id) {
             deliverNote(String(localized: "Download finished"), body: summary)
         }

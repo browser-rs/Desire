@@ -271,6 +271,9 @@ extension AgentBallPanel {
             Task { @MainActor in
                 flashToast(await BallQuickActions.downloadAllVideos(on: tab))
             }
+        case .downloadAndEditVideo:
+            guard let tab = pageTabProvider?() else { flashToast("请先打开一个网页"); return }
+            flashToast(BallQuickActions.downloadAndEditPageVideo(on: tab))
         case .readerMode:
             CommandBus.shared.send(.toggleReader)
         case .findInPage:

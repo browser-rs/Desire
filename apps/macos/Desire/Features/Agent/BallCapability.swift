@@ -22,6 +22,8 @@ enum BallCapability: String, CaseIterable, Identifiable {
     case bookmarkPage       // 收藏本页
     // v0.8.27：打开内置工具集合（desire://tools）
     case toolbox
+    // v0.8.30：下载页面视频并进时间线剪辑
+    case downloadAndEditVideo
 
     var id: String { rawValue }
 
@@ -42,6 +44,7 @@ enum BallCapability: String, CaseIterable, Identifiable {
         case .findInPage: "页内查找"
         case .bookmarkPage: "收藏本页"
         case .toolbox: "工具箱"
+        case .downloadAndEditVideo: "下载并剪辑"
         }
     }
 
@@ -62,6 +65,7 @@ enum BallCapability: String, CaseIterable, Identifiable {
         case .findInPage: "text.magnifyingglass"
         case .bookmarkPage: "bookmark"
         case .toolbox: "wrench.and.screwdriver"
+        case .downloadAndEditVideo: "scissors.circle"
         }
     }
 

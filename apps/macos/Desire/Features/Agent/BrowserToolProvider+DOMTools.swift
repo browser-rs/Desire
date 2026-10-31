@@ -3495,6 +3495,20 @@ extension BrowserToolProvider {
                 cursors[kind.rawValue, default: 0] = start + duration
                 plan.append("\(kindName): \(sourceURL.lastPathComponent) in=\(String(format: "%.1f", inPoint))s dur=\(String(format: "%.1f", duration))s speed=\(String(format: "%.2g", speed)) vol=\(String(format: "%.2g", volume)) → at \(String(format: "%.1f", start))s")
             }
+            // 相邻视频片段间加交叉溶解（一次设置即可，重叠由核心校验）。
+            if let dissolve = (args["crossDissolve"] as? NSNumber)?.doubleValue, dissolve >= 0.1 {
+                let videoClips = project.tracks
+                    .filter { $0.kind == .video }
+                    .flatMap { $0.clips }
+                    .sorted { $0.start < $1.start }
+                for pair in zip(videoClips, videoClips.dropFirst()) {
+                    if let next = TimelineCore.setCrossDissolve(project, leftID: pair.0.id,
+                                                                rightID: pair.1.id,
+                                                                overlap: dissolve) {
+                        project = next
+                    }
+                }
+            }
             let total = TimelineCore.projectDuration(project)
             guard total > 0 else { return Self.fail("Timeline is empty") }
             guard let exportName = args["exportPath"] as? String, !exportName.isEmpty else {

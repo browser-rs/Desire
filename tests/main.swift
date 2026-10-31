@@ -8072,6 +8072,36 @@ func testMediaEditCore() {
     eq("波形：缓存键", WaveformCore.cacheKey(for: URL(fileURLWithPath: "/a.mp3"),
                                              modifiedAt: Date(timeIntervalSince1970: 100), buckets: 400),
        "/a.mp3|100|400")
+
+    // ---- 音频分离 ----
+    var da = TimelineCore.Project()
+    let daVideo = da.tracks.first { $0.kind == .video }!
+    let daAudio = da.tracks.first { $0.kind == .audio }!
+    let daURL = URL(fileURLWithPath: "/tmp/da.mp4")
+    let daClip = TimelineCore.Clip(start: 2, duration: 6, sourceStart: 10,
+                                   sourceURL: daURL, label: "da", volume: 1)
+    if let p = TimelineCore.upsertClip(da, trackID: daVideo.id, clip: daClip) { da = p }
+    if let (detachedProject, detachedID) = TimelineCore.detachAudio(da, clipID: daClip.id) {
+        da = detachedProject
+        let detached = TimelineCore.clip(da, withID: detachedID)?.1
+        let original = TimelineCore.clip(da, withID: daClip.id)?.1
+        check("分离：新段同位同源", detached?.start == 2 && detached?.sourceStart == 10
+            && detached?.duration == 6)
+        check("分离：原段静音", original?.volume == 0)
+        check("分离：落在音频轨", da.tracks.first { $0.id == daAudio.id }!.clips.contains { $0.id == detachedID })
+        // 再分离一次：原段已静音但 clip 仍在视频轨 → 允许（用户可能改回音量再分）
+        check("分离：可重复", TimelineCore.detachAudio(da, clipID: daClip.id) != nil)
+    } else {
+        check("分离：成功", false)
+    }
+    check("分离：文字片段拒绝", {
+        var t = TimelineCore.Project()
+        let tt = t.tracks.first { $0.kind == .text }!
+        let c = TimelineCore.Clip(start: 0, duration: 2, text: "x")
+        guard let p2 = TimelineCore.upsertClip(t, trackID: tt.id, clip: c) else { return false }
+        t = p2
+        return TimelineCore.detachAudio(t, clipID: c.id) == nil
+    }())
 }
 
 testToolboxBatch2Cores()

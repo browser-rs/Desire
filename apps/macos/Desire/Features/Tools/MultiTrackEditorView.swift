@@ -971,6 +971,9 @@ private struct TimelineClipView: View {
         .contextMenu {
             Button(String(localized: "Split")) { store.splitAtPlayhead() }
             Button(String(localized: "Duplicate")) { store.duplicateClip(clip.id) }
+            if track.kind == .video, clip.sourceURL != nil {
+                Button(String(localized: "Detach Audio")) { store.detachAudio(of: clip.id) }
+            }
             Button(track.kind == .video
                    ? String(localized: "Cross Dissolve")
                    : String(localized: "Toggle Mute")) {
@@ -1089,6 +1092,8 @@ private struct SourceMonitorSheet: View {
             MediaPlayerPreview(url: source.url, player: $player)
                 .frame(height: 220)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
+            SourceWaveformStrip(url: source.url, accent: appAccent)
+                .frame(height: 34)
             HStack(spacing: 14) {
                 MediaTimeField(label: String(localized: "In Point"), text: $inText)
                 MediaTimeField(label: String(localized: "Out Point"), text: $outText)
@@ -1181,5 +1186,42 @@ private struct WaveformOverlay: View {
             }
             context.stroke(path, with: .color(.white.opacity(0.65)), style: style)
         }
+    }
+}
+
+
+/// 源监视器波形带（v0.8.30 追加批）：整源 400 桶直画，裁剪时对齐入出点。
+private struct SourceWaveformStrip: View {
+    let url: URL
+    let accent: Color
+    @State private var waveform: [WaveformCore.Column]?
+
+    var body: some View {
+        ZStack {
+            RoundedRectangle(cornerRadius: 5)
+                .fill(Color.secondary.opacity(0.08))
+            if let waveform {
+                GeometryReader { geo in
+                    Canvas { context, size in
+                        let mid = size.height / 2
+                        let columnWidth = size.width / CGFloat(waveform.count)
+                        var path = Path()
+                        for (index, column) in waveform.enumerated() {
+                            let x = (CGFloat(index) + 0.5) * columnWidth
+                            let top = mid - CGFloat(column.max) * (size.height / 2 - 2)
+                            let bottom = mid - CGFloat(column.min) * (size.height / 2 - 2)
+                            path.move(to: CGPoint(x: x, y: top))
+                            path.addLine(to: CGPoint(x: x, y: max(top + 0.5, bottom)))
+                        }
+                        context.stroke(path, with: .color(accent.opacity(0.75)),
+                                       lineWidth: max(0.7, columnWidth * 0.6))
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                }
+            } else {
+                ProgressView().controlSize(.mini)
+            }
+        }
+        .task { waveform = await WaveformCache.shared.waveform(for: url) }
     }
 }

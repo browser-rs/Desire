@@ -255,6 +255,15 @@ final class VideoEditorStore: ObservableObject {
         commit(TimelineCore.rotate(project, clipID: selectedClipID, turns: turns))
     }
 
+    /// 音频分离（剪映式）：视频片段的音轨复制到音频轨、原段静音，选中新段。
+    func detachAudio(of clipID: UUID) {
+        guard let (project, detachedID) = TimelineCore.detachAudio(project, clipID: clipID) else { return }
+        pushUndo()
+        self.project = project
+        selectedClipID = detachedID
+        rebuildPreview()
+    }
+
     /// 复制片段：贴到原片段尾部之后（同轨找空位），内容同参。
     func duplicateClip(_ clipID: UUID) {
         guard let (track, clip) = TimelineCore.clip(project, withID: clipID) else { return }

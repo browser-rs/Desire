@@ -82,6 +82,47 @@ nonisolated enum TimelineCore {
         return updated
     }
 
+    // MARK: - 音频分离（v0.8.30 追加批）
+
+    /// 剪映式「音频分离」：把视频片段的音轨复制成同位置音频轨片段
+    /// （同源同入点同时长），原视频片段静音。返回 (新工程, 新片段 id)。
+    static func detachAudio(_ project: Project, clipID: UUID) -> (Project, UUID)? {
+        guard let (_, clip) = clip(project, withID: clipID),
+              clip.sourceURL != nil,
+              let audioTrack = project.tracks.first(where: { $0.kind == .audio }) else { return nil }
+        var detached = clip
+        detached.id = UUID()
+        detached.volumeEnvelope = []
+        detached.volume = 1
+        detached.fadeIn = 0
+        detached.fadeOut = 0
+        let start = makeInsertStart(project: project, trackID: audioTrack.id,
+                                    at: clip.start, duration: clip.duration)
+        detached.start = start
+        guard let updated = withAudioDetached(project, clipID: clipID,
+                                               inserted: detached, into: audioTrack.id) else {
+            return nil
+        }
+        return (updated, detached.id)
+    }
+
+    /// detachAudio 的落位实现（静音原片段 + 音频轨插段）。
+    private static func withAudioDetached(_ project: Project, clipID: UUID,
+                                          inserted: Clip, into trackID: UUID) -> Project? {
+        var updated = project
+        guard let videoIndex = updated.tracks.firstIndex(where: {
+            $0.clips.contains { $0.id == clipID }
+        }), let audioIndex = updated.tracks.firstIndex(where: { $0.id == trackID }),
+            !hasConflict(updated, clipID: inserted.id, trackID: trackID,
+                         start: inserted.start, duration: inserted.duration) else { return nil }
+        if let clipIndex = updated.tracks[videoIndex].clips.firstIndex(where: { $0.id == clipID }) {
+            updated.tracks[videoIndex].clips[clipIndex].volume = 0
+        }
+        updated.tracks[audioIndex].clips.append(inserted)
+        updated.tracks[audioIndex].clips.sort { $0.start < $1.start }
+        return updated
+    }
+
     // MARK: - 音量包络（v0.8.29 批次一）
 
     /// 包络点：offset 是**片段内的小数进度**（0…1，对裁边稳健——裁剪后包络

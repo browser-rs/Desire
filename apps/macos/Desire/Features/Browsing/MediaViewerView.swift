@@ -33,6 +33,7 @@ struct MediaViewerView: View {
     @State private var flashIcon: String?
     @State private var flashTask: Task<Void, Never>?
     @State private var scrubTarget: Double?
+    @State private var showQueue = false
     /// 自持光标隐藏标志：NSCursor.hide/unhide 是计数栈，靠这个标志保证配对。
     @State private var cursorHidden = false
     /// 命中层引用（窗口按画面比例缩放时读 window 与实际播放面积）。
@@ -203,6 +204,18 @@ struct MediaViewerView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.white.opacity(0.9))
             .help(String(localized: "Add to Queue"))
+            Button {
+                showQueue.toggle()
+            } label: {
+                Image(systemName: "list.bullet")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white.opacity(0.9))
+            .help(String(localized: "Queue"))
+            .popover(isPresented: $showQueue, arrowEdge: .bottom) {
+                queuePanel
+            }
             Button {
                 NSWorkspace.shared.open(fileURL)
             } label: {
@@ -665,6 +678,48 @@ struct MediaViewerView: View {
         default:
             return false
         }
+    }
+
+    /// 队列浮层：条目点击即跳播（换标签文件）。
+    private var queuePanel: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text("Queue")
+                .font(.system(size: 11, weight: .semibold))
+            ScrollView {
+                VStack(spacing: 2) {
+                    ForEach(Array(playlist.queue.enumerated()), id: \.offset) { index, url in
+                        Button {
+                            if let target = playlist.jump(to: url) {
+                                onSwitchFile?(target)
+                                showQueue = false
+                            }
+                        } label: {
+                            HStack(spacing: 6) {
+                                if index == playlist.index {
+                                    Image(systemName: "speaker.wave.2.fill")
+                                        .font(.system(size: 8))
+                                        .foregroundStyle(appAccent)
+                                }
+                                Text(url.lastPathComponent)
+                                    .font(.system(size: 10.5))
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                                Spacer()
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(RoundedRectangle(cornerRadius: 5)
+                                .fill(index == playlist.index ? appAccent.opacity(0.14) : Color.clear))
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.primary)
+                    }
+                }
+            }
+            .frame(width: 240, height: min(240, CGFloat(playlist.queue.count) * 30 + 8))
+        }
+        .padding(10)
     }
 
     /// 顶栏「加入队列」：选多个媒体文件接在当前队列后。

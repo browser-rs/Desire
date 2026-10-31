@@ -49,6 +49,14 @@ final class MediaPlaylistStore: ObservableObject {
         }
     }
 
+    /// 队列浮层点选跳播：定位到该条目并返回它（不在队列 = 忽略）。
+    @discardableResult
+    func jump(to url: URL) -> URL? {
+        guard let target = queue.firstIndex(of: url) else { return nil }
+        index = target
+        return current
+    }
+
     /// 用户点上一/下一曲（忽略循环模式，到头即停/到头即回）。
     @discardableResult
     func skip(_ delta: Int) -> URL? {

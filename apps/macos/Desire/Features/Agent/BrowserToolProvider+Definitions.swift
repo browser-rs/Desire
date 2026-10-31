@@ -1152,6 +1152,7 @@ extension BrowserToolProvider {
                     "volume": AgentJSONSchemaValue(type: "number", description: "Volume 0-2 at that point"),
                 ]))),
             ]))),
+            "crossDissolve": AgentJSONSchemaValue(type: "number", description: "Optional cross-dissolve seconds between consecutive video clips (0.1 to half of the shorter clip, recommended 0.8)"),
             "exportPath": AgentJSONSchemaValue(type: "string", description: "Optional output file name (mp4/m4a extension decides container). Omit to only preview the plan (no export)."),
         ], required: ["clips"])
     )),

@@ -1123,6 +1123,13 @@ extension BrowserToolProvider {
         ])
     )),
     AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "listDetectedMedia",
+        description: "List media resources sniffed on the current page (video/audio/HLS streams with sizes, newest first) — blob: URLs are excluded as undownloadable. Combine with downloadMedia + editTimeline for grab-video-then-trim flows. Play or reload the page first if the list is empty.",
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "maxItems": AgentJSONSchemaValue(type: "number", description: "Max entries (default 20)"),
+        ])
+    )),
+    AgentToolDef(type: "function", function: AgentToolFunctionDef(
         name: "analyzeMedia",
         description: "Probe a local video/audio file: duration, container, codecs, resolution, frame rate, track inventory and bit rate. ffprobe (if installed) gives full detail; otherwise built-in AVFoundation metadata is returned. Use before editTimeline/trimVideo to decide how to cut or what fits a target size.",
         parameters: AgentJSONSchema(type: "object", properties: [

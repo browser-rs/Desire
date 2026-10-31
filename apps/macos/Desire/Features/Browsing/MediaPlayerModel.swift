@@ -95,6 +95,19 @@ final class MediaPlayerModel: ObservableObject {
                 self.isBuffering = status == .waitingToPlayAtSpecifiedRate
             }
             .store(in: &cancellables)
+        // 播放自然结束 → 播放队列按循环模式决定去留（autoAdvanceTo 由视图消费）。
+        NotificationCenter.default.publisher(for: .AVPlayerItemDidPlayToEndTime)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] note in
+                guard let self,
+                      let item = note.object as? AVPlayerItem,
+                      item === self.player.currentItem else { return }
+                self.savePosition()
+                if let next = MediaPlaylistStore.shared.handleEnded() {
+                    MediaPlaylistStore.shared.autoAdvanceTo = next
+                }
+            }
+            .store(in: &cancellables)
 
         guard let item = player.currentItem else { return }
         item.publisher(for: \.status)

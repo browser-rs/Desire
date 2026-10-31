@@ -461,6 +461,11 @@ struct SelectedTabContent: View {
                     // ContentView 的 PlayerImmersiveGate 据此收起标签栏/工具栏。
                     onImmersiveChange: { immersive in
                         tab.browser.mediaPlayerImmersive = immersive
+                    },
+                    // 播放队列自动切下一首：换查看器文件（播放器随 .id 重建）。
+                    onSwitchFile: { next in
+                        tab.browser.mediaViewerURL = next
+                        tab.browser.mediaViewerFileName = next.lastPathComponent
                     }
                 )
             } else if let sheetURL = tab.browser.spreadsheetViewerURL {

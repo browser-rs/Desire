@@ -3344,6 +3344,20 @@ extension BrowserToolProvider {
             if !errors.isEmpty { out += "; failures:\n" + errors.joined(separator: "\n") }
             return out
 
+        case "listDetectedMedia":
+            // 媒体工具族第三件（v0.8.30 批次二）：页面嗅探媒体暴露给智能体。
+            let tab = surface.tabManager?.tabs.first(where: { $0.browser.webView === webView })
+                ?? surface.tabManager?.selectedTab
+            let detected = (tab?.browser.detectedMedia ?? []).filter { !$0.isBlob }
+            guard !detected.isEmpty else {
+                return "No media detected on this page. Play the video once or reload the page, then retry."
+            }
+            let maxItems = min(50, max(1, args["maxItems"] as? Int ?? 20))
+            let lines = detected.prefix(maxItems).enumerated().map { index, media in
+                "\(index + 1). [\(media.kind.rawValue)] \(media.url)\(media.displaySize.map { " · \($0)" } ?? "") · via \(media.source)"
+            }
+            return lines.joined(separator: "\n")
+
         case "analyzeMedia":
             // 媒体规格探测（v0.8.30 批次一）：ffprobe 优先（全量 JSON 摘要），
             // 未装 ffmpeg 回退 AVFoundation（时长/轨道/分辨率）。

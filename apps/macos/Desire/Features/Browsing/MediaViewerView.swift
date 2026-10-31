@@ -22,6 +22,9 @@ struct MediaViewerView: View {
     var onEdit: (() -> Void)? = nil
     /// 播放模式 ↔ chrome 收放（IINA 式）：写 BrowserState.mediaPlayerImmersive。
     var onImmersiveChange: ((Bool) -> Void)? = nil
+    /// 播放队列自动切下一首：由 SelectedTabContent 换 mediaViewerURL。
+    var onSwitchFile: ((URL) -> Void)? = nil
+    @ObservedObject private var playlist = MediaPlaylistStore.shared
 
     @StateObject private var model: MediaPlayerModel
     @State private var playbackMode = false
@@ -39,12 +42,14 @@ struct MediaViewerView: View {
     @AppStorage("media.subtitlePosition") private var subtitlePosition = "bottom"
 
     init(fileURL: URL, fileName: String, onBack: @escaping () -> Void,
-         onEdit: (() -> Void)? = nil, onImmersiveChange: ((Bool) -> Void)? = nil) {
+         onEdit: (() -> Void)? = nil, onImmersiveChange: ((Bool) -> Void)? = nil,
+         onSwitchFile: ((URL) -> Void)? = nil) {
         self.fileURL = fileURL
         self.fileName = fileName
         self.onBack = onBack
         self.onEdit = onEdit
         self.onImmersiveChange = onImmersiveChange
+        self.onSwitchFile = onSwitchFile
         _model = StateObject(wrappedValue: MediaPlayerModel(url: fileURL))
     }
 
@@ -76,8 +81,14 @@ struct MediaViewerView: View {
         }
         .id(fileURL)
         .onAppear {
+            MediaPlaylistStore.shared.activate(fileURL)
             setPlaybackMode(model.hasVideo)
             scheduleHide()
+        }
+        .onChange(of: playlist.autoAdvanceTo) { _, next in
+            guard let next else { return }
+            playlist.consumeAutoAdvance()
+            onSwitchFile?(next)
         }
         .onDisappear {
             hideTask?.cancel()
@@ -184,6 +195,15 @@ struct MediaViewerView: View {
                 .help(String(localized: "Edit (trim / merge)"))
             }
             Button {
+                addToQueue()
+            } label: {
+                Image(systemName: "text.line.first.and.arrowtriangle.forward")
+                    .font(.system(size: 12, weight: .medium))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.white.opacity(0.9))
+            .help(String(localized: "Add to Queue"))
+            Button {
                 NSWorkspace.shared.open(fileURL)
             } label: {
                 Image(systemName: "arrow.up.forward.app")
@@ -205,6 +225,26 @@ struct MediaViewerView: View {
                 .padding(.horizontal, 14)
                 .padding(.top, 2)
             HStack(spacing: 12) {
+                if playlist.hasMultiple {
+                    Button {
+                        if let previous = playlist.skip(-1) { onSwitchFile?(previous) }
+                    } label: {
+                        Image(systemName: "backward.end.fill")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white.opacity(0.9))
+                    .help(String(localized: "Previous"))
+                    Button {
+                        if let next = playlist.skip(1) { onSwitchFile?(next) }
+                    } label: {
+                        Image(systemName: "forward.end.fill")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.white.opacity(0.9))
+                    .help(String(localized: "Next"))
+                }
                 playButton
                 stepButtons
                 Text(timeDisplay)
@@ -215,6 +255,7 @@ struct MediaViewerView: View {
                 speedMenu
                 subtitleMenu
                 volumeGroup
+                repeatButton
                 if model.hasVideo {
                     loopButton
                     pipButton
@@ -436,6 +477,29 @@ struct MediaViewerView: View {
         .help(String(localized: "Resize window to picture size"))
     }
 
+    private var repeatButton: some View {
+        Button {
+            switch playlist.repeatMode {
+            case .off: playlist.repeatMode = .list
+            case .list: playlist.repeatMode = .single
+            case .single: playlist.repeatMode = .off
+            }
+        } label: {
+            Image(systemName: playlist.repeatMode == .single
+                  ? "repeat.1" : "repeat")
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(playlist.repeatMode == .off
+                                 ? AnyShapeStyle(.white.opacity(0.9))
+                                 : AnyShapeStyle(appAccent))
+        }
+        .buttonStyle(.plain)
+        .help(playlist.repeatMode == .off
+              ? String(localized: "Repeat Off")
+              : (playlist.repeatMode == .list
+                 ? String(localized: "Repeat List")
+                 : String(localized: "Repeat One")))
+    }
+
     private var loopButton: some View {
         Button {
             model.cycleLoopPoint()
@@ -601,6 +665,15 @@ struct MediaViewerView: View {
         default:
             return false
         }
+    }
+
+    /// 顶栏「加入队列」：选多个媒体文件接在当前队列后。
+    private func addToQueue() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = true
+        guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
+        MediaPlaylistStore.shared.add(panel.urls)
     }
 
     /// H 键截当前帧：AVAssetImageGenerator 精准取帧 → PNG 进剪贴板。

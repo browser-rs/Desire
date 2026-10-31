@@ -850,6 +850,9 @@ private struct TimelineClipView: View {
     @State private var trimDelta: Double = 0
     /// 正在拖的裁边（-1 左缘 / 1 右缘 / 0 无）——决定预览从哪端伸缩。
     @State private var trimmingSide: CGFloat = 0
+    /// 音频波形（整源 400 桶 + 源时长；后台采样，绘图时按片段源区间切片）。
+    @State private var fullWaveform: [WaveformCore.Column]?
+    @State private var sourceDuration: Double = 0
 
     private var isSelected: Bool {
         store.selectedClipID == clip.id || store.multiSelection.contains(clip.id)
@@ -910,6 +913,19 @@ private struct TimelineClipView: View {
                 trimHandle(direction: 1)
             }
             .allowsHitTesting(true)
+            // 音频波形（v0.8.30）：镜像振幅条，切源区间
+            if track.kind == .audio, clip.sourceURL != nil,
+               let fullWaveform, sourceDuration > 0 {
+                WaveformOverlay(
+                    columns: WaveformCore.slice(
+                        fullWaveform: fullWaveform, sourceDuration: sourceDuration,
+                        sourceStart: clip.sourceStart,
+                        sourceEnd: clip.sourceEnd, targetColumns: 160))
+                    .frame(height: laneHeight - 14)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                    .padding(.horizontal, 14)
+                    .allowsHitTesting(false)
+            }
             // 包络折线（底部 1/3）：点间连线直读形状
             if !clip.volumeEnvelope.isEmpty {
                 EnvelopeOverlay(points: clip.volumeEnvelope)
@@ -921,6 +937,13 @@ private struct TimelineClipView: View {
         .frame(width: width, height: laneHeight)
         .offset(x: x)
         .contentShape(Rectangle().inset(by: 1))
+        .task(id: clip.id) {
+            guard track.kind == .audio, let url = clip.sourceURL else { return }
+            let wave = await WaveformCache.shared.waveform(for: url)
+            let duration = await MediaEditProbe.duration(url) ?? 0
+            fullWaveform = wave
+            sourceDuration = duration
+        }
         .onTapGesture { tapSelect(with: NSEvent.modifierFlags) }
         .contextMenu {
             Button(String(localized: "Split")) { store.splitAtPlayhead() }
@@ -1109,6 +1132,31 @@ private struct EnvelopeOverlay: View {
                 let rect = CGRect(x: x - 2, y: y - 2, width: 4, height: 4)
                 context.fill(Path(rect), with: .color(.white))
             }
+        }
+    }
+}
+
+
+/// 音频波形（v0.8.30 批次一）：镜像振幅条（白 60% 叠在音轨绿色上）。
+/// 独立子视图——Canvas 内联进复杂 body 会 type-check 超时（同 EnvelopeOverlay）。
+private struct WaveformOverlay: View {
+    let columns: [WaveformCore.Column]
+
+    var body: some View {
+        Canvas { context, size in
+            guard !columns.isEmpty, size.width > 0 else { return }
+            let mid = size.height / 2
+            let columnWidth = size.width / CGFloat(columns.count)
+            let style = StrokeStyle(lineWidth: max(0.8, columnWidth * 0.7), lineCap: .round)
+            var path = Path()
+            for (index, column) in columns.enumerated() {
+                let x = (CGFloat(index) + 0.5) * columnWidth
+                let top = mid - CGFloat(column.max) * (size.height / 2 - 1)
+                let bottom = mid - CGFloat(column.min) * (size.height / 2 - 1)
+                path.move(to: CGPoint(x: x, y: top))
+                path.addLine(to: CGPoint(x: x, y: bottom))
+            }
+            context.stroke(path, with: .color(.white.opacity(0.65)), style: style)
         }
     }
 }

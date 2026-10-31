@@ -1123,6 +1123,13 @@ extension BrowserToolProvider {
         ])
     )),
     AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "analyzeMedia",
+        description: "Probe a local video/audio file: duration, container, codecs, resolution, frame rate, track inventory and bit rate. ffprobe (if installed) gives full detail; otherwise built-in AVFoundation metadata is returned. Use before editTimeline/trimVideo to decide how to cut or what fits a target size.",
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "path": AgentJSONSchemaValue(type: "string", description: "Local video/audio file (workspace whitelist)"),
+        ], required: ["path"])
+    )),
+    AgentToolDef(type: "function", function: AgentToolFunctionDef(
         name: "editTimeline",
         description: "Build and export a video timeline (the same engine as the built-in multi-track editor). Add clips from local video/audio files onto the video or audio track (each with optional in-point and duration in seconds), optionally set per-clip speed (0.25-4) and volume (0-2), then export to mp4 (or m4a with no video clips). Export runs in the background - the output path comes back when it finishes; this call can take minutes for long timelines.",
         parameters: AgentJSONSchema(type: "object", properties: [

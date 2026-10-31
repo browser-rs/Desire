@@ -1,3 +1,4 @@
+import AVFoundation
 import AppKit
 import PDFKit
 import SwiftUI
@@ -3342,6 +3343,81 @@ extension BrowserToolProvider {
             var out = "Renamed \(done)/\(renames.count)"
             if !errors.isEmpty { out += "; failures:\n" + errors.joined(separator: "\n") }
             return out
+
+        case "analyzeMedia":
+            // 媒体规格探测（v0.8.30 批次一）：ffprobe 优先（全量 JSON 摘要），
+            // 未装 ffmpeg 回退 AVFoundation（时长/轨道/分辨率）。
+            guard let rawPath = args["path"] as? String, !rawPath.isEmpty else {
+                return Self.fail("Missing path")
+            }
+            let mediaURL: URL
+            switch AgentWorkspace.shared.resolve(rawPath, write: false) {
+            case .denied(let reason):
+                return reason
+            case .granted(let url):
+                mediaURL = url
+            }
+            guard FileManager.default.fileExists(atPath: mediaURL.path) else {
+                return Self.fail("File not found: \(mediaURL.lastPathComponent)")
+            }
+            // 快路径：ffprobe
+            if let probe = FFmpegExporter.locate()?.deletingLastPathComponent()
+                .appendingPathComponent("ffprobe"),
+               FileManager.default.isExecutableFile(atPath: probe.path) {
+                let process = Process()
+                process.executableURL = probe
+                process.arguments = ["-v", "error", "-show_format", "-show_streams",
+                                     "-of", "json", mediaURL.path]
+                let pipe = Pipe()
+                process.standardOutput = pipe
+                process.standardError = FileHandle.nullDevice
+                process.standardInput = FileHandle.nullDevice
+                if (try? process.run()) != nil {
+                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                    process.waitUntilExit()
+                    if process.terminationStatus == 0,
+                       let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        var lines: [String] = ["probe: ffprobe (full detail)"]
+                        if let format = obj["format"] as? [String: Any] {
+                            let duration = (format["duration"] as? String).map { Double($0) } ?? nil
+                            lines.append("container: \(format["format_name"] as? String ?? "?") · \(MediaEditCore.formatClock(duration ?? 0)) · \(format["bit_rate"] as? String ?? "?") bit/s")
+                        }
+                        if let streams = obj["streams"] as? [[String: Any]] {
+                            for (index, stream) in streams.enumerated() {
+                                let type = stream["codec_type"] as? String ?? "?"
+                                let codec = stream["codec_name"] as? String ?? "?"
+                                if type == "video" {
+                                    lines.append("track\(index): video \(codec) \(stream["width"] as? Int ?? 0)x\(stream["height"] as? Int ?? 0) @ \(stream["r_frame_rate"] as? String ?? "?") fps")
+                                } else if type == "audio" {
+                                    lines.append("track\(index): audio \(codec) \(stream["channels"] as? Int ?? 0)ch \(stream["sample_rate"] as? String ?? "?") Hz")
+                                } else {
+                                    lines.append("track\(index): \(type) \(codec)")
+                                }
+                            }
+                        }
+                        return lines.joined(separator: "\n")
+                    }
+                }
+            }
+            // 回退：AVFoundation
+            let asset = AVURLAsset(url: mediaURL)
+            var lines: [String] = ["probe: AVFoundation (built-in)"]
+            if let duration = try? await asset.load(.duration).seconds {
+                lines.append("duration: \(MediaEditCore.formatClock(duration))")
+            }
+            let videoTracks = (try? await asset.loadTracks(withMediaType: .video)) ?? []
+            let audioTracks = (try? await asset.loadTracks(withMediaType: .audio)) ?? []
+            for (index, track) in videoTracks.enumerated() {
+                let size = (try? await track.load(.naturalSize)) ?? .zero
+                lines.append("video track\(index): \(Int(size.width))x\(Int(size.height))")
+            }
+            for (index, _) in audioTracks.enumerated() {
+                lines.append("audio track\(index): present")
+            }
+            if videoTracks.isEmpty && audioTracks.isEmpty {
+                return Self.fail("No readable media tracks in \(mediaURL.lastPathComponent)")
+            }
+            return lines.joined(separator: "\n")
 
         case "editTimeline":
             // 多轨时间线 Agent 化（v0.8.28 批次二）：与内置编辑器共用

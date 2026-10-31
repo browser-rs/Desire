@@ -8043,6 +8043,35 @@ func testMediaEditCore() {
     check("简单：淡入淡出三段", sramps.count == 3
         && sramps[0].from == 0 && sramps[0].to == 1
         && sramps[2].to == 0 && sramps[2].end == 8)
+
+    // ---- 波形纯逻辑 ----
+    let raw = [WaveformCore.Column(min: -0.5, max: 0.5),
+               WaveformCore.Column(min: -1.0, max: 0.2),
+               WaveformCore.Column(min: -0.2, max: 0.8),
+               WaveformCore.Column(min: -0.3, max: 0.3)]
+    let down = WaveformCore.downsample(raw, to: 2)
+    eq("波形：降采样桶数", down.count, 2)
+    eq("波形：桶 1 min", down[0].min, -1.0)
+    eq("波形：桶 2 max", down[1].max, 0.8)
+    // 放大：最近邻
+    let up = WaveformCore.downsample([WaveformCore.Column(min: -0.4, max: 0.6)], to: 3)
+    eq("波形：放大列数", up.count, 3)
+    eq("波形：放大约值", up[2].max, 0.6)
+    check("波形：空输入", WaveformCore.downsample([], to: 8).isEmpty)
+    // 区间切片：源 100s，取 25–75s（中段两桶）
+    let full = (0..<100).map { WaveformCore.Column(min: Float($0) * 0.01 - 1,
+                                                   max: Float($0) * 0.01 - 0.5) }
+    let sliced = WaveformCore.slice(fullWaveform: full, sourceDuration: 100,
+                                    sourceStart: 25, sourceEnd: 75, targetColumns: 2)
+    eq("波形：切片列数", sliced.count, 2)
+    check("波形：切片取中段", sliced[0].min >= full[25].min - 0.01
+        && sliced[1].max <= full[75].max + 0.01)
+    check("波形：非法区间空", WaveformCore.slice(fullWaveform: full, sourceDuration: 100,
+                                                 sourceStart: 80, sourceEnd: 20,
+                                                 targetColumns: 4).isEmpty)
+    eq("波形：缓存键", WaveformCore.cacheKey(for: URL(fileURLWithPath: "/a.mp3"),
+                                             modifiedAt: Date(timeIntervalSince1970: 100), buckets: 400),
+       "/a.mp3|100|400")
 }
 
 testToolboxBatch2Cores()

@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.29] - 2026-10-31
 ### Added
 
 - Editor: keyframe volume envelopes — drop automation points at any fraction of a clip (the playhead position becomes a point), tune each with a slider, read the shape right on the clip; envelopes survive trimming (percentage-based) and drive both preview and export through one ramp pipeline. The editTimeline agent tool accepts the same envelope points (v0.8.29)

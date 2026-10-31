@@ -70,6 +70,18 @@ nonisolated enum TimelineCore {
         return updated
     }
 
+    // MARK: - 轨道排序（v0.8.29 批次二）
+
+    /// 轨道相邻交换（up=true 与上一条换）。
+    static func moveTrack(_ project: Project, trackID: UUID, up: Bool) -> Project? {
+        guard let index = project.tracks.firstIndex(where: { $0.id == trackID }) else { return nil }
+        let target = up ? index - 1 : index + 1
+        guard project.tracks.indices.contains(target) else { return nil }
+        var updated = project
+        updated.tracks.swapAt(index, target)
+        return updated
+    }
+
     // MARK: - 音量包络（v0.8.29 批次一）
 
     /// 包络点：offset 是**片段内的小数进度**（0…1，对裁边稳健——裁剪后包络

@@ -10,6 +10,7 @@ struct MultiTrackEditorView: View {
     @StateObject private var store = VideoEditorStore()
     /// 源监视器正在查看的素材（nil = 关闭）。
     @State private var monitoring: VideoEditorStore.SourceMedia?
+    @State private var showHistory = false
 
     static let laneHeights: [TimelineCore.TrackKind: CGFloat] = [.text: 30, .video: 56, .audio: 40]
     static let laneGap: CGFloat = 6
@@ -95,6 +96,18 @@ struct MultiTrackEditorView: View {
             .disabled(!store.canUndo)
             .help(String(localized: "Undo"))
             Button {
+                showHistory.toggle()
+            } label: {
+                Image(systemName: "clock.arrow.circlepath")
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(store.historyEntries.count < 2)
+            .help(String(localized: "History"))
+            .popover(isPresented: $showHistory, arrowEdge: .bottom) {
+                historyPanel
+            }
+            Button {
                 store.splitAllTracks()
             } label: {
                 Image(systemName: "square.split.2x1")
@@ -132,6 +145,51 @@ struct MultiTrackEditorView: View {
                 .buttonStyle(.bordered)
                 .controlSize(.small)
         }
+    }
+
+    /// 撤销历史面板（对齐图片编辑器）：栈底在前，点任意步跳回。
+    private var historyPanel: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("History")
+                .font(.system(size: 11, weight: .semibold))
+            ScrollView {
+                VStack(spacing: 2) {
+                    let entries = store.historyEntries
+                    ForEach(Array(entries.enumerated().reversed()), id: \.offset) { index, entry in
+                        Button {
+                            store.jumpToHistory(index)
+                            showHistory = false
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text("\(index)")
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundStyle(.tertiary)
+                                    .frame(width: 18)
+                                Text(entry.isCurrent
+                                     ? String(localized: "Current")
+                                     : String(localized: "Step \(index)"))
+                                    .font(.system(size: 10.5))
+                                Spacer()
+                                if entry.isCurrent {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 8))
+                                        .foregroundStyle(appAccent)
+                                }
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
+                            .background(RoundedRectangle(cornerRadius: 5)
+                                .fill(entry.isCurrent ? appAccent.opacity(0.14) : Color.clear))
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.primary)
+                    }
+                }
+            }
+            .frame(width: 180, height: 180)
+        }
+        .padding(10)
     }
 
     /// 素材池（v0.8.28 批次二）：点名字开源监视器，点 + 直接插入时间线。
@@ -716,6 +774,24 @@ private struct EditorTimeline: View {
                     .help(String(localized: "Mute Track"))
                 }
                 if track.kind != .video {
+                    Button {
+                        store.moveTrack(track.id, up: true)
+                    } label: {
+                        Image(systemName: "arrow.up")
+                            .font(.system(size: 7))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help(String(localized: "Move Track Up"))
+                    Button {
+                        store.moveTrack(track.id, up: false)
+                    } label: {
+                        Image(systemName: "arrow.down")
+                            .font(.system(size: 7))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help(String(localized: "Move Track Down"))
                     Button {
                         store.commit(TimelineCore.removeTrack(store.project, trackID: track.id))
                     } label: {

@@ -218,6 +218,30 @@ final class VideoEditorStore: ObservableObject {
         commit(TimelineCore.setVolumeEnvelope(project, clipID: clipID, points: []))
     }
 
+    /// 轨道相邻交换。
+    func moveTrack(_ trackID: UUID, up: Bool) {
+        commit(TimelineCore.moveTrack(project, trackID: trackID, up: up))
+    }
+
+    /// 历史面板：撤销栈快照（栈底在前，含当前工程）。
+    var historyEntries: [(project: TimelineCore.Project, isCurrent: Bool)] {
+        var entries = undoStack.map { (project: $0, isCurrent: false) }
+        entries.append((project: project, isCurrent: true))
+        return entries
+    }
+
+    /// 跳回历史第 index 步（0=栈底）：其后快照丢弃。
+    func jumpToHistory(_ index: Int) {
+        let entries = historyEntries
+        guard entries.indices.contains(index), !entries[index].isCurrent else { return }
+        project = entries[index].project
+        undoStack.removeSubrange(index...)
+        canUndo = !undoStack.isEmpty
+        selectedClipID = nil
+        multiSelection = []
+        rebuildPreview()
+    }
+
     /// 切换轨道静音（音频轨）。
     func toggleTrackMute(_ trackID: UUID) {
         commit(TimelineCore.toggleTrackMute(project, trackID: trackID))

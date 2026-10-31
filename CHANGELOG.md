@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.32] - 2026-11-01
 ### Added
 
 - Ad blocking is now a built-in plugin: the video-ad engine (element CSS hiding + player-response ad-data pruning + anti-adblock banner clearing) moved behind a toggleable "Ad Blocker (built-in)" plugin in the Plugins panel — turning it off restores a completely vanilla browser. The Settings video-ad switch and the plugin switch share one state (v0.8.32)

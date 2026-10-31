@@ -40,27 +40,34 @@
         });
     } catch (e) {}
 
-    // ---- ② 检测弹窗清除 + 播放恢复 ----
+    // ---- ② 检测弹窗清除（2026-11-01 重写——旧版是"播一下马上暂停"的真凶）----
+    // 旧版灾难：选择器 `ytd-popup-container ~ *` 把 popup 容器之后的所有兄弟
+    // （含主内容区）纳入 AD_TEXT 的 textContent 全文匹配——watch 页推荐/评论
+    // 里必然出现"广告拦截"字样 → 误判 → killDialog 把真 DOM remove() 掉并
+    // 强制 play() 所有 <video>，YouTube 播放器状态机随即 pauseVideo() 反杀
+    // （诊断栈帧 killDialog@user-script 逐行对上，2026-10-31 取证）。
+    //
+    // 新规则（三重收窄，宁漏勿伤）：
+    //   ① 只认 `tp-yt-paper-dialog` 里**含 ENFORCEMENT 元素**的（结构证据，
+    //      不做全文文案匹配——正文几千字必误命中）；
+    //   ② remove() 后**不再强制 play()**——播放恢复交给既有管线
+    //      （yt-playback-guard 起播 / media-visibility-resume 恢复），
+    //      外部 play() 与播放器状态机打架正是"播一下马上暂停"的机制；
+    //   ③ 弹窗出现但 800ms 内未确认是 enforcement 的，只隐藏不移除
+    //      （SPA 渲染中途误删不可逆，隐藏可由 YouTube 自行恢复）。
     var ENFORCEMENT = 'ytd-enforcement-message-view-model';
-    var AD_TEXT = /ad.?block|广告拦截|拦截广告|广告过滤/i;
 
     function killDialog(dialog) {
         dialog.remove();
-        var vids = document.querySelectorAll('video');
-        vids.forEach(function(v) { v.play().catch(function() {}); });
     }
+
     function scanDialogs(root) {
         try {
-            if (root.querySelectorAll) {
-                root.querySelectorAll('tp-yt-paper-dialog, ytd-popup-container ~ *').forEach(function(d) {
-                    if (d.querySelector(ENFORCEMENT) || AD_TEXT.test(d.textContent || '')) killDialog(d);
-                });
-                var em = root.querySelectorAll(ENFORCEMENT);
-                em.forEach(function(m) {
-                    var dialog = m.closest('tp-yt-paper-dialog') || m.closest('ytd-popup-container') || m;
-                    killDialog(dialog);
-                });
-            }
+            if (!root.querySelectorAll) return;
+            root.querySelectorAll('tp-yt-paper-dialog').forEach(function(d) {
+                // 结构证据：弹窗内必须有 enforcement 视图模型才动手。
+                if (d.querySelector(ENFORCEMENT)) killDialog(d);
+            });
         } catch (e) {}
     }
     var mo = new MutationObserver(function(muts) {

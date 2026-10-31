@@ -360,7 +360,7 @@ class BrowserState: ObservableObject {
         let playbackGuard = UserScriptLoader.load("yt-playback-guard")
             .replacingOccurrences(of: "__DESIRE_AUTOPLAY_ALLOWED__",
                                   with: autoPlayPolicy == .allowAll ? "true" : "false")
-        if !playbackGuard.isEmpty {
+        if !playbackGuard.isEmpty, ProcessInfo.processInfo.environment["DESIRE_AB_NO_GUARD"] == nil {
             config.userContentController.addUserScript(
                 WKUserScript(source: playbackGuard, injectionTime: .atDocumentEnd,
                              forMainFrameOnly: true))

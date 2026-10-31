@@ -76,11 +76,20 @@ enum UserScriptLoader {
         add("middle-click", at: .atDocumentEnd)
         // 右键增强（v0.8.31 批次一）：图片/链接/选区上拦原生菜单上报宿主。
         add("context-menu", at: .atDocumentEnd)
+        // —— A/B 分隔线：以下 youtube 相关全部临时禁用 ——
+        // add("yt-playback-guard", ...)
+        // add("sponsorblock", ...)
+        // add("video-speed", ...)
+        add("yt-anti-detect", at: .atDocumentStart)
         // 可见性恢复补播（2026-10-31 热修）：切回标签后 WebKit 恢复播放被
         // PageConsentRequired 拦的视频卡暂停——全站兜底，"隐藏前在播、
         // 可见后 paused"这一形态页面内补 play()。与 YouTube guard 起播
         // kick 幂等共存。
         add("media-visibility-resume", at: .atDocumentEnd)
+        add("media-pause-diag", at: .atDocumentEnd)
+        // A/B 实测（自动播放专项）：临时禁 json-prune，验证"广告调度器等
+        // 不到广告 → 暂停正片"假说。结论后还原。
+        add("yt-json-prune", at: .atDocumentStart)
         return scripts
     }
 

@@ -8083,6 +8083,21 @@ func testMediaEditCore() {
     check("批量：协议相对", URLBatch.parse("//d.com\nhttps://e.com").count == 2)
     check("批量：无点行丢弃", URLBatch.parse("localhost\nhttps://f.com\nhttps://g.com").count == 2)
 
+    // ---- 工具卡分组折叠 ----
+    let names = ["readFile", "readFile", "readFile", "readFile", "readFile",
+                 "navigate", "navigate", "screenshot"]
+    let groups = ToolCallGrouper.group(names)
+    eq("折叠：组数", groups.count, 4)
+    check("折叠：长段折叠", groups[0].isCollapsed && groups[0].count == 5
+        && groups[0].range == 0..<5)
+    check("折叠：短段不折", !groups[1].isCollapsed && groups[1].count == 1)
+    check("折叠：相邻两段不并", !groups[2].isCollapsed && groups[2].name == "navigate")
+    eq("折叠：末段", groups[3].name, "screenshot")
+    // 全同名
+    let allSame = ToolCallGrouper.group(["runCommand", "runCommand", "runCommand"])
+    eq("折叠：全同名一组", allSame.count, 1)
+    check("折叠：空数组", ToolCallGrouper.group([]).isEmpty)
+
     // ---- 音频分离 ----
     var da = TimelineCore.Project()
     let daVideo = da.tracks.first { $0.kind == .video }!

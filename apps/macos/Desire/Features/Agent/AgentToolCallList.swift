@@ -45,18 +45,73 @@ private struct InlineResultImage: View {
 /// Renders the list of tool invocations inside an assistant message as a
 /// compact stack of pill-shaped chips.
 struct ToolCallList: View {
+    /// 应用强调色（折叠行的图标与高亮用；此前只有 ToolCallChip 有）。
+    @Environment(\.appAccent) private var appAccent: Color
     let toolCalls: [AgentToolCall]
     var results: [String: String] = [:]
     /// toolCallId → 耗时（毫秒）。用来在聊天里直接看出"哪个工具慢"。
     var durations: [String: Double] = [:]
+    /// 展开的折叠段（段序号）——默认全部折叠（≥3 同名才成段）。
+    @State private var expandedRuns: Set<Int> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            ForEach(toolCalls) { call in
-                ToolCallChip(toolCall: call, result: results[call.id], durationMs: durations[call.id])
+            ForEach(Array(ToolCallGrouper.group(toolCalls.map { $0.function.name })
+                .enumerated()), id: \.offset) { groupIndex, group in
+                if group.isCollapsed, !expandedRuns.contains(groupIndex) {
+                    collapsedRow(group, groupIndex: groupIndex)
+                } else {
+                    ForEach(toolCalls[group.range]) { call in
+                        ToolCallChip(toolCall: call, result: results[call.id],
+                                     durationMs: durations[call.id])
+                    }
+                }
             }
         }
         .padding(.top, 2)
+    }
+
+    /// 折叠行：图标 + 「name ×N」+ 合计耗时 + 展开。
+    private func collapsedRow(_ group: ToolCallGrouper.Group, groupIndex: Int) -> some View {
+        let totalMs = group.range.reduce(0.0) { $0 + (durations[toolCalls[$1].id] ?? 0) }
+        let fill = Color.secondary.opacity(0.06)
+        return Button {
+            if expandedRuns.contains(groupIndex) {
+                expandedRuns.remove(groupIndex)
+            } else {
+                expandedRuns.insert(groupIndex)
+            }
+        } label: {
+            ZStack {
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(fill)
+                HStack(spacing: 6) {
+                    Image(systemName: "wrench")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(appAccent)
+                        .frame(width: 14)
+                    Text("\(group.name) ×\(group.count)")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.primary)
+                    if totalMs > 0 {
+                        Text(verbatim: totalMs >= 1000
+                             ? String(format: "%.1fs", totalMs / 1000)
+                             : String(format: "%.0fms", totalMs))
+                            .font(.system(size: 9.5, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 4)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .rotationEffect(.degrees(90))
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 }
 

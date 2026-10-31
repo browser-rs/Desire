@@ -1,3 +1,14 @@
+## [Unreleased]
+### Added
+
+- Editor: real audio waveforms — AVAssetReader samples each source into 400 min/max buckets (streaming, cached per file), audio clips draw mirrored amplitude bars sliced to their source range, and the source monitor gains a full-source waveform strip (v0.8.30)
+- Editor: detach audio (right-click a video clip — its track copies to the audio lane, the original goes silent, the new clip is selected), ready for independent volume envelopes (v0.8.30)
+- Player: playlist queue — add files from the viewer, auto-advance on playback end with repeat off/list/one, prev/next buttons, a queue popover with click-to-jump (v0.8.30)
+- Media agent tool family: analyzeMedia (ffprobe/AVFoundation probe: container, codecs, resolution, tracks, bit rate) and listDetectedMedia (the page's sniffed media, blob: excluded) — combine with downloadMedia + editTimeline for "grab that video and trim it" in one sentence (v0.8.30)
+- Floating ball: "Download & Edit" — the page's main video downloads straight into the multi-track timeline; the timeline also keeps an in-session export history with Finder links (v0.8.30)
+- editTimeline accepts per-clip volume envelopes and a cross-dissolve between consecutive clips (v0.8.30)
+
+
 ## [v0.8.29] - 2026-10-31
 ### Added
 

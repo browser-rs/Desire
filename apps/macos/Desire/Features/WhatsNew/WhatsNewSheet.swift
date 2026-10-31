@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "waveform.path.ecg", title: String(localized: "Keyframe volume envelopes"),
-                  detail: String(localized: "Drop volume points anywhere on a clip — duck music under speech, swell an ending, fade anywhere. The shape stays put when you trim, and drives preview and export alike. The agent can set them too via editTimeline.")),
-            .init(icon: "clock.arrow.circlepath", title: String(localized: "History panel & track order"),
-                  detail: String(localized: "Jump back to any editing step (not just one ⌘Z), and reorder tracks right from the track header.")),
-            .init(icon: "timeline", title: String(localized: "Timeline editing, the real thing"),
-                  detail: String(localized: "Magnetic snapping, multi-select, full keyboard control, a source monitor, cross-dissolves, per-clip speed and volume, export presets — plus editTimeline for one-sentence agent edits.")),
+            .init(icon: "waveform", title: String(localized: "Audio waveforms, everywhere"),
+                  detail: String(localized: "Audio clips on the timeline and the source monitor now show real waveforms — see the beat before you cut. Detach audio from any video with a right-click and duck it with envelopes.")),
+            .init(icon: "list.bullet", title: String(localized: "Player playlist"),
+                  detail: String(localized: "Queue files from the viewer, auto-advance with repeat off/list/one, jump via the queue popover — music-video night is one drag away.")),
+            .init(icon: "scissors.circle", title: String(localized: "Download & Edit, one chain"),
+                  detail: String(localized: "The floating ball drops the page's video straight into the timeline. The agent gets analyzeMedia + listDetectedMedia — sniff, probe, download, trim, all one sentence.")),
         ]
     }
 

@@ -80620,6 +80620,138 @@
           }
         }
       }
+    },
+    "Audio waveforms, everywhere" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio waveforms, everywhere"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "波形，到处都是"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "波形，到處都是"
+          }
+        }
+      }
+    },
+    "Audio clips on the timeline and the source monitor now show real waveforms — see the beat before you cut. Detach audio from any video with a right-click and duck it with envelopes." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Audio clips on the timeline and the source monitor now show real waveforms — see the beat before you cut. Detach audio from any video with a right-click and duck it with envelopes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "时间线和源监视器的音频片段显示真实波形——下剪之前先看到节奏。右键分离任意视频的音轨，再用包络给人声让路。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時間線和源監視器的音訊片段顯示真實波形——下剪之前先看到節奏。右鍵分離任意影片的音訊，再用包絡給人聲讓路。"
+          }
+        }
+      }
+    },
+    "Player playlist" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Player playlist"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放器播放列表"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放器播放列表"
+          }
+        }
+      }
+    },
+    "Queue files from the viewer, auto-advance with repeat off/list/one, jump via the queue popover — music-video night is one drag away." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Queue files from the viewer, auto-advance with repeat off/list/one, jump via the queue popover — music-video night is one drag away."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看器里排队、播完自动下一首（循环关/列表/单曲）、队列浮层点选跳播——刷片之夜一拖到位。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "查看器裡排隊、播完自動下一首（循環關/列表/單曲）、佇列浮層點選跳播——刷片之夜一拖到位。"
+          }
+        }
+      }
+    },
+    "Download & Edit, one chain" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Download & Edit, one chain"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下载并剪辑，一条链"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下載並剪輯，一條鏈"
+          }
+        }
+      }
+    },
+    "The floating ball drops the page's video straight into the timeline. The agent gets analyzeMedia + listDetectedMedia — sniff, probe, download, trim, all one sentence." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The floating ball drops the page's video straight into the timeline. The agent gets analyzeMedia + listDetectedMedia — sniff, probe, download, trim, all one sentence."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "悬浮球把页面视频直接送进时间线。智能体新增 analyzeMedia + listDetectedMedia——嗅探、探测、下载、修剪，一句话。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "懸浮球把頁面影片直接送進時間線。智慧體新增 analyzeMedia + listDetectedMedia——嗅探、探測、下載、修剪，一句話。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

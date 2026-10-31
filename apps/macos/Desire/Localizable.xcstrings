@@ -80994,6 +80994,138 @@
           }
         }
       }
+    },
+    "Right-click, upgraded" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Right-click, upgraded"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "右键，升级了"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "右鍵，升級了"
+          }
+        }
+      }
+    },
+    "Reverse-search any image (Lens / Bing / Yandex / SauceNAO), send it to Desire's image editor, or copy links and selections as Markdown." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reverse-search any image (Lens / Bing / Yandex / SauceNAO), send it to Desire's image editor, or copy links and selections as Markdown."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任意图片反搜（Lens / Bing / Yandex / SauceNAO）、送进 Desire 图片编辑器，链接与选区一键复制为 Markdown。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "任意圖片反向搜尋（Lens / Bing / Yandex / SauceNAO）、送進 Desire 圖片編輯器，連結與選區一鍵拷貝為 Markdown。"
+          }
+        }
+      }
+    },
+    "Agent: edit & resend" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent: edit & resend"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent：编辑重发"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent：編輯重發"
+          }
+        }
+      }
+    },
+    "Change your last question and rerun — no more verbatim retries. Long tool runs collapse into one readable row." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Change your last question and rerun — no more verbatim retries. Long tool runs collapse into one readable row."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改最后一个问题再重跑——不再原样重试。长工具串折叠成一行可读。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "改最後一個問題再重跑——不再原樣重試。長工具串摺疊成一行可讀。"
+          }
+        }
+      }
+    },
+    "Playback that behaves" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback that behaves"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放，终于听话了"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放，終於聽話了"
+          }
+        }
+      }
+    },
+    "Closing a window stops its video; switching tabs no longer leaves YouTube stuck on pause. Multi-line URL paste opens everything in tabs." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Closing a window stops its video; switching tabs no longer leaves YouTube stuck on pause. Multi-line URL paste opens everything in tabs."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关窗即停视频；切标签不再让 YouTube 卡在暂停。多行 URL 粘贴一键全开。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關窗即停影片；切分頁不再讓 YouTube 卡在暫停。多行 URL 貼上一鍵全開。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

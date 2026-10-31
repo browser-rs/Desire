@@ -1,3 +1,16 @@
+## [Unreleased]
+### Fixed
+
+- Player: closing a window no longer keeps its video playing — the media player and timeline preview now stop on host-window close (view teardown paths don't reliably run there) (v0.8.31)
+- YouTube: playback no longer sticks paused after switching away and back — WebKit's page-consent check blocks the visibility-restore path (PageConsentRequired), which none of the autoplay layers covered; a site-wide visibility-resume script now resumes videos that were playing when the page was hidden (v0.8.31)
+
+### Added
+
+- Browser: context-menu enhancements — right-click an image to reverse-search (Google Lens / Bing Visual / Yandex / SauceNAO) or edit it in Desire's image editor (downloads with the page's referer); right-click a link or selection to copy it as Markdown (v0.8.31)
+- Browser: paste multi-line URLs into the address bar — a confirmation offers to open all of them as tabs (scheme normalization, dedup, junk-line filtering) (v0.8.31)
+- Agent: edit & resend the last user message (pencil on your message bubble) instead of re-running it verbatim; long turns collapse 3+ consecutive same-tool calls into one "readFile ×5" row with total time, expandable (v0.8.31)
+
+
 ## [v0.8.30] - 2026-10-31
 ### Added
 

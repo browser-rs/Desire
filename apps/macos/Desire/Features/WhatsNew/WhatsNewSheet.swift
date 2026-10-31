@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "waveform", title: String(localized: "Audio waveforms, everywhere"),
-                  detail: String(localized: "Audio clips on the timeline and the source monitor now show real waveforms — see the beat before you cut. Detach audio from any video with a right-click and duck it with envelopes.")),
-            .init(icon: "list.bullet", title: String(localized: "Player playlist"),
-                  detail: String(localized: "Queue files from the viewer, auto-advance with repeat off/list/one, jump via the queue popover — music-video night is one drag away.")),
-            .init(icon: "scissors.circle", title: String(localized: "Download & Edit, one chain"),
-                  detail: String(localized: "The floating ball drops the page's video straight into the timeline. The agent gets analyzeMedia + listDetectedMedia — sniff, probe, download, trim, all one sentence.")),
+            .init(icon: "hand.tap", title: String(localized: "Right-click, upgraded"),
+                  detail: String(localized: "Reverse-search any image (Lens / Bing / Yandex / SauceNAO), send it to Desire's image editor, or copy links and selections as Markdown.")),
+            .init(icon: "pencil.line", title: String(localized: "Agent: edit & resend"),
+                  detail: String(localized: "Change your last question and rerun — no more verbatim retries. Long tool runs collapse into one readable row.")),
+            .init(icon: "playpause.circle.fill", title: String(localized: "Playback that behaves"),
+                  detail: String(localized: "Closing a window stops its video; switching tabs no longer leaves YouTube stuck on pause. Multi-line URL paste opens everything in tabs.")),
         ]
     }
 

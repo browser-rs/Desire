@@ -638,6 +638,8 @@ private struct PlayerSurfaceOnly: NSViewRepresentable {
         var player: AVPlayer? {
             didSet { (layer as? AVPlayerLayer)?.player = player }
         }
+        /// 宿主窗口关闭 → 停播（视图卸载路径在关窗时不可靠）。
+        var onWindowGone: (() -> Void)?
 
         override var acceptsFirstResponder: Bool { true }
         override func makeBackingLayer() -> CALayer {
@@ -645,11 +647,18 @@ private struct PlayerSurfaceOnly: NSViewRepresentable {
             layer.videoGravity = .resizeAspect
             return layer
         }
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            if window == nil {
+                onWindowGone?()
+            }
+        }
     }
 
     func makeNSView(context: Context) -> SurfaceView {
         let view = SurfaceView()
         view.player = player
+        view.onWindowGone = { player.pause() }
         return view
     }
 

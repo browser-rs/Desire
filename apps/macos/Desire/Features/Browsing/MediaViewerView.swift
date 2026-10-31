@@ -65,14 +65,16 @@ struct MediaViewerView: View {
                               onClick: handleSurfaceClick,
                               onKey: handleKey,
                               onLayerReady: { model.setupPictureInPicture(layer: $0) },
-                              onSurfaceReady: { surfaceView = $0 })
+                              onSurfaceReady: { surfaceView = $0 },
+                              onWindowGone: { model.pause() })
             } else {
                 // 音频模式：透明命中层接点击/键盘，艺术位不抢手势。
                 PlayerSurface(player: nil,
                               onActivity: userActivity,
                               onClick: handleSurfaceClick,
                               onKey: handleKey,
-                              onSurfaceReady: { surfaceView = $0 })
+                              onSurfaceReady: { surfaceView = $0 },
+                              onWindowGone: { model.pause() })
                 audioArtwork
             }
             subtitleOverlay
@@ -93,6 +95,7 @@ struct MediaViewerView: View {
         }
         .onDisappear {
             hideTask?.cancel()
+            model.pause()
             model.savePosition()
             setCursorHidden(false)
             setPlaybackMode(false)
@@ -882,8 +885,18 @@ final class PlayerSurfaceView: NSView {
     var onActivity: (() -> Void)?
     var onClick: ((Int) -> Void)?
     var onKey: ((NSEvent) -> Bool)?
+    /// 宿主窗口关闭（window 变 nil）：视图卸载路径（dismantle/onDisappear）
+    /// 在窗口关闭时不可靠——AppKit 的 viewDidMoveToWindow 是保证会走的路径。
+    var onWindowGone: (() -> Void)?
 
     override var acceptsFirstResponder: Bool { true }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            onWindowGone?()
+        }
+    }
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -927,10 +940,12 @@ private struct PlayerSurface: NSViewRepresentable {
     var onKey: (NSEvent) -> Bool
     var onLayerReady: ((AVPlayerLayer) -> Void)? = nil
     var onSurfaceReady: ((PlayerSurfaceView) -> Void)? = nil
+    var onWindowGone: (() -> Void)? = nil
 
     func makeNSView(context: Context) -> PlayerSurfaceView {
         let view = PlayerSurfaceView()
         view.player = player
+        view.onWindowGone = onWindowGone
         if let onLayerReady, let videoLayer = view.layer as? AVPlayerLayer {
             onLayerReady(videoLayer)
         }
@@ -951,9 +966,6 @@ private struct PlayerSurface: NSViewRepresentable {
         view.onActivity = onActivity
         view.onClick = onClick
         view.onKey = onKey
-    }
-
-    static func dismantleNSView(_ view: PlayerSurfaceView, with coordinator: ()) {
-        view.player?.pause()
+        view.onWindowGone = onWindowGone
     }
 }

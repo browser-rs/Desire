@@ -1,3 +1,15 @@
+## [Unreleased]
+### Added
+
+- Ad blocking is now a built-in plugin: the video-ad engine (element CSS hiding + player-response ad-data pruning + anti-adblock banner clearing) moved behind a toggleable "Ad Blocker (built-in)" plugin in the Plugins panel — turning it off restores a completely vanilla browser. The Settings video-ad switch and the plugin switch share one state (v0.8.32)
+- Autoplay policy goes site-agnostic: a Chrome-style media-engagement model (7s+ audible plays, 30-minute threshold, pre-seeded top video hosts) replaces the hardcoded video-host whitelist; per-site overrides still win (v0.8.32)
+- Settings ▸ Autoplay Diagnostics: live view of the global policy, engagement scores and a permanent pause oracle — every pause or consent-blocked event is classified by actor (YouTube player / page JS / built-in script / WebKit) and also logged to Log.autoplay (v0.8.32)
+
+### Fixed
+
+- YouTube: "plays for a second, then pauses" is fixed at the root — the in-page player-response tampering (ytInitialPlayerResponse trap stripping ad data) was being detected by YouTube and answered with an enforcement pause; the trap and its fighting layers (first-click kick ladders, poster guard force-plays, visibility-resume replays, click-hijack guard that swallowed the play click) are all retired. Verified 12s+ uninterrupted playback where the stutter loop used to be; when YouTube itself declines to autoplay you now get a clean play button, not a pause-replay fight (v0.8.32)
+
+
 ## [v0.8.31] - 2026-11-01
 ### Fixed
 

@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "hand.tap", title: String(localized: "Right-click, upgraded"),
-                  detail: String(localized: "Reverse-search any image (Lens / Bing / Yandex / SauceNAO), send it to Desire's image editor, or copy links and selections as Markdown.")),
-            .init(icon: "pencil.line", title: String(localized: "Agent: edit & resend"),
-                  detail: String(localized: "Change your last question and rerun — no more verbatim retries. Long tool runs collapse into one readable row.")),
-            .init(icon: "playpause.circle.fill", title: String(localized: "Playback that behaves"),
-                  detail: String(localized: "Closing a window stops its video; switching tabs no longer leaves YouTube stuck on pause. Multi-line URL paste opens everything in tabs.")),
+            .init(icon: "playpause.circle.fill", title: String(localized: "Playback, stabilized"),
+                  detail: String(localized: "YouTube no longer stops a second after starting — the in-page interference that triggered its enforcement is gone. Click play once and it keeps playing; no more pause-replay fights.")),
+            .init(icon: "puzzlepiece.extension", title: String(localized: "Ad blocking is now a plugin"),
+                  detail: String(localized: "The video-ad engine moved into a built-in Ad Blocker plugin you can toggle as a whole in the Plugins panel — off means a completely vanilla browser.")),
+            .init(icon: "chart.bar.doc.horizontal", title: String(localized: "Autoplay you can see"),
+                  detail: String(localized: "A Chrome-style engagement model decides autoplay per site, and Settings ▸ Autoplay Diagnostics shows exactly what played, paused or was blocked — and why.")),
         ]
     }
 

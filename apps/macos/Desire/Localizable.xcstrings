@@ -81236,6 +81236,138 @@
           }
         }
       }
+    },
+    "Playback, stabilized" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Playback, stabilized"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放，稳了"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "播放，穩了"
+          }
+        }
+      }
+    },
+    "YouTube no longer stops a second after starting — the in-page interference that triggered its enforcement is gone. Click play once and it keeps playing; no more pause-replay fights." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube no longer stops a second after starting — the in-page interference that triggered its enforcement is gone. Click play once and it keeps playing; no more pause-replay fights."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube 不再「播一秒就停」——触发它反制的页面内干扰已全部退役。点一次播放就一直播，不再有暂停-复播的拉锯。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "YouTube 不再「播一秒就停」——觸發它反制的頁面內干擾已全部退役。點一次播放就一直播，不再有暫停-復播的拉鋸。"
+          }
+        }
+      }
+    },
+    "Ad blocking is now a plugin" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ad blocking is now a plugin"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "广告拦截成为插件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "廣告攔截成為插件"
+          }
+        }
+      }
+    },
+    "The video-ad engine moved into a built-in Ad Blocker plugin you can toggle as a whole in the Plugins panel — off means a completely vanilla browser." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The video-ad engine moved into a built-in Ad Blocker plugin you can toggle as a whole in the Plugins panel — off means a completely vanilla browser."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "视频广告引擎整体收进内置「广告拦截」插件，插件面板可整只开关——关掉就是完全纯净的浏览器。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "影片廣告引擎整體收進內建「廣告攔截」插件，插件面板可整只開關——關掉就是完全純淨的瀏覽器。"
+          }
+        }
+      }
+    },
+    "Autoplay you can see" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Autoplay you can see"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自动播放，看得见"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自動播放，看得見"
+          }
+        }
+      }
+    },
+    "A Chrome-style engagement model decides autoplay per site, and Settings ▸ Autoplay Diagnostics shows exactly what played, paused or was blocked — and why." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A Chrome-style engagement model decides autoplay per site, and Settings ▸ Autoplay Diagnostics shows exactly what played, paused or was blocked — and why."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chrome 式媒体参与度模型按站点决定自动播放；设置 ▸ 自动播放诊断把每一次播放/暂停/拦截及其原因摊开给你看。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chrome 式媒體參與度模型按站點決定自動播放；設定 ▸ 自動播放診斷把每一次播放/暫停/攔截及其原因攤開給你看。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

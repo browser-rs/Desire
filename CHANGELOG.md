@@ -1,3 +1,11 @@
+## [Unreleased]
+### Added
+
+- Editor: keyframe volume envelopes — drop automation points at any fraction of a clip (the playhead position becomes a point), tune each with a slider, read the shape right on the clip; envelopes survive trimming (percentage-based) and drive both preview and export through one ramp pipeline. The editTimeline agent tool accepts the same envelope points (v0.8.29)
+- Editor: track reordering (↑/↓ in the track header) and an undo history panel — jump back to any step, not just one-at-a-time ⌘Z (v0.8.29)
+- Fixed switching projects (open/new) keeping the previous session's undo stack — ⌘Z after opening a file could resurrect the closed project's timeline (v0.8.29)
+
+
 ## [v0.8.28] - 2026-10-31
 ### Added
 

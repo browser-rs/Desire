@@ -80378,6 +80378,116 @@
           }
         }
       }
+    },
+    "Keyframe volume envelopes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Keyframe volume envelopes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "关键帧音量包络"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "關鍵幀音量包絡"
+          }
+        }
+      }
+    },
+    "Drop volume points anywhere on a clip — duck music under speech, swell an ending, fade anywhere. The shape stays put when you trim, and drives preview and export alike. The agent can set them too via editTimeline." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop volume points anywhere on a clip — duck music under speech, swell an ending, fade anywhere. The shape stays put when you trim, and drives preview and export alike. The agent can set them too via editTimeline."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在片段任意位置落音量点——音乐给人声让路、结尾扬起来、任意处淡出。裁剪后形状不错位，预览与导出同一条包络。智能体也能经 editTimeline 设置。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在片段任意位置落音量點——音樂給人聲讓路、結尾揚起來、任意處淡出。裁剪後形狀不錯位，預覽與匯出同一條包絡。智慧體也能經 editTimeline 設定。"
+          }
+        }
+      }
+    },
+    "History panel & track order" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "History panel & track order"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "历史面板与轨道排序"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "歷史面板與軌道排序"
+          }
+        }
+      }
+    },
+    "Jump back to any editing step (not just one ⌘Z), and reorder tracks right from the track header." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Jump back to any editing step (not just one ⌘Z), and reorder tracks right from the track header."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳回任意一步编辑（不止一步 ⌘Z），轨道头部直接排序。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳回任意一步編輯（不止一步 ⌘Z），軌道頭部直接排序。"
+          }
+        }
+      }
+    },
+    "Magnetic snapping, multi-select, full keyboard control, a source monitor, cross-dissolves, per-clip speed and volume, export presets — plus editTimeline for one-sentence agent edits." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magnetic snapping, multi-select, full keyboard control, a source monitor, cross-dissolves, per-clip speed and volume, export presets — plus editTimeline for one-sentence agent edits."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "磁性贴齐、多选、全键盘操作、源监视器、交叉溶解、逐片段速度与音量、导出预设——editTimeline 让智能体一句话剪片。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "磁性貼齊、多選、全鍵盤操作、源監視器、交叉溶解、逐片段速度與音量、匯出預設——editTimeline 讓智慧體一句話剪片。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

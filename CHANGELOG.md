@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.30] - 2026-10-31
 ### Added
 
 - Editor: real audio waveforms — AVAssetReader samples each source into 400 min/max buckets (streaming, cached per file), audio clips draw mirrored amplitude bars sliced to their source range, and the source monitor gains a full-source waveform strip (v0.8.30)

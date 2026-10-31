@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.31] - 2026-11-01
 ### Fixed
 
 - Player: closing a window no longer keeps its video playing — the media player and timeline preview now stop on host-window close (view teardown paths don't reliably run there) (v0.8.31)

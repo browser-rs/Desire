@@ -8073,6 +8073,16 @@ func testMediaEditCore() {
                                              modifiedAt: Date(timeIntervalSince1970: 100), buckets: 400),
        "/a.mp3|100|400")
 
+    // ---- 地址栏批量打开 ----
+    let multi = URLBatch.parse("https://a.com\nhttps://b.com/path\n\n# 注释\n   \nc.com/x")
+    eq("批量：三行归一", multi.count, 3)
+    eq("批量：补 scheme", multi[2], "https://c.com/x")
+    check("批量：单行不触发", URLBatch.parse("https://a.com").isEmpty)
+    check("批量：含空格丢弃", URLBatch.parse("https://a.com\nnot a url").isEmpty)
+    check("批量：去重", URLBatch.parse("https://a.com\nhttps://b.com\nhttps://a.com").count == 2)
+    check("批量：协议相对", URLBatch.parse("//d.com\nhttps://e.com").count == 2)
+    check("批量：无点行丢弃", URLBatch.parse("localhost\nhttps://f.com\nhttps://g.com").count == 2)
+
     // ---- 音频分离 ----
     var da = TimelineCore.Project()
     let daVideo = da.tracks.first { $0.kind == .video }!

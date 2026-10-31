@@ -71,6 +71,8 @@ struct AgentPanel: View {
     @ObservedObject private var memory = AgentMemoryStore.shared
     /// Image attachments (JPEG data URIs) awaiting the next send.
     @State private var pendingImages: [String] = []
+    /// 编辑重发（v0.8.31）：正在编辑的用户消息 id（nil = 非编辑态）。
+    @State private var editingMessageID: UUID?
     @State private var isDroppingImage = false
     @ObservedObject private var planStore = AgentPlanStore.shared
     @ObservedObject private var recorder = WindowRecorder.shared
@@ -771,6 +773,8 @@ struct AgentPanel: View {
                 toolResults: toolResults,
                 isStreamingTail: isStreamingTail(msg),
                 onFeedback: { vote in store.setFeedback(vote, for: msg.id) },
+                onEdit: (msg.role == .user && msg.id == lastUserMessageID
+                         && !store.isProcessing) ? { beginEditResend(msg) } : nil,
                 onLearnReason: { learnFromDislike(msg.id, $0) },
                 toolDurations: toolDurations,
                 conversationID: store.conversationId?.uuidString,
@@ -1165,6 +1169,20 @@ struct AgentPanel: View {
 
     // MARK: - Submit
 
+    /// 最后一条用户消息 id（编辑重发按钮只挂它）。
+    private var lastUserMessageID: UUID? {
+        store.messages.last(where: { $0.role == .user })?.id
+    }
+
+    /// 进入编辑态：输入框回填原文；发送分流到 resendEdited。
+    private func beginEditResend(_ message: AgentMessage) {
+        editingMessageID = message.id
+        inputText = message.content ?? ""
+        Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(150))
+        }
+    }
+
     private var canSubmit: Bool {
         !inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || !pendingImages.isEmpty
     }
@@ -1180,6 +1198,12 @@ struct AgentPanel: View {
         let tabRefs = pendingTabRefs
         historyIndex = nil            // 输入历史由 sendMessage 记录（按对话）
         inputText = ""
+        // 编辑重发：改最后一条用户消息后重跑（图片/引用不参与编辑态）。
+        if editingMessageID != nil {
+            editingMessageID = nil
+            store.resendEdited(text)
+            return
+        }
         pendingImages = []
         pendingTabRefs = []
         guard !tabRefs.isEmpty else {

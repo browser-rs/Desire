@@ -37,6 +37,8 @@ struct AgentMessageBubble: View {
     /// 评价回调（👍/👎）。用回调下传而不是 `@EnvironmentObject`：面板是显式传参持有
     /// store 的，环境里并没有它——用 EnvironmentObject 会直接崩。
     var onFeedback: ((String?) -> Void)? = nil
+    /// 编辑重发（v0.8.31）：仅最后一条用户消息显示（面板侧判定传入）。
+    var onEdit: (() -> Void)? = nil
     /// 点踩可选原因 → 记忆沉淀（外层转发给 AssistantBubble）。
     var onLearnReason: ((String) -> Void)? = nil
     /// toolCallId → 耗时（毫秒）：工具卡片上直接显示"哪个工具慢"。
@@ -54,7 +56,8 @@ struct AgentMessageBubble: View {
         case .user:
             UserBubble(
                 text: message.content ?? "",
-                imageDataURIs: message.imageDataURIs ?? []
+                imageDataURIs: message.imageDataURIs ?? [],
+                onEdit: onEdit
             )
         case .assistant:
             AssistantBubble(
@@ -194,6 +197,7 @@ private struct UserBubble: View {
     @Environment(\.appAccent) private var appAccent: Color
     let text: String
     var imageDataURIs: [String] = []
+    var onEdit: (() -> Void)? = nil
     @State private var isHovering = false
 
     var body: some View {
@@ -241,6 +245,20 @@ private struct UserBubble: View {
                 CopyChip(text: text)
                     .opacity(isHovering ? 1 : 0)
                     .allowsHitTesting(isHovering)
+                if let onEdit {
+                    Button {
+                        onEdit()
+                    } label: {
+                        Image(systemName: "pencil")
+                            .font(.system(size: 10))
+                            .frame(width: 18, height: 16)
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help(String(localized: "Edit & Resend"))
+                    .opacity(isHovering ? 1 : 0)
+                    .allowsHitTesting(isHovering)
+                }
             }
         }
         .padding(.horizontal, 12)
@@ -465,6 +483,9 @@ private struct AssistantBubble: View {
                         .opacity(isHovering ? 1 : 0)
                         .allowsHitTesting(isHovering)
                 }
+                CopyChip(text: text)
+                    .opacity(isHovering ? 1 : 0)
+                    .allowsHitTesting(isHovering)
                 CopyChip(text: text)
                     .opacity(isHovering ? 1 : 0)
                     .allowsHitTesting(isHovering)

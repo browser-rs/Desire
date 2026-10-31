@@ -98,6 +98,8 @@ struct Toolbar: View {
     @Binding var showElementBlock: Bool
     @Binding var showSearchHistory: Bool
     let openWindow: (String) -> Void
+    /// 地址栏多行批量打开（v0.8.31 批次二）：非空 = 待确认的 URL 集。
+    @State private var batchURLs: [String] = []
 
     /// Called on every keystroke in the address field. The parent captures
     /// the stores that `suggestionModel.build` needs (`bookmarkStore`,
@@ -258,6 +260,20 @@ struct Toolbar: View {
                 WebAppInstallSheet(url: url, suggestedName: tab.browser.pageTitle)
             }
         }
+        .alert(String(localized: "Open All in Tabs?"), isPresented: Binding(
+            get: { !batchURLs.isEmpty },
+            set: { if !$0 { batchURLs = [] } })) {
+            Button(String(localized: "Open %lld Tabs").replacingOccurrences(
+                of: "%lld", with: "\(batchURLs.count)")) {
+                for urlString in batchURLs {
+                    TabSessionCoordinator.shared.activeTabManager?.addTab(url: urlString)
+                }
+                batchURLs = []
+            }
+            Button(String(localized: "Cancel"), role: .cancel) { batchURLs = [] }
+        } message: {
+            Text(batchURLs.prefix(3).map { URL(string: $0)?.host ?? $0 }.joined(separator: "\n"))
+        }
         .alert(String(localized: "Organize Tabs by Topic"),
                isPresented: Binding(
                 get: { topicOrganizeNote != nil },
@@ -388,6 +404,12 @@ struct Toolbar: View {
                 },
                 onPasteAndGo: {
                     if let str = NSPasteboard.general.string(forType: .string) {
+                        // 多行 URL → 批量确认（≥2 行才触发；单行走原导航）。
+                        let batch = URLBatch.parse(str)
+                        if !batch.isEmpty {
+                            batchURLs = batch
+                            return
+                        }
                         editingURL = str
                         tab.urlString = str
                         actions.navigate(str)

@@ -1205,6 +1205,28 @@ class AgentSessionStore: ObservableObject {
 
     /// Re-runs the LAST user message: drops every message after it (the
     /// assistant reply and any tool traffic) and restarts the agent loop.
+    /// 编辑重发（v0.8.31 批次二）：改最后一条用户消息后重跑——原消息**就地
+    /// 替换**（保留附件/images），其后全部裁掉，重开回合。只在非处理中可用。
+    func resendEdited(_ text: String) {
+        guard !isProcessing,
+              let lastUser = messages.lastIndex(where: { $0.role == .user }),
+              lastUser < messages.count - 1 else { return }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        var edited = messages[lastUser]
+        edited.content = trimmed
+        messages.replaceSubrange(lastUser..., with: [edited])
+        AgentPlanStore.shared.clear(conversationID: conversationId?.uuidString)
+        processingStartedAt = Date()
+        isProcessing = true
+        isCancelled = false
+        refreshContextLabel()
+        streamingTokenCount = 0
+        streamingTokensPerSecond = 0
+        let turnID = beginTurn()
+        loopTask = Task { await processLoop(turnID: turnID) }
+    }
+
     func regenerate() {
         guard !isProcessing,
               let lastUser = messages.lastIndex(where: { $0.role == .user }),

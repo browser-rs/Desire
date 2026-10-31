@@ -24,4 +24,7 @@ enum Log {
     static let pdf = Logger(subsystem: subsystem, category: "pdf")
     // nonisolated：下载代理回调（nonisolated 上下文）也要用 Logger 是 Sendable 的。
     nonisolated static let downloads = Logger(subsystem: subsystem, category: "downloads")
+    /// 自动播放全链路（v0.8.32 专项）：策略烙定/起播补刀/暂停 oracle/
+    /// consent 拦截——一条 category 读完整链路。
+    static let autoplay = Logger(subsystem: subsystem, category: "autoplay")
 }

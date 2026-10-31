@@ -57,6 +57,8 @@ extension AutoPlayPolicy {
     /// **不覆盖用户显式选择**：站点覆写 `.block` 优先；全局档选 `.never` 时
     /// 视频站也遵守。站点控制中心与工具栏菜单都能把单站改回阻断。
     nonisolated static func isVideoHost(_ host: String) -> Bool {
+        // v0.8.32 起白名单退役（Chrome MEI 模型）：预置种子移入
+        // MediaEngagementCore.preSeededHosts。函数保留给旧调用对照。
         let h = host.lowercased()
         guard !h.isEmpty else { return false }
         let markers = [
@@ -69,14 +71,16 @@ extension AutoPlayPolicy {
     }
 
     /// 解析某 host 上**生效**的自动播放档位。
-    /// 优先级：站点显式覆写（allow/block） > 视频平台默认豁免 > 全局档。
+    /// 优先级：站点显式覆写（allow/block） > 媒体参与度（MEI-lite，含预置
+    /// 种子） > 全局档。v0.8.32 重写：视频站白名单退役，站点无关。
     nonisolated static func resolved(global: AutoPlayPolicy,
                                      host: String,
-                                     siteOverrideRaw: String?) -> AutoPlayPolicy {
+                                     siteOverrideRaw: String?,
+                                     engagement: Bool) -> AutoPlayPolicy {
         if let raw = siteOverrideRaw {
             return raw == "allow" ? .allowAll : .never
         }
-        if global == .requireUserAction, isVideoHost(host) { return .allowAll }
+        if global == .requireUserAction, engagement { return .allowAll }
         return global
     }
 }

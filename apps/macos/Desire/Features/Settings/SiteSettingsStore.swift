@@ -73,7 +73,8 @@ class SiteSettingsStore: ObservableObject {
     /// 菜单勾选态与重开标签都走这一处，避免"显示 Off 实际却允许"的错位。
     func effectiveAutoPlay(for domain: String, global: AutoPlayPolicy) -> AutoPlayPolicy {
         .resolved(global: global, host: domain,
-                  siteOverrideRaw: autoPlayOverride(for: domain)?.rawValue)
+                  siteOverrideRaw: autoPlayOverride(for: domain)?.rawValue,
+                  engagement: MediaEngagementStore.shared.isHighEngagement(domain))
     }
 
     func isAutoPlayAllowed(for domain: String, global: AutoPlayPolicy) -> Bool {

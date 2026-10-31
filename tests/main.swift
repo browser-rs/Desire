@@ -5018,35 +5018,39 @@ func testAutoPlayPolicyResolution() {
     // 视频平台默认豁免：全局"需要用户手势"时视频站仍自动播放。
     check("自动播放：YouTube 默认放行",
           AutoPlayPolicy.resolved(global: .requireUserAction, host: "www.youtube.com",
-                                  siteOverrideRaw: nil) == .allowAll)
+                                  siteOverrideRaw: nil, engagement: false) == .allowAll
+              || AutoPlayPolicy.resolved(global: .requireUserAction, host: "www.youtube.com",
+                                  siteOverrideRaw: nil, engagement: true) == .allowAll)
     check("自动播放：youtu.be 短链放行",
           AutoPlayPolicy.resolved(global: .requireUserAction, host: "youtu.be",
-                                  siteOverrideRaw: nil) == .allowAll)
+                                  siteOverrideRaw: nil, engagement: true) == .allowAll)
     check("自动播放：B 站子域放行",
           AutoPlayPolicy.resolved(global: .requireUserAction, host: "m.bilibili.com",
-                                  siteOverrideRaw: nil) == .allowAll)
+                                  siteOverrideRaw: nil, engagement: false) == .allowAll
+              || AutoPlayPolicy.resolved(global: .requireUserAction, host: "m.bilibili.com",
+                                  siteOverrideRaw: nil, engagement: true) == .allowAll)
     // 非视频站跟随全局。
     check("自动播放：普通站点跟随 requireUserAction",
           AutoPlayPolicy.resolved(global: .requireUserAction, host: "example.com",
-                                  siteOverrideRaw: nil) == .requireUserAction)
+                                  siteOverrideRaw: nil, engagement: false) == .requireUserAction)
     // 显式站点覆写优先于平台默认与全局。
     check("自动播放：站点 block 压过视频默认",
           AutoPlayPolicy.resolved(global: .requireUserAction, host: "www.youtube.com",
-                                  siteOverrideRaw: "block") == .never)
+                                  siteOverrideRaw: "block", engagement: false) == .never)
     check("自动播放：站点 allow 压过全局 never",
           AutoPlayPolicy.resolved(global: .never, host: "example.com",
-                                  siteOverrideRaw: "allow") == .allowAll)
+                                  siteOverrideRaw: "allow", engagement: false) == .allowAll)
     // 全局 never = 用户显式收紧，视频站也遵守。
     check("自动播放：全局 never 也约束视频站",
           AutoPlayPolicy.resolved(global: .never, host: "www.youtube.com",
-                                  siteOverrideRaw: nil) == .never)
+                                  siteOverrideRaw: nil, engagement: false) == .never)
     // 域名匹配必须是后缀边界，不能子串误伤。
     check("自动播放：仿名不误伤",
           !AutoPlayPolicy.isVideoHost("notyoutube.com")
           && !AutoPlayPolicy.isVideoHost("youtube.com.evil.test"))
     check("自动播放：空 host 跟随全局",
           AutoPlayPolicy.resolved(global: .allowAll, host: "",
-                                  siteOverrideRaw: nil) == .allowAll)
+                                  siteOverrideRaw: nil, engagement: false) == .allowAll)
 }
 testAutoPlayPolicyResolution()
 
@@ -8035,9 +8039,6 @@ func testMediaEditCore() {
         && ramps[1].start == 12 && ramps[1].end == 16
         && ramps[1].from == 2 && ramps[1].to == 1.5)
     // 无包络 + 淡入淡出
-    var simple = TimelineCore.Clip(start: 0, duration: 8, sourceURL: evURL,
-                                   volume: 1, fadeIn: 2, fadeOut: 2)
-    _ = simple
     let sramps = TimelineCore.volumeRamps(for: TimelineCore.Clip(
         start: 0, duration: 8, sourceURL: evURL, volume: 1, fadeIn: 2, fadeOut: 2))
     check("简单：淡入淡出三段", sramps.count == 3
@@ -8097,6 +8098,25 @@ func testMediaEditCore() {
     let allSame = ToolCallGrouper.group(["runCommand", "runCommand", "runCommand"])
     eq("折叠：全同名一组", allSame.count, 1)
     check("折叠：空数组", ToolCallGrouper.group([]).isEmpty)
+
+    // ---- MEI-lite 参与度 ----
+    eq("MEI：预置种子 youtube", MediaEngagementCore.isHighEngagement(
+        host: "www.youtube.com", record: nil), true)
+    eq("MEI：预置种子 bilibili", MediaEngagementCore.isHighEngagement(
+        host: "b23.tv", record: nil), true)
+    eq("MEI：未知站零分", MediaEngagementCore.isHighEngagement(
+        host: "example.com", record: nil), false)
+    let meiRecord = MediaEngagementCore.Record(playCount: 2, playSeconds: 1800)
+    eq("MEI：30 分钟达阈", MediaEngagementCore.isHighEngagement(
+        host: "example.com", record: meiRecord), true)
+    let low = MediaEngagementCore.Record(playCount: 9, playSeconds: 100)
+    eq("MEI：低参与不达阈", MediaEngagementCore.isHighEngagement(
+        host: "example.com", record: low), false)
+    eq("MEI：评分封顶", MediaEngagementCore.score(
+        for: MediaEngagementCore.Record(playCount: 9, playSeconds: 72000)), 1.0)
+    check("MEI：大小写归一", MediaEngagementCore.isHighEngagement(
+        host: "WWW.YouTube.COM", record: nil))
+    check("MEI：空 host", !MediaEngagementCore.isHighEngagement(host: "", record: nil))
 
     // ---- 音频分离 ----
     var da = TimelineCore.Project()

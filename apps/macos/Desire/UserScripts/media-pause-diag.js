@@ -22,11 +22,37 @@
             ' muted=' + v.muted + ' vis=' + document.visibilityState;
     }
 
+    function report(kind, v, stack) {
+        var detail = 'tag={' + tag(v) + '} stack=' + stack;
+        console.error('[desire-diag] ' + kind.toUpperCase() + ' ' + detail);
+        try {
+            window.webkit.messageHandlers.mediaPipelineEvent.postMessage({
+                kind: kind, detail: detail, stack: stack,
+            });
+        } catch (e) {}
+    }
+
     var originalPause = HTMLMediaElement.prototype.pause;
     HTMLMediaElement.prototype.pause = function () {
         var v = this;
-        console.error('[desire-diag] PAUSE tag={' + tag(v) + '} stack=' + shortStack());
+        report('pause', v, shortStack());
         return originalPause.apply(this, arguments);
+    };
+
+    // play() 被拒（NotAllowedError）= WebKit consent 拦截——恢复路径卡暂停
+    // 的直接信号，pause 事件之前就能抓到。
+    var originalPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function () {
+        var v = this;
+        var result = originalPlay.apply(this, arguments);
+        if (result && result.catch) {
+            result.catch(function (err) {
+                report('consent-blocked', v,
+                    (err && err.name) + ': ' + (err && err.message || '').slice(0, 80) +
+                    ' | ' + shortStack());
+            });
+        }
+        return result;
     };
 
     // pause 事件（非方法调用路径，比如 WebKit 内部直接改 paused）也留痕。

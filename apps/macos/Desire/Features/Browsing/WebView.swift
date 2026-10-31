@@ -917,7 +917,7 @@ struct WebView: NSViewRepresentable {
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
             "workflowEvent", "scrollPosition",
             "elementPicker", "videoAdBlocked", "otpDetect", "pagePerf", "superDragLink",
-            "cookieGuardHandled", "pageContextMenu",
+            "cookieGuardHandled", "pageContextMenu", "mediaPipelineEvent",
             // "devConsole"/"netEntry" 不在此列：DevToolsRecorder（0.7.5）
             // 在 webview 创建时独占注册——这里 remove-before-add 会把记录
             // 器摘掉，后台标签页的记录就断了。
@@ -1487,9 +1487,26 @@ try {
             // （desireProtocolEvent）。按本文件"新消息前置早退"惯例恢复。
             if message.name == "audioState", let playing = message.body as? Bool {
                 parent.state.isPlayingAudio = playing
+                // MEI-lite 计秒（v0.8.32）：有声播放按 host 记参与度。
+                if let host = message.webView?.url?.host {
+                    if playing {
+                        MediaEngagementStore.shared.playStarted(host: host)
+                    } else {
+                        MediaEngagementStore.shared.playEnded(host: host)
+                    }
+                }
                 return
             }
-            if message.name == "pageContextMenu", let dict = message.body as? [String: Any] {
+            if message.name == "mediaPipelineEvent", let dict = message.body as? [String: Any] {
+                // 自动播放 oracle（v0.8.32 专项）：暂停/consent 拦截事件 →
+                // 环形缓冲 + os_log。第一现场从此常驻，复发可查。
+                let stack = dict["stack"] as? String ?? ""
+                AutoplayDiagnosticsStore.shared.record(
+                    kind: dict["kind"] as? String ?? "pause",
+                    actor: PauseStackClassifier.classify(stack: stack),
+                    detail: (dict["detail"] as? String ?? "").prefix(240).description)
+                return
+            } else if message.name == "pageContextMenu", let dict = message.body as? [String: Any] {
                 // 右键增强（v0.8.31 批次一）：图片/链接/选区定制菜单。
                 let info = PageContextMenu.Info(
                     imageUrl: dict["imageUrl"] as? String ?? "",
@@ -2138,8 +2155,7 @@ try {
                    parent.state.createdAutoPlayPolicy != .allowAll,
                    let app = AppState.live,
                    app.siteSettingsStore.effectiveAutoPlay(
-                       for: url.host ?? "", global: app.settings.autoPlayPolicy) == .allowAll,
-                   AutoPlayPolicy.isVideoHost(url.host ?? "") {
+                       for: url.host ?? "", global: app.settings.autoPlayPolicy) == .allowAll {
                     parent.state.autoPlayReopenDone = true
                     Log.tabs.info("autoplay policy re-bake: reopening tab for \(url.host ?? "", privacy: .public) (created restrictive)")
                     parent.onReopenWithAutoPlay?(url)
@@ -2409,7 +2425,6 @@ try {
                navigationAction.navigationType != .backForward,
                navigationAction.navigationType != .reload,
                let host = url.host?.lowercased(),
-               AutoPlayPolicy.isVideoHost(host),
                !parent.state.autoPlayReopenDone,
                parent.state.createdAutoPlayPolicy != .allowAll,
                let app = AppState.live,

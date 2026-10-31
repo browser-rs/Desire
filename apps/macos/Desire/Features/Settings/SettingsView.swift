@@ -36,6 +36,7 @@ struct SettingsView: View {
         case keyboardShortcuts
         case batchDownloads
         case search
+        case autoplayDiagnostics
 
         var id: String { rawValue }
 
@@ -55,6 +56,7 @@ struct SettingsView: View {
             case .keyboardShortcuts: "keyboard"
             case .batchDownloads: "square.stack.3d.up"
             case .search: "text.magnifyingglass"
+            case .autoplayDiagnostics: "waveform.path.ecg"
             }
         }
 
@@ -72,6 +74,7 @@ struct SettingsView: View {
             case .keyboardShortcuts: "Keyboard Shortcuts"
             case .batchDownloads: "Batch Downloads"
             case .search: "Search & Index"
+            case .autoplayDiagnostics: "Autoplay Diagnostics"
             }
         }
     }
@@ -252,6 +255,8 @@ struct SettingsView: View {
             BatchDownloadSettingsSection()
         case .search:
             SemanticIndexSettingsSection(store: .shared)
+        case .autoplayDiagnostics:
+            AutoplayDiagnosticsSection()
         }
     }
 }

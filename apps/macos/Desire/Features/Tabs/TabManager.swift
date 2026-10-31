@@ -190,7 +190,8 @@ class Tab: ObservableObject {
         let effectiveAutoPlay: AutoPlayPolicy = {
             guard let host = url.flatMap({ URL(string: $0)?.host }) else { return autoPlayPolicy }
             let override = AppState.live?.siteSettingsStore.autoPlayOverride(for: host)?.rawValue
-            return .resolved(global: autoPlayPolicy, host: host, siteOverrideRaw: override)
+            return .resolved(global: autoPlayPolicy, host: host, siteOverrideRaw: override,
+                             engagement: MediaEngagementStore.shared.isHighEngagement(host))
         }()
         browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: effectiveAutoPlay, containerDataStore: resolvedDataStore)
         // 超级拖拽（0.7.13）：webview 侧链接上报 → MouseGestureStore 判定。

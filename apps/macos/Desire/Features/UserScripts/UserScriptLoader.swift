@@ -74,6 +74,8 @@ enum UserScriptLoader {
         add("reader-content", at: .atDocumentEnd)
         add("hover-link", at: .atDocumentEnd)
         add("middle-click", at: .atDocumentEnd)
+        // 右键增强（v0.8.31 批次一）：图片/链接/选区上拦原生菜单上报宿主。
+        add("context-menu", at: .atDocumentEnd)
         return scripts
     }
 

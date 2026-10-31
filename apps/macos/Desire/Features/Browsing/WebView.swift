@@ -917,7 +917,7 @@ struct WebView: NSViewRepresentable {
             "readerContent", "hoverLink", "middleClickLink", "selectionAI",
             "workflowEvent", "scrollPosition",
             "elementPicker", "videoAdBlocked", "otpDetect", "pagePerf", "superDragLink",
-            "cookieGuardHandled",
+            "cookieGuardHandled", "pageContextMenu",
             // "devConsole"/"netEntry" 不在此列：DevToolsRecorder（0.7.5）
             // 在 webview 创建时独占注册——这里 remove-before-add 会把记录
             // 器摘掉，后台标签页的记录就断了。
@@ -1489,7 +1489,19 @@ try {
                 parent.state.isPlayingAudio = playing
                 return
             }
-            if message.name == "superDragLink", let dict = message.body as? [String: Any] {
+            if message.name == "pageContextMenu", let dict = message.body as? [String: Any] {
+                // 右键增强（v0.8.31 批次一）：图片/链接/选区定制菜单。
+                let info = PageContextMenu.Info(
+                    imageUrl: dict["imageUrl"] as? String ?? "",
+                    linkUrl: dict["linkUrl"] as? String ?? "",
+                    linkText: dict["linkText"] as? String ?? "",
+                    selection: dict["selection"] as? String ?? "",
+                    screenX: (dict["screenX"] as? NSNumber)?.doubleValue ?? 0,
+                    screenY: (dict["screenY"] as? NSNumber)?.doubleValue ?? 0,
+                    pageUrl: dict["pageUrl"] as? String ?? "")
+                PageContextMenu.show(info)
+                return
+            } else if message.name == "superDragLink", let dict = message.body as? [String: Any] {
                 // 超级拖拽（0.7.13，默认关）：链接上按下时上报 URL，mouseUp 由
                 // MouseGestureStore 判定拖动距离后开后台标签。
                 parent.state.superDragLinkHandler?(dict["url"] as? String)

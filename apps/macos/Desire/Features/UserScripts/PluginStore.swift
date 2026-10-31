@@ -10,11 +10,57 @@ class PluginStore: ObservableObject {
     @Published var badges: [UUID: String] = [:]
     private let saveKey = "desire.plugins"
 
+    /// 内置「广告拦截」插件 id（v0.8.32 架构分离）：广告拦截从浏览器核心
+    /// 剥离为插件——引擎（视频站 CSS/JSON 剪裁/横幅清除）只在插件启用时
+    /// 注入；关掉它浏览器就是纯粹浏览器（Safari 同款行为）。
+    nonisolated static let builtInAdGuardID = UUID(uuidString: "AD60A2D0-0000-4000-8000-00000000AD60")!
+
     /// R2 归一：background 运行时经此感知增/改/删/启停并对账
     /// （AppState 接线到 PluginBackgroundRuntime.syncAll）。
     var onPluginsChanged: (() -> Void)?
 
-    init() { load() }
+    init() {
+        load()
+        seedBuiltInAdGuardIfNeeded()
+    }
+
+    /// 首次启动种入内置广告拦截插件（固定 id，幂等）。用户可整只关闭/
+    /// 重新启用；默认开启保持现有用户预期。
+    private func seedBuiltInAdGuardIfNeeded() {
+        guard !plugins.contains(where: { $0.id == Self.builtInAdGuardID }) else { return }
+        let legacyEnabled = UserDefaults.standard.object(forKey: "videoAdBlockerEnabled") as? Bool ?? true
+        plugins.append(Plugin(
+            id: Self.builtInAdGuardID,
+            name: String(localized: "Ad Blocker (built-in)"),
+            description: String(localized: "Hides video-stream ads (element CSS + player-response ad data pruning). Turning it off restores a completely vanilla browser."),
+            version: "1.0",
+            author: "Desire",
+            urlPatterns: ["*"],
+            runAt: .documentStart,
+            isEnabled: legacyEnabled,
+            icon: "shield.lefthalf.filled"
+        ))
+        save()
+    }
+
+    /// 内置广告拦截是否启用（注入门控统一读这里）。
+    var isBuiltInAdGuardEnabled: Bool {
+        plugins.first(where: { $0.id == Self.builtInAdGuardID })?.isEnabled ?? false
+    }
+
+    /// webview 创建期（无 AppState 上下文）的静态读：经 AppState 全局单例；
+    /// 无实例时按插件缺失处理 = 不注入（浏览器纯净优先）。
+    nonisolated static var liveBuiltInAdGuardEnabled: Bool {
+        MainActor.assumeIsolated { AppState.live?.pluginStore.isBuiltInAdGuardEnabled ?? false }
+    }
+
+    /// 设置页开关同步到插件（单一真相在插件）。
+    func setBuiltInAdGuardEnabled(_ enabled: Bool) {
+        guard let i = plugins.firstIndex(where: { $0.id == Self.builtInAdGuardID }) else { return }
+        plugins[i].isEnabled = enabled
+        save()
+        onPluginsChanged?()
+    }
 
     func add(_ plugin: Plugin) {
         plugins.append(plugin)

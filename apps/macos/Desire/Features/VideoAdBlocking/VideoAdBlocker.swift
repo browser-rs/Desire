@@ -56,6 +56,11 @@ class VideoAdBlocker: ObservableObject {
 
     /// Settings switch entry point — records the choice as explicit.
     func setEnabled(_ enabled: Bool) {
+        // v0.8.32 架构分离：视频广告拦截的单一真相在内置插件——设置页
+        // 开关同步到插件开关（插件面板的开关是同一状态的另一个入口）。
+        MainActor.assumeIsolated {
+            AppState.live?.pluginStore.setBuiltInAdGuardEnabled(enabled)
+        }
         let defaults = UserDefaults.standard
         guard enabled != isEnabled else { return }
         isEnabled = enabled
@@ -119,7 +124,14 @@ class VideoAdBlocker: ObservableObject {
     /// 首次点击劫持防护（`UserScripts/first-click-guard.js`）：视频页上"播放键上盖
     /// 透明层，第一次点击弹广告/跳广告"的通用对策。**主框架、文档开始**注入——必须
     /// 比页面自己的点击处理器先注册，捕获阶段才拦得住。
-    func documentStartGuardScript() -> WKUserScript {
+    func documentStartGuardScript() -> WKUserScript? {
+        // **v0.8.32 稳定优先：退役**。它会拦截页面首次点击（播放键的
+        // 可信激活可能被吞）——这是"点了播又怪停"的可疑干扰源之一。
+        // 现代站点已无大规模点击劫持，收益远小于风险。脚本文件保留作档案。
+        return nil
+    }
+
+    private func legacyGuardScript() -> WKUserScript {
         WKUserScript(
             source: UserScriptLoader.load("first-click-guard"),
             injectionTime: .atDocumentStart,

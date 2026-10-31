@@ -338,11 +338,15 @@ class BrowserState: ObservableObject {
         FilterListStore.shared.apply(to: config)
         // 插件 declarativeNetRequest 规则集（每插件一份编译好的列表）。
         PluginDNRStore.shared.apply(to: config.userContentController)
-        if let videoAdBlocker, videoAdBlocker.isEnabled {
+        if let videoAdBlocker, PluginStore.liveBuiltInAdGuardEnabled {
+            // v0.8.32 稳定优先（用户裁定"自动播放好不如没有"）：
+            // **保留**被动层——json-prune 剪广告数据 + 视频站 CSS/JS 规则 +
+            // 反检测横幅清除（都是静默、不碰播放器状态机）。
+            // **退役**主动层——first-click-guard（拦截首次点击，会吞播放键
+            // 的可信激活）与 yt-anti-detect（ytInitialPlayerResponse 陷阱，
+            // 被 YouTube 检测后 enforcement 暂停的真触发器）。档案文件保留。
             config.userContentController.addUserScript(videoAdBlocker.documentStartJSONPruneScript())
             config.userContentController.addUserScript(videoAdBlocker.documentStartScript())
-            config.userContentController.addUserScript(videoAdBlocker.documentStartGuardScript())
-            config.userContentController.addUserScript(videoAdBlocker.documentStartYouTubeAntiDetectScript())
             config.userContentController.addUserScript(videoAdBlocker.documentEndScript())
             config.userContentController.addUserScript(videoAdBlocker.documentEndAntiAdblockScript())
         }
@@ -360,7 +364,7 @@ class BrowserState: ObservableObject {
         let playbackGuard = UserScriptLoader.load("yt-playback-guard")
             .replacingOccurrences(of: "__DESIRE_AUTOPLAY_ALLOWED__",
                                   with: autoPlayPolicy == .allowAll ? "true" : "false")
-        if !playbackGuard.isEmpty, ProcessInfo.processInfo.environment["DESIRE_AB_NO_GUARD"] == nil {
+        if !playbackGuard.isEmpty, ProcessInfo.processInfo.environment["DESIRE_AB_FORCE_GUARD"] != nil {
             config.userContentController.addUserScript(
                 WKUserScript(source: playbackGuard, injectionTime: .atDocumentEnd,
                              forMainFrameOnly: true))
@@ -2160,7 +2164,10 @@ try {
                     Log.tabs.info("autoplay policy re-bake: reopening tab for \(url.host ?? "", privacy: .public) (created restrictive)")
                     parent.onReopenWithAutoPlay?(url)
                 }
-                // 调试面板的作用域菜单要显示标题（KVO 的标题晚到，用 live title）。
+                // 定拍续播**退役（v0.8.32 稳定优先）**：用户裁定"自动播放好
+            // 不如没有"——不再补播。YouTube 自己决定是否自动播；没播就
+            // 干净的播放键一次点击。浏览器只保证点击后的播放稳定。
+            // 调试面板的作用域菜单要显示标题（KVO 的标题晚到，用 live title）。
                 parent.devToolsStore.noteTab(
                     id: parent.tabID,
                     title: webView.title ?? parent.state.pageTitle,

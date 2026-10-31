@@ -42,7 +42,7 @@ enum UserScriptLoader {
         // 大页面守护 + 性能快照数据面（0.6.4）：DOM 节点数 + long task 计数
         add("page-perf", at: .atDocumentEnd)
         // 视频速度控制数据面（0.6.5）：速率桥 + 徽章（默认 1x 零 UI）
-        // E1: add("video-speed", at: .atDocumentEnd)
+        add("video-speed", at: .atDocumentEnd)
         // SPA 路由变化 → DPP 重解析（页面世界：必须包住页面自己的 history 调用）
         add("dpp-route-watch", at: .atDocumentStart)
         // 曾在此注入 fullscreen-shim（覆盖 Element.prototype.requestFullscreen
@@ -80,18 +80,23 @@ enum UserScriptLoader {
         // add("yt-playback-guard", ...)
         // add("sponsorblock", ...)
         // add("video-speed", ...)
-        // E1: add("yt-anti-detect", at: .atDocumentStart)
-        // 可见性恢复补播（2026-10-31 热修）：切回标签后 WebKit 恢复播放被
-        // PageConsentRequired 拦的视频卡暂停——全站兜底，"隐藏前在播、
-        // 可见后 paused"这一形态页面内补 play()。与 YouTube guard 起播
-        // kick 幂等共存。
-        // E1: add("media-visibility-resume", at: .atDocumentEnd)
+        // **in-page 广告篡改永久退役（2026-11-01 实验A实锤）**：
+        // yt-anti-detect（ytInitialPlayerResponse 陷阱剥 adPlacements）与
+        // yt-json-prune 的页面内数据篡改会被 YouTube 检测 → enforcement
+        // 暂停（"播一下马上暂停"的真触发器）。关掉后 A1 零暂停全程自动播。
+        // 广告过滤保留在网络/CSS 层（过滤列表 + 视频广告规则），不在页面里
+        // 动播放器数据——与主流扩展的分层一致，也与"浏览器不做站点适配"
+        // 的架构原则一致。脚本文件保留作档案。
+        add("yt-json-prune", at: .atDocumentStart)
+        // media-visibility-resume **退役（v0.8.32 稳定优先）**：它的页面内
+        // play() 与 YouTube enforcement 拉锯，是"停了又播"振荡的来源。
+        // 切回标签后的恢复交给 WebKit 自身的媒体恢复路径（Safari 同款）。
         // 暂停 oracle 常驻（v0.8.32）：PAUSE/consent-blocked 低噪事件 →
         // 设置 ▸ 自动播放诊断 + Log.autoplay。复发必有第一现场。
         add("media-pause-diag", at: .atDocumentEnd)
         // A/B 实测（自动播放专项）：临时禁 json-prune，验证"广告调度器等
         // 不到广告 → 暂停正片"假说。结论后还原。
-        // E1: add("yt-json-prune", at: .atDocumentStart)
+
         return scripts
     }
 

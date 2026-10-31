@@ -96,3 +96,30 @@ oracle 常驻后，若新形态复发再按证据决定是否合并管线。
 **附**：诊断方法论沉淀——`/execute` 参数名是 `js` 不是 `code`（用错
 静默返回 null，已两次浪费轮次）；A/B 二分用环境门
 （`DESIRE_AB_NO_GUARD`）+ loader 注释开关，结论后全恢复启用。
+
+---
+
+## 最终架构决定（2026-11-01，用户定调：浏览器与广告拦截分离）
+
+**用户裁定**：① 浏览器只做浏览器专注的能力，跟广告拦截分离；② 广告拦截独立成内置插件。
+围绕该决定，本轮把整个自动播放/广告拦截纠缠一次性解开：
+
+**退役清单（页面内主动干预全清）**
+- yt-playback-guard（起播补刀梯子）— 与 enforcement 拉锯，振荡源
+- yt-anti-detect（ytInitialPlayerResponse 陷阱 + 杀弹窗）— 被检测后 enforcement 暂停的触发器
+- first-click-guard（首次点击劫持拦截）— 会吞播放键的可信激活
+- media-visibility-resume（可见性补播）— play() 与播放器状态机打架
+- 定拍续播（Swift 2.5s 单次补播）— 用户裁定"自动播放好不如没有"
+- 自动播放侧：策略层保留（覆写 > MEI 参与度 > 全局），不做任何页面内补播
+
+**保留（被动层 + 平台层）**
+- **内置插件「广告拦截」**（固定 id，插件面板可整只开关，默认开）：视频站
+  广告 CSS 隐藏 + 播放器响应广告数据剪裁（json-prune）+ 反检测横幅静默清除。
+  关掉它 = 纯粹浏览器（Safari 同款）。
+- 过滤列表引擎（WebKit content blocker，网络层）不动
+- MEI-lite 参与度策略不动；暂停 oracle 常驻（可观测）
+- sponsorblock（用户可选功能，设置页开关）不动
+
+**证据**：anti-detect 陷阱存在时 playback 必被 enforcement 暂停；关掉后
+A1（+5→+17）/ PON2（+0→+10）全程连贯。PON1 cued 在 1s = YouTube 自己
+决定不自动播（无激活）→ 播放键一次点击 = 标准浏览器行为。

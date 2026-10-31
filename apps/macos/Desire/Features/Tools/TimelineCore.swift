@@ -41,6 +41,8 @@ nonisolated enum TimelineCore {
         var fadeOut: Double = 0
         /// 旋转（90° 的倍数：0/1/2/3 = 0°/90°/180°/270° 顺时针）。
         var quarterTurns: Int = 0
+        /// 音量包络（空 = 走简单音量/淡变；进度小数点，裁边稳健）。
+        var volumeEnvelope: [VolumePoint] = []
         var end: Double { start + duration }
 
         /// 源内出点（= 入点 + 时间线时长 × 速度）。
@@ -66,6 +68,95 @@ nonisolated enum TimelineCore {
         var updated = project
         updated.tracks[index].muted.toggle()
         return updated
+    }
+
+    // MARK: - 音量包络（v0.8.29 批次一）
+
+    /// 包络点：offset 是**片段内的小数进度**（0…1，对裁边稳健——裁剪后包络
+    /// 跟着百分比走），volume 0…2。
+    struct VolumePoint: Codable, Equatable {
+        var offset: Double
+        var volume: Double
+    }
+
+    /// 设置片段包络（空数组 = 回退简单音量/淡变）。归一化：排序、钳 0…1/0…2、
+    /// 去重相邻同 offset。
+    static func setVolumeEnvelope(_ project: Project, clipID: UUID,
+                                  points: [VolumePoint]) -> Project? {
+        guard let (track, clip) = clip(project, withID: clipID) else { return nil }
+        let normalized = points
+            .map { VolumePoint(offset: min(1, max(0, $0.offset)),
+                               volume: min(2, max(0, $0.volume))) }
+            .sorted { $0.offset < $1.offset }
+        var deduped: [VolumePoint] = []
+        for point in normalized where deduped.last?.offset != point.offset {
+            deduped.append(point)
+        }
+        var updated = clip
+        updated.volumeEnvelope = deduped
+        return upsertClip(project, trackID: track.id, clip: updated)
+    }
+
+    /// 包络在进度处的音量（线性插值；首点前=首点值，末点后=末点值；空包络
+    /// 返回 nil=调用方走简单音量）。
+    static func envelopeVolume(at fraction: Double, envelope: [VolumePoint]) -> Double? {
+        guard !envelope.isEmpty else { return nil }
+        let f = min(1, max(0, fraction))
+        if f <= envelope[0].offset { return envelope[0].volume }
+        if f >= envelope[envelope.count - 1].offset { return envelope[envelope.count - 1].volume }
+        for index in 0..<(envelope.count - 1) {
+            let a = envelope[index], b = envelope[index + 1]
+            if f >= a.offset, f <= b.offset {
+                let span = b.offset - a.offset
+                if span <= 0 { return b.volume }
+                let t = (f - a.offset) / span
+                return a.volume + (b.volume - a.volume) * t
+            }
+        }
+        return envelope[envelope.count - 1].volume
+    }
+
+    /// 片段的音量自动化 ramp 序列（绝对时间线秒）：有包络 = 相邻点连坡；
+    /// 无包络 = 简单基线 + 淡入淡出坡。合成（预览/导出共用）按它调
+    /// setVolumeRamp。
+    static func volumeRamps(for clip: Clip) -> [(start: Double, end: Double, from: Double, to: Double)] {
+        let start = clip.start
+        let end = clip.end
+        guard end > start else { return [] }
+        if !clip.volumeEnvelope.isEmpty {
+            var ramps: [(Double, Double, Double, Double)] = []
+            var cursor = start
+            var lastVolume = clip.volumeEnvelope[0].volume
+            for point in clip.volumeEnvelope {
+                let at = start + point.offset * clip.duration
+                if at > cursor {
+                    ramps.append((cursor, at, lastVolume, point.volume))
+                    cursor = at
+                }
+                lastVolume = point.volume
+            }
+            if end > cursor {
+                ramps.append((cursor, end, lastVolume, lastVolume))
+            }
+            return ramps.map { (start: $0.0, end: $0.1, from: $0.2, to: $0.3) }
+        }
+        // 简单模式：基线音量 + 淡入淡出（与 0.8.28 行为一致）。
+        var ramps: [(Double, Double, Double, Double)] = []
+        let fadeInEnd = start + clip.clampedFadeIn
+        let fadeOutStart = end - clip.clampedFadeOut
+        if clip.clampedFadeIn > 0 {
+            ramps.append((start, fadeInEnd, 0, clip.volume))
+        }
+        if fadeOutStart > max(start, fadeInEnd) + 0.01 {
+            ramps.append((max(start, fadeInEnd), fadeOutStart, clip.volume, clip.volume))
+        }
+        if clip.clampedFadeOut > 0 {
+            ramps.append((fadeOutStart, end, clip.volume, 0))
+        }
+        if ramps.isEmpty {
+            ramps.append((start, end, clip.volume, clip.volume))
+        }
+        return ramps.map { (start: $0.0, end: $0.1, from: $0.2, to: $0.3) }
     }
 
     struct Project: Codable, Equatable {

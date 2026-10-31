@@ -243,12 +243,57 @@ struct MultiTrackEditorView: View {
                     // 片段效果检查器（音视频片段：速度/音量/淡入淡出）
                     if clip.sourceURL != nil {
                         effectsRow(clip, track: track)
+                        envelopeRow(clip)
                     }
                 }
                 .padding(8)
                 .background(RoundedRectangle(cornerRadius: 8)
                     .fill(Color(nsColor: .controlBackgroundColor)))
             }
+        }
+    }
+
+    /// 音量包络编辑器（v0.8.29）：以播放头落点加点、逐点音量滑杆、
+    /// 清空回退简单淡变。
+    private func envelopeRow(_ clip: TimelineCore.Clip) -> some View {
+        HStack(spacing: 10) {
+            Button {
+                store.addEnvelopePoint(on: clip.id)
+            } label: {
+                Label(String(localized: "Add Point at Playhead"), systemImage: "plus.circle")
+                    .font(.system(size: 10))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+            .disabled(!(store.playhead > clip.start && store.playhead < clip.end))
+            if !clip.volumeEnvelope.isEmpty {
+                ForEach(Array(clip.volumeEnvelope.enumerated()), id: \.offset) { index, point in
+                    HStack(spacing: 3) {
+                        Text(String(format: "%.0f%%", point.offset * 100))
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                        Slider(value: Binding(
+                            get: { point.volume },
+                            set: { store.updateEnvelopePoint(on: clip.id, index: index, volume: $0) }),
+                            in: 0...2)
+                            .frame(width: 56)
+                        Button {
+                            store.removeEnvelopePoint(on: clip.id, index: index)
+                        } label: {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 8))
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                    }
+                }
+                Button(String(localized: "Clear Envelope")) {
+                    store.clearEnvelope(on: clip.id)
+                }
+                .font(.system(size: 10))
+                .buttonStyle(.borderless)
+            }
+            Spacer()
         }
     }
 
@@ -789,6 +834,13 @@ private struct TimelineClipView: View {
                 trimHandle(direction: 1)
             }
             .allowsHitTesting(true)
+            // 包络折线（底部 1/3）：点间连线直读形状
+            if !clip.volumeEnvelope.isEmpty {
+                EnvelopeOverlay(points: clip.volumeEnvelope)
+                    .frame(height: laneHeight / 3)
+                    .frame(maxHeight: .infinity, alignment: .bottom)
+                    .allowsHitTesting(false)
+            }
         }
         .frame(width: width, height: laneHeight)
         .offset(x: x)
@@ -951,5 +1003,36 @@ private struct SourceMonitorSheet: View {
                                                 duration: source.duration) else { return }
         store.insertTrimmed(source: source, sourceStart: plan.start, duration: plan.duration)
         onClose()
+    }
+}
+
+
+/// 音量包络折线（片段块底部 1/3）：独立子视图——内联在 TimelineClipView
+/// body 里会触发 type-check 超时（本轮实测）。
+private struct EnvelopeOverlay: View {
+    let points: [TimelineCore.VolumePoint]
+
+    var body: some View {
+        Canvas { context, size in
+            let height: CGFloat = size.height * 0.32
+            var path = Path()
+            for (index, point) in points.enumerated() {
+                let x: CGFloat = CGFloat(point.offset) * size.width
+                let y: CGFloat = height * (1.0 - min(CGFloat(1.0), CGFloat(point.volume) / 2.0))
+                let location = CGPoint(x: x, y: y)
+                if index == 0 {
+                    path.move(to: location)
+                } else {
+                    path.addLine(to: location)
+                }
+            }
+            context.stroke(path, with: .color(.white.opacity(0.85)), lineWidth: 1.2)
+            for point in points {
+                let x: CGFloat = CGFloat(point.offset) * size.width
+                let y: CGFloat = height * (1.0 - min(CGFloat(1.0), CGFloat(point.volume) / 2.0))
+                let rect = CGRect(x: x - 2, y: y - 2, width: 4, height: 4)
+                context.fill(Path(rect), with: .color(.white))
+            }
+        }
     }
 }

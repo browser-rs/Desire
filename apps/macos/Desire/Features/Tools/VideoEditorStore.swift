@@ -188,6 +188,36 @@ final class VideoEditorStore: ObservableObject {
                                              overlap: existing > 0 ? 0 : 0.8))
     }
 
+    /// 音量包络：以播放头在片段内的进度落点新增/更新；删点按 offset 最近。
+    func addEnvelopePoint(on clipID: UUID) {
+        guard let (_, clip) = TimelineCore.clip(project, withID: clipID),
+              playhead > clip.start, playhead < clip.end else { return }
+        let offset = (playhead - clip.start) / clip.duration
+        var points = TimelineCore.clip(project, withID: clipID)?.1.volumeEnvelope ?? []
+        points.append(TimelineCore.VolumePoint(offset: offset, volume: 1))
+        commit(TimelineCore.setVolumeEnvelope(project, clipID: clipID, points: points))
+    }
+
+    func updateEnvelopePoint(on clipID: UUID, index: Int, volume: Double) {
+        guard let (_, clip) = TimelineCore.clip(project, withID: clipID),
+              clip.volumeEnvelope.indices.contains(index) else { return }
+        var points = clip.volumeEnvelope
+        points[index].volume = volume
+        commit(TimelineCore.setVolumeEnvelope(project, clipID: clipID, points: points))
+    }
+
+    func removeEnvelopePoint(on clipID: UUID, index: Int) {
+        guard let (_, clip) = TimelineCore.clip(project, withID: clipID),
+              clip.volumeEnvelope.indices.contains(index) else { return }
+        var points = clip.volumeEnvelope
+        points.remove(at: index)
+        commit(TimelineCore.setVolumeEnvelope(project, clipID: clipID, points: points))
+    }
+
+    func clearEnvelope(on clipID: UUID) {
+        commit(TimelineCore.setVolumeEnvelope(project, clipID: clipID, points: []))
+    }
+
     /// 切换轨道静音（音频轨）。
     func toggleTrackMute(_ trackID: UUID) {
         commit(TimelineCore.toggleTrackMute(project, trackID: trackID))
@@ -438,23 +468,15 @@ final class VideoEditorStore: ObservableObject {
                 if mediaType == .video {
                     videoClips.append((compositionTrack, clip))
                 }
-                // 音量自动化：片段区间内基线增益 + 首尾线性淡坡。
+                // 音量自动化：包络（非空）与简单模式（基线+淡变）统一出自
+                // TimelineCore.volumeRamps——预览与导出听到同一条包络。
                 if let clipMix {
-                    let start = CMTime(seconds: clip.start, preferredTimescale: 600)
-                    let end = CMTime(seconds: clip.end, preferredTimescale: 600)
-                    let fadeInEnd = CMTime(seconds: clip.start + clip.clampedFadeIn, preferredTimescale: 600)
-                    let fadeOutStart = CMTime(seconds: clip.end - clip.clampedFadeOut, preferredTimescale: 600)
-                    if clip.clampedFadeIn > 0 {
-                        clipMix.setVolumeRamp(fromStartVolume: 0, toEndVolume: Float(clip.volume),
-                                              timeRange: CMTimeRange(start: start, end: fadeInEnd))
-                    }
-                    if clip.clampedFadeOut > 0 {
-                        clipMix.setVolumeRamp(fromStartVolume: Float(clip.volume), toEndVolume: 0,
-                                              timeRange: CMTimeRange(start: fadeOutStart, end: end))
-                    }
-                    if clip.volume != 1 {
-                        clipMix.setVolume(Float(clip.volume), at:
-                            CMTime(seconds: clip.start + clip.clampedFadeIn + 0.01, preferredTimescale: 600))
+                    for ramp in TimelineCore.volumeRamps(for: clip) {
+                        clipMix.setVolumeRamp(
+                            fromStartVolume: Float(ramp.from), toEndVolume: Float(ramp.to),
+                            timeRange: CMTimeRange(
+                                start: CMTime(seconds: ramp.start, preferredTimescale: 600),
+                                end: CMTime(seconds: ramp.end, preferredTimescale: 600)))
                     }
                 }
             }

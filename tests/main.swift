@@ -8006,6 +8006,43 @@ func testMediaEditCore() {
     eq("多选：区间含两端", rangeIDs.count, 2)
     check("多选：跨轨退化为单选", TimelineCore.clipIDs(in: sn, between: snA.id,
                                                        and: snTrack.id) == [snTrack.id])
+
+    // ---- 音量包络 ----
+    var ev = TimelineCore.Project()
+    let evTrack = ev.tracks.first { $0.kind == .audio }!
+    let evURL = URL(fileURLWithPath: "/tmp/ev.m4a")
+    let evClip = TimelineCore.Clip(start: 10, duration: 10, sourceURL: evURL)
+    if let p = TimelineCore.upsertClip(ev, trackID: evTrack.id, clip: evClip) { ev = p }
+    // 归一化：乱序输入 → 排序去重钳制
+    let rawPoints = [TimelineCore.VolumePoint(offset: 0.6, volume: 1.5),
+                     TimelineCore.VolumePoint(offset: 0.2, volume: 9),
+                     TimelineCore.VolumePoint(offset: 0.2, volume: 0.4)]
+    if let p = TimelineCore.setVolumeEnvelope(ev, clipID: evClip.id, points: rawPoints) { ev = p }
+    let envelope = TimelineCore.clip(ev, withID: evClip.id)?.1.volumeEnvelope ?? []
+    eq("包络：去重排序", envelope.count, 2)
+    eq("包络：音量钳 2", envelope[0].volume, 2)
+    eq("包络：首点 0.2", envelope[0].offset, 0.2)
+    // 插值：首点前/两点间/末点后
+    eq("包络：首点前", TimelineCore.envelopeVolume(at: 0.1, envelope: envelope) ?? -1, 2)
+    let mid = TimelineCore.envelopeVolume(at: 0.4, envelope: envelope) ?? -1
+    check("包络：两点间插值", mid > 1.5 && mid < 2)
+    eq("包络：末点后", TimelineCore.envelopeVolume(at: 0.9, envelope: envelope) ?? -1, 1.5)
+    check("包络：空包络走简单", TimelineCore.envelopeVolume(at: 0.5, envelope: []) == nil)
+    // ramps：绝对时间与首尾覆盖
+    let ramps = TimelineCore.volumeRamps(for: TimelineCore.clip(ev, withID: evClip.id)!.1)
+    check("包络：ramp 首尾覆盖", ramps.first?.start == 10 && ramps.last?.end == 20
+        && ramps.count == 3
+        && ramps[1].start == 12 && ramps[1].end == 16
+        && ramps[1].from == 2 && ramps[1].to == 1.5)
+    // 无包络 + 淡入淡出
+    var simple = TimelineCore.Clip(start: 0, duration: 8, sourceURL: evURL,
+                                   volume: 1, fadeIn: 2, fadeOut: 2)
+    _ = simple
+    let sramps = TimelineCore.volumeRamps(for: TimelineCore.Clip(
+        start: 0, duration: 8, sourceURL: evURL, volume: 1, fadeIn: 2, fadeOut: 2))
+    check("简单：淡入淡出三段", sramps.count == 3
+        && sramps[0].from == 0 && sramps[0].to == 1
+        && sramps[2].to == 0 && sramps[2].end == 8)
 }
 
 testToolboxBatch2Cores()

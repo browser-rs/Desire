@@ -425,6 +425,9 @@ final class VideoEditorStore: ObservableObject {
         player.pause()
         project = loaded
         selectedClipID = nil
+        multiSelection = []
+        undoStack = []
+        canUndo = false
         setPlayhead(0)
         rebuildPreview()
     }
@@ -434,6 +437,9 @@ final class VideoEditorStore: ObservableObject {
         project = TimelineCore.Project()
         sources = []
         selectedClipID = nil
+        multiSelection = []
+        undoStack = []
+        canUndo = false
         setPlayhead(0)
         rebuildPreview()
     }

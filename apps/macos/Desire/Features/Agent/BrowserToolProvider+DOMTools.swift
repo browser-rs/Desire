@@ -3374,6 +3374,12 @@ extension BrowserToolProvider {
                 }
                 let speed = min(4, max(0.25, (arg["speed"] as? NSNumber)?.doubleValue ?? 1))
                 let volume = min(2, max(0, (arg["volume"] as? NSNumber)?.doubleValue ?? 1))
+                let envelope: [TimelineCore.VolumePoint] = ((arg["envelope"] as? [[String: Any]]) ?? [])
+                    .compactMap { point in
+                        guard let at = (point["at"] as? NSNumber)?.doubleValue,
+                              let pointVolume = (point["volume"] as? NSNumber)?.doubleValue else { return nil }
+                        return TimelineCore.VolumePoint(offset: at, volume: pointVolume)
+                    }
                 let duration: Double
                 if let requested = (arg["duration"] as? NSNumber)?.doubleValue, requested > 0 {
                     duration = requested
@@ -3390,7 +3396,8 @@ extension BrowserToolProvider {
                 let clip = TimelineCore.Clip(start: start, duration: duration,
                                              sourceStart: inPoint, sourceURL: sourceURL,
                                              label: sourceURL.lastPathComponent,
-                                             speed: speed, volume: volume)
+                                             speed: speed, volume: volume,
+                                             volumeEnvelope: envelope)
                 guard let next = TimelineCore.upsertClip(project, trackID: track.id, clip: clip) else {
                     return Self.fail("clips[\(index)] rejected (overlap or too short)")
                 }

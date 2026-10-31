@@ -1133,6 +1133,10 @@ extension BrowserToolProvider {
                 "track": AgentJSONSchemaValue(type: "string", description: "video (default) or audio"),
                 "speed": AgentJSONSchemaValue(type: "number", description: "Playback speed 0.25-4 (default 1)"),
                 "volume": AgentJSONSchemaValue(type: "number", description: "Volume 0-2 (default 1)"),
+                "envelope": AgentJSONSchemaValue(type: "array", description: "Optional volume automation points (fractions of the clip, overriding volume)", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [
+                    "at": AgentJSONSchemaValue(type: "number", description: "Fraction into the clip 0-1"),
+                    "volume": AgentJSONSchemaValue(type: "number", description: "Volume 0-2 at that point"),
+                ]))),
             ]))),
             "exportPath": AgentJSONSchemaValue(type: "string", description: "Optional output file name (mp4/m4a extension decides container). Omit to only preview the plan (no export)."),
         ], required: ["clips"])

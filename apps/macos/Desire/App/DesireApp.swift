@@ -1,4 +1,5 @@
 import AppKit
+import CoreServices
 import CoreSpotlight
 import os
 import SwiftUI
@@ -417,6 +418,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         Log.app.info("launch phase: didFinishLaunching +\(Int(Date().timeIntervalSince(DesireApp.launchStart) * 1000), privacy: .public)ms")
         LaunchAudit.mark("didFinishLaunching")
+        registerDesireURLScheme()
         installSignalHandlers()
         // 菜单栏快速入口（v19）：NSStatusItem 宿主。放这里而不是 Scene——
         // SwiftUI MenuBarExtra 的 isInserted 动态绑定会在本应用触发启动
@@ -428,6 +430,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 冷启动带 URL 启动（默认浏览器点链接拉起 app）：窗口装配晚于
         // didFinishLaunching，走重试 flush。
         schedulePendingURLRetry()
+    }
+
+    /// 注册 desire:// 并设为默认处理程序（v0.8.34）：更新/拷贝后的 App 若还没被
+    /// LaunchServices 登记，从其他应用点 `desire://tools/...` 会弹
+    /// “未设定用来打开 URL 的应用程序”——启动时自愈，不依赖用户手动选应用。
+    private func registerDesireURLScheme() {
+        #if DEBUG
+        // 调试副本与 /Applications 下的正式包同 bundle id：Debug 启动不抢注册/默认处理程序，
+        // 否则 desire:// 可能被指到 DerivedData 里的调试包。
+        Log.app.info("desire:// registration skipped in debug build")
+        #else
+        let registerStatus = LSRegisterURL(Bundle.main.bundleURL as CFURL, true)
+        let current = LSCopyDefaultHandlerForURLScheme("desire" as CFString)?
+            .takeRetainedValue() as String?
+        var defaultStatus: OSStatus = 0
+        if current == nil {
+            defaultStatus = LSSetDefaultHandlerForURLScheme(
+                "desire" as CFString, "me.siwi.Desire" as CFString)
+        }
+        Log.app.info("desire:// registration: register=\(registerStatus, privacy: .public) current=\(current ?? "nil", privacy: .public) defaultSet=\(defaultStatus, privacy: .public)")
+        #endif
     }
 
     /// SIGTERM/SIGINT → ordinary `terminate()` on the main queue. The

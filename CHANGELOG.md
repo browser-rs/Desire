@@ -1,3 +1,9 @@
+## [Unreleased]
+### Fixed
+
+- Links: `desire://` is re-registered with LaunchServices on launch, and the app claims the scheme as default only when no handler exists — fixes the "no application is configured to open desire://…" dialog after updates or bundle copies; debug builds skip registration so a DerivedData copy cannot hijack the installed app (v0.8.35)
+
+
 ## [v0.8.34] - 2026-11-01
 ### Fixed
 

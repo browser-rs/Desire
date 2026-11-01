@@ -201,6 +201,10 @@ class BrowserState: ObservableObject {
     @Published var documentViewerFileName = ""
     /// 内置页面（v0.8.27）：about / fallback 等标签内渲染的 desire:// 页面。
     @Published var internalPage: InternalPageKind?
+    /// 电子书阅读器（v0.8.34）：书库条目或待导入的本地文件。
+    @Published var ebookViewerBookID: UUID?
+    @Published var ebookViewerFileURL: URL?
+    @Published var ebookViewerFileName = ""
     /// JSON 查看器（v0.8.26 办公增强）：非 nil = 该标签渲染 JSONViewer。
     @Published var jsonViewerURL: URL?
     @Published var jsonViewerFileName = ""

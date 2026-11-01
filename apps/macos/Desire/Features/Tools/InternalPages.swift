@@ -9,6 +9,7 @@ import Foundation
 /// 地址栏、桥 `/navigate` `/new-tab` `/open-url`、系统 open URL 与菜单共用。
 enum InternalPageKind: String, CaseIterable, Sendable {
     case tools
+    case books
     case about
     case newtab
     case fallback
@@ -26,14 +27,14 @@ enum InternalPageKind: String, CaseIterable, Sendable {
 
     /// 首页/索引里展示的顺序（fallback 不列）。
     static let all: [InternalPageKind] = [
-        .tools, .about, .newtab, .settings, .search, .agent,
+        .tools, .books, .about, .newtab, .settings, .search, .agent,
         .history, .bookmarks, .downloads, .passwords, .plugins,
         .whiteboard, .whatsnew, .sync,
     ]
 
     var isRenderedInTab: Bool {
         switch self {
-        case .tools, .about, .newtab, .fallback: return true
+        case .tools, .books, .about, .newtab, .fallback: return true
         default: return false
         }
     }
@@ -41,6 +42,7 @@ enum InternalPageKind: String, CaseIterable, Sendable {
     var title: String {
         switch self {
         case .tools: return String(localized: "Toolbox")
+        case .books: return String(localized: "Books")
         case .about: return String(localized: "About Desire")
         case .newtab: return String(localized: "New Tab")
         case .fallback: return String(localized: "Internal Pages")
@@ -60,6 +62,7 @@ enum InternalPageKind: String, CaseIterable, Sendable {
     var icon: String {
         switch self {
         case .tools: return "wrench.and.screwdriver.fill"
+        case .books: return "books.vertical"
         case .about: return "info.circle"
         case .newtab: return "plus.square.on.square"
         case .fallback: return "questionmark.square"
@@ -120,6 +123,12 @@ enum InternalPages {
         case .tools:
             guard let tab else { return }
             openTools(destination, in: tab)
+        case .books:
+            guard let tab else { return }
+            showInTab(.books, in: tab, urlString: destination.urlString)
+            if let param = destination.param, let id = UUID(uuidString: param) {
+                tab.browser.ebookViewerBookID = id
+            }
         case .about, .fallback:
             guard let tab else { return }
             showInTab(destination.page, in: tab, urlString: destination.urlString)
@@ -245,6 +254,8 @@ extension BrowserState {
         jsonViewerURL = nil
         presentationViewerURL = nil
         internalPage = nil
+        ebookViewerBookID = nil
+        ebookViewerFileURL = nil
         isReadingMode = false
         isReaderLoading = false
         isPDFLoading = false

@@ -183,10 +183,16 @@ extension BrowsingActions {
     /// 返回 false = 不是查看器类型（调用方按普通文件加载）。拖入/地址栏/
     /// "用 Desire 打开"（系统 open URLs）与桥 `/open-file` 共用同一份映射。
     static func routeLocalFile(_ url: URL, to tab: Tab) -> Bool {
+        tab.browser.closeAllViewers()
         tab.isOnToolsPage = false
         tab.toolsPageSelection = nil
         tab.browser.internalPage = nil
         let ext = url.pathExtension.lowercased()
+        if ext == "epub" || ext == "txt" {
+            tab.browser.ebookViewerFileName = url.lastPathComponent
+            tab.browser.ebookViewerFileURL = url
+            return true
+        }
         if ext == "pdf" {
             tab.browser.pdfViewerFileName = url.lastPathComponent
             tab.browser.pdfViewerReturnURL = tab.browser.webView.url

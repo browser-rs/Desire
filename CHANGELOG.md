@@ -1,3 +1,10 @@
+## [Unreleased]
+### Added
+
+- Books: a library and reader for local ebooks — EPUB 2/3 (container/OPF/spine, NCX and EPUB3 nav TOC, cover, chapter navigation, progress restore) and plain TXT (UTF-8/UTF-16/GB18030 detection, chapter splitting by headings or size), with a cover grid, search, import dedupe and four reading themes (v0.8.34)
+- Browser: local .epub/.txt files open in the ebook reader from the address bar, drag-and-drop or download, and `desire://books` opens the library; imported books are copied into the app's library and the original file is never modified (v0.8.34)
+
+
 ## [v0.8.33] - 2026-11-01
 ### Fixed
 

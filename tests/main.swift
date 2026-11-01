@@ -8155,6 +8155,7 @@ testDocumentBatchCores()
 testToolboxDataCores()
 testToolboxLanguageCores()
 testToolboxFileAndRuntimeCores()
+testEbookCore()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
@@ -8628,6 +8629,102 @@ func testToolboxFileAndRuntimeCores() {
     let unknown = ToolboxRuntimeCore.run(tool: "nope", args: [:])
     check("运行时：未知工具报错", !unknown.ok && unknown.text.hasPrefix("Error: "))
 }
+
+// ---------- 电子书（v0.8.34）：EPUB 容器/OPF/NCX/nav、清洗、TXT ----------
+
+func testEbookCore() {
+    let container = """
+    <?xml version="1.0"?>
+    <container><rootfiles><rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/></rootfiles></container>
+    """
+    eq("EPUB：容器 rootfile", EbookCore.rootfilePath(container: Data(container.utf8)),
+       "OEBPS/content.opf")
+
+    let opf = """
+    <?xml version="1.0"?>
+    <package xmlns="http://www.idpf.org/2007/opf" version="3.0">
+      <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <dc:title>测试之书</dc:title><dc:creator>作者</dc:creator>
+        <dc:language>zh</dc:language><dc:publisher>出版社</dc:publisher>
+        <meta name="cover" content="cover-img"/>
+      </metadata>
+      <manifest>
+        <item id="nav" href="nav.xhtml" media-type="application/xhtml+xml" properties="nav"/>
+        <item id="ch1" href="Text/ch1.xhtml" media-type="application/xhtml+xml"/>
+        <item id="ch2" href="Text/ch2.xhtml" media-type="application/xhtml+xml"/>
+        <item id="ncx" href="toc.ncx" media-type="application/x-dtbncx+xml"/>
+        <item id="cover-img" href="Images/cover.jpg" media-type="image/jpeg" properties="cover-image"/>
+      </manifest>
+      <spine toc="ncx"><itemref idref="ch1"/><itemref idref="ch2"/></spine>
+      <guide><reference type="cover" href="Text/cover.xhtml"/></guide>
+    </package>
+    """
+    let package = EbookCore.parseOPF(Data(opf.utf8), opfPath: "OEBPS/content.opf")!
+    eq("EPUB：标题", package.metadata.title, "测试之书")
+    eq("EPUB：作者", package.metadata.author, "作者")
+    eq("EPUB：章节数", package.chapters.count, 2)
+    eq("EPUB：章节路径", package.chapters[0].href, "OEBPS/Text/ch1.xhtml")
+    eq("EPUB：封面", package.metadata.coverHref, "OEBPS/Images/cover.jpg")
+    eq("EPUB：nav", package.navHref, "OEBPS/nav.xhtml")
+    eq("EPUB：ncx", package.ncxHref, "OEBPS/toc.ncx")
+
+    let ncx = """
+    <ncx><navMap>
+      <navPoint id="n1"><navLabel><text>第一章</text></navLabel><content src="Text/ch1.xhtml"/>
+        <navPoint id="n2"><navLabel><text>小节</text></navLabel><content src="Text/ch2.xhtml#top"/></navPoint>
+      </navPoint>
+    </navMap></ncx>
+    """
+    let ncxItems = EbookCore.parseNCX(Data(ncx.utf8), opfDirectory: "OEBPS")
+    eq("EPUB：NCX 条数", ncxItems.count, 2)
+    eq("EPUB：NCX 层级", ncxItems[1].level, 1)
+    eq("EPUB：NCX href", ncxItems[1].href, "OEBPS/Text/ch2.xhtml")
+
+    let nav = """
+    <html><body><nav xmlns:epub="http://www.idpf.org/2007/ops" epub:type="toc"><ol>
+      <li><a href="Text/ch1.xhtml">第一章</a>
+        <ol><li><a href="Text/ch2.xhtml">第二章</a></li></ol>
+      </li>
+    </ol></nav></body></html>
+    """
+    let navItems = EbookCore.parseNav(Data(nav.utf8), opfDirectory: "OEBPS")
+    eq("EPUB：nav 条数", navItems.count, 2)
+    eq("EPUB：nav 嵌套", navItems[1].level, 1)
+    let applied = EbookCore.applyingTOC(navItems, to: package.chapters)
+    eq("EPUB：目录挂章节", applied[1].chapterIndex, 1)
+
+    eq("EPUB：href 归一", EbookCore.resolveHref("Text/ch1.xhtml#x", baseDirectory: "OEBPS"),
+       "OEBPS/Text/ch1.xhtml")
+    check("EPUB：href 越界", EbookCore.resolveHref("../../x", baseDirectory: "OEBPS") == nil)
+    check("EPUB：href 绝对路径", EbookCore.resolveHref("/etc/passwd", baseDirectory: "OEBPS") == nil)
+
+    let dirty = """
+    <p onclick="steal()">正文</p><script>alert(1)</script>
+    <iframe src="x"></iframe><a href="javascript:alert(2)">链接</a>
+    """
+    let clean = EbookCore.sanitizeHTML(dirty)
+    check("EPUB：清洗 script", !clean.lowercased().contains("<script"))
+    check("EPUB：清洗事件", !clean.contains("onclick"))
+    check("EPUB：清洗 javascript", !clean.lowercased().contains("javascript:"))
+    check("EPUB：保留正文", clean.contains("正文"))
+    check("EPUB：DRM 检测", EbookCore.isEncrypted(
+        encryptionXML: Data("<EncryptedData/>".utf8)))
+    check("EPUB：字体混淆不算 DRM", !EbookCore.isEncrypted(
+        encryptionXML: Data("<EncryptionMethod Algorithm=\"http://www.idpf.org/2008/embedding\"/><EncryptedData/>".utf8)))
+    check("EPUB：非 DRM", !EbookCore.isEncrypted(encryptionXML: Data("<x/>".utf8)))
+
+    let txt = "第一章 开始\n这是第一章。\n\n第二章 继续\n这是第二章。"
+    let chapters = EbookCore.splitTXT(txt)
+    eq("TXT：章节数", chapters.count, 2)
+    eq("TXT：首章标题", chapters[0].title, "第一章 开始")
+    check("TXT：首章正文", chapters[0].text.contains("这是第一章"))
+    let chunks = EbookCore.splitTXT("abcdefghij\nklmnopqrst\nuvwxyz", maxChars: 12)
+    eq("TXT：无标题分块", chunks.count, 2)
+    eq("TXT：UTF8", EbookCore.decodeTXT(Data("你好".utf8)) ?? "", "你好")
+    check("TXT：HTML 转义", EbookCore.txtHTML("<b>你好</b>").contains("&lt;b&gt;"))
+    eq("TXT：HTML 段落", EbookCore.txtHTML("一\n\n二").components(separatedBy: "<p>").count, 3)
+}
+
 
 
 

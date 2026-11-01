@@ -279,7 +279,7 @@ struct SelectedTabContent: View {
 
     static func isOpenableFile(_ url: URL) -> Bool {
         switch url.pathExtension.lowercased() {
-        case "pdf", "html", "htm", "xhtml",
+        case "pdf", "html", "htm", "xhtml", "epub",
              "mp4", "m4v", "mov", "webm", "mp3", "m4a", "wav", "aac",
              "flac", "aiff", "aif", "caf",
              "png", "jpg", "jpeg", "gif", "webp", "svg", "txt":
@@ -426,6 +426,35 @@ struct SelectedTabContent: View {
         Group {
             if tab.isOnToolsPage {
                 ToolsPageView(initialTool: tab.toolsPageSelection)
+            } else if let bookID = tab.browser.ebookViewerBookID {
+                if let book = EbookLibraryStore.shared.book(id: bookID) {
+                    EbookReaderView(book: book, onBack: {
+                        tab.browser.ebookViewerBookID = nil
+                        tab.browser.internalPage = .books
+                    })
+                } else {
+                    VStack(spacing: 10) {
+                        Text(String(localized: "This book is no longer in your library."))
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                        Button(String(localized: "Back to Library")) {
+                            tab.browser.ebookViewerBookID = nil
+                            tab.browser.internalPage = .books
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            } else if let ebookURL = tab.browser.ebookViewerFileURL {
+                EbookFileReaderView(fileURL: ebookURL, onBack: {
+                    tab.browser.ebookViewerFileURL = nil
+                    tab.browser.internalPage = .books
+                })
+            } else if tab.browser.internalPage == .books {
+                EbookLibraryView(onOpen: { book in
+                    tab.browser.internalPage = nil
+                    tab.browser.ebookViewerBookID = book.id
+                })
             } else if tab.browser.internalPage == .about {
                 AboutPageView(onOpen: { destination in
                     InternalPages.open(destination, in: tab)

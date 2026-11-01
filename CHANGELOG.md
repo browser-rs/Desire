@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.33] - 2026-11-01
 ### Fixed
 
 - Toolbox: large-screen layout refined from the first pass — form tools center at 820pt, editors/file tools at 1320pt, the home grid fills up to 2200pt (8 columns on a 2400pt window) and tool bodies sit on a subtle card; the file-info card icon was an invalid SF Symbol and now renders (doc.text.magnifyingglass) (v0.8.33)

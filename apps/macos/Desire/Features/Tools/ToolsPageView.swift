@@ -8,6 +8,16 @@ struct ToolsPageView: View {
     @Environment(\.appAccent) private var appAccent: Color
     var initialTool: String? = nil
 
+    /// 大屏布局（v0.8.33）：详情与首页各自限宽并**居中**——此前两者都
+    /// 靠左（maxWidth 900/940 + alignment .leading），2560pt 窗口右侧留下
+    /// 一大片空白；首页网格也只会排 4 列。
+    private enum Layout {
+        static let detailMaxWidth: CGFloat = 1120
+        static let homeMaxWidth: CGFloat = 1560
+        static let cardMinWidth: CGFloat = 230
+        static let cardMaxWidth: CGFloat = 360
+    }
+
     @State private var query = ""
     @State private var selected: ToolID?
     @ObservedObject private var usage = ToolboxUsageStore.shared
@@ -248,8 +258,8 @@ struct ToolsPageView: View {
                     toolView(selected)
                 }
                 .padding(24)
-                .frame(maxWidth: 900, alignment: .leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: Layout.detailMaxWidth, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
             }
         } else {
             homeGrid
@@ -412,8 +422,10 @@ struct ToolsPageView: View {
                                     .font(.system(size: 9.5, design: .monospaced))
                                     .foregroundStyle(.tertiary)
                             }
-                            LazyVGrid(columns: [GridItem(.adaptive(minimum: 210), spacing: 10)],
-                                      alignment: .leading, spacing: 10) {
+                            LazyVGrid(columns: [GridItem(.adaptive(minimum: Layout.cardMinWidth,
+                                                                    maximum: Layout.cardMaxWidth),
+                                                          spacing: 12)],
+                                      alignment: .leading, spacing: 12) {
                                 ForEach(tools) { tool in
                                     toolCard(tool)
                                 }
@@ -423,8 +435,8 @@ struct ToolsPageView: View {
                 }
             }
             .padding(24)
-            .frame(maxWidth: 940, alignment: .leading)
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: Layout.homeMaxWidth, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
         }
     }
 

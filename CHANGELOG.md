@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- Toolbox: large-screen layout — the tool detail and home grid are centered instead of hugging the left edge, with a wider detail column (1120pt) and a 1560pt card grid whose cards adapt from 230 to 360pt (v0.8.33)
+
 ### Added
 
 - Toolbox: a Documents category with a full PDF workbench — merge (ordering, outline preservation), split by page ranges (`1-3,5,8-`) or one file per page, rotate 90°/180°/270°, export pages to PNG/JPEG at 72/144/300 DPI, and combine images into a PDF (A4 fit or original size). Encrypted PDFs prompt for a password, outputs never overwrite existing files, and every operation runs off the main thread with progress (v0.8.33)

@@ -1033,6 +1033,10 @@ Features/Bookmarks/
 **发版（release.yml，仅 workflow_dispatch）**：
 1. `scripts/release.sh <版本号>`（约 30 秒返回）：冻结 CHANGELOG、同步
    website/pbxproj 版本号（幂等）、跑纯逻辑单测、提交推送、触发云端；之后开发继续。
+   **发版前必须本地跑一次 `-configuration Release` 的 clean build 并零警告**
+   （`xcodebuild … -configuration Release … clean build | grep -E "warning:"`）：
+   Debug 不编译 `#if !DEBUG` 分支，v0.8.35 就因该分支里的
+   `LSCopyDefaultHandlerForURLScheme` 废弃警告在云端闸门被拦下（本地 Debug 全绿）。
 2. 云端用 **Xcode 27.1** 做双架构零警告构建 + 单测；**全部通过后才执行 publish**：
    用 GITHUB_TOKEN 在**本次已验证的 SHA** 上创建 tag 并上传资产——构建失败则
    **tag 与 Release 都不存在**（铁律：发版必须成功）。

@@ -1,12 +1,31 @@
+import AppKit
 import SwiftUI
 
 /// 电子书阅读器（v0.8.34 批次一）：EPUB/TXT 章节阅读、目录、进度、主题。
 struct EbookReaderView: View {
+    private enum SheetTab: String, CaseIterable, Identifiable {
+        case contents, bookmarks
+        var id: String { rawValue }
+        var title: String {
+            switch self {
+            case .contents: return String(localized: "Contents")
+            case .bookmarks: return String(localized: "Bookmarks")
+            }
+        }
+    }
+
     @Environment(\.appAccent) private var appAccent: Color
     let book: Ebook
     let onBack: () -> Void
 
     @StateObject private var model: EbookReaderModel
+    @State private var sheetTab: SheetTab = .contents
+    @State private var searchText = ""
+    @State private var didSearch = false
+    @State private var noteText = ""
+    @State private var showNotePrompt = false
+    @State private var toast: String?
+    @FocusState private var searchFocused: Bool
 
     init(book: Ebook, onBack: @escaping () -> Void) {
         self.book = book
@@ -25,6 +44,32 @@ struct EbookReaderView: View {
         .background(Color(nsColor: .textBackgroundColor))
         .task { await model.load() }
         .sheet(isPresented: $model.showTOC) { tocSheet }
+        .sheet(isPresented: $model.showSearch) { searchSheet }
+        .alert(String(localized: "Add note"), isPresented: $showNotePrompt) {
+            TextField(String(localized: "Note"), text: $noteText)
+            Button(String(localized: "Save")) {
+                if let selection = model.selection {
+                    addExcerpt(selection, note: noteText)
+                }
+                noteText = ""
+            }
+            Button(String(localized: "Cancel"), role: .cancel) {
+                noteText = ""
+            }
+        } message: {
+            Text(String(localized: "The note is saved together with the highlight in Excerpts."))
+        }
+        .overlay(alignment: .top) {
+            if let toast {
+                Text(toast)
+                    .font(.system(size: 11, weight: .medium))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(.regularMaterial))
+                    .overlay(Capsule().strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+                    .padding(.top, 8)
+            }
+        }
         .onDisappear { model.saveProgress(force: true) }
     }
 
@@ -47,6 +92,27 @@ struct EbookReaderView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
+            Button {
+                searchText = model.searchQuery
+                didSearch = false
+                model.showSearch = true
+            } label: {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 12))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(String(localized: "Search in book"))
+            Button {
+                model.toggleBookmark()
+            } label: {
+                Image(systemName: model.isCurrentBookmarked ? "bookmark.fill" : "bookmark")
+                    .font(.system(size: 12))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(model.isCurrentBookmarked
+                             ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+            .help(String(localized: "Bookmark this page"))
             Button {
                 model.showTOC = true
             } label: {
@@ -147,7 +213,8 @@ struct EbookReaderView: View {
                              onProgress: { model.updateChapterProgress($0) },
                              onPages: { count, index in
                                  model.updatePages(count: count, index: index)
-                             })
+                             },
+                             onSelection: { model.setSelection($0) })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if model.layoutMode == .paged {
                     GeometryReader { geometry in
@@ -162,6 +229,15 @@ struct EbookReaderView: View {
                                 .onTapGesture { model.nextPage() }
                                 .frame(width: geometry.size.width * 0.18)
                         }
+                    }
+                }
+                if let selection = model.selection {
+                    GeometryReader { geometry in
+                        selectionToolbar(selection)
+                            .position(
+                                x: min(max(selection.rect.midX, 230),
+                                       max(230, geometry.size.width - 230)),
+                                y: max(24, selection.rect.minY - 26))
                     }
                 }
             }
@@ -239,7 +315,7 @@ struct EbookReaderView: View {
     private var tocSheet: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text(String(localized: "Contents"))
+                Text(sheetTab.title)
                     .font(.system(size: 14, weight: .semibold))
                 Spacer()
                 Button(String(localized: "Done")) { model.showTOC = false }
@@ -247,35 +323,168 @@ struct EbookReaderView: View {
                     .controlSize(.small)
             }
             .padding(14)
+            Picker("", selection: $sheetTab) {
+                ForEach(SheetTab.allCases) { tab in
+                    Text(tab.title).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            .padding(.horizontal, 14)
+            .padding(.bottom, 8)
             Divider()
-            if model.toc.isEmpty {
-                Text(String(localized: "No table of contents."))
+            if sheetTab == .contents {
+                contentsList
+            } else {
+                bookmarksList
+            }
+        }
+        .frame(width: 460, height: 540)
+    }
+
+    @ViewBuilder
+    private var contentsList: some View {
+        if model.toc.isEmpty {
+            Text(String(localized: "No table of contents."))
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .padding(20)
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 1) {
+                    ForEach(Array(model.toc.enumerated()), id: \.offset) { _, item in
+                        Button {
+                            if let index = item.chapterIndex {
+                                model.jump(toChapter: index)
+                            }
+                            model.showTOC = false
+                        } label: {
+                            HStack(spacing: 6) {
+                                Text(item.title)
+                                    .font(.system(size: 11.5,
+                                                  weight: (item.chapterIndex ?? -1) == model.currentChapter
+                                                  ? .semibold : .regular))
+                                    .foregroundStyle((item.chapterIndex ?? -1) == model.currentChapter
+                                                     ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
+                                    .lineLimit(2)
+                                Spacer(minLength: 0)
+                            }
+                            .padding(.leading, CGFloat(item.level) * 14 + 12)
+                            .padding(.trailing, 12)
+                            .padding(.vertical, 5)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var bookmarksList: some View {
+        if model.bookmarks.isEmpty {
+            Text(String(localized: "No bookmarks yet"))
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .padding(20)
+        } else {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(model.bookmarks.sorted { $0.createdAt > $1.createdAt }) { bookmark in
+                        HStack(spacing: 8) {
+                            Button {
+                                model.jumpToBookmark(bookmark)
+                                model.showTOC = false
+                            } label: {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(bookmark.title)
+                                        .font(.system(size: 11.5, weight: .medium))
+                                        .lineLimit(1)
+                                    Text(bookmark.snippet)
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            Button {
+                                model.removeBookmark(bookmark.id)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.tertiary)
+                            }
+                            .buttonStyle(.plain)
+                            .help(String(localized: "Remove bookmark"))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                    }
+                }
+                .padding(.vertical, 6)
+            }
+        }
+    }
+
+    private var searchSheet: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text(String(localized: "Search in book"))
+                    .font(.system(size: 14, weight: .semibold))
+                Spacer()
+                Button(String(localized: "Done")) { model.showSearch = false }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+            .padding(14)
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                TextField(String(localized: "Search in book"), text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 12))
+                    .focused($searchFocused)
+                    .onSubmit { runSearch() }
+                Button(String(localized: "Search")) { runSearch() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(searchText.trimmingCharacters(in: .whitespaces).isEmpty)
+            }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 10)
+            Divider()
+            if model.isSearching {
+                ProgressView()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if didSearch && model.searchResults.isEmpty {
+                Text(String(localized: "No results"))
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .padding(20)
             } else {
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 1) {
-                        ForEach(Array(model.toc.enumerated()), id: \.offset) { _, item in
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(model.searchResults) { hit in
                             Button {
-                                if let index = item.chapterIndex {
-                                    model.jump(toChapter: index)
-                                }
-                                model.showTOC = false
+                                model.jump(to: hit)
                             } label: {
-                                HStack(spacing: 6) {
-                                    Text(item.title)
-                                        .font(.system(size: 11.5,
-                                                      weight: (item.chapterIndex ?? -1) == model.currentChapter
-                                                      ? .semibold : .regular))
-                                        .foregroundStyle((item.chapterIndex ?? -1) == model.currentChapter
-                                                         ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
-                                        .lineLimit(2)
-                                    Spacer(minLength: 0)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(hit.chapterTitle)
+                                        .font(.system(size: 11, weight: .semibold))
+                                        .foregroundStyle(appAccent)
+                                    Text(hit.snippet)
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(3)
+                                        .multilineTextAlignment(.leading)
                                 }
-                                .padding(.leading, CGFloat(item.level) * 14 + 12)
-                                .padding(.trailing, 12)
-                                .padding(.vertical, 5)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 6)
                                 .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -285,7 +494,96 @@ struct EbookReaderView: View {
                 }
             }
         }
-        .frame(width: 440, height: 520)
+        .frame(width: 500, height: 540)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { searchFocused = true }
+        }
+    }
+
+    private func runSearch() {
+        didSearch = false
+        let query = searchText
+        Task {
+            await model.search(query)
+            didSearch = true
+        }
+    }
+
+    private func selectionToolbar(_ selection: EbookSelection) -> some View {
+        HStack(spacing: 12) {
+            Button {
+                addExcerpt(selection, note: nil)
+            } label: {
+                Label(String(localized: "Highlight"), systemImage: "highlighter")
+            }
+            Button {
+                noteText = ""
+                showNotePrompt = true
+            } label: {
+                Label(String(localized: "Note"), systemImage: "note.text")
+            }
+            Button {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(selection.text, forType: .string)
+                showToast(String(localized: "Copied"))
+            } label: {
+                Label(String(localized: "Copy"), systemImage: "doc.on.doc")
+            }
+            Button {
+                if ReaderSpeechService.shared.isSpeaking {
+                    ReaderSpeechService.shared.stop()
+                } else {
+                    ReaderSpeechService.shared.speak(selection.text)
+                }
+            } label: {
+                Label(String(localized: "Speak"), systemImage: "speaker.wave.2")
+            }
+            Button {
+                AgentDraftInbox.shared.send(
+                    String(localized: "About this passage:") + "\n\n" + selection.text)
+            } label: {
+                Label(String(localized: "Ask Agent"), systemImage: "sparkles")
+            }
+            Button {
+                model.clearSelection()
+            } label: {
+                Image(systemName: "xmark")
+            }
+        }
+        .font(.system(size: 10.5, weight: .medium))
+        .buttonStyle(.borderless)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
+            .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+        .frame(maxWidth: 560)
+    }
+
+    private func addExcerpt(_ selection: EbookSelection, note: String?) {
+        let trimmedNote = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let added = ExcerptStore.shared.add(
+            kind: .readerHighlight, title: book.title, source: bookRootPath,
+            content: selection.text,
+            note: (trimmedNote?.isEmpty ?? true) ? nil : trimmedNote)
+        showToast(added ? String(localized: "Saved to Excerpts")
+                        : String(localized: "Already in Excerpts"))
+        model.clearSelection()
+    }
+
+    private var bookRootPath: String {
+        EbookImporter.rootDirectory
+            .appendingPathComponent(book.containerDirectory, isDirectory: true).path
+    }
+
+    private func showToast(_ message: String) {
+        toast = message
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.8))
+            if toast == message { toast = nil }
+        }
     }
 }
 

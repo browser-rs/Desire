@@ -9,6 +9,12 @@ struct EbookPageTurnRequest: Equatable, Identifiable {
     var forward: Bool
 }
 
+struct EbookSelection: Equatable, Sendable {
+    var id = UUID()
+    var text: String
+    var rect: CGRect
+}
+
 /// EPUB/TXT 阅读器状态（v0.8.34）：章节加载、清洗/包装、进度、主题、滚动/分页。
 @MainActor
 final class EbookReaderModel: ObservableObject {
@@ -86,6 +92,12 @@ final class EbookReaderModel: ObservableObject {
         didSet { UserDefaults.standard.set(theme.rawValue, forKey: Self.themeKey) }
     }
     @Published var showTOC = false
+    @Published private(set) var bookmarks: [EbookBookmark] = []
+    @Published private(set) var searchResults: [EbookSearchCore.Hit] = []
+    @Published var searchQuery = ""
+    @Published private(set) var isSearching = false
+    @Published var showSearch = false
+    @Published var selection: EbookSelection?
 
     private static let fontSizeKey = "ebook.fontSize"
     private static let themeKey = "ebook.theme"
@@ -93,6 +105,11 @@ final class EbookReaderModel: ObservableObject {
     private weak var webView: WKWebView?
     private var restoreRatio: Double?
     private var lastSaved = Date.distantPast
+    private var chapterTextCache: [EbookSearchCore.ChapterText]?
+    private var pendingSearchQuery: String?
+    private var loadGeneration = 0
+    private var webViewReadyGeneration = -1
+    private var bookmarkKey: String { "ebook.bookmarks.\(book.id.uuidString)" }
 
     var chapterCount: Int {
         max(1, chapters.isEmpty ? txtChapters.count : chapters.count)
@@ -113,6 +130,8 @@ final class EbookReaderModel: ObservableObject {
         self.layoutMode = LayoutMode(
             rawValue: UserDefaults.standard.string(forKey: Self.layoutKey) ?? "")
             ?? .paged
+        self.bookmarks = DiskStore.load([EbookBookmark].self,
+                                        key: "ebook.bookmarks.\(book.id.uuidString)") ?? []
     }
 
     func load() async {
@@ -187,6 +206,7 @@ final class EbookReaderModel: ObservableObject {
         guard count > 0 else { return }
         let target = min(max(index, 0), count - 1)
         currentChapter = target
+        loadGeneration += 1
         self.restoreRatio = restoreRatio
         pageIndex = 0
         pageCount = 1
@@ -204,10 +224,8 @@ final class EbookReaderModel: ObservableObject {
                     ?? ""
                 html = wrap(html: EbookCore.sanitizeHTML(text),
                             directory: file.deletingLastPathComponent())
-                let temp = file.deletingLastPathComponent()
-                    .appendingPathComponent(".__desire_reader_\(target).html")
-                try Data(html.utf8).write(to: temp, options: .atomic)
-                htmlFileURL = temp
+                htmlFileURL = try writeReaderHTML(html, in: file.deletingLastPathComponent(),
+                                                  index: target)
             } else {
                 guard txtChapters.indices.contains(target) else { return }
                 let chapter = txtChapters[target]
@@ -215,15 +233,30 @@ final class EbookReaderModel: ObservableObject {
                 let body = "<h1>\(EbookCore.escapeHTML(chapter.title))</h1>"
                     + EbookCore.txtHTML(chapter.text)
                 html = wrap(html: body, directory: bookRoot)
-                let temp = bookRoot.appendingPathComponent(".__desire_reader_\(target).html")
-                try Data(html.utf8).write(to: temp, options: .atomic)
-                htmlFileURL = temp
+                htmlFileURL = try writeReaderHTML(html, in: bookRoot, index: target)
             }
             chapterProgress = min(max(restoreRatio ?? 0, 0), 1)
             saveProgress(force: true)
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    /// 每次重载用唯一临时文件名——同一路径不会触发 WKWebView 重新加载
+    /// （主题/字号/布局/搜索跳转重载同一章时曾整章不刷新）。
+    private func writeReaderHTML(_ html: String, in directory: URL,
+                                 index: Int) throws -> URL {
+        let manager = FileManager.default
+        if let existing = try? manager.contentsOfDirectory(
+            at: directory, includingPropertiesForKeys: nil) {
+            for url in existing where url.lastPathComponent.hasPrefix(".__desire_reader_\(index)-") {
+                try? manager.removeItem(at: url)
+            }
+        }
+        let url = directory.appendingPathComponent(
+            ".__desire_reader_\(index)-\(UUID().uuidString).html")
+        try Data(html.utf8).write(to: url, options: .atomic)
+        return url
     }
 
     func nextChapter() {
@@ -240,6 +273,7 @@ final class EbookReaderModel: ObservableObject {
 
     /// 分页模式：下一页；章末自动进下一章。
     func nextPage() {
+        clearSelection()
         guard layoutMode == .paged else { nextChapter(); return }
         guard pageIndex + 1 < pageCount else {
             nextChapter()
@@ -254,6 +288,7 @@ final class EbookReaderModel: ObservableObject {
 
     /// 分页模式：上一页；章首回上一章末页。
     func previousPage() {
+        clearSelection()
         guard layoutMode == .paged else { previousChapter(); return }
         guard pageIndex > 0 else {
             guard currentChapter > 0 else { return }
@@ -285,6 +320,7 @@ final class EbookReaderModel: ObservableObject {
         }
         updatePageProgress()
         saveProgress()
+        highlightSearchIfNeeded()
     }
 
     private func updatePageProgress() {
@@ -294,6 +330,7 @@ final class EbookReaderModel: ObservableObject {
     }
 
     func jump(toChapter index: Int) {
+        clearSelection()
         guard index != currentChapter else { return }
         saveProgress(force: true)
         loadChapter(index, restoreRatio: 0)
@@ -345,11 +382,18 @@ final class EbookReaderModel: ObservableObject {
 
     func webViewReady(_ webView: WKWebView) {
         self.webView = webView
-        guard layoutMode == .scroll, let ratio = restoreRatio else { return }
-        restoreRatio = nil
-        webView.evaluateJavaScript(
-            "window.__desireScrollTo && window.__desireScrollTo(\(ratio));",
-            completionHandler: nil)
+        webViewReadyGeneration = loadGeneration
+        guard layoutMode == .scroll else {
+            highlightSearchIfNeeded()
+            return
+        }
+        if let ratio = restoreRatio {
+            restoreRatio = nil
+            webView.evaluateJavaScript(
+                "window.__desireScrollTo && window.__desireScrollTo(\(ratio));",
+                completionHandler: nil)
+        }
+        highlightSearchIfNeeded()
     }
 
     func saveProgress(force: Bool = false) {
@@ -359,6 +403,136 @@ final class EbookReaderModel: ObservableObject {
         EbookLibraryStore.shared.updateProgress(
             book.id, chapterIndex: currentChapter,
             chapterProgress: chapterProgress, overall: overallProgress)
+    }
+
+    // MARK: - 书签
+
+    var isCurrentBookmarked: Bool {
+        bookmarks.contains { bookmark in
+            guard bookmark.chapterIndex == currentChapter else { return false }
+            if layoutMode == .paged {
+                return bookmark.pageIndex == pageIndex
+            }
+            return abs(bookmark.chapterProgress - chapterProgress) < 0.015
+        }
+    }
+
+    func toggleBookmark() {
+        if let index = bookmarks.firstIndex(where: { bookmark in
+            guard bookmark.chapterIndex == currentChapter else { return false }
+            if layoutMode == .paged { return bookmark.pageIndex == pageIndex }
+            return abs(bookmark.chapterProgress - chapterProgress) < 0.015
+        }) {
+            bookmarks.remove(at: index)
+        } else {
+            bookmarks.append(EbookBookmark(
+                id: UUID(), chapterIndex: currentChapter,
+                chapterProgress: chapterProgress, pageIndex: pageIndex,
+                title: chapterTitle,
+                snippet: layoutMode == .paged
+                    ? "\(pageIndex + 1)/\(pageCount)"
+                    : "\(Int(chapterProgress * 100))%",
+                createdAt: Date()))
+        }
+        saveBookmarks()
+    }
+
+    func removeBookmark(_ id: UUID) {
+        bookmarks.removeAll { $0.id == id }
+        saveBookmarks()
+    }
+
+    func jumpToBookmark(_ bookmark: EbookBookmark) {
+        pendingSearchQuery = nil
+        loadChapter(bookmark.chapterIndex, restoreRatio: bookmark.chapterProgress)
+        if layoutMode == .paged {
+            pendingSearchQuery = nil
+        }
+    }
+
+    private func saveBookmarks() {
+        DiskStore.save(bookmarks, key: bookmarkKey)
+    }
+
+    // MARK: - 书内搜索
+
+    func search(_ query: String) async {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else {
+            searchResults = []
+            return
+        }
+        isSearching = true
+        defer { isSearching = false }
+        if chapterTextCache == nil {
+            let root = bookRoot
+            let chapters = chapters
+            let txt = txtChapters
+            let epub = book.format == .epub
+            let texts: [EbookSearchCore.ChapterText]? = await Task.detached(
+                priority: .userInitiated
+            ) {
+                if epub {
+                    return chapters.compactMap { chapter -> EbookSearchCore.ChapterText? in
+                        let url = root.appendingPathComponent(chapter.href)
+                        guard let data = try? Data(contentsOf: url) else { return nil }
+                        let html = String(data: data, encoding: .utf8)
+                            ?? String(data: data, encoding: .isoLatin1) ?? ""
+                        return EbookSearchCore.ChapterText(
+                            index: chapter.index, title: chapter.title,
+                            text: EbookSearchCore.plainText(fromHTML: html))
+                    }
+                }
+                return txt.map {
+                    EbookSearchCore.ChapterText(index: $0.index, title: $0.title,
+                                                text: $0.text)
+                }
+            }.value
+            chapterTextCache = texts
+        }
+        let results = EbookSearchCore.search(
+            query: needle, chapters: chapterTextCache ?? [])
+        searchResults = results
+        searchQuery = needle
+    }
+
+    func jump(to hit: EbookSearchCore.Hit) {
+        showSearch = false
+        clearSelection()
+        pendingSearchQuery = searchQuery
+        loadChapter(hit.chapterIndex, restoreRatio: 0)
+    }
+
+    func clearSearch() {
+        searchResults = []
+        searchQuery = ""
+        pendingSearchQuery = nil
+    }
+
+    private func highlightSearchIfNeeded() {
+        guard webViewReadyGeneration == loadGeneration,
+              let query = pendingSearchQuery, !query.isEmpty else { return }
+        let literal = Self.jsString(query)
+        webView?.evaluateJavaScript(
+            "window.__desireFind && window.__desireFind(\(literal));",
+            completionHandler: nil)
+    }
+
+    private static func jsString(_ text: String) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: [text])) ?? Data("[\"\"]".utf8)
+        let array = String(data: data, encoding: .utf8) ?? "[\"\"]"
+        return String(array.dropFirst().dropLast())
+    }
+
+    func setSelection(_ selection: EbookSelection) {
+        self.selection = selection
+    }
+
+    func clearSelection() {
+        selection = nil
+        webView?.evaluateJavaScript(
+            "window.getSelection && window.getSelection().removeAllRanges();",
+            completionHandler: nil)
     }
 
     private func reloadCurrent() {
@@ -401,6 +575,49 @@ final class EbookReaderModel: ObservableObject {
             var max=h-window.innerHeight;
             window.scrollTo(0,max*Math.max(0,Math.min(1,r)));
           };
+          window.__desireFind=function(q){
+            if(!q)return false;
+            var needle=q.toLowerCase();
+            var walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null);
+            var nodes=[],node;
+            while(node=walker.nextNode()){nodes.push(node);}
+            var first=null;
+            for(var i=0;i<nodes.length;i++){
+              var textNode=nodes[i];
+              var text=textNode.nodeValue||"";
+              var idx=text.toLowerCase().indexOf(needle);
+              if(idx<0)continue;
+              try{
+                var range=document.createRange();
+                range.setStart(textNode,idx);
+                range.setEnd(textNode,idx+needle.length);
+                var mark=document.createElement('mark');
+                mark.className='desire-search-hit';
+                mark.style.background='#F6C344';
+                mark.style.color='#1A1A1A';
+                range.surroundContents(mark);
+                if(!first)first=mark;
+              }catch(e){}
+            }
+            if(first){first.scrollIntoView({block:'center'});return true;}
+            return false;
+          };
+          document.addEventListener('mouseup', function(){
+            setTimeout(function(){
+              var sel=window.getSelection();
+              if(!sel||sel.isCollapsed)return;
+              var text=sel.toString().trim();
+              if(!text)return;
+              var range=sel.getRangeAt(0);
+              var rect=range.getBoundingClientRect();
+              if(rect.width<=0&&rect.height<=0)return;
+              if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.ebookSelection){
+                window.webkit.messageHandlers.ebookSelection.postMessage({
+                  text:text,x:rect.left,y:rect.top,w:rect.width,h:rect.height
+                });
+              }
+            },0);
+          });
         })();
         </script>
         """
@@ -507,6 +724,44 @@ final class EbookReaderModel: ObservableObject {
             if(old!==index && animate!==false)flip(old,index>old);
             apply();
           };
+          function highlightIn(root,q){
+            var needle=q.toLowerCase();
+            var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);
+            var nodes=[],node;
+            while(node=walker.nextNode()){nodes.push(node);}
+            var first=null;
+            for(var i=0;i<nodes.length;i++){
+              var textNode=nodes[i];
+              var text=textNode.nodeValue||"";
+              var idx=text.toLowerCase().indexOf(needle);
+              if(idx<0)continue;
+              try{
+                var range=document.createRange();
+                range.setStart(textNode,idx);
+                range.setEnd(textNode,idx+needle.length);
+                var mark=document.createElement('mark');
+                mark.className='desire-search-hit';
+                mark.style.background='#F6C344';
+                mark.style.color='#1A1A1A';
+                range.surroundContents(mark);
+                if(!first)first=mark;
+              }catch(e){}
+            }
+            return first;
+          }
+          window.__desireFind=function(q){
+            if(!q)return false;
+            var needle=q.toLowerCase();
+            for(var i=0;i<pages.length;i++){
+              if(pages[i].textContent.toLowerCase().indexOf(needle)>=0){
+                index=i;
+                highlightIn(pages[i],q);
+                apply();
+                return true;
+              }
+            }
+            return false;
+          };
           window.__desireMeasurePages=paginate;
           function schedule(){
             setTimeout(paginate,40);
@@ -516,6 +771,22 @@ final class EbookReaderModel: ObservableObject {
           window.addEventListener('load',schedule);
           if(document.fonts&&document.fonts.ready){document.fonts.ready.then(schedule);}
           setTimeout(paginate,60);
+          document.addEventListener('mouseup', function(){
+            setTimeout(function(){
+              var sel=window.getSelection();
+              if(!sel||sel.isCollapsed)return;
+              var text=sel.toString().trim();
+              if(!text)return;
+              var range=sel.getRangeAt(0);
+              var rect=range.getBoundingClientRect();
+              if(rect.width<=0&&rect.height<=0)return;
+              if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.ebookSelection){
+                window.webkit.messageHandlers.ebookSelection.postMessage({
+                  text:text,x:rect.left,y:rect.top,w:rect.width,h:rect.height
+                });
+              }
+            },0);
+          });
         });
         </script>
         """

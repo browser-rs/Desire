@@ -263,6 +263,7 @@ SOURCES=(
   apps/macos/Desire/Features/Tools/TimelineCore.swift
   apps/macos/Desire/Features/Tools/WaveformCore.swift
   apps/macos/Desire/Features/Ebooks/EbookCore.swift
+  apps/macos/Desire/Features/Ebooks/EbookSearchCore.swift
   apps/macos/Desire/Features/AddressBar/URLBatch.swift
   apps/macos/Desire/Features/Agent/ToolCallGrouper.swift
   apps/macos/Desire/Features/Browsing/MediaEngagementCore.swift

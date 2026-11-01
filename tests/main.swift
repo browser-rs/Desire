@@ -8156,6 +8156,7 @@ testToolboxDataCores()
 testToolboxLanguageCores()
 testToolboxFileAndRuntimeCores()
 testEbookCore()
+testEbookSearchCore()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
@@ -8724,6 +8725,34 @@ func testEbookCore() {
     check("TXT：HTML 转义", EbookCore.txtHTML("<b>你好</b>").contains("&lt;b&gt;"))
     eq("TXT：HTML 段落", EbookCore.txtHTML("一\n\n二").components(separatedBy: "<p>").count, 3)
 }
+
+// ---------- 书内搜索（v0.8.34） ----------
+
+func testEbookSearchCore() {
+    let html = "<h1>标题</h1><script>var x=1</script><style>p{}</style><p>山风与海，&amp; 光。</p>"
+    let plain = EbookSearchCore.plainText(fromHTML: html)
+    check("书搜：去脚本样式标签", !plain.contains("<") && !plain.contains("var x"))
+    check("书搜：实体解码", plain.contains("& 光"))
+    check("书搜：折叠空白", !plain.contains("  "))
+
+    let chapters = [
+        EbookSearchCore.ChapterText(index: 0, title: "第一章",
+                                    text: "山风吹过。海面很静。山风又起。"),
+        EbookSearchCore.ChapterText(index: 1, title: "第二章",
+                                    text: "Another Mountain wind."),
+    ]
+    let hits = EbookSearchCore.search(query: "山风", chapters: chapters, perChapter: 3)
+    eq("书搜：命中数", hits.count, 2)
+    eq("书搜：章节", hits[0].chapterIndex, 0)
+    check("书搜：片段含关键词", hits[0].snippet.contains("山风"))
+    eq("书搜：大小写不敏感",
+       EbookSearchCore.search(query: "mountain", chapters: chapters).count, 1)
+    eq("书搜：每章上限",
+       EbookSearchCore.search(query: "山风", chapters: chapters, perChapter: 1).count, 1)
+    check("书搜：空查询", EbookSearchCore.search(query: "  ", chapters: chapters).isEmpty)
+    check("书搜：无命中", EbookSearchCore.search(query: "沙漠", chapters: chapters).isEmpty)
+}
+
 
 
 

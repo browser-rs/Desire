@@ -56,3 +56,13 @@ struct Ebook: Codable, Identifiable, Equatable, Sendable {
         author.isEmpty ? String(localized: "Unknown author") : author
     }
 }
+
+struct EbookBookmark: Codable, Identifiable, Equatable, Sendable {
+    var id: UUID
+    var chapterIndex: Int
+    var chapterProgress: Double
+    var pageIndex: Int
+    var title: String
+    var snippet: String
+    var createdAt: Date
+}

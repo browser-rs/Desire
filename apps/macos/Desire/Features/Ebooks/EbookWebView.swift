@@ -11,11 +11,13 @@ struct EbookWebView: NSViewRepresentable {
     let onReady: (WKWebView) -> Void
     let onProgress: (Double) -> Void
     let onPages: (Int, Int) -> Void
+    let onSelection: (EbookSelection) -> Void
 
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(context.coordinator, name: "ebookProgress")
         configuration.userContentController.add(context.coordinator, name: "ebookPages")
+        configuration.userContentController.add(context.coordinator, name: "ebookSelection")
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         return webView
@@ -34,22 +36,26 @@ struct EbookWebView: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(onReady: onReady, onProgress: onProgress, onPages: onPages)
+        Coordinator(onReady: onReady, onProgress: onProgress, onPages: onPages,
+                    onSelection: onSelection)
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
         let onReady: (WKWebView) -> Void
         let onProgress: (Double) -> Void
         let onPages: (Int, Int) -> Void
+        let onSelection: (EbookSelection) -> Void
         var loadedURL: URL?
         var lastTurnID: UUID?
 
         init(onReady: @escaping (WKWebView) -> Void,
              onProgress: @escaping (Double) -> Void,
-             onPages: @escaping (Int, Int) -> Void) {
+             onPages: @escaping (Int, Int) -> Void,
+             onSelection: @escaping (EbookSelection) -> Void) {
             self.onReady = onReady
             self.onProgress = onProgress
             self.onPages = onPages
+            self.onSelection = onSelection
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -66,6 +72,16 @@ struct EbookWebView: NSViewRepresentable {
                       let count = body["count"] as? NSNumber,
                       let index = body["index"] as? NSNumber {
                 onPages(count.intValue, index.intValue)
+            } else if message.name == "ebookSelection",
+                      let body = message.body as? [String: Any],
+                      let text = body["text"] as? String,
+                      let x = body["x"] as? NSNumber,
+                      let y = body["y"] as? NSNumber,
+                      let w = body["w"] as? NSNumber,
+                      let h = body["h"] as? NSNumber {
+                let rect = CGRect(x: x.doubleValue, y: y.doubleValue,
+                                  width: w.doubleValue, height: h.doubleValue)
+                onSelection(EbookSelection(text: text, rect: rect))
             }
         }
 

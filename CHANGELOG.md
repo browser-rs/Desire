@@ -4,6 +4,8 @@
 - Books: a library and reader for local ebooks — EPUB 2/3 (container/OPF/spine, NCX and EPUB3 nav TOC, cover, chapter navigation, progress restore) and plain TXT (UTF-8/UTF-16/GB18030 detection, chapter splitting by headings or size), with a cover grid, search, import dedupe and four reading themes (v0.8.34)
 - Browser: local .epub/.txt files open in the ebook reader from the address bar, drag-and-drop or download, and `desire://books` opens the library; imported books are copied into the app's library and the original file is never modified (v0.8.34)
 - Books: real paged reading — chapters are split into pages at paragraph boundaries, with a CSS 3D page-flip animation, left/right tap zones, page indicator, per-page progress and a Paged/Scroll switch (paged is the default); jumping back from a chapter's first page lands on the previous chapter's last page (v0.8.34)
+- Books: in-book search across all chapters with snippets, jump-to-page and yellow match highlighting; persistent bookmarks (add/remove/jump, listed under Contents ▸ Bookmarks); a selection toolbar with Highlight, Note, Copy, Speak and Ask Agent — highlights and notes land in the existing Excerpts library (v0.8.34)
+
 
 
 

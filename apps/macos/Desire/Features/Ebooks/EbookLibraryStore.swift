@@ -60,6 +60,7 @@ final class EbookLibraryStore: ObservableObject {
                                                            isDirectory: true)
             try? FileManager.default.removeItem(at: directory)
         }
+        DiskStore.remove(key: "ebook.bookmarks.\(book.id.uuidString)")
         save()
     }
 

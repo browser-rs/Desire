@@ -209,6 +209,10 @@ enum InternalPages {
         tab.isOnToolsPage = true
         tab.browser.internalPage = nil
         tab.toolsPageSelection = destination.param
+        if let text = destination.query["text"], !text.isEmpty,
+           let tool = ToolboxLauncher.matchTool(destination.param) {
+            ToolboxHandoff.shared.setPendingText(text, for: tool)
+        }
         tab.urlString = destination.urlString
         tab.displayTitle = String(localized: "Toolbox")
         tab.browser.pageTitle = String(localized: "Toolbox")

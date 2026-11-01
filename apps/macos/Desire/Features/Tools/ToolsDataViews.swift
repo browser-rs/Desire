@@ -71,6 +71,7 @@ struct Base32ToolView: View {
             .labelsHidden()
             .frame(maxWidth: 220)
             ToolEditor(title: String(localized: "Input"), text: $input, height: 120)
+                .toolboxTextSeed(.base32, into: $input)
             Button(String(localized: "Convert")) { convert() }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -204,6 +205,7 @@ struct JSONPathToolView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ToolEditor(title: String(localized: "JSON"), text: $jsonText, height: 170)
+                .toolboxTextSeed(.jsonPath, into: $jsonText)
             HStack(spacing: 10) {
                 DataToolField(title: String(localized: "Path"), text: $path, width: 240)
                 Button(String(localized: "Query")) { query() }
@@ -304,6 +306,7 @@ struct StructuredDataToolView: View {
             }
             if inputFileData == nil {
                 ToolEditor(title: String(localized: "Input"), text: $input, height: 150)
+                    .toolboxTextSeed(.structuredData, into: $input)
             }
             HStack(spacing: 8) {
                 Button(String(localized: "Convert")) { convert() }

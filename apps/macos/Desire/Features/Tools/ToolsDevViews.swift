@@ -20,6 +20,7 @@ struct HashToolView: View {
         VStack(alignment: .leading, spacing: 12) {
             ToolEditor(title: String(localized: "Text"), text: $text,
                        height: 120, placeholder: String(localized: "Type or paste text…"))
+                .toolboxTextSeed(.hash, into: $text)
             Picker("", selection: $algorithm) {
                 ForEach(ToolsCrypto.Algorithm.allCases, id: \.self) { algorithm in
                     Text(algorithm.title).tag(algorithm)
@@ -126,6 +127,7 @@ struct Base64ToolView: View {
             }
             ToolEditor(title: String(localized: "Input"), text: $text,
                        height: 120, placeholder: String(localized: "Text or Base64…"))
+                .toolboxTextSeed(.base64, into: $text)
             switch result {
             case .success(let output):
                 ToolOutput(text: output)
@@ -164,6 +166,7 @@ struct URLCodecToolView: View {
             .frame(width: 160)
             ToolEditor(title: String(localized: "Input"), text: $text,
                        height: 110, placeholder: String(localized: "URL or text…"))
+                .toolboxTextSeed(.url, into: $text)
             switch result {
             case .success(let output):
                 ToolOutput(text: output)
@@ -186,6 +189,7 @@ struct JSONToolView: View {
         VStack(alignment: .leading, spacing: 12) {
             ToolEditor(title: String(localized: "JSON"), text: $text, height: 150,
                        placeholder: "{\"hello\": \"world\"}")
+                .toolboxTextSeed(.json, into: $text)
             HStack(spacing: 8) {
                 Button(String(localized: "Format")) { run { JSONFormatterCore.format($0, indent: indent) } }
                     .buttonStyle(.bordered)
@@ -458,6 +462,7 @@ struct QRCodeToolView: View {
         VStack(alignment: .leading, spacing: 12) {
             ToolEditor(title: String(localized: "Text or URL"), text: $text, height: 90,
                        placeholder: "https://example.com")
+                .toolboxTextSeed(.qr, into: $text)
             HStack(spacing: 8) {
                 Button(String(localized: "Generate")) { generate() }
                     .buttonStyle(.borderedProminent)

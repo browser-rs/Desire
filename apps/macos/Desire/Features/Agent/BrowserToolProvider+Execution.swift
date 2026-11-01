@@ -325,6 +325,26 @@ extension BrowserToolProvider {
                     return Self.fail("JS exception — \(message)")
                 }
             }
+        case "runToolboxTool":
+            guard let tool = args["tool"] as? String, !tool.isEmpty else {
+                return Self.fail("Missing tool")
+            }
+            var strings: [String: String] = [:]
+            if let raw = args["arguments"] as? String, !raw.isEmpty {
+                guard let data = raw.data(using: .utf8),
+                      let object = (try? JSONSerialization.jsonObject(with: data))
+                        as? [String: Any] else {
+                    return Self.fail("arguments must be a JSON object")
+                }
+                for (key, value) in object {
+                    strings[key] = value as? String ?? "\(value)"
+                }
+            } else if let object = args["arguments"] as? [String: Any] {
+                for (key, value) in object {
+                    strings[key] = value as? String ?? "\(value)"
+                }
+            }
+            return ToolboxRuntimeCore.run(tool: tool, args: strings).text
         default:
             // MCP-bridged tools ride the same dispatch path with the same
             // approval gating as built-ins.

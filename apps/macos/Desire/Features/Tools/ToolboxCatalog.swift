@@ -76,6 +76,8 @@ enum ToolID: String, CaseIterable, Identifiable {
     case base32, totp, jsonPath, structuredData, chmod, floatBits, ulid
     // 文本批（v0.8.33）：时区 / 简繁 / 拼音 / 中文排版 / 对比度 / 二维码识别
     case timezone, zhConvert, pinyin, zhTypography, contrast, qrDecode
+    // 文件批（v0.8.33）：批量重命名 / 压缩解压
+    case batchRename, archive
 
     var id: String { rawValue }
 
@@ -90,7 +92,8 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .qr, .password, .random, .contrast: return .generate
         case .qrDecode: return .codec
         case .videoEditor, .audioEditor, .imageConvert, .subtitle: return .media
-        case .pdfMerge, .pdfSplit, .pdfRotate, .pdfToImages, .imagesToPDF, .imageOCR: return .document
+        case .pdfMerge, .pdfSplit, .pdfRotate, .pdfToImages, .imagesToPDF, .imageOCR,
+             .batchRename, .archive: return .document
         case .morse, .dataURI, .width, .csvJSON: return .codec
         case .diff, .xml, .sql, .urlParse, .cidr, .httpStatus, .mime, .userAgent, .cron: return .dev
         case .aes, .hmac, .fileHash, .idCard, .luhn: return .security
@@ -183,6 +186,8 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .zhTypography: return String(localized: "Chinese Typography")
         case .contrast: return String(localized: "Contrast Checker")
         case .qrDecode: return String(localized: "Barcode Scanner")
+        case .batchRename: return String(localized: "Batch Rename")
+        case .archive: return String(localized: "Archive")
         }
     }
 
@@ -267,6 +272,8 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .zhTypography: return String(localized: "Add CJK/Latin spacing, normalize punctuation and clean up lines")
         case .contrast: return String(localized: "WCAG contrast ratio with AA/AAA ratings and a small palette")
         case .qrDecode: return String(localized: "Decode QR codes and barcodes from an image or the clipboard")
+        case .batchRename: return String(localized: "Rename many files with find/replace, numbering, dates and a live conflict preview")
+        case .archive: return String(localized: "Create ZIP/TAR.GZ archives or extract them with zip-slip protection")
         }
     }
 
@@ -351,6 +358,8 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .zhTypography: return "text.alignleft"
         case .contrast: return "circle.lefthalf.filled"
         case .qrDecode: return "qrcode.viewfinder"
+        case .batchRename: return "character.cursor.ibeam"
+        case .archive: return "archivebox"
         }
     }
 
@@ -437,6 +446,8 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .zhTypography: keywords = ["中文排版", "标点", "空格", "全角", "排版"]
         case .contrast: keywords = ["对比度", "wcag", "无障碍", "配色", "aa", "aaa"]
         case .qrDecode: keywords = ["二维码", "条码", "扫描", "识别", "qr", "barcode"]
+        case .batchRename: keywords = ["批量", "重命名", "改名", "rename", "正则", "序号"]
+        case .archive: keywords = ["压缩", "解压", "zip", "tar", "gz", "归档", "archive"]
         }
         return ([rawValue, title, subtitle] + keywords).joined(separator: " ")
     }

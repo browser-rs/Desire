@@ -101,6 +101,9 @@ extension ContentView {
                 }
                 tabManager.closeToTheRight(of: index)
             },
+            onSuspendOtherTabs: {
+                tabManager.suspendAllBackgroundTabs()
+            },
             onToggleAudioMute: { index in
                 // 使用 Tab 的 audioMuted 属性
                 tabManager.tabs[index].audioMuted.toggle()

@@ -28,6 +28,8 @@ struct TabBar: View {
     @FocusState private var isSearchFocused: Bool
     let onCloseOtherTabs: (Int) -> Void
     let onCloseTabsToRight: (Int) -> Void
+    /// 休眠其他标签（v0.8.33 浏览器基础）：保留快照、释放 live page。
+    let onSuspendOtherTabs: () -> Void
     let onToggleAudioMute: (Int) -> Void
     let onTogglePin: (Int) -> Void
     /// Derived from TabGroupStore: group color for a tab (nil if ungrouped).
@@ -145,6 +147,7 @@ struct TabBar: View {
                                     togglePin: onTogglePin,
                                     closeOtherTabs: onCloseOtherTabs,
                                     closeTabsToRight: onCloseTabsToRight,
+                                    suspendOtherTabs: onSuspendOtherTabs,
                                     addTab: onAddTab,
                                     createGroup: onCreateGroup,
                                     duplicateTab: onDuplicateTab,
@@ -215,6 +218,7 @@ struct TabBar: View {
                                     togglePin: onTogglePin,
                                     closeOtherTabs: onCloseOtherTabs,
                                     closeTabsToRight: onCloseTabsToRight,
+                                    suspendOtherTabs: onSuspendOtherTabs,
                                     addTab: onAddTab,
                                     createGroup: onCreateGroup,
                                     duplicateTab: onDuplicateTab,
@@ -349,6 +353,7 @@ struct TabBar: View {
         let togglePin: (Int) -> Void
         let closeOtherTabs: (Int) -> Void
         let closeTabsToRight: (Int) -> Void
+        let suspendOtherTabs: () -> Void
         let addTab: () -> Void
         let createGroup: (Int) -> Void
         let duplicateTab: (Int) -> Void
@@ -587,6 +592,8 @@ private struct TabPillView: View {
         .disabled(tab.isSuspended || tab.isOnNewTabPage)
         Button("Unload Tab") { unloadTab(tab) }
             .disabled(tab.isSuspended || index == selectedIndex || tab.isOnNewTabPage)
+        Button(String(localized: "Unload Other Tabs")) { actions.suspendOtherTabs() }
+            .disabled(tabs.count <= 1)
         Button("Copy URL") { actions.copyTabURL(tab) }
         Button("Copy Performance Snapshot") { actions.copyPerfSnapshot(tab) }
             .disabled(tab.isOnNewTabPage)

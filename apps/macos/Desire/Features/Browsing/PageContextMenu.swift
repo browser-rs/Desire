@@ -82,6 +82,17 @@ enum PageContextMenu {
                 NSPasteboard.general.setString(
                     "[\(info.selection)](\(info.pageUrl))", forType: .string)
             })
+            let toolbox = NSMenu(title: String(localized: "Use in Toolbox"))
+            for tool in ToolboxLauncher.textTools {
+                toolbox.addItem(item(tool.title) {
+                    ToolboxLauncher.open(tool, text: info.selection)
+                })
+            }
+            let toolboxItem = NSMenuItem(title: String(localized: "Use in Toolbox"),
+                                         action: nil, keyEquivalent: "")
+            toolboxItem.submenu = toolbox
+            menu.addItem(.separator())
+            menu.addItem(toolboxItem)
         } else {
             return
         }

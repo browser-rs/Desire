@@ -1748,6 +1748,14 @@ extension BrowserToolProvider {
                     "platform": AgentJSONSchemaValue(type: "string", description: "Optional: platform the lesson applies to"),
                 ], required: ["text"])
             )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "runToolboxTool",
+                description: "Run a local Toolbox utility on this Mac (no network). Pass tool + arguments (a JSON object whose values are strings). Available: \(ToolboxRuntimeCore.toolNames.joined(separator: ", ")). Prefer this over runCommand for hashes, encodings, JSON formatting, timestamps, unit conversion, regex, UUIDs, TOTP, chmod, IEEE 754, ULID, Chinese conversion and similar pure calculations.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "tool": AgentJSONSchemaValue(type: "string", description: "Tool name (see the list in the description)"),
+                    "arguments": AgentJSONSchemaValue(type: "string", description: "JSON object of string arguments, e.g. {\"text\":\"hello\",\"mode\":\"encode\"}. Booleans/numbers may be passed as strings."),
+                ], required: ["tool"])
+            )),
                 ]
     }()
 

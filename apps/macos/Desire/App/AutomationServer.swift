@@ -654,6 +654,8 @@ final class AutomationServer {
         ep("POST", "/ads/rules/clear", "Remove element-block rules (host, or all)", params: ["host?:string"], example: "-d '{}'")
         ep("GET", "/ads/candidates", "Ad-like elements on the tab, with the reason each matched (same scan the agent runs)", params: ["index?:int"], example: "…/ads/candidates")
         ep("POST", "/ads/block", "Hide elements on this host now and on future loads (+ optional request blocks)", params: ["selectors:[string]", "urlPattern?:string", "requests?:[string]", "index?:int"], example: #"-d '{"selectors":["[id=\"banner\"]"]}'"#)
+        ep("GET", "/toolbox/catalog", "Programmatic Toolbox tools (name, summary, arguments)", example: "…/toolbox/catalog")
+        ep("POST", "/toolbox/run", "Run a pure Toolbox utility (no file/network access)", params: ["tool:string", "args?:object"], example: #"-d '{"tool":"base64","args":{"text":"hi"}}'"#)
         ep("GET", "/media/exports", "Background media exports (downloadMedia) with state", example: "…/media/exports")
         ep("POST", "/media/exports/cancel", "Cancel a running media export", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/media/batch", "Batch video download: mode=page queues every stream sniffed on the tab; mode=list resolves each detail-page URL in a hidden browser (serialized, Cloudflare-aware)", params: ["mode:page|list", "urls?:[string] (mode=list)", "folderName?:string", "index?:int (mode=page)"], example: #"-d '{"mode":"list","urls":["https://…/v1","https://…/v2"],"folderName":"demo"}'"#)
@@ -3228,6 +3230,17 @@ final class AutomationServer {
                     id: Self.string(body, "id"),
                     force: (body["force"] as? Bool) ?? true
                 ))
+            case ("GET", "/toolbox/catalog"):
+                return try Self.json(Self.toolboxCatalog())
+            case ("POST", "/toolbox/run"):
+                let tool = Self.string(body, "tool") ?? ""
+                let raw = (body["args"] as? [String: Any]) ?? [:]
+                var toolArguments: [String: String] = [:]
+                for (key, value) in raw {
+                    toolArguments[key] = value as? String ?? "\(value)"
+                }
+                let output = ToolboxRuntimeCore.run(tool: tool, args: toolArguments)
+                return try Self.json(["tool": tool, "ok": output.ok, "text": output.text])
             case ("GET", "/media/exports"):
                 return try Self.json(Self.mediaExports())
             case ("POST", "/media/exports/cancel"):
@@ -7921,6 +7934,16 @@ final class AutomationServer {
             "urlPattern": pattern,
             "blockedRequests": blocked,
             "rulesTotal": app.elementBlockStore.rules.count,
+        ]
+    }
+
+    /// Toolbox 可编程工具目录（与 runToolboxTool 同一个注册表）。
+    private static func toolboxCatalog() -> [String: Any] {
+        [
+            "count": ToolboxRuntimeCore.specs.count,
+            "tools": ToolboxRuntimeCore.specs.map { spec in
+                ["name": spec.name, "summary": spec.summary, "arguments": spec.arguments]
+            },
         ]
     }
 

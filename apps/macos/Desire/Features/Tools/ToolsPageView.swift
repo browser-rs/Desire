@@ -11,6 +11,8 @@ struct ToolsPageView: View {
     @State private var query = ""
     @State private var selected: ToolID?
     @ObservedObject private var usage = ToolboxUsageStore.shared
+    @ObservedObject private var handoff = ToolboxHandoff.shared
+    @State private var showQuickSwitcher = false
 
     init(initialTool: String? = nil) {
         self.initialTool = initialTool
@@ -45,6 +47,36 @@ struct ToolsPageView: View {
         .onChange(of: initialTool) { _, newValue in
             if let id = Self.match(newValue) { select(id) }
         }
+        .onChange(of: handoff.requestToken) { _, _ in
+            if let tool = handoff.takeRequestedTool() { select(tool) }
+        }
+        .overlay {
+            if showQuickSwitcher {
+                ToolboxQuickSwitcher(
+                    tools: prioritizedTools,
+                    onSelect: { tool in
+                        select(tool)
+                        showQuickSwitcher = false
+                    },
+                    onClose: { showQuickSwitcher = false })
+            }
+        }
+    }
+
+    /// 收藏 → 最近 → 全部（去重），快切浮层用这个顺序。
+    private var prioritizedTools: [ToolID] {
+        var seen = Set<String>()
+        var result: [ToolID] = []
+        for raw in usage.favorites + usage.recents {
+            guard let tool = ToolID(rawValue: raw), seen.insert(tool.rawValue).inserted else {
+                continue
+            }
+            result.append(tool)
+        }
+        for tool in ToolID.allCases where seen.insert(tool.rawValue).inserted {
+            result.append(tool)
+        }
+        return result
     }
 
     // MARK: - 左栏
@@ -67,6 +99,16 @@ struct ToolsPageView: View {
                 }
                 .buttonStyle(.plain)
                 .help(String(localized: "All tools"))
+                Button {
+                    showQuickSwitcher = true
+                } label: {
+                    Image(systemName: "command")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .keyboardShortcut("k", modifiers: .command)
+                .help(String(localized: "Quick switcher (⌘K)"))
             }
             .padding(.horizontal, 12)
             .padding(.top, 12)
@@ -341,6 +383,8 @@ struct ToolsPageView: View {
         case .zhTypography: ZhTypographyToolView()
         case .contrast: ContrastToolView()
         case .qrDecode: QRDecodeToolView()
+        case .batchRename: BatchRenameToolView()
+        case .archive: ArchiveToolView()
         }
     }
 
@@ -447,5 +491,112 @@ private struct ToolCardView: View {
         }
         .buttonStyle(.plain)
         .onHover { hovering = $0 }
+    }
+}
+
+/// ⌘K 工具快切（v0.8.33）：搜索 + ↑↓ + 回车；收藏/最近在列表最前。
+private struct ToolboxQuickSwitcher: View {
+    let tools: [ToolID]
+    let onSelect: (ToolID) -> Void
+    let onClose: () -> Void
+
+    @State private var query = ""
+    @State private var selectedIndex = 0
+    @FocusState private var focused: Bool
+
+    private var results: [ToolID] {
+        let needle = query.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !needle.isEmpty else { return Array(tools.prefix(12)) }
+        return Array(tools.filter { $0.searchText.lowercased().contains(needle) }.prefix(12))
+    }
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.18)
+                .ignoresSafeArea()
+                .onTapGesture { onClose() }
+            VStack(alignment: .leading, spacing: 8) {
+                TextField(String(localized: "Search tools…"), text: $query)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 13))
+                    .focused($focused)
+                    .onSubmit {
+                        if results.indices.contains(selectedIndex) {
+                            onSelect(results[selectedIndex])
+                        }
+                    }
+                if results.isEmpty {
+                    Text(String(localized: "No matching tools"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.tertiary)
+                        .padding(.vertical, 8)
+                } else {
+                    ScrollView {
+                        VStack(spacing: 1) {
+                            ForEach(Array(results.enumerated()), id: \.offset) { index, tool in
+                                Button {
+                                    onSelect(tool)
+                                } label: {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: tool.icon)
+                                            .font(.system(size: 11))
+                                            .frame(width: 16)
+                                            .foregroundStyle(.secondary)
+                                        Text(tool.title)
+                                            .font(.system(size: 12, weight: index == selectedIndex
+                                                          ? .semibold : .regular))
+                                        Spacer(minLength: 6)
+                                        Text(tool.category.title)
+                                            .font(.system(size: 9.5))
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 5)
+                                    .background(RoundedRectangle(cornerRadius: 6)
+                                        .fill(index == selectedIndex
+                                              ? Color.secondary.opacity(0.14) : Color.clear))
+                                    .contentShape(Rectangle())
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                    .frame(maxHeight: 320)
+                }
+                Text(String(localized: "↑↓ to choose · Return to open · Esc to close"))
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(14)
+            .frame(width: 460)
+            .background(RoundedRectangle(cornerRadius: 12)
+                .fill(Color(nsColor: .windowBackgroundColor)))
+            .overlay(RoundedRectangle(cornerRadius: 12)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+            .shadow(color: .black.opacity(0.18), radius: 24, y: 8)
+        }
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { focused = true }
+        }
+        .onChange(of: query) { _, _ in selectedIndex = 0 }
+        .onExitCommand { onClose() }
+        .onKeyPress(.downArrow) {
+            selectedIndex = min(selectedIndex + 1, max(0, results.count - 1))
+            return .handled
+        }
+        .onKeyPress(.upArrow) {
+            selectedIndex = max(selectedIndex - 1, 0)
+            return .handled
+        }
+        .onKeyPress(.return) {
+            if results.indices.contains(selectedIndex) {
+                onSelect(results[selectedIndex])
+            }
+            return .handled
+        }
+        .onKeyPress(.escape) {
+            onClose()
+            return .handled
+        }
     }
 }

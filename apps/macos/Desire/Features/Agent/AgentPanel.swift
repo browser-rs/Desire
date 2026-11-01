@@ -18,6 +18,7 @@ struct AgentPanel: View {
     @ObservedObject var crewStore = AgentCrewStore.shared
     @ObservedObject var store: AgentSessionStore
     @ObservedObject var conversationStore: ConversationStore
+    @ObservedObject private var draftInbox = AgentDraftInbox.shared
 
     @State private var inputText = ""
     /// `@` 引用的标签页（v0.8.22）：发送时读正文注入系统备注。
@@ -158,6 +159,9 @@ struct AgentPanel: View {
             Text(distillError ?? "")
         }
         .onAppear {
+            if let text = draftInbox.take() {
+                inputText = text
+            }
             // 面板出现（打开/从子页回来）时把焦点交给输入框 —— 否则必须先用鼠标
             // 点一下输入框才能打字（用户反馈过的 UX 缺陷）。@FocusState 在 onAppear
             // 的事务里直接置真**不生效**（走不进 AppKit 的 first responder），
@@ -166,6 +170,15 @@ struct AgentPanel: View {
                 try? await Task.sleep(for: .milliseconds(400))
                 let onSubpage = showMemory || showStats || showTrace || showCapabilities || showHistory
                 if !onSubpage { isInputFocused = true }
+            }
+        }
+        // 工具结果 → Agent（v0.8.33 融合）：Toolbox 的「问 Agent」把草稿放进来。
+        .onChange(of: draftInbox.pending) { _, value in
+            guard value != nil, let text = draftInbox.take() else { return }
+            inputText = text
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(120))
+                isInputFocused = true
             }
         }
     }

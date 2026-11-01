@@ -113,6 +113,13 @@ struct ClipboardHistoryPanel: View {
         .contentShape(Rectangle())
         .contextMenu {
             Button(String(localized: "Copy Again")) { copyBack(entry) }
+            Menu(String(localized: "Use in Toolbox")) {
+                ForEach(ToolboxLauncher.textTools) { tool in
+                    Button(tool.title) {
+                        ToolboxLauncher.open(tool, text: entry.text)
+                    }
+                }
+            }
             Button(String(localized: "Remove"), role: .destructive) {
                 store.remove(id: entry.id)
             }

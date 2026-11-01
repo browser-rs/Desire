@@ -198,7 +198,8 @@ struct MorseToolView: View {
             inputTitle: String(localized: "Text or Morse"),
             placeholder: "... --- ...",
             encode: { MorseCore.encode($0) },
-            decode: { MorseCore.decode($0) })
+            decode: { MorseCore.decode($0) },
+            seedTool: .morse)
     }
 }
 
@@ -208,7 +209,8 @@ struct WidthToolView: View {
             inputTitle: String(localized: "Text"),
             placeholder: "ABC 123",
             encode: { WidthCore.toFullWidth($0) },
-            decode: { .success(WidthCore.toHalfWidth($0)) })
+            decode: { .success(WidthCore.toHalfWidth($0)) },
+            seedTool: .width)
     }
 }
 
@@ -1016,6 +1018,7 @@ struct RegexReplaceToolView: View {
             ExtraField(title: String(localized: "Pattern"), text: $pattern, width: 300)
             ExtraField(title: String(localized: "Template"), text: $template, width: 300)
             ToolEditor(title: String(localized: "Text"), text: $text, height: 110)
+                .toolboxTextSeed(.regexReplace, into: $text)
             HStack(spacing: 8) {
                 Button(String(localized: "Replace")) { run() }
                     .buttonStyle(.borderedProminent)
@@ -1053,6 +1056,7 @@ struct MarkdownToolView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             ToolEditor(title: "Markdown", text: $text, height: 150)
+                .toolboxTextSeed(.markdown, into: $text)
             HStack(spacing: 8) {
                 Button(String(localized: "Copy HTML")) {
                     NSPasteboard.general.clearContents()

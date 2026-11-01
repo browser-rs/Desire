@@ -10,6 +10,7 @@ struct CodecToolView: View {
     let placeholder: String
     let encode: (String) -> String
     let decode: (String) -> Result<String, ToolboxError>
+    var seedTool: ToolID? = nil
 
     private enum Mode: String, CaseIterable {
         case encode, decode
@@ -36,7 +37,12 @@ struct CodecToolView: View {
             .pickerStyle(.segmented)
             .labelsHidden()
             .frame(width: 160)
-            ToolEditor(title: inputTitle, text: $text, height: 130, placeholder: placeholder)
+            if let seedTool {
+                ToolEditor(title: inputTitle, text: $text, height: 130, placeholder: placeholder)
+                    .toolboxTextSeed(seedTool, into: $text)
+            } else {
+                ToolEditor(title: inputTitle, text: $text, height: 130, placeholder: placeholder)
+            }
             switch result {
             case .success(let output):
                 ToolOutput(text: output)
@@ -53,7 +59,8 @@ struct HTMLCodecToolView: View {
             inputTitle: String(localized: "HTML"),
             placeholder: "<div class=\"note\">…",
             encode: { ToolboxCore.htmlEncode($0) },
-            decode: { .success(ToolboxCore.htmlDecode($0)) })
+            decode: { .success(ToolboxCore.htmlDecode($0)) },
+            seedTool: .html)
     }
 }
 
@@ -63,7 +70,8 @@ struct UnicodeCodecToolView: View {
             inputTitle: String(localized: "Text"),
             placeholder: String(localized: "Type or paste text…"),
             encode: { ToolboxCore.unicodeEscape($0) },
-            decode: { .success(ToolboxCore.unicodeUnescape($0)) })
+            decode: { .success(ToolboxCore.unicodeUnescape($0)) },
+            seedTool: .unicode)
     }
 }
 
@@ -73,7 +81,8 @@ struct HexCodecToolView: View {
             inputTitle: String(localized: "Text or hex"),
             placeholder: "68 65 6c 6c 6f",
             encode: { ToolboxCore.hexEncode($0) },
-            decode: { ToolboxCore.hexDecode($0) })
+            decode: { ToolboxCore.hexDecode($0) },
+            seedTool: .hex)
     }
 }
 

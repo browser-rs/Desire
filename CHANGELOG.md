@@ -5,6 +5,13 @@
 - Toolbox: on-device OCR for images, PDFs and the clipboard (Vision, Chinese + English) and a subtitle converter — SRT / VTT / ASS round-trip, millisecond timing shift, and bilingual track merge (v0.8.33)
 - Toolbox: a developer batch — Base32, TOTP (Base32 secret, HMAC-SHA1/256/512, 30/60s, 6/8 digits, memory-only), JSONPath queries, JSON ↔ plist (XML/binary), YAML → JSON for the common block subset, chmod (octal ↔ rwx ↔ symbolic), IEEE 754 bit patterns with endianness/fields, and monotonically increasing ULIDs (v0.8.33)
 - Toolbox: a text batch — time-zone conversion with DST/offsets (non-existent wall times rejected), Simplified ↔ Traditional conversion, pinyin (tone marks/plain/initials), Chinese typography cleanup (CJK/Latin spacing, punctuation, blank lines), WCAG contrast checker with AA/AAA ratings and a palette, and on-device barcode/QR scanning from images or the clipboard (v0.8.33)
+- Toolbox: file work — batch rename (find/replace, regex captures, numbering, dates, extensions, live conflict preview, two-phase rename with rollback) and archive create/extract (ZIP/TAR.GZ, zip-slip path validation before extraction) (v0.8.33)
+- Toolbox becomes programmable: the runToolboxTool agent tool and bridge GET /toolbox/catalog + POST /toolbox/run expose 48 pure utilities (encodings, hashes, JSON/JSONPath, units, cron, UUID/TOTP/ULID, chmod, IEEE 754, Chinese conversion, contrast and more); the tool index is generated from one registry (v0.8.33)
+- Toolbox entry points: deep links can prefill a tool (`desire://tools/base64?text=…`), selected text and clipboard entries gain "Use in Toolbox", tool output gains "Send to…", and ⌘K opens a keyboard quick switcher with favorites/recent first (v0.8.33)
+- Browser: the tab context menu can unload every other background tab in one action — snapshots are kept for instant restore, and pinned, incognito, split and audibly-playing tabs are skipped (v0.8.33)
+- Fusion: Toolbox output gains "Ask Agent" — the result is placed into the Agent input as a draft and the panel is brought up, so a calculation can continue as a conversation (v0.8.33)
+
+
 
 
 

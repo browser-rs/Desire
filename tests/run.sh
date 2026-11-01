@@ -230,6 +230,7 @@ SOURCES=(
   apps/macos/Desire/Features/Tools/RomanCore.swift
   apps/macos/Desire/Features/Tools/ExcelColumnCore.swift
   apps/macos/Desire/Features/Tools/CRC32Core.swift
+  apps/macos/Desire/Features/Tools/SHA3Core.swift
   apps/macos/Desire/Features/Tools/Base58Core.swift
   apps/macos/Desire/Features/Tools/MarkdownHTMLCore.swift
   apps/macos/Desire/Features/Tools/BarcodeCore.swift
@@ -237,6 +238,7 @@ SOURCES=(
   apps/macos/Desire/Features/Tools/HTTPHeadersCore.swift
   apps/macos/Desire/Features/Tools/UUIDV7Core.swift
   apps/macos/Desire/Features/Tools/SQLToolCore.swift
+  apps/macos/Desire/Features/Tools/LoremCore.swift
   apps/macos/Desire/Features/Tools/FinanceCalcCore.swift
   apps/macos/Desire/Features/Tools/UnitConvertCore.swift
   apps/macos/Desire/Features/Tools/ExpressionParser.swift
@@ -255,6 +257,9 @@ SOURCES=(
   apps/macos/Desire/Features/Tools/TimeZoneCore.swift
   apps/macos/Desire/Features/Tools/ZhTextCore.swift
   apps/macos/Desire/Features/Tools/ContrastCore.swift
+  apps/macos/Desire/Features/Tools/BatchRenameCore.swift
+  apps/macos/Desire/Features/Tools/ArchiveCore.swift
+  apps/macos/Desire/Features/Tools/ToolboxRuntimeCore.swift
   apps/macos/Desire/Features/Tools/TimelineCore.swift
   apps/macos/Desire/Features/Tools/WaveformCore.swift
   apps/macos/Desire/Features/AddressBar/URLBatch.swift

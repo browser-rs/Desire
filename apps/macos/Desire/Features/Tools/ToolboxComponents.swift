@@ -55,6 +55,34 @@ struct ToolOutput: View {
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
                 Spacer()
+                if !text.isEmpty {
+                    Menu {
+                        ForEach(ToolboxLauncher.textTools) { tool in
+                            Button(tool.title) {
+                                ToolboxHandoff.shared.requestTool(tool, text: text)
+                            }
+                        }
+                    } label: {
+                        Label(String(localized: "Send to…"),
+                              systemImage: "arrowshape.turn.up.right")
+                            .font(.system(size: 10))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .foregroundStyle(.secondary)
+                    .help(String(localized: "Send this output to another tool"))
+                    Button {
+                        AgentDraftInbox.shared.send(
+                            String(localized: "Please analyze this Toolbox output and help me continue:")
+                            + "\n\n" + String(text.prefix(6000)))
+                    } label: {
+                        Image(systemName: "bubble.left.and.text.bubble.right")
+                            .font(.system(size: 10))
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                    .help(String(localized: "Ask Agent"))
+                }
                 Button {
                     NSPasteboard.general.clearContents()
                     NSPasteboard.general.setString(text, forType: .string)

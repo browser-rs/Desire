@@ -234,3 +234,25 @@ ToolboxComponents；目录与元数据在 ToolboxCatalog）。
   AAA 大字 4.5；色板 = 基色 + 互补 + 类似（±30°）+ 三分（120°/240°）。
 - **条码识别全端上**：Vision `VNDetectBarcodesRequest`，去重后列出 payload 与
   symbology；只对 http/https/mailto/tel 显示"打开"。
+
+## 文件批与工具层（81 项，v0.8.33）
+| id | 工具 | 说明 |
+|---|---|---|
+| batchRename | 批量重命名 | 查找替换（含正则捕获）、前缀/后缀、序号（起始/步长/补零）、日期、扩展名；实时预览 + 冲突检测（APFS 大小写不敏感）+ 两阶段改名，失败回滚 |
+| archive | 压缩 / 解压 | 建 ZIP / TAR.GZ；解压前列清单并逐条校验，拒绝绝对路径、`..`、反斜杠与冒号（zip-slip） |
+
+### 工具箱 2.0：可编程与入口
+- **Agent 工具 `runToolboxTool`**：`{tool, arguments(JSON string)}` → 纯文本结果；
+  工具定义里的可用清单从 `ToolboxRuntimeCore.specs` 生成，新增工具自动进提示词。
+- **桥**：`GET /toolbox/catalog`（name/summary/arguments）与
+  `POST /toolbox/run`（`{tool, args}`），与 Agent 共用同一个注册表。
+- **深链载荷**：`desire://tools/base64?text=...` 把文本递进目标工具（ToolboxHandoff）。
+- **入口**：选中文本右键「用工具箱处理」、剪贴板历史右键「用工具箱处理」。
+- **结果接力**：工具输出区的「发送到…」把当前结果送进另一个纯文本工具（同页切换）；
+  「问 Agent」把结果作为草稿递进 Agent 输入框（面板未开时打开后再取）。
+- **⌘K 快切**：搜索 + ↑↓ + 回车，收藏/最近排在最前。
+
+### 注册表边界
+只暴露**不碰文件/网络**的纯函数（编码、哈希、结构化数据、时区、中文、对照度、
+chmod、浮点、ULID、二维码内容分类等）。PDF/OCR/批量改名/压缩解压/条码图片识别
+等需要文件选择器的工具仍只在 UI 里跑。

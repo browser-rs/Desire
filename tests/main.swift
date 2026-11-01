@@ -8154,6 +8154,7 @@ testMediaEditCore()
 testDocumentBatchCores()
 testToolboxDataCores()
 testToolboxLanguageCores()
+testToolboxFileAndRuntimeCores()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
@@ -8474,6 +8475,160 @@ func testToolboxLanguageCores() {
     check("条码：链接解析", BarcodeCore.link(from: "https://example.com") != nil)
     check("条码：拒绝脚本协议", BarcodeCore.link(from: "javascript:alert(1)") == nil)
 }
+
+// ---------- 文件批 + 可编程注册表（v0.8.33 批次四） ----------
+
+func testToolboxFileAndRuntimeCores() {
+    // 批量重命名
+    let source = URL(fileURLWithPath: "/tmp/IMG_001.JPG")
+    var rule = BatchRenameCore.Rule()
+    rule.find = "IMG_"
+    rule.replacement = "photo-"
+    rule.prefix = "trip-"
+    rule.appendNumber = true
+    rule.numberPadding = 3
+    rule.newExtension = "png"
+    let proposed = try! BatchRenameCore.proposedName(
+        for: source, rule: rule, index: 0, date: Date())
+    eq("改名：组合规则", proposed, "trip-photo-001-001.png")
+
+    var regexRule = BatchRenameCore.Rule()
+    regexRule.find = "(\\d+)"
+    regexRule.replacement = "[$1]"
+    regexRule.useRegex = true
+    let regexName = try! BatchRenameCore.proposedName(
+        for: URL(fileURLWithPath: "/tmp/abc123.txt"), rule: regexRule, index: 0)
+    eq("改名：正则捕获", regexName, "abc[123].txt")
+
+    eq("改名：日期戳长度", BatchRenameCore.dateStamp(Date()).count, 8)
+
+    var duplicateRule = BatchRenameCore.Rule()
+    duplicateRule.find = "A[0-9]+"
+    duplicateRule.replacement = "x"
+    duplicateRule.useRegex = true
+    let dupPlan = try! BatchRenameCore.plan(
+        urls: [URL(fileURLWithPath: "/tmp/d1/A1.txt"),
+               URL(fileURLWithPath: "/tmp/d1/A2.txt")],
+        rule: duplicateRule, existingNamesByDirectory: [:] ).get()
+    eq("改名：同目录重复冲突", dupPlan.first?.conflict, .duplicate)
+    let crossDir = try! BatchRenameCore.plan(
+        urls: [URL(fileURLWithPath: "/tmp/d1/A1.txt"),
+               URL(fileURLWithPath: "/tmp/d2/A2.txt")],
+        rule: duplicateRule, existingNamesByDirectory: [:] ).get()
+    check("改名：跨目录同名放行", crossDir.allSatisfy { $0.conflict == nil })
+
+    let existsPlan = try! BatchRenameCore.plan(
+        urls: [URL(fileURLWithPath: "/tmp/A1.txt")],
+        rule: duplicateRule,
+        existingNamesByDirectory: [URL(fileURLWithPath: "/tmp"): ["x.txt"]]).get()
+    eq("改名：已存在冲突", existsPlan.first?.conflict, .exists)
+
+    let selfPlan = try! BatchRenameCore.plan(
+        urls: [URL(fileURLWithPath: "/tmp/A.txt")],
+        rule: BatchRenameCore.Rule(),
+        existingNamesByDirectory: [URL(fileURLWithPath: "/tmp"): ["a.txt"]]).get()
+    check("改名：大小写自重命名放行", selfPlan.first?.conflict == nil)
+
+    var prefixRule = BatchRenameCore.Rule()
+    prefixRule.prefix = "x-"
+    let released = try! BatchRenameCore.plan(
+        urls: [URL(fileURLWithPath: "/tmp/a.txt"),
+               URL(fileURLWithPath: "/tmp/x-a.txt")],
+        rule: prefixRule,
+        existingNamesByDirectory: [URL(fileURLWithPath: "/tmp"): ["a.txt", "x-a.txt"]]).get()
+    check("改名：批次内源名释放", released.allSatisfy { $0.conflict == nil })
+
+    let emptyRule = BatchRenameCore.Rule(find: "A", replacement: "")
+    let emptyPlan = try! BatchRenameCore.plan(
+        urls: [URL(fileURLWithPath: "/tmp/A.txt")],
+        rule: emptyRule, existingNamesByDirectory: [:] ).get()
+    eq("改名：空名冲突", emptyPlan.first?.conflict, .empty)
+
+    var badRegex = BatchRenameCore.Rule()
+    badRegex.find = "("
+    badRegex.useRegex = true
+    switch BatchRenameCore.plan(urls: [source], rule: badRegex,
+                                existingNamesByDirectory: [:]) {
+    case .failure: check("改名：非法正则报错", true)
+    case .success: check("改名：非法正则报错", false)
+    }
+
+    // 归档路径安全
+    eq("归档：正常路径", ArchiveCore.safeEntryPath("a/b.txt"), "a/b.txt")
+    eq("归档：多斜杠归一", ArchiveCore.safeEntryPath("a//b"), "a/b")
+    check("归档：拒绝 ..", ArchiveCore.safeEntryPath("../x") == nil)
+    check("归档：拒绝绝对路径", ArchiveCore.safeEntryPath("/etc/passwd") == nil)
+    check("归档：拒绝嵌套 ..", ArchiveCore.safeEntryPath("a/../../b") == nil)
+    check("归档：拒绝反斜杠", ArchiveCore.safeEntryPath("a\\b") == nil)
+    check("归档：拒绝点段", ArchiveCore.safeEntryPath("a/./b") == nil)
+    check("归档：拒绝空", ArchiveCore.safeEntryPath("") == nil)
+    check("归档：拒绝冒号", ArchiveCore.safeEntryPath("a:b") == nil)
+    eq("归档：清单首个不安全", ArchiveCore.firstUnsafeEntry(["a.txt", "../b"]), "../b")
+    eq("归档：命名 zip", ArchiveCore.archiveFileName(sourceName: "Photos", format: .zip),
+       "Photos.zip")
+    eq("归档：命名 tar.gz", ArchiveCore.archiveFileName(sourceName: "a.txt", format: .tarGz),
+       "a.txt.tar.gz")
+
+    // 可编程注册表
+    let names = ToolboxRuntimeCore.toolNames
+    eq("运行时：名称唯一", Set(names).count, names.count)
+    check("运行时：目录非空", names.count >= 40)
+    eq("运行时：base64 编码",
+       ToolboxRuntimeCore.run(tool: "base64", args: ["text": "hi"]).text, "aGk=")
+    eq("运行时：base64 解码",
+       ToolboxRuntimeCore.run(tool: "base64",
+                              args: ["text": "aGk=", "mode": "decode"]).text, "hi")
+    eq("运行时：SHA-256",
+       ToolboxRuntimeCore.run(tool: "hash",
+                              args: ["text": "abc", "algorithm": "sha256"]).text,
+       "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad")
+    eq("运行时：单位换算",
+       ToolboxRuntimeCore.run(tool: "units",
+                              args: ["value": "1", "from": "km", "to": "m",
+                                     "category": "length"]).text, "1000")
+    check("运行时：JSON 排序",
+          ToolboxRuntimeCore.run(tool: "json",
+                                 args: ["text": "{\"b\":1,\"a\":2}", "mode": "sort"])
+            .text
+            .range(of: "\"a\"")!.lowerBound
+            < ToolboxRuntimeCore.run(tool: "json",
+                                     args: ["text": "{\"b\":1,\"a\":2}", "mode": "sort"])
+                .text.range(of: "\"b\"")!.lowerBound)
+    eq("运行时：chmod",
+       ToolboxRuntimeCore.run(tool: "chmod", args: ["value": "755"]).text
+        .contains("symbolic: rwxr-xr-x"), true)
+    eq("运行时：Base32",
+       ToolboxRuntimeCore.run(tool: "base32", args: ["text": "f"]).text, "MY======")
+    eq("运行时：JSONPath",
+       ToolboxRuntimeCore.run(tool: "jsonPath",
+                              args: ["json": "{\"a\":1}", "path": "$.a"]).text, "1")
+    eq("运行时：简转繁",
+       ToolboxRuntimeCore.run(tool: "zhConvert", args: ["text": "汉字"]).text, "漢字")
+    check("运行时：TOTP",
+          ToolboxRuntimeCore.run(tool: "totp",
+                                 args: ["secret": "GEZDGNBVGY3TQOJQ"]).text.count == 6)
+    check("运行时：对比度",
+          ToolboxRuntimeCore.run(tool: "contrast",
+                                 args: ["foreground": "#000000",
+                                        "background": "#FFFFFF"]).text.contains("21.00"))
+    eq("运行时：文本大写",
+       ToolboxRuntimeCore.run(tool: "text",
+                              args: ["text": "hello", "operation": "upper"]).text, "HELLO")
+    eq("运行时：正则替换",
+       ToolboxRuntimeCore.run(tool: "regexReplace",
+                              args: ["text": "a1", "pattern": "\\d", "template": "x"]).text,
+       "ax")
+    check("运行时：浮点位模式",
+          ToolboxRuntimeCore.run(tool: "floatBits",
+                                 args: ["value": "1.0", "width": "32"]).text
+            .contains("0x3f800000"))
+    eq("运行时：ULID 条数",
+       ToolboxRuntimeCore.run(tool: "ulid", args: ["count": "3"]).text
+        .components(separatedBy: "\n").count, 3)
+    let unknown = ToolboxRuntimeCore.run(tool: "nope", args: [:])
+    check("运行时：未知工具报错", !unknown.ok && unknown.text.hasPrefix("Error: "))
+}
+
 
 
 

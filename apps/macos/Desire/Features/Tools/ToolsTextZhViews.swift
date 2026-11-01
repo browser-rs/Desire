@@ -157,6 +157,7 @@ struct ZhConvertToolView: View {
             .labelsHidden()
             .frame(maxWidth: 360)
             ToolEditor(title: String(localized: "Input"), text: $input, height: 120)
+                .toolboxTextSeed(.zhConvert, into: $input)
             Button(String(localized: "Convert")) { convert() }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -196,6 +197,7 @@ struct PinyinToolView: View {
             .labelsHidden()
             .frame(maxWidth: 300)
             ToolEditor(title: String(localized: "Input"), text: $input, height: 100)
+                .toolboxTextSeed(.pinyin, into: $input)
             Button(String(localized: "Convert")) {
                 output = ZhTextCore.pinyin(input, style: style)
             }

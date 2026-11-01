@@ -85988,6 +85988,138 @@
           }
         }
       }
+    },
+    "81 tools, one window" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "81 tools, one window"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "81 个工具，一个窗口"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "81 個工具，一個視窗"
+          }
+        }
+      }
+    },
+    "PDF merge/split/rotate, on-device OCR, subtitle conversion, batch rename, archives, TOTP, time zones, Chinese conversion and more — all local, searchable, and one ⌘K away." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF merge/split/rotate, on-device OCR, subtitle conversion, batch rename, archives, TOTP, time zones, Chinese conversion and more — all local, searchable, and one ⌘K away."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF 合并/拆分/旋转、端上 OCR、字幕转换、批量重命名、压缩解压、TOTP、时区、简繁转换等——全部本机运行，可搜索，⌘K 一键直达。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF 合併/拆分/旋轉、端上 OCR、字幕轉換、批次重新命名、壓縮解壓、TOTP、時區、簡繁轉換等——全部本機執行，可搜尋，⌘K 一鍵直達。"
+          }
+        }
+      }
+    },
+    "The Toolbox is callable" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Toolbox is callable"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具箱可被调用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "工具箱可被呼叫"
+          }
+        }
+      }
+    },
+    "The Agent can run 48 pure utilities directly, deep links prefill a tool, and selected text or clipboard entries open it in one click. Send a result to another tool — or continue it as an Agent conversation." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The Agent can run 48 pure utilities directly, deep links prefill a tool, and selected text or clipboard entries open it in one click. Send a result to another tool — or continue it as an Agent conversation."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 可直接调用 48 个纯工具；深链可预填工具；选中文本或剪贴板条目一键打开。结果可发送到另一个工具，或直接继续问 Agent。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Agent 可直接呼叫 48 個純工具；深鏈可預填工具；選取文字或剪貼簿項目一鍵開啟。結果可傳送到另一個工具，或直接繼續問 Agent。"
+          }
+        }
+      }
+    },
+    "Built for a big screen" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Built for a big screen"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "为大屏重做布局"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "為大螢幕重做佈局"
+          }
+        }
+      }
+    },
+    "The grid now fills wide windows with up to 8 columns, forms center at a readable width, and editor/file tools get a wider canvas." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The grid now fills wide windows with up to 8 columns, forms center at a readable width, and editor/file tools get a wider canvas."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "网格在宽窗口中最多排 8 列；表单以可读宽度居中；编辑器/文件类工具获得更宽的画布。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "網格在寬視窗中最多排 8 欄；表單以可讀寬度居中；編輯器/檔案類工具獲得更大的畫布。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

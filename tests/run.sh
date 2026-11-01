@@ -245,6 +245,13 @@ SOURCES=(
   apps/macos/Desire/Features/Tools/MediaEditCore.swift
   apps/macos/Desire/Features/Browsing/SubtitleCore.swift
   apps/macos/Desire/Features/Tools/PDFToolCore.swift
+  apps/macos/Desire/Features/Tools/Base32Core.swift
+  apps/macos/Desire/Features/Tools/TOTPCore.swift
+  apps/macos/Desire/Features/Tools/JSONPathCore.swift
+  apps/macos/Desire/Features/Tools/StructuredDataCore.swift
+  apps/macos/Desire/Features/Tools/ChmodCore.swift
+  apps/macos/Desire/Features/Tools/FloatBitsCore.swift
+  apps/macos/Desire/Features/Tools/ULIDCore.swift
   apps/macos/Desire/Features/Tools/TimelineCore.swift
   apps/macos/Desire/Features/Tools/WaveformCore.swift
   apps/macos/Desire/Features/AddressBar/URLBatch.swift

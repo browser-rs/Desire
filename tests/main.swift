@@ -8152,6 +8152,7 @@ func testMediaEditCore() {
 testToolboxBatch2Cores()
 testMediaEditCore()
 testDocumentBatchCores()
+testToolboxDataCores()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
@@ -8241,4 +8242,160 @@ func testDocumentBatchCores() {
     eq("字幕：双语合并文本", merged.first?.text ?? "", "Hello\n你好")
     eq("字幕：无重叠保留", merged.last?.text ?? "", "独立")
 }
+
+// ---------- 开发批（v0.8.33）：Base32 / TOTP / JSONPath / 结构化 / chmod / 浮点 / ULID ----------
+
+func testToolboxDataCores() {
+    // Base32
+    eq("Base32：f", Base32Core.encode(Data("f".utf8)), "MY======")
+    eq("Base32：foobar", Base32Core.encode(Data("foobar".utf8)), "MZXW6YTBOI======")
+    eq("Base32：解码小写+空白",
+       Base32Core.decode("mzxw 6ytb-oi======").map { String(data: $0, encoding: .utf8) } ?? nil,
+       "foobar")
+    eq("Base32：TOTP 密钥", Base32Core.decode("GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ")
+        .map { String(data: $0, encoding: .utf8) } ?? nil, "12345678901234567890")
+    check("Base32：非法字符", Base32Core.decode("MZXW6YTB1") == nil)
+    check("Base32：非法长度", Base32Core.decode("A") == nil)
+
+    // TOTP（RFC 6238 测试向量，T=59 → counter=1）
+    let sha1Key = Data("12345678901234567890".utf8)
+    let sha256Key = Data("12345678901234567890123456789012".utf8)
+    let sha512Key = Data("1234567890123456789012345678901234567890123456789012345678901234".utf8)
+    eq("TOTP：SHA1 向量",
+       TOTPCore.code(key: sha1Key, counter: 1, digits: 8, algorithm: .sha1) ?? "",
+       "94287082")
+    eq("TOTP：SHA256 向量",
+       TOTPCore.code(key: sha256Key, counter: 1, digits: 8, algorithm: .sha256) ?? "",
+       "46119246")
+    eq("TOTP：SHA512 向量",
+       TOTPCore.code(key: sha512Key, counter: 1, digits: 8, algorithm: .sha512) ?? "",
+       "90693936")
+    eq("TOTP：Base32 入口 + 时间",
+       TOTPCore.code(secret: Base32Core.encode(sha1Key),
+                     date: Date(timeIntervalSince1970: 59), digits: 8) ?? "",
+       "94287082")
+    eq("TOTP：步数", TOTPCore.counter(for: Date(timeIntervalSince1970: 59), period: 30), 1)
+    eq("TOTP：剩余秒", TOTPCore.secondsRemaining(
+        for: Date(timeIntervalSince1970: 59), period: 30), 1)
+    eq("TOTP：整窗剩余秒", TOTPCore.secondsRemaining(
+        for: Date(timeIntervalSince1970: 60), period: 30), 30)
+    check("TOTP：非法位数", TOTPCore.code(key: sha1Key, counter: 1, digits: 7) == nil)
+
+    // JSONPath
+    let jsonText = "{\"a\":{\"b\":[1,2,{\"c\":3}]},\"x\":1}"
+    let root = try! JSONSerialization.jsonObject(with: Data(jsonText.utf8))
+    func q(_ path: String) -> [Any] { JSONPathCore.query(root, path: path) ?? [] }
+    eq("JSONPath：数组下标", q("$.a.b[0]").count, 1)
+    eq("JSONPath：数组下标值", (q("$.a.b[0]").first as? NSNumber)?.intValue ?? -1, 1)
+    eq("JSONPath：通配", q("$.a.b[*]").count, 3)
+    eq("JSONPath：递归", q("$..c").count, 1)
+    eq("JSONPath：混合", (q("$.a.b[2].c").first as? NSNumber)?.intValue ?? -1, 3)
+    eq("JSONPath：引号键", (q("$['x']").first as? NSNumber)?.intValue ?? -1, 1)
+    eq("JSONPath：无命中", q("$.missing").count, 0)
+    eq("JSONPath：负下标", q("$.a.b[-1]").count, 1)
+    check("JSONPath：语法错误", JSONPathCore.query(root, path: "a.b") == nil)
+    check("JSONPath：展示单值", JSONPathCore.display(q("$.a.b[0]"))?.contains("1") == true)
+    check("JSONPath：展示数组", JSONPathCore.display(q("$.a.b[*]"))?.contains("[") == true)
+
+    // 结构化数据
+    let xml = try! StructuredDataCore.jsonToPlist("{\"a\":1}", format: .xml)
+    check("结构化：XML 头", String(data: xml, encoding: .utf8)?.contains("<?xml") == true)
+    let back = try! StructuredDataCore.plistToJSON(xml)
+    let backObject = try! JSONSerialization.jsonObject(with: Data(back.utf8)) as! [String: Any]
+    eq("结构化：plist 回 JSON", (backObject["a"] as? NSNumber)?.intValue ?? -1, 1)
+    let binary = try! StructuredDataCore.jsonToPlist("{\"a\":1}", format: .binary)
+    check("结构化：二进制 plist", binary.count > 8
+        && String(data: Data(binary.prefix(6)), encoding: .utf8) == "bplist")
+    var nullRejected = false
+    do { _ = try StructuredDataCore.jsonToPlist("{\"a\":null}", format: .xml) }
+    catch { nullRejected = true }
+    check("结构化：null 拒绝", nullRejected)
+
+    let yaml = """
+    name: Desire
+    version: 1
+    tags:
+      - tools
+      - pdf
+    nested:
+      enabled: true
+      ratio: 2.5
+    list:
+      - name: x
+        age: 3
+      - name: y
+    inline: [1, 2, 3]
+    """
+    let yamlJSON = try! StructuredDataCore.yamlToJSON(yaml)
+    let yamlObject = try! JSONSerialization.jsonObject(with: Data(yamlJSON.utf8)) as! [String: Any]
+    eq("YAML：字符串", yamlObject["name"] as? String, "Desire")
+    eq("YAML：整数", (yamlObject["version"] as? NSNumber)?.intValue ?? -1, 1)
+    eq("YAML：序列", (yamlObject["tags"] as? [Any])?.count ?? -1, 2)
+    let nested = yamlObject["nested"] as? [String: Any]
+    eq("YAML：布尔", nested?["enabled"] as? Bool, true)
+    eq("YAML：浮点", (nested?["ratio"] as? NSNumber)?.doubleValue ?? -1, 2.5)
+    let list = yamlObject["list"] as? [Any]
+    eq("YAML：映射序列条数", list?.count ?? -1, 2)
+    let first = list?.first as? [String: Any]
+    eq("YAML：映射序列首键", first?["name"] as? String, "x")
+    eq("YAML：映射序列次键", (first?["age"] as? NSNumber)?.intValue ?? -1, 3)
+    eq("YAML：行内数组", (yamlObject["inline"] as? [Any])?.count ?? -1, 3)
+    var yamlRejected = false
+    do { _ = try StructuredDataCore.yamlToJSON("a: |\n  x\n") }
+    catch { yamlRejected = true }
+    check("YAML：块标量拒绝", yamlRejected)
+
+    // chmod
+    eq("chmod：755 符号", ChmodCore.symbolicString(ChmodCore.parseOctal("755")!), "rwxr-xr-x")
+    eq("chmod：4755 符号", ChmodCore.symbolicString(ChmodCore.parseOctal("4755")!),
+       "rwsr-xr-x")
+    eq("chmod：2755 符号", ChmodCore.symbolicString(ChmodCore.parseOctal("2755")!),
+       "rwxr-sr-x")
+    eq("chmod：1777 符号", ChmodCore.symbolicString(ChmodCore.parseOctal("1777")!),
+       "rwxrwxrwt")
+    eq("chmod：0644 归一", ChmodCore.octalString(ChmodCore.parseOctal("0644")!), "644")
+    eq("chmod：符号解析", ChmodCore.octalString(ChmodCore.parseSymbolic("rw-r--r--")!), "644")
+    check("chmod：setuid 解析", ChmodCore.parseSymbolic("rwsr-xr-x")?.setuid == true)
+    eq("chmod：绝对符号", ChmodCore.absoluteSymbolic(ChmodCore.parseOctal("755")!),
+       "u=rwx,g=rx,o=rx")
+    check("chmod：非法八进制", ChmodCore.parseOctal("999") == nil)
+    check("chmod：非法符号", ChmodCore.parseSymbolic("rwx") == nil)
+
+    // IEEE 754
+    eq("浮点：float32 1.0", FloatBitsCore.float32Bits(1), 0x3F80_0000)
+    eq("浮点：float64 1.0", FloatBitsCore.float64Bits(1), 0x3FF0_0000_0000_0000)
+    eq("浮点：float32 -2.0", FloatBitsCore.float32Bits(-2), 0xC000_0000)
+    eq("浮点：十六进制格式", FloatBitsCore.hex(0x3F80_0000, width: 32), "0x3f800000")
+    eq("浮点：十六进制解析", FloatBitsCore.parseHex("0x3f800000", width: 32), 0x3F80_0000)
+    eq("浮点：位还原", FloatBitsCore.float32(fromBits: 0x3F80_0000), 1)
+    let fields = FloatBitsCore.decompose32(0x3F80_0000)
+    eq("浮点：指数位", fields.exponent, 127)
+    eq("浮点：尾数", fields.mantissa, 0)
+    eq("浮点：有效指数", FloatBitsCore.unbiasedExponent(fields) ?? 99, 0)
+    check("浮点：Infinity", FloatBitsCore.decompose32(FloatBitsCore.float32Bits(.infinity)).isInfinite)
+    check("浮点：NaN", FloatBitsCore.decompose32(FloatBitsCore.float32Bits(.nan)).isNaN)
+    eq("浮点：小端", FloatBitsCore.littleEndianBits(0x3F80_0000, width: 32), 0x0000_803F)
+    check("浮点：NaN 文本", FloatBitsCore.parseDecimal("nan")?.isNaN == true)
+
+    // ULID
+    let zeros = Array(repeating: UInt8(0), count: 10)
+    eq("ULID：零值", ULIDCore.encode(milliseconds: 0, randomness: zeros),
+       "00000000000000000000000000")
+    eq("ULID：毫秒 1", ULIDCore.encode(milliseconds: 1, randomness: zeros),
+       "00000000010000000000000000")
+    let decodedULID = ULIDCore.decode("01ARZ3NDEKTSV4RRFFQ69G5FAV")
+    eq("ULID：已知毫秒", decodedULID?.milliseconds ?? 0, 1_469_922_850_259)
+    check("ULID：已知往返", decodedULID.flatMap {
+        ULIDCore.encode(milliseconds: $0.milliseconds, randomness: $0.randomness)
+    } == "01ARZ3NDEKTSV4RRFFQ69G5FAV")
+    let early = ULIDCore.encode(milliseconds: 1000, randomness: zeros)!
+    let later = ULIDCore.encode(milliseconds: 2000, randomness: zeros)!
+    check("ULID：字典序", early < later)
+    eq("ULID：递增", ULIDCore.increment(randomness: zeros).last ?? 0, 1)
+    eq("ULID：递增溢出",
+       ULIDCore.increment(randomness: Array(repeating: 0xFF, count: 10)),
+       zeros)
+    check("ULID：拒绝非法字符", ULIDCore.decode("U1ARZ3NDEKTSV4RRFFQ69G5FAV") == nil)
+}
+
 

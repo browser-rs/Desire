@@ -3,6 +3,8 @@
 
 - Toolbox: a Documents category with a full PDF workbench — merge (ordering, outline preservation), split by page ranges (`1-3,5,8-`) or one file per page, rotate 90°/180°/270°, export pages to PNG/JPEG at 72/144/300 DPI, and combine images into a PDF (A4 fit or original size). Encrypted PDFs prompt for a password, outputs never overwrite existing files, and every operation runs off the main thread with progress (v0.8.33)
 - Toolbox: on-device OCR for images, PDFs and the clipboard (Vision, Chinese + English) and a subtitle converter — SRT / VTT / ASS round-trip, millisecond timing shift, and bilingual track merge (v0.8.33)
+- Toolbox: a developer batch — Base32, TOTP (Base32 secret, HMAC-SHA1/256/512, 30/60s, 6/8 digits, memory-only), JSONPath queries, JSON ↔ plist (XML/binary), YAML → JSON for the common block subset, chmod (octal ↔ rwx ↔ symbolic), IEEE 754 bit patterns with endianness/fields, and monotonically increasing ULIDs (v0.8.33)
+
 
 
 ## [v0.8.32] - 2026-11-01

@@ -188,3 +188,27 @@ ToolboxComponents；目录与元数据在 ToolboxCatalog）。
   （SRT/VTT/ASS、时间平移、双语合并）都进 `tests/run.sh`。
 - **OCR 与截图 OCR 同源**：复用 `VisionOCRService` 的中英识别配置；PDF 逐页渲染
   （默认 200 DPI）后识别，无文字的页不算失败。
+
+## 开发批（73 项，v0.8.33）
+| id | 工具 | 说明 |
+|---|---|---|
+| base32 | Base32 | RFC 4648 编解码；忽略空白/连字符/大小写，TOTP 密钥可直接粘贴 |
+| totp | TOTP | Base32 密钥 + HMAC-SHA1/256/512，30/60 秒、6/8 位；密钥只在内存，不落盘不日志 |
+| jsonPath | JSONPath | `$.a.b[0]`、`[*]`、`.*`、`..key`、`$['a.b']`；结果单条输出原值、多条输出数组 |
+| structuredData | 结构化数据 | JSON → plist（XML/binary）、plist → JSON、YAML → JSON 常见子集 |
+| chmod | 权限 | 八进制 ↔ rwx 勾选 ↔ 符号式；含 setuid/setgid/sticky |
+| floatBits | IEEE 754 | float32/64 ↔ 十进制/十六进制、大小端、符号/指数/尾数 |
+| ulid | ULID | 48 位毫秒 + 80 位随机，Crockford Base32 26 字符，同毫秒单调递增 |
+
+实现约定：
+
+- **TOTP 测试向量**：RFC 6238 的 SHA1/SHA256/SHA512 三条 8 位向量进 harness；
+  `secondsRemaining` 用整秒取模（窗口边界返回整窗）。
+- **YAML 只做常见子集**：块映射/序列、引号字符串、数字/布尔/null、行内数组；
+  锚点、别名、标签、块标量、行内对象一律报行号错误——不做"猜"。
+- **plist 的 JSON 不可表示类型**：Date → ISO8601 字符串、Data → base64；
+  JSON 的 null 无法存进 plist，明确报错。
+- **ULID 单调性**：同一毫秒内 80 位随机数递增（溢出回退为全零，实际不可达）；
+  字典序即时间序。
+- **纯逻辑**：Base32Core / TOTPCore / JSONPathCore / StructuredDataCore /
+  ChmodCore / FloatBitsCore / ULIDCore 全部进 `tests/run.sh`。

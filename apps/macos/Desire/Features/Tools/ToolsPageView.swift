@@ -328,6 +328,13 @@ struct ToolsPageView: View {
         case .imagesToPDF: ImagesToPDFToolView()
         case .imageOCR: ImageOCRToolView()
         case .subtitle: SubtitleToolView()
+        case .base32: Base32ToolView()
+        case .totp: TOTPToolView()
+        case .jsonPath: JSONPathToolView()
+        case .structuredData: StructuredDataToolView()
+        case .chmod: ChmodToolView()
+        case .floatBits: FloatBitsToolView()
+        case .ulid: ULIDToolView()
         }
     }
 

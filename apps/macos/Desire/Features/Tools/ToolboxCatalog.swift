@@ -72,6 +72,8 @@ enum ToolID: String, CaseIterable, Identifiable {
     // 文档批（v0.8.33）：PDF / OCR / 字幕
     case pdfMerge, pdfSplit, pdfRotate, pdfToImages, imagesToPDF
     case imageOCR, subtitle
+    // 开发批（v0.8.33）：Base32 / TOTP / JSONPath / 结构化 / chmod / 浮点 / ULID
+    case base32, totp, jsonPath, structuredData, chmod, floatBits, ulid
 
     var id: String { rawValue }
 
@@ -81,6 +83,7 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .timestamp, .date, .units, .number, .color: return .time
         case .base64, .url, .html, .unicode, .hex: return .codec
         case .hash, .json, .regex, .jwt, .uuid: return .dev
+        case .base32, .totp, .jsonPath, .structuredData, .chmod, .floatBits, .ulid: return .dev
         case .text: return .text
         case .qr, .password, .random: return .generate
         case .videoEditor, .audioEditor, .imageConvert, .subtitle: return .media
@@ -164,6 +167,13 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .imagesToPDF: return String(localized: "Images to PDF")
         case .imageOCR: return String(localized: "Text Recognition (OCR)")
         case .subtitle: return String(localized: "Subtitle Converter")
+        case .base32: return String(localized: "Base32")
+        case .totp: return String(localized: "TOTP")
+        case .jsonPath: return String(localized: "JSONPath")
+        case .structuredData: return String(localized: "Structured Data")
+        case .chmod: return String(localized: "chmod")
+        case .floatBits: return String(localized: "IEEE 754")
+        case .ulid: return String(localized: "ULID")
         }
     }
 
@@ -235,6 +245,13 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .imagesToPDF: return String(localized: "Combine images into one PDF (A4 fit or original size)")
         case .imageOCR: return String(localized: "Recognize text in images and PDFs on this Mac (Chinese + English)")
         case .subtitle: return String(localized: "Convert SRT / VTT / ASS, shift timing or merge a bilingual track")
+        case .base32: return String(localized: "RFC 4648 Base32 encoding and decoding")
+        case .totp: return String(localized: "Time-based one-time codes from a Base32 secret, computed on this Mac")
+        case .jsonPath: return String(localized: "Query JSON with a JSONPath subset")
+        case .structuredData: return String(localized: "Convert JSON to plist (XML/binary), plist to JSON, or YAML to JSON")
+        case .chmod: return String(localized: "Convert between octal, rwx flags and symbolic permissions")
+        case .floatBits: return String(localized: "Inspect float32/float64 bit patterns, endianness and fields")
+        case .ulid: return String(localized: "Generate sortable ULIDs (48-bit timestamp + 80-bit randomness)")
         }
     }
 
@@ -306,6 +323,13 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .imagesToPDF: return "doc.richtext"
         case .imageOCR: return "text.viewfinder"
         case .subtitle: return "captions.bubble"
+        case .base32: return "textformat.abc"
+        case .totp: return "clock.arrow.circlepath"
+        case .jsonPath: return "curlybraces.square"
+        case .structuredData: return "doc.on.doc"
+        case .chmod: return "lock.rectangle"
+        case .floatBits: return "number.square"
+        case .ulid: return "list.number"
         }
     }
 
@@ -379,6 +403,13 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .imagesToPDF: keywords = ["图片", "pdf", "合成", "相册", "转换"]
         case .imageOCR: keywords = ["ocr", "识别", "文字", "提取", "图片", "pdf", "text recognition"]
         case .subtitle: keywords = ["字幕", "srt", "vtt", "ass", "转换", "双语", "偏移", "subtitle"]
+        case .base32: keywords = ["base32", "编码", "解码", "totp"]
+        case .totp: keywords = ["totp", "动态验证码", "两步验证", "2fa", "验证码"]
+        case .jsonPath: keywords = ["jsonpath", "json", "查询", "路径"]
+        case .structuredData: keywords = ["plist", "yaml", "json", "转换", "结构化", "配置文件"]
+        case .chmod: keywords = ["chmod", "权限", "755", "rwx", "unix"]
+        case .floatBits: keywords = ["ieee", "浮点", "float", "位模式", "十六进制"]
+        case .ulid: keywords = ["ulid", "唯一", "id", "时间序"]
         }
         return ([rawValue, title, subtitle] + keywords).joined(separator: " ")
     }

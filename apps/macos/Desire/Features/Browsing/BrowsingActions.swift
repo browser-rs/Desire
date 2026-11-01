@@ -188,7 +188,7 @@ extension BrowsingActions {
         tab.toolsPageSelection = nil
         tab.browser.internalPage = nil
         let ext = url.pathExtension.lowercased()
-        if ext == "epub" || ext == "txt" {
+        if ["epub", "txt", "cbz", "mobi", "azw3"].contains(ext) {
             tab.browser.ebookViewerFileName = url.lastPathComponent
             tab.browser.ebookViewerFileURL = url
             return true

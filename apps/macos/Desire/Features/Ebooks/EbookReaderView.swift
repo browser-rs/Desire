@@ -599,7 +599,11 @@ struct EbookFileReaderView: View {
     var body: some View {
         Group {
             if let book {
-                EbookReaderView(book: book, onBack: onBack)
+                if book.format == .cbz {
+                    EbookComicReaderView(book: book, onBack: onBack)
+                } else {
+                    EbookReaderView(book: book, onBack: onBack)
+                }
             } else if let error {
                 VStack(spacing: 10) {
                     Image(systemName: "exclamationmark.triangle")

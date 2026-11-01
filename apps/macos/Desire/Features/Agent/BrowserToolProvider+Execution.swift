@@ -345,6 +345,23 @@ extension BrowserToolProvider {
                 }
             }
             return ToolboxRuntimeCore.run(tool: tool, args: strings).text
+        case "listBooks":
+            return EbookAgentTools.listBooks()
+        case "readBook":
+            return await EbookAgentTools.readBook(
+                book: args["book"] as? String,
+                chapters: args["chapters"] as? String,
+                maxChars: (args["maxChars"] as? Int) ?? 12_000)
+        case "searchBook":
+            guard let query = args["query"] as? String else {
+                return Self.fail("Missing query")
+            }
+            return await EbookAgentTools.searchBook(
+                book: args["book"] as? String,
+                query: query,
+                limit: (args["limit"] as? Int) ?? 20)
+        case "getBookOutline":
+            return await EbookAgentTools.outline(book: args["book"] as? String)
         default:
             // MCP-bridged tools ride the same dispatch path with the same
             // approval gating as built-ins.

@@ -1756,6 +1756,36 @@ extension BrowserToolProvider {
                     "arguments": AgentJSONSchemaValue(type: "string", description: "JSON object of string arguments, e.g. {\"text\":\"hello\",\"mode\":\"encode\"}. Booleans/numbers may be passed as strings."),
                 ], required: ["tool"])
             )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listBooks",
+                description: "List the user's local ebook library (id, title, author, format, progress, chapter count). Use the id or a title fragment as `book` in the other book tools. Defaults to the most recently read book when omitted.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "readBook",
+                description: "Read plain text from a local EPUB/TXT ebook, chapter by chapter, with [chN] citations. `book` can be an id, id prefix or title fragment; omitted = most recently read. Use before summarizing or answering questions about the book.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "book": AgentJSONSchemaValue(type: "string", description: "Book id, id prefix or title fragment (optional)"),
+                    "chapters": AgentJSONSchemaValue(type: "string", description: "Chapter range like \"1-3,5\" or \"all\" (default all)"),
+                    "maxChars": AgentJSONSchemaValue(type: "number", description: "Max characters returned (default 12000, max 40000)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "searchBook",
+                description: "Search inside a local EPUB/TXT ebook and return chapter + snippet hits. Use to locate a passage before reading it with readBook.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "book": AgentJSONSchemaValue(type: "string", description: "Book id/title fragment (optional; default most recent)"),
+                    "query": AgentJSONSchemaValue(type: "string", description: "Text to find"),
+                    "limit": AgentJSONSchemaValue(type: "number", description: "Max hits (default 20, max 100)"),
+                ], required: ["query"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "getBookOutline",
+                description: "Return the table of contents (nested titles + [chN]) of a local ebook. Pair with readBook's chapter range.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "book": AgentJSONSchemaValue(type: "string", description: "Book id/title fragment (optional; default most recent)"),
+                ])
+            )),
                 ]
     }()
 

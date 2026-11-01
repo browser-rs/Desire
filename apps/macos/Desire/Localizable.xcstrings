@@ -87132,6 +87132,94 @@
           }
         }
       }
+    },
+    "MOBI/AZW3 needs Calibre's ebook-convert. Install Calibre and try again." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MOBI/AZW3 needs Calibre's ebook-convert. Install Calibre and try again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MOBI/AZW3 需要 Calibre 的 ebook-convert，请安装 Calibre 后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "MOBI/AZW3 需要 Calibre 的 ebook-convert，請安裝 Calibre 後重試。"
+          }
+        }
+      }
+    },
+    "Ebook conversion failed: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ebook conversion failed: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "电子书转换失败：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "電子書轉換失敗：%@"
+          }
+        }
+      }
+    },
+    "This comic archive has no readable images." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This comic archive has no readable images."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个漫画压缩包没有可读图片。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個漫畫壓縮檔沒有可讀圖片。"
+          }
+        }
+      }
+    },
+    "Import EPUB, TXT or CBZ files to start reading. MOBI/AZW3 need Calibre." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import EPUB, TXT or CBZ files to start reading. MOBI/AZW3 need Calibre."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入 EPUB、TXT 或 CBZ 开始阅读；MOBI/AZW3 需要 Calibre。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入 EPUB、TXT 或 CBZ 開始閱讀；MOBI/AZW3 需要 Calibre。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

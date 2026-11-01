@@ -279,7 +279,7 @@ struct SelectedTabContent: View {
 
     static func isOpenableFile(_ url: URL) -> Bool {
         switch url.pathExtension.lowercased() {
-        case "pdf", "html", "htm", "xhtml", "epub",
+        case "pdf", "html", "htm", "xhtml", "epub", "cbz", "mobi", "azw3",
              "mp4", "m4v", "mov", "webm", "mp3", "m4a", "wav", "aac",
              "flac", "aiff", "aif", "caf",
              "png", "jpg", "jpeg", "gif", "webp", "svg", "txt":
@@ -428,10 +428,19 @@ struct SelectedTabContent: View {
                 ToolsPageView(initialTool: tab.toolsPageSelection)
             } else if let bookID = tab.browser.ebookViewerBookID {
                 if let book = EbookLibraryStore.shared.book(id: bookID) {
-                    EbookReaderView(book: book, onBack: {
-                        tab.browser.ebookViewerBookID = nil
-                        tab.browser.internalPage = .books
-                    })
+                    Group {
+                        if book.format == .cbz {
+                            EbookComicReaderView(book: book, onBack: {
+                                tab.browser.ebookViewerBookID = nil
+                                tab.browser.internalPage = .books
+                            })
+                        } else {
+                            EbookReaderView(book: book, onBack: {
+                                tab.browser.ebookViewerBookID = nil
+                                tab.browser.internalPage = .books
+                            })
+                        }
+                    }
                 } else {
                     VStack(spacing: 10) {
                         Text(String(localized: "This book is no longer in your library."))

@@ -5,6 +5,8 @@
 - Browser: local .epub/.txt files open in the ebook reader from the address bar, drag-and-drop or download, and `desire://books` opens the library; imported books are copied into the app's library and the original file is never modified (v0.8.34)
 - Books: real paged reading — chapters are split into pages at paragraph boundaries, with a CSS 3D page-flip animation, left/right tap zones, page indicator, per-page progress and a Paged/Scroll switch (paged is the default); jumping back from a chapter's first page lands on the previous chapter's last page (v0.8.34)
 - Books: in-book search across all chapters with snippets, jump-to-page and yellow match highlighting; persistent bookmarks (add/remove/jump, listed under Contents ▸ Bookmarks); a selection toolbar with Highlight, Note, Copy, Speak and Ask Agent — highlights and notes land in the existing Excerpts library (v0.8.34)
+- Books: CBZ comic reading (image archive extracted and paged left/right), MOBI/AZW3 import by converting through Calibre's optional ebook-convert when installed (clear error if missing; DRM not supported), and four Agent tools — listBooks, readBook (chapter ranges with [chN]), searchBook and getBookOutline — so the assistant can read and answer from the local library (v0.8.34)
+
 
 
 

@@ -133,7 +133,7 @@ struct EbookLibraryView: View {
                  ? String(localized: "Your library is empty")
                  : String(localized: "No matching books"))
                 .font(.system(size: 14, weight: .medium))
-            Text(String(localized: "Import EPUB or TXT files to start reading."))
+            Text(String(localized: "Import EPUB, TXT or CBZ files to start reading. MOBI/AZW3 need Calibre."))
                 .font(.system(size: 11.5))
                 .foregroundStyle(.secondary)
             if store.books.isEmpty {
@@ -193,7 +193,11 @@ struct EbookLibraryView: View {
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
-        panel.allowedContentTypes = [.epub, .plainText]
+        var types: [UTType] = [.epub, .plainText]
+        for ext in ["cbz", "mobi", "azw3"] {
+            if let type = UTType(filenameExtension: ext) { types.append(type) }
+        }
+        panel.allowedContentTypes = types
         guard panel.runModal() == .OK else { return }
         let urls = panel.urls
         guard !urls.isEmpty else { return }

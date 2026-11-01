@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "wrench.and.screwdriver.fill", title: String(localized: "81 tools, one window"),
-                  detail: String(localized: "PDF merge/split/rotate, on-device OCR, subtitle conversion, batch rename, archives, TOTP, time zones, Chinese conversion and more — all local, searchable, and one ⌘K away.")),
-            .init(icon: "sparkles", title: String(localized: "The Toolbox is callable"),
-                  detail: String(localized: "The Agent can run 48 pure utilities directly, deep links prefill a tool, and selected text or clipboard entries open it in one click. Send a result to another tool — or continue it as an Agent conversation.")),
-            .init(icon: "rectangle.inset.filled", title: String(localized: "Built for a big screen"),
-                  detail: String(localized: "The grid now fills wide windows with up to 8 columns, forms center at a readable width, and editor/file tools get a wider canvas.")),
+            .init(icon: "books.vertical.fill", title: String(localized: "A real ebook reader"),
+                  detail: String(localized: "Import EPUB 2/3 and TXT into a cover library; read in a paged layout with a 3D page-flip, table of contents, progress restore and four paper themes.")),
+            .init(icon: "highlighter", title: String(localized: "Read with search and notes"),
+                  detail: String(localized: "Search the whole book with highlighted hits, bookmark pages, and select text to highlight, note, copy, speak or ask the Agent — highlights land in Excerpts.")),
+            .init(icon: "book.closed", title: String(localized: "Beyond EPUB"),
+                  detail: String(localized: "CBZ comics read page by page; MOBI/AZW3 import through Calibre when installed; the Agent gains listBooks, readBook, searchBook and getBookOutline.")),
         ]
     }
 

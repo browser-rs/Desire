@@ -87220,6 +87220,138 @@
           }
         }
       }
+    },
+    "A real ebook reader" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "A real ebook reader"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "真正的电子书阅读器"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "真正的電子書閱讀器"
+          }
+        }
+      }
+    },
+    "Import EPUB 2/3 and TXT into a cover library; read in a paged layout with a 3D page-flip, table of contents, progress restore and four paper themes." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import EPUB 2/3 and TXT into a cover library; read in a paged layout with a 3D page-flip, table of contents, progress restore and four paper themes."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EPUB 2/3 与 TXT 导入封面书架；分页排版 + 3D 书页翻页、目录、进度恢复与四种纸色主题。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EPUB 2/3 與 TXT 匯入封面書架；分頁排版 + 3D 書頁翻頁、目錄、進度恢復與四種紙色主題。"
+          }
+        }
+      }
+    },
+    "Read with search and notes" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read with search and notes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "边读边搜、边读边记"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "邊讀邊搜、邊讀邊記"
+          }
+        }
+      }
+    },
+    "Search the whole book with highlighted hits, bookmark pages, and select text to highlight, note, copy, speak or ask the Agent — highlights land in Excerpts." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search the whole book with highlighted hits, bookmark pages, and select text to highlight, note, copy, speak or ask the Agent — highlights land in Excerpts."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全书搜索并高亮命中、给页面加书签；划词可高亮、记笔记、复制、朗读或问 Agent——高亮直接进入摘录库。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全書搜尋並高亮命中、為頁面加書籤；選取文字可高亮、記筆記、複製、朗讀或問 Agent——高亮直接進入摘錄庫。"
+          }
+        }
+      }
+    },
+    "Beyond EPUB" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Beyond EPUB"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不止 EPUB"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不只 EPUB"
+          }
+        }
+      }
+    },
+    "CBZ comics read page by page; MOBI/AZW3 import through Calibre when installed; the Agent gains listBooks, readBook, searchBook and getBookOutline." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CBZ comics read page by page; MOBI/AZW3 import through Calibre when installed; the Agent gains listBooks, readBook, searchBook and getBookOutline."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CBZ 漫画逐页阅读；装了 Calibre 可导入 MOBI/AZW3；Agent 新增 listBooks、readBook、searchBook、getBookOutline。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "CBZ 漫畫逐頁閱讀；裝了 Calibre 可匯入 MOBI/AZW3；Agent 新增 listBooks、readBook、searchBook、getBookOutline。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

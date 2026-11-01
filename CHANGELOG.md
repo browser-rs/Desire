@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- Books: changing theme, font size or search-jumping within the same chapter now refreshes the reader — a same-path temporary HTML file was not reloaded by WKWebView; each reload gets a unique file (v0.8.34)
+
 ### Added
 
 - Books: a library and reader for local ebooks — EPUB 2/3 (container/OPF/spine, NCX and EPUB3 nav TOC, cover, chapter navigation, progress restore) and plain TXT (UTF-8/UTF-16/GB18030 detection, chapter splitting by headings or size), with a cover grid, search, import dedupe and four reading themes (v0.8.34)

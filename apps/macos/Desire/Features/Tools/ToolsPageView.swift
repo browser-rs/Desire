@@ -12,9 +12,12 @@ struct ToolsPageView: View {
     /// 靠左（maxWidth 900/940 + alignment .leading），2560pt 窗口右侧留下
     /// 一大片空白；首页网格也只会排 4 列。
     private enum Layout {
-        static let detailMaxWidth: CGFloat = 1120
-        static let homeMaxWidth: CGFloat = 1560
-        static let cardMinWidth: CGFloat = 230
+        /// 表单类工具：可读优先，宽屏居中后不显得散。
+        static let formMaxWidth: CGFloat = 820
+        /// 编辑器/文件/表格类：需要横向空间。
+        static let wideMaxWidth: CGFloat = 1320
+        static let homeMaxWidth: CGFloat = 2200
+        static let cardMinWidth: CGFloat = 240
         static let cardMaxWidth: CGFloat = 360
     }
 
@@ -256,13 +259,32 @@ struct ToolsPageView: View {
                 VStack(alignment: .leading, spacing: 16) {
                     detailHeader(selected)
                     toolView(selected)
+                        .padding(18)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55)))
+                        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .strokeBorder(Color(nsColor: .separatorColor).opacity(0.35),
+                                          lineWidth: 0.5))
                 }
                 .padding(24)
-                .frame(maxWidth: Layout.detailMaxWidth, alignment: .leading)
+                .frame(maxWidth: detailWidth(selected), alignment: .leading)
                 .frame(maxWidth: .infinity, alignment: .center)
             }
         } else {
             homeGrid
+        }
+    }
+
+    /// 表单类 820；编辑器/文件/表格类 1320（宽屏下不再把表单扔在左边）。
+    private func detailWidth(_ tool: ToolID) -> CGFloat {
+        switch tool {
+        case .videoEditor, .audioEditor,
+             .batchRename, .archive,
+             .json, .csvJSON, .structuredData, .diff, .markdown, .xml:
+            return Layout.wideMaxWidth
+        default:
+            return Layout.formMaxWidth
         }
     }
 

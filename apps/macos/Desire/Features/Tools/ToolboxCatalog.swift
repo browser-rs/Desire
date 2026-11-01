@@ -332,7 +332,7 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .ascii: return "textformat.size"
         case .lorem: return "text.justify"
         case .httpHeaders: return "list.bullet.rectangle"
-        case .fileInfo: return "doc.badge.gearshape.2"
+        case .fileInfo: return "doc.text.magnifyingglass"
         case .discount: return "percent"
         case .billSplit: return "person.2"
         case .barcode: return "barcode"

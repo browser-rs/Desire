@@ -158,6 +158,26 @@ enum EbookAgentTools {
         }
     }
 
+    /// 保存一段章节级笔记/摘要到摘录库（不回锚到正文，避免伪造 quote）。
+    static func addBookNote(book: String?, chapter: Int?, content: String) -> String {
+        guard let selected = resolve(book) else { return fail("no matching ebook") }
+        let text = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return fail("content is empty") }
+        let count = max(1, selected.chapterCount)
+        let chapterIndex = max(0, min((chapter ?? 1) - 1, count - 1))
+        let root = EbookImporter.rootDirectory
+            .appendingPathComponent(selected.containerDirectory, isDirectory: true)
+        let added = ExcerptStore.shared.add(
+            kind: .readerHighlight,
+            title: "\(selected.title) · Chapter \(chapterIndex + 1)",
+            source: root.path,
+            content: text,
+            note: "AI summary")
+        return added
+            ? "Saved the note to Excerpts (\(selected.title), chapter \(chapterIndex + 1))."
+            : "This note is already in Excerpts."
+    }
+
     // MARK: - 解析
 
     private static func resolve(_ raw: String?) -> Ebook? {

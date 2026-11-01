@@ -1807,6 +1807,15 @@ extension BrowserToolProvider {
                 description: "Save the current tab's article (reader-mode text) as an offline book in the local library; remote images are localized and the same URL is deduplicated. Navigate the tab to the article first if needed.",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "addBookNote",
+                description: "Save a chapter-level note or summary into the user's Excerpts library (a note, not an anchored highlight). Use after summarizing a chapter when the user wants the summary kept.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "book": AgentJSONSchemaValue(type: "string", description: "Book id/title fragment (optional; default the book currently being read)"),
+                    "chapter": AgentJSONSchemaValue(type: "number", description: "1-based chapter number (optional; default 1)"),
+                    "content": AgentJSONSchemaValue(type: "string", description: "Note or summary text"),
+                ], required: ["content"])
+            )),
                 ]
     }()
 

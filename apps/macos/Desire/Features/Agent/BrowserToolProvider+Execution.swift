@@ -372,6 +372,14 @@ extension BrowserToolProvider {
                 limit: (args["limit"] as? Int) ?? 50)
         case "saveWebPageToLibrary":
             return await EbookAgentTools.saveWebPageToLibrary()
+        case "addBookNote":
+            guard let content = args["content"] as? String else {
+                return Self.fail("Missing content")
+            }
+            return EbookAgentTools.addBookNote(
+                book: args["book"] as? String,
+                chapter: args["chapter"] as? Int,
+                content: content)
         default:
             // MCP-bridged tools ride the same dispatch path with the same
             // approval gating as built-ins.

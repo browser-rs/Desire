@@ -12,6 +12,8 @@
 - Books: keyboard control — left/right arrows and space turn pages, ⌘F searches, ⌘=/⌘- change text size and Escape closes panels or the selection card (v0.8.35)
 - Books: the Agent now knows the book you are reading — a `<current_book>` layer carries title/author/chapter/progress, and three new tools let it open a book at a chapter (`openBook`), list your highlights and notes (`listBookHighlights`) and save the current page's article as an offline book (`saveWebPageToLibrary`) (v0.8.35)
 - Bridge: `GET /books` lists the local library, `POST /books/import-web` saves an HTML article as an offline book and `POST /books/remove` removes one (for automation and QA) (v0.8.35)
+- Books: the reader's "Summarize Chapter" action seeds the Agent with the current chapter and asks it to save the summary through `addBookNote`, which lands in Excerpts as a chapter-level note (v0.8.35)
+
 
 
 

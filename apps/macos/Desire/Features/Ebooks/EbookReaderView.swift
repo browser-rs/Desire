@@ -175,6 +175,13 @@ struct EbookReaderView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help(String(localized: "Notes & Highlights"))
+            Button { summarizeChapter() } label: {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 12))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(String(localized: "Summarize Chapter"))
             Menu {
                 if speech.isSpeaking {
                     Button(speech.isPaused
@@ -817,6 +824,23 @@ struct EbookReaderView: View {
         speech.onFinish = nil
         speech.onSpeakRange = nil
         speech.stop()
+    }
+
+    private func summarizeChapter() {
+        let text = model.chapterPlainText
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            showToast(String(localized: "Nothing to read"))
+            return
+        }
+        let excerpt = String(text.prefix(12_000))
+        let prompt = """
+        Summarize chapter \(model.currentChapter + 1) ("\(model.chapterTitle)") of "\(book.title)" in 5 bullet points, then quote 3 key passages. After that, call addBookNote with the summary text so it is saved to Excerpts.
+
+        <chapter>
+        \(excerpt)
+        </chapter>
+        """
+        AgentDraftInbox.shared.send(prompt)
     }
 
     private func openSearch() {

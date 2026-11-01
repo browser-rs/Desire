@@ -442,10 +442,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         Log.app.info("desire:// registration skipped in debug build")
         #else
         let registerStatus = LSRegisterURL(Bundle.main.bundleURL as CFURL, true)
-        let current = LSCopyDefaultHandlerForURLScheme("desire" as CFString)?
-            .takeRetainedValue() as String?
+        // LSCopyDefaultHandlerForURLScheme 在 10.15 已废弃；用 NSWorkspace 的
+        // 等价查询（scheme-only URL 的默认处理程序，无则 nil）。
+        let probe = URL(string: "desire://") ?? URL(string: "desire:")!
+        let currentApp = NSWorkspace.shared.urlForApplication(toOpen: probe)
+        let current = currentApp?.path
         var defaultStatus: OSStatus = 0
-        if current == nil {
+        if currentApp == nil {
             defaultStatus = LSSetDefaultHandlerForURLScheme(
                 "desire" as CFString, "me.siwi.Desire" as CFString)
         }

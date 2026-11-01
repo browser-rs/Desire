@@ -51,6 +51,17 @@ struct Ebook: Codable, Identifiable, Equatable, Sendable {
     var fileSize: Int64
     var chapterCount: Int
     var hash: String
+    /// 书架组织（v0.8.35）：收藏与自定义分组。optional 保证旧 library JSON 解码。
+    var isFavorite: Bool? = nil
+    var collection: String? = nil
+
+    var favorite: Bool { isFavorite ?? false }
+
+    var collectionName: String? {
+        guard let name = collection?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !name.isEmpty else { return nil }
+        return name
+    }
 
     var authorOrUnknown: String {
         author.isEmpty ? String(localized: "Unknown author") : author

@@ -5,6 +5,12 @@
 - Books: export a book's notes and highlights (or the whole library) to Markdown with chapter titles, quotes, notes and dates, or copy the current book's notes to the clipboard (v0.8.35)
 - Books: Markdown and HTML files import into the library — Markdown splits by headings and renders images/quotes/lists/code blocks, HTML keeps its article structure, and relative images are copied into the book so they still render after import; `.md` files open in the reader from the address bar or drag-and-drop (v0.8.35)
 - Browser: reader mode gains "Save to Books" — the extracted article becomes an offline HTML book in the library, with remote images fetched through the page's cookies/referer and rewritten locally; saving the same URL again reuses the existing book instead of duplicating it (v0.8.35)
+- Books: read a chapter aloud — on-device speech follows the page as it reads, pauses/resumes, and continues into the next chapter when the current one finishes; selecting text and tapping Speak still reads just the passage (v0.8.35)
+- Books: translate a selected passage with Apple's on-device Translation framework — the result appears in a card with Copy and Save to Excerpts, and language packs are handled by the system (v0.8.35)
+- Books: the library gains favorites, custom collections, book/author renaming and sorting by recently read, date added, title, author or progress; books keep their own last-used font size, theme and layout (v0.8.35)
+- Books: reading stats — per-day reading time and page turns with a total/weekly/streak/finished summary, a 14-day bar chart and a most-read list, shown from the library header (v0.8.35)
+- Books: keyboard control — left/right arrows and space turn pages, ⌘F searches, ⌘=/⌘- change text size and Escape closes panels or the selection card (v0.8.35)
+
 
 
 ### Fixed

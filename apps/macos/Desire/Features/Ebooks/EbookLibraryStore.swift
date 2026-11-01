@@ -42,6 +42,33 @@ final class EbookLibraryStore: ObservableObject {
         save()
     }
 
+    func setFavorite(_ id: UUID, _ value: Bool) {
+        guard let index = books.firstIndex(where: { $0.id == id }) else { return }
+        books[index].isFavorite = value
+        save()
+    }
+
+    func setCollection(_ id: UUID, _ name: String?) {
+        guard let index = books.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = name?.trimmingCharacters(in: .whitespacesAndNewlines)
+        books[index].collection = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        save()
+    }
+
+    func rename(_ id: UUID, title: String, author: String) {
+        guard let index = books.firstIndex(where: { $0.id == id }) else { return }
+        let trimmedTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmedTitle.isEmpty { books[index].title = trimmedTitle }
+        books[index].author = author.trimmingCharacters(in: .whitespacesAndNewlines)
+        save()
+    }
+
+    var collections: [String] {
+        Array(Set(books.compactMap(\.collectionName))).sorted {
+            $0.localizedStandardCompare($1) == .orderedAscending
+        }
+    }
+
     /// 直接登记一本已写好书库目录的书（v0.8.35 网页存书用）。
     func register(_ book: Ebook) {
         if let index = books.firstIndex(where: { $0.id == book.id }) {

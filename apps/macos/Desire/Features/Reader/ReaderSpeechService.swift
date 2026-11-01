@@ -14,7 +14,12 @@ final class ReaderSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
     @Published private(set) var isSpeaking = false
     @Published private(set) var isPaused = false
 
+    /// 电子书整章朗读（v0.8.35）：自然读完时推进下一章；阅读模式不设这两个回调。
+    var onFinish: (() -> Void)?
+    var onSpeakRange: ((_ location: Int, _ length: Int, _ total: Int) -> Void)?
+
     private let synthesizer = AVSpeechSynthesizer()
+    private var currentTextLength = 0
 
     private override init() {
         super.init()
@@ -35,6 +40,7 @@ final class ReaderSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         let utterance = AVSpeechUtterance(string: trimmed)
+        currentTextLength = (trimmed as NSString).length
         // 语种：CJK 字符占比 > 30% 用中文 voice，否则英文。混合文本合成器
         // 会自动切换内嵌语种，voice 只决定主语言。
         let cjk = trimmed.filter { $0.isCJK }.count
@@ -67,8 +73,20 @@ final class ReaderSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
     nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
                                        didFinish utterance: AVSpeechUtterance) {
         Task { @MainActor [weak self] in
-            self?.isSpeaking = false
-            self?.isPaused = false
+            guard let self else { return }
+            self.isSpeaking = false
+            self.isPaused = false
+            self.onFinish?()
+        }
+    }
+
+    nonisolated func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer,
+                                       willSpeakRangeOfSpeechString characterRange: NSRange,
+                                       utterance: AVSpeechUtterance) {
+        Task { @MainActor [weak self] in
+            guard let self, let onSpeakRange = self.onSpeakRange else { return }
+            onSpeakRange(characterRange.location, characterRange.length,
+                         self.currentTextLength)
         }
     }
 

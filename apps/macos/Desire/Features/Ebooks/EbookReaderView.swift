@@ -1,6 +1,9 @@
 import AppKit
+import NaturalLanguage
 import SwiftUI
+import Translation
 import UniformTypeIdentifiers
+import _Translation_SwiftUI
 
 /// 电子书阅读器（v0.8.34 批次一）：EPUB/TXT 章节阅读、目录、进度、主题。
 struct EbookReaderView: View {
@@ -20,12 +23,18 @@ struct EbookReaderView: View {
     let onBack: () -> Void
 
     @StateObject private var model: EbookReaderModel
+    @ObservedObject private var speech = ReaderSpeechService.shared
     @State private var sheetTab: SheetTab = .contents
     @State private var searchText = ""
     @State private var didSearch = false
     @State private var noteText = ""
     @State private var showNotePrompt = false
     @State private var toast: String?
+    @State private var translationText = ""
+    @State private var translatedText: String?
+    @State private var translationError: String?
+    @State private var isTranslating = false
+    @State private var translationConfig: TranslationSession.Configuration?
     @FocusState private var searchFocused: Bool
 
     init(book: Ebook, onBack: @escaping () -> Void) {
@@ -43,7 +52,43 @@ struct EbookReaderView: View {
             bottomBar
         }
         .background(Color(nsColor: .textBackgroundColor))
+        .background {
+            VStack {
+                Button("") { model.previousPage() }
+                    .keyboardShortcut(.leftArrow, modifiers: [])
+                Button("") { model.nextPage() }
+                    .keyboardShortcut(.rightArrow, modifiers: [])
+                Button("") { model.nextPage() }
+                    .keyboardShortcut(.space, modifiers: [])
+                Button("") { openSearch() }
+                    .keyboardShortcut("f", modifiers: .command)
+                Button("") { model.applyFontSize(model.fontSize + 1) }
+                    .keyboardShortcut("=", modifiers: .command)
+                Button("") { model.applyFontSize(model.fontSize - 1) }
+                    .keyboardShortcut("-", modifiers: .command)
+                Button("") { closeOverlays() }
+                    .keyboardShortcut(.escape, modifiers: [])
+            }
+            .opacity(0)
+            .allowsHitTesting(false)
+        }
         .task { await model.load() }
+        .translationTask(translationConfig) { session in
+            let text = translationText
+            guard !text.isEmpty else { return }
+            do {
+                let response = try await session.translate(text)
+                await MainActor.run {
+                    translatedText = response.targetText
+                    isTranslating = false
+                }
+            } catch {
+                await MainActor.run {
+                    translationError = error.localizedDescription
+                    isTranslating = false
+                }
+            }
+        }
         .sheet(isPresented: $model.showTOC) { tocSheet }
         .sheet(isPresented: $model.showSearch) { searchSheet }
         .sheet(isPresented: $model.showNotes) {
@@ -85,7 +130,18 @@ struct EbookReaderView: View {
                     .padding(.top, 8)
             }
         }
-        .onDisappear { model.saveProgress(force: true) }
+        .overlay(alignment: .top) {
+            if isTranslating || translatedText != nil || translationError != nil {
+                translationCard
+                    .padding(.top, 44)
+            }
+        }
+        .onAppear { model.startReadingSession() }
+        .onDisappear {
+            stopReadingAloud()
+            model.endReadingSession()
+            model.saveProgress(force: true)
+        }
     }
 
     private var header: some View {
@@ -116,6 +172,27 @@ struct EbookReaderView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help(String(localized: "Notes & Highlights"))
+            Menu {
+                if speech.isSpeaking {
+                    Button(speech.isPaused
+                           ? String(localized: "Resume Reading")
+                           : String(localized: "Pause Reading")) {
+                        speech.togglePause()
+                    }
+                    Button(String(localized: "Stop Reading")) { stopReadingAloud() }
+                } else {
+                    Button(String(localized: "Read Chapter Aloud")) { startReadingAloud() }
+                }
+            } label: {
+                Image(systemName: speech.isSpeaking
+                      ? "speaker.wave.2.fill" : "speaker.wave.2")
+                    .font(.system(size: 12))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .foregroundStyle(speech.isSpeaking
+                             ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+            .help(String(localized: "Read aloud"))
             Button {
                 searchText = model.searchQuery
                 didSearch = false
@@ -534,6 +611,128 @@ struct EbookReaderView: View {
         }
     }
 
+    // MARK: - 划词翻译
+
+    private func translateSelection(_ selection: EbookSelection) {
+        let text = selection.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else { return }
+        model.clearSelection()
+        translationText = text
+        translatedText = nil
+        translationError = nil
+        isTranslating = true
+        let source = detectLanguage(text)
+        let system = Locale.Language(identifier: Locale.preferredLanguages.first ?? "en")
+        let target: Locale.Language
+        if let source, source.languageCode == system.languageCode {
+            target = Locale.Language(identifier: "en")
+        } else {
+            target = system
+        }
+        var config = TranslationSession.Configuration(source: source, target: target)
+        config.invalidate()
+        translationConfig = config
+    }
+
+    private func detectLanguage(_ text: String) -> Locale.Language? {
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        guard let identifier = recognizer.dominantLanguage?.rawValue else { return nil }
+        return Locale.Language(identifier: identifier)
+    }
+
+    private var translationCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "character.bubble")
+                    .font(.system(size: 11))
+                    .foregroundStyle(appAccent)
+                Text(String(localized: "Translation"))
+                    .font(.system(size: 11.5, weight: .semibold))
+                Spacer()
+                Button {
+                    closeTranslation()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+            Text(translationText)
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+                .lineLimit(3)
+            Divider()
+            if isTranslating {
+                HStack(spacing: 6) {
+                    ProgressView().controlSize(.small)
+                    Text(String(localized: "Translating…"))
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            } else if let translationError {
+                Text(translationError)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red)
+                    .textSelection(.enabled)
+            } else if let translatedText {
+                ScrollView {
+                    Text(translatedText)
+                        .font(.system(size: 12))
+                        .textSelection(.enabled)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(maxHeight: 180)
+            }
+            if translatedText != nil {
+                HStack(spacing: 8) {
+                    Button(String(localized: "Copy")) { copyTranslation() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    Button(String(localized: "Save to Excerpts")) {
+                        saveTranslationToExcerpts()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    Spacer()
+                }
+            }
+        }
+        .padding(12)
+        .frame(width: 420)
+        .background(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(.regularMaterial))
+        .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+        .shadow(color: .black.opacity(0.18), radius: 12, y: 5)
+    }
+
+    private func copyTranslation() {
+        guard let translatedText else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(translatedText, forType: .string)
+        showToast(String(localized: "Copied"))
+    }
+
+    private func saveTranslationToExcerpts() {
+        guard let translatedText else { return }
+        let added = ExcerptStore.shared.add(
+            kind: .readerHighlight, title: book.title, source: model.bookRoot.path,
+            content: translationText, note: translatedText)
+        showToast(added ? String(localized: "Saved to Excerpts")
+                        : String(localized: "Already in Excerpts"))
+    }
+
+    private func closeTranslation() {
+        translationConfig = nil
+        translationText = ""
+        translatedText = nil
+        translationError = nil
+        isTranslating = false
+    }
+
     private func selectionToolbar(_ selection: EbookSelection) -> some View {
         HStack(spacing: 12) {
             Button {
@@ -555,13 +754,20 @@ struct EbookReaderView: View {
                 Label(String(localized: "Copy"), systemImage: "doc.on.doc")
             }
             Button {
-                if ReaderSpeechService.shared.isSpeaking {
-                    ReaderSpeechService.shared.stop()
+                speech.onFinish = nil
+                speech.onSpeakRange = nil
+                if speech.isSpeaking {
+                    speech.stop()
                 } else {
-                    ReaderSpeechService.shared.speak(selection.text)
+                    speech.speak(selection.text)
                 }
             } label: {
                 Label(String(localized: "Speak"), systemImage: "speaker.wave.2")
+            }
+            Button {
+                translateSelection(selection)
+            } label: {
+                Label(String(localized: "Translate"), systemImage: "character.bubble")
             }
             Button {
                 AgentDraftInbox.shared.send(
@@ -584,7 +790,47 @@ struct EbookReaderView: View {
         .overlay(RoundedRectangle(cornerRadius: 9, style: .continuous)
             .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
         .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
-        .frame(maxWidth: 560)
+        .frame(maxWidth: 660)
+    }
+
+    private func startReadingAloud() {
+        let text = model.chapterPlainText
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            showToast(String(localized: "Nothing to read"))
+            return
+        }
+        speech.onFinish = {
+            if model.speechAdvanceChapter() {
+                startReadingAloud()
+            }
+        }
+        speech.onSpeakRange = { location, _, total in
+            model.speechProgress(location: location, total: total)
+        }
+        speech.speak(text)
+    }
+
+    private func stopReadingAloud() {
+        speech.onFinish = nil
+        speech.onSpeakRange = nil
+        speech.stop()
+    }
+
+    private func openSearch() {
+        searchText = model.searchQuery
+        didSearch = false
+        model.showSearch = true
+    }
+
+    private func closeOverlays() {
+        if model.showNotes { model.showNotes = false; return }
+        if model.showSearch { model.showSearch = false; return }
+        if model.showTOC { model.showTOC = false; return }
+        if translatedText != nil || isTranslating || translationError != nil {
+            closeTranslation()
+            return
+        }
+        model.clearSelection()
     }
 
     private func addHighlight(_ selection: EbookSelection, note: String?) {

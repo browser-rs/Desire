@@ -93,13 +93,22 @@ final class EbookReaderModel: ObservableObject {
     @Published private(set) var error: String?
     @Published var pageTurnRequest: EbookPageTurnRequest?
     @Published var layoutMode: LayoutMode {
-        didSet { UserDefaults.standard.set(layoutMode.rawValue, forKey: Self.layoutKey) }
+        didSet {
+            UserDefaults.standard.set(layoutMode.rawValue, forKey: Self.layoutKey)
+            UserDefaults.standard.set(layoutMode.rawValue, forKey: settingsPrefix + "layout")
+        }
     }
     @Published var fontSize: Double {
-        didSet { UserDefaults.standard.set(fontSize, forKey: Self.fontSizeKey) }
+        didSet {
+            UserDefaults.standard.set(fontSize, forKey: Self.fontSizeKey)
+            UserDefaults.standard.set(fontSize, forKey: settingsPrefix + "fontSize")
+        }
     }
     @Published var theme: Theme {
-        didSet { UserDefaults.standard.set(theme.rawValue, forKey: Self.themeKey) }
+        didSet {
+            UserDefaults.standard.set(theme.rawValue, forKey: Self.themeKey)
+            UserDefaults.standard.set(theme.rawValue, forKey: settingsPrefix + "theme")
+        }
     }
     @Published var showTOC = false
     @Published private(set) var bookmarks: [EbookBookmark] = []
@@ -119,12 +128,17 @@ final class EbookReaderModel: ObservableObject {
     private weak var webView: WKWebView?
     private var restoreRatio: Double?
     private var lastSaved = Date.distantPast
+    private var statsSessionStart: Date?
+    private var statsPagesSinceFlush = 0
+    private var statsTimer: Timer?
+    private var lastSpeechSeek = Date.distantPast
     private var chapterTextCache: [EbookSearchCore.ChapterText]?
     private var pendingSearchQuery: String?
     private var pendingRevealHighlightID: UUID?
     private var loadGeneration = 0
     private var webViewReadyGeneration = -1
     private var bookmarkKey: String { "ebook.bookmarks.\(book.id.uuidString)" }
+    private var settingsPrefix: String { "ebook.settings.\(book.id.uuidString)." }
 
     var chapterCount: Int {
         max(1, chapters.isEmpty ? txtChapters.count : chapters.count)
@@ -145,6 +159,20 @@ final class EbookReaderModel: ObservableObject {
         self.layoutMode = LayoutMode(
             rawValue: UserDefaults.standard.string(forKey: Self.layoutKey) ?? "")
             ?? .paged
+        // 按书覆写（v0.8.35）：这本书上次用过的排版优先于全局默认。
+        let prefix = "ebook.settings.\(book.id.uuidString)."
+        if let size = UserDefaults.standard.object(forKey: prefix + "fontSize") as? Double,
+           size >= 12, size <= 32 {
+            self.fontSize = size
+        }
+        if let raw = UserDefaults.standard.string(forKey: prefix + "theme"),
+           let value = Theme(rawValue: raw) {
+            self.theme = value
+        }
+        if let raw = UserDefaults.standard.string(forKey: prefix + "layout"),
+           let value = LayoutMode(rawValue: raw) {
+            self.layoutMode = value
+        }
         self.bookmarks = DiskStore.load([EbookBookmark].self,
                                         key: "ebook.bookmarks.\(book.id.uuidString)") ?? []
         self.highlights = EbookHighlightStore.load(book.id)
@@ -319,12 +347,14 @@ final class EbookReaderModel: ObservableObject {
 
     func nextChapter() {
         guard currentChapter + 1 < chapterCount else { return }
+        stopSpeechForNavigation()
         saveProgress(force: true)
         loadChapter(currentChapter + 1, restoreRatio: 0)
     }
 
     func previousChapter() {
         guard currentChapter > 0 else { return }
+        stopSpeechForNavigation()
         saveProgress(force: true)
         loadChapter(currentChapter - 1, restoreRatio: 0)
     }
@@ -332,6 +362,7 @@ final class EbookReaderModel: ObservableObject {
     /// 分页模式：下一页；章末自动进下一章。
     func nextPage() {
         clearSelection()
+        stopSpeechForNavigation()
         guard layoutMode == .paged else { nextChapter(); return }
         guard pageIndex + 1 < pageCount else {
             nextChapter()
@@ -341,12 +372,14 @@ final class EbookReaderModel: ObservableObject {
         pageIndex = target
         updatePageProgress()
         pageTurnRequest = EbookPageTurnRequest(id: UUID(), target: target, forward: true)
+        notePageTurned()
         saveProgress(force: true)
     }
 
     /// 分页模式：上一页；章首回上一章末页。
     func previousPage() {
         clearSelection()
+        stopSpeechForNavigation()
         guard layoutMode == .paged else { previousChapter(); return }
         guard pageIndex > 0 else {
             guard currentChapter > 0 else { return }
@@ -391,6 +424,7 @@ final class EbookReaderModel: ObservableObject {
     func jump(toChapter index: Int) {
         clearSelection()
         guard index != currentChapter else { return }
+        stopSpeechForNavigation()
         saveProgress(force: true)
         loadChapter(index, restoreRatio: 0)
     }
@@ -467,6 +501,90 @@ final class EbookReaderModel: ObservableObject {
             chapterProgress: chapterProgress, overall: overallProgress)
     }
 
+    // MARK: - 阅读统计
+
+    func startReadingSession() {
+        guard statsSessionStart == nil else { return }
+        statsSessionStart = Date()
+        let timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.flushReadingTime()
+            }
+        }
+        statsTimer = timer
+    }
+
+    func flushReadingTime() {
+        guard let start = statsSessionStart else { return }
+        let seconds = Int(Date().timeIntervalSince(start).rounded())
+        statsSessionStart = Date()
+        let pages = statsPagesSinceFlush
+        statsPagesSinceFlush = 0
+        guard seconds > 0 || pages > 0 else { return }
+        ReadingStatsStore.shared.add(bookID: book.id, seconds: seconds, pages: pages)
+    }
+
+    func endReadingSession() {
+        flushReadingTime()
+        statsSessionStart = nil
+        statsTimer?.invalidate()
+        statsTimer = nil
+    }
+
+    private func notePageTurned() {
+        statsPagesSinceFlush += 1
+    }
+
+    // MARK: - 整章朗读
+
+    private func stopSpeechForNavigation() {
+        NotificationCenter.default.post(name: Notification.Name("readerSpeechStop"),
+                                        object: nil)
+    }
+
+    /// 当前章纯文本（EPUB/HTML 从文件剥标签，TXT 直接取，Markdown 先转 HTML 再剥）。
+    var chapterPlainText: String {
+        switch book.format {
+        case .txt, .markdown:
+            guard txtChapters.indices.contains(currentChapter) else { return "" }
+            let raw = txtChapters[currentChapter].text
+            if book.format == .markdown {
+                return EbookSearchCore.plainText(fromHTML: MarkdownHTMLCore.html(raw))
+            }
+            return raw
+        case .epub, .html:
+            guard chapters.indices.contains(currentChapter) else { return "" }
+            let file = bookRoot.appendingPathComponent(chapters[currentChapter].href)
+            guard let data = try? Data(contentsOf: file) else { return "" }
+            let html = String(data: data, encoding: .utf8)
+                ?? String(data: data, encoding: .isoLatin1) ?? ""
+            return EbookSearchCore.plainText(fromHTML: html)
+        default:
+            return ""
+        }
+    }
+
+    var hasNextChapter: Bool {
+        currentChapter + 1 < chapterCount
+    }
+
+    /// 朗读进度 → 翻页/滚动位置（节流，避免逐词触发大量重排）。
+    func speechProgress(location: Int, total: Int) {
+        guard total > 0 else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastSpeechSeek) > 0.5 else { return }
+        lastSpeechSeek = now
+        seek(to: Double(location) / Double(total))
+    }
+
+    /// 整章读完：进下一章（调用方随后重新朗读）。
+    @discardableResult
+    func speechAdvanceChapter() -> Bool {
+        guard hasNextChapter else { return false }
+        nextChapter()
+        return true
+    }
+
     // MARK: - 书签
 
     var isCurrentBookmarked: Bool {
@@ -505,6 +623,7 @@ final class EbookReaderModel: ObservableObject {
     }
 
     func jumpToBookmark(_ bookmark: EbookBookmark) {
+        stopSpeechForNavigation()
         pendingSearchQuery = nil
         loadChapter(bookmark.chapterIndex, restoreRatio: bookmark.chapterProgress)
         if layoutMode == .paged {
@@ -602,6 +721,7 @@ final class EbookReaderModel: ObservableObject {
         showNotes = false
         focusedHighlightID = highlight.id
         if highlight.chapterIndex != currentChapter {
+            stopSpeechForNavigation()
             loadChapter(highlight.chapterIndex, restoreRatio: highlight.chapterProgress)
         }
         pendingRevealHighlightID = highlight.id
@@ -685,6 +805,7 @@ final class EbookReaderModel: ObservableObject {
     func jump(to hit: EbookSearchCore.Hit) {
         showSearch = false
         clearSelection()
+        stopSpeechForNavigation()
         pendingSearchQuery = searchQuery
         loadChapter(hit.chapterIndex, restoreRatio: 0)
     }

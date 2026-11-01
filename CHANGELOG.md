@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.34] - 2026-11-01
 ### Fixed
 
 - Books: changing theme, font size or search-jumping within the same chapter now refreshes the reader — a same-path temporary HTML file was not reloaded by WKWebView; each reload gets a unique file (v0.8.34)

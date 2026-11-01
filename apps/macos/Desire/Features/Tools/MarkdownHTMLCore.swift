@@ -1,7 +1,7 @@
 import Foundation
 
-/// 极简 Markdown → HTML（标题/列表/粗斜体/行内代码/链接/代码块/分隔线）。
-/// 覆盖工具箱"预览/复制 HTML"场景，不追求完整 GFM。
+/// 极简 Markdown → HTML（标题/列表/引用/图片/粗斜体/行内代码/链接/代码块/分隔线）。
+/// 覆盖工具箱"预览/复制 HTML"与电子书 Markdown 阅读，不追求完整 GFM。
 nonisolated enum MarkdownHTMLCore {
     static func html(_ markdown: String) -> String {
         let lines = markdown.components(separatedBy: "\n")
@@ -10,10 +10,10 @@ nonisolated enum MarkdownHTMLCore {
         var inCode = false
         var codeBuffer: [String] = []
         while index < lines.count {
-            let line = lines[index]
+            let line = lines[index].trimmingCharacters(in: .whitespaces)
             if line.hasPrefix("```") {
                 if inCode {
-                    out.append("<pre><code>" + codeBuffer.joined(separator: "\n") + "</code></pre>")
+                    out.append("<pre><code>" + escape(codeBuffer.joined(separator: "\n")) + "</code></pre>")
                     codeBuffer = []
                     inCode = false
                 } else {
@@ -23,19 +23,35 @@ nonisolated enum MarkdownHTMLCore {
                 continue
             }
             if inCode {
-                codeBuffer.append(line)
+                codeBuffer.append(lines[index])
                 index += 1
                 continue
             }
-            if line.hasPrefix("### ") { out.append("<h3>" + inline(String(line.dropFirst(4))) + "</h3>") }
+            if line.hasPrefix("#### ") { out.append("<h4>" + inline(String(line.dropFirst(5))) + "</h4>") }
+            else if line.hasPrefix("### ") { out.append("<h3>" + inline(String(line.dropFirst(4))) + "</h3>") }
             else if line.hasPrefix("## ") { out.append("<h2>" + inline(String(line.dropFirst(3))) + "</h2>") }
             else if line.hasPrefix("# ") { out.append("<h1>" + inline(String(line.dropFirst(2))) + "</h1>") }
-            else if line == "---" { out.append("<hr>") }
-            else if line.hasPrefix("- ") || line.hasPrefix("* ") {
+            else if line == "---" || line == "***" || line == "___" { out.append("<hr>") }
+            else if line.hasPrefix(">") {
+                var quoted: [String] = []
+                while index < lines.count {
+                    let candidate = lines[index].trimmingCharacters(in: .whitespaces)
+                    guard candidate.hasPrefix(">") else { break }
+                    var content = String(candidate.dropFirst())
+                    if content.hasPrefix(" ") { content.removeFirst() }
+                    quoted.append(inline(content))
+                    index += 1
+                }
+                out.append("<blockquote><p>" + quoted.joined(separator: "<br>") + "</p></blockquote>")
+                continue
+            }
+            else if line.hasPrefix("- ") || line.hasPrefix("* ") || line.hasPrefix("+ ") {
                 var items: [String] = []
-                while index < lines.count,
-                      lines[index].hasPrefix("- ") || lines[index].hasPrefix("* ") {
-                    items.append("<li>" + inline(String(lines[index].dropFirst(2))) + "</li>")
+                while index < lines.count {
+                    let candidate = lines[index].trimmingCharacters(in: .whitespaces)
+                    guard candidate.hasPrefix("- ") || candidate.hasPrefix("* ")
+                            || candidate.hasPrefix("+ ") else { break }
+                    items.append("<li>" + inline(String(candidate.dropFirst(2))) + "</li>")
                     index += 1
                 }
                 out.append("<ul>" + items.joined() + "</ul>")
@@ -44,16 +60,19 @@ nonisolated enum MarkdownHTMLCore {
             else if let digits = firstDigits(line), digits > 0,
                     line.dropFirst(String(digits).count).hasPrefix(". ") {
                 var ordered: [String] = []
-                while index < lines.count, let value = firstDigits(lines[index]),
+                while index < lines.count,
+                      let value = firstDigits(lines[index].trimmingCharacters(in: .whitespaces)),
                       value >= digits,
-                      lines[index].dropFirst(String(value).count).hasPrefix(". ") {
-                    ordered.append("<li>" + inline(String(lines[index].dropFirst(String(value).count + 2))) + "</li>")
+                      lines[index].trimmingCharacters(in: .whitespaces)
+                        .dropFirst(String(value).count).hasPrefix(". ") {
+                    let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
+                    ordered.append("<li>" + inline(String(trimmed.dropFirst(String(value).count + 2))) + "</li>")
                     index += 1
                 }
                 out.append("<ol>" + ordered.joined() + "</ol>")
                 continue
             }
-            else if line.trimmingCharacters(in: .whitespaces).isEmpty {
+            else if line.isEmpty {
                 out.append("")
             }
             else {
@@ -61,7 +80,6 @@ nonisolated enum MarkdownHTMLCore {
             }
             index += 1
         }
-        _ = lines
         return out.joined(separator: "\n")
     }
 
@@ -71,16 +89,26 @@ nonisolated enum MarkdownHTMLCore {
         return Int(digits)
     }
 
-    /// 行内：先 HTML 转义，再处理 `code`、**粗体**、*斜体*、[文本](链接)。
-    static func inline(_ text: String) -> String {
-        var escaped = text
+    private static func escape(_ text: String) -> String {
+        text
             .replacingOccurrences(of: "&", with: "&amp;")
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+
+    /// 行内：先 HTML 转义，再处理图片、`code`、**粗体**、*斜体*、[文本](链接)。
+    static func inline(_ text: String) -> String {
+        var escaped = escape(text)
         // 行内代码优先（保护其中的星号）
         escaped = escaped.replacingOccurrences(
             of: "`([^`]+)`",
             with: "<code>$1</code>",
+            options: .regularExpression)
+        // 图片先于链接（否则 ![alt](src) 会被链接规则吃掉）
+        escaped = escaped.replacingOccurrences(
+            of: "!\\[([^\\]]*)\\]\\(([^)\\s]+)\\)",
+            with: "<img src=\"$2\" alt=\"$1\">",
             options: .regularExpression)
         escaped = escaped.replacingOccurrences(
             of: "\\*\\*([^*]+)\\*\\*",

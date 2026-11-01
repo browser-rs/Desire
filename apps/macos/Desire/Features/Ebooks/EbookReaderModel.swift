@@ -159,6 +159,10 @@ final class EbookReaderModel: ObservableObject {
                 try loadEPUB()
             case .txt:
                 try loadTXT()
+            case .markdown:
+                try loadMarkdown()
+            case .html:
+                try loadHTMLBook()
             default:
                 error = String(localized: "This format is not supported yet.")
             }
@@ -217,6 +221,35 @@ final class EbookReaderModel: ObservableObject {
         }
     }
 
+    private func loadMarkdown() throws {
+        let data = try Data(contentsOf: EbookLibraryStore.shared.contentURL(for: book))
+        guard let text = EbookCore.decodeTXT(data) else {
+            throw EbookImporter.ImportError.emptyText
+        }
+        txtChapters = EbookCore.splitMarkdown(text)
+        guard !txtChapters.isEmpty else {
+            throw EbookImporter.ImportError.emptyText
+        }
+        chapters = []
+        toc = txtChapters.map { chapter in
+            EbookCore.TOCItem(title: chapter.title, href: "", level: 0,
+                              chapterIndex: chapter.index)
+        }
+    }
+
+    private func loadHTMLBook() throws {
+        let data = try Data(contentsOf: EbookLibraryStore.shared.contentURL(for: book))
+        guard let text = EbookCore.decodeTXT(data),
+              !EbookSearchCore.plainText(fromHTML: text)
+                .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw EbookImporter.ImportError.emptyText
+        }
+        chapters = [EbookCore.Chapter(index: 0, title: book.title, href: book.fileName)]
+        txtChapters = []
+        toc = [EbookCore.TOCItem(title: book.title, href: book.fileName, level: 0,
+                                 chapterIndex: 0)]
+    }
+
     func loadChapter(_ index: Int, restoreRatio: Double? = nil) {
         let count = chapterCount
         guard count > 0 else { return }
@@ -230,7 +263,7 @@ final class EbookReaderModel: ObservableObject {
         pendingRevealHighlightID = nil
         do {
             let html: String
-            if book.format == .epub {
+            if book.format == .epub || book.format == .html {
                 guard chapters.indices.contains(target) else { return }
                 let chapter = chapters[target]
                 chapterTitle = chapter.title
@@ -243,6 +276,14 @@ final class EbookReaderModel: ObservableObject {
                             directory: file.deletingLastPathComponent())
                 htmlFileURL = try writeReaderHTML(html, in: file.deletingLastPathComponent(),
                                                   index: target)
+            } else if book.format == .markdown {
+                guard txtChapters.indices.contains(target) else { return }
+                let chapter = txtChapters[target]
+                chapterTitle = chapter.title
+                let body = "<h1>\(EbookCore.escapeHTML(chapter.title))</h1>"
+                    + MarkdownHTMLCore.html(chapter.text)
+                html = wrap(html: body, directory: bookRoot)
+                htmlFileURL = try writeReaderHTML(html, in: bookRoot, index: target)
             } else {
                 guard txtChapters.indices.contains(target) else { return }
                 let chapter = txtChapters[target]
@@ -613,7 +654,7 @@ final class EbookReaderModel: ObservableObject {
             let root = bookRoot
             let chapters = chapters
             let txt = txtChapters
-            let epub = book.format == .epub
+            let epub = book.format == .epub || book.format == .html
             let texts: [EbookSearchCore.ChapterText]? = await Task.detached(
                 priority: .userInitiated
             ) {

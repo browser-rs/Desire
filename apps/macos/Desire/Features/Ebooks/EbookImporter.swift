@@ -53,6 +53,11 @@ nonisolated enum EbookImporter {
         return hasher.finalize().map { String(format: "%02x", $0) }.joined()
     }
 
+    static func hashString(_ text: String) -> String {
+        SHA256.hash(data: Data(text.utf8))
+            .map { String(format: "%02x", $0) }.joined()
+    }
+
     /// 导入（调用方保证在后台任务里跑）。`hash` 由调用方先算好以便去重。
     static func importBook(at url: URL, hash: String) async throws -> Ebook {
         let manager = FileManager.default
@@ -77,7 +82,8 @@ nonisolated enum EbookImporter {
         guard let format = EbookFormat(fileExtension: extensionName) else {
             throw ImportError.unsupported(extensionName.isEmpty ? "?" : extensionName)
         }
-        guard format == .epub || format == .txt || format == .cbz else {
+        guard format == .epub || format == .txt || format == .cbz
+                || format == .markdown || format == .html else {
             throw ImportError.unsupported(extensionName)
         }
         let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize)
@@ -101,8 +107,14 @@ nonisolated enum EbookImporter {
             return try await importCBZ(url: url, hash: hash, fileSize: fileSize,
                                        bookDirectory: bookDirectory,
                                        containerDirectory: containerDirectory)
-        default:
-            throw ImportError.unsupported(extensionName)
+        case .markdown:
+            return try importMarkdown(url: url, hash: hash, fileSize: fileSize,
+                                      bookDirectory: bookDirectory,
+                                      containerDirectory: containerDirectory)
+        case .html:
+            return try importHTML(url: url, hash: hash, fileSize: fileSize,
+                                  bookDirectory: bookDirectory,
+                                  containerDirectory: containerDirectory)
         }
     }
 
@@ -170,6 +182,165 @@ nonisolated enum EbookImporter {
                      coverPath: nil, addedAt: Date(), lastOpenedAt: nil,
                      progress: 0, lastChapterIndex: 0, chapterProgress: 0,
                      fileSize: fileSize, chapterCount: chapters.count, hash: hash)
+    }
+
+    // MARK: - Markdown / HTML
+
+    private struct LocalizedAssets {
+        var text: String
+        var coverPath: String?
+        var count: Int
+    }
+
+    private static func importMarkdown(url: URL, hash: String, fileSize: Int64,
+                                       bookDirectory: URL,
+                                       containerDirectory: String) throws -> Ebook {
+        guard let data = try? Data(contentsOf: url),
+              let text = EbookCore.decodeTXT(data) else {
+            throw ImportError.emptyText
+        }
+        let localized = localizeAssets(
+            in: text,
+            pattern: "!\\[[^\\]]*\\]\\(([^)\\s]+)\\)",
+            urlGroup: 1,
+            sourceDirectory: url.deletingLastPathComponent(),
+            bookDirectory: bookDirectory)
+        let chapters = EbookCore.splitMarkdown(localized.text)
+        guard !chapters.isEmpty else { throw ImportError.emptyText }
+        try Data(localized.text.utf8).write(
+            to: bookDirectory.appendingPathComponent("source.md"), options: .atomic)
+        return Ebook(id: UUID(), title: baseName(url), author: "",
+                     format: .markdown, fileName: "source.md",
+                     containerDirectory: containerDirectory,
+                     coverPath: localized.coverPath, addedAt: Date(), lastOpenedAt: nil,
+                     progress: 0, lastChapterIndex: 0, chapterProgress: 0,
+                     fileSize: fileSize, chapterCount: chapters.count, hash: hash)
+    }
+
+    private static func importHTML(url: URL, hash: String, fileSize: Int64,
+                                   bookDirectory: URL,
+                                   containerDirectory: String) throws -> Ebook {
+        guard let data = try? Data(contentsOf: url),
+              let text = EbookCore.decodeTXT(data) else {
+            throw ImportError.emptyText
+        }
+        let sanitized = EbookCore.sanitizeHTML(text)
+        let localized = localizeAssets(
+            in: sanitized,
+            pattern: "(?i)<img\\b[^>]*\\bsrc\\s*=\\s*[\"']([^\"']+)[\"']",
+            urlGroup: 1,
+            sourceDirectory: url.deletingLastPathComponent(),
+            bookDirectory: bookDirectory)
+        let plain = EbookSearchCore.plainText(fromHTML: localized.text)
+        guard !plain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw ImportError.emptyText
+        }
+        try Data(localized.text.utf8).write(
+            to: bookDirectory.appendingPathComponent("index.html"), options: .atomic)
+        let title = htmlTitle(localized.text) ?? baseName(url)
+        return Ebook(id: UUID(), title: title, author: "",
+                     format: .html, fileName: "index.html",
+                     containerDirectory: containerDirectory,
+                     coverPath: localized.coverPath, addedAt: Date(), lastOpenedAt: nil,
+                     progress: 0, lastChapterIndex: 0, chapterProgress: 0,
+                     fileSize: fileSize, chapterCount: 1, hash: hash)
+    }
+
+    /// 把 Markdown/HTML 里引用的相对图片复制进书库 `assets/` 并改写路径。
+    private static func localizeAssets(in text: String, pattern: String, urlGroup: Int,
+                                       sourceDirectory: URL,
+                                       bookDirectory: URL) -> LocalizedAssets {
+        guard let regex = try? NSRegularExpression(
+            pattern: pattern, options: [.caseInsensitive]) else {
+            return LocalizedAssets(text: text, coverPath: nil, count: 0)
+        }
+        let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+        let assets = bookDirectory.appendingPathComponent("assets", isDirectory: true)
+        var replacements: [(NSRange, String)] = []
+        var count = 0
+        var cover: String?
+        for match in matches {
+            guard match.numberOfRanges > urlGroup,
+                  let range = Range(match.range(at: urlGroup), in: text) else { continue }
+            let raw = String(text[range])
+            guard let source = safeAssetURL(raw, relativeTo: sourceDirectory) else { continue }
+            let name = "asset-\(count).\(sanitizedExtension(source.pathExtension))"
+            let destination = assets.appendingPathComponent(name)
+            do {
+                try FileManager.default.createDirectory(
+                    at: assets, withIntermediateDirectories: true)
+                if !FileManager.default.fileExists(atPath: destination.path) {
+                    try FileManager.default.copyItem(at: source, to: destination)
+                }
+            } catch {
+                continue
+            }
+            if cover == nil { cover = "assets/\(name)" }
+            replacements.append((match.range(at: urlGroup), "assets/\(name)"))
+            count += 1
+        }
+        guard !replacements.isEmpty else {
+            return LocalizedAssets(text: text, coverPath: nil, count: 0)
+        }
+        var output = text
+        for (range, value) in replacements.reversed() {
+            guard let swiftRange = Range(range, in: output) else { continue }
+            output.replaceSubrange(swiftRange, with: value)
+        }
+        return LocalizedAssets(text: output, coverPath: cover, count: count)
+    }
+
+    private static func safeAssetURL(_ raw: String, relativeTo directory: URL) -> URL? {
+        var value = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if value.hasPrefix("<"), value.hasSuffix(">") {
+            value = String(value.dropFirst().dropLast())
+        }
+        value = value.removingPercentEncoding ?? value
+        guard !value.isEmpty,
+              !value.hasPrefix("http://"),
+              !value.hasPrefix("https://"),
+              !value.hasPrefix("data:"),
+              !value.hasPrefix("mailto:"),
+              !value.hasPrefix("/") else { return nil }
+        if let cut = value.firstIndex(where: { $0 == "?" || $0 == "#" }) {
+            value = String(value[..<cut])
+        }
+        let allowed = ["jpg", "jpeg", "png", "gif", "webp", "svg", "heic", "tiff", "bmp"]
+        let ext = (value as NSString).pathExtension.lowercased()
+        guard allowed.contains(ext) else { return nil }
+        let url = directory.appendingPathComponent(value).standardizedFileURL
+        let base = directory.standardizedFileURL.path
+        guard url.path.hasPrefix(base + "/") else { return nil }
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return url
+    }
+
+    private static func sanitizedExtension(_ ext: String) -> String {
+        let cleaned = ext.lowercased().filter { $0.isLetter || $0.isNumber }
+        return cleaned.isEmpty ? "img" : cleaned
+    }
+
+    private static func baseName(_ url: URL) -> String {
+        let name = (url.lastPathComponent as NSString).deletingPathExtension
+        return name.isEmpty ? url.lastPathComponent : name
+    }
+
+    private static func htmlTitle(_ html: String) -> String? {
+        guard let regex = try? NSRegularExpression(
+            pattern: "<title[^>]*>([\\s\\S]*?)</title>", options: [.caseInsensitive]),
+              let match = regex.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)),
+              match.numberOfRanges > 1,
+              let range = Range(match.range(at: 1), in: html) else { return nil }
+        var title = String(html[range]).trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !title.isEmpty else { return nil }
+        title = title
+            .replacingOccurrences(of: "&amp;", with: "&")
+            .replacingOccurrences(of: "&lt;", with: "<")
+            .replacingOccurrences(of: "&gt;", with: ">")
+            .replacingOccurrences(of: "&quot;", with: "\"")
+            .replacingOccurrences(of: "&#39;", with: "'")
+            .replacingOccurrences(of: "&nbsp;", with: " ")
+        return title
     }
 
     // MARK: - CBZ

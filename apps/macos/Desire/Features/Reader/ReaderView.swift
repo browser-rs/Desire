@@ -133,6 +133,13 @@ struct ReaderView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help("Save offline copy")
+                Button { saveToBooks() } label: {
+                    Image(systemName: "books.vertical")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help(String(localized: "Save to Books"))
                 Button { addHighlight() } label: {
                     Image(systemName: "highlighter")
                         .font(.system(size: 12))
@@ -315,6 +322,29 @@ struct ReaderView: View {
         store.setCache(item.id, fileURL: outcome.fileURL)
         offlineNote = String(localized: "Saved offline")
         Task { @MainActor in
+            try? await Task.sleep(for: .seconds(2))
+            offlineNote = nil
+        }
+    }
+
+    /// 存入书架（v0.8.35）：正文 + 图片本地化成离线 HTML 书。
+    private func saveToBooks() {
+        guard let baseURL,
+              !contentHTML.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            offlineNote = String(localized: "Nothing to save")
+            return
+        }
+        let displayTitle = title.isEmpty ? (baseURL.host ?? baseURL.absoluteString) : title
+        Task { @MainActor in
+            do {
+                let result = try await EbookWebBookImporter.importArticle(
+                    title: displayTitle, html: contentHTML, baseURL: baseURL)
+                offlineNote = result.existed
+                    ? String(localized: "Already in Books")
+                    : String(localized: "Saved to Books")
+            } catch {
+                offlineNote = error.localizedDescription
+            }
             try? await Task.sleep(for: .seconds(2))
             offlineNote = nil
         }

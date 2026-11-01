@@ -8158,6 +8158,7 @@ testToolboxFileAndRuntimeCores()
 testEbookCore()
 testEbookSearchCore()
 testEbookNotesExportCore()
+testEbookMarkdownCore()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
@@ -8809,6 +8810,58 @@ func testEbookNotesExportCore() {
           (try? JSONDecoder().decode([EbookHighlight].self,
                                      from: JSONEncoder().encode([first, second]))) == [first, second])
 }
+
+// ---------- Markdown 导入核心（v0.8.35 批二） ----------
+
+func testEbookMarkdownCore() {
+    let markdown = """
+    # 第一章
+
+    正文一。
+
+    ## 第二章
+
+    正文二。
+
+    ### 第三节
+
+    正文三。
+    """
+    let chapters = EbookCore.splitMarkdown(markdown)
+    eq("MD 分章：数量", chapters.count, 3)
+    eq("MD 分章：首章标题", chapters[0].title, "第一章")
+    check("MD 分章：首章正文", chapters[0].text.contains("正文一"))
+    eq("MD 分章：末章标题", chapters[2].title, "第三节")
+    check("MD 分章：标题不混进正文", !chapters[1].text.contains("## 第二章"))
+
+    let withIntro = EbookCore.splitMarkdown("前言内容\n\n# 第一章\n正文")
+    eq("MD 分章：前言", withIntro.count, 2)
+    eq("MD 分章：前言标题", withIntro[0].title, "Introduction")
+
+    let noHeading = EbookCore.splitMarkdown("abcdefghij\nklmnopqrst", maxChars: 8)
+    eq("MD 分章：无标题按长度", noHeading.count, 2)
+
+    let html = MarkdownHTMLCore.html("""
+    ![图](assets/a.png)
+
+    > 引用一行
+
+    1. 一
+    2. 二
+
+    #### 小标题
+
+    ```
+    <script>alert(1)</script>
+    ```
+    """)
+    check("MD HTML：图片", html.contains("<img src=\"assets/a.png\" alt=\"图\">"))
+    check("MD HTML：引用", html.contains("<blockquote><p>引用一行</p></blockquote>"))
+    check("MD HTML：有序列表", html.contains("<ol><li>一</li><li>二</li></ol>"))
+    check("MD HTML：h4", html.contains("<h4>小标题</h4>"))
+    check("MD HTML：代码块转义", html.contains("&lt;script&gt;") && !html.contains("<script>"))
+}
+
 
 
 

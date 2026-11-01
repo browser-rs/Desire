@@ -3,6 +3,9 @@
 
 - Books: highlights and notes now live inside the book — text-offset anchors survive repagination, markings are redrawn on every page rebuild, and a Notes & Highlights panel groups them by chapter for jump, recolor, note editing and deletion; highlights still land in Excerpts (v0.8.35)
 - Books: export a book's notes and highlights (or the whole library) to Markdown with chapter titles, quotes, notes and dates, or copy the current book's notes to the clipboard (v0.8.35)
+- Books: Markdown and HTML files import into the library — Markdown splits by headings and renders images/quotes/lists/code blocks, HTML keeps its article structure, and relative images are copied into the book so they still render after import; `.md` files open in the reader from the address bar or drag-and-drop (v0.8.35)
+- Browser: reader mode gains "Save to Books" — the extracted article becomes an offline HTML book in the library, with remote images fetched through the page's cookies/referer and rewritten locally; saving the same URL again reuses the existing book instead of duplicating it (v0.8.35)
+
 
 ### Fixed
 

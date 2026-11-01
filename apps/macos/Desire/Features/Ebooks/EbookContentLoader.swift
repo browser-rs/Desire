@@ -34,6 +34,10 @@ nonisolated enum EbookContentLoader {
                 return try loadEPUB(directory: directory, book: book)
             case .txt:
                 return try loadTXT(directory: directory, book: book)
+            case .markdown:
+                return try loadMarkdown(directory: directory, book: book)
+            case .html:
+                return try loadHTML(directory: directory, book: book)
             default:
                 throw LoadError.cannotOpen
             }
@@ -96,5 +100,40 @@ nonisolated enum EbookContentLoader {
                               chapterIndex: $0.index)
         }
         return Loaded(title: book.title, author: book.author, chapters: mapped, toc: toc)
+    }
+
+    private static func loadMarkdown(directory: URL, book: Ebook) throws -> Loaded {
+        let url = directory.appendingPathComponent(book.fileName)
+        guard let data = try? Data(contentsOf: url),
+              let text = EbookCore.decodeTXT(data) else {
+            throw LoadError.cannotOpen
+        }
+        let chapters = EbookCore.splitMarkdown(text)
+        guard !chapters.isEmpty else { throw LoadError.empty }
+        let mapped = chapters.map {
+            EbookSearchCore.ChapterText(index: $0.index, title: $0.title, text: $0.text)
+        }
+        let toc = mapped.map {
+            EbookCore.TOCItem(title: $0.title, href: "", level: 0,
+                              chapterIndex: $0.index)
+        }
+        return Loaded(title: book.title, author: book.author, chapters: mapped, toc: toc)
+    }
+
+    private static func loadHTML(directory: URL, book: Ebook) throws -> Loaded {
+        let url = directory.appendingPathComponent(book.fileName)
+        guard let data = try? Data(contentsOf: url),
+              let text = EbookCore.decodeTXT(data) else {
+            throw LoadError.cannotOpen
+        }
+        let plain = EbookSearchCore.plainText(fromHTML: text)
+        guard !plain.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw LoadError.empty
+        }
+        let chapters = [EbookSearchCore.ChapterText(
+            index: 0, title: book.title, text: plain)]
+        let toc = [EbookCore.TOCItem(title: book.title, href: book.fileName, level: 0,
+                                     chapterIndex: 0)]
+        return Loaded(title: book.title, author: book.author, chapters: chapters, toc: toc)
     }
 }

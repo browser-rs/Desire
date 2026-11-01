@@ -42,6 +42,18 @@ final class EbookLibraryStore: ObservableObject {
         save()
     }
 
+    /// 直接登记一本已写好书库目录的书（v0.8.35 网页存书用）。
+    func register(_ book: Ebook) {
+        if let index = books.firstIndex(where: { $0.id == book.id }) {
+            books[index] = book
+        } else if let index = books.firstIndex(where: { $0.hash == book.hash }) {
+            books[index].lastOpenedAt = Date()
+        } else {
+            books.insert(book, at: 0)
+        }
+        save()
+    }
+
     func updateProgress(_ id: UUID, chapterIndex: Int, chapterProgress: Double,
                         overall: Double) {
         guard let index = books.firstIndex(where: { $0.id == id }) else { return }
@@ -61,6 +73,7 @@ final class EbookLibraryStore: ObservableObject {
             try? FileManager.default.removeItem(at: directory)
         }
         DiskStore.remove(key: "ebook.bookmarks.\(book.id.uuidString)")
+        DiskStore.remove(key: EbookHighlightStore.key(for: book.id))
         save()
     }
 

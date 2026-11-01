@@ -280,6 +280,7 @@ struct SelectedTabContent: View {
     static func isOpenableFile(_ url: URL) -> Bool {
         switch url.pathExtension.lowercased() {
         case "pdf", "html", "htm", "xhtml", "epub", "cbz", "mobi", "azw3",
+             "md", "markdown",
              "mp4", "m4v", "mov", "webm", "mp3", "m4a", "wav", "aac",
              "flac", "aiff", "aif", "caf",
              "png", "jpg", "jpeg", "gif", "webp", "svg", "txt":

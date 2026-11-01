@@ -282,6 +282,84 @@ nonisolated enum EbookCore {
         return chunks
     }
 
+    /// Markdown → 章节（v0.8.35）：`#`~`####` 标题分章；无标题按字符上限切。
+    /// 标题行从正文中剥离，保留为章节名。
+    static func splitMarkdown(_ text: String, maxChars: Int = 20_000) -> [TXTChapter] {
+        var normalized = text
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
+        normalized = normalized.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalized.isEmpty else { return [] }
+        let lines = normalized.components(separatedBy: "\n")
+        let headingRegex = try? NSRegularExpression(
+            pattern: "^\\s{0,3}#{1,4}\\s+(.+?)\\s*#*\\s*$")
+        var headings: [(index: Int, title: String)] = []
+        for (index, line) in lines.enumerated() {
+            guard let regex = headingRegex,
+                  let match = regex.firstMatch(
+                    in: line, range: NSRange(line.startIndex..., in: line)),
+                  match.numberOfRanges > 1,
+                  let range = Range(match.range(at: 1), in: line) else { continue }
+            let title = String(line[range]).trimmingCharacters(in: .whitespaces)
+            if !title.isEmpty { headings.append((index, title)) }
+        }
+        guard !headings.isEmpty else {
+            return chunkMarkdown(lines, maxChars: maxChars)
+        }
+        var chapters: [TXTChapter] = []
+        func append(title: String, bodyLines: [String]) {
+            let body = bodyLines.joined(separator: "\n")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !body.isEmpty else { return }
+            chapters.append(TXTChapter(
+                index: chapters.count,
+                title: title.isEmpty ? "Chapter \(chapters.count + 1)" : title,
+                text: body))
+        }
+        if headings[0].index > 0 {
+            append(title: String(localized: "Introduction"),
+                   bodyLines: Array(lines[0..<headings[0].index]))
+        }
+        for (offset, heading) in headings.enumerated() {
+            let end = offset + 1 < headings.count ? headings[offset + 1].index : lines.count
+            guard heading.index + 1 <= end else { continue }
+            append(title: heading.title,
+                   bodyLines: Array(lines[(heading.index + 1)..<end]))
+        }
+        if chapters.isEmpty { return chunkMarkdown(lines, maxChars: maxChars) }
+        return chapters.enumerated().map {
+            TXTChapter(index: $0.offset, title: $0.element.title, text: $0.element.text)
+        }
+    }
+
+    private static func chunkMarkdown(_ lines: [String], maxChars: Int) -> [TXTChapter] {
+        var chunks: [TXTChapter] = []
+        var buffer: [String] = []
+        var count = 0
+        for line in lines {
+            buffer.append(line)
+            count += line.count + 1
+            if count >= maxChars {
+                let body = buffer.joined(separator: "\n")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if !body.isEmpty {
+                    chunks.append(TXTChapter(index: chunks.count,
+                                             title: "Part \(chunks.count + 1)",
+                                             text: body))
+                }
+                buffer.removeAll(keepingCapacity: true)
+                count = 0
+            }
+        }
+        let tail = buffer.joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if !tail.isEmpty {
+            chunks.append(TXTChapter(index: chunks.count,
+                                     title: "Part \(chunks.count + 1)", text: tail))
+        }
+        return chunks
+    }
+
     /// TXT 正文 → 段落 HTML（转义后按空行分段）。
     static func txtHTML(_ text: String) -> String {
         let escaped = escapeHTML(text)

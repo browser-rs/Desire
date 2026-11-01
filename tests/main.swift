@@ -8157,6 +8157,7 @@ testToolboxLanguageCores()
 testToolboxFileAndRuntimeCores()
 testEbookCore()
 testEbookSearchCore()
+testEbookNotesExportCore()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
@@ -8752,6 +8753,63 @@ func testEbookSearchCore() {
     check("书搜：空查询", EbookSearchCore.search(query: "  ", chapters: chapters).isEmpty)
     check("书搜：无命中", EbookSearchCore.search(query: "沙漠", chapters: chapters).isEmpty)
 }
+
+// ---------- 书内高亮与笔记导出（v0.8.35） ----------
+
+func testEbookNotesExportCore() {
+    func stamp(_ offset: TimeInterval) -> Date { Date(timeIntervalSince1970: offset) }
+    let first = EbookHighlight(
+        chapterIndex: 0, chapterTitle: "第一章", chapterProgress: 0.2,
+        quote: "山风吹过。", startOffset: 20, endOffset: 24,
+        color: .yellow, note: "这里很重要", createdAt: stamp(100))
+    let second = EbookHighlight(
+        chapterIndex: 0, chapterTitle: "第一章", chapterProgress: 0.1,
+        quote: "海面很静。", startOffset: 5, endOffset: 9,
+        color: .green, note: nil, createdAt: stamp(200))
+    let third = EbookHighlight(
+        chapterIndex: 1, chapterTitle: "第二章", chapterProgress: 0.5,
+        quote: "Another day.", startOffset: 0, endOffset: 12,
+        color: .blue, note: "note", createdAt: stamp(300))
+
+    let md = EbookNotesExportCore.markdown(
+        title: "山海笔记", author: "作者", highlights: [first, second, third])
+    check("笔记导出：书名", md.contains("# 山海笔记"))
+    check("笔记导出：作者", md.contains("_作者_"))
+    check("笔记导出：计数", md.contains("3 highlight(s)"))
+    check("笔记导出：章标题", md.contains("## 第一章") && md.contains("## 第二章"))
+    check("笔记导出：引用", md.contains("> 山风吹过。"))
+    check("笔记导出：备注", md.contains("**这里很重要**"))
+    check("笔记导出：两条备注各一对星号", md.components(separatedBy: "**").count - 1 == 4)
+    let sea = md.range(of: "> 海面很静。")?.lowerBound
+    let wind = md.range(of: "> 山风吹过。")?.lowerBound
+    check("笔记导出：按章内位置排序", sea != nil && wind != nil && sea! < wind!)
+
+    let all = EbookNotesExportCore.markdown(books: [
+        (title: "书一", author: "甲", highlights: [first, second]),
+        (title: "书二", author: "", highlights: [third]),
+        (title: "空书", author: "乙", highlights: []),
+    ])
+    check("笔记导出：总标题", all.contains("# Book Notes"))
+    check("笔记导出：分书", all.contains("## 书一") && all.contains("## 书二"))
+    check("笔记导出：空书跳过", !all.contains("## 空书"))
+    check("笔记导出：章级 h3", all.contains("### 第一章"))
+    check("笔记导出：总计", all.contains("3 highlight(s) · 2 book(s)"))
+
+    eq("文件名：替换非法字符", EbookNotesExportCore.filename(for: "a/b:c?*"),
+       "a-b-c-notes.md")
+    eq("文件名：空白兜底", EbookNotesExportCore.filename(for: "   "), "book-notes.md")
+    check("文件名：保留中文", EbookNotesExportCore.filename(for: "山海笔记").hasPrefix("山海笔记"))
+
+    check("高亮：偏移有效", first.hasOffsets)
+    check("高亮：备注裁剪", EbookHighlight(
+        chapterIndex: 0, chapterTitle: "", chapterProgress: 0, quote: "q",
+        startOffset: 0, endOffset: 1, note: "  ").trimmedNote == nil)
+    check("高亮：颜色 CSS", EbookHighlightColor.yellow.backgroundCSS.contains("rgba("))
+    check("高亮：Codable 往返",
+          (try? JSONDecoder().decode([EbookHighlight].self,
+                                     from: JSONEncoder().encode([first, second]))) == [first, second])
+}
+
 
 
 

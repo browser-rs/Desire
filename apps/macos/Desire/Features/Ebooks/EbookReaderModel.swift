@@ -13,6 +13,16 @@ struct EbookSelection: Equatable, Sendable {
     var id = UUID()
     var text: String
     var rect: CGRect
+    /// 章节内文本偏移（UTF-16）；-1 = JS 未取到，只能按 quote 兜底。
+    var startOffset: Int = -1
+    var endOffset: Int = -1
+}
+
+/// 新增高亮的结果：是否新建、是否新写入摘录（false = 摘录去重命中）。
+struct EbookHighlightCreation {
+    let highlight: EbookHighlight
+    let isNew: Bool
+    let excerptAdded: Bool
 }
 
 /// EPUB/TXT 阅读器状态（v0.8.34）：章节加载、清洗/包装、进度、主题、滚动/分页。
@@ -93,6 +103,10 @@ final class EbookReaderModel: ObservableObject {
     }
     @Published var showTOC = false
     @Published private(set) var bookmarks: [EbookBookmark] = []
+    /// 书内高亮/笔记（v0.8.35）：全书列表，渲染时只注入当前章。
+    @Published private(set) var highlights: [EbookHighlight] = []
+    @Published var showNotes = false
+    @Published var focusedHighlightID: UUID?
     @Published private(set) var searchResults: [EbookSearchCore.Hit] = []
     @Published var searchQuery = ""
     @Published private(set) var isSearching = false
@@ -107,6 +121,7 @@ final class EbookReaderModel: ObservableObject {
     private var lastSaved = Date.distantPast
     private var chapterTextCache: [EbookSearchCore.ChapterText]?
     private var pendingSearchQuery: String?
+    private var pendingRevealHighlightID: UUID?
     private var loadGeneration = 0
     private var webViewReadyGeneration = -1
     private var bookmarkKey: String { "ebook.bookmarks.\(book.id.uuidString)" }
@@ -132,6 +147,7 @@ final class EbookReaderModel: ObservableObject {
             ?? .paged
         self.bookmarks = DiskStore.load([EbookBookmark].self,
                                         key: "ebook.bookmarks.\(book.id.uuidString)") ?? []
+        self.highlights = EbookHighlightStore.load(book.id)
     }
 
     func load() async {
@@ -211,6 +227,7 @@ final class EbookReaderModel: ObservableObject {
         pageIndex = 0
         pageCount = 1
         pageTurnRequest = nil
+        pendingRevealHighlightID = nil
         do {
             let html: String
             if book.format == .epub {
@@ -320,6 +337,7 @@ final class EbookReaderModel: ObservableObject {
         }
         updatePageProgress()
         saveProgress()
+        revealPendingHighlight()
         highlightSearchIfNeeded()
     }
 
@@ -383,7 +401,9 @@ final class EbookReaderModel: ObservableObject {
     func webViewReady(_ webView: WKWebView) {
         self.webView = webView
         webViewReadyGeneration = loadGeneration
+        applyHighlights()
         guard layoutMode == .scroll else {
+            revealPendingHighlight()
             highlightSearchIfNeeded()
             return
         }
@@ -393,6 +413,7 @@ final class EbookReaderModel: ObservableObject {
                 "window.__desireScrollTo && window.__desireScrollTo(\(ratio));",
                 completionHandler: nil)
         }
+        revealPendingHighlight()
         highlightSearchIfNeeded()
     }
 
@@ -452,6 +473,130 @@ final class EbookReaderModel: ObservableObject {
 
     private func saveBookmarks() {
         DiskStore.save(bookmarks, key: bookmarkKey)
+    }
+
+    // MARK: - 高亮与笔记
+
+    /// 收录一条高亮（同时进摘录库）；同章同位置重复收录只返回已有条目。
+    func addHighlight(from selection: EbookSelection, note: String?,
+                      color: EbookHighlightColor = .yellow) -> EbookHighlightCreation? {
+        let quote = selection.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !quote.isEmpty else { return nil }
+        let trimmedNote = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let duplicate: EbookHighlight? = selection.startOffset >= 0
+            && selection.endOffset > selection.startOffset
+            ? highlights.first {
+                $0.chapterIndex == currentChapter
+                    && $0.startOffset == selection.startOffset
+                    && $0.endOffset == selection.endOffset
+            }
+            : highlights.first {
+                $0.chapterIndex == currentChapter && $0.quote == quote
+            }
+        if var existing = duplicate {
+            if let note = trimmedNote, !note.isEmpty, note != existing.trimmedNote {
+                setHighlightNote(existing.id, note: note)
+                existing.note = note
+            }
+            return EbookHighlightCreation(highlight: existing, isNew: false,
+                                          excerptAdded: false)
+        }
+        let highlight = EbookHighlight(
+            chapterIndex: currentChapter,
+            chapterTitle: chapterTitle,
+            chapterProgress: chapterProgress,
+            quote: quote,
+            startOffset: selection.startOffset,
+            endOffset: selection.endOffset,
+            color: color,
+            note: (trimmedNote?.isEmpty ?? true) ? nil : trimmedNote)
+        highlights.append(highlight)
+        saveHighlights()
+        applyHighlights()
+        let excerptAdded = ExcerptStore.shared.add(
+            kind: .readerHighlight, title: book.title, source: bookRoot.path,
+            content: quote, note: highlight.trimmedNote)
+        return EbookHighlightCreation(highlight: highlight, isNew: true,
+                                      excerptAdded: excerptAdded)
+    }
+
+    func setHighlightNote(_ id: UUID, note: String?) {
+        guard let index = highlights.firstIndex(where: { $0.id == id }) else { return }
+        let trimmed = note?.trimmingCharacters(in: .whitespacesAndNewlines)
+        highlights[index].note = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        saveHighlights()
+        if let excerptID = ExcerptStore.shared.excerptID(
+            kind: .readerHighlight, source: bookRoot.path,
+            content: highlights[index].quote) {
+            ExcerptStore.shared.updateNote(id: excerptID, note: highlights[index].note)
+        }
+    }
+
+    func setHighlightColor(_ id: UUID, _ color: EbookHighlightColor) {
+        guard let index = highlights.firstIndex(where: { $0.id == id }),
+              highlights[index].color != color else { return }
+        highlights[index].color = color
+        saveHighlights()
+        applyHighlights()
+    }
+
+    /// 删除高亮只删书内标记；摘录库里的那条默认保留（侧栏有"已存摘录"语义）。
+    func removeHighlight(_ id: UUID) {
+        guard highlights.contains(where: { $0.id == id }) else { return }
+        highlights.removeAll { $0.id == id }
+        if focusedHighlightID == id { focusedHighlightID = nil }
+        saveHighlights()
+        applyHighlights()
+    }
+
+    /// 点正文高亮：打开笔记侧栏并定位。
+    func openHighlight(_ id: UUID) {
+        guard highlights.contains(where: { $0.id == id }) else { return }
+        focusedHighlightID = id
+        showNotes = true
+    }
+
+    /// 从侧栏跳回正文：换章后按偏移滚/翻到标记处。
+    func jumpToHighlight(_ highlight: EbookHighlight) {
+        showNotes = false
+        focusedHighlightID = highlight.id
+        if highlight.chapterIndex != currentChapter {
+            loadChapter(highlight.chapterIndex, restoreRatio: highlight.chapterProgress)
+        }
+        pendingRevealHighlightID = highlight.id
+        revealPendingHighlight()
+    }
+
+    private var currentChapterHighlights: [EbookHighlight] {
+        highlights.filter { $0.chapterIndex == currentChapter }
+    }
+
+    private func saveHighlights() {
+        EbookHighlightStore.save(highlights, for: book.id)
+    }
+
+    private func applyHighlights() {
+        guard webViewReadyGeneration == loadGeneration else { return }
+        let payload = EbookHighlightJS.payload(currentChapterHighlights)
+        webView?.evaluateJavaScript(
+            "window.__desireSetHighlights && window.__desireSetHighlights(\(payload));",
+            completionHandler: nil)
+    }
+
+    private func revealPendingHighlight() {
+        guard let id = pendingRevealHighlightID,
+              webViewReadyGeneration == loadGeneration else { return }
+        let literal = Self.jsString(id.uuidString.lowercased())
+        webView?.evaluateJavaScript(
+            "window.__desireRevealHighlight && window.__desireRevealHighlight(\(literal));"
+        ) { [weak self] result, _ in
+            guard let self else { return }
+            Task { @MainActor in
+                if (result as? Bool) == true {
+                    self.pendingRevealHighlightID = nil
+                }
+            }
+        }
     }
 
     // MARK: - 书内搜索
@@ -611,15 +756,18 @@ final class EbookReaderModel: ObservableObject {
               var range=sel.getRangeAt(0);
               var rect=range.getBoundingClientRect();
               if(rect.width<=0&&rect.height<=0)return;
+              var anchor=window.__desireSelectionOffsets?window.__desireSelectionOffsets(range):null;
               if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.ebookSelection){
                 window.webkit.messageHandlers.ebookSelection.postMessage({
-                  text:text,x:rect.left,y:rect.top,w:rect.width,h:rect.height
+                  text:text,x:rect.left,y:rect.top,w:rect.width,h:rect.height,
+                  s:anchor?anchor.s:-1,e:anchor?anchor.e:-1
                 });
               }
             },0);
           });
         })();
         </script>
+        <script>\(EbookHighlightJS.script(currentChapterHighlights))</script>
         """
         var document = html
         if let headEnd = document.range(of: "</head>", options: .caseInsensitive) {
@@ -717,6 +865,7 @@ final class EbookReaderModel: ObservableObject {
             if(pages.length===0)pages.push(createPage());
             if(index>=pages.length)index=pages.length-1;
             apply();
+            if(window.__desireApplyHighlights)window.__desireApplyHighlights();
           }
           window.__desireGoToPage=function(target, animate){
             var old=index;
@@ -780,15 +929,18 @@ final class EbookReaderModel: ObservableObject {
               var range=sel.getRangeAt(0);
               var rect=range.getBoundingClientRect();
               if(rect.width<=0&&rect.height<=0)return;
+              var anchor=window.__desireSelectionOffsets?window.__desireSelectionOffsets(range):null;
               if(window.webkit&&window.webkit.messageHandlers&&window.webkit.messageHandlers.ebookSelection){
                 window.webkit.messageHandlers.ebookSelection.postMessage({
-                  text:text,x:rect.left,y:rect.top,w:rect.width,h:rect.height
+                  text:text,x:rect.left,y:rect.top,w:rect.width,h:rect.height,
+                  s:anchor?anchor.s:-1,e:anchor?anchor.e:-1
                 });
               }
             },0);
           });
         });
         </script>
+        <script>\(EbookHighlightJS.script(currentChapterHighlights))</script>
         """
         return """
         <!doctype html><html><head>\(parts.head)\(injection)</head>
@@ -836,6 +988,8 @@ final class EbookReaderModel: ObservableObject {
         blockquote { border-left: 3px solid \(theme.link); margin-left: 0; padding-left: 1em; opacity: 0.9; }
         pre, code { white-space: pre-wrap; word-wrap: break-word; }
         ::selection { background: \(theme.link)55; }
+        mark[data-ebook-highlight] { border-radius: 2px; }
+        mark.desire-highlight-flash { outline: 2px solid #FF9F0A; outline-offset: 1px; }
         """
     }
 
@@ -884,6 +1038,8 @@ final class EbookReaderModel: ObservableObject {
         }
         .desire-page pre, .desire-page code { white-space: pre-wrap; word-wrap: break-word; }
         ::selection { background: \(theme.link)55; }
+        mark[data-ebook-highlight] { border-radius: 2px; }
+        mark.desire-highlight-flash { outline: 2px solid #FF9F0A; outline-offset: 1px; }
         """
     }
 }

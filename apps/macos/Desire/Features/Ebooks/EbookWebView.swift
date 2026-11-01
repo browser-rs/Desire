@@ -12,12 +12,14 @@ struct EbookWebView: NSViewRepresentable {
     let onProgress: (Double) -> Void
     let onPages: (Int, Int) -> Void
     let onSelection: (EbookSelection) -> Void
+    let onHighlight: (UUID) -> Void
 
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
         configuration.userContentController.add(context.coordinator, name: "ebookProgress")
         configuration.userContentController.add(context.coordinator, name: "ebookPages")
         configuration.userContentController.add(context.coordinator, name: "ebookSelection")
+        configuration.userContentController.add(context.coordinator, name: "ebookHighlight")
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         return webView
@@ -37,7 +39,7 @@ struct EbookWebView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onReady: onReady, onProgress: onProgress, onPages: onPages,
-                    onSelection: onSelection)
+                    onSelection: onSelection, onHighlight: onHighlight)
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
@@ -45,17 +47,20 @@ struct EbookWebView: NSViewRepresentable {
         let onProgress: (Double) -> Void
         let onPages: (Int, Int) -> Void
         let onSelection: (EbookSelection) -> Void
+        let onHighlight: (UUID) -> Void
         var loadedURL: URL?
         var lastTurnID: UUID?
 
         init(onReady: @escaping (WKWebView) -> Void,
              onProgress: @escaping (Double) -> Void,
              onPages: @escaping (Int, Int) -> Void,
-             onSelection: @escaping (EbookSelection) -> Void) {
+             onSelection: @escaping (EbookSelection) -> Void,
+             onHighlight: @escaping (UUID) -> Void) {
             self.onReady = onReady
             self.onProgress = onProgress
             self.onPages = onPages
             self.onSelection = onSelection
+            self.onHighlight = onHighlight
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -81,7 +86,15 @@ struct EbookWebView: NSViewRepresentable {
                       let h = body["h"] as? NSNumber {
                 let rect = CGRect(x: x.doubleValue, y: y.doubleValue,
                                   width: w.doubleValue, height: h.doubleValue)
-                onSelection(EbookSelection(text: text, rect: rect))
+                let start = (body["s"] as? NSNumber)?.intValue ?? -1
+                let end = (body["e"] as? NSNumber)?.intValue ?? -1
+                onSelection(EbookSelection(text: text, rect: rect,
+                                           startOffset: start, endOffset: end))
+            } else if message.name == "ebookHighlight",
+                      let body = message.body as? [String: Any],
+                      let raw = body["id"] as? String,
+                      let id = UUID(uuidString: raw) {
+                onHighlight(id)
             }
         }
 

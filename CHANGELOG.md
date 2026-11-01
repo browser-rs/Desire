@@ -1,4 +1,9 @@
 ## [Unreleased]
+### Added
+
+- Books: highlights and notes now live inside the book — text-offset anchors survive repagination, markings are redrawn on every page rebuild, and a Notes & Highlights panel groups them by chapter for jump, recolor, note editing and deletion; highlights still land in Excerpts (v0.8.35)
+- Books: export a book's notes and highlights (or the whole library) to Markdown with chapter titles, quotes, notes and dates, or copy the current book's notes to the clipboard (v0.8.35)
+
 ### Fixed
 
 - Links: `desire://` is re-registered with LaunchServices on launch, and the app claims the scheme as default only when no handler exists — fixes the "no application is configured to open desire://…" dialog after updates or bundle copies; debug builds skip registration so a DerivedData copy cannot hijack the installed app (v0.8.35)

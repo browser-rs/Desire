@@ -65,6 +65,14 @@ final class ExcerptStore: ObservableObject {
         persist()
     }
 
+    /// 按去重键反查（v0.8.35 电子书笔记改备注时同步摘录）。
+    func excerptID(kind: Excerpt.Kind, source: String, content: String) -> UUID? {
+        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+        let key = Excerpt(kind: kind, title: "", source: source, content: trimmed).dedupeKey
+        return excerpts.first(where: { $0.dedupeKey == key })?.id
+    }
+
     func remove(id: UUID) {
         guard let index = excerpts.firstIndex(where: { $0.id == id }) else { return }
         excerpts.remove(at: index)

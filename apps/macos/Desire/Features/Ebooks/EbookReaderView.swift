@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// 电子书阅读器（v0.8.34 批次一）：EPUB/TXT 章节阅读、目录、进度、主题。
 struct EbookReaderView: View {
@@ -45,11 +46,25 @@ struct EbookReaderView: View {
         .task { await model.load() }
         .sheet(isPresented: $model.showTOC) { tocSheet }
         .sheet(isPresented: $model.showSearch) { searchSheet }
+        .sheet(isPresented: $model.showNotes) {
+            EbookNotesPanel(
+                book: book,
+                highlights: model.highlights,
+                focusedID: model.focusedHighlightID,
+                onJump: { model.jumpToHighlight($0) },
+                onColor: { model.setHighlightColor($0, $1) },
+                onNote: { model.setHighlightNote($0, note: $1) },
+                onDelete: { model.removeHighlight($0) },
+                onExportBook: { exportNotes(all: false) },
+                onExportAll: { exportNotes(all: true) },
+                onCopy: { copyNotes() },
+                onClose: { model.showNotes = false })
+        }
         .alert(String(localized: "Add note"), isPresented: $showNotePrompt) {
             TextField(String(localized: "Note"), text: $noteText)
             Button(String(localized: "Save")) {
                 if let selection = model.selection {
-                    addExcerpt(selection, note: noteText)
+                    addHighlight(selection, note: noteText)
                 }
                 noteText = ""
             }
@@ -92,6 +107,15 @@ struct EbookReaderView: View {
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
+            Button {
+                model.showNotes = true
+            } label: {
+                Image(systemName: "highlighter")
+                    .font(.system(size: 12))
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .help(String(localized: "Notes & Highlights"))
             Button {
                 searchText = model.searchQuery
                 didSearch = false
@@ -214,7 +238,8 @@ struct EbookReaderView: View {
                              onPages: { count, index in
                                  model.updatePages(count: count, index: index)
                              },
-                             onSelection: { model.setSelection($0) })
+                             onSelection: { model.setSelection($0) },
+                             onHighlight: { model.openHighlight($0) })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if model.layoutMode == .paged {
                     GeometryReader { geometry in
@@ -512,7 +537,7 @@ struct EbookReaderView: View {
     private func selectionToolbar(_ selection: EbookSelection) -> some View {
         HStack(spacing: 12) {
             Button {
-                addExcerpt(selection, note: nil)
+                addHighlight(selection, note: nil)
             } label: {
                 Label(String(localized: "Highlight"), systemImage: "highlighter")
             }
@@ -562,20 +587,67 @@ struct EbookReaderView: View {
         .frame(maxWidth: 560)
     }
 
-    private func addExcerpt(_ selection: EbookSelection, note: String?) {
-        let trimmedNote = note?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let added = ExcerptStore.shared.add(
-            kind: .readerHighlight, title: book.title, source: bookRootPath,
-            content: selection.text,
-            note: (trimmedNote?.isEmpty ?? true) ? nil : trimmedNote)
-        showToast(added ? String(localized: "Saved to Excerpts")
-                        : String(localized: "Already in Excerpts"))
+    private func addHighlight(_ selection: EbookSelection, note: String?) {
+        guard let created = model.addHighlight(from: selection, note: note) else { return }
+        if created.isNew {
+            showToast(created.excerptAdded
+                      ? String(localized: "Saved to Excerpts")
+                      : String(localized: "Highlight saved"))
+        } else if let note = note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
+            showToast(String(localized: "Note saved"))
+        } else {
+            showToast(String(localized: "Already highlighted"))
+        }
         model.clearSelection()
     }
 
-    private var bookRootPath: String {
-        EbookImporter.rootDirectory
-            .appendingPathComponent(book.containerDirectory, isDirectory: true).path
+    /// 导出/复制用的 Markdown：全部导出时当前书取内存值，其余书读盘。
+    private func notesMarkdown(all: Bool) -> String? {
+        if all {
+            let entries = EbookLibraryStore.shared.books.compactMap {
+                item -> (title: String, author: String, highlights: [EbookHighlight])? in
+                let items = item.id == book.id ? model.highlights
+                    : EbookHighlightStore.load(item.id)
+                guard !items.isEmpty else { return nil }
+                return (item.title, item.author, items)
+            }
+            guard !entries.isEmpty else { return nil }
+            return EbookNotesExportCore.markdown(books: entries)
+        }
+        guard !model.highlights.isEmpty else { return nil }
+        return EbookNotesExportCore.markdown(
+            title: book.title, author: book.author, highlights: model.highlights)
+    }
+
+    private func exportNotes(all: Bool) {
+        guard let markdown = notesMarkdown(all: all) else {
+            showToast(String(localized: "No highlights to export"))
+            return
+        }
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = EbookNotesExportCore.filename(
+            for: all ? String(localized: "All books") : book.title)
+        if let markdownType = UTType(filenameExtension: "md") {
+            panel.allowedContentTypes = [markdownType]
+        }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        do {
+            try markdown.write(to: url, atomically: true, encoding: .utf8)
+            showToast(String(localized: "Exported"))
+        } catch {
+            showToast(error.localizedDescription)
+        }
+    }
+
+    private func copyNotes() {
+        guard let markdown = notesMarkdown(all: false) else {
+            showToast(String(localized: "No highlights to export"))
+            return
+        }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(markdown, forType: .string)
+        showToast(String(localized: "Copied"))
     }
 
     private func showToast(_ message: String) {

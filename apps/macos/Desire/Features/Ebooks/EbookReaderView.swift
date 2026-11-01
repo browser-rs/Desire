@@ -56,6 +56,26 @@ struct EbookReaderView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help(String(localized: "Contents"))
+            Menu(model.layoutMode == .paged
+                 ? String(localized: "Paged")
+                 : String(localized: "Scroll")) {
+                ForEach(EbookReaderModel.LayoutMode.allCases) { mode in
+                    Button {
+                        model.applyLayoutMode(mode)
+                    } label: {
+                        if model.layoutMode == mode {
+                            Label(mode.displayName, systemImage: "checkmark")
+                        } else {
+                            Text(mode.displayName)
+                        }
+                    }
+                }
+            }
+            .font(.system(size: 10.5))
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .foregroundStyle(.secondary)
+            .help(String(localized: "Reading layout"))
             Menu {
                 ForEach(EbookReaderModel.Theme.allCases) { theme in
                     Button {
@@ -119,51 +139,101 @@ struct EbookReaderView: View {
             ProgressView()
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else if let url = model.htmlFileURL {
-            EbookWebView(fileURL: url,
-                         bookRoot: model.bookRoot,
-                         onReady: { model.webViewReady($0) },
-                         onProgress: { model.updateChapterProgress($0) })
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            ZStack {
+                EbookWebView(fileURL: url,
+                             bookRoot: model.bookRoot,
+                             pageTurn: model.pageTurnRequest,
+                             onReady: { model.webViewReady($0) },
+                             onProgress: { model.updateChapterProgress($0) },
+                             onPages: { count, index in
+                                 model.updatePages(count: count, index: index)
+                             })
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                if model.layoutMode == .paged {
+                    GeometryReader { geometry in
+                        HStack(spacing: 0) {
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture { model.previousPage() }
+                                .frame(width: geometry.size.width * 0.18)
+                            Spacer(minLength: 0)
+                            Color.clear
+                                .contentShape(Rectangle())
+                                .onTapGesture { model.nextPage() }
+                                .frame(width: geometry.size.width * 0.18)
+                        }
+                    }
+                }
+            }
         }
     }
 
     private var bottomBar: some View {
         HStack(spacing: 12) {
             Button {
-                model.previousChapter()
+                model.previousPage()
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 10, weight: .semibold))
             }
             .buttonStyle(.plain)
-            .foregroundStyle(model.currentChapter > 0
+            .foregroundStyle(canGoBack
                              ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
-            .disabled(model.currentChapter == 0)
-            .help(String(localized: "Previous chapter"))
+            .disabled(!canGoBack)
+            .help(String(localized: "Previous page"))
             Slider(value: Binding(
-                get: { model.chapterProgress },
+                get: { displayProgress },
                 set: { model.seek(to: $0) }
             ), in: 0...1)
             .controlSize(.small)
             .frame(maxWidth: 460)
-            Text(verbatim: "\(Int(model.chapterProgress * 100))% · \(model.currentChapter + 1)/\(model.chapterCount)")
+            Text(verbatim: progressLabel)
                 .font(.system(size: 9.5, design: .monospaced))
                 .foregroundStyle(.tertiary)
-                .frame(width: 92, alignment: .trailing)
+                .frame(width: 112, alignment: .trailing)
             Button {
-                model.nextChapter()
+                model.nextPage()
             } label: {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
             }
             .buttonStyle(.plain)
-            .foregroundStyle(model.currentChapter + 1 < model.chapterCount
+            .foregroundStyle(canGoForward
                              ? AnyShapeStyle(.primary) : AnyShapeStyle(.tertiary))
-            .disabled(model.currentChapter + 1 >= model.chapterCount)
-            .help(String(localized: "Next chapter"))
+            .disabled(!canGoForward)
+            .help(String(localized: "Next page"))
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 7)
+    }
+
+    private var displayProgress: Double {
+        model.layoutMode == .paged
+            ? (model.pageCount > 1
+               ? Double(model.pageIndex) / Double(model.pageCount - 1) : 0)
+            : model.chapterProgress
+    }
+
+    private var progressLabel: String {
+        if model.layoutMode == .paged {
+            return "\(model.pageIndex + 1)/\(model.pageCount) · \(model.currentChapter + 1)/\(model.chapterCount)"
+        }
+        return "\(Int(model.chapterProgress * 100))% · \(model.currentChapter + 1)/\(model.chapterCount)"
+    }
+
+    private var canGoBack: Bool {
+        if model.layoutMode == .paged {
+            return model.pageIndex > 0 || model.currentChapter > 0
+        }
+        return model.currentChapter > 0
+    }
+
+    private var canGoForward: Bool {
+        if model.layoutMode == .paged {
+            return model.pageIndex + 1 < model.pageCount
+                || model.currentChapter + 1 < model.chapterCount
+        }
+        return model.currentChapter + 1 < model.chapterCount
     }
 
     private var tocSheet: some View {

@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.35] - 2026-11-02
 ### Added
 
 - Books: highlights and notes now live inside the book — text-offset anchors survive repagination, markings are redrawn on every page rebuild, and a Notes & Highlights panel groups them by chapter for jump, recolor, note editing and deletion; highlights still land in Excerpts (v0.8.35)

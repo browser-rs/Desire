@@ -8151,6 +8151,7 @@ func testMediaEditCore() {
 
 testToolboxBatch2Cores()
 testMediaEditCore()
+testDocumentBatchCores()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
@@ -8159,3 +8160,85 @@ if !failures.isEmpty {
     exit(1)
 }
 print("全部通过 ✓")
+
+// ---------- 文档批（v0.8.33）：PDF 页码/命名 + 字幕编码 ----------
+
+func testDocumentBatchCores() {
+    let plan = PDFToolCore.parsePagePlan("1-3,5", pageCount: 6)
+    eq("PDF：组数", plan?.groups.count ?? 0, 2)
+    eq("PDF：展平", plan?.flat ?? [], [1, 2, 3, 5])
+    check("PDF：越界开区间整条非法",
+          PDFToolCore.parsePagePlan("1-3,5,8-", pageCount: 6) == nil)
+    eq("PDF：单页", PDFToolCore.parsePageNumbers("3", pageCount: 5) ?? [], [3])
+    eq("PDF：逆序纠正", PDFToolCore.parsePageNumbers("5-3", pageCount: 5) ?? [], [3, 4, 5])
+    eq("PDF：开头开区间", PDFToolCore.parsePageNumbers("-2", pageCount: 5) ?? [], [1, 2])
+    eq("PDF：结尾开区间", PDFToolCore.parsePageNumbers("4-", pageCount: 5) ?? [], [4, 5])
+    eq("PDF：上界钳制", PDFToolCore.parsePageNumbers("1-99", pageCount: 5) ?? [],
+       [1, 2, 3, 4, 5])
+    check("PDF：0 非法", PDFToolCore.parsePageNumbers("0", pageCount: 5) == nil)
+    check("PDF：超末页非法", PDFToolCore.parsePageNumbers("99", pageCount: 5) == nil)
+    eq("PDF：跨组去重", PDFToolCore.parsePageNumbers("1-3,2", pageCount: 5) ?? [],
+       [1, 2, 3])
+    check("PDF：空串非法", PDFToolCore.parsePageNumbers("", pageCount: 5) == nil)
+    eq("PDF：页码描述", PDFToolCore.describePages([1, 2, 3, 5]), "1-3,5")
+    eq("PDF：非连续描述", PDFToolCore.describePages([1, 3, 5]), "1,3,5")
+    eq("PDF：范围文件名", PDFToolCore.rangeFileName(stem: "doc", pages: [1, 2, 3, 5]),
+       "doc-p1-3_5.pdf")
+    eq("PDF：逐页文件名补零",
+       PDFToolCore.perPageFileName(stem: "doc", page: 7, total: 120), "doc-p007.pdf")
+    eq("PDF：文件名清洗", PDFToolCore.safeStem("a/b:c"), "a-b-c")
+    eq("PDF：空主干兜底", PDFToolCore.safeStem("   "), "output")
+
+    let a4 = PDFToolCore.pixelSize(widthPoints: 595.28, heightPoints: 841.89, dpi: 72)
+    eq("PDF：A4 72DPI 宽", a4.width, 595)
+    eq("PDF：A4 72DPI 高", a4.height, 842)
+    let a4x2 = PDFToolCore.pixelSize(widthPoints: 595.28, heightPoints: 841.89, dpi: 144)
+    eq("PDF：A4 144DPI 宽", a4x2.width, 1191)
+    eq("PDF：A4 144DPI 高", a4x2.height, 1684)
+    let capped = PDFToolCore.pixelSize(widthPoints: 10000, heightPoints: 5000,
+                                       dpi: 300, maxDimension: 20000)
+    eq("PDF：长边封顶宽", capped.width, 20000)
+    eq("PDF：长边封顶高", capped.height, 10000)
+
+    let fitted = PDFToolCore.fittedRect(width: 100, height: 50,
+                                        in: (width: 200, height: 200))
+    eq("PDF：适配 x", fitted.x, 0)
+    eq("PDF：适配 y", fitted.y, 50)
+    eq("PDF：适配宽", fitted.width, 200)
+    eq("PDF：适配高", fitted.height, 100)
+
+    // 字幕编码
+    let sample = [SubtitleCore.Cue(start: 1, end: 2.5, text: "Hello\nworld")]
+    let srt = SubtitleCore.encode(sample, as: .srt)
+    check("字幕：SRT 编码时间", srt.contains("00:00:01,000 --> 00:00:02,500"))
+    eq("字幕：SRT 往返", SubtitleCore.parse(Data(srt.utf8)) ?? [], sample)
+    let vtt = SubtitleCore.encode(sample, as: .vtt)
+    check("字幕：VTT 头", vtt.hasPrefix("WEBVTT"))
+    eq("字幕：VTT 往返", SubtitleCore.parse(Data(vtt.utf8)) ?? [], sample)
+    let ass = SubtitleCore.encode(sample, as: .ass)
+    check("字幕：ASS 行", ass.contains("Dialogue: 0,0:00:01.00,0:00:02.50,Default,,0,0,0,,Hello\\Nworld"))
+    eq("字幕：ASS 往返", SubtitleCore.parse(Data(ass.utf8)) ?? [], sample)
+    eq("字幕：SRT 时间戳", SubtitleCore.srtTimestamp(3661.5), "01:01:01,500")
+    eq("字幕：ASS 时间戳", SubtitleCore.assTimestamp(3661.5), "1:01:01.50")
+    eq("字幕：格式识别 SRT",
+       SubtitleCore.detectFormat(Data("1\n00:00:01,000 --> 00:00:02,000\nx\n".utf8)), .srt)
+    eq("字幕：格式识别 VTT", SubtitleCore.detectFormat(Data("WEBVTT\n\n".utf8)), .vtt)
+
+    let shifted = SubtitleCore.shift([SubtitleCore.Cue(start: 5, end: 6, text: "a")], by: -3)
+    eq("字幕：平移起点", shifted.first?.start ?? -1, 2)
+    eq("字幕：平移终点", shifted.first?.end ?? -1, 3)
+    check("字幕：平移丢弃负区间",
+          SubtitleCore.shift([SubtitleCore.Cue(start: 5, end: 6, text: "a")], by: -10).isEmpty)
+    let clipped = SubtitleCore.shift([SubtitleCore.Cue(start: 1, end: 4, text: "a")], by: -2)
+    eq("字幕：截断起点", clipped.first?.start ?? -1, 0)
+    eq("字幕：截断保留时长", clipped.first?.end ?? -1, 3)
+
+    let merged = SubtitleCore.mergeBilingual(
+        primary: [SubtitleCore.Cue(start: 0, end: 2, text: "Hello")],
+        secondary: [SubtitleCore.Cue(start: 0.2, end: 1.8, text: "你好"),
+                    SubtitleCore.Cue(start: 5, end: 6, text: "独立")])
+    eq("字幕：双语合并条数", merged.count, 2)
+    eq("字幕：双语合并文本", merged.first?.text ?? "", "Hello\n你好")
+    eq("字幕：无重叠保留", merged.last?.text ?? "", "独立")
+}
+

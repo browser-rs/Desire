@@ -9,6 +9,7 @@ enum ToolCategory: String, CaseIterable, Identifiable {
     case text
     case generate
     case media
+    case document
     case security
 
     var id: String { rawValue }
@@ -22,6 +23,7 @@ enum ToolCategory: String, CaseIterable, Identifiable {
         case .text: return String(localized: "Text")
         case .generate: return String(localized: "Generate & Graphics")
         case .media: return String(localized: "Media")
+        case .document: return String(localized: "Documents")
         case .security: return String(localized: "Security & Checks")
         }
     }
@@ -35,6 +37,7 @@ enum ToolCategory: String, CaseIterable, Identifiable {
         case .text: return "textformat"
         case .generate: return "wand.and.stars"
         case .media: return "film"
+        case .document: return "doc.on.doc"
         case .security: return "lock.shield"
         }
     }
@@ -66,6 +69,9 @@ enum ToolID: String, CaseIterable, Identifiable {
     case fileInfo, discount, billSplit, barcode
     // 媒体批（v0.8.27）：剪切/拼接/提音轨
     case videoEditor, audioEditor
+    // 文档批（v0.8.33）：PDF / OCR / 字幕
+    case pdfMerge, pdfSplit, pdfRotate, pdfToImages, imagesToPDF
+    case imageOCR, subtitle
 
     var id: String { rawValue }
 
@@ -77,7 +83,8 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .hash, .json, .regex, .jwt, .uuid: return .dev
         case .text: return .text
         case .qr, .password, .random: return .generate
-        case .videoEditor, .audioEditor, .imageConvert: return .media
+        case .videoEditor, .audioEditor, .imageConvert, .subtitle: return .media
+        case .pdfMerge, .pdfSplit, .pdfRotate, .pdfToImages, .imagesToPDF, .imageOCR: return .document
         case .morse, .dataURI, .width, .csvJSON: return .codec
         case .diff, .xml, .sql, .urlParse, .cidr, .httpStatus, .mime, .userAgent, .cron: return .dev
         case .aes, .hmac, .fileHash, .idCard, .luhn: return .security
@@ -150,6 +157,13 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .barcode: return String(localized: "Barcode")
         case .videoEditor: return String(localized: "Video Editor")
         case .audioEditor: return String(localized: "Audio Editor")
+        case .pdfMerge: return String(localized: "PDF Merge")
+        case .pdfSplit: return String(localized: "PDF Split")
+        case .pdfRotate: return String(localized: "PDF Rotate")
+        case .pdfToImages: return String(localized: "PDF to Images")
+        case .imagesToPDF: return String(localized: "Images to PDF")
+        case .imageOCR: return String(localized: "Text Recognition (OCR)")
+        case .subtitle: return String(localized: "Subtitle Converter")
         }
     }
 
@@ -214,6 +228,13 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .barcode: return String(localized: "Generate a Code128 barcode image from text")
         case .videoEditor: return String(localized: "Trim a segment or merge multiple video clips (ffmpeg handles exotic containers)")
         case .audioEditor: return String(localized: "Trim or merge audio, or extract the audio track of a video as m4a")
+        case .pdfMerge: return String(localized: "Merge PDFs in any order, keeping outlines where possible")
+        case .pdfSplit: return String(localized: "Extract page ranges or write one file per page")
+        case .pdfRotate: return String(localized: "Rotate selected pages by 90°, 180° or 270°")
+        case .pdfToImages: return String(localized: "Render PDF pages to PNG or JPEG at 72/144/300 DPI")
+        case .imagesToPDF: return String(localized: "Combine images into one PDF (A4 fit or original size)")
+        case .imageOCR: return String(localized: "Recognize text in images and PDFs on this Mac (Chinese + English)")
+        case .subtitle: return String(localized: "Convert SRT / VTT / ASS, shift timing or merge a bilingual track")
         }
     }
 
@@ -278,6 +299,13 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .barcode: return "barcode"
         case .videoEditor: return "film.stack"
         case .audioEditor: return "waveform"
+        case .pdfMerge: return "doc.on.doc"
+        case .pdfSplit: return "scissors"
+        case .pdfRotate: return "arrow.clockwise"
+        case .pdfToImages: return "photo.on.rectangle"
+        case .imagesToPDF: return "doc.richtext"
+        case .imageOCR: return "text.viewfinder"
+        case .subtitle: return "captions.bubble"
         }
     }
 
@@ -344,6 +372,13 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .barcode: keywords = ["条码", "code128", "barcode"]
         case .videoEditor: keywords = ["视频", "剪辑", "剪切", "拼接", "合并", "裁剪", "trim", "merge", "video"]
         case .audioEditor: keywords = ["音频", "剪辑", "剪切", "拼接", "提取", "音轨", "mp3", "m4a", "audio"]
+        case .pdfMerge: keywords = ["pdf", "合并", "拼接", "合并pdf", "merge", "文档"]
+        case .pdfSplit: keywords = ["pdf", "拆分", "分割", "提取", "页", "split"]
+        case .pdfRotate: keywords = ["pdf", "旋转", "转向", "rotate"]
+        case .pdfToImages: keywords = ["pdf", "图片", "导出", "png", "jpg", "dpi", "渲染"]
+        case .imagesToPDF: keywords = ["图片", "pdf", "合成", "相册", "转换"]
+        case .imageOCR: keywords = ["ocr", "识别", "文字", "提取", "图片", "pdf", "text recognition"]
+        case .subtitle: keywords = ["字幕", "srt", "vtt", "ass", "转换", "双语", "偏移", "subtitle"]
         }
         return ([rawValue, title, subtitle] + keywords).joined(separator: " ")
     }

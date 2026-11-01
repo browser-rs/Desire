@@ -4,7 +4,7 @@ import Vision
 /// 端上文字识别（0.6.9 截图 OCR）：**显式 Vision API 调用**——与已关闭的
 /// Live Text 是两回事（那是 WebKit 自动浮层，见 AGENTS；这里是用户点按钮
 /// 才跑的识别，数据不出机）。识别语言 zh-Hans + en-US，精确档。
-enum VisionOCRService {
+nonisolated enum VisionOCRService {
     struct Result {
         /// 按版面顺序的文本行。
         var lines: [String]

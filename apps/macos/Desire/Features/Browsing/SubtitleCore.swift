@@ -150,3 +150,158 @@ nonisolated enum SubtitleCore {
             .map { $0.0 }
     }
 }
+
+// MARK: - 编码与时间轴（v0.8.33 字幕工具）
+
+extension SubtitleCore {
+
+    enum Format: String, CaseIterable, Identifiable, Sendable {
+        case srt, vtt, ass
+        var id: String { rawValue }
+        var fileExtension: String { rawValue }
+        var displayName: String { rawValue.uppercased() }
+    }
+
+    /// 按内容嗅探格式（与 parse 同口径，但返回格式名）。
+    static func detectFormat(_ data: Data) -> Format? {
+        guard let text = String(data: data, encoding: .utf8)
+            ?? String(data: data, encoding: .isoLatin1) else { return nil }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("WEBVTT") { return .vtt }
+        if trimmed.hasPrefix("[Script Info]") || trimmed.contains("[V4+ Styles]") { return .ass }
+        return parseSRT(text).isEmpty ? nil : .srt
+    }
+
+    // MARK: 编码
+
+    static func encode(_ cues: [Cue], as format: Format) -> String {
+        switch format {
+        case .srt: return encodeSRT(cues)
+        case .vtt: return encodeVTT(cues)
+        case .ass: return encodeASS(cues)
+        }
+    }
+
+    private static func encodeSRT(_ cues: [Cue]) -> String {
+        var blocks: [String] = []
+        for (index, cue) in cues.enumerated() {
+            blocks.append("\(index + 1)\n\(srtTimestamp(cue.start)) --> \(srtTimestamp(cue.end))\n\(cue.text)")
+        }
+        return blocks.joined(separator: "\n\n") + (blocks.isEmpty ? "" : "\n")
+    }
+
+    private static func encodeVTT(_ cues: [Cue]) -> String {
+        var blocks: [String] = ["WEBVTT"]
+        for cue in cues {
+            blocks.append("\(vttTimestamp(cue.start)) --> \(vttTimestamp(cue.end))\n\(cue.text)")
+        }
+        return blocks.joined(separator: "\n\n") + "\n"
+    }
+
+    private static func encodeASS(_ cues: [Cue]) -> String {
+        let header = """
+        [Script Info]
+        Title: Desire Subtitle
+        ScriptType: v4.00+
+
+        [V4+ Styles]
+        Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+        Style: Default,Arial,20,&H00FFFFFF,&H000000FF,&H00000000,&H00000000,0,0,0,0,100,100,0,0,1,2,0,2,10,10,10,1
+
+        [Events]
+        Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+        """
+        let lines = cues.map { cue -> String in
+            let text = cue.text
+                .replacingOccurrences(of: "\\", with: "\\\\")
+                .replacingOccurrences(of: "\n", with: "\\N")
+            return "Dialogue: 0,\(assTimestamp(cue.start)),\(assTimestamp(cue.end)),Default,,0,0,0,,\(text)"
+        }
+        return ([header] + lines).joined(separator: "\n") + "\n"
+    }
+
+    // MARK: 时间戳格式化
+
+    static func srtTimestamp(_ seconds: Double) -> String {
+        let total = milliseconds(seconds)
+        return String(format: "%02d:%02d:%02d,%03d",
+                      total / 3_600_000, (total / 60_000) % 60, (total / 1000) % 60, total % 1000)
+    }
+
+    static func vttTimestamp(_ seconds: Double) -> String {
+        let total = milliseconds(seconds)
+        return String(format: "%02d:%02d:%02d.%03d",
+                      total / 3_600_000, (total / 60_000) % 60, (total / 1000) % 60, total % 1000)
+    }
+
+    static func assTimestamp(_ seconds: Double) -> String {
+        let total = milliseconds(seconds)
+        return String(format: "%d:%02d:%02d.%02d",
+                      total / 3_600_000, (total / 60_000) % 60, (total / 1000) % 60,
+                      (total % 1000) / 10)
+    }
+
+    /// 秒 → 毫秒整数（四舍五入、非负）。
+    private static func milliseconds(_ seconds: Double) -> Int {
+        guard seconds.isFinite else { return 0 }
+        return max(0, Int((seconds * 1000).rounded()))
+    }
+
+    // MARK: 时间轴
+
+    /// 整体平移（秒）。落点在 0 之前、或平移后时长为 0 的条目丢弃；
+    /// 起点被 0 截断时保留原时长（避免第一条字幕突然变短）。
+    static func shift(_ cues: [Cue], by offset: Double) -> [Cue] {
+        guard offset.isFinite else { return cues }
+        return cues.compactMap { cue in
+            var start = cue.start + offset
+            var end = cue.end + offset
+            guard end > 0 else { return nil }
+            if start < 0 {
+                let duration = max(0.001, cue.end - cue.start)
+                start = 0
+                end = max(end, duration)
+            }
+            guard end > start else { return nil }
+            return Cue(start: start, end: end, text: cue.text)
+        }
+    }
+
+    /// 双语合并：主字幕保留时间轴，从字幕按最大重叠挂到主条目上（换行拼接）；
+    /// 没有重叠的从字幕作为独立条目保留。两路都按起点排序。
+    static func mergeBilingual(primary: [Cue], secondary: [Cue]) -> [Cue] {
+        let primary = primary.sorted { $0.start < $1.start }
+        let secondary = secondary.sorted { $0.start < $1.start }
+        var merged = primary
+        var extras: [Cue] = []
+        var cursor = 0
+        for cue in secondary {
+            while cursor < primary.count, primary[cursor].end <= cue.start {
+                cursor += 1
+            }
+            var bestIndex: Int?
+            var bestOverlap: Double = 0
+            var probe = cursor
+            while probe < primary.count, primary[probe].start < cue.end {
+                let overlap = min(primary[probe].end, cue.end)
+                    - max(primary[probe].start, cue.start)
+                if overlap > bestOverlap {
+                    bestOverlap = overlap
+                    bestIndex = probe
+                }
+                probe += 1
+            }
+            if let bestIndex, bestOverlap > 0 {
+                let existing = merged[bestIndex]
+                let text = existing.text.isEmpty ? cue.text
+                    : existing.text + "\n" + cue.text
+                merged[bestIndex] = Cue(start: existing.start, end: existing.end, text: text)
+            } else {
+                extras.append(cue)
+            }
+        }
+        return (merged + extras).sorted { lhs, rhs in
+            lhs.start == rhs.start ? lhs.end < rhs.end : lhs.start < rhs.start
+        }
+    }
+}

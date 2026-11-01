@@ -321,6 +321,13 @@ struct ToolsPageView: View {
         case .barcode: BarcodeToolView()
         case .videoEditor: VideoEditorToolView()
         case .audioEditor: AudioEditorToolView()
+        case .pdfMerge: PDFMergeToolView()
+        case .pdfSplit: PDFSplitToolView()
+        case .pdfRotate: PDFRotateToolView()
+        case .pdfToImages: PDFToImagesToolView()
+        case .imagesToPDF: ImagesToPDFToolView()
+        case .imageOCR: ImageOCRToolView()
+        case .subtitle: SubtitleToolView()
         }
     }
 

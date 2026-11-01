@@ -1763,7 +1763,7 @@ extension BrowserToolProvider {
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "readBook",
-                description: "Read plain text from a local EPUB/TXT ebook, chapter by chapter, with [chN] citations. `book` can be an id, id prefix or title fragment; omitted = most recently read. Use before summarizing or answering questions about the book.",
+                description: "Read plain text from a local EPUB/TXT/Markdown/HTML ebook, chapter by chapter, with [chN] citations. `book` can be an id, id prefix or title fragment; omitted = most recently read. Use before summarizing or answering questions about the book.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "book": AgentJSONSchemaValue(type: "string", description: "Book id, id prefix or title fragment (optional)"),
                     "chapters": AgentJSONSchemaValue(type: "string", description: "Chapter range like \"1-3,5\" or \"all\" (default all)"),
@@ -1772,7 +1772,7 @@ extension BrowserToolProvider {
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "searchBook",
-                description: "Search inside a local EPUB/TXT ebook and return chapter + snippet hits. Use to locate a passage before reading it with readBook.",
+                description: "Search inside a local EPUB/TXT/Markdown/HTML ebook and return chapter + snippet hits. Use to locate a passage before reading it with readBook.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "book": AgentJSONSchemaValue(type: "string", description: "Book id/title fragment (optional; default most recent)"),
                     "query": AgentJSONSchemaValue(type: "string", description: "Text to find"),
@@ -1785,6 +1785,27 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "book": AgentJSONSchemaValue(type: "string", description: "Book id/title fragment (optional; default most recent)"),
                 ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "openBook",
+                description: "Open a local ebook in the in-tab reader at a specific chapter. Use after listBooks when the user wants to read or continue a book.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "book": AgentJSONSchemaValue(type: "string", description: "Book id, id prefix or title fragment (optional; default the book currently being read)"),
+                    "chapter": AgentJSONSchemaValue(type: "number", description: "1-based chapter number (optional; default last position)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listBookHighlights",
+                description: "List the user's highlights and notes in a local ebook, with [chN] and chapter titles. Use when the user asks what they marked or wants a summary of their notes.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "book": AgentJSONSchemaValue(type: "string", description: "Book id/title fragment (optional; default the book currently being read)"),
+                    "limit": AgentJSONSchemaValue(type: "number", description: "Max items (default 50, max 100)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "saveWebPageToLibrary",
+                description: "Save the current tab's article (reader-mode text) as an offline book in the local library; remote images are localized and the same URL is deduplicated. Navigate the tab to the article first if needed.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
                 ]
     }()

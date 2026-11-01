@@ -1783,6 +1783,7 @@ class AgentSessionStore: ObservableObject {
             ffmpegAvailable: FFmpegExporter.isAvailable,
             ffmpegPath: FFmpegExporter.locate()?.path,
             pageContext: pageContext,
+            currentBook: EbookReaderSession.shared.promptSummary,
             ownSessionID: registryID
         ))
         let notesBlock = notes.isEmpty
@@ -2743,7 +2744,8 @@ class AgentSessionStore: ObservableObject {
             downloadsPath: AgentPromptBuilder.downloadsPath,
             ffmpegAvailable: FFmpegExporter.isAvailable,
             ffmpegPath: FFmpegExporter.locate()?.path,
-            pageContext: pageContext
+            pageContext: pageContext,
+            currentBook: EbookReaderSession.shared.promptSummary
         ))
         var subMessages: [AgentMessage] = [
             AgentMessage(role: .system, content: composed),

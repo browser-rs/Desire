@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "books.vertical.fill", title: String(localized: "A real ebook reader"),
-                  detail: String(localized: "Import EPUB 2/3 and TXT into a cover library; read in a paged layout with a 3D page-flip, table of contents, progress restore and four paper themes.")),
-            .init(icon: "highlighter", title: String(localized: "Read with search and notes"),
-                  detail: String(localized: "Search the whole book with highlighted hits, bookmark pages, and select text to highlight, note, copy, speak or ask the Agent — highlights land in Excerpts.")),
-            .init(icon: "book.closed", title: String(localized: "Beyond EPUB"),
-                  detail: String(localized: "CBZ comics read page by page; MOBI/AZW3 import through Calibre when installed; the Agent gains listBooks, readBook, searchBook and getBookOutline.")),
+            .init(icon: "highlighter", title: String(localized: "Your notes stay in the book"),
+                  detail: String(localized: "Highlight or note any passage — marks are redrawn after every page rebuild, a Notes & Highlights panel groups them by chapter, and one book or the whole library exports to Markdown.")),
+            .init(icon: "speaker.wave.2.fill", title: String(localized: "Listen, translate, keep reading"),
+                  detail: String(localized: "Read a chapter aloud with page-following and auto-advance; select a passage to translate it on-device, then copy it or save it to Excerpts.")),
+            .init(icon: "books.vertical.fill", title: String(localized: "Turn a web page into a book"),
+                  detail: String(localized: "Reader mode saves the article into your library with its images localized for offline reading; Markdown and HTML files import too, and the library gains favorites, collections, sorting and reading stats.")),
         ]
     }
 

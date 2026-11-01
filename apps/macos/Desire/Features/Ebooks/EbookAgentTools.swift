@@ -1,4 +1,5 @@
 import Foundation
+import WebKit
 
 /// 电子书 Agent 工具（v0.8.34 批次四）：书库列表、按章节读正文、搜书、目录。
 @MainActor
@@ -84,11 +85,88 @@ enum EbookAgentTools {
         }
     }
 
+    // MARK: - v0.8.35
+
+    static func openBook(book: String?, chapter: Int?) -> String {
+        guard let selected = resolve(book) else { return fail("no matching ebook") }
+        guard let tab = TabSessionCoordinator.shared.activeTabManager?.selectedTab else {
+            return fail("no active tab")
+        }
+        let count = max(1, selected.chapterCount)
+        let target = max(0, min(chapter ?? selected.lastChapterIndex, count - 1))
+        let raw = "desire://books/\(selected.id.uuidString)"
+            + (chapter == nil ? "" : "?chapter=\(target)")
+        guard let destination = InternalPages.parse(raw) else {
+            return fail("could not open this book")
+        }
+        InternalPages.open(destination, in: tab)
+        return "Opened \"\(selected.title)\" at chapter \(target + 1)/\(count)."
+    }
+
+    static func listBookHighlights(book: String?, limit: Int) -> String {
+        guard let selected = resolve(book) else { return fail("no matching ebook") }
+        let items = EbookHighlightStore.load(selected.id).sorted {
+            if $0.chapterIndex != $1.chapterIndex { return $0.chapterIndex < $1.chapterIndex }
+            if $0.startOffset != $1.startOffset { return $0.startOffset < $1.startOffset }
+            return $0.createdAt < $1.createdAt
+        }
+        guard !items.isEmpty else {
+            return "No highlights or notes in \"\(selected.title)\"."
+        }
+        let cap = min(max(limit, 1), 100)
+        return items.prefix(cap).map { item in
+            var block = "[ch\(item.chapterIndex + 1)] \(item.chapterTitle)\n> \(item.quote)"
+            if let note = item.trimmedNote { block += "\nNote: \(note)" }
+            return block
+        }.joined(separator: "\n\n")
+    }
+
+    /// 把当前标签页的阅读正文存成书（页面需先在当前标签打开）。
+    static func saveWebPageToLibrary() async -> String {
+        guard let tab = TabSessionCoordinator.shared.activeTabManager?.selectedTab else {
+            return fail("no active tab")
+        }
+        let browser = tab.browser
+        let currentURL = browser.webView.url?.absoluteString ?? ""
+        if browser.readerContent.isEmpty || browser.readerBaseURLString != currentURL {
+            _ = try? await browser.webView.evaluateJavaScript("window._desireReader()")
+            var waited = 0
+            while (browser.readerContent.isEmpty
+                   || browser.readerBaseURLString != currentURL) && waited < 60 {
+                try? await Task.sleep(for: .milliseconds(100))
+                waited += 1
+            }
+        }
+        guard !browser.readerContent.isEmpty else {
+            return fail("could not extract article text from the current page")
+        }
+        let pageTitle = browser.webView.title ?? ""
+        let title = browser.readerTitle.isEmpty
+            ? (pageTitle.isEmpty ? String(localized: "Web page") : pageTitle)
+            : browser.readerTitle
+        let base = URL(string: browser.readerBaseURLString)
+        do {
+            let result = try await EbookWebBookImporter.importArticle(
+                title: title, html: browser.readerContent, baseURL: base)
+            if result.existed {
+                return "This page is already in the library: \"\(result.book.title)\" (\(result.book.id.uuidString))."
+            }
+            return "Saved \"\(result.book.title)\" to the library (\(result.imageCount) image(s) "
+                + "localized, \(result.failedImages) failed). Book id: \(result.book.id.uuidString)."
+        } catch {
+            return fail(error.localizedDescription)
+        }
+    }
+
     // MARK: - 解析
 
     private static func resolve(_ raw: String?) -> Ebook? {
         let books = EbookLibraryStore.shared.books
         guard let raw, !raw.trimmingCharacters(in: .whitespaces).isEmpty else {
+            if let current = EbookReaderSession.shared.bookID,
+               let book = books.first(where: { $0.id == current }) {
+                return book
+            }
             return books.sorted {
                 ($0.lastOpenedAt ?? $0.addedAt) > ($1.lastOpenedAt ?? $1.addedAt)
             }.first

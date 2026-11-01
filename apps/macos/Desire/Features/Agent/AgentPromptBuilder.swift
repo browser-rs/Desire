@@ -41,6 +41,8 @@ enum AgentPromptBuilder {
         var ffmpegAvailable: Bool = false
         var ffmpegPath: String?
         var pageContext: String?      // fresh compact page summary
+        /// 当前阅读中的电子书（v0.8.35）：书名/作者/章节/进度/书 id。
+        var currentBook: String? = nil
         /// 本会话在 AgentScheduler 注册表中的 id（多窗口 Agent 的窗口清单
         /// 里标记"你的窗口"用；nil = 不注入窗口清单）。
         var ownSessionID: UUID?
@@ -195,6 +197,18 @@ enum AgentPromptBuilder {
                 + lines.joined(separator: "\n"))
         }
         sections.append("<environment>\n\(environment.joined(separator: "\n"))\n</environment>")
+
+        if let book = input.currentBook?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !book.isEmpty {
+            sections.append("""
+            <current_book>
+            The user is reading this local ebook right now. Use readBook / \
+            searchBook / getBookOutline for more of the text, and listBookHighlights \
+            for their notes. "This chapter" and "this book" refer to it.
+            \(book)
+            </current_book>
+            """)
+        }
 
         if let page = input.pageContext, !page.isEmpty {
             // **提示注入围栏**：页面内容是数据不是指令。围栏声明 + 明确边界

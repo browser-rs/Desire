@@ -747,6 +747,9 @@ final class AutomationServer {
         ep("POST", "/promotion/mentions/scan", "Scan enabled sources off-screen for a keyword; new links go to the interaction ledger (deduped)", params: ["query:string", "limit?:int"], example: #"-d '{"query":"Desire browser"}'"#)
         ep("POST", "/promotion/share", "Build a ready-to-post Desire caption + UTM link for a channel (no network, no posting)", params: ["channel?:string (X/小红书/V2EX/掘金/即刻/Hacker News)", "version?:string"], example: #"-d '{"channel":"X"}'"#)
         ep("GET", "/jobs", "Unified job ledger (publish/mention scan/campaign…) with states, artifacts and receipts", params: ["limit?:int"], example: "…/jobs")
+        ep("GET", "/books", "Local ebook library (id/title/author/format/progress/chapterCount/favorite/collection/highlights)", example: "…/books")
+        ep("POST", "/books/import-web", "Save an article HTML fragment as an offline HTML book in the library (images localized, same URL dedupes)", params: ["title?:string", "html:string", "url?:string"], example: #"-d '{"title":"Article","html":"<p>…</p>","url":"https://example.com/a"}'"#)
+        ep("POST", "/books/remove", "Remove a book from the library (deleteFiles=false keeps the copy on disk)", params: ["id:uuid", "deleteFiles?:bool"], example: #"-d '{"id":"<uuid>","deleteFiles":true}'"#)
         ep("POST", "/jobs/action", "Dismiss an active job / delete a job / clear finished jobs / approve or deny a background approval", params: ["action:dismiss|delete|clearFinished|approve|deny", "id?:uuid"], example: #"-d '{"action":"clearFinished"}'"#)
         ep("GET", "/playbooks", "Operations playbooks (parameterized runnable prompts)", example: "…/playbooks")
         ep("POST", "/playbooks/run", "Compose a playbook with values and send it to the live agent session (no auto-publish)", params: ["id:uuid", "values?:object"], example: #"-d '{"id":"<uuid>","values":{"focus":"pricing"}}'"#)
@@ -3643,6 +3646,12 @@ final class AutomationServer {
                 return try Self.json(Self.approvalHistory(count: Int(query["count"] ?? "20") ?? 20))
             case ("POST", "/approvals/simulate"):
                 return try Self.json(Self.simulateApproval())
+            case ("GET", "/books"):
+                return try Self.json(Self.booksList())
+            case ("POST", "/books/import-web"):
+                return try Self.json(await Self.booksImportWeb(body))
+            case ("POST", "/books/remove"):
+                return try Self.json(Self.booksRemove(body))
             default:
                 return Self.error("unknown route \(method) \(path)")
             }
@@ -7331,6 +7340,60 @@ final class AutomationServer {
                 "url": PromotionShare.trackedURL(version: version, channel: channel.slug),
                 "caption": PromotionShare.caption(platform: channel.platform,
                                                   version: version)]
+    }
+
+    // MARK: - Books (v0.8.35)
+
+    private static func booksList() -> [String: Any] {
+        let books = EbookLibraryStore.shared.books.map { book -> [String: Any] in
+            [
+                "id": book.id.uuidString,
+                "title": book.title,
+                "author": book.author,
+                "format": book.format.rawValue,
+                "progress": book.progress,
+                "chapterCount": book.chapterCount,
+                "favorite": book.favorite,
+                "collection": book.collectionName ?? "",
+                "highlights": EbookHighlightStore.load(book.id).count,
+                "fileName": book.fileName,
+            ]
+        }
+        return ["books": books, "count": books.count]
+    }
+
+    private static func booksImportWeb(_ body: [String: Any]) async throws -> [String: Any] {
+        guard let html = string(body, "html"), !html.isEmpty else {
+            throw NSError(domain: "books", code: 1, userInfo: [
+                NSLocalizedDescriptionKey: "html is required",
+            ])
+        }
+        let title = string(body, "title") ?? ""
+        let baseURL = string(body, "url").flatMap { URL(string: $0) }
+        let result = try await EbookWebBookImporter.importArticle(
+            title: title, html: html, baseURL: baseURL)
+        return [
+            "book": [
+                "id": result.book.id.uuidString,
+                "title": result.book.title,
+                "chapterCount": result.book.chapterCount,
+            ],
+            "existed": result.existed,
+            "images": result.imageCount,
+            "failedImages": result.failedImages,
+        ]
+    }
+
+    private static func booksRemove(_ body: [String: Any]) -> [String: Any] {
+        guard let raw = string(body, "id"), let id = UUID(uuidString: raw) else {
+            return ["error": "id is required"]
+        }
+        guard EbookLibraryStore.shared.book(id: id) != nil else {
+            return ["error": "no such book"]
+        }
+        let deleteFiles = (body["deleteFiles"] as? Bool) ?? false
+        EbookLibraryStore.shared.remove(id, deleteFiles: deleteFiles)
+        return ["ok": true, "deletedFiles": deleteFiles]
     }
 
     private static func jobsList(limit: Int) -> [String: Any] {

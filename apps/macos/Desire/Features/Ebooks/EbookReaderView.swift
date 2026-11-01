@@ -37,10 +37,12 @@ struct EbookReaderView: View {
     @State private var translationConfig: TranslationSession.Configuration?
     @FocusState private var searchFocused: Bool
 
-    init(book: Ebook, onBack: @escaping () -> Void) {
+    init(book: Ebook, initialChapter: Int? = nil, onBack: @escaping () -> Void) {
         self.book = book
         self.onBack = onBack
-        _model = StateObject(wrappedValue: EbookReaderModel(book: book))
+        let reader = EbookReaderModel(book: book)
+        reader.initialChapter = initialChapter
+        _model = StateObject(wrappedValue: reader)
     }
 
     var body: some View {
@@ -141,6 +143,7 @@ struct EbookReaderView: View {
             stopReadingAloud()
             model.endReadingSession()
             model.saveProgress(force: true)
+            EbookReaderSession.shared.clear(bookID: book.id)
         }
     }
 

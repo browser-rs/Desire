@@ -362,6 +362,16 @@ extension BrowserToolProvider {
                 limit: (args["limit"] as? Int) ?? 20)
         case "getBookOutline":
             return await EbookAgentTools.outline(book: args["book"] as? String)
+        case "openBook":
+            return EbookAgentTools.openBook(
+                book: args["book"] as? String,
+                chapter: args["chapter"] as? Int)
+        case "listBookHighlights":
+            return EbookAgentTools.listBookHighlights(
+                book: args["book"] as? String,
+                limit: (args["limit"] as? Int) ?? 50)
+        case "saveWebPageToLibrary":
+            return await EbookAgentTools.saveWebPageToLibrary()
         default:
             // MCP-bridged tools ride the same dispatch path with the same
             // approval gating as built-ins.

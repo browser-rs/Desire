@@ -127,6 +127,8 @@ final class EbookReaderModel: ObservableObject {
     private static let layoutKey = "ebook.layout"
     private weak var webView: WKWebView?
     private var restoreRatio: Double?
+    /// 深链指定起始章（`desire://books/<id>?chapter=N`）；load() 消费一次。
+    var initialChapter: Int?
     private var lastSaved = Date.distantPast
     private var statsSessionStart: Date?
     private var statsPagesSinceFlush = 0
@@ -198,8 +200,11 @@ final class EbookReaderModel: ObservableObject {
             self.error = error.localizedDescription
         }
         if error == nil {
-            let start = min(max(book.lastChapterIndex, 0), chapterCount - 1)
-            loadChapter(start, restoreRatio: book.chapterProgress)
+            let requested = initialChapter ?? book.lastChapterIndex
+            let ratio = initialChapter == nil ? book.chapterProgress : 0
+            initialChapter = nil
+            let start = min(max(requested, 0), chapterCount - 1)
+            loadChapter(start, restoreRatio: ratio)
         }
         isLoading = false
     }
@@ -499,11 +504,19 @@ final class EbookReaderModel: ObservableObject {
         EbookLibraryStore.shared.updateProgress(
             book.id, chapterIndex: currentChapter,
             chapterProgress: chapterProgress, overall: overallProgress)
+        updateSession()
+    }
+
+    private func updateSession() {
+        EbookReaderSession.shared.update(
+            book: book, chapterIndex: currentChapter, chapterTitle: chapterTitle,
+            chapterCount: chapterCount, progress: overallProgress)
     }
 
     // MARK: - 阅读统计
 
     func startReadingSession() {
+        updateSession()
         guard statsSessionStart == nil else { return }
         statsSessionStart = Date()
         let timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in

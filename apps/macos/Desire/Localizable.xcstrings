@@ -88452,6 +88452,138 @@
           }
         }
       }
+    },
+    "Your notes stay in the book" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your notes stay in the book"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "笔记留在书里"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "筆記留在書裡"
+          }
+        }
+      }
+    },
+    "Highlight or note any passage — marks are redrawn after every page rebuild, a Notes & Highlights panel groups them by chapter, and one book or the whole library exports to Markdown." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Highlight or note any passage — marks are redrawn after every page rebuild, a Notes & Highlights panel groups them by chapter, and one book or the whole library exports to Markdown."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在书中选中任意段落即可高亮或写笔记——翻页重建后标记仍在，笔记面板按章节分组，还能把单本书或整个书架导出为 Markdown。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在書中選取任意段落即可螢光標記或寫筆記——翻頁重建後標記仍在，筆記面板按章節分組，還能將單本書或整個書架匯出為 Markdown。"
+          }
+        }
+      }
+    },
+    "Listen, translate, keep reading" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listen, translate, keep reading"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "听书、翻译、继续读"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聽書、翻譯、繼續讀"
+          }
+        }
+      }
+    },
+    "Read a chapter aloud with page-following and auto-advance; select a passage to translate it on-device, then copy it or save it to Excerpts." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read a chapter aloud with page-following and auto-advance; select a passage to translate it on-device, then copy it or save it to Excerpts."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整章朗读会跟着翻页并在读完后自动进入下一章；选中段落可用端上翻译，译文可复制或存入摘录。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整章朗讀會跟著翻頁並在讀完後自動進入下一章；選取段落可用端上翻譯，譯文可複製或存入摘錄。"
+          }
+        }
+      }
+    },
+    "Turn a web page into a book" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turn a web page into a book"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把网页变成书"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把網頁變成書"
+          }
+        }
+      }
+    },
+    "Reader mode saves the article into your library with its images localized for offline reading; Markdown and HTML files import too, and the library gains favorites, collections, sorting and reading stats." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reader mode saves the article into your library with its images localized for offline reading; Markdown and HTML files import too, and the library gains favorites, collections, sorting and reading stats."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "阅读模式可把文章连同图片一起存进书架离线阅读；Markdown、HTML 也能导入，书架还支持收藏、分组、排序与阅读统计。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "閱讀模式可把文章連同圖片一起存進書架離線閱讀；Markdown、HTML 也能匯入，書架還支援收藏、分組、排序與閱讀統計。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

@@ -74,18 +74,21 @@ enum ToolID: String, CaseIterable, Identifiable {
     case imageOCR, subtitle
     // 开发批（v0.8.33）：Base32 / TOTP / JSONPath / 结构化 / chmod / 浮点 / ULID
     case base32, totp, jsonPath, structuredData, chmod, floatBits, ulid
+    // 文本批（v0.8.33）：时区 / 简繁 / 拼音 / 中文排版 / 对比度 / 二维码识别
+    case timezone, zhConvert, pinyin, zhTypography, contrast, qrDecode
 
     var id: String { rawValue }
 
     var category: ToolCategory {
         switch self {
         case .mortgage, .savings, .percent, .scientific, .bmi: return .calc
-        case .timestamp, .date, .units, .number, .color: return .time
+        case .timestamp, .date, .units, .number, .color, .timezone: return .time
         case .base64, .url, .html, .unicode, .hex: return .codec
         case .hash, .json, .regex, .jwt, .uuid: return .dev
         case .base32, .totp, .jsonPath, .structuredData, .chmod, .floatBits, .ulid: return .dev
-        case .text: return .text
-        case .qr, .password, .random: return .generate
+        case .text, .zhConvert, .pinyin, .zhTypography: return .text
+        case .qr, .password, .random, .contrast: return .generate
+        case .qrDecode: return .codec
         case .videoEditor, .audioEditor, .imageConvert, .subtitle: return .media
         case .pdfMerge, .pdfSplit, .pdfRotate, .pdfToImages, .imagesToPDF, .imageOCR: return .document
         case .morse, .dataURI, .width, .csvJSON: return .codec
@@ -174,6 +177,12 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .chmod: return String(localized: "chmod")
         case .floatBits: return String(localized: "IEEE 754")
         case .ulid: return String(localized: "ULID")
+        case .timezone: return String(localized: "Time Zone")
+        case .zhConvert: return String(localized: "Simplified ↔ Traditional")
+        case .pinyin: return String(localized: "Pinyin")
+        case .zhTypography: return String(localized: "Chinese Typography")
+        case .contrast: return String(localized: "Contrast Checker")
+        case .qrDecode: return String(localized: "Barcode Scanner")
         }
     }
 
@@ -252,6 +261,12 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .chmod: return String(localized: "Convert between octal, rwx flags and symbolic permissions")
         case .floatBits: return String(localized: "Inspect float32/float64 bit patterns, endianness and fields")
         case .ulid: return String(localized: "Generate sortable ULIDs (48-bit timestamp + 80-bit randomness)")
+        case .timezone: return String(localized: "Convert a wall-clock time between time zones, with DST and offsets")
+        case .zhConvert: return String(localized: "Convert Chinese text between Simplified and Traditional characters")
+        case .pinyin: return String(localized: "Romanize Chinese text with tone marks, plain pinyin or initials")
+        case .zhTypography: return String(localized: "Add CJK/Latin spacing, normalize punctuation and clean up lines")
+        case .contrast: return String(localized: "WCAG contrast ratio with AA/AAA ratings and a small palette")
+        case .qrDecode: return String(localized: "Decode QR codes and barcodes from an image or the clipboard")
         }
     }
 
@@ -330,6 +345,12 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .chmod: return "lock.rectangle"
         case .floatBits: return "number.square"
         case .ulid: return "list.number"
+        case .timezone: return "globe"
+        case .zhConvert: return "character.book.closed"
+        case .pinyin: return "textformat.abc"
+        case .zhTypography: return "text.alignleft"
+        case .contrast: return "circle.lefthalf.filled"
+        case .qrDecode: return "qrcode.viewfinder"
         }
     }
 
@@ -410,6 +431,12 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .chmod: keywords = ["chmod", "权限", "755", "rwx", "unix"]
         case .floatBits: keywords = ["ieee", "浮点", "float", "位模式", "十六进制"]
         case .ulid: keywords = ["ulid", "唯一", "id", "时间序"]
+        case .timezone: keywords = ["时区", "世界时钟", "time zone", "utc", "时差"]
+        case .zhConvert: keywords = ["简繁", "繁体", "简体", "转换", "traditional", "simplified"]
+        case .pinyin: keywords = ["拼音", "pinyin", "注音", "首字母"]
+        case .zhTypography: keywords = ["中文排版", "标点", "空格", "全角", "排版"]
+        case .contrast: keywords = ["对比度", "wcag", "无障碍", "配色", "aa", "aaa"]
+        case .qrDecode: keywords = ["二维码", "条码", "扫描", "识别", "qr", "barcode"]
         }
         return ([rawValue, title, subtitle] + keywords).joined(separator: " ")
     }

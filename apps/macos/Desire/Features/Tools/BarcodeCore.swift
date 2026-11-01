@@ -65,3 +65,32 @@ nonisolated enum BarcodeCore {
         }
     }
 }
+
+// MARK: - 解码内容分类（v0.8.33 设计批）
+
+extension BarcodeCore {
+
+    enum Kind: String, Sendable {
+        case link, email, phone, wifi, contact, text
+    }
+
+    static func kind(of payload: String) -> Kind {
+        let trimmed = payload.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = trimmed.lowercased()
+        if lower.hasPrefix("wifi:") { return .wifi }
+        if lower.hasPrefix("begin:vcard") { return .contact }
+        if lower.hasPrefix("mailto:") { return .email }
+        if lower.hasPrefix("tel:") { return .phone }
+        if lower.hasPrefix("http://") || lower.hasPrefix("https://") { return .link }
+        return .text
+    }
+
+    /// 可直接打开的目标（仅 http/https/mailto/tel）。
+    static func link(from payload: String) -> URL? {
+        let trimmed = payload.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let url = URL(string: trimmed),
+              let scheme = url.scheme?.lowercased(),
+              ["http", "https", "mailto", "tel"].contains(scheme) else { return nil }
+        return url
+    }
+}

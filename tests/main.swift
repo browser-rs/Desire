@@ -8153,6 +8153,7 @@ testToolboxBatch2Cores()
 testMediaEditCore()
 testDocumentBatchCores()
 testToolboxDataCores()
+testToolboxLanguageCores()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
@@ -8397,5 +8398,82 @@ func testToolboxDataCores() {
        zeros)
     check("ULID：拒绝非法字符", ULIDCore.decode("U1ARZ3NDEKTSV4RRFFQ69G5FAV") == nil)
 }
+
+// ---------- 文本批（v0.8.33）：时区 / 简繁 / 拼音 / 排版 / 对比度 / 条码分类 ----------
+
+func testToolboxLanguageCores() {
+    // 时区
+    let utc = TimeZone(identifier: "UTC")!
+    let shanghai = TimeZone(identifier: "Asia/Shanghai")!
+    let newYork = TimeZone(identifier: "America/New_York")!
+    eq("时区：UTC 格式化", TimeZoneCore.formatted(Date(timeIntervalSince1970: 0), in: utc),
+       "1970-01-01 00:00:00")
+    eq("时区：上海小时", TimeZoneCore.components(
+        for: Date(timeIntervalSince1970: 0), in: shanghai).hour ?? -1, 8)
+    eq("时区：偏移", TimeZoneCore.offsetString(for: shanghai,
+        at: Date(timeIntervalSince1970: 0)), "+08:00")
+    var wall = DateComponents()
+    wall.year = 1970; wall.month = 1; wall.day = 1
+    wall.hour = 8; wall.minute = 0; wall.second = 0
+    eq("时区：墙钟转时刻", TimeZoneCore.instant(wallClock: wall, in: shanghai),
+       Date(timeIntervalSince1970: 0))
+    eq("时区：小时差", TimeZoneCore.differenceHours(
+        from: shanghai, to: utc, at: Date(timeIntervalSince1970: 0)), -8)
+    check("时区：纽约夏令时", TimeZoneCore.isDST(
+        for: newYork, at: Date(timeIntervalSince1970: 1_720_000_000)))
+    check("时区：纽约冬令时", !TimeZoneCore.isDST(
+        for: newYork, at: Date(timeIntervalSince1970: 1_704_067_200)))
+    var gap = DateComponents()
+    gap.year = 2024; gap.month = 3; gap.day = 10
+    gap.hour = 2; gap.minute = 30; gap.second = 0
+    check("时区：DST 空档拒绝", TimeZoneCore.instant(wallClock: gap, in: newYork) == nil)
+
+    // 简繁
+    eq("简繁：简转繁", ZhTextCore.simplifiedToTraditional("汉字转换与软件"), "漢字轉換與軟件")
+    eq("简繁：繁转简", ZhTextCore.traditionalToSimplified("漢字轉換與軟件"), "汉字转换与软件")
+
+    // 拼音
+    eq("拼音：声调", ZhTextCore.pinyin("汉字", style: .toneMarks), "hàn zì")
+    eq("拼音：无声调", ZhTextCore.pinyin("汉字", style: .plain), "han zi")
+    eq("拼音：首字母", ZhTextCore.pinyin("汉字", style: .initials), "h z")
+
+    // 中文排版
+    eq("排版：中英空格", ZhTextCore.typography("中文English测试"), "中文 English 测试")
+    eq("排版：去汉字间空格", ZhTextCore.typography("中 文"), "中文")
+    eq("排版：全角标点", ZhTextCore.typography("你好,世界"), "你好，世界")
+    eq("排版：小数点不动", ZhTextCore.typography("3.14"), "3.14")
+    eq("排版：行尾空白", ZhTextCore.typography("a  \nb\t \n"), "a\nb\n")
+    eq("排版：合并空行", ZhTextCore.typography("a\n\n\n\nb"), "a\n\nb")
+
+    // 对比度
+    let black = ContrastCore.RGB(red: 0, green: 0, blue: 0)
+    let white = ContrastCore.RGB(red: 1, green: 1, blue: 1)
+    eq("对比度：黑白 21", Int(ContrastCore.ratio(black, white).rounded()), 21)
+    eq("对比度：亮度", ContrastCore.luminance(white), 1)
+    eq("对比度：短 HEX", ContrastCore.parseHex("#fff"), white)
+    eq("对比度：HEX 往返", ContrastCore.hex(ContrastCore.parseHex("#6699FF")!), "#6699FF")
+    let rating = ContrastCore.rating(4.6)
+    check("对比度：AA 正文", rating.aaNormal)
+    check("对比度：AA 大字", rating.aaLarge)
+    check("对比度：AAA 大字", rating.aaaLarge)
+    check("对比度：AAA 正文不过", !rating.aaaNormal)
+    eq("对比度：白底黑字", ContrastCore.bestTextColor(on: white), "#000000")
+    eq("对比度：黑底白字", ContrastCore.bestTextColor(on: black), "#FFFFFF")
+    let red = ContrastCore.RGB(red: 1, green: 0, blue: 0)
+    let palette = ContrastCore.palette(base: red)
+    eq("对比度：基色在前", palette.first, "#FF0000")
+    eq("对比度：互补色", palette.dropFirst().first, "#00FFFF")
+
+    // 条码内容分类
+    eq("条码：链接", BarcodeCore.kind(of: "https://example.com"), .link)
+    eq("条码：邮件", BarcodeCore.kind(of: "mailto:a@b.com"), .email)
+    eq("条码：电话", BarcodeCore.kind(of: "tel:10086"), .phone)
+    eq("条码：Wi-Fi", BarcodeCore.kind(of: "WIFI:S:net;T:WPA;P:pass;;"), .wifi)
+    eq("条码：名片", BarcodeCore.kind(of: "BEGIN:VCARD\nFN:x"), .contact)
+    eq("条码：纯文本", BarcodeCore.kind(of: "hello"), .text)
+    check("条码：链接解析", BarcodeCore.link(from: "https://example.com") != nil)
+    check("条码：拒绝脚本协议", BarcodeCore.link(from: "javascript:alert(1)") == nil)
+}
+
 
 

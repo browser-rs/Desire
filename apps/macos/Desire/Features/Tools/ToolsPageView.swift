@@ -335,6 +335,12 @@ struct ToolsPageView: View {
         case .chmod: ChmodToolView()
         case .floatBits: FloatBitsToolView()
         case .ulid: ULIDToolView()
+        case .timezone: TimeZoneToolView()
+        case .zhConvert: ZhConvertToolView()
+        case .pinyin: PinyinToolView()
+        case .zhTypography: ZhTypographyToolView()
+        case .contrast: ContrastToolView()
+        case .qrDecode: QRDecodeToolView()
         }
     }
 

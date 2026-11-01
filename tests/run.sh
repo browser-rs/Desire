@@ -252,6 +252,9 @@ SOURCES=(
   apps/macos/Desire/Features/Tools/ChmodCore.swift
   apps/macos/Desire/Features/Tools/FloatBitsCore.swift
   apps/macos/Desire/Features/Tools/ULIDCore.swift
+  apps/macos/Desire/Features/Tools/TimeZoneCore.swift
+  apps/macos/Desire/Features/Tools/ZhTextCore.swift
+  apps/macos/Desire/Features/Tools/ContrastCore.swift
   apps/macos/Desire/Features/Tools/TimelineCore.swift
   apps/macos/Desire/Features/Tools/WaveformCore.swift
   apps/macos/Desire/Features/AddressBar/URLBatch.swift

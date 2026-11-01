@@ -212,3 +212,25 @@ ToolboxComponents；目录与元数据在 ToolboxCatalog）。
   字典序即时间序。
 - **纯逻辑**：Base32Core / TOTPCore / JSONPathCore / StructuredDataCore /
   ChmodCore / FloatBitsCore / ULIDCore 全部进 `tests/run.sh`。
+
+## 文本批（79 项，v0.8.33）
+| id | 工具 | 说明 |
+|---|---|---|
+| timezone | 时区 | 墙钟（按源时区解释）↔ 目标时区；显示偏移、DST 与小时差；DST 空档明确报错 |
+| zhConvert | 简繁转换 | 简 → 繁 / 繁 → 简（系统 ICU 字符级转换，专名需人工核对） |
+| pinyin | 拼音 | 带声调 / 无声调 / 首字母三档（ICU mandarinToLatin） |
+| zhTypography | 中文排版 | 中英文加空格、去汉字间空格、全角标点、去行尾空白、合并空行（逐项开关） |
+| contrast | 对比度 | WCAG 相对亮度与比值、AA/AAA（正文/大字）评级、建议文字色、HSL 旋转色板 |
+| qrDecode | 二维码识别 | 图片/剪贴板 → QR/Aztec/PDF417/DataMatrix/Code128/EAN/Code39/93/ITF14/Codabar；链接可直接打开 |
+
+实现约定：
+
+- **时区输入语义**：自定义模式里 DatePicker 显示的数字按"源时区墙钟"解释，
+  再换算成绝对时刻；DST 跳变里不存在的墙钟（如纽约 3 月 10 日 02:30）返回错误。
+- **简繁/拼音走系统 ICU transform**：不内置词典；一简对多繁（发/髮）结果页已注明。
+- **中文排版可逐项开关**：默认全开；标点只把"汉字后的半角 `, . ; : ! ?`"转全角，
+  小数点与英文句子不受影响。
+- **对比度公式**：WCAG 2.x sRGB 相对亮度；AA 正文 4.5、AA 大字 3、AAA 正文 7、
+  AAA 大字 4.5；色板 = 基色 + 互补 + 类似（±30°）+ 三分（120°/240°）。
+- **条码识别全端上**：Vision `VNDetectBarcodesRequest`，去重后列出 payload 与
+  symbology；只对 http/https/mailto/tel 显示"打开"。

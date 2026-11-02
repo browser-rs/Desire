@@ -4576,13 +4576,14 @@ smoke ⑩收口（i18n/测试/E2E/Release 零警告）。
 `JobsPanel` 与 `/jobs` 桥、批量下载 `finalize` 完成备注、`MediaExportStore` 长任务模式。
 缺的是 **Agent 可查询/订阅**、**通用后台命令**、**统一终态回报** 与 **Remote 任务面**。
 
-**四主题**：① Jobs 面板升级/菜单栏计数；② 5 个 Agent 工具（list/status/watch/
-cancel/runBackgroundCommand）；③ 任务起于对话、完成回对话，Remote 任务页与通知深链；
-④ 批量下载/媒体导出/转码/CI 命令的完成汇报与失败重试。
+**四主题**：① Jobs 面板升级/菜单栏计数；② 6 个 Agent 工具（list/status/
+watch/cancel/runBackgroundCommand/retry）；③ 任务起于对话、完成回对话，Remote 任务页
+与通知深链；④ 批量下载/媒体导出/转码/CI 命令的完成汇报与失败重试。
 
 **核心机制**：`JobEventCenter` 单一终态事件 + `JobWatchCore`（纯逻辑进 harness）
-去重/订阅；`notify` 默认只备注+通知，`resume` 在会话空闲时自动跑一轮“汇报结果”的
-短回合（每 watcher 一次，防自激）；app 退出不承诺任务继续，重启标 interrupted。
+组订阅/去重/汇总；`notify` 默认只备注+通知，`resume` 在会话空闲时自动跑一轮“汇报
+结果”的短回合（每组一次，防自激）；后台命令复用 runCommand 允许名单与 argv-only 模型；
+app 退出不承诺任务继续，重启标 interrupted。
 
 **批次**：批一核心工具+命令 → 批二 watcher/统一回报 → 批三 Jobs 面板/会话内联卡 →
 批四 Remote 任务页/桥/E2E。**不做**：常驻守护进程、APNs、跨设备执行、无限日志、

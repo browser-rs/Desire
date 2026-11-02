@@ -71,47 +71,85 @@
 - `JobStore.start/update/finish` 增 `conversationID/logFile/exitCode` 参数。
 - 适配器继续只读投影；批量/媒体改由 A4 的终态事件统一回报，避免双份备注。
 
-### A2. Agent 工具（5 个）
+### A2. Agent 工具（6 个）
+
+0. **共同约定**：工具读 `JobStore.allJobs`（账本 + ActivityCenter 投影同一视图），
+   返回稳定 `jobID`；所有工具失败走 `Error: ` 前缀；写操作（watch/cancel/run）不走
+   readonly 并行批。
 
 1. `listBackgroundTasks(state?, kind?, limit?)`
-   - 返回 id/标题/kind/state/进度/开始时间/最近更新/来源会话；默认只列 active，
-     `state=all` 看最近完成。工具索引从 `toolDefs` 生成，不手写。
+   - 返回 id/标题/kind/state/进度/开始时间/最近更新/来源会话/是否有 watcher；
+     默认只列 active，`state=all` 看最近完成；`kind` 支持 `download/batch/media/
+     command/scheduled/agent`。
+   - 附带 `summary` 行：active 几个、失败几个、最老任务跑了多久。
+   - 工具索引从 `toolDefs` 生成，不手写。
 2. `backgroundTaskStatus(id)`
-   - 状态、进度、detail、error、artifact、exitCode、日志尾部（最多 40 行/8KB）。
-3. `watchBackgroundTask(id, mode="notify"|"resume", reason?)`
-   - **立即返回**“已订阅”；不阻塞回合。
-   - `notify`：终态时追加系统备注 + 通知（默认）。
+   - 状态、进度、detail、error、artifact、exitCode、日志尾部（最多 40 行/8KB）、
+     从哪个会话发起、watcher 模式。
+3. `watchBackgroundTasks(ids?, kind?, mode="notify"|"resume", reason?)`
+   - **立即返回**“已订阅 N 个任务”；不阻塞回合。
+   - 目标二选一：`ids`（显式列表）或 `kind`（当前所有匹配且未结束的任务，快照
+     注册，之后新出现的任务不并入——避免“永远等不完”）。
+   - 单任务 = `ids:[id]`；批量下载 = `kind:"batch"`。
+   - `notify`：全部终态后追加**一条**汇总备注 + 一次通知（默认，永不逐条刷屏）。
    - `resume`：除备注外，在会话空闲且用户明确要求时自动跑一轮“汇报结果”的短回合；
-     每 watcher 只触发一次，禁止 watcher 回合再创建 `resume` watcher（防自激）。
+     每组 watcher 只触发一次，禁止 watcher 回合再创建 `resume` watcher（防自激）。
+   - 返回 watcherID、覆盖的 jobID 列表与预计等待数。
 4. `cancelBackgroundTask(id)`
    - 按 kind 分派：下载/批量/导出/命令各自 cancel；终态写 cancelled。
-5. `runBackgroundCommand(command, title?, cwd?, timeoutMinutes?)`
-   - 复用 `runCommand` 的审批/风险分级与路径策略；**不新增绕过通道**。
-   - `Process` + 进程组，stdout/stderr 合并写日志文件；立即返回 job id。
-   - 上限：并发 3、单任务 6 小时、日志 2MB 环形（超出截断并标注）。
-   - 取消 = SIGTERM 进程组，5s 后 SIGKILL；退出码非 0 = failed。
+   - 命令 = SIGTERM 进程组 → 5s 后 SIGKILL；返回实际取消结果（不假装成功）。
+5. `runBackgroundCommand(tool, args[], title?, cwd?, timeoutMinutes?, report?)`
+   - **复用 `runCommand` 的允许名单与 argv-only 安全模型**（无 shell、无字符串拼接）；
+     不在名单内的二进制走既有协商（用户允许后加入）。
+   - `Process` + 独立进程组，stdout/stderr 合并写
+     `JobLogs/<jobID>.log`；立即返回 job id。
+   - `report`：`notify` / `resume` / 空 = 不订阅（默认 notify）。
+   - 上限：并发 3、单任务 6 小时、日志 2MB 环形（超出截断并标注）；超时/取消
+     都终止进程组。
+6. `retryBackgroundTask(id)`
+   - 仅对可重试任务（命令/媒体导出/下载失败项）开放；记录 `retryOf`，
+     新 job 继承标题/参数/会话；不可重试返回明确原因。
 
 ### A3. Watcher 状态机（`JobWatchCore`，纯逻辑进 harness）
 
-- 持久化 `JobWatch`：id、jobID、conversationID、mode、createdAt、deliveredAt、
-  deliveredState。
+- 持久化 `JobWatch`：id、jobIDs[]、conversationID、mode、createdAt、deliveredAt、
+  deliveredStates[jobID: String]、resumeUsed、reason。
 - 事件源 `JobEventCenter`：JobStore 的 start/update/finish 与适配器变更都归一成
   `(jobID, state, progress, detail)`；只在 **进入终态** 时发一次事件。
-- 去重键 `(jobID, terminalState)`：批量/媒体自己已发过的备注迁到中心后不再重复。
+- 组语义：注册时快照 jobIDs；**全部** 进入终态才算 watcher 完成；已完成的任务
+  直接计入完成集合。一个 job 终态只记一次。
+- 去重键 `(jobID, terminalState)`：迁移后批量/媒体不再自己 deliver，由中心统一；
+  旧路径若还在，按 text+jobID 去重（灰度期）。
 - 会话不存在/已删除：丢弃并记日志；不得写回已删会话。
-- 上限：watcher 20 个，单会话 10 个；会话结束/任务完成即释放。
+- 上限：watcher 20 个，单会话 10 个；组内 job 最多 50 个。
 - `resume` 触发条件：会话仍存在、没有正在跑的回合、没有被用户暂停/取消；
   否则只备注 + 通知，等用户下次说话时模型自然看到备注。
+- 应用重启：watcher 恢复；对应 job 已 interrupted/不存在 → 立即按终态汇总一次，
+  状态写 “interrupted”。
+
+### A3.1 汇总生成（`JobSummaryCore`，纯逻辑）
+
+- 输入一组终态 JobRecord，输出单条备注文本（≤1200 字符）：
+  - 成功/失败/取消/跳过计数；
+  - 耗时范围；
+  - 产物（最多 5 条，路径截断到 120 字符）；
+  - 失败原因（最多 5 条，标题截断 60 字符，去重）；
+  - 命令任务额外带 exitCode 与日志路径。
+- 单任务与组任务共用同一模板；通知 body 取同一文本的前 240 字符。
 
 ### A4. 统一终态回报
 
-- 新增 `JobEventCenter.deliverTerminal(job, summary)`：
+- 新增 `JobEventCenter.recordTerminal(_ job: JobRecord, summary: String?)`：
+  - 由命令 runner、批量 finalize、媒体导出完成点调用；同 `(jobID, state)` 只处理一次。
   - 系统备注（进原会话，走 `appendExternalNote`，不直接发 system 消息——服务端只收
     开头一条 system）。
-  - 系统通知（成功静默/失败 urgent，按 ProactiveNotificationStore 策略）。
-  - 标记 watcher delivered。
+  - 系统通知走 `ProactiveNotificationStore`（成功静默/失败 urgent，免打扰/夜间档
+    沿用）；同 job 用固定 identifier 覆盖。
+  - 标记 watcher delivered；`resume` 模式交给 `JobWatchStore` 决策是否起短回合。
 - 迁移 `BatchMediaExportStore.finalize` 与 `MediaExportStore` 的完成备注到该入口，
   文案/成功失败统计保持现状；旧路径保留到验证通过后删除。
+- 日志生命周期：`JobLogs/` 每任务一个文件；完成时保留；启动时清理 7 天前或超过
+  50MB 的旧日志（按修改时间），正在跑的不动。
 
 ## 五、Track B：用户可见面
 
@@ -164,21 +202,26 @@
 ### D1. 批量视频下载（用户点名）
 
 - 批次状态投影已有；`finalize` 改为 JobEventCenter 交付，保留成功/失败/跳过与目录。
-- `watchBackgroundTask(batchID, mode=resume)`：完成后自动汇报“成功 N/失败 M/产物路径”，
-  失败项列出前 5 条标题（已脱敏/截断）。
-- 不在每一条下载完成时推送，只在批次终态推一次（避免刷屏）。
+- `watchBackgroundTasks(kind:"batch", mode=resume)`：全部批次结束后自动汇报
+  “成功 N/失败 M/产物路径”，失败项列出前 5 条标题（已脱敏/截断）。
+- 不在每一条下载完成时推送，只在批次终态推一次（避免刷屏）；watcher 汇总若与
+  finalize 备注同时存在，按 `(jobID, terminalState)` 只保留一条。
 
 ### D2. 媒体导出 / 转码 / GIF
 
 - `downloadMedia`、`convertMedia`、`videoToGIF` 返回 jobID 并登记 JobRecord；
   MediaEditStore 的 Job 与 JobRecord 以 externalID 对应。
-- 完成通知带产物与 ffprobe 摘要（已有 probe 能力）。
+- `listBackgroundTasks(kind:"media")` 能看到每一次导出/转码；完成通知带产物与
+  ffprobe 摘要（已有 probe 能力）。
+- 转码/GIF 的取消走 MediaEditStore 现有 Task 取消，JobRecord 同步 cancelled。
 
 ### D3. 后台命令（CI/构建/测试）
 
-- `runBackgroundCommand("gh run watch <id> --exit-status")` 返回 jobID；
-  日志尾部可查；退出码 0/非 0 分别 done/failed。
-- 安全：与 `runCommand` 同一审批档；危险命令仍逐次确认；`cwd` 限制在工作区/用户目录。
+- `runBackgroundCommand(tool:"gh", args:["run","watch","<id>","--exit-status"],
+  report:"notify")` 返回 jobID；日志尾部可查；退出码 0/非 0 分别 done/failed。
+- 允许名单：`gh` 不在默认名单时走既有“是否允许”协商；`xcodebuild` 同理。
+- 安全：与 `runCommand` 同一审批档（dangerous，每次确认；FULL ACCESS 免审）；
+  `cwd` 限制在工作区/用户目录；argv-only，无 shell。
 
 ### D4. 定时任务 / crew
 
@@ -187,32 +230,35 @@
 
 ## 八、接口与数据
 
-- Agent 工具：上述 5 个，全部写进 `BrowserToolProvider.toolDefs`（提示词自动跟随）。
+- Agent 工具：上述 6 个，全部写进 `BrowserToolProvider.toolDefs`（提示词自动跟随）。
 - 桥：`GET /jobs` 已有；新增 `POST /jobs/watch`、`POST /jobs/cancel`、
-  `GET /jobs/{id}/log`，供 E2E 与自动化。
+  `POST /jobs/retry`、`GET /jobs/log?id=`，供 E2E 与自动化。
 - Remote：`backgroundTasks` / `backgroundTask` 帧 + `cancelJob` / `retryJob` 动作。
 - 持久化：`JobStore`（账本）、`JobWatchStore`（订阅）、`JobLogs/`（日志文件）；
   运行中命令在启动时发现残留 → 标记 interrupted，不自动重启。
 
 ## 九、验收清单
 
-1. `runBackgroundCommand("sleep 2; echo ok")` 立即返回 jobID，回合结束；2 秒后会话出现
-   “命令完成（exit 0）”备注 + 通知，Jobs 面板 done。
+1. `runBackgroundCommand(tool:"sh", args:["-c","sleep 2; echo ok"])`（`sh` 需在允许名单/
+   协商允许）立即返回 jobID，回合结束；2 秒后会话出现“命令完成（exit 0）”备注 +
+   通知，Jobs 面板 done。argv-only 安全模型不因 `-c` 而改变（仍需用户明确批准）。
 2. 批量下载 3 个 fixture 视频，途中问“下到哪了” → `listBackgroundTasks` 给出进度；
    完成后只收到 **一条** 汇总备注/通知（不重复）。
-3. `watchBackgroundTask(id, mode=resume)` → 完成后会话空闲时自动一轮汇报，包含成功/失败
-   与产物路径；忙碌时只备注，下一次用户消息模型能看到。
+3. `watchBackgroundTasks(kind:"batch", mode=resume)` → 全部批次完成后会话空闲时自动
+   一轮汇报，包含成功/失败与产物路径；忙碌时只备注，下一次用户消息模型能看到。
 4. 取消运行中的命令 → 进程组退出，状态 cancelled，不出现“完成”备注；日志可打开。
-5. 强杀/重启 app → 运行中命令标 interrupted，不发假完成通知；watcher 不重复触发。
+5. 强杀/重启 app → 运行中命令标 interrupted，不发假完成通知；watcher 只汇总一次。
 6. 会话删除后 watcher 不崩、不写回已删会话。
 7. Remote 任务页可见运行中/完成，取消生效，通知深链回任务页。
 8. `listBackgroundTasks` 覆盖下载/批量/导出/命令/定时/crew；jobs 计数与 `/jobs` 一致。
+9. 组 watcher 注册后新增同类任务不并入；组内全部终态即汇总，不会“永远等不完”。
+10. `retryBackgroundTask` 对命令/失败媒体可用；对不可重试任务返回明确原因。
 
 ## 十、批次（4 批）
 
-- **批一（核心）**：A1 + A2（list/status/cancel/runCommand）+ A4 事件中心骨架；
-  JobWatchCore 单测。
-- **批二（订阅与回报）**：A3 watcher + resume 模式 + 批量/媒体迁移到统一交付 +
+- **批一（核心）**：A1 + A2（list/status/cancel/retry/runBackgroundCommand）+
+  A4 事件中心骨架 + JobSummaryCore；JobWatchCore 单测。
+- **批二（订阅与回报）**：A3 组 watcher + resume 模式 + 批量/媒体迁移到统一交付 +
   通知动作。
 - **批三（用户面）**：B1 Jobs 面板 + B4 会话内联卡 + B2 菜单栏/新标签页。
 - **批四（Remote + 收口）**：C1–C3 + D2/D3 + 桥端点 + 全量验收。

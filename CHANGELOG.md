@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.38] - 2026-11-02
 ### Added
 
 - Browser: "Hand Off Tabs" saves the current window as a Handoff workspace (device + time) so another Mac signed into the same account can restore it from Workspaces; available from the File menu and the Workspaces panel (v0.8.38)

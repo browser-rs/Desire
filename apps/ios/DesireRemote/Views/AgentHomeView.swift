@@ -1,5 +1,10 @@
 import SwiftUI
 
+/// Agent Tab 的深链目标（v0.8.39：通知点任务 → 直接进后台任务页）。
+enum AgentRoute: Hashable {
+    case jobs
+}
+
 /// Agent Tab：桌面 Agent 面板的能力总入口。
 ///
 /// 形态与「会话」「设置」两个 Tab 保持一致：`List(.insetGrouped)` +
@@ -22,6 +27,12 @@ struct AgentHomeView: View {
         .listStyle(.insetGrouped)
         .navigationTitle("Agent")
         .navigationBarTitleDisplayMode(.large)
+        .navigationDestination(for: AgentRoute.self) { route in
+            switch route {
+            case .jobs:
+                RemoteJobsView()
+            }
+        }
         .task { client.requestModels() }
         // 每次切到本页都强制要一帧快照，避免状态停在"工作中"
         .onAppear { client.requestSync() }

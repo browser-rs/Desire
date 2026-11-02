@@ -6533,6 +6533,12 @@ func testJobRecord() {
     } else {
         check("作业：Codable 往返", false)
     }
+    if let unknown = try? JSONDecoder().decode(
+        JobRecord.Kind.self, from: Data("\"futureKind\"".utf8)) {
+        check("作业：未知 kind 降级为 other", unknown == .other)
+    } else {
+        check("作业：未知 kind 降级为 other", false)
+    }
 }
 testJobRecord()
 

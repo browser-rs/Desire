@@ -39,6 +39,7 @@ enum AppTab: Hashable {
 struct MainView: View {
     @EnvironmentObject var client: RemoteClient
     @State private var tab: AppTab = .sessions
+    @State private var agentPath = NavigationPath()
 
     var body: some View {
         if client.hasSavedPairing {
@@ -51,7 +52,7 @@ struct MainView: View {
                         .tabItem { Label("会话", systemImage: "bubble.left.and.bubble.right.fill") }
                         .tag(AppTab.sessions)
 
-                    NavigationStack {
+                    NavigationStack(path: $agentPath) {
                         AgentHomeView()
                     }
                     .tabItem { Label("Agent", systemImage: "sparkles") }
@@ -69,6 +70,8 @@ struct MainView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .remoteOpenJobs)) { _ in
                 tab = .agent
+                agentPath = NavigationPath()
+                agentPath.append(AgentRoute.jobs)
             }
         } else {
             NavigationStack {

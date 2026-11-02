@@ -18,6 +18,19 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
         case agent
         case other
 
+        /// 跨版本同步兼容（v0.8.39）：旧客户端不认识 `media`/`command` 时，
+        /// 不能让整条 jobs 域记录解码失败——未知 kind 降级成 `.other`，
+        /// 新客户端仍按 rawValue 读写。
+        init(from decoder: Decoder) throws {
+            let raw = try decoder.singleValueContainer().decode(String.self)
+            self = Kind(rawValue: raw) ?? .other
+        }
+
+        func encode(to encoder: Encoder) throws {
+            var container = encoder.singleValueContainer()
+            try container.encode(rawValue)
+        }
+
         var label: String {
             switch self {
             case .publish: String(localized: "Publish")

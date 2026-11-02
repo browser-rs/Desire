@@ -850,6 +850,10 @@ final class RemoteControlStore: ObservableObject {
         var url: String
         var filename: String
         var kind: String
+        /// 文件元数据（v0.8.38 批三）：手机显示大小/时间与图片缩略图。
+        var sizeBytes: Int64?
+        var modifiedAt: Double?
+        var thumbnail: String?
     }
 
     nonisolated struct RemoteRecentFilesFrame: Codable {
@@ -937,13 +941,72 @@ final class RemoteControlStore: ObservableObject {
     }
 
     private static func recentFilesFrame() -> String? {
+        var thumbnailsLeft = 4
         let frame = RemoteRecentFilesFrame(
             t: "recentFiles",
-            files: RecentLocalFiles.load().prefix(20).map {
-                RemoteRecentFile(url: $0.url, filename: $0.filename, kind: $0.kind)
+            files: RecentLocalFiles.load().prefix(20).map { entry in
+                let url = URL(string: entry.url)
+                let values = url.flatMap {
+                    try? $0.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+                }
+                var thumbnail: String?
+                if thumbnailsLeft > 0, entry.kind == "image" {
+                    thumbnail = thumbnailBase64(for: entry)
+                    if thumbnail != nil { thumbnailsLeft -= 1 }
+                }
+                return RemoteRecentFile(
+                    url: entry.url,
+                    filename: entry.filename,
+                    kind: entry.kind,
+                    sizeBytes: values?.fileSize.map { Int64($0) },
+                    modifiedAt: values?.contentModificationDate?.timeIntervalSince1970,
+                    thumbnail: thumbnail)
             })
         guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
         return String(data: data, encoding: .utf8)
+    }
+
+    /// 最近文件缩略图缓存（url#mtime → base64；空串 = 解码失败也已缓存）。
+    private static var thumbnailCache: [String: String] = [:]
+
+    /// 手机端列表用的小缩略图：64px JPEG（质量 0.6）。帧预算单条 32KB，
+    /// 所以每帧最多 4 张、缓存按文件 mtime 失效。
+    private static func thumbnailBase64(for entry: RecentLocalFiles.Entry) -> String? {
+        guard let url = URL(string: entry.url) else { return nil }
+        let mtime = (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?
+            .contentModificationDate?.timeIntervalSince1970 ?? 0
+        let key = "\(entry.url)#\(mtime)"
+        if let cached = thumbnailCache[key] { return cached.isEmpty ? nil : cached }
+        defer {
+            if thumbnailCache.count > 80 { thumbnailCache.removeAll() }
+        }
+        guard let image = NSImage(contentsOf: url) else {
+            thumbnailCache[key] = ""
+            return nil
+        }
+        let source = image.size
+        guard source.width > 0, source.height > 0 else {
+            thumbnailCache[key] = ""
+            return nil
+        }
+        let scale = 64 / max(source.width, source.height)
+        let target = NSSize(width: max(1, source.width * scale),
+                            height: max(1, source.height * scale))
+        let thumb = NSImage(size: target)
+        thumb.lockFocus()
+        image.draw(in: NSRect(origin: .zero, size: target))
+        thumb.unlockFocus()
+        guard let tiff = thumb.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let jpeg = rep.representation(using: .jpeg,
+                                            properties: [.compressionFactor: 0.6])
+        else {
+            thumbnailCache[key] = ""
+            return nil
+        }
+        let base64 = jpeg.base64EncodedString()
+        thumbnailCache[key] = base64
+        return base64
     }
 
     /// 书架帧（v0.8.38 批二）：手机只读浏览 + 在 Mac 打开/续读。
@@ -1090,6 +1153,12 @@ final class RemoteControlStore: ObservableObject {
         var state: String
         var progress: Double
         var isPaused: Bool
+        /// 元数据（v0.8.38 批三）：手机显示已下载/总量、速度与失败原因。
+        var totalBytes: Int64?
+        var downloadedBytes: Int64?
+        var speed: Int64?
+        var error: String?
+        var isPrivate: Bool?
     }
 
     nonisolated struct RemoteDownloadsFrame: Codable {
@@ -1107,7 +1176,12 @@ final class RemoteControlStore: ObservableObject {
                 progress: item.totalBytes > 0
                     ? Double(item.downloadedBytes) / Double(item.totalBytes)
                     : 0,
-                isPaused: item.isPaused)
+                isPaused: item.isPaused,
+                totalBytes: item.totalBytes,
+                downloadedBytes: item.downloadedBytes,
+                speed: item.speed,
+                error: item.error.map { String($0.prefix(300)) },
+                isPrivate: item.isPrivate)
         }
         let frame = RemoteDownloadsFrame(t: "downloads", downloads: Array(items))
         guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
@@ -1519,6 +1593,49 @@ final class RemoteControlStore: ObservableObject {
         guard let payload = Self.encrypt(data: Data(frameJSON.utf8), sessionKeyB64: sessionKeyB64) else { return }
         Self.remoteDebug("snapshot push (\(frame.messages.count) msgs, busy=\(frame.busy), force=\(force))")
         pushPayload(payload, lane: "snapshot", replace: true)
+        notifyInterventionTransitions(frame)
+    }
+
+    /// 审批 / 提问出现的沿触发（v0.8.38 批三）：手机在前台也能立刻看到 banner，
+    /// 通知里直接 Allow/Deny。同一 id 只发一次；消失后清空以便下一轮再触发。
+    private var lastNotifiedApprovalID: String?
+    private var lastNotifiedQuestionID: String?
+
+    private func notifyInterventionTransitions(_ frame: RemoteSnapshotFrame) {
+        guard isEnabled, sessionKeyB64 != nil else { return }
+        let session = remoteSession?.conversationId?.uuidString ?? remoteConversationID
+        if let approval = frame.approval {
+            if approval.id != lastNotifiedApprovalID {
+                lastNotifiedApprovalID = approval.id
+                var payload: [String: Any] = [
+                    "t": "notify",
+                    "kind": "approval",
+                    "id": approval.id,
+                    "text": String(localized: "Approval needed: \(approval.tool)"),
+                    "body": approval.summary,
+                ]
+                if let session { payload["session"] = session }
+                sendInner(payload)
+            }
+        } else {
+            lastNotifiedApprovalID = nil
+        }
+        if let question = frame.question {
+            if question.id != lastNotifiedQuestionID {
+                lastNotifiedQuestionID = question.id
+                var payload: [String: Any] = [
+                    "t": "notify",
+                    "kind": "question",
+                    "id": question.id,
+                    "text": String(localized: "Agent has a question"),
+                    "body": String(question.text.prefix(400)),
+                ]
+                if let session { payload["session"] = session }
+                sendInner(payload)
+            }
+        } else {
+            lastNotifiedQuestionID = nil
+        }
     }
 
     // MARK: - 快照：人工介入 / 进度载荷组装（有界截断，保持帧小）

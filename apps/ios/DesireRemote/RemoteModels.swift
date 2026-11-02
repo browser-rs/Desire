@@ -508,6 +508,11 @@ struct RemoteDownload: Codable, Identifiable, Equatable {
     var state: String
     var progress: Double
     var isPaused: Bool
+    var totalBytes: Int64?
+    var downloadedBytes: Int64?
+    var speed: Int64?
+    var error: String?
+    var isPrivate: Bool?
 }
 
 struct RemoteDownloadsFrame: Codable {
@@ -521,6 +526,10 @@ struct RemoteRecentFile: Codable, Identifiable, Equatable {
     var url: String
     var filename: String
     var kind: String
+    var sizeBytes: Int64?
+    var modifiedAt: Double?
+    /// 图片缩略图（base64 JPEG，仅 Mac 帧前几张带）
+    var thumbnail: String?
     var id: String { url }
 }
 
@@ -633,4 +642,13 @@ struct RemoteWorkspaceItem: Identifiable, Codable, Equatable {
 struct RemoteWorkspacesFrame: Codable {
     var t: String
     var workspaces: [RemoteWorkspaceItem]
+}
+
+/// 离线发件箱（v0.8.38 批三）：Mac 离线时输入的指令先落本地，
+/// 恢复连接后按加入顺序发出。
+struct RemoteOutboxEntry: Identifiable, Codable, Equatable {
+    var id: UUID
+    var text: String
+    var session: String?
+    var at: Double
 }

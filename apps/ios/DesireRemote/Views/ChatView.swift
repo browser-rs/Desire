@@ -10,6 +10,7 @@ import UIKit
 /// - 仅在消息流贴底时自动跟随新消息（迟滞阈值防抖），否则给「最新」跳转键。
 struct ChatView: View {
     @EnvironmentObject var client: RemoteClient
+    @Environment(\.horizontalSizeClass) private var sizeClass
     @State private var draft = ""
     @FocusState private var inputFocused: Bool
     @StateObject private var voice = VoiceInputService()
@@ -42,7 +43,15 @@ struct ChatView: View {
         // TabBar 必须隐藏：对话是从会话列表 push 进来的。
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(.hidden, for: .navigationBar)
-        .toolbar(.hidden, for: .tabBar)
+        .toolbar(sizeClass == .regular ? .visible : .hidden, for: .tabBar)
+        .toolbar {
+            if client.busy {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("停止") { client.sendCancel() }
+                        .keyboardShortcut(.escape, modifiers: [])
+                }
+            }
+        }
         .task {
             client.requestSessions()
             // 进对话强制要一帧快照：若之前漏了"回合结束"那一帧，状态会一直
@@ -263,11 +272,25 @@ struct ChatView: View {
                     RemoteQuestionCard(question: question) { text in
                         client.answer(id: question.id, text: text)
                     }
+                    .disabled(!client.desktopOnline)
+                    .opacity(client.desktopOnline ? 1 : 0.55)
                 }
                 if let approval = client.approval {
                     RemoteApprovalBar(approval: approval) { decision in
                         client.approve(id: approval.id, decision: decision)
                     }
+                    .disabled(!client.desktopOnline)
+                    .opacity(client.desktopOnline ? 1 : 0.55)
+                }
+                if !client.outbox.isEmpty {
+                    HStack(spacing: 6) {
+                        Image(systemName: "tray.and.arrow.up")
+                        Text("\(client.outbox.count) 条消息排队中 · Mac 上线后自动发送")
+                        Spacer(minLength: 0)
+                    }
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 8)
                 }
                 floatingInputBar
             }
@@ -420,6 +443,7 @@ struct ChatView: View {
         }
         .buttonStyle(.plain)
         .disabled(sendMode == .disabled)
+        .keyboardShortcut(.return, modifiers: .command)
         .animation(.spring(response: 0.3, dampingFraction: 0.75), value: sendTint)
     }
 

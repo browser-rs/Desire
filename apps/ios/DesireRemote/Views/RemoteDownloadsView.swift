@@ -17,9 +17,16 @@ struct RemoteDownloadsView: View {
             }
             ForEach(client.downloads) { item in
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(item.filename)
-                        .font(.subheadline.weight(.medium))
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(item.filename)
+                            .font(.subheadline.weight(.medium))
+                            .lineLimit(1)
+                        if item.isPrivate == true {
+                            Image(systemName: "eye.slash")
+                                .font(.caption2)
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
                     HStack(spacing: 8) {
                         Text(item.state)
                             .font(.caption)
@@ -40,6 +47,24 @@ struct RemoteDownloadsView: View {
                             .buttonStyle(.bordered)
                             .controlSize(.mini)
                         }
+                    }
+                    HStack(spacing: 8) {
+                        if let done = item.downloadedBytes {
+                            Text(item.totalBytes.map {
+                                "\(DesireUI.formatBytes(done)) / \(DesireUI.formatBytes($0))"
+                            } ?? DesireUI.formatBytes(done))
+                        }
+                        if let speed = item.speed, speed > 0 {
+                            Text("\(DesireUI.formatBytes(speed))/s")
+                        }
+                    }
+                    .font(.caption2.monospacedDigit())
+                    .foregroundStyle(.tertiary)
+                    if let error = item.error, !error.isEmpty {
+                        Text(error)
+                            .font(.caption2)
+                            .foregroundStyle(.red)
+                            .lineLimit(2)
                     }
                 }
             }

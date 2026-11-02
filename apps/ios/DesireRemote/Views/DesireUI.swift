@@ -331,4 +331,18 @@ extension DesireUI {
         if seconds < 3600 { return String(format: "%.0f分", seconds / 60) }
         return String(format: "%.1f小时", seconds / 3600)
     }
+
+    /// 字节 → 人读（v0.8.38 批三：文件/下载元数据）。
+    nonisolated static func formatBytes(_ bytes: Int64) -> String {
+        let units = ["B", "KB", "MB", "GB", "TB"]
+        var value = Double(max(0, bytes))
+        var index = 0
+        while value >= 1024, index < units.count - 1 {
+            value /= 1024
+            index += 1
+        }
+        return index == 0
+            ? "\(Int(value)) \(units[index])"
+            : String(format: "%.1f %@", value, units[index])
+    }
 }

@@ -138,6 +138,14 @@ final class RemoteClient: ObservableObject {
     /// 最近一次工具执行结果（读取端自行清空）。
     @Published var toolboxResult: RemoteToolboxResult?
     @Published private(set) var workspaces: [RemoteWorkspaceItem] = []
+    /// 链路延迟（拉取往返，毫秒；v0.8.38 批三）
+    @Published private(set) var latencyMs: Int?
+    /// Mac 最后一次被判在线的时间（离线时可以告诉用户"最后在线 …"）
+    @Published private(set) var lastOnlineAt: Date?
+    /// 离线发件箱（v0.8.38 批三）：Mac 离线时先存在本地，恢复后按序发出。
+    @Published private(set) var outbox: [RemoteOutboxEntry] = []
+    /// 通知动作（Allow/Deny/打开）要回到当前客户端实例。
+    static private(set) weak var active: RemoteClient?
     /// 模型服务档案 + 当前档案的候选模型
     @Published private(set) var models: RemoteModels?
 
@@ -214,6 +222,10 @@ final class RemoteClient: ObservableObject {
                let saved = try? JSONDecoder().decode([ChatMessage].self, from: data) {
                 messages = saved
             }
+            restoreCachedLists()
+            if let stamp = defaults.object(forKey: "remote.lastOnlineAt") as? Date {
+                lastOnlineAt = stamp
+            }
             busy = defaults.bool(forKey: "remote.busy")
             connectWS()
             startPullLoop()
@@ -221,6 +233,56 @@ final class RemoteClient: ObservableObject {
             // 写操作后拉取，杀进程重开后列表永远是空的。
             requestSessions()
         }
+        Self.active = self
+    }
+
+    // MARK: - 离线缓存（v0.8.38 批三）
+    //
+    // 只缓存列表/元数据（会话列表、任务、摘录、书架…），不缓存审批/提问这类
+    // 需要实时性的交互状态——避免恢复出一个早已失效的审批卡。
+
+    private func restoreCachedLists() {
+        func load<T: Decodable>(_ type: T.Type, _ key: String) -> T? {
+            guard let data = defaults.data(forKey: key) else { return nil }
+            return try? JSONDecoder().decode(type, from: data)
+        }
+        sessions = load([RemoteSessionInfo].self, "remote.cache.sessions") ?? []
+        tasks = load([RemoteTask].self, "remote.cache.tasks") ?? []
+        downloads = load([RemoteDownload].self, "remote.cache.downloads") ?? []
+        recentFiles = load([RemoteRecentFile].self, "remote.cache.recentFiles") ?? []
+        excerpts = load([RemoteExcerptItem].self, "remote.cache.excerpts") ?? []
+        briefs = load([RemoteBriefItem].self, "remote.cache.briefs") ?? []
+        archivedSessions = load([RemoteArchivedSession].self, "remote.cache.archivedSessions") ?? []
+        books = load([RemoteBookItem].self, "remote.cache.books") ?? []
+        workspaces = load([RemoteWorkspaceItem].self, "remote.cache.workspaces") ?? []
+        toolboxTools = load([RemoteToolboxTool].self, "remote.cache.toolbox") ?? []
+        inbox = load([RemoteInboxItem].self, "remote.cache.inbox") ?? []
+        outbox = load([RemoteOutboxEntry].self, "remote.outbox") ?? []
+    }
+
+    private func cache<T: Encodable>(_ value: T, key: String) {
+        guard let data = try? JSONEncoder().encode(value) else { return }
+        defaults.set(data, forKey: key)
+    }
+
+    /// 清空本地缓存（设置页"清理缓存"入口）；发件箱不动。
+    func clearOfflineCache() {
+        for key in ["sessions", "tasks", "downloads", "recentFiles", "excerpts",
+                    "briefs", "archivedSessions", "books", "workspaces",
+                    "toolbox", "inbox"] {
+            defaults.removeObject(forKey: "remote.cache.\(key)")
+        }
+        sessions = []
+        tasks = []
+        downloads = []
+        recentFiles = []
+        excerpts = []
+        briefs = []
+        archivedSessions = []
+        books = []
+        workspaces = []
+        toolboxTools = []
+        inbox = []
     }
 
     /// 规范化后的服务器地址（扫码登录时与二维码 payload 的 s 字段比对）
@@ -665,10 +727,17 @@ final class RemoteClient: ObservableObject {
     private func pullOnce() async {
         guard let desktopDeviceID else { return }
         do {
+            let started = Date()
             let resp: PullResp = try await authedSend(
                 "GET", "/remote/pull?role=controller&device=\(desktopDeviceID)")
+            latencyMs = max(1, Int(Date().timeIntervalSince(started) * 1000))
             pullFailures = 0
             desktopOnline = resp.desktopOnline ?? true
+            if desktopOnline {
+                lastOnlineAt = Date()
+                defaults.set(lastOnlineAt, forKey: "remote.lastOnlineAt")
+                flushOutbox()
+            }
             ingestItems(resp.items)
             refreshConnectionText()
         } catch APIError.server(let message) where message.contains("登录已过期") {
@@ -676,6 +745,7 @@ final class RemoteClient: ObservableObject {
             stopAllTransports()
         } catch {
             pullFailures += 1
+            latencyMs = nil
             if pullFailures >= 3 {
                 connectionState = "重连中…"
             }
@@ -735,6 +805,7 @@ final class RemoteClient: ObservableObject {
                                                  count: item["count"] as? Int ?? 0,
                                                  date: item["date"] as? Double)
                     }
+                    cache(Array(sessions.prefix(100)), key: "remote.cache.sessions")
                 }
             case "capabilities":
                 capabilities = try? JSONDecoder().decode(RemoteCapabilities.self, from: data)
@@ -747,6 +818,7 @@ final class RemoteClient: ObservableObject {
             case "tasks":
                 if let frame = try? JSONDecoder().decode(RemoteTasksFrame.self, from: data) {
                     tasks = frame.tasks
+                    cache(tasks, key: "remote.cache.tasks")
                 }
             case "notificationPolicy":
                 if let frame = try? JSONDecoder().decode(RemoteNotificationPolicyFrame.self, from: data) {
@@ -755,27 +827,33 @@ final class RemoteClient: ObservableObject {
             case "downloads":
                 if let frame = try? JSONDecoder().decode(RemoteDownloadsFrame.self, from: data) {
                     downloads = frame.downloads
+                    cache(downloads, key: "remote.cache.downloads")
                 }
 
             case "recentFiles":
                 if let frame = try? JSONDecoder().decode(RemoteRecentFilesFrame.self, from: data) {
                     recentFiles = frame.files
+                    cache(recentFiles, key: "remote.cache.recentFiles")
                 }
             case "excerpts":
                 if let frame = try? JSONDecoder().decode(RemoteExcerptsFrame.self, from: data) {
                     excerpts = frame.items
+                    cache(excerpts, key: "remote.cache.excerpts")
                 }
             case "briefs":
                 if let frame = try? JSONDecoder().decode(RemoteBriefsFrame.self, from: data) {
                     briefs = frame.items
+                    cache(briefs, key: "remote.cache.briefs")
                 }
             case "books":
                 if let frame = try? JSONDecoder().decode(RemoteBooksFrame.self, from: data) {
                     books = frame.books
+                    cache(books, key: "remote.cache.books")
                 }
             case "toolboxCatalog":
                 if let frame = try? JSONDecoder().decode(RemoteToolboxCatalogFrame.self, from: data) {
                     toolboxTools = frame.tools
+                    cache(toolboxTools, key: "remote.cache.toolbox")
                 }
             case "toolboxResult":
                 if let frame = try? JSONDecoder().decode(RemoteToolboxResult.self, from: data) {
@@ -784,10 +862,12 @@ final class RemoteClient: ObservableObject {
             case "workspaces":
                 if let frame = try? JSONDecoder().decode(RemoteWorkspacesFrame.self, from: data) {
                     workspaces = frame.workspaces
+                    cache(workspaces, key: "remote.cache.workspaces")
                 }
             case "archivedSessions":
                 if let frame = try? JSONDecoder().decode(RemoteArchivedSessionsFrame.self, from: data) {
                     archivedSessions = frame.items
+                    cache(archivedSessions, key: "remote.cache.archivedSessions")
                 }
             case "earlierMessages":
                 // 长会话分页（0.6.8）：追加进侧缓冲（按 id 去重），不碰 messages
@@ -811,6 +891,30 @@ final class RemoteClient: ObservableObject {
                     }
                     RemoteNotifications.postInbox(title: item.title,
                                                   body: item.text ?? item.url ?? "")
+                    cache(inbox, key: "remote.cache.inbox")
+                }
+            case "notify":
+                // Mac 侧主动通知（v0.8.38 批三）：审批 / 提问出现时推一帧。
+                let notifyKind = root["kind"] as? String ?? ""
+                let notifyID = root["id"] as? String
+                let notifyTitle = root["text"] as? String ?? ""
+                let notifyBody = root["body"] as? String ?? ""
+                let notifySession = root["session"] as? String
+                switch notifyKind {
+                case "approval":
+                    if let notifyID {
+                        RemoteNotifications.postApproval(
+                            id: notifyID, title: notifyTitle, body: notifyBody,
+                            session: notifySession)
+                    }
+                case "question":
+                    if let notifyID {
+                        RemoteNotifications.postQuestion(
+                            id: notifyID, title: notifyTitle, body: notifyBody,
+                            session: notifySession)
+                    }
+                default:
+                    break
                 }
             case "turnDone":
                 // Remote 完成通知（0.6.8）：iOS 对前台 app 默认不展示本地通知，
@@ -818,7 +922,8 @@ final class RemoteClient: ObservableObject {
                 // 缺位兜底（本地通知只在 app 活着时能收到，快照通道在线即触发）。
                 let title = root["text"] as? String ?? "Conversation"
                 let body = root["body"] as? String ?? ""
-                RemoteNotifications.postTurnDone(title: title, body: body)
+                RemoteNotifications.postTurnDone(title: title, body: body,
+                                                 session: selectedSessionID)
             case "error":
                 // Mac 端反馈（例如"没有活跃的 Agent 会话"）：显示成连接状态旁白。
                 if let message = root["message"] as? String, !message.isEmpty {
@@ -908,7 +1013,16 @@ final class RemoteClient: ObservableObject {
         var dict: [String: Any] = ["t": "prompt", "text": text]
         if let selectedSessionID { dict["session"] = selectedSessionID }
         let offline = !desktopOnline
-        pushFrame(dict, replace: false)
+        if offline {
+            // 发件箱（v0.8.38 批三）：Mac 离线时不推（推了也只能排在服务器、
+            // 且本地看不到"待发"的确定性状态）；恢复连接后按加入顺序发。
+            outbox.append(RemoteOutboxEntry(
+                id: UUID(), text: text, session: selectedSessionID,
+                at: Date().timeIntervalSince1970))
+            cache(outbox, key: "remote.outbox")
+        } else {
+            pushFrame(dict, replace: false)
+        }
         queuedOffline = offline
         // 即时回显：不等 Mac 快照，先让指令出现在对话里
         let echo = ChatMessage(id: "echo-\(UUID().uuidString)", role: "user",
@@ -916,6 +1030,29 @@ final class RemoteClient: ObservableObject {
         messages.append(echo)
         pendingEcho = echo
         connectionState = offline ? "已排队，Mac 上线后送达" : "Agent 工作中…"
+    }
+
+    /// Mac 恢复在线后按序发出积压消息（由 pull 循环触发，主 actor 上同步完成，
+    /// 不会与新输入交错）。
+    private func flushOutbox() {
+        guard desktopOnline, !outbox.isEmpty else { return }
+        let pending = outbox
+        outbox = []
+        cache(outbox, key: "remote.outbox")
+        for entry in pending {
+            var dict: [String: Any] = ["t": "prompt", "text": entry.text]
+            if let session = entry.session { dict["session"] = session }
+            pushFrame(dict, replace: false)
+        }
+        queuedOffline = false
+        connectionState = "已连接"
+    }
+
+    /// 清空离线发件箱（设置页入口）。
+    func clearOutbox() {
+        outbox = []
+        cache(outbox, key: "remote.outbox")
+        queuedOffline = false
     }
 
     func sendCancel() {

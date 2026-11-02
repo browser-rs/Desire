@@ -8,6 +8,7 @@ struct SettingsView: View {
     @State private var saved = false
     @State private var confirmUnpair = false
     @State private var confirmLogout = false
+    @State private var confirmClearCache = false
 
     var body: some View {
         List {
@@ -60,6 +61,15 @@ struct SettingsView: View {
                     }
                     Spacer(minLength: 0)
                 }
+                DesireValueRow(
+                    title: "延迟",
+                    value: client.latencyMs.map { "\($0) ms" } ?? "—",
+                    mono: true)
+                DesireValueRow(
+                    title: "最后在线",
+                    value: client.lastOnlineAt.map {
+                        $0.formatted(.relative(presentation: .named))
+                    } ?? "—")
             } header: {
                 DesireSectionHeader(title: "连接")
             }
@@ -90,6 +100,21 @@ struct SettingsView: View {
                 DesireSectionHeader(
                     title: "服务器（可选覆盖）",
                     subtitle: "修改后需退出登录再重新登录才生效")
+            }
+
+            Section {
+                DesireValueRow(title: "离线发件箱", value: "\(client.outbox.count) 条")
+                Button("清空离线发件箱", role: .destructive) {
+                    client.clearOutbox()
+                }
+                .disabled(client.outbox.isEmpty)
+                Button("清理本地缓存", role: .destructive) {
+                    confirmClearCache = true
+                }
+            } header: {
+                DesireSectionHeader(
+                    title: "离线数据",
+                    subtitle: "断网时仍可查看最近内容；恢复后自动补发排队消息")
             }
 
             Section {
@@ -151,6 +176,12 @@ struct SettingsView: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text("退出后需要重新输入账号密码。配对关系会保留。")
+        }
+        .alert("清理本地缓存？", isPresented: $confirmClearCache) {
+            Button("清理", role: .destructive) { client.clearOfflineCache() }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("会清空离线保存的会话列表、任务、摘录、书架等只读缓存；连接 Mac 后会重新拉取。发件箱不受影响。")
         }
     }
 

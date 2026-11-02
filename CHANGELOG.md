@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.37] - 2026-11-02
 ### Added
 
 - Books: cross-device sync — the library, reading progress, last chapter and bookmarks now sync through a new `ebooks` domain; progress takes the furthest position instead of going backwards, bookmarks merge by id with tombstones, and books not present on this device wait as orphans until the same file hash is imported (v0.8.37)

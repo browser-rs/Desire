@@ -289,8 +289,10 @@
   JobWatchStore、JobEventCenter、6 个 Agent 工具）；B1/B2/B4（Jobs 面板筛选/日志/
   取消/重试/订阅、Agent 面板后台条、菜单栏计数、新标签页卡片）；C1–C3（Remote
   后台任务帧/页/通知深链）；D1/D2（批量下载/媒体导出统一终态回报与产物）。
-- 验证：纯逻辑 harness 2706/0（新增 13 项）；macOS Debug 零警告；iOS 构建零代码警告；
-  桥实测 `jobs/run → watch → log → cancel`、取消/完成备注与 watcher 交付。
-- 已知边界：`isSilent` 批量逐条导出仍不单独通知（按设计）；Remote 通知深链落在
-  Agent 首页（任务页入口），未直接 push 到任务详情；app 被 `kill -9` 且磁盘防抖未
-  落盘时，最近 task 记录可能丢失（正常退出/重启可恢复并标 interrupted）。
+- 验证：纯逻辑 harness 2707/0（新增 14 项）；macOS Debug/Release clean 零警告；
+  iOS 构建零代码警告；桥实测 `jobs/run → watch → log → cancel`、取消/完成备注与
+  watcher 交付；**批量下载 E2E**：本地 fixture 页面 → 批次完成 → `kind:"batch"`
+  watcher 只交付一次（产物 `320x240 h264+aac` 经 ffprobe 校验）。
+- 已知边界：`isSilent` 批量逐条导出仍不单独通知（按设计）；Remote 通知现在直接
+  进入后台任务页；app 被 `kill -9` 且磁盘防抖未落盘时，最近 task 记录可能丢失
+  （正常退出/重启可恢复并标 interrupted）。

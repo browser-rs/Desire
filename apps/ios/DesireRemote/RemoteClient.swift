@@ -130,6 +130,8 @@ final class RemoteClient: ObservableObject {
     @Published private(set) var excerpts: [RemoteExcerptItem] = []
     @Published private(set) var briefs: [RemoteBriefItem] = []
     @Published private(set) var archivedSessions: [RemoteArchivedSession] = []
+    /// 发送到手机收件箱（v0.8.38）。
+    @Published private(set) var inbox: [RemoteInboxItem] = []
     /// 模型服务档案 + 当前档案的候选模型
     @Published private(set) var models: RemoteModels?
 
@@ -777,6 +779,17 @@ final class RemoteClient: ObservableObject {
                     }
                     earlierMessages = merged
                 }
+            case "sendToPhone":
+                if let item = try? JSONDecoder().decode(RemoteInboxItem.self, from: data) {
+                    if let index = inbox.firstIndex(where: { $0.id == item.id }) {
+                        inbox[index] = item
+                    } else {
+                        inbox.insert(item, at: 0)
+                        if inbox.count > 50 { inbox = Array(inbox.prefix(50)) }
+                    }
+                    RemoteNotifications.postInbox(title: item.title,
+                                                  body: item.text ?? item.url ?? "")
+                }
             case "turnDone":
                 // Remote 完成通知（0.6.8）：iOS 对前台 app 默认不展示本地通知，
                 // 系统行为正好 = "页面在前台就不打扰"；后台/杀掉后由推送通道的
@@ -984,6 +997,13 @@ final class RemoteClient: ObservableObject {
     func requestRecentFiles() { pushFrame(["t": "recentFiles"], replace: false) }
     func openRecentFile(_ urlString: String) { pushFrame(["t": "openRecentFile", "id": urlString], replace: false) }
     func requestExcerpts() { pushFrame(["t": "excerpts"], replace: false) }
+
+    /// 在 Mac 打开收件箱里的 URL/页面（v0.8.38）。
+    func openOnMac(url: String) {
+        pushFrame(["t": "openURL", "text": url], replace: false)
+    }
+
+    func clearInbox() { inbox = [] }
     func requestBriefs() { pushFrame(["t": "briefs"], replace: false) }
     // v0.8.20：手机发起下载 / 下载批量操作 / 归档会话（Mac 端命令对偶）。
     func startDownload(url: String) { pushFrame(["t": "startDownload", "text": url], replace: false) }

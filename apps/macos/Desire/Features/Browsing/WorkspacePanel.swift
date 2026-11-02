@@ -72,6 +72,17 @@ struct WorkspacePanel: View {
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
             .disabled(newName.trimmingCharacters(in: .whitespaces).isEmpty || tabManager.tabs.isEmpty)
+            Button {
+                _ = store.saveHandoff(tabManager: tabManager)
+                newName = ""
+            } label: {
+                Label(String(localized: "Hand Off"), systemImage: "paperplane")
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(tabManager.tabs.isEmpty)
+            .help(String(localized: "Save this window as a Handoff workspace for another device"))
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)

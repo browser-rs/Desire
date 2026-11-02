@@ -210,6 +210,10 @@ enum BrowserCommand {
     case openURL(String)
     case openToolbox
     case newContainerTab(UUID)
+    /// v0.8.38：把当前窗口标签保存为 Handoff 工作区（跨设备接力）。
+    case handoffTabs
+    /// v0.8.38：把当前页面发送到手机。
+    case sendPageToPhone
 }
 
 

@@ -17,6 +17,17 @@ enum RemoteNotifications {
         center.requestAuthorization(options: [.alert]) { _, _ in }
     }
 
+    static func postInbox(title: String, body: String) {
+        requestPermissionIfNeeded()
+        let content = UNMutableNotificationContent()
+        content.title = title
+        if !body.isEmpty { content.body = body }
+        content.sound = .default
+        let request = UNNotificationRequest(identifier: UUID().uuidString,
+                                            content: content, trigger: nil)
+        UNUserNotificationCenter.current().add(request)
+    }
+
     static func postTurnDone(title: String, body: String) {
         permissionRequested = true   // 收到过帧说明链路活着；未授权时 add 静默失败
         let content = UNMutableNotificationContent()

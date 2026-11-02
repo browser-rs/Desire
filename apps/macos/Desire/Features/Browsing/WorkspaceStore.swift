@@ -56,6 +56,24 @@ final class WorkspaceStore: ObservableObject {
         return workspace
     }
 
+    /// 把当前窗口交给另一台设备（v0.8.38）：保存为带设备/时间的 Handoff 工作区，
+    /// workspace 域同步后另一台 Mac 在 Workspaces 里恢复。
+    @discardableResult
+    func saveHandoff(tabManager: TabManager) -> Workspace {
+        let device = Host.current().localizedName ?? "Mac"
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "MM-dd HH:mm"
+        let stamp = formatter.string(from: Date())
+        var name = "Handoff · \(device) · \(stamp)"
+        var suffix = 2
+        while workspaces.contains(where: { $0.name.lowercased() == name.lowercased() }) {
+            name = "Handoff · \(device) · \(stamp) (\(suffix))"
+            suffix += 1
+        }
+        return save(name: name, tabManager: tabManager)
+    }
+
     func remove(_ id: UUID) {
         workspaces.removeAll { $0.id == id }
         pendingDeletions[id] = Date()   // 显式删除 → 同步墓碑

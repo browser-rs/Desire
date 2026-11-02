@@ -61,6 +61,9 @@ enum PageContextMenu {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(info.imageUrl, forType: .string)
             })
+            menu.addItem(item(String(localized: "Send Image to Phone")) {
+                sendToPhone(title: info.pageUrl, url: info.imageUrl, text: nil, kind: "image")
+            })
         } else if info.hasLink {
             menu.addItem(item(String(localized: "Copy Link as Markdown")) {
                 let text = info.linkText.isEmpty
@@ -75,6 +78,10 @@ enum PageContextMenu {
             menu.addItem(item(String(localized: "Copy Link Address")) {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(info.linkUrl, forType: .string)
+            })
+            menu.addItem(item(String(localized: "Send Link to Phone")) {
+                sendToPhone(title: info.linkText.isEmpty ? info.linkUrl : info.linkText,
+                            url: info.linkUrl, text: nil, kind: "link")
             })
         } else if info.hasSelection {
             menu.addItem(item(String(localized: "Copy Selection as Markdown")) {
@@ -91,6 +98,11 @@ enum PageContextMenu {
             let toolboxItem = NSMenuItem(title: String(localized: "Use in Toolbox"),
                                          action: nil, keyEquivalent: "")
             toolboxItem.submenu = toolbox
+            menu.addItem(.separator())
+            menu.addItem(item(String(localized: "Send Selection to Phone")) {
+                sendToPhone(title: info.pageUrl, url: info.pageUrl,
+                            text: info.selection, kind: "selection")
+            })
             menu.addItem(.separator())
             menu.addItem(toolboxItem)
         } else {
@@ -117,6 +129,14 @@ enum PageContextMenu {
     }
 
     // MARK: - 动作
+
+    private static func sendToPhone(title: String, url: String?, text: String?, kind: String) {
+        let sent = AppState.live?.remoteControlStore.sendToPhone(
+            title: title, url: url, text: text, kind: kind) ?? false
+        if !sent {
+            toast(String(localized: "Remote app is not connected"))
+        }
+    }
 
     private static func openInNewTab(_ urlString: String) {
         guard let url = URL(string: urlString) else { return }

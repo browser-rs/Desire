@@ -238,6 +238,22 @@ struct CommandDispatcher {
         case .showWorkspaces:
             bindings.showWorkspaces.wrappedValue = true
 
+        case .handoffTabs:
+            _ = WorkspaceStore.shared.saveHandoff(tabManager: tabManager)
+            bindings.showWorkspaces.wrappedValue = true
+
+        case .sendPageToPhone:
+            guard let tab = tabManager.selectedTab,
+                  let url = tab.browser.webView.url?.absoluteString ?? Optional(tab.urlString),
+                  !url.isEmpty else { return }
+            let title = tab.browser.webView.title ?? url
+            let sent = AppState.live?.remoteControlStore.sendToPhone(
+                title: title, url: url, text: nil, kind: "page") ?? false
+            if !sent {
+                AgentBallPanel.shared.flashToast(
+                    String(localized: "Remote app is not connected"))
+            }
+
         case .searchEverywhere:
             bindings.showSearchEverywhere.wrappedValue = true
 

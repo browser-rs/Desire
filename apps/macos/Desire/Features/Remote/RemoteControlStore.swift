@@ -458,6 +458,18 @@ final class RemoteControlStore: ObservableObject {
               let inner = try? SyncJSON.makeDecoder().decode(RemoteInnerFrame.self, from: data)
         else { return }
         switch inner.t {
+        case "openURL":
+            guard let raw = inner.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !raw.isEmpty else { return }
+            if raw.lowercased().hasPrefix("desire://") {
+                if let destination = InternalPages.parse(raw),
+                   let tab = TabSessionCoordinator.shared.activeTabManager?.selectedTab {
+                    InternalPages.open(destination, in: tab)
+                }
+            } else if let url = URL(string: raw),
+                      ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
+                TabSessionCoordinator.shared.activeTabManager?.addTab(url: raw)
+            }
         case "prompt":
             let text = inner.text ?? ""
             guard !text.isEmpty else { return }
@@ -1032,6 +1044,24 @@ final class RemoteControlStore: ObservableObject {
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               let json = String(data: data, encoding: .utf8) else { return }
         sendInnerRaw(json)
+    }
+
+    /// 主动发送到手机（v0.8.38）：只发用户明确选中的页面/链接/选区/书摘。
+    @discardableResult
+    func sendToPhone(title: String, url: String? = nil, text: String? = nil,
+                     kind: String) -> Bool {
+        guard isEnabled, connection == .online else { return false }
+        var payload: [String: Any] = [
+            "t": "sendToPhone",
+            "id": UUID().uuidString,
+            "title": String(title.prefix(200)),
+            "kind": kind,
+            "at": Date().timeIntervalSince1970,
+        ]
+        if let url, !url.isEmpty { payload["url"] = String(url.prefix(2000)) }
+        if let text, !text.isEmpty { payload["text"] = String(text.prefix(8000)) }
+        sendInner(payload)
+        return true
     }
 
     // MARK: - 快照推送（1s 一拍、变化才发；15s 强推兜底）

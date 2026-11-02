@@ -75,6 +75,8 @@ struct AppCommands: Commands {
             Divider()
             Button("Save Page…") { postCommand(.savePage) }
                 .keyboardShortcut(binding("savePage", "s", .command))
+            Button("Hand Off Tabs") { postCommand(.handoffTabs) }
+            Button("Send Page to Phone") { postCommand(.sendPageToPhone) }
         }
 
         // MARK: - Edit (Find submenu after pasteboard)

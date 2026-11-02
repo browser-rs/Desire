@@ -968,6 +968,11 @@ struct EbookReaderView: View {
                 Label(String(localized: "Translate"), systemImage: "character.bubble")
             }
             Button {
+                sendSelectionToPhone(selection)
+            } label: {
+                Label(String(localized: "Send to Phone"), systemImage: "paperplane")
+            }
+            Button {
                 AgentDraftInbox.shared.send(
                     String(localized: "About this passage:") + "\n\n" + selection.text)
             } label: {
@@ -1070,6 +1075,16 @@ struct EbookReaderView: View {
             closeTranslation()
             return
         }
+        model.clearSelection()
+    }
+
+    private func sendSelectionToPhone(_ selection: EbookSelection) {
+        let url = "desire://books/\(book.id.uuidString)?chapter=\(model.currentChapter)"
+        let sent = AppState.live?.remoteControlStore.sendToPhone(
+            title: "\(book.title) · \(model.chapterTitle)",
+            url: url, text: selection.text, kind: "book") ?? false
+        showToast(sent ? String(localized: "Sent to Phone")
+                       : String(localized: "Remote app is not connected"))
         model.clearSelection()
     }
 

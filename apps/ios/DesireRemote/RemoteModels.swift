@@ -569,3 +569,14 @@ struct RemoteRecentFilesFrame: Codable {
     var t: String
     var files: [RemoteRecentFile]
 }
+
+// MARK: - 发送到手机（v0.8.38）
+
+struct RemoteInboxItem: Identifiable, Codable, Equatable {
+    var id: String
+    var title: String
+    var url: String?
+    var text: String?
+    var kind: String
+    var at: Double?
+}

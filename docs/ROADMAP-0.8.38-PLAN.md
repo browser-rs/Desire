@@ -78,16 +78,16 @@
 - **验收**：A 保存 → B 出现 → 恢复标签数/URL 一致；workspace 域关闭时明确提示；
   重名不覆盖（自动加序号）。
 
-### A2. Agent 旁路调用成本归账
+### A2. Agent 会话分叉（旁路成本已由既有实现覆盖）
 
-- **现状**：对话消息有 token/成本；critic、标题、记忆整理、crew 旁路调用不计入。
-- **增量**：
-  - `AgentUsageLedger`：每次旁路模型调用记录 `{kind, model, prompt/completion, at,
-    conversationID?}`，落会话或全局账本；标题/记忆/critic/crew 全部接入。
-  - 成本页/轨迹页显示"主对话 / 旁路 / 总计"；没填单价仍不显示 `$0`（沿用现有口径）。
-  - 预算告警：单回合/单日旁路成本超阈值时通知（routine 级，不阻塞）。
-- **验收**：假端点制造 critic+标题+记忆三路调用 → 账本 3 条、成本页分类正确；
-  无定价时显示 token 不显示金额；告警只发一次。
+- **现状核实**：`recordBypassUsage` + `CostBreakdown` 已覆盖标题/记忆/critic/crew 的
+  token 与成本，成本页有主/旁路/子代理分类，`CostBudgetMonitor` 有日/月预算告警——
+  **原规划的"旁路成本归账"已交付，不重复开发**。
+- **增量（替代项）**：从任意一条 user 消息分叉出新会话——复制该消息及之前的上下文，
+  新会话带 `<Fork of …>` 标记与独立 id；原会话不变；分叉后可继续追问。
+  入口：消息右键/长按菜单「Fork from Here」；Remote 在会话页可选（P2）。
+- **验收**：从第 2 条 user 消息分叉 → 新会话消息数/内容与原前缀一致、id 不同；
+  原会话不受影响；分叉会话可正常继续；标题自动生成。
 
 ### A3. Agent 工具面与评估集刷新
 
@@ -300,7 +300,7 @@
 **常规线**
 
 - `Features/Browsing/WorkspaceHandoff.swift`（或 WorkspaceStore 扩展）+ 菜单/右键；
-- `Features/Agent/AgentUsageLedger.swift` + 侧调用接入（标题/记忆/critic/crew）；
+- `AgentSessionStore.forkConversation(from:)` + 消息右键入口；
 - `Features/Remote/SendToPhoneService.swift`（RemoteControlStore 帧）；
 - `Features/Tools/ToolboxPipelineCore.swift`（纯逻辑，进 harness）+
   `ToolboxPipelineView.swift`；
@@ -332,7 +332,7 @@
 
 ## 九、验证门
 
-1. **常规 harness**：流水线步骤传递/失败停止、旁路账本聚合、工作区快照、Office 队列状态机。
+1. **常规 harness**：流水线步骤传递/失败停止、会话分叉前缀、工作区快照、Office 队列状态机。
 2. **Remote 构建**：`xcodebuild -project apps/ios/DesireRemote.xcodeproj -scheme DesireRemote
    -sdk iphonesimulator -configuration Debug CODE_SIGNING_ALLOWED=NO build` 零警告；
    iPad/iPhone 两套布局快照。

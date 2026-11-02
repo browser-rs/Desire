@@ -1,3 +1,10 @@
+## [Unreleased]
+### Added
+
+- Browser: "Hand Off Tabs" saves the current window as a Handoff workspace (device + time) so another Mac signed into the same account can restore it from Workspaces; available from the File menu and the Workspaces panel (v0.8.38)
+- Remote: send-to-phone — right-click a page image, link or selection (and select text in a book) to push it to the phone inbox; the iOS app shows it with Open on Mac / Copy / Ask Agent, and posts a local notification (v0.8.38)
+
+
 ## [v0.8.37] - 2026-11-02
 ### Added
 

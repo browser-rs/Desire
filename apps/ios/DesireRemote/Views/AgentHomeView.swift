@@ -147,6 +147,19 @@ struct AgentHomeView: View {
                     .tint(.orange)
             }
         } header: {
+            NavigationLink {
+                RemoteInboxView()
+            } label: {
+                HStack {
+                    Label("收件箱", systemImage: "tray.full")
+                    Spacer()
+                    if !client.inbox.isEmpty {
+                        Text("\(client.inbox.count)")
+                            .font(.caption2.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
             DesireSectionHeader(title: "控制")
         }
     }

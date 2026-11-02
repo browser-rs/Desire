@@ -21,6 +21,8 @@ struct EbookLibraryView: View {
 
     @Environment(\.appAccent) private var appAccent: Color
     let onOpen: (Ebook) -> Void
+    /// 全库搜索结果打开：书 + 章 + 要高的关键词（v0.8.36）。
+    var onOpenAt: ((Ebook, Int, String) -> Void)? = nil
 
     @ObservedObject private var store = EbookLibraryStore.shared
     @ObservedObject private var stats = ReadingStatsStore.shared
@@ -30,6 +32,7 @@ struct EbookLibraryView: View {
     @State private var note: String?
     @State private var pendingDelete: Ebook?
     @State private var showStats = false
+    @State private var showFullTextSearch = false
     @State private var sort: LibrarySort = .recent
     @State private var favoritesOnly = false
     @State private var collectionFilter: String?
@@ -116,6 +119,21 @@ struct EbookLibraryView: View {
         .sheet(isPresented: $showStats) {
             EbookReadingStatsView(onClose: { showStats = false })
         }
+        .sheet(isPresented: $showFullTextSearch) {
+            EbookLibrarySearchView(
+                books: store.books,
+                query: query,
+                onOpen: { hit in
+                    guard let book = store.book(id: hit.bookID) else { return }
+                    showFullTextSearch = false
+                    if let onOpenAt {
+                        onOpenAt(book, hit.chapterIndex, query)
+                    } else {
+                        onOpen(book)
+                    }
+                },
+                onClose: { showFullTextSearch = false })
+        }
         .sheet(item: $renaming) { book in
             renameSheet(book)
         }
@@ -181,6 +199,17 @@ struct EbookLibraryView: View {
             .background(RoundedRectangle(cornerRadius: 6)
                 .fill(Color(nsColor: .controlBackgroundColor)))
             .frame(maxWidth: 360)
+            if !query.trimmingCharacters(in: .whitespaces).isEmpty {
+                Button {
+                    showFullTextSearch = true
+                } label: {
+                    Label(String(localized: "Search inside all books"),
+                          systemImage: "text.magnifyingglass")
+                        .font(.system(size: 10.5))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(appAccent)
+            }
             HStack(spacing: 6) {
                 filterChip(String(localized: "All"),
                            active: !favoritesOnly && collectionFilter == nil) {

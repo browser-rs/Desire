@@ -266,6 +266,8 @@ SOURCES=(
   apps/macos/Desire/Features/Ebooks/EbookSearchCore.swift
   apps/macos/Desire/Features/Ebooks/EbookHighlight.swift
   apps/macos/Desire/Features/Ebooks/EbookNotesExportCore.swift
+  apps/macos/Desire/Features/Ebooks/EbookTranslationCore.swift
+  apps/macos/Desire/Features/Ebooks/EbookLibrarySearchCore.swift
   apps/macos/Desire/Features/AddressBar/URLBatch.swift
   apps/macos/Desire/Features/Agent/ToolCallGrouper.swift
   apps/macos/Desire/Features/Browsing/MediaEngagementCore.swift

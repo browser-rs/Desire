@@ -1780,6 +1780,14 @@ extension BrowserToolProvider {
                 ], required: ["query"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "searchLibrary",
+                description: "Search the full text of every local ebook at once and return matches grouped by book with [chN]. Use for cross-book questions like \"where did I read about X\".",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "query": AgentJSONSchemaValue(type: "string", description: "Text to find"),
+                    "limit": AgentJSONSchemaValue(type: "number", description: "Max hits (default 20, max 60)"),
+                ], required: ["query"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "getBookOutline",
                 description: "Return the table of contents (nested titles + [chN]) of a local ebook. Pair with readBook's chapter range.",
                 parameters: AgentJSONSchema(type: "object", properties: [

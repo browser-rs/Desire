@@ -35,13 +35,44 @@ struct EbookReaderView: View {
     @State private var translationError: String?
     @State private var isTranslating = false
     @State private var translationConfig: TranslationSession.Configuration?
+    @State private var translationJob: TranslationJob?
+    @State private var isTranslatingChapter = false
+    @State private var chapterTranslationProgress: Double = 0
+    @AppStorage("ebook.translation.target") private var translationTargetCode = "system"
     @FocusState private var searchFocused: Bool
 
-    init(book: Ebook, initialChapter: Int? = nil, onBack: @escaping () -> Void) {
+    private enum TranslationJob {
+        case selection(String)
+        case chapter(blocks: [EbookTranslationBlock], targetKey: String)
+    }
+
+    private struct TranslationTargetOption: Identifiable {
+        let code: String
+        let name: String
+        var id: String { code }
+    }
+
+    private var translationTargets: [TranslationTargetOption] {
+        [
+            .init(code: "system", name: String(localized: "System Language")),
+            .init(code: "en", name: "English"),
+            .init(code: "zh-Hans", name: "简体中文"),
+            .init(code: "zh-Hant", name: "繁體中文"),
+            .init(code: "ja", name: "日本語"),
+            .init(code: "ko", name: "한국어"),
+            .init(code: "fr", name: "Français"),
+            .init(code: "de", name: "Deutsch"),
+            .init(code: "es", name: "Español"),
+        ]
+    }
+
+    init(book: Ebook, initialChapter: Int? = nil, initialQuery: String? = nil,
+         onBack: @escaping () -> Void) {
         self.book = book
         self.onBack = onBack
         let reader = EbookReaderModel(book: book)
         reader.initialChapter = initialChapter
+        reader.initialSearchQuery = initialQuery
         _model = StateObject(wrappedValue: reader)
     }
 
@@ -76,18 +107,58 @@ struct EbookReaderView: View {
         }
         .task { await model.load() }
         .translationTask(translationConfig) { session in
-            let text = translationText
-            guard !text.isEmpty else { return }
-            do {
-                let response = try await session.translate(text)
-                await MainActor.run {
-                    translatedText = response.targetText
-                    isTranslating = false
+            guard let job = translationJob else { return }
+            switch job {
+            case .selection(let text):
+                guard !text.isEmpty else { return }
+                do {
+                    let response = try await session.translate(text)
+                    await MainActor.run {
+                        translatedText = response.targetText
+                        isTranslating = false
+                        translationJob = nil
+                    }
+                } catch {
+                    await MainActor.run {
+                        translationError = error.localizedDescription
+                        isTranslating = false
+                        translationJob = nil
+                    }
                 }
-            } catch {
-                await MainActor.run {
-                    translationError = error.localizedDescription
-                    isTranslating = false
+            case .chapter(let blocks, let targetKey):
+                do {
+                    var result: [Int: String] = [:]
+                    let chunkSize = 8
+                    var cursor = 0
+                    while cursor < blocks.count {
+                        let chunk = Array(blocks[cursor..<min(cursor + chunkSize, blocks.count)])
+                        let requests = chunk.map {
+                            TranslationSession.Request(
+                                sourceText: $0.text,
+                                clientIdentifier: String($0.id))
+                        }
+                        let responses = try await session.translations(from: requests)
+                        for response in responses {
+                            if let id = response.clientIdentifier.flatMap(Int.init) {
+                                result[id] = response.targetText
+                            }
+                        }
+                        cursor += chunkSize
+                        let done = Double(min(cursor, blocks.count)) / Double(blocks.count)
+                        await MainActor.run { chapterTranslationProgress = done }
+                    }
+                    await MainActor.run {
+                        model.applyTranslation(result, language: targetKey)
+                        isTranslatingChapter = false
+                        chapterTranslationProgress = 1
+                        translationJob = nil
+                    }
+                } catch {
+                    await MainActor.run {
+                        isTranslatingChapter = false
+                        translationJob = nil
+                        showToast(error.localizedDescription)
+                    }
                 }
             }
         }
@@ -182,6 +253,43 @@ struct EbookReaderView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .help(String(localized: "Summarize Chapter"))
+            if isTranslatingChapter {
+                ProgressView(value: chapterTranslationProgress)
+                    .controlSize(.small)
+                    .frame(width: 42)
+            }
+            Menu {
+                if model.hasTranslation {
+                    Button(String(localized: "Hide Translation")) {
+                        model.clearTranslation()
+                    }
+                }
+                Button(String(localized: "Translate Chapter")) { translateChapter() }
+                    .disabled(isTranslatingChapter)
+                Menu(String(localized: "Target Language")) {
+                    ForEach(translationTargets) { option in
+                        Button {
+                            translationTargetCode = option.code
+                            if model.hasTranslation { model.clearTranslation() }
+                            translateChapter()
+                        } label: {
+                            if translationTargetCode == option.code {
+                                Label(option.name, systemImage: "checkmark")
+                            } else {
+                                Text(option.name)
+                            }
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: "translate")
+                    .font(.system(size: 12))
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .foregroundStyle(model.hasTranslation
+                             ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+            .help(String(localized: "Translate chapter"))
             Menu {
                 if speech.isSpeaking {
                     Button(speech.isPaused
@@ -631,6 +739,7 @@ struct EbookReaderView: View {
         translatedText = nil
         translationError = nil
         isTranslating = true
+        translationJob = .selection(text)
         let source = detectLanguage(text)
         let system = Locale.Language(identifier: Locale.preferredLanguages.first ?? "en")
         let target: Locale.Language
@@ -649,6 +758,47 @@ struct EbookReaderView: View {
         recognizer.processString(text)
         guard let identifier = recognizer.dominantLanguage?.rawValue else { return nil }
         return Locale.Language(identifier: identifier)
+    }
+
+    private func translateChapter() {
+        guard !isTranslatingChapter else { return }
+        Task { @MainActor in
+            let blocks = await model.translationBlocks()
+            guard !blocks.isEmpty else {
+                showToast(String(localized: "Nothing to translate"))
+                return
+            }
+            let sample = blocks.prefix(3).map { $0.text }.joined(separator: " ")
+            let source = detectLanguage(sample)
+            let spec = targetSpec(code: translationTargetCode, source: source)
+            if let cached = model.cachedTranslation(language: spec.cacheKey) {
+                model.applyTranslation(cached, language: spec.cacheKey)
+                showToast(String(localized: "Translation restored"))
+                return
+            }
+            isTranslatingChapter = true
+            chapterTranslationProgress = 0
+            translationJob = .chapter(blocks: blocks, targetKey: spec.cacheKey)
+            var config = TranslationSession.Configuration(source: source,
+                                                          target: spec.language)
+            config.invalidate()
+            translationConfig = config
+        }
+    }
+
+    private func targetSpec(code: String,
+                            source: Locale.Language?) -> (language: Locale.Language,
+                                                          cacheKey: String) {
+        if code == "system" {
+            let raw = Locale.preferredLanguages.first ?? "en"
+            var language = Locale.Language(identifier: raw)
+            if let source, source.languageCode == language.languageCode {
+                language = Locale.Language(identifier: "en")
+                return (language, "en")
+            }
+            return (language, raw)
+        }
+        return (Locale.Language(identifier: code), code)
     }
 
     private var translationCard: some View {
@@ -737,6 +887,7 @@ struct EbookReaderView: View {
 
     private func closeTranslation() {
         translationConfig = nil
+        translationJob = nil
         translationText = ""
         translatedText = nil
         translationError = nil

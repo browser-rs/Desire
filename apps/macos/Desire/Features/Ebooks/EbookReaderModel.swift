@@ -114,6 +114,8 @@ final class EbookReaderModel: ObservableObject {
     @Published private(set) var bookmarks: [EbookBookmark] = []
     /// 书内高亮/笔记（v0.8.35）：全书列表，渲染时只注入当前章。
     @Published private(set) var highlights: [EbookHighlight] = []
+    /// 当前章的译文语言（nil = 未显示译文，v0.8.36）。
+    @Published private(set) var translationLanguage: String?
     @Published var showNotes = false
     @Published var focusedHighlightID: UUID?
     @Published private(set) var searchResults: [EbookSearchCore.Hit] = []
@@ -129,6 +131,8 @@ final class EbookReaderModel: ObservableObject {
     private var restoreRatio: Double?
     /// 深链指定起始章（`desire://books/<id>?chapter=N`）；load() 消费一次。
     var initialChapter: Int?
+    /// 全库搜索跳转时要高亮的关键词；load() 消费一次。
+    var initialSearchQuery: String?
     private var lastSaved = Date.distantPast
     private var statsSessionStart: Date?
     private var statsPagesSinceFlush = 0
@@ -141,6 +145,9 @@ final class EbookReaderModel: ObservableObject {
     private var webViewReadyGeneration = -1
     private var bookmarkKey: String { "ebook.bookmarks.\(book.id.uuidString)" }
     private var settingsPrefix: String { "ebook.settings.\(book.id.uuidString)." }
+    private var translationCache: EbookTranslationCache
+    private var translationAuto = false
+    private var lastTranslationLanguage: String?
 
     var chapterCount: Int {
         max(1, chapters.isEmpty ? txtChapters.count : chapters.count)
@@ -178,6 +185,7 @@ final class EbookReaderModel: ObservableObject {
         self.bookmarks = DiskStore.load([EbookBookmark].self,
                                         key: "ebook.bookmarks.\(book.id.uuidString)") ?? []
         self.highlights = EbookHighlightStore.load(book.id)
+        self.translationCache = EbookTranslationStore.load(book.id)
     }
 
     func load() async {
@@ -205,6 +213,12 @@ final class EbookReaderModel: ObservableObject {
             initialChapter = nil
             let start = min(max(requested, 0), chapterCount - 1)
             loadChapter(start, restoreRatio: ratio)
+            if let query = initialSearchQuery?
+                .trimmingCharacters(in: .whitespacesAndNewlines), !query.isEmpty {
+                searchQuery = query
+                pendingSearchQuery = query
+            }
+            initialSearchQuery = nil
         }
         isLoading = false
     }
@@ -294,6 +308,7 @@ final class EbookReaderModel: ObservableObject {
         pageCount = 1
         pageTurnRequest = nil
         pendingRevealHighlightID = nil
+        translationLanguage = nil
         do {
             let html: String
             if book.format == .epub || book.format == .html {
@@ -482,6 +497,7 @@ final class EbookReaderModel: ObservableObject {
         self.webView = webView
         webViewReadyGeneration = loadGeneration
         applyHighlights()
+        restoreTranslationIfNeeded()
         guard layoutMode == .scroll else {
             revealPendingHighlight()
             highlightSearchIfNeeded()
@@ -773,6 +789,65 @@ final class EbookReaderModel: ObservableObject {
         }
     }
 
+    // MARK: - 整章翻译
+
+    var hasTranslation: Bool { translationLanguage != nil }
+
+    func cachedTranslation(language: String) -> [Int: String]? {
+        translationCache.translations(chapter: currentChapter, language: language)
+    }
+
+    /// 当前章可翻译的块（p/h1-h4/li，不含译文与代码块）。
+    func translationBlocks() async -> [EbookTranslationBlock] {
+        for attempt in 0..<2 {
+            if let raw = try? await webView?.evaluateJavaScript(
+                "window.__desireBlocks && window.__desireBlocks()") as? String,
+               let data = raw.data(using: .utf8),
+               let blocks = try? JSONDecoder().decode(
+                [EbookTranslationBlock].self, from: data),
+               !blocks.isEmpty {
+                return blocks
+            }
+            if attempt == 0 {
+                try? await Task.sleep(for: .milliseconds(160))
+            }
+        }
+        return []
+    }
+
+    func applyTranslation(_ translations: [Int: String], language: String) {
+        translationCache.save(chapter: currentChapter, language: language,
+                              translations: translations)
+        EbookTranslationStore.save(translationCache, for: book.id)
+        translationLanguage = language
+        lastTranslationLanguage = language
+        translationAuto = true
+        let json = EbookTranslationJS.payload(translations)
+        webView?.evaluateJavaScript(
+            "window.__desireSetTranslations && window.__desireSetTranslations(\(json));",
+            completionHandler: nil)
+    }
+
+    func clearTranslation() {
+        translationLanguage = nil
+        translationAuto = false
+        webView?.evaluateJavaScript(
+            "window.__desireClearTranslations && window.__desireClearTranslations();",
+            completionHandler: nil)
+    }
+
+    /// 切章/重载后，如果之前开着翻译且有该章缓存，自动恢复。
+    private func restoreTranslationIfNeeded() {
+        guard translationAuto, let language = lastTranslationLanguage,
+              let cached = translationCache.translations(
+                chapter: currentChapter, language: language) else { return }
+        translationLanguage = language
+        let json = EbookTranslationJS.payload(cached)
+        webView?.evaluateJavaScript(
+            "window.__desireSetTranslations && window.__desireSetTranslations(\(json));",
+            completionHandler: nil)
+    }
+
     // MARK: - 书内搜索
 
     func search(_ query: String) async {
@@ -943,6 +1018,7 @@ final class EbookReaderModel: ObservableObject {
         })();
         </script>
         <script>\(EbookHighlightJS.script(currentChapterHighlights))</script>
+        <script>\(EbookTranslationJS.script())</script>
         """
         var document = html
         if let headEnd = document.range(of: "</head>", options: .caseInsensitive) {
@@ -1021,6 +1097,7 @@ final class EbookReaderModel: ObservableObject {
           }
           function paginate(){
             source.innerHTML=originalHTML;
+            if(window.__desireApplyTranslationsTo)window.__desireApplyTranslationsTo(source);
             flow.innerHTML='';
             pages=[];
             var page=createPage();
@@ -1116,6 +1193,7 @@ final class EbookReaderModel: ObservableObject {
         });
         </script>
         <script>\(EbookHighlightJS.script(currentChapterHighlights))</script>
+        <script>\(EbookTranslationJS.script())</script>
         """
         return """
         <!doctype html><html><head>\(parts.head)\(injection)</head>
@@ -1165,6 +1243,11 @@ final class EbookReaderModel: ObservableObject {
         ::selection { background: \(theme.link)55; }
         mark[data-ebook-highlight] { border-radius: 2px; }
         mark.desire-highlight-flash { outline: 2px solid #FF9F0A; outline-offset: 1px; }
+        .desire-translation {
+          display: block; font-size: 0.86em; line-height: 1.5;
+          opacity: 0.72; margin-top: 0.35em; padding-left: 0.55em;
+          border-left: 2px solid currentColor;
+        }
         """
     }
 
@@ -1215,6 +1298,11 @@ final class EbookReaderModel: ObservableObject {
         ::selection { background: \(theme.link)55; }
         mark[data-ebook-highlight] { border-radius: 2px; }
         mark.desire-highlight-flash { outline: 2px solid #FF9F0A; outline-offset: 1px; }
+        .desire-translation {
+          display: block; font-size: 0.86em; line-height: 1.5;
+          opacity: 0.72; margin-top: 0.35em; padding-left: 0.55em;
+          border-left: 2px solid currentColor;
+        }
         """
     }
 }

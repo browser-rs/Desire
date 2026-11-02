@@ -45,6 +45,7 @@ nonisolated enum EbookHighlightJS {
             while(n=walker.nextNode()){
               var p=n.parentElement;
               if(p&&(p.tagName==='SCRIPT'||p.tagName==='STYLE'))continue;
+              if(p&&p.closest&&p.closest('.desire-translation'))continue;
               out.push(n);
             }
             return out;

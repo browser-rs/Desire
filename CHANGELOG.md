@@ -1,3 +1,10 @@
+## [Unreleased]
+### Added
+
+- Books: full-chapter bilingual translation — paragraphs are translated in batches with Apple's on-device Translation framework and inserted under the originals; translations can be hidden, re-run in another target language, and are cached per book/chapter so reopening is instant, with the page layout repaginated around them (v0.8.36)
+- Books: search the full text of every book in the library — the library search offers "Search inside all books", groups hits by book/chapter and opens the exact chapter with the query highlighted; the Agent gains `searchLibrary` for cross-book questions (v0.8.36)
+
+
 ## [v0.8.35] - 2026-11-02
 ### Added
 

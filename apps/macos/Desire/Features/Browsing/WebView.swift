@@ -207,6 +207,8 @@ class BrowserState: ObservableObject {
     @Published var ebookViewerFileName = ""
     /// 深链打开书籍时的起始章（`desire://books/<id>?chapter=N`，v0.8.35）。
     @Published var ebookViewerInitialChapter: Int?
+    /// 全库搜索跳转时要高亮的关键词（v0.8.36）。
+    @Published var ebookViewerInitialQuery: String?
     /// JSON 查看器（v0.8.26 办公增强）：非 nil = 该标签渲染 JSONViewer。
     @Published var jsonViewerURL: URL?
     @Published var jsonViewerFileName = ""

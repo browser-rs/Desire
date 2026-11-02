@@ -438,6 +438,7 @@ struct SelectedTabContent: View {
                         } else {
                             EbookReaderView(book: book,
                                             initialChapter: tab.browser.ebookViewerInitialChapter,
+                                            initialQuery: tab.browser.ebookViewerInitialQuery,
                                             onBack: {
                                 tab.browser.ebookViewerBookID = nil
                                 tab.browser.internalPage = .books
@@ -466,7 +467,13 @@ struct SelectedTabContent: View {
                 EbookLibraryView(onOpen: { book in
                     tab.browser.internalPage = nil
                     tab.browser.ebookViewerInitialChapter = nil
+                    tab.browser.ebookViewerInitialQuery = nil
                     tab.browser.ebookViewerBookID = book.id
+                }, onOpenAt: { book, chapter, query in
+                    tab.browser.internalPage = nil
+                    tab.browser.ebookViewerBookID = book.id
+                    tab.browser.ebookViewerInitialChapter = chapter
+                    tab.browser.ebookViewerInitialQuery = query
                 })
             } else if tab.browser.internalPage == .about {
                 AboutPageView(onOpen: { destination in

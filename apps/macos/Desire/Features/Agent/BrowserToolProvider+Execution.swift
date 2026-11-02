@@ -360,6 +360,12 @@ extension BrowserToolProvider {
                 book: args["book"] as? String,
                 query: query,
                 limit: (args["limit"] as? Int) ?? 20)
+        case "searchLibrary":
+            guard let query = args["query"] as? String else {
+                return Self.fail("Missing query")
+            }
+            return await EbookAgentTools.searchLibrary(
+                query: query, limit: (args["limit"] as? Int) ?? 20)
         case "getBookOutline":
             return await EbookAgentTools.outline(book: args["book"] as? String)
         case "openBook":

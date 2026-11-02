@@ -85,6 +85,27 @@ enum EbookAgentTools {
         }
     }
 
+    /// 全库正文搜索（v0.8.36）：跨书写作者的所有本地书，结果按书分组。
+    static func searchLibrary(query: String, limit: Int) async -> String {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return fail("query is empty") }
+        let books = EbookLibraryStore.shared.books.sorted {
+            ($0.lastOpenedAt ?? $0.addedAt) > ($1.lastOpenedAt ?? $1.addedAt)
+        }
+        let hits = await EbookLibrarySearchEngine.search(
+            query: trimmed, books: books, maxBooks: 50, perBook: 3,
+            total: min(max(limit, 1), 60))
+        guard !hits.isEmpty else {
+            return "No matches for \"\(trimmed)\" in any book."
+        }
+        let groups = EbookLibrarySearchCore.grouped(hits)
+        return groups.map { group in
+            "# \(group.title)\n" + group.hits.map {
+                "[ch\($0.chapterIndex + 1)] \($0.chapterTitle)\n\($0.snippet)"
+            }.joined(separator: "\n\n")
+        }.joined(separator: "\n\n")
+    }
+
     // MARK: - v0.8.35
 
     static func openBook(book: String?, chapter: Int?) -> String {

@@ -8159,6 +8159,7 @@ testEbookCore()
 testEbookSearchCore()
 testEbookNotesExportCore()
 testEbookMarkdownCore()
+testEbookTranslationAndLibrarySearchCore()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
@@ -8869,3 +8870,41 @@ func testEbookMarkdownCore() {
 
 
 
+
+// ---------- 翻译缓存与全库搜索（v0.8.36） ----------
+
+func testEbookTranslationAndLibrarySearchCore() {
+    var cache = EbookTranslationCache()
+    cache.save(chapter: 2, language: "en",
+               translations: [0: "Hello", 1: "World"])
+    eq("译文：取回", cache.translations(chapter: 2, language: "en")?[1], "World")
+    check("译文：语言不匹配", cache.translations(chapter: 2, language: "fr") == nil)
+    check("译文：章节不匹配", cache.translations(chapter: 3, language: "en") == nil)
+    cache.save(chapter: 2, language: "fr", translations: [0: "Bonjour"])
+    eq("译文：换语言覆盖", cache.translations(chapter: 2, language: "fr")?[0], "Bonjour")
+    check("译文：旧语言被替换", cache.translations(chapter: 2, language: "en") == nil)
+    for index in 0..<70 {
+        cache.save(chapter: 100 + index, language: "en", translations: [0: "x"])
+    }
+    eq("译文：章节上限", cache.chapters.count, EbookTranslationCache.maxChapters)
+
+    func hit(_ chapter: Int, _ offset: Int) -> EbookSearchCore.Hit {
+        EbookSearchCore.Hit(chapterIndex: chapter, chapterTitle: "C\(chapter)",
+                            snippet: "s\(offset)", offset: offset)
+    }
+    let bookA = UUID()
+    let bookB = UUID()
+    let merged = EbookLibrarySearchCore.merge([
+        (bookID: bookA, title: "A", hits: [hit(0, 1), hit(0, 2), hit(1, 3), hit(1, 4)]),
+        (bookID: bookB, title: "B", hits: [hit(0, 5)]),
+    ], perBook: 2, total: 10)
+    eq("全库搜索：每书上限", merged.count, 3)
+    eq("全库搜索：首条书", merged[0].bookTitle, "A")
+    eq("全库搜索：第二条同书", merged[1].bookID, bookA)
+    eq("全库搜索：分组数", EbookLibrarySearchCore.grouped(merged).count, 2)
+    let capped = EbookLibrarySearchCore.merge([
+        (bookID: bookA, title: "A", hits: [hit(0, 1), hit(0, 2)]),
+        (bookID: bookB, title: "B", hits: [hit(0, 5), hit(0, 6)]),
+    ], perBook: 3, total: 2)
+    eq("全库搜索：总上限", capped.count, 2)
+}

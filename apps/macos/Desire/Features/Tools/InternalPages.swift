@@ -128,6 +128,7 @@ enum InternalPages {
             showInTab(.books, in: tab, urlString: destination.urlString)
             if let param = destination.param, let id = UUID(uuidString: param) {
                 tab.browser.ebookViewerBookID = id
+                tab.browser.ebookViewerInitialQuery = nil
                 if let raw = destination.query["chapter"], let chapter = Int(raw) {
                     tab.browser.ebookViewerInitialChapter = max(0, chapter)
                 } else {

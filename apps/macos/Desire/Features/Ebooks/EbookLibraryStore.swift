@@ -101,6 +101,7 @@ final class EbookLibraryStore: ObservableObject {
         }
         DiskStore.remove(key: "ebook.bookmarks.\(book.id.uuidString)")
         DiskStore.remove(key: EbookHighlightStore.key(for: book.id))
+        DiskStore.remove(key: EbookTranslationStore.key(for: book.id))
         save()
     }
 

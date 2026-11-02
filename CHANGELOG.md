@@ -7,6 +7,12 @@
 - Agent: `syncNow` and `syncStatus` tools trigger a sync and report sign-in state, per-domain errors, orphan counts and each book's reading progress, so "where did I stop on the other Mac" is one question (v0.8.37)
 - Sync: the ebooks domain joins the server whitelist with smoke coverage; if the server has not been updated only that domain reports an error, other domains keep syncing (v0.8.37)
 - Books: books that exist on another device but not on this Mac are now visible from the library as remote entries — pick the same file and the SHA-256 match restores their progress and bookmarks instead of leaving them hidden in sync diagnostics (v0.8.37)
+- Books: highlights made on another device now appear inside the book text after sync (not only in Excerpts) — the excerpt locator is mapped back to a book highlight and de-duplicated by id or chapter/offset/quote (v0.8.37)
+- Books: the library shows a sync status strip (syncing, or an ebooks-domain failure with a link to Sync settings) and a Sync now button, so a server that has not been updated is visible instead of silently skipping (v0.8.37)
+- Books: deleting a synced excerpt on another device also removes the highlight it created in the book text (local highlights with a different id are left untouched) (v0.8.37)
+
+
+
 
 
 

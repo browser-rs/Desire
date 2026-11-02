@@ -195,6 +195,15 @@ final class EbookReaderModel: ObservableObject {
                 self.bookmarks = EbookBookmarkStore.load(self.book.id)
             }
         }
+        NotificationCenter.default.addObserver(
+            forName: .ebookHighlightsDidSync, object: nil, queue: .main
+        ) { [weak self] note in
+            MainActor.assumeIsolated {
+                guard let self, (note.object as? UUID) == self.book.id else { return }
+                self.highlights = EbookHighlightStore.load(self.book.id)
+                self.applyHighlights()
+            }
+        }
     }
 
     func load() async {

@@ -82,6 +82,67 @@ final class EbookSyncStore: ObservableObject {
         objectWillChange.send()
     }
 
+
+    /// 远端摘录 → 书内高亮（v0.8.37）。只有带完整 locator 的摘录才回显；
+    /// 按 id / 章节+偏移+原文去重，避免同一高亮在两端各生成一条。
+    func applyRemoteExcerpt(_ excerpt: Excerpt) {
+        guard let hash = excerpt.bookHash?.lowercased(),
+              let chapter = excerpt.chapterIndex,
+              let start = excerpt.startOffset,
+              let end = excerpt.endOffset, end > start,
+              let book = EbookLibraryStore.shared.books.first(where: {
+                  $0.hash.lowercased() == hash
+              }) else { return }
+        var highlights = EbookHighlightStore.load(book.id)
+        if let index = highlights.firstIndex(where: {
+            $0.id == excerpt.id
+                || ($0.chapterIndex == chapter && $0.startOffset == start
+                    && $0.endOffset == end && $0.quote == excerpt.content)
+        }) {
+            var changed = false
+            if highlights[index].note != excerpt.note {
+                highlights[index].note = excerpt.note
+                changed = true
+            }
+            if changed {
+                EbookHighlightStore.save(highlights, for: book.id)
+                NotificationCenter.default.post(
+                    name: .ebookHighlightsDidSync, object: book.id)
+            }
+            return
+        }
+        highlights.append(EbookHighlight(
+            id: excerpt.id, chapterIndex: chapter,
+            chapterTitle: excerpt.chapterTitle ?? "Chapter \(chapter + 1)",
+            chapterProgress: 0,
+            quote: excerpt.content, startOffset: start, endOffset: end,
+            color: .yellow, note: excerpt.note, createdAt: excerpt.createdAt))
+        EbookHighlightStore.save(highlights, for: book.id)
+        NotificationCenter.default.post(
+            name: .ebookHighlightsDidSync, object: book.id)
+    }
+
+    /// 远端摘录删除 → 删掉由它回显出的书内高亮（本地自建高亮 id 不同，不会误删）。
+    func removeRemoteHighlight(excerptID: UUID) {
+        for book in EbookLibraryStore.shared.books {
+            var highlights = EbookHighlightStore.load(book.id)
+            guard highlights.contains(where: { $0.id == excerptID }) else { continue }
+            highlights.removeAll { $0.id == excerptID }
+            EbookHighlightStore.save(highlights, for: book.id)
+            NotificationCenter.default.post(
+                name: .ebookHighlightsDidSync, object: book.id)
+        }
+    }
+
+    /// 书导入后把已同步摘录回显到正文（不依赖 orphan 是否存在）。
+    func applySyncedExcerpts(for book: Ebook) {
+        let hash = book.hash.lowercased()
+        for excerpt in ExcerptStore.shared.excerpts
+            where excerpt.bookHash?.lowercased() == hash {
+            applyRemoteExcerpt(excerpt)
+        }
+    }
+
     /// 新书导入/登记后应用同 hash 的孤儿数据；返回是否改动了本机状态。
     func applyOrphans(for book: Ebook) -> Bool {
         let hash = book.hash.lowercased()
@@ -104,6 +165,7 @@ final class EbookSyncStore: ObservableObject {
             }
             DiskStore.save(orphanBookmarks, key: orphanBookmarksKey)
         }
+        applySyncedExcerpts(for: book)
         if changed { objectWillChange.send() }
         return changed
     }
@@ -111,4 +173,5 @@ final class EbookSyncStore: ObservableObject {
 
 extension Notification.Name {
     static let ebookBookmarksDidSync = Notification.Name("ebookBookmarksDidSync")
+    static let ebookHighlightsDidSync = Notification.Name("ebookHighlightsDidSync")
 }

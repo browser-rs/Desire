@@ -1655,8 +1655,12 @@ final class SyncStore: ObservableObject {
     private func applyExcerpts(_ items: [SyncWireItem<SyncEncryptedPayload>], master: String) {
         guard !items.isEmpty else { return }
         var hmacToLocal: [String: Date] = [:]
+        var hmacToExcerptID: [String: UUID] = [:]
         for excerpt in excerptStore.excerpts {
-            hmacToLocal[SyncPromotion.clientID(for: excerpt.id.uuidString, masterKeyBase64: master)] = excerpt.updatedAt
+            let hmac = SyncPromotion.clientID(for: excerpt.id.uuidString,
+                                              masterKeyBase64: master)
+            hmacToLocal[hmac] = excerpt.updatedAt
+            hmacToExcerptID[hmac] = excerpt.id
         }
         applyRemotely {
             for item in items {
@@ -1666,11 +1670,15 @@ final class SyncStore: ObservableObject {
                     masterKeyBase64: master, as: Excerpt.self) else { continue }
                 let hmac = SyncPromotion.clientID(for: excerpt.id.uuidString, masterKeyBase64: master)
                 if item.deleted == true {
-                    if hmacToLocal[hmac] != nil { excerptStore.removeForSync(id: excerpt.id) }
+                    if let id = hmacToExcerptID[hmac] {
+                        excerptStore.removeForSync(id: id)
+                        EbookSyncStore.shared.removeRemoteHighlight(excerptID: id)
+                    }
                     continue
                 }
                 if let localAt = hmacToLocal[hmac], item.clientUpdatedAt <= localAt { continue }
                 excerptStore.upsertForSync(excerpt)
+                EbookSyncStore.shared.applyRemoteExcerpt(excerpt)
             }
         }
     }

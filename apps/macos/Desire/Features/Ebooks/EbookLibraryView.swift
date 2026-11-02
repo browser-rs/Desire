@@ -115,6 +115,9 @@ struct EbookLibraryView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+            if let syncStore = AppState.live?.syncStore {
+                EbookSyncStatusStrip(store: syncStore)
+            }
             if let continueBook {
                 continueCard(continueBook)
             }
@@ -221,6 +224,15 @@ struct EbookLibraryView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .help(String(localized: "Reading Stats"))
+                Button {
+                    Task { await AppState.live?.syncStore.syncNow() }
+                } label: {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 12))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help(String(localized: "Sync now"))
                 if importing {
                     ProgressView().controlSize(.small)
                 }

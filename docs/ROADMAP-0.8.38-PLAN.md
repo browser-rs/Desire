@@ -367,6 +367,8 @@
   体量较大，留下一版（本版常规线由媒体转码/GIF 与流水线顶上）。
 - **C7 admin CLI 扩展**：现有 user/sync gc/stats 命令可用；device/remote/quota 子命令
   留下一版，配额已可通过 env 配置并查 `/sync/usage`。
+- **A3 评估集扩充**：工具索引与能力页已从 `toolDefs` 生成；本版未新增 6 条
+  `agent-eval.py` 夹具，留到下一版与 Office/流水线工具一起补。
 
 ## 十一、风险与取舍
 

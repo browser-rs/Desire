@@ -132,6 +132,12 @@ final class RemoteClient: ObservableObject {
     @Published private(set) var archivedSessions: [RemoteArchivedSession] = []
     /// 发送到手机收件箱（v0.8.38）。
     @Published private(set) var inbox: [RemoteInboxItem] = []
+    /// 书架 / 工具箱 / 工作区（v0.8.38 批二）——Mac 按需回帧，不进每秒快照。
+    @Published private(set) var books: [RemoteBookItem] = []
+    @Published private(set) var toolboxTools: [RemoteToolboxTool] = []
+    /// 最近一次工具执行结果（读取端自行清空）。
+    @Published var toolboxResult: RemoteToolboxResult?
+    @Published private(set) var workspaces: [RemoteWorkspaceItem] = []
     /// 模型服务档案 + 当前档案的候选模型
     @Published private(set) var models: RemoteModels?
 
@@ -763,6 +769,22 @@ final class RemoteClient: ObservableObject {
                 if let frame = try? JSONDecoder().decode(RemoteBriefsFrame.self, from: data) {
                     briefs = frame.items
                 }
+            case "books":
+                if let frame = try? JSONDecoder().decode(RemoteBooksFrame.self, from: data) {
+                    books = frame.books
+                }
+            case "toolboxCatalog":
+                if let frame = try? JSONDecoder().decode(RemoteToolboxCatalogFrame.self, from: data) {
+                    toolboxTools = frame.tools
+                }
+            case "toolboxResult":
+                if let frame = try? JSONDecoder().decode(RemoteToolboxResult.self, from: data) {
+                    toolboxResult = frame
+                }
+            case "workspaces":
+                if let frame = try? JSONDecoder().decode(RemoteWorkspacesFrame.self, from: data) {
+                    workspaces = frame.workspaces
+                }
             case "archivedSessions":
                 if let frame = try? JSONDecoder().decode(RemoteArchivedSessionsFrame.self, from: data) {
                     archivedSessions = frame.items
@@ -1013,6 +1035,26 @@ final class RemoteClient: ObservableObject {
         pushFrame(["t": "restoreArchivedSession", "id": file], replace: false)
     }
     func openExcerpt(_ source: String) { pushFrame(["t": "openExcerpt", "id": source], replace: false) }
+    // v0.8.38 批二：书架 / 工具箱 / 工作区（Mac 按需回帧）。
+    func requestBooks() { pushFrame(["t": "books"], replace: false) }
+    /// 在 Mac 打开某本书；`chapter` 来自列表里的续读位置。
+    func openBook(id: String, chapter: Int? = nil) {
+        var frame: [String: Any] = ["t": "bookOpen", "id": id]
+        if let chapter { frame["chapter"] = chapter }
+        pushFrame(frame, replace: false)
+    }
+    func requestToolboxCatalog() { pushFrame(["t": "toolboxCatalog"], replace: false) }
+    /// 跑一个纯文本工具。`args` 的键必须与工具 spec 的参数名一致。
+    func runToolboxTool(_ tool: String, args: [String: String]) {
+        guard let data = try? JSONSerialization.data(withJSONObject: args),
+              let body = String(data: data, encoding: .utf8) else { return }
+        toolboxResult = nil
+        pushFrame(["t": "toolboxRun", "text": tool, "body": body], replace: false)
+    }
+    func requestWorkspaces() { pushFrame(["t": "workspaces"], replace: false) }
+    func openWorkspace(id: String) {
+        pushFrame(["t": "openWorkspace", "id": id], replace: false)
+    }
     func setNightOwl(_ enabled: Bool) { pushFrame(["t": "setNightOwl", "flag": enabled], replace: false) }
 
     // MARK: 定时任务遥控（v0.8.11）

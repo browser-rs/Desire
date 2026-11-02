@@ -211,6 +211,15 @@ struct AgentHomeView: View {
                     subtitle: "全部可调用工具、风险分级与技能库",
                     showsChevron: false)
             }
+            NavigationLink {
+                RemoteToolboxView()
+            } label: {
+                DesireNavRow(
+                    icon: "wrench.and.screwdriver",
+                    title: "工具箱",
+                    subtitle: "48 个纯文本工具：编码、哈希、JSON、正则…",
+                    showsChevron: false)
+            }
         } header: {
             DesireSectionHeader(title: "能力")
         }
@@ -293,6 +302,26 @@ struct AgentHomeView: View {
                     icon: "newspaper",
                     title: "每日简报",
                     subtitle: "Mac 上生成的当日简报产物",
+                    showsChevron: false)
+            }
+
+            NavigationLink {
+                RemoteBooksView()
+            } label: {
+                DesireNavRow(
+                    icon: "books.vertical",
+                    title: "书架",
+                    subtitle: "Mac 书库进度，一键从上次位置续读",
+                    showsChevron: false)
+            }
+
+            NavigationLink {
+                RemoteWorkspacesView()
+            } label: {
+                DesireNavRow(
+                    icon: "rectangle.stack",
+                    title: "工作区",
+                    subtitle: "保存的标签组，一键在 Mac 恢复",
                     showsChevron: false)
             }
         } header: {

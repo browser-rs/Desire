@@ -580,3 +580,57 @@ struct RemoteInboxItem: Identifiable, Codable, Equatable {
     var kind: String
     var at: Double?
 }
+
+// MARK: - 书架 / 工具箱 / 工作区（v0.8.38 批二）
+
+struct RemoteBookItem: Identifiable, Codable, Equatable {
+    var id: String
+    var title: String
+    var author: String
+    var format: String
+    var progress: Double
+    var chapterIndex: Int
+    var chapterCount: Int
+    var favorite: Bool
+    var collection: String?
+    var lastOpenedAt: Double?
+    var fileSize: Int64
+}
+
+struct RemoteBooksFrame: Codable {
+    var t: String
+    var books: [RemoteBookItem]
+}
+
+/// 工具箱目录：与 Mac 端 `ToolboxRuntimeCore.specs` 同源（纯文本工具）。
+struct RemoteToolboxTool: Identifiable, Codable, Equatable {
+    var name: String
+    var summary: String
+    var arguments: String
+    var id: String { name }
+}
+
+struct RemoteToolboxCatalogFrame: Codable {
+    var t: String
+    var tools: [RemoteToolboxTool]
+}
+
+struct RemoteToolboxResult: Codable, Equatable {
+    var tool: String
+    var ok: Bool
+    var text: String
+}
+
+/// 命名工作区（Mac 端标签组快照）。
+struct RemoteWorkspaceItem: Identifiable, Codable, Equatable {
+    var id: String
+    var name: String
+    var tabCount: Int
+    var savedAt: Double
+    var profileID: String?
+}
+
+struct RemoteWorkspacesFrame: Codable {
+    var t: String
+    var workspaces: [RemoteWorkspaceItem]
+}

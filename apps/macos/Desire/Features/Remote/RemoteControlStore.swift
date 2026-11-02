@@ -650,6 +650,53 @@ final class RemoteControlStore: ObservableObject {
             if let frame = Self.excerptsFrame() { sendInnerRaw(frame) }
         case "briefs":
             if let frame = Self.briefsFrame() { sendInnerRaw(frame) }
+        // ── 书架 / 工具箱 / 工作区（v0.8.38 批二）──
+        case "books":
+            if let frame = Self.booksFrame() { sendInnerRaw(frame) }
+        case "bookOpen":
+            guard let raw = inner.id, let id = UUID(uuidString: raw) else { return }
+            var url = "desire://books/\(id.uuidString)"
+            if let chapter = inner.chapter, chapter >= 0 {
+                url += "?chapter=\(chapter)"
+            }
+            if let destination = InternalPages.parse(url) {
+                InternalPages.openAnywhere(destination)
+            }
+        case "toolboxCatalog":
+            if let frame = Self.toolboxCatalogFrame() { sendInnerRaw(frame) }
+        case "toolboxRun":
+            let tool = (inner.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard ToolboxRuntimeCore.toolNames.contains(tool) else {
+                sendInner(["t": "error",
+                           "message": String(localized: "Unknown toolbox tool")])
+                return
+            }
+            let output = ToolboxRuntimeCore.run(
+                tool: tool, args: Self.toolboxArguments(from: inner.body))
+            if let frame = Self.toolboxResultFrame(tool: tool, output: output) {
+                sendInnerRaw(frame)
+            }
+        case "workspaces":
+            if let frame = Self.workspacesFrame() { sendInnerRaw(frame) }
+        case "openWorkspace":
+            guard let raw = inner.id, let uuid = UUID(uuidString: raw),
+                  let workspace = WorkspaceStore.shared.workspaces.first(where: { $0.id == uuid }),
+                  let manager = TabSessionCoordinator.shared.activeTabManager,
+                  let app = AppState.live else {
+                sendInner(["t": "error",
+                           "message": String(localized: "Workspace not found")])
+                return
+            }
+            if let pid = workspace.session.profileID {
+                manager.profileID = pid
+                manager.profileDataStore = ProfileStore.shared.dataStore(for: pid)
+            }
+            manager.apply(session: workspace.session,
+                          javaScriptEnabled: app.settings.isJavaScriptEnabled,
+                          contentBlocker: app.contentBlocker,
+                          videoAdBlocker: app.videoAdBlocker)
+            sendInner(["t": "ok",
+                       "message": String(localized: "Restored \(workspace.name) on Mac")])
         case "startDownload":
             // 手机发起下载（v0.8.20）：URL → URLSession 下载管线
             // （与桥 startDownload 同源；危险扩展名/空间卫士照走各自闸）。
@@ -894,6 +941,143 @@ final class RemoteControlStore: ObservableObject {
             t: "recentFiles",
             files: RecentLocalFiles.load().prefix(20).map {
                 RemoteRecentFile(url: $0.url, filename: $0.filename, kind: $0.kind)
+            })
+        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// 书架帧（v0.8.38 批二）：手机只读浏览 + 在 Mac 打开/续读。
+    nonisolated struct RemoteBookItem: Codable {
+        var id: String
+        var title: String
+        var author: String
+        var format: String
+        var progress: Double
+        var chapterIndex: Int
+        var chapterCount: Int
+        var favorite: Bool
+        var collection: String?
+        var lastOpenedAt: Double?
+        var fileSize: Int64
+    }
+
+    nonisolated struct RemoteBooksFrame: Codable {
+        var t: String
+        var books: [RemoteBookItem]
+    }
+
+    private static func booksFrame() -> String? {
+        let items = EbookLibraryStore.shared.books
+            .sorted { ($0.lastOpenedAt ?? .distantPast) > ($1.lastOpenedAt ?? .distantPast) }
+            .map { book in
+                RemoteBookItem(
+                    id: book.id.uuidString,
+                    title: book.title,
+                    author: book.author,
+                    format: book.format.displayName,
+                    progress: book.progress,
+                    chapterIndex: book.lastChapterIndex,
+                    chapterCount: book.chapterCount,
+                    favorite: book.favorite,
+                    collection: book.collectionName,
+                    lastOpenedAt: book.lastOpenedAt?.timeIntervalSince1970,
+                    fileSize: book.fileSize)
+            }
+        let frame = RemoteBooksFrame(t: "books", books: items)
+        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// 工具箱目录帧（v0.8.38 批二）：与 Agent `runToolboxTool` /
+    /// 桥 `/toolbox/run` 同一份注册表（ToolboxRuntimeCore.specs），只读。
+    nonisolated struct RemoteToolboxTool: Codable {
+        var name: String
+        var summary: String
+        var arguments: String
+    }
+
+    nonisolated struct RemoteToolboxCatalogFrame: Codable {
+        var t: String
+        var tools: [RemoteToolboxTool]
+    }
+
+    nonisolated struct RemoteToolboxResultFrame: Codable {
+        var t: String
+        var tool: String
+        var ok: Bool
+        var text: String
+    }
+
+    private static func toolboxCatalogFrame() -> String? {
+        let frame = RemoteToolboxCatalogFrame(
+            t: "toolboxCatalog",
+            tools: ToolboxRuntimeCore.specs.map {
+                RemoteToolboxTool(name: $0.name, summary: $0.summary, arguments: $0.arguments)
+            })
+        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    private static func toolboxResultFrame(
+        tool: String, output: ToolboxRuntimeCore.Output) -> String? {
+        // 纯文本工具的输出可能很长（diff/格式化）；手机阅读上限内截断，
+        // 完整结果仍在 Mac 工具箱里。
+        var text = output.text
+        if text.count > 20_000 {
+            text = String(text.prefix(20_000)) + "\n…"
+        }
+        let frame = RemoteToolboxResultFrame(
+            t: "toolboxResult", tool: tool, ok: output.ok, text: text)
+        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// 上行 `body` 是 `{参数名: 值}` 的 JSON 对象；值统一转字符串，与
+    /// `ToolboxRuntimeCore.run(tool:args:)` 的约定一致（布尔写 "true"/"false"）。
+    private static func toolboxArguments(from body: String?) -> [String: String] {
+        guard let body, let data = body.data(using: .utf8),
+              let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        else { return [:] }
+        var args: [String: String] = [:]
+        for (key, value) in raw {
+            switch value {
+            case let string as String:
+                args[key] = string
+            case let bool as Bool:
+                args[key] = bool ? "true" : "false"
+            case let number as NSNumber:
+                args[key] = number.stringValue
+            default:
+                break
+            }
+        }
+        return args
+    }
+
+    /// 工作区帧（v0.8.38 批二）：手机浏览命名标签组并一键在 Mac 恢复。
+    nonisolated struct RemoteWorkspaceItem: Codable {
+        var id: String
+        var name: String
+        var tabCount: Int
+        var savedAt: Double
+        var profileID: String?
+    }
+
+    nonisolated struct RemoteWorkspacesFrame: Codable {
+        var t: String
+        var workspaces: [RemoteWorkspaceItem]
+    }
+
+    private static func workspacesFrame() -> String? {
+        let frame = RemoteWorkspacesFrame(
+            t: "workspaces",
+            workspaces: WorkspaceStore.shared.workspaces.map {
+                RemoteWorkspaceItem(
+                    id: $0.id.uuidString,
+                    name: $0.name,
+                    tabCount: $0.session.tabs.count,
+                    savedAt: $0.savedAt.timeIntervalSince1970,
+                    profileID: $0.session.profileID?.uuidString)
             })
         guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
         return String(data: data, encoding: .utf8)
@@ -2000,6 +2184,8 @@ nonisolated struct RemoteInnerFrame: Codable {
     var minute: Int?
     /// 任务名（tasks 域：toggle/remove/fire 用 id；create 用 text）
     var taskID: String?
+    /// 电子书续读章节（bookOpen 用，v0.8.38）
+    var chapter: Int?
 }
 
 // MARK: - 记忆帧（手机拉取 Agent 记忆：画像 / 事实 / 摘要）

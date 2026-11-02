@@ -381,7 +381,8 @@ struct SyncSettingsSection: View {
             ForEach(SyncDomain.allCases, id: \.self) { domain in
                 SettingsRow(domain.displayName,
                             subtitle: diagText(store.diagnostics[domain],
-                                               tombstones: store.pendingTombstoneCounts[domain] ?? 0)) { }
+                                               tombstones: store.pendingTombstoneCounts[domain] ?? 0,
+                                               domain: domain)) { }
                 if domain != SyncDomain.allCases.last {
                     SettingsRowDivider()
                 }
@@ -389,8 +390,14 @@ struct SyncSettingsSection: View {
         }
     }
 
-    private func diagText(_ diag: SyncDomainDiag?, tombstones: Int) -> String {
-        guard let diag, diag.pushed > 0 || diag.pulled > 0 || tombstones > 0 else {
+    private func diagText(_ diag: SyncDomainDiag?, tombstones: Int,
+                          domain: SyncDomain) -> String {
+        let orphans = domain == .ebooks
+            ? EbookSyncStore.shared.orphanBooks.count
+                + EbookSyncStore.shared.orphanBookmarks.values.reduce(0) { $0 + $1.count }
+            : 0
+        guard let diag, diag.pushed > 0 || diag.pulled > 0
+                || tombstones > 0 || orphans > 0 else {
             return "尚无同步流量"
         }
         var text = "推送 \(diag.pushed) 条 · 拉取 \(diag.pulled) 条"
@@ -401,6 +408,9 @@ struct SyncSettingsSection: View {
         }
         if tombstones > 0 {
             text += " · 待删墓碑 \(tombstones)"
+        }
+        if orphans > 0 {
+            text += " · 孤儿 \(orphans)"
         }
         return text
     }

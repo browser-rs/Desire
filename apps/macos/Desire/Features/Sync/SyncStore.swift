@@ -230,6 +230,9 @@ final class SyncStore: ObservableObject {
         observeLocalChanges(jobStore.objectWillChange, domain: .jobs)
         observeLocalChanges(excerptStore.objectWillChange, domain: .excerpts)
         observeLocalChanges(clipboardStore.objectWillChange, domain: .clipboard)
+        observeLocalChanges(EbookLibraryStore.shared.objectWillChange, domain: .ebooks)
+        observeLocalChanges(EbookSyncStore.shared.objectWillChange, domain: .ebooks)
+        observeLocalChanges(ReadingStatsStore.shared.objectWillChange, domain: .ebooks)
     }
 
     private func observeLocalChanges(
@@ -904,6 +907,7 @@ final class SyncStore: ObservableObject {
             DomainAdapter(domain: .history, collect: collectHistory, apply: applyHistory, clear: clearHistoryPending),
             DomainAdapter(domain: .whiteboard, collect: collectWhiteboards, apply: applyWhiteboards, clear: clearWhiteboardsPending),
             DomainAdapter(domain: .workspace, collect: collectWorkspaces, apply: applyWorkspaces, clear: clearWorkspacePending),
+            DomainAdapter(domain: .ebooks, collect: collectEbooks, apply: applyEbooks, clear: clearEbooksPending),
         ]
     }
 
@@ -989,6 +993,7 @@ final class SyncStore: ObservableObject {
             .clipboard: clipboardStore.pendingDeletions.count,
             .history: historyStore.pendingDeletions.count,
             .whiteboard: WhiteboardStore.shared.pendingDeletions.count,
+            .ebooks: EbookSyncStore.shared.pendingBookmarkDeletions.count,
         ]
     }
 
@@ -1716,6 +1721,163 @@ final class SyncStore: ObservableObject {
 
     private func clearClipboardPending(_ serverIDs: Set<String>, master: String) {
         clipboardStore.clearPendingDeletions(serverIDs: Set(serverIDs.compactMap { UUID(uuidString: $0) }))
+    }
+
+    // MARK: - 电子书域（v0.8.37）
+
+    private func collectEbooks(master: String) -> [SyncWireItem<SyncEncryptedPayload>] {
+        let books = EbookLibraryStore.shared.books
+        var items: [SyncWireItem<SyncEncryptedPayload>] = []
+        for book in books {
+            let stamp = max(book.syncUpdatedAt ?? .distantPast,
+                            max(book.lastOpenedAt ?? .distantPast, book.addedAt))
+            items.append(encryptedWire(
+                domain: .ebooks, realID: EbookSyncCore.bookID(hash: book.hash),
+                clientUpdatedAt: stamp, deleted: false,
+                payload: EbookSyncCore.bookPayload(book), master: master))
+            for bookmark in EbookBookmarkStore.load(book.id) {
+                let payload = EbookSyncBookmarkPayload(
+                    bookHash: book.hash, bookmark: bookmark,
+                    updatedAt: bookmark.createdAt)
+                items.append(encryptedWire(
+                    domain: .ebooks,
+                    realID: EbookSyncCore.bookmarkID(bookHash: book.hash,
+                                                     bookmarkID: bookmark.id),
+                    clientUpdatedAt: bookmark.createdAt, deleted: false,
+                    payload: payload, master: master))
+            }
+        }
+        for (key, deletedAt) in EbookSyncStore.shared.pendingBookmarkDeletions {
+            guard let (hash, id) = ebooksDeletionParts(key) else { continue }
+            items.append(encryptedTombstone(
+                domain: .ebooks,
+                realID: EbookSyncCore.bookmarkID(bookHash: hash, bookmarkID: id),
+                clientUpdatedAt: deletedAt, master: master))
+        }
+        let stats = ReadingStatsStore.shared.syncPayload(deviceID: deviceID)
+        if !stats.days.isEmpty || !stats.books.isEmpty || !stats.pagesByDay.isEmpty {
+            items.append(encryptedWire(
+                domain: .ebooks, realID: "stats:\(deviceID)",
+                clientUpdatedAt: stats.updatedAt, deleted: false,
+                payload: stats, master: master))
+        }
+        return items
+    }
+
+    private func applyEbooks(_ items: [SyncWireItem<SyncEncryptedPayload>], master: String) {
+        let bookItems = decryptItems(items, domain: .ebooks, master: master,
+                                     as: EbookSyncBookPayload.self) { item, payload in
+            SyncWireItem(clientId: item.clientId,
+                         clientUpdatedAt: item.clientUpdatedAt,
+                         deleted: item.deleted, payload: payload,
+                         updatedAt: item.updatedAt)
+        }
+        let bookmarkItems = decryptItems(items, domain: .ebooks, master: master,
+                                         as: EbookSyncBookmarkPayload.self) { item, payload in
+            SyncWireItem(clientId: item.clientId,
+                         clientUpdatedAt: item.clientUpdatedAt,
+                         deleted: item.deleted, payload: payload,
+                         updatedAt: item.updatedAt)
+        }
+        let statsItems = decryptItems(items, domain: .ebooks, master: master,
+                                      as: ReadingStatsPayload.self) { item, payload in
+            SyncWireItem(clientId: item.clientId,
+                         clientUpdatedAt: item.clientUpdatedAt,
+                         deleted: item.deleted, payload: payload,
+                         updatedAt: item.updatedAt)
+        }
+
+        let books = EbookLibraryStore.shared.books
+        var candidates: [String] = []
+        for book in books {
+            for bookmark in EbookBookmarkStore.load(book.id) {
+                candidates.append(EbookSyncCore.bookmarkID(
+                    bookHash: book.hash, bookmarkID: bookmark.id))
+            }
+        }
+        for key in EbookSyncStore.shared.pendingBookmarkDeletions.keys {
+            guard let (hash, id) = ebooksDeletionParts(key) else { continue }
+            candidates.append(EbookSyncCore.bookmarkID(bookHash: hash, bookmarkID: id))
+        }
+        for (hash, payloads) in EbookSyncStore.shared.orphanBookmarks {
+            for payload in payloads {
+                candidates.append(EbookSyncCore.bookmarkID(
+                    bookHash: hash, bookmarkID: payload.bookmark.id))
+            }
+        }
+        let tombstones = matchPullTombstones(
+            items, master: master, domain: .ebooks, candidateIDs: candidates)
+
+        for item in bookItems {
+            guard let payload = item.payload else { continue }
+            if !EbookLibraryStore.shared.applyRemoteBook(payload) {
+                EbookSyncStore.shared.saveOrphanBook(payload)
+            }
+        }
+
+        var deletedByBook: [String: Set<UUID>] = [:]
+        for realID in tombstones.keys {
+            guard let (hash, id) = ebooksDeletionPartsFromRealID(realID) else { continue }
+            deletedByBook[hash, default: []].insert(id)
+            EbookSyncStore.shared.clearBookmarkDeletions(
+                keys: [EbookSyncStore.shared.deletionKey(bookHash: hash,
+                                                         bookmarkID: id)])
+            EbookSyncStore.shared.removeOrphanBookmark(bookHash: hash, bookmarkID: id)
+        }
+
+        let grouped = Dictionary(grouping: bookmarkItems.compactMap(\.payload),
+                                 by: { $0.bookHash.lowercased() })
+        let hashes = Set(grouped.keys).union(deletedByBook.keys)
+        for hash in hashes {
+            guard let book = EbookLibraryStore.shared.books.first(where: {
+                $0.hash.lowercased() == hash
+            }) else {
+                for payload in grouped[hash] ?? [] {
+                    EbookSyncStore.shared.saveOrphanBookmark(payload)
+                }
+                continue
+            }
+            let local = EbookBookmarkStore.load(book.id)
+            let remote = grouped[hash] ?? []
+            let deleted = deletedByBook[hash] ?? []
+            let merged = EbookSyncCore.mergeBookmarks(
+                local: local, remote: remote, deletedIDs: deleted)
+            if merged != local {
+                EbookBookmarkStore.save(merged, for: book.id)
+                NotificationCenter.default.post(
+                    name: .ebookBookmarksDidSync, object: book.id)
+            }
+        }
+
+        for item in statsItems {
+            guard let payload = item.payload, payload.deviceID != deviceID else { continue }
+            ReadingStatsStore.shared.applySyncPayload(payload)
+        }
+    }
+
+    private func clearEbooksPending(_ serverIDs: Set<String>, master: String) {
+        var keys: Set<String> = []
+        for key in EbookSyncStore.shared.pendingBookmarkDeletions.keys {
+            guard let (hash, id) = ebooksDeletionParts(key) else { continue }
+            let realID = EbookSyncCore.bookmarkID(bookHash: hash, bookmarkID: id)
+            guard let hmac = try? SyncCrypto.hmacClientID(
+                realID, domain: .ebooks, masterKeyBase64: master) else { continue }
+            if serverIDs.contains(hmac) { keys.insert(key) }
+        }
+        EbookSyncStore.shared.clearBookmarkDeletions(keys: keys)
+    }
+
+    private func ebooksDeletionParts(_ key: String) -> (String, UUID)? {
+        let parts = key.split(separator: ":", maxSplits: 1).map(String.init)
+        guard parts.count == 2, let id = UUID(uuidString: parts[1]) else { return nil }
+        return (parts[0], id)
+    }
+
+    private func ebooksDeletionPartsFromRealID(_ realID: String) -> (String, UUID)? {
+        let parts = realID.split(separator: ":").map(String.init)
+        guard parts.count == 3, parts[0] == "bookmark",
+              let id = UUID(uuidString: parts[2]) else { return nil }
+        return (parts[1], id)
     }
 
     // MARK: - Agent 偏好域（自定义系统提示词）

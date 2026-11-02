@@ -31,7 +31,7 @@ nonisolated enum EbookFormat: String, Codable, Sendable {
     }
 }
 
-struct Ebook: Codable, Identifiable, Equatable, Sendable {
+nonisolated struct Ebook: Codable, Identifiable, Equatable, Sendable {
     var id: UUID
     var title: String
     var author: String
@@ -54,6 +54,10 @@ struct Ebook: Codable, Identifiable, Equatable, Sendable {
     /// 书架组织（v0.8.35）：收藏与自定义分组。optional 保证旧 library JSON 解码。
     var isFavorite: Bool? = nil
     var collection: String? = nil
+    /// 元数据（标题/作者/分组/收藏）的 LWW 戳（v0.8.37）；nil = 旧数据，按 addedAt。
+    var syncUpdatedAt: Date? = nil
+    /// 最近一次由另一台设备推进进度的时间（v0.8.37，用于书架徽标）。
+    var syncedProgressAt: Date? = nil
 
     var favorite: Bool { isFavorite ?? false }
 
@@ -68,7 +72,7 @@ struct Ebook: Codable, Identifiable, Equatable, Sendable {
     }
 }
 
-struct EbookBookmark: Codable, Identifiable, Equatable, Sendable {
+nonisolated struct EbookBookmark: Codable, Identifiable, Equatable, Sendable {
     var id: UUID
     var chapterIndex: Int
     var chapterProgress: Double

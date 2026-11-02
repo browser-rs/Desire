@@ -9,27 +9,67 @@ final class ReadingStatsStore: ObservableObject {
     static let diskKey = "ebooks.readingStats"
 
     @Published private(set) var stats = ReadingStats()
+    /// 本机原始统计（推给别的设备用）；`stats` 是合并后的展示口径。
+    private(set) var ownStats = ReadingStats()
+
+    private static let ownKey = "ebooks.readingStats.own"
 
     private init() {
         stats = DiskStore.load(ReadingStats.self, key: Self.diskKey) ?? ReadingStats()
+        ownStats = DiskStore.load(ReadingStats.self, key: Self.ownKey) ?? stats
+        if DiskStore.load(ReadingStats.self, key: Self.ownKey) == nil {
+            DiskStore.save(ownStats, key: Self.ownKey)
+        }
     }
 
     func add(bookID: UUID, seconds: Int, pages: Int) {
         guard seconds > 0 || pages > 0 else { return }
         let key = Self.dayKey(for: Date())
-        if seconds > 0 {
-            stats.days[key, default: 0] += seconds
+        func apply(_ target: inout ReadingStats) {
+            if seconds > 0 { target.days[key, default: 0] += seconds }
+            if pages > 0 { target.pagesByDay[key, default: 0] += pages }
+            let bookKey = bookID.uuidString
+            var book = target.books[bookKey] ?? ReadingStats.Book()
+            book.seconds += max(0, seconds)
+            book.pages += max(0, pages)
+            book.lastReadAt = Date()
+            target.books[bookKey] = book
         }
-        if pages > 0 {
-            stats.pagesByDay[key, default: 0] += pages
-        }
-        let bookKey = bookID.uuidString
-        var book = stats.books[bookKey] ?? ReadingStats.Book()
-        book.seconds += max(0, seconds)
-        book.pages += max(0, pages)
-        book.lastReadAt = Date()
-        stats.books[bookKey] = book
+        apply(&ownStats)
+        apply(&stats)
+        DiskStore.save(ownStats, key: Self.ownKey)
         DiskStore.save(stats, key: Self.diskKey)
+    }
+
+    /// 本机原始统计 → 同步 payload（书 id 换 hash）。
+    func syncPayload(deviceID: String) -> ReadingStatsPayload {
+        var booksByHash: [String: ReadingStats.Book] = [:]
+        for (key, value) in ownStats.books {
+            guard let id = UUID(uuidString: key),
+                  let book = EbookLibraryStore.shared.book(id: id) else { continue }
+            booksByHash[book.hash] = value
+        }
+        return ReadingStatsPayload(deviceID: deviceID,
+                                   days: ownStats.days,
+                                   pagesByDay: ownStats.pagesByDay,
+                                   books: booksByHash,
+                                   updatedAt: Date())
+    }
+
+    /// 远端设备统计落地：按天/按书取 max，不改 ownStats。
+    func applySyncPayload(_ payload: ReadingStatsPayload) {
+        stats.days = ReadingStatsSyncCore.mergeDays(stats.days, payload.days)
+        stats.pagesByDay = ReadingStatsSyncCore.mergeDays(
+            stats.pagesByDay, payload.pagesByDay)
+        for (hash, remote) in payload.books {
+            guard let local = EbookLibraryStore.shared.books.first(where: {
+                $0.hash.lowercased() == hash.lowercased()
+            }) else { continue }
+            let key = local.id.uuidString
+            stats.books[key] = ReadingStatsSyncCore.mergeBook(stats.books[key], remote)
+        }
+        DiskStore.save(stats, key: Self.diskKey)
+        objectWillChange.send()
     }
 
     var totalSeconds: Int {

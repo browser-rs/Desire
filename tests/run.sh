@@ -271,6 +271,9 @@ SOURCES=(
   apps/macos/Desire/Features/Ebooks/EbookLibrarySearchCore.swift
   apps/macos/Desire/Features/Ebooks/ReadingDigestCore.swift
   apps/macos/Desire/Features/Ebooks/FB2Core.swift
+  apps/macos/Desire/Features/Ebooks/EbookSyncCore.swift
+  apps/macos/Desire/Features/Ebooks/ReadingStatsSyncCore.swift
+  apps/macos/Desire/Features/Ebooks/ReadingStats.swift
   apps/macos/Desire/Features/AddressBar/URLBatch.swift
   apps/macos/Desire/Features/Agent/ToolCallGrouper.swift
   apps/macos/Desire/Features/Browsing/MediaEngagementCore.swift

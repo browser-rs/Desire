@@ -28,6 +28,7 @@ pub const DOMAINS: &[&str] = &[
   "jobs",
   "excerpts",
   "clipboard",
+  "ebooks",
 ];
 
 /// 域 → 存储表。history 独立成表(0007):写入频繁、体量大、有独立 TTL,
@@ -188,6 +189,7 @@ mod tests {
   fn base_domains_valid() {
     assert!(is_valid_domain("bookmarks"));
     assert!(is_valid_domain("excerpts"));
+    assert!(is_valid_domain("ebooks"));
     assert!(!is_valid_domain("nonsense"));
   }
 

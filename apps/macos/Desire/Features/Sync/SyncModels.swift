@@ -30,6 +30,8 @@ enum SyncDomain: String, CaseIterable {
     /// 剪贴板历史（v0.8.20 第十四域，opt-in 默认关——复制内容全量跨设备，
     /// 隐私敏感）：文本/URL/路径条目，24h TTL 双端一致。
     case clipboard
+    /// 电子书（v0.8.37 第十五域）：书架元数据/进度/书签；书文件不传。
+    case ebooks
 
     /// 展示名（键与设置页既有文案共用，目录里已有三语）。
     var displayName: String {
@@ -48,6 +50,7 @@ enum SyncDomain: String, CaseIterable {
         case .jobs: String(localized: "Jobs")
         case .excerpts: String(localized: "Excerpts")
         case .clipboard: String(localized: "Clipboard History")
+        case .ebooks: String(localized: "Books")
         }
     }
 

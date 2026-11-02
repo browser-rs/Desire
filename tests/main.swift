@@ -8162,6 +8162,7 @@ testEbookMarkdownCore()
 testEbookTranslationAndLibrarySearchCore()
 testReadingDigestCore()
 testFB2Core()
+testEbookSyncCore()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
@@ -9000,4 +9001,69 @@ func testFB2Core() {
     let reflow = fixed.replacingOccurrences(of: "pre-paginated", with: "reflowable")
     let reflowPackage = EbookCore.parseOPF(Data(reflow.utf8), opfPath: "OEBPS/content.opf")
     check("固定版式：不误报", reflowPackage?.metadata.isFixedLayout == false)
+}
+
+// ---------- 电子书同步合并（v0.8.37） ----------
+
+func testEbookSyncCore() {
+    func makeBook(progress: Double, favorite: Bool, stamp: Date) -> Ebook {
+        var book = Ebook(id: UUID(), title: "Old", author: "", format: .epub,
+                         fileName: "a.epub", containerDirectory: "c", coverPath: nil,
+                         addedAt: stamp, lastOpenedAt: stamp, progress: progress,
+                         lastChapterIndex: 1, chapterProgress: 0.2, fileSize: 1,
+                         chapterCount: 10, hash: "ABCDEF")
+        book.isFavorite = favorite
+        book.syncUpdatedAt = stamp
+        return book
+    }
+    let old = Date(timeIntervalSince1970: 1000)
+    let new = Date(timeIntervalSince1970: 2000)
+    let local = makeBook(progress: 0.3, favorite: false, stamp: old)
+    let remote = EbookSyncBookPayload(
+        hash: "abcdef", title: "New", author: "作者", format: "epub",
+        collection: "分组", favorite: true, progress: 0.6,
+        lastChapterIndex: 5, chapterProgress: 0.4, chapterCount: 12,
+        lastOpenedAt: new, updatedAt: new)
+    let merged = EbookSyncCore.mergeBook(local: local, remote: remote)
+    eq("同步合并：进度最远", merged.progress, 0.6)
+    eq("同步合并：章节跟随最远", merged.lastChapterIndex, 5)
+    eq("同步合并：元数据 LWW", merged.title, "New")
+    check("同步合并：收藏", merged.favorite)
+    eq("同步合并：分组", merged.collectionName, "分组")
+
+    let older = EbookSyncBookPayload(
+        hash: "abcdef", title: "Stale", author: "", format: "epub",
+        collection: nil, favorite: false, progress: 0.8,
+        lastChapterIndex: 8, chapterProgress: 0.1, chapterCount: 10,
+        lastOpenedAt: new.addingTimeInterval(10), updatedAt: old)
+    let mixed = EbookSyncCore.mergeBook(local: merged, remote: older)
+    eq("同步合并：旧元数据不回退", mixed.title, "New")
+    eq("同步合并：旧条目进度仍最远", mixed.progress, 0.8)
+    eq("同步合并：章节来自更远进度", mixed.lastChapterIndex, 8)
+
+    let b1 = EbookBookmark(id: UUID(), chapterIndex: 1, chapterProgress: 0.1,
+                           pageIndex: 0, title: "A", snippet: "a", createdAt: old)
+    let b2 = EbookBookmark(id: UUID(), chapterIndex: 2, chapterProgress: 0.2,
+                           pageIndex: 1, title: "B", snippet: "b", createdAt: old)
+    let b3 = EbookBookmark(id: UUID(), chapterIndex: 3, chapterProgress: 0.3,
+                           pageIndex: 2, title: "C", snippet: "c", createdAt: new)
+    let remoteBookmarks = EbookSyncCore.bookmarkPayloads(
+        bookHash: "abcdef", bookmarks: [b2, b3])
+    let mergedBookmarks = EbookSyncCore.mergeBookmarks(
+        local: [b1, b2], remote: remoteBookmarks, deletedIDs: [b2.id])
+    eq("同步合并：书签并集+墓碑", mergedBookmarks.count, 2)
+    check("同步合并：保留本地", mergedBookmarks.contains(b1))
+    check("同步合并：加入远端", mergedBookmarks.contains(b3))
+    check("同步合并：删掉墓碑", !mergedBookmarks.contains(b2))
+    check("同步合并：client id", EbookSyncCore.bookID(hash: "AB") == "book:ab")
+
+    let days = ReadingStatsSyncCore.mergeDays(["2026-11-01": 1800], ["2026-11-01": 1200, "2026-11-02": 600])
+    eq("统计合并：同日 max", days["2026-11-01"], 1800)
+    eq("统计合并：新日", days["2026-11-02"], 600)
+    let left = ReadingStats.Book(seconds: 100, pages: 3, lastReadAt: old)
+    let right = ReadingStats.Book(seconds: 80, pages: 5, lastReadAt: new)
+    let bookStat = ReadingStatsSyncCore.mergeBook(left, right)
+    eq("统计合并：书秒 max", bookStat.seconds, 100)
+    eq("统计合并：书页 max", bookStat.pages, 5)
+    eq("统计合并：最后阅读新者", bookStat.lastReadAt, new)
 }

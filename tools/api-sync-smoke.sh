@@ -161,6 +161,17 @@ R=$(req GET /sync/clipboard "" "$TOKEN")
 [ "$(echo "$R" | get data.items.0.client_id)" = "cb-1" ] || fail "clipboard 拉取失败: $R"
 step "clipboard 域 roundtrip"
 
+# ---- ebooks 域(v0.8.37 第十五域,通用表) ----
+EB_PUSH="{\"items\":[{\"client_id\":\"book:abc\",\"client_updated_at\":\"$NOW_TS\",\"payload\":\"book payload\"}]}"
+req POST /sync/ebooks "$EB_PUSH" "$TOKEN" > /dev/null
+R=$(req GET /sync/ebooks "" "$TOKEN")
+[ "$(echo "$R" | get data.items.0.client_id)" = "book:abc" ] || fail "ebooks 拉取失败: $R"
+EB_DEL="{\"items\":[{\"client_id\":\"book:abc\",\"client_updated_at\":\"$NOW_TS\",\"deleted\":true}]}"
+req POST /sync/ebooks "$EB_DEL" "$TOKEN" > /dev/null
+R=$(req GET /sync/ebooks "" "$TOKEN")
+[ "$(echo "$R" | get data.items.-1.deleted)" = "True" ] || fail "ebooks tombstone 失败: $R"
+step "ebooks 域 roundtrip + tombstone"
+
 # ---- 未知域 404 ----
 expect_code 404 GET /sync/nonsense "" "$TOKEN"
 step "未知域 → 404"

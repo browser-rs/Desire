@@ -16,6 +16,12 @@ nonisolated struct Excerpt: Codable, Identifiable, Equatable {
     var title: String
     /// 来源 URL（网页）或文件路径（PDF 本地件）。
     var source: String
+    /// 电子书定位（v0.8.37）：书 hash/章节/偏移；旧摘录为 nil。
+    var bookHash: String? = nil
+    var chapterIndex: Int? = nil
+    var chapterTitle: String? = nil
+    var startOffset: Int? = nil
+    var endOffset: Int? = nil
     var content: String
     var note: String?
     var createdAt: Date
@@ -23,11 +29,19 @@ nonisolated struct Excerpt: Codable, Identifiable, Equatable {
     var updatedAt: Date
 
     init(kind: Kind, title: String, source: String, content: String, note: String? = nil,
-         createdAt: Date = Date(), updatedAt: Date = Date()) {
+         createdAt: Date = Date(), updatedAt: Date = Date(),
+         bookHash: String? = nil, chapterIndex: Int? = nil,
+         chapterTitle: String? = nil, startOffset: Int? = nil,
+         endOffset: Int? = nil) {
         self.id = UUID()
         self.kind = kind
         self.title = title
         self.source = source
+        self.bookHash = bookHash
+        self.chapterIndex = chapterIndex
+        self.chapterTitle = chapterTitle
+        self.startOffset = startOffset
+        self.endOffset = endOffset
         self.content = content
         self.note = note
         self.createdAt = createdAt

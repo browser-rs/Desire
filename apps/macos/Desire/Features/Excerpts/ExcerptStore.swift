@@ -36,17 +36,31 @@ final class ExcerptStore: ObservableObject {
     /// 返回是否新增（false = 去重命中已存在）。
     @discardableResult
     func add(kind: Excerpt.Kind, title: String, source: String,
-             content: String, note: String? = nil) -> Bool {
+             content: String, note: String? = nil,
+             bookHash: String? = nil, chapterIndex: Int? = nil,
+             chapterTitle: String? = nil, startOffset: Int? = nil,
+             endOffset: Int? = nil) -> Bool {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return false }
         let key = Excerpt(kind: kind, title: title, source: source, content: trimmed).dedupeKey
         if let index = excerpts.firstIndex(where: { $0.dedupeKey == key }) {
             excerpts[index].updatedAt = Date()
+            if let bookHash {
+                excerpts[index].bookHash = bookHash
+                excerpts[index].chapterIndex = chapterIndex
+                excerpts[index].chapterTitle = chapterTitle
+                excerpts[index].startOffset = startOffset
+                excerpts[index].endOffset = endOffset
+            }
+            if let note { excerpts[index].note = note }
             persist()
             return false
         }
         let excerpt = Excerpt(kind: kind, title: title, source: source,
-                              content: trimmed, note: note)
+                              content: trimmed, note: note,
+                              bookHash: bookHash, chapterIndex: chapterIndex,
+                              chapterTitle: chapterTitle,
+                              startOffset: startOffset, endOffset: endOffset)
         excerpts.insert(excerpt, at: 0)
         if excerpts.count > Self.cap {
             // FIFO 淘汰最老的（数组按 createdAt 降序，尾部即最老）。

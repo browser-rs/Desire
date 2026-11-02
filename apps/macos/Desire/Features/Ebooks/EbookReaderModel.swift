@@ -146,7 +146,6 @@ final class EbookReaderModel: ObservableObject {
     private var pendingRevealHighlightID: UUID?
     private var loadGeneration = 0
     private var webViewReadyGeneration = -1
-    private var bookmarkKey: String { "ebook.bookmarks.\(book.id.uuidString)" }
     private var settingsPrefix: String { "ebook.settings.\(book.id.uuidString)." }
     private var translationCache: EbookTranslationCache
     private var translationAuto = false
@@ -185,10 +184,17 @@ final class EbookReaderModel: ObservableObject {
            let value = LayoutMode(rawValue: raw) {
             self.layoutMode = value
         }
-        self.bookmarks = DiskStore.load([EbookBookmark].self,
-                                        key: "ebook.bookmarks.\(book.id.uuidString)") ?? []
+        self.bookmarks = EbookBookmarkStore.load(book.id)
         self.highlights = EbookHighlightStore.load(book.id)
         self.translationCache = EbookTranslationStore.load(book.id)
+        NotificationCenter.default.addObserver(
+            forName: .ebookBookmarksDidSync, object: nil, queue: .main
+        ) { [weak self] note in
+            MainActor.assumeIsolated {
+                guard let self, (note.object as? UUID) == self.book.id else { return }
+                self.bookmarks = EbookBookmarkStore.load(self.book.id)
+            }
+        }
     }
 
     func load() async {
@@ -669,7 +675,10 @@ final class EbookReaderModel: ObservableObject {
             if layoutMode == .paged { return bookmark.pageIndex == pageIndex }
             return abs(bookmark.chapterProgress - chapterProgress) < 0.015
         }) {
-            bookmarks.remove(at: index)
+            let removed = bookmarks.remove(at: index)
+            saveBookmarks()
+            EbookSyncStore.shared.noteBookmarkRemoved(
+                bookHash: book.hash, bookmarkID: removed.id)
         } else {
             bookmarks.append(EbookBookmark(
                 id: UUID(), chapterIndex: currentChapter,
@@ -679,13 +688,16 @@ final class EbookReaderModel: ObservableObject {
                     ? "\(pageIndex + 1)/\(pageCount)"
                     : "\(Int(chapterProgress * 100))%",
                 createdAt: Date()))
+            saveBookmarks()
+            EbookSyncStore.shared.bookmarkChanged()
         }
-        saveBookmarks()
     }
 
     func removeBookmark(_ id: UUID) {
+        guard bookmarks.contains(where: { $0.id == id }) else { return }
         bookmarks.removeAll { $0.id == id }
         saveBookmarks()
+        EbookSyncStore.shared.noteBookmarkRemoved(bookHash: book.hash, bookmarkID: id)
     }
 
     func jumpToBookmark(_ bookmark: EbookBookmark) {
@@ -698,7 +710,7 @@ final class EbookReaderModel: ObservableObject {
     }
 
     private func saveBookmarks() {
-        DiskStore.save(bookmarks, key: bookmarkKey)
+        EbookBookmarkStore.save(bookmarks, for: book.id)
     }
 
     // MARK: - 高亮与笔记
@@ -741,7 +753,11 @@ final class EbookReaderModel: ObservableObject {
         applyHighlights()
         let excerptAdded = ExcerptStore.shared.add(
             kind: .readerHighlight, title: book.title, source: bookRoot.path,
-            content: quote, note: highlight.trimmedNote)
+            content: quote, note: highlight.trimmedNote,
+            bookHash: book.hash, chapterIndex: highlight.chapterIndex,
+            chapterTitle: highlight.chapterTitle,
+            startOffset: highlight.hasOffsets ? highlight.startOffset : nil,
+            endOffset: highlight.hasOffsets ? highlight.endOffset : nil)
         return EbookHighlightCreation(highlight: highlight, isNew: true,
                                       excerptAdded: excerptAdded)
     }

@@ -915,7 +915,9 @@ struct EbookReaderView: View {
         guard let translatedText else { return }
         let added = ExcerptStore.shared.add(
             kind: .readerHighlight, title: book.title, source: model.bookRoot.path,
-            content: translationText, note: translatedText)
+            content: translationText, note: translatedText,
+            bookHash: book.hash, chapterIndex: model.currentChapter,
+            chapterTitle: model.chapterTitle)
         showToast(added ? String(localized: "Saved to Excerpts")
                         : String(localized: "Already in Excerpts"))
     }

@@ -253,6 +253,14 @@ struct ExcerptsPanel: View {
             if let hits = backlinks[excerpt.id], !hits.isEmpty {
                 Button(String(localized: "Show References (\(hits.count))")) { backlinkTarget = excerpt }
             }
+            if let hash = excerpt.bookHash,
+               let book = EbookLibraryStore.shared.books.first(where: {
+                   $0.hash.lowercased() == hash.lowercased()
+               }) {
+                Button(String(localized: "Open in Book")) {
+                    openInBook(book, chapter: excerpt.chapterIndex ?? 0)
+                }
+            }
             Button(String(localized: "Open Source")) { openSource(excerpt) }
             Divider()
             Button(String(localized: "Delete"), role: .destructive) {
@@ -364,6 +372,11 @@ struct ExcerptsPanel: View {
     /// 网页来源开标签（file:// 走查看器路由）；其余复制路径。
     /// PDF 来源带 #page=N fragment（保存端写入）——fragment 顺 URL 流到
     /// PDFViewerView 解析成初始页码。
+    private func openInBook(_ book: Ebook, chapter: Int) {
+        let url = "desire://books/\(book.id.uuidString)?chapter=\(max(0, chapter))"
+        CommandBus.shared.send(.openURL(url))
+    }
+
     private func openSource(_ excerpt: Excerpt) {
         if excerpt.source.hasPrefix("http"), let url = URL(string: excerpt.source) {
             NSWorkspace.shared.open(url)

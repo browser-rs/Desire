@@ -19,6 +19,10 @@ pub fn router() -> Router<AppState> {
       "/remote/pairing/revoke",
       post(remote_controller::pairing_revoke),
     )
+    .route(
+      "/remote/pairing/revoke-all",
+      post(remote_controller::pairing_revoke_all),
+    )
     .route("/remote/devices", get(remote_controller::devices))
     .route("/remote/pull", get(remote_controller::pull_inbox))
     .route("/remote/push", post(remote_controller::push_frame))

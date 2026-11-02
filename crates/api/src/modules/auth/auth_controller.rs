@@ -7,9 +7,9 @@ use crate::types::{ApiResponse, ApiResult, AppState};
 use crate::utils::jwt::Claims;
 
 use super::auth_model::{
-  CaptchaResp, DeviceDto, KeyEscrowBody, KeyEscrowResp, LoginReq, LogoutReq, MeDto, QrConfirmReq,
-  QrCreateReq, QrCreateResp, QrScanReq, QrStatusResp, RefreshReq, RegisterReq, RevokeDeviceReq,
-  SetPasswordReq, TokenPair, UpdateProfileReq,
+  CaptchaResp, ConfirmPasswordReq, DeviceDto, KeyEscrowBody, KeyEscrowResp, LoginReq, LogoutReq,
+  MeDto, QrConfirmReq, QrCreateReq, QrCreateResp, QrScanReq, QrStatusResp, RefreshReq, RegisterReq,
+  RevokeDeviceReq, SetPasswordReq, TokenPair, UpdateProfileReq,
 };
 use super::auth_service;
 
@@ -249,5 +249,35 @@ pub async fn revoke_device(
   Json(req): Json<RevokeDeviceReq>,
 ) -> ApiResult<()> {
   auth_service::revoke_device(&state, claims.sub, &req.device_id).await?;
+  Ok(Json(ApiResponse::<()>::empty()))
+}
+
+/// 吊销全部设备（v0.8.38 C3，需密码二次确认）。
+#[utoipa::path(
+  post, path = "/auth/devices/revoke-all", tag = "auth",
+  request_body = ConfirmPasswordReq,
+  responses((status = 200))
+)]
+pub async fn revoke_all_devices(
+  State(state): State<AppState>,
+  Extension(claims): Extension<Claims>,
+  Json(req): Json<ConfirmPasswordReq>,
+) -> ApiResult<serde_json::Value> {
+  let revoked = auth_service::revoke_all_devices(&state, claims.sub, &req.password).await?;
+  api_ok!(serde_json::json!({"revoked": revoked}))
+}
+
+/// 删除账号（v0.8.38 C3，需密码二次确认；级联删除同步/配对/收件箱）。
+#[utoipa::path(
+  delete, path = "/auth/account", tag = "auth",
+  request_body = ConfirmPasswordReq,
+  responses((status = 200))
+)]
+pub async fn delete_account(
+  State(state): State<AppState>,
+  Extension(claims): Extension<Claims>,
+  Json(req): Json<ConfirmPasswordReq>,
+) -> ApiResult<()> {
+  auth_service::delete_account(&state, claims.sub, &req.password).await?;
   Ok(Json(ApiResponse::<()>::empty()))
 }

@@ -12,13 +12,14 @@
 | 多档案域键 `bookmarks@<profileUUID>`（v0.8.18 方案 A） | **0018** sync_domain_widen | `sync_items`/`sync_pull_cursors` 的 domain varchar(32)→(64)；应用层 is_valid_domain 校验 base 域 + 后缀 charset |
 | ebooks 第十五同步域（v0.8.37） | 无迁移 | `DOMAINS` 白名单加行；未部署时客户端只有 ebooks 域失败，其他域照常 |
 | 同步日配额 + API 2.0（v0.8.38） | **0019** sync_usage | 按用户/日/域记账；`/sync/usage`、`/meta/capabilities`、`/health` 细分、`/metrics`、`x-request-id`、remote ack/stats/cleanup |
+| 查询索引审计（v0.8.38） | **0020** query_indexes | 同步拉取复合游标索引、remote inbox device/id 与 created_at 索引 |
 
 ## 部署机步骤
 
 ```bash
 cd <repo> && git pull
 ./scripts/build-migrate.sh          # 迁移执行器镜像
-./scripts/migrate.sh                # 跑迁移（0019，幂等可重放）
+./scripts/migrate.sh                # 跑迁移（0019→0020，幂等可重放）
 ./scripts/build-api.sh              # API 镜像（双架构）
 ./scripts/run.sh api                # 滚动重启 API
 ```

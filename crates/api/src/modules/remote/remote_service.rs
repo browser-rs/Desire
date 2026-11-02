@@ -317,6 +317,18 @@ pub async fn pairing_revoke(
   Ok(result.rows_affected())
 }
 
+/// 吊销该用户全部远程配对（v0.8.38 C8）：用于"手机上点一键断开所有设备"。
+pub async fn pairing_revoke_all(state: &AppState, user_id: i64) -> Result<u64, AppError> {
+  let result = sqlx::query(
+    "UPDATE remote_pairings SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+  )
+  .bind(Utc::now().naive_utc())
+  .bind(user_id)
+  .execute(&state.pool)
+  .await?;
+  Ok(result.rows_affected())
+}
+
 /// 入站帧:入库(持久) + express 发布(尽力而为)。返回行 id。
 pub async fn inbox_push(
   state: &AppState,

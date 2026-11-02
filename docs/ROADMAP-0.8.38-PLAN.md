@@ -299,7 +299,10 @@
 - **批四（API 地基）**：C1 + C2 + C9 + C6 —— 配额/inbox/能力声明/可观测
   （`sync_usage` 0019 + 日配额与 429/Retry-After、`/meta/capabilities` 与客户端域门控、
   remote `ack/stats/cleanup` 与单设备 pending 上限、`/health` 细分 + `/metrics` + `x-request-id`）。
-- **批五（常规产出 + API 收口）**：A2 + A3 + A5 + A6 + A7 + C3–C5 + C7 + C8。
+- **批五（常规产出 + API 收口）**：A5（流水线核心 + 编辑器；文件夹批处理留待下版）
+  + A6（转码/GIF）+ C3（删号/全设备吊销）+ C5（查询索引 0020）+ C8 部分
+  （remote 一键全吊销；配对审计/异常通知留后）+ C4 部分（新端点 OpenAPI 注解）。**A2 已由 v0.8.20 交付**（assistant 气泡菜单 fork），
+  不再重复开发；A7（Office 批量队列）与 C7（admin CLI 扩展）体量较大，留下一版。
 
 ## 八、技术地图
 

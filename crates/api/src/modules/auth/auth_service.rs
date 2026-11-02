@@ -825,6 +825,70 @@ pub async fn revoke_device(
   Ok(())
 }
 
+/// 危险操作（删号/全设备吊销/remote 全吊销）前的密码复核。
+pub async fn verify_password_for_user(
+  state: &AppState,
+  user_id: i64,
+  password: &str,
+) -> Result<(), AppError> {
+  let hash: Option<String> = sqlx::query_scalar("SELECT password_hash FROM users WHERE id = ?")
+    .bind(user_id)
+    .fetch_optional(&state.pool)
+    .await?;
+  let Some(hash) = hash else {
+    return Err(AppError::NotFound("user not found".into()));
+  };
+  if !bcrypt::verify(password, &hash).unwrap_or(false) {
+    return Err(AppError::Unauthorized("密码错误".into()));
+  }
+  Ok(())
+}
+
+/// 删除账号（v0.8.38 C3）：users 删除后 devices / refresh tokens /
+/// sync_items / remote_pairings / remote_inbox / sync_usage 全部靠 FK
+/// ON DELETE CASCADE 级联清理。已加密的同步数据随行删除，服务端本就读不出明文。
+pub async fn delete_account(
+  state: &AppState,
+  user_id: i64,
+  password: &str,
+) -> Result<(), AppError> {
+  verify_password_for_user(state, user_id, password).await?;
+  let result = sqlx::query("DELETE FROM users WHERE id = ?")
+    .bind(user_id)
+    .execute(&state.pool)
+    .await?;
+  if result.rows_affected() == 0 {
+    return Err(AppError::NotFound("user not found".into()));
+  }
+  Ok(())
+}
+
+/// 吊销全部设备（v0.8.38 C3）：设备标记 revoked + 全部 refresh token 失效；
+/// access token 仍会在 TTL（≤2h）内自然过期。
+pub async fn revoke_all_devices(
+  state: &AppState,
+  user_id: i64,
+  password: &str,
+) -> Result<u64, AppError> {
+  verify_password_for_user(state, user_id, password).await?;
+  let now = Utc::now().naive_utc();
+  let devices =
+    sqlx::query("UPDATE devices SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL")
+      .bind(now)
+      .bind(user_id)
+      .execute(&state.pool)
+      .await?
+      .rows_affected();
+  sqlx::query(
+    "UPDATE user_refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+  )
+  .bind(now)
+  .bind(user_id)
+  .execute(&state.pool)
+  .await?;
+  Ok(devices)
+}
+
 #[cfg(test)]
 mod tests {
   use super::{is_valid_username, validate_password};

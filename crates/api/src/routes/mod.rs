@@ -21,11 +21,18 @@ use uuid::Uuid;
 /// 任一依赖失败 → 503；响应体带 db/redis 布尔与版本，LB/巡检能区分
 /// "进程活着但依赖挂了"。
 async fn health(State(state): State<AppState>) -> Response {
-  let db_ok = sqlx::query_scalar::<_, i32>("SELECT 1")
-    .fetch_one(&state.pool)
+  // 3s 上限：依赖挂死时健康检查必须快速返回 503，不能把探活也拖到
+  // sqlx 的默认连接超时（LB 会以为进程也挂了）。
+  let db_ok = tokio::time::timeout(
+    std::time::Duration::from_secs(3),
+    sqlx::query_scalar::<_, i32>("SELECT 1").fetch_one(&state.pool),
+  )
+  .await
+  .map(|result| result.is_ok())
+  .unwrap_or(false);
+  let redis_ok = tokio::time::timeout(std::time::Duration::from_secs(2), cache::ping(&state.redis))
     .await
-    .is_ok();
-  let redis_ok = cache::ping(&state.redis).await;
+    .unwrap_or(false);
   let ok = db_ok && redis_ok;
   let status = if ok {
     StatusCode::OK

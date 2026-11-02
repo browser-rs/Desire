@@ -21,6 +21,7 @@ final class MediaEditStore: ObservableObject {
 
     enum JobKind {
         case trimVideo, trimAudio, concatVideo, concatAudio, extractAudio
+        case convertMedia, videoToGIF
 
         var symbol: String {
             switch self {
@@ -29,6 +30,8 @@ final class MediaEditStore: ObservableObject {
             case .concatVideo: "film.stack"
             case .concatAudio: "waveform.stack"
             case .extractAudio: "music.note.list"
+            case .convertMedia: "arrow.triangle.2.circlepath"
+            case .videoToGIF: "photo.stack"
             }
         }
     }
@@ -89,6 +92,27 @@ final class MediaEditStore: ObservableObject {
         }
     }
 
+    /// 媒体转码（v0.8.38 A6）：统一走 ffmpeg（格式矩阵比 AVFoundation 宽，
+    /// 编码参数也确定）；未安装时明确报错，不假装能转。
+    func convertMedia(source: URL, format: MediaConvertFormat) {
+        let label = String(localized: "Convert \(source.lastPathComponent) to \(format.displayName)")
+        launch(kind: .convertMedia, label: label) { progress in
+            try await MediaEditEngine.convertMedia(
+                source: source, format: format, progress: progress)
+        }
+    }
+
+    /// 视频 → GIF（palettegen/paletteuse 两遍滤镜一次跑完，避免调色板抖动）。
+    func videoToGIF(source: URL, start: Double?, duration: Double?,
+                    width: Int, fps: Int) {
+        let label = String(localized: "Video to GIF: \(source.lastPathComponent)")
+        launch(kind: .videoToGIF, label: label) { progress in
+            try await MediaEditEngine.videoToGIF(
+                source: source, start: start, duration: duration,
+                width: width, fps: fps, progress: progress)
+        }
+    }
+
     func cancel(_ id: UUID) {
         tasks[id]?.cancel()
     }
@@ -137,6 +161,27 @@ final class MediaEditStore: ObservableObject {
 }
 
 // MARK: - 错误
+
+/// 转码目标格式（v0.8.38 A6）。只列 ffmpeg 常见且本机实测可用的输出，
+/// 不承诺"任意格式"。
+nonisolated enum MediaConvertFormat: String, CaseIterable, Identifiable {
+    case mp4, webm, mov, m4a, mp3
+    var id: String { rawValue }
+
+    var fileExtension: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .mp4: "MP4 (H.264 + AAC)"
+        case .webm: "WebM (VP9 + Opus)"
+        case .mov: "MOV (H.264 + AAC)"
+        case .m4a: "M4A (AAC audio)"
+        case .mp3: "MP3 (LAME)"
+        }
+    }
+
+    var isAudioOnly: Bool { self == .m4a || self == .mp3 }
+}
 
 enum MediaEditError: LocalizedError {
     case noInputs
@@ -500,6 +545,63 @@ private nonisolated enum MediaEditEngine {
             throw MediaEditError.ffmpegFailed("exit code \(process.terminationStatus)")
         }
         return output
+    }
+
+    // MARK: 转码 / GIF（v0.8.38 A6）
+
+    static func convertMedia(source: URL, format: MediaConvertFormat,
+                             progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
+        guard FFmpegExporter.locate() != nil else { throw MediaEditError.ffmpegMissing }
+        let dest = resolveDestination(source: source, suffix: "converted",
+                                      ext: format.fileExtension)
+        var args = ["-y", "-i", source.path]
+        switch format {
+        case .mp4, .mov:
+            args += ["-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+                     "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart"]
+        case .webm:
+            args += ["-c:v", "libvpx-vp9", "-crf", "32", "-b:v", "0",
+                     "-c:a", "libopus", "-b:a", "128k"]
+        case .m4a:
+            args += ["-vn", "-c:a", "aac", "-b:a", "192k"]
+        case .mp3:
+            args += ["-vn", "-c:a", "libmp3lame", "-q:a", "2"]
+        }
+        args.append(dest.path)
+        let hint = await probeDuration(source)
+        return try await runFFmpeg(
+            arguments: MediaEditCore.appendingProgressArgs(args),
+            durationHint: hint, progress: progress)
+    }
+
+    static func videoToGIF(source: URL, start: Double?, duration: Double?,
+                           width: Int, fps: Int,
+                           progress: @escaping @Sendable (Double) -> Void) async throws -> URL {
+        guard FFmpegExporter.locate() != nil else { throw MediaEditError.ffmpegMissing }
+        let dest = resolveDestination(source: source, suffix: "loop", ext: "gif")
+        var args = ["-y"]
+        if let start, start > 0 {
+            args += ["-ss", String(format: "%.3f", start)]
+        }
+        args += ["-i", source.path]
+        if let duration, duration > 0 {
+            args += ["-t", String(format: "%.3f", duration)]
+        }
+        let safeWidth = max(64, min(width, 1920))
+        let safeFPS = max(2, min(fps, 30))
+        // 单次滤镜图：先 fps/缩放，再 split 出调色板与主画面，paletteuse 合流。
+        let filter = "fps=\(safeFPS),scale=\(safeWidth):-1:flags=lanczos,"
+            + "split[s0][s1];[s0]palettegen[p];[s1][p]paletteuse"
+        args += ["-filter_complex", filter, "-loop", "0", dest.path]
+        let hint: Double?
+        if let duration, duration > 0 {
+            hint = duration
+        } else {
+            hint = await probeDuration(source)
+        }
+        return try await runFFmpeg(
+            arguments: MediaEditCore.appendingProgressArgs(args),
+            durationHint: hint, progress: progress)
     }
 
     // MARK: 落点

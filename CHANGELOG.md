@@ -3,6 +3,17 @@
 
 - Browser: "Hand Off Tabs" saves the current window as a Handoff workspace (device + time) so another Mac signed into the same account can restore it from Workspaces; available from the File menu and the Workspaces panel (v0.8.38)
 - Remote: send-to-phone — right-click a page image, link or selection (and select text in a book) to push it to the phone inbox; the iOS app shows it with Open on Mac / Copy / Ask Agent, and posts a local notification (v0.8.38)
+- Remote: Books, Toolbox and Workspaces pages — browse the Mac library and continue reading at the last chapter, run any of the 48 pure text tools with a generated parameter form, and restore a saved tab set on the Mac (v0.8.38)
+- Remote: actionable notifications — approvals arrive with Allow/Deny actions, questions and finished turns deep-link back to the conversation; repeated frames replace the same notification instead of stacking (v0.8.38)
+- Remote: offline cache and outbox — sessions, tasks, downloads, excerpts, books and workspaces stay readable offline; prompts typed while the Mac is offline are queued locally and sent in order when it reconnects (v0.8.38)
+- Remote: connection strip with last-online time, pull latency and a retry button; iPad and landscape use a two-column split view with ⌘↩ to send and Esc to stop (v0.8.38)
+- Remote: recent files now show image thumbnails, size and modified time; downloads show downloaded/total bytes, speed and failure reason, with Open on Mac / Copy Path actions (v0.8.38)
+- Toolbox: Media Convert (MP4/WebM/MOV/M4A/MP3) and Video → GIF with custom width, frame rate and time range; both run as background jobs with progress, cancellation and output reveal (v0.8.38)
+- Toolbox: Pipeline — chain pure text tools so each step feeds the next, save named pipelines and rerun them from an initial input; failures stop at the exact step and keep intermediate results (v0.8.38)
+- API: `/meta/capabilities` lets the client skip domains a server does not support instead of failing them one by one; sync push/pull gain per-minute limits, a daily row/byte quota with 429 + Retry-After, and `/sync/usage` (v0.8.38)
+- API: remote inbox gains `since` incremental pull, acknowledgement, per-device pending cap, stats and cleanup; `/health` now probes DB and Redis, `/metrics` exposes request counters, and every response carries `x-request-id` (v0.8.38)
+- API: account lifecycle — delete account and revoke all devices (password re-confirmation), plus remote revoke-all; deleting the user cascades through sync, pairings and inbox rows (v0.8.38)
+
 
 
 ## [v0.8.37] - 2026-11-02

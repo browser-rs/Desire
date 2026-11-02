@@ -32,4 +32,12 @@ pub fn protected() -> Router<AppState> {
     .route("/auth/qr/confirm", post(auth_controller::qr_confirm))
     .route("/auth/devices", get(auth_controller::list_devices))
     .route("/auth/devices/revoke", post(auth_controller::revoke_device))
+    .route(
+      "/auth/devices/revoke-all",
+      post(auth_controller::revoke_all_devices),
+    )
+    .route(
+      "/auth/account",
+      axum::routing::delete(auth_controller::delete_account),
+    )
 }

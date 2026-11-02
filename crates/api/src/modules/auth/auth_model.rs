@@ -53,6 +53,12 @@ pub struct RevokeDeviceReq {
   pub device_id: String,
 }
 
+/// 危险操作二次确认（v0.8.38 C3/C8）：必须重新输入密码。
+#[derive(Debug, Deserialize, ToSchema)]
+pub struct ConfirmPasswordReq {
+  pub password: String,
+}
+
 /// 设置/修改密码:已设置过密码的账号必须带 old_password 且匹配,否则 401
 #[derive(Debug, Deserialize, ToSchema)]
 pub struct SetPasswordReq {

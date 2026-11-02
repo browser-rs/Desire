@@ -69,6 +69,8 @@ enum ToolID: String, CaseIterable, Identifiable {
     case fileInfo, discount, billSplit, barcode
     // 媒体批（v0.8.27）：剪切/拼接/提音轨
     case videoEditor, audioEditor
+    // 媒体转码 + GIF（v0.8.38）
+    case mediaConvert, videoGIF
     // 文档批（v0.8.33）：PDF / OCR / 字幕
     case pdfMerge, pdfSplit, pdfRotate, pdfToImages, imagesToPDF
     case imageOCR, subtitle
@@ -78,6 +80,8 @@ enum ToolID: String, CaseIterable, Identifiable {
     case timezone, zhConvert, pinyin, zhTypography, contrast, qrDecode
     // 文件批（v0.8.33）：批量重命名 / 压缩解压
     case batchRename, archive
+    // 流水线（v0.8.38 A5）
+    case pipeline
 
     var id: String { rawValue }
 
@@ -91,11 +95,13 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .text, .zhConvert, .pinyin, .zhTypography: return .text
         case .qr, .password, .random, .contrast: return .generate
         case .qrDecode: return .codec
-        case .videoEditor, .audioEditor, .imageConvert, .subtitle: return .media
+        case .videoEditor, .audioEditor, .imageConvert, .subtitle,
+             .mediaConvert, .videoGIF: return .media
         case .pdfMerge, .pdfSplit, .pdfRotate, .pdfToImages, .imagesToPDF, .imageOCR,
              .batchRename, .archive: return .document
         case .morse, .dataURI, .width, .csvJSON: return .codec
         case .diff, .xml, .sql, .urlParse, .cidr, .httpStatus, .mime, .userAgent, .cron: return .dev
+        case .pipeline: return .dev
         case .aes, .hmac, .fileHash, .idCard, .luhn: return .security
         case .roman, .excelColumn, .crc32, .sha3, .base58: return .codec
         case .regexReplace, .markdown, .ascii, .lorem, .httpHeaders: return .dev
@@ -166,6 +172,8 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .barcode: return String(localized: "Barcode")
         case .videoEditor: return String(localized: "Video Editor")
         case .audioEditor: return String(localized: "Audio Editor")
+        case .mediaConvert: return String(localized: "Media Convert")
+        case .videoGIF: return String(localized: "Video → GIF")
         case .pdfMerge: return String(localized: "PDF Merge")
         case .pdfSplit: return String(localized: "PDF Split")
         case .pdfRotate: return String(localized: "PDF Rotate")
@@ -188,6 +196,7 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .qrDecode: return String(localized: "Barcode Scanner")
         case .batchRename: return String(localized: "Batch Rename")
         case .archive: return String(localized: "Archive")
+        case .pipeline: return String(localized: "Pipeline")
         }
     }
 
@@ -252,6 +261,8 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .barcode: return String(localized: "Generate a Code128 barcode image from text")
         case .videoEditor: return String(localized: "Trim a segment or merge multiple video clips (ffmpeg handles exotic containers)")
         case .audioEditor: return String(localized: "Trim or merge audio, or extract the audio track of a video as m4a")
+        case .mediaConvert: return String(localized: "Convert video/audio to MP4, WebM, MOV, M4A or MP3 with ffmpeg")
+        case .videoGIF: return String(localized: "Turn a video segment into a GIF with custom width and frame rate")
         case .pdfMerge: return String(localized: "Merge PDFs in any order, keeping outlines where possible")
         case .pdfSplit: return String(localized: "Extract page ranges or write one file per page")
         case .pdfRotate: return String(localized: "Rotate selected pages by 90°, 180° or 270°")
@@ -274,6 +285,7 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .qrDecode: return String(localized: "Decode QR codes and barcodes from an image or the clipboard")
         case .batchRename: return String(localized: "Rename many files with find/replace, numbering, dates and a live conflict preview")
         case .archive: return String(localized: "Create ZIP/TAR.GZ archives or extract them with zip-slip protection")
+        case .pipeline: return String(localized: "Chain text tools into one reusable flow, with each step feeding the next")
         }
     }
 
@@ -338,6 +350,8 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .barcode: return "barcode"
         case .videoEditor: return "film.stack"
         case .audioEditor: return "waveform"
+        case .mediaConvert: return "arrow.triangle.2.circlepath"
+        case .videoGIF: return "photo.stack"
         case .pdfMerge: return "doc.on.doc"
         case .pdfSplit: return "scissors"
         case .pdfRotate: return "arrow.clockwise"
@@ -360,6 +374,7 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .qrDecode: return "qrcode.viewfinder"
         case .batchRename: return "character.cursor.ibeam"
         case .archive: return "archivebox"
+        case .pipeline: return "point.topleft.down.to.point.bottomright.curvepath"
         }
     }
 
@@ -426,6 +441,8 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .barcode: keywords = ["条码", "code128", "barcode"]
         case .videoEditor: keywords = ["视频", "剪辑", "剪切", "拼接", "合并", "裁剪", "trim", "merge", "video"]
         case .audioEditor: keywords = ["音频", "剪辑", "剪切", "拼接", "提取", "音轨", "mp3", "m4a", "audio"]
+        case .mediaConvert: keywords = ["转码", "转换", "格式", "视频", "音频", "mp4", "webm", "mov", "m4a", "mp3", "convert", "transcode"]
+        case .videoGIF: keywords = ["gif", "动图", "表情包", "视频", "转gif", "帧率", "宽度", "video"]
         case .pdfMerge: keywords = ["pdf", "合并", "拼接", "合并pdf", "merge", "文档"]
         case .pdfSplit: keywords = ["pdf", "拆分", "分割", "提取", "页", "split"]
         case .pdfRotate: keywords = ["pdf", "旋转", "转向", "rotate"]
@@ -448,6 +465,7 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .qrDecode: keywords = ["二维码", "条码", "扫描", "识别", "qr", "barcode"]
         case .batchRename: keywords = ["批量", "重命名", "改名", "rename", "正则", "序号"]
         case .archive: keywords = ["压缩", "解压", "zip", "tar", "gz", "归档", "archive"]
+        case .pipeline: keywords = ["流水线", "管道", "多步", "批量", "pipeline", "chain", "workflow"]
         }
         return ([rawValue, title, subtitle] + keywords).joined(separator: " ")
     }

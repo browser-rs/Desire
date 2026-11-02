@@ -183,8 +183,29 @@ pub async fn pull_inbox(
   }
 }
 
+/// POST /remote/pairing/revoke-all —— 吊销全部远程配对（v0.8.38 C8，
+/// 需密码二次确认）。
+#[utoipa::path(post, path = "/remote/pairing/revoke-all", tag = "remote", responses((status = 200)))]
+pub async fn pairing_revoke_all(
+  State(state): State<AppState>,
+  Extension(claims): Extension<Claims>,
+  Json(body): Json<crate::modules::auth::auth_model::ConfirmPasswordReq>,
+) -> Response {
+  if let Err(error) =
+    crate::modules::auth::auth_service::verify_password_for_user(&state, claims.sub, &body.password)
+      .await
+  {
+    return api_err(error);
+  }
+  match remote_service::pairing_revoke_all(&state, claims.sub).await {
+    Ok(revoked) => api_ok(json!({"revoked": revoked})),
+    Err(e) => api_err(e),
+  }
+}
+
 /// POST /remote/ack?device=<desktop_device_id> —— 客户端已处理帧的幂等回执
 /// （v0.8.38 C2）。body `{"ids":[1,2,...]}`，最多 200 条。
+#[utoipa::path(post, path = "/remote/ack", tag = "remote", responses((status = 200)))]
 pub async fn ack(
   State(state): State<AppState>,
   Extension(claims): Extension<Claims>,
@@ -207,6 +228,7 @@ pub async fn ack(
 }
 
 /// GET /remote/inbox/stats?device= —— pending/最旧帧年龄（v0.8.38 C2）。
+#[utoipa::path(get, path = "/remote/inbox/stats", tag = "remote", responses((status = 200)))]
 pub async fn inbox_stats(
   State(state): State<AppState>,
   Extension(claims): Extension<Claims>,
@@ -223,6 +245,7 @@ pub async fn inbox_stats(
 }
 
 /// POST /remote/inbox/cleanup —— 过期 + 超上限清理（v0.8.38 C2）。
+#[utoipa::path(post, path = "/remote/inbox/cleanup", tag = "remote", responses((status = 200)))]
 pub async fn inbox_cleanup(
   State(state): State<AppState>,
   Extension(claims): Extension<Claims>,

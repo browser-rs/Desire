@@ -395,6 +395,8 @@ struct ToolsPageView: View {
         case .barcode: BarcodeToolView()
         case .videoEditor: VideoEditorToolView()
         case .audioEditor: AudioEditorToolView()
+        case .mediaConvert: MediaConvertToolView(mode: .convert)
+        case .videoGIF: MediaConvertToolView(mode: .gif)
         case .pdfMerge: PDFMergeToolView()
         case .pdfSplit: PDFSplitToolView()
         case .pdfRotate: PDFRotateToolView()
@@ -417,6 +419,7 @@ struct ToolsPageView: View {
         case .qrDecode: QRDecodeToolView()
         case .batchRename: BatchRenameToolView()
         case .archive: ArchiveToolView()
+        case .pipeline: ToolboxPipelineToolView()
         }
     }
 

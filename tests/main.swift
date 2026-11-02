@@ -7358,6 +7358,45 @@ func testToolboxCore() {
 testToolboxCore()
 
 
+func testToolboxPipelineCore() {
+    // 两步链：Base64 编码 → 对编码结果做 SHA-256；第二步通过 inputKey 接收上一步输出。
+    let pipeline = ToolboxPipeline(name: "Chain", steps: [
+        ToolboxPipelineStep(tool: "base64", inputKey: "text"),
+        ToolboxPipelineStep(tool: "hash", arguments: ["algorithm": "sha256"], inputKey: "text"),
+    ])
+    let result = ToolboxPipelineCore.run(pipeline, initialText: "hello")
+    let encoded = ToolboxRuntimeCore.run(tool: "base64", args: ["text": "hello"])
+    let expected = ToolboxRuntimeCore.run(tool: "hash",
+                                          args: ["text": encoded.text, "algorithm": "sha256"])
+    check("流水线：两步串行执行", result.ok)
+    eq("流水线：步数", result.steps.count, 2)
+    eq("流水线：最终输出", result.finalText, expected.text)
+
+    // 失败即停：第 2 步的 validate 遇到非法 JSON → failedIndex=1，后续步骤不执行。
+    let failing = ToolboxPipeline(name: "Fail", steps: [
+        ToolboxPipelineStep(tool: "text", arguments: ["operation": "upper"]),
+        ToolboxPipelineStep(tool: "json", arguments: ["mode": "validate"], inputKey: "text"),
+        ToolboxPipelineStep(tool: "hash", inputKey: "text"),
+    ])
+    let failed = ToolboxPipelineCore.run(failing, initialText: "not json")
+    check("流水线：失败停止", !failed.ok && failed.failedIndex == 1)
+    eq("流水线：失败后不执行后续步骤", failed.steps.count, 2)
+
+    // 参数串往返（值里允许逗号）
+    let args = ["delimiter": ",", "text": "a,b"]
+    let encodedArgs = ToolboxPipelineCore.encodeArguments(args)
+    eq("流水线：参数串往返", ToolboxPipelineCore.decodeArguments(encodedArgs), args)
+
+    // 未知工具在校验阶段就被拦下
+    let unknown = ToolboxPipeline(name: "Bad", steps: [
+        ToolboxPipelineStep(tool: "not-a-tool"),
+    ])
+    check("流水线：未知工具校验", ToolboxPipelineCore.validationError(for: unknown) != nil)
+}
+
+testToolboxPipelineCore()
+
+
 func testFinanceCalcCore() {
     func near(_ a: Double?, _ b: Double, _ tolerance: Double = 0.01) -> Bool {
         guard let a else { return false }

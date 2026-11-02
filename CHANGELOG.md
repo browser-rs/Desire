@@ -1,3 +1,13 @@
+## [Unreleased]
+### Added
+
+- Books: cross-device sync — the library, reading progress, last chapter and bookmarks now sync through a new `ebooks` domain; progress takes the furthest position instead of going backwards, bookmarks merge by id with tombstones, and books not present on this device wait as orphans until the same file hash is imported (v0.8.37)
+- Excerpts: ebook highlights and notes now carry the book hash, chapter and offsets — after syncing, an excerpt on another device can jump straight back to the exact chapter with "Open in Book" (v0.8.37)
+- Books: reading stats sync across devices with a max-per-day/per-book merge, so the stats sheet and reading review never double-count two devices reading on the same day (v0.8.37)
+- Agent: `syncNow` and `syncStatus` tools trigger a sync and report sign-in state, per-domain errors, orphan counts and each book's reading progress, so "where did I stop on the other Mac" is one question (v0.8.37)
+- Sync: the ebooks domain joins the server whitelist with smoke coverage; if the server has not been updated only that domain reports an error, other domains keep syncing (v0.8.37)
+
+
 ## [v0.8.36] - 2026-11-02
 ### Added
 

@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "translate", title: String(localized: "Read in two languages"),
-                  detail: String(localized: "Translate a whole chapter in place — translations sit under each paragraph, can be hidden, re-run in another language, and are cached so reopening is instant.")),
-            .init(icon: "speaker.wave.2.fill", title: String(localized: "Follow along while listening"),
-                  detail: String(localized: "Chapter read-aloud now highlights each spoken phrase and follows the page; choose a system voice, set 0.3×–0.85× speed, and tap any image to zoom.")),
-            .init(icon: "books.vertical.fill", title: String(localized: "Search every book, take it with you"),
-                  detail: String(localized: "Search the full text of the whole library, get a weekly reading review from your stats and notes, export HTML/web books to EPUB, and import FB2 — with a Continue Reading card on the shelf.")),
+            .init(icon: "arrow.triangle.2.circlepath", title: String(localized: "Read on any device"),
+                  detail: String(localized: "Your bookshelf, reading position and bookmarks sync across devices — progress always moves forward, and books not on this Mac wait until you import the same file.")),
+            .init(icon: "text.book.closed", title: String(localized: "Notes find their way back"),
+                  detail: String(localized: "Every ebook highlight now carries its book, chapter and offset; from Excerpts on any device, Open in Book lands on the exact chapter.")),
+            .init(icon: "chart.bar.xaxis", title: String(localized: "Ask across devices"),
+                  detail: String(localized: "Reading stats merge by maximum per day and per book, and the Agent can run a sync and answer \"where did I stop on the other Mac?\" with syncNow and syncStatus.")),
         ]
     }
 

@@ -67,6 +67,9 @@ struct MainView: View {
             .onReceive(NotificationCenter.default.publisher(for: .remoteOpenSession)) { _ in
                 tab = .sessions
             }
+            .onReceive(NotificationCenter.default.publisher(for: .remoteOpenJobs)) { _ in
+                tab = .agent
+            }
         } else {
             NavigationStack {
                 ConnectMacView()

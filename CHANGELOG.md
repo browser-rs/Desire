@@ -1,3 +1,16 @@
+## [Unreleased]
+### Added
+
+- Agent: background jobs are now first-class — `listBackgroundTasks`, `backgroundTaskStatus`, `watchBackgroundTasks`, `cancelBackgroundTask`, `retryBackgroundTask` and `runBackgroundCommand` let a turn start long work, end immediately, and report back when it finishes (v0.8.39)
+- Agent: `runBackgroundCommand` runs an allowlisted CLI with argv only (no shell) in its own process, writes stdout/stderr to a per-job log file and records the exit code; commands survive the turn, can be cancelled or retried, and are marked interrupted after an app restart instead of pretending to finish (v0.8.39)
+- Jobs: one completion pipeline — group watchers wait for ALL targeted tasks and deliver a single note + notification; `notify` respects quiet hours, `resume` can report the result in a fresh turn when the session is idle (v0.8.39)
+- Jobs: batch downloads and media exports now deliver through the same completion center, so "download finished" appears once with success/failure/skipped counts and output paths; command notifications offer Open Result / Show Jobs (v0.8.39)
+- Jobs panel: kind filter, watcher badges, log open, cancel/retry for commands and a "Notify" button for any running task (v0.8.39)
+- Browser: running background tasks appear in the Agent input area, the menu bar quick entry and a new-tab "Running in Background" card (v0.8.39)
+- Remote: a Background Tasks page lists active/recent jobs with progress, cancel, retry and open-on-Mac; terminal job notifications deep-link back to the task surface (v0.8.39)
+- Bridge: `/jobs/run`, `/jobs/watch`, `/jobs/cancel`, `/jobs/retry`, `/jobs/log` and `/jobs/watches` expose the same ledger for automation and E2E (v0.8.39)
+
+
 ## [v0.8.38] - 2026-11-02
 ### Added
 

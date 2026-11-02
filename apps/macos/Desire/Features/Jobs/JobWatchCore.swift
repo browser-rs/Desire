@@ -27,7 +27,12 @@ nonisolated enum JobWatchCore {
         }
         guard let kind, !kind.isEmpty else { return [] }
         return jobs.filter {
-            $0.state.isActive && $0.kind.rawValue == kind
+            guard $0.state.isActive else { return false }
+            if kind == "batch" {
+                return $0.kind == .download
+                    && ($0.externalID?.hasPrefix("batch-") ?? false)
+            }
+            return $0.kind.rawValue == kind
         }
     }
 

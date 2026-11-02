@@ -60,6 +60,13 @@ final class JobEventCenter {
             tier: failed ? .urgent : .routine,
             jobID: job.id,
             artifact: job.artifactURL)
+        AppState.live?.remoteControlStore.notifyBackgroundJob(
+            id: job.id,
+            title: failed ? String(localized: "Background task failed: \(job.title)")
+                : String(localized: "Background task finished: \(job.title)"),
+            body: summary,
+            failed: failed,
+            artifact: job.artifactURL)
     }
 
     // MARK: - 组任务
@@ -122,6 +129,12 @@ final class JobEventCenter {
             tier: failed ? .urgent : .routine,
             jobID: delivery.jobs.first?.id ?? UUID(),
             artifact: delivery.jobs.compactMap(\.artifactURL).first)
+        if let first = delivery.jobs.first {
+            AppState.live?.remoteControlStore.notifyBackgroundJob(
+                id: first.id, title: title, body: summary,
+                failed: failed,
+                artifact: delivery.jobs.compactMap(\.artifactURL).first)
+        }
     }
 
     private func maybeResume(_ delivery: JobWatchStore.Delivery, summary: String) {

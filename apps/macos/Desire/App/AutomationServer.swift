@@ -747,6 +747,12 @@ final class AutomationServer {
         ep("POST", "/promotion/mentions/scan", "Scan enabled sources off-screen for a keyword; new links go to the interaction ledger (deduped)", params: ["query:string", "limit?:int"], example: #"-d '{"query":"Desire browser"}'"#)
         ep("POST", "/promotion/share", "Build a ready-to-post Desire caption + UTM link for a channel (no network, no posting)", params: ["channel?:string (X/小红书/V2EX/掘金/即刻/Hacker News)", "version?:string"], example: #"-d '{"channel":"X"}'"#)
         ep("GET", "/jobs", "Unified job ledger (publish/mention scan/campaign…) with states, artifacts and receipts", params: ["limit?:int"], example: "…/jobs")
+        ep("POST", "/jobs/run", "Start an allowlisted CLI tool in the background (argv-only, no shell); returns a job id immediately", params: ["tool:string", "args?:string[]", "title?:string", "cwd?:string", "timeoutMinutes?:number", "report?:notify|resume|none", "conversationId?:uuid"], example: #"-d '{"tool":"python3","args":["-c","print(1)"],"title":"smoke"}'"#)
+        ep("POST", "/jobs/watch", "Watch one or more jobs; one completion note/notification when ALL reach a terminal state", params: ["ids?:string[]", "kind?:string", "mode?:notify|resume", "conversationId?:uuid"], example: #"-d '{"ids":["<uuid>"],"mode":"notify"}'"#)
+        ep("POST", "/jobs/cancel", "Cancel a running background job (command/download/batch/export)", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
+        ep("POST", "/jobs/retry", "Retry a failed background command as a NEW job", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
+        ep("GET", "/jobs/log", "Tail a background command's log file", params: ["id:uuid", "lines?:int"], example: "…/jobs/log?id=<uuid>&lines=40")
+        ep("GET", "/jobs/watches", "List job watchers (active/delivered/resume state)", example: "…/jobs/watches")
         ep("GET", "/books", "Local ebook library (id/title/author/format/progress/chapterCount/favorite/collection/highlights)", example: "…/books")
         ep("POST", "/books/import-web", "Save an article HTML fragment as an offline HTML book in the library (images localized, same URL dedupes)", params: ["title?:string", "html:string", "url?:string"], example: #"-d '{"title":"Article","html":"<p>…</p>","url":"https://example.com/a"}'"#)
         ep("POST", "/books/remove", "Remove a book from the library (deleteFiles=false keeps the copy on disk)", params: ["id:uuid", "deleteFiles?:bool"], example: #"-d '{"id":"<uuid>","deleteFiles":true}'"#)
@@ -7554,45 +7560,17 @@ final class AutomationServer {
         guard let raw = string(body, "id"), let id = UUID(uuidString: raw) else {
             return ["error": "missing or invalid id"]
         }
-        guard let job = JobStore.shared.allJobs.first(where: { $0.id == id }) else {
-            return ["error": "no such job"]
+        switch JobControl.cancel(id) {
+        case .success(let message): return ["ok": true, "id": raw, "message": message]
+        case .failure(let message): return ["error": message]
         }
-        if job.kind == .command {
-            guard BackgroundCommandStore.shared.runningIDs.contains(id) else {
-                return ["error": "command is not running"]
-            }
-            BackgroundCommandStore.shared.cancel(id)
-            return ["ok": true, "id": raw]
-        }
-        // 适配器任务的取消走 Agent 工具同一分派（避免桥与工具两套行为）。
-        let external = job.externalID ?? ""
-        if external.hasPrefix("batch-"),
-           let batchID = UUID(uuidString: String(external.dropFirst("batch-".count))) {
-            BatchMediaExportStore.shared.cancel(batchID: batchID)
-            return ["ok": true, "id": raw]
-        }
-        if external.hasPrefix("download-"),
-           let downloadID = UUID(uuidString: String(external.dropFirst("download-".count))) {
-            DownloadStore.live?.remove(id: downloadID)
-            return ["ok": true, "id": raw]
-        }
-        if external.hasPrefix("export-"),
-           let exportID = UUID(uuidString: String(external.dropFirst("export-".count))) {
-            MediaExportStore.shared.cancel(id: exportID)
-            return ["ok": true, "id": raw]
-        }
-        return ["error": "this job cannot be cancelled from the bridge"]
     }
 
     private static func jobsRetry(_ body: [String: Any]) async -> [String: Any] {
         guard let raw = string(body, "id"), let id = UUID(uuidString: raw) else {
             return ["error": "missing or invalid id"]
         }
-        guard let job = JobStore.shared.allJobs.first(where: { $0.id == id }),
-              job.kind == .command else {
-            return ["error": "retry is only supported for background commands"]
-        }
-        switch await BackgroundCommandStore.shared.retry(id) {
+        switch await JobControl.retry(id) {
         case .success(let newID):
             return ["ok": true, "jobID": newID.uuidString, "retryOf": raw]
         case .failure(let message):

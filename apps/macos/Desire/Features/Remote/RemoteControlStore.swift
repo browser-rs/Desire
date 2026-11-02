@@ -650,6 +650,37 @@ final class RemoteControlStore: ObservableObject {
             if let frame = Self.excerptsFrame() { sendInnerRaw(frame) }
         case "briefs":
             if let frame = Self.briefsFrame() { sendInnerRaw(frame) }
+        // ── 后台任务（v0.8.39）──
+        case "backgroundJobs":
+            if let frame = Self.backgroundJobsFrame() { sendInnerRaw(frame) }
+        case "openJobArtifact":
+            guard let raw = inner.text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !raw.isEmpty else { return }
+            if raw.hasPrefix("http://") || raw.hasPrefix("https://") {
+                TabSessionCoordinator.shared.activeTabManager?.addTab(url: raw)
+            } else {
+                NSWorkspace.shared.open(URL(fileURLWithPath: raw))
+            }
+        case "cancelJob":
+            guard let raw = inner.id, let id = UUID(uuidString: raw) else { return }
+            switch JobControl.cancel(id) {
+            case .success(let message):
+                sendInner(["t": "ok", "message": message])
+            case .failure(let message):
+                sendInner(["t": "error", "message": message])
+            }
+            if let frame = Self.backgroundJobsFrame() { sendInnerRaw(frame) }
+        case "retryJob":
+            guard let raw = inner.id, let id = UUID(uuidString: raw) else { return }
+            Task { @MainActor in
+                switch await JobControl.retry(id) {
+                case .success(let newID):
+                    sendInner(["t": "ok", "message": String(localized: "Retry started as job \(newID.uuidString).")])
+                case .failure(let message):
+                    sendInner(["t": "error", "message": message])
+                }
+                if let frame = Self.backgroundJobsFrame() { sendInnerRaw(frame) }
+            }
         // ── 书架 / 工具箱 / 工作区（v0.8.38 批二）──
         case "books":
             if let frame = Self.booksFrame() { sendInnerRaw(frame) }
@@ -1146,6 +1177,53 @@ final class RemoteControlStore: ObservableObject {
         return String(data: data, encoding: .utf8)
     }
 
+    /// 后台任务帧（v0.8.39）：手机看统一 Job 账本（下载/批量/导出/命令/定时）。
+    nonisolated struct RemoteJobItem: Codable {
+        var id: String
+        var title: String
+        var kind: String
+        var state: String
+        var progress: Double?
+        var detail: String
+        var error: String?
+        var artifact: String?
+        var logFile: String?
+        var exitCode: Int32?
+        var updatedAt: Double
+        var conversationID: String?
+    }
+
+    nonisolated struct RemoteBackgroundJobsFrame: Codable {
+        var t: String
+        var active: Int
+        var jobs: [RemoteJobItem]
+    }
+
+    private static func backgroundJobsFrame() -> String? {
+        let all = JobStore.shared.allJobs
+        let items = all.prefix(60).map { job in
+            RemoteJobItem(
+                id: job.id.uuidString,
+                title: job.title,
+                kind: job.kind.rawValue,
+                state: job.state.rawValue,
+                progress: job.progress,
+                detail: String(job.detail.prefix(240)),
+                error: job.error.map { String($0.prefix(300)) },
+                artifact: job.artifactURL.map { String($0.prefix(1000)) },
+                logFile: job.logFile,
+                exitCode: job.exitCode,
+                updatedAt: job.updatedAt.timeIntervalSince1970,
+                conversationID: job.conversationID?.uuidString)
+        }
+        let frame = RemoteBackgroundJobsFrame(
+            t: "backgroundJobs",
+            active: all.filter { $0.state.isActive }.count,
+            jobs: items)
+        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
     /// 下载帧（v0.8.11 融合 13）：手机监控下载列表（状态/进度）。
     nonisolated struct RemoteDownloadItem: Codable {
         var id: String
@@ -1320,6 +1398,22 @@ final class RemoteControlStore: ObservableObject {
         if let text, !text.isEmpty { payload["text"] = String(text.prefix(8000)) }
         sendInner(payload)
         return true
+    }
+
+    /// 后台任务终态通知（v0.8.39）：手机在线时推一帧，本地通知带 jobID/产物。
+    func notifyBackgroundJob(id: UUID, title: String, body: String,
+                             failed: Bool, artifact: String?) {
+        guard isEnabled, connection == .online, sessionKeyB64 != nil else { return }
+        var payload: [String: Any] = [
+            "t": "notify",
+            "kind": "job",
+            "id": id.uuidString,
+            "text": String(title.prefix(200)),
+            "body": String(body.prefix(800)),
+            "flag": failed,
+        ]
+        if let artifact, !artifact.isEmpty { payload["artifact"] = String(artifact.prefix(2000)) }
+        sendInner(payload)
     }
 
     // MARK: - 快照推送（1s 一拍、变化才发；15s 强推兜底）

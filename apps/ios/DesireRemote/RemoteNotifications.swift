@@ -4,6 +4,8 @@ import Foundation
 extension Notification.Name {
     /// 点通知/通知动作后的深链：object 为会话 id（nil = 回到 Agent 首页）。
     static let remoteOpenSession = Notification.Name("remoteOpenSession")
+    /// 后台任务通知：回到 Agent 首页的任务入口。
+    static let remoteOpenJobs = Notification.Name("remoteOpenJobs")
 }
 
 /// Remote 通知（0.6.8 起；v0.8.38 批三升级为带动作的类别）：
@@ -71,6 +73,16 @@ enum RemoteNotifications {
              identifier: "approval-\(id)", userInfo: info)
     }
 
+    static func postJob(id: String, title: String, body: String,
+                        failed: Bool, artifact: String?) {
+        permissionRequested = true
+        var info: [String: Any] = ["id": id, "deepLink": "jobs"]
+        if let artifact { info["artifact"] = artifact }
+        post(title: title.isEmpty ? (failed ? "后台任务失败" : "后台任务完成") : title,
+             body: body, category: openCategory,
+             identifier: "job-\(id)", userInfo: info)
+    }
+
     static func postQuestion(id: String, title: String, body: String, session: String?) {
         permissionRequested = true
         var info: [String: Any] = ["id": id]
@@ -125,8 +137,12 @@ final class RemoteNotificationDelegate: NSObject, UNUserNotificationCenterDelega
             case RemoteNotifications.denyAction:
                 if let id { RemoteClient.active?.approve(id: id, decision: .deny) }
             default:
-                NotificationCenter.default.post(
-                    name: .remoteOpenSession, object: session)
+                if info["deepLink"] as? String == "jobs" {
+                    NotificationCenter.default.post(name: .remoteOpenJobs, object: nil)
+                } else {
+                    NotificationCenter.default.post(
+                        name: .remoteOpenSession, object: session)
+                }
             }
         }
         completionHandler()

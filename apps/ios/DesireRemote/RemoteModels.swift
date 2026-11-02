@@ -652,3 +652,56 @@ struct RemoteOutboxEntry: Identifiable, Codable, Equatable {
     var session: String?
     var at: Double
 }
+
+// MARK: - 后台任务（v0.8.39）
+
+struct RemoteJobItem: Identifiable, Codable, Equatable {
+    var id: String
+    var title: String
+    var kind: String
+    var state: String
+    var progress: Double?
+    var detail: String
+    var error: String?
+    var artifact: String?
+    var logFile: String?
+    var exitCode: Int32?
+    var updatedAt: Double
+    var conversationID: String?
+
+    var isActive: Bool {
+        ["queued", "running", "paused", "needsReview", "needsApproval"].contains(state)
+    }
+
+    var stateLabel: String {
+        switch state {
+        case "queued": "排队中"
+        case "running": "运行中"
+        case "paused": "已暂停"
+        case "needsReview": "待检查"
+        case "needsApproval": "待审批"
+        case "done": "完成"
+        case "failed": "失败"
+        case "cancelled": "已取消"
+        default: state
+        }
+    }
+
+    var kindLabel: String {
+        switch kind {
+        case "download": "下载"
+        case "batch": "批量"
+        case "media": "媒体"
+        case "command": "命令"
+        case "scheduled": "定时"
+        case "agent": "Agent"
+        default: kind
+        }
+    }
+}
+
+struct RemoteBackgroundJobsFrame: Codable {
+    var t: String
+    var active: Int
+    var jobs: [RemoteJobItem]
+}

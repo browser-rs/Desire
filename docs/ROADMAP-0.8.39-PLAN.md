@@ -282,3 +282,15 @@
 - 发版前：harness（JobWatchCore 新用例 0 失败）+ macOS Debug/Release clean build
   零警告 + Remote 模拟器构建 + 本版 E2E（后台命令/批量下载回报/Remote 任务页）。
 - 用户说「发」才发。
+
+## 十三、交付状态（2026-11-02）
+
+- 已落地：A1–A4（JobRecord 扩展、BackgroundCommandStore、JobWatchCore/SummaryCore、
+  JobWatchStore、JobEventCenter、6 个 Agent 工具）；B1/B2/B4（Jobs 面板筛选/日志/
+  取消/重试/订阅、Agent 面板后台条、菜单栏计数、新标签页卡片）；C1–C3（Remote
+  后台任务帧/页/通知深链）；D1/D2（批量下载/媒体导出统一终态回报与产物）。
+- 验证：纯逻辑 harness 2706/0（新增 13 项）；macOS Debug 零警告；iOS 构建零代码警告；
+  桥实测 `jobs/run → watch → log → cancel`、取消/完成备注与 watcher 交付。
+- 已知边界：`isSilent` 批量逐条导出仍不单独通知（按设计）；Remote 通知深链落在
+  Agent 首页（任务页入口），未直接 push 到任务详情；app 被 `kill -9` 且磁盘防抖未
+  落盘时，最近 task 记录可能丢失（正常退出/重启可恢复并标 interrupted）。

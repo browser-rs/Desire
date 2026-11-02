@@ -256,6 +256,18 @@ struct AgentHomeView: View {
             }
 
             NavigationLink {
+                RemoteJobsView()
+            } label: {
+                DesireNavRow(
+                    icon: "square.stack.3d.up",
+                    title: "后台任务",
+                    subtitle: client.backgroundJobsActive > 0
+                        ? "\(client.backgroundJobsActive) 个运行中 · 下载/导出/命令"
+                        : "下载、导出、转码与后台命令的统一进度",
+                    showsChevron: false)
+            }
+
+            NavigationLink {
                 RemoteDownloadsView()
             } label: {
                 DesireNavRow(

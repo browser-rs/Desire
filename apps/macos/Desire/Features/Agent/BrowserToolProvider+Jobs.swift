@@ -120,53 +120,20 @@ extension BrowserToolProvider {
     }
 
     static func cancelBackgroundTask(_ args: [String: Any]) -> String {
-        guard let raw = args["id"] as? String, let id = UUID(uuidString: raw),
-              let job = JobStore.shared.allJobs.first(where: { $0.id == id }) else {
+        guard let raw = args["id"] as? String, let id = UUID(uuidString: raw) else {
             return fail("No background task with that id")
         }
-        switch job.kind {
-        case .command:
-            guard BackgroundCommandStore.shared.runningIDs.contains(id) else {
-                return fail("That command is not running (state: \(job.state.label))")
-            }
-            BackgroundCommandStore.shared.cancel(id)
-            return String(localized: "Cancellation requested for \(job.title).")
-        case .download, .media:
-            return cancelAdapterJob(job, rawID: raw)
-        default:
-            return fail("This kind of task cannot be cancelled from here (state: \(job.state.label))")
+        switch JobControl.cancel(id) {
+        case .success(let message): return message
+        case .failure(let error): return fail(error.message)
         }
-    }
-
-    private static func cancelAdapterJob(_ job: JobRecord, rawID: String) -> String {
-        let external = job.externalID ?? ""
-        if external.hasPrefix("batch-"),
-           let batchID = UUID(uuidString: String(external.dropFirst("batch-".count))) {
-            BatchMediaExportStore.shared.cancel(batchID: batchID)
-            return String(localized: "Cancellation requested for the batch download.")
-        }
-        if external.hasPrefix("download-"),
-           let downloadID = UUID(uuidString: String(external.dropFirst("download-".count))) {
-            DownloadStore.live?.remove(id: downloadID)
-            return String(localized: "Download removed and transfer cancelled.")
-        }
-        if external.hasPrefix("export-"),
-           let exportID = UUID(uuidString: String(external.dropFirst("export-".count))) {
-            MediaExportStore.shared.cancel(id: exportID)
-            return String(localized: "Cancellation requested for the media export.")
-        }
-        return fail("No cancel handler for this task (\(rawID))")
     }
 
     static func retryBackgroundTask(_ args: [String: Any]) async -> String {
-        guard let raw = args["id"] as? String, let id = UUID(uuidString: raw),
-              let job = JobStore.shared.allJobs.first(where: { $0.id == id }) else {
+        guard let raw = args["id"] as? String, let id = UUID(uuidString: raw) else {
             return fail("No background task with that id")
         }
-        guard job.kind == .command else {
-            return fail("Retry is not available for \(job.kind.label) tasks yet.")
-        }
-        switch await BackgroundCommandStore.shared.retry(id) {
+        switch await JobControl.retry(id) {
         case .success(let newID):
             return String(localized: "Retry started as job \(newID.uuidString).")
         case .failure(let error):

@@ -138,6 +138,9 @@ final class RemoteClient: ObservableObject {
     /// 最近一次工具执行结果（读取端自行清空）。
     @Published var toolboxResult: RemoteToolboxResult?
     @Published private(set) var workspaces: [RemoteWorkspaceItem] = []
+    /// 后台任务（v0.8.39）：Mac 统一 Job 账本的手机视图。
+    @Published private(set) var backgroundJobs: [RemoteJobItem] = []
+    @Published private(set) var backgroundJobsActive = 0
     /// 链路延迟（拉取往返，毫秒；v0.8.38 批三）
     @Published private(set) var latencyMs: Int?
     /// Mac 最后一次被判在线的时间（离线时可以告诉用户"最后在线 …"）
@@ -255,6 +258,8 @@ final class RemoteClient: ObservableObject {
         archivedSessions = load([RemoteArchivedSession].self, "remote.cache.archivedSessions") ?? []
         books = load([RemoteBookItem].self, "remote.cache.books") ?? []
         workspaces = load([RemoteWorkspaceItem].self, "remote.cache.workspaces") ?? []
+        backgroundJobs = load([RemoteJobItem].self, "remote.cache.jobs") ?? []
+        backgroundJobsActive = defaults.integer(forKey: "remote.cache.jobsActive")
         toolboxTools = load([RemoteToolboxTool].self, "remote.cache.toolbox") ?? []
         inbox = load([RemoteInboxItem].self, "remote.cache.inbox") ?? []
         outbox = load([RemoteOutboxEntry].self, "remote.outbox") ?? []
@@ -281,6 +286,8 @@ final class RemoteClient: ObservableObject {
         archivedSessions = []
         books = []
         workspaces = []
+        backgroundJobs = []
+        backgroundJobsActive = 0
         toolboxTools = []
         inbox = []
     }
@@ -864,6 +871,13 @@ final class RemoteClient: ObservableObject {
                     workspaces = frame.workspaces
                     cache(workspaces, key: "remote.cache.workspaces")
                 }
+            case "backgroundJobs":
+                if let frame = try? JSONDecoder().decode(RemoteBackgroundJobsFrame.self, from: data) {
+                    backgroundJobs = frame.jobs
+                    backgroundJobsActive = frame.active
+                    cache(backgroundJobs, key: "remote.cache.jobs")
+                    UserDefaults.standard.set(frame.active, forKey: "remote.cache.jobsActive")
+                }
             case "archivedSessions":
                 if let frame = try? JSONDecoder().decode(RemoteArchivedSessionsFrame.self, from: data) {
                     archivedSessions = frame.items
@@ -901,6 +915,14 @@ final class RemoteClient: ObservableObject {
                 let notifyBody = root["body"] as? String ?? ""
                 let notifySession = root["session"] as? String
                 switch notifyKind {
+                case "job":
+                    if let notifyID {
+                        RemoteNotifications.postJob(
+                            id: notifyID, title: notifyTitle, body: notifyBody,
+                            failed: root["flag"] as? Bool ?? false,
+                            artifact: root["artifact"] as? String)
+                        requestBackgroundJobs()
+                    }
                 case "approval":
                     if let notifyID {
                         RemoteNotifications.postApproval(
@@ -1191,6 +1213,12 @@ final class RemoteClient: ObservableObject {
     func requestWorkspaces() { pushFrame(["t": "workspaces"], replace: false) }
     func openWorkspace(id: String) {
         pushFrame(["t": "openWorkspace", "id": id], replace: false)
+    }
+    func requestBackgroundJobs() { pushFrame(["t": "backgroundJobs"], replace: false) }
+    func cancelJob(id: String) { pushFrame(["t": "cancelJob", "id": id], replace: false) }
+    func retryJob(id: String) { pushFrame(["t": "retryJob", "id": id], replace: false) }
+    func openJobArtifact(_ path: String) {
+        pushFrame(["t": "openJobArtifact", "text": path], replace: false)
     }
     func setNightOwl(_ enabled: Bool) { pushFrame(["t": "setNightOwl", "flag": enabled], replace: false) }
 

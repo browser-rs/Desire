@@ -3,6 +3,9 @@
 
 - Books: full-chapter bilingual translation — paragraphs are translated in batches with Apple's on-device Translation framework and inserted under the originals; translations can be hidden, re-run in another target language, and are cached per book/chapter so reopening is instant, with the page layout repaginated around them (v0.8.36)
 - Books: search the full text of every book in the library — the library search offers "Search inside all books", groups hits by book/chapter and opens the exact chapter with the query highlighted; the Agent gains `searchLibrary` for cross-book questions (v0.8.36)
+- Books: read-aloud now highlights the phrase being spoken, keeps the highlight aligned with the page/scroll position, and offers a Voice & Speed sheet with system voices, a 0.3×–0.85× rate and a preview (v0.8.36)
+- Books: click an image in the chapter to open a full-window viewer with pinch/scroll zoom, drag to pan and double-click to reset; Esc or the backdrop closes it, and local book images only (v0.8.36)
+
 
 
 ## [v0.8.35] - 2026-11-02

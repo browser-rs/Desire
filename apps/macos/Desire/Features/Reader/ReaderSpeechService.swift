@@ -41,12 +41,19 @@ final class ReaderSpeechService: NSObject, ObservableObject, AVSpeechSynthesizer
         guard !trimmed.isEmpty else { return }
         let utterance = AVSpeechUtterance(string: trimmed)
         currentTextLength = (trimmed as NSString).length
-        // 语种：CJK 字符占比 > 30% 用中文 voice，否则英文。混合文本合成器
-        // 会自动切换内嵌语种，voice 只决定主语言。
-        let cjk = trimmed.filter { $0.isCJK }.count
-        let locale = Double(cjk) / Double(max(trimmed.count, 1)) > 0.3 ? "zh-CN" : "en-US"
-        utterance.voice = AVSpeechSynthesisVoice(language: locale) ?? AVSpeechSynthesisVoice(language: "en-US")
-        utterance.rate = AVSpeechUtteranceDefaultSpeechRate
+        let settings = ReaderSpeechSettings.load()
+        utterance.rate = settings.rate
+        if let identifier = settings.voiceIdentifier,
+           let voice = AVSpeechSynthesisVoice(identifier: identifier) {
+            utterance.voice = voice
+        } else {
+            // 语种：CJK 字符占比 > 30% 用中文 voice，否则英文。混合文本合成器
+            // 会自动切换内嵌语种，voice 只决定主语言。
+            let cjk = trimmed.filter { $0.isCJK }.count
+            let locale = Double(cjk) / Double(max(trimmed.count, 1)) > 0.3 ? "zh-CN" : "en-US"
+            utterance.voice = AVSpeechSynthesisVoice(language: locale)
+                ?? AVSpeechSynthesisVoice(language: "en-US")
+        }
         synthesizer.speak(utterance)
         isSpeaking = true
         isPaused = false

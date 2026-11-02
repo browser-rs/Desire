@@ -2,6 +2,13 @@ import AppKit
 import SwiftUI
 import WebKit
 
+/// 正文图片点击请求（v0.8.36）。
+struct EbookImageRequest: Equatable {
+    var id = UUID()
+    var src: String
+    var rect: CGRect
+}
+
 /// 电子书正文 WebView（v0.8.34）：本地章节文件 + 只读访问书根目录；
 /// 滚动比例/分页结果经 script message 回传；翻页动画由分页 HTML 的 CSS 3D 完成。
 struct EbookWebView: NSViewRepresentable {
@@ -13,6 +20,7 @@ struct EbookWebView: NSViewRepresentable {
     let onPages: (Int, Int) -> Void
     let onSelection: (EbookSelection) -> Void
     let onHighlight: (UUID) -> Void
+    let onImage: (EbookImageRequest) -> Void
 
     func makeNSView(context: Context) -> WKWebView {
         let configuration = WKWebViewConfiguration()
@@ -20,6 +28,7 @@ struct EbookWebView: NSViewRepresentable {
         configuration.userContentController.add(context.coordinator, name: "ebookPages")
         configuration.userContentController.add(context.coordinator, name: "ebookSelection")
         configuration.userContentController.add(context.coordinator, name: "ebookHighlight")
+        configuration.userContentController.add(context.coordinator, name: "ebookImage")
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
         return webView
@@ -39,7 +48,8 @@ struct EbookWebView: NSViewRepresentable {
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onReady: onReady, onProgress: onProgress, onPages: onPages,
-                    onSelection: onSelection, onHighlight: onHighlight)
+                    onSelection: onSelection, onHighlight: onHighlight,
+                    onImage: onImage)
     }
 
     final class Coordinator: NSObject, WKNavigationDelegate, WKScriptMessageHandler {
@@ -48,6 +58,7 @@ struct EbookWebView: NSViewRepresentable {
         let onPages: (Int, Int) -> Void
         let onSelection: (EbookSelection) -> Void
         let onHighlight: (UUID) -> Void
+        let onImage: (EbookImageRequest) -> Void
         var loadedURL: URL?
         var lastTurnID: UUID?
 
@@ -55,12 +66,14 @@ struct EbookWebView: NSViewRepresentable {
              onProgress: @escaping (Double) -> Void,
              onPages: @escaping (Int, Int) -> Void,
              onSelection: @escaping (EbookSelection) -> Void,
-             onHighlight: @escaping (UUID) -> Void) {
+             onHighlight: @escaping (UUID) -> Void,
+             onImage: @escaping (EbookImageRequest) -> Void) {
             self.onReady = onReady
             self.onProgress = onProgress
             self.onPages = onPages
             self.onSelection = onSelection
             self.onHighlight = onHighlight
+            self.onImage = onImage
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
@@ -95,6 +108,17 @@ struct EbookWebView: NSViewRepresentable {
                       let raw = body["id"] as? String,
                       let id = UUID(uuidString: raw) {
                 onHighlight(id)
+            } else if message.name == "ebookImage",
+                      let body = message.body as? [String: Any],
+                      let src = body["src"] as? String,
+                      let x = body["x"] as? NSNumber,
+                      let y = body["y"] as? NSNumber,
+                      let w = body["w"] as? NSNumber,
+                      let h = body["h"] as? NSNumber {
+                onImage(EbookImageRequest(
+                    src: src,
+                    rect: CGRect(x: x.doubleValue, y: y.doubleValue,
+                                 width: w.doubleValue, height: h.doubleValue)))
             }
         }
 

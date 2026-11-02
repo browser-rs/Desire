@@ -138,6 +138,7 @@ final class EbookReaderModel: ObservableObject {
     private var statsPagesSinceFlush = 0
     private var statsTimer: Timer?
     private var lastSpeechSeek = Date.distantPast
+    private var lastSpeechHighlight = Date.distantPast
     private var chapterTextCache: [EbookSearchCore.ChapterText]?
     private var pendingSearchQuery: String?
     private var pendingRevealHighlightID: UUID?
@@ -597,6 +598,39 @@ final class EbookReaderModel: ObservableObject {
         currentChapter + 1 < chapterCount
     }
 
+    /// 朗读文本：优先取阅读 DOM 的文本（与高亮偏移同源），失败回退剥标签。
+    func speechText() async -> String {
+        for attempt in 0..<2 {
+            if let text = try? await webView?.evaluateJavaScript(
+                "window.__desireSpeechText && window.__desireSpeechText()") as? String,
+               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                return text
+            }
+            if attempt == 0 {
+                try? await Task.sleep(for: .milliseconds(120))
+            }
+        }
+        return chapterPlainText
+    }
+
+    /// `AVSpeechSynthesizer` 的 UTF-16 range → 正文 mark（节流，避免逐词重排）。
+    func speechHighlight(location: Int, length: Int) {
+        let now = Date()
+        guard now.timeIntervalSince(lastSpeechHighlight) > 0.12 else { return }
+        lastSpeechHighlight = now
+        let end = location + max(1, length)
+        webView?.evaluateJavaScript(
+            "window.__desireSpeechHighlight && window.__desireSpeechHighlight(\(location),\(end));",
+            completionHandler: nil)
+    }
+
+    func clearSpeechHighlight() {
+        lastSpeechHighlight = Date.distantPast
+        webView?.evaluateJavaScript(
+            "window.__desireClearSpeechHighlight && window.__desireClearSpeechHighlight();",
+            completionHandler: nil)
+    }
+
     /// 朗读进度 → 翻页/滚动位置（节流，避免逐词触发大量重排）。
     func speechProgress(location: Int, total: Int) {
         guard total > 0 else { return }
@@ -1019,6 +1053,8 @@ final class EbookReaderModel: ObservableObject {
         </script>
         <script>\(EbookHighlightJS.script(currentChapterHighlights))</script>
         <script>\(EbookTranslationJS.script())</script>
+        <script>\(EbookSpeechJS.script())</script>
+        <script>\(EbookImageJS.script())</script>
         """
         var document = html
         if let headEnd = document.range(of: "</head>", options: .caseInsensitive) {
@@ -1194,6 +1230,8 @@ final class EbookReaderModel: ObservableObject {
         </script>
         <script>\(EbookHighlightJS.script(currentChapterHighlights))</script>
         <script>\(EbookTranslationJS.script())</script>
+        <script>\(EbookSpeechJS.script())</script>
+        <script>\(EbookImageJS.script())</script>
         """
         return """
         <!doctype html><html><head>\(parts.head)\(injection)</head>
@@ -1248,6 +1286,8 @@ final class EbookReaderModel: ObservableObject {
           opacity: 0.72; margin-top: 0.35em; padding-left: 0.55em;
           border-left: 2px solid currentColor;
         }
+        mark.desire-speech { background: rgba(255, 179, 64, 0.5); border-radius: 2px; }
+        img { cursor: zoom-in; }
         """
     }
 
@@ -1303,6 +1343,8 @@ final class EbookReaderModel: ObservableObject {
           opacity: 0.72; margin-top: 0.35em; padding-left: 0.55em;
           border-left: 2px solid currentColor;
         }
+        mark.desire-speech { background: rgba(255, 179, 64, 0.5); border-radius: 2px; }
+        img { cursor: zoom-in; }
         """
     }
 }

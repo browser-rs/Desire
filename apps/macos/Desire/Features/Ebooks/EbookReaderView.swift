@@ -38,6 +38,13 @@ struct EbookReaderView: View {
     @State private var translationJob: TranslationJob?
     @State private var isTranslatingChapter = false
     @State private var chapterTranslationProgress: Double = 0
+    @State private var showSpeechSettings = false
+    @State private var imageViewer: ImageViewerState?
+
+    private struct ImageViewerState: Identifiable {
+        let id = UUID()
+        let image: NSImage
+    }
     @AppStorage("ebook.translation.target") private var translationTargetCode = "system"
     @FocusState private var searchFocused: Bool
 
@@ -178,6 +185,9 @@ struct EbookReaderView: View {
                 onCopy: { copyNotes() },
                 onClose: { model.showNotes = false })
         }
+        .sheet(isPresented: $showSpeechSettings) {
+            ReaderSpeechSettingsView(onClose: { showSpeechSettings = false })
+        }
         .alert(String(localized: "Add note"), isPresented: $showNotePrompt) {
             TextField(String(localized: "Note"), text: $noteText)
             Button(String(localized: "Save")) {
@@ -210,6 +220,12 @@ struct EbookReaderView: View {
             }
         }
         .onAppear { model.startReadingSession() }
+        .onChange(of: speech.isSpeaking) { _, speaking in
+            if !speaking { model.clearSpeechHighlight() }
+        }
+        .onChange(of: model.currentChapter) { _, _ in
+            imageViewer = nil
+        }
         .onDisappear {
             stopReadingAloud()
             model.endReadingSession()
@@ -300,6 +316,10 @@ struct EbookReaderView: View {
                     Button(String(localized: "Stop Reading")) { stopReadingAloud() }
                 } else {
                     Button(String(localized: "Read Chapter Aloud")) { startReadingAloud() }
+                }
+                Divider()
+                Button(String(localized: "Voice & Speed…")) {
+                    showSpeechSettings = true
                 }
             } label: {
                 Image(systemName: speech.isSpeaking
@@ -434,7 +454,8 @@ struct EbookReaderView: View {
                                  model.updatePages(count: count, index: index)
                              },
                              onSelection: { model.setSelection($0) },
-                             onHighlight: { model.openHighlight($0) })
+                             onHighlight: { model.openHighlight($0) },
+                             onImage: { openImage($0) })
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                 if model.layoutMode == .paged {
                     GeometryReader { geometry in
@@ -459,6 +480,11 @@ struct EbookReaderView: View {
                                        max(230, geometry.size.width - 230)),
                                 y: max(24, selection.rect.minY - 26))
                     }
+                }
+                if let viewer = imageViewer {
+                    EbookImageOverlay(image: viewer.image,
+                                      onClose: { imageViewer = nil })
+                        .id(viewer.id)
                 }
             }
         }
@@ -955,26 +981,30 @@ struct EbookReaderView: View {
     }
 
     private func startReadingAloud() {
-        let text = model.chapterPlainText
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            showToast(String(localized: "Nothing to read"))
-            return
-        }
-        speech.onFinish = {
-            if model.speechAdvanceChapter() {
-                startReadingAloud()
+        Task { @MainActor in
+            let text = await model.speechText()
+            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                showToast(String(localized: "Nothing to read"))
+                return
             }
+            speech.onFinish = {
+                if model.speechAdvanceChapter() {
+                    startReadingAloud()
+                }
+            }
+            speech.onSpeakRange = { location, length, total in
+                model.speechProgress(location: location, total: total)
+                model.speechHighlight(location: location, length: length)
+            }
+            speech.speak(text)
         }
-        speech.onSpeakRange = { location, _, total in
-            model.speechProgress(location: location, total: total)
-        }
-        speech.speak(text)
     }
 
     private func stopReadingAloud() {
         speech.onFinish = nil
         speech.onSpeakRange = nil
         speech.stop()
+        model.clearSpeechHighlight()
     }
 
     private func summarizeChapter() {
@@ -994,6 +1024,26 @@ struct EbookReaderView: View {
         AgentDraftInbox.shared.send(prompt)
     }
 
+    private func openImage(_ request: EbookImageRequest) {
+        if request.src.hasPrefix("data:"),
+           let comma = request.src.firstIndex(of: ","),
+           let data = Data(base64Encoded: String(request.src[request.src.index(after: comma)...])),
+           let image = NSImage(data: data) {
+            imageViewer = ImageViewerState(image: image)
+            return
+        }
+        let root = model.bookRoot.standardizedFileURL
+        let base = (model.htmlFileURL ?? model.bookRoot).deletingLastPathComponent()
+        let cleaned = request.src.components(separatedBy: "?").first ?? request.src
+        guard let url = URL(string: cleaned, relativeTo: base)?.standardizedFileURL,
+              url.path.hasPrefix(root.path + "/"),
+              let image = NSImage(contentsOf: url) else {
+            showToast(String(localized: "Could not open image"))
+            return
+        }
+        imageViewer = ImageViewerState(image: image)
+    }
+
     private func openSearch() {
         searchText = model.searchQuery
         didSearch = false
@@ -1001,6 +1051,7 @@ struct EbookReaderView: View {
     }
 
     private func closeOverlays() {
+        if imageViewer != nil { imageViewer = nil; return }
         if model.showNotes { model.showNotes = false; return }
         if model.showSearch { model.showSearch = false; return }
         if model.showTOC { model.showTOC = false; return }

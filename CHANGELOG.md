@@ -10,6 +10,8 @@
 - Books: highlights made on another device now appear inside the book text after sync (not only in Excerpts) — the excerpt locator is mapped back to a book highlight and de-duplicated by id or chapter/offset/quote (v0.8.37)
 - Books: the library shows a sync status strip (syncing, or an ebooks-domain failure with a link to Sync settings) and a Sync now button, so a server that has not been updated is visible instead of silently skipping (v0.8.37)
 - Books: deleting a synced excerpt on another device also removes the highlight it created in the book text (local highlights with a different id are left untouched) (v0.8.37)
+- Browser: the new tab page gains a Continue Reading card for the most recent unfinished book, with progress, author and a synced-from-another-device badge; the section can be hidden like the other new-tab sections (v0.8.37)
+
 
 
 

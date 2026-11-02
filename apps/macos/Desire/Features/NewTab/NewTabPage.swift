@@ -79,6 +79,10 @@ struct NewTabPage: View {
                         }
                         .buttonStyle(.plain)
                     }
+                    if !isSectionHidden(.reading) {
+                        NewTabReadingSection(onNavigate: onNavigate,
+                                             onHide: { hideSection(.reading) })
+                    }
                     if !isSectionHidden(.localFiles) {
                         localFilesSection
                     }
@@ -564,11 +568,12 @@ struct NewTabPage: View {
 
     /// 可隐藏区块（v0.8.19 基础件 1）。
     enum NewTabSection: String, CaseIterable {
-        case quickDials, localFiles, recent
+        case quickDials, reading, localFiles, recent
 
         var title: String {
             switch self {
             case .quickDials: String(localized: "Quick Sites")
+            case .reading: String(localized: "Continue Reading")
             case .localFiles: String(localized: "Recent Files")
             case .recent: String(localized: "Recent Visits")
             }
@@ -687,5 +692,116 @@ struct NewTabPage: View {
         }
         .padding()
         .frame(width: 280)
+    }
+}
+
+
+/// 新标签页的「继续阅读」（v0.8.37）：显示最近未读完的书与跨设备同步进度。
+private struct NewTabReadingSection: View {
+    @Environment(\.appAccent) private var appAccent
+    @ObservedObject private var library = EbookLibraryStore.shared
+
+    let onNavigate: (String) -> Void
+    let onHide: () -> Void
+
+    private var book: Ebook? {
+        library.books
+            .filter { $0.progress > 0.01 && $0.progress < 0.99 }
+            .sorted {
+                ($0.lastOpenedAt ?? $0.addedAt) > ($1.lastOpenedAt ?? $1.addedAt)
+            }
+            .first
+    }
+
+    var body: some View {
+        if let book {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 6) {
+                    Image(systemName: "book.fill")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+                    Text(String(localized: "Continue Reading"))
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .textCase(.uppercase)
+                    Spacer()
+                }
+                .contextMenu {
+                    Button(String(localized: "Hide this section")) { onHide() }
+                }
+                Button {
+                    onNavigate("desire://books/\(book.id.uuidString)")
+                } label: {
+                    HStack(spacing: 12) {
+                        NewTabBookCover(book: book)
+                            .frame(width: 46, height: 64)
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(book.title)
+                                .font(.system(size: 13, weight: .semibold))
+                                .lineLimit(1)
+                            Text(book.authorOrUnknown)
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
+                            ProgressView(value: book.progress)
+                                .controlSize(.small)
+                                .tint(appAccent)
+                                .frame(maxWidth: 260)
+                            if let synced = book.syncedProgressAt,
+                               Date().timeIntervalSince(synced) < 7 * 86_400 {
+                                Label(String(localized: "Progress synced from another device"),
+                                      systemImage: "arrow.triangle.2.circlepath")
+                                    .font(.system(size: 8.5))
+                                    .foregroundStyle(appAccent)
+                            }
+                        }
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color(nsColor: .textBackgroundColor).opacity(0.6))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .stroke(Color.secondary.opacity(0.18), lineWidth: 0.5)
+                    )
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+}
+
+private struct NewTabBookCover: View {
+    @Environment(\.appAccent) private var appAccent
+    let book: Ebook
+    @State private var image: NSImage?
+
+    var body: some View {
+        ZStack {
+            if let image {
+                Image(nsImage: image)
+                    .resizable()
+                    .scaledToFill()
+            } else {
+                LinearGradient(colors: [appAccent.opacity(0.35),
+                                        appAccent.opacity(0.12)],
+                               startPoint: .topLeading, endPoint: .bottomTrailing)
+                Text(String(book.title.prefix(1)))
+                    .font(.system(size: 20, weight: .bold, design: .serif))
+                    .foregroundStyle(.white.opacity(0.9))
+            }
+        }
+        .task(id: book.id) {
+            guard let url = EbookLibraryStore.shared.coverURL(for: book) else { return }
+            image = NSImage(contentsOf: url)
+        }
     }
 }

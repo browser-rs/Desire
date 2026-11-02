@@ -48,6 +48,9 @@ struct EbookReadingStatsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 18) {
                         metrics
+                        Text(String(localized: "Cross-device stats are merged by maximum, not summed."))
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.tertiary)
                         chart
                         mostRead
                     }

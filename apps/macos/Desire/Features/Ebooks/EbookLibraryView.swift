@@ -409,6 +409,11 @@ struct EbookLibraryView: View {
         .frame(width: 400)
     }
 
+    private func isRecentlySynced(_ book: Ebook) -> Bool {
+        guard let date = book.syncedProgressAt else { return false }
+        return Date().timeIntervalSince(date) < 7 * 86_400
+    }
+
     private func continueCard(_ book: Ebook) -> some View {
         HStack(spacing: 12) {
             EbookCoverView(store: store, book: book)
@@ -425,6 +430,12 @@ struct EbookLibraryView: View {
                     .controlSize(.small)
                     .tint(appAccent)
                     .frame(maxWidth: 220)
+                if isRecentlySynced(book) {
+                    Label(String(localized: "Progress synced from another device"),
+                          systemImage: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 8.5))
+                        .foregroundStyle(appAccent)
+                }
             }
             Spacer(minLength: 8)
             Button(String(localized: "Continue")) {
@@ -513,6 +524,11 @@ struct EbookLibraryView: View {
                 ProgressView(value: book.progress)
                     .controlSize(.small)
                     .tint(appAccent)
+                if isRecentlySynced(book) {
+                    Label(String(localized: "Synced"), systemImage: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 8.5))
+                        .foregroundStyle(appAccent)
+                }
             }
             .contentShape(Rectangle())
         }

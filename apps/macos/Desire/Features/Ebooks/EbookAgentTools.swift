@@ -85,6 +85,76 @@ enum EbookAgentTools {
         }
     }
 
+    /// 触发一次同步并返回各域结果（v0.8.37）。
+    static func syncNow() async -> String {
+        guard let sync = AppState.live?.syncStore else {
+            return fail("sync is unavailable")
+        }
+        guard case .signedIn = sync.authState else {
+            return "Not signed in. Sign in from Settings ▸ Sync first."
+        }
+        await sync.syncNow()
+        return "Synced.\n" + syncStatusText(sync)
+    }
+
+    /// 登录态/各域状态/ebooks 孤儿/阅读进度摘要。
+    static func syncStatus() -> String {
+        guard let sync = AppState.live?.syncStore else {
+            return fail("sync is unavailable")
+        }
+        return syncStatusText(sync)
+    }
+
+    private static func syncStatusText(_ sync: SyncStore) -> String {
+        var lines: [String] = []
+        switch sync.authState {
+        case .signedOut:
+            lines.append("Account: signed out")
+        case .signedIn(let username):
+            lines.append("Account: \(username)")
+        }
+        if let last = sync.lastSyncAt {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .short
+            formatter.timeStyle = .short
+            lines.append("Last sync: \(formatter.string(from: last))")
+        } else {
+            lines.append("Last sync: never")
+        }
+        if let error = sync.lastError, !error.isEmpty {
+            lines.append("Last error: \(error)")
+        }
+        let failed = SyncDomain.allCases.compactMap { domain -> String? in
+            guard case .failed(let message)? = sync.domainStatus[domain] else { return nil }
+            return "  - \(domain.displayName): \(message)"
+        }
+        if failed.isEmpty {
+            lines.append("Domains: all enabled domains are OK")
+        } else {
+            lines.append("Domains with errors:")
+            lines.append(contentsOf: failed)
+        }
+        if case .failed(let message)? = sync.domainStatus[.ebooks] {
+            lines.append("Books sync: \(message)")
+        }
+        let orphanCount = EbookSyncStore.shared.orphanBooks.count
+            + EbookSyncStore.shared.orphanBookmarks.values.reduce(0) { $0 + $1.count }
+        lines.append("Book sync: \(orphanCount) orphan item(s), "
+            + "\(EbookSyncStore.shared.pendingBookmarkDeletions.count) bookmark deletion(s) pending")
+        let books = EbookLibraryStore.shared.books
+            .filter { $0.progress > 0 }
+            .sorted { ($0.lastOpenedAt ?? $0.addedAt) > ($1.lastOpenedAt ?? $1.addedAt) }
+            .prefix(8)
+        if !books.isEmpty {
+            lines.append("Reading progress:")
+            for book in books {
+                lines.append("  - \(book.title): \(Int((book.progress * 100).rounded()))%"
+                    + " (ch \(book.lastChapterIndex + 1)/\(max(1, book.chapterCount)))")
+            }
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// 全库正文搜索（v0.8.36）：跨书写作者的所有本地书，结果按书分组。
     static func searchLibrary(query: String, limit: Int) async -> String {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)

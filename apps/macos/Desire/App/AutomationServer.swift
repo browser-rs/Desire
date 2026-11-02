@@ -5840,6 +5840,7 @@ final class AutomationServer {
             "agent_memory": defaults.string(forKey: "sync.cursor.agent_memory") ?? "",
             "agent_prefs": defaults.string(forKey: "sync.cursor.agent_prefs") ?? "",
             "history": defaults.string(forKey: "sync.cursor.history") ?? "",
+            "ebooks": defaults.string(forKey: "sync.cursor.ebooks") ?? "",
         ]
         return [
             "auth": auth,
@@ -5861,6 +5862,12 @@ final class AutomationServer {
                 "quickdials": app.quickDialStore.pendingDeletions.count,
                 "reading_list": app.readingListStore.pendingDeletions.count,
                 "history": app.historyStore.pendingDeletions.count,
+                "ebooks": EbookSyncStore.shared.pendingBookmarkDeletions.count,
+            ],
+            "ebooks": [
+                "orphanBooks": EbookSyncStore.shared.orphanBooks.count,
+                "orphanBookmarks": EbookSyncStore.shared.orphanBookmarks.values
+                    .reduce(0) { $0 + $1.count },
             ],
             // 变更驱动同步的观测面：每域脏标记 + 最近一次结果
             "domains": Dictionary(

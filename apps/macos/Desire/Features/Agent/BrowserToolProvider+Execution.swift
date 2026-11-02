@@ -366,6 +366,10 @@ extension BrowserToolProvider {
             }
             return await EbookAgentTools.searchLibrary(
                 query: query, limit: (args["limit"] as? Int) ?? 20)
+        case "syncNow":
+            return await EbookAgentTools.syncNow()
+        case "syncStatus":
+            return EbookAgentTools.syncStatus()
         case "readingDigest":
             return EbookAgentTools.readingDigest(days: (args["days"] as? Int) ?? 7)
         case "getBookOutline":

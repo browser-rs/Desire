@@ -89420,6 +89420,226 @@
           }
         }
       }
+    },
+    "Open in Book" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open in Book"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在书中打开"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在書中開啟"
+          }
+        }
+      }
+    },
+    "Synced" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Synced"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已同步"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已同步"
+          }
+        }
+      }
+    },
+    "Progress synced from another device" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Progress synced from another device"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "进度已从另一台设备同步"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "進度已從另一台裝置同步"
+          }
+        }
+      }
+    },
+    "Cross-device stats are merged by maximum, not summed." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cross-device stats are merged by maximum, not summed."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跨设备统计按最大值合并，不是相加。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跨裝置統計按最大值合併，不是相加。"
+          }
+        }
+      }
+    },
+    "Read on any device" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read on any device"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在哪台设备都能接着读"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "在哪台裝置都能接著讀"
+          }
+        }
+      }
+    },
+    "Your bookshelf, reading position and bookmarks sync across devices — progress always moves forward, and books not on this Mac wait until you import the same file." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your bookshelf, reading position and bookmarks sync across devices — progress always moves forward, and books not on this Mac wait until you import the same file."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "书架、阅读进度和书签会跨设备同步——进度只会向前；本机没有的书会先等着，导入同一个文件后再接上。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書架、閱讀進度和書籤會跨裝置同步——進度只會向前；本機沒有的書會先等著，匯入同一個檔案後再接上。"
+          }
+        }
+      }
+    },
+    "Notes find their way back" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Notes find their way back"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "笔记找得回原书"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "筆記找得回原書"
+          }
+        }
+      }
+    },
+    "Every ebook highlight now carries its book, chapter and offset; from Excerpts on any device, Open in Book lands on the exact chapter." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Every ebook highlight now carries its book, chapter and offset; from Excerpts on any device, Open in Book lands on the exact chapter."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每条电子书高亮都带上了书名、章节和偏移；在任何设备的摘录里点「在书中打开」，都会落到原来的章节。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "每條電子書螢光標記都帶上了書名、章節和偏移；在任何裝置的摘錄裡點「在書中開啟」，都會落到原來的章節。"
+          }
+        }
+      }
+    },
+    "Ask across devices" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask across devices"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跨设备问一句"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跨裝置問一句"
+          }
+        }
+      }
+    },
+    "Reading stats merge by maximum per day and per book, and the Agent can run a sync and answer \"where did I stop on the other Mac?\" with syncNow and syncStatus." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reading stats merge by maximum per day and per book, and the Agent can run a sync and answer \"where did I stop on the other Mac?\" with syncNow and syncStatus."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跨设备阅读统计按天、按书取最大值合并；Agent 可以执行同步，并用 syncNow / syncStatus 回答「另一台 Mac 上我读到哪了」。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跨裝置閱讀統計按天、按書取最大值合併；Agent 可以執行同步，並用 syncNow / syncStatus 回答「另一台 Mac 上我讀到哪了」。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

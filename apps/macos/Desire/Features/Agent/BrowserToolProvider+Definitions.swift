@@ -1788,6 +1788,16 @@ extension BrowserToolProvider {
                 ], required: ["query"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "syncNow",
+                description: "Run a sync cycle now and report each domain's result, including books/reading progress. Use when the user asks to sync or check another device's reading position.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "syncStatus",
+                description: "Report sign-in state, last sync, per-domain errors, ebook orphan/deletion counts and per-book reading progress. Use before answering cross-device reading questions.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "readingDigest",
                 description: "Build a Markdown reading review from local stats, book progress and recent highlights. Use when the user asks what they read recently or wants a weekly summary.",
                 parameters: AgentJSONSchema(type: "object", properties: [

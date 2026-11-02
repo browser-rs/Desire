@@ -182,6 +182,59 @@ extension BrowserToolProvider {
                 ], required: ["tool"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listBackgroundTasks",
+                description: "List background jobs (downloads, batch media, exports, scheduled runs, background commands, Agent work) from the unified job ledger. Use before answering “is it done?” or before watching. Defaults to active tasks; state=\"all\" includes recent finished ones.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "state": AgentJSONSchemaValue(type: "string", description: "active (default) | all | failed | done"),
+                    "kind": AgentJSONSchemaValue(type: "string", description: "download | batch | media | command | scheduled | agent (optional)"),
+                    "limit": AgentJSONSchemaValue(type: "number", description: "Max rows (default 20, max 100)"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "backgroundTaskStatus",
+                description: "Detailed status for one background job: state, progress, error, output path, exit code and the tail of its log (commands). Use this when the user asks about a specific running task.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "id": AgentJSONSchemaValue(type: "string", description: "Job id from listBackgroundTasks"),
+                    "logLines": AgentJSONSchemaValue(type: "number", description: "Log tail lines (default 40, max 200)"),
+                ], required: ["id"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "watchBackgroundTasks",
+                description: "Subscribe to one or more background jobs and return immediately. When ALL targeted jobs reach a terminal state, one completion note is written and one notification is sent. Use ids for specific jobs or kind for a snapshot of all current jobs of that kind (e.g. kind=\"batch\" after starting a batch download). mode=\"resume\" also asks you to report the result in a fresh turn when the session is idle — only use it when the user explicitly says “tell me when done”.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "ids": AgentJSONSchemaValue(type: "array", description: "Job ids to watch (max 50)", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                    "kind": AgentJSONSchemaValue(type: "string", description: "Watch all currently active jobs of this kind instead of ids"),
+                    "mode": AgentJSONSchemaValue(type: "string", description: "notify (default) | resume"),
+                    "reason": AgentJSONSchemaValue(type: "string", description: "Why the user wants to know (shown in diagnostics)"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "cancelBackgroundTask",
+                description: "Cancel a running background job. For commands this terminates the process and reports the real result; for downloads/batch/exports it calls that subsystem's cancel. Never claims success without confirming.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "id": AgentJSONSchemaValue(type: "string", description: "Job id"),
+                ], required: ["id"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "retryBackgroundTask",
+                description: "Retry a failed/terminal background command (or another retryable job). Creates a NEW job linked to the old one and returns its id; the old job is left untouched.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "id": AgentJSONSchemaValue(type: "string", description: "Job id to retry"),
+                ], required: ["id"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "runBackgroundCommand",
+                description: "Start an allowlisted CLI tool in the background with argv (NO shell) and return a job id immediately — the turn can end. Output goes to a log file; when it exits, a completion note + notification are delivered. Same approval tier as runCommand. Use for builds, tests, CI watch (gh), long ffmpeg jobs. Optionally report=\"resume\" when the user says to report back.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "tool": AgentJSONSchemaValue(type: "string", description: "Allowlisted binary, e.g. \"gh\", \"ffmpeg\", \"xcodebuild\""),
+                    "args": AgentJSONSchemaValue(type: "array", description: "Arguments as separate strings", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                    "title": AgentJSONSchemaValue(type: "string", description: "Short human label (defaults to tool + first args)"),
+                    "cwd": AgentJSONSchemaValue(type: "string", description: "Working directory; defaults to the Agent workspace"),
+                    "timeoutMinutes": AgentJSONSchemaValue(type: "number", description: "Max runtime minutes (default 60, max 360)"),
+                    "report": AgentJSONSchemaValue(type: "string", description: "notify (default) | resume | none"),
+                ], required: ["tool"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "useSkill", description: "Load a skill's full instructions into the conversation (progressive disclosure). Call before performing a task that matches a skill. Skills declaring vars need inputs {name: value} — missing values are reported; ask the user with askUser if unclear.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "name": AgentJSONSchemaValue(type: "string", description: "Skill name from the skills list in your context"),

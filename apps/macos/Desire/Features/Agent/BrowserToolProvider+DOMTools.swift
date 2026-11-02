@@ -937,6 +937,20 @@ extension BrowserToolProvider {
             let output = "runCommand \(result.summary)\n\(result.stdout)\(result.stderr == "" ? "" : "\n\(result.stderr)")"
             return (result.exitCode == 0 && !result.timedOut) ? output : Self.fail(output)
 
+        // --- Background jobs (v0.8.39) ---
+        case "listBackgroundTasks":
+            return Self.listBackgroundTasks(args)
+        case "backgroundTaskStatus":
+            return Self.backgroundTaskStatus(args)
+        case "watchBackgroundTasks":
+            return Self.watchBackgroundTasks(args, conversationID: ownerSession?.conversationId)
+        case "cancelBackgroundTask":
+            return Self.cancelBackgroundTask(args)
+        case "retryBackgroundTask":
+            return await Self.retryBackgroundTask(args)
+        case "runBackgroundCommand":
+            return await Self.runBackgroundCommand(args, conversationID: ownerSession?.conversationId)
+
         case "pageAction":
             // 协议缓存属 BrowserState，DOM 属**活 webview**——挂起的标签页
             // 是冻结骨架（innerText 还在、元素查不到），在它上面执行声明

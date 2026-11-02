@@ -10,7 +10,7 @@ nonisolated enum JobAdapter {
             switch item.kind {
             case .download: kind = .download
             case .batch: kind = .download
-            case .export: kind = .download
+            case .export: kind = .media
             case .scheduledRun: kind = .scheduled
             case .agent: kind = .agent
             case .crew: kind = .agent

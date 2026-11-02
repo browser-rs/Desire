@@ -322,7 +322,9 @@ struct AgentCapabilitiesView: View {
             "toggleSidebar", "listPlugins", "togglePlugin",
         ],
         "系统与技能": [
-            "runCommand", "useSkill", "listSkills", "writeFile",
+            "runCommand", "runBackgroundCommand", "listBackgroundTasks",
+            "backgroundTaskStatus", "watchBackgroundTasks", "cancelBackgroundTask",
+            "retryBackgroundTask", "useSkill", "listSkills", "writeFile",
             "readFile", "listDirectory", "setTokenBudget",
             "addReminder", "listReminders", "completeReminder", "updateReminder",
             "addCalendarEvent", "listCalendarEvents", "updateCalendarEvent", "deleteCalendarEvent",

@@ -6568,6 +6568,60 @@ func testJobAdapter() {
 }
 testJobAdapter()
 
+func testJobWatchCore() {
+    let now = Date()
+    let running = JobRecord(title: "Batch", kind: .download, state: .running,
+                            updatedAt: now)
+    let done = JobRecord(title: "Export", kind: .media, state: .done,
+                         artifactURL: "/tmp/out.mp4", updatedAt: now,
+                         finishedAt: now)
+    let failed = JobRecord(title: "Command", kind: .command, state: .failed,
+                           error: "exit 2", updatedAt: now, finishedAt: now)
+    let jobs = [running, done, failed]
+
+    check("后台订阅：ids 与 kind 二选一",
+          JobWatchCore.validationError(ids: [running.id], kind: "batch", mode: .notify) != nil)
+    check("后台订阅：空目标被拒",
+          JobWatchCore.validationError(ids: [], kind: nil, mode: .notify) != nil)
+    check("后台订阅：上限 50",
+          JobWatchCore.validationError(ids: Array(repeating: UUID(), count: 51),
+                                       kind: nil, mode: .notify) != nil)
+
+    let active = JobWatchCore.snapshot(ids: [], kind: "download", jobs: jobs)
+    eq("后台订阅：按 kind 只快照活动任务", active.map(\.id), [running.id])
+    let explicit = JobWatchCore.snapshot(ids: [done.id, failed.id], kind: nil, jobs: jobs)
+    eq("后台订阅：显式 ids 可包含已完成", explicit.count, 2)
+
+    let watch = JobWatch(jobIDs: [running.id.uuidString, done.id.uuidString],
+                         conversationID: nil, mode: .notify)
+    check("后台订阅：有任务未终态不算完成",
+          !JobWatchCore.allSettled(watch, jobs: jobs))
+    let allDone = JobWatch(jobIDs: [done.id.uuidString, failed.id.uuidString],
+                           conversationID: nil, mode: .notify)
+    check("后台订阅：全部终态才算完成",
+          JobWatchCore.allSettled(allDone, jobs: jobs))
+    let missing = JobWatch(jobIDs: [UUID().uuidString], conversationID: nil, mode: .notify)
+    check("后台订阅：已消失任务视为终态", JobWatchCore.allSettled(missing, jobs: jobs))
+
+    check("后台订阅：忙碌会话不 resume",
+          !JobWatchCore.canResume(
+            JobWatch(jobIDs: [done.id.uuidString], conversationID: UUID(),
+                     mode: .resume),
+            sessionExists: true, sessionBusy: true))
+    check("后台订阅：空闲会话可 resume 一次",
+          JobWatchCore.canResume(
+            JobWatch(jobIDs: [done.id.uuidString], conversationID: UUID(),
+                     mode: .resume),
+            sessionExists: true, sessionBusy: false))
+
+    let summary = JobSummaryCore.summary(for: jobs)
+    check("后台汇总：包含失败数与产物", summary.contains("1 failed")
+          && summary.contains("/tmp/out.mp4"))
+    check("后台汇总：命令退出码", summary.contains("exit 2"))
+    check("后台汇总：长度有界", summary.count <= JobSummaryCore.maxChars + 1)
+}
+testJobWatchCore()
+
 func testPlaybook() {
     let playbook = Playbook(
         name: "Brief",

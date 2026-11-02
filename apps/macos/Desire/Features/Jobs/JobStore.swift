@@ -104,10 +104,14 @@ final class JobStore: ObservableObject {
 
     @discardableResult
     func start(title: String, kind: JobRecord.Kind, detail: String = "",
-               source: String? = nil, externalID: String? = nil) -> UUID {
+               source: String? = nil, externalID: String? = nil,
+               conversationID: UUID? = nil, logFile: String? = nil,
+               retryOf: UUID? = nil) -> UUID {
         let now = Date()
         let job = JobRecord(title: title, kind: kind, state: .running,
                             detail: detail, source: source, externalID: externalID,
+                            conversationID: conversationID, logFile: logFile,
+                            retryOf: retryOf,
                             createdAt: now, updatedAt: now)
         jobs.insert(job, at: 0)
         trim()
@@ -118,7 +122,7 @@ final class JobStore: ObservableObject {
     func update(_ id: UUID, state: JobRecord.State? = nil,
                 detail: String? = nil, progress: Double? = nil,
                 artifactURL: String? = nil, receipt: String? = nil,
-                error: String? = nil) {
+                error: String? = nil, exitCode: Int32? = nil) {
         guard let idx = jobs.firstIndex(where: { $0.id == id }) else { return }
         if let state {
             jobs[idx].state = state
@@ -131,15 +135,26 @@ final class JobStore: ObservableObject {
         if let artifactURL { jobs[idx].artifactURL = artifactURL }
         if let receipt { jobs[idx].receipt = receipt }
         if let error { jobs[idx].error = error }
+        if let exitCode { jobs[idx].exitCode = exitCode }
         jobs[idx].updatedAt = Date()
         save()
     }
 
     func finish(_ id: UUID, state: JobRecord.State,
+                detail: String? = nil,
                 receipt: String? = nil, artifactURL: String? = nil,
-                error: String? = nil) {
-        update(id, state: state, progress: 1,
-               artifactURL: artifactURL, receipt: receipt, error: error)
+                error: String? = nil, exitCode: Int32? = nil) {
+        update(id, state: state, detail: detail, progress: 1,
+               artifactURL: artifactURL, receipt: receipt, error: error,
+               exitCode: exitCode)
+    }
+
+    /// 命令 runner 建好日志文件后回填路径（v0.8.39）。
+    func setLogFile(_ id: UUID, path: String) {
+        guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
+        jobs[index].logFile = path
+        jobs[index].updatedAt = Date()
+        save()
     }
 
     /// 取消/丢弃（不声称底层任务已停止；仅从活动视图移除）。

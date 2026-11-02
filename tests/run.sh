@@ -46,6 +46,8 @@ SOURCES=(
   apps/macos/Desire/Features/Promotion/MentionRadar.swift
   apps/macos/Desire/Features/Promotion/PromotionShare.swift
   apps/macos/Desire/Features/Jobs/JobRecord.swift
+  apps/macos/Desire/Features/Jobs/JobWatch.swift
+  apps/macos/Desire/Features/Jobs/JobWatchCore.swift
   apps/macos/Desire/Features/Promotion/Playbook.swift
   apps/macos/Desire/Features/Promotion/PlaybookTemplate.swift
   apps/macos/Desire/Features/Jobs/JobAdapter.swift

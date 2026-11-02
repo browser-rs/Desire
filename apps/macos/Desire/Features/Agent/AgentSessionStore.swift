@@ -3681,7 +3681,7 @@ class AgentSessionStore: ObservableObject {
         // runCommand 被批准 = 用户认可这条命令 → binary 顺带入系统访问
         // 允许列表（下次同类命令免审批）。 Dangerous 层级也入列——审批卡
         // 上展示的就是完整命令行，批准即信任。
-        if decision != .deny, tool == "runCommand",
+        if decision != .deny, tool == "runCommand" || tool == "runBackgroundCommand",
            let args = try? JSONSerialization.jsonObject(with: Data(approval.toolCall.function.arguments.utf8)) as? [String: Any],
            let commandTool = args["tool"] as? String {
             SystemCommandStore.shared.allow(commandTool)
@@ -3742,6 +3742,14 @@ class AgentSessionStore: ObservableObject {
             let argv = (dict["args"] as? [String]) ?? []
             var line = ([tool] + argv).joined(separator: " ")
             if let timeout = dict["timeoutSec"] { line += "  (timeout: \(timeout)s)" }
+            return line.count > 240 ? String(line.prefix(240)) + "…" : line
+        }
+        // 后台命令同样是 argv-only：审批卡展示完整命令行 + 后台/超时标记。
+        if call.function.name == "runBackgroundCommand",
+           let tool = dict["tool"] as? String {
+            let argv = (dict["args"] as? [String]) ?? []
+            var line = ([tool] + argv).joined(separator: " ")
+            if let timeout = dict["timeoutMinutes"] { line += "  (background, \(timeout) min)" }
             return line.count > 240 ? String(line.prefix(240)) + "…" : line
         }
         // pageAction：审批卡要说清"给哪个站点的哪个动作授权"——动作是

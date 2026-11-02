@@ -117,6 +117,35 @@ final class SystemCommandStore: ObservableObject {
         }
     }
 
+    /// 供后台命令复用的允许名单闸（v0.8.39）：完全访问免协商；否则未入列
+    /// 时走同一个人工协商，允许后永久入列。返回可执行文件或拒绝原因。
+    func resolveAllowedBinary(_ tool: String) async -> Result<URL, CommandLaunchError> {
+        let name = tool.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !name.isEmpty else { return .failure(CommandLaunchError("Missing tool")) }
+        if UserDefaults.standard.integer(forKey: "aiAccessLevel") == AgentSessionStore.AccessLevel.fullAccess.rawValue {
+            Log.agent.info("full access: binary '\(tool, privacy: .public)' runs without allowlist negotiation")
+        } else if !allowedBinaries.contains(name) {
+            let question = String(
+                format: String(localized: "Agent wants to run '%@', which is not in the system access allowlist. Type 允许 (allow) to add it permanently and continue; anything else declines."),
+                tool)
+            Log.agent.info("allowlist negotiation: asking user to approve '\(tool, privacy: .public)'")
+            let answer = await UserPromptCenter.shared.ask(
+                question, quickOptions: ["允许", "拒绝"])
+            let normalized = answer.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let approved = normalized.contains("允许") || normalized.contains("allow")
+                || normalized == "y" || normalized == "yes"
+            guard approved else {
+                return .failure(CommandLaunchError("Binary '\(tool)' is not allowlisted and the user declined to add it. Do not retry this command — ask the user how to proceed. Allowlisted: \(allowedBinaries.sorted().joined(separator: ", "))"))
+            }
+            allow(tool)
+            Log.agent.info("binary '\(tool, privacy: .public)' added to the allowlist via user-approved agent request")
+        }
+        guard let executable = resolve(name) else {
+            return .failure(CommandLaunchError("'\(tool)' is allowlisted but not installed (searched \(Self.searchPaths.joined(separator: ", "))). Try: brew install \(name == "brew" ? "" : name)"))
+        }
+        return .success(executable)
+    }
+
     /// Runs `tool` with `args`. The binary must be allowlisted. There is no
     /// shell: `args` are passed as argv, so quoting/injection does not apply.
     func run(
@@ -126,34 +155,13 @@ final class SystemCommandStore: ObservableObject {
         workDirectory: URL? = nil
     ) async -> CommandResult {
         let name = tool.trimmingCharacters(in: .whitespaces).lowercased()
-        // 完全访问（最高等级）：全部静默——协商问询跳过，直接执行。gate()
-        // 已按等级放行 runCommand，这里的 askUser 只在"变更前确认/自动编辑"
-        // 且 binary 未授权时出现。
-        if UserDefaults.standard.integer(forKey: "aiAccessLevel") == AgentSessionStore.AccessLevel.fullAccess.rawValue {
-            Log.agent.info("full access: binary '\(tool, privacy: .public)' runs without allowlist negotiation")
-        } else if !allowedBinaries.contains(name) {
-            // **主动协商**：不再直接拒绝——问用户"是否加入允许列表并继续"。
-            // 允许 → 永久入列并照常执行；拒绝/超时 → 带明确理由失败（模型
-            // 据此换路）。此前只能失败并指路设置页，智能体被允许名单卡死
-            //（用户实测 mv/df 连续被拒）。
-            let question = String(
-                format: String(localized: "Agent wants to run '%@', which is not in the system access allowlist. Type 允许 (allow) to add it permanently and continue; anything else declines."),
-                tool)
-            Log.agent.info("allowlist negotiation: asking user to approve '\(tool, privacy: .public)'")
-            let answer = await UserPromptCenter.shared.ask(
-                question, quickOptions: ["允许", "拒绝"])
-            Log.agent.info("allowlist negotiation: answer received '\(answer, privacy: .public)' (len \(answer.count))")
-            let normalized = answer.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            let approved = normalized.contains("允许") || normalized.contains("allow")
-                || normalized == "y" || normalized == "yes"
-            guard approved else {
-                return .failure("Binary '\(tool)' is not allowlisted and the user declined to add it. Do not retry this command — ask the user how to proceed. Allowlisted: \(allowedBinaries.sorted().joined(separator: ", "))")
-            }
-            allow(tool)
-            Log.agent.info("binary '\(tool, privacy: .public)' added to the allowlist via user-approved agent request")
-        }
-        guard let executable = resolve(name) else {
-            return .failure("'\(tool)' is allowlisted but not installed (searched \(Self.searchPaths.joined(separator: ", "))). Try: brew install \(name == "brew" ? "" : name)")
+        let resolution = await resolveAllowedBinary(tool)
+        let executable: URL
+        switch resolution {
+        case .success(let url):
+            executable = url
+        case .failure(let error):
+            return .failure(error.message)
         }
 
         let clampedTimeout = min(max(timeout, 5), 600)
@@ -275,4 +283,10 @@ final class SystemCommandStore: ObservableObject {
             timedOut: timedOut
         )
     }
+}
+
+/// 允许名单/安装检查失败（v0.8.39）：Result 的 Failure 必须 conform Error。
+nonisolated struct CommandLaunchError: Error, Equatable {
+    let message: String
+    init(_ message: String) { self.message = message }
 }

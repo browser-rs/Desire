@@ -76,6 +76,8 @@ enum ToolRisk: Int, Comparable {
         "listPageVideos",
         // 批量下载进度查询（只读；批量启动是有副作用工具，走默认 sideEffect）
         "listBatchDownloads",
+        // 后台任务（v0.8.39）：列表/详情只读；watch/cancel/retry 是写操作走默认 sideEffect
+        "listBackgroundTasks", "backgroundTaskStatus",
         // Deep page data extraction (read-only)
         "getTables", "getImages", "getPageMeta", "getElementHTML", "getNetworkLog",
         // Document reading & export (local OCR / PDF text layer / page→PDF writes a file only)
@@ -136,7 +138,7 @@ enum ToolRisk: Int, Comparable {
     /// Tools that execute arbitrary code or are otherwise unbounded in
     /// effect. Every call requires explicit confirmation.
     private static let dangerousTools: Set<String> = [
-        "executeJS", "runCommand",
+        "executeJS", "runCommand", "runBackgroundCommand",
         // 凭据操作：填存档密码并（可选）提交登录——必须显式确认。
         "fillLogin",
         // 日历事件删除（v0.7.20）：**不可逆**且无 Always-Allow 可接受——

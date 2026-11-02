@@ -13,6 +13,8 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
         case dataset
         case scheduled
         case download
+        case media
+        case command
         case agent
         case other
 
@@ -24,6 +26,8 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
             case .dataset: String(localized: "Data collection")
             case .scheduled: String(localized: "Scheduled task")
             case .download: String(localized: "Download")
+            case .media: String(localized: "Media")
+            case .command: String(localized: "Command")
             case .agent: String(localized: "Agent task")
             case .other: String(localized: "Job")
             }
@@ -37,6 +41,8 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
             case .dataset: "tablecells"
             case .scheduled: "clock.arrow.circlepath"
             case .download: "arrow.down.circle"
+            case .media: "film"
+            case .command: "terminal"
             case .agent: "sparkles"
             case .other: "square.stack.3d.up"
             }
@@ -102,6 +108,14 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
     var source: String?
     /// 外部对象 id（post uuid / conversation id），用于回写状态。
     var externalID: String?
+    /// 发起任务的会话（v0.8.39：完成备注/通知回到这里）。
+    var conversationID: UUID?
+    /// 命令/长任务的日志文件（JobLogs/<id>.log）。
+    var logFile: String?
+    /// 命令退出码（非命令任务为 nil）。
+    var exitCode: Int32?
+    /// 重试来源（v0.8.39）。
+    var retryOf: UUID?
     let createdAt: Date
     var updatedAt: Date
     var finishedAt: Date?
@@ -109,7 +123,9 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
     init(id: UUID = UUID(), title: String, kind: Kind, state: State = .queued,
          detail: String = "", progress: Double? = nil, artifactURL: String? = nil,
          receipt: String? = nil, error: String? = nil, source: String? = nil,
-         externalID: String? = nil, createdAt: Date = Date(),
+         externalID: String? = nil, conversationID: UUID? = nil,
+         logFile: String? = nil, exitCode: Int32? = nil, retryOf: UUID? = nil,
+         createdAt: Date = Date(),
          updatedAt: Date = Date(), finishedAt: Date? = nil) {
         self.id = id
         self.title = title
@@ -122,6 +138,10 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
         self.error = error
         self.source = source
         self.externalID = externalID
+        self.conversationID = conversationID
+        self.logFile = logFile
+        self.exitCode = exitCode
+        self.retryOf = retryOf
         self.createdAt = createdAt
         self.updatedAt = updatedAt
         self.finishedAt = finishedAt

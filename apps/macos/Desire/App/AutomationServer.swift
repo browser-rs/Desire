@@ -1315,6 +1315,18 @@ final class AutomationServer {
                     limit: Int(Self.string(query, "limit") ?? "") ?? 100))
             case ("POST", "/jobs/action"):
                 return try Self.json(Self.jobsAction(body))
+            case ("POST", "/jobs/watch"):
+                return try Self.json(Self.jobsWatch(body))
+            case ("POST", "/jobs/run"):
+                return try Self.json(await Self.jobsRun(body))
+            case ("POST", "/jobs/cancel"):
+                return try Self.json(Self.jobsCancel(body))
+            case ("POST", "/jobs/retry"):
+                return try Self.json(await Self.jobsRetry(body))
+            case ("GET", "/jobs/log"):
+                return try Self.json(Self.jobsLog(query))
+            case ("GET", "/jobs/watches"):
+                return try Self.json(Self.jobsWatches())
             case ("GET", "/playbooks"):
                 return try Self.json(Self.playbooksList())
             case ("POST", "/playbooks/run"):
@@ -7444,6 +7456,10 @@ final class AutomationServer {
         if let error = job.error { out["error"] = error }
         if let source = job.source { out["source"] = source }
         if let external = job.externalID { out["externalID"] = external }
+        if let conversation = job.conversationID { out["conversationID"] = conversation.uuidString }
+        if let logFile = job.logFile { out["logFile"] = logFile }
+        if let exitCode = job.exitCode { out["exitCode"] = exitCode }
+        if let retryOf = job.retryOf { out["retryOf"] = retryOf.uuidString }
         if let finished = job.finishedAt { out["finishedAt"] = ISO.string(from: finished) }
         return out
     }
@@ -7475,6 +7491,150 @@ final class AutomationServer {
         default:
             return ["error": "action must be dismiss | delete | clearFinished | approve | deny"]
         }
+    }
+
+    private static func jobsRun(_ body: [String: Any]) async -> [String: Any] {
+        guard let tool = string(body, "tool"), !tool.isEmpty else {
+            return ["error": "tool is required"]
+        }
+        let args = (body["args"] as? [String]) ?? []
+        let report: JobWatch.Mode? = {
+            switch (body["report"] as? String ?? "notify").lowercased() {
+            case "none": return nil
+            case "resume": return .resume
+            default: return .notify
+            }
+        }()
+        let conversationID = (body["conversationId"] as? String)
+            .flatMap(UUID.init(uuidString:))
+        let result = await BackgroundCommandStore.shared.start(
+            tool: tool, args: args,
+            title: body["title"] as? String,
+            cwd: body["cwd"] as? String,
+            timeoutMinutes: body["timeoutMinutes"] as? Double ?? 60,
+            conversationID: conversationID,
+            report: report)
+        switch result {
+        case .success(let id):
+            return ["ok": true, "jobID": id.uuidString]
+        case .failure(let error):
+            return ["error": error.message]
+        }
+    }
+
+    private static func jobsWatch(_ body: [String: Any]) -> [String: Any] {        let rawIDs = (body["ids"] as? [String]) ?? []
+        let ids = rawIDs.compactMap(UUID.init(uuidString:))
+        if ids.count != rawIDs.count {
+            return ["error": "invalid job id"]
+        }
+        let kind = (body["kind"] as? String)?.lowercased()
+        let mode: JobWatch.Mode = (body["mode"] as? String)?.lowercased() == "resume"
+            ? .resume : .notify
+        if let error = JobWatchCore.validationError(ids: ids, kind: kind, mode: mode) {
+            return ["error": error]
+        }
+        let targets = JobWatchCore.snapshot(ids: ids, kind: kind,
+                                            jobs: JobStore.shared.allJobs)
+        guard !targets.isEmpty else {
+            return ["error": "no matching jobs"]
+        }
+        let conversationID = (body["conversationId"] as? String)
+            .flatMap(UUID.init(uuidString:))
+        let watch = JobWatchStore.shared.register(
+            jobIDs: targets.map(\.id.uuidString),
+            conversationID: conversationID, mode: mode,
+            reason: body["reason"] as? String)
+        return ["ok": true,
+                "watchId": watch.id.uuidString,
+                "jobIDs": targets.map(\.id.uuidString),
+                "mode": mode.rawValue]
+    }
+
+    private static func jobsCancel(_ body: [String: Any]) -> [String: Any] {
+        guard let raw = string(body, "id"), let id = UUID(uuidString: raw) else {
+            return ["error": "missing or invalid id"]
+        }
+        guard let job = JobStore.shared.allJobs.first(where: { $0.id == id }) else {
+            return ["error": "no such job"]
+        }
+        if job.kind == .command {
+            guard BackgroundCommandStore.shared.runningIDs.contains(id) else {
+                return ["error": "command is not running"]
+            }
+            BackgroundCommandStore.shared.cancel(id)
+            return ["ok": true, "id": raw]
+        }
+        // 适配器任务的取消走 Agent 工具同一分派（避免桥与工具两套行为）。
+        let external = job.externalID ?? ""
+        if external.hasPrefix("batch-"),
+           let batchID = UUID(uuidString: String(external.dropFirst("batch-".count))) {
+            BatchMediaExportStore.shared.cancel(batchID: batchID)
+            return ["ok": true, "id": raw]
+        }
+        if external.hasPrefix("download-"),
+           let downloadID = UUID(uuidString: String(external.dropFirst("download-".count))) {
+            DownloadStore.live?.remove(id: downloadID)
+            return ["ok": true, "id": raw]
+        }
+        if external.hasPrefix("export-"),
+           let exportID = UUID(uuidString: String(external.dropFirst("export-".count))) {
+            MediaExportStore.shared.cancel(id: exportID)
+            return ["ok": true, "id": raw]
+        }
+        return ["error": "this job cannot be cancelled from the bridge"]
+    }
+
+    private static func jobsRetry(_ body: [String: Any]) async -> [String: Any] {
+        guard let raw = string(body, "id"), let id = UUID(uuidString: raw) else {
+            return ["error": "missing or invalid id"]
+        }
+        guard let job = JobStore.shared.allJobs.first(where: { $0.id == id }),
+              job.kind == .command else {
+            return ["error": "retry is only supported for background commands"]
+        }
+        switch await BackgroundCommandStore.shared.retry(id) {
+        case .success(let newID):
+            return ["ok": true, "jobID": newID.uuidString, "retryOf": raw]
+        case .failure(let message):
+            return ["error": message]
+        }
+    }
+
+    private static func jobsLog(_ query: [String: String]) -> [String: Any] {
+        guard let raw = string(query, "id"), let id = UUID(uuidString: raw),
+              let job = JobStore.shared.job(id: id) else {
+            return ["error": "no such job"]
+        }
+        guard let path = job.logFile, !path.isEmpty else {
+            return ["error": "job has no log file"]
+        }
+        let lines = min(max(Int(string(query, "lines") ?? "") ?? 40, 1), 200)
+        return ["id": raw, "logFile": path,
+                "tail": BackgroundCommandStore.readTail(path: path, maxLines: lines)]
+    }
+
+    private static func jobsWatches() -> [String: Any] {
+        let watches = JobWatchStore.shared.watches
+        return [
+            "active": watches.filter { !$0.isDone }.count,
+            "watches": watches.prefix(50).map { watch -> [String: Any] in
+                var out: [String: Any] = [
+                    "id": watch.id.uuidString,
+                    "jobIDs": watch.jobIDs,
+                    "mode": watch.mode.rawValue,
+                    "createdAt": ISO.string(from: watch.createdAt),
+                    "resumeUsed": watch.resumeUsed,
+                ]
+                if let conversation = watch.conversationID {
+                    out["conversationID"] = conversation.uuidString
+                }
+                if let delivered = watch.deliveredAt {
+                    out["deliveredAt"] = ISO.string(from: delivered)
+                }
+                if let reason = watch.reason { out["reason"] = reason }
+                return out
+            },
+        ]
     }
 
     private static func playbooksList() -> [String: Any] {

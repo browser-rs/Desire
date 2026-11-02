@@ -28,6 +28,13 @@ pub struct Config {
   /// Redis 地址(缓存加速);空 = 不启用,业务直连 DB。
   /// 例 redis://:password@127.0.0.1:6379/0
   pub redis_url: String,
+  /// 同步日配额（v0.8.38 C1）：按用户/日合计的写入行数与字节。
+  /// 0 = 关闭配额（只保留分钟级限流）。
+  pub sync_daily_rows: i64,
+  pub sync_daily_bytes: i64,
+  /// Prometheus /metrics 的 Bearer token（v0.8.38 C6）。
+  /// 空 = 仅 dev 环境可访问，prod 返回 404。
+  pub metrics_token: String,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -60,6 +67,13 @@ impl Config {
       ),
       bind_addr: env_or("DESIRE_API_BIND_ADDR", "0.0.0.0:18090"),
       redis_url: env_or("DESIRE_REDIS_URL", ""),
+      sync_daily_rows: env_or("DESIRE_API_SYNC_DAILY_ROWS", "50000")
+        .parse()
+        .unwrap_or(50_000),
+      sync_daily_bytes: env_or("DESIRE_API_SYNC_DAILY_BYTES", "67108864")
+        .parse()
+        .unwrap_or(64 * 1024 * 1024),
+      metrics_token: env_or("DESIRE_API_METRICS_TOKEN", ""),
     })
   }
 }

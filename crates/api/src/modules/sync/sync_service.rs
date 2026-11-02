@@ -119,6 +119,17 @@ pub async fn push(
       MAX_PUSH_ITEMS
     )));
   }
+  // 日配额（v0.8.38 C1）：按提交量预检——宁可保守挡住异常客户端，
+  // 也不要在写完几万行后才拒绝。0 = 关闭配额。
+  let mut requested_bytes: i64 = 0;
+  for item in &items {
+    if let Some(payload) = &item.payload {
+      requested_bytes += serde_json::to_vec(payload)
+        .map_err(|e| AppError::Internal(format!("payload 序列化失败: {e}")))?
+        .len() as i64;
+    }
+  }
+  enforce_daily_quota(state, user_id, items.len() as i64, requested_bytes).await?;
   let table = table_for(domain);
   let mut results = Vec::with_capacity(items.len());
   let now = Utc::now().naive_utc();
@@ -136,7 +147,7 @@ pub async fn push(
         .map_err(|e| AppError::Internal(format!("payload 序列化失败: {e}")))?
         .len();
       if size > MAX_PAYLOAD_BYTES {
-        return Err(AppError::Validation(format!(
+        return Err(AppError::PayloadTooLarge(format!(
           "单条 payload 最大 {} 字节",
           MAX_PAYLOAD_BYTES
         )));
@@ -232,6 +243,18 @@ pub async fn push(
     results.push(result);
   }
   tx.commit().await?;
+  if let Err(error) = record_usage(
+    state,
+    user_id,
+    domain,
+    results.len() as i64,
+    requested_bytes,
+  )
+  .await
+  {
+    // 用量记账失败不能让已经成功的同步报错
+    warn!("sync usage record failed: {error}");
+  }
   cleanup_history_ttl(state, user_id, domain).await;
   Ok(SyncPushResp {
     results,
@@ -371,6 +394,93 @@ pub async fn key_check_set(state: &AppState, user_id: i64, check: &str) -> Resul
 
 fn first_writer_wins(existing: Option<&str>, candidate: &str) -> bool {
   existing.is_none_or(|value| value == candidate)
+}
+
+// MARK: - 同步用量与日配额（v0.8.38 C1）
+
+/// 今日已写入行数/字节（跨域合计）。
+pub async fn usage_today(state: &AppState, user_id: i64) -> Result<(i64, i64), AppError> {
+  let row: (i64, i64) = sqlx::query_as(
+    "SELECT CAST(COALESCE(SUM(rows_written), 0) AS SIGNED), \
+            CAST(COALESCE(SUM(bytes_written), 0) AS SIGNED) \
+       FROM sync_usage WHERE user_id = ? AND day = CURDATE()",
+  )
+  .bind(user_id)
+  .fetch_one(&state.pool)
+  .await?;
+  Ok(row)
+}
+
+async fn enforce_daily_quota(
+  state: &AppState,
+  user_id: i64,
+  requested_rows: i64,
+  requested_bytes: i64,
+) -> Result<(), AppError> {
+  let max_rows = state.config.sync_daily_rows;
+  let max_bytes = state.config.sync_daily_bytes;
+  if max_rows <= 0 && max_bytes <= 0 {
+    return Ok(());
+  }
+  let (used_rows, used_bytes) = usage_today(state, user_id).await?;
+  if max_rows > 0 && used_rows + requested_rows > max_rows {
+    return Err(AppError::RateLimited(format!(
+      "今日同步行数额度已用尽（{used_rows}/{max_rows}），请稍后再试"
+    )));
+  }
+  if max_bytes > 0 && used_bytes + requested_bytes > max_bytes {
+    return Err(AppError::RateLimited(format!(
+      "今日同步流量额度已用尽（{used_bytes}/{max_bytes} 字节），请稍后再试"
+    )));
+  }
+  Ok(())
+}
+
+async fn record_usage(
+  state: &AppState,
+  user_id: i64,
+  domain: &str,
+  rows: i64,
+  bytes: i64,
+) -> Result<(), AppError> {
+  sqlx::query(
+    "INSERT INTO sync_usage (user_id, day, domain, rows_written, bytes_written) \
+     VALUES (?, CURDATE(), ?, ?, ?) AS new \
+     ON DUPLICATE KEY UPDATE \
+       rows_written = rows_written + new.rows_written, \
+       bytes_written = bytes_written + new.bytes_written",
+  )
+  .bind(user_id)
+  .bind(domain)
+  .bind(rows)
+  .bind(bytes)
+  .execute(&state.pool)
+  .await?;
+  Ok(())
+}
+
+/// 用量面板（用户自查 + admin）：今日合计、额度、最近 7 天分日。
+pub async fn usage(state: &AppState, user_id: i64) -> Result<serde_json::Value, AppError> {
+  let (used_rows, used_bytes) = usage_today(state, user_id).await?;
+  let days: Vec<(String, i64, i64)> = sqlx::query_as(
+    "SELECT DATE_FORMAT(day, '%Y-%m-%d'), \
+            CAST(SUM(rows_written) AS SIGNED), CAST(SUM(bytes_written) AS SIGNED) \
+       FROM sync_usage WHERE user_id = ? AND day >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) \
+      GROUP BY day ORDER BY day DESC",
+  )
+  .bind(user_id)
+  .fetch_all(&state.pool)
+  .await?;
+  Ok(serde_json::json!({
+    "today": {"rows": used_rows, "bytes": used_bytes},
+    "quota": {
+      "rows": state.config.sync_daily_rows,
+      "bytes": state.config.sync_daily_bytes,
+    },
+    "days": days.into_iter().map(|(day, rows, bytes)| {
+      serde_json::json!({"day": day, "rows": rows, "bytes": bytes})
+    }).collect::<Vec<_>>(),
+  }))
 }
 
 #[cfg(test)]

@@ -11,13 +11,14 @@
 | excerpts 第十三同步域（v0.8.17） | 无迁移 | 纯 DOMAINS 白名单加行 |
 | 多档案域键 `bookmarks@<profileUUID>`（v0.8.18 方案 A） | **0018** sync_domain_widen | `sync_items`/`sync_pull_cursors` 的 domain varchar(32)→(64)；应用层 is_valid_domain 校验 base 域 + 后缀 charset |
 | ebooks 第十五同步域（v0.8.37） | 无迁移 | `DOMAINS` 白名单加行；未部署时客户端只有 ebooks 域失败，其他域照常 |
+| 同步日配额 + API 2.0（v0.8.38） | **0019** sync_usage | 按用户/日/域记账；`/sync/usage`、`/meta/capabilities`、`/health` 细分、`/metrics`、`x-request-id`、remote ack/stats/cleanup |
 
 ## 部署机步骤
 
 ```bash
 cd <repo> && git pull
 ./scripts/build-migrate.sh          # 迁移执行器镜像
-./scripts/migrate.sh                # 跑迁移（0017→0018，幂等可重放）
+./scripts/migrate.sh                # 跑迁移（0019，幂等可重放）
 ./scripts/build-api.sh              # API 镜像（双架构）
 ./scripts/run.sh api                # 滚动重启 API
 ```
@@ -32,6 +33,12 @@ curl -s https://api.mankong.icu/v9/sync/excerpts -H "Authorization: Bearer <toke
 curl -s "https://api.mankong.icu/v9/sync/bookmarks@00000000-0000-0000-0000-000000000000" -H "Authorization: Bearer <token>"
 # ebooks 域（应 200，不再是 404）：
 curl -s https://api.mankong.icu/v9/sync/ebooks -H "Authorization: Bearer <token>"
+# v0.8.38：能力声明 / 配额 / 可观测（健康应 200 且 db=true；metrics 需 token）：
+curl -s https://api.mankong.icu/v9/meta/capabilities
+curl -s https://api.mankong.icu/v9/health
+curl -s https://api.mankong.icu/v9/sync/usage -H "Authorization: Bearer <token>"
+curl -s https://api.mankong.icu/v9/metrics -H "Authorization: Bearer $DESIRE_API_METRICS_TOKEN"
+# 任一响应头应带 x-request-id
 ```
 
 ## 客户端依赖

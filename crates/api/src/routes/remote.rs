@@ -22,5 +22,11 @@ pub fn router() -> Router<AppState> {
     .route("/remote/devices", get(remote_controller::devices))
     .route("/remote/pull", get(remote_controller::pull_inbox))
     .route("/remote/push", post(remote_controller::push_frame))
+    .route("/remote/ack", post(remote_controller::ack))
+    .route("/remote/inbox/stats", get(remote_controller::inbox_stats))
+    .route(
+      "/remote/inbox/cleanup",
+      post(remote_controller::inbox_cleanup),
+    )
     .route("/remote/ws", get(remote_controller::ws))
 }

@@ -50,6 +50,11 @@ final class SyncStore: ObservableObject {
     @Published private(set) var diagnostics: [SyncDomain: SyncDomainDiag] = [:]
     /// 同步服务器地址（设置页/桥可改，立即生效）。
     @Published private(set) var serverBaseURL: String
+    /// 服务端能力声明（v0.8.38 C9）：nil = 还没取到/旧服务端（按全支持处理）。
+    /// 取到后，服务端不支持的域会跳过并标记"服务端需更新"，而不是每轮都
+    /// 拿 404/422 把该域刷成失败。
+    @Published private(set) var serverCapabilities: SyncServerCapabilities?
+    @Published private(set) var unsupportedDomains: Set<SyncDomain> = []
     /// 用户选择的同步类目（缺省全开）。关闭 = 跳过该域 push/pull；
     /// 游标保留，重新打开后自动补齐关闭期间的增量；服务端数据不删。
     @Published private(set) var enabledDomains: [SyncDomain: Bool] = [:]
@@ -1013,7 +1018,15 @@ final class SyncStore: ObservableObject {
             throw SyncCrypto.CryptoError.invalidKeyFormat
         }
         var outcome = SyncCycleOutcome()
+        // 每轮取一次能力声明（公开端点、极轻）；失败保留上次结果，不阻断同步。
+        await refreshServerCapabilities(token: token)
         for adapter in domainAdapters where isEnabled(adapter.domain) {
+            if unsupportedDomains.contains(adapter.domain) {
+                let message = String(localized: "Server update required")
+                outcome.failed[adapter.domain] = message
+                domainStatus[adapter.domain] = .failed(message)
+                continue
+            }
             do {
                 try await runDomainSync(adapter, token: token, master: master)
                 outcome.succeeded.insert(adapter.domain)
@@ -1029,6 +1042,27 @@ final class SyncStore: ObservableObject {
             }
         }
         return outcome
+    }
+
+    /// 服务端能力（v0.8.38 C9）：GET /meta/capabilities。
+    /// 旧服务端返回 404 → 保持"全支持"语义（服务端不识别的域会在同步时
+    /// 自己报错，与升级前行为一致）。
+    private func refreshServerCapabilities(token: String) async {
+        do {
+            let capabilities = try await SyncAPIClient.capabilities(baseURL: serverBaseURL)
+            serverCapabilities = capabilities
+            let supported = Set(capabilities.syncDomains)
+            unsupportedDomains = Set(SyncDomain.allCases.filter {
+                !supported.contains($0.rawValue)
+            })
+            if !unsupportedDomains.isEmpty {
+                Log.app.info(
+                    "server capabilities: v\(capabilities.apiVersion, privacy: .public), unsupported domains: \(self.unsupportedDomains.map(\.rawValue).sorted().joined(separator: ","), privacy: .public)")
+            }
+        } catch {
+            // 兼容旧服务端：不把"没有能力端点"当成失败
+            Log.app.debug("server capabilities unavailable: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     /// 远端数据落地（push 胜者 / pull 合并 / 清 pending）一律包在这里：

@@ -69,6 +69,16 @@ enum SyncDomain: String, CaseIterable {
     }
 }
 
+/// 服务端能力声明（v0.8.38 C9，`GET /meta/capabilities`）。
+/// 旧服务端 404 → 调用方按"全支持"兼容处理，不阻塞同步。
+nonisolated struct SyncServerCapabilities: Codable, Equatable {
+    var apiVersion: String
+    var syncDomains: [String]
+    var syncDomainPrefixes: Bool?
+    var remoteFrames: [String]?
+    var features: [String: Bool]?
+}
+
 /// 单域的同步诊断计数（0.6.8 同步日志，纯值类型进 harness 无需——仅 Codable 持久化）。
 /// 累计口径：pushed = 实际发出的条数（含墓碑）；pulled = 游标增量收到的条数；
 /// conflicts = LWW 输掉（服务端胜者回写落地）的条数。lastConflictMark 取

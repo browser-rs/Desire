@@ -14,6 +14,8 @@ pub enum AppError {
   Conflict(String),
   #[error("validation: {0}")]
   Validation(String),
+  #[error("payload too large: {0}")]
+  PayloadTooLarge(String),
   #[error("rate limited: {0}")]
   RateLimited(String),
   #[error(transparent)]
@@ -51,6 +53,7 @@ impl IntoResponse for AppError {
       AppError::NotFound(_) => (StatusCode::NOT_FOUND, 404),
       AppError::Conflict(_) => (StatusCode::CONFLICT, 409),
       AppError::Validation(_) => (StatusCode::UNPROCESSABLE_ENTITY, 422),
+      AppError::PayloadTooLarge(_) => (StatusCode::PAYLOAD_TOO_LARGE, 413),
       AppError::RateLimited(_) => (StatusCode::TOO_MANY_REQUESTS, 429),
       AppError::Sql(_) | AppError::Internal(_) => (StatusCode::INTERNAL_SERVER_ERROR, 500),
     };
@@ -60,11 +63,20 @@ impl IntoResponse for AppError {
       other => other.to_string(),
     };
     tracing::error!(error = %self, "request failed");
-    (
+    let mut response = (
       status,
       Json(serde_json::json!({"code": code, "message": message, "data": null})),
     )
-      .into_response()
+      .into_response();
+    // 429 带 Retry-After（v0.8.38 C1）：客户端/网关可据此退避，而不是
+    // 立刻重试把配额窗口继续打满。
+    if matches!(self, AppError::RateLimited(_)) {
+      response.headers_mut().insert(
+        axum::http::header::RETRY_AFTER,
+        axum::http::HeaderValue::from_static("60"),
+      );
+    }
+    response
   }
 }
 
@@ -80,6 +92,7 @@ mod tests {
       AppError::NotFound("user".into()),
       AppError::Conflict("phone".into()),
       AppError::Validation("bad field".into()),
+      AppError::PayloadTooLarge("too big".into()),
       AppError::Internal("boom".into()),
     ];
     for e in cases {

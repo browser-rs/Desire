@@ -15,6 +15,8 @@ pub const MAX_PAYLOAD_BYTES: usize = 32 * 1024;
 pub const ONLINE_WINDOW_SECS: i64 = 15;
 /// 单用户桌面配对数上限。
 pub const MAX_DESKTOPS_PER_USER: usize = 4;
+/// 单设备 pending 帧上限（v0.8.38 C2）：超出丢最旧，防离线堆积无限增长。
+pub const MAX_INBOX_PER_DEVICE: i64 = 500;
 
 fn hash_code(code: &str) -> String {
   let mut hasher = Sha256::new();
@@ -325,7 +327,10 @@ pub async fn inbox_push(
   replace: bool,
 ) -> Result<i64, AppError> {
   let cutoff = Utc::now().naive_utc() - Duration::hours(INBOX_TTL_HOURS);
-  sqlx::query("DELETE FROM remote_inbox WHERE created_at < ?")
+  // 只清本用户（v0.8.38：此前每 push 删全表过期行，行锁范围过大；
+  // 跨用户回收交给 inbox_cleanup / 运维任务）。
+  sqlx::query("DELETE FROM remote_inbox WHERE user_id = ? AND created_at < ?")
+    .bind(user_id)
     .bind(cutoff)
     .execute(&state.pool)
     .await?;
@@ -352,6 +357,22 @@ pub async fn inbox_push(
   .execute(&state.pool)
   .await?;
   let id = i64::try_from(result.last_insert_id()).unwrap_or_default();
+  // pending 上限（v0.8.38 C2）：只保留最新 N 条，超出丢最旧——
+  // 离线堆积无限增长会拖慢 pull 且没有业务价值（快照本来就是 replace）。
+  sqlx::query(
+    "DELETE FROM remote_inbox WHERE user_id = ? AND desktop_device_id = ? AND id < (\
+       SELECT min_id FROM (\
+         SELECT id AS min_id FROM remote_inbox \
+          WHERE user_id = ? AND desktop_device_id = ? ORDER BY id DESC LIMIT 1 OFFSET ?\
+       ) t)",
+  )
+  .bind(user_id)
+  .bind(desktop_device_id)
+  .bind(user_id)
+  .bind(desktop_device_id)
+  .bind(MAX_INBOX_PER_DEVICE - 1)
+  .execute(&state.pool)
+  .await?;
   // express:与实例无关,收件方的 WS 连接(挂在任意实例上)各自消费本频道。
   // Redis 未配置/发布失败静默——兜底是 pull(1s)。
   publish_express(state, user_id, desktop_device_id, mailbox, id, payload).await;
@@ -366,6 +387,7 @@ pub async fn inbox_take(
   user_id: i64,
   desktop_device_id: &str,
   lanes: &[Mailbox],
+  since: Option<i64>,
 ) -> Result<Vec<(i64, String)>, AppError> {
   assert!(!lanes.is_empty(), "pull_lanes 不返回空");
   if lanes.contains(&Mailbox::Desktop) {
@@ -381,13 +403,14 @@ pub async fn inbox_take(
   let rows: Vec<(i64, String)> = sqlx::query_as(
     "SELECT id, payload FROM remote_inbox \
      WHERE user_id = ? AND desktop_device_id = ? AND delivered_at IS NULL \
-       AND (recipient = ? OR recipient = ?) \
+       AND (recipient = ? OR recipient = ?) AND id > ? \
       ORDER BY id LIMIT 100 FOR UPDATE",
   )
   .bind(user_id)
   .bind(desktop_device_id)
   .bind(first)
   .bind(second)
+  .bind(since.unwrap_or(0))
   .fetch_all(&mut *tx)
   .await
   .map_err(|e| AppError::Internal(format!("inbox take: {e}")))?;
@@ -402,6 +425,111 @@ pub async fn inbox_take(
     .await
     .map_err(|e| AppError::Internal(format!("inbox take: {e}")))?;
   Ok(rows)
+}
+
+/// 客户端回执（v0.8.38 C2）：当前 pull 是"取走即删"语义，ack 主要用于
+/// 客户端对已处理 id 做幂等清理（正常路径行已不在）；限 id 数 200。
+pub async fn inbox_ack(
+  state: &AppState,
+  user_id: i64,
+  desktop_device_id: &str,
+  ids: &[i64],
+) -> Result<u64, AppError> {
+  if ids.is_empty() {
+    return Ok(0);
+  }
+  if ids.len() > 200 {
+    return Err(AppError::Validation("单次最多回执 200 条".into()));
+  }
+  let placeholders = ids.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
+  let mut query = sqlx::query(sqlx::AssertSqlSafe(format!(
+    "DELETE FROM remote_inbox WHERE user_id = ? AND desktop_device_id = ? AND id IN ({placeholders})",
+  )))
+  .bind(user_id)
+  .bind(desktop_device_id);
+  for id in ids {
+    query = query.bind(id);
+  }
+  let result = query.execute(&state.pool).await?;
+  Ok(result.rows_affected())
+}
+
+/// Inbox 指标（v0.8.38 C2）：pending 按 lane 计数、最旧帧年龄。
+/// `delivered` 恒为 null：取走即删，不保留投递台账（文档口径）。
+pub async fn inbox_stats(
+  state: &AppState,
+  user_id: i64,
+  desktop_device_id: &str,
+) -> Result<serde_json::Value, AppError> {
+  let rows: Vec<(String, i64, Option<chrono::NaiveDateTime>)> = sqlx::query_as(
+    "SELECT recipient, COUNT(*), MIN(created_at) FROM remote_inbox \
+      WHERE user_id = ? AND desktop_device_id = ? GROUP BY recipient",
+  )
+  .bind(user_id)
+  .bind(desktop_device_id)
+  .fetch_all(&state.pool)
+  .await?;
+  let now = Utc::now().naive_utc();
+  let mut total = 0i64;
+  let mut oldest_age: Option<i64> = None;
+  let by_recipient: Vec<serde_json::Value> = rows
+    .into_iter()
+    .map(|(recipient, count, oldest)| {
+      total += count;
+      if let Some(oldest) = oldest {
+        let age = (now - oldest).num_seconds().max(0);
+        oldest_age = Some(oldest_age.map_or(age, |current| current.max(age)));
+      }
+      serde_json::json!({
+        "recipient": recipient,
+        "pending": count,
+        "oldestAgeSecs": oldest.map(|t| (now - t).num_seconds().max(0)),
+      })
+    })
+    .collect();
+  Ok(serde_json::json!({
+    "pending": total,
+    "delivered": serde_json::Value::Null,
+    "oldestAgeSecs": oldest_age,
+    "maxPendingPerDevice": MAX_INBOX_PER_DEVICE,
+    "byRecipient": by_recipient,
+  }))
+}
+
+/// 清理（v0.8.38 C2）：过期帧 + 超出单设备上限的最旧帧。返回删除数。
+pub async fn inbox_cleanup(state: &AppState, user_id: i64) -> Result<u64, AppError> {
+  let cutoff = Utc::now().naive_utc() - Duration::hours(INBOX_TTL_HOURS);
+  let expired = sqlx::query("DELETE FROM remote_inbox WHERE user_id = ? AND created_at < ?")
+    .bind(user_id)
+    .bind(cutoff)
+    .execute(&state.pool)
+    .await?
+    .rows_affected();
+  // 逐设备裁到上限；设备数很少（≤4），逐条执行可读性更好。
+  let devices: Vec<(String,)> =
+    sqlx::query_as("SELECT DISTINCT desktop_device_id FROM remote_inbox WHERE user_id = ?")
+      .bind(user_id)
+      .fetch_all(&state.pool)
+      .await?;
+  let mut trimmed = 0u64;
+  for (device,) in devices {
+    trimmed += sqlx::query(
+      "DELETE FROM remote_inbox WHERE user_id = ? AND desktop_device_id = ? AND id < (\
+         SELECT min_id FROM (\
+           SELECT id AS min_id FROM remote_inbox \
+            WHERE user_id = ? AND desktop_device_id = ? ORDER BY id DESC LIMIT 1 OFFSET ?\
+         ) t)",
+    )
+    .bind(user_id)
+    .bind(&device)
+    .bind(user_id)
+    .bind(&device)
+    .bind(MAX_INBOX_PER_DEVICE - 1)
+    .execute(&state.pool)
+    .await?
+    .rows_affected();
+  }
+  Ok(expired + trimmed)
 }
 
 fn claim_update_won(rows_affected: u64) -> bool {

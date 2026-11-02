@@ -55,6 +55,12 @@ nonisolated enum SyncAPIClient {
         try await send("GET", baseURL, "/auth/captcha")
     }
 
+    /// 服务端能力声明（v0.8.38 C9；公开端点）。旧服务端没有该路由时
+    /// `send` 会抛错，调用方按全支持处理。
+    static func capabilities(baseURL: String) async throws -> SyncServerCapabilities {
+        try await send("GET", baseURL, "/meta/capabilities")
+    }
+
     /// 修改密码（登录态）。成功后现有令牌仍有效。
     /// body 内可携带换包字段（E2E）：新盐 + 新包裹 DEK。
     static func changePassword(

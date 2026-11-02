@@ -29,6 +29,17 @@ pub async fn connect(url: &str) -> Option<ConnectionManager> {
   }
 }
 
+/// 健康检查用探活：未配置 Redis = true（可选组件不拖垮健康分）；
+/// 配置了则真实 PING。
+pub async fn ping(redis: &Option<ConnectionManager>) -> bool {
+  let Some(conn) = redis else { return true };
+  let mut conn = conn.clone();
+  redis::cmd("PING")
+    .query_async::<String>(&mut conn)
+    .await
+    .is_ok()
+}
+
 /// 读缓存;未配置 / 未命中 / 反序列化失败 / 连接错误 → None(降级读源)
 pub async fn get_json<T: DeserializeOwned>(
   redis: &Option<ConnectionManager>,

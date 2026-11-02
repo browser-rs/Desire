@@ -296,7 +296,9 @@
 - **批三（Remote 体验）**：B3 + B4 + B8 + B5 + B7 —— 通知/离线/连接/iPad/文件详情
   （通知类别与 Allow/Deny 动作、离线缓存与发件箱、连接状态条与延迟、iPad 分栏、
   文件缩略图/下载元数据）。
-- **批四（API 地基）**：C1 + C2 + C9 + C6 —— 配额/inbox/能力声明/可观测。
+- **批四（API 地基）**：C1 + C2 + C9 + C6 —— 配额/inbox/能力声明/可观测
+  （`sync_usage` 0019 + 日配额与 429/Retry-After、`/meta/capabilities` 与客户端域门控、
+  remote `ack/stats/cleanup` 与单设备 pending 上限、`/health` 细分 + `/metrics` + `x-request-id`）。
 - **批五（常规产出 + API 收口）**：A2 + A3 + A5 + A6 + A7 + C3–C5 + C7 + C8。
 
 ## 八、技术地图

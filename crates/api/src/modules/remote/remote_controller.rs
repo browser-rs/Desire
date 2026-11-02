@@ -24,6 +24,8 @@ fn api_ok<T: serde::Serialize>(data: T) -> Response {
 fn api_err(err: AppError) -> Response {
   let (status, code, message) = match err {
     AppError::Validation(m) => (StatusCode::UNPROCESSABLE_ENTITY, 422, m),
+    AppError::PayloadTooLarge(m) => (StatusCode::PAYLOAD_TOO_LARGE, 413, m),
+    AppError::RateLimited(m) => (StatusCode::TOO_MANY_REQUESTS, 429, m),
     AppError::Unauthorized(m) => (StatusCode::UNAUTHORIZED, 401, m),
     AppError::Forbidden(m) => (StatusCode::FORBIDDEN, 403, m),
     other => (StatusCode::INTERNAL_SERVER_ERROR, 500, other.to_string()),
@@ -164,7 +166,11 @@ pub async fn pull_inbox(
   ) {
     return api_err(AppError::Validation("拉取过于频繁".into()));
   }
-  match remote_service::inbox_take(&state, claims.sub, &device_id, &lanes).await {
+  let since = params
+    .get("since")
+    .and_then(|value| value.trim().parse::<i64>().ok())
+    .filter(|value| *value > 0);
+  match remote_service::inbox_take(&state, claims.sub, &device_id, &lanes, since).await {
     Ok(rows) => {
       let online = remote_service::desktop_online(&state, claims.sub, &device_id).await;
       let items: Vec<Value> = rows
@@ -173,6 +179,56 @@ pub async fn pull_inbox(
         .collect();
       api_ok(json!({"items": items, "desktopOnline": online}))
     }
+    Err(e) => api_err(e),
+  }
+}
+
+/// POST /remote/ack?device=<desktop_device_id> —— 客户端已处理帧的幂等回执
+/// （v0.8.38 C2）。body `{"ids":[1,2,...]}`，最多 200 条。
+pub async fn ack(
+  State(state): State<AppState>,
+  Extension(claims): Extension<Claims>,
+  Query(params): Query<HashMap<String, String>>,
+  Json(body): Json<Value>,
+) -> Response {
+  let device_id = params.get("device").cloned().unwrap_or_default();
+  if device_id.is_empty() || device_id.len() > 64 {
+    return api_err(AppError::Validation("invalid device".into()));
+  }
+  let ids: Vec<i64> = body
+    .get("ids")
+    .and_then(|value| value.as_array())
+    .map(|items| items.iter().filter_map(Value::as_i64).collect())
+    .unwrap_or_default();
+  match remote_service::inbox_ack(&state, claims.sub, &device_id, &ids).await {
+    Ok(deleted) => api_ok(json!({"deleted": deleted})),
+    Err(e) => api_err(e),
+  }
+}
+
+/// GET /remote/inbox/stats?device= —— pending/最旧帧年龄（v0.8.38 C2）。
+pub async fn inbox_stats(
+  State(state): State<AppState>,
+  Extension(claims): Extension<Claims>,
+  Query(params): Query<HashMap<String, String>>,
+) -> Response {
+  let device_id = params.get("device").cloned().unwrap_or_default();
+  if device_id.is_empty() || device_id.len() > 64 {
+    return api_err(AppError::Validation("invalid device".into()));
+  }
+  match remote_service::inbox_stats(&state, claims.sub, &device_id).await {
+    Ok(stats) => api_ok(stats),
+    Err(e) => api_err(e),
+  }
+}
+
+/// POST /remote/inbox/cleanup —— 过期 + 超上限清理（v0.8.38 C2）。
+pub async fn inbox_cleanup(
+  State(state): State<AppState>,
+  Extension(claims): Extension<Claims>,
+) -> Response {
+  match remote_service::inbox_cleanup(&state, claims.sub).await {
+    Ok(deleted) => api_ok(json!({"deleted": deleted})),
     Err(e) => api_err(e),
   }
 }
@@ -191,8 +247,11 @@ pub async fn push_frame(
     Ok(v) => v,
     Err(resp) => return resp,
   };
-  if body.payload.is_empty() || body.payload.len() > remote_service::MAX_PAYLOAD_BYTES {
+  if body.payload.is_empty() {
     return api_err(AppError::Validation("invalid payload".into()));
+  }
+  if body.payload.len() > remote_service::MAX_PAYLOAD_BYTES {
+    return api_err(AppError::PayloadTooLarge("payload 超过 32KB".into()));
   }
   if !state.rate_limiter.allow(
     &format!("remote-push-{}-{}", claims.sub, &device_id),

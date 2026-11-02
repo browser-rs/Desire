@@ -17,4 +17,5 @@ pub fn router() -> Router<AppState> {
     )
     .route("/sync/gc", axum::routing::post(sync_controller::gc))
     .route("/sync/devices", get(sync_controller::devices))
+    .route("/sync/usage", get(sync_controller::usage))
 }

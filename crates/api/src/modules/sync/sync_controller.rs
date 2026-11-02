@@ -68,6 +68,14 @@ pub async fn pull(
   Query(q): Query<std::collections::HashMap<String, String>>,
 ) -> ApiResult<SyncPullResp> {
   ensure_domain(&domain)?;
+  // 分钟级限流（v0.8.38 C1）：与日配额互补——挡瞬时风暴，日配额挡慢性滥用。
+  if !state.rate_limiter.allow(
+    &format!("sync-pull-{}-{}", claims.sub, domain),
+    240,
+    std::time::Duration::from_secs(60),
+  ) {
+    return Err(AppError::RateLimited("同步拉取过于频繁".into()));
+  }
   let since = match q.get("since").map(|s| s.trim()).filter(|s| !s.is_empty()) {
     None => None,
     Some(raw) => Some(sync_service::parse_since(raw)?),
@@ -141,6 +149,25 @@ pub async fn push(
   Json(req): Json<SyncPushReq>,
 ) -> ApiResult<SyncPushResp> {
   ensure_domain(&domain)?;
+  if !state.rate_limiter.allow(
+    &format!("sync-push-{}-{}", claims.sub, domain),
+    120,
+    std::time::Duration::from_secs(60),
+  ) {
+    return Err(AppError::RateLimited("同步推送过于频繁".into()));
+  }
   let resp = sync_service::push(&state, claims.sub, &domain, req.items).await?;
   api_ok!(resp)
+}
+
+/// GET /sync/usage —— 今日用量/配额与最近 7 天（v0.8.38 C1）。
+#[utoipa::path(
+  get, path = "/sync/usage", tag = "sync",
+  responses((status = 200))
+)]
+pub async fn usage(
+  State(state): State<AppState>,
+  Extension(claims): Extension<Claims>,
+) -> ApiResult<serde_json::Value> {
+  api_ok!(sync_service::usage(&state, claims.sub).await?)
 }

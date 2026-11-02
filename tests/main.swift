@@ -8161,6 +8161,7 @@ testEbookNotesExportCore()
 testEbookMarkdownCore()
 testEbookTranslationAndLibrarySearchCore()
 testReadingDigestCore()
+testFB2Core()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
@@ -8951,4 +8952,52 @@ func testReadingDigestCore() {
     eq("摘要：分格式", ReadingDigestCore.duration(60), "1m")
     eq("摘要：小时格式", ReadingDigestCore.duration(3_600), "1h")
     eq("摘要：小时分钟", ReadingDigestCore.duration(5_400), "1h 30m")
+}
+
+// ---------- FB2 与固定版式（v0.8.36） ----------
+
+func testFB2Core() {
+    let xml = """
+    <?xml version="1.0" encoding="utf-8"?>
+    <FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" xmlns:l="http://www.w3.org/1999/xlink">
+      <description><title-info>
+        <book-title>FB2 测试</book-title>
+        <author><first-name>李</first-name><last-name>四</last-name></author>
+      </title-info></description>
+      <body><section>
+        <title><p>第一章</p></title>
+        <p>正文 <emphasis>强调</emphasis>。</p>
+        <image l:href="#img1"/>
+        <section><title><p>第二节</p></title><p>正文二。</p></section>
+      </section></body>
+      <binary id="img1" content-type="image/png">aGVsbG8=</binary>
+    </FictionBook>
+    """
+    guard let parsed = FB2Core.parse(Data(xml.utf8)) else {
+        check("FB2：解析成功", false)
+        return
+    }
+    eq("FB2：标题", parsed.title, "FB2 测试")
+    check("FB2：作者", parsed.author.contains("李") && parsed.author.contains("四"))
+    eq("FB2：章节数", parsed.chapters.count, 2)
+    eq("FB2：首章", parsed.chapters[0].title, "第一章")
+    check("FB2：强调", parsed.chapters[0].html.contains("<em>强调</em>"))
+    check("FB2：图片改写", parsed.chapters[0].html.contains("images/fb2-img1.png"))
+    eq("FB2：图片数", parsed.images.count, 1)
+
+    let fixed = """
+    <package xmlns="http://www.idpf.org/2007/opf" version="3.0" unique-identifier="id">
+      <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+        <dc:title>Fixed</dc:title>
+        <meta property="rendition:layout">pre-paginated</meta>
+      </metadata>
+      <manifest><item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/></manifest>
+      <spine><itemref idref="c1"/></spine>
+    </package>
+    """
+    let fixedPackage = EbookCore.parseOPF(Data(fixed.utf8), opfPath: "OEBPS/content.opf")
+    check("固定版式：检出", fixedPackage?.metadata.isFixedLayout == true)
+    let reflow = fixed.replacingOccurrences(of: "pre-paginated", with: "reflowable")
+    let reflowPackage = EbookCore.parseOPF(Data(reflow.utf8), opfPath: "OEBPS/content.opf")
+    check("固定版式：不误报", reflowPackage?.metadata.isFixedLayout == false)
 }

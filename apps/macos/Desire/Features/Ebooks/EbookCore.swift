@@ -12,6 +12,8 @@ nonisolated enum EbookCore {
         var publisher = ""
         var identifier = ""
         var coverHref: String?
+        /// EPUB3 固定版式（rendition:layout = pre-paginated）；本版只检出并提示。
+        var isFixedLayout = false
     }
 
     struct ManifestItem: Equatable, Sendable {
@@ -401,6 +403,7 @@ private nonisolated final class OPFDelegate: NSObject, XMLParserDelegate {
     var coverID: String?
     var guideCover: String?
     private var currentField: String?
+    private var inRenditionLayout = false
     private var buffer = ""
 
     init(opfDirectory: String) {
@@ -425,6 +428,9 @@ private nonisolated final class OPFDelegate: NSObject, XMLParserDelegate {
             if attributeDict["name"]?.lowercased() == "cover" {
                 coverID = attributeDict["content"]
             }
+            if attributeDict["property"] == "rendition:layout" {
+                inRenditionLayout = true
+            }
         } else if local == "reference" {
             if attributeDict["type"]?.lowercased() == "cover" {
                 guideCover = attributeDict["href"]
@@ -442,6 +448,14 @@ private nonisolated final class OPFDelegate: NSObject, XMLParserDelegate {
                 namespaceURI: String?, qualifiedName qName: String?) {
         let name = elementName.lowercased()
         let local = name.split(separator: ":").last.map(String.init) ?? name
+        if local == "meta", inRenditionLayout {
+            if buffer.lowercased().contains("pre-paginated") {
+                metadata.isFixedLayout = true
+            }
+            inRenditionLayout = false
+            buffer = ""
+            return
+        }
         guard currentField == local else { return }
         let value = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
         switch local {

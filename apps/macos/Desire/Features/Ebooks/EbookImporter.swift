@@ -79,6 +79,19 @@ nonisolated enum EbookImporter {
                                         containerDirectory: containerDirectory,
                                         displayName: url.lastPathComponent)
         }
+        if extensionName == "fb2" {
+            let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize)
+                .map(Int64.init) ?? 0
+            guard fileSize > 0 else { throw ImportError.emptyFile }
+            let containerDirectory = hash
+            let bookDirectory = root.appendingPathComponent(containerDirectory,
+                                                            isDirectory: true)
+            try? manager.removeItem(at: bookDirectory)
+            try manager.createDirectory(at: bookDirectory, withIntermediateDirectories: true)
+            return try importFB2(url: url, hash: hash, fileSize: fileSize,
+                                 bookDirectory: bookDirectory,
+                                 containerDirectory: containerDirectory)
+        }
         guard let format = EbookFormat(fileExtension: extensionName) else {
             throw ImportError.unsupported(extensionName.isEmpty ? "?" : extensionName)
         }
@@ -341,6 +354,129 @@ nonisolated enum EbookImporter {
             .replacingOccurrences(of: "&#39;", with: "'")
             .replacingOccurrences(of: "&nbsp;", with: " ")
         return title
+    }
+
+    // MARK: - FB2
+
+    /// FB2 转成最小 EPUB 目录后按 EPUB 读（复用阅读/搜索/目录管线）。
+    private static func importFB2(url: URL, hash: String, fileSize: Int64,
+                                  bookDirectory: URL,
+                                  containerDirectory: String) throws -> Ebook {
+        guard let data = try? Data(contentsOf: url),
+              let parsed = FB2Core.parse(data),
+              !parsed.chapters.isEmpty else {
+            throw ImportError.emptyText
+        }
+        let manager = FileManager.default
+        let oebps = bookDirectory.appendingPathComponent("OEBPS", isDirectory: true)
+        let meta = bookDirectory.appendingPathComponent("META-INF", isDirectory: true)
+        let imagesDir = oebps.appendingPathComponent("images", isDirectory: true)
+        try manager.createDirectory(at: imagesDir, withIntermediateDirectories: true)
+        try manager.createDirectory(at: meta, withIntermediateDirectories: true)
+
+        var imageItems: [(href: String, media: String)] = []
+        for image in parsed.images {
+            let safeID = image.id.replacingOccurrences(of: "/", with: "-")
+            let name = "fb2-\(safeID).\(FB2Core.fileExtension(for: image.mediaType))"
+            try image.data.write(to: imagesDir.appendingPathComponent(name),
+                                 options: .atomic)
+            imageItems.append((href: "images/\(name)", media: image.mediaType))
+        }
+
+        var chapterItems: [String] = []
+        var navItems: [String] = []
+        for (index, chapter) in parsed.chapters.enumerated() {
+            let file = "chapter-\(index).xhtml"
+            let document = """
+            <?xml version="1.0" encoding="utf-8"?>
+            <!DOCTYPE html>
+            <html xmlns="http://www.w3.org/1999/xhtml">
+            <head><meta charset="utf-8"/><title>\(xmlEscape(chapter.title))</title></head>
+            <body><h2>\(xmlEscape(chapter.title))</h2>\(chapter.html)</body></html>
+            """
+            try Data(document.utf8).write(to: oebps.appendingPathComponent(file),
+                                          options: .atomic)
+            chapterItems.append(
+                "<item id=\"chapter\(index)\" href=\"\(file)\" media-type=\"application/xhtml+xml\"/>")
+            navItems.append(
+                "<li><a href=\"\(file)\">\(xmlEscape(chapter.title))</a></li>")
+        }
+
+        var manifest = chapterItems
+        for (index, image) in imageItems.enumerated() {
+            let cover = index == 0 ? " properties=\"cover-image\"" : ""
+            manifest.append(
+                "<item id=\"img\(index)\" href=\"\(image.href)\" media-type=\"\(image.media)\"\(cover)/>")
+        }
+        manifest.append("<item id=\"nav\" href=\"nav.xhtml\" media-type=\"application/xhtml+xml\" properties=\"nav\"/>")
+        let spine = parsed.chapters.indices
+            .map { "<itemref idref=\"chapter\($0)\"/>" }
+            .joined(separator: "\n    ")
+        var metadata = """
+          <dc:identifier id="bookid">urn:uuid:\(UUID().uuidString)</dc:identifier>
+          <dc:title>\(xmlEscape(parsed.title))</dc:title>
+          <dc:language>en</dc:language>
+        """
+        if !parsed.author.isEmpty {
+            metadata += "\n  <dc:creator>\(xmlEscape(parsed.author))</dc:creator>"
+        }
+        if !imageItems.isEmpty {
+            metadata += "\n  <meta name=\"cover\" content=\"img0\"/>"
+        }
+        let opf = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <package xmlns="http://www.idpf.org/2007/opf" unique-identifier="bookid" version="3.0">
+          <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">
+        \(metadata)
+          </metadata>
+          <manifest>
+            \(manifest.joined(separator: "\n    "))
+          </manifest>
+          <spine>
+            \(spine)
+          </spine>
+        </package>
+        """
+        try Data(opf.utf8).write(to: oebps.appendingPathComponent("content.opf"),
+                                 options: .atomic)
+
+        let nav = """
+        <?xml version="1.0" encoding="utf-8"?>
+        <!DOCTYPE html>
+        <html xmlns="http://www.w3.org/1999/xhtml" xmlns:epub="http://www.idpf.org/2007/ops">
+        <head><meta charset="utf-8"/><title>Contents</title></head>
+        <body><nav epub:type="toc"><h1>Contents</h1><ol>
+        \(navItems.joined(separator: "\n"))
+        </ol></nav></body></html>
+        """
+        try Data(nav.utf8).write(to: oebps.appendingPathComponent("nav.xhtml"),
+                                 options: .atomic)
+
+        let container = """
+        <?xml version="1.0" encoding="UTF-8"?>
+        <container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">
+          <rootfiles>
+            <rootfile full-path="OEBPS/content.opf" media-type="application/oebps-package+xml"/>
+          </rootfiles>
+        </container>
+        """
+        try Data(container.utf8).write(to: meta.appendingPathComponent("container.xml"),
+                                       options: .atomic)
+
+        let coverPath = imageItems.first.map { "OEBPS/\($0.href)" }
+        return Ebook(id: UUID(), title: parsed.title, author: parsed.author,
+                     format: .epub, fileName: url.lastPathComponent,
+                     containerDirectory: containerDirectory,
+                     coverPath: coverPath, addedAt: Date(), lastOpenedAt: nil,
+                     progress: 0, lastChapterIndex: 0, chapterProgress: 0,
+                     fileSize: fileSize, chapterCount: parsed.chapters.count, hash: hash)
+    }
+
+    private static func xmlEscape(_ value: String) -> String {
+        value.replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+            .replacingOccurrences(of: "\"", with: "&quot;")
     }
 
     // MARK: - CBZ

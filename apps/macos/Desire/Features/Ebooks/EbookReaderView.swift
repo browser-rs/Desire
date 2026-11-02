@@ -86,6 +86,15 @@ struct EbookReaderView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+            if model.isFixedLayout {
+                Text(String(localized: "Fixed-layout book — pages are scaled to fit and may differ from the original design."))
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
+                    .background(Color.secondary.opacity(0.06))
+            }
             Divider()
             content
             Divider()

@@ -116,6 +116,8 @@ final class EbookReaderModel: ObservableObject {
     @Published private(set) var highlights: [EbookHighlight] = []
     /// 当前章的译文语言（nil = 未显示译文，v0.8.36）。
     @Published private(set) var translationLanguage: String?
+    /// 固定版式 EPUB（v0.8.36）：只提示，不承诺逐像素还原。
+    @Published private(set) var isFixedLayout = false
     @Published var showNotes = false
     @Published var focusedHighlightID: UUID?
     @Published private(set) var searchResults: [EbookSearchCore.Hit] = []
@@ -235,6 +237,7 @@ final class EbookReaderModel: ObservableObject {
             throw EbookImporter.ImportError.invalidEPUB
         }
         chapters = package.chapters
+        isFixedLayout = package.metadata.isFixedLayout
         var tocItems: [EbookCore.TOCItem] = []
         if let navHref = package.navHref,
            let data = try? Data(contentsOf: bookRoot.appendingPathComponent(navHref)) {

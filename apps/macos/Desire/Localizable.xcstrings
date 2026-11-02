@@ -89178,6 +89178,248 @@
           }
         }
       }
+    },
+    "Fixed-layout book — pages are scaled to fit and may differ from the original design." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fixed-layout book — pages are scaled to fit and may differ from the original design."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "固定版式书籍——页面按窗口缩放，可能与原版排版不同。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "固定版式書籍——頁面按視窗縮放，可能與原版排版不同。"
+          }
+        }
+      }
+    },
+    "Only HTML/web books can be exported to EPUB right now." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Only HTML/web books can be exported to EPUB right now."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前只有网页/HTML 书可以导出为 EPUB。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前只有網頁/HTML 書可以匯出為 EPUB。"
+          }
+        }
+      }
+    },
+    "This book has no readable HTML content." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This book has no readable HTML content."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这本书没有可读的 HTML 内容。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這本書沒有可讀的 HTML 內容。"
+          }
+        }
+      }
+    },
+    "EPUB packaging failed: %@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EPUB packaging failed: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EPUB 打包失败：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "EPUB 打包失敗：%@"
+          }
+        }
+      }
+    },
+    "Import EPUB, TXT, Markdown, HTML, FB2 or CBZ files to start reading. MOBI/AZW3 need Calibre." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import EPUB, TXT, Markdown, HTML, FB2 or CBZ files to start reading. MOBI/AZW3 need Calibre."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入 EPUB、TXT、Markdown、HTML、FB2 或 CBZ 文件开始阅读；MOBI/AZW3 需要 Calibre。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入 EPUB、TXT、Markdown、HTML、FB2 或 CBZ 檔案開始閱讀；MOBI/AZW3 需要 Calibre。"
+          }
+        }
+      }
+    },
+    "Read in two languages" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read in two languages"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "对照阅读"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "對照閱讀"
+          }
+        }
+      }
+    },
+    "Translate a whole chapter in place — translations sit under each paragraph, can be hidden, re-run in another language, and are cached so reopening is instant." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Translate a whole chapter in place — translations sit under each paragraph, can be hidden, re-run in another language, and are cached so reopening is instant."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整章就地翻译——译文排在每段原文下方，可隐藏、可换语言重译，并有缓存，重开秒显。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整章就地翻譯——譯文排在每段原文下方，可隱藏、可換語言重譯，並有快取，重開秒顯。"
+          }
+        }
+      }
+    },
+    "Follow along while listening" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Follow along while listening"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "听书跟字"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "聽書跟字"
+          }
+        }
+      }
+    },
+    "Chapter read-aloud now highlights each spoken phrase and follows the page; choose a system voice, set 0.3×–0.85× speed, and tap any image to zoom." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Chapter read-aloud now highlights each spoken phrase and follows the page; choose a system voice, set 0.3×–0.85× speed, and tap any image to zoom."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整章朗读会高亮当前读到的词句并跟着翻页；可选系统声音、0.3×–0.85× 语速，点图片还能放大。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "整章朗讀會高亮目前讀到的詞句並跟著翻頁；可選系統聲音、0.3×–0.85× 語速，點圖片還能放大。"
+          }
+        }
+      }
+    },
+    "Search every book, take it with you" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search every book, take it with you"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全库搜索，随身带走"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全庫搜尋，隨身帶走"
+          }
+        }
+      }
+    },
+    "Search the full text of the whole library, get a weekly reading review from your stats and notes, export HTML/web books to EPUB, and import FB2 — with a Continue Reading card on the shelf." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search the full text of the whole library, get a weekly reading review from your stats and notes, export HTML/web books to EPUB, and import FB2 — with a Continue Reading card on the shelf."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索整个书架的正文，按统计与笔记生成每周阅读回顾，把网页/HTML 书导出为 EPUB，支持 FB2 导入；书架顶部还有「继续阅读」卡。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋整個書架的正文，按統計與筆記產生每週閱讀回顧，把網頁/HTML 書匯出為 EPUB，支援 FB2 匯入；書架頂部還有「繼續閱讀」卡。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

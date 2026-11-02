@@ -8,6 +8,8 @@
 - Books: a Reading Review built from local stats, book progress and recent highlights — generate it from the stats sheet, copy it, or hand it to the Agent to write a short weekly recap; the Agent also gains a `readingDigest` tool (v0.8.36)
 - Books: HTML/web books can be exported to a real EPUB 3 file — the package writes an uncompressed mimetype first, includes the OPF/nav/chapter and localized images, and re-imports cleanly as an EPUB (v0.8.36)
 - Books: the library gains a "Continue Reading" card for the most recent unfinished book and a strip of recent highlights that jump back to the exact chapter (v0.8.36)
+- Books: FB2 (FictionBook 2) import — title/author, nested sections become chapters, inline emphasis and base64 images are converted into a minimal EPUB inside the library so reading, search and the Agent work unchanged; fixed-layout EPUBs are detected and flagged with a scaling notice instead of silently reflowing (v0.8.36)
+
 
 
 

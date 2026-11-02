@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "highlighter", title: String(localized: "Your notes stay in the book"),
-                  detail: String(localized: "Highlight or note any passage — marks are redrawn after every page rebuild, a Notes & Highlights panel groups them by chapter, and one book or the whole library exports to Markdown.")),
-            .init(icon: "speaker.wave.2.fill", title: String(localized: "Listen, translate, keep reading"),
-                  detail: String(localized: "Read a chapter aloud with page-following and auto-advance; select a passage to translate it on-device, then copy it or save it to Excerpts.")),
-            .init(icon: "books.vertical.fill", title: String(localized: "Turn a web page into a book"),
-                  detail: String(localized: "Reader mode saves the article into your library with its images localized for offline reading; Markdown and HTML files import too, and the library gains favorites, collections, sorting and reading stats.")),
+            .init(icon: "translate", title: String(localized: "Read in two languages"),
+                  detail: String(localized: "Translate a whole chapter in place — translations sit under each paragraph, can be hidden, re-run in another language, and are cached so reopening is instant.")),
+            .init(icon: "speaker.wave.2.fill", title: String(localized: "Follow along while listening"),
+                  detail: String(localized: "Chapter read-aloud now highlights each spoken phrase and follows the page; choose a system voice, set 0.3×–0.85× speed, and tap any image to zoom.")),
+            .init(icon: "books.vertical.fill", title: String(localized: "Search every book, take it with you"),
+                  detail: String(localized: "Search the full text of the whole library, get a weekly reading review from your stats and notes, export HTML/web books to EPUB, and import FB2 — with a Continue Reading card on the shelf.")),
         ]
     }
 

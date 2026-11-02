@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.39] - 2026-11-03
 ### Added
 
 - Agent: background jobs are now first-class — `listBackgroundTasks`, `backgroundTaskStatus`, `watchBackgroundTasks`, `cancelBackgroundTask`, `retryBackgroundTask` and `runBackgroundCommand` let a turn start long work, end immediately, and report back when it finishes (v0.8.39)

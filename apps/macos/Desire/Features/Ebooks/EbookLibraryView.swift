@@ -33,6 +33,7 @@ struct EbookLibraryView: View {
     @State private var pendingDelete: Ebook?
     @State private var showStats = false
     @State private var showFullTextSearch = false
+    @State private var recentHighlightEntries: [RecentHighlightEntry] = []
     @State private var sort: LibrarySort = .recent
     @State private var favoritesOnly = false
     @State private var collectionFilter: String?
@@ -80,9 +81,44 @@ struct EbookLibraryView: View {
         return "\(String(localized: "This week")) \(minutes) \(String(localized: "min")) · \(stats.streakDays) \(String(localized: "day streak"))"
     }
 
+    private struct RecentHighlightEntry: Identifiable {
+        var id: String { "\(book.id.uuidString)-\(highlight.id.uuidString)" }
+        let book: Ebook
+        let highlight: EbookHighlight
+    }
+
+    private var continueBook: Ebook? {
+        store.books
+            .filter { $0.progress > 0.01 && $0.progress < 0.99 }
+            .sorted {
+                ($0.lastOpenedAt ?? $0.addedAt) > ($1.lastOpenedAt ?? $1.addedAt)
+            }
+            .first
+    }
+
+    private func refreshRecentHighlights() {
+        let cutoff = Calendar.current.date(byAdding: .day, value: -7, to: Date())
+            ?? Date.distantPast
+        var entries: [RecentHighlightEntry] = []
+        for book in store.books.prefix(40) {
+            for highlight in EbookHighlightStore.load(book.id)
+                where highlight.createdAt >= cutoff {
+                entries.append(RecentHighlightEntry(book: book, highlight: highlight))
+            }
+        }
+        recentHighlightEntries = Array(
+            entries.sorted { $0.highlight.createdAt > $1.highlight.createdAt }.prefix(3))
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+            if let continueBook {
+                continueCard(continueBook)
+            }
+            if !recentHighlightEntries.isEmpty {
+                recentHighlightsStrip
+            }
             Divider()
             if filtered.isEmpty {
                 emptyState
@@ -140,6 +176,7 @@ struct EbookLibraryView: View {
         .sheet(item: $collectionTarget) { book in
             collectionSheet(book)
         }
+        .task { refreshRecentHighlights() }
     }
 
     private var header: some View {
@@ -372,6 +409,73 @@ struct EbookLibraryView: View {
         .frame(width: 400)
     }
 
+    private func continueCard(_ book: Ebook) -> some View {
+        HStack(spacing: 12) {
+            EbookCoverView(store: store, book: book)
+                .frame(width: 52, height: 74)
+                .clipShape(RoundedRectangle(cornerRadius: 6))
+            VStack(alignment: .leading, spacing: 3) {
+                Text(String(localized: "Continue Reading"))
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.tertiary)
+                Text(book.title)
+                    .font(.system(size: 12.5, weight: .semibold))
+                    .lineLimit(1)
+                ProgressView(value: book.progress)
+                    .controlSize(.small)
+                    .tint(appAccent)
+                    .frame(maxWidth: 220)
+            }
+            Spacer(minLength: 8)
+            Button(String(localized: "Continue")) {
+                store.touch(book.id)
+                onOpen(book)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.small)
+        }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 10)
+            .fill(appAccent.opacity(0.07)))
+        .padding(.horizontal, 24)
+        .padding(.bottom, 8)
+    }
+
+    private var recentHighlightsStrip: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(String(localized: "Recent Highlights"))
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.secondary)
+            ForEach(recentHighlightEntries) { entry in
+                Button {
+                    if let onOpenAt {
+                        onOpenAt(entry.book, entry.highlight.chapterIndex, "")
+                    } else {
+                        onOpen(entry.book)
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "highlighter")
+                            .font(.system(size: 9))
+                            .foregroundStyle(appAccent)
+                        Text(entry.highlight.quote)
+                            .font(.system(size: 11))
+                            .lineLimit(1)
+                        Spacer(minLength: 8)
+                        Text(entry.book.title)
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.tertiary)
+                            .lineLimit(1)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 24)
+        .padding(.bottom, 8)
+    }
+
     private func bookCard(_ book: Ebook) -> some View {
         Button {
             store.touch(book.id)
@@ -445,12 +549,38 @@ struct EbookLibraryView: View {
                 renameAuthor = book.author
                 renaming = book
             }
+            if book.format == .html {
+                Button(String(localized: "Export as EPUB…")) {
+                    exportEPUB(book)
+                }
+            }
             Divider()
             Button(String(localized: "Remove from Library"), role: .destructive) {
                 store.remove(book.id, deleteFiles: false)
             }
             Button(String(localized: "Delete Book File"), role: .destructive) {
                 pendingDelete = book
+            }
+        }
+    }
+
+    private func exportEPUB(_ book: Ebook) {
+        let panel = NSSavePanel()
+        panel.canCreateDirectories = true
+        panel.nameFieldStringValue = EbookEPUBExporter.filename(for: book.title)
+        if let type = UTType(filenameExtension: "epub") {
+            panel.allowedContentTypes = [type]
+        }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        error = nil
+        note = nil
+        Task {
+            do {
+                try await EbookEPUBExporter.export(
+                    book: book, root: store.rootURL, to: url)
+                note = String(localized: "Exported EPUB")
+            } catch {
+                self.error = error.localizedDescription
             }
         }
     }

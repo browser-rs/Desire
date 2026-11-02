@@ -6,6 +6,8 @@ struct EbookReadingStatsView: View {
     @ObservedObject private var stats = ReadingStatsStore.shared
     @ObservedObject private var library = EbookLibraryStore.shared
     let onClose: () -> Void
+    @State private var digest: String?
+    @State private var showDigest = false
 
     private var weekMinutes: Int { stats.weekSeconds / 60 }
     private var totalMinutes: Int { stats.totalSeconds / 60 }
@@ -28,6 +30,12 @@ struct EbookReadingStatsView: View {
                 Text(String(localized: "Reading Stats"))
                     .font(.system(size: 14, weight: .semibold))
                 Spacer()
+                Button(String(localized: "Generate Review")) {
+                    digest = ReadingDigestBuilder.markdown()
+                    showDigest = true
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 Button(String(localized: "Done")) { onClose() }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
@@ -49,6 +57,9 @@ struct EbookReadingStatsView: View {
         }
         .frame(width: 640, height: 600)
         .background(Color(nsColor: .windowBackgroundColor))
+        .sheet(isPresented: $showDigest) {
+            ReadingDigestView(markdown: digest ?? "", onClose: { showDigest = false })
+        }
     }
 
     private var emptyState: some View {

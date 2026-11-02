@@ -106,6 +106,11 @@ enum EbookAgentTools {
         }.joined(separator: "\n\n")
     }
 
+    /// 阅读回顾（v0.8.36）：本地统计 + 最近笔记的 Markdown。
+    static func readingDigest(days: Int) -> String {
+        ReadingDigestBuilder.markdown(daysBack: max(1, min(days, 90)))
+    }
+
     // MARK: - v0.8.35
 
     static func openBook(book: String?, chapter: Int?) -> String {

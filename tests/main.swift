@@ -8160,6 +8160,7 @@ testEbookSearchCore()
 testEbookNotesExportCore()
 testEbookMarkdownCore()
 testEbookTranslationAndLibrarySearchCore()
+testReadingDigestCore()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
@@ -8907,4 +8908,47 @@ func testEbookTranslationAndLibrarySearchCore() {
         (bookID: bookB, title: "B", hits: [hit(0, 5), hit(0, 6)]),
     ], perBook: 3, total: 2)
     eq("全库搜索：总上限", capped.count, 2)
+}
+
+// ---------- 阅读摘要（v0.8.36） ----------
+
+func testReadingDigestCore() {
+    func book(_ title: String, progress: Double, opened: Date) -> Ebook {
+        Ebook(id: UUID(), title: title, author: "", format: .txt,
+              fileName: "x.txt", containerDirectory: "x", coverPath: nil,
+              addedAt: opened, lastOpenedAt: opened, progress: progress,
+              lastChapterIndex: 0, chapterProgress: 0, fileSize: 0,
+              chapterCount: 1, hash: "h")
+    }
+    let now = Date(timeIntervalSince1970: 1_000_000)
+    let books = [
+        book("Alpha", progress: 0.45, opened: now),
+        book("Beta", progress: 0.99, opened: now.addingTimeInterval(-172_800)),
+        book("Old", progress: 0.2, opened: now.addingTimeInterval(-30 * 86_400)),
+    ]
+    let highlights = [
+        ReadingDigestHighlight(bookTitle: "Alpha", chapterTitle: "One",
+                               quote: "山风吹过。", note: "注意",
+                               createdAt: now),
+        ReadingDigestHighlight(bookTitle: "Old", chapterTitle: "Zero",
+                               quote: "旧笔记", note: nil,
+                               createdAt: now.addingTimeInterval(-30 * 86_400)),
+    ]
+    let md = ReadingDigestCore.markdown(
+        days: [(date: now, seconds: 3_600), (date: now, seconds: 1_800)],
+        books: books, highlights: highlights, daysBack: 7, now: now)
+    check("摘要：标题", md.contains("# Reading Review"))
+    check("摘要：时长", md.contains("1h 30m"))
+    check("摘要：书数", md.contains("2 book(s)"))
+    check("摘要：进度", md.contains("Alpha") && md.contains("45%"))
+    check("摘要：旧书不出现", !md.contains("Old"))
+    check("摘要：高亮", md.contains("山风吹过") && md.contains("注意"))
+    check("摘要：旧高亮不出现", !md.contains("旧笔记"))
+    check("摘要：空数据", ReadingDigestCore.markdown(
+        days: [], books: [], highlights: [], daysBack: 7, now: now)
+        .contains("No reading activity"))
+    eq("摘要：秒格式", ReadingDigestCore.duration(59), "59s")
+    eq("摘要：分格式", ReadingDigestCore.duration(60), "1m")
+    eq("摘要：小时格式", ReadingDigestCore.duration(3_600), "1h")
+    eq("摘要：小时分钟", ReadingDigestCore.duration(5_400), "1h 30m")
 }

@@ -366,6 +366,8 @@ extension BrowserToolProvider {
             }
             return await EbookAgentTools.searchLibrary(
                 query: query, limit: (args["limit"] as? Int) ?? 20)
+        case "readingDigest":
+            return EbookAgentTools.readingDigest(days: (args["days"] as? Int) ?? 7)
         case "getBookOutline":
             return await EbookAgentTools.outline(book: args["book"] as? String)
         case "openBook":

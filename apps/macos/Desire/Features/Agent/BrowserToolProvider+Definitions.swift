@@ -1788,6 +1788,13 @@ extension BrowserToolProvider {
                 ], required: ["query"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "readingDigest",
+                description: "Build a Markdown reading review from local stats, book progress and recent highlights. Use when the user asks what they read recently or wants a weekly summary.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "days": AgentJSONSchemaValue(type: "number", description: "Look-back window in days (default 7, max 90)"),
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "getBookOutline",
                 description: "Return the table of contents (nested titles + [chN]) of a local ebook. Pair with readBook's chapter range.",
                 parameters: AgentJSONSchema(type: "object", properties: [

@@ -5,6 +5,10 @@
 - Books: search the full text of every book in the library — the library search offers "Search inside all books", groups hits by book/chapter and opens the exact chapter with the query highlighted; the Agent gains `searchLibrary` for cross-book questions (v0.8.36)
 - Books: read-aloud now highlights the phrase being spoken, keeps the highlight aligned with the page/scroll position, and offers a Voice & Speed sheet with system voices, a 0.3×–0.85× rate and a preview (v0.8.36)
 - Books: click an image in the chapter to open a full-window viewer with pinch/scroll zoom, drag to pan and double-click to reset; Esc or the backdrop closes it, and local book images only (v0.8.36)
+- Books: a Reading Review built from local stats, book progress and recent highlights — generate it from the stats sheet, copy it, or hand it to the Agent to write a short weekly recap; the Agent also gains a `readingDigest` tool (v0.8.36)
+- Books: HTML/web books can be exported to a real EPUB 3 file — the package writes an uncompressed mimetype first, includes the OPF/nav/chapter and localized images, and re-imports cleanly as an EPUB (v0.8.36)
+- Books: the library gains a "Continue Reading" card for the most recent unfinished book and a strip of recent highlights that jump back to the exact chapter (v0.8.36)
+
 
 
 

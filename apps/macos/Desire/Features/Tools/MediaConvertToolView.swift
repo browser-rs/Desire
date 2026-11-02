@@ -172,6 +172,10 @@ struct MediaConvertToolView: View {
             store.convertMedia(source: source, format: format)
             return
         }
+        guard !isAudioOnlySource(source) else {
+            error = String(localized: "GIF needs a video source.")
+            return
+        }
         let width = Int(widthText.trimmingCharacters(in: .whitespaces)) ?? 480
         let fps = Int(fpsText.trimmingCharacters(in: .whitespaces)) ?? 12
         guard width >= 64, width <= 1920, fps >= 2, fps <= 30 else {

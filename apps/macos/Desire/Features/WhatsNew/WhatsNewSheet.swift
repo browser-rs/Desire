@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "arrow.triangle.2.circlepath", title: String(localized: "Read on any device"),
-                  detail: String(localized: "Your bookshelf, reading position and bookmarks sync across devices — progress always moves forward, and books not on this Mac wait until you import the same file.")),
-            .init(icon: "text.book.closed", title: String(localized: "Notes find their way back"),
-                  detail: String(localized: "Every ebook highlight now carries its book, chapter and offset; from Excerpts on any device, Open in Book lands on the exact chapter.")),
-            .init(icon: "chart.bar.xaxis", title: String(localized: "Ask across devices"),
-                  detail: String(localized: "Reading stats merge by maximum per day and per book, and the Agent can run a sync and answer \"where did I stop on the other Mac?\" with syncNow and syncStatus.")),
+            .init(icon: "arrow.left.arrow.right", title: String(localized: "Hand off in one move"),
+                  detail: String(localized: "Save the current window as a Handoff workspace and restore it on another Mac, or send a page, link or selection straight to your phone's inbox.")),
+            .init(icon: "laptopcomputer.and.iphone", title: String(localized: "Your Mac in your pocket"),
+                  detail: String(localized: "The phone now browses your bookshelf, runs the text toolbox, restores workspaces, caches content offline and can Allow or Deny an approval right from the notification.")),
+            .init(icon: "film.stack", title: String(localized: "Media and flows, not one-offs"),
+                  detail: String(localized: "Convert video/audio or turn a clip into a GIF as a background job, and chain text tools into saved pipelines that feed each step's output into the next.")),
         ]
     }
 

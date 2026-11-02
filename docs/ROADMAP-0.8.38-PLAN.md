@@ -363,6 +363,10 @@
 - **多档案同步**：仍另开版本。
 - **API 微服务化/重写**：只做增量模块与迁移。
 - **账号邮箱/短信找回**：无邮件/短信基础设施；本版账号删除/改密/管理员重置，不做找回。
+- **A7 Office 文件夹批量队列**：转换引擎已有单文件能力，但队列 UI/并发/重试状态机
+  体量较大，留下一版（本版常规线由媒体转码/GIF 与流水线顶上）。
+- **C7 admin CLI 扩展**：现有 user/sync gc/stats 命令可用；device/remote/quota 子命令
+  留下一版，配额已可通过 env 配置并查 `/sync/usage`。
 
 ## 十一、风险与取舍
 
@@ -381,6 +385,6 @@
 ## 十二、发版口径
 
 CHANGELOG 只用 `scripts/changelog.py add`；WhatsNew 三亮点（工作区/标签接力、Remote
-阅读与工具箱、旁路成本归账）；产品页同步版本号与 Remote/API 说明；
+书架/工具箱/工作区、API 2.0 配额与可观测）；产品页同步版本号与 Remote/API 说明；
 **发版前 macOS Release clean build 零警告 + Remote 模拟器构建零警告 + Rust 测试**；
 服务端迁移/部署另列清单；用户说「发」才发。

@@ -91137,6 +91137,167 @@
           }
         }
       }
+    },
+    "Hand off in one move" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hand off in one move"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一次交接，继续使用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "一次交接，繼續使用"
+          }
+        }
+      }
+    },
+    "Save the current window as a Handoff workspace and restore it on another Mac, or send a page, link or selection straight to your phone's inbox." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save the current window as a Handoff workspace and restore it on another Mac, or send a page, link or selection straight to your phone's inbox."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把当前窗口保存为 Handoff 工作区，在另一台 Mac 上恢复；或把页面、链接、选区直接发到手机收件箱。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "把目前視窗儲存為 Handoff 工作區，在另一台 Mac 上還原；或把頁面、連結、選取範圍直接傳到手機收件匣。"
+          }
+        }
+      }
+    },
+    "Your Mac in your pocket" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Your Mac in your pocket"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 装进口袋"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mac 裝進口袋"
+          }
+        }
+      }
+    },
+    "The phone now browses your bookshelf, runs the text toolbox, restores workspaces, caches content offline and can Allow or Deny an approval right from the notification." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The phone now browses your bookshelf, runs the text toolbox, restores workspaces, caches content offline and can Allow or Deny an approval right from the notification."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手机能看书架、跑文本工具箱、恢复工作区、离线查看缓存，还能直接在通知里允许或拒绝审批。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手機能看書架、跑文字工具箱、還原工作區、離線檢視快取，還能直接在通知裡允許或拒絕審批。"
+          }
+        }
+      }
+    },
+    "Media and flows, not one-offs" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Media and flows, not one-offs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "媒体与流程，不止单次"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "媒體與流程，不止單次"
+          }
+        }
+      }
+    },
+    "Convert video/audio or turn a clip into a GIF as a background job, and chain text tools into saved pipelines that feed each step's output into the next." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Convert video/audio or turn a clip into a GIF as a background job, and chain text tools into saved pipelines that feed each step's output into the next."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "视频/音频转码、片段转 GIF 都是后台任务；文本工具可串成保存的流水线，上一步输出直接喂给下一步。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "影片/音訊轉碼、片段轉 GIF 都是背景任務；文字工具可串成儲存的流水線，上一步輸出直接餵給下一步。"
+          }
+        }
+      }
+    },
+    "GIF needs a video source." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GIF needs a video source."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GIF 需要视频来源。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "GIF 需要影片來源。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

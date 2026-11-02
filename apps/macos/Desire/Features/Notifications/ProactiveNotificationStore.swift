@@ -148,7 +148,75 @@ final class ProactiveNotificationStore: ObservableObject {
         let downloadCategory = UNNotificationCategory(
             identifier: "DOWNLOAD_COMPLETE", actions: [open, finder],
             intentIdentifiers: [], options: [])
-        UNUserNotificationCenter.current().setNotificationCategories([downloadCategory])
+        // 后台任务（v0.8.39）：打开产物 / 打开 Jobs 面板。
+        let openResult = UNNotificationAction(identifier: "OPEN_JOB_RESULT",
+                                              title: "Open Result",
+                                              options: [.foreground])
+        let showJobs = UNNotificationAction(identifier: "SHOW_JOBS",
+                                            title: "Show Jobs",
+                                            options: [.foreground])
+        let jobCategory = UNNotificationCategory(
+            identifier: "JOB_COMPLETE", actions: [openResult, showJobs],
+            intentIdentifiers: [], options: [])
+        UNUserNotificationCenter.current().setNotificationCategories(
+            [downloadCategory, jobCategory])
+    }
+
+    /// 后台任务完成通知（v0.8.39）：沿用 routine 的免打扰/预算闸，失败 urgent。
+    /// 同一 job 用固定 identifier 覆盖，不堆叠。
+    func deliverJob(title: String, body: String, tier: NotificationTier,
+                    jobID: UUID, artifact: String?) {
+        switch tier {
+        case .urgent:
+            deliverJobNow(title: title, body: body, jobID: jobID, artifact: artifact)
+        case .routine:
+            if AppModeStore.shared.mode == .agentFocus {
+                hold(title: title, body: body)
+                return
+            }
+            rollDayIfNeeded()
+            if policy.shouldHoldRoutine(sentToday: routineDeliveredToday,
+                                        minutesSinceMidnight: Self.minutesNow()) {
+                hold(title: title, body: body)
+            } else {
+                routineDeliveredToday += 1
+                UserDefaults.standard.set(routineDeliveredToday, forKey: "notificationCountValue")
+                deliverJobNow(title: title, body: body, jobID: jobID, artifact: artifact)
+            }
+        }
+    }
+
+    private func deliverJobNow(title: String, body: String,
+                               jobID: UUID, artifact: String?) {
+        Self.registerCategoriesIfNeeded()
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .authorized, .provisional:
+                Self.postJob(title: title, body: body, jobID: jobID, artifact: artifact)
+            case .notDetermined:
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { granted, _ in
+                    guard granted else { return }
+                    Self.postJob(title: title, body: body, jobID: jobID, artifact: artifact)
+                }
+            default:
+                break
+            }
+        }
+    }
+
+    private nonisolated static func postJob(title: String, body: String,
+                                            jobID: UUID, artifact: String?) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.categoryIdentifier = "JOB_COMPLETE"
+        var info: [String: Any] = ["deepLink": "jobs", "jobID": jobID.uuidString]
+        if let artifact, !artifact.isEmpty { info["artifact"] = artifact }
+        content.userInfo = info
+        UNUserNotificationCenter.current().add(UNNotificationRequest(
+            identifier: "desire.job.\(jobID.uuidString)",
+            content: content, trigger: nil))
     }
 
     private nonisolated static func post(title: String, body: String) {

@@ -38,6 +38,7 @@ struct MenuBarQuickEntryView: View {
     @State private var searchTask: Task<Void, Never>?
     @State private var draft = ""
     @State private var sentHint = false
+    @ObservedObject private var jobs = JobStore.shared
     @FocusState private var fieldFocused: Bool
 
     /// 显式 internal init（Xcode 26 教训：全 private 存储属性会把 memberwise
@@ -66,6 +67,24 @@ struct MenuBarQuickEntryView: View {
                     Text("Sent ✓")
                         .font(.system(size: 10.5, weight: .medium))
                         .foregroundStyle(appAccent)
+                }
+            }
+
+            if !jobs.active.isEmpty {
+                HStack(spacing: 6) {
+                    Image(systemName: "square.stack.3d.up")
+                        .font(.system(size: 10))
+                        .foregroundStyle(appAccent)
+                    Text(String(localized: "\(jobs.active.count) background task(s)"))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button(String(localized: "Open")) {
+                        MenuBarQuickEntryController.shared.closePopover()
+                        NotificationCenter.default.post(name: .openJobsPanel, object: nil)
+                    }
+                    .buttonStyle(.link)
+                    .font(.system(size: 10.5))
                 }
             }
 

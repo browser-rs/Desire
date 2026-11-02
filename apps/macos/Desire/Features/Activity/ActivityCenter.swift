@@ -38,6 +38,8 @@ nonisolated enum ActivityCenter {
         var status: String
         var progress: Double?
         var timestamp: Date
+        /// 产物（媒体导出/下载），v0.8.39 让后台任务统一显示输出。
+        var artifact: String? = nil
 
         /// 仍在跑/等待（排序时置顶）。
         var active: Bool { Self.activeStatuses.contains(status) }
@@ -71,6 +73,7 @@ nonisolated enum ActivityCenter {
             var state: String
             var summary: String?
             var timestamp: Date
+            var artifact: String?
         }
         struct Run {
             var id: String
@@ -131,7 +134,8 @@ nonisolated enum ActivityCenter {
                 detail: export.summary ?? "",
                 status: export.state,
                 progress: nil,
-                timestamp: export.timestamp))
+                timestamp: export.timestamp,
+                artifact: export.artifact))
         }
         for run in inputs.runs {
             items.append(Item(

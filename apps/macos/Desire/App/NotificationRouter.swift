@@ -33,8 +33,10 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         let isUpdate = identifier.hasPrefix("desire.update.")
         let isAgent = identifier.hasPrefix("desire.agent.")
         let isDownload = identifier.hasPrefix("desire.download.")
+        let isJob = identifier.hasPrefix("desire.job.")
         let url = userInfo["url"] as? String
         let filePath = userInfo["filePath"] as? String ?? ""
+        let artifact = userInfo["artifact"] as? String ?? ""
         let actionID = response.actionIdentifier
         Task { @MainActor in
             NSApp.activate(ignoringOtherApps: true)
@@ -50,6 +52,16 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
                 } else {
                     // 普通点击已在 activate(ignoringOtherApps:) 激活应用——
                     // 用户可从工具栏打开下载面板。
+                }
+            } else if isJob {
+                if actionID == "OPEN_JOB_RESULT", !artifact.isEmpty {
+                    if artifact.hasPrefix("http://") || artifact.hasPrefix("https://") {
+                        TabSessionCoordinator.shared.activeTabManager?.addTab(url: artifact)
+                    } else {
+                        NSWorkspace.shared.open(URL(fileURLWithPath: artifact))
+                    }
+                } else {
+                    NotificationCenter.default.post(name: .openJobsPanel, object: nil)
                 }
             }
             completionHandler()

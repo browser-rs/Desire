@@ -23,6 +23,8 @@ final class MediaExportStore: ObservableObject {
         var summary: String?
         /// 批量任务的逐条结果不单独通知（批次汇总时统一说）。
         var isSilent: Bool = false
+        /// 成功产物（v0.8.39：统一 Job 视图显示输出）。
+        var resultURL: URL? = nil
 
         enum State: String {
             case running, finished, failed, cancelled
@@ -193,6 +195,7 @@ final class MediaExportStore: ObservableObject {
         jobs[index].state = .finished
         jobs[index].finishedAt = Date()
         jobs[index].summary = summary
+        jobs[index].resultURL = result.fileURL
         tasks[id] = nil
         progressHandlers[id] = nil
         settle(id: id, outcome: .finished(result))
@@ -202,7 +205,12 @@ final class MediaExportStore: ObservableObject {
             InternalPages.openAnywhere(.tools(param: "videoEditor"))
         }
         if notifyEnabled(id) {
-            deliverNote(String(localized: "Download finished"), body: summary)
+            JobEventCenter.shared.recordExternalTerminal(
+                externalID: "export-\(id.uuidString)",
+                title: String(localized: "Download finished"),
+                body: summary,
+                tier: .routine,
+                artifact: result.fileURL.path)
         }
     }
 
@@ -216,7 +224,11 @@ final class MediaExportStore: ObservableObject {
         progressHandlers[id] = nil
         settle(id: id, outcome: .failed(error))
         if notifyEnabled(id) {
-            deliverNote(String(localized: "Download failed"), body: "\(jobs[index].title): \(text)", tier: .urgent)
+            JobEventCenter.shared.recordExternalTerminal(
+                externalID: "export-\(id.uuidString)",
+                title: String(localized: "Download failed"),
+                body: "\(jobs[index].title): \(text)",
+                tier: .urgent)
         }
     }
 

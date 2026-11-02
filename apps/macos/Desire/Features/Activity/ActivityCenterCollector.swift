@@ -36,7 +36,8 @@ enum ActivityCenterCollector {
                 title: job.title,
                 state: job.state.rawValue,
                 summary: job.summary,
-                timestamp: job.finishedAt ?? job.startedAt)
+                timestamp: job.finishedAt ?? job.startedAt,
+                artifact: job.resultURL?.path)
         }
 
         inputs.runs = AgentScheduler.shared.runs.prefix(20).map { run in

@@ -23,6 +23,7 @@ nonisolated enum JobAdapter {
                 state: state,
                 detail: item.detail,
                 progress: item.progress,
+                artifactURL: item.artifact,
                 source: "activity",
                 externalID: item.id,
                 createdAt: item.timestamp,

@@ -52,12 +52,14 @@ final class JobEventCenter {
             appendNote(summary, to: conversationID)
         }
         let failed = job.state == .failed
-        ProactiveNotificationStore.shared.deliver(
+        ProactiveNotificationStore.shared.deliverJob(
             title: failed
                 ? String(localized: "Background task failed: \(job.title)")
                 : String(localized: "Background task finished: \(job.title)"),
             body: String(summary.prefix(240)),
-            tier: failed ? .urgent : .routine)
+            tier: failed ? .urgent : .routine,
+            jobID: job.id,
+            artifact: job.artifactURL)
     }
 
     // MARK: - 组任务
@@ -66,9 +68,44 @@ final class JobEventCenter {
         deliver(delivery)
     }
 
+    /// 适配器任务（批量下载/媒体导出）终态：外部系统已经生成好人类可读的
+    /// 汇总（成功/失败/跳过），这里只负责“有没有 watcher”与去重后的交付。
+    /// 没找到对应 JobRecord 时退回旧行为（当前会话备注 + 通知）。
+    func recordExternalTerminal(externalID: String, title: String, body: String,
+                                tier: NotificationTier,
+                                artifact: String? = nil) {
+        let jobs = JobStore.shared.allJobs
+        guard let job = jobs.first(where: {
+            $0.externalID == externalID || $0.id.uuidString == externalID
+        }) else {
+            AgentScheduler.shared.deliveryTarget?.appendExternalNote("\(title): \(body)")
+            ProactiveNotificationStore.shared.deliver(title: title, body: body, tier: tier)
+            return
+        }
+        let watched = JobWatchStore.shared.active.contains {
+            $0.jobIDs.contains(job.id.uuidString)
+        }
+        if watched {
+            let deliveries = JobWatchStore.shared.evaluate(jobs: JobStore.shared.allJobs)
+            for delivery in deliveries {
+                deliver(delivery, summaryOverride: delivery.jobs.contains(where: {
+                    $0.id == job.id
+                }) ? body : nil)
+            }
+            return
+        }
+        if let conversationID = job.conversationID {
+            appendNote("\(title): \(body)", to: conversationID)
+        } else {
+            AgentScheduler.shared.deliveryTarget?.appendExternalNote("\(title): \(body)")
+        }
+        ProactiveNotificationStore.shared.deliver(title: title, body: body, tier: tier)
+    }
+
     /// 组 watcher 已判定完成 → 交付备注/通知（轮询与即时事件共用）。
-    func deliver(_ delivery: JobWatchStore.Delivery) {
-        let summary = JobSummaryCore.summary(for: delivery.jobs)
+    /// `summaryOverride` 用于批量/媒体已有的富文本汇总（成功/失败/跳过）。
+    func deliver(_ delivery: JobWatchStore.Delivery, summaryOverride: String? = nil) {
+        let summary = summaryOverride ?? JobSummaryCore.summary(for: delivery.jobs)
         let failed = delivery.jobs.contains { $0.state == .failed }
         let title = delivery.jobs.count == 1
             ? (delivery.jobs.first?.title ?? String(localized: "Background task"))
@@ -77,12 +114,14 @@ final class JobEventCenter {
             appendNote(summary, to: conversationID)
             maybeResume(delivery, summary: summary)
         }
-        ProactiveNotificationStore.shared.deliver(
+        ProactiveNotificationStore.shared.deliverJob(
             title: failed
                 ? String(localized: "Background tasks failed: \(title)")
                 : String(localized: "Background tasks finished: \(title)"),
             body: String(summary.prefix(240)),
-            tier: failed ? .urgent : .routine)
+            tier: failed ? .urgent : .routine,
+            jobID: delivery.jobs.first?.id ?? UUID(),
+            artifact: delivery.jobs.compactMap(\.artifactURL).first)
     }
 
     private func maybeResume(_ delivery: JobWatchStore.Delivery, summary: String) {

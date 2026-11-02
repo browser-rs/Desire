@@ -1482,9 +1482,11 @@ final class BatchMediaExportStore: ObservableObject {
             }.joined(separator: "; ")
         }
         Log.downloads.info("batch finished: \(batch.finishedCount, privacy: .public)/\(batch.items.count, privacy: .public)")
-        MediaExportStore.shared.deliverNote(
-            String(localized: "Batch download finished"),
-            body: body
+        JobEventCenter.shared.recordExternalTerminal(
+            externalID: "batch-\(batch.id.uuidString)",
+            title: String(localized: "Batch download finished"),
+            body: body,
+            tier: .routine
         )
     }
 

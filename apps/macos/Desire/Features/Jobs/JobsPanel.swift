@@ -10,14 +10,22 @@ extension Notification.Name {
 /// 不声称能取消底层任务——活动作业的按钮是 Dismiss（从视图移除）。
 struct JobsPanel: View {
     @ObservedObject private var store = JobStore.shared
+    @ObservedObject private var watches = JobWatchStore.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(\.appAccent) private var appAccent: Color
 
     /// 三栏并行看板（v0.8.11）：false = 传统纵向列表。
     @State private var laneLayout = false
+    /// 类型筛选（v0.8.39）。
+    @State private var kindFilter: JobRecord.Kind?
 
-    private var queuedOnly: [JobRecord] { store.active.filter { $0.state == .queued } }
-    private var runningOnly: [JobRecord] { store.active.filter { $0.state == .running || $0.state == .paused } }
+    private func filtered(_ jobs: [JobRecord]) -> [JobRecord] {
+        guard let kindFilter else { return jobs }
+        return jobs.filter { $0.kind == kindFilter }
+    }
+
+    private var queuedOnly: [JobRecord] { filtered(store.active.filter { $0.state == .queued }) }
+    private var runningOnly: [JobRecord] { filtered(store.active.filter { $0.state == .running || $0.state == .paused }) }
 
     private var lanesView: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -53,12 +61,14 @@ struct JobsPanel: View {
     }
 
     private var running: [JobRecord] {
-        store.allJobs.filter { $0.state == .queued || $0.state == .running || $0.state == .paused }
+        filtered(store.allJobs.filter {
+            $0.state == .queued || $0.state == .running || $0.state == .paused
+        })
     }
 
-    private var review: [JobRecord] { store.needsReview }
-    private var failed: [JobRecord] { store.failed }
-    private var finished: [JobRecord] { Array(store.finished.prefix(20)) }
+    private var review: [JobRecord] { filtered(store.needsReview) }
+    private var failed: [JobRecord] { filtered(store.failed) }
+    private var finished: [JobRecord] { Array(filtered(store.finished).prefix(20)) }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -79,6 +89,19 @@ struct JobsPanel: View {
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
+                Menu {
+                    Button(String(localized: "All kinds")) { kindFilter = nil }
+                    Divider()
+                    ForEach(JobRecord.Kind.allCases, id: \.self) { kind in
+                        Button(kind.label) { kindFilter = kind }
+                    }
+                } label: {
+                    Label(kindFilter?.label ?? String(localized: "All kinds"),
+                          systemImage: kindFilter?.icon ?? "line.3.horizontal.decrease")
+                        .font(.system(size: 11))
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
                 Button(String(localized: "Clear Finished")) {
                     store.clearFinished()
                 }
@@ -177,6 +200,40 @@ struct JobsPanel: View {
                 }
             }
             Spacer(minLength: 4)
+            if let logFile = job.logFile, !logFile.isEmpty {
+                Button(String(localized: "Log")) { open(logFile) }
+                    .controlSize(.small)
+            }
+            if job.kind == .command && job.state.isActive {
+                Button(String(localized: "Cancel")) {
+                    BackgroundCommandStore.shared.cancel(job.id)
+                }
+                .controlSize(.small)
+            } else if job.kind == .command && job.state == .failed {
+                Button(String(localized: "Retry")) {
+                    Task { _ = await BackgroundCommandStore.shared.retry(job.id) }
+                }
+                .controlSize(.small)
+            }
+            if job.state.isActive {
+                if isWatched(job) {
+                    Text(String(localized: "Watching"))
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(appAccent)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Capsule().fill(appAccent.opacity(0.12)))
+                } else {
+                    Button(String(localized: "Notify")) {
+                        _ = JobWatchStore.shared.register(
+                            jobIDs: [job.id.uuidString],
+                            conversationID: job.conversationID,
+                            mode: .notify,
+                            reason: String(localized: "From Jobs panel"))
+                    }
+                    .controlSize(.small)
+                }
+            }
             if let artifact = job.artifactURL, !artifact.isEmpty {
                 Button(String(localized: "Open")) { open(artifact) }
                     .controlSize(.small)
@@ -239,6 +296,10 @@ struct JobsPanel: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    private func isWatched(_ job: JobRecord) -> Bool {
+        watches.active.contains { $0.jobIDs.contains(job.id.uuidString) }
     }
 
     private func open(_ artifact: String) {

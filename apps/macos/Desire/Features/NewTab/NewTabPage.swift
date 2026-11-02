@@ -14,6 +14,7 @@ struct NewTabPage: View {
     var isUrlBarEditing: Bool = false
     @ObservedObject var bookmarkStore: BookmarkStore
     @ObservedObject var historyStore: HistoryStore
+    @ObservedObject private var jobs = JobStore.shared
     var settings: Settings
     @State private var searchText = ""
     @State private var editingDial: QuickDial?
@@ -82,6 +83,9 @@ struct NewTabPage: View {
                     if !isSectionHidden(.reading) {
                         NewTabReadingSection(onNavigate: onNavigate,
                                              onHide: { hideSection(.reading) })
+                    }
+                    if !isSectionHidden(.background), !jobs.active.isEmpty {
+                        backgroundSection
                     }
                     if !isSectionHidden(.localFiles) {
                         localFilesSection
@@ -511,6 +515,58 @@ struct NewTabPage: View {
     /// 组件开关（v0.8.19 基础件 1）：隐藏的区块键集（UserDefaults 持久化）。
     @AppStorage("newtab.hiddenSections") private var hiddenSectionsRaw = ""
 
+    /// 后台任务（v0.8.39）：运行中最多 3 条，点开统一 Jobs 面板。
+    private var backgroundSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            sectionHeader(title: String(localized: "Running in Background"),
+                          icon: "square.stack.3d.up", section: .background)
+            VStack(spacing: 0) {
+                ForEach(Array(jobs.active.prefix(3))) { job in
+                    Button {
+                        NotificationCenter.default.post(name: .openJobsPanel, object: nil)
+                    } label: {
+                        HStack(spacing: 10) {
+                            Image(systemName: job.kind.icon)
+                                .font(.system(size: 12))
+                                .foregroundStyle(appAccent)
+                                .frame(width: 18)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(job.title)
+                                    .font(.system(size: 12))
+                                    .lineLimit(1)
+                                if let progress = job.progress {
+                                    ProgressView(value: progress)
+                                        .progressViewStyle(.linear)
+                                        .frame(maxWidth: 280)
+                                } else {
+                                    Text(job.detail.isEmpty ? job.state.label : job.detail)
+                                        .font(.system(size: 10.5))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+                            Spacer()
+                            Text(job.state.label)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    if job.id != jobs.active.prefix(3).last?.id {
+                        Divider().opacity(0.3)
+                    }
+                }
+            }
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(Color(nsColor: .textBackgroundColor).opacity(0.6))
+            )
+        }
+    }
+
     private var localFilesSection: some View {
         let all = RecentLocalFiles.load()
         let entries = all.prefix(8).filter { entry in
@@ -568,12 +624,13 @@ struct NewTabPage: View {
 
     /// 可隐藏区块（v0.8.19 基础件 1）。
     enum NewTabSection: String, CaseIterable {
-        case quickDials, reading, localFiles, recent
+        case quickDials, reading, background, localFiles, recent
 
         var title: String {
             switch self {
             case .quickDials: String(localized: "Quick Sites")
             case .reading: String(localized: "Continue Reading")
+            case .background: String(localized: "Running in Background")
             case .localFiles: String(localized: "Recent Files")
             case .recent: String(localized: "Recent Visits")
             }

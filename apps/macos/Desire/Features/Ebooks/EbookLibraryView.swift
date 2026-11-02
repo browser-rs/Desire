@@ -26,6 +26,7 @@ struct EbookLibraryView: View {
 
     @ObservedObject private var store = EbookLibraryStore.shared
     @ObservedObject private var stats = ReadingStatsStore.shared
+    @ObservedObject private var syncStore = EbookSyncStore.shared
     @State private var query = ""
     @State private var importing = false
     @State private var error: String?
@@ -33,6 +34,7 @@ struct EbookLibraryView: View {
     @State private var pendingDelete: Ebook?
     @State private var showStats = false
     @State private var showFullTextSearch = false
+    @State private var showRemoteBooks = false
     @State private var recentHighlightEntries: [RecentHighlightEntry] = []
     @State private var sort: LibrarySort = .recent
     @State private var favoritesOnly = false
@@ -116,6 +118,19 @@ struct EbookLibraryView: View {
             if let continueBook {
                 continueCard(continueBook)
             }
+            if !syncStore.orphanBooks.isEmpty {
+                Button {
+                    showRemoteBooks = true
+                } label: {
+                    Label(String(localized: "\(syncStore.orphanBooks.count) book(s) from other devices"),
+                          systemImage: "icloud.and.arrow.down")
+                        .font(.system(size: 10.5))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(appAccent)
+                .padding(.horizontal, 24)
+                .padding(.bottom, 8)
+            }
             if !recentHighlightEntries.isEmpty {
                 recentHighlightsStrip
             }
@@ -175,6 +190,9 @@ struct EbookLibraryView: View {
         }
         .sheet(item: $collectionTarget) { book in
             collectionSheet(book)
+        }
+        .sheet(isPresented: $showRemoteBooks) {
+            EbookRemoteBooksView(onClose: { showRemoteBooks = false })
         }
         .task { refreshRecentHighlights() }
     }

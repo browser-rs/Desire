@@ -7366,7 +7366,18 @@ final class AutomationServer {
                 "fileName": book.fileName,
             ]
         }
-        return ["books": books, "count": books.count]
+        let remote = EbookSyncStore.shared.orphanBooks.values.map { book -> [String: Any] in
+            [
+                "hash": book.hash,
+                "title": book.title,
+                "author": book.author,
+                "progress": book.progress,
+                "chapterCount": book.chapterCount,
+                "bookmarks": EbookSyncStore.shared.orphanBookmarks[
+                    book.hash.lowercased()]?.count ?? 0,
+            ]
+        }
+        return ["books": books, "count": books.count, "remote": remote]
     }
 
     private static func booksImportWeb(_ body: [String: Any]) async throws -> [String: Any] {

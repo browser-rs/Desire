@@ -6,6 +6,8 @@
 - Books: reading stats sync across devices with a max-per-day/per-book merge, so the stats sheet and reading review never double-count two devices reading on the same day (v0.8.37)
 - Agent: `syncNow` and `syncStatus` tools trigger a sync and report sign-in state, per-domain errors, orphan counts and each book's reading progress, so "where did I stop on the other Mac" is one question (v0.8.37)
 - Sync: the ebooks domain joins the server whitelist with smoke coverage; if the server has not been updated only that domain reports an error, other domains keep syncing (v0.8.37)
+- Books: books that exist on another device but not on this Mac are now visible from the library as remote entries — pick the same file and the SHA-256 match restores their progress and bookmarks instead of leaving them hidden in sync diagnostics (v0.8.37)
+
 
 
 ## [v0.8.36] - 2026-11-02

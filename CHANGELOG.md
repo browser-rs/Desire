@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.36] - 2026-11-02
 ### Added
 
 - Books: full-chapter bilingual translation — paragraphs are translated in batches with Apple's on-device Translation framework and inserted under the originals; translations can be hidden, re-run in another target language, and are cached per book/chapter so reopening is instant, with the page layout repaginated around them (v0.8.36)

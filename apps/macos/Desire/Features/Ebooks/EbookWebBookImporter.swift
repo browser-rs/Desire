@@ -59,7 +59,10 @@ enum EbookWebBookImporter {
             title: title, cleanedHTML: cleaned, baseURL: baseURL,
             root: EbookImporter.rootDirectory, hash: hash)
         EbookLibraryStore.shared.register(written.book)
-        return Result(book: written.book, existed: false,
+        let registered = EbookLibraryStore.shared.books.first {
+            $0.id == written.book.id
+        } ?? written.book
+        return Result(book: registered, existed: false,
                       imageCount: written.imageCount, failedImages: written.failedImages)
     }
 

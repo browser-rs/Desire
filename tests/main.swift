@@ -8163,6 +8163,7 @@ testEbookTranslationAndLibrarySearchCore()
 testReadingDigestCore()
 testFB2Core()
 testEbookSyncCore()
+testExcerptLocatorCodable()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
@@ -9066,4 +9067,30 @@ func testEbookSyncCore() {
     eq("统计合并：书秒 max", bookStat.seconds, 100)
     eq("统计合并：书页 max", bookStat.pages, 5)
     eq("统计合并：最后阅读新者", bookStat.lastReadAt, new)
+}
+
+// ---------- 摘录定位兼容（v0.8.37） ----------
+
+func testExcerptLocatorCodable() {
+    let oldJSON = """
+    {"id":"11111111-1111-1111-1111-111111111111","kind":"readerHighlight",
+     "title":"书","source":"/tmp/a.epub","content":"原文","createdAt":0,"updatedAt":0}
+    """
+    let decoder = JSONDecoder()
+    guard let old = try? decoder.decode(Excerpt.self, from: Data(oldJSON.utf8)) else {
+        check("摘录定位：旧数据可解码", false)
+        return
+    }
+    check("摘录定位：旧数据 locator 为 nil",
+          old.bookHash == nil && old.chapterIndex == nil && old.startOffset == nil)
+    let withLocator = Excerpt(kind: .readerHighlight, title: "书", source: "/tmp/a.epub",
+                              content: "原文", note: "注",
+                              bookHash: "abc", chapterIndex: 2,
+                              chapterTitle: "第二章", startOffset: 10, endOffset: 12)
+    let data = try! JSONEncoder().encode(withLocator)
+    let decoded = try! decoder.decode(Excerpt.self, from: data)
+    check("摘录定位：往返",
+          decoded.bookHash == "abc" && decoded.chapterIndex == 2
+            && decoded.chapterTitle == "第二章"
+            && decoded.startOffset == 10 && decoded.endOffset == 12)
 }

@@ -91,12 +91,15 @@ final class EbookLibraryStore: ObservableObject {
 
     /// 同步落地：按 hash 匹配本机书并合并；本机没有则返回 false（由调用方进孤儿）。
     @discardableResult
-    func applyRemoteBook(_ payload: EbookSyncBookPayload) -> Bool {
+    func applyRemoteBook(_ payload: EbookSyncBookPayload,
+                         preferRemoteMetadata: Bool = false) -> Bool {
         guard let index = books.firstIndex(where: {
             $0.hash.lowercased() == payload.hash.lowercased()
         }) else { return false }
         let before = books[index].progress
-        books[index] = EbookSyncCore.mergeBook(local: books[index], remote: payload)
+        var local = books[index]
+        if preferRemoteMetadata { local.syncUpdatedAt = .distantPast }
+        books[index] = EbookSyncCore.mergeBook(local: local, remote: payload)
         if books[index].progress > before + 0.0001 {
             books[index].syncedProgressAt = Date()
         }

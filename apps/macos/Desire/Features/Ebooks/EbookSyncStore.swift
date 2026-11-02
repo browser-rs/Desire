@@ -87,7 +87,7 @@ final class EbookSyncStore: ObservableObject {
         let hash = book.hash.lowercased()
         var changed = false
         if let payload = orphanBooks.removeValue(forKey: hash) {
-            changed = EbookLibraryStore.shared.applyRemoteBook(payload)
+            changed = EbookLibraryStore.shared.applyRemoteBook(payload, preferRemoteMetadata: true)
             DiskStore.save(orphanBooks, key: orphanBooksKey)
         }
         if let payloads = orphanBookmarks.removeValue(forKey: hash) {

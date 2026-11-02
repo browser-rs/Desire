@@ -10,6 +10,7 @@
 | 0017 growth_events（v0.8.3 归因，**当时欠账**） | 0017 | 归因 v1 事件表 |
 | excerpts 第十三同步域（v0.8.17） | 无迁移 | 纯 DOMAINS 白名单加行 |
 | 多档案域键 `bookmarks@<profileUUID>`（v0.8.18 方案 A） | **0018** sync_domain_widen | `sync_items`/`sync_pull_cursors` 的 domain varchar(32)→(64)；应用层 is_valid_domain 校验 base 域 + 后缀 charset |
+| ebooks 第十五同步域（v0.8.37） | 无迁移 | `DOMAINS` 白名单加行；未部署时客户端只有 ebooks 域失败，其他域照常 |
 
 ## 部署机步骤
 
@@ -29,6 +30,8 @@ python3 tools/api-remote-smoke.py        # 既有人点对账 10 步
 curl -s https://api.mankong.icu/v9/sync/excerpts -H "Authorization: Bearer <token>"
 # 多档案域（应 200）：
 curl -s "https://api.mankong.icu/v9/sync/bookmarks@00000000-0000-0000-0000-000000000000" -H "Authorization: Bearer <token>"
+# ebooks 域（应 200，不再是 404）：
+curl -s https://api.mankong.icu/v9/sync/ebooks -H "Authorization: Bearer <token>"
 ```
 
 ## 客户端依赖

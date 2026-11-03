@@ -5,6 +5,7 @@ import UIKit
 /// 转码/后台命令/定时任务。运行中可取消，失败命令可重试，产物可在 Mac 打开。
 struct RemoteJobsView: View {
     @EnvironmentObject var client: RemoteClient
+    @State private var detailJob: RemoteJobItem?
 
     private var active: [RemoteJobItem] {
         client.backgroundJobs.filter(\.isActive)
@@ -49,6 +50,9 @@ struct RemoteJobsView: View {
         .navigationTitle("后台任务")
         .onAppear { client.requestBackgroundJobs() }
         .refreshable { client.requestBackgroundJobs() }
+        .sheet(item: $detailJob) { job in
+            RemoteJobDetailView(jobID: job.id)
+        }
     }
 
     private func row(_ job: RemoteJobItem) -> some View {
@@ -93,6 +97,9 @@ struct RemoteJobsView: View {
                     .lineLimit(2)
             }
             HStack(spacing: 8) {
+                Button("详情") { detailJob = job }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
                 if job.isActive {
                     Button("取消", role: .destructive) {
                         client.cancelJob(id: job.id)

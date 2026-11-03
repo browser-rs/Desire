@@ -653,6 +653,10 @@ final class RemoteControlStore: ObservableObject {
         // ── 后台任务（v0.8.39）──
         case "backgroundJobs":
             if let frame = Self.backgroundJobsFrame() { sendInnerRaw(frame) }
+        case "jobDetail":
+            guard let raw = inner.id, let id = UUID(uuidString: raw),
+                  let frame = Self.backgroundJobDetailFrame(id: id) else { return }
+            sendInnerRaw(frame)
         case "openJobArtifact":
             guard let raw = inner.text?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !raw.isEmpty else { return }
@@ -1220,6 +1224,53 @@ final class RemoteControlStore: ObservableObject {
             t: "backgroundJobs",
             active: all.filter { $0.state.isActive }.count,
             jobs: items)
+        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// 单个后台任务详情（v0.8.40）：日志尾 + 订阅条件 + 操作所需字段。
+    nonisolated struct RemoteJobDetailFrame: Codable {
+        var t: String
+        var id: String
+        var title: String
+        var kind: String
+        var state: String
+        var progress: Double?
+        var detail: String
+        var error: String?
+        var artifact: String?
+        var exitCode: Int32?
+        var logTail: String
+        var watchCondition: String?
+        var watchMode: String?
+        var updatedAt: Double
+    }
+
+    private static func backgroundJobDetailFrame(id: UUID) -> String? {
+        guard let job = JobStore.shared.allJobs.first(where: { $0.id == id }) else {
+            return nil
+        }
+        let watch = JobWatchStore.shared.active.first {
+            $0.jobIDs.contains(id.uuidString)
+        }
+        let tail = job.logFile.map {
+            BackgroundCommandStore.readTail(path: $0, maxLines: 120)
+        } ?? ""
+        let frame = RemoteJobDetailFrame(
+            t: "jobDetail",
+            id: job.id.uuidString,
+            title: job.title,
+            kind: job.kind.rawValue,
+            state: job.state.rawValue,
+            progress: job.progress,
+            detail: String(job.detail.prefix(500)),
+            error: job.error.map { String($0.prefix(500)) },
+            artifact: job.artifactURL.map { String($0.prefix(1000)) },
+            exitCode: job.exitCode,
+            logTail: String(JobLogRedactor.redact(tail).suffix(8_000)),
+            watchCondition: watch.map { JobWatchCore.conditionDescription($0.effectiveCondition) },
+            watchMode: watch?.mode.rawValue,
+            updatedAt: job.updatedAt.timeIntervalSince1970)
         guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
         return String(data: data, encoding: .utf8)
     }

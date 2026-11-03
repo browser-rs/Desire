@@ -705,3 +705,22 @@ struct RemoteBackgroundJobsFrame: Codable {
     var active: Int
     var jobs: [RemoteJobItem]
 }
+
+
+// MARK: - 后台任务详情（v0.8.40）
+
+struct RemoteJobDetail: Codable, Equatable {
+    var id: String
+    var title: String
+    var kind: String
+    var state: String
+    var progress: Double?
+    var detail: String
+    var error: String?
+    var artifact: String?
+    var exitCode: Int32?
+    var logTail: String
+    var watchCondition: String?
+    var watchMode: String?
+    var updatedAt: Double
+}

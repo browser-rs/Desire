@@ -13,6 +13,8 @@
 - Jobs: named command templates — save an allowlisted tool + argv (timeout/retry/priority), run it from the Jobs panel, the bridge, or with the Agent's saveJobTemplate/listJobTemplates/runJobTemplate tools (v0.8.40)
 - Jobs: the center shows today's done/failed counts, success rate, average duration and top failing kinds, derived from the job ledger rather than a second stats store (v0.8.40)
 - Jobs: a task detail sheet shows state, progress, exit code, output, active watch condition and the last 200 log lines, with cancel/retry/notify/open actions without leaving the Jobs center (v0.8.40)
+- Remote: tapping Details on a background task opens a task sheet with state, exit code, output, active watch condition and the last part of the log, plus cancel/retry/open output — without returning to the Mac (v0.8.40)
+
 
 
 

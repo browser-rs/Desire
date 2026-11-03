@@ -141,6 +141,7 @@ final class RemoteClient: ObservableObject {
     /// 后台任务（v0.8.39）：Mac 统一 Job 账本的手机视图。
     @Published private(set) var backgroundJobs: [RemoteJobItem] = []
     @Published private(set) var backgroundJobsActive = 0
+    @Published private(set) var jobDetail: RemoteJobDetail?
     /// 链路延迟（拉取往返，毫秒；v0.8.38 批三）
     @Published private(set) var latencyMs: Int?
     /// Mac 最后一次被判在线的时间（离线时可以告诉用户"最后在线 …"）
@@ -878,6 +879,10 @@ final class RemoteClient: ObservableObject {
                     cache(backgroundJobs, key: "remote.cache.jobs")
                     UserDefaults.standard.set(frame.active, forKey: "remote.cache.jobsActive")
                 }
+            case "jobDetail":
+                if let detail = try? JSONDecoder().decode(RemoteJobDetail.self, from: data) {
+                    jobDetail = detail
+                }
             case "archivedSessions":
                 if let frame = try? JSONDecoder().decode(RemoteArchivedSessionsFrame.self, from: data) {
                     archivedSessions = frame.items
@@ -1215,6 +1220,10 @@ final class RemoteClient: ObservableObject {
         pushFrame(["t": "openWorkspace", "id": id], replace: false)
     }
     func requestBackgroundJobs() { pushFrame(["t": "backgroundJobs"], replace: false) }
+    func requestJobDetail(id: String) {
+        jobDetail = nil
+        pushFrame(["t": "jobDetail", "id": id], replace: false)
+    }
     func cancelJob(id: String) { pushFrame(["t": "cancelJob", "id": id], replace: false) }
     func retryJob(id: String) { pushFrame(["t": "retryJob", "id": id], replace: false) }
     func openJobArtifact(_ path: String) {

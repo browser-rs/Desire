@@ -25,6 +25,8 @@ nonisolated struct PageWatch: Codable, Identifiable, Equatable {
     var aiAnalysis: Bool?
     /// 最近一次 AI 分析文本（回合结束后写回；面板/桥/通知消费）。
     var lastAnalysis: String?
+    /// 变化/告警写回哪个 Agent 会话（v0.8.40；nil = 只发通知）。
+    var conversationID: UUID? = nil
 
     // MARK: - 数值盯梢（v0.7.18）
 

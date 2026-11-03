@@ -2331,10 +2331,13 @@ extension BrowserToolProvider {
                 aiAnalysis: (args["aiAnalysis"] as? Bool) ?? false,
                 numericSelector: args["numericSelector"] as? String,
                 alertAbove: args["alertAbove"] as? Double,
-                alertBelow: args["alertBelow"] as? Double) else {
+                alertBelow: args["alertBelow"] as? Double,
+                conversationID: (args["reportToConversation"] as? Bool) == true
+                    ? ownerSession?.conversationId : nil) else {
                 return Self.fail("Invalid name/url — check the URL and try again")
             }
             var note = "Added page watch «\(added.name)» (every \(added.intervalMinutes) min)"
+            if added.conversationID != nil { note += " — changes will be written to this conversation" }
             if added.watchesNumbers {
                 note += " with number tracking on \(added.numericSelector ?? "")"
             }

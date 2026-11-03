@@ -92724,6 +92724,52 @@
           }
         }
       }
+    },
+    "Page watch “%@” alert: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page watch “%@” alert: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "页面监视「%@」告警：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "頁面監視「%@」告警：%@"
+          }
+        }
+      }
+    },
+    "Page watch “%@” changed (%@). URL: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Page watch “%@” changed (%@). URL: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "页面监视「%@」有变化（%@）。URL：%@"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "頁面監視「%@」有變化（%@）。URL：%@"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

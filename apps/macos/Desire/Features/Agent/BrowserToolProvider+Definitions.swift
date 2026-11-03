@@ -358,6 +358,7 @@ extension BrowserToolProvider {
                     "numericSelector": AgentJSONSchemaValue(type: "string", description: "CSS selector for the number to track (optional)"),
                     "alertAbove": AgentJSONSchemaValue(type: "number", description: "Alert when the tracked number rises above this (optional)"),
                     "alertBelow": AgentJSONSchemaValue(type: "number", description: "Alert when the tracked number drops below this (optional)"),
+                    "reportToConversation": AgentJSONSchemaValue(type: "boolean", description: "Write change/alert summaries into the current conversation (default false)"),
                 ], required: ["name", "url"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

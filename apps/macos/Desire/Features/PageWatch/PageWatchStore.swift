@@ -55,8 +55,8 @@ final class PageWatchStore: ObservableObject {
     func add(name: String, url: String, selector: String?, minutes: Int,
              aiAnalysis: Bool = false,
              numericSelector: String? = nil,
-             alertAbove: Double? = nil,
-             alertBelow: Double? = nil) -> PageWatch? {
+             alertAbove: Double? = nil, alertBelow: Double? = nil,
+             conversationID: UUID? = nil) -> PageWatch? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedURL = url.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty, !trimmedURL.isEmpty, let parsed = URL(string: trimmedURL) else { return nil }
@@ -71,6 +71,7 @@ final class PageWatchStore: ObservableObject {
         watch.numericSelector = (trimmedNumeric?.isEmpty == true) ? nil : trimmedNumeric
         watch.alertAbove = alertAbove
         watch.alertBelow = alertBelow
+        watch.conversationID = conversationID
         watches.append(watch)
         save()
         return watch
@@ -399,6 +400,9 @@ final class PageWatchStore: ObservableObject {
             title: String(localized: "Page watch “\(watch.name)”"),
             body: watch.lastAlert ?? String(format: "%.2f", value),
             tier: .routine)
+        appendConversationNote(
+            watch,
+            text: String(localized: "Page watch “\(watch.name)” alert: \(watch.lastAlert ?? String(format: "%.2f", value))"))
         Self.log.info("page watch '\(watch.name, privacy: .public)' numeric alert: \(value, privacy: .public)")
     }
 
@@ -407,5 +411,26 @@ final class PageWatchStore: ObservableObject {
             title: String(localized: "Page changed"),
             body: "\(watch.name) (\(diff))",
             tier: .routine)
+        appendConversationNote(
+            watch,
+            text: String(localized: "Page watch “\(watch.name)” changed (\(diff)). URL: \(watch.url)"))
+    }
+
+    /// v0.8.40：监视结果写回绑定的 Agent 会话（只写摘要，不自动起回合）。
+    func appendConversationNote(_ watch: PageWatch, text: String) {
+        guard let conversationID = watch.conversationID else { return }
+        if let session = AgentScheduler.shared.liveSessions()
+            .compactMap(\.store)
+            .first(where: { $0.conversationId == conversationID }) {
+            session.appendExternalNote(text)
+            return
+        }
+        guard let app = AppState.live,
+              var conversation = app.conversationStore.conversation(for: conversationID) else {
+            return
+        }
+        conversation.messages.append(AgentMessage(role: .system, content: text))
+        conversation.updatedAt = Date()
+        app.conversationStore.save(conversation)
     }
 }

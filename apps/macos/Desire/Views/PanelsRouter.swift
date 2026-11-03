@@ -46,6 +46,35 @@ struct PanelsRouter: ViewModifier {
     let onStartElementPicker: () -> Void
     let onDeleteBookmark: (Bookmark) -> Void
 
+    /// 其他窗口的标签（v0.8.40 跨窗口标签搜索）。
+    private var foreignTabItems: [SearchEverywhere.Item] {
+        TabSessionCoordinator.shared.liveManagers()
+            .filter { $0 !== tabManager }
+            .flatMap { manager -> [SearchEverywhere.Item] in
+                guard let key = manager.sessionKey, !key.isEmpty else { return [] }
+                return manager.tabs.map { tab in
+                    SearchEverywhere.Item(
+                        source: .tab,
+                        id: "foreign:\(key)|\(tab.id.uuidString)",
+                        title: tab.displayTitle,
+                        url: tab.browser.webView.url?.absoluteString ?? tab.urlString)
+                }
+            }
+    }
+
+    private func activateForeignTab(_ raw: String) {
+        let parts = raw.split(separator: "|", maxSplits: 1).map(String.init)
+        guard parts.count == 2,
+              let manager = TabSessionCoordinator.shared.liveManagers()
+                .first(where: { $0.sessionKey == parts[0] }),
+              let tabID = UUID(uuidString: parts[1]),
+              let index = manager.tabs.firstIndex(where: { $0.id == tabID })
+        else { return }
+        TabSessionCoordinator.shared.setActive(manager)
+        manager.selectTab(at: index)
+        manager.selectedTab?.browser.webView.window?.makeKeyAndOrderFront(nil)
+    }
+
     func body(content: Content) -> some View {
         content
             .sheet(isPresented: $showHistory) {
@@ -107,7 +136,9 @@ struct PanelsRouter: ViewModifier {
                     videoAdBlocker: videoAdBlocker,
                     agentSession: agentSession,
                     onClose: { showSearchEverywhere = false },
-                    onOpenAgentPanel: onOpenAgentPanel
+                    onOpenAgentPanel: onOpenAgentPanel,
+                    foreignTabItems: foreignTabItems,
+                    onActivateForeignTab: activateForeignTab
                 )
             }
             .sheet(isPresented: $showWorkspacesPanel) {

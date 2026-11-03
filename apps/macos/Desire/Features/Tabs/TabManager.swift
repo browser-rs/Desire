@@ -348,6 +348,9 @@ class TabManager: ObservableObject {
             url: url, isIncognito: tab.isIncognito, containerID: tab.containerID
         ))
         if recentlyClosed.count > 20 { recentlyClosed.removeFirst() }
+        RecentlyClosedStore.shared.record(
+            url: url, title: tab.displayTitle,
+            isIncognito: tab.isIncognito, containerID: tab.containerID)
     }
     private var suspendTimer: Timer?
     /// Set by a DispatchSourceMemoryPressure event; consumed by the next

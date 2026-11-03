@@ -1,14 +1,16 @@
 import SwiftUI
 
-/// 最近关闭标签面板（v0.8.11 标签快照恢复）：⌘⇧T 只能逐条回放，这里把
-/// 队列整体列出（新→旧），逐条点恢复（含无痕/容器身份保留）。
+/// 最近关闭标签面板（v0.8.40 扩展）：跨窗口、跨启动的关闭历史，
+/// 可搜索、可逐条恢复；⌘⇧T 仍回放当前窗口的最后一条。
 struct RecentlyClosedPanel: View {
     @ObservedObject var tabManager: TabManager
     @ObservedObject private var settings: Settings
+    @ObservedObject private var store = RecentlyClosedStore.shared
     private let contentBlocker: ContentBlockerStore?
     private let videoAdBlocker: VideoAdBlocker?
     @Environment(\.appAccent) private var appAccent: Color
     @Environment(\.dismiss) private var dismiss
+    @State private var query = ""
 
     init(tabManager: TabManager, settings: Settings,
          contentBlocker: ContentBlockerStore?, videoAdBlocker: VideoAdBlocker?) {
@@ -18,8 +20,8 @@ struct RecentlyClosedPanel: View {
         self.videoAdBlocker = videoAdBlocker
     }
 
-    private var records: [TabManager.RecentlyClosedTab] {
-        tabManager.recentlyClosedSnapshot
+    private var records: [RecentlyClosedEntry] {
+        store.search(query)
     }
 
     var body: some View {
@@ -30,9 +32,16 @@ struct RecentlyClosedPanel: View {
                 Text("Recently Closed Tabs")
                     .font(.system(size: 14, weight: .semibold))
                 Spacer()
-                Text("\(records.count)")
+                Text("\(store.entries.count)")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
+                if !store.entries.isEmpty {
+                    Button(String(localized: "Clear")) {
+                        store.clear()
+                    }
+                    .buttonStyle(.borderless)
+                    .font(.system(size: 10.5))
+                }
                 Button { dismiss() } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 15))
@@ -41,10 +50,17 @@ struct RecentlyClosedPanel: View {
                 .buttonStyle(.plain)
             }
             .padding(14)
+            TextField(String(localized: "Search closed tabs…"), text: $query)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 11.5))
+                .padding(.horizontal, 14)
+                .padding(.bottom, 10)
             Divider()
 
             if records.isEmpty {
-                Text("No recently closed tabs in this window")
+                Text(store.entries.isEmpty
+                     ? String(localized: "No recently closed tabs yet")
+                     : String(localized: "No matches"))
                     .font(.system(size: 12))
                     .foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
@@ -52,36 +68,49 @@ struct RecentlyClosedPanel: View {
             } else {
                 ScrollView {
                     VStack(spacing: 0) {
-                        ForEach(Array(records.enumerated()), id: \.offset) { _, record in
+                        ForEach(records) { record in
                             row(record)
                         }
                     }
                 }
             }
         }
-        .frame(width: 460, height: 420)
+        .frame(width: 520, height: 500)
     }
 
-    private func row(_ record: TabManager.RecentlyClosedTab) -> some View {
+    private func row(_ record: RecentlyClosedEntry) -> some View {
         Button {
             tabManager.reopen(
-                record: record,
+                record: TabManager.RecentlyClosedTab(
+                    url: record.url,
+                    isIncognito: record.isIncognito,
+                    containerID: record.containerID),
                 javaScriptEnabled: settings.isJavaScriptEnabled,
                 contentBlocker: contentBlocker,
                 videoAdBlocker: videoAdBlocker)
+            store.remove(record.id)
         } label: {
             HStack(spacing: 8) {
                 FaviconView(urlString: record.url, size: 14)
-                Text(record.url)
-                    .font(.system(size: 11.5))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(record.title)
+                        .font(.system(size: 11.5, weight: .medium))
+                        .lineLimit(1)
+                    Text(record.url)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
                 if record.isIncognito {
                     Text("Private")
                         .font(.system(size: 9, weight: .bold))
                         .foregroundStyle(.purple)
                 }
-                Spacer(minLength: 0)
+                Spacer(minLength: 4)
+                Text(record.closedAt, style: .relative)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.tertiary)
                 Image(systemName: "plus.circle")
                     .font(.system(size: 11))
                     .foregroundStyle(appAccent)

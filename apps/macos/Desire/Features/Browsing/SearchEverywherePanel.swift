@@ -19,6 +19,10 @@ struct SearchEverywherePanel: View {
     let onClose: () -> Void
     /// 点击 Agent 会话结果时的宿主回调（打开 Agent 面板——面板归属 ContentView 状态）。
     var onOpenAgentPanel: (() -> Void)? = nil
+    /// 其他窗口的标签（v0.8.40 跨窗口标签搜索）：id 形如
+    /// `foreign:<sessionKey>|<tabUUID>`，激活回调交给宿主切窗。
+    var foreignTabItems: [SearchEverywhere.Item] = []
+    var onActivateForeignTab: ((String) -> Void)? = nil
 
     /// 检索档位（v0.8.22）：智能 = 字面优先 + 语义补位；字面 = 只字面；
     /// 语义 = 只语义（按相关度）。选择记住到下次打开。
@@ -49,11 +53,12 @@ struct SearchEverywherePanel: View {
 
     /// 当前选中标签 id（回车直达 switchTab 用）。
     private var openTabItems: [SearchEverywhere.Item] {
-        tabManager.tabs.enumerated().map { idx, tab in
-            .init(source: .tab, id: tab.id.uuidString,
-                  title: tab.displayTitle,
-                  url: tab.browser.webView.url?.absoluteString ?? tab.urlString)
+        let local = tabManager.tabs.map { tab in
+            SearchEverywhere.Item(source: .tab, id: tab.id.uuidString,
+                                  title: tab.displayTitle,
+                                  url: tab.browser.webView.url?.absoluteString ?? tab.urlString)
         }
+        return local + foreignTabItems
     }
 
     var body: some View {
@@ -573,6 +578,11 @@ struct SearchEverywherePanel: View {
     private func activate(_ hit: SearchEverywhere.Hit) {
         switch hit.source {
         case .tab:
+            if hit.id.hasPrefix("foreign:") {
+                onActivateForeignTab?(String(hit.id.dropFirst("foreign:".count)))
+                onClose()
+                return
+            }
             if let id = UUID(uuidString: hit.id),
                let idx = tabManager.tabs.firstIndex(where: { $0.id == id }) {
                 tabManager.selectTab(at: idx)

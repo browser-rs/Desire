@@ -2493,7 +2493,8 @@ class AgentSessionStore: ObservableObject {
                     // need the loop's approval gate and provider stack.
                     result = await runSubagent(argumentsJSON: tc.function.arguments)
                 } else {
-                    result = await toolProvider.execute(tc, in: activeWebView ?? WKWebView())
+                    result = await executeWithReadonlyRetry(
+                        tc, in: activeWebView ?? WKWebView())
                 }
                 guard isCurrentTurn(turnID), !isCancelled, !Task.isCancelled else { return }
                 // 子代理刚跑完 → 认领它的用量（记在这条工具消息上，成本才算得全）。
@@ -3235,6 +3236,22 @@ class AgentSessionStore: ObservableObject {
     /// （readonly 直接放行、取消即拒），结果按**原顺序**追加 —— toolCallId 配对
     /// 不受执行顺序影响。耗时落在真正的 I/O 上（webview 的 JS 往返、网络），
     /// 这类等待互相重叠，多读回合的墙钟就是省在这里。
+    /// 只读工具瞬态失败自动重试一次（v0.8.40）：网络/超时才重试，
+    /// 副作用工具绝不自动重放。失败仍按 `Error:` 返回。
+    private func executeWithReadonlyRetry(
+        _ call: AgentToolCall, in webView: WKWebView
+    ) async -> String {
+        let first = await toolProvider.execute(call, in: webView)
+        guard ToolRisk.classify(call.function.name) == .readonly,
+              first.hasPrefix("Error:"),
+              TaskFailureClassify.classify(first) == .network,
+              !isCancelled, !Task.isCancelled else { return first }
+        Log.agent.info("readonly tool \(call.function.name, privacy: .public) failed transiently — retrying once")
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        guard !isCancelled, !Task.isCancelled else { return first }
+        return await toolProvider.execute(call, in: webView)
+    }
+
     private func runReadonlyBatch(_ calls: [AgentToolCall]) async {
         var denied: [AgentMessage] = []
         var pending: [(call: AgentToolCall, startedAt: Date)] = []
@@ -3285,8 +3302,19 @@ class AgentSessionStore: ObservableObject {
             return out.sorted { $0.0 < $1.0 }
         }
 
-        for (offset, result) in results {
+        for (offset, rawResult) in results {
             let entry = pending[offset]
+            var result = rawResult
+            // 只读批里的瞬态网络失败重试一次（副作用工具绝不自动重放）。
+            if ToolRisk.classify(entry.call.function.name) == .readonly,
+               rawResult.hasPrefix("Error:"),
+               TaskFailureClassify.classify(rawResult) == .network,
+               !isCancelled, !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                if !isCancelled, !Task.isCancelled {
+                    result = await toolProvider.execute(entry.call, in: webView)
+                }
+            }
             messages.append(AgentMessage(
                 role: .tool,
                 content: SecretRedactor.redact(result, knownKeys: preference.secretsForRedaction()),

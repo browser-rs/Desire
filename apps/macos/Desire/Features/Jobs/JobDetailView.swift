@@ -63,7 +63,7 @@ struct JobDetailView: View {
                 }
                 if let artifact = job.artifactURL, !artifact.isEmpty {
                     HStack(spacing: 6) {
-                        Text(String(localized: "Output:"))
+                        Text(String(localized: "Output: "))
                             .foregroundStyle(.secondary)
                         Text(artifact)
                             .font(.system(size: 10, design: .monospaced))

@@ -374,3 +374,13 @@
 - 发版前：harness 新条件/队列/脱敏用例 0 失败 + macOS Debug/Release clean build
   零警告 + Remote 构建 + E2E（条件心跳/失败快报/依赖取消/协议/脱敏）。
 - 用户说「发」才发。
+
+## 十四、开发进度（2026-11-03）
+
+- **批零完成**：RecentlyClosedStore（跨窗口/跨启动、搜索、标题/时间）+ 面板改造；
+  SearchEverywhere 跨窗口标签（`foreign:` 命中、切窗激活）；只读工具瞬态失败重试一次。
+- **批一完成（条件部分）**：`JobWatchCondition`（terminal/failed/progress/logMatch/
+  heartbeat）+ 条件去重/心跳基线 + Agent 工具与桥参数 + PageWatch 变化写回会话
+  （`reportToConversation`）。桥实测 logMatch 触发、心跳/进度单测通过。
+- **剩余**：批二（队列/依赖/自动重试/进度协议/日志脱敏）、批三（Jobs 中心详情/
+  模板/指标、回合断点恢复 2.0）、批四（Remote 任务详情、Office 批量/定时命令链）。

@@ -1,3 +1,13 @@
+## [Unreleased]
+### Added
+
+- Browser: Recently Closed is now a persistent, searchable center across windows and launches — each entry keeps its title, URL and close time, and restores into the current window with container/private context preserved (v0.8.40)
+- Browser: Search Everywhere can now find tabs in OTHER windows as well, and Enter switches to that window and activates the tab (suspended tabs resume) instead of only searching the current window (v0.8.40)
+- Agent: read-only tools that fail with a transient network/timeout error are retried once with a short backoff; side-effecting tools are never auto-replayed and still surface the failure for the model to adapt (v0.8.40)
+- Fusion: page watches can report changes and numeric alerts into a bound Agent conversation as a compact note, so the next turn can discuss the change without the user retyping it (v0.8.40)
+- Jobs: watchers now support conditions beyond completion — fail-fast, progress threshold, log keyword/regex match and periodic heartbeat — while still delivering the final terminal summary once (v0.8.40)
+
+
 ## [v0.8.39] - 2026-11-03
 ### Added
 

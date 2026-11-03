@@ -285,6 +285,7 @@ SOURCES=(
   apps/macos/Desire/Features/AddressBar/URLBatch.swift
   apps/macos/Desire/Features/Agent/ToolCallGrouper.swift
   apps/macos/Desire/Features/Browsing/MediaEngagementCore.swift
+  apps/macos/Desire/Features/Browsing/ImageEditPipelineCore.swift
   tests/main.swift
 )
 swiftc -o "$OUT" "${SOURCES[@]}"

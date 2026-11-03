@@ -6726,6 +6726,60 @@ func testJobTemplateAndMetrics() {
 }
 testJobTemplateAndMetrics()
 
+func testImageEditPipelineCore() {
+    var params = ImageAdjustParams()
+    params.brightness = 5
+    params.contrast = 9
+    params.temperature = -500
+    let clamped = ImageAdjustParams.clamped(params)
+    eq("管线：亮度夹紧", clamped.brightness, 0.3)
+    eq("管线：对比度夹紧", clamped.contrast, 1.8)
+    eq("管线：色温夹紧", clamped.temperature, -100)
+    check("管线：默认即中性", ImageAdjustParams().isNeutral)
+
+    let curve = ImageAdjustParams.clamped(ImageAdjustParams(
+        curvePoints: [
+            .init(x: 0.25, y: 0.4),
+            .init(x: 0.25, y: 0.5),
+            .init(x: 0.75, y: 0.8),
+            .init(x: 0.9, y: 5),
+        ]))
+    eq("管线：曲线点去重排序", curve.curvePoints.count, 3)
+    check("管线：曲线插值", abs(ImageAdjustParams.curveValue(curve, at: 0.5) - 0.6) < 0.0001)
+    check("管线：无曲线恒等",
+          abs(ImageAdjustParams.curveValue(ImageAdjustParams(), at: 0.5) - 0.5) < 0.0001)
+
+    var pipeline = ImageEditPipeline()
+    let adjust = ImageEditOperation.adjust(ImageAdjustParams(brightness: 0.1))
+    check("管线：追加成功", pipeline.append(adjust))
+    pipeline.updateAdjust(adjust.id, params: ImageAdjustParams(brightness: -0.5))
+    eq("管线：改参后夹紧", pipeline.operations[0].adjust?.brightness, -0.3)
+    let fingerprintA = pipeline.fingerprint()
+    pipeline.setEnabled(adjust.id, false)
+    check("管线：开关改变指纹", pipeline.fingerprint() != fingerprintA)
+    pipeline.remove(adjust.id)
+    check("管线：删除后为空", pipeline.isEmpty)
+
+    for _ in 0..<ImageEditPipeline.maxOperations {
+        _ = pipeline.append(ImageEditOperation.filter("mono"))
+    }
+    check("管线：超出上限拒绝",
+          !pipeline.append(ImageEditOperation.filter("noir")))
+
+    var selectionPipeline = ImageEditPipeline()
+    let selection = ImageEditOperation.selection(.init(x: 0.1, y: 0.1, width: 0.5,
+                                                       height: 0.4, ellipse: false,
+                                                       feather: 0.1))
+    _ = selectionPipeline.append(selection)
+    check("管线：激活选区", selectionPipeline.activeSelection != nil)
+    let neutral = ImageEditOperation.selection(.init(x: 0, y: 0, width: 0, height: 0,
+                                                     ellipse: false, feather: 0))
+    _ = selectionPipeline.append(neutral)
+    check("管线：空选区不算激活",
+          selectionPipeline.activeSelection?.width == 0.5)
+}
+testImageEditPipelineCore()
+
 func testPlaybook() {
     let playbook = Playbook(
         name: "Brief",

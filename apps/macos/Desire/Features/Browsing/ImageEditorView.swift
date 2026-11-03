@@ -89,10 +89,35 @@ struct ImageEditorView: View {
     @State private var ocrRunning = false
     @State private var ocrResult: String?
 
+    // 非破坏管线（v0.8.41）：调节/滤镜/选区走 document，几何/标注仍烙图。
+    @StateObject private var document = ImageEditorDocument()
+    @State private var showOriginal = false
+    @State private var showHistogram = false
+    @State private var showExport = false
+    @State private var selectionMode = false
+    @State private var selectionStart: CGPoint?
+    @State private var selectionRect: CGRect?
+    @State private var selectionFeather: Double = 0.08
+    @State private var tintDraft: Double = 0
+    @State private var highlightsDraft: Double = 0
+    @State private var shadowsDraft: Double = 0
+    @State private var vibranceDraft: Double = 0
+    @State private var clarityDraft: Double = 0
+    @State private var denoiseDraft: Double = 0
+    @State private var vignetteDraft: Double = 0
+    @State private var blackPointDraft: Double = 0
+    @State private var whitePointDraft: Double = 1
+
     /// 显示位图与实际位图之间的缩放比。
     private var displayScale: CGFloat {
         guard let image, displaySize.width > 0 else { return 1 }
         return CGFloat(image.width) / displaySize.width
+    }
+
+    /// 显示位图：Before/After 或 管线渲染结果（无管线 = 原图）。
+    private var displayImage: CGImage? {
+        if showOriginal { return image }
+        return document.renderedImage ?? image
     }
 
     var body: some View {
@@ -109,6 +134,15 @@ struct ImageEditorView: View {
             polygonPoints = []
             polygonDragStart = nil
         }
+        .onChange(of: document.pipeline) { _, _ in
+            if let image { document.requestRender(base: image) }
+        }
+        .sheet(isPresented: $showExport) {
+            ImageExportPanel(
+                base: image,
+                pipeline: document.pipeline,
+                fileName: fileName)
+        }
     }
 
     // MARK: - 加载 / 保存
@@ -123,6 +157,7 @@ struct ImageEditorView: View {
             pinchBase = 1
             // fitZoom 量完容器后由 recomputeFit 收敛；先给个保守初值防闪。
             DispatchQueue.main.async { recomputeFit() }
+            document.requestRender(base: cg)
         } else {
             loadError = String(localized: "Could not load this image.")
         }
@@ -130,6 +165,9 @@ struct ImageEditorView: View {
 
     private func save() {
         guard let image else { return }
+        // 保存 = 基础位图 + 非破坏管线（调节/滤镜/选区）一起渲染。
+        let output = ImageEditorDocument.renderFinal(
+            base: image, pipeline: document.pipeline) ?? image
         do {
             let fm = FileManager.default
             if fm.fileExists(atPath: fileURL.path) {
@@ -138,7 +176,7 @@ struct ImageEditorView: View {
                 try? fm.removeItem(at: backup)
                 try fm.copyItem(at: fileURL, to: backup)
             }
-            try ImageTransforms.save(image, to: fileURL)
+            try ImageTransforms.save(output, to: fileURL)
             hasUnsavedChanges = false
             flash(String(localized: "Saved (.bak snapshot written)"))
         } catch {
@@ -178,6 +216,7 @@ struct ImageEditorView: View {
         hasUnsavedChanges = true
         cropRect = nil
         cropMode = false
+        document.requestRender(base: next)
     }
 
     /// 压栈（v0.8.13 历史面板）：栈满丢弃最旧一步，历史条目同步。
@@ -202,10 +241,19 @@ struct ImageEditorView: View {
     }
 
     private func undo() {
+        // 非破坏操作（调节/滤镜/选区）先走管线 undo，再回退烙图历史。
+        if document.canUndo {
+            _ = document.undo()
+            return
+        }
         guard let previous = history.popLast() else { return }
         if !historySteps.isEmpty { historySteps.removeLast() }
         image = previous
         hasUnsavedChanges = true
+    }
+
+    private func redo() {
+        _ = document.redo()
     }
 
     // MARK: - 子视图
@@ -286,9 +334,54 @@ struct ImageEditorView: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
-            .disabled(history.isEmpty)
+            .disabled(history.isEmpty && !document.canUndo)
             .keyboardShortcut("z", modifiers: .command)
             .help("Undo (⌘Z)")
+            Button { redo() } label: {
+                Image(systemName: "arrow.uturn.forward")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .disabled(!document.canRedo)
+            .keyboardShortcut("z", modifiers: [.command, .shift])
+            .help("Redo (⌘⇧Z)")
+            Button {
+                showOriginal = true
+            } label: {
+                Image(systemName: "eye")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(showOriginal ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+            .help(String(localized: "Hold to compare with the original"))
+            .onHover { hovering in
+                if !hovering { showOriginal = false }
+            }
+            Button {
+                showHistogram.toggle()
+            } label: {
+                Image(systemName: "chart.bar.xaxis")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(showHistogram ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+            .help(String(localized: "Histogram"))
+            Button {
+                showExport = true
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .disabled(image == nil)
+            .help(String(localized: "Export…"))
+            Button {
+                selectionMode.toggle()
+                if !selectionMode { selectionRect = nil; selectionStart = nil }
+            } label: {
+                Image(systemName: "rect.dashed")
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(selectionMode ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+            .help(String(localized: "Selection (drag on the image)"))
             Button {
                 save()
             } label: {
@@ -377,11 +470,51 @@ struct ImageEditorView: View {
         .help(help)
     }
 
+    /// 选区拖拽落定 → 归一化参数写入 document（y 以图像顶部为 0）。
+    private func commitSelection() {
+        defer {
+            selectionStart = nil
+        }
+        guard let rect = selectionRect, rect.width >= 8, rect.height >= 8,
+              displaySize.width > 0, displaySize.height > 0 else {
+            selectionRect = nil
+            document.setSelection(nil)
+            return
+        }
+        let params = ImageSelectionParams(
+            x: rect.minX / displaySize.width,
+            y: rect.minY / displaySize.height,
+            width: rect.width / displaySize.width,
+            height: rect.height / displaySize.height,
+            ellipse: false,
+            feather: selectionFeather)
+        document.setSelection(params)
+        hasUnsavedChanges = true
+    }
+
+    /// 选区蚂蚁线 overlay（视图坐标）。
+    @ViewBuilder
+    private var selectionOverlay: some View {
+        if selectionMode, let rect = selectionRect {
+            Rectangle()
+                .strokeBorder(Color.white, lineWidth: 1)
+                .background(Color.white.opacity(0.06))
+                .overlay(
+                    Rectangle().strokeBorder(Color.black, lineWidth: 1)
+                        .blur(radius: 0.5)
+                )
+                .frame(width: rect.width, height: rect.height)
+                .offset(x: rect.minX, y: rect.minY)
+                .allowsHitTesting(false)
+        }
+    }
+
     // MARK: - 画布
 
     @ViewBuilder
     private var canvas: some View {
-        if let image, let nsImage = makeNSImage(image) {
+        if let image, let display = displayImage,
+           let nsImage = makeNSImage(display) {
             GeometryReader { container in
                 ScrollView([.horizontal, .vertical]) {
                 ZStack {
@@ -418,7 +551,14 @@ struct ImageEditorView: View {
                                     }
                             })
                         .overlay(cropOverlay)
+                        .overlay(selectionOverlay)
                         .overlay(annotationOverlay)
+                        .overlay(alignment: .topTrailing) {
+                            if showHistogram {
+                                ImageHistogramView(image: display)
+                                    .padding(8)
+                            }
+                        }
                         // 裁剪选框/多边形预览用图片本地坐标（原先挂在
                         // ZStack 上与手势坐标系差一个 padding——缩放后放大暴露）。
                         .overlay(alignment: .topLeading) {
@@ -504,6 +644,15 @@ struct ImageEditorView: View {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 let point = value.location
+                if selectionMode {
+                    if let start = selectionStart {
+                        selectionRect = CGRect(
+                            x: min(start.x, point.x), y: min(start.y, point.y),
+                            width: abs(point.x - start.x),
+                            height: abs(point.y - start.y))
+                    }
+                    return
+                }
                 if cropMode {
                     if let start = cropStart {
                         var rect = CGRect(x: min(start.x, point.x), y: min(start.y, point.y),
@@ -530,6 +679,10 @@ struct ImageEditorView: View {
                 }
             }
             .onEnded { value in
+                if selectionMode {
+                    commitSelection()
+                    return
+                }
                 if cropMode {
                     if let rect = cropRect, rect.width >= 8, rect.height >= 8 {
                         let pixel = CGRect(
@@ -894,19 +1047,47 @@ struct ImageEditorView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Adjustments")
                 .font(.system(size: 11, weight: .semibold))
-            sliderRow(String(localized: "Brightness"), value: $brightness, range: -0.3...0.3)
-            sliderRow(String(localized: "Contrast"), value: $contrast, range: 0.5...1.8)
-            sliderRow(String(localized: "Saturation"), value: $saturation, range: 0...2)
-            sliderRow(String(localized: "Sharpen"), value: $sharpen, range: 0...2)
-            sliderRow(String(localized: "Exposure"), value: $exposure, range: -2...2)
-            sliderRow(String(localized: "Color Temperature"), value: $temperature, range: -100...100)
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    sliderRow(String(localized: "Brightness"), value: $brightness, range: -0.3...0.3)
+                    sliderRow(String(localized: "Contrast"), value: $contrast, range: 0.5...1.8)
+                    sliderRow(String(localized: "Saturation"), value: $saturation, range: 0...2)
+                    sliderRow(String(localized: "Sharpen"), value: $sharpen, range: 0...2)
+                    sliderRow(String(localized: "Exposure"), value: $exposure, range: -2...2)
+                    sliderRow(String(localized: "Color Temperature"), value: $temperature, range: -100...100)
+                    sliderRow(String(localized: "Tint"), value: $tintDraft, range: -100...100)
+                    sliderRow(String(localized: "Highlights"), value: $highlightsDraft, range: -1...1)
+                    sliderRow(String(localized: "Shadows"), value: $shadowsDraft, range: -1...1)
+                    sliderRow(String(localized: "Vibrance"), value: $vibranceDraft, range: -1...1)
+                    sliderRow(String(localized: "Clarity"), value: $clarityDraft, range: 0...1)
+                    sliderRow(String(localized: "Denoise"), value: $denoiseDraft, range: 0...1)
+                    sliderRow(String(localized: "Vignette"), value: $vignetteDraft, range: 0...1)
+                    sliderRow(String(localized: "Black Point"), value: $blackPointDraft, range: 0...0.4)
+                    sliderRow(String(localized: "White Point"), value: $whitePointDraft, range: 0.6...1)
+                }
+                .padding(.vertical, 2)
+            }
+            .frame(maxHeight: 210)
             HStack {
                 Button(String(localized: "Apply")) {
-                    apply(label: String(localized: "Adjustments"), transform: {
-                        ImageTransforms.adjusted($0, brightness: brightness, contrast: contrast,
-                                                 saturation: saturation, sharpen: sharpen,
-                                                 exposure: exposure, temperature: temperature)
-                    })
+                    document.applyAdjust(ImageAdjustParams(
+                        brightness: brightness,
+                        contrast: contrast,
+                        saturation: saturation,
+                        sharpen: sharpen,
+                        exposure: exposure,
+                        temperature: temperature,
+                        tint: tintDraft,
+                        highlights: highlightsDraft,
+                        shadows: shadowsDraft,
+                        vibrance: vibranceDraft,
+                        clarity: clarityDraft,
+                        denoise: denoiseDraft,
+                        vignette: vignetteDraft,
+                        vignetteFeather: 0.5,
+                        blackPoint: blackPointDraft,
+                        whitePoint: whitePointDraft))
+                    hasUnsavedChanges = true
                     showAdjustments = false
                 }
                 .buttonStyle(.borderedProminent)
@@ -914,13 +1095,45 @@ struct ImageEditorView: View {
                 Button(String(localized: "Reset")) {
                     brightness = 0; contrast = 1; saturation = 1; sharpen = 0
                     exposure = 0; temperature = 0
+                    tintDraft = 0; highlightsDraft = 0; shadowsDraft = 0
+                    vibranceDraft = 0; clarityDraft = 0; denoiseDraft = 0
+                    vignetteDraft = 0; blackPointDraft = 0; whitePointDraft = 1
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            Divider()
+            if selectionMode {
+                VStack(alignment: .leading, spacing: 6) {
+                    sliderRow(String(localized: "Feather"), value: $selectionFeather,
+                              range: 0...0.3)
+                    HStack {
+                        Button(String(localized: "Clear Selection")) {
+                            document.setSelection(nil)
+                            selectionRect = nil
+                            selectionStart = nil
+                            selectionMode = false
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        Spacer()
+                    }
+                }
+            } else {
+                Button {
+                    selectionMode = true
+                    showAdjustments = false
+                    showFilters = false
+                } label: {
+                    Label(String(localized: "Select Area…"), systemImage: "rect.dashed")
+                        .font(.system(size: 10.5, weight: .medium))
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
             }
         }
         .padding(12)
-        .frame(width: 230)
+        .frame(width: 250)
         .background(RoundedRectangle(cornerRadius: 10).fill(.regularMaterial))
         .shadow(radius: 4)
     }
@@ -933,9 +1146,8 @@ struct ImageEditorView: View {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 64), spacing: 6)], spacing: 6) {
                 ForEach(ImageFilterPreset.allCases.filter { $0 != .none }) { preset in
                     Button {
-                        apply(label: preset.localizedTitle) {
-                            ImageTransforms.photoFiltered($0, preset: preset)
-                        }
+                        _ = document.applyFilter(preset.rawValue)
+                        hasUnsavedChanges = true
                     } label: {
                         Text(preset.localizedTitle)
                             .font(.system(size: 10.5))
@@ -950,7 +1162,7 @@ struct ImageEditorView: View {
                 }
             }
             .frame(width: 206)
-            Text("Click a filter to bake it in — undo (⌘Z) reverts.")
+            Text("Filters apply non-destructively — undo (⌘Z) reverts.")
                 .font(.system(size: 9.5))
                 .foregroundStyle(.tertiary)
         }

@@ -1,3 +1,11 @@
+## [Unreleased]
+### Added
+
+- Image editor: non-destructive edit pipeline — adjustments and filters are re-editable operations with undo/redo (⌘Z/⌘⇧Z) instead of one-shot bakes; new controls for tint, highlights, shadows, vibrance, clarity, denoise, vignette and black/white points (v0.8.41)
+- Image editor: selection tool with feathering — adjustments and filters apply only inside the selected rectangle (mask blended with the original), clear/re-drag to change (v0.8.41)
+- Image editor: live luminance+RGB histogram, hold-to-compare with the original, and an export panel (JPEG/PNG/HEIC, quality, long-edge resize, copy to clipboard / save as) that renders the full pipeline (v0.8.41)
+
+
 ## [v0.8.40] - 2026-11-04
 ### Added
 

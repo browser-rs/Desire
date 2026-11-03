@@ -68,6 +68,13 @@ struct ImageEditorView: View {
     // 尺寸调整
     @State private var showResize = false
     @State private var resizeWidth = ""
+    @State private var showStraighten = false
+    @State private var straightenAngle: Double = 0
+    @State private var showNumericCrop = false
+    @State private var cropXText = ""
+    @State private var cropYText = ""
+    @State private var cropWText = ""
+    @State private var cropHText = ""
 
     /// 视图显示尺寸（点击坐标 → 位图像素换算用）。
     @State private var displaySize: CGSize = .zero
@@ -158,6 +165,8 @@ struct ImageEditorView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear(perform: load)
         .sheet(isPresented: $showResize) { resizeSheet }
+        .sheet(isPresented: $showStraighten) { straightenSheet }
+        .sheet(isPresented: $showNumericCrop) { numericCropSheet }
         .onChange(of: tool) { _, _ in
             polygonPoints = []
             polygonDragStart = nil
@@ -482,6 +491,8 @@ struct ImageEditorView: View {
             }
             button("crop", "Crop") { cropMode.toggle() }
                 .foregroundStyle(cropMode ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
+            button("dial.min", "Straighten Angle…") { showStraighten = true }
+            button("ruler", "Precise Crop…") { showNumericCrop = true }
             button("arrow.up.left.and.arrow.down.right", "Resize…") { showResize = true }
 
             Divider().frame(height: 16)
@@ -638,6 +649,7 @@ struct ImageEditorView: View {
                                     .background(appAccent.opacity(0.08))
                                     .frame(width: rect.width, height: rect.height)
                                     .offset(x: rect.minX, y: rect.minY)
+                                    .overlay(cropGuides)
                             }
                             if tool == .polygon, polygonPoints.count >= 1 {
                                 Path { path in
@@ -1290,6 +1302,32 @@ struct ImageEditorView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
 
+    /// 裁剪参考线（三分 + 中心）：挂在选框上。
+    @ViewBuilder
+    private var cropGuides: some View {
+        if cropMode, let rect = cropRect, rect.width > 24, rect.height > 24 {
+            Path { path in
+                for fraction in [1.0 / 3.0, 2.0 / 3.0] {
+                    path.move(to: CGPoint(x: rect.minX + rect.width * fraction,
+                                          y: rect.minY))
+                    path.addLine(to: CGPoint(x: rect.minX + rect.width * fraction,
+                                             y: rect.maxY))
+                    path.move(to: CGPoint(x: rect.minX,
+                                          y: rect.minY + rect.height * fraction))
+                    path.addLine(to: CGPoint(x: rect.maxX,
+                                             y: rect.minY + rect.height * fraction))
+                }
+                // 中心十字
+                path.move(to: CGPoint(x: rect.midX - 6, y: rect.midY))
+                path.addLine(to: CGPoint(x: rect.midX + 6, y: rect.midY))
+                path.move(to: CGPoint(x: rect.midX, y: rect.midY - 6))
+                path.addLine(to: CGPoint(x: rect.midX, y: rect.midY + 6))
+            }
+            .stroke(Color.white.opacity(0.65), lineWidth: 0.75)
+            .allowsHitTesting(false)
+        }
+    }
+
     // MARK: - 状态条 / 尺寸调整
 
     private var statusBar: some View {
@@ -1370,6 +1408,117 @@ struct ImageEditorView: View {
         .onAppear {
             if resizeWidth.isEmpty, let image { resizeWidth = "\(image.width)" }
         }
+    }
+
+    /// 拉直（±45°）：实时预览交给 Apply 后烙图（保持原尺寸，无黑角）。
+    private var straightenSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(String(localized: "Straighten Image"))
+                .font(.system(size: 14, weight: .semibold))
+            HStack {
+                Text(String(localized: "Angle"))
+                    .font(.system(size: 12))
+                Slider(value: $straightenAngle, in: -45...45)
+                    .controlSize(.small)
+                Text(String(format: "%.1f°", straightenAngle))
+                    .font(.system(size: 10, design: .monospaced))
+                    .frame(width: 48, alignment: .trailing)
+            }
+            Text(String(localized: "Output keeps the original size; the image is scaled to fill (no black corners)."))
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+            HStack {
+                Spacer()
+                Button(String(localized: "Cancel")) { showStraighten = false }
+                    .keyboardShortcut(.cancelAction)
+                Button(String(localized: "Apply")) {
+                    apply(label: String(localized: "Straighten"), transform: {
+                        ImageTransforms.straightened($0, degrees: straightenAngle)
+                            ?? $0
+                    })
+                    straightenAngle = 0
+                    showStraighten = false
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(18)
+        .frame(width: 340)
+    }
+
+    /// 数字裁剪：精确像素矩形（相对当前位图）。
+    private var numericCropSheet: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(String(localized: "Precise Crop (px)"))
+                .font(.system(size: 14, weight: .semibold))
+            if let image {
+                Text(String(localized: "Image: \(image.width) × \(image.height) px"))
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    numericField(String(localized: "X"), $cropXText)
+                    numericField(String(localized: "Y"), $cropYText)
+                    numericField(String(localized: "Width"), $cropWText)
+                    numericField(String(localized: "Height"), $cropHText)
+                }
+                Text(String(localized: "Crop is applied immediately (undo with ⌘Z)."))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            }
+            HStack {
+                Spacer()
+                Button(String(localized: "Cancel")) { showNumericCrop = false }
+                    .keyboardShortcut(.cancelAction)
+                Button(String(localized: "Apply")) { applyNumericCrop() }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .disabled(!numericCropValid)
+            }
+        }
+        .padding(18)
+        .frame(width: 420)
+        .onAppear {
+            if cropXText.isEmpty, let image {
+                cropXText = "0"; cropYText = "0"
+                cropWText = "\(image.width)"; cropHText = "\(image.height)"
+            }
+        }
+    }
+
+    private func numericField(_ title: String, _ text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+            TextField("", text: text)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 76)
+                .font(.system(size: 11, design: .monospaced))
+        }
+    }
+
+    private var numericCropRect: CGRect? {
+        guard let image,
+              let x = Int(cropXText.trimmingCharacters(in: .whitespaces)),
+              let y = Int(cropYText.trimmingCharacters(in: .whitespaces)),
+              let w = Int(cropWText.trimmingCharacters(in: .whitespaces)),
+              let h = Int(cropHText.trimmingCharacters(in: .whitespaces)),
+              w > 0, h > 0,
+              x >= 0, y >= 0,
+              x + w <= image.width, y + h <= image.height
+        else { return nil }
+        return CGRect(x: x, y: y, width: w, height: h)
+    }
+
+    private var numericCropValid: Bool { numericCropRect != nil }
+
+    private func applyNumericCrop() {
+        guard let rect = numericCropRect else { return }
+        apply(label: String(localized: "Crop"), transform: {
+            ImageTransforms.cropped($0, rect: rect)
+        })
+        showNumericCrop = false
     }
 
     private var computedResizeHeight: Int? {

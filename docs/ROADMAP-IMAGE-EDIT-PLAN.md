@@ -159,3 +159,10 @@
   双击删除锚点）+ 分通道 LUT 渲染（CIColorCube）+ `ImageEditPresetStore`/预设面板；
   harness 2748/0，Release clean 零警告。**迭代 1 剩余：拉直/数字裁剪接管线、几何
   非破坏化**（下一批），随后进迭代 2（图层与修复）。
+
+- **批 6（拉直/数字裁剪/参考线）完成**：`ImageTransforms.straightened`（±45°、
+  放大填充原尺寸无黑角）+ 拉直角度滑杆、精确裁剪（X/Y/宽/高 px）+ 裁剪选框三分线/
+  中心十字参考线。几何仍为烙图语义——**非破坏几何迁移调整到迭代 2**（与图层一起
+  做，标注坐标映射一次解决），计划口径更新。
+- **迭代 1 收官**：harness 2748/0；Debug/Release clean 零警告。迭代 2 开工前
+  先做图层模型设计稿（`ImageLayerCore` 纯逻辑进 harness）。

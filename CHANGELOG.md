@@ -6,6 +6,8 @@
 - Image editor: live luminance+RGB histogram, hold-to-compare with the original, and an export panel (JPEG/PNG/HEIC, quality, long-edge resize, copy to clipboard / save as) that renders the full pipeline (v0.8.41)
 - Image editor: curve editing with draggable anchors (tap to add, double-tap to remove) and per-channel R/G/B curves rendered through a generated color-cube LUT on top of the RGB tone curve (v0.8.41)
 - Image editor: named edit presets — save the current sliders + curves and re-apply them on any image from a presets panel (v0.8.41)
+- Image editor: straighten tool (±45°, scaled to fill — no black corners) and precise numeric crop (exact X/Y/width/height in pixels), plus rule-of-thirds and center guides inside the crop selection (v0.8.41)
+
 
 
 

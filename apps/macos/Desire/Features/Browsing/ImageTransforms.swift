@@ -155,6 +155,34 @@ nonisolated enum ImageTransforms {
         return CIContext().createCGImage(output, from: output.extent)
     }
 
+    /// 拉直（v0.8.41）：任意角度旋转后放大填充原尺寸（无黑角），
+    /// 输出尺寸与输入一致（居中裁切语义）。
+    static func straightened(_ image: CGImage, degrees: Double) -> CGImage? {
+        let w = CGFloat(image.width)
+        let h = CGFloat(image.height)
+        let radians = degrees * Double.pi / 180
+        let sinA = abs(CGFloat(sin(radians)))
+        let cosA = abs(CGFloat(cos(radians)))
+        // 覆盖原矩形的缩放：旋转后的包围盒必须盖住 w×h。
+        let scaleX = (w * cosA + h * sinA) / w
+        let scaleY = (w * sinA + h * cosA) / h
+        let scale = max(scaleX, scaleY)
+        guard let context = CGContext(
+            data: nil, width: image.width, height: image.height,
+            bitsPerComponent: 8, bytesPerRow: 0,
+            space: image.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        context.setFillColor(CGColor(gray: 0, alpha: 0))
+        context.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        context.translateBy(x: w / 2, y: h / 2)
+        context.rotate(by: CGFloat(radians))
+        context.scaleBy(x: scale, y: scale)
+        // CGContext 坐标系 y 向上；居中绘制即可。
+        context.draw(image, in: CGRect(x: -w / 2, y: -h / 2, width: w, height: h))
+        return context.makeImage()
+    }
+
     /// 滤镜预设（v0.8.27 媒体批）：系统 CIPhotoEffect 家族 + 鲜艳（CIVibrance）。
     static func photoFiltered(_ image: CGImage, preset: ImageFilterPreset) -> CGImage? {
         guard let name = preset.ciFilterName else { return image }

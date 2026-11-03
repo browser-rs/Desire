@@ -8,6 +8,9 @@
 - Jobs: watchers now support conditions beyond completion — fail-fast, progress threshold, log keyword/regex match and periodic heartbeat — while still delivering the final terminal summary once (v0.8.40)
 - Jobs: background commands can report live progress, phase, artifacts and links with `@@desire:progress|phase|artifact|link` lines; control lines are stripped from the log and the Jobs/Remote views update while the command runs (v0.8.40)
 - Jobs: command logs are redacted at write and read time (Authorization/Bearer, password/api_key/token, sk-/ghp_/xox tokens) so jobs, notifications and Remote never expose credentials (v0.8.40)
+- Jobs: background commands now queue when the concurrency limit is reached (high/normal/low priority) instead of failing, and `after` dependencies hold a command until its prerequisites succeed; a failed dependency cancels the dependent with a clear reason (v0.8.40)
+- Jobs: commands can retry automatically with `maxAttempts`/`retryOn` (nonZero/timeout/always/never) and exponential backoff; attempts share one job id and log, and only the final result notifies (v0.8.40)
+
 
 
 

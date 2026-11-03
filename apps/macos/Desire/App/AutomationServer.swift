@@ -7513,13 +7513,18 @@ final class AutomationServer {
         }()
         let conversationID = (body["conversationId"] as? String)
             .flatMap(UUID.init(uuidString:))
+        let after = ((body["after"] as? [String]) ?? []).compactMap(UUID.init(uuidString:))
         let result = await BackgroundCommandStore.shared.start(
             tool: tool, args: args,
             title: body["title"] as? String,
             cwd: body["cwd"] as? String,
             timeoutMinutes: body["timeoutMinutes"] as? Double ?? 60,
             conversationID: conversationID,
-            report: report)
+            report: report,
+            after: after,
+            maxAttempts: min(max(Int(body["maxAttempts"] as? Double ?? 1), 1), 5),
+            retryOn: (body["retryOn"] as? String ?? "nonZero"),
+            priority: (body["priority"] as? String ?? "normal"))
         switch result {
         case .success(let id):
             return ["ok": true, "jobID": id.uuidString]

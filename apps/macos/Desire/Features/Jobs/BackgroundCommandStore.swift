@@ -18,6 +18,14 @@ final class BackgroundCommandStore: ObservableObject {
         var timeoutMinutes: Double
         var conversationID: UUID?
         var createdAt: Date
+        /// 队列/依赖/重试（v0.8.40；全部 optional，旧 spec 可解码）
+        var priority: String? = nil
+        var dependsOn: [String]? = nil
+        var maxAttempts: Int? = nil
+        var attempt: Int? = nil
+        var retryOn: String? = nil
+        var retryRoot: String? = nil
+        var reportMode: String? = nil
     }
 
     private struct Running {
@@ -31,8 +39,11 @@ final class BackgroundCommandStore: ObservableObject {
     }
 
     @Published private(set) var runningIDs: Set<UUID> = []
+    /// 排队中的命令（v0.8.40；按 priority + createdAt 排序）
+    @Published private(set) var queuedIDs: [UUID] = []
     private var running: [UUID: Running] = [:]
     private var specs: [UUID: CommandSpec] = [:]
+    private var retryTasks: [UUID: Task<Void, Never>] = [:]
 
     private static let specsKey = "jobs.commandSpecs"
     private static let maxConcurrent = 3
@@ -56,19 +67,19 @@ final class BackgroundCommandStore: ObservableObject {
     func spec(for id: UUID) -> CommandSpec? { specs[id] }
 
     /// 启动后台命令。验证（允许名单/协商）在启动前完成；立即返回 jobID。
+    /// 并发满或依赖未满足时进入队列，不报错（v0.8.40）。
     func start(tool: String, args: [String], title: String?,
                cwd: String?, timeoutMinutes: Double,
                conversationID: UUID?, report: JobWatch.Mode?,
-               retryOf: UUID? = nil) async -> Result<UUID, CommandLaunchError> {
+               retryOf: UUID? = nil, after: [UUID] = [],
+               maxAttempts: Int = 1, retryOn: String = "nonZero",
+               priority: String = "normal", attempt: Int = 1,
+               retryRoot: UUID? = nil) async -> Result<UUID, CommandLaunchError> {
         let name = tool.trimmingCharacters(in: .whitespaces).lowercased()
         guard !name.isEmpty else { return .failure(CommandLaunchError("Missing tool")) }
-        guard running.count < Self.maxConcurrent else {
-            return .failure(CommandLaunchError(String(localized: "Too many background commands (\(Self.maxConcurrent) max). Wait for one to finish or cancel it.")))
-        }
         let resolution = await SystemCommandStore.shared.resolveAllowedBinary(name)
-        let executable: URL
         switch resolution {
-        case .success(let url): executable = url
+        case .success: break
         case .failure(let error): return .failure(error)
         }
         let cwdURL = resolveWorkingDirectory(cwd)
@@ -93,18 +104,54 @@ final class BackgroundCommandStore: ObservableObject {
                 conversationID: conversationID, mode: report,
                 reason: String(localized: "Background command"))
         }
-        let sink = CommandLogSink(url: logURL) { event in
+        let spec = CommandSpec(
+            jobID: jobID, tool: name, args: args, title: resolvedTitle,
+            cwd: cwdURL.path, timeoutMinutes: minutes,
+            conversationID: conversationID, createdAt: Date(),
+            priority: priority.lowercased(),
+            dependsOn: after.map(\.uuidString),
+            maxAttempts: min(max(maxAttempts, 1), 5),
+            attempt: max(1, attempt),
+            retryOn: retryOn.lowercased(),
+            retryRoot: (retryRoot ?? retryOf)?.uuidString,
+            reportMode: report?.rawValue)
+        specs[jobID] = spec
+        persistSpecs()
+        if running.count < Self.maxConcurrent && dependenciesSatisfied(spec) {
+            JobStore.shared.update(jobID, detail: String(localized: "Starting…"))
+            launch(spec, appendLog: false)
+        } else {
+            enqueue(jobID, spec: spec)
+        }
+        return .success(jobID)
+    }
+
+    /// 打开/续跑同一 job 的进程（自动重试用同一 jobID，watcher 不失效）。
+    private func launch(_ spec: CommandSpec, appendLog: Bool) {
+        let jobID = spec.jobID
+        guard let executable = SystemCommandStore.shared.resolve(spec.tool) else {
+            JobStore.shared.finish(
+                jobID, state: .failed,
+                detail: String(localized: "\(spec.tool) is not installed"),
+                error: String(localized: "\(spec.tool) is not installed"))
+            JobEventCenter.shared.recordTerminal(jobID: jobID)
+            return
+        }
+        let logURL = logDirectory.appendingPathComponent("\(jobID.uuidString).log")
+        let sink = CommandLogSink(url: logURL, append: appendLog) { event in
             Task { @MainActor in
                 Self.applyProgressEvent(event, to: jobID)
             }
         }
         let process = Process()
         process.executableURL = executable
-        process.arguments = args
-        process.currentDirectoryURL = cwdURL
+        process.arguments = spec.args
+        process.currentDirectoryURL = spec.cwd.map { URL(fileURLWithPath: $0) }
         process.environment = [
             "PATH": "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/usr/local/sbin",
             "HOME": NSHomeDirectory(),
+            "DESIRE_JOB_ID": jobID.uuidString,
+            "DESIRE_LOG_FILE": logURL.path,
         ]
         let pipe = Pipe()
         process.standardOutput = pipe
@@ -114,11 +161,6 @@ final class BackgroundCommandStore: ObservableObject {
             let data = handle.availableData
             if !data.isEmpty { sink.append(data) }
         }
-        let spec = CommandSpec(jobID: jobID, tool: name, args: args,
-                               title: resolvedTitle, cwd: cwdURL.path,
-                               timeoutMinutes: minutes,
-                               conversationID: conversationID,
-                               createdAt: Date())
         process.terminationHandler = { [weak self] finished in
             Task { @MainActor [weak self] in
                 self?.handleExit(jobID: jobID, process: finished)
@@ -128,29 +170,139 @@ final class BackgroundCommandStore: ObservableObject {
             try process.run()
         } catch {
             sink.close()
-            JobStore.shared.finish(jobID, state: .failed,
-                                   error: String(localized: "Failed to launch \(name): \(error.localizedDescription)"))
+            JobStore.shared.finish(
+                jobID, state: .failed,
+                detail: String(localized: "Failed to launch \(spec.tool)"),
+                error: String(localized: "Failed to launch \(spec.tool): \(error.localizedDescription)"))
             JobEventCenter.shared.recordTerminal(jobID: jobID)
-            return .failure(CommandLaunchError(String(localized: "Failed to launch \(name): \(error.localizedDescription)")))
+            return
         }
-        specs[jobID] = spec
-        persistSpecs()
         var entry = Running(process: process, spec: spec, sink: sink,
                             startedAt: Date())
         entry.timeoutTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(minutes * 60 * 1_000_000_000))
+            try? await Task.sleep(nanoseconds: UInt64(spec.timeoutMinutes * 60 * 1_000_000_000))
             guard let self, let current = self.running[jobID],
                   current.process.isRunning else { return }
             self.running[jobID]?.timedOut = true
-            JobStore.shared.update(jobID, detail: String(localized: "Timed out after \(Int(minutes)) min"))
+            JobStore.shared.update(
+                jobID,
+                detail: String(localized: "Timed out after \(Int(spec.timeoutMinutes)) min"))
             self.terminate(jobID)
         }
         running[jobID] = entry
         runningIDs.insert(jobID)
-        return .success(jobID)
+        retryTasks[jobID] = nil
+        let attempt = spec.attempt ?? 1
+        let maxAttempts = spec.maxAttempts ?? 1
+        if attempt > 1 {
+            JobStore.shared.update(
+                jobID,
+                detail: String(localized: "Attempt \(attempt)/\(maxAttempts) running…"))
+        }
+    }
+
+    // MARK: - 队列 / 依赖
+
+    private func enqueue(_ jobID: UUID, spec: CommandSpec) {
+        if !queuedIDs.contains(jobID) { queuedIDs.append(jobID) }
+        sortQueue()
+        let position = (queuedIDs.firstIndex(of: jobID) ?? 0) + 1
+        JobStore.shared.update(
+            jobID, state: .queued,
+            detail: String(localized: "Queued · position \(position)"))
+    }
+
+    private func sortQueue() {
+        queuedIDs.sort { lhs, rhs in
+            let lp = priorityRank(specs[lhs]?.priority)
+            let rp = priorityRank(specs[rhs]?.priority)
+            if lp != rp { return lp < rp }
+            return (specs[lhs]?.createdAt ?? .distantPast)
+                < (specs[rhs]?.createdAt ?? .distantPast)
+        }
+    }
+
+    private func priorityRank(_ raw: String?) -> Int {
+        switch raw?.lowercased() {
+        case "high": return 0
+        case "low": return 2
+        default: return 1
+        }
+    }
+
+    private func dependenciesSatisfied(_ spec: CommandSpec) -> Bool {
+        let deps = spec.dependsOn ?? []
+        guard !deps.isEmpty else { return true }
+        for raw in deps {
+            guard let id = UUID(uuidString: raw),
+                  let job = JobStore.shared.job(id: id) else { return false }
+            guard !job.state.isActive else { return false }
+            guard job.state == .done else { return false }
+        }
+        return true
+    }
+
+    private func dependencyFailed(_ spec: CommandSpec) -> Bool {
+        for raw in spec.dependsOn ?? [] {
+            guard let id = UUID(uuidString: raw),
+                  let job = JobStore.shared.job(id: id) else { return true }
+            if job.state == .failed || job.state == .cancelled { return true }
+        }
+        return false
+    }
+
+    private func drainQueue() {
+        guard !queuedIDs.isEmpty else { return }
+        var launchedOne = true
+        while launchedOne, running.count < Self.maxConcurrent {
+            launchedOne = false
+            sortQueue()
+            for id in queuedIDs {
+                guard let spec = specs[id] else {
+                    queuedIDs.removeAll { $0 == id }
+                    continue
+                }
+                if dependencyFailed(spec) {
+                    queuedIDs.removeAll { $0 == id }
+                    JobStore.shared.finish(
+                        id, state: .cancelled,
+                        detail: String(localized: "Dependency failed"),
+                        error: String(localized: "A dependency failed, so this command was not started."))
+                    JobEventCenter.shared.recordTerminal(jobID: id)
+                    launchedOne = true
+                    break
+                }
+                guard dependenciesSatisfied(spec) else { continue }
+                queuedIDs.removeAll { $0 == id }
+                JobStore.shared.update(id, state: .running,
+                                       detail: String(localized: "Starting…"))
+                launch(spec, appendLog: false)
+                launchedOne = true
+                break
+            }
+        }
     }
 
     func cancel(_ id: UUID) {
+        if let retry = retryTasks.removeValue(forKey: id) {
+            retry.cancel()
+            JobStore.shared.finish(
+                id, state: .cancelled,
+                detail: String(localized: "Cancelled before the scheduled retry"),
+                error: nil)
+            JobEventCenter.shared.recordTerminal(jobID: id)
+            drainQueue()
+            return
+        }
+        if queuedIDs.contains(id) {
+            queuedIDs.removeAll { $0 == id }
+            JobStore.shared.finish(
+                id, state: .cancelled,
+                detail: String(localized: "Cancelled while queued"))
+            JobEventCenter.shared.recordTerminal(jobID: id)
+            drainQueue()
+            return
+        }
         guard let entry = running[id], entry.process.isRunning else { return }
         running[id]?.cancelledByUser = true
         JobStore.shared.update(id, detail: String(localized: "Cancelling…"))
@@ -164,10 +316,17 @@ final class BackgroundCommandStore: ObservableObject {
         guard !runningIDs.contains(id) else {
             return .failure(CommandLaunchError(String(localized: "This command is still running.")))
         }
-        return await start(tool: spec.tool, args: spec.args, title: spec.title,
-                           cwd: spec.cwd, timeoutMinutes: spec.timeoutMinutes,
-                           conversationID: spec.conversationID, report: nil,
-                           retryOf: id)
+        return await start(
+            tool: spec.tool, args: spec.args, title: spec.title,
+            cwd: spec.cwd, timeoutMinutes: spec.timeoutMinutes,
+            conversationID: spec.conversationID, report: nil,
+            retryOf: id,
+            after: (spec.dependsOn ?? []).compactMap(UUID.init(uuidString:)),
+            maxAttempts: spec.maxAttempts ?? 1,
+            retryOn: spec.retryOn ?? "nonZero",
+            priority: spec.priority ?? "normal",
+            attempt: 1,
+            retryRoot: (spec.retryRoot.flatMap(UUID.init(uuidString:)) ?? id))
     }
 
     /// 状态工具用的日志尾部（最后 40 行，最多 8KB）。
@@ -218,6 +377,34 @@ final class BackgroundCommandStore: ObservableObject {
         } else if entry.cancelledByUser {
             detail = String(localized: "Cancelled after \(elapsed)s")
         }
+        // 自动重试（v0.8.40）：同一 jobID 续跑，watcher 不会提前收到失败终态。
+        let spec = entry.spec
+        let attempt = spec.attempt ?? 1
+        let maxAttempts = max(1, spec.maxAttempts ?? 1)
+        let retryOn = (spec.retryOn ?? "nonZero").lowercased()
+        let retryable = !entry.cancelledByUser && attempt < maxAttempts
+            && (retryOn == "always"
+                || (retryOn == "timeout" && entry.timedOut)
+                || (retryOn != "never" && (entry.timedOut || exit != 0)))
+        if retryable {
+            var next = spec
+            next.attempt = attempt + 1
+            specs[jobID] = next
+            persistSpecs()
+            let delay = min(900, 1 << min(attempt, 9))
+            JobStore.shared.update(
+                jobID,
+                detail: String(localized: "Attempt \(attempt)/\(maxAttempts) failed; retry in \(delay)s"))
+            retryTasks[jobID] = Task { @MainActor [weak self] in
+                try? await Task.sleep(nanoseconds: UInt64(delay) * 1_000_000_000)
+                guard !Task.isCancelled, let self,
+                      self.specs[jobID]?.attempt == attempt + 1,
+                      !self.runningIDs.contains(jobID) else { return }
+                self.launch(next, appendLog: true)
+            }
+            drainQueue()
+            return
+        }
         JobStore.shared.finish(
             jobID, state: state,
             detail: detail,
@@ -225,6 +412,7 @@ final class BackgroundCommandStore: ObservableObject {
             error: state == .failed ? detail : nil,
             exitCode: exit)
         JobEventCenter.shared.recordTerminal(jobID: jobID)
+        drainQueue()
     }
 
     private func resolveWorkingDirectory(_ raw: String?) -> URL {
@@ -329,9 +517,14 @@ private final class CommandLogSink: @unchecked Sendable {
     private let cap = 2 * 1024 * 1024
     private let onEvent: @Sendable (CommandProgressEvent) -> Void
 
-    init(url: URL, onEvent: @escaping @Sendable (CommandProgressEvent) -> Void) {
-        FileManager.default.createFile(atPath: url.path, contents: nil)
-        handle = (try? FileHandle(forWritingTo: url)) ?? FileHandle.nullDevice
+    init(url: URL, append: Bool = false,
+         onEvent: @escaping @Sendable (CommandProgressEvent) -> Void) {
+        if !append || !FileManager.default.fileExists(atPath: url.path) {
+            FileManager.default.createFile(atPath: url.path, contents: nil)
+        }
+        let file = (try? FileHandle(forWritingTo: url)) ?? FileHandle.nullDevice
+        if append { _ = try? file.seekToEnd() }
+        handle = file
         self.onEvent = onEvent
     }
 

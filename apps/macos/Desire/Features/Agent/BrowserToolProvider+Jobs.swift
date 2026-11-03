@@ -186,10 +186,16 @@ extension BrowserToolProvider {
         case "resume": report = .resume
         default: report = .notify
         }
+        let after = (args["after"] as? [String] ?? []).compactMap(UUID.init(uuidString:))
+        let maxAttempts = min(max(Int(args["maxAttempts"] as? Double ?? 1), 1), 5)
+        let retryOn = (args["retryOn"] as? String ?? "nonZero").lowercased()
+        let priority = (args["priority"] as? String ?? "normal").lowercased()
         let result = await BackgroundCommandStore.shared.start(
             tool: tool, args: commandArgs, title: title, cwd: cwd,
             timeoutMinutes: timeout, conversationID: conversationID,
-            report: report)
+            report: report, after: after,
+            maxAttempts: maxAttempts, retryOn: retryOn,
+            priority: priority)
         switch result {
         case .success(let id):
             return String(localized: "Background command started as job \(id.uuidString). It will keep running after this turn; use backgroundTaskStatus to check progress.")

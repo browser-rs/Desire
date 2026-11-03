@@ -236,6 +236,10 @@ extension BrowserToolProvider {
                     "cwd": AgentJSONSchemaValue(type: "string", description: "Working directory; defaults to the Agent workspace"),
                     "timeoutMinutes": AgentJSONSchemaValue(type: "number", description: "Max runtime minutes (default 60, max 360)"),
                     "report": AgentJSONSchemaValue(type: "string", description: "notify (default) | resume | none"),
+                    "after": AgentJSONSchemaValue(type: "array", description: "Job ids that must finish successfully before this starts (max 5)", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                    "maxAttempts": AgentJSONSchemaValue(type: "number", description: "Automatic attempts on failure (1-5, default 1)"),
+                    "retryOn": AgentJSONSchemaValue(type: "string", description: "nonZero (default) | timeout | always | never"),
+                    "priority": AgentJSONSchemaValue(type: "string", description: "high | normal (default) | low"),
                 ], required: ["tool"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

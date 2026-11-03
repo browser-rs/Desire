@@ -205,6 +205,10 @@ extension BrowserToolProvider {
                     "ids": AgentJSONSchemaValue(type: "array", description: "Job ids to watch (max 50)", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
                     "kind": AgentJSONSchemaValue(type: "string", description: "Watch all currently active jobs of this kind instead of ids"),
                     "mode": AgentJSONSchemaValue(type: "string", description: "notify (default) | resume"),
+                    "condition": AgentJSONSchemaValue(type: "string", description: "terminal (default) | failed | progress | logMatch | heartbeat"),
+                    "progress": AgentJSONSchemaValue(type: "number", description: "Progress threshold 0-1 for condition=progress (default 0.5)"),
+                    "logPattern": AgentJSONSchemaValue(type: "string", description: "Keyword/regex text for condition=logMatch"),
+                    "heartbeatMinutes": AgentJSONSchemaValue(type: "number", description: "Heartbeat interval minutes for condition=heartbeat (default 10)"),
                     "reason": AgentJSONSchemaValue(type: "string", description: "Why the user wants to know (shown in diagnostics)"),
                 ], required: [])
             )),

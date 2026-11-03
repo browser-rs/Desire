@@ -7528,7 +7528,8 @@ final class AutomationServer {
         }
     }
 
-    private static func jobsWatch(_ body: [String: Any]) -> [String: Any] {        let rawIDs = (body["ids"] as? [String]) ?? []
+    private static func jobsWatch(_ body: [String: Any]) -> [String: Any] {
+        let rawIDs = (body["ids"] as? [String]) ?? []
         let ids = rawIDs.compactMap(UUID.init(uuidString:))
         if ids.count != rawIDs.count {
             return ["error": "invalid job id"]
@@ -7546,14 +7547,40 @@ final class AutomationServer {
         }
         let conversationID = (body["conversationId"] as? String)
             .flatMap(UUID.init(uuidString:))
+        let conditionName = (body["condition"] as? String ?? "terminal").lowercased()
+        let condition: JobWatchCondition
+        switch conditionName {
+        case "terminal", "done", "finish":
+            condition = .terminal
+        case "failed", "failure":
+            condition = JobWatchCondition(kind: .failed)
+        case "progress":
+            let value = body["progress"] as? Double ?? 0.5
+            guard value > 0, value <= 1 else { return ["error": "progress must be 0-1"] }
+            condition = JobWatchCondition(kind: .progress, value: value)
+        case "logmatch", "log", "pattern":
+            guard let pattern = body["logPattern"] as? String, !pattern.isEmpty else {
+                return ["error": "logPattern is required"]
+            }
+            condition = JobWatchCondition(kind: .logMatch, pattern: pattern)
+        case "heartbeat", "progress-report":
+            let minutes = Int(body["heartbeatMinutes"] as? Double ?? 10)
+            guard minutes >= 1, minutes <= 120 else {
+                return ["error": "heartbeatMinutes must be 1-120"]
+            }
+            condition = JobWatchCondition(kind: .heartbeat, minutes: minutes)
+        default:
+            return ["error": "condition must be terminal|failed|progress|logMatch|heartbeat"]
+        }
         let watch = JobWatchStore.shared.register(
             jobIDs: targets.map(\.id.uuidString),
             conversationID: conversationID, mode: mode,
-            reason: body["reason"] as? String)
+            reason: body["reason"] as? String, condition: condition)
         return ["ok": true,
                 "watchId": watch.id.uuidString,
                 "jobIDs": targets.map(\.id.uuidString),
-                "mode": mode.rawValue]
+                "mode": mode.rawValue,
+                "condition": condition.kind.rawValue]
     }
 
     private static func jobsCancel(_ body: [String: Any]) -> [String: Any] {
@@ -7602,6 +7629,7 @@ final class AutomationServer {
                     "mode": watch.mode.rawValue,
                     "createdAt": ISO.string(from: watch.createdAt),
                     "resumeUsed": watch.resumeUsed,
+                    "condition": watch.effectiveCondition.kind.rawValue,
                 ]
                 if let conversation = watch.conversationID {
                     out["conversationID"] = conversation.uuidString
@@ -7610,6 +7638,10 @@ final class AutomationServer {
                     out["deliveredAt"] = ISO.string(from: delivered)
                 }
                 if let reason = watch.reason { out["reason"] = reason }
+                if let triggered = watch.triggeredAt {
+                    out["triggeredAt"] = ISO.string(from: triggered)
+                }
+                if let fired = watch.firedConditionKinds { out["firedConditions"] = fired }
                 return out
             },
         ]

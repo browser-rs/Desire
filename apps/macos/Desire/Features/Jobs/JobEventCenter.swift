@@ -109,6 +109,46 @@ final class JobEventCenter {
         ProactiveNotificationStore.shared.deliver(title: title, body: body, tier: tier)
     }
 
+    /// 非终态条件触发（失败/进度/日志/心跳）：发一次提醒，watcher 继续等终态。
+    func deliver(_ trigger: JobWatchStore.Triggered) {
+        let job = trigger.jobs.first
+        let title: String
+        switch trigger.kind {
+        case .failed:
+            title = String(localized: "Background task failed: \(job?.title ?? "Job")")
+        case .progress:
+            title = String(localized: "Background task progress: \(job?.title ?? "Job")")
+        case .logMatch:
+            title = String(localized: "Background log matched: \(job?.title ?? "Job")")
+        case .heartbeat:
+            title = String(localized: "Still running: \(job?.title ?? "Job")")
+        case .terminal:
+            return
+        }
+        var summary = JobSummaryCore.summary(for: trigger.jobs)
+        summary += "\n" + String(localized: "Condition: \(JobWatchCore.conditionDescription(trigger.watch.effectiveCondition))")
+        if let conversationID = trigger.watch.conversationID {
+            appendNote(summary, to: conversationID)
+        }
+        let failed = trigger.kind == .failed
+        ProactiveNotificationStore.shared.deliverJob(
+            title: title, body: String(summary.prefix(240)),
+            tier: failed ? .urgent : .routine,
+            jobID: job?.id ?? UUID(), artifact: job?.artifactURL)
+        if let first = job {
+            AppState.live?.remoteControlStore.notifyBackgroundJob(
+                id: first.id, title: title, body: summary,
+                failed: failed, artifact: first.artifactURL)
+        }
+        if failed, trigger.watch.mode == .resume,
+           let conversationID = trigger.watch.conversationID {
+            maybeResume(
+                JobWatchStore.Delivery(watch: trigger.watch, jobs: trigger.jobs),
+                summary: summary)
+            _ = conversationID
+        }
+    }
+
     /// 组 watcher 已判定完成 → 交付备注/通知（轮询与即时事件共用）。
     /// `summaryOverride` 用于批量/媒体已有的富文本汇总（成功/失败/跳过）。
     func deliver(_ delivery: JobWatchStore.Delivery, summaryOverride: String? = nil) {

@@ -61,6 +61,66 @@ nonisolated enum JobWatchCore {
         }
     }
 
+    /// 条件是否触发（v0.8.40）。终态条件只在全部结束时触发；其他条件触发后
+    /// watcher 继续存活，终态仍会再汇总一次。
+    static func event(_ watch: JobWatch, jobs: [JobRecord],
+                      logTail: String?, now: Date = Date()) -> JobWatchCondition.Kind? {
+        let condition = watch.effectiveCondition
+        let fired = Set(watch.firedConditionKinds ?? [])
+        let settled = allSettled(watch, jobs: jobs)
+
+        switch condition.kind {
+        case .terminal:
+            return settled ? .terminal : nil
+        case .failed:
+            guard !fired.contains(JobWatchCondition.Kind.failed.rawValue) else { return nil }
+            return jobs.contains { watch.jobIDs.contains($0.id.uuidString) && $0.state == .failed }
+                ? .failed : nil
+        case .progress:
+            guard !fired.contains(JobWatchCondition.Kind.progress.rawValue) else { return nil }
+            let target = max(0, min(1, condition.value ?? 0.5))
+            return jobs.contains {
+                watch.jobIDs.contains($0.id.uuidString) && ($0.progress ?? 0) >= target
+            } ? .progress : nil
+        case .logMatch:
+            guard !fired.contains(JobWatchCondition.Kind.logMatch.rawValue),
+                  let pattern = condition.pattern?.trimmingCharacters(in: .whitespaces),
+                  !pattern.isEmpty, let logTail else { return nil }
+            return logTail.localizedCaseInsensitiveContains(pattern) ? .logMatch : nil
+        case .heartbeat:
+            let minutes = max(1, condition.minutes ?? 10)
+            let baseline = watch.lastHeartbeatAt ?? watch.createdAt
+            return now.timeIntervalSince(baseline) >= Double(minutes * 60) ? .heartbeat : nil
+        }
+    }
+
+    /// 条件触发后更新 watcher 的去重字段（heartbeat 每次刷新基线）。
+    static func markingFired(_ watch: JobWatch,
+                             kind: JobWatchCondition.Kind,
+                             now: Date = Date()) -> JobWatch {
+        var copy = watch
+        copy.triggeredAt = now
+        if kind == .heartbeat {
+            copy.lastHeartbeatAt = now
+        } else {
+            var fired = Set(copy.firedConditionKinds ?? [])
+            fired.insert(kind.rawValue)
+            copy.firedConditionKinds = Array(fired).sorted()
+        }
+        return copy
+    }
+
+    static func conditionDescription(_ condition: JobWatchCondition) -> String {
+        switch condition.kind {
+        case .terminal: return String(localized: "When finished")
+        case .failed: return String(localized: "On failure")
+        case .progress:
+            return String(localized: "At \(Int((condition.value ?? 0.5) * 100))% progress")
+        case .logMatch: return String(localized: "When log matches “\(condition.pattern ?? "")”")
+        case .heartbeat: return String(localized: "Every \(condition.minutes ?? 10) min")
+        }
+    }
+
     /// 是否允许起 resume 回合：会话仍存在、没有在跑、没有被暂停/取消、且没用过。
     static func canResume(_ watch: JobWatch, sessionExists: Bool,
                           sessionBusy: Bool) -> Bool {

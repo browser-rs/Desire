@@ -100,6 +100,34 @@ extension BrowserToolProvider {
         if let error = JobWatchCore.validationError(ids: ids, kind: kind, mode: mode) {
             return fail(error)
         }
+        let conditionName = (args["condition"] as? String ?? "terminal").lowercased()
+        let condition: JobWatchCondition
+        switch conditionName {
+        case "terminal", "done", "finish":
+            condition = .terminal
+        case "failed", "failure":
+            condition = JobWatchCondition(kind: .failed)
+        case "progress":
+            let value = args["progress"] as? Double ?? 0.5
+            guard value > 0, value <= 1 else {
+                return fail("progress must be between 0 and 1 (e.g. 0.5)")
+            }
+            condition = JobWatchCondition(kind: .progress, value: value)
+        case "logmatch", "log", "pattern":
+            guard let pattern = args["logPattern"] as? String,
+                  !pattern.trimmingCharacters(in: .whitespaces).isEmpty else {
+                return fail("logPattern is required for a log match watch")
+            }
+            condition = JobWatchCondition(kind: .logMatch, pattern: pattern)
+        case "heartbeat", "progress-report":
+            let minutes = Int(args["heartbeatMinutes"] as? Double ?? 10)
+            guard minutes >= 1, minutes <= 120 else {
+                return fail("heartbeatMinutes must be 1-120")
+            }
+            condition = JobWatchCondition(kind: .heartbeat, minutes: minutes)
+        default:
+            return fail("condition must be terminal | failed | progress | logMatch | heartbeat")
+        }
         let targets = JobWatchCore.snapshot(ids: ids, kind: kind,
                                             jobs: JobStore.shared.allJobs)
         guard !targets.isEmpty else {
@@ -111,11 +139,12 @@ extension BrowserToolProvider {
         let watch = JobWatchStore.shared.register(
             jobIDs: targets.map(\.id.uuidString),
             conversationID: conversationID, mode: mode,
-            reason: args["reason"] as? String)
+            reason: args["reason"] as? String, condition: condition)
         let modeText = mode == .resume
             ? String(localized: "I will report the result when the session is idle.")
             : String(localized: "I will add a completion note and notification.")
-        return String(localized: "Watching \(targets.count) task(s) (watcher \(watch.id.uuidString)). \(modeText)\n")
+        let conditionText = JobWatchCore.conditionDescription(condition)
+        return String(localized: "Watching \(targets.count) task(s) (watcher \(watch.id.uuidString)) — \(conditionText). \(modeText)\n")
             + targets.map { "- \($0.title) [\($0.id.uuidString)]" }.joined(separator: "\n")
     }
 

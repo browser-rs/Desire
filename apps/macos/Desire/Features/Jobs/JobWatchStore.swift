@@ -12,6 +12,12 @@ final class JobWatchStore: ObservableObject {
         let jobs: [JobRecord]
     }
 
+    struct Triggered {
+        let watch: JobWatch
+        let jobs: [JobRecord]
+        let kind: JobWatchCondition.Kind
+    }
+
     @Published private(set) var watches: [JobWatch] = []
 
     private static let storageKey = "jobs.watches"
@@ -31,7 +37,11 @@ final class JobWatchStore: ObservableObject {
 
     private func poll() {
         guard !active.isEmpty else { return }
-        let deliveries = evaluate(jobs: JobStore.shared.allJobs)
+        let jobs = JobStore.shared.allJobs
+        for trigger in evaluateConditions(jobs: jobs) {
+            JobEventCenter.shared.deliver(trigger)
+        }
+        let deliveries = evaluate(jobs: jobs)
         for delivery in deliveries {
             JobEventCenter.shared.deliver(delivery)
         }
@@ -45,11 +55,12 @@ final class JobWatchStore: ObservableObject {
     }
 
     func register(jobIDs: [String], conversationID: UUID?,
-                  mode: JobWatch.Mode, reason: String?) -> JobWatch {
+                  mode: JobWatch.Mode, reason: String?,
+                  condition: JobWatchCondition? = nil) -> JobWatch {
         var trimmed = jobIDs
         if trimmed.count > 50 { trimmed = Array(trimmed.prefix(50)) }
         let watch = JobWatch(jobIDs: trimmed, conversationID: conversationID,
-                             mode: mode, reason: reason)
+                             mode: mode, reason: reason, condition: condition)
         watches.insert(watch, at: 0)
         if watches.count > Self.maxWatches {
             watches.removeLast(watches.count - Self.maxWatches)
@@ -75,6 +86,35 @@ final class JobWatchStore: ObservableObject {
         }
         if !deliveries.isEmpty { persist() }
         return deliveries
+    }
+
+    /// 非终态条件评估（v0.8.40）：失败/进度/日志/心跳。触发后 watcher 继续
+    /// 存活；终态仍由 evaluate(jobs:) 汇总一次。
+    func evaluateConditions(jobs: [JobRecord], now: Date = Date()) -> [Triggered] {
+        var triggered: [Triggered] = []
+        var changed = false
+        for index in watches.indices where !watches[index].isDone {
+            let watch = watches[index]
+            let tail = logTail(for: watch, jobs: jobs)
+            guard let kind = JobWatchCore.event(watch, jobs: jobs,
+                                                logTail: tail, now: now),
+                  kind != .terminal else { continue }
+            watches[index] = JobWatchCore.markingFired(watch, kind: kind, now: now)
+            let matching = jobs.filter { watch.jobIDs.contains($0.id.uuidString) }
+            triggered.append(Triggered(watch: watches[index], jobs: matching, kind: kind))
+            changed = true
+        }
+        if changed { persist() }
+        return triggered
+    }
+
+    private func logTail(for watch: JobWatch, jobs: [JobRecord]) -> String? {
+        guard watch.effectiveCondition.kind == .logMatch else { return nil }
+        let first = jobs.first {
+            watch.jobIDs.contains($0.id.uuidString) && $0.logFile != nil
+        }
+        guard let path = first?.logFile else { return nil }
+        return BackgroundCommandStore.readTail(path: path, maxLines: 200)
     }
 
     func markResumeUsed(_ watchID: UUID) {

@@ -6625,6 +6625,41 @@ func testJobWatchCore() {
           && summary.contains("/tmp/out.mp4"))
     check("后台汇总：命令退出码", summary.contains("exit 2"))
     check("后台汇总：长度有界", summary.count <= JobSummaryCore.maxChars + 1)
+
+    // v0.8.40 条件 watcher
+    let failedWatch = JobWatch(
+        jobIDs: [running.id.uuidString, failed.id.uuidString],
+        conversationID: nil, mode: .notify,
+        condition: JobWatchCondition(kind: .failed))
+    check("条件订阅：失败即触发",
+          JobWatchCore.event(failedWatch, jobs: jobs, logTail: nil) == .failed)
+    let fired = JobWatchCore.markingFired(failedWatch, kind: .failed)
+    check("条件订阅：失败只触发一次",
+          JobWatchCore.event(fired, jobs: jobs, logTail: nil) == nil)
+
+    var progressing = running
+    progressing.progress = 0.6
+    let progressWatch = JobWatch(
+        jobIDs: [progressing.id.uuidString], conversationID: nil,
+        mode: .notify,
+        condition: JobWatchCondition(kind: .progress, value: 0.5))
+    check("条件订阅：进度阈值",
+          JobWatchCore.event(progressWatch, jobs: [progressing], logTail: nil) == .progress)
+
+    let logWatch = JobWatch(
+        jobIDs: [progressing.id.uuidString], conversationID: nil,
+        mode: .notify,
+        condition: JobWatchCondition(kind: .logMatch, pattern: "BUILD SUCCEEDED"))
+    check("条件订阅：日志命中",
+          JobWatchCore.event(logWatch, jobs: [progressing],
+                             logTail: "… BUILD SUCCEEDED …") == .logMatch)
+
+    let heartbeat = JobWatch(
+        jobIDs: [progressing.id.uuidString], conversationID: nil,
+        mode: .notify, createdAt: Date().addingTimeInterval(-11 * 60),
+        condition: JobWatchCondition(kind: .heartbeat, minutes: 10))
+    check("条件订阅：心跳到点",
+          JobWatchCore.event(heartbeat, jobs: [progressing], logTail: nil) == .heartbeat)
 }
 testJobWatchCore()
 

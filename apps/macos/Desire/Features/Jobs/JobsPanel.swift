@@ -20,6 +20,7 @@ struct JobsPanel: View {
     @State private var kindFilter: JobRecord.Kind?
     /// 命令模板面板（v0.8.40）。
     @State private var showTemplates = false
+    @State private var detailJobID: UUID?
 
     private func filtered(_ jobs: [JobRecord]) -> [JobRecord] {
         guard let kindFilter else { return jobs }
@@ -166,6 +167,13 @@ struct JobsPanel: View {
         .sheet(isPresented: $showTemplates) {
             JobTemplatesPanel()
         }
+        .sheet(isPresented: Binding(
+            get: { detailJobID != nil },
+            set: { if !$0 { detailJobID = nil } })) {
+            if let detailJobID {
+                JobDetailView(jobID: detailJobID)
+            }
+        }
     }
 
     @ViewBuilder
@@ -223,6 +231,8 @@ struct JobsPanel: View {
                 }
             }
             Spacer(minLength: 4)
+            Button(String(localized: "Details")) { detailJobID = job.id }
+                .controlSize(.small)
             if let logFile = job.logFile, !logFile.isEmpty {
                 Button(String(localized: "Log")) { open(logFile) }
                     .controlSize(.small)

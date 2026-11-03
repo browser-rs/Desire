@@ -12,6 +12,8 @@
 - Jobs: commands can retry automatically with `maxAttempts`/`retryOn` (nonZero/timeout/always/never) and exponential backoff; attempts share one job id and log, and only the final result notifies (v0.8.40)
 - Jobs: named command templates — save an allowlisted tool + argv (timeout/retry/priority), run it from the Jobs panel, the bridge, or with the Agent's saveJobTemplate/listJobTemplates/runJobTemplate tools (v0.8.40)
 - Jobs: the center shows today's done/failed counts, success rate, average duration and top failing kinds, derived from the job ledger rather than a second stats store (v0.8.40)
+- Jobs: a task detail sheet shows state, progress, exit code, output, active watch condition and the last 200 log lines, with cancel/retry/notify/open actions without leaving the Jobs center (v0.8.40)
+
 
 
 

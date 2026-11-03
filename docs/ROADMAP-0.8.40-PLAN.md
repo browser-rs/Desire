@@ -410,3 +410,6 @@
 - **批四 Office 完成**：`OfficeBatchStore`（目录扫描/递归/Converted 唯一命名/逐文件
   失败汇总/进度） + Agent `batchConvertFolder` + 桥 `/office/batch`；fixture PNG→PDF
   实测通过，产物目录与 Job 进度正确。**定时任务命令/模板链**仍待做。
+
+- **批四完成**：Remote 任务详情、Office 文件夹批量、定时任务执行命令模板
+  （`scheduleJobTemplate` → `addTemplate` → 到点启动后台 Job）。v0.8.40 全部批次完成。

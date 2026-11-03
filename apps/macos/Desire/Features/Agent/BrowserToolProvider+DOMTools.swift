@@ -2268,6 +2268,37 @@ extension BrowserToolProvider {
             }
             return Self.fail("Failed to schedule '\(name)' (empty fields?)")
 
+        case "scheduleJobTemplate":
+            guard let name = args["name"] as? String, !name.isEmpty,
+                  let template = args["template"] as? String, !template.isEmpty else {
+                return Self.fail("Missing name or template")
+            }
+            guard JobTemplateStore.shared.template(named: template) != nil else {
+                return Self.fail("No template named \(template) — use listJobTemplates")
+            }
+            let recurrence: AgentScheduler.ScheduledTask.Recurrence
+            if let dailyAt = args["dailyAt"] as? String {
+                let parts = dailyAt.split(separator: ":")
+                guard parts.count == 2, let hour = Int(parts[0]),
+                      let minute = Int(parts[1]),
+                      (0...23).contains(hour), (0...59).contains(minute) else {
+                    return Self.fail("Invalid dailyAt — expected \"HH:MM\" (24h)")
+                }
+                recurrence = .daily(hour: hour, minute: minute)
+            } else if let raw = args["everyMinutes"] as? String,
+                      let minutes = Int(raw) {
+                recurrence = .everyMinutes(max(5, minutes))
+            } else if let minutes = args["everyMinutes"] as? Int {
+                recurrence = .everyMinutes(max(5, minutes))
+            } else {
+                return Self.fail("Provide everyMinutes (>= 5) or dailyAt (\"HH:MM\")")
+            }
+            guard let task = AgentScheduler.shared.addTemplate(
+                name: name, templateName: template, recurrence: recurrence) else {
+                return Self.fail("Failed to schedule \(name)")
+            }
+            return "Scheduled template '\(template)' as '\(task.name)' (\(task.recurrenceText))."
+
         case "scheduleWorkflow":
             // 定时工作流（v0.8.1）：纯回放、不调用模型、不需要活会话；离屏
             // webview 共享 Cookie。敏感步骤必须由人现场填值，排程直接拒绝。

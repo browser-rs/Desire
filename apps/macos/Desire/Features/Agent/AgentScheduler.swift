@@ -47,6 +47,8 @@ final class AgentScheduler: ObservableObject {
         /// 目标窗口（调度器注册 id，多窗口联动 v1）：nil = 跟随"最新注册的活
         /// 会话"（历史行为）。目标窗口关闭后回落最新会话。
         var targetSessionID: UUID?
+        /// 命令模板（v0.8.40）：非 nil 时到点跑后台命令模板而不是投 prompt。
+        var jobTemplate: String? = nil
 
         var recurrenceText: String {
             switch recurrence {
@@ -207,6 +209,24 @@ final class AgentScheduler: ObservableObject {
         return task
     }
 
+    /// 定时命令模板（v0.8.40）：到点启动模板对应的后台命令，结果进 Job 账本。
+    func addTemplate(name: String, templateName: String,
+                     recurrence: ScheduledTask.Recurrence) -> ScheduledTask? {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              JobTemplateStore.shared.template(named: templateName) != nil else {
+            return nil
+        }
+        let task = ScheduledTask(
+            id: UUID(), name: trimmed, prompt: "Run template: \(templateName)",
+            recurrence: recurrence, isEnabled: true, createdAt: Date(),
+            lastFiredAt: Date(), lastResult: nil,
+            targetSessionID: nil, jobTemplate: templateName)
+        tasks.append(task)
+        save()
+        return task
+    }
+
     /// 任务配置 JSON 导出/导入（v0.8.20 替人干活 18）：名称/提示词/节奏/
     /// 链/夜间开关——导入按名冲突询问覆盖（返回 conflicts 让 UI 确认）。
     func exportJSON() -> String {
@@ -222,6 +242,7 @@ final class AgentScheduler: ObservableObject {
             case .weekly(let wd, let h, let m): row["weekly"] = [wd, h, m]
             }
             if let chain = task.chainTo { row["chainTo"] = chain }
+            if let template = task.jobTemplate { row["jobTemplate"] = template }
             if task.deferInQuietHours == true { row["deferQuiet"] = true }
             return row
         }
@@ -573,6 +594,41 @@ final class AgentScheduler: ObservableObject {
                 self.deliver(task: task, runID: runID, attempts: attempts)
             }
             if let i = taskIndex { tasks[i].lastResult = String(localized: "deferred to quiet-hours end") }
+            return
+        }
+
+        // 定时命令模板（v0.8.40）：到点启动后台命令，不投 prompt。
+        if let templateName = task.jobTemplate {
+            guard let template = JobTemplateStore.shared.template(named: templateName) else {
+                let message = "Template \(templateName) not found"
+                recordRun(RunRecord(
+                    id: runID, taskName: task.name, firedAt: Date(),
+                    finishedAt: Date(), status: "failed", success: false,
+                    error: message, attempts: attempts))
+                if let i = taskIndex { tasks[i].lastResult = message }
+                return
+            }
+            recordRun(RunRecord(
+                id: runID, taskName: task.name, firedAt: Date(),
+                finishedAt: Date(), status: "delivered", success: nil,
+                error: nil, attempts: attempts))
+            if let i = taskIndex {
+                tasks[i].lastResult = "delivered (template: \(templateName))"
+            }
+            Task { @MainActor in
+                let result = await BackgroundCommandStore.shared.start(
+                    tool: template.tool, args: template.args,
+                    title: template.name, cwd: template.cwd,
+                    timeoutMinutes: template.timeoutMinutes,
+                    conversationID: nil, report: .notify,
+                    maxAttempts: template.maxAttempts,
+                    retryOn: template.retryOn, priority: template.priority)
+                if case .failure(let error) = result,
+                   let index = self.tasks.firstIndex(where: { $0.id == task.id }) {
+                    self.tasks[index].lastResult = error.message
+                    self.save()
+                }
+            }
             return
         }
 

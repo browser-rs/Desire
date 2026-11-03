@@ -380,6 +380,16 @@ extension BrowserToolProvider {
                 ], required: ["name", "prompt"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "scheduleJobTemplate",
+                description: "Run a saved background-command template on a schedule (no model call). Use everyMinutes (>= 5) OR dailyAt (HH:mm). The run creates a background job and reports through the normal job completion pipeline.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Short unique task name"),
+                    "template": AgentJSONSchemaValue(type: "string", description: "Template name (from listJobTemplates)"),
+                    "everyMinutes": AgentJSONSchemaValue(type: "string", description: "Interval in minutes (>= 5)"),
+                    "dailyAt": AgentJSONSchemaValue(type: "string", description: "Daily time \"HH:MM\" 24h"),
+                ], required: ["name", "template"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "scheduleWorkflow", description: "Run a saved web workflow on a schedule WITHOUT the model: replay happens in an off-screen webview (shares cookies, does not touch the user's tabs). Use everyMinutes (>= 5) OR dailyAt (\"HH:MM\"). Workflows with sensitive steps are rejected — those need a human to fill values.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "workflow": AgentJSONSchemaValue(type: "string", description: "Workflow name (from listWorkflows) or id"),

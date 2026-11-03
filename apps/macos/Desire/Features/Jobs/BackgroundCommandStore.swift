@@ -93,7 +93,11 @@ final class BackgroundCommandStore: ObservableObject {
                 conversationID: conversationID, mode: report,
                 reason: String(localized: "Background command"))
         }
-        let sink = CommandLogSink(url: logURL)
+        let sink = CommandLogSink(url: logURL) { event in
+            Task { @MainActor in
+                Self.applyProgressEvent(event, to: jobID)
+            }
+        }
         let process = Process()
         process.executableURL = executable
         process.arguments = args
@@ -280,6 +284,23 @@ final class BackgroundCommandStore: ObservableObject {
         }
     }
 
+    /// 命令自报进度/产物/链接/阶段（控制行不写日志）。
+    private static func applyProgressEvent(_ event: CommandProgressEvent, to jobID: UUID) {
+        switch event {
+        case .progress(let percent, let message):
+            let detail = message.map { "\(Int((percent * 100).rounded()))% · \($0)" }
+                ?? "\(Int((percent * 100).rounded()))%"
+            JobStore.shared.update(jobID, detail: detail, progress: percent)
+        case .artifact(let path):
+            JobStore.shared.update(jobID, artifactURL: path)
+        case .link(let url, let title):
+            let text = title.map { "\($0): \(url)" } ?? url
+            JobStore.shared.update(jobID, detail: String(text.prefix(200)))
+        case .phase(let name):
+            JobStore.shared.update(jobID, detail: String(name.prefix(120)))
+        }
+    }
+
     nonisolated static func readTail(path: String, maxLines: Int) -> String {
         guard let handle = FileHandle(forReadingAtPath: path) else { return "" }
         defer { try? handle.close() }
@@ -290,29 +311,68 @@ final class BackgroundCommandStore: ObservableObject {
         let data = (try? handle.readToEnd()) ?? Data()
         let text = String(data: data, encoding: .utf8) ?? ""
         let lines = text.split(separator: "\n", omittingEmptySubsequences: false)
-        return lines.suffix(maxLines).joined(separator: "\n")
+        return JobLogRedactor.redact(lines.suffix(maxLines).joined(separator: "\n"))
     }
 }
 
 /// 命令输出 → 日志文件（后台队列写；2MB 上限，超出截断并留标记）。
+/// 按行解析 `@@desire:` 控制行（进度/产物/链接/阶段），控制行不写入正文；
+/// 其余行脱敏后落盘。
 private final class CommandLogSink: @unchecked Sendable {
     // 全部由 lock 保护；类默认 MainActor，而 pipe handler 在后台队列，
-    // 因此成员显式 nonisolated(unsafe)。
+    // 因此可变成员显式 nonisolated(unsafe)。
     private let handle: FileHandle
     private let lock = NSLock()
     nonisolated(unsafe) private var bytes = 0
     nonisolated(unsafe) private var truncated = false
+    nonisolated(unsafe) private var buffer = ""
     private let cap = 2 * 1024 * 1024
+    private let onEvent: @Sendable (CommandProgressEvent) -> Void
 
-    init(url: URL) {
+    init(url: URL, onEvent: @escaping @Sendable (CommandProgressEvent) -> Void) {
         FileManager.default.createFile(atPath: url.path, contents: nil)
         handle = (try? FileHandle(forWritingTo: url)) ?? FileHandle.nullDevice
+        self.onEvent = onEvent
     }
 
     nonisolated func append(_ data: Data) {
         lock.lock()
         defer { lock.unlock() }
         guard !truncated else { return }
+        buffer += String(decoding: data, as: UTF8.self)
+        while let newline = buffer.firstIndex(of: "\n") {
+            let line = String(buffer[..<newline])
+            buffer = String(buffer[buffer.index(after: newline)...])
+            consume(line)
+        }
+        // 无换行的进度条/在途行：超过 8KB 先落盘，避免无限缓存。
+        if buffer.count > 8_192 {
+            write(JobLogRedactor.redact(buffer))
+            buffer = ""
+        }
+    }
+
+    nonisolated func close() {
+        lock.lock()
+        defer { lock.unlock() }
+        if !buffer.isEmpty {
+            consume(buffer)
+            buffer = ""
+        }
+        try? handle.close()
+    }
+
+    private nonisolated func consume(_ line: String) {
+        if let event = CommandProgressParser.parse(line: line) {
+            onEvent(event)
+            return
+        }
+        write(JobLogRedactor.redact(line) + "\n")
+    }
+
+    private nonisolated func write(_ text: String) {
+        guard !truncated, !text.isEmpty else { return }
+        let data = Data(text.utf8)
         if bytes + data.count > cap {
             let room = max(0, cap - bytes)
             if room > 0 { try? handle.write(contentsOf: data.prefix(room)) }
@@ -323,11 +383,5 @@ private final class CommandLogSink: @unchecked Sendable {
         }
         bytes += data.count
         try? handle.write(contentsOf: data)
-    }
-
-    nonisolated func close() {
-        lock.lock()
-        defer { lock.unlock() }
-        try? handle.close()
     }
 }

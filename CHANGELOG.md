@@ -6,6 +6,9 @@
 - Agent: read-only tools that fail with a transient network/timeout error are retried once with a short backoff; side-effecting tools are never auto-replayed and still surface the failure for the model to adapt (v0.8.40)
 - Fusion: page watches can report changes and numeric alerts into a bound Agent conversation as a compact note, so the next turn can discuss the change without the user retyping it (v0.8.40)
 - Jobs: watchers now support conditions beyond completion — fail-fast, progress threshold, log keyword/regex match and periodic heartbeat — while still delivering the final terminal summary once (v0.8.40)
+- Jobs: background commands can report live progress, phase, artifacts and links with `@@desire:progress|phase|artifact|link` lines; control lines are stripped from the log and the Jobs/Remote views update while the command runs (v0.8.40)
+- Jobs: command logs are redacted at write and read time (Authorization/Bearer, password/api_key/token, sk-/ghp_/xox tokens) so jobs, notifications and Remote never expose credentials (v0.8.40)
+
 
 
 ## [v0.8.39] - 2026-11-03

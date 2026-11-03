@@ -6663,6 +6663,38 @@ func testJobWatchCore() {
 }
 testJobWatchCore()
 
+func testCommandProgressAndRedaction() {
+    eq("命令协议：进度 42%",
+       CommandProgressParser.parse(line: #"@@desire:progress {"percent":42,"message":"compiling"}"#),
+       .progress(percent: 0.42, message: "compiling"))
+    eq("命令协议：进度 0.4",
+       CommandProgressParser.parse(line: #"@@desire:progress {"percent":0.4}"#),
+       .progress(percent: 0.4, message: nil))
+    eq("命令协议：产物",
+       CommandProgressParser.parse(line: #"@@desire:artifact {"path":"/tmp/out.mp4"}"#),
+       .artifact(path: "/tmp/out.mp4"))
+    eq("命令协议：链接",
+       CommandProgressParser.parse(line: #"@@desire:link {"url":"https://ci.test/1","title":"CI"}"#),
+       .link(url: "https://ci.test/1", title: "CI"))
+    eq("命令协议：阶段",
+       CommandProgressParser.parse(line: #"@@desire:phase {"name":"tests"}"#),
+       .phase(name: "tests"))
+    check("命令协议：普通日志不解析",
+          CommandProgressParser.parse(line: "building…") == nil)
+    check("命令协议：非法 JSON 忽略",
+          CommandProgressParser.parse(line: "@@desire:progress {oops}") == nil)
+
+    let auth = JobLogRedactor.redact("Authorization: Bearer abc123")
+    check("日志脱敏：Authorization", auth.contains("[redacted]") && !auth.contains("abc123"))
+    let password = JobLogRedactor.redact("password=hunter2 api_key: sk-test1234567890abcdef")
+    check("日志脱敏：password/api_key",
+          password.contains("[redacted]") && !password.contains("hunter2")
+              && !password.contains("sk-test1234567890abcdef"))
+    let normal = "compiled 42 files in 3.2s"
+    eq("日志脱敏：普通行不变", JobLogRedactor.redact(normal), normal)
+}
+testCommandProgressAndRedaction()
+
 func testPlaybook() {
     let playbook = Playbook(
         name: "Brief",

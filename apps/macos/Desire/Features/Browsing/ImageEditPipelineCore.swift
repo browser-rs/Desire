@@ -37,8 +37,12 @@ nonisolated struct ImageAdjustParams: Codable, Hashable {
     var blackPoint: Double = 0
     /// 色阶白点 0.6…1
     var whitePoint: Double = 1
-    /// 曲线控制点（0…1，x 升序；空 = 不启用）
+    /// 曲线控制点（0…1，x 升序；空 = 不启用）。curvePoints = RGB 总曲线，
+    /// curveRed/Green/Blue = 分通道曲线（分通道存在时优先）。
     var curvePoints: [CurvePoint] = []
+    var curveRed: [CurvePoint] = []
+    var curveGreen: [CurvePoint] = []
+    var curveBlue: [CurvePoint] = []
 
     nonisolated struct CurvePoint: Codable, Hashable {
         var x: Double
@@ -46,6 +50,10 @@ nonisolated struct ImageAdjustParams: Codable, Hashable {
     }
 
     var hasCurve: Bool { curvePoints.count >= 2 }
+    var hasChannelCurves: Bool {
+        curveRed.count >= 2 || curveGreen.count >= 2 || curveBlue.count >= 2
+    }
+    var hasAnyCurve: Bool { hasCurve || hasChannelCurves }
 
     /// 全默认 = 无效果（渲染可直接跳过）。
     var isNeutral: Bool {
@@ -71,6 +79,9 @@ nonisolated struct ImageAdjustParams: Codable, Hashable {
         p.blackPoint = p.blackPoint.clamped(0, 0.4)
         p.whitePoint = max(p.whitePoint.clamped(0.6, 1), p.blackPoint + 0.2)
         p.curvePoints = Self.sanitizeCurve(p.curvePoints)
+        p.curveRed = Self.sanitizeCurve(p.curveRed)
+        p.curveGreen = Self.sanitizeCurve(p.curveGreen)
+        p.curveBlue = Self.sanitizeCurve(p.curveBlue)
         return p
     }
 
@@ -88,9 +99,8 @@ nonisolated struct ImageAdjustParams: Codable, Hashable {
     }
 
     /// 曲线在 x 处的取值（线性插值；无点 = 恒等）。
-    static func curveValue(_ params: ImageAdjustParams, at x: Double) -> Double {
-        guard params.hasCurve else { return x }
-        let points = params.curvePoints
+    static func curveValue(_ points: [CurvePoint], at x: Double) -> Double {
+        guard points.count >= 2 else { return x }
         if x <= points[0].x {
             let first = points[0]
             return first.x <= 0 ? first.y : x

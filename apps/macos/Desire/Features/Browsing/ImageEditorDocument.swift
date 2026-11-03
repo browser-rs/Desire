@@ -62,8 +62,11 @@ final class ImageEditorDocument: ObservableObject {
             merged.denoise = max(existing.denoise, clamped.denoise)
             merged.vignette = max(existing.vignette, clamped.vignette)
             merged.vignetteFeather = clamped.vignetteFeather
-            if clamped.hasCurve {
+            if clamped.hasAnyCurve {
                 merged.curvePoints = clamped.curvePoints
+                merged.curveRed = clamped.curveRed
+                merged.curveGreen = clamped.curveGreen
+                merged.curveBlue = clamped.curveBlue
             }
             merged.blackPoint = max(existing.blackPoint, clamped.blackPoint)
             merged.whitePoint = min(existing.whitePoint, clamped.whitePoint)

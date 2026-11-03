@@ -107,6 +107,9 @@ struct ImageEditorView: View {
     @State private var vignetteDraft: Double = 0
     @State private var blackPointDraft: Double = 0
     @State private var whitePointDraft: Double = 1
+    @State private var curveDraft = ImageCurveDraft()
+    @State private var showCurves = false
+    @State private var showPresets = false
 
     /// 显示位图与实际位图之间的缩放比。
     private var displayScale: CGFloat {
@@ -118,6 +121,31 @@ struct ImageEditorView: View {
     private var displayImage: CGImage? {
         if showOriginal { return image }
         return document.renderedImage ?? image
+    }
+
+    /// 当前草稿参数（滑杆 + 曲线）。
+    private func currentAdjustParams() -> ImageAdjustParams {
+        ImageAdjustParams(
+            brightness: brightness,
+            contrast: contrast,
+            saturation: saturation,
+            sharpen: sharpen,
+            exposure: exposure,
+            temperature: temperature,
+            tint: tintDraft,
+            highlights: highlightsDraft,
+            shadows: shadowsDraft,
+            vibrance: vibranceDraft,
+            clarity: clarityDraft,
+            denoise: denoiseDraft,
+            vignette: vignetteDraft,
+            vignetteFeather: 0.5,
+            blackPoint: blackPointDraft,
+            whitePoint: whitePointDraft,
+            curvePoints: curveDraft.rgb,
+            curveRed: curveDraft.red,
+            curveGreen: curveDraft.green,
+            curveBlue: curveDraft.blue)
     }
 
     var body: some View {
@@ -142,6 +170,48 @@ struct ImageEditorView: View {
                 base: image,
                 pipeline: document.pipeline,
                 fileName: fileName)
+        }
+        .sheet(isPresented: $showCurves) {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text(String(localized: "Curves"))
+                        .font(.system(size: 14, weight: .semibold))
+                    Spacer()
+                    Button(String(localized: "Close")) { showCurves = false }
+                        .buttonStyle(.borderless)
+                }
+                ImageCurveEditorView(draft: $curveDraft)
+                HStack {
+                    Button(String(localized: "Apply")) {
+                        document.applyAdjust(currentAdjustParams())
+                        hasUnsavedChanges = true
+                        showCurves = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    Button(String(localized: "Reset All")) {
+                        curveDraft = ImageCurveDraft()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    Spacer()
+                }
+            }
+            .padding(16)
+            .frame(width: 420)
+        }
+        .sheet(isPresented: $showPresets) {
+            ImagePresetsPanel(
+                currentParams: { currentAdjustParams() },
+                onApply: { params in
+                    document.applyAdjust(params)
+                    curveDraft = ImageCurveDraft(
+                        rgb: params.curvePoints,
+                        red: params.curveRed,
+                        green: params.curveGreen,
+                        blue: params.curveBlue)
+                    hasUnsavedChanges = true
+                })
         }
     }
 
@@ -1070,23 +1140,7 @@ struct ImageEditorView: View {
             .frame(maxHeight: 210)
             HStack {
                 Button(String(localized: "Apply")) {
-                    document.applyAdjust(ImageAdjustParams(
-                        brightness: brightness,
-                        contrast: contrast,
-                        saturation: saturation,
-                        sharpen: sharpen,
-                        exposure: exposure,
-                        temperature: temperature,
-                        tint: tintDraft,
-                        highlights: highlightsDraft,
-                        shadows: shadowsDraft,
-                        vibrance: vibranceDraft,
-                        clarity: clarityDraft,
-                        denoise: denoiseDraft,
-                        vignette: vignetteDraft,
-                        vignetteFeather: 0.5,
-                        blackPoint: blackPointDraft,
-                        whitePoint: whitePointDraft))
+                    document.applyAdjust(currentAdjustParams())
                     hasUnsavedChanges = true
                     showAdjustments = false
                 }
@@ -1101,6 +1155,15 @@ struct ImageEditorView: View {
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+            }
+            HStack(spacing: 8) {
+                Button(String(localized: "Curves…")) { showCurves = true }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                Button(String(localized: "Presets…")) { showPresets = true }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                Spacer()
             }
             Divider()
             if selectionMode {

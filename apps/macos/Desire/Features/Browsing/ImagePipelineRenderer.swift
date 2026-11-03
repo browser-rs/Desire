@@ -67,7 +67,9 @@ nonisolated enum ImagePipelineRenderer {
             filter.setValue(-1 + params.shadows, forKey: "inputShadowAmount")
             ci = filter.outputImage ?? ci
         }
-        if let curve = toneCurveFilter(ci, params: params) {
+        if params.hasChannelCurves, let cube = channelCurveFilter(ci, params: params) {
+            ci = cube
+        } else if let curve = toneCurveFilter(ci, params: params) {
             ci = curve
         }
         if params.blackPoint > 0 || params.whitePoint < 1,
@@ -123,7 +125,38 @@ nonisolated enum ImagePipelineRenderer {
         return context.createCGImage(ci, from: ci.extent)
     }
 
-    /// RGB 曲线（CIToneCurve，≤5 个控制点；per-channel 曲线放迭代 2）。
+    /// 分通道曲线：按曲线生成 RGB 立方 LUT（CIColorCube），通道独立映射。
+    private static func channelCurveFilter(
+        _ input: CIImage, params: ImageAdjustParams
+    ) -> CIImage? {
+        let dimension = 32
+        var lattice: [Float] = []
+        lattice.reserveCapacity(dimension * dimension * dimension * 4)
+        for b in 0..<dimension {
+            let y = Double(b) / Double(dimension - 1)
+            let gValue = ImageAdjustParams.curveValue(params.curveGreen, at: y)
+            for g in 0..<dimension {
+                let v = Double(g) / Double(dimension - 1)
+                let rValue = ImageAdjustParams.curveValue(params.curveRed, at: v)
+                for r in 0..<dimension {
+                    let u = Double(r) / Double(dimension - 1)
+                    let bValue = ImageAdjustParams.curveValue(params.curveBlue, at: u)
+                    lattice.append(Float(rValue))
+                    lattice.append(Float(gValue))
+                    lattice.append(Float(bValue))
+                    lattice.append(1)
+                }
+            }
+        }
+        guard let filter = CIFilter(name: "CIColorCube") else { return nil }
+        filter.setValue(input, forKey: kCIInputImageKey)
+        filter.setValue(dimension, forKey: "inputCubeDimension")
+        filter.setValue(Data(bytes: lattice, count: lattice.count * 4),
+                        forKey: "inputCubeData")
+        return filter.outputImage
+    }
+
+    /// RGB 曲线（CIToneCurve，≤5 个控制点）。
     private static func toneCurveFilter(
         _ input: CIImage, params: ImageAdjustParams
     ) -> CIImage? {

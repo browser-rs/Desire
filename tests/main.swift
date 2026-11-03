@@ -6745,9 +6745,17 @@ func testImageEditPipelineCore() {
             .init(x: 0.9, y: 5),
         ]))
     eq("管线：曲线点去重排序", curve.curvePoints.count, 3)
-    check("管线：曲线插值", abs(ImageAdjustParams.curveValue(curve, at: 0.5) - 0.6) < 0.0001)
+    check("管线：曲线插值", abs(ImageAdjustParams.curveValue(curve.curvePoints, at: 0.5) - 0.6) < 0.0001)
     check("管线：无曲线恒等",
-          abs(ImageAdjustParams.curveValue(ImageAdjustParams(), at: 0.5) - 0.5) < 0.0001)
+          abs(ImageAdjustParams.curveValue([], at: 0.5) - 0.5) < 0.0001)
+    let channel = ImageAdjustParams.clamped(ImageAdjustParams(
+        curveRed: [.init(x: 0.2, y: 0.3), .init(x: 0.8, y: 0.9)]))
+    check("管线：分通道曲线标记",
+          channel.hasChannelCurves && channel.hasAnyCurve)
+    check("管线：分通道插值",
+          abs(ImageAdjustParams.curveValue(channel.curveRed, at: 0.5) - 0.6) < 0.0001)
+    check("管线：分通道中性判断",
+          !ImageAdjustParams(curveRed: []).hasChannelCurves)
 
     var pipeline = ImageEditPipeline()
     let adjust = ImageEditOperation.adjust(ImageAdjustParams(brightness: 0.1))

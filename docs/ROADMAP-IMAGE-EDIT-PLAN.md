@@ -154,3 +154,8 @@
 - **批 4 验证**：harness 2745/0；macOS Debug/Release clean build 零警告。
   **曲线 UI（锚点编辑）与 per-channel 曲线留下一批**；几何非破坏化（拉直/数字裁剪/
   参考线）按计划在下一批接入管线。
+
+- **批 5（曲线/分通道/预设）完成**：`ImageCurveEditorView`（RGB/R/G/B 通道、拖拽/点按/
+  双击删除锚点）+ 分通道 LUT 渲染（CIColorCube）+ `ImageEditPresetStore`/预设面板；
+  harness 2748/0，Release clean 零警告。**迭代 1 剩余：拉直/数字裁剪接管线、几何
+  非破坏化**（下一批），随后进迭代 2（图层与修复）。

@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.40] - 2026-11-04
 ### Added
 
 - Browser: Recently Closed is now a persistent, searchable center across windows and launches — each entry keeps its title, URL and close time, and restores into the current window with container/private context preserved (v0.8.40)

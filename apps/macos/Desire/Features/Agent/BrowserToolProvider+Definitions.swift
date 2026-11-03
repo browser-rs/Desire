@@ -243,6 +243,33 @@ extension BrowserToolProvider {
                 ], required: ["tool"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "saveJobTemplate",
+                description: "Save a named background-command template (allowlisted tool + argv) for one-click reuse. Same safety model as runBackgroundCommand. Saving an existing name updates it.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Template name"),
+                    "tool": AgentJSONSchemaValue(type: "string", description: "Allowlisted binary"),
+                    "args": AgentJSONSchemaValue(type: "array", description: "Arguments", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                    "cwd": AgentJSONSchemaValue(type: "string", description: "Working directory (optional)"),
+                    "timeoutMinutes": AgentJSONSchemaValue(type: "number", description: "Timeout minutes (default 60)"),
+                    "maxAttempts": AgentJSONSchemaValue(type: "number", description: "Automatic attempts 1-5"),
+                    "retryOn": AgentJSONSchemaValue(type: "string", description: "nonZero | timeout | always | never"),
+                    "priority": AgentJSONSchemaValue(type: "string", description: "high | normal | low"),
+                ], required: ["name", "tool"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listJobTemplates",
+                description: "List saved background-command templates (name/tool/args/timeout/retry/priority). READ-ONLY.",
+                parameters: AgentJSONSchema(type: "object", properties: [:], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "runJobTemplate",
+                description: "Run a saved background-command template. Same approval tier as runBackgroundCommand; returns a job id immediately. Use report=resume when the user wants a report-back.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "name": AgentJSONSchemaValue(type: "string", description: "Template name"),
+                    "report": AgentJSONSchemaValue(type: "string", description: "notify (default) | resume | none"),
+                ], required: ["name"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "useSkill", description: "Load a skill's full instructions into the conversation (progressive disclosure). Call before performing a task that matches a skill. Skills declaring vars need inputs {name: value} — missing values are reported; ask the user with askUser if unclear.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "name": AgentJSONSchemaValue(type: "string", description: "Skill name from the skills list in your context"),

@@ -204,3 +204,77 @@ extension BrowserToolProvider {
         }
     }
 }
+
+
+// MARK: - 命令模板（v0.8.40）
+
+extension BrowserToolProvider {
+    static func saveJobTemplate(_ args: [String: Any]) -> String {
+        guard let name = args["name"] as? String,
+              let tool = args["tool"] as? String else {
+            return fail("Missing name / tool")
+        }
+        let commandArgs = args["args"] as? [String] ?? []
+        if let error = JobTemplateValidation.error(name: name, tool: tool, args: commandArgs) {
+            return fail(error)
+        }
+        let existing = JobTemplateStore.shared.template(named: name)
+        let template = JobTemplate(
+            id: existing?.id ?? UUID(),
+            name: name.trimmingCharacters(in: .whitespacesAndNewlines),
+            tool: tool, args: commandArgs,
+            cwd: args["cwd"] as? String,
+            timeoutMinutes: min(max(args["timeoutMinutes"] as? Double ?? 60, 1), 360),
+            maxAttempts: min(max(Int(args["maxAttempts"] as? Double ?? 1), 1), 5),
+            retryOn: (args["retryOn"] as? String ?? "nonZero").lowercased(),
+            priority: (args["priority"] as? String ?? "normal").lowercased(),
+            createdAt: existing?.createdAt ?? Date())
+        guard JobTemplateStore.shared.save(template) else {
+            return fail("Could not save the template")
+        }
+        return String(localized: "Saved template “\(template.name)”.")
+    }
+
+    static func listJobTemplates(_ args: [String: Any]) -> String {
+        let templates = JobTemplateStore.shared.templates
+        guard !templates.isEmpty else {
+            return String(localized: "No job templates yet.")
+        }
+        return templates.map { template in
+            var line = "• \(template.name) — \(template.tool)"
+            if !template.args.isEmpty { line += " " + template.args.joined(separator: " ") }
+            line += " · \(Int(template.timeoutMinutes)) min"
+            if template.maxAttempts > 1 { line += " · retry \(template.maxAttempts)x" }
+            if template.priority != "normal" { line += " · \(template.priority)" }
+            if let cwd = template.cwd, !cwd.isEmpty { line += " · \(cwd)" }
+            return line
+        }.joined(separator: "\n")
+    }
+
+    static func runJobTemplate(_ args: [String: Any],
+                               conversationID: UUID?) async -> String {
+        guard let name = args["name"] as? String,
+              let template = JobTemplateStore.shared.template(named: name) else {
+            return fail("No template named “\(args["name"] as? String ?? "")”")
+        }
+        let report: JobWatch.Mode? = {
+            switch (args["report"] as? String ?? "notify").lowercased() {
+            case "none": return nil
+            case "resume": return .resume
+            default: return .notify
+            }
+        }()
+        let result = await BackgroundCommandStore.shared.start(
+            tool: template.tool, args: template.args, title: template.name,
+            cwd: template.cwd, timeoutMinutes: template.timeoutMinutes,
+            conversationID: conversationID, report: report,
+            after: [], maxAttempts: template.maxAttempts,
+            retryOn: template.retryOn, priority: template.priority)
+        switch result {
+        case .success(let id):
+            return String(localized: "Template “\(template.name)” started as job \(id.uuidString).")
+        case .failure(let error):
+            return fail(error.message)
+        }
+    }
+}

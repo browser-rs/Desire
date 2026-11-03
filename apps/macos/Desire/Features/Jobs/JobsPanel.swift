@@ -18,6 +18,8 @@ struct JobsPanel: View {
     @State private var laneLayout = false
     /// 类型筛选（v0.8.39）。
     @State private var kindFilter: JobRecord.Kind?
+    /// 命令模板面板（v0.8.40）。
+    @State private var showTemplates = false
 
     private func filtered(_ jobs: [JobRecord]) -> [JobRecord] {
         guard let kindFilter else { return jobs }
@@ -76,7 +78,20 @@ struct JobsPanel: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Jobs")
                         .font(.system(size: 16, weight: .semibold))
+                    let metrics = JobMetricsCore.today(store.allJobs)
                     Text("\(store.active.count) active · \(review.count) need review · \(failed.count) failed")
+                    if metrics.total > 0 {
+                        Text(String(localized: "Today: \(metrics.done) done · \(metrics.failed) failed")
+                            + " · "
+                            + (metrics.successRate.map {
+                                String(localized: "\(Int(($0 * 100).rounded()))% success")
+                            } ?? String(localized: "—"))
+                            + (metrics.averageDuration.map {
+                                " · " + String(localized: "avg \(Int($0.rounded()))s")
+                            } ?? ""))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
                     Button {
                         laneLayout.toggle()
                     } label: {
@@ -102,6 +117,11 @@ struct JobsPanel: View {
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
+                Button(String(localized: "Templates")) {
+                    showTemplates = true
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
                 Button(String(localized: "Clear Finished")) {
                     store.clearFinished()
                 }
@@ -143,6 +163,9 @@ struct JobsPanel: View {
         }
         .padding(20)
         .frame(width: 640, height: 560)
+        .sheet(isPresented: $showTemplates) {
+            JobTemplatesPanel()
+        }
     }
 
     @ViewBuilder

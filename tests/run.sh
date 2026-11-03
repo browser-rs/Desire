@@ -50,6 +50,8 @@ SOURCES=(
   apps/macos/Desire/Features/Jobs/JobWatchCore.swift
   apps/macos/Desire/Features/Jobs/CommandProgressParser.swift
   apps/macos/Desire/Features/Jobs/JobLogRedactor.swift
+  apps/macos/Desire/Features/Jobs/JobTemplate.swift
+  apps/macos/Desire/Features/Jobs/JobMetricsCore.swift
   apps/macos/Desire/Features/Promotion/Playbook.swift
   apps/macos/Desire/Features/Promotion/PlaybookTemplate.swift
   apps/macos/Desire/Features/Jobs/JobAdapter.swift

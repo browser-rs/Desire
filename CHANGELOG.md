@@ -10,6 +10,9 @@
 - Jobs: command logs are redacted at write and read time (Authorization/Bearer, password/api_key/token, sk-/ghp_/xox tokens) so jobs, notifications and Remote never expose credentials (v0.8.40)
 - Jobs: background commands now queue when the concurrency limit is reached (high/normal/low priority) instead of failing, and `after` dependencies hold a command until its prerequisites succeed; a failed dependency cancels the dependent with a clear reason (v0.8.40)
 - Jobs: commands can retry automatically with `maxAttempts`/`retryOn` (nonZero/timeout/always/never) and exponential backoff; attempts share one job id and log, and only the final result notifies (v0.8.40)
+- Jobs: named command templates — save an allowlisted tool + argv (timeout/retry/priority), run it from the Jobs panel, the bridge, or with the Agent's saveJobTemplate/listJobTemplates/runJobTemplate tools (v0.8.40)
+- Jobs: the center shows today's done/failed counts, success rate, average duration and top failing kinds, derived from the job ledger rather than a second stats store (v0.8.40)
+
 
 
 

@@ -324,7 +324,8 @@ struct AgentCapabilitiesView: View {
         "系统与技能": [
             "runCommand", "runBackgroundCommand", "listBackgroundTasks",
             "backgroundTaskStatus", "watchBackgroundTasks", "cancelBackgroundTask",
-            "retryBackgroundTask", "useSkill", "listSkills", "writeFile",
+            "retryBackgroundTask", "saveJobTemplate", "listJobTemplates",
+            "runJobTemplate", "useSkill", "listSkills", "writeFile",
             "readFile", "listDirectory", "setTokenBudget",
             "addReminder", "listReminders", "completeReminder", "updateReminder",
             "addCalendarEvent", "listCalendarEvents", "updateCalendarEvent", "deleteCalendarEvent",

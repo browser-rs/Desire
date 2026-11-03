@@ -1333,6 +1333,10 @@ final class AutomationServer {
                 return try Self.json(Self.jobsLog(query))
             case ("GET", "/jobs/watches"):
                 return try Self.json(Self.jobsWatches())
+            case ("GET", "/jobs/templates"):
+                return try Self.json(Self.jobsTemplateList())
+            case ("POST", "/jobs/templates"):
+                return try Self.json(await Self.jobsTemplateAction(body))
             case ("GET", "/playbooks"):
                 return try Self.json(Self.playbooksList())
             case ("POST", "/playbooks/run"):
@@ -7586,6 +7590,87 @@ final class AutomationServer {
                 "jobIDs": targets.map(\.id.uuidString),
                 "mode": mode.rawValue,
                 "condition": condition.kind.rawValue]
+    }
+
+    private static func jobsTemplateList() -> [String: Any] {
+        [
+            "templates": JobTemplateStore.shared.templates.map { template -> [String: Any] in
+                var row: [String: Any] = [
+                    "id": template.id.uuidString,
+                    "name": template.name,
+                    "tool": template.tool,
+                    "args": template.args,
+                    "timeoutMinutes": template.timeoutMinutes,
+                    "maxAttempts": template.maxAttempts,
+                    "retryOn": template.retryOn,
+                    "priority": template.priority,
+                    "createdAt": ISO.string(from: template.createdAt),
+                ]
+                if let cwd = template.cwd { row["cwd"] = cwd }
+                return row
+            },
+        ]
+    }
+
+    private static func jobsTemplateAction(_ body: [String: Any]) async -> [String: Any] {
+        let action = (string(body, "action") ?? "save").lowercased()
+        switch action {
+        case "delete":
+            if let raw = string(body, "id"), let id = UUID(uuidString: raw) {
+                JobTemplateStore.shared.delete(id)
+                return ["ok": true]
+            }
+            if let name = string(body, "name"),
+               let template = JobTemplateStore.shared.template(named: name) {
+                JobTemplateStore.shared.delete(template.id)
+                return ["ok": true]
+            }
+            return ["error": "missing id/name"]
+        case "run":
+            guard let name = string(body, "name"),
+                  let template = JobTemplateStore.shared.template(named: name) else {
+                return ["error": "no such template"]
+            }
+            let report: JobWatch.Mode? = {
+                switch (body["report"] as? String ?? "notify").lowercased() {
+                case "none": return nil
+                case "resume": return .resume
+                default: return .notify
+                }
+            }()
+            let conversationID = (body["conversationId"] as? String)
+                .flatMap(UUID.init(uuidString:))
+            let result = await BackgroundCommandStore.shared.start(
+                tool: template.tool, args: template.args, title: template.name,
+                cwd: template.cwd, timeoutMinutes: template.timeoutMinutes,
+                conversationID: conversationID, report: report,
+                maxAttempts: template.maxAttempts, retryOn: template.retryOn,
+                priority: template.priority)
+            switch result {
+            case .success(let id):
+                return ["ok": true, "jobID": id.uuidString]
+            case .failure(let error):
+                return ["error": error.message]
+            }
+        default:
+            guard let name = string(body, "name"), let tool = string(body, "tool") else {
+                return ["error": "name and tool are required"]
+            }
+            let args = (body["args"] as? [String]) ?? []
+            let existing = JobTemplateStore.shared.template(named: name)
+            let template = JobTemplate(
+                id: existing?.id ?? UUID(), name: name, tool: tool,
+                args: args, cwd: body["cwd"] as? String,
+                timeoutMinutes: body["timeoutMinutes"] as? Double ?? 60,
+                maxAttempts: Int(body["maxAttempts"] as? Double ?? 1),
+                retryOn: (body["retryOn"] as? String ?? "nonZero"),
+                priority: (body["priority"] as? String ?? "normal"),
+                createdAt: existing?.createdAt ?? Date())
+            guard JobTemplateStore.shared.save(template) else {
+                return ["error": "invalid template"]
+            }
+            return ["ok": true, "id": template.id.uuidString]
+        }
     }
 
     private static func jobsCancel(_ body: [String: Any]) -> [String: Any] {

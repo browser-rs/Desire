@@ -393,3 +393,8 @@
 - **批二完成**：队列（并发满排队、high/normal/low 优先级、槽位释放自动续跑）、
   `after` 依赖（依赖失败 → 取消并说明）、自动重试（maxAttempts/retryOn/指数退避，
   同 jobID 续跑、最终才通知）、进度协议与日志脱敏（上一条）。模板/指标留给批三。
+
+- **批三部分完成（模板/指标）**：`JobTemplate`/`JobTemplateStore` + Jobs 面板模板
+  管理器 + Agent 三工具 + 桥 `/jobs/templates`；`JobMetricsCore` 今日完成/失败/
+  成功率/平均耗时/失败 Top 进 Jobs 头部与 harness（2731/0）。**任务详情页与回合
+  断点恢复 2.0 仍留批三**。

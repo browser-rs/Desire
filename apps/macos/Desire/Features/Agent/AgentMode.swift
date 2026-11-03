@@ -24,12 +24,12 @@ nonisolated enum AgentMode: String, CaseIterable {
         case .standard:
             return []
         case .research:
-            return ["executeJS", "runCommand", "runBackgroundCommand", "fillLogin", "downloadMedia",
+            return ["executeJS", "runCommand", "runBackgroundCommand", "runJobTemplate", "fillLogin", "downloadMedia",
                     "startRecording", "stopRecording", "scheduleTask",
                     "scheduleWorkflow",
                     "cancelScheduledTask", "crewDispatch", "spawnSubagent"]
         case .writing:
-            return ["runCommand", "runBackgroundCommand", "fillLogin", "downloadMedia",
+            return ["runCommand", "runBackgroundCommand", "runJobTemplate", "fillLogin", "downloadMedia",
                     "startRecording", "stopRecording", "crewDispatch"]
         }
     }

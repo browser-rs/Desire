@@ -950,6 +950,12 @@ extension BrowserToolProvider {
             return await Self.retryBackgroundTask(args)
         case "runBackgroundCommand":
             return await Self.runBackgroundCommand(args, conversationID: ownerSession?.conversationId)
+        case "saveJobTemplate":
+            return Self.saveJobTemplate(args)
+        case "listJobTemplates":
+            return Self.listJobTemplates(args)
+        case "runJobTemplate":
+            return await Self.runJobTemplate(args, conversationID: ownerSession?.conversationId)
 
         case "pageAction":
             // 协议缓存属 BrowserState，DOM 属**活 webview**——挂起的标签页

@@ -6695,6 +6695,37 @@ func testCommandProgressAndRedaction() {
 }
 testCommandProgressAndRedaction()
 
+func testJobTemplateAndMetrics() {
+    check("模板：名称必填",
+          JobTemplateValidation.error(name: " ", tool: "python3", args: []) != nil)
+    check("模板：工具必填",
+          JobTemplateValidation.error(name: "x", tool: " ", args: []) != nil)
+    check("模板：正常通过",
+          JobTemplateValidation.error(name: "Build", tool: "xcodebuild", args: []) == nil)
+
+    let now = Date()
+    let jobs = [
+        JobRecord(title: "a", kind: .command, state: .done,
+                  createdAt: now.addingTimeInterval(-10),
+                  updatedAt: now, finishedAt: now),
+        JobRecord(title: "b", kind: .command, state: .failed,
+                  createdAt: now.addingTimeInterval(-30),
+                  updatedAt: now, finishedAt: now),
+        JobRecord(title: "c", kind: .media, state: .cancelled,
+                  updatedAt: now, finishedAt: now),
+        JobRecord(title: "d", kind: .command, state: .running,
+                  createdAt: now, updatedAt: now),
+    ]
+    let metrics = JobMetricsCore.today(jobs, now: now)
+    eq("指标：今日任务数", metrics.total, 4)
+    eq("指标：成功/失败", metrics.done, 1)
+    eq("指标：失败数", metrics.failed, 1)
+    check("指标：成功率", abs((metrics.successRate ?? 0) - 0.5) < 0.0001)
+    check("指标：平均耗时", abs((metrics.averageDuration ?? 0) - 20) < 0.0001)
+    eq("指标：失败 Top", metrics.topFailures.first?.kind, "command")
+}
+testJobTemplateAndMetrics()
+
 func testPlaybook() {
     let playbook = Playbook(
         name: "Brief",

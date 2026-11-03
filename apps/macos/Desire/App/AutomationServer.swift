@@ -1333,6 +1333,8 @@ final class AutomationServer {
                 return try Self.json(Self.jobsLog(query))
             case ("GET", "/jobs/watches"):
                 return try Self.json(Self.jobsWatches())
+            case ("POST", "/office/batch"):
+                return try Self.json(Self.officeBatch(body))
             case ("GET", "/jobs/templates"):
                 return try Self.json(Self.jobsTemplateList())
             case ("POST", "/jobs/templates"):
@@ -7590,6 +7592,25 @@ final class AutomationServer {
                 "jobIDs": targets.map(\.id.uuidString),
                 "mode": mode.rawValue,
                 "condition": condition.kind.rawValue]
+    }
+
+    private static func officeBatch(_ body: [String: Any]) -> [String: Any] {
+        guard let folder = string(body, "folder"),
+              let format = string(body, "format") else {
+            return ["error": "folder and format are required"]
+        }
+        let result = OfficeBatchStore.shared.start(
+            folder: URL(fileURLWithPath: (folder as NSString).expandingTildeInPath),
+            format: format,
+            recursive: (body["recursive"] as? Bool) ?? true,
+            conversationID: nil,
+            report: nil)
+        switch result {
+        case .success(let id):
+            return ["ok": true, "jobID": id.uuidString]
+        case .failure(let error):
+            return ["error": error.message]
+        }
     }
 
     private static func jobsTemplateList() -> [String: Any] {

@@ -406,3 +406,7 @@
 - **批四部分完成（Remote 详情）**：Mac `jobDetail` 帧（日志尾/订阅条件/退出码）；
   iOS 任务详情 sheet（产物/日志/取消/重试/刷新），iOS 构建零代码警告。
   **Office 文件夹批量、定时任务命令/模板链**仍留批四。
+
+- **批四 Office 完成**：`OfficeBatchStore`（目录扫描/递归/Converted 唯一命名/逐文件
+  失败汇总/进度） + Agent `batchConvertFolder` + 桥 `/office/batch`；fixture PNG→PDF
+  实测通过，产物目录与 Job 进度正确。**定时任务命令/模板链**仍待做。

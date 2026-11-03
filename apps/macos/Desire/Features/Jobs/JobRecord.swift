@@ -15,6 +15,7 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
         case download
         case media
         case command
+        case office
         case agent
         case other
 
@@ -41,6 +42,7 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
             case .download: String(localized: "Download")
             case .media: String(localized: "Media")
             case .command: String(localized: "Command")
+            case .office: String(localized: "Office")
             case .agent: String(localized: "Agent task")
             case .other: String(localized: "Job")
             }
@@ -56,6 +58,7 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
             case .download: "arrow.down.circle"
             case .media: "film"
             case .command: "terminal"
+            case .office: "doc.on.doc"
             case .agent: "sparkles"
             case .other: "square.stack.3d.up"
             }

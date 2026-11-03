@@ -270,6 +270,16 @@ extension BrowserToolProvider {
                 ], required: ["name"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "batchConvertFolder",
+                description: "Convert every supported file in a folder to one target format (pdf/docx/md/xlsx/pptx/csv/html/json), writing to Converted/ next to the originals with unique names. Long task: returns a job id immediately; progress and failures are reported. Never overwrites originals.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "folder": AgentJSONSchemaValue(type: "string", description: "Folder path (workspace or user folder)"),
+                    "format": AgentJSONSchemaValue(type: "string", description: "Target format, e.g. pdf | docx | md | xlsx | pptx"),
+                    "recursive": AgentJSONSchemaValue(type: "boolean", description: "Include subfolders (default true)"),
+                    "report": AgentJSONSchemaValue(type: "string", description: "notify (default) | resume | none"),
+                ], required: ["folder", "format"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "useSkill", description: "Load a skill's full instructions into the conversation (progressive disclosure). Call before performing a task that matches a skill. Skills declaring vars need inputs {name: value} — missing values are reported; ask the user with askUser if unclear.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "name": AgentJSONSchemaValue(type: "string", description: "Skill name from the skills list in your context"),

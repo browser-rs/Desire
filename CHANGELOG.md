@@ -14,6 +14,8 @@
 - Jobs: the center shows today's done/failed counts, success rate, average duration and top failing kinds, derived from the job ledger rather than a second stats store (v0.8.40)
 - Jobs: a task detail sheet shows state, progress, exit code, output, active watch condition and the last 200 log lines, with cancel/retry/notify/open actions without leaving the Jobs center (v0.8.40)
 - Remote: tapping Details on a background task opens a task sheet with state, exit code, output, active watch condition and the last part of the log, plus cancel/retry/open output — without returning to the Mac (v0.8.40)
+- Jobs: Office folder batch — scan a folder (optionally recursive) and convert supported documents/images/tables/presentations to one target format under `Converted/`, with unique names, per-file failure collection and a single background job with progress (v0.8.40)
+
 
 
 

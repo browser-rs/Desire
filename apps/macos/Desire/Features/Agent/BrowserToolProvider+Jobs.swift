@@ -278,3 +278,39 @@ extension BrowserToolProvider {
         }
     }
 }
+
+
+extension BrowserToolProvider {
+    static func batchConvertFolder(_ args: [String: Any],
+                                   conversationID: UUID?) -> String {
+        guard let folder = args["folder"] as? String, !folder.isEmpty else {
+            return fail("Missing folder")
+        }
+        guard let format = (args["format"] as? String)?.lowercased(),
+              !format.isEmpty else {
+            return fail("Missing format (e.g. pdf, docx, md, xlsx)")
+        }
+        let resolved: URL
+        switch AgentWorkspace.shared.resolve(folder, write: false) {
+        case .granted(let url): resolved = url
+        case .denied(let reason): return reason
+        }
+        let report: JobWatch.Mode? = {
+            switch (args["report"] as? String ?? "notify").lowercased() {
+            case "none": return nil
+            case "resume": return .resume
+            default: return .notify
+            }
+        }()
+        let result = OfficeBatchStore.shared.start(
+            folder: resolved, format: format,
+            recursive: (args["recursive"] as? Bool) ?? true,
+            conversationID: conversationID, report: report)
+        switch result {
+        case .success(let id):
+            return String(localized: "Folder conversion started as job \(id.uuidString). Output goes to Converted/ inside the folder.")
+        case .failure(let error):
+            return fail(error.message)
+        }
+    }
+}

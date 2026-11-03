@@ -382,10 +382,15 @@ final class BackgroundCommandStore: ObservableObject {
         let attempt = spec.attempt ?? 1
         let maxAttempts = max(1, spec.maxAttempts ?? 1)
         let retryOn = (spec.retryOn ?? "nonZero").lowercased()
+        let retryMatches: Bool
+        switch retryOn {
+        case "never": retryMatches = false
+        case "always": retryMatches = true
+        case "timeout": retryMatches = entry.timedOut
+        default: retryMatches = entry.timedOut || exit != 0
+        }
         let retryable = !entry.cancelledByUser && attempt < maxAttempts
-            && (retryOn == "always"
-                || (retryOn == "timeout" && entry.timedOut)
-                || (retryOn != "never" && (entry.timedOut || exit != 0)))
+            && retryMatches
         if retryable {
             var next = spec
             next.attempt = attempt + 1

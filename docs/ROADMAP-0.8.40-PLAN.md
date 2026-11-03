@@ -382,8 +382,8 @@
 - **批一完成（条件部分）**：`JobWatchCondition`（terminal/failed/progress/logMatch/
   heartbeat）+ 条件去重/心跳基线 + Agent 工具与桥参数 + PageWatch 变化写回会话
   （`reportToConversation`）。桥实测 logMatch 触发、心跳/进度单测通过。
-- **剩余**：批二（队列/依赖/自动重试/进度协议/日志脱敏）、批三（Jobs 中心详情/
-  模板/指标、回合断点恢复 2.0）、批四（Remote 任务详情、Office 批量/定时命令链）。
+- **剩余**：批三（Jobs 中心详情/模板/指标、回合断点恢复 2.0）、批四（Remote 任务
+  详情、Office 批量/定时命令链）。
 
 - **批二部分完成（协议/脱敏）**：`CommandProgressParser` + `JobLogRedactor`（进 harness，
   2722/0）；命令 stdout 的 `@@desire:` 控制行实时更新进度/阶段/产物/链接且不写日志；

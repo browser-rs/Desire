@@ -354,3 +354,149 @@ extension BrowserToolProvider {
         }
     }
 }
+
+
+// MARK: - 编辑器工具族（v0.8.42 批 3）
+
+extension BrowserToolProvider {
+    static func imageInfo(_ args: [String: Any]) -> String {
+        guard let path = args["path"] as? String, !path.isEmpty else {
+            return fail("Missing path")
+        }
+        let resolved: URL
+        switch AgentWorkspace.shared.resolve(path, write: false) {
+        case .granted(let url): resolved = url
+        case .denied(let reason): return reason
+        }
+        guard let summary = ImageEXIF.read(from: resolved) else {
+            return fail("Cannot read image at \(resolved.path)")
+        }
+        var lines: [String] = [
+            "File: \(resolved.lastPathComponent)",
+            "Size: \(summary.pixelWidth ?? 0) × \(summary.pixelHeight ?? 0) px",
+        ]
+        if let format = summary.formatName { lines.append("Format: \(format)") }
+        if let size = summary.fileSize {
+            lines.append("File size: \(ByteCountFormatter.string(fromByteCount: size, countStyle: .file))")
+        }
+        if let make = summary.cameraMake ?? summary.cameraModel {
+            lines.append("Camera: \(make) \(summary.cameraModel ?? "")")
+        }
+        if let lens = summary.lensModel { lines.append("Lens: \(lens)") }
+        let settings = [summary.exposureTime, summary.fNumber, summary.iso,
+                        summary.focalLength].compactMap(\.self)
+        if !settings.isEmpty { lines.append("Settings: \(settings.joined(separator: " · "))") }
+        if let date = summary.dateTimeOriginal { lines.append("Date: \(date)") }
+        if let artist = summary.artist { lines.append("Artist: \(artist)") }
+        if let copyright = summary.copyright { lines.append("Copyright: \(copyright)") }
+        if !summary.keywords.isEmpty { lines.append("Keywords: \(summary.keywords.joined(separator: ", "))") }
+        if let lat = summary.gpsLatitude, let lon = summary.gpsLongitude {
+            lines.append("GPS: \(lat), \(lon)")
+        } else {
+            lines.append("GPS: not present")
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    static func setImageWatermark(_ args: [String: Any]) -> String {
+        guard let path = args["path"] as? String, !path.isEmpty else {
+            return fail("Missing path")
+        }
+        let text = args["text"] as? String ?? ""
+        let imagePath = args["watermarkImagePath"] as? String ?? ""
+        guard !text.isEmpty || !imagePath.isEmpty else {
+            return fail("Provide text or watermarkImagePath")
+        }
+        let resolved: URL
+        switch AgentWorkspace.shared.resolve(path, write: true) {
+        case .granted(let url): resolved = url
+        case .denied(let reason): return reason
+        }
+        guard let original = ImageTransforms.load(from: resolved) else {
+            return fail("Cannot read image at \(resolved.path)")
+        }
+        var params = ImageWatermarkParams(
+            kind: imagePath.isEmpty ? .text : .image,
+            text: text,
+            imagePath: imagePath,
+            position: Int(args["position"] as? Double ?? 8))
+        params.opacity = args["opacity"] as? Double ?? 0.6
+        params.scale = args["scale"] as? Double ?? 0.04
+        params.tile = (args["tile"] as? Bool) ?? false
+        guard let output = ImageWatermarkRenderer.render(original, params: params) else {
+            return fail("Watermark rendering failed")
+        }
+        // 写到 Converted/ 或覆盖原文件
+        let overwrite = (args["overwrite"] as? Bool) ?? false
+        let outputURL: URL
+        if overwrite {
+            outputURL = resolved
+        } else {
+            let dir = resolved.deletingLastPathComponent()
+                .appendingPathComponent("Converted", isDirectory: true)
+            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            outputURL = dir.appendingPathComponent("wm-\(resolved.lastPathComponent)")
+        }
+        do {
+            try ImageTransforms.save(output, to: outputURL)
+        } catch {
+            return fail("Write failed: \(error.localizedDescription)")
+        }
+        return String(localized: "Watermarked image saved to \(outputURL.path).")
+    }
+
+    static func straightenImage(_ args: [String: Any]) -> String {
+        guard let path = args["path"] as? String, !path.isEmpty else {
+            return fail("Missing path")
+        }
+        guard let degrees = args["degrees"] as? Double,
+              degrees >= -45, degrees <= 45, degrees != 0 else {
+            return fail("degrees must be between -45 and 45 (non-zero)")
+        }
+        let resolved: URL
+        switch AgentWorkspace.shared.resolve(path, write: true) {
+        case .granted(let url): resolved = url
+        case .denied(let reason): return reason
+        }
+        guard let original = ImageTransforms.load(from: resolved) else {
+            return fail("Cannot read image at \(resolved.path)")
+        }
+        guard let output = ImageTransforms.straightened(original, degrees: degrees) else {
+            return fail("Straighten failed")
+        }
+        do {
+            try ImageTransforms.save(output, to: resolved)
+        } catch {
+            return fail("Write failed: \(error.localizedDescription)")
+        }
+        return String(localized: "Straightened by \(String(format: "%.1f", degrees))° and saved to \(resolved.path).")
+    }
+
+    static func autoEnhanceImage(_ args: [String: Any]) -> String {
+        guard let path = args["path"] as? String, !path.isEmpty else {
+            return fail("Missing path")
+        }
+        let resolved: URL
+        switch AgentWorkspace.shared.resolve(path, write: true) {
+        case .granted(let url): resolved = url
+        case .denied(let reason): return reason
+        }
+        guard let original = ImageTransforms.load(from: resolved) else {
+            return fail("Cannot read image at \(resolved.path)")
+        }
+        let params = ImageAICore.autoEnhance(original)
+        guard let output = ImagePipelineRenderer.render(base: original, pipeline: {
+            var pipeline = ImageEditPipeline()
+            _ = pipeline.append(.adjust(params))
+            return pipeline
+        }()) else {
+            return fail("Auto enhance rendering failed")
+        }
+        do {
+            try ImageTransforms.save(output, to: resolved)
+        } catch {
+            return fail("Write failed: \(error.localizedDescription)")
+        }
+        return String(localized: "Auto enhanced and saved to \(resolved.path).")
+    }
+}

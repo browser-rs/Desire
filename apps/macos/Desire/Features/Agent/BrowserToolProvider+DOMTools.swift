@@ -958,6 +958,14 @@ extension BrowserToolProvider {
             return await Self.runJobTemplate(args, conversationID: ownerSession?.conversationId)
         case "batchConvertFolder":
             return Self.batchConvertFolder(args, conversationID: ownerSession?.conversationId)
+        case "imageInfo":
+            return Self.imageInfo(args)
+        case "setImageWatermark":
+            return Self.setImageWatermark(args)
+        case "straightenImage":
+            return Self.straightenImage(args)
+        case "autoEnhanceImage":
+            return Self.autoEnhanceImage(args)
         case "batchEditImages":
             return Self.batchEditImages(args, conversationID: ownerSession?.conversationId)
 

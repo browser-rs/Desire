@@ -209,3 +209,9 @@
   九宫格/平铺/旋转/透明度/颜色选择器，实时预览）；Apply 烙图可撤销。
   harness 2772/0，Debug/Release clean 零警告。
 - **批 3（透视/快捷键/Agent 工具族/回发 Remote）下一批**。
+
+- **批 3（Agent 工具族）完成**：`imageInfo`/`setImageWatermark`/`straightenImage`/
+  `autoEnhanceImage` 四工具 + 定义/分派/风险分级（imageInfo readonly）+ 三语键。
+  harness 2772/0，Debug 零警告。
+- **批 3 余项（透视校正/性能护栏/快捷键/回发 Remote）**：透视校正推迟；
+  性能护栏/快捷键/回发 Remote 下一批。

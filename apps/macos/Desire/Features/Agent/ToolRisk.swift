@@ -78,6 +78,7 @@ enum ToolRisk: Int, Comparable {
         "listBatchDownloads",
         // 后台任务（v0.8.39）：列表/详情只读；watch/cancel/retry 是写操作走默认 sideEffect
         "listBackgroundTasks", "backgroundTaskStatus", "listJobTemplates",
+        "imageInfo",
         // Deep page data extraction (read-only)
         "getTables", "getImages", "getPageMeta", "getElementHTML", "getNetworkLog",
         // Document reading & export (local OCR / PDF text layer / page→PDF writes a file only)

@@ -3,6 +3,8 @@
 
 - Image editor: EXIF metadata panel — camera/lens/settings summary, editable title/artist/copyright/description/keywords, one-click GPS removal and full metadata wipe (writes through CGImageSource without re-encoding pixels) (v0.8.42)
 - Image editor: watermark panel — text or image watermark with nine-grid position, opacity, scale, rotation, tiling and colour picker; live preview; apply flattens onto the image with undo (v0.8.42)
+- Agent: image editing tool family — `imageInfo` (metadata summary), `setImageWatermark` (text/image watermark with position/tile/opacity), `straightenImage` (±45° fill) and `autoEnhanceImage` (AI auto-levels + saturation/clarity/sharpen boost), all workspace-path-scoped and writing back in place or to Converted/ (v0.8.42)
+
 
 
 

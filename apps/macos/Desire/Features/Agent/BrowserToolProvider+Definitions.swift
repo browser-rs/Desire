@@ -293,6 +293,42 @@ extension BrowserToolProvider {
                 ], required: ["folder"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "imageInfo",
+                description: "Read image file metadata — pixel dimensions, format, camera/lens/settings, EXIF date/artist/copyright/keywords and GPS presence. READ-ONLY.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Image file path (workspace or absolute)"),
+                ], required: ["path"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "setImageWatermark",
+                description: "Apply a text or image watermark to an image file. Writes to Converted/wm-<name> unless overwrite=true. Same safety model as other file tools.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Image file path"),
+                    "text": AgentJSONSchemaValue(type: "string", description: "Watermark text (for text mode)"),
+                    "watermarkImagePath": AgentJSONSchemaValue(type: "string", description: "PNG watermark image path (for image mode)"),
+                    "position": AgentJSONSchemaValue(type: "number", description: "Nine-grid position 0-8 (0=top-left, 4=center, 8=bottom-right; default 8)"),
+                    "opacity": AgentJSONSchemaValue(type: "number", description: "0.05-1 (default 0.6)"),
+                    "scale": AgentJSONSchemaValue(type: "number", description: "Relative to image short side 0.02-0.15 (default 0.04)"),
+                    "tile": AgentJSONSchemaValue(type: "boolean", description: "Tile across the image (default false)"),
+                    "overwrite": AgentJSONSchemaValue(type: "boolean", description: "Overwrite the source file (default false — writes to Converted/)"),
+                ], required: ["path"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "straightenImage",
+                description: "Rotate an image by a small angle (-45 to +45 degrees) scaled to fill the original dimensions (no black corners). Saves in place.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Image file path"),
+                    "degrees": AgentJSONSchemaValue(type: "number", description: "Rotation degrees -45 to 45 (non-zero)"),
+                ], required: ["path", "degrees"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "autoEnhanceImage",
+                description: "Apply AI auto-enhance (auto levels from histogram + saturation/clarity/sharpen boost) to an image file. Saves in place.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Image file path"),
+                ], required: ["path"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "useSkill", description: "Load a skill's full instructions into the conversation (progressive disclosure). Call before performing a task that matches a skill. Skills declaring vars need inputs {name: value} — missing values are reported; ask the user with askUser if unclear.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "name": AgentJSONSchemaValue(type: "string", description: "Skill name from the skills list in your context"),

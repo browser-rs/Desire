@@ -235,3 +235,12 @@ nonisolated extension Double {
         min(max(self, lower), upper)
     }
 }
+
+nonisolated extension CGFloat {
+    func clamped(_ lower: CGFloat, _ upper: CGFloat) -> CGFloat {
+        let clampedLower = Swift.min(lower, upper)
+        if self < clampedLower { return clampedLower }
+        if self > upper { return upper }
+        return self
+    }
+}

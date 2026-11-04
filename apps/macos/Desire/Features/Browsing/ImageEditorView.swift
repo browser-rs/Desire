@@ -32,6 +32,7 @@ struct ImageEditorView: View {
     // 标注
     enum Tool: String, CaseIterable {
         case none, brush, arrow, line, rectangle, ellipse, polygon, text, bubble, mosaic
+        case cloneStamp, dodge, burn, blurBrush, sharpenBrush
         var icon: String {
             switch self {
             case .none: "cursorarrow"
@@ -44,6 +45,11 @@ struct ImageEditorView: View {
             case .text: "textformat"
             case .bubble: "number.circle"
             case .mosaic: "square.grid.3x3"
+            case .cloneStamp: "person.crop.square.badge.plus"
+            case .dodge: "sun.max"
+            case .burn: "moon.haze"
+            case .blurBrush: "drop.halffull"
+            case .sharpenBrush: "triangle.righthalf.filled"
             }
         }
     }
@@ -118,6 +124,11 @@ struct ImageEditorView: View {
     @State private var showCurves = false
     @State private var showPresets = false
     @State private var showLayers = false
+    /// 修复工具（迭代 2）：克隆取样点、刷子半径/强度。
+    @State private var cloneSample: CGPoint?
+    @State private var brushRadius: CGFloat = 14
+    @State private var brushStrength: Double = 0.5
+    @State private var pendingDrag: CGPoint?
 
     /// 显示位图与实际位图之间的缩放比。
     private var displayScale: CGFloat {
@@ -595,6 +606,176 @@ struct ImageEditorView: View {
         }
     }
 
+    // MARK: - 修复工具（迭代 2）
+
+    private var repairToolActive: Bool {
+        [.dodge, .burn, .blurBrush, .sharpenBrush].contains(tool)
+    }
+
+    /// 克隆取样点标记（⌥ = 取样点）。
+    @ViewBuilder
+    private var cloneSampleMarker: some View {
+        if tool == .cloneStamp, let sample = cloneSample {
+            Circle()
+                .strokeBorder(Color.cyan, lineWidth: 1.5)
+                .background(Color.cyan.opacity(0.15))
+                .frame(width: brushRadius * 2, height: brushRadius * 2)
+                .position(sample)
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// 按位图像素处理修复刷（简化实现：邻域混合/亮度调节/模糊/锐化局部应用）。
+    private func applyRepairBrush(at viewPoint: CGPoint) {
+        guard let current = image else { return }
+        let scale = displayScale
+        let pixel = CGPoint(x: viewPoint.x * scale, y: viewPoint.y * scale)
+        let radius = brushRadius * scale
+        let strength = brushStrength
+        pushHistory(current, label: tool.rawValue.capitalized)
+        guard let patched = Self.patch(
+            current, center: pixel, radius: radius,
+            sample: tool == .cloneStamp ? cloneSample.map({
+                CGPoint(x: $0.x * scale, y: $0.y * scale)
+            }) : nil,
+            mode: tool, strength: strength)
+        else { return }
+        image = patched
+        hasUnsavedChanges = true
+    }
+
+    private func commitClone(from sample: CGPoint, to viewPoint: CGPoint) {
+        guard let current = image else { return }
+        let scale = displayScale
+        let pixel = CGPoint(x: viewPoint.x * scale, y: viewPoint.y * scale)
+        let samplePixel = CGPoint(x: sample.x * scale, y: sample.y * scale)
+        let radius = brushRadius * scale
+        pushHistory(current, label: String(localized: "Clone Stamp"))
+        guard let patched = Self.patch(
+            current, center: pixel, radius: radius, sample: samplePixel,
+            mode: .cloneStamp, strength: 1)
+        else { return }
+        image = patched
+        hasUnsavedChanges = true
+        // 落图后取样点保持，可连续克隆。
+    }
+
+    /// 位图局部修补（static 便于后台化；像素级循环只处理刷子矩形）。
+    nonisolated static func patch(
+        _ image: CGImage, center: CGPoint, radius: CGFloat,
+        sample: CGPoint?, mode: Tool, strength: Double
+    ) -> CGImage? {
+        let width = image.width
+        let height = image.height
+        guard let srcContext = CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        srcContext.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+        guard let rawData = srcContext.data else { return nil }
+        let buffer = rawData.bindMemory(to: UInt8.self, capacity: width * height * 4)
+
+        let cx = Int(center.x.clamped(0, CGFloat(width - 1)))
+        let cy = Int(center.y.clamped(0, CGFloat(height - 1)))
+        let r = max(4, min(200, Int(radius)))
+        let dmax = CGFloat(r)
+        let sx = sample.map { Int($0.x.clamped(0, CGFloat(width - 1))) } ?? cx
+        let sy = sample.map { Int($0.y.clamped(0, CGFloat(height - 1))) } ?? cy
+        let strengthFactor = max(0.05, min(1, strength))
+
+        for dy in -r...r {
+            for dx in -r...r {
+                let dfx = CGFloat(dx)
+                let dfy = CGFloat(dy)
+                let dist = (dfx * dfx + dfy * dfy).squareRoot()
+                guard dist <= dmax else { continue }
+                let px = cx + dx
+                let py = cy + dy
+                guard px >= 0, px < width, py >= 0, py < height else { continue }
+                let offset = (py * width + px) * 4
+                // 边缘软过渡（0…1）
+                let falloff = 1 - dist / dmax
+                let weight = min(1, falloff * 2) * strengthFactor
+                switch mode {
+                case .cloneStamp:
+                    let spx = sx + dx
+                    let spy = sy + dy
+                    guard spx >= 0, spx < width, spy >= 0, spy < height else { continue }
+                    let srcOffset = (spy * width + spx) * 4
+                    for channel in 0..<3 {
+                        let original = Double(buffer[offset + channel])
+                        let sampled = Double(buffer[srcOffset + channel])
+                        buffer[offset + channel] = UInt8(
+                            min(255, max(0, original + (sampled - original) * weight))
+                        )
+                    }
+                case .dodge, .burn:
+                    let dodgeFactor: Double = mode == .dodge ? 1.6 : 0.4
+                    let factor = 1 + (dodgeFactor - 1) * weight
+                    for channel in 0..<3 {
+                        let value = Double(buffer[offset + channel]) * factor
+                        buffer[offset + channel] = UInt8(min(255, max(0, value)))
+                    }
+                case .blurBrush:
+                    // 3×3 均值模糊
+                    var sum = [Double](repeating: 0, count: 3)
+                    var count = 0.0
+                    for oy in -1...1 {
+                        for ox in -1...1 {
+                            let nx = px + ox
+                            let ny = py + oy
+                            guard nx >= 0, nx < width, ny >= 0, ny < height else { continue }
+                            let nOffset = (ny * width + nx) * 4
+                            for channel in 0..<3 {
+                                sum[channel] += Double(buffer[nOffset + channel])
+                            }
+                            count += 1
+                        }
+                    }
+                    for channel in 0..<3 {
+                        let original = Double(buffer[offset + channel])
+                        let blurred = sum[channel] / count
+                        buffer[offset + channel] = UInt8(
+                            min(255, max(0, original + (blurred - original) * weight)))
+                    }
+                case .sharpenBrush:
+                    // 简易非锐化掩模：中心 - 3×3 均值
+                    var sum = [Double](repeating: 0, count: 3)
+                    var count = 0.0
+                    for oy in -1...1 {
+                        for ox in -1...1 {
+                            let nx = px + ox
+                            let ny = py + oy
+                            guard nx >= 0, nx < width, ny >= 0, ny < height else { continue }
+                            let nOffset = (ny * width + nx) * 4
+                            for channel in 0..<3 {
+                                sum[channel] += Double(buffer[nOffset + channel])
+                            }
+                            count += 1
+                        }
+                    }
+                    for channel in 0..<3 {
+                        let original = Double(buffer[offset + channel])
+                        let mean = sum[channel] / count
+                        let sharpened = original + (original - mean) * 1.2 * weight
+                        buffer[offset + channel] = UInt8(min(255, max(0, sharpened)))
+                    }
+                default:
+                    break
+                }
+            }
+        }
+        guard let outContext = CGContext(
+            data: rawData, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        return outContext.makeImage()
+    }
+
     // MARK: - 画布
 
     @ViewBuilder
@@ -638,6 +819,7 @@ struct ImageEditorView: View {
                             })
                         .overlay(cropOverlay)
                         .overlay(selectionOverlay)
+                        .overlay(cloneSampleMarker)
                         .overlay(annotationOverlay)
                         .overlay(alignment: .topTrailing) {
                             if showHistogram {
@@ -758,6 +940,14 @@ struct ImageEditorView: View {
                     }
                     return
                 }
+                if tool == .cloneStamp {
+                    pendingDrag = point
+                    return
+                }
+                if repairToolActive {
+                    applyRepairBrush(at: point)
+                    return
+                }
                 switch tool {
                 case .brush:
                     brushPoints.append(point)
@@ -766,13 +956,23 @@ struct ImageEditorView: View {
                     dragCurrent = point
                 case .polygon:
                     if polygonDragStart == nil { polygonDragStart = point }
-                case .text, .bubble, .none:
+                case .text, .bubble, .none,
+                     .cloneStamp, .dodge, .burn, .blurBrush, .sharpenBrush:
                     break
                 }
             }
             .onEnded { value in
                 if selectionMode {
                     commitSelection()
+                    return
+                }
+                if tool == .cloneStamp {
+                    let point = value.location
+                    commitClone(from: cloneSample ?? point, to: point)
+                    pendingDrag = nil
+                    return
+                }
+                if repairToolActive {
                     return
                 }
                 if cropMode {
@@ -786,6 +986,10 @@ struct ImageEditorView: View {
                         return
                     }
                     cropRect = nil
+                    return
+                }
+                if repairToolActive {
+                    applyRepairBrush(at: value.location)
                     return
                 }
                 switch tool {
@@ -835,7 +1039,8 @@ struct ImageEditorView: View {
                     guard !dragged else { return }
                     bubbleCounter += 1
                     stampBubble(at: point, number: bubbleCounter)
-                case .text, .none:
+                case .text, .none,
+                     .cloneStamp, .dodge, .burn, .blurBrush, .sharpenBrush:
                     break
                 }
             }

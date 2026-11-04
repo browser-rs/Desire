@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.42] - 2026-11-04
 ### Added
 
 - Image editor: EXIF metadata panel — camera/lens/settings summary, editable title/artist/copyright/description/keywords, one-click GPS removal and full metadata wipe (writes through CGImageSource without re-encoding pixels) (v0.8.42)

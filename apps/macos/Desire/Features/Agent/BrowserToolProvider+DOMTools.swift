@@ -966,6 +966,14 @@ extension BrowserToolProvider {
             return Self.straightenImage(args)
         case "autoEnhanceImage":
             return Self.autoEnhanceImage(args)
+        case "cropImage":
+            return Self.cropImage(args)
+        case "flipImage":
+            return Self.flipImage(args)
+        case "resizeImage":
+            return Self.resizeImage(args)
+        case "mergeImages":
+            return Self.mergeImages(args)
         case "batchEditImages":
             return Self.batchEditImages(args, conversationID: ownerSession?.conversationId)
         case "batchWatermarkImages":

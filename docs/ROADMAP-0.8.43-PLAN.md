@@ -115,3 +115,12 @@
   接入管线。快捷键与回发 Remote 均已在前版确认可用（⌘⇧E 导出、Send to Phone
   按钮已落地）。harness 2776/0，Debug/Release clean 零警告。
 - **批 2（透视/拼图/Agent 补齐）下一批**。
+
+## 进度（2026-11-05）
+
+- **批 1（几何非破坏化）完成**：pipeline op `.geometry` + 渲染器有序应用 + 编辑器
+  rotate/flip 接入管线。harness 2776/0，Debug/Release 零警告。
+- **批 2（透视/拼图/Agent 补齐）完成**：`ImagePerspective`（CIPerspectiveCorrection）
+  + `ImageMergeCore`（水平/垂直/gap）+ Agent `cropImage`/`flipImage`/`resizeImage`/
+  `mergeImages` 四工具 + 定义/分派/风险分级。harness 2776/0，Debug/Release 零警告。
+- **批 3（阅读器 3.0）下一批**。

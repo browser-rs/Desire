@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// 后台任务工具（v0.8.39）的执行实现。定义在 Definitions，分派在 DOMTools。
@@ -587,5 +588,165 @@ extension BrowserToolProvider {
             JobEventCenter.shared.recordTerminal(jobID: jobID)
         }
         return String(localized: "Batch watermark started as job. Progress in Jobs center.")
+    }
+}
+
+
+// MARK: - 图片编辑补齐（迭代 2 · v0.8.43）
+
+extension BrowserToolProvider {
+    static func cropImage(_ args: [String: Any]) -> String {
+        guard let path = args["path"] as? String, !path.isEmpty else {
+            return fail("Missing path")
+        }
+        guard let x = args["x"] as? Double, let y = args["y"] as? Double,
+              let w = args["width"] as? Double, let h = args["height"] as? Double,
+              w > 0, h > 0, x >= 0, y >= 0 else {
+            return fail("Missing or invalid x/y/width/height")
+        }
+        let resolved: URL
+        switch AgentWorkspace.shared.resolve(path, write: true) {
+        case .granted(let url): resolved = url
+        case .denied(let reason): return reason
+        }
+        guard let original = ImageTransforms.load(from: resolved) else {
+            return fail("Cannot read image at \(resolved.path)")
+        }
+        let rect = CGRect(x: x, y: y, width: w, height: h)
+        guard rect.maxX <= CGFloat(original.width),
+              rect.maxY <= CGFloat(original.height) else {
+            return fail("Crop rect exceeds image bounds (\(original.width) × \(original.height))")
+        }
+        guard let output = ImageTransforms.cropped(original, rect: rect) else {
+            return fail("Crop failed")
+        }
+        do {
+            try ImageTransforms.save(output, to: resolved)
+        } catch {
+            return fail("Write failed: \(error.localizedDescription)")
+        }
+        return String(localized: "Cropped to \(Int(w)) × \(Int(h)) and saved to \(resolved.path).")
+    }
+
+    static func flipImage(_ args: [String: Any]) -> String {
+        guard let path = args["path"] as? String, !path.isEmpty else {
+            return fail("Missing path")
+        }
+        guard let direction = args["direction"] as? String else {
+            return fail("Missing direction (horizontal/vertical)")
+        }
+        let horizontal: Bool
+        switch direction.lowercased() {
+        case "horizontal", "h": horizontal = true
+        case "vertical", "v": horizontal = false
+        default: return fail("direction must be horizontal or vertical")
+        }
+        let resolved: URL
+        switch AgentWorkspace.shared.resolve(path, write: true) {
+        case .granted(let url): resolved = url
+        case .denied(let reason): return reason
+        }
+        guard let original = ImageTransforms.load(from: resolved) else {
+            return fail("Cannot read image at \(resolved.path)")
+        }
+        guard let output = ImageTransforms.flipped(original, horizontal: horizontal) else {
+            return fail("Flip failed")
+        }
+        do {
+            try ImageTransforms.save(output, to: resolved)
+        } catch {
+            return fail("Write failed: \(error.localizedDescription)")
+        }
+        return String(localized: "Flipped \(direction) and saved to \(resolved.path).")
+    }
+
+    static func resizeImage(_ args: [String: Any]) -> String {
+        guard let path = args["path"] as? String, !path.isEmpty else {
+            return fail("Missing path")
+        }
+        guard let width = args["width"] as? Int, width > 0 else {
+            return fail("Missing or invalid width")
+        }
+        let height: Int
+        if let h = args["height"] as? Int, h > 0 {
+            height = h
+        } else {
+            guard let original = ImageTransforms.load(from: resolved(path)) else {
+                return fail("Cannot read image")
+            }
+            height = max(1, Int((Double(original.height) * Double(width) / Double(original.width)).rounded()))
+        }
+        let resolved: URL
+        switch AgentWorkspace.shared.resolve(path, write: true) {
+        case .granted(let url): resolved = url
+        case .denied(let reason): return reason
+        }
+        guard let original = ImageTransforms.load(from: resolved) else {
+            return fail("Cannot read image at \(resolved.path)")
+        }
+        guard let output = ImageTransforms.resized(original, width: width, height: height) else {
+            return fail("Resize failed")
+        }
+        do {
+            try ImageTransforms.save(output, to: resolved)
+        } catch {
+            return fail("Write failed: \(error.localizedDescription)")
+        }
+        return String(localized: "Resized to \(width) × \(height) and saved to \(resolved.path).")
+    }
+
+    private static func resolved(_ path: String) -> URL {
+        switch AgentWorkspace.shared.resolve(path, write: false) {
+        case .granted(let url): return url
+        case .denied: return URL(fileURLWithPath: path)
+        }
+    }
+}
+
+
+extension BrowserToolProvider {
+    static func mergeImages(_ args: [String: Any]) -> String {
+        let paths = (args["paths"] as? [String] ?? []).filter { !$0.isEmpty }
+        guard paths.count >= 2 else {
+            return fail("Provide at least 2 image paths")
+        }
+        let direction: ImageMergeCore.Direction =
+            (args["direction"] as? String ?? "horizontal").lowercased() == "vertical"
+                ? .vertical : .horizontal
+        let gap = max(0, args["gap"] as? Double ?? 0)
+        var sources: [CGImage] = []
+        for path in paths {
+            switch AgentWorkspace.shared.resolve(path, write: false) {
+            case .granted(let url):
+                guard let image = ImageTransforms.load(from: url) else {
+                    return fail("Cannot read image at \(url.path)")
+                }
+                sources.append(image)
+            case .denied(let reason): return reason
+            }
+        }
+        guard let result = ImageMergeCore.merge(sources, direction: direction, gap: gap) else {
+            return fail("Merge failed")
+        }
+        // 输出到第一张图同目录 Merged/
+        guard let first = paths.first else { return fail("No paths") }
+        let firstURL = AgentWorkspace.shared.resolve(first, write: false)
+        let dir: URL
+        if case .granted(let url) = firstURL {
+            dir = url.deletingLastPathComponent()
+                .appendingPathComponent("Merged", isDirectory: true)
+        } else {
+            dir = AgentWorkspace.shared.directory.appendingPathComponent("Merged",
+                                                                        isDirectory: true)
+        }
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let output = dir.appendingPathComponent(
+            "merged-\(Int(Date().timeIntervalSince1970)).png")
+        do {
+            try ImageTransforms.save(result.image, to: output)
+        } catch {
+            return fail("Write failed: \(error.localizedDescription)")
+        }
+        return String(localized: "Merged \(sources.count) image(s) → \(output.path) (\(Int(result.size.width)) × \(Int(result.size.height)) px).")
     }
 }

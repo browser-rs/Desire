@@ -343,6 +343,43 @@ extension BrowserToolProvider {
                 ], required: ["folder"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "cropImage",
+                description: "Crop an image file to a pixel rectangle (X/Y/width/height). Saves in place.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Image file path"),
+                    "x": AgentJSONSchemaValue(type: "number", description: "Crop origin X"),
+                    "y": AgentJSONSchemaValue(type: "number", description: "Crop origin Y"),
+                    "width": AgentJSONSchemaValue(type: "number", description: "Crop width"),
+                    "height": AgentJSONSchemaValue(type: "number", description: "Crop height"),
+                ], required: ["path", "x", "y", "width", "height"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "flipImage",
+                description: "Flip an image file horizontally or vertically. Saves in place.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Image file path"),
+                    "direction": AgentJSONSchemaValue(type: "string", description: "horizontal | vertical"),
+                ], required: ["path", "direction"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "resizeImage",
+                description: "Resize an image file to the target width (height auto-computed to preserve aspect ratio unless explicitly provided). Saves in place.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Image file path"),
+                    "width": AgentJSONSchemaValue(type: "number", description: "Target width px"),
+                    "height": AgentJSONSchemaValue(type: "number", description: "Target height px (optional; auto if omitted)"),
+                ], required: ["path", "width"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "mergeImages",
+                description: "Merge two or more image files horizontally or vertically with an optional gap (white fill). Writes to Merged/ in the same folder. Returns the output path.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "paths": AgentJSONSchemaValue(type: "array", description: "Image file paths (2+)", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                    "direction": AgentJSONSchemaValue(type: "string", description: "horizontal (default) | vertical"),
+                    "gap": AgentJSONSchemaValue(type: "number", description: "Gap pixels (default 0)"),
+                ], required: ["paths"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "useSkill", description: "Load a skill's full instructions into the conversation (progressive disclosure). Call before performing a task that matches a skill. Skills declaring vars need inputs {name: value} — missing values are reported; ask the user with askUser if unclear.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "name": AgentJSONSchemaValue(type: "string", description: "Skill name from the skills list in your context"),

@@ -2,6 +2,10 @@
 ### Added
 
 - Image editor: geometric operations (rotate 90° CW/CCW, flip horizontal/vertical) are now non-destructive pipeline operations instead of one-shot bakes — undo/redo works correctly and edits remain re-editable after geometric transforms (v0.8.43)
+- Image editor: perspective correction — drag four corner handles on the canvas, CIPerspectiveCorrection renders the front-facing output (v0.8.43)
+- Image editor: merge images — combine two or more images horizontally or vertically with a configurable white gap, short side auto-aligned; available as an Agent `mergeImages` tool writing to Merged/ (v0.8.43)
+- Agent: image editing tools completed — `cropImage`, `flipImage` and `resizeImage` complete the editing surface started in v0.8.42 (v0.8.43)
+
 
 
 ## [v0.8.42] - 2026-11-04

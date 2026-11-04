@@ -7,6 +7,9 @@
 - Image editor: before/after comparison — draggable split slider overlays original on the left and rendered result on the right with labelled caps and a drag handle; toggle from the toolbar (v0.8.42)
 - Image editor: eyedropper — toggle from the toolbar, click the canvas to sample a pixel's hex/RGB, displayed in the status bar with a copy button (v0.8.42)
 - Image editor: social media crop presets (Instagram 1:1, Story 9:16, Post 4:5, YouTube 16:9, Cover 2.35:1, Xiaohongshu 3:4) alongside the free/ratio buttons (v0.8.42)
+- Image editor: edit snapshot persistence — saving writes a `.editstate.json` alongside the image with the non-destructive pipeline, so closing and reopening the same file restores the edit state; navigating back clears it (v0.8.42)
+- Image editor: batch watermark — apply a text/image watermark to every image in a folder (recursive) via `batchWatermarkImages`, writing to `Watermarked/` with per-file progress and failures (v0.8.42)
+
 
 
 

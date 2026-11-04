@@ -79,3 +79,34 @@ nonisolated enum ImageBatchEditCore {
         return candidate
     }
 }
+
+
+// MARK: - 批量水印（迭代 2 批 5 增补）
+
+/// 批量水印：对文件夹内全部图片应用同一水印参数，写入 `Watermarked/`。
+nonisolated enum ImageBatchWatermarkCore {
+    static func outputDir(for folder: URL) -> URL {
+        folder.appendingPathComponent("Watermarked", isDirectory: true)
+    }
+
+    static func validationError(folder: URL) -> String? {
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: folder.path, isDirectory: &isDir),
+              isDir.boolValue else {
+            return "Folder does not exist"
+        }
+        return nil
+    }
+
+    static func outputURL(for source: URL, in outputDir: URL) -> URL {
+        let stem = source.deletingPathExtension().lastPathComponent
+        let ext = source.pathExtension
+        var candidate = outputDir.appendingPathComponent("\(stem).\(ext)")
+        var n = 2
+        while FileManager.default.fileExists(atPath: candidate.path) {
+            candidate = outputDir.appendingPathComponent("\(stem)-\(n).\(ext)")
+            n += 1
+        }
+        return candidate
+    }
+}

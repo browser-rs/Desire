@@ -329,6 +329,20 @@ extension BrowserToolProvider {
                 ], required: ["path"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "batchWatermarkImages",
+                description: "Apply a text/image watermark to every image in a folder (recursive), writing to Watermarked/ next to the originals. Long task: returns a job id immediately.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "folder": AgentJSONSchemaValue(type: "string", description: "Folder path containing images"),
+                    "text": AgentJSONSchemaValue(type: "string", description: "Watermark text (for text mode)"),
+                    "watermarkImagePath": AgentJSONSchemaValue(type: "string", description: "PNG watermark image path (for image mode)"),
+                    "position": AgentJSONSchemaValue(type: "number", description: "Nine-grid position 0-8 (default 8 = bottom-right)"),
+                    "opacity": AgentJSONSchemaValue(type: "number", description: "0.05-1 (default 0.6)"),
+                    "scale": AgentJSONSchemaValue(type: "number", description: "0.02-0.15 (default 0.04)"),
+                    "rotation": AgentJSONSchemaValue(type: "number", description: "Rotation degrees (default 0)"),
+                    "tile": AgentJSONSchemaValue(type: "boolean", description: "Tile across all images (default false)"),
+                ], required: ["folder"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "useSkill", description: "Load a skill's full instructions into the conversation (progressive disclosure). Call before performing a task that matches a skill. Skills declaring vars need inputs {name: value} — missing values are reported; ask the user with askUser if unclear.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "name": AgentJSONSchemaValue(type: "string", description: "Skill name from the skills list in your context"),

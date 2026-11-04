@@ -500,3 +500,92 @@ extension BrowserToolProvider {
         return String(localized: "Auto enhanced and saved to \(resolved.path).")
     }
 }
+
+
+extension BrowserToolProvider {
+    static func batchWatermarkImages(_ args: [String: Any],
+                                     conversationID: UUID?) -> String {
+        guard let folder = args["folder"] as? String, !folder.isEmpty else {
+            return fail("Missing folder")
+        }
+        let text = args["text"] as? String ?? ""
+        let imagePath = args["watermarkImagePath"] as? String ?? ""
+        guard !text.isEmpty || !imagePath.isEmpty else {
+            return fail("Provide text or watermarkImagePath")
+        }
+        let resolved: URL
+        switch AgentWorkspace.shared.resolve(folder, write: true) {
+        case .granted(let url): resolved = url
+        case .denied(let reason): return reason
+        }
+        if let error = ImageBatchWatermarkCore.validationError(folder: resolved) {
+            return fail(error)
+        }
+        var params = ImageWatermarkParams(
+            kind: imagePath.isEmpty ? .text : .image,
+            text: text, imagePath: imagePath,
+            position: Int(args["position"] as? Double ?? 8))
+        params.opacity = args["opacity"] as? Double ?? 0.6
+        params.scale = args["scale"] as? Double ?? 0.04
+        params.tile = (args["tile"] as? Bool) ?? false
+        params.rotation = args["rotation"] as? Double ?? 0
+        let jobID = JobStore.shared.start(
+            title: String(localized: "Batch watermark \(resolved.lastPathComponent)"),
+            kind: .office,
+            detail: String(localized: "Starting…"),
+            source: "image-batch-watermark",
+            conversationID: conversationID)
+        Task { @MainActor in
+            let files = ImageBatchEditCore.inputFiles(in: resolved, recursive: true)
+            guard !files.isEmpty else {
+                JobStore.shared.finish(jobID, state: .failed,
+                                       detail: String(localized: "No image files found"),
+                                       error: String(localized: "No image files found"))
+                JobEventCenter.shared.recordTerminal(jobID: jobID)
+                return
+            }
+            let outputDir = ImageBatchWatermarkCore.outputDir(for: resolved)
+            try? FileManager.default.createDirectory(at: outputDir,
+                                                    withIntermediateDirectories: true)
+            var failures: [String] = []
+            var succeeded = 0
+            for (index, file) in files.enumerated() {
+                if Task.isCancelled { break }
+                guard let job = JobStore.shared.job(id: jobID),
+                      job.state == .running else { break }
+                JobStore.shared.update(
+                    jobID,
+                    detail: "\(index + 1)/\(files.count) · \(file.lastPathComponent)",
+                    progress: Double(index) / Double(files.count))
+                guard let original = ImageTransforms.load(from: file) else {
+                    failures.append("\(file.lastPathComponent): load failed")
+                    continue
+                }
+                guard let output = ImageWatermarkRenderer.render(original, params: params) else {
+                    failures.append("\(file.lastPathComponent): render failed")
+                    continue
+                }
+                let dest = ImageBatchWatermarkCore.outputURL(for: file, in: outputDir)
+                do {
+                    try ImageTransforms.save(output, to: dest)
+                    succeeded += 1
+                } catch {
+                    failures.append("\(file.lastPathComponent): write failed")
+                }
+            }
+            let summary = succeeded == files.count
+                ? String(localized: "Watermarked \(succeeded) image(s) → \(outputDir.path)")
+                : String(localized: "Watermarked \(succeeded)/\(files.count) image(s) → \(outputDir.path)")
+                + (failures.isEmpty ? "" : "\n" + failures.prefix(6).joined(separator: "\n"))
+            let state: JobRecord.State = succeeded == 0 ? .failed : .done
+            JobStore.shared.finish(
+                jobID, state: state,
+                detail: String(localized: "\(succeeded)/\(files.count) watermarked"),
+                receipt: summary,
+                artifactURL: outputDir.path,
+                error: state == .failed ? String(localized: "All watermarks failed") : nil)
+            JobEventCenter.shared.recordTerminal(jobID: jobID)
+        }
+        return String(localized: "Batch watermark started as job. Progress in Jobs center.")
+    }
+}

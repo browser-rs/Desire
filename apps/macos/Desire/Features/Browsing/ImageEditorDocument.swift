@@ -187,6 +187,14 @@ final class ImageEditorDocument: ObservableObject {
         redoStack.removeAll()
     }
 
+    /// 恢复管线快照（重开文件时从 `.editstate.json` 读回）。
+    func restorePipeline(_ pipeline: ImageEditPipeline) {
+        self.pipeline = pipeline
+        undoStack.removeAll()
+        redoStack.removeAll()
+        objectWillChange.send()
+    }
+
     // MARK: - 渲染
 
     /// 请求渲染（去抖 120ms；相同指纹跳过）。base = 烙图后的基础位图。

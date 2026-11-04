@@ -275,6 +275,10 @@ struct ImageEditorView: View {
             isFitMode = true
             zoom = 1
             pinchBase = 1
+            // 恢复非破坏管线（迭代 2 批 5）
+            if let snapshot = ImageEditSnapshotIO.load(for: fileURL) {
+                document.restorePipeline(snapshot.pipeline)
+            }
             // fitZoom 量完容器后由 recomputeFit 收敛；先给个保守初值防闪。
             DispatchQueue.main.async { recomputeFit() }
             ImageLayerStore.shared.reset(base: cg)
@@ -299,6 +303,12 @@ struct ImageEditorView: View {
                 try fm.copyItem(at: fileURL, to: backup)
             }
             try ImageTransforms.save(output, to: fileURL)
+            // 持久化编辑快照（管线/undo 栈），关闭重开可以继续编辑
+            let snapshot = ImageEditSnapshot(
+                pipeline: document.pipeline,
+                undoStack: [],
+                savedAt: Date())
+            ImageEditSnapshotIO.save(snapshot, for: fileURL)
             hasUnsavedChanges = false
             flash(String(localized: "Saved (.bak snapshot written)"))
         } catch {
@@ -382,7 +392,10 @@ struct ImageEditorView: View {
 
     private var header: some View {
         HStack(spacing: 10) {
-            Button { onBack() } label: {
+            Button {
+                ImageEditSnapshotIO.remove(for: fileURL)
+                onBack()
+            } label: {
                 Label(String(localized: "Back to Page"), systemImage: "chevron.left")
                     .font(.system(size: 11, weight: .medium))
             }

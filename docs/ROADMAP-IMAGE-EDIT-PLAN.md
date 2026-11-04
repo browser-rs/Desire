@@ -222,3 +222,9 @@
   复制）；社交尺寸裁剪预设（6 种常用比例，与 Free/1:1/4:3/16:9 并列）。
   harness 2772/0，Debug/Release clean 零警告。
 - **批 5（快照持久化/批量水印/拼图/快捷键/回发 Remote）下一批**。
+
+- **批 5（快照持久化/批量水印）完成**：`ImageEditSnapshot`/`ImageEditSnapshotIO`
+  （`.editstate.json` 管线快照写/读/删）+ `ImageBatchWatermarkCore` 批量水印 +
+  Agent `batchWatermarkImages` 工具。harness 2772/0，Debug/Release clean 零警告。
+- **批 5 余项（拼图合成/快捷键/回发 Remote）**：拼图合成/快捷键推迟；
+  回发 Remote 下一批（体量小）。

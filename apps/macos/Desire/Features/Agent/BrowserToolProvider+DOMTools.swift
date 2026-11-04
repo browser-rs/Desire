@@ -968,6 +968,8 @@ extension BrowserToolProvider {
             return Self.autoEnhanceImage(args)
         case "batchEditImages":
             return Self.batchEditImages(args, conversationID: ownerSession?.conversationId)
+        case "batchWatermarkImages":
+            return Self.batchWatermarkImages(args, conversationID: ownerSession?.conversationId)
 
         case "pageAction":
             // 协议缓存属 BrowserState，DOM 属**活 webview**——挂起的标签页

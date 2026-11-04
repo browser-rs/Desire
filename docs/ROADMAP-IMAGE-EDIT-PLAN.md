@@ -180,3 +180,9 @@
   锐化刷（像素级局部处理 + 软过渡 + 力度），标注与修复刷落活动层/基础位图。
   harness 2757/0，Debug/Release clean 零警告。
 - **批 3（套索/魔棒/透视）下一批**。
+
+- **批 3（套索/魔棒）完成**：`ImageSelectionAdvanced`（套索归一化顶点；魔棒 BFS
+  flood-fill + 容差滑杆 + 连通语义）+ 渲染器 `renderWithCustomMask`/`renderWithLasso`
+  （多边形蒙版 + 羽化）；编辑器拖拽轨迹 overlay + 容差滑杆。harness 2757/0，
+  Debug/Release clean 零警告。**透视校正**按原计划口径推迟（低优先级，体量大）。
+- **批 4（LUT/EXIF/水印）下一批**。

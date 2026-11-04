@@ -231,3 +231,75 @@ nonisolated enum ImagePipelineRenderer {
             blurred, from: CGRect(x: 0, y: 0, width: width, height: height))
     }
 }
+
+
+// MARK: - 自定义蒙版渲染（迭代 2：套索 / 魔棒）
+
+nonisolated extension ImagePipelineRenderer {
+    /// 魔棒 CGImage 蒙版 + 效果混回。
+    static func renderWithCustomMask(
+        base: CGImage, pipeline: ImageEditPipeline, mask: CGImage
+    ) -> CGImage? {
+        guard let effect = render(base: base, pipeline: pipeline) else { return nil }
+        let effectCI = CIImage(cgImage: effect)
+        let baseCI = CIImage(cgImage: base)
+        let maskCI = CIImage(cgImage: mask)
+        guard let blend = CIFilter(name: "CIBlendWithMask") else { return effect }
+        blend.setValue(effectCI, forKey: kCIInputImageKey)
+        blend.setValue(baseCI, forKey: kCIInputBackgroundImageKey)
+        blend.setValue(maskCI, forKey: kCIInputMaskImageKey)
+        guard let output = blend.outputImage else { return effect }
+        return context.createCGImage(output, from: output.extent) ?? effect
+    }
+
+    /// 套索多边形蒙版 + 效果混回（含羽化）。
+    static func renderWithLasso(
+        base: CGImage, pipeline: ImageEditPipeline,
+        vertices: [CGPoint], feather: Double
+    ) -> CGImage? {
+        guard let effect = render(base: base, pipeline: pipeline) else { return nil }
+        let width = base.width
+        let height = base.height
+        guard let maskContext = CGContext(
+            data: nil, width: width, height: height,
+            bitsPerComponent: 8, bytesPerRow: width,
+            space: CGColorSpaceCreateDeviceGray(),
+            bitmapInfo: CGImageAlphaInfo.none.rawValue)
+        else { return effect }
+        maskContext.setFillColor(gray: 0, alpha: 1)
+        maskContext.fill(CGRect(x: 0, y: 0, width: width, height: height))
+        maskContext.setFillColor(gray: 1, alpha: 1)
+        maskContext.beginPath()
+        // 归一化顶点 → 像素（y 翻转：CG 原点左下）
+        let pixelPoints = vertices.map { vertex in
+            CGPoint(x: vertex.x * CGFloat(width),
+                    y: (1 - vertex.y) * CGFloat(height))
+        }
+        maskContext.addLines(between: pixelPoints)
+        maskContext.closePath()
+        maskContext.fillPath()
+        var mask = maskContext.makeImage()
+        if feather > 0 {
+            let radius = feather * Double(min(width, height)) * 0.5
+            if radius > 0.5, let blur = CIFilter(name: "CIGaussianBlur") {
+                blur.setValue(CIImage(cgImage: mask!), forKey: kCIInputImageKey)
+                blur.setValue(radius, forKey: kCIInputRadiusKey)
+                if let blurred = blur.outputImage,
+                   let final = context.createCGImage(blurred, from: CGRect(
+                       x: 0, y: 0, width: width, height: height)) {
+                    mask = final
+                }
+            }
+        }
+        guard let finalMask = mask else { return effect }
+        let effectCI = CIImage(cgImage: effect)
+        let baseCI = CIImage(cgImage: base)
+        let maskCI = CIImage(cgImage: finalMask)
+        guard let blend = CIFilter(name: "CIBlendWithMask") else { return effect }
+        blend.setValue(effectCI, forKey: kCIInputImageKey)
+        blend.setValue(baseCI, forKey: kCIInputBackgroundImageKey)
+        blend.setValue(maskCI, forKey: kCIInputMaskImageKey)
+        guard let output = blend.outputImage else { return effect }
+        return context.createCGImage(output, from: output.extent) ?? effect
+    }
+}

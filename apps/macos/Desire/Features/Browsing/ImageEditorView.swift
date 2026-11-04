@@ -33,6 +33,7 @@ struct ImageEditorView: View {
     enum Tool: String, CaseIterable {
         case none, brush, arrow, line, rectangle, ellipse, polygon, text, bubble, mosaic
         case cloneStamp, dodge, burn, blurBrush, sharpenBrush
+        case lasso, magicWand
         var icon: String {
             switch self {
             case .none: "cursorarrow"
@@ -50,6 +51,8 @@ struct ImageEditorView: View {
             case .burn: "moon.haze"
             case .blurBrush: "drop.halffull"
             case .sharpenBrush: "triangle.righthalf.filled"
+            case .lasso: "computed.style"
+            case .magicWand: "wand.and.stars.inverse"
             }
         }
     }
@@ -129,6 +132,10 @@ struct ImageEditorView: View {
     @State private var brushRadius: CGFloat = 14
     @State private var brushStrength: Double = 0.5
     @State private var pendingDrag: CGPoint?
+    /// 套索拖拽轨迹（视图坐标；松手闭合写入 selection）。
+    @State private var lassoPoints: [CGPoint] = []
+    /// 魔棒容差（0…100；像素 RGB 距离）。
+    @State private var magicTolerance: Double = 24
 
     /// 显示位图与实际位图之间的缩放比。
     private var displayScale: CGFloat {
@@ -589,6 +596,47 @@ struct ImageEditorView: View {
         hasUnsavedChanges = true
     }
 
+    /// 套索闭合 → 顶点写 document（自定义蒙版）。
+    private func commitLasso() {
+        defer {
+            lassoPoints = []
+        }
+        guard let vertices = ImageSelectionAdvanced.lassoVertices(
+            lassoPoints, displaySize: displaySize) else {
+            lassoPoints = []
+            return
+        }
+        document.setLassoSelection(vertices: vertices,
+                                   feather: selectionFeather)
+        hasUnsavedChanges = true
+    }
+
+    /// 魔棒：像素容差选区写入 document。
+    private func commitMagicWand(at viewPoint: CGPoint) {
+        guard let image, displaySize.width > 0, displaySize.height > 0 else { return }
+        let scale = displayScale
+        let pixelStart = CGPoint(x: viewPoint.x * scale, y: viewPoint.y * scale)
+        guard let mask = ImageSelectionAdvanced.magicWandMask(
+            image: image, start: pixelStart,
+            tolerance: magicTolerance, contiguous: true)
+        else { return }
+        document.setCustomMask(mask)
+        hasUnsavedChanges = true
+    }
+
+    /// 魔棒/套索 overlay（拖拽预览）。
+    @ViewBuilder
+    private var lassoOverlay: some View {
+        if tool == .lasso, lassoPoints.count >= 2 {
+            Path { path in
+                path.move(to: lassoPoints[0])
+                for p in lassoPoints.dropFirst() { path.addLine(to: p) }
+            }
+            .stroke(Color.white, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
+            .allowsHitTesting(false)
+        }
+    }
+
     /// 选区蚂蚁线 overlay（视图坐标）。
     @ViewBuilder
     private var selectionOverlay: some View {
@@ -819,6 +867,7 @@ struct ImageEditorView: View {
                             })
                         .overlay(cropOverlay)
                         .overlay(selectionOverlay)
+                        .overlay(lassoOverlay)
                         .overlay(cloneSampleMarker)
                         .overlay(annotationOverlay)
                         .overlay(alignment: .topTrailing) {
@@ -918,6 +967,10 @@ struct ImageEditorView: View {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 let point = value.location
+                if tool == .lasso {
+                    lassoPoints.append(point)
+                    return
+                }
                 if selectionMode {
                     if let start = selectionStart {
                         selectionRect = CGRect(
@@ -957,11 +1010,20 @@ struct ImageEditorView: View {
                 case .polygon:
                     if polygonDragStart == nil { polygonDragStart = point }
                 case .text, .bubble, .none,
-                     .cloneStamp, .dodge, .burn, .blurBrush, .sharpenBrush:
+                     .cloneStamp, .dodge, .burn, .blurBrush, .sharpenBrush,
+                     .lasso, .magicWand:
                     break
                 }
             }
             .onEnded { value in
+                if tool == .lasso {
+                    commitLasso()
+                    return
+                }
+                if tool == .magicWand {
+                    commitMagicWand(at: value.location)
+                    return
+                }
                 if selectionMode {
                     commitSelection()
                     return
@@ -1040,7 +1102,8 @@ struct ImageEditorView: View {
                     bubbleCounter += 1
                     stampBubble(at: point, number: bubbleCounter)
                 case .text, .none,
-                     .cloneStamp, .dodge, .burn, .blurBrush, .sharpenBrush:
+                     .cloneStamp, .dodge, .burn, .blurBrush, .sharpenBrush,
+                     .lasso, .magicWand:
                     break
                 }
             }
@@ -1504,6 +1567,21 @@ struct ImageEditorView: View {
 
     private var cropOverlay: some View {
         Group {
+            if tool == .magicWand {
+                HStack(spacing: 6) {
+                    Text(String(localized: "Tolerance"))
+                        .font(.system(size: 10))
+                    Slider(value: $magicTolerance, in: 1...100)
+                        .frame(width: 120)
+                        .controlSize(.small)
+                    Text("\(Int(magicTolerance))")
+                        .font(.system(size: 10, design: .monospaced))
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(RoundedRectangle(cornerRadius: 8).fill(.regularMaterial))
+                .padding(8)
+            }
             if cropMode {
                 Text(String(localized: "Drag to select the crop area"))
                     .font(.system(size: 10.5))

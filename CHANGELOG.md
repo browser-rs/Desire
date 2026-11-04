@@ -9,6 +9,8 @@
 - Image editor: straighten tool (±45°, scaled to fill — no black corners) and precise numeric crop (exact X/Y/width/height in pixels), plus rule-of-thirds and center guides inside the crop selection (v0.8.41)
 - Image editor: layers — bottom-to-top render stack with visibility, opacity, blend modes (normal/multiply/screen/overlay/darken/lighten/color dodge/soft light/difference/luminosity), move/delete, composited with alpha into save/export while staying editable (v0.8.42)
 - Image editor: repair brushes — clone stamp (sample with a tap, drag to copy), dodge/burn, blur brush and sharpen brush, all stroke-based with size/strength controls and soft falloff, applied to the image with undo (v0.8.42)
+- Image editor: lasso selection (drag to outline, feathered polygon mask) and magic wand (BFS flood-fill with controllable tolerance slider, contiguous mode) — both non-destructive, effects only apply inside the selection (v0.8.42)
+
 
 
 

@@ -18,6 +18,8 @@ final class ImageEditorDocument: ObservableObject {
     @Published private(set) var renderedImage: CGImage?
     /// 渲染中（直方图/保存等用）。
     @Published private(set) var isRendering = false
+    /// 自定义蒙版（魔棒 CGImage；非 nil 时渲染用它代替 selection op）。
+    @Published private(set) var customMask: CGImage?
 
     private var undoStack: [Snapshot] = []
     private var redoStack: [Snapshot] = []
@@ -25,6 +27,9 @@ final class ImageEditorDocument: ObservableObject {
     private var lastFingerprint: String?
     private var lastBase: CGImage?
     private static let maxHistory = 30
+    /// 套索顶点（归一化；nil = 非套索）。渲染用。
+    var lassoVertices: [CGPoint]? = nil
+    var lassoFeather: Double = 0
 
     var canUndo: Bool { !undoStack.isEmpty }
     var canRedo: Bool { !redoStack.isEmpty }
@@ -109,6 +114,42 @@ final class ImageEditorDocument: ObservableObject {
         if let params, !ImageSelectionParams.clamped(params).isNeutral {
             _ = pipeline.append(.selection(params))
         }
+        customMask = nil
+        objectWillChange.send()
+    }
+
+    /// 套索多边形选区（v0.8.42）：写入 selection op 的 lassoVertices。
+    func setLassoSelection(vertices: [CGPoint], feather: Double) {
+        push(Snapshot(pipeline: pipeline,
+                      label: String(localized: "Selection")))
+        pipeline.operations.removeAll { $0.kind == .selection }
+        customMask = nil
+        if vertices.count >= 3 {
+            let selection = ImageSelectionParams(
+                x: 0, y: 0, width: 1, height: 1, ellipse: false, feather: 0)
+            _ = pipeline.append(.selection(selection))
+            lassoVertices = vertices
+            lassoFeather = feather
+        } else {
+            lassoVertices = nil
+            lassoFeather = 0
+        }
+        objectWillChange.send()
+    }
+
+    /// 魔棒蒙版选区（v0.8.42）：CGImage 蒙版 + 效果混回。
+    func setCustomMask(_ mask: CGImage) {
+        push(Snapshot(pipeline: pipeline,
+                      label: String(localized: "Selection")))
+        pipeline.operations.removeAll { $0.kind == .selection }
+        customMask = mask
+        lassoVertices = nil
+        objectWillChange.send()
+    }
+
+    func clearCustomSelection() {
+        customMask = nil
+        lassoVertices = nil
         objectWillChange.send()
     }
 
@@ -152,16 +193,30 @@ final class ImageEditorDocument: ObservableObject {
     func requestRender(base: CGImage) {
         lastBase = base
         let fingerprint = pipeline.fingerprint() + "|\(base.width)x\(base.height)"
+            + (customMask.map { "|custom|\($0.width)x\($0.height)" } ?? "")
+            + (lassoVertices.map { "|lasso|\($0.count)" } ?? "")
         if fingerprint == lastFingerprint, renderedImage != nil { return }
         lastFingerprint = fingerprint
         renderTask?.cancel()
         isRendering = true
         let pipeline = pipeline
+        let mask = customMask
+        let lasso = lassoVertices
+        let feather = lassoFeather
         renderTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: 120_000_000)
             guard !Task.isCancelled else { return }
             let output = await Task.detached(priority: .userInitiated) {
-                ImagePipelineRenderer.render(base: base, pipeline: pipeline)
+                if let mask {
+                    return ImagePipelineRenderer.renderWithCustomMask(
+                        base: base, pipeline: pipeline, mask: mask)
+                }
+                if let lasso {
+                    return ImagePipelineRenderer.renderWithLasso(
+                        base: base, pipeline: pipeline, vertices: lasso,
+                        feather: feather)
+                }
+                return ImagePipelineRenderer.render(base: base, pipeline: pipeline)
             }.value
             guard let self, !Task.isCancelled else { return }
             self.renderedImage = output

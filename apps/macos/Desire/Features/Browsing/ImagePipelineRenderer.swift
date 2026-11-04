@@ -18,6 +18,22 @@ nonisolated enum ImagePipelineRenderer {
             case .selection:
                 guard let params = operation.selection else { continue }
                 selection = params.isNeutral ? nil : params
+            case .geometry:
+                guard let action = operation.geometryAction else { continue }
+                switch action {
+                case .rotate90cw:
+                    current = ImageTransforms.rotated(current, clockwise: true)
+                        ?? current
+                case .rotate90ccw:
+                    current = ImageTransforms.rotated(current, clockwise: false)
+                        ?? current
+                case .flipH:
+                    current = ImageTransforms.flipped(current, horizontal: true)
+                        ?? current
+                case .flipV:
+                    current = ImageTransforms.flipped(current, horizontal: false)
+                        ?? current
+                }
             case .adjust:
                 guard let params = operation.adjust, !params.isNeutral else { continue }
                 let adjusted = renderAdjustments(current, params: params)

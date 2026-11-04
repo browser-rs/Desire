@@ -6789,6 +6789,20 @@ func testImageEditPipelineCore() {
 }
 testImageEditPipelineCore()
 
+func testImageGeometryPipeline() {
+    var pipeline = ImageEditPipeline()
+    _ = pipeline.append(.geometry(.rotate90cw))
+    _ = pipeline.append(.adjust(ImageAdjustParams(brightness: 0.1)))
+    _ = pipeline.append(.geometry(.flipH))
+    eq("管线：几何操作数", pipeline.operations.count, 3)
+    eq("管线：几何 action", pipeline.operations[0].geometryAction, .rotate90cw)
+    eq("管线：几何 label", pipeline.operations[0].label, "rotate90cw")
+    let geoFP = pipeline.fingerprint()
+    pipeline.setEnabled(pipeline.operations[2].id, false)
+    check("管线：几何开关改指纹", pipeline.fingerprint() != geoFP)
+}
+testImageGeometryPipeline()
+
 func testImageLayerCore() {
     var stack = ImageLayerCore.Stack().layers
     check("图层：初始含背景层", stack.count == 1 && stack[0].name == "Background")

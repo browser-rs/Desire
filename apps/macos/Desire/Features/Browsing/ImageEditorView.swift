@@ -571,13 +571,21 @@ struct ImageEditorView: View {
     private var toolbar: some View {
         HStack(spacing: 8) {
             // 变换
-            button("rotateleft", "Rotate 90° Left") { apply(label: String(localized: "Rotate left"), transform: { ImageTransforms.rotated($0, clockwise: false) }) }
-            button("rotateright", "Rotate 90° Right") { apply(label: String(localized: "Rotate right"), transform: { ImageTransforms.rotated($0, clockwise: true) }) }
+            button("rotateleft", "Rotate 90° Left") {
+                _ = document.append(.geometry(.rotate90ccw))
+                hasUnsavedChanges = true
+            }
+            button("rotateright", "Rotate 90° Right") {
+                _ = document.append(.geometry(.rotate90cw))
+                hasUnsavedChanges = true
+            }
             button("arrow.left.and.right.righttriangle.left.righttriangle.right", "Flip Horizontal") {
-                apply(label: String(localized: "Flip horizontal"), transform: { ImageTransforms.flipped($0, horizontal: true) })
+                _ = document.append(.geometry(.flipH))
+                hasUnsavedChanges = true
             }
             button("arrow.up.and.down.righttriangle.left.righttriangle.right", "Flip Vertical") {
-                apply(label: String(localized: "Flip vertical"), transform: { ImageTransforms.flipped($0, horizontal: false) })
+                _ = document.append(.geometry(.flipV))
+                hasUnsavedChanges = true
             }
             button("crop", "Crop") { cropMode.toggle() }
                 .foregroundStyle(cropMode ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))

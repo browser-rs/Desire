@@ -145,10 +145,14 @@ nonisolated struct ImageSelectionParams: Codable, Hashable {
     }
 }
 
-/// 管线操作（v0.8.41 批 1：adjust / filter / selection；几何后续批次接入）。
+/// 管线操作（v0.8.41 批 1：adjust / filter / selection；v0.8.43 批 1：geometry）。
 nonisolated struct ImageEditOperation: Codable, Identifiable, Equatable {
     enum Kind: String, Codable {
-        case adjust, filter, selection
+        case adjust, filter, selection, geometry
+    }
+
+    enum GeometryAction: String, Codable {
+        case rotate90cw, rotate90ccw, flipH, flipV
     }
 
     var id: UUID
@@ -158,6 +162,7 @@ nonisolated struct ImageEditOperation: Codable, Identifiable, Equatable {
     var adjust: ImageAdjustParams?
     var filter: String?
     var selection: ImageSelectionParams?
+    var geometryAction: GeometryAction?
 
     static func adjust(_ params: ImageAdjustParams,
                        label: String = "Adjustments") -> ImageEditOperation {
@@ -174,6 +179,12 @@ nonisolated struct ImageEditOperation: Codable, Identifiable, Equatable {
         ImageEditOperation(id: UUID(), kind: .selection, label: "Selection",
                            isEnabled: true,
                            selection: ImageSelectionParams.clamped(params))
+    }
+
+    static func geometry(_ action: GeometryAction) -> ImageEditOperation {
+        ImageEditOperation(id: UUID(), kind: .geometry,
+                           label: action.rawValue, isEnabled: true,
+                           geometryAction: action)
     }
 }
 

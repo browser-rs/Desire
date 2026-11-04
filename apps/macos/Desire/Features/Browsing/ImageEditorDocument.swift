@@ -36,6 +36,18 @@ final class ImageEditorDocument: ObservableObject {
 
     // MARK: - 修改（都记 undo，清 redo）
 
+    /// 追加非调节操作（几何/滤镜/选区），记 undo。
+    @discardableResult
+    func append(_ operation: ImageEditOperation) -> Bool {
+        push(Snapshot(pipeline: pipeline, label: operation.label))
+        guard pipeline.append(operation) else {
+            undoStack.removeLast()
+            return false
+        }
+        objectWillChange.send()
+        return true
+    }
+
     /// 追加/替换当前 adjust 操作（调节面板 Apply）。
     @discardableResult
     func applyAdjust(_ params: ImageAdjustParams,

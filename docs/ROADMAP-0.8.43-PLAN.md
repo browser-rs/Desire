@@ -107,3 +107,11 @@
 
 - 用户说「发」才发；CHANGELOG 只用 `scripts/changelog.py add`。
 - 发版前：harness + Debug/Release clean 零警告 + 编辑器/阅读器手测验收清单。
+
+## 进度（2026-11-04）
+
+- **批 1（几何非破坏化）完成**：pipeline op 新增 `.geometry`（rotate90cw/ccw、
+  flipH/V），渲染器有序应用几何 + 调节 + 滤镜 + 选区；编辑器 rotate/flip 按钮
+  接入管线。快捷键与回发 Remote 均已在前版确认可用（⌘⇧E 导出、Send to Phone
+  按钮已落地）。harness 2776/0，Debug/Release clean 零警告。
+- **批 2（透视/拼图/Agent 补齐）下一批**。

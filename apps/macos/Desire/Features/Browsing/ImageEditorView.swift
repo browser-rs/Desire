@@ -128,6 +128,8 @@ struct ImageEditorView: View {
     @State private var showCurves = false
     @State private var showPresets = false
     @State private var showLayers = false
+    @State private var showEXIF = false
+    @State private var showWatermark = false
     /// 修复工具（迭代 2）：克隆取样点、刷子半径/强度。
     @State private var cloneSample: CGPoint?
     @State private var brushRadius: CGFloat = 14
@@ -193,6 +195,19 @@ struct ImageEditorView: View {
         }
         .onChange(of: document.pipeline) { _, _ in
             if let image { document.requestRender(base: image) }
+        }
+        .sheet(isPresented: $showEXIF) {
+            ImageEXIFPanel(fileURL: fileURL)
+        }
+        .sheet(isPresented: $showWatermark) {
+            ImageWatermarkPanel(image: image, onApply: { output in
+                if let image {
+                    pushHistory(image, label: String(localized: "Watermark"))
+                }
+                self.image = output
+                hasUnsavedChanges = true
+                document.requestRender(base: output)
+            })
         }
         .sheet(isPresented: $showExport) {
             ImageExportPanel(
@@ -546,6 +561,10 @@ struct ImageEditorView: View {
             button("sparkles.rectangle.stack", "Auto Enhance") { runAutoEnhance() }
             button("person.and.background.dotted", "Subject Cutout") { runSubjectCutout() }
             button("doc.text.viewfinder", "Extract Text (OCR)") { runOCR() }
+            button("info.circle", "EXIF Metadata") { showEXIF = true }
+                .foregroundStyle(showEXIF ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
+            button("drop.triangle", "Watermark…") { showWatermark = true }
+                .foregroundStyle(showWatermark ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
             button("printer", "Print") { printImage() }
             Menu {
                 Button(String(localized: "Export as PNG")) { exportAs(type: "png") }

@@ -204,3 +204,8 @@
 - **批 2（批量流水线）完成**：`ImageBatchEditCore`/`ImageBatchEditStore`
   （文件夹扫描/Edited 输出/逐文件失败汇总/进度）+ Agent `batchEditImages` 工具；
   harness 2772/0，Debug 零警告。
+
+- **批 2（水印）完成**：`ImageWatermarkRenderer` + `ImageWatermarkPanel`（文字/图片/
+  九宫格/平铺/旋转/透明度/颜色选择器，实时预览）；Apply 烙图可撤销。
+  harness 2772/0，Debug/Release clean 零警告。
+- **批 3（透视/快捷键/Agent 工具族/回发 Remote）下一批**。

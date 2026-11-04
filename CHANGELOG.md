@@ -9,6 +9,9 @@
 - Image editor: social media crop presets (Instagram 1:1, Story 9:16, Post 4:5, YouTube 16:9, Cover 2.35:1, Xiaohongshu 3:4) alongside the free/ratio buttons (v0.8.42)
 - Image editor: edit snapshot persistence — saving writes a `.editstate.json` alongside the image with the non-destructive pipeline, so closing and reopening the same file restores the edit state; navigating back clears it (v0.8.42)
 - Image editor: batch watermark — apply a text/image watermark to every image in a folder (recursive) via `batchWatermarkImages`, writing to `Watermarked/` with per-file progress and failures (v0.8.42)
+- Image editor: send-to-phone — after making edits, a phone icon appears in the toolbar to render the full pipeline and push the result to the Remote inbox (kind=edited) (v0.8.42)
+- Image editor: keyboard shortcut ⌘⇧E opens the export panel (v0.8.42)
+
 
 
 

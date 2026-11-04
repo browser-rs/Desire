@@ -384,6 +384,28 @@ struct ImageEditorView: View {
         hasUnsavedChanges = true
     }
 
+    /// 编辑器保存后回发手机（v0.8.42 批 5）。
+    private func sendToRemote() {
+        save()
+        guard let image else { return }
+        let flat = ImageLayerStore.shared.flattened() ?? image
+        let output = ImageEditorDocument.renderFinal(
+            base: flat, pipeline: document.pipeline) ?? flat
+        // 临时写文件 → sendToPhone 带 URL
+        let tmp = FileManager.default.temporaryDirectory
+            .appendingPathComponent("edited-\(Int(Date().timeIntervalSince1970)).png")
+        let nsImage = NSImage(cgImage: output,
+                              size: NSSize(width: output.width, height: output.height))
+        if let tiff = nsImage.tiffRepresentation,
+           let rep = NSBitmapImageRep(data: tiff),
+           let png = rep.representation(using: .png, properties: [:]) {
+            try? png.write(to: tmp)
+            AppState.live?.remoteControlStore.sendToPhone(
+                title: fileName, url: tmp.path, kind: "edited")
+            flash(String(localized: "Sent to Phone"))
+        }
+    }
+
     private func redo() {
         _ = document.redo()
     }
@@ -507,7 +529,19 @@ struct ImageEditorView: View {
             .buttonStyle(.plain)
             .foregroundStyle(.secondary)
             .disabled(image == nil)
-            .help(String(localized: "Export…"))
+            .keyboardShortcut("e", modifiers: [.command, .shift])
+            .help(String(localized: "Export (⌘⇧E)"))
+            if hasUnsavedChanges {
+                // 保存/导出后可一键回发手机
+                Button {
+                    sendToRemote()
+                } label: {
+                    Image(systemName: "iphone.and.arrow.right.outward")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help(String(localized: "Send to Phone"))
+            }
             Button {
                 selectionMode.toggle()
                 if !selectionMode { selectionRect = nil; selectionStart = nil }

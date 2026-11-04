@@ -228,3 +228,8 @@
   Agent `batchWatermarkImages` 工具。harness 2772/0，Debug/Release clean 零警告。
 - **批 5 余项（拼图合成/快捷键/回发 Remote）**：拼图合成/快捷键推迟；
   回发 Remote 下一批（体量小）。
+
+- **批 5 完成**：编辑快照持久化（`.editstate.json` 写/读/删，重开恢复管线）+
+  批量水印（`batchWatermarkImages` 走 Job 队列）+ ⌘⇧E 导出快捷键 + 保存后回发
+  手机（Send to Phone 按钮）。harness 2772/0，Debug/Release clean 零警告。
+  **拼图合成**推迟（体量大；Agent 工具可后续加）。

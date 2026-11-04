@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "arrow.left.arrow.right", title: String(localized: "Hand off in one move"),
-                  detail: String(localized: "Save the current window as a Handoff workspace and restore it on another Mac, or send a page, link or selection straight to your phone's inbox.")),
-            .init(icon: "laptopcomputer.and.iphone", title: String(localized: "Your Mac in your pocket"),
-                  detail: String(localized: "The phone now browses your bookshelf, runs the text toolbox, restores workspaces, caches content offline and can Allow or Deny an approval right from the notification.")),
-            .init(icon: "film.stack", title: String(localized: "Media and flows, not one-offs"),
-                  detail: String(localized: "Convert video/audio or turn a clip into a GIF as a background job, and chain text tools into saved pipelines that feed each step's output into the next.")),
+            .init(icon: "square.and.line.vertical.and.square", title: String(localized: "The image editor, completed"),
+                  detail: String(localized: "Perspective correction and image merging are one click away, rotations and flips stay non-destructive and re-editable, and the Agent can crop, flip, resize and merge for you.")),
+            .init(icon: "text.page.badge.magnifyingglass", title: String(localized: "Reader 3.0"),
+                  detail: String(localized: "Read-aloud now follows paragraph by paragraph with on-page highlighting, and a whole page can get an inline translation under every paragraph — on-device, cached, hideable.")),
+            .init(icon: "arrow.uturn.down.circle", title: String(localized: "Search that lands where you clicked"),
+                  detail: String(localized: "In-book search jumps to the exact occurrence you clicked with a distinct mark, and result snippets highlight the match before you jump.")),
         ]
     }
 

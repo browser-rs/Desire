@@ -5,6 +5,12 @@
 - Image editor: perspective correction — drag four corner handles on the canvas, CIPerspectiveCorrection renders the front-facing output (v0.8.43)
 - Image editor: merge images — combine two or more images horizontally or vertically with a configurable white gap, short side auto-aligned; available as an Agent `mergeImages` tool writing to Merged/ (v0.8.43)
 - Agent: image editing tools completed — `cropImage`, `flipImage` and `resizeImage` complete the editing surface started in v0.8.42 (v0.8.43)
+- Reader: paragraph-by-paragraph read-aloud — TTS now reads the article as DOM-anchored paragraphs instead of one long stream, highlights the current paragraph and auto-scrolls to it, with previous/next controls and a position counter in the toolbar (v0.8.43)
+- Reader: inline page translation — on-device Translation.framework inserts a translated block after every paragraph (8-paragraph batches with progressive rendering), cached per page and language, with show/hide and clear controls in the toolbar (v0.8.43)
+- Ebooks: in-book search jumps to the exact occurrence you clicked (previously always the first hit of the chapter) in both scroll and paged layouts, the active hit gets a distinct outline mark, and result snippets highlight the matched text (v0.8.43)
+
+
+
 
 
 

@@ -97850,6 +97850,138 @@
           }
         }
       }
+    },
+    "The image editor, completed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The image editor, completed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "图片编辑器，收官"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "圖片編輯器，收官"
+          }
+        }
+      }
+    },
+    "Perspective correction and image merging are one click away, rotations and flips stay non-destructive and re-editable, and the Agent can crop, flip, resize and merge for you." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Perspective correction and image merging are one click away, rotations and flips stay non-destructive and re-editable, and the Agent can crop, flip, resize and merge for you."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透视校正与图片拼图一键可得，旋转翻转保持非破坏可重编辑，Agent 还能替你裁剪、翻转、缩放与拼图。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "透視校正與圖片拼圖一鍵可得，旋轉翻轉保持非破壞可重編輯，Agent 還能替你裁剪、翻轉、縮放與拼圖。"
+          }
+        }
+      }
+    },
+    "Reader 3.0" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Reader 3.0"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "阅读器 3.0"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "閱讀器 3.0"
+          }
+        }
+      }
+    },
+    "Read-aloud now follows paragraph by paragraph with on-page highlighting, and a whole page can get an inline translation under every paragraph — on-device, cached, hideable." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read-aloud now follows paragraph by paragraph with on-page highlighting, and a whole page can get an inline translation under every paragraph — on-device, cached, hideable."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "朗读逐段推进并在页面上高亮跟随，整页还能在每段下面插入对照译文——端上翻译、带缓存、可隐藏。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "朗讀逐段推進並在頁面上高亮跟隨，整頁還能在每段下面插入對照譯文——端上翻譯、帶快取、可隱藏。"
+          }
+        }
+      }
+    },
+    "Search that lands where you clicked" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Search that lands where you clicked"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜索直达你点的那一处"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "搜尋直達你點的那一處"
+          }
+        }
+      }
+    },
+    "In-book search jumps to the exact occurrence you clicked with a distinct mark, and result snippets highlight the match before you jump." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "In-book search jumps to the exact occurrence you clicked with a distinct mark, and result snippets highlight the match before you jump."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "书内搜索精确跳到你点的那一处命中并高亮标记，结果预览里的关键词在你跳转前就已可见。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "書內搜尋精確跳到你點的那一處命中並高亮標記，結果預覽裡的關鍵詞在你跳轉前就已可見。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

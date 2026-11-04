@@ -130,6 +130,12 @@ struct ImageEditorView: View {
     @State private var showLayers = false
     @State private var showEXIF = false
     @State private var showWatermark = false
+    @State private var showCompare = false
+    @State private var comparePosition: CGFloat = 0.5
+    @State private var showCropPresets = false
+    @State private var showEyedropper = false
+    @State private var sampledColor: Color?
+    @State private var sampledHex = ""
     /// 修复工具（迭代 2）：克隆取样点、刷子半径/强度。
     @State private var cloneSample: CGPoint?
     @State private var brushRadius: CGFloat = 14
@@ -561,6 +567,10 @@ struct ImageEditorView: View {
             button("sparkles.rectangle.stack", "Auto Enhance") { runAutoEnhance() }
             button("person.and.background.dotted", "Subject Cutout") { runSubjectCutout() }
             button("doc.text.viewfinder", "Extract Text (OCR)") { runOCR() }
+            button("rectangle.split.diagonal", "Before/After") { showCompare.toggle() }
+                .foregroundStyle(showCompare ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+            button("eyedropper", "Color Picker") { showEyedropper.toggle() }
+                .foregroundStyle(showEyedropper ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
             button("info.circle", "EXIF Metadata") { showEXIF = true }
                 .foregroundStyle(showEXIF ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
             button("drop.triangle", "Watermark…") { showWatermark = true }
@@ -657,6 +667,122 @@ struct ImageEditorView: View {
             .stroke(Color.white, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
             .allowsHitTesting(false)
         }
+    }
+
+    /// Before/After 对比滑杆 overlay（迭代 2 增补）：左原图右渲染。
+    @ViewBuilder
+    private var compareSliderOverlay: some View {
+        if showCompare, let original = image, let rendered = document.renderedImage ?? image,
+           let origNS = makeNSImage(original), let renderNS = makeNSImage(rendered) {
+            GeometryReader { geo in
+                let splitX = geo.size.width * comparePosition
+                ZStack(alignment: .leading) {
+                    Image(nsImage: renderNS)
+                        .resizable()
+                        .interpolation(.medium)
+                        .frame(width: geo.size.width, height: geo.size.height)
+                    Image(nsImage: origNS)
+                        .resizable()
+                        .interpolation(.medium)
+                        .frame(width: splitX, height: geo.size.height)
+                        .clipped()
+                    // 分割线 + 手柄
+                    Rectangle()
+                        .fill(Color.white.opacity(0.9))
+                        .frame(width: 2, height: geo.size.height)
+                        .overlay(
+                            Circle()
+                                .fill(Color.white)
+                                .frame(width: 24, height: 24)
+                                .shadow(radius: 2)
+                                .overlay(
+                                    Image(systemName: "arrow.left.and.right")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundStyle(.black)
+                                )
+                        )
+                        .position(x: splitX, y: geo.size.height / 2)
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { value in
+                                    comparePosition = min(1, max(0, value.location.x / geo.size.width))
+                                }
+                        )
+                    // 标签
+                    Text(String(localized: "Original"))
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .background(Capsule().fill(Color.black.opacity(0.6)))
+                        .position(x: splitX / 2, y: 14)
+                    Text(String(localized: "Edited"))
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 5)
+                        .background(Capsule().fill(Color.black.opacity(0.6)))
+                        .position(x: splitX + (geo.size.width - splitX) / 2, y: 14)
+                }
+            }
+            .allowsHitTesting(false)
+        }
+    }
+
+    /// ⌥ 点击取样颜色 overlay（hex 显示在状态栏）。
+    @ViewBuilder
+    private var eyedropperStatus: some View {
+        if showEyedropper, let sampledColor {
+            HStack(spacing: 4) {
+                Circle().fill(sampledColor).frame(width: 12, height: 12)
+                Text(sampledHex)
+                    .font(.system(size: 10, design: .monospaced))
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(sampledHex, forType: .string)
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                }
+                .buttonStyle(.borderless)
+                .font(.system(size: 9))
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 3)
+            .background(RoundedRectangle(cornerRadius: 5).fill(.regularMaterial))
+        }
+    }
+
+    /// 裁剪预设（社交尺寸）。
+    private var cropPresets: [(name: String, ratio: CGFloat)] {
+        [
+            (String(localized: "Instagram 1:1"), 1),
+            (String(localized: "Story 9:16"), 9.0 / 16.0),
+            (String(localized: "Post 4:5"), 4.0 / 5.0),
+            (String(localized: "YouTube 16:9"), 16.0 / 9.0),
+            (String(localized: "Cover 2.35:1"), 2.35),
+            (String(localized: "Xiaohongshu 3:4"), 3.0 / 4.0),
+        ]
+    }
+
+    /// ⌥ 取样颜色（v0.8.42 增补）：从基础位图取像素 → hex/RGB。
+    private func sampleColor(at viewPoint: CGPoint) {
+        guard let image else { return }
+        let scale = displayScale
+        let px = Int(viewPoint.x * scale)
+        let py = Int(viewPoint.y * scale)
+        guard px >= 0, px < image.width, py >= 0, py < image.height else { return }
+        guard let context = CGContext(
+            data: nil, width: image.width, height: image.height,
+            bitsPerComponent: 8, bytesPerRow: image.width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        guard let data = context.data else { return }
+        let buffer = data.bindMemory(to: UInt8.self, capacity: image.width * image.height * 4)
+        let offset = (py * image.width + px) * 4
+        let r = buffer[offset], g = buffer[offset + 1], b = buffer[offset + 2]
+        let hex = String(format: "#%02X%02X%02X", r, g, b)
+        sampledHex = hex
+        sampledColor = Color(red: Double(r) / 255, green: Double(g) / 255, blue: Double(b) / 255)
     }
 
     /// 选区蚂蚁线 overlay（视图坐标）。
@@ -891,6 +1017,7 @@ struct ImageEditorView: View {
                         .overlay(selectionOverlay)
                         .overlay(lassoOverlay)
                         .overlay(cloneSampleMarker)
+                        .overlay(compareSliderOverlay)
                         .overlay(annotationOverlay)
                         .overlay(alignment: .topTrailing) {
                             if showHistogram {
@@ -991,6 +1118,10 @@ struct ImageEditorView: View {
                 let point = value.location
                 if tool == .lasso {
                     lassoPoints.append(point)
+                    return
+                }
+                if showEyedropper {
+                    sampleColor(at: point)
                     return
                 }
                 if selectionMode {
@@ -1684,6 +1815,9 @@ struct ImageEditorView: View {
 
     private var statusBar: some View {
         HStack(spacing: 8) {
+            if showEyedropper {
+                eyedropperStatus
+            }
             if cropMode {
                 HStack(spacing: 6) {
                     Text("Aspect")
@@ -1694,6 +1828,15 @@ struct ImageEditorView: View {
                             cropAspect = ratio
                         }
                         .font(.system(size: 10))
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
+                    Divider().frame(height: 14)
+                    ForEach(cropPresets, id: \.name) { preset in
+                        Button(preset.name) {
+                            cropAspect = preset.ratio
+                        }
+                        .font(.system(size: 9))
                         .buttonStyle(.bordered)
                         .controlSize(.mini)
                     }

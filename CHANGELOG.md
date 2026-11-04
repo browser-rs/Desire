@@ -4,6 +4,10 @@
 - Image editor: EXIF metadata panel — camera/lens/settings summary, editable title/artist/copyright/description/keywords, one-click GPS removal and full metadata wipe (writes through CGImageSource without re-encoding pixels) (v0.8.42)
 - Image editor: watermark panel — text or image watermark with nine-grid position, opacity, scale, rotation, tiling and colour picker; live preview; apply flattens onto the image with undo (v0.8.42)
 - Agent: image editing tool family — `imageInfo` (metadata summary), `setImageWatermark` (text/image watermark with position/tile/opacity), `straightenImage` (±45° fill) and `autoEnhanceImage` (AI auto-levels + saturation/clarity/sharpen boost), all workspace-path-scoped and writing back in place or to Converted/ (v0.8.42)
+- Image editor: before/after comparison — draggable split slider overlays original on the left and rendered result on the right with labelled caps and a drag handle; toggle from the toolbar (v0.8.42)
+- Image editor: eyedropper — toggle from the toolbar, click the canvas to sample a pixel's hex/RGB, displayed in the status bar with a copy button (v0.8.42)
+- Image editor: social media crop presets (Instagram 1:1, Story 9:16, Post 4:5, YouTube 16:9, Cover 2.35:1, Xiaohongshu 3:4) alongside the free/ratio buttons (v0.8.42)
+
 
 
 

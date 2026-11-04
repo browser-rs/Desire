@@ -6820,6 +6820,48 @@ func testImageLayerCore() {
 }
 testImageLayerCore()
 
+func testCubeLUTCore() {
+    let cube = """
+    # Created by test
+    TITLE "Test LUT"
+    LUT_3D_SIZE 2
+    0 0 0
+    1 0 0
+    0 1 0
+    1 1 0
+    0 0 1
+    1 0 1
+    0 1 1
+    1 1 1
+    """
+    let parsed = CubeLUTCore.parse(cube)
+    check("LUT：解析成功", parsed != nil)
+    eq("LUT：维度", parsed?.dimension, 2)
+    eq("LUT：数据条目", parsed?.data.count, 24)
+    eq("LUT：标题", parsed?.title, "Test LUT")
+
+    check("LUT：非法维度拒绝", CubeLUTCore.parse("# bad\nLUT_3D_SIZE 1\n") == nil)
+    check("LUT：数据量不足拒绝", CubeLUTCore.parse("LUT_3D_SIZE 4\n0 0 0\n") == nil)
+
+    var params = ImageAdjustParams()
+    params.brightness = 0.2
+    let text = CubeLUTCore.generate(params, title: "Bright", dimension: 4)
+    check("LUT：生成含头", text.contains("LUT_3D_SIZE 4"))
+    check("LUT：生成含标题", text.contains("TITLE "))
+    check("LUT：生成含名字", text.contains("Bright"))
+    let roundTrip = CubeLUTCore.parse(text)
+    check("LUT：生成可解析", roundTrip != nil)
+    eq("LUT：生成维度", roundTrip?.dimension, 4)
+    eq("LUT：生成数据量", roundTrip?.data.count, 4 * 4 * 4 * 3)
+    // 中性参数 → 恒等
+    let neutral = CubeLUTCore.generate(ImageAdjustParams(), title: "Identity", dimension: 2)
+    let parsedNeutral = CubeLUTCore.parse(neutral)
+    check("LUT：中性恒等", parsedNeutral != nil
+          && abs(Double(parsedNeutral!.data[0]) - 0.0) < 0.01
+          && abs(Double(parsedNeutral!.data.last!) - 1.0) < 0.01)
+}
+testCubeLUTCore()
+
 func testPlaybook() {
     let playbook = Playbook(
         name: "Brief",

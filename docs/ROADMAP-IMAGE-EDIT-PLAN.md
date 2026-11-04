@@ -198,3 +198,7 @@
   复用）+ 编辑器工具栏「Auto Enhance / Subject Cutout」按钮 + 本地化；harness 2772/0，
   Debug/Release clean 零警告。抠图输出透明底（PNG 保存语义）。
 - **批 2（批量流水线）下一批**。
+
+- **批 2（批量流水线）完成**：`ImageBatchEditCore`/`ImageBatchEditStore`
+  （文件夹扫描/Edited 输出/逐文件失败汇总/进度）+ Agent `batchEditImages` 工具；
+  harness 2772/0，Debug 零警告。

@@ -280,6 +280,19 @@ extension BrowserToolProvider {
                 ], required: ["folder", "format"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "batchEditImages",
+                description: "Batch-edit every image in a folder with a saved preset (curves/levels/HSL/…), optional long-edge resize, writing to Edited/ as JPEG/PNG/HEIC. Long task: returns a job id immediately; progress and failures are visible in the Jobs center.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "folder": AgentJSONSchemaValue(type: "string", description: "Folder path containing images"),
+                    "format": AgentJSONSchemaValue(type: "string", description: "jpeg (default) | png | heic"),
+                    "preset": AgentJSONSchemaValue(type: "string", description: "Saved edit-preset name (from the editor's Presets panel)"),
+                    "quality": AgentJSONSchemaValue(type: "number", description: "JPEG/HEIC quality 0.3-1 (default 0.9)"),
+                    "longEdge": AgentJSONSchemaValue(type: "number", description: "Long-edge px resize (optional)"),
+                    "recursive": AgentJSONSchemaValue(type: "boolean", description: "Include subfolders (default true)"),
+                    "report": AgentJSONSchemaValue(type: "string", description: "notify (default) | resume | none"),
+                ], required: ["folder"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "useSkill", description: "Load a skill's full instructions into the conversation (progressive disclosure). Call before performing a task that matches a skill. Skills declaring vars need inputs {name: value} — missing values are reported; ask the user with askUser if unclear.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "name": AgentJSONSchemaValue(type: "string", description: "Skill name from the skills list in your context"),

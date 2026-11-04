@@ -314,3 +314,43 @@ extension BrowserToolProvider {
         }
     }
 }
+
+
+extension BrowserToolProvider {
+    static func batchEditImages(_ args: [String: Any],
+                                conversationID: UUID?) -> String {
+        guard let folder = args["folder"] as? String, !folder.isEmpty else {
+            return fail("Missing folder")
+        }
+        guard let format = (args["format"] as? String)?.lowercased(),
+              !format.isEmpty else {
+            return fail("Missing format (jpeg/png/heic)")
+        }
+        let resolved: URL
+        switch AgentWorkspace.shared.resolve(folder, write: false) {
+        case .granted(let url): resolved = url
+        case .denied(let reason): return reason
+        }
+        let presetName = args["preset"] as? String
+        if let presetName, !presetName.isEmpty,
+           ImageEditPresetStore.shared.presets.first(where: {
+               $0.name.caseInsensitiveCompare(presetName) == .orderedSame
+           }) == nil {
+            return fail("No preset named \(presetName)")
+        }
+        let quality = min(max(args["quality"] as? Double ?? 0.9, 0.3), 1)
+        let longEdge = Int(args["longEdge"] as? Double ?? 0)
+        let result = ImageBatchEditStore.shared.start(
+            folder: resolved, format: format, quality: quality,
+            longEdge: longEdge >= 16 ? longEdge : nil,
+            recursive: (args["recursive"] as? Bool) ?? true,
+            presetName: presetName?.isEmpty == false ? presetName : nil,
+            conversationID: conversationID)
+        switch result {
+        case .success(let id):
+            return String(localized: "Batch edit started as job \(id.uuidString). Output goes to Edited/ inside the folder.")
+        case .failure(let error):
+            return fail(error.message)
+        }
+    }
+}

@@ -958,6 +958,8 @@ extension BrowserToolProvider {
             return await Self.runJobTemplate(args, conversationID: ownerSession?.conversationId)
         case "batchConvertFolder":
             return Self.batchConvertFolder(args, conversationID: ownerSession?.conversationId)
+        case "batchEditImages":
+            return Self.batchEditImages(args, conversationID: ownerSession?.conversationId)
 
         case "pageAction":
             // 协议缓存属 BrowserState，DOM 属**活 webview**——挂起的标签页

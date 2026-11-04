@@ -12,6 +12,8 @@
 - Image editor: lasso selection (drag to outline, feathered polygon mask) and magic wand (BFS flood-fill with controllable tolerance slider, contiguous mode) — both non-destructive, effects only apply inside the selection (v0.8.42)
 - Image editor: .cube LUT — parse and generate 3D color-lookup tables from the current adjustments (curves, levels, contrast, saturation), so presets created in Desire can be shared with Photoshop/Resolve and vice versa (v0.8.42)
 - Image editor: AI tools — auto enhance (auto levels from histogram 1% clipping + fixed saturation/clarity/sharpen boost) and subject cutout (Vision foreground instance mask isolates the subject onto a transparent background), both one-click in the toolbar with undo (v0.8.43)
+- Image editor: batch edit pipeline — apply a saved edit preset to every image in a folder (recursive), optional long-edge resize, writing to Edited/ as JPEG/PNG/HEIC; runs as a background job with per-file progress and failures via the Agent `batchEditImages` tool (v0.8.43)
+
 
 
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import Translation
 import WebKit
 
 struct ReaderView: View {
@@ -37,6 +38,8 @@ struct ReaderView: View {
     /// AI 摘要（v0.8.6）：旁路调用模型 + 弹层开关。
     @StateObject private var summaryModel = ReaderSummaryModel()
     @State private var showSummary = false
+    /// 整页翻译（v0.8.43）：端上 Translation.framework，段落级双语对照。
+    @StateObject private var translationModel = ReaderTranslationModel()
 
     private var pageURLString: String { baseURL?.absoluteString ?? "" }
 
@@ -87,6 +90,36 @@ struct ReaderView: View {
                 // TTS 朗读（0.6.5）：端上合成，暂停/继续/停止三态。
                 HStack(spacing: 4) {
                     if speech.isSpeaking {
+                        // 逐段模式（v0.8.43）：上一段/下一段 + 进度指示，
+                        // 朗读跟随高亮当前段落。
+                        if speech.paragraphCount > 0 {
+                            Button {
+                                speech.speakParagraphJump(-1)
+                            } label: {
+                                Image(systemName: "chevron.up")
+                                    .font(.system(size: 11))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .opacity(speech.canJumpPrevious ? 1 : 0.35)
+                            .help("Previous Paragraph")
+
+                            Text("\(speech.currentParagraphIndex.map { $0 + 1 } ?? 1)/\(speech.paragraphCount)")
+                                .font(.system(size: 10).monospacedDigit())
+                                .foregroundStyle(.secondary)
+
+                            Button {
+                                speech.speakParagraphJump(1)
+                            } label: {
+                                Image(systemName: "chevron.down")
+                                    .font(.system(size: 11))
+                            }
+                            .buttonStyle(.plain)
+                            .foregroundStyle(.secondary)
+                            .opacity(speech.canJumpNext ? 1 : 0.35)
+                            .help("Next Paragraph")
+                        }
+
                         Button {
                             speech.togglePause()
                         } label: {
@@ -108,7 +141,7 @@ struct ReaderView: View {
                         .help("Stop Reading")
                     } else {
                         Button {
-                            speech.speak(speechText)
+                            startSpeech()
                         } label: {
                             Image(systemName: "speaker.wave.3")
                                 .font(.system(size: 12))
@@ -161,6 +194,36 @@ struct ReaderView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(summaryModel.isBusy ? appAccent : Color.secondary)
                 .help("AI Summary")
+
+                // 整页翻译（v0.8.43）：端上翻译，段落级双语对照 + 缓存 + 显隐/清除
+                if translationModel.isActive {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .frame(height: 16)
+                }
+                Menu {
+                    if translationModel.isApplied {
+                        Button(translationModel.isHidden
+                               ? String(localized: "Show Translation")
+                               : String(localized: "Hide Translation")) {
+                            toggleTranslationHidden()
+                        }
+                        Button(String(localized: "Clear Translation")) {
+                            clearTranslation()
+                        }
+                    } else if !translationModel.isActive {
+                        Button(String(localized: "Translate")) {
+                            startTranslation()
+                        }
+                    }
+                } label: {
+                    Image(systemName: translationModel.isApplied
+                          ? "character.bubble.fill" : "character.bubble")
+                        .font(.system(size: 12))
+                }
+                .menuStyle(.borderlessButton)
+                .frame(width: 20)
+                .help("Translation")
                 Menu {
                     ForEach([1.4, 1.7, 2.0], id: \.self) { spacing in
                         Button(spacing == 1.4 ? "Tight" : spacing == 1.7 ? "Normal" : "Loose") {
@@ -252,7 +315,35 @@ struct ReaderView: View {
             }
         }
         // 离开阅读模式即停朗读（切标签/关面板不残留语音）。
-        .onDisappear { speech.stop() }
+        .onDisappear {
+            speech.stop()
+            speech.onParagraphChange = nil
+        }
+        // 整页翻译（v0.8.43）：invalidate 的配置触发端上翻译会话。
+        .translationTask(translationModel.configuration) { session in
+            await translationModel.translateAll(session: session) { translations in
+                await readerController.applyTranslations(translations)
+            }
+        }
+        // 设置变化重建 webview 后：重打段落标记 + 回填已应用译文（朗读高亮与
+        // 翻译对照共用 data-desire-para 标记）。webview 挂载是异步的，稍候再打。
+        .task(id: settingsIdentity) {
+            guard translationModel.isApplied else { return }
+            try? await Task.sleep(for: .milliseconds(350))
+            _ = await readerController.tagParagraphs()
+            await readerController.applyTranslations(translationModel.appliedTranslations)
+            if translationModel.isHidden {
+                await readerController.setTranslationsHidden(true)
+            }
+        }
+        .onChange(of: translationModel.phase) { _, phase in
+            guard case .failed(let message) = phase else { return }
+            offlineNote = message
+            Task { @MainActor in
+                try? await Task.sleep(for: .seconds(3))
+                if offlineNote == message { offlineNote = nil }
+            }
+        }
         .sheet(isPresented: $showSummary) {
             ReaderSummarySheet(model: summaryModel,
                                articleText: speechText.isEmpty
@@ -278,6 +369,50 @@ struct ReaderView: View {
     private func stepFont(_ delta: Int) {
         settings.fontSize = max(14, min(26, settings.fontSize + delta))
         settings.save()
+    }
+
+    /// 朗读入口（v0.8.43 逐段化）：先从阅读 DOM 采集段落（索引与页面元素
+    /// 一一对应，朗读时高亮跟随滚动）；采集失败退回整篇朗读。段落计数/跳转
+    /// 控件由 `speech.paragraphCount` 驱动。
+    private func startSpeech() {
+        Task { @MainActor in
+            let paragraphs = await readerController.tagParagraphs()
+            guard !paragraphs.isEmpty else {
+                speech.onParagraphChange = nil
+                speech.speak(speechText)
+                return
+            }
+            speech.onParagraphChange = { index in
+                Task { await readerController.scrollToParagraph(index) }
+            }
+            speech.speakParagraphs(paragraphs)
+        }
+    }
+
+    // MARK: 整页翻译（v0.8.43）
+
+    private func startTranslation() {
+        Task { @MainActor in
+            let paragraphs = await readerController.tagParagraphs()
+            let blocks = paragraphs.enumerated().map {
+                ReaderTranslationBlock(id: $0.offset, text: $0.element)
+            }
+            await translationModel.start(pageURL: pageURLString, blocks: blocks) {
+                translations in
+                await readerController.applyTranslations(translations)
+            }
+        }
+    }
+
+    private func toggleTranslationHidden() {
+        let hidden = !translationModel.isHidden
+        translationModel.setHidden(hidden)
+        Task { await readerController.setTranslationsHidden(hidden) }
+    }
+
+    private func clearTranslation() {
+        translationModel.clear()
+        Task { await readerController.clearTranslations() }
     }
 
     /// 高亮当前选区（v0.7.29）：值/锚点存本地，阅读视图立即重绘。

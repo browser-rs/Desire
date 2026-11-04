@@ -15,6 +15,9 @@ nonisolated enum EbookSearchCore {
         var chapterTitle: String
         var snippet: String
         var offset: Int
+        /// 章内第几次命中（0 起，v0.8.43）：跳转时精确落到该处，
+        /// 而不是永远滚到该章第一处。
+        var occurrence: Int = 0
         var id: String { "\(chapterIndex)-\(offset)" }
     }
 
@@ -62,7 +65,7 @@ nonisolated enum EbookSearchCore {
                 let snippet = snippet(in: chapter.text, around: range,
                                       radius: 54)
                 hits.append(Hit(chapterIndex: chapter.index, chapterTitle: chapter.title,
-                                snippet: snippet, offset: lower))
+                                snippet: snippet, offset: lower, occurrence: found))
                 found += 1
                 cursor = range.upperBound
                 if cursor >= chapter.text.endIndex { break }
@@ -70,6 +73,31 @@ nonisolated enum EbookSearchCore {
             if hits.count >= limit { break }
         }
         return hits
+    }
+
+    /// 把片段按命中词切段（大小写不敏感），结果列表高亮渲染用（v0.8.43）。
+    /// 直接在原串上做不敏感匹配，不做 lowercased() 后的索引换算——
+    /// 某些 Unicode（İ 等）大小写转换会改变字素数，跨串索引必然错位。
+    static func snippetSegments(snippet: String, query: String) -> [(text: String, isHit: Bool)] {
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return [(snippet, false)] }
+        var segments: [(String, Bool)] = []
+        var filled = snippet.startIndex
+        var searchStart = snippet.startIndex
+        while searchStart <= snippet.endIndex,
+              let range = snippet.range(of: needle, options: .caseInsensitive,
+                                        range: searchStart..<snippet.endIndex) {
+            if filled < range.lowerBound {
+                segments.append((String(snippet[filled..<range.lowerBound]), false))
+            }
+            segments.append((String(snippet[range]), true))
+            filled = range.upperBound
+            searchStart = range.upperBound
+        }
+        if filled < snippet.endIndex {
+            segments.append((String(snippet[filled...]), false))
+        }
+        return segments.isEmpty ? [(snippet, false)] : segments
     }
 
     private static func snippet(in text: String, around range: Range<String.Index>,

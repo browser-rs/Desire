@@ -143,6 +143,8 @@ final class EbookReaderModel: ObservableObject {
     private var lastSpeechHighlight = Date.distantPast
     private var chapterTextCache: [EbookSearchCore.ChapterText]?
     private var pendingSearchQuery: String?
+    /// 跳转目标章内的命中序号（v0.8.43）：0 = 该章第一处。
+    private var pendingSearchOccurrence = 0
     private var pendingRevealHighlightID: UUID?
     private var loadGeneration = 0
     private var webViewReadyGeneration = -1
@@ -957,6 +959,7 @@ final class EbookReaderModel: ObservableObject {
         clearSelection()
         stopSpeechForNavigation()
         pendingSearchQuery = searchQuery
+        pendingSearchOccurrence = hit.occurrence
         loadChapter(hit.chapterIndex, restoreRatio: 0)
     }
 
@@ -964,6 +967,7 @@ final class EbookReaderModel: ObservableObject {
         searchResults = []
         searchQuery = ""
         pendingSearchQuery = nil
+        pendingSearchOccurrence = 0
     }
 
     private func highlightSearchIfNeeded() {
@@ -971,7 +975,7 @@ final class EbookReaderModel: ObservableObject {
               let query = pendingSearchQuery, !query.isEmpty else { return }
         let literal = Self.jsString(query)
         webView?.evaluateJavaScript(
-            "window.__desireFind && window.__desireFind(\(literal));",
+            "window.__desireFind && window.__desireFind(\(literal), \(pendingSearchOccurrence));",
             completionHandler: nil)
     }
 
@@ -1012,6 +1016,7 @@ final class EbookReaderModel: ObservableObject {
         <meta charset="utf-8">
         <meta http-equiv="Content-Security-Policy" content="default-src 'self' data:; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'unsafe-inline'; connect-src 'none'; frame-src 'none'">
         <style>\(readerCSS)</style>
+        <style>.desire-search-hit-active{outline:2px solid #D97706;outline-offset:1px;border-radius:2px;}</style>
         <script>
         (function(){
           function send(){
@@ -1032,32 +1037,47 @@ final class EbookReaderModel: ObservableObject {
             var max=h-window.innerHeight;
             window.scrollTo(0,max*Math.max(0,Math.min(1,r)));
           };
-          window.__desireFind=function(q){
-            if(!q)return false;
-            var needle=q.toLowerCase();
-            var walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null);
-            var nodes=[],node;
-            while(node=walker.nextNode()){nodes.push(node);}
-            var first=null;
-            for(var i=0;i<nodes.length;i++){
-              var textNode=nodes[i];
-              var text=textNode.nodeValue||"";
-              var idx=text.toLowerCase().indexOf(needle);
-              if(idx<0)continue;
+          function wrapMatches(textNode,needle){
+            var lower=(textNode.nodeValue||"").toLowerCase();
+            var spans=[],pos=0,idx;
+            while((idx=lower.indexOf(needle,pos))>=0){
+              spans.push([idx,idx+needle.length]);
+              pos=idx+needle.length;
+              if(spans.length>=60)break;
+            }
+            var nodeMarks=[];
+            for(var s=spans.length-1;s>=0;s--){
               try{
                 var range=document.createRange();
-                range.setStart(textNode,idx);
-                range.setEnd(textNode,idx+needle.length);
+                range.setStart(textNode,spans[s][0]);
+                range.setEnd(textNode,spans[s][1]);
                 var mark=document.createElement('mark');
                 mark.className='desire-search-hit';
                 mark.style.background='#F6C344';
                 mark.style.color='#1A1A1A';
                 range.surroundContents(mark);
-                if(!first)first=mark;
+                nodeMarks.push(mark);
               }catch(e){}
             }
-            if(first){first.scrollIntoView({block:'center'});return true;}
-            return false;
+            nodeMarks.reverse();
+            return nodeMarks;
+          }
+          window.__desireFind=function(q,occ){
+            if(!q)return false;
+            var needle=q.toLowerCase();
+            var walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null);
+            var nodes=[],node;
+            while(node=walker.nextNode()){nodes.push(node);}
+            var marks=[];
+            for(var i=0;i<nodes.length;i++){
+              marks=marks.concat(wrapMatches(nodes[i],needle));
+            }
+            if(!marks.length)return false;
+            // occ = 结果列表点的那一条（章内第几处）；越界退到最近能指到的命中。
+            var target=marks[Math.min(Math.max(occ||0,0),marks.length-1)];
+            target.classList.add('desire-search-hit-active');
+            target.scrollIntoView({block:'center'});
+            return true;
           };
           document.addEventListener('mouseup', function(){
             setTimeout(function(){
@@ -1102,6 +1122,7 @@ final class EbookReaderModel: ObservableObject {
         <meta charset="utf-8">
         <meta http-equiv="Content-Security-Policy" content="default-src 'self' data:; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'unsafe-inline'; connect-src 'none'; frame-src 'none'">
         <style>\(pagedCSS)</style>
+        <style>.desire-search-hit-active{outline:2px solid #D97706;outline-offset:1px;border-radius:2px;}</style>
         <script>
         document.addEventListener('DOMContentLoaded', function(){
           var flow=document.getElementById('desire-flow');
@@ -1189,43 +1210,75 @@ final class EbookReaderModel: ObservableObject {
             if(old!==index && animate!==false)flip(old,index>old);
             apply();
           };
-          function highlightIn(root,q){
-            var needle=q.toLowerCase();
-            var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);
-            var nodes=[],node;
-            while(node=walker.nextNode()){nodes.push(node);}
-            var first=null;
-            for(var i=0;i<nodes.length;i++){
-              var textNode=nodes[i];
-              var text=textNode.nodeValue||"";
-              var idx=text.toLowerCase().indexOf(needle);
-              if(idx<0)continue;
+          function wrapMatches(textNode,needle){
+            var lower=(textNode.nodeValue||"").toLowerCase();
+            var spans=[],pos=0,idx;
+            while((idx=lower.indexOf(needle,pos))>=0){
+              spans.push([idx,idx+needle.length]);
+              pos=idx+needle.length;
+              if(spans.length>=60)break;
+            }
+            var nodeMarks=[];
+            for(var s=spans.length-1;s>=0;s--){
               try{
                 var range=document.createRange();
-                range.setStart(textNode,idx);
-                range.setEnd(textNode,idx+needle.length);
+                range.setStart(textNode,spans[s][0]);
+                range.setEnd(textNode,spans[s][1]);
                 var mark=document.createElement('mark');
                 mark.className='desire-search-hit';
                 mark.style.background='#F6C344';
                 mark.style.color='#1A1A1A';
                 range.surroundContents(mark);
-                if(!first)first=mark;
+                nodeMarks.push(mark);
               }catch(e){}
             }
-            return first;
+            nodeMarks.reverse();
+            return nodeMarks;
           }
-          window.__desireFind=function(q){
+          function highlightIn(root,q){
+            var needle=q.toLowerCase();
+            var walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,null);
+            var nodes=[],node;
+            while(node=walker.nextNode()){nodes.push(node);}
+            var marks=[];
+            for(var i=0;i<nodes.length;i++){
+              marks=marks.concat(wrapMatches(nodes[i],needle));
+            }
+            return marks[0]||null;
+          }
+          window.__desireFind=function(q,occ){
             if(!q)return false;
             var needle=q.toLowerCase();
+            var consumed=0,targetPage=-1,localOcc=0;
+            // 全局第 occ 处命中落在哪一页、页内第几处
             for(var i=0;i<pages.length;i++){
-              if(pages[i].textContent.toLowerCase().indexOf(needle)>=0){
-                index=i;
-                highlightIn(pages[i],q);
-                apply();
-                return true;
+              var text=pages[i].textContent.toLowerCase();
+              var count=0,pos=0,idx;
+              while((idx=text.indexOf(needle,pos))>=0){
+                if(consumed+count===occ){targetPage=i;localOcc=count;}
+                count++;
+                pos=idx+needle.length;
+              }
+              if(targetPage>=0)break;
+              consumed+=count;
+            }
+            if(targetPage<0){
+              // 没数到第 occ 处（DOM 分词与纯文本计数有出入）→ 退到第一处
+              for(var j=0;j<pages.length;j++){
+                if(pages[j].textContent.toLowerCase().indexOf(needle)>=0){targetPage=j;localOcc=0;break;}
               }
             }
-            return false;
+            if(targetPage<0)return false;
+            index=targetPage;
+            highlightIn(pages[targetPage],q);
+            apply();
+            // 翻页后的高亮才进 DOM，这里直接标活动命中
+            var marks=pages[targetPage].querySelectorAll('mark.desire-search-hit');
+            if(marks.length){
+              var target=marks[Math.min(Math.max(localOcc,0),marks.length-1)];
+              target.classList.add('desire-search-hit-active');
+            }
+            return true;
           };
           window.__desireMeasurePages=paginate;
           function schedule(){

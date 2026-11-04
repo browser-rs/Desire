@@ -731,7 +731,7 @@ struct EbookReaderView: View {
                                     Text(hit.chapterTitle)
                                         .font(.system(size: 11, weight: .semibold))
                                         .foregroundStyle(appAccent)
-                                    Text(hit.snippet)
+                                    Text(snippetText(hit))
                                         .font(.system(size: 11))
                                         .foregroundStyle(.secondary)
                                         .lineLimit(3)
@@ -762,6 +762,22 @@ struct EbookReaderView: View {
             await model.search(query)
             didSearch = true
         }
+    }
+
+    /// 结果片段高亮（v0.8.43）：命中词在预览里可见，跳转前就能扫到上下文。
+    /// 命中段带显式样式；其余段不带属性、继承外层的字号与次级色。
+    private func snippetText(_ hit: EbookSearchCore.Hit) -> AttributedString {
+        var output = AttributedString()
+        for segment in EbookSearchCore.snippetSegments(snippet: hit.snippet,
+                                                       query: model.searchQuery) {
+            var piece = AttributedString(segment.text)
+            if segment.isHit {
+                piece.foregroundColor = appAccent
+                piece.font = .system(size: 11, weight: .semibold)
+            }
+            output += piece
+        }
+        return output
     }
 
     // MARK: - 划词翻译

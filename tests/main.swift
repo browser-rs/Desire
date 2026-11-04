@@ -8527,6 +8527,7 @@ testEbookSearchCore()
 testEbookNotesExportCore()
 testEbookMarkdownCore()
 testEbookTranslationAndLibrarySearchCore()
+testReaderTranslationCore()
 testReadingDigestCore()
 testFB2Core()
 testEbookSyncCore()
@@ -9125,6 +9126,39 @@ func testEbookSearchCore() {
        EbookSearchCore.search(query: "山风", chapters: chapters, perChapter: 1).count, 1)
     check("书搜：空查询", EbookSearchCore.search(query: "  ", chapters: chapters).isEmpty)
     check("书搜：无命中", EbookSearchCore.search(query: "沙漠", chapters: chapters).isEmpty)
+    // 章内命中序号（v0.8.43）：同章第 N 处命中带 occurrence，跳转精确定位
+    eq("书搜：occurrence 序号", hits.map(\.occurrence), [0, 1])
+    let crossHits = EbookSearchCore.search(query: "山风|mountain", chapters: chapters)
+        .filter { $0.chapterIndex == 1 }
+    check("书搜：无命中时无序号", crossHits.isEmpty)
+
+    // 片段高亮切段（v0.8.43）
+    let segments = EbookSearchCore.snippetSegments(
+        snippet: "…The Mountain wind blew. Mountain wind again…",
+        query: "mountain wind")
+    eq("片段：切段数", segments.count, 5)
+    check("片段：命中段",
+          segments.filter(\.isHit).map(\.text) == ["Mountain wind", "Mountain wind"])
+    check("片段：夹住前后文",
+          segments[0].text == "…The " && !segments[0].isHit
+          && segments[4].text == " again…" && !segments[4].isHit)
+    let cjkSegments = EbookSearchCore.snippetSegments(
+        snippet: "…山风吹过，山风又起。", query: "山风")
+    eq("片段：中文命中段", cjkSegments.filter(\.isHit).count, 2)
+    eq("片段：大小写不敏感命中",
+       EbookSearchCore.snippetSegments(snippet: "AbC and abc", query: "aBc")
+           .filter(\.isHit).count, 2)
+    eq("片段：空查询整段", EbookSearchCore.snippetSegments(snippet: "一段话", query: "  ").count, 1)
+    check("片段：空查询不切段",
+          EbookSearchCore.snippetSegments(snippet: "一段话", query: "  ")[0].text == "一段话")
+    // 无命中 = 单段原样
+    let miss = EbookSearchCore.snippetSegments(snippet: "普通句子", query: "不存在")
+    eq("片段：无命中单段", miss.count, 1)
+    check("片段：无命中非命中", !miss[0].isHit)
+    // 尾部命中（filled == endIndex 边界）
+    let tail = EbookSearchCore.snippetSegments(snippet: "结尾是word", query: "word")
+    eq("片段：尾部命中段数", tail.count, 2)
+    check("片段：尾部是命中", tail[1].isHit && tail[1].text == "word")
 }
 
 // ---------- 书内高亮与笔记导出（v0.8.35） ----------
@@ -9278,6 +9312,40 @@ func testEbookTranslationAndLibrarySearchCore() {
         (bookID: bookB, title: "B", hits: [hit(0, 5), hit(0, 6)]),
     ], perBook: 3, total: 2)
     eq("全库搜索：总上限", capped.count, 2)
+}
+
+// ---------- 阅读模式整页翻译缓存（v0.8.43） ----------
+
+func testReaderTranslationCore() {
+    var cache = ReaderTranslationCache()
+    cache.save(pageURL: "https://a.test/x", language: "zh-Hans",
+               translations: [0: "你好", 1: "世界"])
+    eq("页译：取回", cache.translations(pageURL: "https://a.test/x",
+                                        language: "zh-Hans")?[1], "世界")
+    check("页译：语言不匹配", cache.translations(pageURL: "https://a.test/x",
+                                                 language: "en") == nil)
+    check("页译：页面不匹配", cache.translations(pageURL: "https://b.test/y",
+                                                 language: "zh-Hans") == nil)
+    // 换语言覆盖旧译文
+    cache.save(pageURL: "https://a.test/x", language: "en",
+               translations: [0: "Hello"])
+    check("页译：换语言覆盖", cache.translations(pageURL: "https://a.test/x",
+                                                 language: "zh-Hans") == nil)
+    // remove
+    cache.save(pageURL: "https://c.test/z", language: "en", translations: [0: "Hi"])
+    cache.remove(pageURL: "https://c.test/z")
+    check("页译：清除", cache.translations(pageURL: "https://c.test/z",
+                                           language: "en") == nil)
+    // 上限淘汰
+    for index in 0..<50 {
+        cache.save(pageURL: "https://p.test/\(index)", language: "en",
+                   translations: [0: "x"])
+    }
+    eq("页译：页数上限", cache.pages.count, ReaderTranslationCache.maxPages)
+    // 空译文存不进（translations(chapter:) 语义：空 = nil）
+    cache.save(pageURL: "https://e.test/", language: "en", translations: [:])
+    check("页译：空译文不回", cache.translations(pageURL: "https://e.test/",
+                                                 language: "en") == nil)
 }
 
 // ---------- 阅读摘要（v0.8.36） ----------

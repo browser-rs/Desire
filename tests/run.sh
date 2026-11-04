@@ -277,6 +277,7 @@ SOURCES=(
   apps/macos/Desire/Features/Ebooks/EbookNotesExportCore.swift
   apps/macos/Desire/Features/Ebooks/EbookTranslationCore.swift
   apps/macos/Desire/Features/Ebooks/EbookLibrarySearchCore.swift
+  apps/macos/Desire/Features/Reader/ReaderTranslationCore.swift
   apps/macos/Desire/Features/Ebooks/ReadingDigestCore.swift
   apps/macos/Desire/Features/Ebooks/FB2Core.swift
   apps/macos/Desire/Features/Ebooks/EbookSyncCore.swift

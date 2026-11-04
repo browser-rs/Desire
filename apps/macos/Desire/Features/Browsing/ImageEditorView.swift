@@ -103,6 +103,7 @@ struct ImageEditorView: View {
     @State private var exposure: Double = 0
     @State private var temperature: Double = 0
     @State private var ocrRunning = false
+    @State private var cutoutRunning = false
     @State private var ocrResult: String?
 
     // 非破坏管线（v0.8.41）：调节/滤镜/选区走 document，几何/标注仍烙图。
@@ -542,6 +543,8 @@ struct ImageEditorView: View {
                 if showFilters { showAdjustments = false }
             }
                 .foregroundStyle(showFilters ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
+            button("sparkles.rectangle.stack", "Auto Enhance") { runAutoEnhance() }
+            button("person.and.background.dotted", "Subject Cutout") { runSubjectCutout() }
             button("doc.text.viewfinder", "Extract Text (OCR)") { runOCR() }
             button("printer", "Print") { printImage() }
             Menu {
@@ -1534,6 +1537,43 @@ struct ImageEditorView: View {
     }
 
     /// OCR（22）：Vision 识别 → 结果浮层（可复制），复用 ocrImage 管线。
+    /// 自动增强（迭代 3）：AI 自动色阶 + 饱和度/清晰度/锐化 → applyAdjust。
+    private func runAutoEnhance() {
+        guard let image else { return }
+        let params = ImageAICore.autoEnhance(image)
+        document.applyAdjust(params)
+        hasUnsavedChanges = true
+        flash(String(localized: "Auto Enhanced"))
+    }
+
+    /// 主体抠图（迭代 3）：Vision 蒙版 → 背景透明化（透明 PNG 语义）。
+    private func runSubjectCutout() {
+        guard let image, !cutoutRunning else { return }
+        cutoutRunning = true
+        flash(String(localized: "Cutting out subject…"))
+        let source = image
+        Task { @MainActor in
+            let mask = await ImageAICore.subjectMask(source)
+            guard let mask else {
+                flash(String(localized: "Could not detect a subject"))
+                cutoutRunning = false
+                return
+            }
+            // 透明底：前景保留、背景全透明 → PNG 语义
+            guard let output = ImageAICore.cutout(image: source, mask: mask,
+                                                  background: nil) else {
+                flash(String(localized: "Cutout failed"))
+                cutoutRunning = false
+                return
+            }
+            pushHistory(source, label: String(localized: "Subject Cutout"))
+            self.image = output
+            hasUnsavedChanges = true
+            cutoutRunning = false
+            flash(String(localized: "Subject isolated"))
+        }
+    }
+
     private func runOCR() {
         guard let image, !ocrRunning else { return }
         ocrRunning = true

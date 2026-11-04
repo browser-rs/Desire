@@ -2,6 +2,7 @@
 // 直接断言，不依赖 Xcode 与应用 target（项目暂无测试 target，见 AGENTS「工程」一节）。
 // 新增用例：往下加 `check("名称", 条件)` 即可；失败会列出并令脚本以非零码退出。
 
+import CoreGraphics
 import Foundation
 
 var failures: [String] = []
@@ -6861,6 +6862,25 @@ func testCubeLUTCore() {
           && abs(Double(parsedNeutral!.data.last!) - 1.0) < 0.01)
 }
 testCubeLUTCore()
+
+func plainGray() -> CGImage {
+    let size = 32
+    let context = CGContext(data: nil, width: size, height: size,
+                            bitsPerComponent: 8, bytesPerRow: size * 4,
+                            space: CGColorSpaceCreateDeviceRGB(),
+                            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+    context.setFillColor(gray: 0.5, alpha: 1)
+    context.fill(CGRect(x: 0, y: 0, width: size, height: size))
+    return context.makeImage()!
+}
+
+func testImageAICoreAutoLevels() {
+    var params = ImageAICore.autoLevels(plainGray())
+    check("AI 自动色阶：灰色图不崩溃", params.blackPoint >= 0 && params.whitePoint <= 1)
+    params = ImageAICore.autoEnhance(plainGray())
+    check("AI 自动增强：含饱和度提升", params.saturation > 1)
+}
+testImageAICoreAutoLevels()
 
 func testPlaybook() {
     let playbook = Playbook(

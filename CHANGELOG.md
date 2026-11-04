@@ -11,6 +11,8 @@
 - Image editor: repair brushes — clone stamp (sample with a tap, drag to copy), dodge/burn, blur brush and sharpen brush, all stroke-based with size/strength controls and soft falloff, applied to the image with undo (v0.8.42)
 - Image editor: lasso selection (drag to outline, feathered polygon mask) and magic wand (BFS flood-fill with controllable tolerance slider, contiguous mode) — both non-destructive, effects only apply inside the selection (v0.8.42)
 - Image editor: .cube LUT — parse and generate 3D color-lookup tables from the current adjustments (curves, levels, contrast, saturation), so presets created in Desire can be shared with Photoshop/Resolve and vice versa (v0.8.42)
+- Image editor: AI tools — auto enhance (auto levels from histogram 1% clipping + fixed saturation/clarity/sharpen boost) and subject cutout (Vision foreground instance mask isolates the subject onto a transparent background), both one-click in the toolbar with undo (v0.8.43)
+
 
 
 

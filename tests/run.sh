@@ -288,6 +288,7 @@ SOURCES=(
   apps/macos/Desire/Features/Browsing/ImageEditPipelineCore.swift
   apps/macos/Desire/Features/Browsing/ImageLayerCore.swift
   apps/macos/Desire/Features/Browsing/CubeLUTCore.swift
+  apps/macos/Desire/Features/Browsing/ImageAICore.swift
   tests/main.swift
 )
 swiftc -o "$OUT" "${SOURCES[@]}"

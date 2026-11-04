@@ -6788,6 +6788,38 @@ func testImageEditPipelineCore() {
 }
 testImageEditPipelineCore()
 
+func testImageLayerCore() {
+    var stack = ImageLayerCore.Stack().layers
+    check("图层：初始含背景层", stack.count == 1 && stack[0].name == "Background")
+
+    let layer1 = ImageLayer(name: "Text")
+    stack.append(layer1)
+    let layer2 = ImageLayer(name: "Paste", opacity: 2)
+    stack.append(layer2)
+    eq("图层：透明度夹紧", stack[2].opacity, 1)
+
+    check("图层：上限拒绝",
+          ImageLayerCore.adding(stack, name: "Extra") == nil ||
+          (stack.count + 1 <= ImageLayerCore.maxLayers))
+
+    var moved = ImageLayerCore.moving(stack, from: 2, to: 1)
+    eq("图层：移动后顺序", moved[1].name, "Paste")
+    eq("图层：移动不改数量", moved.count, 3)
+
+    let order = ImageLayerCore.renderOrder(moved)
+    eq("图层：渲染顺序含全部可见", order.count, 3)
+    moved[0].isVisible = false
+    moved[2].opacity = 0
+    let filtered = ImageLayerCore.renderOrder(moved)
+    eq("图层：隐藏/透明层不参与渲染", filtered.count, 1)
+
+    check("图层：一致性", ImageLayerCore.isConsistent(moved))
+    check("图层：fallback 名唯一",
+          ImageLayerCore.fallbackName(for: [stack[0]])
+              != ImageLayerCore.fallbackName(for: [stack[0], stack[0]]))
+}
+testImageLayerCore()
+
 func testPlaybook() {
     let playbook = Playbook(
         name: "Brief",

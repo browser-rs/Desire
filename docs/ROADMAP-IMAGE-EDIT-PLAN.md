@@ -166,3 +166,12 @@
   做，标注坐标映射一次解决），计划口径更新。
 - **迭代 1 收官**：harness 2748/0；Debug/Release clean 零警告。迭代 2 开工前
   先做图层模型设计稿（`ImageLayerCore` 纯逻辑进 harness）。
+
+## 迭代 2 进度（2026-11-04）
+
+- **批 1（图层）完成**：`ImageLayerCore`（账本/上限/排序/命名，纯逻辑进 harness）+
+  `ImageLayerStore`（每图层位图/合成/blend+opacity 烙图）+ `ImageLayersPanel`
+  （可见性/不透明度/混合模式/移动/删除）+ 编辑器接入（load 重置、save/export 先烙图）；
+  harness 2757/0，Debug/Release clean 零警告。
+- **批 2（修复工具）下一批**：克隆图章 / 加深减淡 / 模糊锐化刷（刷子烙图到活动层）。
+- 可编辑标注与"几何非破坏化"：与图层合流推进（标注落图改为落到活动层）。

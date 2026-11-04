@@ -117,6 +117,7 @@ struct ImageEditorView: View {
     @State private var curveDraft = ImageCurveDraft()
     @State private var showCurves = false
     @State private var showPresets = false
+    @State private var showLayers = false
 
     /// 显示位图与实际位图之间的缩放比。
     private var displayScale: CGFloat {
@@ -176,7 +177,7 @@ struct ImageEditorView: View {
         }
         .sheet(isPresented: $showExport) {
             ImageExportPanel(
-                base: image,
+                base: ImageLayerStore.shared.flattened() ?? image,
                 pipeline: document.pipeline,
                 fileName: fileName)
         }
@@ -236,6 +237,7 @@ struct ImageEditorView: View {
             pinchBase = 1
             // fitZoom 量完容器后由 recomputeFit 收敛；先给个保守初值防闪。
             DispatchQueue.main.async { recomputeFit() }
+            ImageLayerStore.shared.reset(base: cg)
             document.requestRender(base: cg)
         } else {
             loadError = String(localized: "Could not load this image.")
@@ -244,9 +246,10 @@ struct ImageEditorView: View {
 
     private func save() {
         guard let image else { return }
-        // 保存 = 基础位图 + 非破坏管线（调节/滤镜/选区）一起渲染。
+        // 保存 = 图层烙图（迭代 2）+ 非破坏管线一起渲染。
+        let flat = ImageLayerStore.shared.flattened() ?? image
         let output = ImageEditorDocument.renderFinal(
-            base: image, pipeline: document.pipeline) ?? image
+            base: flat, pipeline: document.pipeline) ?? flat
         do {
             let fm = FileManager.default
             if fm.fileExists(atPath: fileURL.path) {
@@ -504,6 +507,8 @@ struct ImageEditorView: View {
             }
             button("clock.arrow.circlepath", "History") { showHistory.toggle() }
                 .foregroundStyle(showHistory ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
+            button("square.2.layers.3d.top.filled", "Layers") { showLayers.toggle() }
+                .foregroundStyle(showLayers ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
             ColorPicker("", selection: $strokeColor, supportsOpacity: false)
                 .labelsHidden()
                 .frame(width: 26)
@@ -678,6 +683,11 @@ struct ImageEditorView: View {
                     }
                     if showHistory {
                         historyPanel
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                            .padding(14)
+                    }
+                    if showLayers {
+                        ImageLayersPanel()
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                             .padding(14)
                     }

@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.43] - 2026-11-05
 ### Added
 
 - Image editor: geometric operations (rotate 90° CW/CCW, flip horizontal/vertical) are now non-destructive pipeline operations instead of one-shot bakes — undo/redo works correctly and edits remain re-editable after geometric transforms (v0.8.43)

@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.44] - 2026-11-05
 ### Fixed
 
 - Reliability: launching after a crash no longer opens a window with zero tabs when the last written session was an empty (private-window-only) session — the empty session is skipped and the most recent session with tabs is adopted instead (v0.8.44)

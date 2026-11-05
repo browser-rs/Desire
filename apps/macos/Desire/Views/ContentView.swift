@@ -467,6 +467,12 @@ struct ContentView: View {
                        onOpen: { url in
                            showFeedsPanel = false
                            openFeedArticle(url)
+                       },
+                       onOpenInTab: { url in
+                           showFeedsPanel = false
+                           if let tab = tabManager.selectedTab {
+                               b.navigateToURL(url, for: tab)
+                           }
                        })
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { note in

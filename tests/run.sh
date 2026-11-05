@@ -277,6 +277,7 @@ SOURCES=(
   apps/macos/Desire/Features/Browsing/PDFBatchCore.swift
   apps/macos/Desire/Features/Feeds/Feed.swift
   apps/macos/Desire/Features/Feeds/FeedCore.swift
+  apps/macos/Desire/Features/Feeds/FeedOPMLCore.swift
   apps/macos/Desire/Features/Sync/FeedSyncCore.swift
   apps/macos/Desire/Features/Ebooks/EbookHighlight.swift
   apps/macos/Desire/Features/Ebooks/EbookNotesExportCore.swift

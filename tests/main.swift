@@ -8532,6 +8532,7 @@ testPDFTextCore()
 testPDFBatchCore()
 testFeedCore()
 testFeedSyncCore()
+testFeedOPMLCore()
 testReadingDigestCore()
 testFB2Core()
 testEbookSyncCore()
@@ -9664,6 +9665,67 @@ func testFeedSyncCore() {
           same.addFeeds.isEmpty && same.removeFeedURLs.isEmpty
           && same.readUpdates.isEmpty && same.starUpdates.isEmpty)
 }
+
+// ---------- OPML 导入导出（v0.8.45 丰富批） ----------
+
+func testFeedOPMLCore() {
+    let base = Date(timeIntervalSince1970: 1_800_000_000)
+    func feed(_ url: String, title: String, site: String?, collection: String?) -> Feed {
+        var f = Feed(id: UUID(), url: url, title: title, siteURL: site,
+                     feedDescription: nil, addedAt: base, lastFetchedAt: nil,
+                     lastError: nil, etag: nil, lastModified: nil)
+        f.collection = collection
+        return f
+    }
+
+    // 导出：分组容器 + 属性转义
+    let feeds = [
+        feed("https://a.example/rss", title: "Alpha & Co", site: "https://a.example/", collection: nil),
+        feed("https://b.example/rss", title: "Beta", site: nil, collection: "技术"),
+    ]
+    let xml = FeedOPMLCore.export(feeds: feeds)
+    check("OPML：导出含头", xml.hasPrefix("<?xml"))
+    check("OPML：转义引号", xml.contains("Alpha &amp; Co"))
+    check("OPML：分组容器", xml.contains("<outline text=\"技术\">"))
+    check("OPML：xmlUrl 属性", xml.contains("xmlUrl=\"https://a.example/rss\""))
+    check("OPML：htmlUrl 属性", xml.contains("htmlUrl=\"https://a.example/\""))
+
+    // 往返：导入回同一批（无分组 + 分组各一条）
+    let entries = FeedOPMLCore.importEntries(from: Data(xml.utf8))
+    eq("OPML：导入条数", entries?.count, 2)
+    let alpha = entries?.first { $0.url == "https://a.example/rss" }
+    eq("OPML：标题还原", alpha?.title, "Alpha & Co")
+    eq("OPML：站点还原", alpha?.siteURL, "https://a.example/")
+    check("OPML：无分组", alpha?.collection == nil)
+    let beta = entries?.first { $0.url == "https://b.example/rss" }
+    eq("OPML：分组还原", beta?.collection, "技术")
+
+    // 嵌套多容器 + 容器配对（条目 outline 自闭合不误弹分组）
+    let nested = """
+    <?xml version="1.0"?>
+    <opml version="2.0"><head><title>x</title></head><body>
+      <outline text="组一">
+        <outline text="in1" type="rss" xmlUrl="https://x/1"/>
+        <outline text="in2" type="rss" xmlUrl="https://x/2"/>
+      </outline>
+      <outline text="组二">
+        <outline text="in3" type="rss" xmlUrl="https://x/3"/>
+      </outline>
+    </body></opml>
+    """
+    let nestedEntries = FeedOPMLCore.importEntries(from: Data(nested.utf8))
+    eq("OPML：嵌套条数", nestedEntries?.count, 3)
+    eq("OPML：组一归属", nestedEntries?.filter { $0.collection == "组一" }.count, 2)
+    eq("OPML：组二归属", nestedEntries?.filter { $0.collection == "组二" }.count, 1)
+
+    // 非法 XML / 空 body
+    check("OPML：非法 XML", FeedOPMLCore.importEntries(from: Data("nope".utf8)) == nil)
+    let empty = FeedOPMLCore.importEntries(from: Data(
+        "<opml><body></body></opml>".utf8))
+    eq("OPML：空清单合法", empty?.count, 0)
+}
+
+// ---------- 阅读摘要（v0.8.36） ----------
 
 // ---------- 阅读摘要（v0.8.36） ----------
 

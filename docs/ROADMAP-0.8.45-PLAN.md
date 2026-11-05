@@ -131,3 +131,11 @@ feed（`<link rel="alternate">`）时工具栏给"订阅"入口。
   + Rust workspace/fmt 全绿。Remote 手机端 UI 留下一版（快照 /sync/status
   已可见）。
 - harness 2879/0；Debug/Release 构建零警告见发版闸门。
+
+## 进度补（2026-11-05 丰富批）
+
+- 批 5 丰富：**OPML 导入/导出**（FeedOPMLCore 嵌套容器配对进 harness，导入后
+  立即首抓）、面板**搜索 + 未读/星标过滤条**、**按源通知升级 urgent**
+  （`urgentNotifications`，有新增即绕过免打扰直推，右键切换）、**刷新间隔
+  选择器**（15 分钟–4 小时，改后立即重排定时器）、源列表 favicon、文章右键
+  "在浏览器打开"（不进阅读模式）。harness 2894/0。

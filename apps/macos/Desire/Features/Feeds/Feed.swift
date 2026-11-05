@@ -21,8 +21,17 @@ nonisolated struct Feed: Codable, Identifiable, Equatable {
     var collection: String? = nil
     /// 同步 LWW 戳
     var syncUpdatedAt: Date? = nil
+    /// 新文章通知直推（urgent）；nil/false = routine（免打扰/预算门控照常）。
+    var urgentNotifications: Bool? = nil
 
     var urlOrEmpty: String { url }
+
+    /// 有效分组名（空白视为无分组；书架同语义）。
+    var collectionName: String? {
+        guard let name = collection?.trimmingCharacters(in: .whitespacesAndNewlines),
+              name.isEmpty == false else { return nil }
+        return name
+    }
 }
 
 nonisolated struct FeedItem: Codable, Identifiable, Equatable {

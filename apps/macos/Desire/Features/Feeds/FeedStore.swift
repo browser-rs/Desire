@@ -62,6 +62,13 @@ final class FeedStore: ObservableObject {
         feeds.first { $0.url == url }
     }
 
+    /// 按源通知分级（丰富批）：true = urgent 直推；nil/false = routine 门控。
+    func setUrgentNotifications(_ url: String, enabled: Bool?) {
+        guard let index = feeds.firstIndex(where: { $0.url == url }) else { return }
+        feeds[index].urgentNotifications = enabled
+        persist()
+    }
+
     private func replaceFeed(_ feed: Feed) {
         guard let index = feeds.firstIndex(where: { $0.id == feed.id }) else { return }
         feeds[index] = feed

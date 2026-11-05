@@ -4,6 +4,8 @@
 - Feeds: RSS/Atom subscriptions — parse and fetch feeds (per-source failure backoff, conditional requests), subscribe from the toolbar when a page advertises a feed or by asking the Agent, manage everything in a new Feeds panel (unread badges, star, mark-read), open articles in reading mode, and see the latest unread on the new tab's Today's Reading card (v0.8.45)
 - Feeds: Agent tools — subscribeFeed (first fetch included), unsubscribeFeed, listFeeds, readFeedArticles and markArticleRead; new articles land in the daily brief and trigger a routine notification (v0.8.45)
 - Sync: feeds sync domain (16th, opt-in) — subscription definitions and read/star states follow the encrypted snapshot across devices; the server whitelist grows accordingly (deployment required for cross-device) (v0.8.45)
+- Feeds: OPML import/export (grouped outlines round-trip), article search plus unread/starred filter chips, per-feed notification escalation to urgent (bypassing quiet hours gating), a refresh-interval picker (15 min to 4 h) and favicons in the source list; articles can also open as a plain tab without reading mode (v0.8.45)
+
 
 
 ## [v0.8.44] - 2026-11-05

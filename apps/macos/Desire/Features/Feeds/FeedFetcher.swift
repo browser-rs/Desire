@@ -28,6 +28,10 @@ final class FeedFetcher {
     /// 启动定时刷新（AppState.init 调用）。
     func startTimer() {
         guard timer == nil else { return }
+        scheduleTimer()
+    }
+
+    private func scheduleTimer() {
         let minutes = refreshIntervalMinutes
         timer = Timer.scheduledTimer(withTimeInterval: minutes * 60, repeats: true) { [weak self] _ in
             MainActor.assumeIsolated {
@@ -39,6 +43,12 @@ final class FeedFetcher {
     var refreshIntervalMinutes: Double {
         let stored = UserDefaults.standard.double(forKey: Self.refreshMinutesKey)
         return stored >= 5 && stored <= 1_440 ? stored : 30
+    }
+    /// 面板改刷新间隔：落盘 + 立即重排定时器。
+    func applyRefreshInterval(minutes: Double) {
+        guard minutes >= 5, minutes <= 1_440 else { return }
+        UserDefaults.standard.set(minutes, forKey: Self.refreshMinutesKey)
+        scheduleTimer()
     }
 
     // MARK: - 抓取
@@ -55,27 +65,47 @@ final class FeedFetcher {
             (nextAttempt[feed.url] ?? .distantPast) <= now
         }
         guard due.isEmpty == false else { return 0 }
-        let results = await withTaskGroup(of: Int.self) { group in
+        let results = await withTaskGroup(of: (String, Int).self) { group in
             for feed in due {
                 group.addTask { [weak self] in
-                    await self?.fetch(feed: feed) ?? 0
+                    let count = await self?.fetch(feed: feed) ?? 0
+                    return (feed.url, count)
                 }
             }
             var total = 0
-            for await count in group {
+            var perFeed: [(url: String, count: Int)] = []
+            for await (url, count) in group {
                 total += count
+                if count > 0 {
+                    perFeed.append((url, count))
+                }
+            }
+            if total > 0 {
+                Log.agent.info("feeds refreshed: +\(total) new article(s) across \(due.count) feed(s)")
+                deliverNewArticlesNotification(perFeed: perFeed, total: total)
             }
             return total
         }
-        if results > 0 {
-            Log.agent.info("feeds refreshed: +\(results) new article(s) across \(due.count) feed(s)")
-            // 新文章通知（v0.8.45）：routine 级——免打扰/预算门控照旧生效。
-            ProactiveNotificationStore.shared.deliver(
-                title: String(localized: "Feeds updated"),
-                body: String(localized: "\(results) new article(s) in your subscriptions"),
-                tier: .routine)
-        }
         return results
+    }
+
+    /// 新文章通知（v0.8.45）：routine 级（免打扰/预算门控照旧）；任何
+    /// `urgentNotifications` 源有新增 → 整条升 urgent 直推。
+    private func deliverNewArticlesNotification(perFeed: [(url: String, count: Int)],
+                                                total: Int) {
+        let store = FeedStore.shared
+        let urgent = perFeed.contains { pair in
+            store.feed(url: pair.url)?.urgentNotifications == true
+        }
+        let sources = perFeed.compactMap { store.feed(url: $0.url)?.title }
+            .prefix(3).joined(separator: "、")
+        ProactiveNotificationStore.shared.deliver(
+            title: String(localized: "Feeds updated"),
+            body: sources.isEmpty
+                ? String(localized: "\(total) new article(s) in your subscriptions")
+                : String(localized: "\(total) new article(s)：\(sources)"),
+            tier: urgent ? .urgent : .routine)
+
     }
 
     /// 抓单个源；返回新增文章数。

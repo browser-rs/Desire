@@ -343,7 +343,7 @@ extension BrowserToolProvider {
             guard ImageEditorSession.active != nil else {
                 return Self.fail("No image editor is open. Ask the user to open an image first.")
             }
-            let result = ImageEditorCommands.apply(command, session: ImageEditorSession.active)
+            let result = await ImageEditorCommands.apply(command, session: ImageEditorSession.active)
             if let error = result["error"] as? String { return Self.fail(error) }
             let data = (try? JSONSerialization.data(withJSONObject: result,
                                                     options: [.sortedKeys])) ?? Data()

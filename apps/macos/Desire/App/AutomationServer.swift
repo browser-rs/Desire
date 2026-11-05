@@ -878,11 +878,11 @@ final class AutomationServer {
                 return try Self.json(Self.appState(window: Self.string(query, "window")))
             case ("POST", "/image/edit"):
                 // ImagePro 命令 API（UI/Agent/桥共用）。坐标 = 图片像素。
-                return try Self.json(ImageEditorCommands.apply(body,
-                                                               session: ImageEditorSession.active))
+                return try Self.json(await ImageEditorCommands.apply(
+                    body, session: ImageEditorSession.active))
             case ("GET", "/image/state"):
-                return try Self.json(ImageEditorCommands.apply(["action": "state"],
-                                                               session: ImageEditorSession.active))
+                return try Self.json(await ImageEditorCommands.apply(
+                    ["action": "state"], session: ImageEditorSession.active))
             case ("POST", "/editor/synthetic"):
                 // 编辑器交互测试钩子（DEBUG-only；搭桥 E2E 用）：在活动标签
                 // 所在窗口合成真实 NSEvent（拖拽/点击/按键）——SwiftUI 手势

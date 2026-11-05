@@ -9,6 +9,8 @@
 - ImagePro 迭代 8：新增渐变工具（线性/径向，前景→背景色，拖动定义方向，可被选区裁剪）；形状升级为 2.0——矩形支持圆角、描边支持虚线、填充与描边颜色可独立（填充用前景色）；命令 API 新增 gradient 与 shape 的 cornerRadius/dashed 参数。
 - ImagePro 迭代 9：图层样式（投影/描边/发光）非破坏地应用于合成——图层面板 fx 弹窗开关与参数（投影半径/偏移、描边宽度、发光半径），命令 API layer op=style。剪影基于图层 alpha，因此样式应作用于独立透明图层（如文字图层）。实测投影向下扩展、描边环、发光染色均可见。
 - ImagePro 迭代 10：从视频抓帧做封面——Canvas 菜单「Frame from Video…」选视频自动抽第 1 秒画面并作为图层置入当前画布（自动居中/超尺寸缩放）；命令 API extractframe {path,time,output} 支持任意时间点抽帧与落盘，供 AI 自动做视频封面。
+- ImagePro 迭代 11：抠图/去背景接入——Canvas 菜单「Remove Background」与命令 API cutout {mode: erase|layer}，复用应用内 Vision 主体提取（ImageAICore.subjectMask/cutout），找不到主体时给出明确错误；命令 API 全面改为 async（/image/edit 与 Agent 工具均已适配）。
+
 
 
 

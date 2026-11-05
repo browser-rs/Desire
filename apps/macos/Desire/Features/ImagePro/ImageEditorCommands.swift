@@ -12,7 +12,7 @@ enum ImageEditorCommands {
     // MARK: - 入口
 
     static func apply(_ body: [String: Any],
-                      session: ImageEditorSession?) -> [String: Any] {
+                      session: ImageEditorSession?) async -> [String: Any] {
         guard let session else {
             return ["error": "No image editor is open. Open an image in a tab first."]
         }
@@ -106,6 +106,23 @@ enum ImageEditorCommands {
                 }
                 document.replaceActiveBitmap(current, title: mode.localizedTitle)
                 return ["ok": true, "points": pts.count]
+            case "cutout":
+                let mode = (body["mode"] as? String)?.lowercased() ?? "erase"
+                document.bakeActiveLayerGeometry()
+                guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
+                guard let mask = await ImageAICore.subjectMask(bitmap) else {
+                    return ["error": "No subject found (subject lifting returned no mask)"]
+                }
+                guard let cut = ImageAICore.cutout(image: bitmap, mask: mask,
+                                                   background: nil) else {
+                    return ["error": "cutout failed"]
+                }
+                if mode == "layer" {
+                    document.placeImage(cut, name: "Subject")
+                } else {
+                    document.replaceActiveBitmap(cut, title: "Remove Background")
+                }
+                return ["ok": true, "mode": mode]
             case "extractframe":
                 guard let path = body["path"] as? String else {
                     return ["error": "extractframe needs path"]

@@ -202,6 +202,18 @@ struct ImageEditorView: View {
                 }
                 Button(String(localized: "Place Image…")) { placeImageFromPanel() }
                 Button(String(localized: "Frame from Video…")) { frameFromVideo() }
+                Button(String(localized: "Remove Background")) {
+                    Task { @MainActor in
+                        let result = await ImageEditorCommands.apply(
+                            ["action": "cutout", "mode": "erase"],
+                            session: session)
+                        if let error = result["error"] as? String {
+                            session.flash(error)
+                        } else {
+                            session.flash(String(localized: "Background removed"))
+                        }
+                    }
+                }
                 Button(String(localized: "Image Size…")) {
                     sizeWidth = "\(Int(session.canvasSize.width))"
                     sizeHeight = "\(Int(session.canvasSize.height))"

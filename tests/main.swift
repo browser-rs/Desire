@@ -9844,6 +9844,29 @@ func testImageCanvasTransform() {
     check("画布变换：降采样归一",
           abs(center.x - 400) < 0.001 && abs(center.y - 300) < 0.001)
 
+    // 降采样显示：display 400×300 / base 800×600，zoom 0.5
+    let downDisplay = ImageCanvasTransform(containerSize: CGSize(width: 400, height: 300),
+                                    displaySize: CGSize(width: 400, height: 300),
+                                    baseSize: CGSize(width: 800, height: 600),
+                                    geometryOps: [], zoom: 0.5,
+                                    pan: CGSize(width: 10, height: 5))
+    // base (400,300) → display (200,150) → canvas = origin + 200*0.5
+    let originD = downDisplay.origin
+    let canvasForCenter = CGPoint(x: originD.x + 200 * 0.5,
+                                  y: originD.y + 150 * 0.5)
+    let baseCenter = downDisplay.basePixel(fromCanvas: canvasForCenter)
+    check("画布变换：降采样 canvas→base",
+          abs(baseCenter.x - 400) < 0.001 && abs(baseCenter.y - 300) < 0.001)
+    let backCanvas = downDisplay.canvasPoint(fromBasePixel: baseCenter)
+    check("画布变换：降采样往返",
+          abs(backCanvas.x - canvasForCenter.x) < 0.001
+            && abs(backCanvas.y - canvasForCenter.y) < 0.001)
+    // 显示内容在画布上的区域 = display 200×150（zoom 0.5）
+    let rectBase = downDisplay.baseRect(fromCanvasRect:
+        CGRect(x: originD.x, y: originD.y, width: 200, height: 150))
+    check("画布变换：降采样整幅→base 800×600",
+          abs(rectBase.width - 800) < 0.001 && abs(rectBase.height - 600) < 0.001)
+
     // 适应窗口
     let fit = ImageCanvasTransform.fitZoom(container: CGSize(width: 1000, height: 700),
                                            display: CGSize(width: 800, height: 600))

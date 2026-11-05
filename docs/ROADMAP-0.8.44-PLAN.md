@@ -134,6 +134,15 @@
 - 旁路调用独立计费报表（只记账+引导，不建新账本）。
 - C7 的 web 管理界面（CLI 先行）。
 
+## 进度补（2026-11-05 丰富批，4f98c9d）
+
+- 批 5 丰富：书架**拖拽导入**（Finder 拖 PDF/EPUB/TXT/Markdown/HTML/FB2/CBZ
+  即入架 + 拖拽高亮边框）、卡片**格式徽标**（可发现性贯穿项兑现）、PDF 阅读
+  器**跳页**（点底栏"N/M"弹页码输入，@FocusState 延迟 400ms）、右键
+  **Reveal in Finder**（有源文件的格式）、Agent **searchPdf**（页锚定命中
+  + 片段，与 readPdf/readPdf 配套，只读级）。空态文案补 PDF。
+- harness 2835/0，Debug 零警告。
+
 ## 九、发版口径
 
 - 用户说「发」才发；CHANGELOG 只用 `scripts/changelog.py add`。

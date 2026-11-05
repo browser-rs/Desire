@@ -32,6 +32,9 @@ enum SyncDomain: String, CaseIterable {
     case clipboard
     /// 电子书（v0.8.37 第十五域）：书架元数据/进度/书签；书文件不传。
     case ebooks
+    /// 订阅（v0.8.45 第十六域，opt-in 默认关）：订阅定义 + 文章已读/星标；
+    /// 文章正文不入库（各设备自行抓取）。
+    case feeds
 
     /// 展示名（键与设置页既有文案共用，目录里已有三语）。
     var displayName: String {
@@ -51,6 +54,7 @@ enum SyncDomain: String, CaseIterable {
         case .excerpts: String(localized: "Excerpts")
         case .clipboard: String(localized: "Clipboard History")
         case .ebooks: String(localized: "Books")
+        case .feeds: String(localized: "Feeds")
         }
     }
 

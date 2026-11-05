@@ -167,7 +167,7 @@ final class SyncStore: ObservableObject {
             // opt-in 默认关：浏览历史（高频日志型 + 隐私敏感）、白板（板属个人
             // 创作，默认仅本机）；其余域默认开
             let fallback = domain == .history || domain == .whiteboard || domain == .workspace
-                || domain == .clipboard ? false : true
+                || domain == .clipboard || domain == .feeds ? false : true
             enabledDomains[domain] = defaults.object(forKey: enabledKey(domain)) as? Bool ?? fallback
         }
         // Keychain 三读移出主线程（同 AgentPreferenceStore：启动主线程的
@@ -236,6 +236,7 @@ final class SyncStore: ObservableObject {
         observeLocalChanges(excerptStore.objectWillChange, domain: .excerpts)
         observeLocalChanges(clipboardStore.objectWillChange, domain: .clipboard)
         observeLocalChanges(EbookLibraryStore.shared.objectWillChange, domain: .ebooks)
+        observeLocalChanges(FeedStore.shared.objectWillChange, domain: .feeds)
         observeLocalChanges(EbookSyncStore.shared.objectWillChange, domain: .ebooks)
         observeLocalChanges(ReadingStatsStore.shared.objectWillChange, domain: .ebooks)
     }
@@ -913,6 +914,8 @@ final class SyncStore: ObservableObject {
             DomainAdapter(domain: .whiteboard, collect: collectWhiteboards, apply: applyWhiteboards, clear: clearWhiteboardsPending),
             DomainAdapter(domain: .workspace, collect: collectWorkspaces, apply: applyWorkspaces, clear: clearWorkspacePending),
             DomainAdapter(domain: .ebooks, collect: collectEbooks, apply: applyEbooks, clear: clearEbooksPending),
+            DomainAdapter(domain: .feeds, collect: collectFeeds, apply: applyFeeds, clear: { _, _ in },
+                          commit: { self.commitFeedsSnapshot() }),
         ]
     }
 
@@ -2034,6 +2037,50 @@ final class SyncStore: ObservableObject {
 
     private func saveSettingsSnapshot(_ snapshot: [String: SettingsSyncValue]) {
         defaults.set(try? SyncJSON.makeEncoder().encode(snapshot), forKey: settingsSnapshotKey)
+    }
+
+    // MARK: - 订阅域（v0.8.45 第十六域；整体快照 LWW，opt-in 默认关）
+
+    private static let feedsSnapshotKey = "sync.feeds.snapshot"
+    private var pendingFeedsSnapshot: String?
+
+    private func loadFeedsSyncSnapshot() -> String {
+        defaults.string(forKey: Self.feedsSnapshotKey) ?? ""
+    }
+
+    private func collectFeeds(master: String) -> [SyncWireItem<SyncEncryptedPayload>] {
+        let payload = FeedSyncCore.buildPayload(feeds: FeedStore.shared.feeds,
+                                                items: FeedStore.shared.items)
+        guard let encoded = try? SyncJSON.makeEncoder().encode(payload),
+              let json = String(data: encoded, encoding: .utf8) else { return [] }
+        // 相对"上次已知快照"无变化 → 不推（collect 空数组 = 本轮不发请求）。
+        let unchanged = loadFeedsSyncSnapshot() == json
+        guard !unchanged else { return [] }
+        let now = Date()
+        defaults.set(json, forKey: Self.feedsSnapshotKey)
+        pendingFeedsSnapshot = json
+        return [encryptedWire(domain: .feeds, realID: "feeds-library",
+                              clientUpdatedAt: now, deleted: false,
+                              payload: payload, master: master)]
+    }
+
+    private func commitFeedsSnapshot() {
+        // collect 已即时落快照（JSON 字符串原子替换）；pending 仅作占位语义。
+        pendingFeedsSnapshot = nil
+    }
+
+    private func applyFeeds(_ items: [SyncWireItem<SyncEncryptedPayload>], master: String) {
+        for item in items {
+            guard item.deleted != true, let envelope = item.payload else { continue }
+            guard let payload = try? SyncCrypto.decrypt(
+                envelope, domain: .feeds, masterKeyBase64: master,
+                as: FeedSyncPayload.self) else { continue }
+            let changes = FeedSyncCore.remoteChanges(
+                payload: payload,
+                localFeeds: FeedStore.shared.feeds,
+                localItems: FeedStore.shared.items)
+            FeedStore.shared.applySyncChanges(changes)
+        }
     }
 
     // MARK: - 历史域（opt-in；服务端专表 + 90 天 TTL）

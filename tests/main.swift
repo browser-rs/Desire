@@ -8531,6 +8531,7 @@ testReaderTranslationCore()
 testPDFTextCore()
 testPDFBatchCore()
 testFeedCore()
+testFeedSyncCore()
 testReadingDigestCore()
 testFB2Core()
 testEbookSyncCore()
@@ -9611,6 +9612,60 @@ func testFeedCore() {
     check("摘要：空串为 nil", FeedCore.summary(fromRaw: "   ") == nil)
     check("摘要：nil 为 nil", FeedCore.summary(fromRaw: nil) == nil)
 }
+
+// ---------- feeds 同步域（v0.8.45） ----------
+
+func testFeedSyncCore() {
+    let base = Date(timeIntervalSince1970: 1_800_000_000)
+    func feed(_ url: String, title: String = "T") -> Feed {
+        Feed(id: UUID(), url: url, title: title, siteURL: nil,
+             feedDescription: nil, addedAt: base, lastFetchedAt: nil,
+             lastError: nil, etag: nil, lastModified: nil)
+    }
+    func item(_ id: String, read: Bool = false, starred: Bool = false) -> FeedItem {
+        FeedItem(id: id, feedURL: "f", title: id, link: nil,
+                 publishedAt: base, summary: nil, author: nil,
+                 isRead: read, isStarred: starred, firstSeenAt: base)
+    }
+
+    let payload = FeedSyncCore.buildPayload(
+        feeds: [feed("https://a/feed", title: "A"), feed("https://b/feed", title: "B")],
+        items: [item("x1", read: true), item("x2"), item("x3", read: true, starred: true)])
+    eq("feed 同步：订阅数", payload.feeds.count, 2)
+    eq("feed 同步：已读集合", payload.readIDs.sorted(), ["x1", "x3"])
+    eq("feed 同步：星标集合", payload.starredIDs, ["x3"])
+    check("feed 同步：Codable 往返",
+          (try? JSONDecoder().decode(FeedSyncPayload.self,
+                                     from: JSONEncoder().encode(payload))) == payload)
+
+    let localFeeds = [feed("https://b/feed", title: "B-local"), feed("https://c/feed", title: "C")]
+    let localItems = [item("x1", read: false), item("x2", read: true), item("x9", read: false)]
+    let changes = FeedSyncCore.remoteChanges(
+        payload: FeedSyncPayload(feeds: [
+            FeedSyncPayload.FeedDef(url: "https://a/feed", title: "A", siteURL: nil, collection: nil),
+            FeedSyncPayload.FeedDef(url: "https://b/feed", title: "B-remote", siteURL: nil, collection: "组"),
+        ], readIDs: ["x1", "x2"], starredIDs: []),
+        localFeeds: localFeeds, localItems: localItems)
+    eq("feed 同步：新增订阅", changes.addFeeds.map(\.url), ["https://a/feed"])
+    eq("feed 同步：删订阅（远端没有的）", changes.removeFeedURLs, ["https://c/feed"])
+    eq("feed 同步：已读对齐条数", changes.readUpdates.count, 1)
+    check("feed 同步：x1 变已读", changes.readUpdates.contains { $0.id == "x1" && $0.read })
+    check("feed 同步：x2 双端已读零变更",
+          !changes.readUpdates.contains { $0.id == "x2" })
+    check("feed 同步：本地独有 id 不动（x9）",
+          !changes.readUpdates.contains { $0.id == "x9" })
+    // 星标只对本地存在的文章生效——x3 不在 localItems 里 → 零星标变更
+    check("feed 同步：星标零变更（远端文章不在本地）", changes.starUpdates.isEmpty)
+
+    let same = FeedSyncCore.remoteChanges(
+        payload: FeedSyncCore.buildPayload(feeds: localFeeds, items: localItems),
+        localFeeds: localFeeds, localItems: localItems)
+    check("feed 同步：一致零变更",
+          same.addFeeds.isEmpty && same.removeFeedURLs.isEmpty
+          && same.readUpdates.isEmpty && same.starUpdates.isEmpty)
+}
+
+// ---------- 阅读摘要（v0.8.36） ----------
 
 // ---------- 阅读摘要（v0.8.36） ----------
 

@@ -137,4 +137,33 @@ final class FeedStore: ObservableObject {
         items.filter { feedURL == nil || $0.feedURL == feedURL }
             .filter { !$0.isRead }.count
     }
+
+    // MARK: - 同步回写（v0.8.45 第十六域；调用方用 SyncStore.applyRemotely 包裹）
+
+    /// 应用远端快照变更：增/删订阅 + 已读/星标对齐（只动本地存在的文章 id）。
+    /// 单次 persist；objectWillChange 由 SyncStore 的 applyingRemote 守卫吞掉。
+    func applySyncChanges(_ changes: FeedSyncCore.RemoteChanges) {
+        for def in changes.addFeeds {
+            if feed(url: def.url) == nil {
+                let item = Feed(id: UUID(), url: def.url, title: def.title,
+                                siteURL: def.siteURL, feedDescription: nil,
+                                addedAt: Date(), lastFetchedAt: nil,
+                                lastError: nil, etag: nil, lastModified: nil,
+                                collection: def.collection,
+                                syncUpdatedAt: Date())
+                feeds.append(item)
+            }
+        }
+        for url in changes.removeFeedURLs {
+            feeds.removeAll { $0.url == url }
+            items.removeAll { $0.feedURL == url }
+        }
+        let readBy = Dictionary(uniqueKeysWithValues: changes.readUpdates.map { ($0.id, $0.read) })
+        let starBy = Dictionary(uniqueKeysWithValues: changes.starUpdates.map { ($0.id, $0.starred) })
+        for index in items.indices {
+            if let read = readBy[items[index].id] { items[index].isRead = read }
+            if let starred = starBy[items[index].id] { items[index].isStarred = starred }
+        }
+        persist()
+    }
 }

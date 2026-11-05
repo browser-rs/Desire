@@ -113,3 +113,21 @@ feed（`<link rel="alternate">`）时工具栏给"订阅"入口。
 
 - 用户说「发」才发；CHANGELOG 只用 `scripts/changelog.py add`。
 - C1 跨设备需服务端部署（白名单 + 重启）；发版前本地 Release clean 零警告。
+
+## 进度（2026-11-05，四批完成）
+
+- 批 1（460c2b8）：`FeedCore` RSS 2.0/Atom 1.0 解析（XMLParser 委托 nonisolated、
+  tuple 匹配避开 where 只约束末 pattern 的坑）+ `FeedCore.merge` 台账合并
+  （guid→link→title id 链、缺日期补抓取时间、上限淘汰星标保护）。
+- 批 2（aeeba60）：`FeedFetcher`（并行逐源、失败退避 5min→6h、ETag/
+  Last-Modified 304、30 分钟定时）+ didFinish feed 发现 → 工具栏"订阅此站点"
+  + `FeedPanel`（源列表/未读徽标/星标/全部已读）+ 新标签页"今日阅读"卡
+  （可隐藏区块 .feeds）。
+- 批 3（0808b21）：Agent 工具族 + 简报 feeds 段 + 新文章 routine 通知 +
+  E18（fixture 服务器新增 /feed.xml 真实 RSS；订阅→读→退订全链，清理按
+  精确 URL 不按关键词）。
+- 批 4：feeds 第十六同步域（`FeedSyncCore` 快照 LWW 进 harness、SyncStore
+  adapter/commit、FeedStore.applySyncChanges、服务端 DOMAINS+feeds 无迁移）
+  + Rust workspace/fmt 全绿。Remote 手机端 UI 留下一版（快照 /sync/status
+  已可见）。
+- harness 2879/0；Debug/Release 构建零警告见发版闸门。

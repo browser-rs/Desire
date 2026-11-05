@@ -284,6 +284,8 @@ enum ImageEditorCommands {
             case "save":
                 let saved = session.saveInPlace()
                 return ["ok": saved, "path": session.fileURL?.path ?? ""]
+            case "copy":
+                return ["ok": session.copyToClipboard()]
             case "export":
                 guard let path = body["path"] as? String, !path.isEmpty else {
                     return ["error": "export needs path"]
@@ -291,9 +293,13 @@ enum ImageEditorCommands {
                 let format = (body["format"] as? String)
                     ?? (path as NSString).pathExtension.lowercased()
                 let quality = Self.number(body["quality"]) ?? 0.92
+                var scale = Self.number(body["scale"]) ?? 1
+                if let width = Self.number(body["width"]), document.canvasSize.width > 0 {
+                    scale = width / document.canvasSize.width
+                }
                 let ok = session.export(format: format,
                                         to: URL(fileURLWithPath: (path as NSString).expandingTildeInPath),
-                                        quality: quality)
+                                        quality: quality, scale: scale)
                 return ["ok": ok, "path": path]
             case "zoom", "fit":
                 if action == "fit" || (body["scale"] as? String) == "fit" {

@@ -210,10 +210,34 @@ final class ImageEditorSession: ObservableObject {
         }
     }
 
-    func export(format: String, to url: URL, quality: Double = 0.92) -> Bool {
+    /// 复制当前合成到剪贴板（PNG）。
+    @discardableResult
+    func copyToClipboard() -> Bool {
         guard let composite = document.composite() else { return false }
+        let nsImage = NSImage(cgImage: composite,
+                              size: NSSize(width: composite.width, height: composite.height))
+        guard let tiff = nsImage.tiffRepresentation,
+              let rep = NSBitmapImageRep(data: tiff),
+              let png = rep.representation(using: .png, properties: [:]) else { return false }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setData(png, forType: .png)
+        flash(String(localized: "Copied to clipboard"))
+        return true
+    }
+
+    func export(format: String, to url: URL, quality: Double = 0.92,
+                scale: Double = 1) -> Bool {
+        guard let composite = document.composite() else { return false }
+        var source = composite
+        if scale != 1, scale > 0.05 {
+            let w = max(1, Int((CGFloat(composite.width) * CGFloat(scale)).rounded()))
+            let h = max(1, Int((CGFloat(composite.height) * CGFloat(scale)).rounded()))
+            if let resized = ImageTransforms.resized(composite, width: w, height: h) {
+                source = resized
+            }
+        }
         let needsBackdrop = ["jpg", "jpeg"].contains(format.lowercased())
-        let output = ImageEditorRaster.flattened(composite,
+        let output = ImageEditorRaster.flattened(source,
                                                  over: needsBackdrop ? CGColor(gray: 1, alpha: 1) : nil)
         guard let output else { return false }
         do {

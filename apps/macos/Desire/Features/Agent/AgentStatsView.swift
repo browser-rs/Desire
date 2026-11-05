@@ -64,7 +64,13 @@ struct AgentStatsView: View {
             price: preference.usagePrice(for:)))
         _toolStats = State(initialValue: ToolUsageStats.derive(
             from: ToolUsageStats.samples(from: conversationStore.conversations)))
+        // 成本引导（v0.8.44）：旁路档案没配置 = 标题/记忆/自评在跟随主模型。
+        // init 期算一次（非交互 Keychain 读），绝不放 body。
+        bypassFallbackActive = preference.bypassPreferences() == nil
     }
+
+    /// 旁路档案未配置（init 期判定，body 不读 Keychain）。
+    private let bypassFallbackActive: Bool
 
     /// 工具统计（v0.8.6）：全部历史（无窗口）——会话量级有限，全量更有用。
     @State private var toolStats: [ToolUsageStats.ToolStat]
@@ -596,6 +602,18 @@ struct AgentStatsView: View {
                         .font(.system(size: 10.5, weight: .medium, design: .rounded))
                         .monospacedDigit()
                         .foregroundStyle(.secondary)
+                }
+                // 成本引导（v0.8.44）：没配旁路档案就明说，不再静默烧主模型。
+                if bypassFallbackActive {
+                    HStack(spacing: 7) {
+                        Image(systemName: "exclamationmark.circle")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 8)
+                        Text(String(localized: "Bypass calls are following the main model — set a cheaper bypass profile in AI settings to save cost."))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
         }

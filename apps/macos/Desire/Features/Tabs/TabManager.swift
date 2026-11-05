@@ -1431,6 +1431,14 @@ final class TabSessionCoordinator {
                 !WindowRoleRegistry.shared.isAgentSession(
                     $0.deletingPathExtension().lastPathComponent)
             }
+            // 空会话文件（纯无痕窗口的余波）不做采纳候选——否则崩溃后
+            // "最新文件"是零标签会话，真正有标签的会话反而不被采纳。
+            .filter { file in
+                guard let session = DiskStore.load(SavedSession.self, key: file.deletingPathExtension().lastPathComponent) else {
+                    return false
+                }
+                return !session.tabs.isEmpty
+            }
             .max { a, b in
                 let da = (try? a.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
                 let db = (try? b.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast

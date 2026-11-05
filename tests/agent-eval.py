@@ -318,6 +318,79 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.flush(); self.close_connection = True
             return
 
+        # 图片工具失败回执（E16，v0.8.44）：mergeImages/cropImage 对不存在
+        # 路径的操作必须走统一 Error: 约定（2026-09-23 全工具约定）。
+        if "IMGTOOLTEST" in mode_text and not has_tool:
+            calls = [
+                {"index": 0, "id": "call_img1", "type": "function",
+                 "function": {"name": "mergeImages",
+                              "arguments": json.dumps({"paths": ["/tmp/desire-eval/missing-a.png", "/tmp/desire-eval/missing-b.png"]})}},
+                {"index": 1, "id": "call_img2", "type": "function",
+                 "function": {"name": "cropImage",
+                              "arguments": json.dumps({"path": "/tmp/desire-eval/missing-a.png", "x": 0, "y": 0, "width": 10, "height": 10})}},
+            ]
+            chunk = {"id": "chatcmpl-img", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": calls},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-img", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+        if "IMGTOOLTEST" in mode_text and has_tool:
+            tool_text = "\n".join((m.get("content") or "") for m in msgs_all if m.get("role") == "tool")
+            reply = "IMGTOOLDONE" if tool_text.count("Error:") >= 2 else "IMGTOOLMISS"
+            chunk = {"id": "chatcmpl-img", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-img", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+
+        # 后台任务模板生命周期（E17，v0.8.44）：saveJobTemplate + listJobTemplates
+        # 全链（不真跑命令——runJobTemplate 属危险级，会撞审批卡）。
+        if "JOBTEMPLTEST" in mode_text and not has_tool:
+            calls = [
+                {"index": 0, "id": "call_jt1", "type": "function",
+                 "function": {"name": "saveJobTemplate",
+                              "arguments": json.dumps({"name": "eval-v0844-template", "tool": "runCommand", "args": ["echo", "hello"]})}},
+                {"index": 1, "id": "call_jt2", "type": "function",
+                 "function": {"name": "listJobTemplates", "arguments": "{}"}},
+            ]
+            chunk = {"id": "chatcmpl-jt", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": calls},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-jt", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+        if "JOBTEMPLTEST" in mode_text and has_tool:
+            tool_text = "\n".join((m.get("content") or "") for m in msgs_all if m.get("role") == "tool")
+            reply = "JOBTEPLDONE" if "eval-v0844-template" in tool_text else "JOBTEPLMISS"
+            chunk = {"id": "chatcmpl-jt", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-jt", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+
         # 证据引用链（E10，本地专属）：screenshot → append evidence:"last" → get。
         if "EVAL-EVID" in mode_text:
             tool_msgs = [m for m in msgs_all if m.get("role") == "tool"]
@@ -1305,6 +1378,45 @@ def case_har_export():
     check("E15 非法 tab uuid 报错", "error" in bad)
 
 
+def case_image_tool_contract():
+    """E16 图片工具失败回执（v0.8.44）：不存在路径的 mergeImages/cropImage
+    全部走统一 Error: 约定，轨迹标记 threwError。"""
+    msgs = run_case("EVAL-IMGTOOLTEST 合并两张不存在的图")
+    _, assistant, _ = last_exchange(msgs)
+    turn = json.loads(bridge("GET", "/agent/trace")["jsonl"].split("\n")[-1])
+    steps = turn.get("steps") or []
+    merged = [s for s in steps if s.get("action") == "mergeImages"]
+    cropped = [s for s in steps if s.get("action") == "cropImage"]
+    check("E16 mergeImages 被调用", len(merged) == 1)
+    check("E16 cropImage 被调用", len(cropped) == 1)
+    check("E16 mergeImages 失败回执 Error:", (merged[0].get("result") or "").startswith("Error:"))
+    check("E16 cropImage 失败回执 Error:", (cropped[0].get("result") or "").startswith("Error:"))
+    check("E16 轨迹标记 threwError", all(s.get("threwError") is True for s in merged + cropped))
+    check("E16 模型确认看到两笔失败", (assistant.get("content") or "") == "IMGTOOLDONE")
+
+
+def case_job_template_lifecycle():
+    """E17 后台任务模板（v0.8.44）：saveJobTemplate + listJobTemplates 全链 +
+    桥端点可见。只存列不真跑（runJobTemplate 危险级会撞审批）。"""
+    name = "eval-v0844-template"
+    before = json.dumps(bridge("GET", "/jobs/templates"))
+    if name in before:
+        raise RuntimeError(f"模板名 {name} 已存在（应换名再跑，别删用户模板）")
+    try:
+        msgs = run_case("EVAL-JOBTEMPLTEST 保存并列出模板")
+        _, assistant, _ = last_exchange(msgs)
+        check("E17 模型确认列表含模板", (assistant.get("content") or "") == "JOBTEPLDONE")
+        turn = json.loads(bridge("GET", "/agent/trace")["jsonl"].split("\n")[-1])
+        steps = turn.get("steps") or []
+        save = [s for s in steps if s.get("action") == "saveJobTemplate"]
+        listed = [s for s in steps if s.get("action") == "listJobTemplates"]
+        check("E17 saveJobTemplate 成功", len(save) == 1 and not (save[0].get("result") or "").startswith("Error:"))
+        check("E17 listJobTemplates 含模板", len(listed) == 1 and name in (listed[0].get("result") or ""))
+        check("E17 桥端点含模板", name in json.dumps(bridge("GET", "/jobs/templates")))
+    finally:
+        bridge("POST", "/jobs/templates", body={"action": "delete", "name": name})
+
+
 CASES = [("E1 plain-echo", case_plain_echo),
          ("E2 fail-convention", case_fail_convention),
          ("E3 redaction", case_redaction),
@@ -1319,7 +1431,9 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E12 dpp-frame-extract（本地专属，EVAL_E12=1 开启）", case_dpp_frame_extract),
          ("E13 dpp-frame-action（本地专属，EVAL_E13=1 开启）", case_dpp_frame_action),
          ("E14 bridge-guard", case_bridge_guard),
-         ("E15 har-export", case_har_export)]
+         ("E15 har-export", case_har_export),
+         ("E16 image-tool-contract", case_image_tool_contract),
+         ("E17 job-template-lifecycle", case_job_template_lifecycle)]
 
 results = []
 

@@ -41,6 +41,12 @@ final class ReaderSummaryModel: ObservableObject {
                     onDelta: { [weak self] partial in
                         guard let self, !Task.isCancelled else { return }
                         self.text = partial
+                    },
+                    onUsage: { prompt, completion, model in
+                        // 旁路归账（v0.8.44 补口）：此前阅读摘要不记账。
+                        AgentSessionStore.recordBypassUsage(
+                            kind: "readerSummary", prompt: prompt,
+                            completion: completion, model: model)
                     })
                 guard !Task.isCancelled else { return }
                 text = result

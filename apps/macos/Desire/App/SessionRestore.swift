@@ -102,11 +102,14 @@ enum SessionRestore {
             javaScriptEnabled: context.settings.isJavaScriptEnabled,
             contentBlocker: context.contentBlocker,
             videoAdBlocker: context.videoAdBlocker
-        ) {
+        ), !manager.tabs.isEmpty {
             // This window's own tabs are back.
             restoreAdditionalWindows(excluding: sessionKey, context: context)
             return Result(sessionID: sessionID, sessionKey: sessionKey)
         }
+        // 会话文件在但**零个可存标签**（纯无痕窗口崩溃后写下的空会话）：
+        // 不提前 return——落进下面的采纳路径（最近有标签的会话/新标签兜底），
+        // 否则启动得到一扇零标签窗（桥视角 tabs=0、无 Agent 会话，2026-11-05）。
 
         guard !context.appState.hasRestoredSession else {
             context.openFreshTab()

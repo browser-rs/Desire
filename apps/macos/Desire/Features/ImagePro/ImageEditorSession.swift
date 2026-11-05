@@ -140,6 +140,11 @@ final class ImageEditorSession: ObservableObject {
     var canvasSize: CGSize { document.canvasSize }
     var displayImage: CGImage? { document.composite() }
 
+    /// 画布显示用（超大图降采样；坐标仍按 base 画布计算）。
+    func canvasImage(maxSide: CGFloat = 4096) -> CGImage? {
+        document.displayComposite(maxSide: maxSide)
+    }
+
     // MARK: - 提示
 
     func flash(_ text: String) {

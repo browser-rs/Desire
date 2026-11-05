@@ -185,7 +185,7 @@ struct ImageCanvasView: View {
 
     @ViewBuilder
     private func imageLayer(_ t: ImageCanvasTransform) -> some View {
-        if let cg = session.displayImage {
+        if let cg = session.canvasImage() {
             // 用 CGImage 直出（scale = 1：1 像素 = 1 点），像素级缩放由
             // interpolation 决定：>=100% 用 nearest（像素清晰不糊），
             // <100% 用 high（高质量缩小）。NSImage 包装在 Retina 上会被
@@ -478,6 +478,20 @@ struct ImageCanvasView: View {
     private func down(_ t: ImageCanvasTransform, _ point: CGPoint,
                       _ flags: NSEvent.ModifierFlags) {
         let base = t.basePixel(fromCanvas: point)
+        #if DEBUG
+        // 事件时刻几何快照（大图错位排查：事后探针可能已被首帧 fit 覆盖）
+        ImageEditorDebug.lastStamp["evtZoom"] = Double(t.zoom)
+        ImageEditorDebug.lastStamp["evtOriginX"] = Double(t.origin.x)
+        ImageEditorDebug.lastStamp["evtOriginY"] = Double(t.origin.y)
+        ImageEditorDebug.lastStamp["evtContainerW"] = Double(t.containerSize.width)
+        ImageEditorDebug.lastStamp["evtContainerH"] = Double(t.containerSize.height)
+        ImageEditorDebug.lastStamp["evtDisplayW"] = Double(t.displaySize.width)
+        ImageEditorDebug.lastStamp["evtDisplayH"] = Double(t.displaySize.height)
+        ImageEditorDebug.lastStamp["evtCanvasX"] = Double(point.x)
+        ImageEditorDebug.lastStamp["evtCanvasY"] = Double(point.y)
+        ImageEditorDebug.lastStamp["evtBaseX"] = Double(base.x)
+        ImageEditorDebug.lastStamp["evtBaseY"] = Double(base.y)
+        #endif
         if document.isActiveLayerLocked,
            [.brush, .eraser, .text, .shape, .move].contains(session.tool) {
             session.flash(String(localized: "Layer is locked"))

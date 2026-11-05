@@ -102,6 +102,25 @@ final class ImageEditorDocument: ObservableObject {
         return image
     }
 
+    private var displayCache: (revision: Int, maxSide: CGFloat, image: CGImage?)?
+
+    /// 画布显示用合成：超大图按 maxSide 降采样（编辑/导出仍全分辨率）。
+    func displayComposite(maxSide: CGFloat = 4096) -> CGImage? {
+        guard let full = composite() else { return nil }
+        let side = max(full.width, full.height)
+        guard CGFloat(side) > maxSide, maxSide > 64 else { return full }
+        if let cache = displayCache, cache.revision == revision,
+           cache.maxSide == maxSide, let image = cache.image {
+            return image
+        }
+        let scale = maxSide / CGFloat(side)
+        let small = ImageTransforms.resized(
+            full, width: max(1, Int(CGFloat(full.width) * scale)),
+            height: max(1, Int(CGFloat(full.height) * scale)))
+        displayCache = (revision, maxSide, small)
+        return small ?? full
+    }
+
     /// 导出/保存用：不含实时预览（预览只是面板里的草稿）。
     func flattened(over backdrop: CGColor?) -> CGImage? {
         let savedAdjust = previewAdjust

@@ -2947,6 +2947,21 @@ extension BrowserToolProvider {
             }
             return readOut
 
+        case "searchPdf":
+            guard let pdfPath = args["path"] as? String, !pdfPath.isEmpty else { return Self.fail("Missing path") }
+            guard let query = args["query"] as? String,
+                  !query.trimmingCharacters(in: .whitespaces).isEmpty else { return Self.fail("Missing query") }
+            let searchMax = min(max((args["maxHits"] as? Int) ?? 20, 1), 100)
+            switch AgentWorkspace.shared.resolve(pdfPath, write: false) {
+            case .denied(let reason):
+                return reason
+            case .granted(let fileURL):
+                guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                    return Self.fail("File not found: \(fileURL.path)")
+                }
+                return await Self.searchPDF(fileURL: fileURL, query: query, maxHits: searchMax)
+            }
+
         case "readPdf":
             guard let pdfPath = args["path"] as? String, !pdfPath.isEmpty else { return Self.fail("Missing path") }
             let pdfMax = (args["maxChars"] as? Int) ?? 60_000
@@ -4434,5 +4449,37 @@ extension BrowserToolProvider {
         }
         canvas.unlockFocus()
         return canvas
+    }
+}
+
+
+/// PDF 文本层搜索（v0.8.44 丰富批）：与书内搜索同一套命中语义
+/// （页码 + 页内序号 + 片段），PDFKit 取文丢后台（大文件不占主线程）。
+extension BrowserToolProvider {
+    static func searchPDF(fileURL: URL, query: String, maxHits: Int) async -> String {
+        let url = fileURL
+        let needle = query
+        let (pages, pageCount) = await Task.detached(priority: .userInitiated) {
+            guard let doc = PDFDocument(url: url), !doc.isLocked else {
+                return ([PDFTextCore.PageText](), 0)
+            }
+            let texts = (0..<doc.pageCount).map {
+                PDFTextCore.PageText(index: $0, text: doc.page(at: $0)?.string ?? "")
+            }
+            return (texts, doc.pageCount)
+        }.value
+        guard pageCount > 0 else {
+            return Self.fail("Cannot open PDF (or it is password-protected): \(fileURL.lastPathComponent)")
+        }
+        let hits = PDFTextCore.search(query: needle, pages: pages,
+                                      perPage: 99, limit: maxHits)
+        guard !hits.isEmpty else {
+            return "No matches for \"\(needle)\" in \(pageCount) page(s)."
+        }
+        var out = "Found \(hits.count) match(es) for \"\(needle)\" in \(pageCount) page(s):\n"
+        for hit in hits {
+            out += "[p\(hit.pageIndex + 1) #\(hit.occurrence + 1)] \(hit.snippet)\n"
+        }
+        return out
     }
 }

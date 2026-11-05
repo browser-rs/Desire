@@ -57,6 +57,11 @@ struct EbookPDFReaderView: View {
     @State private var translatingPage = -1
     @State private var translationParagraphs: [PDFTextCore.Paragraph] = []
 
+    // 跳页
+    @State private var showGoPage = false
+    @State private var goPageText = ""
+    @FocusState private var goPageFocused: Bool
+
     // 摘录/批注
     @State private var selectionText: String?
     @State private var annotationsDirty = false
@@ -378,13 +383,55 @@ struct EbookPDFReaderView: View {
             }
             .buttonStyle(.plain)
             .disabled(pageCount == 0 || pageIndex + 1 >= pageCount)
-            Text(verbatim: "\(pageCount == 0 ? 0 : pageIndex + 1)/\(pageCount)")
-                .font(.system(size: 10.5, design: .monospaced))
-                .foregroundStyle(.secondary)
+            Button {
+                goPageText = pageCount > 0 ? "\(pageIndex + 1)" : ""
+                showGoPage = true
+            } label: {
+                Text(verbatim: "\(pageCount == 0 ? 0 : pageIndex + 1)/\(pageCount)")
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $showGoPage) {
+                goPagePanel
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 7)
         .background(Color(nsColor: .windowBackgroundColor))
+    }
+
+    // MARK: - 跳页
+
+    /// 页码输入（点击底栏"N/M"弹出；@FocusState 延迟置真——直接置真不生效）。
+    private var goPagePanel: some View {
+        HStack(spacing: 8) {
+            Text(String(localized: "Go to Page"))
+                .font(.system(size: 11.5, weight: .semibold))
+            TextField("1", text: $goPageText)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 12))
+                .frame(width: 64)
+                .focused($goPageFocused)
+                .onSubmit { submitGoPage() }
+            Button(String(localized: "Go")) { submitGoPage() }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+        }
+        .padding(12)
+        .onAppear {
+            Task { @MainActor in
+                try? await Task.sleep(for: .milliseconds(400))
+                goPageFocused = true
+            }
+        }
+    }
+
+    private func submitGoPage() {
+        guard let page = Int(goPageText.trimmingCharacters(in: .whitespaces)),
+              page >= 1, page <= pageCount else { return }
+        showGoPage = false
+        go(to: page - 1)
     }
 
     // MARK: - 目录面板

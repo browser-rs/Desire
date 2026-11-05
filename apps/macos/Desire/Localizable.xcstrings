@@ -98378,6 +98378,94 @@
           }
         }
       }
+    },
+    "Go to Page" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go to Page"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳到第几页"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳到第幾頁"
+          }
+        }
+      }
+    },
+    "Go" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Go"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "跳"
+          }
+        }
+      }
+    },
+    "Drop to add to your library" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drop to add to your library"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "松手即可加入书架"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "鬆手即可加入書架"
+          }
+        }
+      }
+    },
+    "Import PDF, EPUB, TXT, Markdown, HTML, FB2 or CBZ files to start reading. MOBI/AZW3 need Calibre." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Import PDF, EPUB, TXT, Markdown, HTML, FB2 or CBZ files to start reading. MOBI/AZW3 need Calibre."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导入 PDF、EPUB、TXT、Markdown、HTML、FB2 或 CBZ 开始阅读。MOBI/AZW3 需要 Calibre。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯入 PDF、EPUB、TXT、Markdown、HTML、FB2 或 CBZ 開始閱讀。MOBI/AZW3 需要 Calibre。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

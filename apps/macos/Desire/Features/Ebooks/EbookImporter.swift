@@ -541,6 +541,21 @@ nonisolated enum EbookImporter {
             .appendingPathComponent(book.fileName)
     }
 
+    /// 书在磁盘上的源文件（"Reveal in Finder" 用）。EPUB 导入即解包（原始
+    /// 包未保留）→ 返回 nil；PDF 若有 annotations.pdf 优先显示它。
+    static func sourceFileURL(_ book: Ebook) -> URL? {
+        switch book.format {
+        case .epub:
+            return nil
+        case .txt, .markdown, .html, .cbz, .pdf:
+            let file = rootDirectory
+                .appendingPathComponent(book.containerDirectory, isDirectory: true)
+                .appendingPathComponent(book.fileName)
+            guard FileManager.default.fileExists(atPath: file.path) else { return nil }
+            return file
+        }
+    }
+
     // MARK: - CBZ
 
     private static func importCBZ(url: URL, hash: String, fileSize: Int64,

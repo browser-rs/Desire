@@ -29,6 +29,7 @@ struct EbookLibraryView: View {
     @ObservedObject private var syncStore = EbookSyncStore.shared
     @State private var query = ""
     @State private var importing = false
+    @State private var dragging = false
     @State private var error: String?
     @State private var note: String?
     @State private var pendingDelete: Ebook?
@@ -156,6 +157,55 @@ struct EbookLibraryView: View {
             }
         }
         .background(Color(nsColor: .textBackgroundColor))
+        // 拖拽导入（v0.8.44 丰富批）：拖 .pdf/EPUB/TXT… 进书架即导入
+        .dropDestination(for: URL.self) { urls, _ in
+            let supported = urls.filter { EbookFormat(fileExtension: $0.pathExtension) != nil }
+            guard !supported.isEmpty else { return false }
+            importing = true
+            error = nil
+            note = nil
+            Task { @MainActor in
+                var failures: [String] = []
+                var imported = 0
+                for url in supported {
+                    let scoped = url.startAccessingSecurityScopedResource()
+                    defer { if scoped { url.stopAccessingSecurityScopedResource() } }
+                    do {
+                        _ = try await store.importBook(at: url)
+                        imported += 1
+                    } catch {
+                        failures.append("\(url.lastPathComponent): \(error.localizedDescription)")
+                    }
+                }
+                importing = false
+                if imported > 0 {
+                    note = String(localized: "Imported \(imported) books.")
+                }
+                if !failures.isEmpty {
+                    error = failures.joined(separator: "\n")
+                }
+            }
+            return true
+        } isTargeted: { dragging = $0 }
+        .overlay {
+            if dragging {
+                RoundedRectangle(cornerRadius: 12)
+                    .strokeBorder(appAccent, lineWidth: 2)
+                    .background(appAccent.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+                    .padding(8)
+                    .allowsHitTesting(false)
+                VStack(spacing: 6) {
+                    Image(systemName: "arrow.down.doc")
+                        .font(.system(size: 26))
+                        .foregroundStyle(appAccent)
+                    Text(String(localized: "Drop to add to your library"))
+                        .font(.system(size: 12, weight: .medium))
+                }
+                .padding(20)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12))
+                .allowsHitTesting(false)
+            }
+        }
         .alert(String(localized: "Delete this book?"),
                isPresented: Binding(
                     get: { pendingDelete != nil },
@@ -357,7 +407,7 @@ struct EbookLibraryView: View {
                  ? String(localized: "Your library is empty")
                  : String(localized: "No matching books"))
                 .font(.system(size: 14, weight: .medium))
-            Text(String(localized: "Import EPUB, TXT, Markdown, HTML, FB2 or CBZ files to start reading. MOBI/AZW3 need Calibre."))
+            Text(String(localized: "Import PDF, EPUB, TXT, Markdown, HTML, FB2 or CBZ files to start reading. MOBI/AZW3 need Calibre."))
                 .font(.system(size: 11.5))
                 .foregroundStyle(.secondary)
             if store.books.isEmpty {
@@ -542,6 +592,16 @@ struct EbookLibraryView: View {
                                 .padding(8)
                         }
                     }
+                    .overlay(alignment: .bottomLeading) {
+                        // 格式徽标（v0.8.44）：PDF/EPUB/TXT… 一眼可辨
+                        Text(book.format.displayName)
+                            .font(.system(size: 8.5, weight: .semibold))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(.regularMaterial, in: Capsule())
+                            .overlay(Capsule().strokeBorder(Color(nsColor: .separatorColor).opacity(0.4), lineWidth: 0.5))
+                            .padding(6)
+                    }
                 Text(book.title)
                     .font(.system(size: 12, weight: .semibold))
                     .lineLimit(2)
@@ -594,6 +654,11 @@ struct EbookLibraryView: View {
                 renameTitle = book.title
                 renameAuthor = book.author
                 renaming = book
+            }
+            if let source = EbookImporter.sourceFileURL(book) {
+                Button(String(localized: "Reveal in Finder")) {
+                    NSWorkspace.shared.activateFileViewerSelecting([source])
+                }
             }
             if book.format == .html {
                 Button(String(localized: "Export as EPUB…")) {

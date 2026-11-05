@@ -1246,6 +1246,15 @@ extension BrowserToolProvider {
                 ], required: ["path"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "searchPdf",
+                description: "Search the text layer of a PDF file for a query (case-insensitive). Returns matches with page numbers ([p3]), occurrence index within the page and a context snippet — cite pages as [p3]. Use readPdf for the full text, searchPdf to locate specific terms first.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "PDF path (workspace / user folders)"),
+                    "query": AgentJSONSchemaValue(type: "string", description: "Search text"),
+                    "maxHits": AgentJSONSchemaValue(type: "number", description: "Cap on returned matches (default 20, max 100)"),
+                ], required: ["path", "query"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "pdfPageScreenshot",
                 description: "Render ONE page of a PDF file as an image (delivered as vision input) — for layout, charts, forms and visual questions where the text layer isn't enough. Page is 1-based. Pair with readPdf for text; scanned pages also work (render, not OCR).",
                 parameters: AgentJSONSchema(type: "object", properties: [

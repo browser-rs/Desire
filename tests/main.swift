@@ -8529,6 +8529,7 @@ testEbookMarkdownCore()
 testEbookTranslationAndLibrarySearchCore()
 testReaderTranslationCore()
 testPDFTextCore()
+testPDFBatchCore()
 testReadingDigestCore()
 testFB2Core()
 testEbookSyncCore()
@@ -9402,6 +9403,84 @@ func testPDFTextCore() {
     // 片段高亮切段复用
     let segments = EbookSearchCore.snippetSegments(snippet: hits[0].snippet, query: "山风")
     check("PDF 搜：片段切段", segments.contains { $0.isHit })
+}
+
+// ---------- PDF 批量处理核心（v0.8.44） ----------
+
+func testPDFBatchCore() {
+    // Operation 输出目录名
+    eq("PDF批：merge 目录", PDFBatchCore.Operation.merge.outputDirectoryName, "Merged")
+    eq("PDF批：split 目录", PDFBatchCore.Operation.split.outputDirectoryName, "Split")
+    eq("PDF批：extract 目录", PDFBatchCore.Operation.extract.outputDirectoryName, "Extracted")
+    eq("PDF批：rotate 目录", PDFBatchCore.Operation.rotate.outputDirectoryName, "Rotated")
+
+    let tmp = NSTemporaryDirectory()
+    let folder = URL(fileURLWithPath: tmp).appendingPathComponent("pdfbatch-\(UUID().uuidString)",
+                                                                isDirectory: true)
+    try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: folder) }
+    let fm = FileManager.default
+    // 写三个 pdf + 一个 txt（混入非 PDF 应被过滤）+ 子目录里的 pdf（非递归应被过滤）
+    for name in ["b.pdf", "a.PDF", "c.pdf"] {
+        fm.createFile(atPath: folder.appendingPathComponent(name).path, contents: Data("%PDF-1.4".utf8))
+    }
+    fm.createFile(atPath: folder.appendingPathComponent("notes.txt").path, contents: Data("x".utf8))
+    let sub = folder.appendingPathComponent("nested", isDirectory: true)
+    try? fm.createDirectory(at: sub, withIntermediateDirectories: true)
+    fm.createFile(atPath: sub.appendingPathComponent("d.pdf").path, contents: Data("%PDF-1.4".utf8))
+
+    // 扫描：非递归 = 3 个（a.PDF 大写归一），按名升序；递归 = 4 个
+    let flat = PDFBatchCore.pdfFiles(in: folder, recursive: false)
+    eq("PDF批：非递归数量", flat.count, 3)
+    eq("PDF批：名字排序", flat.map { $0.lastPathComponent.lowercased() },
+       ["a.pdf", "b.pdf", "c.pdf"])
+    eq("PDF批：递归数量", PDFBatchCore.pdfFiles(in: folder, recursive: true).count, 4)
+
+    // 校验：目录不存在 / 无 PDF / extract 缺规格
+    check("PDF批：目录存在通过",
+          PDFBatchCore.validationError(folder: folder, operation: .merge,
+                                       pagesSpec: nil) == nil)
+    check("PDF批：目录不存在",
+          PDFBatchCore.validationError(folder: folder.appendingPathComponent("nope"),
+                                       operation: .merge, pagesSpec: nil) != nil)
+    let empty = URL(fileURLWithPath: tmp).appendingPathComponent("pdfbatch-empty-\(UUID().uuidString)",
+                                                                isDirectory: true)
+    try? fm.createDirectory(at: empty, withIntermediateDirectories: true)
+    defer { try? fm.removeItem(at: empty) }
+    check("PDF批：空目录报错",
+          PDFBatchCore.validationError(folder: empty, operation: .merge,
+                                       pagesSpec: nil) != nil)
+    check("PDF批：extract 缺规格",
+          PDFBatchCore.validationError(folder: folder, operation: .extract,
+                                       pagesSpec: "  ") != nil)
+    check("PDF批：extract 带规格通过",
+          PDFBatchCore.validationError(folder: folder, operation: .extract,
+                                       pagesSpec: "1-3") == nil)
+
+    // 输出命名
+    let file = folder.appendingPathComponent("book.pdf")
+    eq("PDF批：单文件输出名",
+       PDFBatchCore.outputURL(for: file, in: folder, operation: .extract).lastPathComponent,
+       "book.pdf")
+    let page0 = PDFBatchCore.outputURL(for: file, in: folder, operation: .split, pageIndex: 0)
+    check("PDF批：分页输出名", page0.lastPathComponent == "page-001.pdf"
+        && page0.deletingLastPathComponent().lastPathComponent == "book")
+    let page11 = PDFBatchCore.outputURL(for: file, in: folder, operation: .split, pageIndex: 11)
+    eq("PDF批：页号补零", page11.lastPathComponent, "page-012.pdf")
+
+    // merge 输出名：重名自动顺延
+    let outDir = folder.appendingPathComponent("Merged", isDirectory: true)
+    try? fm.createDirectory(at: outDir, withIntermediateDirectories: true)
+    let first = PDFBatchCore.mergeOutputURL(in: folder, outputDir: outDir)
+    eq("PDF批：merge 首选名", first.lastPathComponent, "\(folder.lastPathComponent).pdf")
+    fm.createFile(atPath: first.path, contents: Data("%PDF-1.4".utf8))
+    let second = PDFBatchCore.mergeOutputURL(in: folder, outputDir: outDir)
+    eq("PDF批：重名顺延", second.lastPathComponent, "\(folder.lastPathComponent)-2.pdf")
+
+    // PageRangeParser（extract 依赖）："1-3,5" → 0,1,2,4
+    let parsed = PageRangeParser.parse("1-3,5", pageCount: 10)
+    eq("PDF批：页码规格解析", parsed, [0, 1, 2, 4])
+    check("PDF批：非法规格", PageRangeParser.parse("x", pageCount: 10) == nil)
 }
 
 // ---------- 阅读摘要（v0.8.36） ----------

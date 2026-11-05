@@ -976,6 +976,8 @@ extension BrowserToolProvider {
             return Self.mergeImages(args)
         case "batchEditImages":
             return Self.batchEditImages(args, conversationID: ownerSession?.conversationId)
+        case "batchProcessPDFs":
+            return Self.batchProcessPDFs(args, conversationID: ownerSession?.conversationId)
         case "batchWatermarkImages":
             return Self.batchWatermarkImages(args, conversationID: ownerSession?.conversationId)
 

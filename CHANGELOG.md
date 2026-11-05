@@ -1,3 +1,19 @@
+## [Unreleased]
+### Fixed
+
+- Reliability: launching after a crash no longer opens a window with zero tabs when the last written session was an empty (private-window-only) session — the empty session is skipped and the most recent session with tabs is adopted instead (v0.8.44)
+
+### Added
+
+- Books: PDF joins the bookshelf — import .pdf files (title/author from PDF metadata, first-page thumbnail cover, page count as chapters), a dedicated PDFKit reader with single/two-page layouts, per-page progress, bookmarks with text snippets, outline-based table of contents and reading stats, plus a toolbar action to save the current web page as a full-page PDF straight into the library (v0.8.44)
+- Books: PDF text layer — read-aloud runs paragraph by paragraph across pages with page-following, an inline per-page translation overlay (on-device Translation.framework, cached per page and language, hideable/clearable), in-book search that jumps to the exact occurrence with a highlighted mark, and text selections become excerpts with highlight annotations persisted to annotations.pdf next to the file (external readers see them too) (v0.8.44)
+- Agent: batchProcessPDFs — merge all PDFs in a folder (name order), split per page, extract a page range or rotate pages as a background job with per-file failures and retry, writing into Merged/ Split/ Extracted/ Rotated/ (v0.8.44)
+- Agent: cost guidance — the usage stats page now says so when bypass calls (title/memory/self-review) are following the main model because no cheaper bypass profile is configured (v0.8.44)
+
+
+
+
+
 ## [v0.8.43] - 2026-11-05
 ### Added
 

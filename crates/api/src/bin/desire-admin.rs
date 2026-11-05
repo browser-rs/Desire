@@ -31,6 +31,10 @@ async fn main() -> anyhow::Result<()> {
     ["user", "enable", username] => user_set_status(&pool, username, 1).await?,
     ["sync", "gc"] => sync_gc_cmd(&pool, false).await?,
     ["sync", "gc", "--dry-run"] => sync_gc_cmd(&pool, true).await?,
+    ["device", "list", username] => device_list(&pool, username).await?,
+    ["device", "revoke", username, device_id] => device_revoke(&pool, username, device_id).await?,
+    ["remote", "inbox", username] => remote_inbox(&pool, username, false).await?,
+    ["remote", "inbox", username, "--purge"] => remote_inbox(&pool, username, true).await?,
     ["registration", "status"] => registration_status(&pool).await?,
     ["registration", "on"] => registration_set(&pool, true).await?,
     ["registration", "off"] => registration_set(&pool, false).await?,
@@ -55,6 +59,9 @@ static USAGE: &str = "\
   user enable <username>
   registration status | on | off                  # 注册开关
   sync gc [--dry-run]                             # 通用墓碑 GC(按设备游标)
+  remote inbox <username> [--purge]               # 看远端信箱(--purge 清未投递)
+  device list <username>                          # 该用户全部设备(含撤销态)
+  device revoke <username> <device_id>            # 撤销设备(联动吊销其刷新令牌)
   stats                                           # 用户数 / 各域同步行数
 ";
 
@@ -85,6 +92,153 @@ async fn sync_gc_cmd(pool: &MySqlPool, dry_run: bool) -> anyhow::Result<()> {
     if dry_run { "（未删除）" } else { "" }
   );
   Ok(())
+}
+
+/// 按用户名取 id（不存在即报错退出）。
+async fn require_user(pool: &MySqlPool, username: &str) -> anyhow::Result<i64> {
+  let id = user_exists(pool, username)
+    .await?
+    .with_context(|| format!("no such user: {username}"))?;
+  Ok(id)
+}
+
+/// C7（v0.8.44）：列出用户全部设备，撤销态标注。
+async fn device_list(pool: &MySqlPool, username: &str) -> anyhow::Result<()> {
+  let user_id = require_user(pool, username).await?;
+  let rows = sqlx::query_as::<
+    _,
+    (
+      String,
+      String,
+      String,
+      String,
+      chrono::NaiveDateTime,
+      Option<chrono::NaiveDateTime>,
+    ),
+  >(
+    "SELECT device_id, name, platform, ip, last_seen_at, revoked_at \
+     FROM devices WHERE user_id = ? ORDER BY last_seen_at DESC",
+  )
+  .bind(user_id)
+  .fetch_all(pool)
+  .await?;
+  if rows.is_empty() {
+    println!("(无设备)");
+    return Ok(());
+  }
+  println!(
+    "{:<36} {:<18} {:<10} {:<16} {:<20} {}",
+    "device_id", "name", "platform", "ip", "last_seen", "status"
+  );
+  for (device_id, name, platform, ip, last_seen, revoked) in rows {
+    println!(
+      "{:<36} {:<18} {:<10} {:<16} {:<20} {}",
+      device_id,
+      truncate(&name, 18),
+      truncate(&platform, 10),
+      truncate(&ip, 16),
+      last_seen.format("%Y-%m-%d %H:%M"),
+      if revoked.is_some() {
+        "revoked"
+      } else {
+        "active"
+      }
+    );
+  }
+  Ok(())
+}
+
+/// 撤销设备：revoked_at 置位 + 该设备全部未过期刷新令牌吊销（与 API 的
+/// 设备吊销联动语义一致：access ≤2h 自然过期）。
+async fn device_revoke(pool: &MySqlPool, username: &str, device_id: &str) -> anyhow::Result<()> {
+  let user_id = require_user(pool, username).await?;
+  let result = sqlx::query(
+    "UPDATE devices SET revoked_at = CURRENT_TIMESTAMP \
+     WHERE user_id = ? AND device_id = ? AND revoked_at IS NULL",
+  )
+  .bind(user_id)
+  .bind(device_id)
+  .execute(pool)
+  .await?;
+  if result.rows_affected() == 0 {
+    bail!("device not found or already revoked: {device_id}");
+  }
+  let tokens = sqlx::query(
+    "UPDATE user_refresh_tokens SET revoked_at = CURRENT_TIMESTAMP \
+     WHERE user_id = ? AND device_id = \
+       (SELECT id FROM devices WHERE user_id = ? AND device_id = ?) \
+       AND revoked_at IS NULL",
+  )
+  .bind(user_id)
+  .bind(user_id)
+  .bind(device_id)
+  .execute(pool)
+  .await?;
+  println!(
+    "已撤销设备 {device_id}（联动吊销 {} 个刷新令牌）",
+    tokens.rows_affected()
+  );
+  Ok(())
+}
+
+/// 远端信箱：最近 20 条（recipient/投递状态/时间摘要）；--purge 清未投递行。
+async fn remote_inbox(pool: &MySqlPool, username: &str, purge: bool) -> anyhow::Result<()> {
+  let user_id = require_user(pool, username).await?;
+  if purge {
+    let result = sqlx::query("DELETE FROM remote_inbox WHERE user_id = ? AND delivered_at IS NULL")
+      .bind(user_id)
+      .execute(pool)
+      .await?;
+    println!("已清除 {} 条未投递信箱行", result.rows_affected());
+    return Ok(());
+  }
+  let pending: i64 = sqlx::query_scalar(
+    "SELECT COUNT(*) FROM remote_inbox WHERE user_id = ? AND delivered_at IS NULL",
+  )
+  .bind(user_id)
+  .fetch_one(pool)
+  .await?;
+  let rows = sqlx::query_as::<
+    _,
+    (
+      i64,
+      String,
+      String,
+      String,
+      chrono::NaiveDateTime,
+      Option<chrono::NaiveDateTime>,
+    ),
+  >(
+    "SELECT id, recipient, desktop_device_id, LEFT(payload, 80), created_at, delivered_at \
+     FROM remote_inbox WHERE user_id = ? ORDER BY id DESC LIMIT 20",
+  )
+  .bind(user_id)
+  .fetch_all(pool)
+  .await?;
+  println!("未投递 {pending} 条；最近 {} 条：", rows.len());
+  for (id, recipient, device, payload, created, delivered) in rows {
+    let summary = payload.replace('\n', " ");
+    println!(
+      "#{id} [{recipient}] {} {} {} → {}",
+      truncate(&device, 16),
+      created.format("%m-%d %H:%M"),
+      if delivered.is_some() {
+        "delivered"
+      } else {
+        "pending"
+      },
+      truncate(&summary, 60)
+    );
+  }
+  Ok(())
+}
+
+fn truncate(input: &str, max: usize) -> String {
+  if input.chars().count() <= max {
+    input.to_string()
+  } else {
+    input.chars().take(max).collect()
+  }
 }
 
 fn db_url() -> anyhow::Result<String> {

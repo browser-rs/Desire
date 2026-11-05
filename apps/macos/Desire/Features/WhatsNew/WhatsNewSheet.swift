@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "square.and.line.vertical.and.square", title: String(localized: "The image editor, completed"),
-                  detail: String(localized: "Perspective correction and image merging are one click away, rotations and flips stay non-destructive and re-editable, and the Agent can crop, flip, resize and merge for you.")),
-            .init(icon: "text.page.badge.magnifyingglass", title: String(localized: "Reader 3.0"),
-                  detail: String(localized: "Read-aloud now follows paragraph by paragraph with on-page highlighting, and a whole page can get an inline translation under every paragraph — on-device, cached, hideable.")),
-            .init(icon: "arrow.uturn.down.circle", title: String(localized: "Search that lands where you clicked"),
-                  detail: String(localized: "In-book search jumps to the exact occurrence you clicked with a distinct mark, and result snippets highlight the match before you jump.")),
+            .init(icon: "doc.richtext", title: String(localized: "PDF, meet the bookshelf"),
+                  detail: String(localized: "PDF files now live in your library with covers, progress, bookmarks, contents and reading stats — and any web page can be saved as a full-page PDF straight onto the shelf.")),
+            .init(icon: "speaker.wave.3", title: String(localized: "Read, listen, translate PDFs"),
+                  detail: String(localized: "PDFs get the full reading treatment: paragraph read-aloud that follows the page, an inline translation under each paragraph, and search that jumps to the exact hit.")),
+            .init(icon: "doc.on.doc", title: String(localized: "Batch PDF work"),
+                  detail: String(localized: "Ask the Agent to merge, split, extract or rotate a whole folder of PDFs — it runs as a background job with per-file results and lands in Merged/ Split/ Extracted/ Rotated/.")),
         ]
     }
 

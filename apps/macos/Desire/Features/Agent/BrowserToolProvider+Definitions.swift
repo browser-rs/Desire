@@ -380,6 +380,17 @@ extension BrowserToolProvider {
                 ], required: ["paths"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "batchProcessPDFs",
+                description: "Batch process every PDF in a folder: merge (all PDFs into one, name order), split (per-page files), extract (page range per PDF) or rotate (all pages). Writes into Merged/ Split/ Extracted/ Rotated/ inside the folder. Runs as a background job; check progress with backgroundTaskStatus.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "folder": AgentJSONSchemaValue(type: "string", description: "Folder path"),
+                    "operation": AgentJSONSchemaValue(type: "string", description: "merge | split | extract | rotate"),
+                    "pages": AgentJSONSchemaValue(type: "string", description: "Page range spec for extract, e.g. 1-3,5"),
+                    "degrees": AgentJSONSchemaValue(type: "number", description: "Rotation degrees for rotate (90/180/270)"),
+                    "recursive": AgentJSONSchemaValue(type: "boolean", description: "Scan subfolders too (default false)"),
+                ], required: ["folder", "operation"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "useSkill", description: "Load a skill's full instructions into the conversation (progressive disclosure). Call before performing a task that matches a skill. Skills declaring vars need inputs {name: value} — missing values are reported; ask the user with askUser if unclear.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "name": AgentJSONSchemaValue(type: "string", description: "Skill name from the skills list in your context"),

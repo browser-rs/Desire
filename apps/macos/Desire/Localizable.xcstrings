@@ -98158,6 +98158,226 @@
           }
         }
       }
+    },
+    "PDF, meet the bookshelf" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF, meet the bookshelf"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF，认识一下书架"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF，認識一下書架"
+          }
+        }
+      }
+    },
+    "PDF files now live in your library with covers, progress, bookmarks, contents and reading stats — and any web page can be saved as a full-page PDF straight onto the shelf." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF files now live in your library with covers, progress, bookmarks, contents and reading stats — and any web page can be saved as a full-page PDF straight onto the shelf."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF 进书架，带封面、进度、书签、目录与阅读统计——任何网页也能整页存成 PDF 直接上架。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF 進書架，帶封面、進度、書籤、目錄與閱讀統計——任何網頁也能整頁存成 PDF 直接上架。"
+          }
+        }
+      }
+    },
+    "Read, listen, translate PDFs" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Read, listen, translate PDFs"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "读 PDF、听 PDF、译 PDF"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讀 PDF、聽 PDF、譯 PDF"
+          }
+        }
+      }
+    },
+    "PDFs get the full reading treatment: paragraph read-aloud that follows the page, an inline translation under each paragraph, and search that jumps to the exact hit." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDFs get the full reading treatment: paragraph read-aloud that follows the page, an inline translation under each paragraph, and search that jumps to the exact hit."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF 享受全套阅读待遇：逐段朗读页面跟随、每段下方对照译文、搜索直达精确命中。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "PDF 享受全套閱讀待遇：逐段朗讀頁面跟隨、每段下方對照譯文、搜尋直達精確命中。"
+          }
+        }
+      }
+    },
+    "Batch PDF work" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Batch PDF work"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量 PDF 干活"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "批量 PDF 幹活"
+          }
+        }
+      }
+    },
+    "Ask the Agent to merge, split, extract or rotate a whole folder of PDFs — it runs as a background job with per-file results and lands in Merged/ Split/ Extracted/ Rotated/." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask the Agent to merge, split, extract or rotate a whole folder of PDFs — it runs as a background job with per-file results and lands in Merged/ Split/ Extracted/ Rotated/."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让 Agent 合并、拆分、提取或旋转整个文件夹的 PDF——后台任务逐文件回报，产物落在 Merged/ Split/ Extracted/ Rotated/。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讓 Agent 合併、拆分、提取或旋轉整個資料夾的 PDF——背景任務逐檔案回報，產物落在 Merged/ Split/ Extracted/ Rotated/。"
+          }
+        }
+      }
+    },
+    "Bypass calls are following the main model — set a cheaper bypass profile in AI settings to save cost." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bypass calls are following the main model — set a cheaper bypass profile in AI settings to save cost."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旁路调用正跟随主模型——在 AI 设置里配一个更便宜的旁路档案可省成本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "旁路呼叫正跟隨主模型——在 AI 設定裡配一個更便宜的旁路檔案可省成本。"
+          }
+        }
+      }
+    },
+    "No PDF files found" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No PDF files found"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有找到 PDF 文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有找到 PDF 檔案"
+          }
+        }
+      }
+    },
+    "No PDF files found in the folder" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No PDF files found in the folder"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文件夹里没有 PDF 文件"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "資料夾裡沒有 PDF 檔案"
+          }
+        }
+      }
+    },
+    "All PDF operations failed" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "All PDF operations failed"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部 PDF 操作都失败了"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "全部 PDF 操作都失敗了"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

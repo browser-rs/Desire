@@ -354,6 +354,44 @@ extension BrowserToolProvider {
             return fail(error.message)
         }
     }
+
+    /// PDF 批量处理（v0.8.44 批 4）：merge/split/extract/rotate。
+    static func batchProcessPDFs(_ args: [String: Any],
+                                 conversationID: UUID?) -> String {
+        guard let folder = args["folder"] as? String, !folder.isEmpty else {
+            return fail("Missing folder")
+        }
+        guard let rawOperation = args["operation"] as? String, !rawOperation.isEmpty else {
+            return fail("Missing operation (merge/split/extract/rotate)")
+        }
+        guard let operation = PDFBatchCore.Operation(rawValue: rawOperation.lowercased()) else {
+            return fail("Unknown operation \(rawOperation) — use merge | split | extract | rotate")
+        }
+        let resolved: URL
+        switch AgentWorkspace.shared.resolve(folder, write: false) {
+        case .granted(let url): resolved = url
+        case .denied(let reason): return reason
+        }
+        let pagesSpec = args["pages"] as? String
+        var degrees = Int(args["degrees"] as? Double ?? 90)
+        if operation == .rotate, degrees % 90 != 0 {
+            return fail("degrees must be a multiple of 90")
+        }
+        if operation != .rotate { degrees = 90 }
+        let result = PDFBatchStore.shared.start(
+            folder: resolved, operation: operation,
+            pagesSpec: pagesSpec, degrees: degrees,
+            recursive: (args["recursive"] as? Bool) ?? false,
+            conversationID: conversationID)
+        switch result {
+        case .success(let id):
+            let extra = operation == .extract
+                ? " Pages: \(pagesSpec ?? "")." : ""
+            return String(localized: "PDF batch started as job \(id.uuidString). Output goes to \(operation.outputDirectoryName)/ inside the folder.\(extra)")
+        case .failure(let error):
+            return fail(error.message)
+        }
+    }
 }
 
 

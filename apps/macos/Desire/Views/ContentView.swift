@@ -233,6 +233,8 @@ struct ContentView: View {
     @State var showBookmarks = false
     @State var showPlugins = false
     @State var showReadingList = false
+    /// 订阅面板（v0.8.45）：工具栏 more 菜单 / 订阅入口打开。
+    @State var showFeedsPanel = false
     @State var showTabSwitcher = false
     /// 全窗口标签概览（0.2.19）：Safari ⇧⌘\ 式缩略图网格。
     @State var showTabOverview = false
@@ -459,6 +461,13 @@ struct ContentView: View {
         }
         .sheet(isPresented: $promotionShare.isPresented) {
             PromotionShareSheet()
+        }
+        .sheet(isPresented: $showFeedsPanel) {
+            FeedsPanel(onClose: { showFeedsPanel = false },
+                       onOpen: { url in
+                           showFeedsPanel = false
+                           openFeedArticle(url)
+                       })
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didEnterFullScreenNotification)) { note in
             guard let window = note.object as? NSWindow else { return }
@@ -1123,6 +1132,14 @@ struct ContentView: View {
     func captureFullPage() { b.captureFullPage() }
 
     func captureFullPageToBooks() { b.captureFullPageToBooks() }
+
+    func subscribeToFeed(_ url: String) {
+        b.subscribeToFeed(url)
+    }
+
+    func openFeedArticle(_ url: String) {
+        b.openFeedArticle(url)
+    }
 
     func togglePictureInPicture() { b.togglePictureInPicture() }
 }

@@ -23,6 +23,8 @@ struct Toolbar: View {
         let toggleReader: () -> Void
         let captureFullPage: () -> Void
         let captureFullPageToBooks: () -> Void
+        let showFeeds: () -> Void
+        let subscribeFeed: (String) -> Void
         let captureScreenshot: () -> Void
         let addToReadingList: (_ title: String, _ url: String) -> Void
         let togglePictureInPicture: () -> Void
@@ -1023,6 +1025,12 @@ struct Toolbar: View {
                 moreMenuItem("Print…", "printer", shortcut: "⌘P") { actions.printPage() }
                 moreMenuItem("Full Page PDF…", "photo.on.rectangle.angled") { actions.captureFullPage() }
                 moreMenuItem("Save PDF to Books", "books.vertical") { actions.captureFullPageToBooks() }
+                moreMenuItem("Feeds…", "antenna.radiowaves.left.and.right") { actions.showFeeds() }
+                if let feedURL = tab.browser.discoveredFeedURL {
+                    moreMenuItem("Subscribe to this site", "plus.circle.dashed") {
+                        actions.subscribeFeed(feedURL)
+                    }
+                }
                 moreMenuItem("Screenshot Region…", "crop", shortcut: "⇧⌘5") { actions.captureScreenshot() }
             }
             moreMenuSection("Tools") {

@@ -6,6 +6,8 @@ import Foundation
 /// 本 Store 只管持有、持久化与查询视图。抓取器/定时在批 2 接入。
 @MainActor
 final class FeedStore: ObservableObject {
+    static let shared = FeedStore()
+
     static let storeKey = "feeds.library"
 
     @Published private(set) var feeds: [Feed] = []
@@ -69,6 +71,7 @@ final class FeedStore: ObservableObject {
     // MARK: - 抓取合入（批 2 抓取器调用）
 
     /// 把一次抓取结果合入台账。`newCount` 供通知/简报使用。
+    @discardableResult
     func applyFetch(feedURL: String, meta: FeedCore.FeedMeta?,
                     drafts: [FeedCore.ItemDraft], etag: String?,
                     lastModified: String?, error: String?) -> Int {

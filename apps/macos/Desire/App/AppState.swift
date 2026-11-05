@@ -99,6 +99,8 @@ class AppState: ObservableObject {
         SpotlightIndexer.start()
         syncStore.startAutoSync()
         lap("startAutoSync")
+        FeedFetcher.shared.startTimer()
+        lap("feedTimer")
         // 密钥单条目后台预读：Keychain 授权窗可能延迟/隐藏，绝不能在启动
         // 主线程同步等它（2026-10-22 实测主线程卡在 SecItemCopyMatching）。
         Task { await AppSecretsVault.shared.preload() }

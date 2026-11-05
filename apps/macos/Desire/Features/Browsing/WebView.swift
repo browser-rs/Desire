@@ -186,6 +186,9 @@ class BrowserState: ObservableObject {
     @Published var pdfViewerSourceKey: String?
     /// 表格直开（v0.8.12 旗舰 A）：非 nil = 该标签渲染表格查看器。
     @Published var spreadsheetViewerURL: URL?
+    /// Feed 发现（v0.8.45）：didFinish 探测到 <link rel="alternate" type="*rss*|*atom*">
+    /// 时置值（绝对 URL）——工具栏据此显示"订阅此站点"。nil = 本页无 feed。
+    @Published var discoveredFeedURL: String?
     @Published var spreadsheetViewerFileName = ""
 
     /// 图片编辑器（v0.8.12 旗舰 D）：非 nil = 该标签渲染图片编辑器。
@@ -2156,6 +2159,13 @@ try {
                     await self.parsePageProtocol(webView: webView)
                 }
                 parent.onPageFinished?(url, parent.state.pageTitle)
+                // Feed 发现（v0.8.45）：轻量一次 evaluate，查不到清空（SPA 路由残留）。
+                Task { @MainActor [weak self, weak webView] in
+                    guard let self, let webView else { return }
+                    let js = "(function(){var l=document.querySelector('link[rel=\\'alternate\\'][type*=\\'rss\\'],link[rel=\\'alternate\\'][type*=\\'atom\\']');return l?(l.href||''):'';})()"
+                    let found = (try? await webView.evaluateJavaScript(js)) as? String ?? ""
+                    self.parent.state.discoveredFeedURL = found.isEmpty ? nil : found
+                }
                 // 自动播策略补烙（v0.8.8）：新标签页建起的 webview 烙的是默认
                 // requireUserAction，之后导航到视频站策略不变——自动播被
                 // PageConsentRequired 拦（实测：kick 的信任手势在 WebContent 进

@@ -84,6 +84,11 @@ struct NewTabPage: View {
                         NewTabReadingSection(onNavigate: onNavigate,
                                              onHide: { hideSection(.reading) })
                     }
+                    if !isSectionHidden(.feeds) {
+                        NewTabFeedsSection(onNavigate: onNavigate,
+                                           onOpenArticle: onNavigate,
+                                           onHide: { hideSection(.feeds) })
+                    }
                     if !isSectionHidden(.background), !jobs.active.isEmpty {
                         backgroundSection
                     }
@@ -620,16 +625,96 @@ struct NewTabPage: View {
         }
     }
 
+    // MARK: - 今日阅读（订阅，v0.8.45）
+
+    /// 新标签页"今日阅读"卡：最新未读文章 top 5；点开 = 当前标签阅读模式。
+    /// 无订阅或全读时整卡隐藏（不占位）。
+    private struct NewTabFeedsSection: View {
+        @Environment(\.appAccent) private var appAccent
+        @ObservedObject private var store = FeedStore.shared
+
+        let onNavigate: (String) -> Void
+        let onOpenArticle: (String) -> Void
+        let onHide: () -> Void
+
+        private var latest: [FeedItem] {
+            store.articles(for: nil, unreadOnly: true).prefix(5).map { $0 }
+        }
+
+        var body: some View {
+            if latest.isEmpty == false {
+                VStack(alignment: .leading, spacing: 14) {
+                    HStack(spacing: 6) {
+                        Image(systemName: "antenna.radiowaves.left.and.right")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        Text(String(localized: "Today's Reading"))
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                            .textCase(.uppercase)
+                        Text(verbatim: "\(store.unreadCount())")
+                            .font(.system(size: 10, weight: .medium).monospacedDigit())
+                            .foregroundStyle(appAccent)
+                        Spacer()
+                    }
+                    .contextMenu {
+                        Button(String(localized: "Hide this section")) { onHide() }
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(latest) { article in
+                            Button {
+                                store.markRead(article.id)
+                                if let link = article.link {
+                                    onOpenArticle(link)
+                                }
+                            } label: {
+                                HStack(alignment: .top, spacing: 8) {
+                                    Circle()
+                                        .fill(appAccent)
+                                        .frame(width: 6, height: 6)
+                                        .padding(.top, 4)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(article.title)
+                                            .font(.system(size: 12.5, weight: .semibold))
+                                            .foregroundStyle(.primary)
+                                            .lineLimit(1)
+                                        HStack(spacing: 5) {
+                                            Text(store.feed(url: article.feedURL)?.title ?? "")
+                                                .foregroundStyle(appAccent.opacity(0.8))
+                                            Text(article.displayDate.formatted(date: .abbreviated,
+                                                                               time: .shortened))
+                                                .foregroundStyle(.tertiary)
+                                        }
+                                        .font(.system(size: 9.5))
+                                    }
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(8)
+                    .background(RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.secondary.opacity(0.06)))
+                }
+            }
+        }
+    }
+
     // MARK: - Section Header
 
     /// 可隐藏区块（v0.8.19 基础件 1）。
     enum NewTabSection: String, CaseIterable {
-        case quickDials, reading, background, localFiles, recent
+        case quickDials, reading, feeds, background, localFiles, recent
 
         var title: String {
             switch self {
             case .quickDials: String(localized: "Quick Sites")
             case .reading: String(localized: "Continue Reading")
+            case .feeds: String(localized: "Today's Reading")
             case .background: String(localized: "Running in Background")
             case .localFiles: String(localized: "Recent Files")
             case .recent: String(localized: "Recent Visits")

@@ -108,6 +108,11 @@ extension ContentView {
                 },
                 captureFullPage: { captureFullPage() },
                 captureFullPageToBooks: { captureFullPageToBooks() },
+                showFeeds: { showFeedsPanel = true },
+                subscribeFeed: { url in
+                    subscribeToFeed(url)
+                    showFeedsPanel = true
+                },
                 captureScreenshot: { startScreenshot() },
                 addToReadingList: { title, url in
                     readingListStore.add(title: title, url: url)

@@ -370,6 +370,24 @@ extension BrowsingActions {
         }
     }
 
+    // MARK: Feeds（v0.8.45）
+
+    /// 订阅 feed（工具栏"订阅此站点"/面板入口）：先入库（标题抓取后回填），
+    /// 立即首抓；结果在随后打开的订阅面板里可见。
+    func subscribeToFeed(_ urlString: String) {
+        guard URL(string: urlString) != nil else { return }
+        FeedFetcher.shared.subscribeAndFetch(url: urlString)
+    }
+
+    /// 打开 feed 文章：当前标签导航到文章页并进入阅读模式（与工具栏
+    /// toggleReader 同路径；无正文的源自动回退原页）。
+    func openFeedArticle(_ urlString: String) {
+        guard let tab = tabManager.selectedTab else { return }
+        navigateToURL(urlString, for: tab)
+        tab.browser.isReadingMode = true
+        tab.browser.webView.evaluateJavaScript("window._desireReader()", completionHandler: nil)
+    }
+
     /// 整页 PDF 一键入书架（v0.8.44）：createPDF 产物写临时文件 →
     /// EbookLibraryStore.importBook（SHA-256 去重，重复入架自动 touch）。
     /// 与 captureFullPage 的区别：不弹保存面板，直接进书架。

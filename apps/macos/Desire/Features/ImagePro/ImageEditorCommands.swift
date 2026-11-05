@@ -57,6 +57,14 @@ enum ImageEditorCommands {
                 return try fill(body: body, document: document)
             case "mosaic":
                 return try mosaic(body: body, document: document)
+            case "place":
+                guard let path = body["path"] as? String,
+                      let image = ImageTransforms.load(
+                        from: URL(fileURLWithPath: (path as NSString).expandingTildeInPath)) else {
+                    return ["error": "place needs a readable image path"]
+                }
+                document.placeImage(image, name: (path as NSString).lastPathComponent)
+                return ["ok": true, "layers": document.layers.count]
             case "newdoc":
                 let w = Self.number(body["width"]) ?? 1280
                 let h = Self.number(body["height"]) ?? 720
@@ -220,6 +228,7 @@ enum ImageEditorCommands {
                               session: ImageEditorSession,
                               document: ImageEditorDocument,
                               erase: Bool = false) throws -> [String: Any] {
+        document.bakeActiveLayerGeometry()
         guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
         guard points.isEmpty == false else { return ["error": "points is empty"] }
         let size = Self.number(body["size"]).map { CGFloat($0) } ?? session.brushSize
@@ -243,6 +252,7 @@ enum ImageEditorCommands {
 
     private static func shape(body: [String: Any], session: ImageEditorSession,
                               document: ImageEditorDocument) throws -> [String: Any] {
+        document.bakeActiveLayerGeometry()
         guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
         guard let from = Self.point(body["from"]), let to = Self.point(body["to"]) else {
             return ["error": "shape needs from:[x,y] and to:[x,y]"]
@@ -266,6 +276,7 @@ enum ImageEditorCommands {
 
     private static func text(body: [String: Any], session: ImageEditorSession,
                              document: ImageEditorDocument) throws -> [String: Any] {
+        document.bakeActiveLayerGeometry()
         guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
         guard let value = body["text"] as? String, !value.isEmpty else {
             return ["error": "text needs text"]
@@ -412,6 +423,18 @@ enum ImageEditorCommands {
         case "flatten":
             document.flattenLayers()
             return ["ok": true, "layers": document.layers.count]
+        case "scale":
+            guard let id = document.activeLayer?.id else { return ["error": "No active layer"] }
+            document.setLayerScale(id, Self.number(body["scale"]) ?? 1)
+            return ["ok": true]
+        case "rotate":
+            guard let id = document.activeLayer?.id else { return ["error": "No active layer"] }
+            document.setLayerRotation(id, Self.number(body["angle"]) ?? 0)
+            return ["ok": true]
+        case "resett": 
+            guard let id = document.activeLayer?.id else { return ["error": "No active layer"] }
+            document.resetLayerTransform(id)
+            return ["ok": true]
         case "lock":
             guard let id = document.activeLayer?.id else { return ["error": "No active layer"] }
             document.setLayerLocked(id, locked: true)
@@ -487,6 +510,8 @@ enum ImageEditorCommands {
             "color": ImageEditorRaster.hexString(from: session.primaryCGColor),
             "layerOffset": [Double(document.activeLayerOffset.width),
                             Double(document.activeLayerOffset.height)],
+            "layerScale": document.activeLayer?.scale ?? 1,
+            "layerRotation": document.activeLayer?.rotation ?? 0,
             "zoom": Double(session.canvas.zoom),
             "selection": document.selection.describe,
             "selectionEmpty": document.selection.isEmpty,

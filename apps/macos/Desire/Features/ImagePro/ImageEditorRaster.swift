@@ -85,10 +85,19 @@ nonisolated enum ImageEditorRaster {
             ctx.saveGState()
             ctx.setAlpha(CGFloat(layer.opacity))
             ctx.setBlendMode(layer.blend.cgBlendMode)
-            // y-down 偏移 → CGContext(y-up) 的 -y；偏移取整避免重采样发虚。
-            ctx.draw(bitmap, in: CGRect(x: layer.offset.width.rounded(),
-                                        y: (-layer.offset.height).rounded(),
-                                        width: CGFloat(w), height: CGFloat(h)))
+            let bw = CGFloat(bitmap.width), bh = CGFloat(bitmap.height)
+            let offset = CGSize(width: layer.offset.width.rounded(),
+                                height: layer.offset.height.rounded())
+            let center = CGPoint(x: offset.width + bw / 2, y: -offset.height - bh / 2)
+            ctx.translateBy(x: center.x, y: center.y)
+            if layer.rotation != 0 {
+                // 文档顺时针 → CG 的 y-up 逆时针
+                ctx.rotate(by: CGFloat(-layer.rotation * .pi / 180))
+            }
+            if layer.scale != 1 {
+                ctx.scaleBy(x: CGFloat(layer.scale), y: CGFloat(layer.scale))
+            }
+            ctx.draw(bitmap, in: CGRect(x: -bw / 2, y: -bh / 2, width: bw, height: bh))
             ctx.restoreGState()
         }
         return ctx.makeImage()

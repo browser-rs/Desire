@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// ImagePro 编辑器主界面（v0.8.46 重写）：顶栏 / 工具选项 / 工具轨 / 画布 /
 /// 检查器（图层·历史·调整）/ 状态栏。所有编辑动作走 ImageEditorDocument。
@@ -9,6 +10,7 @@ struct ImageEditorView: View {
     var onBack: () -> Void
 
     @StateObject private var session: ImageEditorSession
+    @ObservedObject private var document: ImageEditorDocument
     @State private var inspector: Inspector?
     @State private var exportFormat = "png"
     @State private var showAI = false
@@ -44,8 +46,9 @@ struct ImageEditorView: View {
         self.fileURL = fileURL
         self.fileName = fileName
         self.onBack = onBack
-        _session = StateObject(wrappedValue: ImageEditorSession(fileURL: fileURL,
-                                                                name: fileName))
+        let created = ImageEditorSession(fileURL: fileURL, name: fileName)
+        _session = StateObject(wrappedValue: created)
+        _document = ObservedObject(wrappedValue: created.document)
     }
 
     var body: some View {
@@ -197,6 +200,7 @@ struct ImageEditorView: View {
                         showCanvasSize = true
                     }
                 }
+                Button(String(localized: "Place Image…")) { placeImageFromPanel() }
                 Button(String(localized: "Image Size…")) {
                     sizeWidth = "\(Int(session.canvasSize.width))"
                     sizeHeight = "\(Int(session.canvasSize.height))"
@@ -415,9 +419,7 @@ struct ImageEditorView: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 case .move:
-                    Text(String(localized: "Drag to move the active layer"))
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(.tertiary)
+                    moveOptions
                 case .hand:
                     Text(String(localized: "Drag to pan · ⌘scroll to zoom"))
                         .font(.system(size: 10.5))
@@ -462,6 +464,58 @@ struct ImageEditorView: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 38)
+    }
+
+    @ViewBuilder
+    private var moveOptions: some View {
+        if let layer = document.activeLayer {
+            HStack(spacing: 6) {
+                Text(String(localized: "Scale"))
+                    .font(.system(size: 10.5)).foregroundStyle(.secondary)
+                Slider(value: Binding(
+                    get: { CGFloat(layer.scale) },
+                    set: { document.setLayerScale(layer.id, Double($0)) }
+                ), in: 0.1...4)
+                .controlSize(.mini)
+                .frame(width: 100)
+                Text(verbatim: String(format: "%.0f%%", layer.scale * 100))
+                    .font(.system(size: 9.5, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 38, alignment: .trailing)
+            }
+            HStack(spacing: 6) {
+                Text(String(localized: "Rotation"))
+                    .font(.system(size: 10.5)).foregroundStyle(.secondary)
+                Slider(value: Binding(
+                    get: { CGFloat(layer.rotation) },
+                    set: { document.setLayerRotation(layer.id, Double($0)) }
+                ), in: -180...180)
+                .controlSize(.mini)
+                .frame(width: 100)
+                Text(verbatim: String(format: "%.0f°", layer.rotation))
+                    .font(.system(size: 9.5, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 38, alignment: .trailing)
+                Button(String(localized: "Reset")) {
+                    document.resetLayerTransform(layer.id)
+                }
+                .font(.system(size: 10))
+                .buttonStyle(.borderless)
+            }
+            Text(String(localized: "Drag to move · rotation/scale are non-destructive"))
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+        }
+    }
+
+    private func placeImageFromPanel() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.image]
+        guard panel.runModal() == .OK, let url = panel.url,
+              let image = ImageTransforms.load(from: url) else { return }
+        document.placeImage(image, name: url.lastPathComponent)
     }
 
     private var textOptions: some View {

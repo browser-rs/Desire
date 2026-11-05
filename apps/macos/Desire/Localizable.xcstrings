@@ -102463,6 +102463,259 @@
           }
         }
       }
+    },
+    "Reset Transform":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Reset Transform"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重置变换"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重設變換"
+          }
+        }
+      }
+    },
+    "Place Image…":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Place Image…"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"置入图片…"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"置入圖片…"
+          }
+        }
+      }
+    },
+    "Image placed":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Image placed"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"图片已置入"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"圖片已置入"
+          }
+        }
+      }
+    },
+    "Drag to move · rotation/scale are non-destructive":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Drag to move · rotation/scale are non-destructive"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"拖动移动 · 旋转/缩放为非破坏"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"拖曳移動 · 旋轉/縮放為非破壞"
+          }
+        }
+      }
+    },
+    "New Document":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"New Document"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"新建文档"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"新增文件"
+          }
+        }
+      }
+    },
+    "Canvas":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Canvas"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"画布"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"畫布"
+          }
+        }
+      }
+    },
+    "Canvas Size":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Canvas Size"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"画布尺寸"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"畫布尺寸"
+          }
+        }
+      }
+    },
+    "Custom Canvas Size…":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Custom Canvas Size…"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"自定义画布尺寸…"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"自訂畫布尺寸…"
+          }
+        }
+      }
+    },
+    "Image Size…":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Image Size…"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"图像尺寸…"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"影像尺寸…"
+          }
+        }
+      }
+    },
+    "Discard unsaved changes?":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Discard unsaved changes?"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"放弃未保存的修改？"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"捨棄未儲存的變更？"
+          }
+        }
+      }
+    },
+    "Discard":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Discard"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"放弃"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"捨棄"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

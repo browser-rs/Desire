@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// 画布（v0.8.46 重写）：单一坐标变换 `ImageCanvasTransform`。
 /// 事件 → base 像素（工具数据一律存 base）；覆盖层 base → 画布坐标。
@@ -108,6 +109,18 @@ struct ImageCanvasView: View {
                 }
             }
             .clipped()
+            .onDrop(of: [.fileURL], isTargeted: nil) { providers in
+                for provider in providers {
+                    _ = provider.loadObject(ofClass: URL.self) { url, _ in
+                        guard let url, let image = ImageTransforms.load(from: url) else { return }
+                        Task { @MainActor in
+                            session.document.placeImage(image, name: url.lastPathComponent)
+                            session.flash(String(localized: "Image placed"))
+                        }
+                    }
+                }
+                return true
+            }
             .onAppear { syncContainer(geo.size) }
             .onChange(of: geo.size) { _, size in syncContainer(size) }
             .onChange(of: document.canvasSize) { _, _ in syncContainer(geo.size) }
@@ -465,6 +478,11 @@ struct ImageCanvasView: View {
            [.brush, .eraser, .text, .shape, .move].contains(session.tool) {
             session.flash(String(localized: "Layer is locked"))
             return
+        }
+        // 画笔/形状/文字按文档坐标绘制；图层有缩放/旋转/偏移时先烘平，
+        // 否则坐标会被二次变换。
+        if [.brush, .eraser, .shape, .text].contains(session.tool) {
+            document.bakeActiveLayerGeometry()
         }
         switch session.tool {
         case .hand:

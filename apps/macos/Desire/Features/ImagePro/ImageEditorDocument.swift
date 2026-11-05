@@ -407,23 +407,100 @@ final class ImageEditorDocument: ObservableObject {
     /// 结构性操作（裁剪/缩放/旋转/翻转）前把偏移烘进像素：这些操作会改画布，
     /// 必须让"文档空间 == 位图空间"。
     private func bakeOffsets() {
-        for index in layers.indices where layers[index].offset != .zero {
+        for index in layers.indices {
             let id = layers[index].id
-            guard let bitmap = bitmaps[id],
-                  let ctx = CGContext(data: nil,
-                                      width: Int(canvasSize.width), height: Int(canvasSize.height),
-                                      bitsPerComponent: 8, bytesPerRow: 0,
-                                      space: CGColorSpaceCreateDeviceRGB(),
-                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
-            else { continue }
-            let offset = layers[index].offset
-            ctx.draw(bitmap, in: CGRect(x: offset.width, y: -offset.height,
-                                        width: CGFloat(bitmap.width),
-                                        height: CGFloat(bitmap.height)))
-            bitmaps[id] = ctx.makeImage()
-            layers[index].offset = .zero
+            guard let bitmap = bitmaps[id] else { continue }
+            bakeLayerGeometry(at: index, bitmap: bitmap)
         }
         compositeCache = nil
+    }
+
+    /// 把某一图层的 offset/scale/rotation 烘进画布大小的位图。
+    private func bakeLayerGeometry(at index: Int, bitmap: CGImage) {
+        let w = Int(canvasSize.width), h = Int(canvasSize.height)
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return }
+        let layer = layers[index]
+        let bw = CGFloat(bitmap.width), bh = CGFloat(bitmap.height)
+        let center = CGPoint(x: layer.offset.width + bw / 2,
+                             y: -layer.offset.height - bh / 2)
+        ctx.translateBy(x: center.x, y: center.y)
+        if layer.rotation != 0 { ctx.rotate(by: CGFloat(-layer.rotation * .pi / 180)) }
+        if layer.scale != 1 { ctx.scaleBy(x: CGFloat(layer.scale), y: CGFloat(layer.scale)) }
+        ctx.draw(bitmap, in: CGRect(x: -bw / 2, y: -bh / 2, width: bw, height: bh))
+        bitmaps[layer.id] = ctx.makeImage()
+        layers[index].offset = .zero
+        layers[index].scale = 1
+        layers[index].rotation = 0
+    }
+
+    /// 编辑（画笔/文字/形状）前把当前图层的几何烘平，避免坐标二次变换。
+    func bakeActiveLayerGeometry() {
+        guard let index = layers.firstIndex(where: { $0.id == activeLayerID }),
+              let bitmap = bitmaps[activeLayerID] else { return }
+        let layer = layers[index]
+        guard layer.offset != .zero || layer.scale != 1 || layer.rotation != 0 else { return }
+        bakeLayerGeometry(at: index, bitmap: bitmap)
+        compositeCache = nil
+        revision += 1
+    }
+
+    // MARK: - 图层变换（非破坏）
+
+    func setLayerScale(_ id: UUID, _ scale: Double) {
+        guard let index = layers.firstIndex(where: { $0.id == id }) else { return }
+        layers[index].scale = min(8, max(0.05, scale))
+        compositeCache = nil
+        revision += 1
+        isDirty = true
+    }
+
+    func setLayerRotation(_ id: UUID, _ degrees: Double) {
+        guard let index = layers.firstIndex(where: { $0.id == id }) else { return }
+        var value = degrees.truncatingRemainder(dividingBy: 360)
+        if value > 180 { value -= 360 }
+        if value < -180 { value += 360 }
+        layers[index].rotation = value
+        compositeCache = nil
+        revision += 1
+        isDirty = true
+    }
+
+    func resetLayerTransform(_ id: UUID) {
+        guard let index = layers.firstIndex(where: { $0.id == id }) else { return }
+        layers[index].scale = 1
+        layers[index].rotation = 0
+        compositeCache = nil
+        revision += 1
+        isDirty = true
+    }
+
+    /// 置入图片为图层（超画布自动等比缩放到适合，居中）。
+    @discardableResult
+    func placeImage(_ image: CGImage, name: String) -> UUID? {
+        pushHistory("Place Image")
+        var source = image
+        let cw = canvasSize.width, ch = canvasSize.height
+        let iw = CGFloat(image.width), ih = CGFloat(image.height)
+        if iw > cw || ih > ch, let fitted = ImageTransforms.resized(
+            image,
+            width: max(1, Int((iw * min(cw / iw, ch / ih)).rounded())),
+            height: max(1, Int((ih * min(cw / iw, ch / ih)).rounded()))) {
+            source = fitted
+        }
+        let layer = ImageEditorLayer(id: UUID(), name: name,
+                                     offset: CGSize(width: ((cw - CGFloat(source.width)) / 2).rounded(),
+                                                    height: ((ch - CGFloat(source.height)) / 2).rounded()))
+        let index = layers.firstIndex { $0.id == activeLayerID }.map { $0 + 1 } ?? layers.count
+        layers.insert(layer, at: index)
+        bitmaps[layer.id] = source
+        activeLayerID = layer.id
+        compositeCache = nil
+        commit()
+        return layer.id
     }
 
     /// 拖动中的平移（不进历史；起始处 beginContinuousEdit 一次）。

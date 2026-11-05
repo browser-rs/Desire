@@ -4,6 +4,8 @@
 - ImagePro 迭代 1–2：调整/滤镜支持实时预览（滑杆即时生效，保存/导出不含预览，应用才落库）；选区支持加选/减选/交叉（⇧ 加选、⌥ 减选、⇧⌥ 交叉；命令 API select mode=add|subtract|intersect），蒙版布尔组合为像素级。
 - ImagePro 迭代 3：文字升级为多行排版——字体家族/字重（常规-特粗）/对齐（左中右）/行距，支持描边（宽度+颜色）、投影、文字背景框（颜色/内边距/圆角，自动跟随对齐）；命令 API text 支持 font/weight/align/lineSpacing/strokeWidth/strokeColor/shadow/background/backgroundColor。
 - ImagePro 迭代 4–5：图层面板 2.0（真实缩略图、拖拽排序、向下合并、拼合图层、锁定/解锁、右键重命名，锁定图层禁止绘制/移动）；新建文档与模板（YouTube 1280×720、Shorts/Reels 1080×1920、方形 1080、X 1600×900、微信 900×383、A4/A3 300dpi、Full HD），Canvas 菜单支持按模板改画布、自定义画布尺寸、图像尺寸，空白文档可另存为。
+- ImagePro 迭代 6（部分）：图层支持非破坏缩放/旋转（合成时变换，编辑前自动烘焙）、移动工具选项加缩放/旋转/重置；支持置入图片为图层（Canvas 菜单选择文件、拖拽图片到画布、命令 place），超画布自动等比缩放并居中。
+
 
 
 

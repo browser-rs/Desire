@@ -108,5 +108,8 @@ nonisolated struct ImageEditorLayer: Identifiable, Equatable, Sendable {
     var blend: ImageEditorBlend = .normal
     /// 内容偏移（图片像素，x 右 / y 下）。移动工具只改它，位图不重采样。
     var offset: CGSize = .zero
+    /// 图层变换（非破坏）：均匀缩放 + 旋转角度（度，顺时针为正）。
+    var scale: Double = 1
+    var rotation: Double = 0
     var isLocked: Bool = false
 }

@@ -34,6 +34,8 @@ struct ImageEditorView: View {
         case none, brush, arrow, line, rectangle, ellipse, polygon, text, bubble, mosaic
         case cloneStamp, dodge, burn, blurBrush, sharpenBrush
         case lasso, magicWand
+        /// 放大镜（专业批，对齐截图工具）：点击处画 2× 圆形放大细节。
+        case magnifier
         var icon: String {
             switch self {
             case .none: "cursorarrow"
@@ -53,6 +55,7 @@ struct ImageEditorView: View {
             case .sharpenBrush: "triangle.righthalf.filled"
             case .lasso: "computed.style"
             case .magicWand: "wand.and.stars.inverse"
+            case .magnifier: "magnifyingglass"
             }
         }
     }
@@ -68,6 +71,16 @@ struct ImageEditorView: View {
     @State private var polygonDragStart: CGPoint?
     /// 序号气泡（v0.8.15）：点击落位自动编号。
     @State private var bubbleCounter = 0
+    /// undo 归属栈标记（专业批）：true = 管线（调节/滤镜/几何/选区），
+    /// false = 烙图（画笔/裁剪/修复刷/水印…）。此前 undo "管线优先"——先调节
+    /// 再画笔后 ⌘Z 回退的是调节（最后一次操作明明是画笔），时序错乱。
+    @State private var undoKinds: [Bool] = []
+    /// 光标跟随点（修复刷/画笔圆圈指示 + 状态栏坐标）。
+    @State private var hoverPoint: CGPoint?
+    /// 马赛克块大小（视图点；丰富批参数化）。
+    @State private var mosaicBlockSize: Double = 10
+    /// 文字/气泡字号（pt）。
+    @State private var annotationFontSize: Double = 16
 
     // 文字标注
     @State private var textEntry = ""
@@ -204,15 +217,32 @@ struct ImageEditorView: View {
     }
 
     /// 显示位图：Before/After 或 管线渲染结果（无管线 = 原图）。
+    /// 显示降采样缓存（专业批）：>4096px 大图每帧全分辨率合成 NSImage 会
+    /// 卡——显示用半清晰度（比例不变，坐标换算不受影响），编辑/导出仍全分辨率。
+    @State private var downsampledCache: (key: String, image: CGImage)?
+
     private var displayImage: CGImage? {
         let base = showOriginal ? image : (document.renderedImage ?? image)
         guard let base else { return nil }
-        // 图层画布预览（v0.8.45 修复）：此前图层只在导出时合成，画布上
-        // "加了图层看不见"。多图层时实时合成显示（对比原图仍走纯 base）。
+        let composed: CGImage
         if !showOriginal, let composited = ImageLayerStore.shared.composited(over: base) {
-            return composited
+            composed = composited
+        } else {
+            composed = base
         }
-        return base
+        let maxSide = max(composed.width, composed.height)
+        guard maxSide > 4096 else { return composed }
+        let key = "\(composed.width)x\(composed.height)|\(document.pipeline.fingerprint())|\(showOriginal)"
+        if let cache = downsampledCache, cache.key == key {
+            return cache.image
+        }
+        let scale = 4096.0 / CGFloat(maxSide)
+        let resized = ImageTransforms.resized(
+            composed,
+            width: max(1, Int(CGFloat(composed.width) * scale)),
+            height: max(1, Int(CGFloat(composed.height) * scale))) ?? composed
+        downsampledCache = (key, resized)
+        return resized
     }
 
     /// 当前草稿参数（滑杆 + 曲线）。
@@ -255,6 +285,7 @@ struct ImageEditorView: View {
         VStack(spacing: 0) {
             header
             toolbar
+            parameterBar
             canvas
             statusBar
         }
@@ -309,6 +340,7 @@ struct ImageEditorView: View {
                 HStack {
                     Button(String(localized: "Apply")) {
                         document.applyAdjust(currentAdjustParams())
+                        notePipeline()
                         hasUnsavedChanges = true
                         showCurves = false
                     }
@@ -330,6 +362,7 @@ struct ImageEditorView: View {
                 currentParams: { currentAdjustParams() },
                 onApply: { params in
                     document.applyAdjust(params)
+                    notePipeline()
                     curveDraft = ImageCurveDraft(
                         rgb: params.curvePoints,
                         red: params.curveRed,
@@ -432,6 +465,7 @@ struct ImageEditorView: View {
     private func pushHistory(_ snapshot: CGImage, label: String) {
         history.append(snapshot)
         historySteps.append(label)
+        undoKinds.append(false)
         if history.count > 20 {
             history.removeFirst()
             historySteps.removeFirst()
@@ -446,10 +480,31 @@ struct ImageEditorView: View {
         historySteps.removeSubrange((depth + 1)...)
         setBase(target)
         cropRect = nil
+        // raster 栈被裁剪：只保留仍成立的标记（管线标记与 raster 栈无对应关系）
+        let kept = history.count
+        var rasterSeen = 0
+        undoKinds = undoKinds.filter { kind in
+            if kind { return true }
+            rasterSeen += 1
+            return rasterSeen <= kept
+        }
     }
 
     private func undo() {
-        // 非破坏操作（调节/滤镜/选区）先走管线 undo，再回退烙图历史。
+        // 按实际操作时序回退（undoKinds 栈顶 = 最近一次操作归属）。
+        if let isPipeline = undoKinds.popLast() {
+            if isPipeline {
+                _ = document.undo()
+            } else {
+                guard let previous = history.popLast() else { return }
+                if !historySteps.isEmpty { historySteps.removeLast() }
+                image = previous
+                hasUnsavedChanges = true
+                document.requestRender(base: previous)
+            }
+            return
+        }
+        // 无标记（旧会话/外部路径）：沿用旧行为管线优先。
         if document.canUndo {
             _ = document.undo()
             return
@@ -484,6 +539,9 @@ struct ImageEditorView: View {
     }
 
     private func redo() {
+        if document.canRedo {
+            undoKinds.append(true)
+        }
         _ = document.redo()
     }
 
@@ -650,18 +708,22 @@ struct ImageEditorView: View {
             // 变换
             button("rotateleft", "Rotate 90° Left") {
                 _ = document.append(.geometry(.rotate90ccw))
+                notePipeline()
                 hasUnsavedChanges = true
             }
             button("rotateright", "Rotate 90° Right") {
                 _ = document.append(.geometry(.rotate90cw))
+                notePipeline()
                 hasUnsavedChanges = true
             }
             button("arrow.left.and.right.righttriangle.left.righttriangle.right", "Flip Horizontal") {
                 _ = document.append(.geometry(.flipH))
+                notePipeline()
                 hasUnsavedChanges = true
             }
             button("arrow.up.and.down.righttriangle.left.righttriangle.right", "Flip Vertical") {
                 _ = document.append(.geometry(.flipV))
+                notePipeline()
                 hasUnsavedChanges = true
             }
             button("crop", "Crop") { cropMode.toggle() }
@@ -672,15 +734,40 @@ struct ImageEditorView: View {
 
             Divider().frame(height: 16)
 
-            // 标注工具
-            ForEach(Tool.allCases, id: \.rawValue) { t in
-                button(t.icon, t.rawValue.capitalized) { tool = t }
-                    .foregroundStyle(tool == t ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
+            // 撤销/重做（专业批：之前只有快捷键，按钮不可见）
+            toolButton("arrow.uturn.backward", "Undo (⌘Z)", active: false) { undo() }
+                .disabled(!hasUnsavedChanges && !document.canUndo)
+            toolButton("arrow.uturn.forward", "Redo (⌘⇧Z)", active: false) { redo() }
+                .disabled(!document.canRedo)
+            Divider().frame(height: 16)
+
+            // 标注工具（分组：绘制 | 文字 | 像素化）
+            ForEach([Tool.brush, .arrow, .line, .rectangle, .ellipse], id: \.rawValue) { t in
+                toolButton(t.icon, t.rawValue.capitalized, active: tool == t) { tool = t }
             }
-            button("clock.arrow.circlepath", "History") { showHistory.toggle() }
-                .foregroundStyle(showHistory ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
-            button("square.2.layers.3d.top.filled", "Layers") { showLayers.toggle() }
-                .foregroundStyle(showLayers ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
+            groupGap
+            ForEach([Tool.text, .bubble, .polygon], id: \.rawValue) { t in
+                toolButton(t.icon, t.rawValue.capitalized, active: tool == t) { tool = t }
+            }
+            groupGap
+            ForEach([Tool.mosaic], id: \.rawValue) { t in
+                toolButton(t.icon, t.rawValue.capitalized, active: tool == t) { tool = t }
+            }
+            groupGap
+            // 修复工具组
+            ForEach([Tool.cloneStamp, .dodge, .burn, .blurBrush, .sharpenBrush], id: \.rawValue) { t in
+                toolButton(t.icon, t.rawValue.capitalized, active: tool == t) { tool = t }
+            }
+            groupGap
+            // 选区工具组
+            ForEach([Tool.lasso, .magicWand], id: \.rawValue) { t in
+                toolButton(t.icon, t.rawValue.capitalized, active: tool == t) { tool = t }
+            }
+            groupGap
+            toolButton("cursorarrow", "Select / Pan", active: tool == .none) { tool = .none }
+            groupGap
+            toolButton("clock.arrow.circlepath", "History", active: showHistory) { showHistory.toggle() }
+            toolButton("square.2.layers.3d.top.filled", "Layers", active: showLayers) { showLayers.toggle() }
             ColorPicker("", selection: $strokeColor, supportsOpacity: false)
                 .labelsHidden()
                 .frame(width: 26)
@@ -738,6 +825,122 @@ struct ImageEditorView: View {
         .help(help)
     }
 
+    /// 工具按钮（专业批）：选中态 = 强调色圆角块（此前只变色，一眼扫不出
+    /// 当前工具）；toggle 型按钮共用。
+    private func toolButton(_ icon: String, _ help: String, active: Bool,
+                            action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 12, weight: .medium))
+                .frame(width: 24, height: 24)
+                .background(RoundedRectangle(cornerRadius: 6)
+                    .fill(active ? AnyShapeStyle(appAccent.opacity(0.16))
+                                 : AnyShapeStyle(Color.clear)))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(active ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
+        .help(help)
+    }
+
+    /// 工具组小分隔（标注/修复/选区三组之间）。
+    private var groupGap: some View {
+        Rectangle()
+            .fill(Color.secondary.opacity(0.25))
+            .frame(width: 1, height: 14)
+    }
+
+    // MARK: - 参数栏（专业批）：随当前工具显隐的参数行，不再散落各面板
+
+    /// 是否有可显示的参数行。
+    private var parameterBarVisible: Bool {
+        annotationToolActive || repairToolActive || tool == .mosaic
+            || tool == .text || tool == .bubble || tool == .brush
+            || selectionMode || cropMode
+    }
+
+    private var annotationToolActive: Bool {
+        [.brush, .arrow, .line, .rectangle, .ellipse, .polygon].contains(tool)
+    }
+
+    @ViewBuilder
+    private var parameterBar: some View {
+        if parameterBarVisible {
+            HStack(spacing: 12) {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+                if tool == .text || tool == .bubble {
+                    paramSlider(String(localized: "Font Size"), $annotationFontSize, 10...64)
+                }
+                if annotationToolActive {
+                    ColorPicker("", selection: $strokeColor, supportsOpacity: false)
+                        .labelsHidden()
+                        .frame(width: 26)
+                    paramSlider(String(localized: "Stroke Width"), $strokeWidth, 1...30)
+                }
+                if repairToolActive || tool == .brush || tool == .cloneStamp {
+                    paramSlider(String(localized: "Brush Size"), $brushRadius, 2...120)
+                }
+                if repairToolActive {
+                    paramSlider(String(localized: "Strength"), $brushStrength, 0.05...1)
+                }
+                if tool == .mosaic {
+                    paramSlider(String(localized: "Block Size"), $mosaicBlockSize, 4...40)
+                }
+                if selectionMode {
+                    paramSlider(String(localized: "Feather"), $selectionFeather, 0...0.5)
+                }
+                if cropMode {
+                    Text(String(localized: "Aspect"))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    ForEach([("Free", CGFloat(0)), ("1:1", 1), ("4:3", 4.0 / 3.0), ("16:9", 16.0 / 9.0)],
+                            id: \.0) { label, ratio in
+                        Button(label) { cropAspect = ratio }
+                            .font(.system(size: 10))
+                            .buttonStyle(.bordered)
+                            .controlSize(.mini)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 4)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .overlay(alignment: .bottom) { Divider() }
+        }
+    }
+
+    private func paramSlider(_ label: String, _ value: Binding<CGFloat>,
+                             _ range: ClosedRange<CGFloat>) -> some View {
+        paramSlider(label,
+                    Binding<Double>(get: { Double(value.wrappedValue) },
+                                    set: { value.wrappedValue = CGFloat($0) }),
+                    Double(range.lowerBound)...Double(range.upperBound))
+    }
+
+    private func paramSlider(_ label: String, _ value: Binding<Double>,
+                             _ range: ClosedRange<Double>) -> some View {
+        paramSliderImpl(label, Binding<Double>(
+            get: { Double(value.wrappedValue) },
+            set: { value.wrappedValue = $0 }), range)
+    }
+
+    private func paramSliderImpl(_ label: String, _ value: Binding<Double>,
+                                 _ range: ClosedRange<Double>) -> some View {
+        HStack(spacing: 5) {
+            Text(label)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Slider(value: value, in: range)
+                .frame(width: 110)
+            Text(verbatim: String(format: "%.1f", value.wrappedValue))
+                .font(.system(size: 9.5, design: .monospaced))
+                .foregroundStyle(.tertiary)
+                .frame(width: 34, alignment: .leading)
+        }
+    }
+
     /// 选区拖拽落定 → 归一化参数写入 document（y 以图像顶部为 0）。
     private func commitSelection() {
         defer {
@@ -761,6 +964,7 @@ struct ImageEditorView: View {
             feather: selectionFeather)
         document.setSelection(params)
         hasUnsavedChanges = true
+        notePipeline()
         document.requestRender(base: image)
     }
 
@@ -781,6 +985,7 @@ struct ImageEditorView: View {
         document.setLassoSelection(vertices: vertices,
                                    feather: selectionFeather)
         hasUnsavedChanges = true
+        notePipeline()
         document.requestRender(base: image)
     }
 
@@ -794,6 +999,7 @@ struct ImageEditorView: View {
         else { return }
         document.setCustomMask(mask)
         hasUnsavedChanges = true
+        notePipeline()
         document.requestRender(base: image)
     }
 
@@ -889,6 +1095,110 @@ struct ImageEditorView: View {
             .padding(.vertical, 3)
             .background(RoundedRectangle(cornerRadius: 5).fill(.regularMaterial))
         }
+    }
+
+    /// 拖拽实时预览（v0.8.45 专业批）：箭头/直线/矩形/椭圆/马赛克拖动时
+    /// 画虚线框预览，画笔显示实时轨迹——此前拖动全程零反馈。
+    @ViewBuilder
+    private var dragPreviewOverlay: some View {
+        if let start = dragStart, let current = dragCurrent {
+            switch tool {
+            case .arrow, .line:
+                Path { path in
+                    path.move(to: start)
+                    path.addLine(to: current)
+                }
+                .stroke(strokeColor, style: StrokeStyle(lineWidth: strokeWidth,
+                                                        lineCap: .round))
+                .allowsHitTesting(false)
+            case .rectangle:
+                Rectangle()
+                    .stroke(strokeColor, lineWidth: strokeWidth)
+                    .frame(width: abs(current.x - start.x),
+                           height: abs(current.y - start.y))
+                    .offset(x: min(start.x, current.x), y: min(start.y, current.y))
+                    .allowsHitTesting(false)
+            case .ellipse:
+                Ellipse()
+                    .stroke(strokeColor, lineWidth: strokeWidth)
+                    .frame(width: abs(current.x - start.x),
+                           height: abs(current.y - start.y))
+                    .offset(x: min(start.x, current.x), y: min(start.y, current.y))
+                    .allowsHitTesting(false)
+            case .mosaic:
+                Rectangle()
+                    .strokeBorder(appAccent, style: StrokeStyle(lineWidth: 1.5, dash: [5, 3]))
+                    .background(appAccent.opacity(0.08))
+                    .frame(width: abs(current.x - start.x),
+                           height: abs(current.y - start.y))
+                    .offset(x: min(start.x, current.x), y: min(start.y, current.y))
+                    .allowsHitTesting(false)
+            default:
+                EmptyView()
+            }
+        }
+        if tool == .brush, brushPoints.count >= 2 {
+            Path { path in
+                path.move(to: brushPoints[0])
+                for p in brushPoints.dropFirst() { path.addLine(to: p) }
+            }
+            .stroke(strokeColor, style: StrokeStyle(lineWidth: strokeWidth,
+                                                    lineCap: .round, lineJoin: .round))
+            .allowsHitTesting(false)
+        }
+    }
+
+    /// 笔刷光标圆圈（修复刷/画笔跟随鼠标；hover 点由 onContinuousHover 提供）。
+    @ViewBuilder
+    private var brushCursorOverlay: some View {
+        if let hover = hoverPoint,
+           repairToolActive || tool == .brush || tool == .cloneStamp,
+           !cropMode, !selectionMode {
+            Circle()
+                .strokeBorder(Color.white, lineWidth: 1)
+                .background(Circle().strokeBorder(Color.black.opacity(0.6), lineWidth: 1))
+                .frame(width: brushRadius * 2, height: brushRadius * 2)
+                .position(hover)
+                .allowsHitTesting(false)
+        }
+    }
+
+    /// 裁剪选框浮条（丰富批）：实时尺寸 + 应用/取消——此前拖完只能再点工具栏。
+    @ViewBuilder
+    private var cropConfirmBar: some View {
+        if cropMode, let rect = cropRect, rect.width >= 8 {
+            HStack(spacing: 8) {
+                Text(verbatim: "\(Int(rect.width * displayScale)) × \(Int(rect.height * displayScale))")
+                    .font(.system(size: 10.5, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                Button(String(localized: "Apply Crop")) {
+                    commitCrop()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+                .disabled(rect.width < 8 || rect.height < 8)
+                Button(String(localized: "Cancel")) {
+                    cropRect = nil
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(RoundedRectangle(cornerRadius: 8).fill(.regularMaterial))
+            .shadow(radius: 3)
+        }
+    }
+
+    /// 裁剪落定（从 onEnded 拆出：浮条"应用"与手势共用）。
+    private func commitCrop() {
+        guard cropMode, let rect = cropRect, rect.width >= 8, rect.height >= 8 else {
+            cropRect = nil
+            return
+        }
+        // v0.8.45：选框按显示图换算 base 像素（非破坏几何后显示 ≠ base）。
+        let pixel = baseRect(from: rect)
+        apply(label: String(localized: "Crop"), transform: { ImageTransforms.cropped($0, rect: pixel) })
     }
 
     /// 裁剪预设（社交尺寸）。
@@ -1158,9 +1468,24 @@ struct ImageEditorView: View {
                         .overlay(cropOverlay)
                         .overlay(selectionOverlay)
                         .overlay(lassoOverlay)
+                        .overlay(dragPreviewOverlay)
+                        .overlay(brushCursorOverlay)
                         .overlay(cloneSampleMarker)
                         .overlay(compareSliderOverlay)
                         .overlay(annotationOverlay)
+                        .overlay(alignment: .bottomTrailing) {
+                            if cropMode {
+                                cropConfirmBar.padding(10)
+                            }
+                        }
+                        .onContinuousHover { phase in
+                            switch phase {
+                            case .active(let location):
+                                hoverPoint = location
+                            case .ended:
+                                hoverPoint = nil
+                            }
+                        }
                         .overlay(alignment: .topTrailing) {
                             if showHistogram {
                                 ImageHistogramView(image: display)
@@ -1295,6 +1620,9 @@ struct ImageEditorView: View {
                     }
                     return
                 }
+                if tool == .magnifier {
+                    return
+                }
                 if tool == .cloneStamp {
                     pendingDrag = point
                     return
@@ -1306,6 +1634,8 @@ struct ImageEditorView: View {
                 switch tool {
                 case .brush:
                     brushPoints.append(point)
+                case .magnifier:
+                    break
                 case .arrow, .rectangle, .ellipse, .mosaic, .line:
                     if dragStart == nil { dragStart = point }
                     dragCurrent = point
@@ -1340,14 +1670,7 @@ struct ImageEditorView: View {
                     return
                 }
                 if cropMode {
-                    if let rect = cropRect, rect.width >= 8, rect.height >= 8 {
-                        // v0.8.45：选框按显示图换算 base 像素（非破坏几何后
-                        // 显示 ≠ base，直接乘 displayScale 会裁错位置）。
-                        let pixel = baseRect(from: rect)
-                        apply(label: String(localized: "Crop"), transform: { ImageTransforms.cropped($0, rect: pixel) })
-                        return
-                    }
-                    cropRect = nil
+                    commitCrop()
                     return
                 }
                 if repairToolActive {
@@ -1355,6 +1678,8 @@ struct ImageEditorView: View {
                     return
                 }
                 switch tool {
+                case .magnifier:
+                    stampMagnifier(at: value.location)
                 case .brush:
                     if brushPoints.count >= 2 {
                         let mapped = brushPoints.map { basePixel(from: $0) }
@@ -1578,21 +1903,54 @@ struct ImageEditorView: View {
     /// CIPixellate 近似（块内均值）。区域小，直接从原图重取即可。
     private func stampMosaic(from: CGPoint, to: CGPoint) {
         guard let current = image else { return }
+        // from/to 已是 base 像素（调用方 basePixel 换算）——此前又乘
+        // displayScale 二次缩放，缩放≠1 或几何后马赛克落到错位区域。
         let rect = CGRect(x: min(from.x, to.x), y: min(from.y, to.y),
                           width: max(8, abs(to.x - from.x)), height: max(8, abs(to.y - from.y)))
-        let pixel = CGRect(x: rect.minX * displayScale, y: rect.minY * displayScale,
-                           width: rect.width * displayScale, height: rect.height * displayScale)
-        guard let region = ImageTransforms.cropped(current, rect: pixel),
-              // 8px 块下采样再放大回原尺寸 = 像素化。
-              let tiny = ImageTransforms.resized(region, width: max(1, Int(pixel.width / 12)),
-                                                 height: max(1, Int(pixel.height / 12))),
-              let pixelated = ImageTransforms.resized(tiny, width: Int(pixel.width),
-                                                      height: Int(pixel.height)) else { return }
+        // 块大小 = 视图点参数换算 base 像素（默认 10pt，参数栏可调 4–40）。
+        let blockPx = max(2, mosaicBlockSize * displayPixelScale)
+        guard let region = ImageTransforms.cropped(current, rect: rect),
+              let tiny = ImageTransforms.resized(region, width: max(1, Int(rect.width / blockPx)),
+                                                 height: max(1, Int(rect.height / blockPx))),
+              let pixelated = ImageTransforms.resized(tiny, width: Int(rect.width),
+                                                      height: Int(rect.height)) else { return }
         stampAnnotation(label: String(localized: "Mosaic")) { context in
-            // 视图坐标上下文里 y 已翻转；像素块贴回时同样按视图矩形。
+            // overlay 上下文 y 已翻转（scaleBy(1,-1)）；矩形为 y-down base 像素，
+            // 经翻转落在正确区域（像素化内容纵向对称，翻转不可见）。
             context.draw(pixelated, in: rect)
         }
-        _ = pixelated
+    }
+
+    /// 放大镜（专业批，对齐截图工具）：点击处取圆形区域放大 2× 贴回 +
+    /// 白边圆环——用于突出细节（序列号/纹理/差异点）。
+    private func stampMagnifier(at viewPoint: CGPoint) {
+        guard let current = image else { return }
+        let center = basePixel(from: viewPoint)
+        let radius = 36 * displayPixelScale
+        let source = CGRect(x: center.x - radius, y: center.y - radius,
+                            width: radius * 2, height: radius * 2)
+        guard let region = ImageTransforms.cropped(current, rect: source),
+              let zoomed = ImageTransforms.resized(region,
+                                                   width: Int(radius * 4),
+                                                   height: Int(radius * 4)) else { return }
+        stampAnnotation(label: String(localized: "Magnifier")) { context in
+            let drawRect = CGRect(x: center.x - radius, y: center.y - radius,
+                                  width: radius * 2, height: radius * 2)
+            context.saveGState()
+            context.addEllipse(in: drawRect)
+            context.clip()
+            context.draw(zoomed, in: drawRect)
+            context.restoreGState()
+            context.setStrokeColor(CGColor(red: 1, green: 1, blue: 1, alpha: 1))
+            context.setLineWidth(3 * displayPixelScale)
+            context.addEllipse(in: drawRect)
+            context.strokePath()
+            context.setStrokeColor(CGColor(red: 0, green: 0, blue: 0, alpha: 0.55))
+            context.setLineWidth(1.5 * displayPixelScale)
+            context.addEllipse(in: drawRect.insetBy(dx: -2 * displayPixelScale,
+                                                    dy: -2 * displayPixelScale))
+            context.strokePath()
+        }
     }
 
     /// OCR 结果浮层（22）：识别文本可复制。
@@ -1739,6 +2097,7 @@ struct ImageEditorView: View {
                 Button(String(localized: "Apply")) {
                     document.applyAdjust(currentAdjustParams())
                     hasUnsavedChanges = true
+                    notePipeline()
                     showAdjustments = false
                 }
                 .buttonStyle(.borderedProminent)
@@ -1846,6 +2205,7 @@ struct ImageEditorView: View {
         guard let image else { return }
         let params = ImageAICore.autoEnhance(image)
         document.applyAdjust(params)
+        notePipeline()
         hasUnsavedChanges = true
         flash(String(localized: "Auto Enhanced"))
     }
@@ -1965,45 +2325,61 @@ struct ImageEditorView: View {
         }
     }
 
+    /// 管线操作标记（undoKinds.push(true)）。
+    private func notePipeline() {
+        undoKinds.append(true)
+    }
+
     // MARK: - 状态条 / 尺寸调整
+
+    /// 当前工具的操作提示（状态条常驻）。
+    private var toolHint: String {
+        if cropMode { return String(localized: "Drag a crop area, then Apply — double-tap resets view") }
+        if selectionMode { return String(localized: "Drag to select the adjustment region") }
+        if showEyedropper { return String(localized: "Click to sample a color") }
+        switch tool {
+        case .none: return String(localized: "Drag to pan · pinch or double-click to zoom")
+        case .brush: return String(localized: "Drag to draw · colour and width below")
+        case .arrow, .line, .rectangle, .ellipse: return String(localized: "Drag to place")
+        case .polygon: return String(localized: "Click to add points · click near the first point to close")
+        case .text: return String(localized: "Click to place text")
+        case .bubble: return String(localized: "Click to drop a numbered bubble")
+        case .mosaic: return String(localized: "Drag over the region to pixelate")
+        case .cloneStamp: return String(localized: "⌥ click to sample, then drag to clone")
+        case .dodge, .burn, .blurBrush, .sharpenBrush: return String(localized: "Drag to paint the effect")
+        case .lasso: return String(localized: "Drag a freeform outline; adjustments apply inside")
+        case .magicWand: return String(localized: "Click to select a similar-coloured region")
+        case .magnifier: return String(localized: "Click to drop a 2× magnifier bubble")
+        }
+    }
 
     private var statusBar: some View {
         HStack(spacing: 8) {
+            // 工具操作提示（专业批）：当前工具怎么用，一眼可见。
+            Text(toolHint)
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Divider().frame(height: 14)
+            // 缩放百分比 + 重置
+            Button {
+                isFitMode = true
+                setZoom(fitZoom)
+            } label: {
+                Text(verbatim: "\(Int((isFitMode ? fitZoom : zoom) * 100))%")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(appAccent)
+            }
+            .buttonStyle(.plain)
+            .help(String(localized: "Reset zoom to fit"))
+            if let image {
+                Text(verbatim: "\(image.width) × \(image.height)")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+            }
+            Divider().frame(height: 14)
             if showEyedropper {
                 eyedropperStatus
-            }
-            if cropMode {
-                HStack(spacing: 6) {
-                    Text("Aspect")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                    ForEach([("Free", CGFloat(0)), ("1:1", 1), ("4:3", 4.0 / 3.0), ("16:9", 16.0 / 9.0)], id: \.0) { label, ratio in
-                        Button(label) {
-                            cropAspect = ratio
-                        }
-                        .font(.system(size: 10))
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                    }
-                    Divider().frame(height: 14)
-                    ForEach(cropPresets, id: \.name) { preset in
-                        Button(preset.name) {
-                            cropAspect = preset.ratio
-                        }
-                        .font(.system(size: 9))
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                    }
-                    Button(String(localized: "Apply Crop")) {
-                        if let rect = cropRect {
-                            let pixel = CGRect(x: rect.minX * displayScale, y: rect.minY * displayScale,
-                                               width: rect.width * displayScale, height: rect.height * displayScale)
-                            apply(label: String(localized: "Crop"), transform: { ImageTransforms.cropped($0, rect: pixel) })
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.mini)
-                }
             }
             Spacer()
             if let statusNote {

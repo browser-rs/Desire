@@ -1,3 +1,9 @@
+## [Unreleased]
+### Changed
+
+- Image editor: professional-UX pass — drag previews for arrow/line/rectangle/ellipse/mosaic and live brush strokes, brush-size ring cursor following the mouse, a per-tool parameter bar (colour, stroke width, brush size/strength, mosaic block size, text size, selection feather, crop aspect) replacing scattered controls, a status bar with per-tool hints / zoom % / image size, crop confirm bar with live dimensions, regrouped toolbar with visible selection states and undo/redo buttons, canvas panning on drag, undo/redo now interleaves destructive and non-destructive operations in true order, mosaic block size is adjustable (and no longer lands offset after zooming or flipping), a magnifier annotation tool aligned with the screenshot toolbar, and >4096px images get a downsampled display cache so the canvas stays responsive (v0.8.45)
+
+
 ## [v0.8.45] - 2026-11-05
 ### Added
 

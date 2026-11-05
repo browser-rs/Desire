@@ -27,7 +27,15 @@ final class ImageEditorDocument: ObservableObject {
     private var redoStack: [Snapshot] = []
     private var compositeCache: (revision: Int, image: CGImage?)?
     private var thumbnailCache: [UUID: (revision: Int, image: CGImage)] = [:]
-    private let maxHistory = 40
+
+    /// 历史深度按画布像素数动态收缩：每步快照持有整套图层位图引用，
+    /// 大图不限制会在 40 步内吃掉数 GB（6000×4000 ≈ 每步 96MB 像素）。
+    private var maxHistory: Int {
+        let pixels = Int(canvasSize.width) * Int(canvasSize.height)
+        if pixels > 64_000_000 { return 4 }
+        if pixels > 16_000_000 { return 10 }
+        return 40
+    }
 
     private struct Snapshot {
         var title: String

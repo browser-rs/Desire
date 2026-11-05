@@ -69,6 +69,11 @@ final class FeedFetcher {
         }
         if results > 0 {
             Log.agent.info("feeds refreshed: +\(results) new article(s) across \(due.count) feed(s)")
+            // 新文章通知（v0.8.45）：routine 级——免打扰/预算门控照旧生效。
+            ProactiveNotificationStore.shared.deliver(
+                title: String(localized: "Feeds updated"),
+                body: String(localized: "\(results) new article(s) in your subscriptions"),
+                tier: .routine)
         }
         return results
     }

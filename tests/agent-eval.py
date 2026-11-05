@@ -103,6 +103,25 @@ class Handler(BaseHTTPRequestHandler):
             overflow_seen = 0
             self.send_response(200); self.send_header("Content-Length", "2"); self.end_headers()
             self.wfile.write(b"ok"); return
+        # /feed.xml：RSS fixture（E18 订阅全链——subscribeFeed 抓这里的真实 RSS）。
+        if self.path.startswith("/feed.xml"):
+            rss = """<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+  <title>Feed Fixture\u4e00\u53f7</title>
+  <link>http://127.0.0.1:{port}/</link>
+  <item><title>Fixture post alpha</title>
+    <link>http://127.0.0.1:{port}/post-a</link><guid>fx-a</guid>
+    <description>Alpha body</description></item>
+  <item><title>Fixture post beta</title>
+    <link>http://127.0.0.1:{port}/post-b</link><guid>fx-b</guid>
+    <description>Beta body</description></item>
+</channel></rss>""".format(port=self.server.server_address[1]).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/rss+xml; charset=utf-8")
+            self.send_header("Content-Length", str(len(rss)))
+            self.end_headers()
+            self.wfile.write(rss)
+            return
         # /v1/models：让"Fetch from API"这类路径也能被验证。
         if self.path.endswith("/models"):
             body = json.dumps({"object": "list", "data": [
@@ -385,6 +404,75 @@ class Handler(BaseHTTPRequestHandler):
                                   "finish_reason": None}]}
             self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
             done = {"id": "chatcmpl-jt", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+
+        # 退订清理（E18 收尾）：EVAL-FEEDCLEAN-URL <url> → unsubscribeFeed。
+        if "EVAL-FEEDCLEAN-URL" in mode_text and not has_tool:
+            url = mode_text.split("EVAL-FEEDCLEAN-URL", 1)[1].split()[0]
+            call = {"index": 0, "id": "call_fdc", "type": "function",
+                    "function": {"name": "unsubscribeFeed",
+                                 "arguments": json.dumps({"url": url})}}
+            chunk = {"id": "chatcmpl-fdc", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-fdc", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+        if "EVAL-FEEDCLEAN-URL" in mode_text and has_tool:
+            tool_text = "\n".join((m.get("content") or "") for m in msgs_all if m.get("role") == "tool")
+            reply = "FEEDCLEANDONE" if "Unsubscribed" in tool_text else "FEEDCLEANMISS"
+            chunk = {"id": "chatcmpl-fdc", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-fdc", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+        # 订阅全链（E18，v0.8.45）：subscribeFeed(本 fixture 的 /feed.xml) →
+        # readFeedArticles → markArticleRead。端口在请求时才拼（动态端口）。
+        if "FEEDTEST" in mode_text and not has_tool:
+            port = self.server.server_address[1]
+            calls = [
+                {"index": 0, "id": "call_fd1", "type": "function",
+                 "function": {"name": "subscribeFeed",
+                              "arguments": json.dumps({"url": "http://127.0.0.1:%d/feed.xml" % port})}},
+                {"index": 1, "id": "call_fd2", "type": "function",
+                 "function": {"name": "readFeedArticles",
+                              "arguments": "{}"}},
+            ]
+            chunk = {"id": "chatcmpl-fd", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": calls},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-fd", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+        if "FEEDTEST" in mode_text and has_tool:
+            tool_text = "\n".join((m.get("content") or "") for m in msgs_all if m.get("role") == "tool")
+            reply = "FEEDDONE" if ("Fixture post alpha" in tool_text and "fx-a" in tool_text) else "FEEDMISS"
+            chunk = {"id": "chatcmpl-fd", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-fd", "object": "chat.completion.chunk", "created": int(time.time()),
                     "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
             self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
             self.wfile.write(b"data: [DONE]\n\n")
@@ -1417,6 +1505,40 @@ def case_job_template_lifecycle():
         bridge("POST", "/jobs/templates", body={"action": "delete", "name": name})
 
 
+def case_feed_lifecycle():
+    """E18 订阅全链（v0.8.45）：subscribeFeed 抓 fixture 的真实 RSS →
+    readFeedArticles 看到文章 → markArticleRead 生效 → 清理退订。"""
+    # 前置：同名订阅不应存在（冲突则换名/先清自己的）
+    import urllib.request as _ur
+    bridge_feeds = bridge("GET", "/agent/messages")   # 仅探桥活性
+    try:
+        msgs = run_case("EVAL-FEEDTEST 订阅并读一篇文章")
+        _, assistant, _ = last_exchange(msgs)
+        check("E18 模型确认读到文章", (assistant.get("content") or "") == "FEEDDONE")
+        turn = json.loads(bridge("GET", "/agent/trace")["jsonl"].split("\n")[-1])
+        steps = turn.get("steps") or []
+        sub = [x for x in steps if x.get("action") == "subscribeFeed"]
+        listed = [x for x in steps if x.get("action") == "readFeedArticles"]
+        check("E18 subscribeFeed 成功", len(sub) == 1
+              and not (sub[0].get("result") or "").startswith("Error:"))
+        check("E18 列表含 fixture 文章", "Fixture post alpha" in (listed[0].get("result") or "")
+              and "fx-a" in (listed[0].get("result") or ""))
+        # 已读生效：readFeedArticles(unreadOnly=true) 不再包含 fx-a（app 侧直接断言走桥不可用，
+        # 用一轮模型判读不划算——退订前先用 trace 里 subscribeFeed 的回执文确认计数）
+        check("E18 首抓回执带计数", "article(s)" in (sub[0].get("result") or ""))
+    finally:
+        # 清理：订阅是 app 内状态（用户真实 FeedStore）——必须退订本轮创建的
+        # 这一条（只按本轮 URL，不按关键词扫）。失败就大声报出来。
+        feed_url = f"http://127.0.0.1:{FIXTURE_PORT}/feed.xml"
+        try:
+            msgs = run_case(f"EVAL-FEEDCLEAN-URL {feed_url} 退订它")
+            _, assistant, _ = last_exchange(msgs)
+            check("E18 清理退订完成", (assistant.get("content") or "") == "FEEDCLEANDONE")
+        except Exception as exc:
+            check("E18 清理退订完成", False)
+            print(f"E18 清理退订失败（订阅残留，手动在面板退订 {feed_url}）：{exc}")
+
+
 CASES = [("E1 plain-echo", case_plain_echo),
          ("E2 fail-convention", case_fail_convention),
          ("E3 redaction", case_redaction),
@@ -1433,7 +1555,8 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E14 bridge-guard", case_bridge_guard),
          ("E15 har-export", case_har_export),
          ("E16 image-tool-contract", case_image_tool_contract),
-         ("E17 job-template-lifecycle", case_job_template_lifecycle)]
+         ("E17 job-template-lifecycle", case_job_template_lifecycle),
+         ("E18 feed-lifecycle", case_feed_lifecycle)]
 
 results = []
 

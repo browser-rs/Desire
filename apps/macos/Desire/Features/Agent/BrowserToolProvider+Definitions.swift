@@ -1255,6 +1255,41 @@ extension BrowserToolProvider {
                 ], required: ["path", "query"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listFeeds",
+                description: "List RSS/Atom feed subscriptions with unread counts. Read-only.",
+                parameters: AgentJSONSchema(type: "object", properties: [:], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "readFeedArticles",
+                description: "List articles from feed subscriptions (most recent first). Each line has [guid], title, date, link and a summary snippet; the guid is what markArticleRead takes. Read-only.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "feedUrl": AgentJSONSchemaValue(type: "string", description: "Optional feed URL to scope to one subscription (omit = all feeds)"),
+                    "unreadOnly": AgentJSONSchemaValue(type: "boolean", description: "Only unread articles (default false)"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "subscribeFeed",
+                description: "Subscribe to an RSS/Atom feed URL and run the first fetch immediately (returns article counts). The unread list feeds the Today's Reading card and the daily brief.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "url": AgentJSONSchemaValue(type: "string", description: "Feed URL (RSS or Atom)"),
+                ], required: ["url"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "unsubscribeFeed",
+                description: "Remove a feed subscription and its stored articles.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "url": AgentJSONSchemaValue(type: "string", description: "Feed URL"),
+                ], required: ["url"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "markArticleRead",
+                description: "Mark a feed article read or unread (guid comes from readFeedArticles output).",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "guid": AgentJSONSchemaValue(type: "string", description: "Article guid from readFeedArticles"),
+                    "read": AgentJSONSchemaValue(type: "boolean", description: "true (default) = read, false = back to unread"),
+                ], required: ["guid"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "pdfPageScreenshot",
                 description: "Render ONE page of a PDF file as an image (delivered as vision input) — for layout, charts, forms and visual questions where the text layer isn't enough. Page is 1-based. Pair with readPdf for text; scanned pages also work (render, not OCR).",
                 parameters: AgentJSONSchema(type: "object", properties: [

@@ -24,6 +24,9 @@ nonisolated enum DailyBrief {
         /// 收件箱待办（全量现状）。
         var inboxActionCount: Int
         var inboxByTitle: [(title: String, count: Int)]
+        /// 订阅新文章（v0.8.45）：未读数 + 最新 3 条标题样本。0/空 = 不显示。
+        var feedUnreadCount: Int = 0
+        var feedSamples: [String] = []
         // 运营段（v0.8.3）：默认 0/空 = 不显示，旧调用点与空工作台保持原样。
         /// 今天到期 / 已逾期的草稿与 Runbook 步骤。
         var opsDueToday: Int = 0
@@ -60,6 +63,14 @@ nonisolated enum DailyBrief {
             var inboxLine = String(format: String(localized: "Inbox: %lld item(s) waiting"), input.inboxActionCount)
             if !detail.isEmpty { inboxLine += "（\(detail)）" }
             lines.append("· " + inboxLine)
+        }
+        // 订阅段（v0.8.45）：只在有未读时出现。
+        if input.feedUnreadCount > 0 {
+            var feedLine = String(format: String(localized: "Feeds: %lld unread"), input.feedUnreadCount)
+            if !input.feedSamples.isEmpty {
+                feedLine += "：" + input.feedSamples.joined(separator: "；")
+            }
+            lines.append("· " + feedLine)
         }
         // 运营段（v0.8.3）：只在有数据时出现，不把空工作台写成"0 件事"。
         if input.opsDueToday > 0 || input.opsOverdue > 0 {

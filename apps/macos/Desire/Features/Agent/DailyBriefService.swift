@@ -84,6 +84,13 @@ enum DailyBriefService {
         let newFacts = memory.factsSnapshot.filter { $0.createdAt >= start }
         let samples = newFacts.prefix(3).map { String($0.content.prefix(40)) }
 
+        // 订阅段（v0.8.45）：未读数 + 最新未读标题样本（最多 3 条，各 40 字）。
+        let feedStore = FeedStore.shared
+        let feedUnread = feedStore.articles(for: nil, unreadOnly: true)
+        let feedUnreadCount = feedUnread.count
+        let feedSamples = feedUnread.prefix(3)
+            .map { String($0.title.prefix(40)) }
+
         let dismissals = AgentInboxDismissalStore.shared
         dismissals.purgeExpired()
         let inboxSections = AgentInbox.build(AgentInboxCollector.diskInputs(),
@@ -138,6 +145,8 @@ enum DailyBriefService {
             newFactSamples: samples,
             inboxActionCount: inboxCount,
             inboxByTitle: inboxByTitle,
+            feedUnreadCount: feedUnreadCount,
+            feedSamples: feedSamples,
             opsDueToday: dueToday,
             opsOverdue: overdue,
             opsPendingReplies: replySummary.pending,

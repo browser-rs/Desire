@@ -43,6 +43,9 @@ final class ImageEditorSession: ObservableObject {
     @Published var gradientRadial = false
     @Published var cornerRadius: CGFloat = 0
     @Published var dashedStroke = false
+    @Published var showGrid = false
+    @Published var showCenterGuides = true
+    @Published var snapping = true
     @Published var selectionFeather: Double = 0
     @Published var fillShapes = false
     @Published var marqueeEllipse = false

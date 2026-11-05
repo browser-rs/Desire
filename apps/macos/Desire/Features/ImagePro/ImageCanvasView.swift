@@ -209,6 +209,7 @@ struct ImageCanvasView: View {
             lassoPreview(t)
             shapePreview(t)
             strokePreview(t)
+            guideOverlay(t)
             cropOverlay(t)
             cloneSampleMarker(t)
             brushCursor(t)
@@ -542,9 +543,14 @@ struct ImageCanvasView: View {
             panLast = point
         case .move:
             if let start = moveStart {
-                document.setLayerOffset(document.activeLayerID,
-                                        CGSize(width: moveStartOffset.width + base.x - start.x,
-                                               height: moveStartOffset.height + base.y - start.y))
+                var target = CGSize(width: moveStartOffset.width + base.x - start.x,
+                                    height: moveStartOffset.height + base.y - start.y)
+                if session.snapping,
+                   let size = document.activeBitmap.map({
+                       CGSize(width: CGFloat($0.width), height: CGFloat($0.height)) }) {
+                    target = snapOffset(target, layerSize: size)
+                }
+                document.setLayerOffset(document.activeLayerID, target)
             }
         case .brush, .eraser:
             strokePoints.append(base)
@@ -651,6 +657,66 @@ struct ImageCanvasView: View {
             radius: max(1, session.brushSize / 2),
             strength: session.retouchStrength, source: source) else { return }
         document.setBitmapLive(document.activeLayerID, output)
+    }
+
+    /// 网格（每 50 图像像素，过密自动放大间距）+ 中心/三分参考线。
+    @ViewBuilder
+    private func guideOverlay(_ t: ImageCanvasTransform) -> some View {
+        if session.showGrid || session.showCenterGuides {
+            let content = t.contentSize
+            let origin = t.origin
+            Path { path in
+                if session.showGrid {
+                    var step: CGFloat = 50
+                    while step * t.zoom < 14 { step *= 2 }
+                    var x = step
+                    while x < t.displaySize.width {
+                        path.move(to: CGPoint(x: origin.x + x * t.zoom, y: origin.y))
+                        path.addLine(to: CGPoint(x: origin.x + x * t.zoom,
+                                                 y: origin.y + content.height))
+                        x += step
+                    }
+                    var y = step
+                    while y < t.displaySize.height {
+                        path.move(to: CGPoint(x: origin.x, y: origin.y + y * t.zoom))
+                        path.addLine(to: CGPoint(x: origin.x + content.width,
+                                                 y: origin.y + y * t.zoom))
+                        y += step
+                    }
+                }
+                if session.showCenterGuides {
+                    for ratio in [CGFloat(0.5), 1.0 / 3.0, 2.0 / 3.0] {
+                        let x = origin.x + content.width * ratio
+                        path.move(to: CGPoint(x: x, y: origin.y))
+                        path.addLine(to: CGPoint(x: x, y: origin.y + content.height))
+                        let y = origin.y + content.height * ratio
+                        path.move(to: CGPoint(x: origin.x, y: y))
+                        path.addLine(to: CGPoint(x: origin.x + content.width, y: y))
+                    }
+                }
+            }
+            .stroke(Color.white.opacity(session.showGrid ? 0.10 : 0.16), lineWidth: 0.6)
+        }
+    }
+
+    /// 移动吸附：图层中心靠近画布中心/三分线时对齐（阈值 6 图像像素）。
+    private func snapOffset(_ offset: CGSize, layerSize: CGSize) -> CGSize {
+        let canvas = document.canvasSize
+        let threshold: CGFloat = 6
+        var result = offset
+        let centerX = offset.width + layerSize.width / 2
+        let centerY = offset.height + layerSize.height / 2
+        for ratio in [CGFloat(0.5), 1.0 / 3.0, 2.0 / 3.0] {
+            let targetX = canvas.width * ratio
+            if abs(centerX - targetX) <= threshold {
+                result.width = targetX - layerSize.width / 2
+            }
+            let targetY = canvas.height * ratio
+            if abs(centerY - targetY) <= threshold {
+                result.height = targetY - layerSize.height / 2
+            }
+        }
+        return CGSize(width: result.width.rounded(), height: result.height.rounded())
     }
 
     @ViewBuilder

@@ -10,6 +10,8 @@
 - ImagePro 迭代 9：图层样式（投影/描边/发光）非破坏地应用于合成——图层面板 fx 弹窗开关与参数（投影半径/偏移、描边宽度、发光半径），命令 API layer op=style。剪影基于图层 alpha，因此样式应作用于独立透明图层（如文字图层）。实测投影向下扩展、描边环、发光染色均可见。
 - ImagePro 迭代 10：从视频抓帧做封面——Canvas 菜单「Frame from Video…」选视频自动抽第 1 秒画面并作为图层置入当前画布（自动居中/超尺寸缩放）；命令 API extractframe {path,time,output} 支持任意时间点抽帧与落盘，供 AI 自动做视频封面。
 - ImagePro 迭代 11：抠图/去背景接入——Canvas 菜单「Remove Background」与命令 API cutout {mode: erase|layer}，复用应用内 Vision 主体提取（ImageAICore.subjectMask/cutout），找不到主体时给出明确错误；命令 API 全面改为 async（/image/edit 与 Agent 工具均已适配）。
+- ImagePro 迭代 12：画布辅助——可选网格（50 图像像素起、过密自动加倍）、中心/三分参考线，移动工具默认吸附到中心与三分线（阈值 6 图像像素），Canvas 菜单可分别开关网格/参考线/吸附。
+
 
 
 

@@ -214,6 +214,9 @@ struct ImageEditorView: View {
                         }
                     }
                 }
+                Toggle(String(localized: "Show Grid"), isOn: $session.showGrid)
+                Toggle(String(localized: "Center Guides"), isOn: $session.showCenterGuides)
+                Toggle(String(localized: "Snapping"), isOn: $session.snapping)
                 Button(String(localized: "Image Size…")) {
                     sizeWidth = "\(Int(session.canvasSize.width))"
                     sizeHeight = "\(Int(session.canvasSize.height))"

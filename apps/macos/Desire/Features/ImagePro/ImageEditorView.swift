@@ -80,7 +80,7 @@ struct ImageEditorView: View {
             }
         }
         .sheet(isPresented: $showImageSize) {
-            sizeSheet(title: String(localized: "Image Size")) {
+            sizeSheet(title: String(localized: "Image Size (px)")) {
                 session.document.resize(to: CGSize(width: CGFloat(Int(sizeWidth) ?? 0),
                                                     height: CGFloat(Int(sizeHeight) ?? 0)))
             }

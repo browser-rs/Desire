@@ -90,6 +90,7 @@ enum ImageEditorCommands {
                     return ["error": "retouch needs points: [[x,y], ...]"]
                 }
                 session.retouchMode = mode
+                session.tool = .retouch
                 document.bakeActiveLayerGeometry()
                 guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
                 let size = Self.number(body["size"]).map { CGFloat($0) } ?? session.brushSize

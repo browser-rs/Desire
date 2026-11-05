@@ -325,6 +325,29 @@ extension BrowserToolProvider {
                     return Self.fail("JS exception — \(message)")
                 }
             }
+        case "editImage":
+            guard let action = args["action"] as? String, !action.isEmpty else {
+                return Self.fail("Missing action")
+            }
+            var command: [String: Any] = ["action": action]
+            if let raw = args["params"] as? String, !raw.isEmpty {
+                guard let data = raw.data(using: .utf8),
+                      let object = (try? JSONSerialization.jsonObject(with: data))
+                        as? [String: Any] else {
+                    return Self.fail("params must be a JSON object")
+                }
+                command.merge(object) { _, new in new }
+            } else if let object = args["params"] as? [String: Any] {
+                command.merge(object) { _, new in new }
+            }
+            guard ImageEditorSession.active != nil else {
+                return Self.fail("No image editor is open. Ask the user to open an image first.")
+            }
+            let result = ImageEditorCommands.apply(command, session: ImageEditorSession.active)
+            if let error = result["error"] as? String { return Self.fail(error) }
+            let data = (try? JSONSerialization.data(withJSONObject: result,
+                                                    options: [.sortedKeys])) ?? Data()
+            return String(data: data, encoding: .utf8) ?? "{\"ok\":true}"
         case "runToolboxTool":
             guard let tool = args["tool"] as? String, !tool.isEmpty else {
                 return Self.fail("Missing tool")

@@ -6803,37 +6803,7 @@ func testImageGeometryPipeline() {
 }
 testImageGeometryPipeline()
 
-func testImageLayerCore() {
-    var stack = ImageLayerCore.Stack().layers
-    check("图层：初始含背景层", stack.count == 1 && stack[0].name == "Background")
 
-    let layer1 = ImageLayer(name: "Text")
-    stack.append(layer1)
-    let layer2 = ImageLayer(name: "Paste", opacity: 2)
-    stack.append(layer2)
-    eq("图层：透明度夹紧", stack[2].opacity, 1)
-
-    check("图层：上限拒绝",
-          ImageLayerCore.adding(stack, name: "Extra") == nil ||
-          (stack.count + 1 <= ImageLayerCore.maxLayers))
-
-    var moved = ImageLayerCore.moving(stack, from: 2, to: 1)
-    eq("图层：移动后顺序", moved[1].name, "Paste")
-    eq("图层：移动不改数量", moved.count, 3)
-
-    let order = ImageLayerCore.renderOrder(moved)
-    eq("图层：渲染顺序含全部可见", order.count, 3)
-    moved[0].isVisible = false
-    moved[2].opacity = 0
-    let filtered = ImageLayerCore.renderOrder(moved)
-    eq("图层：隐藏/透明层不参与渲染", filtered.count, 1)
-
-    check("图层：一致性", ImageLayerCore.isConsistent(moved))
-    check("图层：fallback 名唯一",
-          ImageLayerCore.fallbackName(for: [stack[0]])
-              != ImageLayerCore.fallbackName(for: [stack[0], stack[0]]))
-}
-testImageLayerCore()
 
 func testCubeLUTCore() {
     let cube = """
@@ -8534,6 +8504,7 @@ testFeedCore()
 testFeedSyncCore()
 testFeedOPMLCore()
 testImageGeometryMapper()
+testImageCanvasTransform()
 testReadingDigestCore()
 testFB2Core()
 testEbookSyncCore()
@@ -9818,6 +9789,69 @@ nonisolated enum ImageGeometryMapperInverseProbe {
 // ---------- 阅读摘要（v0.8.36） ----------
 
 // ---------- 阅读摘要（v0.8.36） ----------
+
+func testImageCanvasTransform() {
+    // 容器 1000×700，800×600 图，zoom 0.7，pan (30,-20)
+    let t = ImageCanvasTransform(containerSize: CGSize(width: 1000, height: 700),
+                                 displaySize: CGSize(width: 800, height: 600),
+                                 baseSize: CGSize(width: 800, height: 600),
+                                 geometryOps: [], zoom: 0.7,
+                                 pan: CGSize(width: 30, height: -20))
+    check("画布变换：居中 + 平移原点",
+          abs(t.origin.x - 250) < 0.001 && abs(t.origin.y - 120) < 0.001)
+    check("画布变换：内容尺寸", abs(t.contentSize.width - 560) < 0.001
+          && abs(t.contentSize.height - 420) < 0.001)
+
+    let canvasPoint = CGPoint(x: t.origin.x + 70, y: t.origin.y + 35)
+    let base = t.basePixel(fromCanvas: canvasPoint)
+    check("画布变换：画布点 → base 像素",
+          abs(base.x - 100) < 0.001 && abs(base.y - 50) < 0.001)
+    let back = t.canvasPoint(fromBasePixel: base)
+    check("画布变换：base → 画布往返",
+          abs(back.x - canvasPoint.x) < 0.001 && abs(back.y - canvasPoint.y) < 0.001)
+
+    // 锚点缩放：锚点下的图像位置不变
+    let anchor = CGPoint(x: 400, y: 300)
+    let anchorBefore = t.basePixel(fromCanvas: anchor)
+    let zoomed = t.zoomed(to: 1.6, anchor: anchor)
+    var t2 = t
+    t2.zoom = zoomed.zoom
+    t2.pan = zoomed.pan
+    let anchorAfter = t2.basePixel(fromCanvas: anchor)
+    check("画布变换：锚点缩放不漂移",
+          abs(anchorBefore.x - anchorAfter.x) < 0.001
+            && abs(anchorBefore.y - anchorAfter.y) < 0.001)
+
+    // 90° 旋转的非方图：display(600×800) ↔ base(800×600) 往返
+    let r = ImageCanvasTransform(containerSize: CGSize(width: 600, height: 800),
+                                 displaySize: CGSize(width: 600, height: 800),
+                                 baseSize: CGSize(width: 800, height: 600),
+                                 geometryOps: [.rotate90cw], zoom: 1, pan: .zero)
+    for point in [CGPoint(x: 0, y: 0), CGPoint(x: 300, y: 400),
+                  CGPoint(x: 599, y: 799)] {
+        let b = r.basePixel(fromDisplayPixel: point)
+        let d = r.displayPixel(fromBasePixel: b)
+        check("画布变换：旋转往返 \(point.x),\(point.y)",
+              abs(d.x - point.x) < 0.001 && abs(d.y - point.y) < 0.001)
+    }
+
+    // 降采样归一（显示 400×300，base 800×600）：显示点 (200,150) = base (400,300)
+    let down = ImageCanvasTransform(containerSize: CGSize(width: 400, height: 300),
+                                    displaySize: CGSize(width: 400, height: 300),
+                                    baseSize: CGSize(width: 800, height: 600),
+                                    geometryOps: [], zoom: 1, pan: .zero)
+    let center = down.basePixel(fromDisplayPixel: CGPoint(x: 200, y: 150))
+    check("画布变换：降采样归一",
+          abs(center.x - 400) < 0.001 && abs(center.y - 300) < 0.001)
+
+    // 适应窗口
+    let fit = ImageCanvasTransform.fitZoom(container: CGSize(width: 1000, height: 700),
+                                           display: CGSize(width: 800, height: 600))
+    check("画布变换：fit 比例（钳到 1）", abs(fit - 1) < 0.001)
+    let fitSmall = ImageCanvasTransform.fitZoom(container: CGSize(width: 440, height: 340),
+                                                display: CGSize(width: 800, height: 600))
+    check("画布变换：小容器 fit", abs(fitSmall - 0.5) < 0.001)
+}
 
 func testReadingDigestCore() {
     func book(_ title: String, progress: Double, opened: Date) -> Ebook {

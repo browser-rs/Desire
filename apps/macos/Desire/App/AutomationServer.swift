@@ -873,7 +873,16 @@ final class AutomationServer {
             case ("GET", "/"):
                 return try Self.json(Self.index())
             case ("GET", "/state"):
-                return try Self.json(Self.appState())
+                // ?window=<sessionKey|UUID|windowNumber>：指定窗口读状态
+                // （自动化用自己那扇窗，不碰用户的前台窗口）。
+                return try Self.json(Self.appState(window: Self.string(query, "window")))
+            case ("POST", "/image/edit"):
+                // ImagePro 命令 API（UI/Agent/桥共用）。坐标 = 图片像素。
+                return try Self.json(ImageEditorCommands.apply(body,
+                                                               session: ImageEditorSession.active))
+            case ("GET", "/image/state"):
+                return try Self.json(ImageEditorCommands.apply(["action": "state"],
+                                                               session: ImageEditorSession.active))
             case ("POST", "/editor/synthetic"):
                 // 编辑器交互测试钩子（DEBUG-only；搭桥 E2E 用）：在活动标签
                 // 所在窗口合成真实 NSEvent（拖拽/点击/按键）——SwiftUI 手势
@@ -884,7 +893,9 @@ final class AutomationServer {
                 return try Self.json(["error": "debug builds only"])
                 #endif
             case ("POST", "/navigate"):
-                return try await Self.json(Self.navigate(Self.string(body, "url"), index: Self.index(body)))
+                return try await Self.json(Self.navigate(
+                    Self.string(body, "url"), index: Self.index(body),
+                    window: Self.string(body, "window")))
             case ("POST", "/video-speed"):
                 // 视频速度接管（0.6.5）：rate 钳制 0.25–3，经 video-speed.js
                 // 应用到当前与未来媒体元素。E2E：executeJS 读 playbackRate 断言。
@@ -3722,6 +3733,7 @@ final class AutomationServer {
                 "containerId": selected?.containerID?.uuidString ?? "",
                 "title": windowTitle,
                 "isKey": isKey,
+                "windowNumber": hostWindow?.windowNumber ?? 0,
                 "locked": SurfaceLock.shared.reason(for: manager) != nil,
             ]
         }
@@ -3841,10 +3853,54 @@ final class AutomationServer {
         query["index"].flatMap(Int.init)
     }
 
+    /// 按窗口显式定位 TabManager（2026-11-05，多窗口/多档案）：桥的浏览器
+    /// 端点曾一律走 `activeTabManager`（= 用户当前所在窗口）。自动化在用户的
+    /// 机器上跑时必须能指定"我自己的那扇窗"，否则合成事件/导航会打进用户
+    /// 正在用的窗口。参数接受：
+    /// - `session-<uuid>`（`GET /diag/windows` 的 sessionKey，推荐）
+    /// - 裸会话 UUID
+    /// - 窗口号（`GET /windows` 的 number）
+    private static func windowManager(_ raw: String?) -> TabManager? {
+        guard let raw = raw?.trimmingCharacters(in: .whitespaces), !raw.isEmpty else {
+            return nil
+        }
+        let managers = TabSessionCoordinator.shared.liveManagers()
+        if let exact = managers.first(where: { $0.sessionKey == raw }) { return exact }
+        if let uuid = UUID(uuidString: raw),
+           let byUUID = managers.first(where: {
+               $0.sessionKey == TabSessionCoordinator.shared.sessionKey(for: uuid)
+           }) {
+            return byUUID
+        }
+        if let number = Int(raw), let target = NSApp.window(withWindowNumber: number) {
+            return managers.first { manager in
+                let host = WindowSurfaceRegistry.shared.window(for: manager.sessionKey)
+                    ?? manager.selectedTab?.browser.webView.window
+                return host === target
+            }
+        }
+        return nil
+    }
+
+    /// 桥端点的标签解析：给了 window 就只在该窗口内取，绝不再回落到
+    /// activeTabManager（回落=打到用户窗口）。
+    private static func tabTarget(index: Int?, window: String?) -> Tab? {
+        if let manager = windowManager(window) {
+            if let index { return manager.tabs.indices.contains(index) ? manager.tabs[index] : nil }
+            return manager.selectedTab
+        }
+        return shared.resolveIndex(index)
+    }
+
     // MARK: - Endpoint impls
 
-    private static func appState() throws -> [String: Any] {
-        let tm = try shared.tabManager
+    private static func appState(window: String? = nil) throws -> [String: Any] {
+        let tm: TabManager?
+        if let manager = Self.windowManager(window) {
+            tm = manager
+        } else {
+            tm = try shared.tabManager
+        }
         let tabs: [[String: Any]] = (tm?.tabs ?? []).enumerated().map { i, tab in
             [
                 "index": i,
@@ -3918,9 +3974,24 @@ final class AutomationServer {
     /// x1,y1,x2,y2|key}——坐标为窗口基础坐标（左下原点），投递到活动标签
     /// 所在窗口（编辑器与 webview 同窗）。
     private static func editorSynthetic(_ body: [String: Any]) async throws -> [String: Any] {
-        // 目标窗口 = Desire 主窗（编辑器是标签内 SwiftUI 覆盖层——viewer
-        // 模式下 webview 不挂窗，不能经 webview.window 取）。
-        guard let windowNumber = Self.frontDesireWindowNumber() else {
+        // 目标窗口：优先 body.window（sessionKey / UUID / 窗口号）——自动化
+        // 必须能打自己那扇窗；不传才退回 keyWindow（历史行为，单人测试用）。
+        let windowNumber: Int
+        if let requested = Self.string(body, "window"), !requested.isEmpty {
+            if let manager = Self.windowManager(requested) {
+                let host = WindowSurfaceRegistry.shared.window(for: manager.sessionKey)
+                    ?? manager.selectedTab?.browser.webView.window
+                guard let host else { return ["error": "window has no surface: \(requested)"] }
+                windowNumber = host.windowNumber
+            } else if let number = Int(requested),
+                      NSApp.window(withWindowNumber: number) != nil {
+                windowNumber = number
+            } else {
+                return ["error": "no such window: \(requested) (see GET /diag/windows)"]
+            }
+        } else if let fallback = Self.frontDesireWindowNumber() {
+            windowNumber = fallback
+        } else {
             return ["error": "no desire window on screen"]
         }
         // 编辑器状态探针（视图侧写入）不需要 window。
@@ -3980,8 +4051,18 @@ final class AutomationServer {
             try? await Task.sleep(nanoseconds: 60_000_000)
             return ["ok": true, "action": "doubleclick"]
         case "key":
-            guard let key = Self.string(body, "key") else {
+            // key 不能走 Self.string：它会 trim 空白/换行，Return 会变空串。
+            guard let rawKey = body["key"] as? String, !rawKey.isEmpty else {
                 return ["error": "key required"]
+            }
+            let key: String
+            switch rawKey.lowercased() {
+            case "return", "enter": key = "\r"
+            case "escape", "esc": key = "\u{1b}"
+            case "space": key = " "
+            case "tab": key = "\t"
+            case "delete", "backspace": key = "\u{7f}"
+            default: key = rawKey
             }
             var modifiers: NSEvent.ModifierFlags = []
             if (body["command"] as? Bool) == true
@@ -4012,8 +4093,16 @@ final class AutomationServer {
         }
     }
 
-    /// Desire 主窗 windowNumber（on-screen、layer 0、宽 >500）。
+    /// 目标窗号：优先 keyWindow（编辑器交互窗口），退化到主窗列表。
     private static func frontDesireWindowNumber() -> Int? {
+        if let key = NSApp.keyWindow?.windowNumber, key != 0 {
+            return key
+        }
+        return frontDesireWindowNumberFallback()
+    }
+
+    /// Desire 主窗 windowNumber（on-screen、layer 0、宽 >500）。
+    private static func frontDesireWindowNumberFallback() -> Int? {
         let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly],
                                               kCGNullWindowID) as? [[String: Any]] ?? []
         for entry in list where (entry["kCGWindowOwnerName"] as? String) == "Desire"
@@ -4038,9 +4127,12 @@ final class AutomationServer {
         NSApp.sendEvent(event)
     }
 
-    private static func navigate(_ rawURL: String?, index: Int?) async throws -> [String: Any] {
+    private static func navigate(_ rawURL: String?, index: Int?,
+                                 window: String? = nil) async throws -> [String: Any] {
         guard let rawURL, !rawURL.isEmpty else { return ["error": "missing url"] }
-        guard let tab = shared.resolveIndex(index) else { return ["error": "no such tab"] }
+        guard let tab = Self.tabTarget(index: index, window: window) else {
+            return ["error": window == nil ? "no such tab" : "no such window/tab: \(window ?? "")"]
+        }
         // 内置页面（v0.8.27）：desire://tools[/<tool>]
         if let destination = InternalPages.parse(rawURL) {
             InternalPages.open(destination, in: tab)
@@ -4057,7 +4149,7 @@ final class AutomationServer {
             var isDir: ObjCBool = false
             if FileManager.default.fileExists(atPath: expanded, isDirectory: &isDir),
                !isDir.boolValue, let fileURL = URL(string: "file://" + expanded) {
-                return try await navigate(fileURL.absoluteString, index: index)
+                return try await navigate(fileURL.absoluteString, index: index, window: window)
             }
         }
         let destination = URLResolution.resolve(rawURL, settings: Settings())
@@ -4070,6 +4162,11 @@ final class AutomationServer {
             return ["error": "unresolvable input"]
         }
         guard let url = URL(string: finalURL) else { return ["error": "bad url"] }
+        // 网页导航必须先关掉查看器覆盖层（图片/PDF/表格等），否则查看器
+        // 仍盖在新页面上（2026-11-05 踩：桥导航把编辑器留在了 YouTube 页上）。
+        if !url.isFileURL {
+            await MainActor.run { tab.browser.closeAllViewers() }
+        }
         // 本地媒体/PDF 走专用查看器（与地址栏 navigateToURL 同一规矩——
         // WKWebView 对 file:// 媒体不渲染，直接 load 落"插件处理的加载"错误页）。
         if url.isFileURL, SelectedTabContent.isOpenableFile(url) {

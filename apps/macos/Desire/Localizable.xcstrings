@@ -25267,9 +25267,28 @@
         }
       }
     },
-    "Crop" : {
-
-    },
+        "Crop" : {
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Crop"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "裁剪"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "裁剪"
+              }
+            }
+          }
+        },
     "Crop is applied immediately (undo with ⌘Z)." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -74072,9 +74091,28 @@
         }
       }
     },
-    "Save (⌘S)" : {
-
-    },
+        "Save (⌘S)" : {
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Save (⌘S)"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "保存（⌘S）"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "儲存（⌘S）"
+              }
+            }
+          }
+        },
     "Save as a named spec and schedule periodic collection" : {
       "comment" : "数据集调度",
       "localizations" : {
@@ -97295,9 +97333,28 @@
         }
       }
     },
-    "Zoom In (⌘=)" : {
-
-    },
+        "Zoom In (⌘=)" : {
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Zoom In (⌘=)"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "放大（⌘=）"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "放大（⌘=）"
+              }
+            }
+          }
+        },
     "Zoom Level — Click to reset to 100%" : {
       "comment" : "Zoom button help",
       "localizations" : {
@@ -97344,9 +97401,28 @@
         }
       }
     },
-    "Zoom Out (⌘-)" : {
-
-    },
+        "Zoom Out (⌘-)" : {
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Zoom Out (⌘-)"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "缩小（⌘-）"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "縮小（⌘-）"
+              }
+            }
+          }
+        },
     "上一块（←）" : {
       "localizations" : {
         "en" : {
@@ -101468,7 +101544,1180 @@
           }
         }
       }
-    }
+    },
+        "Active layer · selection respected" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Active layer · selection respected"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "作用于当前图层 · 尊重选区"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "作用於目前圖層 · 尊重選取範圍"
+              }
+            }
+          }
+        },
+        "Actual Pixels (⌘1)" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Actual Pixels (⌘1)"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "实际像素（⌘1）"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "實際像素（⌘1）"
+              }
+            }
+          }
+        },
+        "Add text" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Add text"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "加文字"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "加文字"
+              }
+            }
+          }
+        },
+        "Adjustment applied" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Adjustment applied"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "调整已应用"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "調整已套用"
+              }
+            }
+          }
+        },
+        "Apply Filter" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Apply Filter"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "应用滤镜"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "套用濾鏡"
+              }
+            }
+          }
+        },
+        "Apply to Layer" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Apply to Layer"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "应用到图层"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "套用到圖層"
+              }
+            }
+          }
+        },
+        "Ask AI" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Ask AI"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "AI 编辑"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "AI 編輯"
+              }
+            }
+          }
+        },
+        "Ask AI to edit this image" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Ask AI to edit this image"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "让 AI 编辑这张图"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "讓 AI 編輯這張圖"
+              }
+            }
+          }
+        },
+        "Black & White" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Black & White"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "黑白"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "黑白"
+              }
+            }
+          }
+        },
+        "Blend" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Blend"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "混合模式"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "混合模式"
+              }
+            }
+          }
+        },
+        "Brighten" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Brighten"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "提亮"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "提亮"
+              }
+            }
+          }
+        },
+        "Click to zoom in · ⌥click to zoom out" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Click to zoom in · ⌥click to zoom out"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "点击放大 · ⌥点击缩小"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "點擊放大 · ⌥點擊縮小"
+              }
+            }
+          }
+        },
+        "Crop to 1:1" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Crop to 1:1"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "裁成 1:1"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "裁成 1:1"
+              }
+            }
+          }
+        },
+        "Cropped" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Cropped"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "已裁剪"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "已裁剪"
+              }
+            }
+          }
+        },
+        "Delete Layer" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Delete Layer"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "删除图层"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "刪除圖層"
+              }
+            }
+          }
+        },
+        "Detail" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Detail"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "细节"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "細節"
+              }
+            }
+          }
+        },
+        "Drag a box, then Apply (⏎)" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Drag a box, then Apply (⏎)"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "拖出选框后按应用（⏎）"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "拖出選取框後按套用（⏎）"
+              }
+            }
+          }
+        },
+        "Drag to draw a selection" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Drag to draw a selection"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "拖动绘制选区"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "拖曳繪製選取範圍"
+              }
+            }
+          }
+        },
+        "Drag to move the active layer" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Drag to move the active layer"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "拖动可移动当前图层"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "拖曳可移動目前圖層"
+              }
+            }
+          }
+        },
+        "Drag to pan · ⌘scroll to zoom" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Drag to pan · ⌘scroll to zoom"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "拖动平移 · ⌘滚轮缩放"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "拖曳平移 · ⌘滾輪縮放"
+              }
+            }
+          }
+        },
+        "Duplicate Layer" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Duplicate Layer"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "复制图层"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "複製圖層"
+              }
+            }
+          }
+        },
+        "Eraser" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Eraser"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "橡皮擦"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "橡皮擦"
+              }
+            }
+          }
+        },
+        "Export as JPEG…" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Export as JPEG…"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "导出为 JPEG…"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "匯出為 JPEG…"
+              }
+            }
+          }
+        },
+        "Export as PNG…" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Export as PNG…"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "导出为 PNG…"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "匯出為 PNG…"
+              }
+            }
+          }
+        },
+        "Export as TIFF…" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Export as TIFF…"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "导出为 TIFF…"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "匯出為 TIFF…"
+              }
+            }
+          }
+        },
+        "Eyedropper Tool" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Eyedropper Tool"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "吸管"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "滴管"
+              }
+            }
+          }
+        },
+        "Filter Effect" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Filter Effect"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "滤镜"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "濾鏡"
+              }
+            }
+          }
+        },
+        "Filter applied" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Filter applied"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "滤镜已应用"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "濾鏡已套用"
+              }
+            }
+          }
+        },
+        "Fit (⌘0)" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Fit (⌘0)"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "适应窗口（⌘0）"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "適應視窗（⌘0）"
+              }
+            }
+          }
+        },
+        "Foreground Color" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Foreground Color"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "前景色"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "前景色"
+              }
+            }
+          }
+        },
+        "Hand" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Hand"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "抓手"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "抓手"
+              }
+            }
+          }
+        },
+        "Hardness" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Hardness"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "硬度"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "硬度"
+              }
+            }
+          }
+        },
+        "Invert" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Invert"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "反选"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "反選"
+              }
+            }
+          }
+        },
+        "Lasso Tool" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Lasso Tool"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "套索"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "套索"
+              }
+            }
+          }
+        },
+        "Lasso selection" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Lasso selection"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "套索选区已建立"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "套索選取範圍已建立"
+              }
+            }
+          }
+        },
+        "Lighting" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Lighting"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "明暗"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "明暗"
+              }
+            }
+          }
+        },
+        "Lower Layer" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Lower Layer"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "下移图层"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "下移圖層"
+              }
+            }
+          }
+        },
+        "Magic Wand Tool" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Magic Wand Tool"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "魔棒"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "魔術棒"
+              }
+            }
+          }
+        },
+        "Magic wand selection" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Magic wand selection"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "魔棒选区已建立"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "魔術棒選取範圍已建立"
+              }
+            }
+          }
+        },
+        "Marquee" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Marquee"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "选框"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "選取框"
+              }
+            }
+          }
+        },
+        "Move" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Move"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "移动"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "移動"
+              }
+            }
+          }
+        },
+        "No active layer" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "No active layer"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "没有活动图层"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "沒有作用中的圖層"
+              }
+            }
+          }
+        },
+        "Open the Agent panel first" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Open the Agent panel first"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "请先打开 Agent 面板"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "請先開啟 Agent 面板"
+              }
+            }
+          }
+        },
+        "Original State" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Original State"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "原图"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "原圖"
+              }
+            }
+          }
+        },
+        "Raise Layer" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Raise Layer"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "上移图层"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "上移圖層"
+              }
+            }
+          }
+        },
+        "Selection created" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Selection created"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "已建立选区"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "已建立選取範圍"
+              }
+            }
+          }
+        },
+        "Sent to Agent" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Sent to Agent"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "已发送给 Agent"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "已傳送給 Agent"
+              }
+            }
+          }
+        },
+        "Shape" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Shape"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "形状"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "形狀"
+              }
+            }
+          }
+        },
+        "Text Tool" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Text Tool"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "文字"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "文字"
+              }
+            }
+          }
+        },
+        "Unsaved changes" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "Unsaved changes"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "有未保存的修改"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "有未儲存的修改"
+              }
+            }
+          }
+        },
+        "e.g. remove the background, brighten, crop to 1:1" : {
+          "extractionState" : "manual",
+          "localizations" : {
+            "en" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "e.g. remove the background, brighten, crop to 1:1"
+              }
+            },
+            "zh-Hans" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "例如：去背景、提亮、裁成 1:1"
+              }
+            },
+            "zh-Hant" : {
+              "stringUnit" : {
+                "state" : "translated",
+                "value" : "例如：去背、提亮、裁成 1:1"
+              }
+            }
+          }
+        }
   },
   "version" : "1.0"
 }

@@ -2105,6 +2105,14 @@ extension BrowserToolProvider {
                     "content": AgentJSONSchemaValue(type: "string", description: "Note or summary text"),
                 ], required: ["content"])
             )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "editImage",
+                description: "Drive the open image editor (ImagePro). Object coordinates are IMAGE PIXELS (top-left origin), independent of zoom. Actions: state; settool {tool}; brush/eraser {points:[[x,y],…], size, color, opacity, hardness}; shape {kind: rectangle|ellipse|line|arrow, from, to, stroke, fill, width}; text {text, at, size, color}; fill {color, rect?}; mosaic {rect, block?}; crop {rect:[x,y,w,h]}; resize {width|height}; rotate {direction: cw|ccw}; flip {axis: h|v}; select {kind: rect|ellipse|lasso|wand|all|clear|invert, rect|points|at, feather}; adjust {brightness,contrast,saturation,exposure,temperature,tint,highlights,shadows,vibrance,clarity,sharpen,vignette}; filter {name}; layer {op: add|duplicate|delete|select|up|down|visible|opacity|blend|name, …}; undo; redo; save; export {path, format?}; zoom/fit {scale}. Pass parameters as a JSON object string in `params`.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "action": AgentJSONSchemaValue(type: "string", description: "Command action (brush, crop, select, adjust, filter, layer, …)"),
+                    "params": AgentJSONSchemaValue(type: "string", description: "JSON object with the action's parameters, e.g. {\"points\":[[10,20],[40,60]],\"size\":12,\"color\":\"#ff0000\"}"),
+                ], required: ["action"])
+            )),
                 ]
     }()
 

@@ -53,12 +53,14 @@ Desire/
 │   └── WindowChromeGuard.swift
 ├── Features/
 │   ├── Browsing/               # 浏览核心
+│   ├── ImagePro/               # 图片编辑器（v0.8.46 重写：画布/文档/命令/面板）
 │   ├── Bookmarks/
 │   ├── History/
 │   ├── Downloads/
 │   ├── ContentBlocking/
 │   ├── UserScripts/
 │   ├── Settings/
+│   ├── ImagePro/               # 图片编辑器：图层/选区/画笔/形状/文字/裁剪/调整/滤镜
 │   ├── AddressBar/             # 地址建议/自动补全（不是地址栏 UI）
 │   └── AI/                     # 预留
 ├── Views/                      # 跨功能共享 UI 组件
@@ -1069,6 +1071,50 @@ CI/release 会在"pinned Xcode missing"一步明确失败；此时退回**本地
 - 多资产一次性 `gh release create` 会偶发 408——先建 Release 再逐个上传。
 - 安装说明单一真相 = `scripts/install-note.template.md`；下载侧要求 `xattr -cr`。
 - bash 3.2：`$var` 后紧跟全角字符要写 `${var}`。
+
+## ImagePro 图片编辑器（v0.8.46 彻底重写）
+
+旧图片编辑器（ImageEditorView/Document/LayerStore/LayersPanel 等）已整体删除，图片相关代码统一在
+`apps/macos/Desire/Features/ImagePro/`（文件系统同步组自动纳入，无需改 pbxproj）。目标 = 轻量 Photoshop：
+图层 / 选区 / 画笔 / 形状 / 文字 / 裁剪 / 调整 / 滤镜 / 历史，**AI 与人工共用一套命令**。
+
+### 坐标系统（唯一真相）
+
+三个空间，任何换算只能走 `ImageCanvasTransform`（Foundation/CoreGraphics，进 tests/run.sh）：
+- **canvas**：画布容器坐标，左上原点、y 向下（= `ImageEventCatcher` 的 NSView bounds）；
+- **display**：显示图像素（管线渲染结果，>4096 时可降采样）；
+- **base**：底图像素——**编辑真正落笔的空间**（几何逆映射 + 降采样归一）。
+
+铁律：
+1. **工具状态一律存 base 像素**（画笔点/选框/套索/裁剪框/文字锚点），不要存画布坐标；
+2. 事件入口只做一次换算 `basePixel(fromCanvas:)`，覆盖层只做 `canvasPoint(fromBasePixel:)`；
+3. 线宽/半径/字号用 `baseLength(_:)`（画布点 → base 像素）；
+4. 命令行 API 的坐标**也是图片像素**（与缩放/平移无关），AI 驱动因此确定性。
+
+### 组件边界
+
+- `ImageCanvasView`：手势 → 文档操作 + 覆盖层（蚂蚁线/套索/形状预览/裁剪框/画笔光标/文字卡）。
+  画面通知只在**尺寸真的变化**时回调（`layout()` 每帧都跑，无条件 `recomputeFit` 会把 pan 打回中心 —— "拖动抖"根因）。
+- `ImageEditorDocument`：图层账本 + 位图 + 选区 + 历史（一份历史 = 一次拖动/命令）；合成缓存按 revision。
+- `ImageEditorRaster`：画笔（软边等距落章）/形状/文字/马赛克/选区蒙版/调节滤镜（复用 ImagePipelineRenderer），
+  输入输出全部 base 像素。
+- `ImageEditorSession`：文档 + 视口 + 工具设置；`ImageEditorSession.active` 是桥/Agent 的入口；
+  `ImageEditorCommands` 是唯一命令实现（`POST /image/edit`、Agent 工具 `editImage`）。
+- 旧编辑器拆出来的纯工具（ImageTransforms / ImageSelectionAdvanced / ImageEditPipelineCore /
+  ImagePipelineRenderer / ImageBatchEdit* / ImageAICore / ImageEXIF / ImageWatermarkRenderer）仍保留在 ImagePro，
+  Agent jobs 与批量编辑继续用它们。
+
+### 实测踩点（改这块前先看）
+
+- **SwiftUI 单键 keyboardShortcut 在 NSView 当第一响应者时可能不触发**（实测 "C" 无效）：单键工具/确认键
+  一律在 `ImageEventCatcher.keyDown` 处理（`onKey`），⌘⏎ 走 `performKeyEquivalent`。
+- **桥 `key` 参数不能走 `Self.string`**（会 trim 掉 Return/空格）：支持 `return/esc/space/tab/delete` 别名。
+- **局部几何值不要被闭包捕获**（NSViewRepresentable 闭包是快照）：事件处理里用当前 @State 现算 transform。
+- **验收必须搭桥走真实事件链**：`/editor/synthetic` 合成 NSEvent → 用 `catcherRect`（事件层窗口坐标矩形）
+  换算窗口点；命令 API 再走 `/image/edit`。保存后读 PNG 像素断言（画笔 bbox/选区效果/裁剪尺寸）。
+- **xcstrings 符号名冲突**：键 "Eyedropper"/"Lasso"/"Magic Wand" 会与 SF Symbol 生成符号撞车导致构建失败，
+  改叫 "... Tool"。
+- **窄工具轨里不要放 ColorPicker**（会撑爆成一块）；色板放工具选项栏。
 
 ## 端点扩展模式
 

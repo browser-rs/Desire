@@ -1,7 +1,13 @@
 ## [Unreleased]
+### Fixed
+
+- 图片编辑器（ImagePro）可用性修复：画布改用 CGImage 直出（>=100% 最近邻、<100% 高质量）且手动缩放不再被"适应窗口"重置；裁剪工具加 8 向手柄/框内拖动/比例锁定/边界与像素吸附/尺寸标签/⏎与双击应用；工具快捷键改为窗口级监听（未点画布也可用、文本输入时不抢键）；画笔与橡皮遵守选区（含选区翻转修正）；桥导航到网页时自动关闭图片/PDF 等查看器覆盖层。
+
 ### Changed
 
 - Image editor: professional-UX pass — drag previews for arrow/line/rectangle/ellipse/mosaic and live brush strokes, brush-size ring cursor following the mouse, a per-tool parameter bar (colour, stroke width, brush size/strength, mosaic block size, text size, selection feather, crop aspect) replacing scattered controls, a status bar with per-tool hints / zoom % / image size, crop confirm bar with live dimensions, regrouped toolbar with visible selection states and undo/redo buttons, canvas panning on drag, undo/redo now interleaves destructive and non-destructive operations in true order, mosaic block size is adjustable (and no longer lands offset after zooming or flipping), a magnifier annotation tool aligned with the screenshot toolbar, and >4096px images get a downsampled display cache so the canvas stays responsive (v0.8.45)
+- 图片编辑器整体重写为 ImagePro（app 内新模块）：单一坐标系统（画布/显示/底图三层变换，工具状态一律存底图像素）、NSView 事件层、图层栈（可见/透明度/混合模式）、矩形/椭圆/套索/魔棒选区（羽化/反选）、软边画笔与橡皮、形状/文字/马赛克、裁剪+比例、调整与滤镜（选区感知）、历史面板、保存/导出；新增统一命令 API（POST /image/edit 与 Agent 工具 editImage，坐标=图片像素，AI 与人工共用），旧的图片编辑器相关文件已删除。
+
 
 
 ## [v0.8.45] - 2026-11-05

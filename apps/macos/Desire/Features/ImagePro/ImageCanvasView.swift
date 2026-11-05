@@ -520,6 +520,7 @@ struct ImageCanvasView: View {
             document.beginContinuousEdit(session.retouchMode.localizedTitle)
             retouchStart = base
             retouchLast = base
+            session.beginLiveRetouch()
             applyRetouch(to: base)
         case .eyedropper:
             if let color = document.sampleColor(at: base) {
@@ -647,6 +648,10 @@ struct ImageCanvasView: View {
         case .crop:
             upCrop()
         case .retouch:
+            if [.blur, .sharpen].contains(session.retouchMode) {
+                applyDeferredRetouch(at: base)
+            }
+            session.endLiveRetouch()
             retouchStart = nil
             retouchLast = nil
         case .eyedropper, .text, .zoom:
@@ -657,20 +662,59 @@ struct ImageCanvasView: View {
 
     // MARK: - 提交
 
-    /// 一次修饰戳。克隆/修复的源随笔画位移（对齐克隆）。
+    /// 一次修饰戳：直接画进常驻上下文（克隆=平移取源，减淡/加深=渐变混合），
+    /// 然后把上下文快照推给文档显示。模糊/锐化留到松手（模式不支持实时）。
     private func applyRetouch(to point: CGPoint) {
-        guard let bitmap = document.activeBitmap else { return }
-        var source: CGPoint?
-        if [.clone, .heal].contains(session.retouchMode), let sample = session.cloneSample {
-            let offset = CGPoint(x: point.x - (retouchStart?.x ?? point.x),
-                                 y: point.y - (retouchStart?.y ?? point.y))
-            source = CGPoint(x: sample.x + offset.x, y: sample.y + offset.y)
+        guard [.clone, .heal, .dodge, .burn].contains(session.retouchMode),
+              let ctx = session.liveRetouchContext,
+              let mask = session.liveRetouchMask,
+              let base = session.liveRetouchBase else { return }
+        let r = max(1, session.liveRetouchRadius)
+        let stampRect = CGRect(x: point.x - r, y: point.y - r,
+                               width: r * 2, height: r * 2)
+        ctx.saveGState()
+        ctx.clip(to: stampRect, mask: mask)
+        switch session.retouchMode {
+        case .clone, .heal:
+            if let sample = session.cloneSample {
+                let base2 = session.liveRetouchBase ?? base
+                ctx.draw(base2, in: stampRect.offsetBy(
+                    dx: point.x - sample.x, dy: point.y - sample.y))
+            }
+        case .dodge, .burn:
+            let colors = session.retouchMode == .dodge
+                ? [CGColor(gray: 1, alpha: CGFloat(session.retouchStrength) * 0.5),
+                   CGColor(gray: 1, alpha: 0)] as CFArray
+                : [CGColor(gray: 0, alpha: CGFloat(session.retouchStrength) * 0.7),
+                   CGColor(gray: 0, alpha: 0)] as CFArray
+            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                         colors: colors, locations: [0, 1]) {
+                ctx.setBlendMode(session.retouchMode == .dodge ? .plusLighter : .multiply)
+                ctx.drawRadialGradient(gradient,
+                                       startCenter: point, startRadius: 0,
+                                       endCenter: point, endRadius: r, options: [])
+                ctx.setBlendMode(.normal)
+            }
+        default:
+            break
         }
-        guard let output = ImageEditorRaster.retouch(
-            bitmap, mode: session.retouchMode, at: point,
-            radius: max(1, session.brushSize / 2),
-            strength: session.retouchStrength, source: source) else { return }
-        document.setBitmapLive(document.activeLayerID, output)
+        ctx.restoreGState()
+        if let image = ctx.makeImage() {
+            document.setBitmapLive(document.activeLayerID, image)
+        }
+    }
+
+    /// 模糊/锐化：松手时整幅应用一次（区域版留待后续）。
+    private func applyDeferredRetouch(at point: CGPoint) {
+        guard let bitmap = document.activeBitmap else { return }
+        let effect: CGImage?
+        if session.retouchMode == .blur {
+            effect = ImageEditorRaster.blurred(bitmap, radius: max(1, session.brushSize * 0.35))
+        } else {
+            effect = ImageEditorRaster.sharpened(bitmap, amount: 0.8)
+        }
+        guard let effect else { return }
+        document.setBitmapLive(document.activeLayerID, effect)
     }
 
     /// 网格（每 50 图像像素，过密自动放大间距）+ 中心/三分参考线。

@@ -57,6 +57,10 @@ enum ImageEditorCommands {
                 return try fill(body: body, document: document)
             case "mosaic":
                 return try mosaic(body: body, document: document)
+            case "setclonesample":
+                guard let at = Self.point(body["at"]) else { return ["error": "needs at:[x,y]"] }
+                session.cloneSample = at
+                return ["ok": true]
             case "gradient":
                 guard let from = Self.point(body["from"]), let to = Self.point(body["to"]) else {
                     return ["error": "gradient needs from:[x,y] and to:[x,y]"]
@@ -85,6 +89,7 @@ enum ImageEditorCommands {
                       pts.isEmpty == false else {
                     return ["error": "retouch needs points: [[x,y], ...]"]
                 }
+                session.retouchMode = mode
                 document.bakeActiveLayerGeometry()
                 guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
                 let size = Self.number(body["size"]).map { CGFloat($0) } ?? session.brushSize

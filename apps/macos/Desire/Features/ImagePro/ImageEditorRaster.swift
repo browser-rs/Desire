@@ -813,7 +813,7 @@ nonisolated extension ImageEditorRaster {
         return ImagePipelineRenderer.context.createCGImage(output, from: output.extent)
     }
 
-    private static func blurred(_ image: CGImage, radius: CGFloat) -> CGImage? {
+    static func blurred(_ image: CGImage, radius: CGFloat) -> CGImage? {
         guard let filter = CIFilter(name: "CIGaussianBlur") else { return nil }
         filter.setValue(CIImage(cgImage: image), forKey: kCIInputImageKey)
         filter.setValue(radius, forKey: kCIInputRadiusKey)
@@ -822,7 +822,7 @@ nonisolated extension ImageEditorRaster {
             output, from: CGRect(x: 0, y: 0, width: image.width, height: image.height))
     }
 
-    private static func sharpened(_ image: CGImage, amount: Double) -> CGImage? {
+    static func sharpened(_ image: CGImage, amount: Double) -> CGImage? {
         guard let filter = CIFilter(name: "CISharpenLuminance") else { return nil }
         filter.setValue(CIImage(cgImage: image), forKey: kCIInputImageKey)
         filter.setValue(amount, forKey: kCIInputSharpnessKey)

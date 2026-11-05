@@ -66,6 +66,12 @@ final class ImageEditorSession: ObservableObject {
     private var noteToken = 0
     private var draftTask: Task<Void, Never>?
     var draftSourceKey: String { fileURL?.path ?? "untitled" }
+
+    // 修饰笔画期间的常驻上下文：戳记直接画进来，避免整图重建。
+    var liveRetouchContext: CGContext?
+    var liveRetouchBase: CGImage?
+    var liveRetouchMask: CGImage?
+    var liveRetouchRadius: CGFloat = 10
     private var keyMonitor: Any?
 
     // MARK: - 初始化
@@ -195,6 +201,50 @@ final class ImageEditorSession: ObservableObject {
             flash(String(localized: "Save failed: \(error.localizedDescription)"))
             return false
         }
+    }
+
+    /// 开始一次修饰笔画：创建与图层同尺寸的常驻上下文（y-down）。
+    func beginLiveRetouch() {
+        guard let base = document.activeBitmap else { return }
+        let w = base.width, h = base.height
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return }
+        ctx.translateBy(x: 0, y: CGFloat(h))
+        ctx.scaleBy(x: 1, y: -1)
+        ctx.draw(base, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        liveRetouchContext = ctx
+        liveRetouchBase = base
+        liveRetouchRadius = brushSize / 2
+        let r = Int(max(1, liveRetouchRadius))
+        guard let maskCtx = CGContext(data: nil, width: r * 2, height: r * 2,
+                                      bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return }
+        let colors = [CGColor(gray: 1, alpha: 1), CGColor(gray: 1, alpha: 1),
+                      CGColor(gray: 1, alpha: 0)] as CFArray
+        if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                     colors: colors, locations: [0, 0.6, 1]) {
+            maskCtx.drawRadialGradient(
+                gradient, startCenter: CGPoint(x: r, y: r), startRadius: 0,
+                endCenter: CGPoint(x: r, y: r), endRadius: CGFloat(r), options: [])
+        }
+        liveRetouchMask = maskCtx.makeImage()
+    }
+
+    func endLiveRetouch() {
+        defer {
+            liveRetouchContext = nil
+            liveRetouchBase = nil
+            liveRetouchMask = nil
+        }
+        guard let ctx = liveRetouchContext,
+              let image = ctx.makeImage(),
+              let id = document.activeLayer?.id else { return }
+        document.setBitmapLive(id, image)
     }
 
     /// 编辑后 3s 防抖写草稿（崩溃/强杀后可恢复）。

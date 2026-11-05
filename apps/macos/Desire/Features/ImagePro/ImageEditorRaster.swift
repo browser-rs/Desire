@@ -946,3 +946,35 @@ nonisolated extension ImageEditorRaster {
         return ctx.makeImage()
     }
 }
+
+// MARK: - 直方图（迭代 16）
+
+nonisolated extension ImageEditorRaster {
+
+    /// RGB 三通道直方图（256 桶，步进采样大图）。
+    static func histogram(_ image: CGImage) -> (r: [Int], g: [Int], b: [Int])? {
+        let w = image.width, h = image.height
+        guard w > 0, h > 0,
+              let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        guard let data = ctx.data else { return nil }
+        let buffer = data.bindMemory(to: UInt8.self, capacity: w * h * 4)
+        var r = [Int](repeating: 0, count: 256)
+        var g = [Int](repeating: 0, count: 256)
+        var b = [Int](repeating: 0, count: 256)
+        let step = max(1, (w * h) / 200_000)
+        var index = 0
+        while index < w * h {
+            let o = index * 4
+            r[Int(buffer[o])] += 1
+            g[Int(buffer[o + 1])] += 1
+            b[Int(buffer[o + 2])] += 1
+            index += step
+        }
+        return (r, g, b)
+    }
+}

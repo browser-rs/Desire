@@ -25,12 +25,13 @@ struct ImageEditorView: View {
     @Environment(\.appAccent) private var appAccent
 
     enum Inspector: String, CaseIterable {
-        case layers, history, adjustments
+        case layers, history, adjustments, histogram
         var symbol: String {
             switch self {
             case .layers: return "square.3.layers.3d"
             case .history: return "clock.arrow.circlepath"
             case .adjustments: return "slider.horizontal.3"
+            case .histogram: return "chart.bar"
             }
         }
         var title: String {
@@ -38,6 +39,7 @@ struct ImageEditorView: View {
             case .layers: return String(localized: "Layers")
             case .history: return String(localized: "History")
             case .adjustments: return String(localized: "Adjustments")
+            case .histogram: return String(localized: "Histogram")
             }
         }
     }
@@ -158,6 +160,10 @@ struct ImageEditorView: View {
                 toggleInspector(.adjustments)
             }
             .foregroundStyle(inspector == .adjustments ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+            iconButton("chart.bar", help: String(localized: "Histogram")) {
+                toggleInspector(.histogram)
+            }
+            .foregroundStyle(inspector == .histogram ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
 
             Divider().frame(height: 16)
 
@@ -751,6 +757,8 @@ struct ImageEditorView: View {
                 ImageEditorHistoryPanel(session: session)
             case .adjustments:
                 ImageEditorAdjustmentsPanel(session: session)
+            case .histogram:
+                ImageEditorHistogramPanel(session: session)
             }
         }
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.35))

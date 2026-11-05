@@ -286,6 +286,15 @@ enum ImageEditorCommands {
                 return ["ok": saved, "path": session.fileURL?.path ?? ""]
             case "revert":
                 return ["ok": session.revertToSaved()]
+            case "histogram":
+                guard let image = document.composite(),
+                      let hist = ImageEditorRaster.histogram(image) else {
+                    return ["error": "histogram failed"]
+                }
+                func peak(_ bins: [Int]) -> Int { bins.firstIndex(of: bins.max() ?? 0) ?? 0 }
+                return ["ok": true, "rPeak": peak(hist.r), "gPeak": peak(hist.g),
+                        "bPeak": peak(hist.b),
+                        "width": image.width, "height": image.height]
             case "copy":
                 return ["ok": session.copyToClipboard()]
             case "export":

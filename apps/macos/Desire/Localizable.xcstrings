@@ -103291,6 +103291,29 @@
           }
         }
       }
+    },
+    "No data":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"No data"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"暂无数据"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"暫無資料"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

@@ -59,12 +59,16 @@ nonisolated enum ImageAICore {
             blend.setValue(maskCI, forKey: kCIInputMaskImageKey)
             output = blend.outputImage ?? effectCI
         } else {
-            // 透明底：CIFilter blend against transparent — 用 CIBlendWithAlphaMask
-            // 前景蒙版直乘 alpha。
-            guard let filter = CIFilter(name: "CIBlendWithAlphaMask") else { return nil }
-            filter.setValue(effectCI, forKey: kCIInputImageKey)
-            filter.setValue(maskCI, forKey: kCIInputMaskImageKey)
-            output = filter.outputImage ?? effectCI
+            // 透明底：CIBlendWithAlphaMask 用的是蒙版的 **alpha 通道**，而
+            // subjectMask 是灰度蒙版（alpha 恒 1）→ 抠图结果整张不透明（实测
+            // 导出 alpha 全 1）。改用 CIBlendWithMask（按亮度）+ 透明背景。
+            let clear = CIImage(color: CIColor(red: 0, green: 0, blue: 0, alpha: 0))
+                .cropped(to: effectCI.extent)
+            guard let blend = CIFilter(name: "CIBlendWithMask") else { return nil }
+            blend.setValue(effectCI, forKey: kCIInputImageKey)
+            blend.setValue(clear, forKey: kCIInputBackgroundImageKey)
+            blend.setValue(maskCI, forKey: kCIInputMaskImageKey)
+            output = blend.outputImage ?? effectCI
         }
         let context = CIContext(options: [.cacheIntermediates: false])
         return context.createCGImage(output, from: output.extent)

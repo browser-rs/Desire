@@ -113,6 +113,11 @@ enum ImageEditorCommands {
                 guard let mask = await ImageAICore.subjectMask(bitmap) else {
                     return ["error": "No subject found (subject lifting returned no mask)"]
                 }
+                // 空蒙版（全黑）也要按"无主体"处理：否则会把整层擦成透明。
+                guard let subjectBounds = ImageEditorRaster.maskBounds(mask),
+                      subjectBounds.width >= 4, subjectBounds.height >= 4 else {
+                    return ["error": "No subject found (empty mask)"]
+                }
                 guard let cut = ImageAICore.cutout(image: bitmap, mask: mask,
                                                    background: nil) else {
                     return ["error": "cutout failed"]

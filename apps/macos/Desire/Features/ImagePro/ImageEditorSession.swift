@@ -40,6 +40,9 @@ final class ImageEditorSession: ObservableObject {
     @Published var retouchMode: ImageRetouchMode = .clone
     @Published var retouchStrength: Double = 0.7
     @Published var cloneSample: CGPoint?
+    @Published var gradientRadial = false
+    @Published var cornerRadius: CGFloat = 0
+    @Published var dashedStroke = false
     @Published var selectionFeather: Double = 0
     @Published var fillShapes = false
     @Published var marqueeEllipse = false

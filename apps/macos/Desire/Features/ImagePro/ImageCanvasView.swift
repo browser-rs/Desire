@@ -484,7 +484,7 @@ struct ImageCanvasView: View {
         }
         // 画笔/形状/文字按文档坐标绘制；图层有缩放/旋转/偏移时先烘平，
         // 否则坐标会被二次变换。
-        if [.brush, .eraser, .shape, .text].contains(session.tool) {
+        if [.brush, .eraser, .shape, .text, .gradient].contains(session.tool) {
             document.bakeActiveLayerGeometry()
         }
         switch session.tool {
@@ -512,7 +512,7 @@ struct ImageCanvasView: View {
             }
         case .brush, .eraser:
             strokePoints = [base]
-        case .marquee, .shape:
+        case .marquee, .shape, .gradient:
             combineMode = selectionCombine(from: flags)
             dragStart = base
             dragCurrent = base
@@ -560,7 +560,7 @@ struct ImageCanvasView: View {
                 applyRetouch(to: p)
             }
             retouchLast = base
-        case .marquee, .shape:
+        case .marquee, .shape, .gradient:
             dragCurrent = base
         case .crop:
             dragCrop(point)
@@ -622,6 +622,8 @@ struct ImageCanvasView: View {
             session.flash(String(localized: "Magic wand selection"))
         case .shape:
             commitShape(t)
+        case .gradient:
+            commitGradient()
         case .crop:
             upCrop()
         case .retouch:
@@ -683,6 +685,22 @@ struct ImageCanvasView: View {
         document.replaceActiveBitmap(output, title: erase ? "Erase" : "Brush")
     }
 
+    private func commitGradient() {
+        defer {
+            dragStart = nil
+            dragCurrent = nil
+        }
+        guard let start = dragStart, let end = dragCurrent,
+              let bitmap = document.activeBitmap else { return }
+        let colors = [session.primaryCGColor, ImageEditorRaster.color(from: NSColor(session.secondaryColor))]
+        let mask = document.selection.maskImage(canvasSize: document.canvasSize)
+        guard let output = ImageEditorRaster.drawGradient(
+            bitmap, from: start, to: end, colors: colors,
+            radial: session.gradientRadial, clipMask: mask,
+            contentOffset: document.activeLayerOffset) else { return }
+        document.replaceActiveBitmap(output, title: String(localized: "Gradient"))
+    }
+
     private func commitShape(_ t: ImageCanvasTransform) {
         defer {
             dragStart = nil
@@ -701,6 +719,7 @@ struct ImageCanvasView: View {
         guard let output = ImageEditorRaster.drawShape(
             bitmap, shape: session.shape, from: start, to: current,
             stroke: stroke, fill: fill, lineWidth: width,
+            cornerRadius: session.cornerRadius, dashed: session.dashedStroke,
             contentOffset: document.activeLayerOffset) else { return }
         document.replaceActiveBitmap(output, title: session.shape.localizedTitle)
     }

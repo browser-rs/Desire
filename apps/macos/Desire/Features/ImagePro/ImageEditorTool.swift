@@ -13,6 +13,7 @@ nonisolated enum ImageEditorTool: String, CaseIterable, Sendable {
     case text
     case shape
     case retouch
+    case gradient
     case eyedropper
     case hand
     case zoom
@@ -29,6 +30,7 @@ nonisolated enum ImageEditorTool: String, CaseIterable, Sendable {
         case .text: return "t"
         case .shape: return "u"
         case .retouch: return "j"
+        case .gradient: return "g"
         case .eyedropper: return "i"
         case .hand: return "h"
         case .zoom: return "z"
@@ -47,6 +49,7 @@ nonisolated enum ImageEditorTool: String, CaseIterable, Sendable {
         case .text: return String(localized: "Text Tool")
         case .shape: return String(localized: "Shape")
         case .retouch: return String(localized: "Retouch")
+        case .gradient: return String(localized: "Gradient")
         case .eyedropper: return String(localized: "Eyedropper Tool")
         case .hand: return String(localized: "Hand")
         case .zoom: return String(localized: "Zoom")
@@ -65,6 +68,7 @@ nonisolated enum ImageEditorTool: String, CaseIterable, Sendable {
         case .text: return "character.textbox"
         case .shape: return "square.on.circle"
         case .retouch: return "bandage"
+        case .gradient: return "circle.lefthalf.filled"
         case .eyedropper: return "eyedropper"
         case .hand: return "hand.raised"
         case .zoom: return "magnifyingglass"

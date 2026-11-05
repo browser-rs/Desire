@@ -321,6 +321,7 @@ nonisolated enum ImageEditorRaster {
     static func drawShape(_ base: CGImage, shape: ImageEditorShape,
                           from: CGPoint, to: CGPoint,
                           stroke: CGColor?, fill: CGColor?, lineWidth: CGFloat,
+                          cornerRadius: CGFloat = 0, dashed: Bool = false,
                           contentOffset: CGSize = .zero) -> CGImage? {
         guard let ctx = drawingContext(base) else { return nil }
         if contentOffset != .zero {
@@ -331,9 +332,16 @@ nonisolated enum ImageEditorRaster {
         ctx.setLineWidth(max(0.5, lineWidth))
         ctx.setLineCap(.round)
         ctx.setLineJoin(.round)
+        if dashed {
+            ctx.setLineDash(phase: 0, lengths: [max(2, lineWidth * 2.5),
+                                                max(2, lineWidth * 1.8)])
+        }
         switch shape {
         case .rectangle, .ellipse:
-            let path = CGPath(rect: rect, transform: nil)
+            let path = shape == .rectangle && cornerRadius > 0
+                ? CGPath(roundedRect: rect, cornerWidth: min(cornerRadius, rect.width / 2),
+                         cornerHeight: min(cornerRadius, rect.height / 2), transform: nil)
+                : CGPath(rect: rect, transform: nil)
             if shape == .ellipse {
                 if let fill {
                     ctx.setFillColor(fill)
@@ -817,5 +825,42 @@ nonisolated extension ImageEditorRaster {
         filter.setValue(amount, forKey: kCIInputSharpnessKey)
         guard let output = filter.outputImage else { return nil }
         return ImagePipelineRenderer.context.createCGImage(output, from: output.extent)
+    }
+}
+
+// MARK: - 渐变（迭代 8）
+
+nonisolated extension ImageEditorRaster {
+
+    /// 在 base 上绘制线性/径向渐变（文档像素坐标，可被选区裁剪）。
+    static func drawGradient(_ base: CGImage, from: CGPoint, to: CGPoint,
+                             colors: [CGColor], radial: Bool,
+                             clipMask: CGImage?, contentOffset: CGSize = .zero) -> CGImage? {
+        guard colors.count >= 2,
+              let ctx = drawingContext(base) else { return nil }
+        if contentOffset != .zero {
+            ctx.translateBy(x: -contentOffset.width, y: -contentOffset.height)
+        }
+        ctx.saveGState()
+        // 选区裁剪：蒙版是 y-down 文档坐标，绘制上下文是 y-down（翻转后）
+        if let clipMask, let alpha = alphaMask(from: clipMask) {
+            ctx.clip(to: CGRect(x: 0, y: 0, width: base.width, height: base.height),
+                     mask: alpha)
+        }
+        let space = CGColorSpaceCreateDeviceRGB()
+        guard let gradient = CGGradient(colorsSpace: space, colors: colors as CFArray,
+                                        locations: nil) else { return base }
+        if radial {
+            ctx.drawRadialGradient(gradient, startCenter: from, startRadius: 0,
+                                   endCenter: to, endRadius: max(1, hypot(to.x - from.x,
+                                                                         to.y - from.y)),
+                                   options: [.drawsAfterEndLocation])
+        } else {
+            ctx.drawLinearGradient(gradient, start: from, end: to,
+                                   options: [.drawsBeforeStartLocation,
+                                             .drawsAfterEndLocation])
+        }
+        ctx.restoreGState()
+        return ctx.makeImage()
     }
 }

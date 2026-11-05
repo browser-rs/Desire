@@ -404,6 +404,17 @@ struct ImageEditorView: View {
                             .font(.system(size: 10))
                             .foregroundStyle(.tertiary)
                     }
+                case .gradient:
+                    Toggle(String(localized: "Radial"), isOn: $session.gradientRadial)
+                        .toggleStyle(.checkbox)
+                        .font(.system(size: 11))
+                    ColorPicker("", selection: $session.secondaryColor, supportsOpacity: false)
+                        .labelsHidden()
+                        .frame(width: 30)
+                        .help(String(localized: "End Color"))
+                    Text(String(localized: "Drag across the canvas"))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
                 case .shape:
                     Picker("", selection: $session.shape) {
                         ForEach(ImageEditorShape.allCases, id: \.rawValue) { shape in
@@ -418,6 +429,13 @@ struct ImageEditorView: View {
                     Toggle(String(localized: "Fill"), isOn: $session.fillShapes)
                         .toggleStyle(.checkbox)
                         .font(.system(size: 11))
+                    Toggle(String(localized: "Dashed"), isOn: $session.dashedStroke)
+                        .toggleStyle(.checkbox)
+                        .font(.system(size: 11))
+                    if session.shape == .rectangle {
+                        optionSlider(String(localized: "Corner Radius"),
+                                     value: $session.cornerRadius, range: 0...80, width: 80)
+                    }
                 case .text:
                     textOptions
                 case .crop:

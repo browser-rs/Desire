@@ -57,6 +57,25 @@ enum ImageEditorCommands {
                 return try fill(body: body, document: document)
             case "mosaic":
                 return try mosaic(body: body, document: document)
+            case "gradient":
+                guard let from = Self.point(body["from"]), let to = Self.point(body["to"]) else {
+                    return ["error": "gradient needs from:[x,y] and to:[x,y]"]
+                }
+                document.bakeActiveLayerGeometry()
+                guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
+                let start = (body["start"] as? String).flatMap { ImageEditorRaster.color(from: $0) }
+                    ?? ImageEditorRaster.color(from: NSColor(session.primaryColor))
+                let end = (body["end"] as? String).flatMap { ImageEditorRaster.color(from: $0) }
+                    ?? ImageEditorRaster.color(from: NSColor(session.secondaryColor))
+                let radial = (body["radial"] as? Bool) ?? session.gradientRadial
+                let mask = document.selection.maskImage(canvasSize: document.canvasSize)
+                guard let output = ImageEditorRaster.drawGradient(
+                    bitmap, from: from, to: to, colors: [start, end], radial: radial,
+                    clipMask: mask, contentOffset: document.activeLayerOffset) else {
+                    return ["error": "gradient failed"]
+                }
+                document.replaceActiveBitmap(output, title: String(localized: "Gradient"))
+                return ["ok": true]
             case "retouch":
                 guard let rawMode = (body["mode"] as? String)?.lowercased(),
                       let mode = ImageRetouchMode(rawValue: rawMode) else {
@@ -318,7 +337,10 @@ enum ImageEditorCommands {
         guard let output = ImageEditorRaster.drawShape(
             bitmap, shape: kind, from: clamp(from, to: document.canvasSize),
             to: clamp(to, to: document.canvasSize), stroke: stroke, fill: fill,
-            lineWidth: width, contentOffset: document.activeLayerOffset)
+            lineWidth: width,
+            cornerRadius: Self.number(body["cornerRadius"]).map { CGFloat($0) } ?? 0,
+            dashed: (body["dashed"] as? Bool) ?? false,
+            contentOffset: document.activeLayerOffset)
         else { return ["error": "shape failed"] }
         document.replaceActiveBitmap(output, title: kind.localizedTitle)
         return ["ok": true]

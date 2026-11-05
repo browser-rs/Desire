@@ -215,7 +215,10 @@ final class ImageEditorDocument: ObservableObject {
     func requestRender(base: CGImage, previewAdjust: ImageAdjustParams? = nil) {
         lastBase = base
         let previewKey = previewAdjust.map { String(describing: $0) } ?? ""
-        let fingerprint = pipeline.fingerprint() + "|\(base.width)x\(base.height)"
+        // 指纹必含 base 身份：烙图（画笔/修复刷）改 base 内容但尺寸不变，
+        // 只按尺寸+管线判重会永远跳过渲染——画布不显示笔画（搭桥实测实锤）。
+        let baseID = ObjectIdentifier(base).hashValue
+        let fingerprint = pipeline.fingerprint() + "|\(baseID)|\(base.width)x\(base.height)"
             + "|p:\(previewKey)"
             + (customMask.map { "|custom|\($0.width)x\($0.height)" } ?? "")
             + (lassoVertices.map { "|lasso|\($0.count)" } ?? "")

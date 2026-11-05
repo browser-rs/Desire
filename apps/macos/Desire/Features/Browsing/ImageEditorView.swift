@@ -98,8 +98,14 @@ struct ImageEditorView: View {
     @State private var cropWText = ""
     @State private var cropHText = ""
 
-    /// 视图显示尺寸（点击坐标 → 位图像素换算用）。
-    @State private var displaySize: CGSize = .zero
+    /// 视图显示尺寸（点击坐标 → 位图像素换算用）——纯计算：displayImage
+    /// 像素 × zoom。此前是 @State 由 background 量 frame，画布重构后丢失
+    /// 量测写入，恒为 .zero → displayScale 兜底 1，画笔/裁剪坐标全错。
+    private var displaySize: CGSize {
+        guard let display = displayImage else { return .zero }
+        return CGSize(width: CGFloat(display.width) * zoom,
+                      height: CGFloat(display.height) * zoom)
+    }
     /// 缩放（v0.8.17 增补）：1 = 100% 原始像素；fitZoom = 适应窗口。
     @State private var zoom: CGFloat = 1
     @State private var fitZoom: CGFloat = 1
@@ -213,6 +219,9 @@ struct ImageEditorView: View {
     private func setBase(_ new: CGImage) {
         image = new
         hasUnsavedChanges = true
+        // 同步图层栈底（图层单例的底图层 = 当前 base；不同步则 save/导出
+        // 的 flattened() 永远是 load 时的旧图——画笔保存不上的根源之一）。
+        ImageLayerStore.shared.updateBase(new)
         document.requestRender(base: new)
     }
 
@@ -285,12 +294,19 @@ struct ImageEditorView: View {
         VStack(spacing: 0) {
             header
             toolbar
-            parameterBar
             canvas
             statusBar
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear(perform: load)
+        // 同实例换文件也重载（imageEditorURL 变、view 位置相同——实例不重建，
+        // 编辑器停在旧图上，⌘S 会把旧图写进新文件；搭桥实测实锤）。
+        .onChange(of: fileURL) { _, _ in
+            load()
+            if let image {
+                ImageLayerStore.shared.reset(base: image)
+            }
+        }
         .sheet(isPresented: $showResize) { resizeSheet }
         .sheet(isPresented: $showStraighten) { straightenSheet }
         .sheet(isPresented: $showNumericCrop) { numericCropSheet }
@@ -426,10 +442,44 @@ struct ImageEditorView: View {
 
     /// 缩放（钳 5%~800%）；手动缩放退出"适应窗口"。
     private func setZoom(_ value: CGFloat) {
-        zoom = min(8, max(0.05, value))
-        isFitMode = false
-        panOffset = .zero
-        panBase = .zero
+        // 无锚点入口（工具栏百分比等）→ 围绕视口中心。
+        applyZoom(value,
+                  anchor: CGPoint(x: containerSize.width / 2,
+                                  y: containerSize.height / 2),
+                  containerSize: containerSize,
+                  displayPixelSize: CGSize(width: displayImage?.width ?? 1,
+                                           height: displayImage?.height ?? 1))
+    }
+
+    /// 锚点缩放：保持锚点下的图像点不动（此前 zoom 恒以左上角为锚，
+    /// "拖动后再放大中心跑飞"）。panOffset 完全接管滚动语义。
+    /// `displayPixelSize` = displayImage 像素尺寸（未乘 zoom）。
+    private func applyZoom(_ target: CGFloat, anchor: CGPoint,
+                           containerSize: CGSize, displayPixelSize: CGSize) {
+        let newZoom = min(8, max(0.05, target))
+        let oldFrame = CGSize(width: CGFloat(displayPixelSize.width) * zoom,
+                              height: CGFloat(displayPixelSize.height) * zoom)
+        let oldOrigin = canvasOrigin(containerSize: containerSize,
+                                     displayFrame: oldFrame)
+        // 锚点处的图像 frame 点（frame 内坐标）
+        let content = CGPoint(x: anchor.x - oldOrigin.x, y: anchor.y - oldOrigin.y)
+        zoom = newZoom
+        isFitMode = abs(newZoom - fitZoom) < 0.01
+        let newFrame = CGSize(width: CGFloat(displayPixelSize.width) * newZoom,
+                              height: CGFloat(displayPixelSize.height) * newZoom)
+        let newOrigin = canvasOrigin(containerSize: containerSize,
+                                     displayFrame: newFrame)
+        let drift = CGPoint(x: anchor.x - (content.x + newOrigin.x),
+                            y: anchor.y - (content.y + newOrigin.y))
+        panOffset = CGSize(width: panOffset.width + drift.x,
+                           height: panOffset.height + drift.y)
+    }
+
+    /// 捏合缩放（以 hover/容器中心为锚）。
+    private func pinchZoom(factor: CGFloat, anchor: CGPoint,
+                           containerSize: CGSize, displaySize: CGSize) {
+        applyZoom(factor, anchor: anchor, containerSize: containerSize,
+                  displayPixelSize: displaySize)
     }
 
     /// 容器尺寸 → 适应窗口比例（画布 padding 20 两侧）。
@@ -437,7 +487,13 @@ struct ImageEditorView: View {
         guard let image, containerSize.width > 40, containerSize.height > 40 else { return }
         let w = CGFloat(image.width), h = CGFloat(image.height)
         fitZoom = min(1, min((containerSize.width - 40) / w, (containerSize.height - 40) / h))
-        if isFitMode { zoom = fitZoom }
+        // fit 语义 = 居中归零（不走 applyZoom 的锚定补偿——从 100% 缩到
+        // fit 时锚定会在 pan 里留下 ~160pt 垃圾偏移，此后一切交互错位）。
+        if isFitMode {
+            zoom = fitZoom
+            panOffset = .zero
+            panBase = .zero
+        }
     }
 
     private func flash(_ text: String) {
@@ -498,9 +554,7 @@ struct ImageEditorView: View {
             } else {
                 guard let previous = history.popLast() else { return }
                 if !historySteps.isEmpty { historySteps.removeLast() }
-                image = previous
-                hasUnsavedChanges = true
-                document.requestRender(base: previous)
+                setBase(previous)
             }
             return
         }
@@ -726,8 +780,8 @@ struct ImageEditorView: View {
                 notePipeline()
                 hasUnsavedChanges = true
             }
-            button("crop", "Crop") { cropMode.toggle() }
-                .foregroundStyle(cropMode ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
+            toolButton("crop", "Crop (C)", active: cropMode) { cropMode.toggle() }
+                .modifier(ToolHotKey(tool: nil, crop: true))
             button("dial.min", "Straighten Angle…") { showStraighten = true }
             button("ruler", "Precise Crop…") { showNumericCrop = true }
             button("arrow.up.left.and.arrow.down.right", "Resize…") { showResize = true }
@@ -744,6 +798,7 @@ struct ImageEditorView: View {
             // 标注工具（分组：绘制 | 文字 | 像素化）
             ForEach([Tool.brush, .arrow, .line, .rectangle, .ellipse], id: \.rawValue) { t in
                 toolButton(t.icon, t.rawValue.capitalized, active: tool == t) { tool = t }
+                    .modifier(ToolHotKey(tool: t))
             }
             groupGap
             ForEach([Tool.text, .bubble, .polygon], id: \.rawValue) { t in
@@ -752,6 +807,7 @@ struct ImageEditorView: View {
             groupGap
             ForEach([Tool.mosaic], id: \.rawValue) { t in
                 toolButton(t.icon, t.rawValue.capitalized, active: tool == t) { tool = t }
+                    .modifier(ToolHotKey(tool: t))
             }
             groupGap
             // 修复工具组
@@ -762,9 +818,11 @@ struct ImageEditorView: View {
             // 选区工具组
             ForEach([Tool.lasso, .magicWand], id: \.rawValue) { t in
                 toolButton(t.icon, t.rawValue.capitalized, active: tool == t) { tool = t }
+                    .modifier(ToolHotKey(tool: t))
             }
             groupGap
             toolButton("cursorarrow", "Select / Pan", active: tool == .none) { tool = .none }
+                .modifier(ToolHotKey(tool: ImageEditorView.Tool.none))
             groupGap
             toolButton("clock.arrow.circlepath", "History", active: showHistory) { showHistory.toggle() }
             toolButton("square.2.layers.3d.top.filled", "Layers", active: showLayers) { showLayers.toggle() }
@@ -825,11 +883,12 @@ struct ImageEditorView: View {
         .help(help)
     }
 
-    /// 工具按钮（专业批）：选中态 = 强调色圆角块（此前只变色，一眼扫不出
-    /// 当前工具）；toggle 型按钮共用。
+    /// 工具按钮（专业批）：选中态 = 强调色圆角块；带单键快捷键（计划
+    /// 承诺的 V/B/M/L/W/C——key window 下直接生效，也是搭桥测试的驱动通道）。
     private func toolButton(_ icon: String, _ help: String, active: Bool,
-                            action: @escaping () -> Void) -> some View {
-        Button(action: action) {
+                            action: @escaping () -> Void,
+                            hotKey: String? = nil) -> some View {
+        let base = Button(action: action) {
             Image(systemName: icon)
                 .font(.system(size: 12, weight: .medium))
                 .frame(width: 24, height: 24)
@@ -840,6 +899,11 @@ struct ImageEditorView: View {
         .buttonStyle(.plain)
         .foregroundStyle(active ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
         .help(help)
+        if let hotKey {
+            return AnyView(base.keyboardShortcut(KeyEquivalent(Character(hotKey.lowercased())),
+                                                 modifiers: []))
+        }
+        return AnyView(base)
     }
 
     /// 工具组小分隔（标注/修复/选区三组之间）。
@@ -1176,6 +1240,7 @@ struct ImageEditorView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
+                .keyboardShortcut("\r", modifiers: .command)
                 .disabled(rect.width < 8 || rect.height < 8)
                 Button(String(localized: "Cancel")) {
                     cropRect = nil
@@ -1425,99 +1490,85 @@ struct ImageEditorView: View {
 
     @ViewBuilder
     private var canvas: some View {
-        if let image, let display = displayImage,
+        if let display = displayImage,
            let nsImage = makeNSImage(display) {
             GeometryReader { container in
-                ScrollView([.horizontal, .vertical]) {
-                ZStack {
-                    Image(nsImage: nsImage)
-                        .resizable()
-                        .interpolation(.medium)
-                        .shadow(radius: 2)
-                        .frame(width: CGFloat(image.width) * zoom,
-                               height: CGFloat(image.height) * zoom)
-                        .offset(panOffset)
-                        .gesture(canvasGesture)
-                        .simultaneousGesture(MagnificationGesture()
-                            .onChanged { value in
-                                if pinchBase == 1 { pinchBase = zoom }
-                                setZoom(pinchBase * value)
-                            }
-                            .onEnded { _ in pinchBase = 1 })
-                        .onTapGesture(count: 2) {
-                            // 双击：适应 ↔ 1:1（平移一并归零）
-                            panOffset = .zero
-                            panBase = .zero
-                            if abs(zoom - fitZoom) < 0.01 {
-                                setZoom(1)
-                            } else {
-                                isFitMode = true
-                                setZoom(fitZoom)
-                            }
-                        }
-                        // displaySize 量图片本体（非带 padding 外框）——
-                        // displayScale 才是精确的像素/显示换算。
-                        .background(
-                            GeometryReader { geo in
-                                Color.clear.onAppear { displaySize = geo.size }
-                                    .onChange(of: geo.size) { _, size in
-                                        displaySize = size
-                                        recomputeFit()
-                                    }
-                            })
-                        .overlay(cropOverlay)
-                        .overlay(selectionOverlay)
-                        .overlay(lassoOverlay)
-                        .overlay(dragPreviewOverlay)
-                        .overlay(brushCursorOverlay)
-                        .overlay(cloneSampleMarker)
-                        .overlay(compareSliderOverlay)
-                        .overlay(annotationOverlay)
-                        .overlay(alignment: .bottomTrailing) {
-                            if cropMode {
-                                cropConfirmBar.padding(10)
-                            }
-                        }
-                        .onContinuousHover { phase in
-                            switch phase {
-                            case .active(let location):
-                                hoverPoint = location
-                            case .ended:
-                                hoverPoint = nil
-                            }
-                        }
-                        .overlay(alignment: .topTrailing) {
-                            if showHistogram {
-                                ImageHistogramView(image: display)
-                                    .padding(8)
-                            }
-                        }
-                        // 裁剪选框/多边形预览用图片本地坐标（原先挂在
-                        // ZStack 上与手势坐标系差一个 padding——缩放后放大暴露）。
-                        .overlay(alignment: .topLeading) {
-                            if cropMode, let rect = cropRect {
-                                Rectangle()
-                                    .strokeBorder(appAccent, lineWidth: 1.5)
-                                    .background(appAccent.opacity(0.08))
-                                    .frame(width: rect.width, height: rect.height)
-                                    .offset(x: rect.minX, y: rect.minY)
-                                    .overlay(cropGuides)
-                            }
-                            if tool == .polygon, polygonPoints.count >= 1 {
-                                Path { path in
-                                    path.move(to: polygonPoints[0])
-                                    for p in polygonPoints.dropFirst() { path.addLine(to: p) }
-                                }
-                                .stroke(appAccent, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
-                                ForEach(Array(polygonPoints.enumerated()), id: \.offset) { index, p in
-                                    Circle()
-                                        .fill(index == 0 ? appAccent : Color(nsColor: .controlAccentColor).opacity(0.8))
-                                        .frame(width: 7, height: 7)
-                                        .position(p)
-                                }
-                            }
-                        }
+                // 显示尺寸 = displayImage 像素 × zoom（纯计算——此前用
+                // displaySize state 量 frame，frame 又依赖该 state，鸡生蛋
+                // 卡在 0×0，画布永远空白）。
+                let dispW = CGFloat(display.width) * zoom
+                let dispH = CGFloat(display.height) * zoom
+                let dispSize = CGSize(width: dispW, height: dispH)
+                let origin = canvasOrigin(containerSize: container.size,
+                                          displayFrame: dispSize)
 
+                ZStack {
+                    // 内容层：图片 + 所有"frame 内坐标"的 overlay，整体按
+                    // origin 摆放。手势挂在容器层（用 origin 换算回 frame
+                    // 坐标）——此前 ScrollView+offset 混用导致拖动后一切
+                    // 点击错位（offset 只移视觉不移坐标系）。
+                    Group {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .interpolation(.medium)
+                            .shadow(radius: 2)
+                            .frame(width: dispW, height: dispH)
+                            .overlay(cropOverlay)
+                            .overlay(selectionOverlay)
+                            .overlay(lassoOverlay)
+                            .overlay(dragPreviewOverlay)
+                            .overlay(cloneSampleMarker)
+                            .overlay(compareSliderOverlay)
+                            .overlay(annotationOverlay)
+                            .overlay(alignment: .topLeading) {
+                                if cropMode, let rect = cropRect {
+                                    Rectangle()
+                                        .strokeBorder(appAccent, lineWidth: 1.5)
+                                        .background(appAccent.opacity(0.08))
+                                        .frame(width: rect.width, height: rect.height)
+                                        .offset(x: rect.minX, y: rect.minY)
+                                        .overlay(cropGuides)
+                                }
+                                if tool == .polygon, polygonPoints.count >= 1 {
+                                    Path { path in
+                                        path.move(to: polygonPoints[0])
+                                        for p in polygonPoints.dropFirst() { path.addLine(to: p) }
+                                    }
+                                    .stroke(appAccent, style: StrokeStyle(lineWidth: 1.5, dash: [4, 3]))
+                                    ForEach(Array(polygonPoints.enumerated()), id: \.offset) { index, p in
+                                        Circle()
+                                            .fill(index == 0 ? appAccent : Color(nsColor: .controlAccentColor).opacity(0.8))
+                                            .frame(width: 7, height: 7)
+                                            .position(p)
+                                    }
+                                }
+                            }
+                            .overlay(alignment: .topTrailing) {
+                                if showHistogram {
+                                    ImageHistogramView(image: display)
+                                        .padding(8)
+                                }
+                            }
+                    }
+                    .frame(width: dispW, height: dispH, alignment: .topLeading)
+                    .clipped()
+                    .offset(x: origin.x, y: origin.y)
+
+                    // 参数栏浮动覆盖画布上沿（专业批：之前作为 VStack 行会
+                    // 在工具切换时挤矮画布——fit 重算 + origin 漂移，拖拽中
+                    // 坐标系中途跳变，笔画/选框全错位）。
+                    parameterBar
+                        .frame(maxWidth: .infinity, maxHeight: .infinity,
+                               alignment: .top)
+                        .allowsHitTesting(parameterBarVisible)
+                    // 容器级 overlay（容器坐标）
+                    brushCursorOverlay
+                    if cropMode {
+                        cropConfirmBar
+                            .frame(maxWidth: .infinity, maxHeight: .infinity,
+                                   alignment: .bottomTrailing)
+                            .padding(10)
+                    }
                     if showAdjustments {
                         adjustmentsPanel
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
@@ -1543,11 +1594,36 @@ struct ImageEditorView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
                             .padding(14)
                     }
+                    // 手势/悬停捕获层（容器坐标）
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .gesture(canvasGesture(origin: origin))
+                        .simultaneousGesture(MagnificationGesture()
+                            .onChanged { value in
+                                if pinchBase == 1 { pinchBase = zoom }
+                                pinchZoom(factor: pinchBase * value,
+                                          anchor: hoverPoint ?? CGPoint(
+                                            x: container.size.width / 2,
+                                            y: container.size.height / 2),
+                                          containerSize: container.size,
+                                          displaySize: CGSize(width: display.width,
+                                                              height: display.height))
+                            }
+                            .onEnded { _ in pinchBase = 1 })
+                        .simultaneousGesture(spatialDoubleTap(
+                            containerSize: container.size,
+                            displaySize: CGSize(width: display.width,
+                                                height: display.height)))
+                        .onContinuousHover { phase in
+                            switch phase {
+                            case .active(let location):
+                                hoverPoint = location
+                            case .ended:
+                                hoverPoint = nil
+                            }
+                        }
                 }
-                .padding(20)
-                .frame(width: CGFloat(image.width) * zoom + 40,
-                       height: CGFloat(image.height) * zoom + 40, alignment: .topLeading)
-                }
+                .clipped()
                 .onAppear {
                     containerSize = container.size
                     recomputeFit()
@@ -1556,8 +1632,20 @@ struct ImageEditorView: View {
                     containerSize = size
                     recomputeFit()
                 }
+                #if DEBUG
+                .onAppear { writeDebugProbe(container: container.size) }
+                .onChange(of: zoom) { _, _ in writeDebugProbe(container: container.size) }
+                .onChange(of: panOffset) { _, _ in writeDebugProbe(container: container.size) }
+                .onChange(of: containerSize) { _, _ in writeDebugProbe(container: container.size) }
+                .onChange(of: tool) { _, _ in writeDebugProbe(container: container.size) }
+                .onChange(of: history.count) { _, _ in writeDebugProbe(container: container.size) }
+                .onChange(of: cropRect) { _, _ in writeDebugProbe(container: container.size) }
+                .onChange(of: brushPoints.count) { _, _ in writeDebugProbe(container: container.size) }
+                .onChange(of: document.renderedImage) { _, _ in writeDebugProbe(container: container.size) }
+                #endif
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(nsColor: .underPageBackgroundColor))
         } else if let loadError {
             VStack(spacing: 8) {
                 Image(systemName: "photo")
@@ -1574,22 +1662,85 @@ struct ImageEditorView: View {
         }
     }
 
+    #if DEBUG
+    private func writeDebugProbe(container: CGSize) {
+        let display = displayImage
+        let dispSize = CGSize(width: CGFloat(display?.width ?? 1) * zoom,
+                              height: CGFloat(display?.height ?? 1) * zoom)
+        let origin = canvasOrigin(containerSize: container, displayFrame: dispSize)
+        ImageEditorDebug.latest = [
+            "zoom": Double(zoom), "fitZoom": Double(fitZoom),
+            "isFitMode": isFitMode,
+            "panW": Double(panOffset.width), "panH": Double(panOffset.height),
+            "containerW": Double(container.width), "containerH": Double(container.height),
+            "dispW": Double(dispSize.width), "dispH": Double(dispSize.height),
+            "originX": Double(origin.x), "originY": Double(origin.y),
+            "displayPixelW": display?.width ?? 0,
+            "displayPixelH": display?.height ?? 0,
+            "tool": tool.rawValue,
+            "cropMode": cropMode, "selectionMode": selectionMode,
+            "cropRectW": cropRect?.width ?? 0, "cropRectH": cropRect?.height ?? 0,
+            "displayScale": Double(displayScale),
+            "brushPointsLive": brushPoints.count,
+            "baseW": image?.width ?? 0, "baseH": image?.height ?? 0,
+            "historyCount": history.count,
+            "renderedW": document.renderedImage?.width ?? 0,
+            "renderedH": document.renderedImage?.height ?? 0,
+            "brushPoints": brushPoints.count,
+            "layerStackCount": ImageLayerStore.shared.stack.count,
+            "flattenedW": ImageLayerStore.shared.flattened()?.width ?? 0,
+            "flattenedH": ImageLayerStore.shared.flattened()?.height ?? 0,
+            "firstLayerW": ImageLayerStore.shared.stack.first.flatMap {
+                ImageLayerStore.shared.bitmaps[$0.id]?.width } ?? 0,
+        ]
+    }
+    #endif
+
+    /// 图像 frame 在容器中的原点：居中基准 + 平移（fit 时 panOffset=0 即居中）。
+    /// `displayFrame` = 已乘 zoom 的显示 frame（此前内部又乘一次 zoom，
+    /// 双乘导致图片偏右下——探针实锤）。
+    private func canvasOrigin(containerSize: CGSize, displayFrame: CGSize) -> CGPoint {
+        CGPoint(x: (containerSize.width - displayFrame.width) / 2 + panOffset.width,
+                y: (containerSize.height - displayFrame.height) / 2 + panOffset.height)
+    }
+
+    /// 双击（带位置）：适应 ↔ 100%，围绕点击点缩放。
+    private func spatialDoubleTap(containerSize: CGSize,
+                                  displaySize: CGSize) -> some Gesture {
+        SpatialTapGesture(count: 2)
+            .onEnded { value in
+                let anchor = value.location
+                if abs(zoom - fitZoom) < 0.01 {
+                    applyZoom(1, anchor: anchor, containerSize: containerSize,
+                              displayPixelSize: displaySize)
+                    isFitMode = false
+                } else {
+                    applyZoom(fitZoom, anchor: anchor, containerSize: containerSize,
+                              displayPixelSize: displaySize)
+                    isFitMode = true
+                }
+            }
+    }
+
     private func makeNSImage(_ cg: CGImage) -> NSImage? {
         NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
     }
 
-    /// 画布手势：裁剪模式拖选框；标注工具按下/拖动。
-    private var canvasGesture: some Gesture {
+    /// 画布手势（容器坐标经 origin 换算回 frame 坐标）：裁剪拖框/标注/
+    /// 修复/平移。origin = 图像 frame 在容器中的原点（随 zoom/pan 变）。
+    private func canvasGesture(origin: CGPoint) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
-                let point = value.location
-                // 平移模式：空工具 + 无裁剪/选区/修复/取色/对比拖动时拖动图片。
+                // 平移模式：空工具 + 无模式修饰时拖动图片（translation 与
+                // 坐标系无关，直接累加）。
                 if tool == .none, !cropMode, !selectionMode, !repairToolActive,
                    !showEyedropper, pendingDrag == nil {
                     panOffset = CGSize(width: panBase.width + value.translation.width,
                                        height: panBase.height + value.translation.height)
                     return
                 }
+                let point = CGPoint(x: value.location.x - origin.x,
+                                    y: value.location.y - origin.y)
                 if tool == .lasso {
                     lassoPoints.append(point)
                     return
@@ -1599,25 +1750,32 @@ struct ImageEditorView: View {
                     return
                 }
                 if selectionMode {
-                    if let start = selectionStart {
-                        selectionRect = CGRect(
-                            x: min(start.x, point.x), y: min(start.y, point.y),
-                            width: abs(point.x - start.x),
-                            height: abs(point.y - start.y))
+                    // 同 cropStart——重构丢失的起点赋值。
+                    guard let start = selectionStart else {
+                        selectionStart = point
+                        return
                     }
+                    selectionRect = CGRect(
+                        x: min(start.x, point.x), y: min(start.y, point.y),
+                        width: abs(point.x - start.x),
+                        height: abs(point.y - start.y))
                     return
                 }
                 if cropMode {
-                    if let start = cropStart {
-                        var rect = CGRect(x: min(start.x, point.x), y: min(start.y, point.y),
-                                          width: abs(point.x - start.x), height: abs(point.y - start.y))
-                        if cropAspect > 0 {
-                            let byWidth = rect.width / cropAspect < rect.height
-                            if byWidth { rect.size.height = rect.width / cropAspect }
-                            else { rect.size.width = rect.height * cropAspect }
-                        }
-                        cropRect = rect
+                    // 重构时丢失的起点赋值（搭桥实测 cropRect 恒 0 的根因）：
+                    // 按下记起点，拖动更新选框。
+                    guard let start = cropStart else {
+                        cropStart = point
+                        return
                     }
+                    var rect = CGRect(x: min(start.x, point.x), y: min(start.y, point.y),
+                                      width: abs(point.x - start.x), height: abs(point.y - start.y))
+                    if cropAspect > 0 {
+                        let byWidth = rect.width / cropAspect < rect.height
+                        if byWidth { rect.size.height = rect.width / cropAspect }
+                        else { rect.size.width = rect.height * cropAspect }
+                    }
+                    cropRect = rect
                     return
                 }
                 if tool == .magnifier {
@@ -1648,12 +1806,14 @@ struct ImageEditorView: View {
                 }
             }
             .onEnded { value in
+                let point = CGPoint(x: value.location.x - origin.x,
+                                    y: value.location.y - origin.y)
                 if tool == .lasso {
                     commitLasso()
                     return
                 }
                 if tool == .magicWand {
-                    commitMagicWand(at: value.location)
+                    commitMagicWand(at: point)
                     return
                 }
                 if selectionMode {
@@ -1661,7 +1821,6 @@ struct ImageEditorView: View {
                     return
                 }
                 if tool == .cloneStamp {
-                    let point = value.location
                     commitClone(from: cloneSample ?? point, to: point)
                     pendingDrag = nil
                     return
@@ -1673,44 +1832,33 @@ struct ImageEditorView: View {
                     commitCrop()
                     return
                 }
-                if repairToolActive {
-                    applyRepairBrush(at: value.location)
-                    return
-                }
                 switch tool {
                 case .magnifier:
-                    stampMagnifier(at: value.location)
+                    stampMagnifier(at: point)
                 case .brush:
                     if brushPoints.count >= 2 {
-                        let mapped = brushPoints.map { basePixel(from: $0) }
                         stampAnnotation(label: String(localized: "Brush")) { overlay in
-                            drawPolyline(mapped, in: overlay)
+                            drawPolyline(brushPoints, in: overlay)
                         }
                     }
                     brushPoints = []
                 case .arrow:
-                    stampLineAnnotation(from: basePixel(from: dragStart ?? value.location),
-                                        to: basePixel(from: value.location), arrow: true)
+                    stampLineAnnotation(from: dragStart ?? point, to: point, arrow: true)
                     dragStart = nil; dragCurrent = nil
                 case .line:
-                    stampLineAnnotation(from: basePixel(from: dragStart ?? value.location),
-                                        to: basePixel(from: value.location), arrow: false)
+                    stampLineAnnotation(from: dragStart ?? point, to: point, arrow: false)
                     dragStart = nil; dragCurrent = nil
                 case .rectangle:
-                    stampRectAnnotation(from: basePixel(from: dragStart ?? value.location),
-                                        to: basePixel(from: value.location), ellipse: false)
+                    stampRectAnnotation(from: dragStart ?? point, to: point, ellipse: false)
                     dragStart = nil; dragCurrent = nil
                 case .ellipse:
-                    stampRectAnnotation(from: basePixel(from: dragStart ?? value.location),
-                                        to: basePixel(from: value.location), ellipse: true)
+                    stampRectAnnotation(from: dragStart ?? point, to: point, ellipse: true)
                     dragStart = nil; dragCurrent = nil
                 case .mosaic:
-                    stampMosaic(from: basePixel(from: dragStart ?? value.location),
-                                to: basePixel(from: value.location))
+                    stampMosaic(from: dragStart ?? point, to: point)
                     dragStart = nil; dragCurrent = nil
                 case .polygon:
                     // 点击式：按下-松开几乎没位移才算点；点回首点 16pt 内闭合。
-                    let point = value.location
                     let dragged = polygonDragStart.map {
                         abs($0.x - point.x) > 6 || abs($0.y - point.y) > 6
                     } ?? true
@@ -1718,21 +1866,19 @@ struct ImageEditorView: View {
                     guard !dragged else { return }
                     if let first = polygonPoints.first, polygonPoints.count >= 3,
                        abs(first.x - point.x) < 16, abs(first.y - point.y) < 16 {
-                        let mapped = polygonPoints.map { basePixel(from: $0) }
-                        stampPolygon(mapped)
+                        stampPolygon(polygonPoints)
                         polygonPoints = []
                     } else {
                         polygonPoints.append(point)
                     }
                 case .bubble:
-                    let point = value.location
                     let dragged = dragStart.map {
                         abs($0.x - point.x) > 6 || abs($0.y - point.y) > 6
                     } ?? false
                     dragStart = nil
                     guard !dragged else { return }
                     bubbleCounter += 1
-                    stampBubble(at: basePixel(from: point), number: bubbleCounter)
+                    stampBubble(at: point, number: bubbleCounter)
                 case .text, .none,
                      .cloneStamp, .dodge, .burn, .blurBrush, .sharpenBrush,
                      .lasso, .magicWand:
@@ -1802,22 +1948,53 @@ struct ImageEditorView: View {
 
     /// 在与当前位图同尺寸的透明画布上执行绘制 → 烙进图 → 压栈。
     private func stampAnnotation(label: String, _ draw: (CGContext) -> Void) {
-        guard let current = image else { return }
+        guard let current = image else {
+            noteStampFailure("no image")
+            return
+        }
         let w = current.width, h = current.height
         guard let overlay = CGContext(
             data: nil, width: w, height: h,
             bitsPerComponent: 8, bytesPerRow: 0,
             space: current.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
-        // 传入点位已是 base 像素（调用方经 basePixel 换算）→ 只翻 y。
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            noteStampFailure("ctx")
+            return
+        }
+        // 传入点位是 frame 显示像素（视图点×zoom）→ 按 base/显示 比例换算
+        // base 像素再翻 y。此前误改 scaleBy(1,-1)：zoom<1 时笔画缩到显示
+        // 尺寸直接烙进 base（位置/大小全错），zoom=fit 时肉眼几乎不可见。
+        let scale = displayScale
+        #if DEBUG
+        ImageEditorDebug.lastStamp["stampScale"] = Double(scale)
+        ImageEditorDebug.lastStamp["stampPointsFirst"] = brushPoints.first.map {
+            [Double($0.x), Double($0.y)] } ?? []
+        ImageEditorDebug.lastStamp["stampPointsLast"] = brushPoints.last.map {
+            [Double($0.x), Double($0.y)] } ?? []
+        #endif
         overlay.translateBy(x: 0, y: CGFloat(h))
-        overlay.scaleBy(x: 1, y: -1)
+        overlay.scaleBy(x: scale, y: -scale)
         overlay.setLineCap(.round)
         draw(overlay)
+        #if DEBUG
+        if let sample = overlay.makeImage() {
+            ImageEditorDebug.latest["stampOverlaySample"] = sample.width
+        }
+        #endif
         guard let overlayImage = overlay.makeImage(),
-              let merged = ImageTransforms.flattened(current, overlay: overlayImage) else { return }
+              let merged = ImageTransforms.flattened(current, overlay: overlayImage) else {
+            noteStampFailure("flatten/makeImage")
+            return
+        }
         pushHistory(current, label: label)
         setBase(merged)
+    }
+
+    /// 烙图失败探针（DEBUG 搭桥测试用；生产静默路径原样保留）。
+    private func noteStampFailure(_ reason: String) {
+        #if DEBUG
+        ImageEditorDebug.latest["stampFailed"] = reason
+        #endif
     }
 
     private func cgColorApp(_ color: Color) -> CGColor {
@@ -2563,3 +2740,53 @@ struct ImageEditorView: View {
         showResize = false
     }
 }
+
+/// 工具单键热键映射（编辑器 key window 生效；搭桥测试同通道驱动）。
+/// 映射：V=选择 B=画笔 A=箭头 N=直线 R=矩形 O=椭圆 P=多边形 T=文字
+/// U=气泡 M=马赛克 L=套索 W=魔棒 G=放大镜 C=裁剪模式。
+struct ToolHotKey: ViewModifier {
+    let tool: ImageEditorView.Tool?
+    var crop = false
+
+    func body(content: Content) -> some View {
+        if crop {
+            content.keyboardShortcut(KeyEquivalent("c"), modifiers: [])
+        } else if let key = hotKey(for: tool) {
+            content.keyboardShortcut(KeyEquivalent(Character(key)), modifiers: [])
+        } else {
+            content
+        }
+    }
+
+    private func hotKey(for tool: ImageEditorView.Tool?) -> String? {
+        guard let tool = tool else { return nil }
+        switch tool {
+        case .none: return "v"
+        case .brush: return "b"
+        case .arrow: return "a"
+        case .line: return "n"
+        case .rectangle: return "r"
+        case .ellipse: return "o"
+        case .polygon: return "p"
+        case .text: return "t"
+        case .bubble: return "u"
+        case .mosaic: return "m"
+        case .lasso: return "l"
+        case .magicWand: return "w"
+        case .magnifier: return "g"
+        default: return nil
+        }
+    }
+}
+
+#if DEBUG
+/// 编辑器状态探针（DEBUG-only 搭桥测试用）：视图在 canvas 布局时把关键
+/// 交互状态写进来，桥 `/editor/synthetic {action:"state"}` 读取。
+@MainActor
+enum ImageEditorDebug {
+    static var latest: [String: Any] = [:]
+    /// stampAnnotation 执行时的即时值（latest 会被 writeDebugProbe 整体覆盖，
+    /// stamp 瞬时值必须独立存放才能存活到桥读取）。
+    static var lastStamp: [String: Any] = [:]
+}
+#endif

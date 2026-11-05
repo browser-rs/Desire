@@ -874,6 +874,15 @@ final class AutomationServer {
                 return try Self.json(Self.index())
             case ("GET", "/state"):
                 return try Self.json(Self.appState())
+            case ("POST", "/editor/synthetic"):
+                // 编辑器交互测试钩子（DEBUG-only；搭桥 E2E 用）：在活动标签
+                // 所在窗口合成真实 NSEvent（拖拽/点击/按键）——SwiftUI 手势
+                // 无法经桥直驱，SyntheticInput 是唯一通道。
+                #if DEBUG
+                return try await Self.json(Self.editorSynthetic(body))
+                #else
+                return try Self.json(["error": "debug builds only"])
+                #endif
             case ("POST", "/navigate"):
                 return try await Self.json(Self.navigate(Self.string(body, "url"), index: Self.index(body)))
             case ("POST", "/video-speed"):
@@ -3903,6 +3912,130 @@ final class AutomationServer {
             "title": tab.browser.readerTitle,
             "contentChars": tab.browser.readerContent.count,
         ]
+    }
+
+    /// 编辑器交互测试钩子（DEBUG-only）：{action:"drag"|"click"|"key",
+    /// x1,y1,x2,y2|key}——坐标为窗口基础坐标（左下原点），投递到活动标签
+    /// 所在窗口（编辑器与 webview 同窗）。
+    private static func editorSynthetic(_ body: [String: Any]) async throws -> [String: Any] {
+        // 目标窗口 = Desire 主窗（编辑器是标签内 SwiftUI 覆盖层——viewer
+        // 模式下 webview 不挂窗，不能经 webview.window 取）。
+        guard let windowNumber = Self.frontDesireWindowNumber() else {
+            return ["error": "no desire window on screen"]
+        }
+        // 编辑器状态探针（视图侧写入）不需要 window。
+        // 坐标 = 窗口基础坐标（左下原点）。
+        let action = Self.string(body, "action") ?? "drag"
+        func number(_ key: String) -> CGFloat? {
+            if let d = body[key] as? Double { return CGFloat(d) }
+            if let i = body[key] as? Int { return CGFloat(i) }
+            if let t = Self.string(body, key), let d = Double(t) { return CGFloat(d) }
+            return nil
+        }
+        switch action {
+        case "state":
+            var merged = ImageEditorDebug.latest
+            for (k, v) in ImageEditorDebug.lastStamp { merged[k] = v }
+            return ["ok": true, "state": merged,
+                    "windowNumber": windowNumber]
+        case "drag":
+            guard let x1 = number("x1"), let y1 = number("y1"),
+                  let x2 = number("x2"), let y2 = number("y2") else {
+                return ["error": "x1/y1/x2/y2 required"]
+            }
+            Self.postSynthetic(.leftMouseDown, at: CGPoint(x: x1, y: y1),
+                               windowNumber: windowNumber)
+            for step in 1...14 {
+                let t = CGFloat(step) / 14
+                Self.postSynthetic(.leftMouseDragged,
+                                   at: CGPoint(x: x1 + (x2 - x1) * t,
+                                               y: y1 + (y2 - y1) * t),
+                                   windowNumber: windowNumber)
+                try? await Task.sleep(nanoseconds: 25_000_000)
+            }
+            Self.postSynthetic(.leftMouseUp, at: CGPoint(x: x2, y: y2),
+                               windowNumber: windowNumber)
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            return ["ok": true, "action": "drag"]
+        case "click":
+            guard let x1 = number("x1"), let y1 = number("y1") else {
+                return ["error": "x1/y1 required"]
+            }
+            Self.postSynthetic(.leftMouseDown, at: CGPoint(x: x1, y: y1),
+                               windowNumber: windowNumber)
+            Self.postSynthetic(.leftMouseUp, at: CGPoint(x: x1, y: y1),
+                               windowNumber: windowNumber)
+            try? await Task.sleep(nanoseconds: 60_000_000)
+            return ["ok": true, "action": "click"]
+        case "doubleclick":
+            guard let x1 = number("x1"), let y1 = number("y1") else {
+                return ["error": "x1/y1 required"]
+            }
+            for clickCount in 1...2 {
+                Self.postSynthetic(.leftMouseDown, at: CGPoint(x: x1, y: y1),
+                                   windowNumber: windowNumber, clickCount: clickCount)
+                Self.postSynthetic(.leftMouseUp, at: CGPoint(x: x1, y: y1),
+                                   windowNumber: windowNumber, clickCount: clickCount)
+            }
+            try? await Task.sleep(nanoseconds: 60_000_000)
+            return ["ok": true, "action": "doubleclick"]
+        case "key":
+            guard let key = Self.string(body, "key") else {
+                return ["error": "key required"]
+            }
+            var modifiers: NSEvent.ModifierFlags = []
+            if (body["command"] as? Bool) == true
+                || Self.string(body, "modifiers")?.contains("command") == true {
+                modifiers.insert(.command)
+            }
+            if Self.string(body, "modifiers")?.contains("option") == true {
+                modifiers.insert(.option)
+            }
+            if Self.string(body, "modifiers")?.contains("shift") == true {
+                modifiers.insert(.shift)
+            }
+            // 编辑器模式下无 webview——直接构造 key 事件喂 app（key window
+            // 首响者收，SwiftUI keyboardShortcut 收 NSEvent）。
+            guard let keyEvent = NSEvent.keyEvent(
+                with: .keyDown, location: .zero, modifierFlags: modifiers,
+                timestamp: ProcessInfo.processInfo.systemUptime,
+                windowNumber: windowNumber, context: nil,
+                characters: key, charactersIgnoringModifiers: key,
+                isARepeat: false, keyCode: 0) else {
+                return ["error": "key event construction failed"]
+            }
+            NSApp.sendEvent(keyEvent)
+            try? await Task.sleep(nanoseconds: 40_000_000)
+            return ["ok": true, "action": "key", "key": key]
+        default:
+            return ["error": "unknown action \(action)"]
+        }
+    }
+
+    /// Desire 主窗 windowNumber（on-screen、layer 0、宽 >500）。
+    private static func frontDesireWindowNumber() -> Int? {
+        let list = CGWindowListCopyWindowInfo([.optionOnScreenOnly],
+                                              kCGNullWindowID) as? [[String: Any]] ?? []
+        for entry in list where (entry["kCGWindowOwnerName"] as? String) == "Desire"
+            && (entry["kCGWindowLayer"] as? Int) == 0 {
+            if let bounds = entry["kCGWindowBounds"] as? [String: Any],
+               (bounds["Width"] as? Double ?? 0) > 500 {
+                return entry["kCGWindowNumber"] as? Int
+            }
+        }
+        return nil
+    }
+
+    /// 真实 NSEvent 合成（编辑器测试钩子专用）：NSApp.sendEvent 直喂事件循环。
+    private static func postSynthetic(_ type: NSEvent.EventType, at point: CGPoint,
+                                      windowNumber: Int, clickCount: Int = 1) {
+        guard let event = NSEvent.mouseEvent(
+            with: type, location: point, modifierFlags: [],
+            timestamp: ProcessInfo.processInfo.systemUptime,
+            windowNumber: windowNumber, context: nil,
+            eventNumber: 0, clickCount: clickCount,
+            pressure: type == .leftMouseDown ? 1.0 : 0.0) else { return }
+        NSApp.sendEvent(event)
     }
 
     private static func navigate(_ rawURL: String?, index: Int?) async throws -> [String: Any] {

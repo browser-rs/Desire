@@ -535,6 +535,9 @@ struct SelectedTabContent: View {
                     fileURL: imageURL,
                     fileName: tab.browser.imageEditorFileName,
                     onBack: { tab.browser.imageEditorURL = nil })
+                    // 换文件必须重建实例（fileURL 是 let、@State 不随之复位——
+                    // 否则编辑器停留在旧图上，⌘S 把旧图写进新文件，搭桥实测实锤）。
+                    .id(imageURL)
 
             } else if let archiveURL = tab.browser.archiveViewerURL {
                 ArchiveViewerView(

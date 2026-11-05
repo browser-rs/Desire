@@ -16,6 +16,13 @@ final class ImageLayerStore: ObservableObject {
 
     private init() {}
 
+    /// 更新底图层位图（编辑器 setBase 时同步——否则 flattened()/composited()
+    /// 返回的是 load 时的旧 base，画笔/修复刷的结果既不显示也保存不上）。
+    func updateBase(_ base: CGImage) {
+        guard let first = stack.first else { return }
+        bitmaps[first.id] = base
+    }
+
     func reset(base: CGImage) {
         if let first = stack.first {
             bitmaps[first.id] = base

@@ -163,6 +163,26 @@ enum ImageEditorCommands {
                 return ["ok": true, "filter": preset.rawValue]
             case "layer":
                 return layer(body: body, document: document)
+            case "dumpcomposite":
+                guard let path = body["path"] as? String,
+                      let image = document.composite(),
+                      let data = NSBitmapImageRep(cgImage: image)
+                        .representation(using: .png, properties: [:]) else {
+                    return ["error": "no composite"]
+                }
+                try data.write(to: URL(fileURLWithPath: path))
+                return ["ok": true, "path": path, "revision": document.revision,
+                        "cachedRevision": document.debugCachedRevision]
+            case "dumplayer":
+                guard let path = body["path"] as? String,
+                      let bitmap = document.activeBitmap,
+                      let data = NSBitmapImageRep(cgImage: bitmap)
+                        .representation(using: .png, properties: [:]) else {
+                    return ["error": "no active layer"]
+                }
+                try data.write(to: URL(fileURLWithPath: path))
+                return ["ok": true, "path": path,
+                        "width": bitmap.width, "height": bitmap.height]
             case "dumpmask":
                 // DEBUG 排障：把当前选区蒙版写成 PNG（检查 y 方向约定）。
                 guard let path = body["path"] as? String,

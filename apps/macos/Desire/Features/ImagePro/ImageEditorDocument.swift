@@ -314,6 +314,8 @@ final class ImageEditorDocument: ObservableObject {
         commit()
     }
 
+    var debugCachedRevision: Int { compositeCache?.revision ?? -1 }
+
     var isActiveLayerLocked: Bool {
         activeLayer?.isLocked ?? false
     }
@@ -426,7 +428,7 @@ final class ImageEditorDocument: ObservableObject {
         let layer = layers[index]
         let bw = CGFloat(bitmap.width), bh = CGFloat(bitmap.height)
         let center = CGPoint(x: layer.offset.width + bw / 2,
-                             y: -layer.offset.height - bh / 2)
+                             y: CGFloat(h) - layer.offset.height - bh / 2)
         ctx.translateBy(x: center.x, y: center.y)
         if layer.rotation != 0 { ctx.rotate(by: CGFloat(-layer.rotation * .pi / 180)) }
         if layer.scale != 1 { ctx.scaleBy(x: CGFloat(layer.scale), y: CGFloat(layer.scale)) }

@@ -88,7 +88,8 @@ nonisolated enum ImageEditorRaster {
             let bw = CGFloat(bitmap.width), bh = CGFloat(bitmap.height)
             let offset = CGSize(width: layer.offset.width.rounded(),
                                 height: layer.offset.height.rounded())
-            let center = CGPoint(x: offset.width + bw / 2, y: -offset.height - bh / 2)
+            let center = CGPoint(x: offset.width + bw / 2,
+                                 y: CGFloat(h) - offset.height - bh / 2)
             ctx.translateBy(x: center.x, y: center.y)
             if layer.rotation != 0 {
                 // 文档顺时针 → CG 的 y-up 逆时针

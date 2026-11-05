@@ -435,6 +435,13 @@ struct SelectedTabContent: View {
                                 tab.browser.ebookViewerBookID = nil
                                 tab.browser.internalPage = .books
                             })
+                        } else if book.format == .pdf {
+                            EbookPDFReaderView(book: book,
+                                               initialPage: tab.browser.ebookViewerInitialChapter,
+                                               onBack: {
+                                tab.browser.ebookViewerBookID = nil
+                                tab.browser.internalPage = .books
+                            })
                         } else {
                             EbookReaderView(book: book,
                                             initialChapter: tab.browser.ebookViewerInitialChapter,

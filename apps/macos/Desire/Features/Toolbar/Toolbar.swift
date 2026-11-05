@@ -22,6 +22,7 @@ struct Toolbar: View {
         let resetZoom: () -> Void
         let toggleReader: () -> Void
         let captureFullPage: () -> Void
+        let captureFullPageToBooks: () -> Void
         let captureScreenshot: () -> Void
         let addToReadingList: (_ title: String, _ url: String) -> Void
         let togglePictureInPicture: () -> Void
@@ -1021,6 +1022,7 @@ struct Toolbar: View {
                 moreMenuItem("Reset Zoom", "1.magnifyingglass", shortcut: "⌘0") { actions.resetZoom() }
                 moreMenuItem("Print…", "printer", shortcut: "⌘P") { actions.printPage() }
                 moreMenuItem("Full Page PDF…", "photo.on.rectangle.angled") { actions.captureFullPage() }
+                moreMenuItem("Save PDF to Books", "books.vertical") { actions.captureFullPageToBooks() }
                 moreMenuItem("Screenshot Region…", "crop", shortcut: "⇧⌘5") { actions.captureScreenshot() }
             }
             moreMenuSection("Tools") {

@@ -636,7 +636,7 @@ struct EbookLibraryView: View {
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
         panel.allowsMultipleSelection = true
-        var types: [UTType] = [.epub, .plainText]
+        var types: [UTType] = [.epub, .plainText, .pdf]
         for ext in ["cbz", "mobi", "azw3", "md", "markdown", "html", "htm", "xhtml", "fb2"] {
             if let type = UTType(filenameExtension: ext) { types.append(type) }
         }

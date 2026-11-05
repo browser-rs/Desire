@@ -1122,6 +1122,8 @@ struct ContentView: View {
 
     func captureFullPage() { b.captureFullPage() }
 
+    func captureFullPageToBooks() { b.captureFullPageToBooks() }
+
     func togglePictureInPicture() { b.togglePictureInPicture() }
 }
 

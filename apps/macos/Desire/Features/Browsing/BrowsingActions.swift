@@ -370,6 +370,31 @@ extension BrowsingActions {
         }
     }
 
+    /// 整页 PDF 一键入书架（v0.8.44）：createPDF 产物写临时文件 →
+    /// EbookLibraryStore.importBook（SHA-256 去重，重复入架自动 touch）。
+    /// 与 captureFullPage 的区别：不弹保存面板，直接进书架。
+    func captureFullPageToBooks() {
+        guard let tab = tabManager.selectedTab, !tab.isOnNewTabPage else { return }
+        let config = WKPDFConfiguration()
+        tab.browser.webView.createPDF(configuration: config) { result in
+            switch result {
+            case .success(let pdfData):
+                let temp = FileManager.default.temporaryDirectory
+                    .appendingPathComponent("desire-page-\(UUID().uuidString).pdf")
+                do {
+                    try pdfData.write(to: temp)
+                    Task { @MainActor in
+                        defer { try? FileManager.default.removeItem(at: temp) }
+                        _ = try? await EbookLibraryStore.shared.importBook(at: temp)
+                    }
+                } catch {
+                    // 写临时文件失败 = 磁盘问题，静默（与 captureFullPage 同口径）
+                }
+            case .failure: break
+            }
+        }
+    }
+
     func togglePictureInPicture() {
         guard let tab = tabManager.selectedTab, !tab.isOnNewTabPage else { return }
         let js = """

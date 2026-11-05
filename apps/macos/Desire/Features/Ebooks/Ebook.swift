@@ -8,6 +8,8 @@ nonisolated enum EbookFormat: String, Codable, Sendable {
     case markdown
     case html
     case cbz
+    /// PDF（v0.8.44）：书架一等公民，PDFKit 阅读器（进度按页）。
+    case pdf
 
     init?(fileExtension: String) {
         switch fileExtension.lowercased() {
@@ -16,6 +18,7 @@ nonisolated enum EbookFormat: String, Codable, Sendable {
         case "md", "markdown": self = .markdown
         case "html", "htm", "xhtml": self = .html
         case "cbz": self = .cbz
+        case "pdf": self = .pdf
         default: return nil
         }
     }
@@ -27,6 +30,7 @@ nonisolated enum EbookFormat: String, Codable, Sendable {
         case .markdown: return "Markdown"
         case .html: return "HTML"
         case .cbz: return "CBZ"
+        case .pdf: return "PDF"
         }
     }
 }

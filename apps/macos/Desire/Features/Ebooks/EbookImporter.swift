@@ -1,5 +1,7 @@
+import AppKit
 import CryptoKit
 import Foundation
+import PDFKit
 
 /// 电子书导入（v0.8.34）：SHA-256 去重、EPUB 解包/解析、TXT 解码分章。
 /// 文件操作在后台任务里跑；EPUB 解包复用 ArchiveEngine 的 zip-slip 校验。
@@ -96,7 +98,7 @@ nonisolated enum EbookImporter {
             throw ImportError.unsupported(extensionName.isEmpty ? "?" : extensionName)
         }
         guard format == .epub || format == .txt || format == .cbz
-                || format == .markdown || format == .html else {
+                || format == .markdown || format == .html || format == .pdf else {
             throw ImportError.unsupported(extensionName)
         }
         let fileSize = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize)
@@ -128,6 +130,10 @@ nonisolated enum EbookImporter {
             return try importHTML(url: url, hash: hash, fileSize: fileSize,
                                   bookDirectory: bookDirectory,
                                   containerDirectory: containerDirectory)
+        case .pdf:
+            return try importPDF(url: url, hash: hash, fileSize: fileSize,
+                                 bookDirectory: bookDirectory,
+                                 containerDirectory: containerDirectory)
         }
     }
 
@@ -477,6 +483,62 @@ nonisolated enum EbookImporter {
             .replacingOccurrences(of: "<", with: "&lt;")
             .replacingOccurrences(of: ">", with: "&gt;")
             .replacingOccurrences(of: "\"", with: "&quot;")
+    }
+
+    // MARK: - PDF（v0.8.44）
+
+    /// PDF 入书架：原文件复制进容器（outline/批注随文件保留），首页缩略做封面。
+    /// 加密 PDF 拒收（同 DRM 语义）。
+    static func importPDF(url: URL, hash: String, fileSize: Int64,
+                          bookDirectory: URL,
+                          containerDirectory: String) throws -> Ebook {
+        let manager = FileManager.default
+        let destination = bookDirectory.appendingPathComponent(url.lastPathComponent)
+        try manager.copyItem(at: url, to: destination)
+        guard let document = PDFDocument(url: destination) else {
+            throw ImportError.conversionFailed(String(localized: "This PDF could not be opened."))
+        }
+        guard !document.isLocked else { throw ImportError.drmProtected }
+        let pageCount = max(1, document.pageCount)
+
+        // 封面：首页缩略图 → cover.png（书架卡片沿用 coverPath 语义）。
+        var coverPath: String?
+        if let first = document.page(at: 0) {
+            let aspect = max(0.2, min(5, first.bounds(for: .mediaBox).width
+                / max(1, first.bounds(for: .mediaBox).height)))
+            let height: CGFloat = 640
+            let thumbnail = first.thumbnail(of: CGSize(width: height * aspect,
+                                                       height: height),
+                                           for: .mediaBox)
+            if let tiff = thumbnail.tiffRepresentation,
+               let rep = NSBitmapImageRep(data: tiff),
+               let png = rep.representation(using: .png, properties: [:]) {
+                let coverURL = bookDirectory.appendingPathComponent("cover.png")
+                try? png.write(to: coverURL)
+                coverPath = "cover.png"
+            }
+        }
+
+        // 标题：PDF 元数据优先，退化文件名。属性键 Swift 侧无常量名，用 rawValue。
+        let fallback = (url.lastPathComponent as NSString).deletingPathExtension
+        let attributes = document.documentAttributes ?? [:]
+        let title = (attributes[PDFDocumentAttribute(rawValue: "Title")] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return Ebook(id: UUID(),
+                     title: title.isEmpty ? fallback : title,
+                     author: attributes[PDFDocumentAttribute(rawValue: "Author")] as? String ?? "",
+                     format: .pdf, fileName: url.lastPathComponent,
+                     containerDirectory: containerDirectory,
+                     coverPath: coverPath, addedAt: Date(), lastOpenedAt: nil,
+                     progress: 0, lastChapterIndex: 0, chapterProgress: 0,
+                     fileSize: fileSize, chapterCount: pageCount, hash: hash)
+    }
+
+    /// 书架 PDF 的源文件 URL（阅读器打开用；缺失 = 文件被外部清理）。
+    static func pdfFileURL(_ book: Ebook) -> URL {
+        rootDirectory
+            .appendingPathComponent(book.containerDirectory, isDirectory: true)
+            .appendingPathComponent(book.fileName)
     }
 
     // MARK: - CBZ

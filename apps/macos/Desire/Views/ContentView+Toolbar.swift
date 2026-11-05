@@ -107,6 +107,7 @@ extension ContentView {
                     }
                 },
                 captureFullPage: { captureFullPage() },
+                captureFullPageToBooks: { captureFullPageToBooks() },
                 captureScreenshot: { startScreenshot() },
                 addToReadingList: { title, url in
                     readingListStore.add(title: title, url: url)

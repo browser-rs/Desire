@@ -93,6 +93,10 @@ struct ImageEditorView: View {
     @State private var isFitMode = true
     @State private var containerSize: CGSize = .zero
     @State private var pinchBase: CGFloat = 1
+    /// 画布拖动平移（v0.8.45 修复）：空工具且无模式时拖图片本身，不再"只能
+    /// 缩放不能拖"。双击/缩放重置。
+    @State private var panOffset: CGSize = .zero
+    @State private var panBase: CGSize = .zero
     /// 调色面板（21）与滤镜预设（v0.8.27 媒体批）与 OCR（22）。
     @State private var showAdjustments = false
     @State private var showFilters = false
@@ -152,10 +156,63 @@ struct ImageEditorView: View {
         return CGFloat(image.width) / displaySize.width
     }
 
+    // MARK: 几何换算（v0.8.45 修复）：非破坏几何后画布显示的是渲染图，
+    // 标注/裁剪/修复刷烙在 base 上——所有交互坐标必须逆映射回 base 像素。
+
+    /// 管线里启用的几何操作序列（正向）。
+    private var geometryOps: [ImageEditOperation.GeometryAction] {
+        document.pipeline.operations
+            .filter { $0.isEnabled && $0.kind == .geometry }
+            .compactMap(\.geometryAction)
+    }
+
+    /// 显示像素/视图点 的比例（displayImage 可能与 base 尺寸不同）。
+    private var displayPixelScale: CGFloat {
+        guard let display = displayImage, displaySize.width > 0 else { return 1 }
+        return CGFloat(display.width) / displaySize.width
+    }
+
+    /// 视图点 → base 位图像素（含几何逆映射）。
+    private func basePixel(from viewPoint: CGPoint) -> CGPoint {
+        let displayPx = CGPoint(x: viewPoint.x * displayPixelScale,
+                                y: viewPoint.y * displayPixelScale)
+        return ImageGeometryMapper.basePoint(fromDisplay: displayPx,
+                                             ops: geometryOps,
+                                             baseSize: CGSize(width: image?.width ?? 1,
+                                                              height: image?.height ?? 1))
+    }
+
+    /// 视图矩形 → base 位图像素矩形。
+    private func baseRect(from viewRect: CGRect) -> CGRect {
+        let scale = displayPixelScale
+        let displayRect = CGRect(x: viewRect.minX * scale, y: viewRect.minY * scale,
+                                 width: viewRect.width * scale,
+                                 height: viewRect.height * scale)
+        return ImageGeometryMapper.baseRect(fromDisplay: displayRect,
+                                            ops: geometryOps,
+                                            baseSize: CGSize(width: image?.width ?? 1,
+                                                             height: image?.height ?? 1))
+    }
+
+    /// 烙图后统一落 base（v0.8.45 修复）：此前 stampAnnotation/修复刷只改
+    /// `image` 不触发渲染——管线非空时 displayImage 一直是旧渲染，
+    /// 画笔/修复刷/马赛克等全部"画了看不见"。
+    private func setBase(_ new: CGImage) {
+        image = new
+        hasUnsavedChanges = true
+        document.requestRender(base: new)
+    }
+
     /// 显示位图：Before/After 或 管线渲染结果（无管线 = 原图）。
     private var displayImage: CGImage? {
-        if showOriginal { return image }
-        return document.renderedImage ?? image
+        let base = showOriginal ? image : (document.renderedImage ?? image)
+        guard let base else { return nil }
+        // 图层画布预览（v0.8.45 修复）：此前图层只在导出时合成，画布上
+        // "加了图层看不见"。多图层时实时合成显示（对比原图仍走纯 base）。
+        if !showOriginal, let composited = ImageLayerStore.shared.composited(over: base) {
+            return composited
+        }
+        return base
     }
 
     /// 当前草稿参数（滑杆 + 曲线）。
@@ -183,6 +240,17 @@ struct ImageEditorView: View {
             curveBlue: curveDraft.blue)
     }
 
+    /// 草稿指纹（实时预览触发用）：覆盖全部滑杆 + 曲线。
+    private var adjustDraftKey: String {
+        let p = currentAdjustParams()
+        return String(format: "%.3f|%.3f|%.3f|%.3f|%.2f|%.1f|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%.2f|%.3f|%.3f|%d",
+                      p.brightness, p.contrast, p.saturation, p.sharpen, p.exposure,
+                      p.temperature, p.tint, p.highlights, p.shadows, p.vibrance,
+                      p.clarity, p.denoise, p.vignette, p.blackPoint, p.whitePoint,
+                      p.curvePoints.count + p.curveRed.count + p.curveGreen.count
+                          + p.curveBlue.count)
+    }
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -201,6 +269,13 @@ struct ImageEditorView: View {
         }
         .onChange(of: document.pipeline) { _, _ in
             if let image { document.requestRender(base: image) }
+        }
+        // 调节滑杆/曲线草稿实时预览（v0.8.45 修复）：拖动即时见效，Apply 才落管线。
+        .onChange(of: adjustDraftKey) { _, _ in
+            guard let image else { return }
+            let params = currentAdjustParams()
+            document.requestRender(base: image,
+                                   previewAdjust: params.isNeutral ? nil : params)
         }
         .sheet(isPresented: $showEXIF) {
             ImageEXIFPanel(fileURL: fileURL)
@@ -320,6 +395,8 @@ struct ImageEditorView: View {
     private func setZoom(_ value: CGFloat) {
         zoom = min(8, max(0.05, value))
         isFitMode = false
+        panOffset = .zero
+        panBase = .zero
     }
 
     /// 容器尺寸 → 适应窗口比例（画布 padding 20 两侧）。
@@ -367,8 +444,7 @@ struct ImageEditorView: View {
         let target = history[depth]
         history.removeSubrange((depth + 1)...)
         historySteps.removeSubrange((depth + 1)...)
-        image = target
-        hasUnsavedChanges = true
+        setBase(target)
         cropRect = nil
     }
 
@@ -382,6 +458,7 @@ struct ImageEditorView: View {
         if !historySteps.isEmpty { historySteps.removeLast() }
         image = previous
         hasUnsavedChanges = true
+        document.requestRender(base: previous)
     }
 
     /// 编辑器保存后回发手机（v0.8.42 批 5）。
@@ -672,15 +749,19 @@ struct ImageEditorView: View {
             document.setSelection(nil)
             return
         }
+        // v0.8.45：选区按 base 像素归一化（非破坏几何后显示图 ≠ base）。
+        let baseRectValue = baseRect(from: rect)
+        guard let image, image.width > 0, image.height > 0 else { return }
         let params = ImageSelectionParams(
-            x: rect.minX / displaySize.width,
-            y: rect.minY / displaySize.height,
-            width: rect.width / displaySize.width,
-            height: rect.height / displaySize.height,
+            x: baseRectValue.minX / CGFloat(image.width),
+            y: baseRectValue.minY / CGFloat(image.height),
+            width: baseRectValue.width / CGFloat(image.width),
+            height: baseRectValue.height / CGFloat(image.height),
             ellipse: false,
             feather: selectionFeather)
         document.setSelection(params)
         hasUnsavedChanges = true
+        document.requestRender(base: image)
     }
 
     /// 套索闭合 → 顶点写 document（自定义蒙版）。
@@ -688,27 +769,32 @@ struct ImageEditorView: View {
         defer {
             lassoPoints = []
         }
+        // v0.8.45：顶点先映射到 base 像素再归一化（几何后显示图 ≠ base）。
+        let basePoints = lassoPoints.map { basePixel(from: $0) }
+        guard let image, image.width > 0, image.height > 0 else { return }
+        let baseSize = CGSize(width: CGFloat(image.width), height: CGFloat(image.height))
         guard let vertices = ImageSelectionAdvanced.lassoVertices(
-            lassoPoints, displaySize: displaySize) else {
+            basePoints, displaySize: baseSize) else {
             lassoPoints = []
             return
         }
         document.setLassoSelection(vertices: vertices,
                                    feather: selectionFeather)
         hasUnsavedChanges = true
+        document.requestRender(base: image)
     }
 
     /// 魔棒：像素容差选区写入 document。
     private func commitMagicWand(at viewPoint: CGPoint) {
         guard let image, displaySize.width > 0, displaySize.height > 0 else { return }
-        let scale = displayScale
-        let pixelStart = CGPoint(x: viewPoint.x * scale, y: viewPoint.y * scale)
+        let pixelStart = basePixel(from: viewPoint)
         guard let mask = ImageSelectionAdvanced.magicWandMask(
             image: image, start: pixelStart,
             tolerance: magicTolerance, contiguous: true)
         else { return }
         document.setCustomMask(mask)
         hasUnsavedChanges = true
+        document.requestRender(base: image)
     }
 
     /// 魔棒/套索 overlay（拖拽预览）。
@@ -820,9 +906,9 @@ struct ImageEditorView: View {
     /// ⌥ 取样颜色（v0.8.42 增补）：从基础位图取像素 → hex/RGB。
     private func sampleColor(at viewPoint: CGPoint) {
         guard let image else { return }
-        let scale = displayScale
-        let px = Int(viewPoint.x * scale)
-        let py = Int(viewPoint.y * scale)
+        let base = basePixel(from: viewPoint)
+        let px = Int(base.x)
+        let py = Int(base.y)
         guard px >= 0, px < image.width, py >= 0, py < image.height else { return }
         guard let context = CGContext(
             data: nil, width: image.width, height: image.height,
@@ -879,20 +965,19 @@ struct ImageEditorView: View {
     /// 按位图像素处理修复刷（简化实现：邻域混合/亮度调节/模糊/锐化局部应用）。
     private func applyRepairBrush(at viewPoint: CGPoint) {
         guard let current = image else { return }
-        let scale = displayScale
-        let pixel = CGPoint(x: viewPoint.x * scale, y: viewPoint.y * scale)
-        let radius = brushRadius * scale
+        let pixel = basePixel(from: viewPoint)
+        // 旋转等距 → 半径只做 视图点→显示像素 换算
+        let radius = brushRadius * displayPixelScale
         let strength = brushStrength
         pushHistory(current, label: tool.rawValue.capitalized)
         guard let patched = Self.patch(
             current, center: pixel, radius: radius,
             sample: tool == .cloneStamp ? cloneSample.map({
-                CGPoint(x: $0.x * scale, y: $0.y * scale)
+                basePixel(from: $0)
             }) : nil,
             mode: tool, strength: strength)
         else { return }
-        image = patched
-        hasUnsavedChanges = true
+        setBase(patched)
     }
 
     private func commitClone(from sample: CGPoint, to viewPoint: CGPoint) {
@@ -906,8 +991,7 @@ struct ImageEditorView: View {
             current, center: pixel, radius: radius, sample: samplePixel,
             mode: .cloneStamp, strength: 1)
         else { return }
-        image = patched
-        hasUnsavedChanges = true
+        setBase(patched)
         // 落图后取样点保持，可连续克隆。
     }
 
@@ -1042,6 +1126,7 @@ struct ImageEditorView: View {
                         .shadow(radius: 2)
                         .frame(width: CGFloat(image.width) * zoom,
                                height: CGFloat(image.height) * zoom)
+                        .offset(panOffset)
                         .gesture(canvasGesture)
                         .simultaneousGesture(MagnificationGesture()
                             .onChanged { value in
@@ -1050,7 +1135,9 @@ struct ImageEditorView: View {
                             }
                             .onEnded { _ in pinchBase = 1 })
                         .onTapGesture(count: 2) {
-                            // 双击：适应 ↔ 1:1
+                            // 双击：适应 ↔ 1:1（平移一并归零）
+                            panOffset = .zero
+                            panBase = .zero
                             if abs(zoom - fitZoom) < 0.01 {
                                 setZoom(1)
                             } else {
@@ -1171,6 +1258,13 @@ struct ImageEditorView: View {
         DragGesture(minimumDistance: 0)
             .onChanged { value in
                 let point = value.location
+                // 平移模式：空工具 + 无裁剪/选区/修复/取色/对比拖动时拖动图片。
+                if tool == .none, !cropMode, !selectionMode, !repairToolActive,
+                   !showEyedropper, pendingDrag == nil {
+                    panOffset = CGSize(width: panBase.width + value.translation.width,
+                                       height: panBase.height + value.translation.height)
+                    return
+                }
                 if tool == .lasso {
                     lassoPoints.append(point)
                     return
@@ -1247,11 +1341,9 @@ struct ImageEditorView: View {
                 }
                 if cropMode {
                     if let rect = cropRect, rect.width >= 8, rect.height >= 8 {
-                        let pixel = CGRect(
-                            x: rect.minX * displayScale,
-                            y: rect.minY * displayScale,
-                            width: rect.width * displayScale,
-                            height: rect.height * displayScale)
+                        // v0.8.45：选框按显示图换算 base 像素（非破坏几何后
+                        // 显示 ≠ base，直接乘 displayScale 会裁错位置）。
+                        let pixel = baseRect(from: rect)
                         apply(label: String(localized: "Crop"), transform: { ImageTransforms.cropped($0, rect: pixel) })
                         return
                     }
@@ -1265,25 +1357,31 @@ struct ImageEditorView: View {
                 switch tool {
                 case .brush:
                     if brushPoints.count >= 2 {
+                        let mapped = brushPoints.map { basePixel(from: $0) }
                         stampAnnotation(label: String(localized: "Brush")) { overlay in
-                            drawPolyline(brushPoints, in: overlay)
+                            drawPolyline(mapped, in: overlay)
                         }
                     }
                     brushPoints = []
                 case .arrow:
-                    stampLineAnnotation(from: dragStart ?? value.location, to: value.location, arrow: true)
+                    stampLineAnnotation(from: basePixel(from: dragStart ?? value.location),
+                                        to: basePixel(from: value.location), arrow: true)
                     dragStart = nil; dragCurrent = nil
                 case .line:
-                    stampLineAnnotation(from: dragStart ?? value.location, to: value.location, arrow: false)
+                    stampLineAnnotation(from: basePixel(from: dragStart ?? value.location),
+                                        to: basePixel(from: value.location), arrow: false)
                     dragStart = nil; dragCurrent = nil
                 case .rectangle:
-                    stampRectAnnotation(from: dragStart ?? value.location, to: value.location, ellipse: false)
+                    stampRectAnnotation(from: basePixel(from: dragStart ?? value.location),
+                                        to: basePixel(from: value.location), ellipse: false)
                     dragStart = nil; dragCurrent = nil
                 case .ellipse:
-                    stampRectAnnotation(from: dragStart ?? value.location, to: value.location, ellipse: true)
+                    stampRectAnnotation(from: basePixel(from: dragStart ?? value.location),
+                                        to: basePixel(from: value.location), ellipse: true)
                     dragStart = nil; dragCurrent = nil
                 case .mosaic:
-                    stampMosaic(from: dragStart ?? value.location, to: value.location)
+                    stampMosaic(from: basePixel(from: dragStart ?? value.location),
+                                to: basePixel(from: value.location))
                     dragStart = nil; dragCurrent = nil
                 case .polygon:
                     // 点击式：按下-松开几乎没位移才算点；点回首点 16pt 内闭合。
@@ -1295,7 +1393,8 @@ struct ImageEditorView: View {
                     guard !dragged else { return }
                     if let first = polygonPoints.first, polygonPoints.count >= 3,
                        abs(first.x - point.x) < 16, abs(first.y - point.y) < 16 {
-                        stampPolygon(polygonPoints)
+                        let mapped = polygonPoints.map { basePixel(from: $0) }
+                        stampPolygon(mapped)
                         polygonPoints = []
                     } else {
                         polygonPoints.append(point)
@@ -1308,7 +1407,7 @@ struct ImageEditorView: View {
                     dragStart = nil
                     guard !dragged else { return }
                     bubbleCounter += 1
-                    stampBubble(at: point, number: bubbleCounter)
+                    stampBubble(at: basePixel(from: point), number: bubbleCounter)
                 case .text, .none,
                      .cloneStamp, .dodge, .burn, .blurBrush, .sharpenBrush,
                      .lasso, .magicWand:
@@ -1355,6 +1454,7 @@ struct ImageEditorView: View {
     }
 
     private func commitText(at anchor: CGPoint) {
+        let anchor = basePixel(from: anchor)
         let text = textEntry.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { showTextEntry = false; return }
         let nsColor = NSColor(strokeColor)
@@ -1384,16 +1484,15 @@ struct ImageEditorView: View {
             bitsPerComponent: 8, bytesPerRow: 0,
             space: current.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return }
-        // 视图坐标 → 位图坐标（y 翻转：CG 原点左下）。
+        // 传入点位已是 base 像素（调用方经 basePixel 换算）→ 只翻 y。
         overlay.translateBy(x: 0, y: CGFloat(h))
-        overlay.scaleBy(x: displayScale, y: -displayScale)
+        overlay.scaleBy(x: 1, y: -1)
         overlay.setLineCap(.round)
         draw(overlay)
         guard let overlayImage = overlay.makeImage(),
               let merged = ImageTransforms.flattened(current, overlay: overlayImage) else { return }
         pushHistory(current, label: label)
-        image = merged
-        hasUnsavedChanges = true
+        setBase(merged)
     }
 
     private func cgColorApp(_ color: Color) -> CGColor {

@@ -210,16 +210,24 @@ final class ImageEditorDocument: ObservableObject {
     // MARK: - 渲染
 
     /// 请求渲染（去抖 120ms；相同指纹跳过）。base = 烙图后的基础位图。
-    func requestRender(base: CGImage) {
+    /// `previewAdjust` = 调节滑杆草稿的**实时预览**（不进管线/undo 栈——
+    /// 拖动滑杆即时见效，Apply 才落管线；v0.8.45 修复"调节不生效"观感）。
+    func requestRender(base: CGImage, previewAdjust: ImageAdjustParams? = nil) {
         lastBase = base
+        let previewKey = previewAdjust.map { String(describing: $0) } ?? ""
         let fingerprint = pipeline.fingerprint() + "|\(base.width)x\(base.height)"
+            + "|p:\(previewKey)"
             + (customMask.map { "|custom|\($0.width)x\($0.height)" } ?? "")
             + (lassoVertices.map { "|lasso|\($0.count)" } ?? "")
         if fingerprint == lastFingerprint, renderedImage != nil { return }
         lastFingerprint = fingerprint
         renderTask?.cancel()
         isRendering = true
-        let pipeline = pipeline
+        var pipeline = pipeline
+        if let previewAdjust, !ImageAdjustParams.clamped(previewAdjust).isNeutral {
+            _ = pipeline.append(.adjust(ImageAdjustParams.clamped(previewAdjust),
+                                        label: "__preview"))
+        }
         let mask = customMask
         let lasso = lassoVertices
         let feather = lassoFeather

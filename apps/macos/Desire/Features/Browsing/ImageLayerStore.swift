@@ -116,6 +116,29 @@ final class ImageLayerStore: ObservableObject {
     }
 
     /// 按渲染顺序烙图全部可见图层（blend + opacity）。
+    /// 以给定 base 合成全部可见图层（编辑器画布预览用——图层此前只在
+    /// 导出时合成，画布上"加了图层看不见"，v0.8.45 丰富批修复）。
+    /// 单层（只有 base 层）或空栈返回 nil（调用方退回原显示）。
+    func composited(over base: CGImage) -> CGImage? {
+        let order = ImageLayerCore.renderOrder(stack)
+        guard stack.count > 1 else { return nil }
+        var current: CGImage? = base
+        for index in order {
+            let layer = stack[index]
+            guard let bitmap = bitmaps[layer.id] else { continue }
+            if index == order.first {
+                current = bitmap  // 栈底图层位图 = base 层（与 reset(base:) 同语义）
+                continue
+            }
+            guard let existing = current else { continue }
+            current = Self.composite(
+                base: existing, overlay: bitmap,
+                blendMode: layer.blendMode, opacity: layer.opacity)
+                ?? existing
+        }
+        return current
+    }
+
     func flattened() -> CGImage? {
         let order = ImageLayerCore.renderOrder(stack)
         var current: CGImage?

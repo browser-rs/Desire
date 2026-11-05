@@ -8533,6 +8533,7 @@ testPDFBatchCore()
 testFeedCore()
 testFeedSyncCore()
 testFeedOPMLCore()
+testImageGeometryMapper()
 testReadingDigestCore()
 testFB2Core()
 testEbookSyncCore()
@@ -9724,6 +9725,93 @@ func testFeedOPMLCore() {
         "<opml><body></body></opml>".utf8))
     eq("OPML：空清单合法", empty?.count, 0)
 }
+
+// ---------- 图片几何坐标映射（v0.8.45 编辑器修复） ----------
+
+func testImageGeometryMapper() {
+    let baseSize = CGSize(width: 200, height: 100)
+    let center = CGPoint(x: 100, y: 50)
+
+    eq("几何：flipH 逆",
+       ImageGeometryMapper.basePoint(fromDisplay: CGPoint(x: 30, y: 40),
+                                     ops: [.flipH], baseSize: baseSize).x, 170)
+    eq("几何：flipV 逆",
+       ImageGeometryMapper.basePoint(fromDisplay: CGPoint(x: 30, y: 40),
+                                     ops: [.flipV], baseSize: baseSize).y, 60)
+
+    // cw 后显示图 (100×200)：显示中心 (50,100) ↔ base 中心 (100,50)
+    check("几何：cw 显示中心→base 中心",
+          ImageGeometryMapper.basePoint(fromDisplay: CGPoint(x: 50, y: 100),
+                                        ops: [.rotate90cw], baseSize: baseSize)
+              == CGPoint(x: 100, y: 50))
+    check("几何：cw base 中心→显示中心",
+          ImageGeometryMapper.displayPoint(fromBase: center, ops: [.rotate90cw],
+                                           baseSize: baseSize)
+              == CGPoint(x: 50, y: 100))
+    let corner = ImageGeometryMapper.basePoint(fromDisplay: CGPoint(x: 0, y: 0),
+                                               ops: [.rotate90cw],
+                                               baseSize: baseSize)
+    check("几何：cw 角点", corner.x == 0 && corner.y == 100)
+
+    let samples = [CGPoint(x: 0, y: 0), CGPoint(x: 37, y: 81),
+                   CGPoint(x: 199, y: 99), center]
+    for op in ImageEditOperation.GeometryAction.allCases {
+        for point in samples {
+            let display = ImageGeometryMapper.displayPoint(fromBase: point,
+                                                           ops: [op],
+                                                           baseSize: baseSize)
+            let back = ImageGeometryMapper.basePoint(fromDisplay: display,
+                                                     ops: [op],
+                                                     baseSize: baseSize)
+            check("几何：往返 \(op.rawValue) \(point)",
+                  abs(back.x - point.x) < 0.001 && abs(back.y - point.y) < 0.001)
+        }
+    }
+    let combos: [[ImageEditOperation.GeometryAction]] = [
+        [.rotate90cw, .rotate90cw], [.rotate90cw, .flipH],
+        [.flipH, .rotate90ccw], [.rotate90ccw, .rotate90ccw, .flipV],
+    ]
+    for ops in combos {
+        for point in samples {
+            let display = ImageGeometryMapper.displayPoint(fromBase: point,
+                                                           ops: ops,
+                                                           baseSize: baseSize)
+            let back = ImageGeometryMapper.basePoint(fromDisplay: display,
+                                                     ops: ops,
+                                                     baseSize: baseSize)
+            check("几何：组合往返 \(ops.map(\.rawValue)) \(point)",
+                  abs(back.x - point.x) < 0.001 && abs(back.y - point.y) < 0.001)
+        }
+        let inverted = ImageGeometryMapperInverseProbe.inverse(ops)
+        let rect = CGRect(x: 20, y: 10, width: 40, height: 30)
+        let display = ImageGeometryMapper.baseRect(fromDisplay: rect, ops: inverted,
+                                                   baseSize: baseSize)
+        let back = ImageGeometryMapper.baseRect(fromDisplay: display, ops: ops,
+                                                baseSize: baseSize)
+        check("几何：矩形组合往返 \(ops.map(\.rawValue))",
+              back.width == rect.width && back.height == rect.height)
+    }
+    let flipped = ImageGeometryMapper.baseRect(fromDisplay: CGRect(x: 20, y: 10, width: 40, height: 30),
+                                               ops: [.flipH], baseSize: baseSize)
+    eq("几何：flipH 矩形 x", flipped.minX, 140)
+    eq("几何：flipH 矩形宽", flipped.width, 40)
+}
+
+/// 测试辅助：逆序列（生产走显示→base 单向；harness 用正向往返验证）。
+nonisolated enum ImageGeometryMapperInverseProbe {
+    static func inverse(_ ops: [ImageEditOperation.GeometryAction])
+        -> [ImageEditOperation.GeometryAction] {
+        ops.map { op -> ImageEditOperation.GeometryAction in
+            switch op {
+            case .rotate90cw: return .rotate90ccw
+            case .rotate90ccw: return .rotate90cw
+            case .flipH, .flipV: return op
+            }
+        }.reversed()
+    }
+}
+
+// ---------- 阅读摘要（v0.8.36） ----------
 
 // ---------- 阅读摘要（v0.8.36） ----------
 

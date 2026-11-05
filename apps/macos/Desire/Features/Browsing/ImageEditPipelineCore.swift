@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// 图片编辑管线核心（v0.8.41 迭代 1）：非破坏、可重编辑的操作序列。
@@ -151,7 +152,7 @@ nonisolated struct ImageEditOperation: Codable, Identifiable, Equatable {
         case adjust, filter, selection, geometry
     }
 
-    enum GeometryAction: String, Codable {
+    enum GeometryAction: String, Codable, CaseIterable {
         case rotate90cw, rotate90ccw, flipH, flipV
     }
 
@@ -253,5 +254,112 @@ nonisolated extension CGFloat {
         if self < clampedLower { return clampedLower }
         if self > upper { return upper }
         return self
+    }
+}
+
+/// 几何操作的正/逆坐标映射（v0.8.45 修复）：非破坏几何（rotate/flip）后，
+/// 画布显示的是管线渲染结果，而标注/裁剪/修复刷烙在 base 上——交互坐标
+/// 必须从显示像素逆映射回 base 像素，否则画到画布外（"工具不生效"）。
+/// 坐标系统一为左上原点、y 向下。Foundation-only，进 tests/run.sh。
+nonisolated enum ImageGeometryMapper {
+
+    /// 显示像素 → base 像素（ops 为管线顺序的正向几何序列）。
+    static func basePoint(fromDisplay point: CGPoint,
+                          ops: [ImageEditOperation.GeometryAction],
+                          baseSize: CGSize) -> CGPoint {
+        // 当前（最终）显示尺寸 = base 经全部 ops 后的尺寸
+        var size = baseSize
+        for op in ops {
+            size = forwardSize(op, current: size)
+        }
+        var point = point
+        for op in ops.reversed() {
+            point = inversePoint(op, point, size: size)
+            size = backwardSize(op, current: size)
+        }
+        return point
+    }
+
+    /// 显示矩形 → base 矩形（对角点映射后取包围盒；旋转后宽高互换）。
+    static func baseRect(fromDisplay rect: CGRect,
+                         ops: [ImageEditOperation.GeometryAction],
+                         baseSize: CGSize) -> CGRect {
+        let tl = basePoint(fromDisplay: CGPoint(x: rect.minX, y: rect.minY),
+                           ops: ops, baseSize: baseSize)
+        let br = basePoint(fromDisplay: CGPoint(x: rect.maxX, y: rect.maxY),
+                           ops: ops, baseSize: baseSize)
+        return CGRect(x: min(tl.x, br.x), y: min(tl.y, br.y),
+                      width: abs(br.x - tl.x), height: abs(br.y - tl.y))
+    }
+
+    /// base 像素 → 显示像素（正向；调试/测试用）。
+    static func displayPoint(fromBase point: CGPoint,
+                             ops: [ImageEditOperation.GeometryAction],
+                             baseSize: CGSize) -> CGPoint {
+        var size = baseSize
+        var point = point
+        for op in ops {
+            point = forwardPoint(op, point, size: size)
+            size = forwardSize(op, current: size)
+        }
+        return point
+    }
+
+    // MARK: - 单步（左上原点，y 向下）
+
+    /// op 之后的尺寸
+    private static func forwardSize(_ op: ImageEditOperation.GeometryAction,
+                                    current: CGSize) -> CGSize {
+        switch op {
+        case .rotate90cw, .rotate90ccw:
+            return CGSize(width: current.height, height: current.width)
+        case .flipH, .flipV:
+            return current
+        }
+    }
+
+    /// 正向点映射（old 尺寸坐标系 → op 后尺寸坐标系）。
+    private static func forwardPoint(_ op: ImageEditOperation.GeometryAction,
+                                     _ p: CGPoint, size: CGSize) -> CGPoint {
+        switch op {
+        case .rotate90cw:
+            // (x, y) → (H − y, x)
+            return CGPoint(x: size.height - p.y, y: p.x)
+        case .rotate90ccw:
+            // (x, y) → (y, W − x)
+            return CGPoint(x: p.y, y: size.width - p.x)
+        case .flipH:
+            return CGPoint(x: size.width - p.x, y: p.y)
+        case .flipV:
+            return CGPoint(x: p.x, y: size.height - p.y)
+        }
+    }
+
+    /// 逆向点映射（op 后尺寸坐标系 → op 前尺寸坐标系）。
+    private static func inversePoint(_ op: ImageEditOperation.GeometryAction,
+                                     _ p: CGPoint, size: CGSize) -> CGPoint {
+        switch op {
+        case .rotate90cw:
+            // 正向 dx = H − y, dy = x → x = dy, y = H − dx（H = op 前高 = 显示宽）
+            return CGPoint(x: p.y, y: size.width - p.x)
+        case .rotate90ccw:
+            // 正向 dx = y, dy = W − x → x = W − dy（W = op 后高）, y = dx
+            return CGPoint(x: size.height - p.y, y: p.x)
+        case .flipH:
+            return CGPoint(x: size.width - p.x, y: p.y)
+        case .flipV:
+            return CGPoint(x: p.x, y: size.height - p.y)
+        }
+    }
+
+    /// 逆推一步后的尺寸（op 之前的尺寸）。
+    private static func backwardSize(_ op: ImageEditOperation.GeometryAction,
+                                     current: CGSize) -> CGSize {
+        switch op {
+        case .rotate90cw, .rotate90ccw:
+            return CGSize(width: current.height, height: current.width)
+        case .flipH, .flipV:
+            return current
+        }
     }
 }

@@ -495,6 +495,24 @@ enum ImageEditorCommands {
         case "flatten":
             document.flattenLayers()
             return ["ok": true, "layers": document.layers.count]
+        case "style":
+            guard let id = document.activeLayer?.id else { return ["error": "No active layer"] }
+            var style = document.activeLayer?.style ?? ImageLayerStyle()
+            if let v = body["shadow"] as? Bool { style.shadowEnabled = v }
+            if let v = Self.number(body["shadowRadius"]) { style.shadowRadius = v }
+            if let v = Self.number(body["shadowOpacity"]) { style.shadowOpacity = v }
+            if let v = Self.number(body["shadowOffsetX"]) { style.shadowOffsetX = v }
+            if let v = Self.number(body["shadowOffsetY"]) { style.shadowOffsetY = v }
+            if let v = body["shadowColor"] as? String { style.shadowColor = v }
+            if let v = body["stroke"] as? Bool { style.strokeEnabled = v }
+            if let v = Self.number(body["strokeWidth"]) { style.strokeWidth = v }
+            if let v = body["strokeColor"] as? String { style.strokeColor = v }
+            if let v = body["glow"] as? Bool { style.glowEnabled = v }
+            if let v = Self.number(body["glowRadius"]) { style.glowRadius = v }
+            if let v = Self.number(body["glowOpacity"]) { style.glowOpacity = v }
+            if let v = body["glowColor"] as? String { style.glowColor = v }
+            document.setLayerStyle(id, style: style)
+            return ["ok": true, "style": style.isActive]
         case "scale":
             guard let id = document.activeLayer?.id else { return ["error": "No active layer"] }
             document.setLayerScale(id, Self.number(body["scale"]) ?? 1)

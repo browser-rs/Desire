@@ -8,6 +8,7 @@ struct ImageEditorLayersPanel: View {
 
     @State private var renamingID: UUID?
     @State private var renameText = ""
+    @State private var showStyle = false
 
     init(session: ImageEditorSession) {
         _session = ObservedObject(wrappedValue: session)
@@ -37,6 +38,20 @@ struct ImageEditorLayersPanel: View {
                     document.flattenLayers()
                 }
                 .disabled(document.layers.count <= 1)
+                Button {
+                    showStyle.toggle()
+                } label: {
+                    Image(systemName: "fx")
+                        .font(.system(size: 11))
+                        .frame(width: 22, height: 20)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle((document.activeLayer?.style?.isActive ?? false)
+                                 ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+                .help(String(localized: "Layer Style"))
+                .popover(isPresented: $showStyle, arrowEdge: .bottom) {
+                    styleEditor
+                }
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
@@ -112,6 +127,66 @@ struct ImageEditorLayersPanel: View {
                 }
             }
             .padding(16)
+        }
+    }
+
+    @ViewBuilder
+    private var styleEditor: some View {
+        if let layer = document.activeLayer {
+            let style = layer.style ?? ImageLayerStyle()
+            VStack(alignment: .leading, spacing: 8) {
+                Text(String(localized: "Layer Style"))
+                    .font(.system(size: 11, weight: .semibold))
+                Toggle(String(localized: "Drop Shadow"), isOn: Binding(
+                    get: { style.shadowEnabled },
+                    set: { var s = style; s.shadowEnabled = $0
+                        document.setLayerStyle(layer.id, style: s) }))
+                    .toggleStyle(.checkbox)
+                Toggle(String(localized: "Stroke"), isOn: Binding(
+                    get: { style.strokeEnabled },
+                    set: { var s = style; s.strokeEnabled = $0
+                        document.setLayerStyle(layer.id, style: s) }))
+                    .toggleStyle(.checkbox)
+                Toggle(String(localized: "Glow"), isOn: Binding(
+                    get: { style.glowEnabled },
+                    set: { var s = style; s.glowEnabled = $0
+                        document.setLayerStyle(layer.id, style: s) }))
+                    .toggleStyle(.checkbox)
+                HStack(spacing: 6) {
+                    Text(String(localized: "Shadow")).font(.system(size: 10))
+                        .foregroundStyle(.secondary).frame(width: 46, alignment: .leading)
+                    Slider(value: Binding(
+                        get: { CGFloat(style.shadowRadius) },
+                        set: { var s = style; s.shadowRadius = Double($0)
+                            document.setLayerStyle(layer.id, style: s) }), in: 0...40)
+                        .controlSize(.mini)
+                    Slider(value: Binding(
+                        get: { CGFloat(style.shadowOffsetY) },
+                        set: { var s = style; s.shadowOffsetY = Double($0)
+                            document.setLayerStyle(layer.id, style: s) }), in: 0...30)
+                        .controlSize(.mini)
+                }
+                HStack(spacing: 6) {
+                    Text(String(localized: "Stroke")).font(.system(size: 10))
+                        .foregroundStyle(.secondary).frame(width: 46, alignment: .leading)
+                    Slider(value: Binding(
+                        get: { CGFloat(style.strokeWidth) },
+                        set: { var s = style; s.strokeWidth = Double($0)
+                            document.setLayerStyle(layer.id, style: s) }), in: 0...20)
+                        .controlSize(.mini)
+                }
+                HStack(spacing: 6) {
+                    Text(String(localized: "Glow")).font(.system(size: 10))
+                        .foregroundStyle(.secondary).frame(width: 46, alignment: .leading)
+                    Slider(value: Binding(
+                        get: { CGFloat(style.glowRadius) },
+                        set: { var s = style; s.glowRadius = Double($0)
+                            document.setLayerStyle(layer.id, style: s) }), in: 0...40)
+                        .controlSize(.mini)
+                }
+            }
+            .padding(12)
+            .frame(width: 240)
         }
     }
 

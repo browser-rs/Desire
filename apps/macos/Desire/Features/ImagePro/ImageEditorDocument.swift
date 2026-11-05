@@ -308,6 +308,14 @@ final class ImageEditorDocument: ObservableObject {
         commit()
     }
 
+    func setLayerStyle(_ id: UUID, style: ImageLayerStyle?) {
+        guard let index = layers.firstIndex(where: { $0.id == id }) else { return }
+        layers[index].style = style
+        compositeCache = nil
+        revision += 1
+        isDirty = true
+    }
+
     func setLayerLocked(_ id: UUID, locked: Bool) {
         guard let index = layers.firstIndex(where: { $0.id == id }) else { return }
         layers[index].isLocked = locked

@@ -107,6 +107,24 @@ nonisolated enum ImageEditorBlend: String, CaseIterable, Sendable {
     }
 }
 
+/// 图层样式（迭代 9）：投影 / 描边 / 发光，非破坏，合成时应用。
+nonisolated struct ImageLayerStyle: Equatable, Sendable {
+    var shadowEnabled = false
+    var shadowRadius: Double = 10
+    var shadowOpacity: Double = 0.6
+    var shadowOffsetX: Double = 0
+    var shadowOffsetY: Double = 6
+    var shadowColor: String = "#000000"
+    var strokeEnabled = false
+    var strokeWidth: Double = 2
+    var strokeColor: String = "#FFFFFF"
+    var glowEnabled = false
+    var glowRadius: Double = 14
+    var glowOpacity: Double = 0.6
+    var glowColor: String = "#FF4245"
+    var isActive: Bool { shadowEnabled || strokeEnabled || glowEnabled }
+}
+
 /// 图层（账本；像素在 ImageEditorDocument.bitmaps）。
 nonisolated struct ImageEditorLayer: Identifiable, Equatable, Sendable {
     var id: UUID
@@ -120,6 +138,7 @@ nonisolated struct ImageEditorLayer: Identifiable, Equatable, Sendable {
     var scale: Double = 1
     var rotation: Double = 0
     var isLocked: Bool = false
+    var style: ImageLayerStyle?
 }
 
 

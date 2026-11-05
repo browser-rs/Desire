@@ -81,7 +81,10 @@ nonisolated enum ImageEditorRaster {
         else { return nil }
         for layer in layers where layer.isVisible && layer.opacity > 0.001
             && (matching?(layer) ?? true) {
-            guard let bitmap = bitmaps[layer.id] else { continue }
+            guard let rawBitmap = bitmaps[layer.id] else { continue }
+            let bitmap = (layer.style?.isActive == true)
+                ? (styled(rawBitmap, style: layer.style!) ?? rawBitmap)
+                : rawBitmap
             ctx.saveGState()
             ctx.setAlpha(CGFloat(layer.opacity))
             ctx.setBlendMode(layer.blend.cgBlendMode)
@@ -861,6 +864,85 @@ nonisolated extension ImageEditorRaster {
                                              .drawsAfterEndLocation])
         }
         ctx.restoreGState()
+        return ctx.makeImage()
+    }
+}
+
+// MARK: - 图层样式（迭代 9：剪影只在图层有透明像素时才有意义）
+
+nonisolated extension ImageEditorRaster {
+
+    static func silhouette(_ bitmap: CGImage) -> CGImage? {
+        let w = bitmap.width, h = bitmap.height
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.setFillColor(CGColor(gray: 1, alpha: 1))
+        ctx.fill(CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        ctx.setBlendMode(.destinationIn)
+        ctx.draw(bitmap, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        return ctx.makeImage()
+    }
+
+    static func colorized(_ mask: CGImage, color: CGColor) -> CGImage? {
+        let w = mask.width, h = mask.height
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.setFillColor(color)
+        ctx.fill(CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        ctx.setBlendMode(.destinationIn)
+        ctx.draw(mask, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        return ctx.makeImage()
+    }
+
+    static func styled(_ bitmap: CGImage, style: ImageLayerStyle) -> CGImage? {
+        guard style.isActive else { return bitmap }
+        let w = bitmap.width, h = bitmap.height
+        let bounds = CGRect(x: 0, y: 0, width: w, height: h)
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+              let mask = silhouette(bitmap) else { return bitmap }
+
+        func blurred(_ image: CGImage, radius: Double) -> CGImage? {
+            guard radius > 0.1, let filter = CIFilter(name: "CIGaussianBlur") else { return image }
+            filter.setValue(CIImage(cgImage: image), forKey: kCIInputImageKey)
+            filter.setValue(radius, forKey: kCIInputRadiusKey)
+            guard let out = filter.outputImage else { return image }
+            return ImagePipelineRenderer.context.createCGImage(out, from: bounds)
+        }
+        func dilated(_ image: CGImage, radius: Double) -> CGImage? {
+            guard radius > 0.1, let filter = CIFilter(name: "CIMorphologyMaximum") else { return image }
+            filter.setValue(CIImage(cgImage: image), forKey: kCIInputImageKey)
+            filter.setValue(radius, forKey: kCIInputRadiusKey)
+            guard let out = filter.outputImage else { return image }
+            return ImagePipelineRenderer.context.createCGImage(out, from: bounds)
+        }
+        func drawImage(_ image: CGImage?, dx: Double = 0, dy: Double = 0) {
+            guard let image else { return }
+            ctx.draw(image, in: bounds.offsetBy(dx: dx, dy: -dy))
+        }
+
+        if style.glowEnabled, let color = color(from: style.glowColor) {
+            let base = colorized(mask, color: color) ?? mask
+            drawImage(blurred(base, radius: style.glowRadius))
+        }
+        if style.shadowEnabled, let color = color(from: style.shadowColor) {
+            let base = colorized(mask, color: color) ?? mask
+            drawImage(blurred(base, radius: style.shadowRadius),
+                      dx: style.shadowOffsetX, dy: style.shadowOffsetY)
+        }
+        if style.strokeEnabled, let color = color(from: style.strokeColor) {
+            drawImage(colorized(dilated(mask, radius: style.strokeWidth) ?? mask,
+                                color: color))
+        }
+        ctx.draw(bitmap, in: bounds)
         return ctx.makeImage()
     }
 }

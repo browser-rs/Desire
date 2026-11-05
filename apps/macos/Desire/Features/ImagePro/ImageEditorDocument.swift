@@ -68,7 +68,7 @@ final class ImageEditorDocument: ObservableObject {
     /// 设置实时预览（滑杆拖动时调用）。nil/neutral = 无预览。
     func setPreview(adjust: ImageAdjustParams?, filter: ImageFilterPreset?) {
         previewAdjust = (adjust?.isNeutral == true) ? nil : adjust
-        previewFilter = (filter == nil || filter == .none) ? nil : filter
+        previewFilter = (filter == nil || filter == ImageFilterPreset.none) ? nil : filter
         compositeCache = nil
         revision += 1
     }

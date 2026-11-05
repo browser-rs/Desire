@@ -80,7 +80,7 @@ struct ImageEventCatcher: NSViewRepresentable {
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            if let window {
+            if window != nil {
                 let area = NSTrackingArea(
                     rect: NSRect(origin: .zero, size: bounds.size),
                     options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect],

@@ -864,6 +864,6 @@ struct ImageEditorView: View {
         panel.allowedContentTypes = []
         let response = panel.runModal()
         guard response == .OK, let url = panel.url else { return }
-        session.export(format: format, to: url)
+        _ = session.export(format: format, to: url)
     }
 }

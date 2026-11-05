@@ -12,6 +12,7 @@ nonisolated enum ImageEditorTool: String, CaseIterable, Sendable {
     case eraser
     case text
     case shape
+    case retouch
     case eyedropper
     case hand
     case zoom
@@ -27,6 +28,7 @@ nonisolated enum ImageEditorTool: String, CaseIterable, Sendable {
         case .eraser: return "e"
         case .text: return "t"
         case .shape: return "u"
+        case .retouch: return "j"
         case .eyedropper: return "i"
         case .hand: return "h"
         case .zoom: return "z"
@@ -44,6 +46,7 @@ nonisolated enum ImageEditorTool: String, CaseIterable, Sendable {
         case .eraser: return String(localized: "Eraser")
         case .text: return String(localized: "Text Tool")
         case .shape: return String(localized: "Shape")
+        case .retouch: return String(localized: "Retouch")
         case .eyedropper: return String(localized: "Eyedropper Tool")
         case .hand: return String(localized: "Hand")
         case .zoom: return String(localized: "Zoom")
@@ -61,6 +64,7 @@ nonisolated enum ImageEditorTool: String, CaseIterable, Sendable {
         case .eraser: return "eraser"
         case .text: return "character.textbox"
         case .shape: return "square.on.circle"
+        case .retouch: return "bandage"
         case .eyedropper: return "eyedropper"
         case .hand: return "hand.raised"
         case .zoom: return "magnifyingglass"
@@ -112,4 +116,21 @@ nonisolated struct ImageEditorLayer: Identifiable, Equatable, Sendable {
     var scale: Double = 1
     var rotation: Double = 0
     var isLocked: Bool = false
+}
+
+
+/// 修饰模式（迭代 7）。
+nonisolated enum ImageRetouchMode: String, CaseIterable, Sendable {
+    case clone, heal, dodge, burn, blur, sharpen
+
+    var localizedTitle: String {
+        switch self {
+        case .clone: return String(localized: "Clone Stamp")
+        case .heal: return String(localized: "Heal")
+        case .dodge: return String(localized: "Dodge Tool")
+        case .burn: return String(localized: "Burn Tool")
+        case .blur: return String(localized: "Blur Tool")
+        case .sharpen: return String(localized: "Sharpen Tool")
+        }
+    }
 }

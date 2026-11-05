@@ -22,7 +22,7 @@ enum ImageEditorCommands {
         let document = session.document
         if document.isActiveLayerLocked,
            ["brush", "stroke", "eraser", "shape", "text", "fill", "mosaic",
-            "move"].contains(action) {
+            "move", "retouch"].contains(action) {
             return ["error": "Layer is locked"]
         }
         do {
@@ -57,6 +57,36 @@ enum ImageEditorCommands {
                 return try fill(body: body, document: document)
             case "mosaic":
                 return try mosaic(body: body, document: document)
+            case "retouch":
+                guard let rawMode = (body["mode"] as? String)?.lowercased(),
+                      let mode = ImageRetouchMode(rawValue: rawMode) else {
+                    return ["error": "retouch needs mode: clone|heal|dodge|burn|blur|sharpen"]
+                }
+                guard let raw = body["points"] as? [[Any]], let pts = Self.points(raw),
+                      pts.isEmpty == false else {
+                    return ["error": "retouch needs points: [[x,y], ...]"]
+                }
+                document.bakeActiveLayerGeometry()
+                guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
+                let size = Self.number(body["size"]).map { CGFloat($0) } ?? session.brushSize
+                let strength = Self.number(body["strength"]) ?? session.retouchStrength
+                let sample = Self.point(body["sample"])
+                var current = bitmap
+                let first = pts[0]
+                for p in pts {
+                    var source: CGPoint?
+                    if let sample {
+                        source = CGPoint(x: sample.x + (p.x - first.x),
+                                         y: sample.y + (p.y - first.y))
+                    }
+                    guard let next = ImageEditorRaster.retouch(current, mode: mode, at: p,
+                                                               radius: max(1, size / 2),
+                                                               strength: strength,
+                                                               source: source) else { continue }
+                    current = next
+                }
+                document.replaceActiveBitmap(current, title: mode.localizedTitle)
+                return ["ok": true, "points": pts.count]
             case "place":
                 guard let path = body["path"] as? String,
                       let image = ImageTransforms.load(

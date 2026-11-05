@@ -19,6 +19,8 @@ struct ImageCanvasView: View {
     @State private var cropDrag: CropDrag?
     @State private var lastCropClick = Date.distantPast
     @State private var combineMode: ImageEditorRaster.SelectionCombine = .replace
+    @State private var retouchStart: CGPoint?
+    @State private var retouchLast: CGPoint?
     @State private var hoverCanvas: CGPoint?
     @State private var textAnchor: CGPoint?
     @State private var textEntry = ""
@@ -208,6 +210,7 @@ struct ImageCanvasView: View {
             shapePreview(t)
             strokePreview(t)
             cropOverlay(t)
+            cloneSampleMarker(t)
             brushCursor(t)
         }
     }
@@ -380,7 +383,7 @@ struct ImageCanvasView: View {
 
     @ViewBuilder
     private func brushCursor(_ t: ImageCanvasTransform) -> some View {
-        if (session.tool == .brush || session.tool == .eraser),
+        if (session.tool == .brush || session.tool == .eraser || session.tool == .retouch),
            let hover = hoverCanvas {
             Circle()
                 .stroke(Color.white.opacity(0.9), lineWidth: 1)
@@ -493,6 +496,16 @@ struct ImageCanvasView: View {
             document.beginContinuousEdit("Move")
         case .zoom:
             canvas.zoom(by: flags.contains(.option) ? 0.8 : 1.25, anchor: point)
+        case .retouch:
+            if [.clone, .heal].contains(session.retouchMode), flags.contains(.option) {
+                session.cloneSample = base
+                session.flash(String(localized: "Sample set"))
+                return
+            }
+            document.beginContinuousEdit(session.retouchMode.localizedTitle)
+            retouchStart = base
+            retouchLast = base
+            applyRetouch(to: base)
         case .eyedropper:
             if let color = document.sampleColor(at: base) {
                 session.setPrimaryColor(color)
@@ -535,6 +548,18 @@ struct ImageCanvasView: View {
             }
         case .brush, .eraser:
             strokePoints.append(base)
+        case .retouch:
+            let start = retouchLast ?? base
+            let dist = hypot(base.x - start.x, base.y - start.y)
+            let step = max(1, session.brushSize * 0.25)
+            var t: CGFloat = 0
+            while t < dist {
+                t += step
+                let p = CGPoint(x: start.x + (base.x - start.x) * (t / dist),
+                                y: start.y + (base.y - start.y) * (t / dist))
+                applyRetouch(to: p)
+            }
+            retouchLast = base
         case .marquee, .shape:
             dragCurrent = base
         case .crop:
@@ -599,6 +624,9 @@ struct ImageCanvasView: View {
             commitShape(t)
         case .crop:
             upCrop()
+        case .retouch:
+            retouchStart = nil
+            retouchLast = nil
         case .eyedropper, .text, .zoom:
             break
         }
@@ -606,6 +634,36 @@ struct ImageCanvasView: View {
     }
 
     // MARK: - 提交
+
+    /// 一次修饰戳。克隆/修复的源随笔画位移（对齐克隆）。
+    private func applyRetouch(to point: CGPoint) {
+        guard let bitmap = document.activeBitmap else { return }
+        var source: CGPoint?
+        if [.clone, .heal].contains(session.retouchMode), let sample = session.cloneSample {
+            let offset = CGPoint(x: point.x - (retouchStart?.x ?? point.x),
+                                 y: point.y - (retouchStart?.y ?? point.y))
+            source = CGPoint(x: sample.x + offset.x, y: sample.y + offset.y)
+        }
+        guard let output = ImageEditorRaster.retouch(
+            bitmap, mode: session.retouchMode, at: point,
+            radius: max(1, session.brushSize / 2),
+            strength: session.retouchStrength, source: source) else { return }
+        document.setBitmapLive(document.activeLayerID, output)
+    }
+
+    @ViewBuilder
+    private func cloneSampleMarker(_ t: ImageCanvasTransform) -> some View {
+        if session.tool == .retouch, let sample = session.cloneSample {
+            let p = t.canvasPoint(fromBasePixel: sample)
+            ZStack {
+                Circle().stroke(Color.white, lineWidth: 1.2).frame(width: 14, height: 14)
+                Rectangle().fill(Color.white).frame(width: 18, height: 1)
+                Rectangle().fill(Color.white).frame(width: 1, height: 18)
+            }
+            .shadow(color: .black.opacity(0.6), radius: 1)
+            .position(p)
+        }
+    }
 
     private func commitStroke(_ t: ImageCanvasTransform) {
         _ = t

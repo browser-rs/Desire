@@ -384,6 +384,26 @@ struct ImageEditorView: View {
                                  value: Binding(get: { CGFloat(session.selectionFeather) },
                                                 set: { session.selectionFeather = Double($0) }),
                                  range: 0...0.3, width: 90)
+                case .retouch:
+                    Picker("", selection: $session.retouchMode) {
+                        ForEach(ImageRetouchMode.allCases, id: \.rawValue) { mode in
+                            Text(mode.localizedTitle).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .frame(width: 130)
+                    optionSlider(String(localized: "Size"), value: $session.brushSize,
+                                 range: 2...300, width: 100)
+                    optionSlider(String(localized: "Strength"),
+                                 value: Binding(get: { CGFloat(session.retouchStrength) },
+                                                set: { session.retouchStrength = Double($0) }),
+                                 range: 0.05...1, width: 90)
+                    if [.clone, .heal].contains(session.retouchMode) {
+                        Text(String(localized: "⌥ click to sample"))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
                 case .shape:
                     Picker("", selection: $session.shape) {
                         ForEach(ImageEditorShape.allCases, id: \.rawValue) { shape in

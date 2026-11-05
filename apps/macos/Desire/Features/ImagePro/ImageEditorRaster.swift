@@ -729,3 +729,93 @@ nonisolated extension ImageEditorBlend {
         }
     }
 }
+
+// MARK: - 修饰工具（迭代 7：全部用绘制/CIImage 语义，不碰原始 buffer）
+
+nonisolated extension ImageEditorRaster {
+
+    /// 软边圆形灰度蒙版（白 = 生效），峰值 alpha 由 strength 控制。
+    static func softMask(size: CGSize, center: CGPoint, radius: CGFloat,
+                         strength: Double) -> CGImage? {
+        let w = max(1, Int(size.width.rounded()))
+        let h = max(1, Int(size.height.rounded()))
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceGray(),
+                                  bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
+        ctx.setFillColor(gray: 0, alpha: 1)
+        ctx.fill(CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        // 文档 y-down → CG y-up
+        let c = CGPoint(x: center.x, y: CGFloat(h) - center.y)
+        let peak = CGFloat(max(0, min(1, strength)))
+        let space = CGColorSpaceCreateDeviceGray()
+        guard let gradient = CGGradient(colorsSpace: space,
+                                        colors: [CGColor(gray: peak, alpha: 1),
+                                                 CGColor(gray: peak, alpha: 1),
+                                                 CGColor(gray: 0, alpha: 1)] as CFArray,
+                                        locations: [0, 0.7, 1]) else { return nil }
+        let r = max(1, radius)
+        ctx.drawRadialGradient(gradient, startCenter: c, startRadius: 0,
+                               endCenter: c, endRadius: r, options: [])
+        return ctx.makeImage()
+    }
+
+    /// 一次修饰戳：生成"效果图"，再用软边圆蒙版混回。输入文档像素坐标。
+    static func retouch(_ base: CGImage, mode: ImageRetouchMode,
+                        at point: CGPoint, radius: CGFloat,
+                        strength: Double, source: CGPoint? = nil) -> CGImage? {
+        let size = CGSize(width: base.width, height: base.height)
+        guard let mask = softMask(size: size, center: point, radius: radius,
+                                  strength: strength) else { return nil }
+        let effect: CGImage?
+        switch mode {
+        case .clone, .heal:
+            guard let source else { return base }
+            let w = base.width, h = base.height
+            guard let ctx = CGContext(data: nil, width: w, height: h,
+                                      bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            else { return nil }
+            // 把 base 平移，使 source 区域落到 point：draw 在 y-up 里，文档 dy 取反。
+            let dx = point.x - source.x
+            let dy = point.y - source.y
+            ctx.draw(base, in: CGRect(x: dx, y: -dy,
+                                      width: CGFloat(w), height: CGFloat(h)))
+            effect = ctx.makeImage()
+        case .dodge, .burn:
+            effect = adjustedBrightness(base, amount: mode == .dodge ? 0.35 : -0.35)
+        case .blur:
+            effect = blurred(base, radius: max(1, radius * 0.35))
+        case .sharpen:
+            effect = sharpened(base, amount: 0.8)
+        }
+        guard let effect else { return base }
+        return maskedBlend(base: base, effect: effect, mask: mask) ?? base
+    }
+
+    private static func adjustedBrightness(_ image: CGImage, amount: Double) -> CGImage? {
+        guard let filter = CIFilter(name: "CIColorControls") else { return nil }
+        filter.setValue(CIImage(cgImage: image), forKey: kCIInputImageKey)
+        filter.setValue(amount, forKey: kCIInputBrightnessKey)
+        guard let output = filter.outputImage else { return nil }
+        return ImagePipelineRenderer.context.createCGImage(output, from: output.extent)
+    }
+
+    private static func blurred(_ image: CGImage, radius: CGFloat) -> CGImage? {
+        guard let filter = CIFilter(name: "CIGaussianBlur") else { return nil }
+        filter.setValue(CIImage(cgImage: image), forKey: kCIInputImageKey)
+        filter.setValue(radius, forKey: kCIInputRadiusKey)
+        guard let output = filter.outputImage else { return nil }
+        return ImagePipelineRenderer.context.createCGImage(
+            output, from: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+    }
+
+    private static func sharpened(_ image: CGImage, amount: Double) -> CGImage? {
+        guard let filter = CIFilter(name: "CISharpenLuminance") else { return nil }
+        filter.setValue(CIImage(cgImage: image), forKey: kCIInputImageKey)
+        filter.setValue(amount, forKey: kCIInputSharpnessKey)
+        guard let output = filter.outputImage else { return nil }
+        return ImagePipelineRenderer.context.createCGImage(output, from: output.extent)
+    }
+}

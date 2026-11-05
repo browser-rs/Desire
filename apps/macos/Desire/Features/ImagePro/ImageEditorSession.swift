@@ -37,6 +37,9 @@ final class ImageEditorSession: ObservableObject {
     @Published var textBackground = false
     @Published var textBackgroundColor: Color = .black
     @Published var wandTolerance: Double = 32
+    @Published var retouchMode: ImageRetouchMode = .clone
+    @Published var retouchStrength: Double = 0.7
+    @Published var cloneSample: CGPoint?
     @Published var selectionFeather: Double = 0
     @Published var fillShapes = false
     @Published var marqueeEllipse = false

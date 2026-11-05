@@ -106,6 +106,22 @@ enum ImageEditorCommands {
                 }
                 document.replaceActiveBitmap(current, title: mode.localizedTitle)
                 return ["ok": true, "points": pts.count]
+            case "extractframe":
+                guard let path = body["path"] as? String else {
+                    return ["error": "extractframe needs path"]
+                }
+                let time = Self.number(body["time"]) ?? 1.0
+                let result = ImageEditorVideo.extractFrame(from: path, time: time)
+                if let error = result.error { return ["error": error] }
+                guard let image = result.image else { return ["error": "no frame"] }
+                document.placeImage(image, name: (path as NSString).lastPathComponent)
+                if let export = body["output"] as? String,
+                   let data = NSBitmapImageRep(cgImage: image)
+                    .representation(using: .png, properties: [:]) {
+                    try? data.write(to: URL(fileURLWithPath:
+                        (export as NSString).expandingTildeInPath))
+                }
+                return ["ok": true, "width": image.width, "height": image.height]
             case "place":
                 guard let path = body["path"] as? String,
                       let image = ImageTransforms.load(

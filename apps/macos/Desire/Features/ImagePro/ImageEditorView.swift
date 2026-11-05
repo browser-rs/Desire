@@ -201,6 +201,7 @@ struct ImageEditorView: View {
                     }
                 }
                 Button(String(localized: "Place Image…")) { placeImageFromPanel() }
+                Button(String(localized: "Frame from Video…")) { frameFromVideo() }
                 Button(String(localized: "Image Size…")) {
                     sizeWidth = "\(Int(session.canvasSize.width))"
                     sizeHeight = "\(Int(session.canvasSize.height))"
@@ -544,6 +545,22 @@ struct ImageEditorView: View {
                 .font(.system(size: 10))
                 .foregroundStyle(.tertiary)
         }
+    }
+
+    private func frameFromVideo() {
+        let panel = NSOpenPanel()
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        panel.allowedContentTypes = [.movie, .mpeg4Movie, .quickTimeMovie]
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let result = ImageEditorVideo.extractFrame(from: url.path, time: 1.0)
+        if let error = result.error {
+            session.flash(error)
+            return
+        }
+        guard let image = result.image else { return }
+        document.placeImage(image, name: url.lastPathComponent)
+        session.flash(String(localized: "Frame placed"))
     }
 
     private func placeImageFromPanel() {

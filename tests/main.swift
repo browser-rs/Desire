@@ -8530,6 +8530,7 @@ testEbookTranslationAndLibrarySearchCore()
 testReaderTranslationCore()
 testPDFTextCore()
 testPDFBatchCore()
+testFeedCore()
 testReadingDigestCore()
 testFB2Core()
 testEbookSyncCore()
@@ -9481,6 +9482,134 @@ func testPDFBatchCore() {
     let parsed = PageRangeParser.parse("1-3,5", pageCount: 10)
     eq("PDF批：页码规格解析", parsed, [0, 1, 2, 4])
     check("PDF批：非法规格", PageRangeParser.parse("x", pageCount: 10) == nil)
+}
+
+// ---------- RSS/Atom 订阅核心（v0.8.45） ----------
+
+func testFeedCore() {
+    let fetchedAt = Date(timeIntervalSince1970: 1_800_000_000)
+
+    // RSS 2.0：CDATA 标题、实体、guid、RFC822 日期、HTML 摘要
+    let rss = """
+    <?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0"><channel>
+      <title>My Blog &amp; Notes</title>
+      <link>https://blog.example/</link>
+      <description>Long-form writing</description>
+      <item>
+        <title><![CDATA[First post: <v1>]]></title>
+        <link>https://blog.example/1</link>
+        <guid isPermaLink="false">post-1</guid>
+        <pubDate>Mon, 02 Jun 2025 15:04:05 GMT</pubDate>
+        <description>&lt;p&gt;Hello &amp; welcome&lt;/p&gt; second line</description>
+      </item>
+      <item>
+        <title>No GUID here</title>
+        <link>https://blog.example/2</link>
+        <description>Body two</description>
+      </item>
+    </channel></rss>
+    """
+    let rssResult = FeedCore.parse(data: Data(rss.utf8), fetchedAt: fetchedAt)
+    check("RSS：解析成功", rssResult != nil)
+    eq("RSS：标题实体解码", rssResult?.meta.title, "My Blog & Notes")
+    eq("RSS：站点链接", rssResult?.meta.siteURL, "https://blog.example/")
+    eq("RSS：条目数", rssResult?.items.count, 2)
+    let first = rssResult?.items[0]
+    eq("RSS：CDATA 标题", first?.title, "First post: <v1>")
+    eq("RSS：guid", first?.guid, "post-1")
+    check("RSS：RFC822 日期",
+          abs((first?.publishedAt?.timeIntervalSince1970 ?? 0) - 1_748_876_645) < 2)
+    check("RSS：摘要剥标签+实体", first?.summary == "Hello & welcome second line")
+    // 缺 guid → link 兜底；缺日期 → merge 时用抓取时间
+    eq("RSS：link 兜底 guid", rssResult?.items[1].guid, "https://blog.example/2")
+    check("RSS：缺日期为 nil（merge 补）", rssResult?.items[1].publishedAt == nil)
+
+    // Atom 1.0：entry/id、link href、ISO 日期、summary、author
+    let atom = """
+    <?xml version="1.0" encoding="utf-8"?>
+    <feed xmlns="http://www.w3.org/2005/Atom">
+      <title>Atom Feed</title>
+      <link rel="alternate" type="text/html" href="https://atom.example/"/>
+      <entry>
+        <id>tag:atom.example,2025:post-9</id>
+        <title>Entry Nine</title>
+        <link rel="alternate" href="https://atom.example/9"/>
+        <published>2025-06-03T08:00:00Z</published>
+        <summary>Plain summary</summary>
+        <author><name>Ada</name></author>
+      </entry>
+    </feed>
+    """
+    let atomResult = FeedCore.parse(data: Data(atom.utf8), fetchedAt: fetchedAt)
+    check("Atom：解析成功", atomResult != nil)
+    eq("Atom：站点 href", atomResult?.meta.siteURL, "https://atom.example/")
+    eq("Atom：条目数", atomResult?.items.count, 1)
+    let entry = atomResult?.items[0]
+    eq("Atom：id", entry?.guid, "tag:atom.example,2025:post-9")
+    eq("Atom：链接", entry?.link, "https://atom.example/9")
+    check("Atom：ISO 日期", entry?.publishedAt != nil)
+    eq("Atom：作者", entry?.author, "Ada")
+
+    // 非法 XML
+    check("Feed：非法 XML", FeedCore.parse(data: Data("not xml".utf8),
+                                           fetchedAt: fetchedAt) == nil)
+
+    // 合并：去重 / 新增计数 / 缺日期补抓取时间 / 摘要补缺
+    let existing = [
+        FeedItem(id: "post-1", feedURL: "https://blog.example/feed",
+                 title: "First post", link: "https://blog.example/1",
+                 publishedAt: fetchedAt, summary: nil, author: nil,
+                 isRead: true, isStarred: false, firstSeenAt: fetchedAt),
+    ]
+    let drafts = [
+        FeedCore.ItemDraft(guid: "post-1", title: "First post",
+                           link: "https://blog.example/1",
+                           publishedAt: first?.publishedAt,
+                           summary: "later summary", author: nil),
+        FeedCore.ItemDraft(guid: "post-3", title: "Third",
+                           link: "https://blog.example/3",
+                           publishedAt: nil, summary: nil, author: nil),
+    ]
+    let merged = FeedCore.merge(existing: existing, drafts: drafts,
+                                feedURL: "https://blog.example/feed",
+                                fetchedAt: fetchedAt)
+    eq("合并：条目总数", merged.items.count, 2)
+    eq("合并：新增计数", merged.newCount, 1)
+    check("合并：已知文章已读保留", merged.items.first { $0.id == "post-1" }?.isRead == true)
+    check("合并：摘要补缺", merged.items.first { $0.id == "post-1" }?.summary == "later summary")
+    check("合并：缺日期补抓取时间",
+          merged.items.first { $0.id == "post-3" }?.publishedAt == fetchedAt)
+
+    // 上限淘汰：星标/未读优先保留
+    let old = { (offset: Int) -> FeedItem in
+        FeedItem(id: "old-\(offset)", feedURL: "f", title: "o\(offset)", link: nil,
+                 publishedAt: Date(timeIntervalSince1970: Double(offset)),
+                 summary: nil, author: nil, isRead: true, isStarred: false,
+                 firstSeenAt: Date(timeIntervalSince1970: Double(offset)))
+    }
+    var many = (0..<8).map { old($0) }
+    many.append(FeedItem(id: "starred", feedURL: "f", title: "s", link: nil,
+                         publishedAt: .distantPast, summary: nil, author: nil,
+                         isRead: true, isStarred: true, firstSeenAt: .distantPast))
+    let capped = FeedCore.merge(existing: many, drafts: [], feedURL: "f",
+                                fetchedAt: fetchedAt, cap: 4)
+    eq("上限：容量", capped.items.count, 4)
+    check("上限：星标幸存", capped.items.contains { $0.id == "starred" })
+    check("上限：保留的是最新", capped.items.allSatisfy {
+        $0.id == "starred" || $0.publishedAt.timeIntervalSince1970 >= 4
+    })
+
+    // itemID 兜底链：guid → link → title
+    eq("id：guid 优先", FeedCore.itemID(guid: "g", link: "l", title: "t"), "g")
+    eq("id：link 兜底", FeedCore.itemID(guid: "  ", link: "l", title: "t"), "l")
+    eq("id：title 再兜底", FeedCore.itemID(guid: "", link: nil, title: "t"), "title:t")
+
+    // 摘要清洗：截断 + 空串为 nil
+    eq("摘要：长文截断", FeedCore.summary(fromRaw: String(repeating: "字", count: 600))?
+        .count, FeedCore.maxSummaryLength + 1)
+    check("摘要：空串为 nil", FeedCore.summary(fromRaw: "   ") == nil)
+    check("摘要：nil 为 nil", FeedCore.summary(fromRaw: nil) == nil)
 }
 
 // ---------- 阅读摘要（v0.8.36） ----------

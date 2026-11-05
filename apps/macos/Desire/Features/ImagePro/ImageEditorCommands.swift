@@ -106,6 +106,26 @@ enum ImageEditorCommands {
                 }
                 document.replaceActiveBitmap(current, title: mode.localizedTitle)
                 return ["ok": true, "points": pts.count]
+            case "dumpsubject":
+                guard let path = body["path"] as? String else {
+                    return ["error": "dumpsubject needs path"]
+                }
+                document.bakeActiveLayerGeometry()
+                guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
+                guard let mask = await ImageAICore.subjectMask(bitmap) else {
+                    return ["error": "no mask"]
+                }
+                guard let data = NSBitmapImageRep(cgImage: mask)
+                    .representation(using: .png, properties: [:]) else {
+                    return ["error": "encode failed"]
+                }
+                try data.write(to: URL(fileURLWithPath: path))
+                let bounds = ImageEditorRaster.maskBounds(mask)
+                return ["ok": true, "path": path,
+                        "width": mask.width, "height": mask.height,
+                        "bounds": bounds.map {
+                            [Double($0.minX), Double($0.minY),
+                             Double($0.width), Double($0.height)] } ?? []]
             case "cutout":
                 let mode = (body["mode"] as? String)?.lowercased() ?? "erase"
                 document.bakeActiveLayerGeometry()

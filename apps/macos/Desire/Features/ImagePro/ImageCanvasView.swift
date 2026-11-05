@@ -23,7 +23,8 @@ struct ImageCanvasView: View {
     @State private var showTextEntry = false
     @FocusState private var textFocused: Bool
     @State private var panLast: CGPoint?
-    @State private var moveLast: CGPoint?
+    @State private var moveStart: CGPoint?
+    @State private var moveStartOffset: CGSize = .zero
 
     private enum CropHandle {
         case topLeft, topRight, bottomLeft, bottomRight
@@ -77,6 +78,7 @@ struct ImageCanvasView: View {
                         }
                     },
                     onDoubleClick: { anchor in
+                        guard session.tool == .hand || session.tool == .zoom else { return }
                         if abs(canvas.zoom - canvas.fitZoom) < 0.01 {
                             canvas.zoom(to: 1, anchor: anchor)
                         } else {
@@ -203,6 +205,19 @@ struct ImageCanvasView: View {
             marchingAnts(rect: rect, ellipse: session.marqueeEllipse, phase: 0)
                 .opacity(0.9)
         } else if let bounds = document.selection.bounds(canvasSize: document.canvasSize) {
+            // 自定义蒙版（魔棒/套索）：额外把真实形状叠出来（灰度蒙版 screen
+            // 提亮），否则只看到包围盒蚂蚁线，完全不知道选了什么。
+            if let mask = document.selection.mask {
+                Image(decorative: mask, scale: 1)
+                    .resizable()
+                    .interpolation(.low)
+                    .frame(width: t.contentSize.width, height: t.contentSize.height)
+                    .scaleEffect(x: 1, y: -1)
+                    .position(x: t.origin.x + t.contentSize.width / 2,
+                              y: t.origin.y + t.contentSize.height / 2)
+                    .opacity(0.28)
+                    .blendMode(.screen)
+            }
             TimelineView(.animation(minimumInterval: 1.0 / 30.0)) { timeline in
                 let phase = timeline.date.timeIntervalSinceReferenceDate
                     .truncatingRemainder(dividingBy: 100) * 9
@@ -254,12 +269,12 @@ struct ImageCanvasView: View {
                                   width: abs(b.x - a.x), height: abs(b.y - a.y))
                 if session.shape == .ellipse {
                     Ellipse()
-                        .stroke(color, lineWidth: session.lineWidth)
+                        .stroke(color, lineWidth: max(1, session.lineWidth * canvas.zoom))
                         .frame(width: rect.width, height: rect.height)
                         .offset(x: rect.minX, y: rect.minY)
                 } else {
                     Rectangle()
-                        .stroke(color, lineWidth: session.lineWidth)
+                        .stroke(color, lineWidth: max(1, session.lineWidth * canvas.zoom))
                         .frame(width: rect.width, height: rect.height)
                         .offset(x: rect.minX, y: rect.minY)
                 }
@@ -277,7 +292,7 @@ struct ImageCanvasView: View {
                         }
                     }
                 }
-                .stroke(color, lineWidth: session.lineWidth)
+                .stroke(color, lineWidth: max(1, session.lineWidth * canvas.zoom))
             }
         }
     }
@@ -356,7 +371,8 @@ struct ImageCanvasView: View {
             Circle()
                 .stroke(Color.white.opacity(0.9), lineWidth: 1)
                 .background(Circle().stroke(Color.black.opacity(0.5), lineWidth: 1))
-                .frame(width: session.brushSize, height: session.brushSize)
+                .frame(width: max(2, session.brushSize * canvas.zoom),
+                       height: max(2, session.brushSize * canvas.zoom))
                 .position(hover)
         }
     }
@@ -376,6 +392,7 @@ struct ImageCanvasView: View {
                 Button(String(localized: "Cancel")) {
                     showTextEntry = false
                     textAnchor = nil
+                    refocusCanvas()
                 }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
@@ -445,7 +462,8 @@ struct ImageCanvasView: View {
         case .hand:
             panLast = point
         case .move:
-            moveLast = base
+            moveStart = base
+            moveStartOffset = document.activeLayerOffset
             document.beginContinuousEdit("Move")
         case .zoom:
             canvas.zoom(by: flags.contains(.option) ? 0.8 : 1.25, anchor: point)
@@ -482,11 +500,11 @@ struct ImageCanvasView: View {
             }
             panLast = point
         case .move:
-            if let last = moveLast {
-                document.translateActiveLayerLive(dx: base.x - last.x,
-                                                  dy: base.y - last.y)
+            if let start = moveStart {
+                document.setLayerOffset(document.activeLayerID,
+                                        CGSize(width: moveStartOffset.width + base.x - start.x,
+                                               height: moveStartOffset.height + base.y - start.y))
             }
-            moveLast = base
         case .brush, .eraser:
             strokePoints.append(base)
         case .marquee, .shape:
@@ -512,7 +530,7 @@ struct ImageCanvasView: View {
         case .hand:
             panLast = nil
         case .move:
-            moveLast = nil
+            moveStart = nil
         case .brush, .eraser:
             if strokePoints.isEmpty { strokePoints = [base] }
             commitStroke(t)
@@ -559,18 +577,20 @@ struct ImageCanvasView: View {
     // MARK: - 提交
 
     private func commitStroke(_ t: ImageCanvasTransform) {
+        _ = t
         defer { strokePoints = [] }
         guard let bitmap = document.activeBitmap, strokePoints.isEmpty == false else { return }
         let erase = session.tool == .eraser
         let mask = document.selection.maskImage(canvasSize: document.canvasSize)
         guard let output = ImageEditorRaster.stroke(
             bitmap, points: strokePoints,
-            size: t.baseLength(session.brushSize),
+            size: session.brushSize,
             color: session.primaryCGColor,
             opacity: session.brushOpacity,
             hardness: session.brushHardness,
             erase: erase,
-            clipMask: mask) else { return }
+            clipMask: mask,
+            contentOffset: document.activeLayerOffset) else { return }
         document.replaceActiveBitmap(output, title: erase ? "Erase" : "Brush")
     }
 
@@ -581,7 +601,7 @@ struct ImageCanvasView: View {
         }
         guard let start = dragStart, let current = dragCurrent,
               let bitmap = document.activeBitmap else { return }
-        let width = t.baseLength(session.lineWidth)
+        let width = session.lineWidth
         var fill: CGColor?
         if session.fillShapes, session.shape == .rectangle || session.shape == .ellipse {
             fill = session.primaryCGColor
@@ -591,7 +611,8 @@ struct ImageCanvasView: View {
             : session.primaryCGColor
         guard let output = ImageEditorRaster.drawShape(
             bitmap, shape: session.shape, from: start, to: current,
-            stroke: stroke, fill: fill, lineWidth: width) else { return }
+            stroke: stroke, fill: fill, lineWidth: width,
+            contentOffset: document.activeLayerOffset) else { return }
         document.replaceActiveBitmap(output, title: session.shape.localizedTitle)
     }
 
@@ -599,13 +620,14 @@ struct ImageCanvasView: View {
         defer {
             showTextEntry = false
             textAnchor = nil
+            refocusCanvas()
         }
         guard let anchor = textAnchor, let bitmap = document.activeBitmap else { return }
-        let t = transform
         guard let output = ImageEditorRaster.drawText(
             bitmap, text: textEntry, at: anchor,
-            fontSize: t.baseLength(session.fontSize),
-            color: session.primaryCGColor) else { return }
+            fontSize: session.fontSize,
+            color: session.primaryCGColor,
+            contentOffset: document.activeLayerOffset) else { return }
         document.replaceActiveBitmap(output, title: "Text")
     }
 
@@ -748,6 +770,12 @@ struct ImageCanvasView: View {
         session.tool = .move
         session.flash(String(localized: "Cropped"))
         syncContainer(canvas.containerSize)
+    }
+
+    /// 文字输入结束/取消后把第一响应者还给画布，单键快捷键立即可用。
+    private func refocusCanvas() {
+        guard let view = ImageEventCatcher.EventView.active else { return }
+        view.window?.makeFirstResponder(view)
     }
 
     // MARK: - 工具函数

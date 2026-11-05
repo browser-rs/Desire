@@ -54,6 +54,11 @@ final class ImageEditorDocument: ObservableObject {
         bitmaps[activeLayerID]
     }
 
+    /// 当前图层内容偏移（文档像素）。
+    var activeLayerOffset: CGSize {
+        activeLayer?.offset ?? .zero
+    }
+
     func bitmap(for id: UUID) -> CGImage? { bitmaps[id] }
 
     /// 合成结果（按图层顺序自下而上，含可见性/透明度/混合）。
@@ -251,6 +256,50 @@ final class ImageEditorDocument: ObservableObject {
     }
 
     /// 平移当前图层内容（move 工具）。
+    /// 移动工具：只改图层偏移（不重采样、不裁内容），取整像素。
+    func setLayerOffset(_ id: UUID, _ offset: CGSize) {
+        guard let index = layers.firstIndex(where: { $0.id == id }) else { return }
+        let rounded = CGSize(width: offset.width.rounded(), height: offset.height.rounded())
+        guard layers[index].offset != rounded else { return }
+        layers[index].offset = rounded
+        compositeCache = nil
+        revision += 1
+        isDirty = true
+    }
+
+    /// 命令 API：相对移动当前图层（一步历史）。
+    func nudgeActiveLayer(dx: CGFloat, dy: CGFloat) {
+        guard dx != 0 || dy != 0,
+              let index = layers.firstIndex(where: { $0.id == activeLayerID }) else { return }
+        pushHistory("Move")
+        layers[index].offset = CGSize(width: (layers[index].offset.width + dx).rounded(),
+                                      height: (layers[index].offset.height + dy).rounded())
+        compositeCache = nil
+        commit()
+    }
+
+    /// 结构性操作（裁剪/缩放/旋转/翻转）前把偏移烘进像素：这些操作会改画布，
+    /// 必须让"文档空间 == 位图空间"。
+    private func bakeOffsets() {
+        for index in layers.indices where layers[index].offset != .zero {
+            let id = layers[index].id
+            guard let bitmap = bitmaps[id],
+                  let ctx = CGContext(data: nil,
+                                      width: Int(canvasSize.width), height: Int(canvasSize.height),
+                                      bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            else { continue }
+            let offset = layers[index].offset
+            ctx.draw(bitmap, in: CGRect(x: offset.width, y: -offset.height,
+                                        width: CGFloat(bitmap.width),
+                                        height: CGFloat(bitmap.height)))
+            bitmaps[id] = ctx.makeImage()
+            layers[index].offset = .zero
+        }
+        compositeCache = nil
+    }
+
     /// 拖动中的平移（不进历史；起始处 beginContinuousEdit 一次）。
     func translateActiveLayerLive(dx: CGFloat, dy: CGFloat) {
         guard let bitmap = bitmaps[activeLayerID],
@@ -317,26 +366,26 @@ final class ImageEditorDocument: ObservableObject {
 
     // MARK: - 效果
 
+    /// 位图空间的选区蒙版（图层有偏移时平移）。
+    private func bitmapMask() -> CGImage? {
+        guard let mask = selection.maskImage(canvasSize: canvasSize) else { return nil }
+        let offset = activeLayerOffset
+        guard offset != .zero else { return mask }
+        return ImageEditorRaster.shiftedMask(mask, dx: -offset.width, dy: -offset.height) ?? mask
+    }
+
     func applyAdjust(_ params: ImageAdjustParams, title: String = "Adjust") {
-        guard let current = bitmaps[activeLayerID],
-              let mask = selection.maskImage(canvasSize: canvasSize),
-              let output = ImageEditorRaster.applyEffect(current, adjust: params,
+        guard let current = bitmaps[activeLayerID] else { return }
+        let mask = bitmapMask()
+        guard let output = ImageEditorRaster.applyEffect(current, adjust: params,
                                                          filter: nil, mask: mask)
-        else {
-            guard let current = bitmaps[activeLayerID],
-                  selection.isEmpty,
-                  let output = ImageEditorRaster.applyEffect(current, adjust: params,
-                                                             filter: nil, mask: nil)
-            else { return }
-            replaceActiveBitmap(output, title: title)
-            return
-        }
+        else { return }
         replaceActiveBitmap(output, title: title)
     }
 
     func applyFilter(_ preset: ImageFilterPreset, title: String = "Filter") {
         guard let current = bitmaps[activeLayerID] else { return }
-        let mask = selection.maskImage(canvasSize: canvasSize)
+        let mask = bitmapMask()
         guard let output = ImageEditorRaster.applyEffect(current, adjust: nil,
                                                          filter: preset, mask: mask)
         else { return }
@@ -350,6 +399,7 @@ final class ImageEditorDocument: ObservableObject {
         guard clamped.width >= 1, clamped.height >= 1,
               clamped.size != canvasSize else { return }
         pushHistory("Crop")
+        bakeOffsets()
         for (id, bitmap) in bitmaps {
             bitmaps[id] = ImageTransforms.cropped(bitmap, rect: clamped) ?? bitmap
         }
@@ -364,6 +414,7 @@ final class ImageEditorDocument: ObservableObject {
         let h = max(1, Int(size.height.rounded()))
         guard w != Int(canvasSize.width) || h != Int(canvasSize.height) else { return }
         pushHistory("Resize")
+        bakeOffsets()
         for (id, bitmap) in bitmaps {
             bitmaps[id] = ImageTransforms.resized(bitmap, width: w, height: h) ?? bitmap
         }
@@ -375,6 +426,7 @@ final class ImageEditorDocument: ObservableObject {
 
     func rotate(clockwise: Bool) {
         pushHistory(clockwise ? "Rotate Right" : "Rotate Left")
+        bakeOffsets()
         for (id, bitmap) in bitmaps {
             bitmaps[id] = ImageTransforms.rotated(bitmap, clockwise: clockwise) ?? bitmap
         }
@@ -386,6 +438,7 @@ final class ImageEditorDocument: ObservableObject {
 
     func flip(horizontal: Bool) {
         pushHistory(horizontal ? "Flip Horizontal" : "Flip Vertical")
+        bakeOffsets()
         for (id, bitmap) in bitmaps {
             bitmaps[id] = ImageTransforms.flipped(bitmap, horizontal: horizontal) ?? bitmap
         }

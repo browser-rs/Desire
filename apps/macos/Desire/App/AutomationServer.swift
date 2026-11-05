@@ -4038,6 +4038,27 @@ final class AutomationServer {
                                windowNumber: windowNumber)
             try? await Task.sleep(nanoseconds: 60_000_000)
             return ["ok": true, "action": "click"]
+        case "path":
+            // 多段轨迹：down(p0) → dragged(经过每个点) → up(最后一点)
+            guard let raw = body["points"] as? [[Any]], raw.count >= 2 else {
+                return ["error": "points [[x,y],...] required"]
+            }
+            let pts: [CGPoint] = raw.compactMap { pair in
+                guard pair.count >= 2,
+                      let x = (pair[0] as? NSNumber)?.doubleValue,
+                      let y = (pair[1] as? NSNumber)?.doubleValue else { return nil }
+                return CGPoint(x: x, y: y)
+            }
+            guard pts.count == raw.count else { return ["error": "bad points"] }
+            Self.postSynthetic(.leftMouseDown, at: pts[0], windowNumber: windowNumber)
+            for p in pts.dropFirst() {
+                try? await Task.sleep(nanoseconds: 20_000_000)
+                Self.postSynthetic(.leftMouseDragged, at: p, windowNumber: windowNumber)
+            }
+            Self.postSynthetic(.leftMouseUp, at: pts[pts.count - 1],
+                               windowNumber: windowNumber)
+            try? await Task.sleep(nanoseconds: 80_000_000)
+            return ["ok": true, "action": "path", "points": pts.count]
         case "doubleclick":
             guard let x1 = number("x1"), let y1 = number("y1") else {
                 return ["error": "x1/y1 required"]

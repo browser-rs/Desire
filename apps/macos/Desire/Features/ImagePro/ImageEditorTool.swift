@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 /// 工具集（v0.8.46 重写，对齐 Photoshop 的最小可用集）。
@@ -105,5 +106,7 @@ nonisolated struct ImageEditorLayer: Identifiable, Equatable, Sendable {
     var isVisible: Bool = true
     var opacity: Double = 1
     var blend: ImageEditorBlend = .normal
+    /// 内容偏移（图片像素，x 右 / y 下）。移动工具只改它，位图不重采样。
+    var offset: CGSize = .zero
     var isLocked: Bool = false
 }

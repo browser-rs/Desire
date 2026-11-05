@@ -1658,6 +1658,16 @@
     "%@/" : {
 
     },
+    "%@%@" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "new",
+            "value" : "%1$@%2$@"
+          }
+        }
+      }
+    },
     "%02d:00 — %d visit(s)" : {
       "localizations" : {
         "en" : {
@@ -3972,16 +3982,6 @@
         }
       }
     },
-    "%lld%% · %@" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "%1$lld%% · %2$@"
-          }
-        }
-      }
-    },
     "%lld%% replied" : {
 
     },
@@ -4553,6 +4553,7 @@
       }
     },
     "⌥ click to sample, then drag to clone" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -4874,9 +4875,6 @@
       }
     },
     "1-based page ranges, e.g. 1-3,7 (comma separated)" : {
-
-    },
-    "1:1" : {
 
     },
     "2" : {
@@ -6306,6 +6304,29 @@
         }
       }
     },
+    "Active layer · selection respected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Active layer · selection respected"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作用于当前图层 · 尊重选区"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "作用於目前圖層 · 尊重選取範圍"
+          }
+        }
+      }
+    },
     "Active model: %@" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -6373,8 +6394,28 @@
         }
       }
     },
-    "Actual Pixels" : {
-
+    "Actual Pixels (⌘1)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Actual Pixels (⌘1)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "实际像素（⌘1）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "實際像素（⌘1）"
+          }
+        }
+      }
     },
     "Actual Size" : {
       "comment" : "View menu",
@@ -7405,6 +7446,29 @@
         }
       }
     },
+    "Add text" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Add text"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加文字"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "加文字"
+          }
+        }
+      }
+    },
     "Add Text" : {
       "localizations" : {
         "en" : {
@@ -7734,6 +7798,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "網址列關鍵字（選填）"
+          }
+        }
+      }
+    },
+    "Adjustment applied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Adjustment applied"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "调整已应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "調整已套用"
           }
         }
       }
@@ -10643,6 +10730,7 @@
       }
     },
     "Apply Crop" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -10660,6 +10748,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "套用裁剪"
+          }
+        }
+      }
+    },
+    "Apply Filter" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply Filter"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用滤镜"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "套用濾鏡"
+          }
+        }
+      }
+    },
+    "Apply to Layer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apply to Layer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "应用到图层"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "套用到圖層"
           }
         }
       }
@@ -11309,6 +11443,52 @@
         }
       }
     },
+    "Ask AI" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask AI"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 编辑"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "AI 編輯"
+          }
+        }
+      }
+    },
+    "Ask AI to edit this image" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ask AI to edit this image"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "让 AI 编辑这张图"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "讓 AI 編輯這張圖"
+          }
+        }
+      }
+    },
     "Ask anything…" : {
       "localizations" : {
         "en" : {
@@ -11354,7 +11534,6 @@
       }
     },
     "Ask Desire ${prompt}" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -14563,6 +14742,29 @@
         }
       }
     },
+    "Black & White" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Black & White"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "黑白"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "黑白"
+          }
+        }
+      }
+    },
     "Black Point" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14604,6 +14806,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "留空表示全部頁面。"
+          }
+        }
+      }
+    },
+    "Blend" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Blend"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "混合模式"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "混合模式"
           }
         }
       }
@@ -14725,6 +14950,7 @@
       }
     },
     "Block Size" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -15597,6 +15823,29 @@
         }
       }
     },
+    "Brighten" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Brighten"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提亮"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "提亮"
+          }
+        }
+      }
+    },
     "Brightness" : {
       "localizations" : {
         "en" : {
@@ -15798,6 +16047,7 @@
       }
     },
     "Brush Size" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -15818,9 +16068,6 @@
           }
         }
       }
-    },
-    "Bubble" : {
-
     },
     "Building index…" : {
       "localizations" : {
@@ -19505,6 +19752,7 @@
       }
     },
     "Click to add points · click near the first point to close" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19572,6 +19820,7 @@
       }
     },
     "Click to drop a 2× magnifier bubble" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19594,6 +19843,7 @@
       }
     },
     "Click to drop a numbered bubble" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19619,6 +19869,7 @@
 
     },
     "Click to place text" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19708,6 +19959,7 @@
       }
     },
     "Click to select a similar-coloured region" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -19770,6 +20022,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "點選檢視釋出說明"
+          }
+        }
+      }
+    },
+    "Click to zoom in · ⌥click to zoom out" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Click to zoom in · ⌥click to zoom out"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "点击放大 · ⌥点击缩小"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "點擊放大 · ⌥點擊縮小"
           }
         }
       }
@@ -20584,6 +20859,7 @@
       }
     },
     "Color Temperature" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -25267,28 +25543,28 @@
         }
       }
     },
-        "Crop" : {
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Crop"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "裁剪"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "裁剪"
-              }
-            }
+    "Crop" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crop"
           }
         },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "裁剪"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "裁剪"
+          }
+        }
+      }
+    },
     "Crop is applied immediately (undo with ⌘Z)." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -25312,6 +25588,29 @@
         }
       }
     },
+    "Crop to 1:1" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Crop to 1:1"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "裁成 1:1"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "裁成 1:1"
+          }
+        }
+      }
+    },
     "cropImage" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -25331,6 +25630,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "裁剪圖片"
+          }
+        }
+      }
+    },
+    "Cropped" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Cropped"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已裁剪"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已裁剪"
           }
         }
       }
@@ -25851,6 +26173,7 @@
       }
     },
     "Current: %lld × %lld px" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -25894,9 +26217,6 @@
           }
         }
       }
-    },
-    "Curves" : {
-
     },
     "Curves…" : {
       "extractionState" : "manual",
@@ -26126,9 +26446,6 @@
           }
         }
       }
-    },
-    "Cutout failed" : {
-
     },
     "Cutting out subject…" : {
       "extractionState" : "manual",
@@ -27894,6 +28211,29 @@
         }
       }
     },
+    "Delete Layer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Delete Layer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "删除图层"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "刪除圖層"
+          }
+        }
+      }
+    },
     "Delete page" : {
 
     },
@@ -28690,6 +29030,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "音訊分離"
+          }
+        }
+      }
+    },
+    "Detail" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Detail"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "细节"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "細節"
           }
         }
       }
@@ -30340,7 +30703,31 @@
         }
       }
     },
+    "Drag a box, then Apply (⏎)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag a box, then Apply (⏎)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖出选框后按应用（⏎）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖出選取框後按套用（⏎）"
+          }
+        }
+      }
+    },
     "Drag a crop area, then Apply — double-tap resets view" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -30363,6 +30750,7 @@
       }
     },
     "Drag a freeform outline; adjustments apply inside" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -30408,6 +30796,7 @@
       }
     },
     "Drag over the region to pixelate" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -30452,6 +30841,7 @@
       }
     },
     "Drag to draw · colour and width below" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -30476,10 +30866,57 @@
     "Drag to draw a rectangle" : {
 
     },
+    "Drag to draw a selection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag to draw a selection"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖动绘制选区"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖曳繪製選取範圍"
+          }
+        }
+      }
+    },
     "Drag to draw an arrow" : {
 
     },
+    "Drag to move the active layer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag to move the active layer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖动可移动当前图层"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖曳可移動目前圖層"
+          }
+        }
+      }
+    },
     "Drag to paint the effect" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -30501,7 +30938,31 @@
         }
       }
     },
+    "Drag to pan · ⌘scroll to zoom" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Drag to pan · ⌘scroll to zoom"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖动平移 · ⌘滚轮缩放"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拖曳平移 · ⌘滾輪縮放"
+          }
+        }
+      }
+    },
     "Drag to pan · pinch or double-click to zoom" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -30524,6 +30985,7 @@
       }
     },
     "Drag to place" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -30569,6 +31031,7 @@
       }
     },
     "Drag to select the adjustment region" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -30589,9 +31052,6 @@
           }
         }
       }
-    },
-    "Drag to select the crop area" : {
-
     },
     "Dragged-in videos open in a real playback mode — custom controls, speed, picture-in-picture, resume where you left off. Trim and merge in desire://tools." : {
       "extractionState" : "stale",
@@ -30884,6 +31344,29 @@
         }
       }
     },
+    "Duplicate Layer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Duplicate Layer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "复制图层"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "複製圖層"
+          }
+        }
+      }
+    },
     "Duplicate pages" : {
       "localizations" : {
         "en" : {
@@ -31105,6 +31588,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "例如：本次對話用英文回答"
+          }
+        }
+      }
+    },
+    "e.g. remove the background, brighten, crop to 1:1" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "e.g. remove the background, brighten, crop to 1:1"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：去背景、提亮、裁成 1:1"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例如：去背、提亮、裁成 1:1"
           }
         }
       }
@@ -32889,6 +33395,29 @@
         }
       }
     },
+    "Eraser" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eraser"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "橡皮擦"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "橡皮擦"
+          }
+        }
+      }
+    },
     "Err" : {
       "extractionState" : "stale",
       "localizations" : {
@@ -34163,14 +34692,31 @@
         }
       }
     },
-    "Export as HEIC" : {
-
-    },
     "Export as HTML" : {
 
     },
-    "Export as JPEG" : {
-
+    "Export as JPEG…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export as JPEG…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出为 JPEG…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出為 JPEG…"
+          }
+        }
+      }
     },
     "Export as Markdown…" : {
       "localizations" : {
@@ -34194,13 +34740,34 @@
         }
       }
     },
-    "Export as PNG" : {
-
+    "Export as PNG…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export as PNG…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出为 PNG…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出為 PNG…"
+          }
+        }
+      }
     },
     "Export as RTF" : {
 
     },
     "Export as TIFF" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -34222,6 +34789,29 @@
         }
       }
     },
+    "Export as TIFF…" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Export as TIFF…"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "导出为 TIFF…"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "匯出為 TIFF…"
+          }
+        }
+      }
+    },
     "Export as Word (.docx)" : {
 
     },
@@ -34229,9 +34819,6 @@
 
     },
     "Export as xlsx…" : {
-
-    },
-    "Export as…" : {
 
     },
     "Export Backup Now" : {
@@ -35369,9 +35956,6 @@
         }
       }
     },
-    "Extracted Text" : {
-
-    },
     "Extracting content…" : {
       "localizations" : {
         "en" : {
@@ -35438,6 +36022,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "取色器"
+          }
+        }
+      }
+    },
+    "Eyedropper Tool" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eyedropper Tool"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "吸管"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "滴管"
           }
         }
       }
@@ -36639,6 +37246,29 @@
         }
       }
     },
+    "Filter applied" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter applied"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "滤镜已应用"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "濾鏡已套用"
+          }
+        }
+      }
+    },
     "Filter by Status" : {
 
     },
@@ -36660,6 +37290,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "依類型篩選"
+          }
+        }
+      }
+    },
+    "Filter Effect" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Filter Effect"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "滤镜"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "濾鏡"
           }
         }
       }
@@ -36826,6 +37479,7 @@
       }
     },
     "Filters" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -37424,8 +38078,28 @@
         }
       }
     },
-    "Fit to Window (⌘0)" : {
-
+    "Fit (⌘0)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Fit (⌘0)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "适应窗口（⌘0）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "適應視窗（⌘0）"
+          }
+        }
+      }
     },
     "Fix %lld conflicts first." : {
       "localizations" : {
@@ -37945,6 +38619,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "強制重新整理頁面"
+          }
+        }
+      }
+    },
+    "Foreground Color" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Foreground Color"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前景色"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前景色"
           }
         }
       }
@@ -39975,6 +40672,29 @@
         }
       }
     },
+    "Hand" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hand"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "抓手"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "抓手"
+          }
+        }
+      }
+    },
     "Hand Off" : {
       "localizations" : {
         "en" : {
@@ -40155,6 +40875,29 @@
         }
       }
     },
+    "Hardness" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Hardness"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "硬度"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "硬度"
+          }
+        }
+      }
+    },
     "Hash" : {
       "localizations" : {
         "en" : {
@@ -40289,6 +41032,7 @@
       }
     },
     "Height: %lld px (aspect ratio kept)" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -42399,16 +43143,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "圖片浮水印"
-          }
-        }
-      }
-    },
-    "Image: %lld × %lld px" : {
-      "localizations" : {
-        "en" : {
-          "stringUnit" : {
-            "state" : "new",
-            "value" : "Image: %1$lld × %2$lld px"
           }
         }
       }
@@ -44840,6 +45574,29 @@
         }
       }
     },
+    "Invert" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Invert"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "反选"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "反選"
+          }
+        }
+      }
+    },
     "IP / CIDR" : {
       "localizations" : {
         "en" : {
@@ -46009,6 +46766,52 @@
         }
       }
     },
+    "Lasso selection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lasso selection"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "套索选区已建立"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "套索選取範圍已建立"
+          }
+        }
+      }
+    },
+    "Lasso Tool" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lasso Tool"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "套索"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "套索"
+          }
+        }
+      }
+    },
     "Last 7 days" : {
       "localizations" : {
         "en" : {
@@ -46482,9 +47285,6 @@
           }
         }
       }
-    },
-    "Layer %lld" : {
-
     },
     "Layer 2" : {
       "extractionState" : "manual",
@@ -47095,6 +47895,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "變亮"
+          }
+        }
+      }
+    },
+    "Lighting" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lighting"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "明暗"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "明暗"
           }
         }
       }
@@ -48290,6 +49113,29 @@
         }
       }
     },
+    "Lower Layer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Lower Layer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下移图层"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "下移圖層"
+          }
+        }
+      }
+    },
     "Lower the opacity to keep the ball visible but unobtrusive. Hit area stays the same." : {
       "localizations" : {
         "en" : {
@@ -48400,6 +49246,52 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "macOS 無法完成 TLS 交握。常見原因：系統日期/時間不正確、根憑證過期（請執行軟體更新），或防火牆/VPN 竄改 TLS。請稍後重新載入。"
+          }
+        }
+      }
+    },
+    "Magic wand selection" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magic wand selection"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "魔棒选区已建立"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "魔術棒選取範圍已建立"
+          }
+        }
+      }
+    },
+    "Magic Wand Tool" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Magic Wand Tool"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "魔棒"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "魔術棒"
           }
         }
       }
@@ -49067,6 +49959,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "市場監測"
+          }
+        }
+      }
+    },
+    "Marquee" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Marquee"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "选框"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選取框"
           }
         }
       }
@@ -51368,6 +52283,29 @@
         }
       }
     },
+    "Move" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Move"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移动"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動"
+          }
+        }
+      }
+    },
     "Move down" : {
       "localizations" : {
         "en" : {
@@ -53304,6 +54242,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "沒有使用中的瀏覽器分頁。"
+          }
+        }
+      }
+    },
+    "No active layer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "No active layer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "没有活动图层"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "沒有作用中的圖層"
           }
         }
       }
@@ -59758,7 +60719,6 @@
       }
     },
     "Open ${url} in Desire" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -60785,6 +61745,29 @@
         }
       }
     },
+    "Open the Agent panel first" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open the Agent panel first"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请先打开 Agent 面板"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "請先開啟 Agent 面板"
+          }
+        }
+      }
+    },
     "Open the composer and fill this draft (you press Publish)" : {
       "localizations" : {
         "en" : {
@@ -61523,6 +62506,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "原始尺寸"
+          }
+        }
+      }
+    },
+    "Original State" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Original State"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原图"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "原圖"
           }
         }
       }
@@ -65534,9 +66540,6 @@
         }
       }
     },
-    "Presets…" : {
-
-    },
     "Press Generate to create ULIDs" : {
       "localizations" : {
         "en" : {
@@ -67219,6 +68222,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "免打擾結束"
+          }
+        }
+      }
+    },
+    "Raise Layer" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Raise Layer"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上移图层"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上移圖層"
           }
         }
       }
@@ -71439,6 +72465,7 @@
       }
     },
     "Reset zoom to fit" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -71461,6 +72488,7 @@
       }
     },
     "Resize %lld×%lld" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -71483,6 +72511,7 @@
       }
     },
     "Resize Image" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -72807,6 +73836,7 @@
       }
     },
     "RGB" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -74091,28 +75121,28 @@
         }
       }
     },
-        "Save (⌘S)" : {
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Save (⌘S)"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "保存（⌘S）"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "儲存（⌘S）"
-              }
-            }
+    "Save (⌘S)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Save (⌘S)"
           }
         },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存（⌘S）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "儲存（⌘S）"
+          }
+        }
+      }
+    },
     "Save as a named spec and schedule periodic collection" : {
       "comment" : "数据集调度",
       "localizations" : {
@@ -74920,9 +75950,6 @@
         }
       }
     },
-    "Saved (.bak snapshot written)" : {
-
-    },
     "Saved (backup: .%@.bak)" : {
 
     },
@@ -75449,7 +76476,6 @@
       }
     },
     "Schedule ${name} — ${prompt} every ${everyMinutes} min or daily at ${dailyAt}" : {
-      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -77630,6 +78656,29 @@
         }
       }
     },
+    "Selection created" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Selection created"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已建立选区"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已建立選取範圍"
+          }
+        }
+      }
+    },
     "Selection sent to the Agent" : {
       "comment" : "Spreadsheet viewer status",
       "localizations" : {
@@ -78121,6 +79170,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "點擊觸盤「自訂提示詞」槽位時，作為新的 Agent 回合發送。"
+          }
+        }
+      }
+    },
+    "Sent to Agent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sent to Agent"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已发送给 Agent"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "已傳送給 Agent"
           }
         }
       }
@@ -78969,6 +80041,29 @@
         }
       }
     },
+    "Shape" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Shape"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "形状"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "形狀"
+          }
+        }
+      }
+    },
     "Share" : {
       "localizations" : {
         "en" : {
@@ -79328,6 +80423,9 @@
           }
         }
       }
+    },
+    "Show / Hide" : {
+
     },
     "Show a prompt when ⌘W would close more than one tab." : {
       "extractionState" : "stale",
@@ -82745,9 +83843,6 @@
         }
       }
     },
-    "Straighten" : {
-
-    },
     "Straighten Angle…" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -82770,9 +83865,6 @@
           }
         }
       }
-    },
-    "Straighten Image" : {
-
     },
     "Straightened by %@° and saved to %@." : {
       "localizations" : {
@@ -82807,6 +83899,7 @@
       }
     },
     "Strength" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -82829,6 +83922,7 @@
       }
     },
     "Stroke Width" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -85911,8 +87005,28 @@
         }
       }
     },
-    "Text to place" : {
-
+    "Text Tool" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Text Tool"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "文字"
+          }
+        }
+      }
     },
     "Text Track" : {
       "localizations" : {
@@ -90239,12 +91353,6 @@
         }
       }
     },
-    "Transform" : {
-
-    },
-    "Transform failed" : {
-
-    },
     "Transient — the automatic retry may succeed" : {
       "comment" : "失败诊断指引",
       "localizations" : {
@@ -91824,6 +92932,29 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "壓縮檔內有不安全路徑：%@"
+          }
+        }
+      }
+    },
+    "Unsaved changes" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Unsaved changes"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有未保存的修改"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "有未儲存的修改"
           }
         }
       }
@@ -96093,6 +97224,7 @@
       }
     },
     "Width (px)" : {
+      "extractionState" : "stale",
       "localizations" : {
         "en" : {
           "stringUnit" : {
@@ -97333,28 +98465,28 @@
         }
       }
     },
-        "Zoom In (⌘=)" : {
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Zoom In (⌘=)"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "放大（⌘=）"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "放大（⌘=）"
-              }
-            }
+    "Zoom In (⌘=)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom In (⌘=)"
           }
         },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放大（⌘=）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "放大（⌘=）"
+          }
+        }
+      }
+    },
     "Zoom Level — Click to reset to 100%" : {
       "comment" : "Zoom button help",
       "localizations" : {
@@ -97401,28 +98533,28 @@
         }
       }
     },
-        "Zoom Out (⌘-)" : {
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Zoom Out (⌘-)"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "缩小（⌘-）"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "縮小（⌘-）"
-              }
-            }
+    "Zoom Out (⌘-)" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Zoom Out (⌘-)"
           }
         },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "缩小（⌘-）"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "縮小（⌘-）"
+          }
+        }
+      }
+    },
     "上一块（←）" : {
       "localizations" : {
         "en" : {
@@ -101544,1180 +102676,7 @@
           }
         }
       }
-    },
-        "Active layer · selection respected" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Active layer · selection respected"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "作用于当前图层 · 尊重选区"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "作用於目前圖層 · 尊重選取範圍"
-              }
-            }
-          }
-        },
-        "Actual Pixels (⌘1)" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Actual Pixels (⌘1)"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "实际像素（⌘1）"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "實際像素（⌘1）"
-              }
-            }
-          }
-        },
-        "Add text" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Add text"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "加文字"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "加文字"
-              }
-            }
-          }
-        },
-        "Adjustment applied" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Adjustment applied"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "调整已应用"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "調整已套用"
-              }
-            }
-          }
-        },
-        "Apply Filter" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Apply Filter"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "应用滤镜"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "套用濾鏡"
-              }
-            }
-          }
-        },
-        "Apply to Layer" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Apply to Layer"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "应用到图层"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "套用到圖層"
-              }
-            }
-          }
-        },
-        "Ask AI" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Ask AI"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "AI 编辑"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "AI 編輯"
-              }
-            }
-          }
-        },
-        "Ask AI to edit this image" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Ask AI to edit this image"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "让 AI 编辑这张图"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "讓 AI 編輯這張圖"
-              }
-            }
-          }
-        },
-        "Black & White" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Black & White"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "黑白"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "黑白"
-              }
-            }
-          }
-        },
-        "Blend" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Blend"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "混合模式"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "混合模式"
-              }
-            }
-          }
-        },
-        "Brighten" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Brighten"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "提亮"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "提亮"
-              }
-            }
-          }
-        },
-        "Click to zoom in · ⌥click to zoom out" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Click to zoom in · ⌥click to zoom out"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "点击放大 · ⌥点击缩小"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "點擊放大 · ⌥點擊縮小"
-              }
-            }
-          }
-        },
-        "Crop to 1:1" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Crop to 1:1"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "裁成 1:1"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "裁成 1:1"
-              }
-            }
-          }
-        },
-        "Cropped" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Cropped"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "已裁剪"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "已裁剪"
-              }
-            }
-          }
-        },
-        "Delete Layer" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Delete Layer"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "删除图层"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "刪除圖層"
-              }
-            }
-          }
-        },
-        "Detail" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Detail"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "细节"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "細節"
-              }
-            }
-          }
-        },
-        "Drag a box, then Apply (⏎)" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Drag a box, then Apply (⏎)"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "拖出选框后按应用（⏎）"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "拖出選取框後按套用（⏎）"
-              }
-            }
-          }
-        },
-        "Drag to draw a selection" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Drag to draw a selection"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "拖动绘制选区"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "拖曳繪製選取範圍"
-              }
-            }
-          }
-        },
-        "Drag to move the active layer" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Drag to move the active layer"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "拖动可移动当前图层"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "拖曳可移動目前圖層"
-              }
-            }
-          }
-        },
-        "Drag to pan · ⌘scroll to zoom" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Drag to pan · ⌘scroll to zoom"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "拖动平移 · ⌘滚轮缩放"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "拖曳平移 · ⌘滾輪縮放"
-              }
-            }
-          }
-        },
-        "Duplicate Layer" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Duplicate Layer"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "复制图层"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "複製圖層"
-              }
-            }
-          }
-        },
-        "Eraser" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Eraser"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "橡皮擦"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "橡皮擦"
-              }
-            }
-          }
-        },
-        "Export as JPEG…" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Export as JPEG…"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "导出为 JPEG…"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "匯出為 JPEG…"
-              }
-            }
-          }
-        },
-        "Export as PNG…" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Export as PNG…"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "导出为 PNG…"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "匯出為 PNG…"
-              }
-            }
-          }
-        },
-        "Export as TIFF…" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Export as TIFF…"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "导出为 TIFF…"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "匯出為 TIFF…"
-              }
-            }
-          }
-        },
-        "Eyedropper Tool" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Eyedropper Tool"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "吸管"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "滴管"
-              }
-            }
-          }
-        },
-        "Filter Effect" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Filter Effect"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "滤镜"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "濾鏡"
-              }
-            }
-          }
-        },
-        "Filter applied" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Filter applied"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "滤镜已应用"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "濾鏡已套用"
-              }
-            }
-          }
-        },
-        "Fit (⌘0)" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Fit (⌘0)"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "适应窗口（⌘0）"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "適應視窗（⌘0）"
-              }
-            }
-          }
-        },
-        "Foreground Color" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Foreground Color"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "前景色"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "前景色"
-              }
-            }
-          }
-        },
-        "Hand" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Hand"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "抓手"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "抓手"
-              }
-            }
-          }
-        },
-        "Hardness" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Hardness"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "硬度"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "硬度"
-              }
-            }
-          }
-        },
-        "Invert" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Invert"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "反选"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "反選"
-              }
-            }
-          }
-        },
-        "Lasso Tool" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Lasso Tool"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "套索"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "套索"
-              }
-            }
-          }
-        },
-        "Lasso selection" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Lasso selection"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "套索选区已建立"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "套索選取範圍已建立"
-              }
-            }
-          }
-        },
-        "Lighting" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Lighting"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "明暗"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "明暗"
-              }
-            }
-          }
-        },
-        "Lower Layer" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Lower Layer"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "下移图层"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "下移圖層"
-              }
-            }
-          }
-        },
-        "Magic Wand Tool" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Magic Wand Tool"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "魔棒"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "魔術棒"
-              }
-            }
-          }
-        },
-        "Magic wand selection" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Magic wand selection"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "魔棒选区已建立"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "魔術棒選取範圍已建立"
-              }
-            }
-          }
-        },
-        "Marquee" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Marquee"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "选框"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "選取框"
-              }
-            }
-          }
-        },
-        "Move" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Move"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "移动"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "移動"
-              }
-            }
-          }
-        },
-        "No active layer" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "No active layer"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "没有活动图层"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "沒有作用中的圖層"
-              }
-            }
-          }
-        },
-        "Open the Agent panel first" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Open the Agent panel first"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "请先打开 Agent 面板"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "請先開啟 Agent 面板"
-              }
-            }
-          }
-        },
-        "Original State" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Original State"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "原图"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "原圖"
-              }
-            }
-          }
-        },
-        "Raise Layer" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Raise Layer"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "上移图层"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "上移圖層"
-              }
-            }
-          }
-        },
-        "Selection created" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Selection created"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "已建立选区"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "已建立選取範圍"
-              }
-            }
-          }
-        },
-        "Sent to Agent" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Sent to Agent"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "已发送给 Agent"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "已傳送給 Agent"
-              }
-            }
-          }
-        },
-        "Shape" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Shape"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "形状"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "形狀"
-              }
-            }
-          }
-        },
-        "Text Tool" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Text Tool"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "文字"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "文字"
-              }
-            }
-          }
-        },
-        "Unsaved changes" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "Unsaved changes"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "有未保存的修改"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "有未儲存的修改"
-              }
-            }
-          }
-        },
-        "e.g. remove the background, brighten, crop to 1:1" : {
-          "extractionState" : "manual",
-          "localizations" : {
-            "en" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "e.g. remove the background, brighten, crop to 1:1"
-              }
-            },
-            "zh-Hans" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "例如：去背景、提亮、裁成 1:1"
-              }
-            },
-            "zh-Hant" : {
-              "stringUnit" : {
-                "state" : "translated",
-                "value" : "例如：去背、提亮、裁成 1:1"
-              }
-            }
-          }
-        }
+    }
   },
   "version" : "1.0"
 }

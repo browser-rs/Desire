@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 
@@ -72,6 +73,11 @@ enum ImageEditorCommands {
                 document.rotate(clockwise: direction != "ccw")
                 return ["ok": true, "width": Int(document.canvasSize.width),
                         "height": Int(document.canvasSize.height)]
+            case "move":
+                let dx = Self.number(body["dx"]) ?? 0
+                let dy = Self.number(body["dy"]) ?? 0
+                document.nudgeActiveLayer(dx: CGFloat(dx), dy: CGFloat(dy))
+                return ["ok": true, "dx": dx, "dy": dy]
             case "flip":
                 let axis = (body["axis"] as? String)?.lowercased() ?? "h"
                 document.flip(horizontal: axis != "v")
@@ -107,6 +113,16 @@ enum ImageEditorCommands {
                 return ["ok": true, "filter": preset.rawValue]
             case "layer":
                 return layer(body: body, document: document)
+            case "dumpmask":
+                // DEBUG 排障：把当前选区蒙版写成 PNG（检查 y 方向约定）。
+                guard let path = body["path"] as? String,
+                      let mask = document.selection.maskImage(canvasSize: document.canvasSize),
+                      let data = NSBitmapImageRep(cgImage: mask)
+                        .representation(using: .png, properties: [:]) else {
+                    return ["error": "no mask"]
+                }
+                try data.write(to: URL(fileURLWithPath: path))
+                return ["ok": true, "path": path]
             case "undo":
                 document.undo()
                 return ["ok": true, "history": document.historyTitles.count]
@@ -171,7 +187,8 @@ enum ImageEditorCommands {
                                                     color: color, opacity: CGFloat(opacity),
                                                     hardness: CGFloat(hardness),
                                                     erase: erase,
-                                                    clipMask: mask) else {
+                                                    clipMask: mask,
+                                                    contentOffset: document.activeLayerOffset) else {
             return ["error": "stroke failed"]
         }
         document.replaceActiveBitmap(output, title: erase ? "Erase" : "Brush")
@@ -195,7 +212,8 @@ enum ImageEditorCommands {
         guard let output = ImageEditorRaster.drawShape(
             bitmap, shape: kind, from: clamp(from, to: document.canvasSize),
             to: clamp(to, to: document.canvasSize), stroke: stroke, fill: fill,
-            lineWidth: width) else { return ["error": "shape failed"] }
+            lineWidth: width, contentOffset: document.activeLayerOffset)
+        else { return ["error": "shape failed"] }
         document.replaceActiveBitmap(output, title: kind.localizedTitle)
         return ["ok": true]
     }
@@ -213,7 +231,8 @@ enum ImageEditorCommands {
         let font = body["font"] as? String
         guard let output = ImageEditorRaster.drawText(
             bitmap, text: value, at: clamp(at, to: document.canvasSize),
-            fontSize: size, color: color, fontName: font) else {
+            fontSize: size, color: color, fontName: font,
+            contentOffset: document.activeLayerOffset) else {
             return ["error": "text failed"]
         }
         document.replaceActiveBitmap(output, title: "Text")
@@ -227,23 +246,23 @@ enum ImageEditorCommands {
             return ["error": "fill needs color (hex)"]
         }
         let rect = Self.rect(body["rect"])
-            ?? document.selection.bounds(canvasSize: document.canvasSize)
             ?? CGRect(origin: .zero, size: document.canvasSize)
         guard let ctx = ImageEditorRaster.drawingContext(bitmap) else {
             return ["error": "fill failed"]
         }
-        ctx.setFillColor(color)
-        if let mask = document.selection.maskImage(canvasSize: document.canvasSize),
-           let alpha = ImageEditorSession.alphaMask(from: mask) {
-            ctx.saveGState()
-            ctx.clip(to: CGRect(x: 0, y: 0, width: bitmap.width, height: bitmap.height),
-                     mask: alpha)
-            ctx.fill(rect)
-            ctx.restoreGState()
-        } else {
-            ctx.fill(rect)
+        let offset = document.activeLayerOffset
+        if offset != .zero {
+            ctx.translateBy(x: -offset.width, y: -offset.height)
         }
-        guard let output = ctx.makeImage() else { return ["error": "fill failed"] }
+        ctx.setFillColor(color)
+        ctx.fill(rect)
+        guard let filled = ctx.makeImage() else { return ["error": "fill failed"] }
+        var output = filled
+        if let mask = document.selection.maskImage(canvasSize: document.canvasSize),
+           let blended = ImageEditorRaster.maskedBlend(base: bitmap, effect: filled,
+                                                       mask: mask) {
+            output = blended
+        }
         document.replaceActiveBitmap(output, title: "Fill")
         return ["ok": true]
     }
@@ -255,7 +274,8 @@ enum ImageEditorCommands {
         guard var target = rect else { return ["error": "mosaic needs rect or a selection"] }
         target = target.intersection(CGRect(origin: .zero, size: document.canvasSize))
         let block = Self.number(body["block"]).map { CGFloat($0) } ?? 12
-        guard let output = ImageEditorRaster.mosaic(bitmap, rect: target, block: block) else {
+        guard let output = ImageEditorRaster.mosaic(bitmap, rect: target, block: block,
+                                               contentOffset: document.activeLayerOffset) else {
             return ["error": "mosaic failed"]
         }
         document.replaceActiveBitmap(output, title: "Mosaic")
@@ -385,9 +405,13 @@ enum ImageEditorCommands {
             "width": Int(document.canvasSize.width),
             "height": Int(document.canvasSize.height),
             "tool": session.tool.rawValue,
+            "color": ImageEditorRaster.hexString(from: session.primaryCGColor),
+            "layerOffset": [Double(document.activeLayerOffset.width),
+                            Double(document.activeLayerOffset.height)],
             "zoom": Double(session.canvas.zoom),
             "selection": document.selection.describe,
             "selectionEmpty": document.selection.isEmpty,
+            "selectionEllipse": document.selection.isEllipse,
             "history": document.historyTitles,
             "redoCount": document.redoCount,
             "dirty": document.isDirty,

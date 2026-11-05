@@ -197,7 +197,7 @@ final class ImageEditorSession: ObservableObject {
         guard let ctx = ImageEditorRaster.drawingContext(bitmap) else { return }
         ctx.setBlendMode(.destinationOut)
         // mask 是灰度：先转成 alpha 蒙版再裁切
-        if let clip = Self.alphaMask(from: mask) {
+        if let clip = ImageEditorRaster.alphaMask(from: mask) {
             ctx.clip(to: CGRect(x: 0, y: 0, width: bitmap.width, height: bitmap.height),
                      mask: clip)
             ctx.setFillColor(CGColor(gray: 0, alpha: 1))
@@ -208,22 +208,4 @@ final class ImageEditorSession: ObservableObject {
         }
     }
 
-    /// 灰度蒙版 → alpha 蒙版（CGContext.clip(to:mask:) 需要 alpha 语义）。
-    nonisolated static func alphaMask(from gray: CGImage) -> CGImage? {
-        let w = gray.width, h = gray.height
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceGray(),
-                                  bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
-        ctx.draw(gray, in: CGRect(x: 0, y: 0, width: w, height: h))
-        guard let base = ctx.makeImage() else { return nil }
-        // CIMaskToAlpha
-        let ci = CIImage(cgImage: base)
-        guard let filter = CIFilter(name: "CIMaskToAlpha") else { return nil }
-        filter.setValue(ci, forKey: kCIInputImageKey)
-        guard let out = filter.outputImage,
-              let alpha = ImagePipelineRenderer.context.createCGImage(out, from: out.extent)
-        else { return nil }
-        return alpha
-    }
 }

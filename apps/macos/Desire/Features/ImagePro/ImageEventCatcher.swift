@@ -62,6 +62,8 @@ struct ImageEventCatcher: NSViewRepresentable {
     }
 
     final class EventView: NSView {
+        /// 当前画布事件层（文字输入结束后把焦点还给它）。
+        static weak var active: EventView?
         var onPoint: ((Kind, CGPoint, NSEvent.ModifierFlags) -> Void)?
         var onMagnify: ((CGFloat, CGPoint) -> Void)?
         var onScroll: ((CGFloat, CGFloat, CGPoint, Bool) -> Void)?
@@ -78,12 +80,20 @@ struct ImageEventCatcher: NSViewRepresentable {
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            if window != nil {
+            if let window {
                 let area = NSTrackingArea(
                     rect: NSRect(origin: .zero, size: bounds.size),
                     options: [.mouseMoved, .activeInKeyWindow, .inVisibleRect],
                     owner: self)
                 addTrackingArea(area)
+                // 打开图片后直接可用的单键快捷键：不自取焦点的话必须先在
+                // 画布上点一下（合成事件也不走窗口级 monitor，实测）。
+                Self.active = self
+                DispatchQueue.main.async { [weak self] in
+                    guard let self, let window = self.window else { return }
+                    // 挂载即夺焦：否则"打开图片后按 B/C 无效"，必须先点画布。
+                    window.makeFirstResponder(self)
+                }
             }
         }
 

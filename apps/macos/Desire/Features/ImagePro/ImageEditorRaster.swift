@@ -83,7 +83,10 @@ nonisolated enum ImageEditorRaster {
             ctx.saveGState()
             ctx.setAlpha(CGFloat(layer.opacity))
             ctx.setBlendMode(layer.blend.cgBlendMode)
-            ctx.draw(bitmap, in: CGRect(x: 0, y: 0, width: w, height: h))
+            // y-down 偏移 → CGContext(y-up) 的 -y；偏移取整避免重采样发虚。
+            ctx.draw(bitmap, in: CGRect(x: layer.offset.width.rounded(),
+                                        y: (-layer.offset.height).rounded(),
+                                        width: CGFloat(w), height: CGFloat(h)))
             ctx.restoreGState()
         }
         return ctx.makeImage()
@@ -114,12 +117,12 @@ nonisolated enum ImageEditorRaster {
                        opacity: CGFloat,
                        hardness: CGFloat,
                        erase: Bool,
-                       clipMask: CGImage? = nil) -> CGImage? {
+                       clipMask: CGImage? = nil,
+                       contentOffset: CGSize = .zero) -> CGImage? {
         guard let ctx = drawingContext(base) else { return nil }
-        // 选区约束（PS 行为）：有选区时只在选区内落笔/擦除。
-        if let clipMask, let alpha = alphaMask(from: clipMask) {
-            ctx.clip(to: CGRect(x: 0, y: 0, width: base.width, height: base.height),
-                     mask: alpha)
+        // 图层偏移：调用方传的是文档像素，落到位图上要减去偏移。
+        if contentOffset != .zero {
+            ctx.translateBy(x: -contentOffset.width, y: -contentOffset.height)
         }
         let radius = max(0.5, size / 2)
         let spacing = max(0.6, radius * 0.22)
@@ -138,7 +141,72 @@ nonisolated enum ImageEditorRaster {
                       alpha: opacity)
         }
         ctx.setBlendMode(.normal)
-        return ctx.makeImage()
+        guard let drawn = ctx.makeImage() else { return nil }
+        // 选区约束（PS 行为）：只在选区内生效。用 CIBlendWithMask 混回，
+        // 与"调节/滤镜"同一条已验证路径（CGContext.clip 的蒙版方向在
+        // 翻转上下文里反复踩坑）。
+        if let clipMask {
+            return maskedBlend(base: base, effect: drawn, mask: clipMask) ?? drawn
+        }
+        return drawn
+    }
+
+    /// 用灰度蒙版把 effect 混回 base（白 = 用 effect）。
+    /// 自己按像素混（空间和方向都不依赖框架约定）——CIBlendWithMask 在
+    /// 灰度蒙版 + 翻转上下文这一组合上实测有位移/半区问题。
+    static func maskedBlend(base: CGImage, effect: CGImage, mask: CGImage) -> CGImage? {
+        let w = base.width, h = base.height
+        guard w > 0, h > 0,
+              effect.width == w, effect.height == h,
+              mask.width == w, mask.height == h,
+              let baseBytes = rgbaBytes(base),
+              let effectBytes = rgbaBytes(effect),
+              let maskBytes = grayBytes(mask) else { return nil }
+        var out = [UInt8](repeating: 0, count: w * h * 4)
+        for i in 0..<(w * h) {
+            let a = Double(maskBytes[i]) / 255
+            let inv = 1 - a
+            let o = i * 4
+            // 预乘 alpha 的线性插值 = 正确的交叉淡入淡出
+            out[o] = UInt8((Double(baseBytes[o]) * inv + Double(effectBytes[o]) * a).rounded())
+            out[o + 1] = UInt8((Double(baseBytes[o + 1]) * inv + Double(effectBytes[o + 1]) * a).rounded())
+            out[o + 2] = UInt8((Double(baseBytes[o + 2]) * inv + Double(effectBytes[o + 2]) * a).rounded())
+            out[o + 3] = UInt8((Double(baseBytes[o + 3]) * inv + Double(effectBytes[o + 3]) * a).rounded())
+        }
+        guard let provider = CGDataProvider(data: Data(out) as CFData),
+              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
+        return CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32,
+                       bytesPerRow: w * 4, space: colorSpace,
+                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                       provider: provider, decode: nil, shouldInterpolate: false,
+                       intent: .defaultIntent)
+    }
+
+    private static func rgbaBytes(_ image: CGImage) -> [UInt8]? {
+        let w = image.width, h = image.height
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        guard let data = ctx.data else { return nil }
+        return Array(UnsafeBufferPointer(start: data.bindMemory(to: UInt8.self,
+                                                               capacity: w * h * 4),
+                                         count: w * h * 4))
+    }
+
+    private static func grayBytes(_ image: CGImage) -> [UInt8]? {
+        let w = image.width, h = image.height
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: w,
+                                  space: CGColorSpaceCreateDeviceGray(),
+                                  bitmapInfo: CGImageAlphaInfo.none.rawValue)
+        else { return nil }
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        guard let data = ctx.data else { return nil }
+        return Array(UnsafeBufferPointer(start: data.bindMemory(to: UInt8.self, capacity: w * h),
+                                         count: w * h))
     }
 
     private static func stampPoints(_ points: [CGPoint], spacing: CGFloat) -> [CGPoint] {
@@ -176,6 +244,30 @@ nonisolated enum ImageEditorRaster {
                                endCenter: center, endRadius: radius,
                                options: [])
         ctx.restoreGState()
+    }
+
+    /// 平移整张位图（从原图重画，不累积裁切——move 来回拖动不会丢内容）。
+    static func translated(_ image: CGImage, dx: CGFloat, dy: CGFloat) -> CGImage? {
+        let w = image.width, h = image.height
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.draw(image, in: CGRect(x: dx, y: -dy, width: CGFloat(w), height: CGFloat(h)))
+        return ctx.makeImage()
+    }
+
+    /// 蒙版按图层偏移平移（文档空间蒙版 → 位图空间）。
+    static func shiftedMask(_ mask: CGImage, dx: CGFloat, dy: CGFloat) -> CGImage? {
+        let w = mask.width, h = mask.height
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceGray(),
+                                  bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
+        // 蒙版是 y-up device 空间：y-down 的 dy 对应 -dy
+        ctx.draw(mask, in: CGRect(x: dx, y: -dy, width: CGFloat(w), height: CGFloat(h)))
+        return ctx.makeImage()
     }
 
     /// 灰度蒙版 → alpha 蒙版（CGContext.clip(to:mask:) 需要 alpha 语义）。
@@ -216,8 +308,12 @@ nonisolated enum ImageEditorRaster {
 
     static func drawShape(_ base: CGImage, shape: ImageEditorShape,
                           from: CGPoint, to: CGPoint,
-                          stroke: CGColor?, fill: CGColor?, lineWidth: CGFloat) -> CGImage? {
+                          stroke: CGColor?, fill: CGColor?, lineWidth: CGFloat,
+                          contentOffset: CGSize = .zero) -> CGImage? {
         guard let ctx = drawingContext(base) else { return nil }
+        if contentOffset != .zero {
+            ctx.translateBy(x: -contentOffset.width, y: -contentOffset.height)
+        }
         let rect = CGRect(x: min(from.x, to.x), y: min(from.y, to.y),
                           width: abs(to.x - from.x), height: abs(to.y - from.y))
         ctx.setLineWidth(max(0.5, lineWidth))
@@ -277,7 +373,8 @@ nonisolated enum ImageEditorRaster {
 
     static func drawText(_ base: CGImage, text: String, at anchor: CGPoint,
                          fontSize: CGFloat, color: CGColor,
-                         fontName: String? = nil) -> CGImage? {
+                         fontName: String? = nil,
+                         contentOffset: CGSize = .zero) -> CGImage? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return base }
         guard let ctx = drawingContext(base) else { return nil }
@@ -287,6 +384,9 @@ nonisolated enum ImageEditorRaster {
         let attributes: [NSAttributedString.Key: Any] = [
             .font: font, .foregroundColor: nsColor,
         ]
+        if contentOffset != .zero {
+            ctx.translateBy(x: -contentOffset.width, y: -contentOffset.height)
+        }
         NSGraphicsContext.saveGraphicsState()
         // drawingContext 已翻转成 y-down；NSGraphicsContext(flipped: true) 与之匹配。
         NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: true)
@@ -297,11 +397,13 @@ nonisolated enum ImageEditorRaster {
 
     // MARK: - 马赛克
 
-    static func mosaic(_ base: CGImage, rect: CGRect, block: CGFloat) -> CGImage? {
+    static func mosaic(_ base: CGImage, rect: CGRect, block: CGFloat,
+                       contentOffset: CGSize = .zero) -> CGImage? {
         let clamped = rect.intersection(CGRect(x: 0, y: 0,
                                                width: base.width, height: base.height)).integral
         guard clamped.width >= 2, clamped.height >= 2 else { return base }
-        guard let region = ImageTransforms.cropped(base, rect: clamped) else { return base }
+        let sourceRect = clamped.offsetBy(dx: -contentOffset.width, dy: -contentOffset.height)
+        guard let region = ImageTransforms.cropped(base, rect: sourceRect) else { return base }
         let blockPx = max(2, block)
         let tinyW = max(1, Int(clamped.width / blockPx))
         let tinyH = max(1, Int(clamped.height / blockPx))
@@ -309,6 +411,9 @@ nonisolated enum ImageEditorRaster {
               let pixelated = ImageTransforms.resized(tiny, width: Int(clamped.width),
                                                       height: Int(clamped.height)),
               let ctx = drawingContext(base) else { return base }
+        if contentOffset != .zero {
+            ctx.translateBy(x: -contentOffset.width, y: -contentOffset.height)
+        }
         // 像素化内容纵向对称，翻转不可见
         ctx.draw(pixelated, in: clamped)
         return ctx.makeImage()
@@ -412,20 +517,15 @@ nonisolated enum ImageEditorRaster {
         return image
     }
 
+    /// 蒙版包围盒（文档坐标 y-down）。用与 maskedBlend 同一份像素视图，
+    /// 避免两套方向约定（旧版自己建 context 扫描，实测 bbox 只有 1/3 高）。
     static func maskBounds(_ mask: CGImage) -> CGRect? {
-        // 快速推算：全不透明 bounding box（mask 是灰度无 alpha）
+        guard let bytes = grayBytes(mask) else { return nil }
         let w = mask.width, h = mask.height
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: w,
-                                  space: CGColorSpaceCreateDeviceGray(),
-                                  bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
-        ctx.draw(mask, in: CGRect(x: 0, y: 0, width: w, height: h))
-        guard let data = ctx.data else { return nil }
-        let buffer = data.bindMemory(to: UInt8.self, capacity: w * h)
         var minX = w, minY = h, maxX = -1, maxY = -1
         for y in 0..<h {
             let row = y * w
-            for x in 0..<w where buffer[row + x] > 16 {
+            for x in 0..<w where bytes[row + x] > 16 {
                 if x < minX { minX = x }
                 if x > maxX { maxX = x }
                 if y < minY { minY = y }
@@ -433,8 +533,7 @@ nonisolated enum ImageEditorRaster {
             }
         }
         guard maxX >= minX, maxY >= minY else { return nil }
-        // 转回 y-down
-        return CGRect(x: minX, y: h - 1 - maxY,
+        return CGRect(x: minX, y: minY,
                       width: maxX - minX + 1, height: maxY - minY + 1)
     }
 

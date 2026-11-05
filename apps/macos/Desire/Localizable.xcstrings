@@ -103245,6 +103245,52 @@
           }
         }
       }
+    },
+    "Revert to Saved":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Revert to Saved"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"恢复到已保存版本"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"還原至已儲存版本"
+          }
+        }
+      }
+    },
+    "Reverted to saved file":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Reverted to saved file"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已恢复磁盘版本"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已還原磁碟版本"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

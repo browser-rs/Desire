@@ -284,6 +284,8 @@ enum ImageEditorCommands {
             case "save":
                 let saved = session.saveInPlace()
                 return ["ok": saved, "path": session.fileURL?.path ?? ""]
+            case "revert":
+                return ["ok": session.revertToSaved()]
             case "copy":
                 return ["ok": session.copyToClipboard()]
             case "export":

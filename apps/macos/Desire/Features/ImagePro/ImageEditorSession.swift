@@ -194,6 +194,19 @@ final class ImageEditorSession: ObservableObject {
         }
     }
 
+    /// 放弃未保存修改，重新从磁盘加载（文件不存在返回 false）。
+    @discardableResult
+    func revertToSaved() -> Bool {
+        guard let fileURL, let image = ImageTransforms.load(from: fileURL) else { return false }
+        document.reset(image: image, name: displayName)
+        canvas.updateContent(display: CGSize(width: image.width, height: image.height),
+                             base: CGSize(width: image.width, height: image.height),
+                             ops: [])
+        canvas.recomputeFit()
+        flash(String(localized: "Reverted to saved file"))
+        return true
+    }
+
     /// 另存为（无标题文档 / 手动导出）。
     @discardableResult
     func saveAs() -> Bool {

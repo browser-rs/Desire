@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.46] - 2026-11-06
 ### Added
 
 - ImagePro 迭代 1–2：调整/滤镜支持实时预览（滑杆即时生效，保存/导出不含预览，应用才落库）；选区支持加选/减选/交叉（⇧ 加选、⌥ 减选、⇧⌥ 交叉；命令 API select mode=add|subtract|intersect），蒙版布尔组合为像素级。

@@ -282,6 +282,22 @@ final class ImageEditorSession: ObservableObject {
             document.clearSelection()
             tool = tool == .crop ? .move : tool
             return true
+        case "x":
+            let holder = primaryColor
+            primaryColor = secondaryColor
+            secondaryColor = holder
+            return true
+        case "d":
+            primaryColor = .white
+            secondaryColor = .black
+            return true
+        case "[":
+            brushSize = max(1, brushSize - 2)
+            retouchStrength = retouchStrength
+            return true
+        case "]":
+            brushSize = min(300, brushSize + 2)
+            return true
         case "\u{7f}", "\u{8}":  // delete/backspace
             if !document.selection.isEmpty {
                 deleteSelectionContents()

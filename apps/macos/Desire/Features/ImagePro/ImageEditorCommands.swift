@@ -648,6 +648,9 @@ enum ImageEditorCommands {
             "height": Int(document.canvasSize.height),
             "tool": session.tool.rawValue,
             "color": ImageEditorRaster.hexString(from: session.primaryCGColor),
+            "secondaryColor": ImageEditorRaster.hexString(
+                from: ImageEditorRaster.color(from: NSColor(session.secondaryColor))),
+            "brushSize": Double(session.brushSize),
             "layerOffset": [Double(document.activeLayerOffset.width),
                             Double(document.activeLayerOffset.height)],
             "layerScale": document.activeLayer?.scale ?? 1,

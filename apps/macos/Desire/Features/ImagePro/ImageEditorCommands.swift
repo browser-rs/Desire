@@ -147,6 +147,16 @@ enum ImageEditorCommands {
                 }
                 document.placeImage(image, name: (path as NSString).lastPathComponent)
                 return ["ok": true, "layers": document.layers.count]
+            case "template":
+                let name = (body["name"] as? String)?.lowercased() ?? ""
+                guard let template = ImageEditorTemplate.all.first(where: {
+                    $0.id == name || $0.name.lowercased().contains(name)
+                }), name.isEmpty == false else {
+                    return ["error": "unknown template '\(name)'. Options: "
+                        + ImageEditorTemplate.all.map(\.id).joined(separator: ", ")]
+                }
+                session.newDocument(size: template.size, name: template.name)
+                return ["ok": true, "width": template.width, "height": template.height]
             case "newdoc":
                 let w = Self.number(body["width"]) ?? 1280
                 let h = Self.number(body["height"]) ?? 720

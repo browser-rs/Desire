@@ -98114,6 +98114,50 @@
           }
         }
       }
+    },
+    "This PDF has no readable text." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This PDF has no readable text."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这份 PDF 没有可读文本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這份 PDF 沒有可讀文字。"
+          }
+        }
+      }
+    },
+    "This page has no readable text." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This page has no readable text."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这一页没有可读文本。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這一頁沒有可讀文字。"
+          }
+        }
+      }
     }
   },
   "version" : "1.0"

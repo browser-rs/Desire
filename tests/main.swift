@@ -8528,6 +8528,7 @@ testEbookNotesExportCore()
 testEbookMarkdownCore()
 testEbookTranslationAndLibrarySearchCore()
 testReaderTranslationCore()
+testPDFTextCore()
 testReadingDigestCore()
 testFB2Core()
 testEbookSyncCore()
@@ -9346,6 +9347,61 @@ func testReaderTranslationCore() {
     cache.save(pageURL: "https://e.test/", language: "en", translations: [:])
     check("页译：空译文不回", cache.translations(pageURL: "https://e.test/",
                                                  language: "en") == nil)
+}
+
+// ---------- PDF 文本层（v0.8.44） ----------
+
+func testPDFTextCore() {
+    // 空行分段 + 行合并
+    let page = PDFTextCore.PageText(
+        index: 2,
+        text: "第一行折\n第二行折\n\n新段落开始\n继续折行\n\n\n结尾段")
+    let paragraphs = PDFTextCore.paragraphs(fromPage: page)
+    eq("PDF 段：空行分段数", paragraphs.count, 3)
+    eq("PDF 段：页锚点", paragraphs.map(\.pageIndex), [2, 2, 2])
+    check("PDF 段：折行合并", paragraphs[0].text == "第一行折 第二行折")
+    check("PDF 段：空白行过滤", !paragraphs.contains { $0.text.isEmpty })
+    // 无空行 = 整页一段
+    let dense = PDFTextCore.paragraphs(
+        fromPage: PDFTextCore.PageText(index: 0, text: "无空行的\n一整页"))
+    eq("PDF 段：无空行整页一段", dense.count, 1)
+    // 超长段句边界切
+    let long = String(repeating: "这是一句话。", count: 200) // 1200 字
+    let split = PDFTextCore.splitLong(long)
+    check("PDF 段：长段切分", split.count >= 2)
+    check("PDF 段：切点在句号", split.dropLast().allSatisfy { $0.hasSuffix("。") })
+    eq("PDF 段：重组无损",
+       split.joined().count, String(repeating: "这是一句话。", count: 200).count)
+    eq("PDF 段：短段不切", PDFTextCore.splitLong("短文本").count, 1)
+    // 多页组装 id 连续
+    let book = PDFTextCore.paragraphs(fromPages: [
+        PDFTextCore.PageText(index: 0, text: "一页\n\n两段"),
+        PDFTextCore.PageText(index: 1, text: "下一页"),
+    ])
+    eq("PDF 段：全书 id 连续", book.map(\.id), [0, 1, 2])
+    eq("PDF 段：跨页锚点", book[2].pageIndex, 1)
+    // 空页
+    check("PDF 段：空页无段",
+          PDFTextCore.paragraphs(fromPage: PDFTextCore.PageText(index: 0, text: "  \n \n")).isEmpty)
+    // 搜索：页锚点 + 页内序号 + 片段
+    let pages = [
+        PDFTextCore.PageText(index: 0, text: "Mountain wind blows. Calm sea."),
+        PDFTextCore.PageText(index: 1, text: "山风吹过。山风又起。"),
+    ]
+    let hits = PDFTextCore.search(query: "山风", pages: pages, perPage: 3)
+    eq("PDF 搜：命中数", hits.count, 2)
+    eq("PDF 搜：页锚点", hits.map(\.pageIndex), [1, 1])
+    eq("PDF 搜：页内序号", hits.map(\.occurrence), [0, 1])
+    check("PDF 搜：片段含命中", hits[0].snippet.contains("山风"))
+    eq("PDF 搜：跨页", PDFTextCore.search(query: "mountain", pages: pages).count, 1)
+    eq("PDF 搜：每页上限",
+       PDFTextCore.search(query: "a", pages: [
+           PDFTextCore.PageText(index: 0, text: "a a a a a")
+       ], perPage: 3).count, 3)
+    check("PDF 搜：空查询", PDFTextCore.search(query: "  ", pages: pages).isEmpty)
+    // 片段高亮切段复用
+    let segments = EbookSearchCore.snippetSegments(snippet: hits[0].snippet, query: "山风")
+    check("PDF 搜：片段切段", segments.contains { $0.isHit })
 }
 
 // ---------- 阅读摘要（v0.8.36） ----------

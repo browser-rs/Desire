@@ -100,8 +100,9 @@ nonisolated enum EbookSearchCore {
         return segments.isEmpty ? [(snippet, false)] : segments
     }
 
-    private static func snippet(in text: String, around range: Range<String.Index>,
-                                radius: Int) -> String {
+    /// 片段抽取（v0.8.44 起内部共用：PDF 搜索也走这里）。
+    static func snippet(in text: String, around range: Range<String.Index>,
+                        radius: Int) -> String {
         let lower = text.index(range.lowerBound, offsetBy: -radius,
                                limitedBy: text.startIndex) ?? text.startIndex
         let upper = text.index(range.upperBound, offsetBy: radius,

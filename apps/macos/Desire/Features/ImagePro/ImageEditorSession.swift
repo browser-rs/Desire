@@ -27,6 +27,15 @@ final class ImageEditorSession: ObservableObject {
     @Published var brushHardness: Double = 0.8
     @Published var lineWidth: CGFloat = 4
     @Published var fontSize: CGFloat = 32
+    @Published var textFontFamily: String?
+    @Published var textWeight = "semibold"
+    @Published var textAlignment = "left"
+    @Published var textLineSpacing: Double = 1.2
+    @Published var textStrokeWidth: CGFloat = 0
+    @Published var textStrokeColor: Color = .black
+    @Published var textShadow = false
+    @Published var textBackground = false
+    @Published var textBackgroundColor: Color = .black
     @Published var wandTolerance: Double = 32
     @Published var selectionFeather: Double = 0
     @Published var fillShapes = false

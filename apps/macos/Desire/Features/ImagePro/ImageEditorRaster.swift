@@ -369,30 +369,115 @@ nonisolated enum ImageEditorRaster {
         return ctx.makeImage()
     }
 
-    // MARK: - 文字
+    // MARK: - 文字（v0.8.46 迭代 3：多行/字重/对齐/行距/描边/阴影/背景框）
+
+    nonisolated struct TextStyle {
+        var fontName: String?
+        var weight: String = "semibold"   // regular/medium/semibold/bold/heavy
+        var fontSize: CGFloat = 32
+        var color: CGColor = CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1)
+        var alignment: String = "left"    // left/center/right
+        var lineSpacing: CGFloat = 1.2    // 行高倍数
+        var strokeWidth: CGFloat = 0      // 0 = 无描边（字号的百分比换算）
+        var strokeColor: CGColor = CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1)
+        var shadow: Bool = false
+        var shadowColor: CGColor = CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 0.6)
+        var backgroundColor: CGColor?     // 非空 = 文字底板
+        var padding: CGFloat = 14
+        var cornerRadius: CGFloat = 8
+
+        func nsWeight() -> NSFont.Weight {
+            switch weight {
+            case "regular": return .regular
+            case "medium": return .medium
+            case "bold": return .bold
+            case "heavy": return .heavy
+            default: return .semibold
+            }
+        }
+    }
 
     static func drawText(_ base: CGImage, text: String, at anchor: CGPoint,
-                         fontSize: CGFloat, color: CGColor,
-                         fontName: String? = nil,
+                         style: TextStyle,
                          contentOffset: CGSize = .zero) -> CGImage? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return base }
         guard let ctx = drawingContext(base) else { return nil }
-        let nsColor = NSColor(cgColor: color) ?? .white
-        let font = fontName.flatMap { NSFont(name: $0, size: fontSize) }
-            ?? NSFont.systemFont(ofSize: fontSize, weight: .semibold)
-        let attributes: [NSAttributedString.Key: Any] = [
-            .font: font, .foregroundColor: nsColor,
-        ]
         if contentOffset != .zero {
             ctx.translateBy(x: -contentOffset.width, y: -contentOffset.height)
         }
+        let fontSize = max(4, style.fontSize)
+        let font = style.fontName.flatMap { NSFont(name: $0, size: fontSize) }
+            ?? NSFont.systemFont(ofSize: fontSize, weight: style.nsWeight())
+        let paragraph = NSMutableParagraphStyle()
+        switch style.alignment {
+        case "center": paragraph.alignment = .center
+        case "right": paragraph.alignment = .right
+        default: paragraph.alignment = .left
+        }
+        paragraph.lineHeightMultiple = max(0.8, style.lineSpacing)
+        paragraph.lineBreakMode = .byWordWrapping
+        var attributes: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor(cgColor: style.color) ?? .white,
+            .paragraphStyle: paragraph,
+        ]
+        if style.strokeWidth > 0 {
+            // 负值 = 填充 + 描边；单位是字号百分比
+            attributes[.strokeWidth] = -(style.strokeWidth / fontSize * 100)
+            attributes[.strokeColor] = NSColor(cgColor: style.strokeColor) ?? .black
+        }
+        if style.shadow {
+            let shadow = NSShadow()
+            shadow.shadowColor = NSColor(cgColor: style.shadowColor) ?? .black
+            shadow.shadowBlurRadius = max(1, fontSize * 0.08)
+            shadow.shadowOffset = NSSize(width: 0, height: -max(1, fontSize * 0.06))
+            attributes[.shadow] = shadow
+        }
+        let attributed = NSAttributedString(string: trimmed, attributes: attributes)
+        let maxWidth = max(32, CGFloat(base.width) - anchor.x - style.padding * 2)
+        let bounds = attributed.boundingRect(
+            with: CGSize(width: maxWidth, height: .greatestFiniteMagnitude),
+            options: [.usesLineFragmentOrigin, .usesFontLeading])
         NSGraphicsContext.saveGraphicsState()
-        // drawingContext 已翻转成 y-down；NSGraphicsContext(flipped: true) 与之匹配。
         NSGraphicsContext.current = NSGraphicsContext(cgContext: ctx, flipped: true)
-        (trimmed as NSString).draw(at: anchor, withAttributes: attributes)
+        // 对齐后的文字横向起点（背景框必须跟着文字，而不是跟着布局框）
+        let textX: CGFloat
+        switch style.alignment {
+        case "center": textX = anchor.x + max(0, (maxWidth - bounds.width) / 2)
+        case "right": textX = anchor.x + max(0, maxWidth - bounds.width)
+        default: textX = anchor.x
+        }
+        if let background = style.backgroundColor {
+            let rect = CGRect(x: textX - style.padding,
+                              y: anchor.y - style.padding,
+                              width: min(maxWidth, bounds.width) + style.padding * 2,
+                              height: bounds.height + style.padding * 2)
+            ctx.setFillColor(background)
+            ctx.addPath(CGPath(roundedRect: rect,
+                               cornerWidth: style.cornerRadius,
+                               cornerHeight: style.cornerRadius,
+                               transform: nil))
+            ctx.fillPath()
+        }
+        attributed.draw(with: CGRect(x: anchor.x, y: anchor.y,
+                                     width: maxWidth, height: bounds.height),
+                        options: [.usesLineFragmentOrigin, .usesFontLeading])
         NSGraphicsContext.restoreGraphicsState()
         return ctx.makeImage()
+    }
+
+    /// 兼容旧签名（单行/系统字体）。
+    static func drawText(_ base: CGImage, text: String, at anchor: CGPoint,
+                         fontSize: CGFloat, color: CGColor,
+                         fontName: String? = nil,
+                         contentOffset: CGSize = .zero) -> CGImage? {
+        var style = TextStyle()
+        style.fontSize = fontSize
+        style.color = color
+        style.fontName = fontName
+        return drawText(base, text: text, at: anchor, style: style,
+                        contentOffset: contentOffset)
     }
 
     // MARK: - 马赛克

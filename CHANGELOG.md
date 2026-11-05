@@ -2,6 +2,8 @@
 ### Added
 
 - ImagePro 迭代 1–2：调整/滤镜支持实时预览（滑杆即时生效，保存/导出不含预览，应用才落库）；选区支持加选/减选/交叉（⇧ 加选、⌥ 减选、⇧⌥ 交叉；命令 API select mode=add|subtract|intersect），蒙版布尔组合为像素级。
+- ImagePro 迭代 3：文字升级为多行排版——字体家族/字重（常规-特粗）/对齐（左中右）/行距，支持描边（宽度+颜色）、投影、文字背景框（颜色/内边距/圆角，自动跟随对齐）；命令 API text 支持 font/weight/align/lineSpacing/strokeWidth/strokeColor/shadow/background/backgroundColor。
+
 
 ### Fixed
 

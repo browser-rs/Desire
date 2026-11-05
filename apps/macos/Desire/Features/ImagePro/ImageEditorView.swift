@@ -12,6 +12,7 @@ struct ImageEditorView: View {
     @State private var inspector: Inspector?
     @State private var exportFormat = "png"
     @State private var showAI = false
+    @State private var showTextStyle = false
     @State private var aiPrompt = ""
     @Environment(\.appAccent) private var appAccent
 
@@ -330,8 +331,7 @@ struct ImageEditorView: View {
                         .toggleStyle(.checkbox)
                         .font(.system(size: 11))
                 case .text:
-                    optionSlider(String(localized: "Font Size"), value: $session.fontSize,
-                                 range: 8...160, width: 120)
+                    textOptions
                 case .crop:
                     Text(String(localized: "Aspect"))
                         .font(.system(size: 10.5))
@@ -398,6 +398,127 @@ struct ImageEditorView: View {
         }
         .padding(.horizontal, 12)
         .frame(height: 38)
+    }
+
+    private var textOptions: some View {
+        HStack(spacing: 10) {
+            Menu {
+                Picker("", selection: Binding(
+                    get: { session.textFontFamily ?? "System" },
+                    set: { session.textFontFamily = $0 == "System" ? nil : $0 })) {
+                    Text(String(localized: "System")).tag("System")
+                    ForEach(["Helvetica Neue", "Avenir Next", "PingFang SC",
+                             "Songti SC", "Kaiti SC", "Impact", "Georgia",
+                             "Menlo", "Futura", "Optima"], id: \.self) { name in
+                        Text(name).tag(name)
+                    }
+                }
+                .labelsHidden()
+            } label: {
+                Label(session.textFontFamily ?? String(localized: "System"),
+                      systemImage: "character.textbox")
+                    .font(.system(size: 10.5))
+            }
+            .menuStyle(.borderlessButton)
+            .frame(width: 120)
+
+            Picker("", selection: $session.textWeight) {
+                Text(String(localized: "Regular")).tag("regular")
+                Text(String(localized: "Medium")).tag("medium")
+                Text(String(localized: "Semibold")).tag("semibold")
+                Text(String(localized: "Bold")).tag("bold")
+                Text(String(localized: "Heavy")).tag("heavy")
+            }
+            .labelsHidden()
+            .controlSize(.small)
+            .frame(width: 96)
+
+            optionSlider(String(localized: "Font Size"), value: $session.fontSize,
+                         range: 8...240, width: 110)
+
+            HStack(spacing: 2) {
+                alignmentButton("text.alignleft", value: "left",
+                                help: String(localized: "Align Left"))
+                alignmentButton("text.aligncenter", value: "center",
+                                help: String(localized: "Align Center"))
+                alignmentButton("text.alignright", value: "right",
+                                help: String(localized: "Align Right"))
+            }
+
+            Button {
+                showTextStyle.toggle()
+            } label: {
+                Label(String(localized: "Style"), systemImage: "paintbrush")
+                    .font(.system(size: 10.5))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+            .popover(isPresented: $showTextStyle, arrowEdge: .bottom) {
+                textStyleEditor
+            }
+        }
+    }
+
+    private var textStyleEditor: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(String(localized: "Text Style"))
+                .font(.system(size: 11, weight: .semibold))
+            HStack(spacing: 8) {
+                Text(String(localized: "Line Spacing"))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 80, alignment: .leading)
+                Slider(value: $session.textLineSpacing, in: 0.8...2.0)
+                    .controlSize(.mini)
+                Text(verbatim: String(format: "%.2f", session.textLineSpacing))
+                    .font(.system(size: 9.5, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 34, alignment: .trailing)
+            }
+            HStack(spacing: 8) {
+                Text(String(localized: "Stroke"))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 80, alignment: .leading)
+                Slider(value: $session.textStrokeWidth, in: 0...10)
+                    .controlSize(.mini)
+                ColorPicker("", selection: $session.textStrokeColor, supportsOpacity: false)
+                    .labelsHidden()
+                    .frame(width: 30)
+            }
+            Toggle(String(localized: "Shadow"), isOn: $session.textShadow)
+                .toggleStyle(.checkbox)
+                .font(.system(size: 10.5))
+            HStack(spacing: 8) {
+                Toggle(String(localized: "Background"), isOn: $session.textBackground)
+                    .toggleStyle(.checkbox)
+                    .font(.system(size: 10.5))
+                ColorPicker("", selection: $session.textBackgroundColor, supportsOpacity: true)
+                    .labelsHidden()
+                    .frame(width: 30)
+                    .disabled(!session.textBackground)
+            }
+        }
+        .padding(12)
+        .frame(width: 280)
+    }
+
+    private func alignmentButton(_ symbol: String, value: String, help: String) -> some View {
+        Button {
+            session.textAlignment = value
+        } label: {
+            Image(systemName: symbol)
+                .font(.system(size: 10))
+                .frame(width: 22, height: 20)
+                .background(RoundedRectangle(cornerRadius: 4)
+                    .fill(session.textAlignment == value
+                          ? AnyShapeStyle(appAccent.opacity(0.18))
+                          : AnyShapeStyle(Color.clear)))
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(session.textAlignment == value
+                         ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+        .help(help)
     }
 
     private func optionSlider(_ label: String, value: Binding<CGFloat>,

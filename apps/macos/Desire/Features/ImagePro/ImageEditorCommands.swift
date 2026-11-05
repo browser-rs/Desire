@@ -1,6 +1,7 @@
 import AppKit
 import CoreGraphics
 import Foundation
+import SwiftUI
 
 /// ImagePro 命令 API（v0.8.46）：UI、桥、Agent 共用同一套动作。
 /// 所有坐标 = **base 像素（左上原点、y 向下）**，与缩放/平移无关。
@@ -246,14 +247,30 @@ enum ImageEditorCommands {
             return ["error": "text needs text"]
         }
         let at = Self.point(body["at"]) ?? CGPoint(x: 20, y: 20)
-        let size = Self.number(body["size"]).map { CGFloat($0) } ?? session.fontSize
-        let color = (body["color"] as? String).flatMap { ImageEditorRaster.color(from: $0) }
+        var style = ImageEditorRaster.TextStyle()
+        style.fontSize = Self.number(body["size"]).map { CGFloat($0) } ?? session.fontSize
+        style.color = (body["color"] as? String).flatMap { ImageEditorRaster.color(from: $0) }
             ?? session.primaryCGColor
-        let font = body["font"] as? String
+        style.fontName = body["font"] as? String ?? session.textFontFamily
+        style.weight = (body["weight"] as? String) ?? session.textWeight
+        style.alignment = (body["align"] as? String) ?? session.textAlignment
+        style.lineSpacing = Self.number(body["lineSpacing"]).map { CGFloat($0) }
+            ?? CGFloat(session.textLineSpacing)
+        style.strokeWidth = Self.number(body["strokeWidth"]).map { CGFloat($0) }
+            ?? session.textStrokeWidth
+        if let hex = body["strokeColor"] as? String,
+           let c = ImageEditorRaster.color(from: hex) { style.strokeColor = c }
+        style.shadow = (body["shadow"] as? Bool) ?? session.textShadow
+        if let hex = body["shadowColor"] as? String,
+           let c = ImageEditorRaster.color(from: hex) { style.shadowColor = c }
+        if (body["background"] as? Bool) ?? session.textBackground {
+            style.backgroundColor = (body["backgroundColor"] as? String)
+                .flatMap { ImageEditorRaster.color(from: $0) }
+                ?? ImageEditorRaster.color(from: NSColor(session.textBackgroundColor))
+        }
         guard let output = ImageEditorRaster.drawText(
             bitmap, text: value, at: clamp(at, to: document.canvasSize),
-            fontSize: size, color: color, fontName: font,
-            contentOffset: document.activeLayerOffset) else {
+            style: style, contentOffset: document.activeLayerOffset) else {
             return ["error": "text failed"]
         }
         document.replaceActiveBitmap(output, title: "Text")

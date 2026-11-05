@@ -381,11 +381,13 @@ struct ImageCanvasView: View {
     @ViewBuilder
     private func textCard(anchor: CGPoint) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            TextField(String(localized: "Text Content"), text: $textEntry)
-                .textFieldStyle(.roundedBorder)
-                .frame(width: 240)
+            TextEditor(text: $textEntry)
+                .font(.system(size: 12))
+                .frame(width: 260, height: 84)
+                .padding(4)
+                .background(RoundedRectangle(cornerRadius: 6)
+                    .fill(Color(nsColor: .textBackgroundColor)))
                 .focused($textFocused)
-                .onSubmit { commitText() }
             HStack {
                 Button(String(localized: "Place")) { commitText() }
                     .buttonStyle(.borderedProminent)
@@ -629,10 +631,21 @@ struct ImageCanvasView: View {
             refocusCanvas()
         }
         guard let anchor = textAnchor, let bitmap = document.activeBitmap else { return }
+        var style = ImageEditorRaster.TextStyle()
+        style.fontName = session.textFontFamily
+        style.weight = session.textWeight
+        style.fontSize = session.fontSize
+        style.color = session.primaryCGColor
+        style.alignment = session.textAlignment
+        style.lineSpacing = CGFloat(session.textLineSpacing)
+        style.strokeWidth = session.textStrokeWidth
+        style.strokeColor = ImageEditorRaster.color(from: NSColor(session.textStrokeColor))
+        style.shadow = session.textShadow
+        if session.textBackground {
+            style.backgroundColor = ImageEditorRaster.color(from: NSColor(session.textBackgroundColor))
+        }
         guard let output = ImageEditorRaster.drawText(
-            bitmap, text: textEntry, at: anchor,
-            fontSize: session.fontSize,
-            color: session.primaryCGColor,
+            bitmap, text: textEntry, at: anchor, style: style,
             contentOffset: document.activeLayerOffset) else { return }
         document.replaceActiveBitmap(output, title: "Text")
     }

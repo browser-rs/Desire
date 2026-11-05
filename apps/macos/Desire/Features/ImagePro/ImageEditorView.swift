@@ -347,6 +347,9 @@ struct ImageEditorView: View {
                     Text(String(localized: "Drag a box, then Apply (⏎)"))
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
+                    Text(String(localized: "⇧ add · ⌥ subtract · ⇧⌥ intersect"))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
                 case .move:
                     Text(String(localized: "Drag to move the active layer"))
                         .font(.system(size: 10.5))
@@ -366,6 +369,9 @@ struct ImageEditorView: View {
                 case .lasso:
                     Text(String(localized: "Drag to draw a selection"))
                         .font(.system(size: 10.5))
+                        .foregroundStyle(.tertiary)
+                    Text(String(localized: "⇧ add · ⌥ subtract · ⇧⌥ intersect"))
+                        .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
             }

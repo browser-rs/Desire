@@ -17,6 +17,7 @@ struct ImageCanvasView: View {
     @State private var cropRect: CGRect?
     @State private var cropDrag: CropDrag?
     @State private var lastCropClick = Date.distantPast
+    @State private var combineMode: ImageEditorRaster.SelectionCombine = .replace
     @State private var hoverCanvas: CGPoint?
     @State private var textAnchor: CGPoint?
     @State private var textEntry = ""
@@ -474,14 +475,16 @@ struct ImageCanvasView: View {
         case .brush, .eraser:
             strokePoints = [base]
         case .marquee, .shape:
+            combineMode = selectionCombine(from: flags)
             dragStart = base
             dragCurrent = base
         case .crop:
             downCrop(point)
         case .lasso:
+            combineMode = selectionCombine(from: flags)
             lassoPoints = [base]
         case .wand:
-            break
+            combineMode = selectionCombine(from: flags)
         case .text:
             textAnchor = base
             textEntry = ""
@@ -539,7 +542,8 @@ struct ImageCanvasView: View {
                 let rect = normalized(start, base)
                 if rect.width >= 2, rect.height >= 2 {
                     document.setSelectionRect(rect, ellipse: session.marqueeEllipse,
-                                              feather: session.selectionFeather)
+                                              feather: session.selectionFeather,
+                                              combine: combineMode)
                     session.flash(String(localized: "Selection created"))
                 } else {
                     document.clearSelection()
@@ -553,7 +557,8 @@ struct ImageCanvasView: View {
                 let mask = ImageEditorRaster.polygonMask(points: lassoPoints,
                                                          size: document.canvasSize,
                                                          feather: 0)
-                document.setSelectionMask(mask, feather: session.selectionFeather)
+                document.setSelectionMask(mask, feather: session.selectionFeather,
+                                          combine: combineMode)
                 session.flash(String(localized: "Lasso selection"))
             }
             lassoPoints = []
@@ -562,7 +567,8 @@ struct ImageCanvasView: View {
                   let mask = ImageSelectionAdvanced.magicWandMask(
                       image: composite, start: base,
                       tolerance: session.wandTolerance, contiguous: true) else { return }
-            document.setSelectionMask(mask, feather: session.selectionFeather)
+            document.setSelectionMask(mask, feather: session.selectionFeather,
+                                      combine: combineMode)
             session.flash(String(localized: "Magic wand selection"))
         case .shape:
             commitShape(t)
@@ -770,6 +776,17 @@ struct ImageCanvasView: View {
         session.tool = .move
         session.flash(String(localized: "Cropped"))
         syncContainer(canvas.containerSize)
+    }
+
+    /// ⇧ = 加选，⌥ = 减选，⇧⌥ = 交叉。
+    private func selectionCombine(from flags: NSEvent.ModifierFlags)
+        -> ImageEditorRaster.SelectionCombine {
+        let shift = flags.contains(.shift)
+        let option = flags.contains(.option)
+        if shift && option { return .intersect }
+        if shift { return .add }
+        if option { return .subtract }
+        return .replace
     }
 
     /// 文字输入结束/取消后把第一响应者还给画布，单键快捷键立即可用。

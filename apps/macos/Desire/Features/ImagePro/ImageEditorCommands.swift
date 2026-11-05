@@ -84,6 +84,27 @@ enum ImageEditorCommands {
                 return ["ok": true]
             case "select":
                 return select(body: body, session: session, document: document)
+            case "preview":
+                var params = ImageAdjustParams()
+                params.brightness = Self.number(body["brightness"]) ?? 0
+                params.contrast = Self.number(body["contrast"]) ?? 1
+                params.saturation = Self.number(body["saturation"]) ?? 1
+                params.exposure = Self.number(body["exposure"]) ?? 0
+                params.temperature = Self.number(body["temperature"]) ?? 0
+                params.tint = Self.number(body["tint"]) ?? 0
+                params.highlights = Self.number(body["highlights"]) ?? 0
+                params.shadows = Self.number(body["shadows"]) ?? 0
+                params.vibrance = Self.number(body["vibrance"]) ?? 0
+                params.clarity = Self.number(body["clarity"]) ?? 0
+                params.sharpen = Self.number(body["sharpen"]) ?? 0
+                params.vignette = Self.number(body["vignette"]) ?? 0
+                params = ImageAdjustParams.clamped(params)
+                let preset = (body["filter"] as? String).flatMap { ImageFilterPreset(rawValue: $0.lowercased()) }
+                document.setPreview(adjust: params.isNeutral ? nil : params, filter: preset)
+                return ["ok": true, "previewing": document.previewAdjust != nil || document.previewFilter != nil]
+            case "cancelpreview":
+                document.clearPreview()
+                return ["ok": true]
             case "adjust":
                 var params = ImageAdjustParams()
                 params.brightness = Self.number(body["brightness"]) ?? 0
@@ -286,6 +307,8 @@ enum ImageEditorCommands {
                                document: ImageEditorDocument) -> [String: Any] {
         let kind = (body["kind"] as? String)?.lowercased() ?? "rect"
         let feather = Self.number(body["feather"]) ?? session.selectionFeather
+        let combine = ImageEditorRaster.SelectionCombine(
+            rawValue: (body["mode"] as? String)?.lowercased() ?? "replace") ?? .replace
         switch kind {
         case "clear", "none", "deselect":
             document.clearSelection()
@@ -300,7 +323,8 @@ enum ImageEditorCommands {
             guard let rect = Self.rect(body["rect"]) else {
                 return ["error": "select rect needs rect: [x, y, w, h]"]
             }
-            document.setSelectionRect(rect, ellipse: kind == "ellipse", feather: feather)
+            document.setSelectionRect(rect, ellipse: kind == "ellipse",
+                                      feather: feather, combine: combine)
             return ["ok": true, "selection": document.selection.describe]
         case "lasso":
             guard let raw = body["points"] as? [[Any]], let pts = Self.points(raw), pts.count >= 3 else {
@@ -309,7 +333,7 @@ enum ImageEditorCommands {
             let mask = ImageEditorRaster.polygonMask(points: pts,
                                                      size: document.canvasSize,
                                                      feather: 0)
-            document.setSelectionMask(mask, feather: feather)
+            document.setSelectionMask(mask, feather: feather, combine: combine)
             return ["ok": true, "selection": document.selection.describe]
         case "wand", "magicwand":
             guard let at = Self.point(body["at"]) ?? Self.rect(body["rect"]).map({
@@ -322,7 +346,7 @@ enum ImageEditorCommands {
                       contiguous: true) else {
                 return ["error": "wand failed"]
             }
-            document.setSelectionMask(mask, feather: feather)
+            document.setSelectionMask(mask, feather: feather, combine: combine)
             return ["ok": true, "selection": document.selection.describe]
         default:
             return ["error": "Unknown selection kind '\(kind)'"]
@@ -415,6 +439,7 @@ enum ImageEditorCommands {
             "history": document.historyTitles,
             "redoCount": document.redoCount,
             "dirty": document.isDirty,
+            "previewing": document.previewAdjust != nil || document.previewFilter != nil,
             "layers": layers,
         ]
     }

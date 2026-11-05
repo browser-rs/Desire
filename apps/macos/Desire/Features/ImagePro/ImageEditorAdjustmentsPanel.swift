@@ -53,7 +53,9 @@ struct ImageEditorAdjustmentsPanel: View {
             Divider()
             VStack(spacing: 6) {
                 Button {
-                    document.applyAdjust(params)
+                    document.clearPreview()
+                    if !params.isNeutral { document.applyAdjust(params) }
+                    if filter != .none { document.applyFilter(filter) }
                     session.flash(String(localized: "Adjustment applied"))
                 } label: {
                     Label(String(localized: "Apply to Layer"), systemImage: "checkmark.circle")
@@ -62,27 +64,37 @@ struct ImageEditorAdjustmentsPanel: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
+                .disabled(params.isNeutral && filter == .none)
                 HStack(spacing: 8) {
-                    Button(String(localized: "Apply Filter")) {
-                        guard filter != .none else { return }
-                        document.applyFilter(filter)
-                        session.flash(String(localized: "Filter applied"))
+                    Button(String(localized: "Cancel")) {
+                        params = ImageAdjustParams()
+                        filter = .none
+                        document.clearPreview()
                     }
-                    .buttonStyle(.bordered)
+                    .buttonStyle(.borderless)
                     .controlSize(.small)
-                    .disabled(filter == .none)
                     Button(String(localized: "Reset")) {
                         params = ImageAdjustParams()
                         filter = .none
+                        document.clearPreview()
                     }
                     .buttonStyle(.borderless)
                     .controlSize(.small)
                 }
-                Text(String(localized: "Active layer · selection respected"))
+                Text(String(localized: "Live preview · active layer · selection respected"))
                     .font(.system(size: 9.5))
                     .foregroundStyle(.tertiary)
             }
             .padding(10)
+        }
+        .onChange(of: params) { _, newValue in
+            document.setPreview(adjust: newValue, filter: filter)
+        }
+        .onChange(of: filter) { _, newValue in
+            document.setPreview(adjust: params, filter: newValue)
+        }
+        .onDisappear {
+            document.clearPreview()
         }
     }
 

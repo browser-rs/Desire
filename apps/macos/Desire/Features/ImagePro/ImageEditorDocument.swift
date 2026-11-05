@@ -18,6 +18,9 @@ final class ImageEditorDocument: ObservableObject {
     @Published private(set) var selection = ImageEditorSelection()
     @Published private(set) var canvasSize = CGSize(width: 1, height: 1)
     @Published private(set) var isDirty = false
+    /// 调整/滤镜的实时预览（不落库、不进历史；保存/导出不含预览）。
+    @Published private(set) var previewAdjust: ImageAdjustParams?
+    @Published private(set) var previewFilter: ImageFilterPreset?
 
     private var bitmaps: [UUID: CGImage] = [:]
     private var undoStack: [Snapshot] = []
@@ -61,21 +64,56 @@ final class ImageEditorDocument: ObservableObject {
 
     func bitmap(for id: UUID) -> CGImage? { bitmaps[id] }
 
+    /// 设置实时预览（滑杆拖动时调用）。nil/neutral = 无预览。
+    func setPreview(adjust: ImageAdjustParams?, filter: ImageFilterPreset?) {
+        previewAdjust = (adjust?.isNeutral == true) ? nil : adjust
+        previewFilter = (filter == nil || filter == .none) ? nil : filter
+        compositeCache = nil
+        revision += 1
+    }
+
+    func clearPreview() {
+        guard previewAdjust != nil || previewFilter != nil else { return }
+        previewAdjust = nil
+        previewFilter = nil
+        compositeCache = nil
+        revision += 1
+    }
+
     /// 合成结果（按图层顺序自下而上，含可见性/透明度/混合）。
     func composite() -> CGImage? {
         if let cache = compositeCache, cache.revision == revision, let image = cache.image {
             return image
         }
-        let image = ImageEditorRaster.composite(layers: layers, bitmaps: bitmaps,
+        var effective = bitmaps
+        if previewAdjust != nil || previewFilter != nil,
+           let base = bitmaps[activeLayerID] {
+            if let rendered = ImageEditorRaster.applyEffect(base,
+                                                            adjust: previewAdjust,
+                                                            filter: previewFilter,
+                                                            mask: bitmapMask()) {
+                effective[activeLayerID] = rendered
+            }
+        }
+        let image = ImageEditorRaster.composite(layers: layers, bitmaps: effective,
                                                 size: canvasSize)
         compositeCache = (revision, image)
         return image
     }
 
-    /// 导出/保存用：合成后铺白底（可选）。
+    /// 导出/保存用：不含实时预览（预览只是面板里的草稿）。
     func flattened(over backdrop: CGColor?) -> CGImage? {
-        guard let composite = composite() else { return nil }
-        return ImageEditorRaster.flattened(composite, over: backdrop)
+        let savedAdjust = previewAdjust
+        let savedFilter = previewFilter
+        previewAdjust = nil
+        previewFilter = nil
+        compositeCache = nil
+        let image = composite()
+        previewAdjust = savedAdjust
+        previewFilter = savedFilter
+        compositeCache = nil
+        guard let image else { return nil }
+        return ImageEditorRaster.flattened(image, over: backdrop)
     }
 
     // MARK: - 历史
@@ -327,20 +365,51 @@ final class ImageEditorDocument: ObservableObject {
 
     // MARK: - 选区
 
-    func setSelectionRect(_ rect: CGRect, ellipse: Bool, feather: Double) {
-        var sel = ImageEditorSelection()
+    func setSelectionRect(_ rect: CGRect, ellipse: Bool, feather: Double,
+                          combine: ImageEditorRaster.SelectionCombine = .replace) {
         let clamped = rect.intersection(CGRect(origin: .zero, size: canvasSize))
-        sel.rect = clamped.width >= 1 && clamped.height >= 1 ? clamped : nil
-        sel.isEllipse = ellipse
-        sel.feather = feather
-        selection = sel
+        guard clamped.width >= 1, clamped.height >= 1 else {
+            if combine == .replace { selection = ImageEditorSelection() }
+            return
+        }
+        var shape = ImageEditorSelection()
+        shape.rect = clamped
+        shape.isEllipse = ellipse
+        shape.feather = feather
+        if combine == .replace {
+            selection = shape
+            return
+        }
+        let existing = selection.maskImage(canvasSize: canvasSize)
+        guard let shapeMask = shape.maskImage(canvasSize: canvasSize),
+              let merged = ImageEditorRaster.combineMasks(existing, shapeMask,
+                                                          mode: combine) else {
+            if combine == .add, let shapeMask = shape.maskImage(canvasSize: canvasSize) {
+                selection = ImageEditorSelection(mask: shapeMask, feather: 0)
+            }
+            return
+        }
+        selection = ImageEditorSelection(mask: merged, feather: 0)
     }
 
-    func setSelectionMask(_ mask: CGImage?, feather: Double) {
-        var sel = ImageEditorSelection()
-        sel.mask = mask
-        sel.feather = feather
-        selection = sel
+    func setSelectionMask(_ mask: CGImage?, feather: Double,
+                          combine: ImageEditorRaster.SelectionCombine = .replace) {
+        guard let mask else {
+            if combine == .replace { selection = ImageEditorSelection() }
+            return
+        }
+        if combine == .replace {
+            var sel = ImageEditorSelection()
+            sel.mask = mask
+            sel.feather = feather
+            selection = sel
+            return
+        }
+        let existing = selection.maskImage(canvasSize: canvasSize)
+        guard let merged = ImageEditorRaster.combineMasks(existing, mask, mode: combine) else {
+            return
+        }
+        selection = ImageEditorSelection(mask: merged, feather: 0)
     }
 
     func selectAll() {

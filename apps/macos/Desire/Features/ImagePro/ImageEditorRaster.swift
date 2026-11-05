@@ -517,6 +517,46 @@ nonisolated enum ImageEditorRaster {
         return image
     }
 
+    /// 选区布尔组合（像素级，白 = 选中）。
+    enum SelectionCombine: String {
+        case replace, add, subtract, intersect
+    }
+
+    static func combineMasks(_ base: CGImage?, _ other: CGImage,
+                             mode: SelectionCombine) -> CGImage? {
+        switch mode {
+        case .replace:
+            return other
+        case .add, .subtract, .intersect:
+            guard let base else {
+                if mode == .add { return other }
+                // 无选区时减/交 = 空
+                return nil
+            }
+            guard base.width == other.width, base.height == other.height,
+                  let a = grayBytes(base), let b = grayBytes(other) else { return base }
+            let total = base.width * base.height
+            var out = [UInt8](repeating: 0, count: total)
+            for i in 0..<total {
+                let x = Int(a[i]), y = Int(b[i])
+                switch mode {
+                case .add: out[i] = UInt8(max(x, y))
+                case .subtract: out[i] = UInt8(max(0, x - y))
+                case .intersect: out[i] = UInt8(min(x, y))
+                case .replace: out[i] = UInt8(y)
+                }
+            }
+            guard let provider = CGDataProvider(data: Data(out) as CFData),
+                  let space = CGColorSpace(name: CGColorSpace.linearGray) else { return nil }
+            return CGImage(width: base.width, height: base.height,
+                           bitsPerComponent: 8, bitsPerPixel: 8,
+                           bytesPerRow: base.width, space: space,
+                           bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.none.rawValue),
+                           provider: provider, decode: nil, shouldInterpolate: false,
+                           intent: .defaultIntent)
+        }
+    }
+
     /// 蒙版包围盒（文档坐标 y-down）。用与 maskedBlend 同一份像素视图，
     /// 避免两套方向约定（旧版自己建 context 扫描，实测 bbox 只有 1/3 高）。
     static func maskBounds(_ mask: CGImage) -> CGRect? {

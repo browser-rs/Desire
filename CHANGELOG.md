@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.45] - 2026-11-05
 ### Added
 
 - Feeds: RSS/Atom subscriptions — parse and fetch feeds (per-source failure backoff, conditional requests), subscribe from the toolbar when a page advertises a feed or by asking the Agent, manage everything in a new Feeds panel (unread badges, star, mark-read), open articles in reading mode, and see the latest unread on the new tab's Today's Reading card (v0.8.45)

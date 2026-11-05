@@ -70,7 +70,8 @@ nonisolated enum ImageEditorRaster {
 
     static func composite(layers: [ImageEditorLayer],
                           bitmaps: [UUID: CGImage],
-                          size: CGSize) -> CGImage? {
+                          size: CGSize,
+                          matching: ((ImageEditorLayer) -> Bool)? = nil) -> CGImage? {
         let w = max(1, Int(size.width.rounded()))
         let h = max(1, Int(size.height.rounded()))
         guard let ctx = CGContext(data: nil, width: w, height: h,
@@ -78,7 +79,8 @@ nonisolated enum ImageEditorRaster {
                                   space: CGColorSpaceCreateDeviceRGB(),
                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else { return nil }
-        for layer in layers where layer.isVisible && layer.opacity > 0.001 {
+        for layer in layers where layer.isVisible && layer.opacity > 0.001
+            && (matching?(layer) ?? true) {
             guard let bitmap = bitmaps[layer.id] else { continue }
             ctx.saveGState()
             ctx.setAlpha(CGFloat(layer.opacity))

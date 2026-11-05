@@ -461,6 +461,11 @@ struct ImageCanvasView: View {
     private func down(_ t: ImageCanvasTransform, _ point: CGPoint,
                       _ flags: NSEvent.ModifierFlags) {
         let base = t.basePixel(fromCanvas: point)
+        if document.isActiveLayerLocked,
+           [.brush, .eraser, .text, .shape, .move].contains(session.tool) {
+            session.flash(String(localized: "Layer is locked"))
+            return
+        }
         switch session.tool {
         case .hand:
             panLast = point

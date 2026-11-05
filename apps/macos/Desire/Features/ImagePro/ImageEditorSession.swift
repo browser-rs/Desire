@@ -11,8 +11,8 @@ final class ImageEditorSession: ObservableObject {
     /// 当前活动编辑器（桥/Agent 命令入口）。弱引用，窗口关闭自动失效。
     static weak var active: ImageEditorSession?
 
-    let fileURL: URL
-    let displayName: String
+    var fileURL: URL?
+    var displayName: String
     let document: ImageEditorDocument
     let canvas = ImageCanvasModel()
 
@@ -61,15 +61,38 @@ final class ImageEditorSession: ObservableObject {
 
     init(fileURL: URL, name: String) {
         self.fileURL = fileURL
-        self.displayName = name.isEmpty ? fileURL.lastPathComponent : name
+        let resolved = name.isEmpty ? fileURL.lastPathComponent : name
+        self.displayName = resolved
         if let image = ImageTransforms.load(from: fileURL) {
-            document = ImageEditorDocument(image: image, name: self.displayName)
+            document = ImageEditorDocument(image: image, name: resolved)
         } else {
             document = ImageEditorDocument(
                 image: ImageEditorRaster.transparent(size: CGSize(width: 800, height: 600))!,
-                name: self.displayName)
+                name: resolved)
             loadError = String(localized: "Could not load this image.")
         }
+    }
+
+    /// 空白文档（模板/新建）。
+    init(blankCanvas size: CGSize, name: String) {
+        self.fileURL = nil
+        self.displayName = name
+        let background = ImageEditorRaster.transparent(size: size)
+            ?? ImageEditorRaster.transparent(size: CGSize(width: 800, height: 600))!
+        document = ImageEditorDocument(image: background, name: name)
+    }
+
+    var isUntitled: Bool { fileURL == nil }
+
+    /// 新建文档（模板）：重置当前编辑器内容。
+    func newDocument(size: CGSize, name: String) {
+        guard let blank = ImageEditorRaster.transparent(size: size) else { return }
+        document.reset(image: blank, name: name)
+        fileURL = nil
+        displayName = name
+        canvas.updateContent(display: size, base: size, ops: [])
+        canvas.recomputeFit()
+        flash(String(localized: "New document created"))
     }
 
     func activate() {
@@ -134,6 +157,7 @@ final class ImageEditorSession: ObservableObject {
 
     @discardableResult
     func saveInPlace() -> Bool {
+        guard let fileURL else { return saveAs() }
         guard let output = document.flattened(over: nil) else {
             flash(String(localized: "Nothing to save"))
             return false
@@ -156,7 +180,27 @@ final class ImageEditorSession: ObservableObject {
         }
     }
 
+    /// 另存为（无标题文档 / 手动导出）。
     @discardableResult
+    func saveAs() -> Bool {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = (displayName as NSString).deletingPathExtension + ".png"
+        panel.allowedContentTypes = []
+        guard panel.runModal() == .OK, let url = panel.url else { return false }
+        guard let output = document.flattened(over: nil) else { return false }
+        do {
+            try ImageTransforms.save(output, to: url)
+            fileURL = url
+            displayName = url.lastPathComponent
+            document.markSaved()
+            flash(String(localized: "Saved"))
+            return true
+        } catch {
+            flash(String(localized: "Save failed: \(error.localizedDescription)"))
+            return false
+        }
+    }
+
     func export(format: String, to url: URL, quality: Double = 0.92) -> Bool {
         guard let composite = document.composite() else { return false }
         let needsBackdrop = ["jpg", "jpeg"].contains(format.lowercased())

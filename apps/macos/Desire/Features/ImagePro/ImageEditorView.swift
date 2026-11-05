@@ -13,6 +13,12 @@ struct ImageEditorView: View {
     @State private var exportFormat = "png"
     @State private var showAI = false
     @State private var showTextStyle = false
+    @State private var showCanvasSize = false
+    @State private var showImageSize = false
+    @State private var sizeWidth = ""
+    @State private var sizeHeight = ""
+    @State private var pendingTemplate: ImageEditorTemplate?
+    @State private var showDiscardAlert = false
     @State private var aiPrompt = ""
     @Environment(\.appAccent) private var appAccent
 
@@ -62,6 +68,25 @@ struct ImageEditorView: View {
             statusBar
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .sheet(isPresented: $showCanvasSize) {
+            sizeSheet(title: String(localized: "Canvas Size")) {
+                session.document.resizeCanvas(to: CGSize(width: CGFloat(Int(sizeWidth) ?? 0),
+                                                          height: CGFloat(Int(sizeHeight) ?? 0)))
+            }
+        }
+        .sheet(isPresented: $showImageSize) {
+            sizeSheet(title: String(localized: "Image Size")) {
+                session.document.resize(to: CGSize(width: CGFloat(Int(sizeWidth) ?? 0),
+                                                    height: CGFloat(Int(sizeHeight) ?? 0)))
+            }
+        }
+        .alert(String(localized: "Discard unsaved changes?"), isPresented: $showDiscardAlert) {
+            Button(String(localized: "Cancel"), role: .cancel) { pendingTemplate = nil }
+            Button(String(localized: "Discard"), role: .destructive) {
+                if let template = pendingTemplate { newDocument(template) }
+                pendingTemplate = nil
+            }
+        }
         .onAppear { session.activate() }
         .onDisappear { session.removeKeyMonitor() }
         .onAppear {
@@ -146,6 +171,45 @@ struct ImageEditorView: View {
             .popover(isPresented: $showAI, arrowEdge: .bottom) {
                 aiPopover
             }
+
+            Menu {
+                Section(String(localized: "New Document")) {
+                    ForEach(ImageEditorTemplate.all) { template in
+                        Button(template.name) {
+                            if session.document.isDirty {
+                                pendingTemplate = template
+                                showDiscardAlert = true
+                            } else {
+                                newDocument(template)
+                            }
+                        }
+                    }
+                }
+                Section(String(localized: "Canvas Size")) {
+                    ForEach(ImageEditorTemplate.all) { template in
+                        Button(template.name) {
+                            session.document.resizeCanvas(to: template.size)
+                        }
+                    }
+                    Button(String(localized: "Custom Canvas Size…")) {
+                        sizeWidth = "\(Int(session.canvasSize.width))"
+                        sizeHeight = "\(Int(session.canvasSize.height))"
+                        showCanvasSize = true
+                    }
+                }
+                Button(String(localized: "Image Size…")) {
+                    sizeWidth = "\(Int(session.canvasSize.width))"
+                    sizeHeight = "\(Int(session.canvasSize.height))"
+                    showImageSize = true
+                }
+            } label: {
+                Image(systemName: "aspectratio")
+                    .font(.system(size: 12, weight: .medium))
+                    .frame(width: 24, height: 24)
+            }
+            .menuIndicator(.hidden)
+            .buttonStyle(.plain)
+            .help(String(localized: "Canvas"))
 
             iconButton("square.and.arrow.down", help: String(localized: "Save (⌘S)")) {
                 session.saveInPlace()
@@ -238,7 +302,7 @@ struct ImageEditorView: View {
             return
         }
         let context = """
-        当前打开的图片编辑器：\(session.fileURL.path)（\(Int(session.canvasSize.width))×\(Int(session.canvasSize.height)) 像素）。        请按我的要求编辑：\(prompt)。使用 editImage 工具执行，坐标一律用图片像素，完成后简要说明改了什么。
+        当前打开的图片编辑器：\(session.fileURL?.path ?? "未命名文档")（\(Int(session.canvasSize.width))×\(Int(session.canvasSize.height)) 像素）。        请按我的要求编辑：\(prompt)。使用 editImage 工具执行，坐标一律用图片像素，完成后简要说明改了什么。
         """
         target.sendMessage(context)
         aiPrompt = ""
@@ -604,6 +668,47 @@ struct ImageEditorView: View {
         .padding(.horizontal, 12)
         .frame(height: 24)
         .background(Color(nsColor: .controlBackgroundColor).opacity(0.5))
+    }
+
+    private func newDocument(_ template: ImageEditorTemplate) {
+        session.newDocument(size: template.size, name: template.name)
+    }
+
+    private func sizeSheet(title: String, apply: @escaping () -> Void) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(title).font(.system(size: 12, weight: .semibold))
+            HStack(spacing: 10) {
+                Text(String(localized: "Width"))
+                    .font(.system(size: 11))
+                    .frame(width: 44, alignment: .leading)
+                TextField("", text: $sizeWidth)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 90)
+                Text(String(localized: "Height"))
+                    .font(.system(size: 11))
+                    .frame(width: 44, alignment: .leading)
+                TextField("", text: $sizeHeight)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 90)
+                Text(verbatim: "px").font(.system(size: 10)).foregroundStyle(.tertiary)
+            }
+            HStack {
+                Spacer()
+                Button(String(localized: "Cancel")) {
+                    showCanvasSize = false
+                    showImageSize = false
+                }
+                .buttonStyle(.bordered)
+                Button(String(localized: "Apply")) {
+                    apply()
+                    showCanvasSize = false
+                    showImageSize = false
+                }
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(16)
+        .frame(width: 340)
     }
 
     // MARK: - 辅助

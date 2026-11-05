@@ -1,10 +1,13 @@
 import SwiftUI
 
-/// 图层面板（v0.8.46 重写）：可见性 / 选中 / 透明度 / 混合模式 / 增删序。
+/// 图层面板 2.0（迭代 4）：缩略图、拖拽排序、向下合并、拼合、锁定、重命名。
 struct ImageEditorLayersPanel: View {
     @ObservedObject private var session: ImageEditorSession
     @ObservedObject private var document: ImageEditorDocument
     @Environment(\.appAccent) private var appAccent
+
+    @State private var renamingID: UUID?
+    @State private var renameText = ""
 
     init(session: ImageEditorSession) {
         _session = ObservedObject(wrappedValue: session)
@@ -13,7 +16,7 @@ struct ImageEditorLayersPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            HStack(spacing: 6) {
+            HStack(spacing: 4) {
                 iconButton("plus.square", help: String(localized: "New Layer")) {
                     document.addLayer()
                 }
@@ -24,26 +27,33 @@ struct ImageEditorLayersPanel: View {
                     document.deleteActiveLayer()
                 }
                 .disabled(document.layers.count <= 1)
-                Spacer()
-                iconButton("chevron.up", help: String(localized: "Raise Layer")) {
-                    document.moveActiveLayer(up: true)
+                Spacer(minLength: 2)
+                iconButton("arrow.triangle.merge", help: String(localized: "Merge Down")) {
+                    document.mergeDown()
                 }
-                iconButton("chevron.down", help: String(localized: "Lower Layer")) {
-                    document.moveActiveLayer(up: false)
+                .disabled(!canMergeDown)
+                iconButton("square.3.layers.3d.down.right",
+                           help: String(localized: "Flatten")) {
+                    document.flattenLayers()
                 }
+                .disabled(document.layers.count <= 1)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 6)
             Divider()
 
-            ScrollView {
-                LazyVStack(spacing: 1) {
-                    ForEach(document.layers.reversed()) { layer in
-                        row(layer)
-                    }
+            List {
+                ForEach(Array(document.layers.reversed())) { layer in
+                    row(layer)
+                        .listRowInsets(EdgeInsets(top: 1, leading: 4, bottom: 1, trailing: 4))
+                        .listRowSeparator(.hidden)
+                        .listRowBackground(Color.clear)
                 }
-                .padding(6)
+                .onMove(perform: moveLayers)
             }
+            .listStyle(.plain)
+            .scrollContentBackground(.hidden)
+            .environment(\.defaultMinListRowHeight, 30)
 
             Divider()
             if let active = document.activeLayer {
@@ -82,11 +92,50 @@ struct ImageEditorLayersPanel: View {
                 .padding(.vertical, 8)
             }
         }
+        .sheet(item: Binding(
+            get: { renamingID.flatMap { id in document.layers.first { $0.id == id } } },
+            set: { if $0 == nil { renamingID = nil } }
+        )) { layer in
+            VStack(alignment: .leading, spacing: 12) {
+                Text(String(localized: "Rename Layer"))
+                    .font(.system(size: 12, weight: .semibold))
+                TextField("", text: $renameText)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 240)
+                    .onSubmit { commitRename(layer.id) }
+                HStack {
+                    Spacer()
+                    Button(String(localized: "Cancel")) { renamingID = nil }
+                        .buttonStyle(.bordered)
+                    Button(String(localized: "Rename")) { commitRename(layer.id) }
+                        .buttonStyle(.borderedProminent)
+                }
+            }
+            .padding(16)
+        }
+    }
+
+    private var canMergeDown: Bool {
+        guard let index = document.layers.firstIndex(where: { $0.id == document.activeLayerID })
+        else { return false }
+        return index > 0
+    }
+
+    private func moveLayers(from source: IndexSet, to destination: Int) {
+        var order = Array(document.layers.reversed())
+        order.move(fromOffsets: source, toOffset: destination)
+        document.reorderLayers(Array(order.reversed()))
+    }
+
+    private func commitRename(_ id: UUID) {
+        let trimmed = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { document.renameLayer(id, name: trimmed) }
+        renamingID = nil
     }
 
     private func row(_ layer: ImageEditorLayer) -> some View {
         let isActive = layer.id == document.activeLayerID
-        return HStack(spacing: 8) {
+        return HStack(spacing: 7) {
             Button {
                 document.setLayerVisible(layer.id, visible: !layer.isVisible)
             } label: {
@@ -98,18 +147,18 @@ struct ImageEditorLayersPanel: View {
             .buttonStyle(.plain)
             .help(String(localized: "Show / Hide"))
 
-            RoundedRectangle(cornerRadius: 3)
-                .fill(Color.secondary.opacity(0.18))
-                .frame(width: 28, height: 22)
-                .overlay(Image(systemName: "photo")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.tertiary))
+            thumbnail(for: layer)
 
             Text(layer.name)
                 .font(.system(size: 11))
                 .lineLimit(1)
                 .foregroundStyle(isActive ? AnyShapeStyle(appAccent) : AnyShapeStyle(.primary))
-            Spacer(minLength: 4)
+            Spacer(minLength: 2)
+            if layer.isLocked {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.tertiary)
+            }
             if layer.blend != .normal {
                 Text(layer.blend.localizedTitle)
                     .font(.system(size: 9))
@@ -121,13 +170,54 @@ struct ImageEditorLayersPanel: View {
                     .foregroundStyle(.tertiary)
             }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 4)
+        .padding(.horizontal, 5)
+        .padding(.vertical, 3)
         .background(RoundedRectangle(cornerRadius: 5)
             .fill(isActive ? AnyShapeStyle(appAccent.opacity(0.12))
                            : AnyShapeStyle(Color.clear)))
         .contentShape(Rectangle())
         .onTapGesture { document.selectLayer(layer.id) }
+        .contextMenu {
+            Button(String(localized: "Rename")) {
+                renameText = layer.name
+                renamingID = layer.id
+            }
+            Button(layer.isLocked ? String(localized: "Unlock Layer")
+                                  : String(localized: "Lock Layer")) {
+                document.setLayerLocked(layer.id, locked: !layer.isLocked)
+            }
+            Button(String(localized: "Duplicate Layer")) {
+                document.selectLayer(layer.id)
+                document.duplicateActiveLayer()
+            }
+            Button(String(localized: "Merge Down")) {
+                document.selectLayer(layer.id)
+                document.mergeDown()
+            }
+            Divider()
+            Button(String(localized: "Delete Layer")) {
+                document.selectLayer(layer.id)
+                document.deleteActiveLayer()
+            }
+            .disabled(document.layers.count <= 1)
+        }
+    }
+
+    @ViewBuilder
+    private func thumbnail(for layer: ImageEditorLayer) -> some View {
+        if let cg = document.thumbnail(for: layer.id) {
+            Image(decorative: cg, scale: 1)
+                .resizable()
+                .interpolation(.low)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: 34, height: 24)
+                .background(Color.white.opacity(0.08))
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+        } else {
+            RoundedRectangle(cornerRadius: 3)
+                .fill(Color.secondary.opacity(0.18))
+                .frame(width: 34, height: 24)
+        }
     }
 
     private func iconButton(_ symbol: String, help: String,

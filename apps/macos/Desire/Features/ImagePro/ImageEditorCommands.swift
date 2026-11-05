@@ -20,6 +20,11 @@ enum ImageEditorCommands {
             return ["error": "Missing action. See /image/edit for supported actions."]
         }
         let document = session.document
+        if document.isActiveLayerLocked,
+           ["brush", "stroke", "eraser", "shape", "text", "fill", "mosaic",
+            "move"].contains(action) {
+            return ["error": "Layer is locked"]
+        }
         do {
             switch action {
             case "state":
@@ -52,6 +57,21 @@ enum ImageEditorCommands {
                 return try fill(body: body, document: document)
             case "mosaic":
                 return try mosaic(body: body, document: document)
+            case "newdoc":
+                let w = Self.number(body["width"]) ?? 1280
+                let h = Self.number(body["height"]) ?? 720
+                let name = (body["name"] as? String) ?? "Untitled"
+                session.newDocument(size: CGSize(width: w, height: h), name: name)
+                return ["ok": true, "width": Int(session.canvasSize.width),
+                        "height": Int(session.canvasSize.height)]
+            case "canvassize":
+                guard let w = Self.number(body["width"]),
+                      let h = Self.number(body["height"]) else {
+                    return ["error": "canvassize needs width and height"]
+                }
+                document.resizeCanvas(to: CGSize(width: w, height: h))
+                return ["ok": true, "width": Int(document.canvasSize.width),
+                        "height": Int(document.canvasSize.height)]
             case "crop":
                 guard let rect = Self.rect(body["rect"]) else {
                     return ["error": "crop needs rect: [x, y, width, height]"]
@@ -153,7 +173,7 @@ enum ImageEditorCommands {
                 return ["ok": true, "history": document.historyTitles.count]
             case "save":
                 let saved = session.saveInPlace()
-                return ["ok": saved, "path": session.fileURL.path]
+                return ["ok": saved, "path": session.fileURL?.path ?? ""]
             case "export":
                 guard let path = body["path"] as? String, !path.isEmpty else {
                     return ["error": "export needs path"]
@@ -190,6 +210,10 @@ enum ImageEditorCommands {
         let message: String
         init(_ m: String) { message = m }
         var errorDescription: String? { message }
+    }
+
+    private static func lockedError(_ document: ImageEditorDocument) -> [String: Any]? {
+        document.isActiveLayerLocked ? ["error": "Layer is locked"] : nil
     }
 
     private static func brush(points: [CGPoint], body: [String: Any],
@@ -382,6 +406,20 @@ enum ImageEditorCommands {
         case "delete":
             document.deleteActiveLayer()
             return ["ok": true, "layers": document.layers.count]
+        case "merge":
+            document.mergeDown()
+            return ["ok": true, "layers": document.layers.count]
+        case "flatten":
+            document.flattenLayers()
+            return ["ok": true, "layers": document.layers.count]
+        case "lock":
+            guard let id = document.activeLayer?.id else { return ["error": "No active layer"] }
+            document.setLayerLocked(id, locked: true)
+            return ["ok": true, "locked": true]
+        case "unlock":
+            guard let id = document.activeLayer?.id else { return ["error": "No active layer"] }
+            document.setLayerLocked(id, locked: false)
+            return ["ok": true, "locked": false]
         case "up":
             document.moveActiveLayer(up: true)
             return ["ok": true]
@@ -442,7 +480,7 @@ enum ImageEditorCommands {
         }
         return [
             "ok": true,
-            "file": session.fileURL.path,
+            "file": session.fileURL?.path ?? "",
             "width": Int(document.canvasSize.width),
             "height": Int(document.canvasSize.height),
             "tool": session.tool.rawValue,

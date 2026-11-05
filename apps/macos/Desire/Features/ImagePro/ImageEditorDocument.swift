@@ -26,6 +26,7 @@ final class ImageEditorDocument: ObservableObject {
     private var undoStack: [Snapshot] = []
     private var redoStack: [Snapshot] = []
     private var compositeCache: (revision: Int, image: CGImage?)?
+    private var thumbnailCache: [UUID: (revision: Int, image: CGImage)] = [:]
     private let maxHistory = 40
 
     private struct Snapshot {
@@ -228,6 +229,93 @@ final class ImageEditorDocument: ObservableObject {
         layers.swapAt(index, target)
         compositeCache = nil
         commit()
+    }
+
+    /// 图层缩略图（按 revision 缓存，面板绘制用）。
+    func thumbnail(for id: UUID, maxSide: CGFloat = 48) -> CGImage? {
+        if let cached = thumbnailCache[id], cached.revision == revision {
+            return cached.image
+        }
+        guard let bitmap = bitmaps[id] else { return nil }
+        let scale = min(1, maxSide / CGFloat(max(bitmap.width, bitmap.height)))
+        let w = max(1, Int(CGFloat(bitmap.width) * scale))
+        let h = max(1, Int(CGFloat(bitmap.height) * scale))
+        guard let small = ImageTransforms.resized(bitmap, width: w, height: h) else { return nil }
+        thumbnailCache[id] = (revision, small)
+        return small
+    }
+
+    /// 拖拽排序：传入"自下而上"的新顺序。
+    func reorderLayers(_ newOrder: [ImageEditorLayer]) {
+        guard newOrder.map(\.id) != layers.map(\.id) else { return }
+        pushHistory("Reorder Layers")
+        layers = newOrder
+        compositeCache = nil
+        commit()
+    }
+
+    /// 向下合并：当前图层按自身透明度/混合叠加到下方图层。
+    func mergeDown() {
+        guard let index = layers.firstIndex(where: { $0.id == activeLayerID }),
+              index > 0,
+              let upper = bitmaps[layers[index].id],
+              let lower = bitmaps[layers[index - 1].id] else { return }
+        pushHistory("Merge Down")
+        let size = canvasSize
+        let w = Int(size.width), h = Int(size.height)
+        let merged: CGImage?
+        if let ctx = CGContext(data: nil, width: w, height: h,
+                               bitsPerComponent: 8, bytesPerRow: 0,
+                               space: CGColorSpaceCreateDeviceRGB(),
+                               bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
+            let lowerLayer = layers[index - 1]
+            let upperLayer = layers[index]
+            ctx.draw(lower, in: CGRect(x: lowerLayer.offset.width,
+                                       y: -lowerLayer.offset.height,
+                                       width: CGFloat(w), height: CGFloat(h)))
+            ctx.saveGState()
+            ctx.setAlpha(CGFloat(upperLayer.opacity))
+            ctx.setBlendMode(upperLayer.blend.cgBlendMode)
+            ctx.draw(upper, in: CGRect(x: upperLayer.offset.width,
+                                       y: -upperLayer.offset.height,
+                                       width: CGFloat(w), height: CGFloat(h)))
+            ctx.restoreGState()
+            merged = ctx.makeImage()
+        } else {
+            merged = lower
+        }
+        guard let merged else { return }
+        layers[index - 1].offset = .zero
+        bitmaps[layers[index - 1].id] = merged
+        let removed = layers.remove(at: index)
+        bitmaps[removed.id] = nil
+        activeLayerID = layers[index - 1].id
+        compositeCache = nil
+        commit()
+    }
+
+    /// 拼合可见图层为单一背景层（隐藏层丢弃）。
+    func flattenLayers() {
+        guard layers.count > 1 else { return }
+        pushHistory("Flatten")
+        guard let flat = ImageEditorRaster.composite(layers: layers, bitmaps: bitmaps,
+                                                     size: canvasSize) else { return }
+        let background = ImageEditorLayer(id: UUID(), name: "Background")
+        layers = [background]
+        bitmaps = [background.id: flat]
+        activeLayerID = background.id
+        compositeCache = nil
+        commit()
+    }
+
+    func setLayerLocked(_ id: UUID, locked: Bool) {
+        guard let index = layers.firstIndex(where: { $0.id == id }) else { return }
+        layers[index].isLocked = locked
+        commit()
+    }
+
+    var isActiveLayerLocked: Bool {
+        activeLayer?.isLocked ?? false
     }
 
     func selectLayer(_ id: UUID) {
@@ -476,6 +564,43 @@ final class ImageEditorDocument: ObservableObject {
         selection = ImageEditorSelection()
         compositeCache = nil
         commit()
+    }
+
+    /// 改画布尺寸（不缩放内容，内容按中心平移；负空间透明）。
+    func resizeCanvas(to size: CGSize) {
+        let w = max(1, size.width.rounded())
+        let h = max(1, size.height.rounded())
+        guard w != canvasSize.width || h != canvasSize.height else { return }
+        pushHistory("Canvas Size")
+        let dx = (w - canvasSize.width) / 2
+        let dy = (h - canvasSize.height) / 2
+        for index in layers.indices {
+            layers[index].offset = CGSize(width: layers[index].offset.width + dx,
+                                          height: layers[index].offset.height + dy)
+        }
+        canvasSize = CGSize(width: w, height: h)
+        selection = ImageEditorSelection()
+        compositeCache = nil
+        commit()
+    }
+
+    /// 用空白画布重置（新建文档）。
+    func reset(image: CGImage, name: String) {
+        canvasSize = CGSize(width: image.width, height: image.height)
+        let base = ImageEditorLayer(id: UUID(), name: name)
+        layers = [base]
+        bitmaps = [base.id: image]
+        activeLayerID = base.id
+        selection = ImageEditorSelection()
+        undoStack.removeAll()
+        redoStack.removeAll()
+        historyTitles = []
+        redoCount = 0
+        previewAdjust = nil
+        previewFilter = nil
+        compositeCache = nil
+        isDirty = false
+        revision += 1
     }
 
     func resize(to size: CGSize) {

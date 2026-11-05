@@ -103383,6 +103383,29 @@
           }
         }
       }
+    },
+    "Recovered from draft":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Recovered from draft"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已从草稿恢复"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已從草稿還原"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

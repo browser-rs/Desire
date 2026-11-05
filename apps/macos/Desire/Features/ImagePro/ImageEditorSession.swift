@@ -64,6 +64,8 @@ final class ImageEditorSession: ObservableObject {
     @Published var loadError: String?
 
     private var noteToken = 0
+    private var draftTask: Task<Void, Never>?
+    var draftSourceKey: String { fileURL?.path ?? "untitled" }
     private var keyMonitor: Any?
 
     // MARK: - 初始化
@@ -185,6 +187,7 @@ final class ImageEditorSession: ObservableObject {
                 try? fm.copyItem(at: fileURL, to: backup)
             }
             try ImageTransforms.save(output, to: fileURL)
+            ImageEditorDraft.remove(for: draftSourceKey)
             document.markSaved()
             flash(String(localized: "Saved"))
             return true
@@ -192,6 +195,30 @@ final class ImageEditorSession: ObservableObject {
             flash(String(localized: "Save failed: \(error.localizedDescription)"))
             return false
         }
+    }
+
+    /// 编辑后 3s 防抖写草稿（崩溃/强杀后可恢复）。
+    func scheduleDraftSave() {
+        draftTask?.cancel()
+        guard document.isDirty else { return }
+        draftTask = Task { @MainActor in
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled, document.isDirty,
+                  let image = document.flattened(over: nil) else { return }
+            _ = ImageEditorDraft.save(image, for: draftSourceKey)
+        }
+    }
+
+    /// 恢复草稿（仅像素）。
+    @discardableResult
+    func restoreDraft() -> Bool {
+        guard let image = ImageEditorDraft.load(for: draftSourceKey) else { return false }
+        document.reset(image: image, name: displayName)
+        canvas.updateContent(display: CGSize(width: image.width, height: image.height),
+                             base: CGSize(width: image.width, height: image.height), ops: [])
+        canvas.recomputeFit()
+        flash(String(localized: "Recovered from draft"))
+        return true
     }
 
     /// 放弃未保存修改，重新从磁盘加载（文件不存在返回 false）。

@@ -17,6 +17,8 @@
 - ImagePro 迭代 16：直方图——检查器新增直方图页（RGB 三通道曲线，跟随编辑重算），命令 API histogram 返回三通道峰值。实测白图峰值 255、黑图峰值 0。
 - ImagePro 迭代 17：快捷键扩充——X 交换前景/背景色、D 重置黑白、[ / ] 调笔刷大小（1–300），与已有工具键（V/M/L/W/C/B/E/T/U/J/G/I/H/Z）和 ⌘ 系（撤销/重做/保存/缩放/导出/复制）合并；/image/state 暴露 secondaryColor 与 brushSize。
 - ImagePro 迭代 18：AI 命令补全——新增 template {name} 命令（youtube/shorts/square/x/wechat/a4/a3/fullhd 直接新建画布），editImage 工具描述同步到全部动作（模板/画布/渐变/修饰/图层样式/抠图/抓帧/复制/恢复/直方图等）。
+- ImagePro 迭代 15b：自动草稿与恢复——编辑后 3 秒防抖把合成写进 Application Support/Desire/ImageEditorDrafts（按源文件路径哈希命名），保存正式文件后自动清除；命令 API draft {op: status|save|restore|discard}。实测保存草稿→改蓝→恢复→回到红色草稿像素，丢弃后状态为无。
+
 
 
 

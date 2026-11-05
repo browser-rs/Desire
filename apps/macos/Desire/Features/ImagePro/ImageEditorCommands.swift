@@ -294,6 +294,26 @@ enum ImageEditorCommands {
             case "save":
                 let saved = session.saveInPlace()
                 return ["ok": saved, "path": session.fileURL?.path ?? ""]
+            case "draft":
+                let op = (body["op"] as? String)?.lowercased() ?? "status"
+                switch op {
+                case "save":
+                    guard let image = document.flattened(over: nil) else {
+                        return ["error": "nothing to save"]
+                    }
+                    return ["ok": ImageEditorDraft.save(image, for: session.draftSourceKey)]
+                case "restore":
+                    return ["ok": session.restoreDraft()]
+                case "discard":
+                    ImageEditorDraft.remove(for: session.draftSourceKey)
+                    return ["ok": true]
+                default:
+                    return ["ok": true,
+                            "exists": ImageEditorDraft.exists(for: session.draftSourceKey),
+                            "modified": ImageEditorDraft.modified(for: session.draftSourceKey)?
+                                .timeIntervalSince1970 ?? 0,
+                            "path": ImageEditorDraft.url(for: session.draftSourceKey).path]
+                }
             case "revert":
                 return ["ok": session.revertToSaved()]
             case "histogram":

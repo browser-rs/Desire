@@ -103406,6 +103406,144 @@
           }
         }
       }
+    },
+    "ImagePro: a real image editor":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ImagePro: a real image editor"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ImagePro：真正的图片编辑器"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ImagePro：真正的圖片編輯器"
+          }
+        }
+      }
+    },
+    "The rebuilt ImagePro brings layers, selections, multi-line text, shapes, gradients, retouch tools (clone, heal, dodge & burn), live-preview adjustments, layer styles and a histogram — everything recorded in an undoable history.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The rebuilt ImagePro brings layers, selections, multi-line text, shapes, gradients, retouch tools (clone, heal, dodge & burn), live-preview adjustments, layer styles and a histogram — everything recorded in an undoable history."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重写的 ImagePro 带来图层、选区、多行文字、形状、渐变、修饰工具（克隆、修复、减淡加深）、实时预览调整、图层样式和直方图——所有操作都记录在可撤销的历史里。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重寫的 ImagePro 帶來圖層、選區、多行文字、形狀、漸層、修飾工具（克隆、修復、減淡加深）、即時預覽調整、圖層樣式和直方圖——所有操作都記錄在可撤銷的歷史裡。"
+          }
+        }
+      }
+    },
+    "Edit images by asking":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Edit images by asking"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"动口就能修图"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"動口就能修圖"
+          }
+        }
+      }
+    },
+    "Tell the Agent what you want — cut out the subject, brighten the shadows, make a poster — and it drives the same editor tools through editImage, on the same image-pixel coordinates and the same history.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Tell the Agent what you want — cut out the subject, brighten the shadows, make a poster — and it drives the same editor tools through editImage, on the same image-pixel coordinates and the same history."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"告诉 Agent 你想要什么——抠出主体、提亮阴影、做一张海报——它会通过 editImage 驱动同一套编辑器工具，同样的图片像素坐标、同样的历史记录。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"告訴 Agent 你想要什麼——摳出主體、提亮陰影、做一張海報——它會透過 editImage 驅動同一套編輯器工具，同樣的圖片像素座標、同樣的歷史記錄。"
+          }
+        }
+      }
+    },
+    "Templates and video covers":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Templates and video covers"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"模板与视频封面"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"模板與影片封面"
+          }
+        }
+      }
+    },
+    "Start from YouTube 1280×720, Shorts 1080×1920, A4/A3 posters and more, or pull any frame out of a video file and design the cover on top of it.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Start from YouTube 1280×720, Shorts 1080×1920, A4/A3 posters and more, or pull any frame out of a video file and design the cover on top of it."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"从 YouTube 1280×720、Shorts 1080×1920、A4/A3 海报等模板开始，或从视频文件里抽出任意一帧，在上面设计封面。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"從 YouTube 1280×720、Shorts 1080×1920、A4/A3 海報等模板開始，或從影片檔案裡抽出任意一格畫面，在上面設計封面。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

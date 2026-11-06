@@ -14,15 +14,16 @@ struct WhatsNewSheet: View {
         let detail: String
     }
 
-    /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的）。
+    /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的；
+    /// v0.8.46 又漏刷一次——ImagePro 亮点随 v0.8.47 才展示）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "doc.richtext", title: String(localized: "PDF, meet the bookshelf"),
-                  detail: String(localized: "PDF files now live in your library with covers, progress, bookmarks, contents and reading stats — and any web page can be saved as a full-page PDF straight onto the shelf.")),
-            .init(icon: "speaker.wave.3", title: String(localized: "Read, listen, translate PDFs"),
-                  detail: String(localized: "PDFs get the full reading treatment: paragraph read-aloud that follows the page, an inline translation under each paragraph, and search that jumps to the exact hit.")),
-            .init(icon: "doc.on.doc", title: String(localized: "Batch PDF work"),
-                  detail: String(localized: "Ask the Agent to merge, split, extract or rotate a whole folder of PDFs — it runs as a background job with per-file results and lands in Merged/ Split/ Extracted/ Rotated/.")),
+            .init(icon: "photo.stack", title: String(localized: "ImagePro: a real image editor"),
+                  detail: String(localized: "The rebuilt ImagePro brings layers, selections, multi-line text, shapes, gradients, retouch tools (clone, heal, dodge & burn), live-preview adjustments, layer styles and a histogram — everything recorded in an undoable history.")),
+            .init(icon: "wand.and.stars", title: String(localized: "Edit images by asking"),
+                  detail: String(localized: "Tell the Agent what you want — cut out the subject, brighten the shadows, make a poster — and it drives the same editor tools through editImage, on the same image-pixel coordinates and the same history.")),
+            .init(icon: "film", title: String(localized: "Templates and video covers"),
+                  detail: String(localized: "Start from YouTube 1280×720, Shorts 1080×1920, A4/A3 posters and more, or pull any frame out of a video file and design the cover on top of it.")),
         ]
     }
 

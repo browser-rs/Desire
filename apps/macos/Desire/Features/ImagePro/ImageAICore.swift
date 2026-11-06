@@ -32,14 +32,34 @@ nonisolated enum ImageAICore {
         let height = CVPixelBufferGetHeight(unwrapped)
         CVPixelBufferLockBaseAddress(unwrapped, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(unwrapped, .readOnly) }
-        guard let baseAddress = CVPixelBufferGetBaseAddress(unwrapped),
-              let maskContext = CGContext(
-                  data: baseAddress, width: width, height: height,
-                  bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(unwrapped),
-                  space: CGColorSpaceCreateDeviceGray(),
-                  bitmapInfo: CGImageAlphaInfo.none.rawValue)
-        else { return nil }
-        return maskContext.makeImage()
+        guard let baseAddress = CVPixelBufferGetBaseAddress(unwrapped) else { return nil }
+        // Vision 的 scaled mask 是 OneComponent32Float（'L00f'，实测 bytesPerRow =
+        // width×4，值域 0..1）。不能把 float buffer 直接包进 8-bit 灰度 CGContext——
+        // 每个 float 的 4 个字节会被当成 4 个灰度像素，产出竖条纹 garbage 蒙版
+        //（真实照片实测：抠图在错误区域擦除）。逐像素转 8-bit 灰度。
+        let rowStride = CVPixelBufferGetBytesPerRow(unwrapped) / MemoryLayout<Float32>.size
+        let floats = baseAddress.assumingMemoryBound(to: Float32.self)
+        var gray = Data(count: width * height)
+        gray.withUnsafeMutableBytes { raw in
+            let dst = raw.baseAddress!.assumingMemoryBound(to: UInt8.self)
+            for y in 0..<height {
+                let srcRow = floats + y * rowStride
+                let dstRow = dst + y * width
+                for x in 0..<width {
+                    let v = max(0, min(1, srcRow[x]))
+                    dstRow[x] = UInt8((v * 255).rounded())
+                }
+            }
+        }
+        return gray.withUnsafeBytes { raw in
+            CGContext(
+                data: UnsafeMutableRawPointer(mutating: raw.baseAddress),
+                width: width, height: height,
+                bitsPerComponent: 8, bytesPerRow: width,
+                space: CGColorSpaceCreateDeviceGray(),
+                bitmapInfo: CGImageAlphaInfo.none.rawValue)?
+                .makeImage()
+        }
     }
 
 

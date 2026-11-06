@@ -300,24 +300,38 @@ struct ImageEditorView: View {
                 .textFieldStyle(.roundedBorder)
                 .frame(width: 330)
                 .onSubmit(sendAIPrompt)
-            HStack(spacing: 6) {
-                ForEach(["Crop to 1:1", "Brighten", "Black & White", "Add text"], id: \.self) { item in
-                    Button(item) {
-                        aiPrompt = item
-                        sendAIPrompt()
+            // 引导工作流（迭代 18b）：一键把预设诉求交给 Agent。两行排布
+            // 避免 330pt 弹窗里横向溢出。
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 6) {
+                    ForEach(["Crop to 1:1", "Brighten", "Black & White"], id: \.self) { item in
+                        chip(item)
                     }
-                    .font(.system(size: 10))
-                    .buttonStyle(.bordered)
-                    .controlSize(.mini)
+                    Spacer()
+                    Button(String(localized: "Send")) { sendAIPrompt() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                        .disabled(aiPrompt.trimmingCharacters(in: .whitespaces).isEmpty)
                 }
-                Spacer()
-                Button(String(localized: "Send")) { sendAIPrompt() }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    .disabled(aiPrompt.trimmingCharacters(in: .whitespaces).isEmpty)
+                HStack(spacing: 6) {
+                    ForEach(["Add text", "Remove background", "Make a YouTube cover"], id: \.self) { item in
+                        chip(item)
+                    }
+                    Spacer()
+                }
             }
         }
         .padding(12)
+    }
+
+    private func chip(_ item: String) -> some View {
+        Button(item) {
+            aiPrompt = item
+            sendAIPrompt()
+        }
+        .font(.system(size: 10))
+        .buttonStyle(.bordered)
+        .controlSize(.mini)
     }
 
     private func sendAIPrompt() {

@@ -1,3 +1,15 @@
+## [Unreleased]
+### Added
+
+- ImagePro AI 弹窗引导芯片补全：新增「Remove background」「Make a YouTube cover」预设（两行排布防溢出），与既有一键诉求一样直接交给 Agent 驱动 editImage。
+
+### Fixed
+
+- 发版后置修复：What's New 亮点未随 v0.8.46 刷新（仍是 0.8.35 的 PDF/书架三条，与 0.8.26 同类事故）——已把亮点刷成 ImagePro 内容（编辑器/AI 驱动修图/模板与视频封面，三语），随下一版展示。
+- ImagePro 抠图修复（真实照片验证发现）：Vision 的 scaled mask 实际是 OneComponent32Float（'L00f'，bytesPerRow=width×4，值域 0..1），此前把 float buffer 直接包进 8-bit 灰度 CGContext——每个 float 的 4 字节被当成 4 个灰度像素，产出竖条纹 garbage 蒙版，抠图在错误区域擦除（真实照片实测：猫被斜向擦掉、背景反而保留）。现在逐像素 float→8-bit 灰度转换，真实照片抠图完整（主体/须毛/边界全部正确，四角透明），erase 与 layer 两种模式均验证。
+
+
+
 ## [v0.8.46] - 2026-11-06
 ### Added
 

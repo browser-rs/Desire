@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import CoreGraphics
+import os
 import CoreImage
 import SwiftUI
 
@@ -10,6 +11,40 @@ import SwiftUI
 final class ImageEditorSession: ObservableObject {
     /// 当前活动编辑器（桥/Agent 命令入口）。弱引用，窗口关闭自动失效。
     static weak var active: ImageEditorSession?
+
+    /// 全部活着的编辑器会话（弱持有，NSHashTable 在对象释放时自动摘除）。
+    /// 多窗口各开一个编辑器时，命令 API 靠 file/session 参数路由到指定会话，
+    /// 缺省仍打 active（后激活者）。
+    private static let registry = NSHashTable<ImageEditorSession>.weakObjects()
+
+    static var liveSessions: [ImageEditorSession] {
+        registry.objectEnumerator().allObjects.compactMap { $0 as? ImageEditorSession }
+    }
+
+    /// 命令路由：优先 body 里的 `session`（UUID）或 `file`（路径匹配）；两者都
+    /// 没给才回落 active（后激活者）。**显式给了却没匹配到 → 返回 nil**，调用方
+    /// 报错——宁可失败也不静默改错文档（多窗口时的 AI 事故面）。
+    static func resolve(_ body: [String: Any]) -> ImageEditorSession? {
+        let rawSession = (body["session"] as? String) ?? (body["session"] as? NSNumber)?.stringValue
+        let rawFile = body["file"] as? String
+        if let raw = rawSession, !raw.isEmpty, let uuid = UUID(uuidString: raw),
+           let hit = liveSessions.first(where: { $0.id == uuid }) {
+            return hit
+        }
+        if let file = rawFile, !file.isEmpty {
+            let wanted = (file as NSString).standardizingPath
+            if let hit = liveSessions.first(where: { $0.fileURL?.path == wanted }) {
+                return hit
+            }
+        }
+        if (rawSession?.isEmpty == false) || (rawFile?.isEmpty == false) {
+            return nil
+        }
+        return active
+    }
+
+    /// 会话稳定标识（命令 API 定向路由用）。
+    let id = UUID()
 
     var fileURL: URL?
     var displayName: String
@@ -81,13 +116,22 @@ final class ImageEditorSession: ObservableObject {
         let resolved = name.isEmpty ? fileURL.lastPathComponent : name
         self.displayName = resolved
         if let image = ImageTransforms.load(from: fileURL) {
-            document = ImageEditorDocument(image: image, name: resolved)
+            // 未保存草稿优先：编辑器视图随标签切换销毁（SelectedTabContent 只挂
+            // 当前标签），切回来时若无草稿恢复，3 秒防抖之前的修改就静默丢了。
+            // 保存与 Revert 都清草稿，草稿存在 = 有从未落盘的修改。
+            if let draft = ImageEditorDraft.load(for: fileURL.path) {
+                document = ImageEditorDocument(image: draft, name: resolved)
+                pendingDraftNotice = true
+            } else {
+                document = ImageEditorDocument(image: image, name: resolved)
+            }
         } else {
             document = ImageEditorDocument(
                 image: ImageEditorRaster.transparent(size: CGSize(width: 800, height: 600))!,
                 name: resolved)
             loadError = String(localized: "Could not load this image.")
         }
+        Self.registry.add(self)
     }
 
     /// 空白文档（模板/新建）。
@@ -97,6 +141,7 @@ final class ImageEditorSession: ObservableObject {
         let background = ImageEditorRaster.transparent(size: size)
             ?? ImageEditorRaster.transparent(size: CGSize(width: 800, height: 600))!
         document = ImageEditorDocument(image: background, name: name)
+        Self.registry.add(self)
     }
 
     var isUntitled: Bool { fileURL == nil }
@@ -112,8 +157,27 @@ final class ImageEditorSession: ObservableObject {
         flash(String(localized: "New document created"))
     }
 
+    /// init 里发现草稿时置位，activate（真正显示）时提示一次。
+    private var pendingDraftNotice = false
+
+    deinit {
+        // 生命周期观测（2026-11-07 会话路由排障）：标签关闭后会话必须能释放，
+        // 否则弱注册表里留下"可被 AI 寻址的幽灵编辑器"。
+        let path = fileURL?.path ?? "untitled"
+        Logger(subsystem: "me.siwi.Desire", category: "app").info(
+            "imagepro session deinit \(path, privacy: .public)")
+    }
+
     func activate() {
         ImageEditorSession.active = self
+        // 幂等补注册（init 已注册；set 语义，无副作用）。曾试过"只在 activate
+        // 注册"来躲视图 body 的僵尸会话——根因其实是"会话在视图里创建"，
+        // 创建点挪到路由层后，init 注册即可覆盖后台标签的未激活会话。
+        ImageEditorSession.registry.add(self)
+        if pendingDraftNotice {
+            pendingDraftNotice = false
+            flash(String(localized: "Recovered unsaved changes from draft"))
+        }
         installKeyMonitor()
     }
 
@@ -159,9 +223,12 @@ final class ImageEditorSession: ObservableObject {
         statusNote = text
         noteToken += 1
         let token = noteToken
-        Task { @MainActor in
+        // weak 捕获：强捕获会把"刚关闭的编辑器"在 2.5s 提示窗内继续钉活，
+        // 弱注册表里留下可被 AI 寻址的幽灵会话（2026-11-07 路由 E2E 实测）。
+        Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(2.5))
-            if self.noteToken == token { self.statusNote = nil }
+            guard let self, self.noteToken == token else { return }
+            self.statusNote = nil
         }
     }
 
@@ -275,6 +342,9 @@ final class ImageEditorSession: ObservableObject {
     @discardableResult
     func revertToSaved() -> Bool {
         guard let fileURL, let image = ImageTransforms.load(from: fileURL) else { return false }
+        // Revert = 用户明确放弃未保存修改：草稿必须清掉，否则下次打开
+        // 又被自动恢复回来（等于 Revert 无效）。
+        ImageEditorDraft.remove(for: draftSourceKey)
         document.reset(image: image, name: displayName)
         canvas.updateContent(display: CGSize(width: image.width, height: image.height),
                              base: CGSize(width: image.width, height: image.height),

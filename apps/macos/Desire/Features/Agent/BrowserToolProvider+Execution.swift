@@ -340,10 +340,11 @@ extension BrowserToolProvider {
             } else if let object = args["params"] as? [String: Any] {
                 command.merge(object) { _, new in new }
             }
-            guard ImageEditorSession.active != nil else {
-                return Self.fail("No image editor is open. Ask the user to open an image first.")
+            guard let target = ImageEditorSession.resolve(command) else {
+                return Self.fail("No matching image editor. Ask the user to open an image first, " +
+                                 "or target an open editor with file/session (see action state → sessions).")
             }
-            let result = await ImageEditorCommands.apply(command, session: ImageEditorSession.active)
+            let result = await ImageEditorCommands.apply(command, session: target)
             if let error = result["error"] as? String { return Self.fail(error) }
             let data = (try? JSONSerialization.data(withJSONObject: result,
                                                     options: [.sortedKeys])) ?? Data()

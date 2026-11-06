@@ -14,7 +14,10 @@ enum ImageEditorCommands {
     static func apply(_ body: [String: Any],
                       session: ImageEditorSession?) async -> [String: Any] {
         guard let session else {
-            return ["error": "No image editor is open. Open an image in a tab first."]
+            // 两种情况共用：① 根本没有打开的编辑器；② 显式给了 session/file
+            // 但没匹配到（resolve 刻意不回落 active，防止静默改错文档）。
+            return ["error": "No matching image editor. Omit file/session to target " +
+                    "the active editor, or list open editors via /image/state (sessions)."]
         }
         guard let action = (body["action"] as? String)?.lowercased(), !action.isEmpty else {
             return ["error": "Missing action. See /image/edit for supported actions."]
@@ -725,6 +728,16 @@ enum ImageEditorCommands {
             "dirty": document.isDirty,
             "previewing": document.previewAdjust != nil || document.previewFilter != nil,
             "layers": layers,
+            // 多窗口会话清单：AI/脚本据此发现全部打开的编辑器，再用
+            // session=<id> / file=<路径> 定向（缺省仍打 active）。
+            "sessions": ImageEditorSession.liveSessions.map { s in
+                [
+                    "id": s.id.uuidString,
+                    "file": s.fileURL?.path ?? "",
+                    "title": s.displayName,
+                    "active": ImageEditorSession.active === s,
+                ] as [String: Any]
+            },
         ]
     }
 

@@ -194,6 +194,20 @@ class BrowserState: ObservableObject {
     /// 图片编辑器（v0.8.12 旗舰 D）：非 nil = 该标签渲染图片编辑器。
     @Published var imageEditorURL: URL?
     @Published var imageEditorFileName = ""
+    /// 编辑器会话与 tab 同生命周期（非视图）：SelectedTabContent 只挂当前选中
+    /// 标签，会话若活在视图里，切走标签 = 会话销毁 = 未保存状态消失，且 AI
+    /// 对后台标签的编辑器无法路由。URL 变化时重建。
+    var imageEditorSession: ImageEditorSession?
+
+    /// 打开图片编辑器的唯一入口（路由层调用，勿在视图 body 里创建会话——
+    /// StateObject 自动闭包每次重算都会执行，会灌僵尸会话并反复读盘）。
+    func openImageEditor(url: URL, fileName: String) {
+        imageEditorFileName = fileName
+        imageEditorURL = url
+        if imageEditorSession?.fileURL != url {
+            imageEditorSession = ImageEditorSession(fileURL: url, name: fileName)
+        }
+    }
 
     /// 压缩包查看器（v0.8.12 旗舰 C）：非 nil = 该标签渲染 ArchiveViewer。
     @Published var archiveViewerURL: URL?

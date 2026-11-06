@@ -103544,6 +103544,29 @@
           }
         }
       }
+    },
+    "Recovered unsaved changes from draft":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Recovered unsaved changes from draft"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已从草稿恢复未保存的修改"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已從草稿恢復未儲存的修改"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

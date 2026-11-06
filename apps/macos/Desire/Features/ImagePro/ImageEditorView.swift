@@ -5,8 +5,6 @@ import UniformTypeIdentifiers
 /// ImagePro 编辑器主界面（v0.8.46 重写）：顶栏 / 工具选项 / 工具轨 / 画布 /
 /// 检查器（图层·历史·调整）/ 状态栏。所有编辑动作走 ImageEditorDocument。
 struct ImageEditorView: View {
-    let fileURL: URL
-    let fileName: String
     var onBack: () -> Void
 
     @StateObject private var session: ImageEditorSession
@@ -44,13 +42,11 @@ struct ImageEditorView: View {
         }
     }
 
-    init(fileURL: URL, fileName: String, onBack: @escaping () -> Void) {
-        self.fileURL = fileURL
-        self.fileName = fileName
+    /// 会话由路由层创建并挂在 tab 上（跨标签切换存活），视图只接现成的。
+    init(session: ImageEditorSession, onBack: @escaping () -> Void) {
         self.onBack = onBack
-        let created = ImageEditorSession(fileURL: fileURL, name: fileName)
-        _session = StateObject(wrappedValue: created)
-        _document = ObservedObject(wrappedValue: created.document)
+        _session = StateObject(wrappedValue: session)
+        _document = ObservedObject(wrappedValue: session.document)
     }
 
     var body: some View {
@@ -873,8 +869,9 @@ struct ImageEditorView: View {
 
     private func export(as format: String) {
         let panel = NSSavePanel()
-        panel.nameFieldStringValue = fileURL.deletingPathExtension().lastPathComponent
-            + "." + format
+        panel.nameFieldStringValue = session.fileURL.map {
+            $0.deletingPathExtension().lastPathComponent + "." + format
+        } ?? (session.displayName + "." + format)
         panel.allowedContentTypes = []
         let response = panel.runModal()
         guard response == .OK, let url = panel.url else { return }

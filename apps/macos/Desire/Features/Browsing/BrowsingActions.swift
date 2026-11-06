@@ -205,8 +205,7 @@ extension BrowsingActions {
             return true
         }
         if imageExtensions.contains(ext) {
-            tab.browser.imageEditorFileName = url.lastPathComponent
-            tab.browser.imageEditorURL = url
+            tab.browser.openImageEditor(url: url, fileName: url.lastPathComponent)
             return true
         }
         if ext == "zip" {

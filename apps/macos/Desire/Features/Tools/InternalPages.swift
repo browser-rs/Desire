@@ -255,6 +255,7 @@ extension BrowserState {
         mediaPlayerImmersive = false
         spreadsheetViewerURL = nil
         imageEditorURL = nil
+        imageEditorSession = nil
         archiveViewerURL = nil
         documentViewerURL = nil
         jsonViewerURL = nil

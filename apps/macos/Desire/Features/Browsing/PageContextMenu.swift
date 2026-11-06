@@ -169,9 +169,10 @@ enum PageContextMenu {
             DispatchQueue.main.async {
                 guard let manager = TabSessionCoordinator.shared.activeTabManager,
                       let tab = manager.selectedTab else { return }
-                tab.browser.imageEditorURL = destination
-                tab.browser.imageEditorFileName = url.lastPathComponent.isEmpty
-                    ? destination.lastPathComponent : url.lastPathComponent
+                tab.browser.openImageEditor(
+                    url: destination,
+                    fileName: url.lastPathComponent.isEmpty
+                        ? destination.lastPathComponent : url.lastPathComponent)
                 RecentLocalFiles.record(url: destination)
             }
         }.resume()

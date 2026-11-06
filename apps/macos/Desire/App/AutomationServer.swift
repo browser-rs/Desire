@@ -878,11 +878,17 @@ final class AutomationServer {
                 return try Self.json(Self.appState(window: Self.string(query, "window")))
             case ("POST", "/image/edit"):
                 // ImagePro 命令 API（UI/Agent/桥共用）。坐标 = 图片像素。
+                // 多窗口：body 带 session=<id> / file=<路径> 定向，缺省 active。
                 return try Self.json(await ImageEditorCommands.apply(
-                    body, session: ImageEditorSession.active))
+                    body, session: ImageEditorSession.resolve(body)))
             case ("GET", "/image/state"):
+                var stateBody: [String: Any] = ["action": "state"]
+                let wantedFile = Self.string(query, "file") ?? ""
+                let wantedSession = Self.string(query, "session") ?? ""
+                if !wantedFile.isEmpty { stateBody["file"] = wantedFile }
+                if !wantedSession.isEmpty { stateBody["session"] = wantedSession }
                 return try Self.json(await ImageEditorCommands.apply(
-                    ["action": "state"], session: ImageEditorSession.active))
+                    stateBody, session: ImageEditorSession.resolve(stateBody)))
             case ("POST", "/editor/synthetic"):
                 // 编辑器交互测试钩子（DEBUG-only；搭桥 E2E 用）：在活动标签
                 // 所在窗口合成真实 NSEvent（拖拽/点击/按键）——SwiftUI 手势
@@ -4208,8 +4214,8 @@ final class AutomationServer {
                     tab.isOnNewTabPage = false
                     tab.urlString = finalURL
                 } else if BrowsingActions.imageExtensions.contains(ext) {
-                    browser.imageEditorFileName = url.lastPathComponent
-                    browser.imageEditorURL = url
+                    browser.openImageEditor(url: url,
+                                            fileName: url.lastPathComponent)
                     tab.isOnNewTabPage = false
                     tab.urlString = finalURL
                 } else if ext == "zip" {

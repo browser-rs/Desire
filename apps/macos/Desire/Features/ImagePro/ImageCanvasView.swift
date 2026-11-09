@@ -15,6 +15,9 @@ struct ImageCanvasView: View {
     @State private var dragStart: CGPoint?
     @State private var dragCurrent: CGPoint?
     @State private var lassoPoints: [CGPoint] = []
+    /// 多边形套索（顶点链）：单击进入、点击加点、双击/⏎/近起点闭合、Esc 取消。
+    /// 与徒手模式（拖拽）共存于同一工具。
+    @State private var lassoVertexMode = false
     @State private var cropRect: CGRect?
     @State private var cropDrag: CropDrag?
     @State private var lastCropClick = Date.distantPast
@@ -84,6 +87,11 @@ struct ImageCanvasView: View {
                         }
                     },
                     onDoubleClick: { anchor in
+                        // 多边形套索：双击闭合（最后一击的重复点在提交前去重）。
+                        if session.tool == .lasso, lassoVertexMode, lassoPoints.count >= 3 {
+                            commitLassoChain()
+                            return
+                        }
                         guard session.tool == .hand || session.tool == .zoom else { return }
                         if abs(canvas.zoom - canvas.fitZoom) < 0.01 {
                             canvas.zoom(to: 1, anchor: anchor)
@@ -94,16 +102,7 @@ struct ImageCanvasView: View {
                     onSizeChange: { size in
                         syncContainer(size)
                     },
-                    onKey: { key in
-                        if key == "\r" {
-                            if session.tool == .crop, cropRect != nil {
-                                applyCrop()
-                                return true
-                            }
-                            return false
-                        }
-                        return session.handleKey(key)
-                    }
+                    onKey: { key in handleCanvasKey(key) }
                 )
                 if showTextEntry, let anchor = textAnchor {
                     textCard(anchor: t.canvasPoint(fromBasePixel: anchor))
@@ -136,6 +135,10 @@ struct ImageCanvasView: View {
             .onChange(of: canvas.containerSize) { _, _ in syncProbe() }
             .onChange(of: session.tool) { _, _ in
                 if session.tool != .crop { cropRect = nil }
+                if session.tool != .lasso {
+                    lassoPoints = []
+                    lassoVertexMode = false
+                }
                 syncProbe()
             }
         }
@@ -298,16 +301,80 @@ struct ImageCanvasView: View {
         }
     }
 
+    /// 画布单键：顶点链 ⏎/Esc 优先，其次裁剪应用，其余交会话（工具热键等）。
+    private func handleCanvasKey(_ key: String) -> Bool {
+        if lassoVertexMode {
+            if key == "\r" {
+                commitLassoChain()
+                return true
+            }
+            if key == "\u{1b}" {
+                lassoPoints = []
+                lassoVertexMode = false
+                return true
+            }
+        }
+        if key == "\r" {
+            if session.tool == .crop, cropRect != nil {
+                applyCrop()
+                return true
+            }
+            return false
+        }
+        return session.handleKey(key)
+    }
+
+    /// 套索提交（徒手/顶点链共用）：去重相邻点 → 多边形蒙版 → 选区布尔。
+    private func commitLassoChain() {
+        defer {
+            lassoPoints = []
+            lassoVertexMode = false
+        }
+        var pts = lassoPoints
+        while pts.count > 1,
+              let last = pts.last, let prev = pts.dropLast().last,
+              hypot(last.x - prev.x, last.y - prev.y) <= 1 {
+            pts.removeLast()
+        }
+        guard pts.count >= 3,
+              let mask = ImageEditorRaster.polygonMask(points: pts,
+                                                       size: document.canvasSize,
+                                                       feather: 0) else { return }
+        document.setSelectionMask(mask, feather: session.selectionFeather,
+                                  combine: combineMode)
+        session.flash(String(localized: "Lasso selection"))
+    }
+
     @ViewBuilder
     private func lassoPreview(_ t: ImageCanvasTransform) -> some View {
         if session.tool == .lasso, lassoPoints.count >= 2 {
-            Path { path in
-                let pts = lassoPoints.map { t.canvasPoint(fromBasePixel: $0) }
-                path.move(to: pts[0])
-                for p in pts.dropFirst() { path.addLine(to: p) }
+            let pts = lassoPoints.map { t.canvasPoint(fromBasePixel: $0) }
+            if lassoVertexMode {
+                // 顶点链：已放顶点连线 + 到光标的橡皮筋 + 起点标记（点击起点闭合）。
+                Path { path in
+                    path.move(to: pts[0])
+                    for p in pts.dropFirst() { path.addLine(to: p) }
+                    if let hover = session.cursorBase.map({ t.canvasPoint(fromBasePixel: $0) }) {
+                        path.addLine(to: hover)
+                    }
+                }
+                .stroke(Color.white, style: StrokeStyle(lineWidth: 1.4, dash: [5, 3]))
+                .shadow(color: .black.opacity(0.6), radius: 1)
+                if let first = pts.first {
+                    Circle()
+                        .stroke(Color.white, lineWidth: 1.2)
+                        .background(Circle().fill(Color.white.opacity(0.25)))
+                        .frame(width: 10, height: 10)
+                        .position(first)
+                }
+            } else {
+                Path { path in
+                    path.move(to: pts[0])
+                    for p in pts.dropFirst() { path.addLine(to: p) }
+                }
+                .stroke(Color.white, style: StrokeStyle(lineWidth: 1.4, dash: [5, 3]))
+                .shadow(color: .black.opacity(0.6), radius: 1)
             }
-            .stroke(Color.white, style: StrokeStyle(lineWidth: 1.4, dash: [5, 3]))
-            .shadow(color: .black.opacity(0.6), radius: 1)
         }
     }
 
@@ -572,6 +639,23 @@ struct ImageCanvasView: View {
         case .crop:
             downCrop(point)
         case .lasso:
+            #if DEBUG
+            ImageEditorDebug.lastStamp["lassoVertexMode"] = lassoVertexMode
+            ImageEditorDebug.lastStamp["lassoPoints"] = lassoPoints.count
+            #endif
+            if lassoVertexMode {
+                // 顶点链进行中：点击=加点；回到起点附近（≥3 点）=闭合提交。
+                if lassoPoints.count >= 3,
+                   let first = lassoPoints.first,
+                   hypot(base.x - first.x, base.y - first.y) <= 8 {
+                    commitLassoChain()
+                    return
+                }
+                if lassoPoints.last.map({ hypot($0.x - base.x, $0.y - base.y) > 1 }) ?? true {
+                    lassoPoints.append(base)
+                }
+                return
+            }
             combineMode = selectionCombine(from: flags)
             lassoPoints = [base]
         case .wand:
@@ -631,7 +715,9 @@ struct ImageCanvasView: View {
         case .crop:
             dragCrop(point)
         case .lasso:
-            if lassoPoints.last.map({ hypot($0.x - base.x, $0.y - base.y) > 2 }) ?? true {
+            // 徒手模式才沿途收点；顶点链的拖拽只是把鼠标挪到下一个顶点。
+            if lassoVertexMode == false,
+               lassoPoints.last.map({ hypot($0.x - base.x, $0.y - base.y) > 2 }) ?? true {
                 lassoPoints.append(base)
             }
         case .eyedropper:
@@ -668,16 +754,14 @@ struct ImageCanvasView: View {
             dragStart = nil
             dragCurrent = nil
         case .lasso:
-            lassoPoints.append(base)
-            if lassoPoints.count >= 3 {
-                let mask = ImageEditorRaster.polygonMask(points: lassoPoints,
-                                                         size: document.canvasSize,
-                                                         feather: 0)
-                document.setSelectionMask(mask, feather: session.selectionFeather,
-                                          combine: combineMode)
-                session.flash(String(localized: "Lasso selection"))
+            if lassoVertexMode { return }  // 顶点链：点已在 down 里加过
+            // 拖过（多点）= 徒手套索（原行为）；没拖（单击）= 进入顶点链模式。
+            if lassoPoints.count >= 2 {
+                lassoPoints.append(base)
+                commitLassoChain()
+            } else {
+                lassoVertexMode = true
             }
-            lassoPoints = []
         case .wand:
             guard let composite = document.composite(),
                   let mask = ImageSelectionAdvanced.magicWandMask(

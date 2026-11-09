@@ -11,6 +11,9 @@ import QuartzCore
 @MainActor
 final class VideoEditorStore: ObservableObject {
 
+    /// 当前活动编辑器（桥/Agent 命令入口）。弱引用，视图销毁自动失效。
+    static weak var active: VideoEditorStore?
+
     struct SourceMedia: Identifiable, Equatable {
         let id = UUID()
         let url: URL
@@ -323,6 +326,47 @@ final class VideoEditorStore: ObservableObject {
                 DispatchQueue.main.async {
                     self?.isScrubbingProgrammatically = false
                 }
+            }
+        }
+    }
+
+    // MARK: - J/K/L 走带
+
+    private var jogRate: Double = 0  // 0=停；>0 前进倍数；<0 倒放倍数
+    private var jogTask: Task<Void, Never>?
+
+    /// J：连按加速倒退（-1×、-2×、-4× 封顶）。
+    func jogBackward() {
+        let next = jogRate < 0 ? min(-8, jogRate * 2) : -1
+        setJog(next)
+    }
+
+    /// L：连按加速前进（1×、2×、4× 封顶）。
+    func jogForward() {
+        let next = jogRate > 0 ? max(8, jogRate * 2) : 1
+        setJog(next)
+    }
+
+    /// K：停走带（回到正常播放态）。
+    func stopJog() {
+        setJog(0)
+    }
+
+    private func setJog(_ rate: Double) {
+        jogRate = rate
+        jogTask?.cancel()
+        if rate == 0 {
+            if isPlaying == false {
+                playhead += 0  // no-op；保持播放头
+            }
+            return
+        }
+        player.pause()
+        jogTask = Task { [weak self] in
+            while let self, !Task.isCancelled, self.jogRate != 0 {
+                let next = self.playhead + self.jogRate * 0.25
+                self.setPlayhead(max(0, min(self.projectDuration, next)))
+                try? await Task.sleep(for: .milliseconds(250))
             }
         }
     }
@@ -659,25 +703,43 @@ final class VideoEditorStore: ObservableObject {
             // 渲染参数（macOS 26 起 AVMutableVideoComposition 已废弃，
             // 新 API = Configuration + 不可变 AVVideoComposition）——旋转/
             // 转场由 buildComposition 的构造器产出，这里只叠文字烧录。
-            var config = videoConfig?(await compositionNaturalSize(composition))
-                ?? AVVideoComposition.Configuration()
-            if let targetHeight {
-                let source = await compositionNaturalSize(composition)
-                let ratio = source.height > 0 ? targetHeight / source.height : 1
-                config.renderSize = CGSize(width: (source.width * ratio).rounded(),
-                                           height: targetHeight)
-            }
+            //
+            // **只在真需要 composition 时才 set**（videoConfig 存在 = 有旋转/
+            // 转场；或缩放目标；或文字烧录）。无转场直出时 set 一个默认
+            // Configuration 会触发 AVFCore 的 ObjC 异常（setVideoComposition:
+            // 抛错 → 穿 async 帧就是主 actor 僵尸/进程终止——2026-11-10
+            // 崩溃报告 AVFCore __cxa_throw 实证；editTimeline 默认加转场，
+            // 所以该路径从没被测过）。
             let textClips = project.tracks
                 .filter { $0.kind == .text }
                 .flatMap { $0.clips }
                 .sorted { $0.start < $1.start }
-            if !textClips.isEmpty {
-                let renderSize = config.renderSize
-                config.animationTool = makeTextOverlayTool(
-                    clips: textClips, totalDuration: max(TimelineCore.projectDuration(project), 0.1),
-                    renderSize: renderSize)
+            if videoConfig != nil || targetHeight != nil || !textClips.isEmpty {
+                var config = videoConfig?(await compositionNaturalSize(composition))
+                    ?? AVVideoComposition.Configuration()
+                // 无 videoConfig（无旋转/转场）时 Configuration 是空壳——
+                // renderSize=.zero / frameDuration 无效，setVideoComposition:
+                // 直接抛 ObjC 异常。必须显式填全（源自然尺寸 + 30fps）。
+                if config.renderSize.width <= 0 || config.renderSize.height <= 0 {
+                    config.renderSize = await compositionNaturalSize(composition)
+                }
+                if !config.frameDuration.isValid {
+                    config.frameDuration = CMTime(value: 1, timescale: 30)
+                }
+                if let targetHeight {
+                    let source = await compositionNaturalSize(composition)
+                    let ratio = source.height > 0 ? targetHeight / source.height : 1
+                    config.renderSize = CGSize(width: (source.width * ratio).rounded(),
+                                               height: targetHeight)
+                }
+                if !textClips.isEmpty {
+                    let renderSize = config.renderSize
+                    config.animationTool = makeTextOverlayTool(
+                        clips: textClips, totalDuration: max(TimelineCore.projectDuration(project), 0.1),
+                        renderSize: renderSize)
+                }
+                session.videoComposition = AVVideoComposition(configuration: config)
             }
-            session.videoComposition = AVVideoComposition(configuration: config)
         } else {
             guard let s = AVAssetExportSession(asset: composition,
                                                presetName: AVAssetExportPresetAppleM4A) else {
@@ -702,13 +764,13 @@ final class VideoEditorStore: ObservableObject {
 
     /// 合成画面的自然尺寸（第一条视频轨的时间映射，缺省 1280×720）。
     private nonisolated static func compositionNaturalSize(_ composition: AVComposition) async -> CGSize {
+        // 类型化 track.naturalSize（**不要走 KVC value(forKey:)**：segment 级
+        // value(forKey:"naturalSize") 在占位段上抛 valueForUndefinedKey——
+        // NSException 穿 async 帧 = 进程终止，2026-11-10 崩溃报告实证）。
         for track in composition.tracks where track.mediaType == .video {
-            // naturalSize 走 KVC（AVCompositionTrackSegment 无 async sourceTrack 属性）。
-            for segment in track.segments {
-                if let size = segment.value(forKey: "naturalSize") as? CGSize,
-                   size.width > 0, size.height > 0 {
-                    return size
-                }
+            let size = track.naturalSize
+            if size.width > 0, size.height > 0 {
+                return size
             }
         }
         return CGSize(width: 1280, height: 720)

@@ -544,8 +544,10 @@ class TabManager: ObservableObject {
 
     func startAutoRefreshScheduler() {
         guard autoRefreshTimer == nil else { return }
+        // 跳一帧（不用 assumeIsolated：定时器回调偶发非主线程 fire 时它是
+        // PAC 崩溃——2026-11-10 崩溃报告实证，同 ClipboardHistoryStore）。
         autoRefreshTimer = Timer.scheduledTimer(withTimeInterval: 5, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
+            Task { @MainActor [weak self] in
                 guard let self else { return }
                 let now = Date()
                 for tab in self.tabs where tab.autoRefreshInterval != nil && !tab.isSuspended {

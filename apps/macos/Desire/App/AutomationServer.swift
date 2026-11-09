@@ -474,6 +474,8 @@ final class AutomationServer {
         ep("POST", "/bookmarks/health/check", "Start a background bookmark link check (nothing deleted automatically)", params: ["urls?:[string]", "limit?:int"], example: #"-d '{"limit":100}'"#)
         ep("POST", "/open-url", "Open an internal deep link (desire://tools[/<tool>]) in a new tab — same path external URL opens use", params: ["url:string"], example: #"-d '{"url":"desire://tools/mortgage"}'"#)
         ep("POST", "/open-file", "Open a local file through the viewer routing (PDF/tables/images/zip/JSON/PPTX/documents/media) in a new tab — same mapping as drag-and-drop and \"Open With\"", params: ["path:string"], example: #"-d '{"path":"/tmp/probe.json"}'"#)
+        ep("POST", "/video/edit", "VideoPro command API (drive the open multi-track editor). Time values are SECONDS on the timeline. Actions: state; new; addmedia {paths}; addclip {path,track:video|audio,in?,duration?,at?,speed?,volume?}; addtext {text,at?,duration?}; split {at?}; trim {id,start?,duration?,sourceStart?}; move {id,track?,at}; delete {ids?}; select {id?}; setclip {id,speed?,volume?,fadeIn?,fadeOut?,rotate?}; envelope {id,points:[{at,volume}]}; transition {left,right,overlap?}; track {op:add|mute|move|remove,...}; play {toggle?,seek?}; zoom {pps}; undo; export {path,height?}; save/load {path:.dtl}", params: ["action:string"], example: #"-d '{"action":"state"}'"#)
+        ep("GET", "/video/state", "VideoPro editor state (tracks/clips/playhead/export)", example: "…/video/state")
         ep("GET", "/reading-list", "Reading list", example: "…/reading-list")
         ep("GET", "/workspaces", "Saved window workspaces (name/tabs/savedAt)", example: "…/workspaces")
         ep("POST", "/workspaces/delete", "Delete a saved workspace by name", params: ["name:string"], example: #"-d '{"name":"…"}'"#)
@@ -889,6 +891,13 @@ final class AutomationServer {
                 if !wantedSession.isEmpty { stateBody["session"] = wantedSession }
                 return try Self.json(await ImageEditorCommands.apply(
                     stateBody, session: ImageEditorSession.resolve(stateBody)))
+            case ("POST", "/video/edit"):
+                // VideoPro 命令 API（UI/Agent/桥共用）。时间 = 秒（时间线位置）。
+                return try Self.json(await VideoProCommands.apply(
+                    body, store: VideoEditorStore.active))
+            case ("GET", "/video/state"):
+                return try Self.json(await VideoProCommands.apply(
+                    ["action": "state"], store: VideoEditorStore.active))
             case ("POST", "/editor/synthetic"):
                 // 编辑器交互测试钩子（DEBUG-only；搭桥 E2E 用）：在活动标签
                 // 所在窗口合成真实 NSEvent（拖拽/点击/按键）——SwiftUI 手势

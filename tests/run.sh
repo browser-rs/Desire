@@ -268,8 +268,8 @@ SOURCES=(
   apps/macos/Desire/Features/Tools/ToolboxRuntimeCore.swift
   apps/macos/Desire/Features/Tools/ToolboxPipeline.swift
   apps/macos/Desire/Features/Tools/ToolboxPipelineCore.swift
-  apps/macos/Desire/Features/Tools/TimelineCore.swift
-  apps/macos/Desire/Features/Tools/WaveformCore.swift
+  apps/macos/Desire/Features/VideoPro/TimelineCore.swift
+  apps/macos/Desire/Features/VideoPro/WaveformCore.swift
   apps/macos/Desire/Features/Ebooks/Ebook.swift
   apps/macos/Desire/Features/Ebooks/EbookCore.swift
   apps/macos/Desire/Features/Ebooks/EbookSearchCore.swift

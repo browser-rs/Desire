@@ -44,8 +44,12 @@ final class ClipboardHistoryStore: ObservableObject {
 
     func startPolling() {
         guard pollTimer == nil else { return }
+        // 主队列 RunLoop 定时器 + MainActor 任务（不用 assumeIsolated：
+        // 该 API 在定时器回调偶发非主线程 fire 时是 PAC 崩溃——2026-11-10
+        // 崩溃报告 SerialExecutor._isSameExecutor EXC_ARM_DA_ALIGN 实证，
+        // 与隔离语义无关、是纯环境抖动；跳一帧走 hop 是安全形态）。
         pollTimer = Timer.scheduledTimer(withTimeInterval: 1.5, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
+            Task { @MainActor [weak self] in
                 self?.poll()
             }
         }

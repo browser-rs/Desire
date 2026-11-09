@@ -325,6 +325,29 @@ extension BrowserToolProvider {
                     return Self.fail("JS exception — \(message)")
                 }
             }
+        case "editVideoPro":
+            guard let action = args["action"] as? String, !action.isEmpty else {
+                return Self.fail("Missing action")
+            }
+            var command: [String: Any] = ["action": action]
+            if let raw = args["params"] as? String, !raw.isEmpty {
+                guard let data = raw.data(using: .utf8),
+                      let object = (try? JSONSerialization.jsonObject(with: data))
+                        as? [String: Any] else {
+                    return Self.fail("params must be a JSON object")
+                }
+                command.merge(object) { _, new in new }
+            } else if let object = args["params"] as? [String: Any] {
+                command.merge(object) { _, new in new }
+            }
+            guard VideoEditorStore.active != nil else {
+                return Self.fail("No video editor is open. Ask the user to open VideoPro (desire://tools/videoEditor) first, or use editTimeline for offline rendering.")
+            }
+            let result = await VideoProCommands.apply(command, store: VideoEditorStore.active)
+            if let error = result["error"] as? String { return Self.fail(error) }
+            let data = (try? JSONSerialization.data(withJSONObject: result,
+                                                    options: [.sortedKeys])) ?? Data()
+            return String(data: data, encoding: .utf8) ?? "{\"ok\":true}"
         case "editImage":
             guard let action = args["action"] as? String, !action.isEmpty else {
                 return Self.fail("Missing action")

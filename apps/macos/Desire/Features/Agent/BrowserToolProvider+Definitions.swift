@@ -1402,7 +1402,7 @@ extension BrowserToolProvider {
     )),
     AgentToolDef(type: "function", function: AgentToolFunctionDef(
         name: "editTimeline",
-        description: "Build and export a video timeline (the same engine as the built-in multi-track editor). Add clips from local video/audio files onto the video or audio track (each with optional in-point and duration in seconds), optionally set per-clip speed (0.25-4) and volume (0-2), then export to mp4 (or m4a with no video clips). Export runs in the background - the output path comes back when it finishes; this call can take minutes for long timelines.",
+        description: "Build and export a video timeline OFFLINE (no editor UI needed; the same engine as VideoPro — to drive the open editor instead use editVideoPro). Add clips from local video/audio files onto the video or audio track (each with optional in-point and duration in seconds), optionally set per-clip speed (0.25-4) and volume (0-2), then export to mp4 (or m4a with no video clips). Export runs in the background - the output path comes back when it finishes; this call can take minutes for long timelines.",
         parameters: AgentJSONSchema(type: "object", properties: [
             "clips": AgentJSONSchemaValue(type: "array", description: "Clips in timeline order", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object", properties: [
                 "path": AgentJSONSchemaValue(type: "string", description: "Local video/audio file (workspace whitelist)"),
@@ -2104,6 +2104,14 @@ extension BrowserToolProvider {
                     "chapter": AgentJSONSchemaValue(type: "number", description: "1-based chapter number (optional; default 1)"),
                     "content": AgentJSONSchemaValue(type: "string", description: "Note or summary text"),
                 ], required: ["content"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "editVideoPro",
+                description: "Drive the open VideoPro multi-track video editor (desire://tools/videoEditor). Time values are SECONDS on the timeline. Actions: state; new; addmedia {paths}; addclip {path, track: video|audio, in?, duration?, at?, speed?, volume?}; addtext {text, at?, duration?}; split {at?} (default playhead); trim {id, start?, duration?, sourceStart?}; move {id, track?, at}; delete {ids?}; select {id?}; setclip {id, speed?, volume?, fadeIn?, fadeOut?, rotate?}; envelope {id, points:[{at,volume}]}; transition {left, right, overlap?}; track {op: add|mute|move|remove, kind?, name?, id?, up?}; play {toggle?, seek?}; zoom {pps 8-600}; undo; export {path: .mp4|.m4a, height?}; save/load {path: .dtl}. For offline batch rendering without the editor, use editTimeline instead. Pass parameters as a JSON object string in `params`.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "action": AgentJSONSchemaValue(type: "string", description: "Command action (state, addclip, split, trim, setclip, export, …)"),
+                    "params": AgentJSONSchemaValue(type: "string", description: "JSON object with the action's parameters, e.g. {\"path\":\"/tmp/a.mp4\",\"in\":5,\"duration\":10}"),
+                ], required: ["action"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "editImage",

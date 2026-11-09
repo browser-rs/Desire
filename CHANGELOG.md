@@ -1,3 +1,14 @@
+## [Unreleased]
+### Fixed
+
+- VideoPro 导出引擎两修（E2E 暴露的既有 bug）：① 无转场/旋转的直出导出必然崩溃——无 videoConfig 时给 setVideoComposition: 传默认 Configuration 是空壳（renderSize 零/frameDuration 无效），AVFCore 抛 ObjC 异常且穿 async 帧直接杀进程（崩溃报告 __cxa_throw 实证）——现在只在真需要 composition（转场/缩放/文字烧录）时构造并显式填全字段；② 合成自然尺寸探测的 KVC value(forKey:"naturalSize") 在占位 segment 上抛 valueForUndefinedKey 同样杀进程——改类型化 track.naturalSize；③ 命令层在主 actor 上 await 导出与引擎回主 actor 更新进度互等死锁——导出 hop 出主 actor 执行。
+- 三处定时器回调 MainActor.assumeIsolated 的 PAC 崩溃（剪贴板轮询/标签自动刷新/阅读进度采样——崩溃报告 SerialExecutor EXC_ARM_DA_ALIGN 实证，环境抖动下定时器回调偶发非主线程 fire）——全部改为 Task @MainActor 跳帧。
+
+### Added
+
+- 视频剪辑升级为 VideoPro 独立模块（Features/VideoPro/，对齐 ImagePro 架构）：多轨时间线核心/波形/执行引擎/多轨 UI 整体迁移，新增统一命令 API（UI、桥 POST /video/edit 与 Agent 工具 editVideoPro 共用同一套动作：state/new/addmedia/addclip/addtext/split/trim/move/delete/select/setclip/envelope/transition/track/play/zoom/undo/export/save/load，时间=秒）；编辑器挂载即注册为命令目标。Agent 的 editTimeline 保持离线批式合成不变（描述澄清两者分工）。走带补齐：空格播放与 J/K/L 专业走带（连按加速/倒放，S 拆分/Delete/⌘Z⌘A/箭头/Home/End/±缩放既有）。
+
+
 ## [v0.8.47] - 2026-11-10
 ### Changed
 

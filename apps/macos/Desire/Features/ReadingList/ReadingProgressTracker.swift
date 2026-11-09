@@ -33,10 +33,10 @@ final class ReadingProgressTracker {
               AppState.live?.readingListStore.items.contains(where: { $0.url == url }) == true else {
             return
         }
-        // Timer 跑在主 runloop；assumeIsolated 同步回主 actor（比 Task 少一次
-        // 跳帧，也避开"弱 self 进并发闭包"的 Swift 6 警告）。
+        // 跳一帧（assumeIsolated 在定时器回调偶发非主线程 fire 时是 PAC
+        // 崩溃——2026-11-10 实证，同 ClipboardHistoryStore/TabManager）。
         let timer = Timer.scheduledTimer(withTimeInterval: 15, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
+            Task { @MainActor [weak self] in
                 self?.capture()
             }
         }

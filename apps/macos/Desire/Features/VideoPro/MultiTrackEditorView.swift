@@ -8,6 +8,8 @@ import UniformTypeIdentifiers
 struct MultiTrackEditorView: View {
     @Environment(\.appAccent) private var appAccent: Color
     @StateObject private var store = VideoEditorStore()
+    /// 命令入口接线（VideoProCommands / 桥 / Agent 共用）。
+    @State private var isActiveWired = false
     /// 源监视器正在查看的素材（nil = 关闭）。
     @State private var monitoring: VideoEditorStore.SourceMedia?
     @State private var showHistory = false
@@ -22,6 +24,12 @@ struct MultiTrackEditorView: View {
             EditorPreview(store: store, accent: appAccent)
                 .frame(height: 240)
                 .clipShape(RoundedRectangle(cornerRadius: 8))
+                .onAppear {
+                    if !isActiveWired {
+                        isActiveWired = true
+                        VideoEditorStore.active = store
+                    }
+                }
             zoomRow
             sourcePool
             EditorTimeline(store: store, accent: appAccent)
@@ -739,6 +747,23 @@ private struct EditorTimeline: View {
         }
         .onKeyPress("-") {
             store.pixelsPerSecond = max(12, store.pixelsPerSecond / 1.25)
+            return .handled
+        }
+        .onKeyPress(" ") {
+            store.togglePlay()
+            return .handled
+        }
+        .onKeyPress("j") {
+            // J/K/L 专业走带：J 连按倒退越快，L 连按前进越快，K 停。
+            store.jogBackward()
+            return .handled
+        }
+        .onKeyPress("k") {
+            store.stopJog()
+            return .handled
+        }
+        .onKeyPress("l") {
+            store.jogForward()
             return .handled
         }
     }

@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreGraphics
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -20,6 +21,24 @@ struct MultiTrackEditorView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if store.pendingDraftNotice {
+                HStack(spacing: 8) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 11))
+                        .foregroundStyle(appAccent)
+                    Text(String(localized: "Found unsaved changes from a previous session."))
+                        .font(.system(size: 12))
+                    Spacer()
+                    Button(String(localized: "Restore")) { store.restoreDraft() }
+                        .buttonStyle(.borderless)
+                    Button(String(localized: "Discard")) { store.discardDraft() }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.red)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(RoundedRectangle(cornerRadius: 6).fill(.quaternary))
+            }
             toolbarRow
             EditorPreview(store: store, accent: appAccent)
                 .frame(height: 240)
@@ -910,6 +929,7 @@ private struct TimelineClipView: View {
     /// 音频波形（整源 400 桶 + 源时长；后台采样，绘图时按片段源区间切片）。
     @State private var fullWaveform: [WaveformCore.Column]?
     @State private var sourceDuration: Double = 0
+    @State private var thumbnails: [CGImage] = []
 
     private var isSelected: Bool {
         store.selectedClipID == clip.id || store.multiSelection.contains(clip.id)
@@ -936,6 +956,17 @@ private struct TimelineClipView: View {
                 .fill(fillColor)
                 .overlay(RoundedRectangle(cornerRadius: 4)
                     .strokeBorder(isSelected ? accent : Color.clear, lineWidth: 1.5))
+            // 视频缩略图条（v0.8.48）：按片段源区间切帧铺满 lane。
+            if track.kind == .video, !thumbnails.isEmpty, sourceDuration > 0 {
+                VideoThumbnailStrip(images: thumbnails,
+                                    sourceStart: clip.sourceStart,
+                                    sourceEnd: clip.sourceEnd,
+                                    sourceDuration: sourceDuration,
+                                    tileWidth: max(28, laneHeight * 1.6))
+                    .clipShape(RoundedRectangle(cornerRadius: 4))
+                    .opacity(isSelected ? 0.9 : 0.82)
+                    .allowsHitTesting(false)
+            }
             HStack(spacing: 4) {
                 Image(systemName: track.kind == .video ? "film"
                         : track.kind == .audio ? "waveform" : "textformat")
@@ -995,11 +1026,14 @@ private struct TimelineClipView: View {
         .offset(x: x)
         .contentShape(Rectangle().inset(by: 1))
         .task(id: clip.id) {
-            guard track.kind == .audio, let url = clip.sourceURL else { return }
-            let wave = await WaveformCache.shared.waveform(for: url)
+            guard let url = clip.sourceURL else { return }
             let duration = await MediaEditProbe.duration(url) ?? 0
-            fullWaveform = wave
             sourceDuration = duration
+            if track.kind == .audio {
+                fullWaveform = await WaveformCache.shared.waveform(for: url)
+            } else if track.kind == .video {
+                thumbnails = await VideoThumbnailCache.shared.thumbnails(for: url)
+            }
         }
         .onTapGesture { tapSelect(with: NSEvent.modifierFlags) }
         .contextMenu {
@@ -1257,5 +1291,44 @@ private struct SourceWaveformStrip: View {
             }
         }
         .task { waveform = await WaveformCache.shared.waveform(for: url) }
+    }
+}
+
+
+/// 视频轨缩略图条：从缓存的等距帧里按片段的源区间取帧，按可用宽度平铺。
+/// 只画可见宽度（tiles = width / tileWidth），拖动/裁边时跟着宽度重排。
+private struct VideoThumbnailStrip: View {
+    let images: [CGImage]
+    let sourceStart: Double
+    let sourceEnd: Double
+    let sourceDuration: Double
+    let tileWidth: CGFloat
+
+    var body: some View {
+        GeometryReader { geo in
+            let tiles = max(1, Int(ceil(geo.size.width / tileWidth)))
+            HStack(spacing: 0) {
+                ForEach(0..<tiles, id: \.self) { index in
+                    if let image = image(atTile: index, of: tiles) {
+                        Image(decorative: image, scale: 1)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(width: tileWidth, height: geo.size.height)
+                            .clipped()
+                    }
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
+            .clipped()
+        }
+    }
+
+    private func image(atTile index: Int, of tiles: Int) -> CGImage? {
+        guard !images.isEmpty else { return nil }
+        let span = max(0.05, sourceEnd - sourceStart)
+        let fraction = (sourceStart + span * (Double(index) + 0.5) / Double(tiles))
+            / max(0.05, sourceDuration)
+        let slot = min(images.count - 1, max(0, Int(fraction * Double(images.count))))
+        return images[slot]
     }
 }

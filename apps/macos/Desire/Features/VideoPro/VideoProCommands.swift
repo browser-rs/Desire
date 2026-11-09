@@ -30,6 +30,10 @@ enum VideoProCommands {
                 store.commit(TimelineCore.Project())
                 store.setPlayhead(0)
                 store.noteProjectFile(nil)
+                // 明确开新工程 = 不恢复旧草稿：关掉提示但**不删**草稿文件
+                //（用户以后打开那个工程时还能恢复）。不关的话新工程的编辑
+                // 会一直被"待决策草稿"挡住不落盘。
+                store.pendingDraftNotice = false
                 return ["ok": true]
             case "addmedia":
                 let paths = (body["paths"] as? [String]) ?? []
@@ -147,6 +151,24 @@ enum VideoProCommands {
                 return ["ok": true, "canUndo": store.canUndo]
             case "export":
                 return try await export(body, store: store)
+            case "draft":
+                switch (body["op"] as? String) ?? "status" {
+                case "save":
+                    return ["ok": VideoEditorDraft.save(store.project, for: store.draftSourceKey),
+                            "key": store.draftSourceKey]
+                case "restore":
+                    return ["ok": store.restoreDraft()]
+                case "discard":
+                    store.discardDraft()
+                    return ["ok": true]
+                default:
+                    return ["ok": true,
+                            "key": store.draftSourceKey,
+                            "exists": VideoEditorDraft.exists(for: store.draftSourceKey),
+                            "pending": store.pendingDraftNotice,
+                            "modified": VideoEditorDraft.modified(for: store.draftSourceKey)
+                                .map { ISO8601DateFormatter().string(from: $0) } ?? ""]
+                }
             case "save":
                 guard let path = body["path"] as? String, !path.isEmpty else {
                     return ["error": "save needs path (.dtl)"]
@@ -154,7 +176,15 @@ enum VideoProCommands {
                 let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
                 let data = try JSONEncoder().encode(store.project)
                 try data.write(to: url)
-                store.noteProjectFile(url)
+                let previousKey = store.draftSourceKey
+                store.noteProjectFile(url)   // 先换键，再清草稿
+                VideoEditorDraft.remove(for: store.draftSourceKey)
+                if previousKey != store.draftSourceKey {
+                    // 未命名工程另存为文件：旧 untitled 草稿已落盘为正式工程，
+                    // 留着会让下次新开编辑器弹假"未保存修改"。
+                    VideoEditorDraft.remove(for: previousKey)
+                }
+                store.pendingDraftNotice = false
                 return ["ok": true, "path": url.path]
             case "load":
                 guard let path = body["path"] as? String, !path.isEmpty else {

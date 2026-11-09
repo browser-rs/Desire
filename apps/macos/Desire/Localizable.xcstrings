@@ -103705,6 +103705,29 @@
           }
         }
       }
+    },
+    "Found unsaved changes from a previous session.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Found unsaved changes from a previous session."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"发现上次未保存的修改。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"發現上次未儲存的修改。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

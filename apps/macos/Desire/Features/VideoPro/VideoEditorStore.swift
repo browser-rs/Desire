@@ -27,6 +27,12 @@ final class VideoEditorStore: ObservableObject {
     /// 最近一次 save/load 的工程文件（`file=` 定向按它匹配）。
     private(set) var projectFileURL: URL?
 
+    /// 打开编辑器时发现了崩溃/强杀留下的草稿（UI 提示恢复/丢弃）。
+    @Published var pendingDraftNotice = false
+    private var draftTask: Task<Void, Never>?
+    /// 草稿键：工程文件路径；未保存工程 = "untitled"（ImagePro 同款语义）。
+    var draftSourceKey: String { projectFileURL?.path ?? "untitled" }
+
     func activate() {
         Self.registry.add(self)
         Self.active = self
@@ -34,6 +40,10 @@ final class VideoEditorStore: ObservableObject {
 
     func noteProjectFile(_ url: URL?) {
         projectFileURL = url
+        // 切到某个工程文件后，若那工程有未保存草稿，提示恢复。
+        if let url {
+            pendingDraftNotice = VideoEditorDraft.exists(for: url.path)
+        }
     }
 
     /// 命令路由：`session`/`file` 优先，都没给才回落 active。**显式给了却没
@@ -136,6 +146,11 @@ final class VideoEditorStore: ObservableObject {
                 self?.isPlaying = status != .paused
             }
             .store(in: &cancellables)
+        // 崩溃/强杀留下的未保存工程：不自动套用（可能不是用户想要的那个），
+        // 由视图上的提示条让用户选恢复/丢弃。
+        if VideoEditorDraft.exists(for: "untitled") {
+            pendingDraftNotice = true
+        }
     }
 
     deinit {
@@ -214,6 +229,45 @@ final class VideoEditorStore: ObservableObject {
             TimelineCore.clip(project, withID: id) != nil ? id : nil
         }
         rebuildPreview()
+        scheduleDraftSave()
+    }
+
+    // MARK: - 草稿（崩溃恢复）
+
+    /// 编辑后 3s 防抖写草稿（崩溃/强杀后可恢复）。
+    func scheduleDraftSave() {
+        draftTask?.cancel()
+        // 有待决策的草稿时不要写——否则打开工程后第一次 commit 就把
+        // 崩溃前的草稿覆盖成刚载入的内容，恢复入口等于失效。
+        guard !pendingDraftNotice else { return }
+        draftTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(3))
+            guard let self, !Task.isCancelled else { return }
+            _ = VideoEditorDraft.save(self.project, for: self.draftSourceKey)
+        }
+    }
+
+    /// 恢复草稿（恢复后草稿即被消费——后续编辑会重新生成）。
+    @discardableResult
+    func restoreDraft() -> Bool {
+        guard let saved = VideoEditorDraft.load(for: draftSourceKey) else { return false }
+        player.pause()
+        project = saved
+        selectedClipID = nil
+        multiSelection = []
+        undoStack = []
+        canUndo = false
+        setPlayhead(0)
+        rebuildPreview()
+        VideoEditorDraft.remove(for: draftSourceKey)
+        pendingDraftNotice = false
+        return true
+    }
+
+    /// 丢弃草稿。
+    func discardDraft() {
+        VideoEditorDraft.remove(for: draftSourceKey)
+        pendingDraftNotice = false
     }
 
     private func pushUndo() {

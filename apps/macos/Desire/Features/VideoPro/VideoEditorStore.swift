@@ -539,103 +539,181 @@ final class VideoEditorStore: ObservableObject {
         let composition = AVMutableComposition()
         var mixParameters: [AVAudioMixInputParameters] = []
         var videoClips: [(track: AVMutableCompositionTrack, clip: TimelineCore.Clip)] = []
-        for track in project.tracks where !track.clips.isEmpty {
-            let mediaType: AVMediaType = track.kind == .audio ? .audio : .video
-            guard track.kind != .text,
-                  let compositionTrack = composition.addMutableTrack(
-                      withMediaType: mediaType, preferredTrackID: kCMPersistentTrackID_Invalid) else { continue }
-            var clipMix: AVMutableAudioMixInputParameters?
-            if mediaType == .audio, !track.muted {
-                clipMix = AVMutableAudioMixInputParameters(track: compositionTrack)
-            }
-            for clip in track.clips.sorted(by: { $0.start < $1.start }) {
-                guard let url = clip.sourceURL else { continue }
-                let asset = AVURLAsset(url: url)
-                if let source = try? await asset.loadTracks(withMediaType: mediaType).first {
-                    let range = CMTimeRange(
-                        start: CMTime(seconds: clip.sourceStart, preferredTimescale: 600),
-                        duration: CMTime(seconds: clip.duration * clip.speed, preferredTimescale: 600))
-                    let at = CMTime(seconds: clip.start, preferredTimescale: 600)
-                    try? compositionTrack.insertTimeRange(range, of: source, at: at)
-                    if clip.speed != 1 {
-                        compositionTrack.scaleTimeRange(range, toDuration:
-                            CMTime(seconds: clip.duration, preferredTimescale: 600))
-                    }
-                }
-                if mediaType == .video {
-                    videoClips.append((compositionTrack, clip))
-                }
-                // 音量自动化：包络（非空）与简单模式（基线+淡变）统一出自
-                // TimelineCore.volumeRamps——预览与导出听到同一条包络。
-                if let clipMix {
-                    for ramp in TimelineCore.volumeRamps(for: clip) {
-                        clipMix.setVolumeRamp(
-                            fromStartVolume: Float(ramp.from), toEndVolume: Float(ramp.to),
-                            timeRange: CMTimeRange(
-                                start: CMTime(seconds: ramp.start, preferredTimescale: 600),
-                                end: CMTime(seconds: ramp.end, preferredTimescale: 600)))
-                    }
-                }
-            }
-            if let clipMix { mixParameters.append(clipMix) }
+        // 文字层（小视频段，ProRes 4444 带 alpha）——叠印进 videoComposition
+        // 的 layerInstructions（z 顺序：追加在主视频层之后 = 在上）。
+        var textLayers: [(track: AVMutableCompositionTrack, clip: TimelineCore.Clip)] = []
+        func newTrack(_ mediaType: AVMediaType) -> AVMutableCompositionTrack? {
+            composition.addMutableTrack(withMediaType: mediaType,
+                                        preferredTrackID: kCMPersistentTrackID_Invalid)
         }
-        guard !mixParameters.isEmpty else { return (composition, nil, nil) }
-        let audioMix = AVMutableAudioMix()
-        audioMix.inputParameters = mixParameters
+        func insert(_ source: AVAssetTrack, into track: AVMutableCompositionTrack,
+                    clip: TimelineCore.Clip) {
+            let range = CMTimeRange(
+                start: CMTime(seconds: clip.sourceStart, preferredTimescale: 600),
+                duration: CMTime(seconds: clip.duration * clip.speed, preferredTimescale: 600))
+            let at = CMTime(seconds: clip.start, preferredTimescale: 600)
+            do {
+                try track.insertTimeRange(range, of: source, at: at)
+            } catch {
+                Logger(subsystem: "me.siwi.Desire", category: "video").error(
+                    "videopro build: insert failed clip=\(clip.label, privacy: .public) \(error.localizedDescription, privacy: .public)")
+                return
+            }
+            // 变速：要缩放的是**插进轨道后的那一段**（at 起、源消耗时长），
+            // 不是源内 range——at>0 时旧写法缩错区间。
+            if clip.speed != 1 {
+                track.scaleTimeRange(CMTimeRange(start: at, duration: range.duration),
+                                     toDuration: CMTime(seconds: clip.duration,
+                                                        preferredTimescale: 600))
+            }
+        }
+        for projectTrack in project.tracks where !projectTrack.clips.isEmpty {
+            switch projectTrack.kind {
+            case .text:
+                // 文字片段：预渲染小视频（缺失/内容变化时按需生成）按
+                // clip.start 插进**各自的 track**——与视频段同一个 layer 模型。
+                for clip in projectTrack.clips.sorted(by: { $0.start < $1.start }) {
+                    guard let textVideo = await ensureTextClipVideo(for: clip,
+                                                                    renderSize: CGSize(width: 1280, height: 720)),
+                          let track = newTrack(.video) else { continue }
+                    let asset = AVURLAsset(url: textVideo)
+                    guard let source = try? await asset.loadTracks(withMediaType: .video).first else { continue }
+                    // 文字小视频从 0 开始、无变速：sourceStart 归零。
+                    var textClip = clip
+                    textClip.sourceStart = 0
+                    textClip.speed = 1
+                    insert(source, into: track, clip: textClip)
+                    textLayers.append((track, clip))
+                }
+            case .audio:
+                guard let track = newTrack(.audio) else { continue }
+                let clipMix = projectTrack.muted
+                    ? nil : AVMutableAudioMixInputParameters(track: track)
+                for clip in projectTrack.clips.sorted(by: { $0.start < $1.start }) {
+                    guard let url = clip.sourceURL else { continue }
+                    let asset = AVURLAsset(url: url)
+                    if let source = try? await asset.loadTracks(withMediaType: .audio).first {
+                        insert(source, into: track, clip: clip)
+                    }
+                    // 音量自动化：包络（非空）与简单模式（基线+淡变）统一出自
+                    // TimelineCore.volumeRamps——预览与导出听到同一条包络。
+                    if let clipMix {
+                        for ramp in TimelineCore.volumeRamps(for: clip) {
+                            clipMix.setVolumeRamp(
+                                fromStartVolume: Float(ramp.from), toEndVolume: Float(ramp.to),
+                                timeRange: CMTimeRange(
+                                    start: CMTime(seconds: ramp.start, preferredTimescale: 600),
+                                    end: CMTime(seconds: ramp.end, preferredTimescale: 600)))
+                        }
+                    }
+                }
+                if let clipMix { mixParameters.append(clipMix) }
+            case .video:
+                // **一片段一 track**：同一 track 上的 insertTimeRange 是"插入"
+                // 语义（交叠段会把前段尾部推后）——转场交叠必须在不同 track 上
+                // 才能叠印（2026-11-10 实测：单 track 方案导出比时间线长 0.5s
+                // 且交叉溶解不成立）。
+                for clip in projectTrack.clips.sorted(by: { $0.start < $1.start }) {
+                    guard let url = clip.sourceURL, let track = newTrack(.video) else { continue }
+                    let asset = AVURLAsset(url: url)
+                    guard let source = try? await asset.loadTracks(withMediaType: .video).first else { continue }
+                    insert(source, into: track, clip: clip)
+                    videoClips.append((track, clip))
+                }
+            }
+        }
+        var audioMix: AVMutableAudioMix?
+        if !mixParameters.isEmpty {
+            let mix = AVMutableAudioMix()
+            mix.inputParameters = mixParameters
+            audioMix = mix
+        }
         let clipsForVideo = videoClips
-        let configBuilder: ((CGSize) -> AVVideoComposition.Configuration) = { renderSize in
-            Self.buildVideoConfiguration(clips: clipsForVideo, renderSize: renderSize)
-        }
+        let layersForText = textLayers
+        // **有一条视频或文字层就要 videoComposition**：多轨叠印（转场交叠/
+        // 文字层）全靠它；此前这个构造器被 `audioMix == nil` 连带置空，
+        // 纯视频工程（无音轨）的转场/旋转/文字根本进不了导出。
+        let configBuilder: ((CGSize) -> AVVideoComposition.Configuration)? =
+            (clipsForVideo.isEmpty && layersForText.isEmpty) ? nil : { renderSize in
+                Self.buildVideoConfiguration(clips: clipsForVideo, textLayers: layersForText,
+                                             renderSize: renderSize)
+            }
         return (composition, audioMix, configBuilder)
     }
 
     /// 视频配置：旋转（transform）+ 相邻交叠段的交叉溶解（转场）。
+    /// **按时间轴切段生成 instructions**：AVVideoComposition 要求 instructions
+    /// 连续且不重叠，交叠区间必须拆成 [前段][交叠][后段]；每段内活动图层集合
+    /// 不变，转场段给后段图层挂 opacity 0→1 坡。图层顺序 = 数组顺序，
+    /// 后加的在上面（文字层追加在视频层之后）。
     private nonisolated static func buildVideoConfiguration(
         clips: [(track: AVMutableCompositionTrack, clip: TimelineCore.Clip)],
+        textLayers: [(track: AVMutableCompositionTrack, clip: TimelineCore.Clip)] = [],
         renderSize: CGSize) -> AVVideoComposition.Configuration {
         var config = AVVideoComposition.Configuration()
         config.renderSize = renderSize
         config.frameDuration = CMTime(value: 1, timescale: 30)
-        var instructions: [AVVideoCompositionInstruction] = []
-        let sorted = clips.sorted { $0.clip.start < $1.clip.start }
-        var index = 0
-        while index < sorted.count {
-            let (track, clip) = sorted[index]
-            // 与下一段的交叠 = 交叉溶解：下一段 opacity 0→1 顶上来。
-            let overlap = index + 1 < sorted.count
-                ? max(0, clip.end - sorted[index + 1].clip.start) : 0
-            // 前段指令覆盖 [start, end - overlap)（交叠期间让位）；
-            // 后段指令覆盖 [start - overlap, end)，交叠头 opacity 0→1。
-            let frontEnd = overlap > 0.05 ? clip.end - overlap : clip.end
-            var layerConfig = AVVideoCompositionLayerInstruction.Configuration(assetTrack: track)
-            layerConfig.setTransform(rotationTransform(quarterTurns: clip.quarterTurns,
-                                                       renderSize: renderSize), at: .zero)
-            let frontInstruction = AVVideoCompositionInstruction(configuration: .init(
-                layerInstructions: [AVVideoCompositionLayerInstruction(configuration: layerConfig)],
-                timeRange: CMTimeRange(
-                    start: CMTime(seconds: clip.start, preferredTimescale: 600),
-                    end: CMTime(seconds: frontEnd, preferredTimescale: 600))))
-            instructions.append(frontInstruction)
-            if overlap > 0.05, index + 1 < sorted.count {
-                let next = sorted[index + 1]
-                var nextConfig = AVVideoCompositionLayerInstruction.Configuration(assetTrack: next.track)
-                nextConfig.setTransform(rotationTransform(quarterTurns: next.clip.quarterTurns,
-                                                          renderSize: renderSize), at: .zero)
-                nextConfig.addOpacityRamp(.init(
-                    timeRange: CMTimeRange(
-                        start: CMTime(seconds: next.clip.start, preferredTimescale: 600),
-                        end: CMTime(seconds: next.clip.start + overlap, preferredTimescale: 600)),
-                    start: 0, end: 1))
-                let nextInstruction = AVVideoCompositionInstruction(configuration: .init(
-                    layerInstructions: [AVVideoCompositionLayerInstruction(configuration: nextConfig)],
-                    timeRange: CMTimeRange(
-                        start: CMTime(seconds: next.clip.start, preferredTimescale: 600),
-                        end: CMTime(seconds: next.clip.end, preferredTimescale: 600))))
-                instructions.append(nextInstruction)
-                index += 2
-                continue
+        let videoSorted = clips.sorted { $0.clip.start < $1.clip.start }
+        // 每个片段的"入场转场"时长（前段尾部与它交叠的部分）：该片段
+        // 在交叠区间里从透明淡入。
+        var incoming: [UUID: Double] = [:]
+        if videoSorted.count > 1 {
+            for index in 1..<videoSorted.count {
+                let prev = videoSorted[index - 1].clip
+                let cur = videoSorted[index].clip
+                let overlap = max(0, prev.end - cur.start)
+                if overlap > 0.05 { incoming[cur.id] = overlap }
             }
-            index += 1
+        }
+        var boundaries: Set<Int> = []
+        func addBoundary(_ seconds: Double) {
+            boundaries.insert(Int((max(0, seconds) * 600).rounded()))
+        }
+        // 指令必须从 0 起连续覆盖（工程开头有空格时也要有黑场指令）。
+        addBoundary(0)
+        for (_, clip) in videoSorted { addBoundary(clip.start); addBoundary(clip.end) }
+        for (_, clip) in textLayers { addBoundary(clip.start); addBoundary(clip.end) }
+        let ticks = boundaries.sorted()
+        guard ticks.count >= 2 else { return config }
+        var instructions: [AVVideoCompositionInstruction] = []
+        for index in 0..<(ticks.count - 1) {
+            let startTick = ticks[index], endTick = ticks[index + 1]
+            guard endTick > startTick else { continue }
+            let t0 = Double(startTick) / 600
+            let t1 = Double(endTick) / 600
+            var layers: [AVVideoCompositionLayerInstruction] = []
+            // **z 顺序 = 数组顺序，索引 0 在最上层**（独立宿主实测：红在前
+            // 输出纯红）。所以文字层排最前（盖住视频）；视频层按时间倒序
+            // （转场时后段在上，淡入才看得见）。
+            for (track, clip) in textLayers
+            where clip.start <= t0 + 1e-6 && clip.end >= t1 - 1e-6 {
+                let textConfig = AVVideoCompositionLayerInstruction.Configuration(assetTrack: track)
+                layers.append(AVVideoCompositionLayerInstruction(configuration: textConfig))
+            }
+            for (track, clip) in videoSorted.reversed()
+            where clip.start <= t0 + 1e-6 && clip.end >= t1 - 1e-6 {
+                var layerConfig = AVVideoCompositionLayerInstruction.Configuration(assetTrack: track)
+                layerConfig.setTransform(layerTransform(natural: track.naturalSize,
+                                                        quarterTurns: clip.quarterTurns,
+                                                        renderSize: renderSize), at: .zero)
+                if let overlap = incoming[clip.id], t0 < clip.start + overlap - 1e-6 {
+                    let rampStart = max(t0, clip.start)
+                    let rampEnd = min(t1, clip.start + overlap)
+                    if rampEnd > rampStart + 1e-6 {
+                        layerConfig.addOpacityRamp(.init(
+                            timeRange: CMTimeRange(
+                                start: CMTime(seconds: rampStart, preferredTimescale: 600),
+                                end: CMTime(seconds: rampEnd, preferredTimescale: 600)),
+                            start: 0, end: 1))
+                    }
+                }
+                layers.append(AVVideoCompositionLayerInstruction(configuration: layerConfig))
+            }
+            instructions.append(AVVideoCompositionInstruction(configuration: .init(
+                layerInstructions: layers,
+                timeRange: CMTimeRange(
+                    start: CMTime(seconds: t0, preferredTimescale: 600),
+                    end: CMTime(seconds: t1, preferredTimescale: 600)))))
         }
         if !instructions.isEmpty {
             config.instructions = instructions
@@ -643,13 +721,217 @@ final class VideoEditorStore: ObservableObject {
         return config
     }
 
-    /// 旋转 transform：画面绕中心顺时针转 quarterTurns×90°。
-    private nonisolated static func rotationTransform(quarterTurns: Int, renderSize: CGSize) -> CGAffineTransform {
-        guard quarterTurns % 4 != 0 else { return .identity }
+    // MARK: - 文字片段小视频（ProRes 4444 alpha，叠加层）
+
+    /// 文字小视频目录。**文件名 = 内容键**（clip id + 文本 + 时长 + 尺寸）：
+    /// 改文案/裁剪时长后自动换新文件，同内容复用；不会出现"改了字还播旧片"。
+    private nonisolated static func textClipVideoURL(for clip: TimelineCore.Clip,
+                                                      renderSize: CGSize) -> URL {
+        let dir = FileManager.default.urls(for: .applicationSupportDirectory,
+                                           in: .userDomainMask)[0]
+            .appendingPathComponent("Desire/VideoProTextClips", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        let key = "\(clip.id.uuidString)|\(Int(renderSize.width))x\(Int(renderSize.height))|"
+            + String(format: "%.3f", clip.duration) + "|" + (clip.text ?? "")
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        for byte in key.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100_0000_01b3
+        }
+        return dir.appendingPathComponent(
+            String(clip.id.uuidString.prefix(8)) + "-" + String(hash, radix: 16) + ".mov")
+    }
+
+    /// 已落盘的成品是否可用（0 字节/半截文件不复用——上一次崩溃的残件
+    /// 拿进合成会让文字层静默消失）。
+    private nonisolated static func textClipVideoReady(_ url: URL) -> Bool {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let size = attrs[.size] as? Int64 else { return false }
+        return size > 1024
+    }
+
+    /// 同内容生成的单飞账本：预览重建与导出会**并发**走到同一个文字片段
+    /// （addtext 提交触发 rebuildPreview，紧接 export 又跑一遍 buildComposition）。
+    /// 没有这层时两个 AVAssetWriter 写同一个 URL：后者重开文件，session 起不来，
+    /// appendPixelBuffer 抛 NSInternalInconsistencyException → 穿 async 帧杀进程
+    /// （2026-11-10 实测崩溃栈实证）。共享同一个 Task 即可。
+    private nonisolated static let textClipGate = NSLock()
+    nonisolated(unsafe) private static var textClipTasks: [String: Task<URL?, Never>] = [:]
+
+    /// 同步门：async 上下文里直接 lock/unlock 会吃 "unavailable from
+    /// asynchronous contexts"（Swift 6 是错误），包一层同步函数即可。
+    private nonisolated static func withTextClipGate<T>(_ body: () -> T) -> T {
+        textClipGate.lock()
+        defer { textClipGate.unlock() }
+        return body()
+    }
+
+    private nonisolated static func ensureTextClipVideo(for clip: TimelineCore.Clip,
+                                                        renderSize: CGSize) async -> URL? {
+        let url = textClipVideoURL(for: clip, renderSize: renderSize)
+        if textClipVideoReady(url) { return url }
+        let key = url.lastPathComponent
+        let task: Task<URL?, Never> = withTextClipGate {
+            if let running = textClipTasks[key] { return running }
+            let created = Task.detached(priority: .userInitiated) {
+                await generateTextClipVideo(for: clip, renderSize: renderSize, url: url)
+            }
+            textClipTasks[key] = created
+            return created
+        }
+        let result = await task.value
+        withTextClipGate { textClipTasks[key] = nil }
+        return result
+    }
+
+    /// 生成文字小视频（ProRes 4444 带 alpha；淡入淡出画进帧）。
+    /// 生成管线 = AVAssetWriter + PixelBufferAdaptor + CTLineDraw 逐帧
+    ///（独立宿主验证安全；AVFCore 的 Configuration+animationTool 组合在本
+    /// OS 渲染期失败，见 export 内注释）。
+    private nonisolated static func generateTextClipVideo(for clip: TimelineCore.Clip,
+                                                          renderSize: CGSize,
+                                                          url: URL) async -> URL? {
+        // 先写 .partial，完成后原子改名：中途崩溃/取消只留残件，不会污染成品名。
+        let partial = url.deletingPathExtension().appendingPathExtension("partial.mov")
+        try? FileManager.default.removeItem(at: partial)
+        let duration = max(0.2, clip.duration)
+        let writer: AVAssetWriter
+        do {
+            writer = try AVAssetWriter(outputURL: partial, fileType: .mov)
+        } catch {
+            Logger(subsystem: "me.siwi.Desire", category: "video")
+                .error("text clip writer init failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+        let input = AVAssetWriterInput(mediaType: .video, outputSettings: [
+            AVVideoCodecKey: AVVideoCodecType.appleProRes4444XQ,
+            AVVideoWidthKey: renderSize.width,
+            AVVideoHeightKey: renderSize.height,
+        ])
+        input.expectsMediaDataInRealTime = false
+        writer.add(input)
+        let adaptor = AVAssetWriterInputPixelBufferAdaptor(
+            assetWriterInput: input,
+            sourcePixelBufferAttributes: [
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
+                kCVPixelBufferWidthKey as String: renderSize.width,
+                kCVPixelBufferHeightKey as String: renderSize.height,
+            ])
+        // 顺序敏感：startWriting → 确认进入 .writing → startSession → 才能
+        // appendPixelBuffer。少了 session 或 session 没起来时 AVFCore 抛
+        // NSInternalInconsistencyException（穿 async 帧 = 进程 abort）。
+        guard writer.startWriting(), writer.status == .writing else {
+            Logger(subsystem: "me.siwi.Desire", category: "video")
+                .error("text clip writer start failed: \(writer.error?.localizedDescription ?? "status", privacy: .public)")
+            return nil
+        }
+        writer.startSession(atSourceTime: .zero)
+        guard writer.status == .writing else { return nil }
+        let fps = 24
+        let frames = Int(duration * Double(fps))
+        let fadeIn = min(0.2, duration / 4)
+        let fadeOut = min(0.2, duration / 4)
+        let clipRef = clip
+        nonisolated(unsafe) let inputRef = input
+        nonisolated(unsafe) let adaptorRef = adaptor
+        nonisolated(unsafe) let fontRef = CTFontCreateWithName("PingFang SC Semibold" as CFString,
+                                                               renderSize.height * 0.055, nil)
+        // **必须等数据源跑完再 finishWriting**：requestMediaDataWhenReady 是
+        // 异步调度，紧接着 finishWriting 会在闭包首次执行前结束 session——
+        // 随后闭包里的 appendPixelBuffer 抛 "Must start a session"
+        //（NSInternalInconsistencyException 穿 async 帧 = 进程 abort，
+        // 2026-11-10 两次崩溃报告实证）。
+        let resumeOnce = TextClipResumeGate()
+        await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            input.requestMediaDataWhenReady(on: DispatchQueue(label: "videopro.textclip")) {
+                var frame = 0
+                while inputRef.isReadyForMoreMediaData && frame < frames {
+                    guard let pool = adaptorRef.pixelBufferPool else { break }
+                    let seconds = Double(frame) / Double(fps)
+                    var opacity = 1.0
+                    if seconds < fadeIn { opacity = seconds / fadeIn }
+                    if seconds > duration - fadeOut { opacity = max(0, (duration - seconds) / fadeOut) }
+                    var pixelBuffer: CVPixelBuffer?
+                    CVPixelBufferPoolCreatePixelBuffer(nil, pool, &pixelBuffer)
+                    guard let buffer = pixelBuffer else { frame += 1; continue }
+                    CVPixelBufferLockBaseAddress(buffer, [])
+                    if let context = CGContext(
+                        data: CVPixelBufferGetBaseAddress(buffer),
+                        width: Int(renderSize.width), height: Int(renderSize.height),
+                        bitsPerComponent: 8, bytesPerRow: CVPixelBufferGetBytesPerRow(buffer),
+                        space: CGColorSpaceCreateDeviceRGB(),
+                        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
+                        context.clear(CGRect(origin: .zero, size: renderSize))
+                        let text = clipRef.text ?? ""
+                        if !text.isEmpty, opacity > 0 {
+                            let attributes: [NSAttributedString.Key: Any] = [
+                                .font: fontRef, .foregroundColor: NSColor.white,
+                                kCTStrokeWidthAttributeName as NSAttributedString.Key: -3.0,
+                                kCTStrokeColorAttributeName as NSAttributedString.Key: NSColor.black,
+                            ]
+                            let line = CTLineCreateWithAttributedString(
+                                NSAttributedString(string: text, attributes: attributes))
+                            let bounds = CTLineGetBoundsWithOptions(line, .useOpticalBounds)
+                            context.setAlpha(opacity)
+                            context.textPosition = CGPoint(
+                                x: (renderSize.width - min(bounds.width, renderSize.width * 0.84)) / 2,
+                                y: renderSize.height * 0.08)
+                            CTLineDraw(line, context)
+                        }
+                    }
+                    CVPixelBufferUnlockBaseAddress(buffer, [])
+                    adaptorRef.append(buffer, withPresentationTime: CMTime(
+                        value: CMTimeValue(frame), timescale: CMTimeScale(fps)))
+                    frame += 1
+                }
+                // 一帧都不剩（含 pool 缺失）才收尾；否则等下一次 ready 回调。
+                if frame >= frames || adaptorRef.pixelBufferPool == nil {
+                    inputRef.markAsFinished()
+                    resumeOnce.fire { cont.resume() }
+                }
+            }
+        }
+        // 数据源已 markAsFinished，finishWriting 才只是等编码收尾与落盘。
+        await writer.finishWriting()
+        guard writer.status == .completed else {
+            try? FileManager.default.removeItem(at: partial)
+            return nil
+        }
+        // 原子发布：先删旧成品（同内容重生成时很少见），再改名。
+        try? FileManager.default.removeItem(at: url)
+        do {
+            try FileManager.default.moveItem(at: partial, to: url)
+        } catch {
+            Logger(subsystem: "me.siwi.Desire", category: "video")
+                .error("text clip publish failed: \(error.localizedDescription, privacy: .public)")
+            try? FileManager.default.removeItem(at: partial)
+            return nil
+        }
+        return url
+    }
+
+    /// 图层变换：源画面按比例适配到 renderSize（居中），再绕画面中心旋转。
+    /// **源尺寸 ≠ 画布尺寸时不缩放会把画面贴在左下角**（导出 height 与源
+    /// 分辨率不同时，视频只剩一角、其余透明——2026-11-10 实测）。
+    private nonisolated static func layerTransform(natural: CGSize,
+                                                   quarterTurns: Int,
+                                                   renderSize: CGSize) -> CGAffineTransform {
         var transform = CGAffineTransform.identity
         transform = transform.translatedBy(x: renderSize.width / 2, y: renderSize.height / 2)
-        transform = transform.rotated(by: -CGFloat(quarterTurns % 4) * .pi / 2)
-        transform = transform.translatedBy(x: -renderSize.width / 2, y: -renderSize.height / 2)
+        let quarter = quarterTurns % 4
+        if quarter != 0 {
+            transform = transform.rotated(by: -CGFloat(quarter) * .pi / 2)
+        }
+        if natural.width > 0, natural.height > 0 {
+            // 旋转 90° 时用交换后的尺寸算 fit，避免转完再裁掉两边。
+            let sourceW = quarter % 2 == 0 ? natural.width : natural.height
+            let sourceH = quarter % 2 == 0 ? natural.height : natural.width
+            let scale = min(renderSize.width / sourceW, renderSize.height / sourceH)
+            if scale.isFinite, scale > 0 {
+                transform = transform.scaledBy(x: scale, y: scale)
+            }
+        }
+        transform = transform.translatedBy(x: -natural.width / 2, y: -natural.height / 2)
         return transform
     }
 
@@ -701,6 +983,8 @@ final class VideoEditorStore: ObservableObject {
                                            targetHeight: Double? = nil,
                                            forceAudioOnly: Bool = false) async throws -> URL {
         let (composition, audioMix, videoConfig) = await buildComposition(project: project)
+        Logger(subsystem: "me.siwi.Desire", category: "video").info(
+            "videopro export: composition duration=\(composition.duration.seconds, format: .fixed(precision: 3), privacy: .public) tracks=\(composition.tracks.map { "\($0.mediaType.rawValue):\($0.timeRange.start.seconds)-\($0.timeRange.end.seconds)" }.joined(separator: ","), privacy: .public)")
         let naturalHasVideo = project.tracks.contains { $0.kind == .video && !$0.clips.isEmpty }
         let hasVideo = naturalHasVideo && !forceAudioOnly
         let destination = resolveDestination(title: project.title,
@@ -856,5 +1140,20 @@ final class VideoEditorStore: ObservableObject {
             counter += 1
         }
         return destination
+    }
+}
+
+/// 一次性 resume 门：`requestMediaDataWhenReady` 的回调会按 ready 状态多轮
+/// 触发，而 `CheckedContinuation` 只能 resume 一次——重复 resume 直接崩。
+private nonisolated final class TextClipResumeGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var fired = false
+
+    func fire(_ body: () -> Void) {
+        lock.lock()
+        let first = !fired
+        fired = true
+        lock.unlock()
+        if first { body() }
     }
 }

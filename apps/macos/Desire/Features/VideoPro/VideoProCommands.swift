@@ -422,14 +422,12 @@ enum VideoProCommands {
         }
         let destination = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
         if rendered.path != destination.path {
-            try? FileManager.default.moveItem(at: rendered, to: destination)
+            // moveItem 不覆盖已存在文件——不先删会把旧导出留在原地（E2E 里
+            // 表现为"导出了但时长还是上一次的"）。
+            try? FileManager.default.removeItem(at: destination)
+            try FileManager.default.moveItem(at: rendered, to: destination)
         }
-        var response: [String: Any] = ["ok": true, "path": destination.path,
-                                       "duration": TimelineCore.projectDuration(store.project)]
-        // 文字片段暂不进导出（诚实降级，2026-11-10）——有文字轨时显式告知。
-        if store.project.tracks.contains(where: { $0.kind == .text && !$0.clips.isEmpty }) {
-            response["warning"] = "text clips are not burned into the export yet (crash workaround; planned for the next batch)"
-        }
-        return response
+        return ["ok": true, "path": destination.path,
+                "duration": TimelineCore.projectDuration(store.project)]
     }
 }

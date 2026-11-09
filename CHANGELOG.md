@@ -7,6 +7,8 @@
 - VideoPro 带文字轨的导出必杀进程（规划批 1 P0）：① AVFCore 在 macOS 27.2 对「Configuration→AVVideoComposition + animationTool」组合渲染期失败（AVFoundationErrorDomain -11841，独立宿主对照实证——set 能过、export 抛）；② 空壳 Configuration（renderSize 零/frameDuration=.zero——zero 的 isValid 为 true 必须判 positive）触发 setVideoComposition: 抛 ObjC 异常且穿 async 帧（崩溃报告 __cxa_throw 实证）；③ 合成自然尺寸探测的 KVC 在占位 segment 上抛 valueForUndefinedKey 同样杀进程。本轮：导出不再崩（带文字轨导出成功出片、命令层返回 warning 提示文字暂未烧录）；文字烧录本体（AVFCore 缺陷绕行：文字片段预渲染小视频段进 composition）挪下批交付，UI 预览中文字仍可见。附带：导出加看门狗（600s 总时长/120s 无进度 → 取消导出 = failed 终态，此前挂起无终态 UI 永转）；AVFCore 拒绝时 ObjC 异常 reason 现有 unified log 记录（NSSetUncaughtExceptionHandler 探针）。
 - 三处定时器回调 MainActor.assumeIsolated 的 PAC 崩溃（剪贴板轮询/标签自动刷新/阅读进度采样）——改为 Task @MainActor 跳帧。
 - YouTube 再次触发「使用广告拦截器违反 YouTube 服务条款」整页（用户实测，toString 伪装已生效但仍中招）：从线上 player/页面 bundle 里扒出检测套件（页面侧 WJF → 16 探针）定位到真触发器——`j.s_` 探针用一条带 `adPlacements`/`playerAds` **真实非空数组**的 canary JSON 重新 `JSON.parse`，再与页面自持的对象做深度比对；旧 json-prune 的「解析时删键」在任何形状判据下都必然比对失败（canary 与真实响应同形）。**重写 yt-json-prune**：不再 hook `JSON.parse`（也不再全局伪装 `Function.prototype.toString`）；改为 DOMContentLoaded 时原地剪内嵌 `ytInitialPlayerResponse` + 包装 `fetch`（只认 `response.url` 匹配 `/youtubei/v1/player` 的真实响应，data:URL 伪造 url getter 的 canary 原样放行），包装函数用 bound function 形态（toString/name/length/无 prototype 与原生 fetch 一致）。配套：YouTube CSS 全部收进 `ytd-app` 作用域（探针往 body 上挂同名诱饵元素读 computedStyle，不再被隐藏）；json-prune 改为随内置广告拦截插件开关注入（此前 builtinScripts 无条件注入，关掉插件也照跑，与注释宣称的退役矛盾）；桥开的标签补齐 videoAdBlocker/contentBlocker/autoplay 配置（此前自动化标签没有视频广告层，E2E 与真人页面不同源）。验证：独立 WKWebView 宿主回放检测套件 A/B（旧脚本 m9m 判定命中、新脚本全绿）+ 应用内无痕与登录会话实测（enforcement 消失、视频正常播放、canary 完整、初始响应广告字段已剪、真广告元素仍隐藏而诱饵不隐藏）。
+- VideoPro 合成/导出四修（文字烧录落地时逐层暴露）：① **转场交叠丢画面/时长错位**——所有视频片段此前插在同一条 composition track 上，而 `insertTimeRange` 是插入语义，交叠段把前段尾部推后（导出比时间线长 overlap），交叉溶解也不可能成立；改为**一片段一 track + 按时间轴切段生成 instructions**（交叠区间拆成 [前段][交叠][后段]，后段 opacity 0→1），导出时长与时间线一致、交叠帧实测 RGB 平滑过渡。② **图层 z 序搞反**——`layerInstructions` 索引 0 是最上层（独立宿主实测），文字层现在排最前、转场后段排在前段之上。③ **缩放导出画面贴角**——渲染尺寸 ≠ 源尺寸时没给图层 fit transform，视频只出现在画布左下角；现在按比例适配居中（含 90° 旋转时交换宽高算 fit）。④ **导出不覆盖旧文件**——命令层 moveItem 到已存在路径静默失败，旧导出留在原地（表现为"导出成功但时长还是上一次的"）；先删后移。另修两处文字生成崩溃：`appendPixelBuffer` 必须在 `startSession` 之后且 `finishWriting` 必须等数据源 `markAsFinished`（此前 finishWriting 抢在 requestMediaDataWhenReady 闭包首次执行前结束 session → NSInternalInconsistencyException 穿 async 帧杀进程）；生成器加 `startWriting → status == .writing → startSession` 顺序守卫与 0 字节残件自愈。
+
 
 
 
@@ -14,6 +16,8 @@
 ### Added
 
 - 视频剪辑升级为 VideoPro 独立模块（Features/VideoPro/，对齐 ImagePro 架构）：多轨时间线核心/波形/执行引擎/多轨 UI 整体迁移，新增统一命令 API（UI、桥 POST /video/edit 与 Agent 工具 editVideoPro 共用同一套动作：state/new/addmedia/addclip/addtext/split/trim/move/delete/select/setclip/envelope/transition/track/play/zoom/undo/export/save/load，时间=秒）；编辑器挂载即注册为命令目标。Agent 的 editTimeline 保持离线批式合成不变（描述澄清两者分工）。走带补齐：空格播放与 J/K/L 专业走带（连按加速/倒放，S 拆分/Delete/⌘Z⌘A/箭头/Home/End/±缩放既有）。
+- VideoPro 文字烧录：文字片段不再只是时间线占位——每个文字片段预渲染成 ProRes 4444（带 alpha）小视频段，按 clip.start 叠进合成（预览与导出同源），淡入淡出直接烘进 alpha；渲染 = CoreText 逐帧（PingFang SC Semibold、白字黑描边、底部居中）。文件按**内容键**（片段 id + 文本 + 时长 + 尺寸）命名，改文案/裁剪时长自动换新文件；生成走单飞（并发请求共享同一个 Task）+ `.partial` 原子改名，中断只留残件。命令层不再返回"文字暂未烧录"的告警。
+
 
 
 ## [v0.8.47] - 2026-11-10

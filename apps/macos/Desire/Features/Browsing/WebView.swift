@@ -365,12 +365,13 @@ class BrowserState: ObservableObject {
         PluginDNRStore.shared.apply(to: config.userContentController)
         if let videoAdBlocker, PluginStore.liveBuiltInAdGuardEnabled {
             // v0.8.32 稳定优先（用户裁定"自动播放好不如没有"）：
-            // **保留**被动层——json-prune 剪广告数据 + 视频站 CSS/JS 规则 +
-            // 反检测横幅清除（都是静默、不碰播放器状态机）。
+            // **保留**被动层——视频站 CSS/JS 规则 + 反检测横幅清除（都是静默、
+            // 不碰播放器状态机）。
             // **退役**主动层——first-click-guard（拦截首次点击，会吞播放键
             // 的可信激活）与 yt-anti-detect（ytInitialPlayerResponse 陷阱，
             // 被 YouTube 检测后 enforcement 暂停的真触发器）。档案文件保留。
-            config.userContentController.addUserScript(videoAdBlocker.documentStartJSONPruneScript())
+            // JSON 剪裁不在这里：由 UserScriptLoader.builtinScripts 按同一插件
+            // 门控注入一次（2026-11-10 改），避免同脚本双投。
             config.userContentController.addUserScript(videoAdBlocker.documentStartScript())
             config.userContentController.addUserScript(videoAdBlocker.documentEndScript())
             config.userContentController.addUserScript(videoAdBlocker.documentEndAntiAdblockScript())

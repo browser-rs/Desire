@@ -76,18 +76,19 @@ enum UserScriptLoader {
         add("middle-click", at: .atDocumentEnd)
         // 右键增强（v0.8.31 批次一）：图片/链接/选区上拦原生菜单上报宿主。
         add("context-menu", at: .atDocumentEnd)
-        // —— A/B 分隔线：以下 youtube 相关全部临时禁用 ——
-        // add("yt-playback-guard", ...)
-        // add("sponsorblock", ...)
-        // add("video-speed", ...)
-        // **in-page 广告篡改永久退役（2026-11-01 实验A实锤）**：
-        // yt-anti-detect（ytInitialPlayerResponse 陷阱剥 adPlacements）与
-        // yt-json-prune 的页面内数据篡改会被 YouTube 检测 → enforcement
-        // 暂停（"播一下马上暂停"的真触发器）。关掉后 A1 零暂停全程自动播。
-        // 广告过滤保留在网络/CSS 层（过滤列表 + 视频广告规则），不在页面里
-        // 动播放器数据——与主流扩展的分层一致，也与"浏览器不做站点适配"
-        // 的架构原则一致。脚本文件保留作档案。
-        add("yt-json-prune", at: .atDocumentStart)
+        // **in-page 广告篡改的两种历史形态**（2026-11-01 实验A实锤 → 2026-11-10 重做）：
+        // · yt-anti-detect（给 window.ytInitialPlayerResponse 装 defineProperty
+        //   陷阱）永久退役——属性描述符本身就是可探的改动面。
+        // · yt-json-prune 重写后保留：**不再 hook JSON.parse**。YouTube 的
+        //   `j.s_` 探针拿带广告字段的 canary JSON 重新 parse 做深度比对，任何
+        //   "解析时删键"都会被判定；新实现只在 DOMContentLoaded 剪内嵌
+        //   ytInitialPlayerResponse + 包 fetch（按 response.url 认 /youtubei/v1/player），
+        //   不碰任何全局解析语义。检测面对照见脚本头注释。
+        // 门控 = 内置广告拦截插件开关（与视频广告 CSS/反拦截脚本同一真相）；
+        // 关掉内置拦截 = 纯浏览器，页面里一行都不注入。
+        if PluginStore.liveBuiltInAdGuardEnabled {
+            add("yt-json-prune", at: .atDocumentStart, mainFrameOnly: true)
+        }
         // media-visibility-resume **退役（v0.8.32 稳定优先）**：它的页面内
         // play() 与 YouTube enforcement 拉锯，是"停了又播"振荡的来源。
         // 切回标签后的恢复交给 WebKit 自身的媒体恢复路径（Safari 同款）。

@@ -4321,7 +4321,16 @@ final class AutomationServer {
         }
         let before = tm.tabs.count
         let existing = Set(tm.tabs.map(\.id))
-        tm.addTab(url: url, incognito: incognito, containerID: containerID)
+        // 自动化标签与 UI 标签同配置：此前缺省参数（videoAdBlocker/contentBlocker
+        // 全 nil）让桥开的标签没有视频广告 CSS/反拦截脚本，E2E 与真人看到的
+        // 页面不是同一个东西。
+        let appState = AppState.live
+        tm.addTab(url: url, incognito: incognito,
+                  javaScriptEnabled: appState?.settings.isJavaScriptEnabled ?? true,
+                  contentBlocker: appState?.contentBlocker,
+                  videoAdBlocker: appState?.videoAdBlocker,
+                  autoPlayPolicy: appState?.settings.autoPlayPolicy ?? .requireUserAction,
+                  containerID: containerID)
         if let destination = InternalPages.parse(url),
            let created = tm.tabs.first(where: { !existing.contains($0.id) }) {
             InternalPages.open(destination, in: created)

@@ -102,89 +102,109 @@ enum VideoSite: CaseIterable {
 extension VideoSite {
     static let youtubeCSS = """
 /* In-feed & search ads */
-ytd-ad-slot-renderer, ytd-display-ad-renderer, ytd-text-ad-renderer,
-ytd-compact-promoted-video-renderer, ytd-compact-promoted-item-renderer,
-ytd-promoted-sparkles-web-renderer, ytd-promoted-sparkles-text-search-renderer,
-ytd-promoted-video-renderer, ytd-action-companion-ad-renderer,
-ytd-rich-item-renderer[is-ad], ytd-video-renderer[is-ad],
-ytd-compact-video-renderer[is-ad], ytd-grid-video-renderer[is-ad],
-yt-lockup-view-model[is-ad], ytd-in-feed-ad-renderer,
-ytd-infeed-ad-layout-renderer, ytd-ad-slot,
-ytd-ad-simple, yt-about-ad-renderer, ytd-merch-shelf-renderer,
-ytd-search-panel-ad-renderer, ytd-unlimited-supply-renderer,
-.badge-style-type-ad,
-ytd-ad-inline-playback-renderer, ytd-inline-survey-renderer,
-ytd-banner-promo-renderer, .ytd-banner-promo-renderer,
-ytd-reel-video-renderer[is-ad],
-ytm-companion-ad-renderer, ytm-promoted-sparkles-web-renderer,
-ytm-rich-item-renderer[is-ad], .ytd-rich-shelf-renderer[is-ad] {
+
+ytd-app ytd-ad-slot-renderer, ytd-app ytd-display-ad-renderer,
+ytd-app ytd-text-ad-renderer, ytd-app ytd-compact-promoted-video-renderer,
+ytd-app ytd-compact-promoted-item-renderer,
+ytd-app ytd-promoted-sparkles-web-renderer,
+ytd-app ytd-promoted-sparkles-text-search-renderer,
+ytd-app ytd-promoted-video-renderer,
+ytd-app ytd-action-companion-ad-renderer,
+ytd-app ytd-rich-item-renderer[is-ad], ytd-app ytd-video-renderer[is-ad],
+ytd-app ytd-compact-video-renderer[is-ad],
+ytd-app ytd-grid-video-renderer[is-ad],
+ytd-app yt-lockup-view-model[is-ad], ytd-app ytd-in-feed-ad-renderer,
+ytd-app ytd-infeed-ad-layout-renderer, ytd-app ytd-ad-slot,
+ytd-app ytd-ad-simple, ytd-app yt-about-ad-renderer,
+ytd-app ytd-merch-shelf-renderer, ytd-app ytd-search-panel-ad-renderer,
+ytd-app ytd-unlimited-supply-renderer, ytd-app .badge-style-type-ad,
+ytd-app ytd-ad-inline-playback-renderer,
+ytd-app ytd-inline-survey-renderer, ytd-app ytd-banner-promo-renderer,
+ytd-app .ytd-banner-promo-renderer, ytd-app ytd-reel-video-renderer[is-ad],
+ytd-app ytm-companion-ad-renderer,
+ytd-app ytm-promoted-sparkles-web-renderer,
+ytd-app ytm-rich-item-renderer[is-ad],
+ytd-app .ytd-rich-shelf-renderer[is-ad] {
     display: none !important;
 }
 
 /* 广告 renderer 的外层网格格子也要一起收起：ytd-rich-item-renderer 的高度由
    网格 CSS 决定，内部 renderer 被隐藏时它不会塌陷，页面上就留下一个等高的
    空框（用户看到的"赞助商广告变成黑框"）。:has() 在 WebKit 15.4+ 可用。 */
-ytd-rich-item-renderer:has(ytd-ad-slot-renderer),
-ytd-rich-item-renderer:has(ytd-in-feed-ad-renderer),
-ytd-rich-item-renderer:has(ytd-display-ad-renderer),
-ytd-rich-item-renderer:has(ytd-text-ad-renderer),
-ytd-rich-item-renderer:has(ytd-promoted-video-renderer),
-ytd-rich-item-renderer:has(ytd-promoted-sparkles-web-renderer),
-ytd-rich-item-renderer:has(ytd-compact-promoted-video-renderer),
-ytd-rich-item-renderer:has(ytd-infeed-ad-layout-renderer),
-yt-lockup-view-model:has(ytd-ad-slot-renderer),
-ytd-rich-section-renderer:has(ytd-ad-slot-renderer),
-ytd-rich-section-renderer:has(ytd-in-feed-ad-renderer),
-ytd-rich-section-renderer:has(ytd-display-ad-renderer),
-ytd-rich-section-renderer:has(ytd-promoted-sparkles-web-renderer) {
+
+ytd-app ytd-rich-item-renderer:has(ytd-ad-slot-renderer),
+ytd-app ytd-rich-item-renderer:has(ytd-in-feed-ad-renderer),
+ytd-app ytd-rich-item-renderer:has(ytd-display-ad-renderer),
+ytd-app ytd-rich-item-renderer:has(ytd-text-ad-renderer),
+ytd-app ytd-rich-item-renderer:has(ytd-promoted-video-renderer),
+ytd-app ytd-rich-item-renderer:has(ytd-promoted-sparkles-web-renderer),
+ytd-app ytd-rich-item-renderer:has(ytd-compact-promoted-video-renderer),
+ytd-app ytd-rich-item-renderer:has(ytd-infeed-ad-layout-renderer),
+ytd-app yt-lockup-view-model:has(ytd-ad-slot-renderer),
+ytd-app ytd-rich-section-renderer:has(ytd-ad-slot-renderer),
+ytd-app ytd-rich-section-renderer:has(ytd-in-feed-ad-renderer),
+ytd-app ytd-rich-section-renderer:has(ytd-display-ad-renderer),
+ytd-app ytd-rich-section-renderer:has(ytd-promoted-sparkles-web-renderer) {
     display: none !important;
 }
 
 /* Masthead / header ads */
-#masthead-ad, #header-masthead-ad, .ytp-ad-overlay-container,
-yt-mealbar-promo-renderer, .ytp-ad-text-overlay,
-.ytp-ad-image-overlay, .ytp-ad-button-icon-modern,
-.ytp-ad-skip-button-slot, .ytp-ad-skip-button-container {
+
+ytd-app #masthead-ad, ytd-app #header-masthead-ad,
+ytd-app .ytp-ad-overlay-container, ytd-app yt-mealbar-promo-renderer,
+ytd-app .ytp-ad-text-overlay, ytd-app .ytp-ad-image-overlay,
+ytd-app .ytp-ad-button-icon-modern, ytd-app .ytp-ad-skip-button-slot,
+ytd-app .ytp-ad-skip-button-container {
     display: none !important;
 }
 
 /* Player overlay ads during playback */
-.video-ads, .ytp-ad-player-overlay, .ytp-ad-player-overlay-layout,
-.ytp-ad-overlay-slot, .ytp-ad-overlay-slot-1, .ytp-ad-overlay-slot-2,
-.ytp-ad-text-island, .ytp-ad-overlay-ad-info-button,
-.ytp-ad-feedback-dialog, .ytp-ad-action-interstitial,
-.ytp-ad-module, .ytp-ad-message-container, .ytp-ad-timed-marker {
+
+ytd-app .video-ads, ytd-app .ytp-ad-player-overlay,
+ytd-app .ytp-ad-player-overlay-layout, ytd-app .ytp-ad-overlay-slot,
+ytd-app .ytp-ad-overlay-slot-1, ytd-app .ytp-ad-overlay-slot-2,
+ytd-app .ytp-ad-text-island, ytd-app .ytp-ad-overlay-ad-info-button,
+ytd-app .ytp-ad-feedback-dialog, ytd-app .ytp-ad-action-interstitial,
+ytd-app .ytp-ad-module, ytd-app .ytp-ad-message-container,
+ytd-app .ytp-ad-timed-marker {
     display: none !important;
 }
 
 /* Shorts ad slots */
-ytd-reel-ad-renderer, ytd-reel-item-renderer[is-ad],
-ytd-reel-player-header-renderer[is-ad],
-ytd-reel-player-overlay-renderer[is-ad],
-ytm-shorts-ad-renderer, ytm-shorts-player-ad-renderer {
+
+ytd-app ytd-reel-ad-renderer, ytd-app ytd-reel-item-renderer[is-ad],
+ytd-app ytd-reel-player-header-renderer[is-ad],
+ytd-app ytd-reel-player-overlay-renderer[is-ad],
+ytd-app ytm-shorts-ad-renderer, ytd-app ytm-shorts-player-ad-renderer {
     display: none !important;
 }
 
 /* Paid promotion overlays (creator-disclosed sponsorship) */
-.ytp-paid-content-overlay, .ytp-paid-content-overlay-link,
-ytm-paid-content-overlay-renderer, .YtmPaidContentOverlayHost,
-[class*="paid-content-overlay"], [class*="PaidContentOverlay"] {
+
+ytd-app .ytp-paid-content-overlay, ytd-app .ytp-paid-content-overlay-link,
+ytd-app ytm-paid-content-overlay-renderer,
+ytd-app .YtmPaidContentOverlayHost,
+ytd-app [class*="paid-content-overlay"],
+ytd-app [class*="PaidContentOverlay"] {
     display: none !important;
     visibility: hidden !important;
     pointer-events: none !important;
 }
 
 /* Paid-promotion badge anchor on thumbnails (the small icon top-right) */
-a[href*="youtube.com/?p=ppp"],
-a[href*="youtube.com/?p=paid_promotion"],
-a[href*="/paid_promotion"] {
+
+ytd-app a[href*="youtube.com/?p=ppp"],
+ytd-app a[href*="youtube.com/?p=paid_promotion"],
+ytd-app a[href*="/paid_promotion"] {
     display: none !important;
 }
 
 /* Companion / "people also watched" ad cluster */
-ytd-companion-slot-renderer, ytd-companion-slot,
-yt-related-chip-cloud-renderer[component-style="AD_SERIES_WEB"],
-.ad-display .ad-container, ytd-engagement-panel-section-list-holder[target-id="engagement-panel-ads"] {
+
+ytd-app ytd-companion-slot-renderer, ytd-app ytd-companion-slot,
+ytd-app yt-related-chip-cloud-renderer[component-style="AD_SERIES_WEB"],
+ytd-app .ad-display .ad-container,
+ytd-app ytd-engagement-panel-section-list-holder[target-id="engagement-panel-ads"] {
     display: none !important;
 }
 """

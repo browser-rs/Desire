@@ -79,8 +79,13 @@ struct ImageEditorLayersPanel: View {
                             .foregroundStyle(.secondary)
                         Slider(value: Binding(
                             get: { CGFloat(active.opacity) },
-                            set: { document.setLayerOpacity(active.id, opacity: Double($0)) }
-                        ), in: 0...1)
+                            set: { document.setLayerOpacity(active.id, opacity: Double($0),
+                                                            record: false) }
+                        ), in: 0...1, onEditingChanged: { editing in
+                            // 拖动开始 = 一步历史（此前 opacity 完全不可撤销）；
+                            // 拖动中的连续帧只改值，不灌历史。
+                            if editing { document.beginContinuousEdit("Opacity Layer") }
+                        })
                         .controlSize(.mini)
                         Text(verbatim: "\(Int(active.opacity * 100))%")
                             .font(.system(size: 9.5, design: .monospaced))
@@ -158,12 +163,14 @@ struct ImageEditorLayersPanel: View {
                     Slider(value: Binding(
                         get: { CGFloat(style.shadowRadius) },
                         set: { var s = style; s.shadowRadius = Double($0)
-                            document.setLayerStyle(layer.id, style: s) }), in: 0...40)
+                            document.setLayerStyle(layer.id, style: s, record: false) }),
+                       in: 0...40, onEditingChanged: { if $0 { document.beginContinuousEdit("Layer Style") } })
                         .controlSize(.mini)
                     Slider(value: Binding(
                         get: { CGFloat(style.shadowOffsetY) },
                         set: { var s = style; s.shadowOffsetY = Double($0)
-                            document.setLayerStyle(layer.id, style: s) }), in: 0...30)
+                            document.setLayerStyle(layer.id, style: s, record: false) }),
+                       in: 0...30, onEditingChanged: { if $0 { document.beginContinuousEdit("Layer Style") } })
                         .controlSize(.mini)
                 }
                 HStack(spacing: 6) {
@@ -172,7 +179,8 @@ struct ImageEditorLayersPanel: View {
                     Slider(value: Binding(
                         get: { CGFloat(style.strokeWidth) },
                         set: { var s = style; s.strokeWidth = Double($0)
-                            document.setLayerStyle(layer.id, style: s) }), in: 0...20)
+                            document.setLayerStyle(layer.id, style: s, record: false) }),
+                       in: 0...20, onEditingChanged: { if $0 { document.beginContinuousEdit("Layer Style") } })
                         .controlSize(.mini)
                 }
                 HStack(spacing: 6) {
@@ -181,7 +189,8 @@ struct ImageEditorLayersPanel: View {
                     Slider(value: Binding(
                         get: { CGFloat(style.glowRadius) },
                         set: { var s = style; s.glowRadius = Double($0)
-                            document.setLayerStyle(layer.id, style: s) }), in: 0...40)
+                            document.setLayerStyle(layer.id, style: s, record: false) }),
+                       in: 0...40, onEditingChanged: { if $0 { document.beginContinuousEdit("Layer Style") } })
                         .controlSize(.mini)
                 }
             }

@@ -217,6 +217,7 @@ struct ImageCanvasView: View {
             selectionOverlay(t)
             lassoPreview(t)
             shapePreview(t)
+            gradientPreview(t)
             strokePreview(t)
             guideOverlay(t)
             cropOverlay(t)
@@ -268,6 +269,32 @@ struct ImageCanvasView: View {
                         style: StrokeStyle(lineWidth: 1.4, dash: [6, 4], dashPhase: phase + 5))
                 .frame(width: rect.width, height: rect.height)
                 .offset(x: rect.minX, y: rect.minY)
+        }
+    }
+
+    /// 渐变拖动实时预览（此前松手前完全看不到效果）。与
+    /// ImageEditorRaster.drawGradient 同几何：线性 = from→to 轴（两端外延纯色），
+    /// 径向 = from 圆心、半径 = |to-from|（外延）；颜色 = 前景→背景。
+    /// 选区裁剪只在提交时生效（预览不裁，选区有蚂蚁线提示）。
+    @ViewBuilder
+    private func gradientPreview(_ t: ImageCanvasTransform) -> some View {
+        if session.tool == .gradient, let start = dragStart, let current = dragCurrent {
+            let a = t.canvasPoint(fromBasePixel: start)
+            let b = t.canvasPoint(fromBasePixel: current)
+            let colors = Gradient(colors: [session.primaryColor, session.secondaryColor])
+            Canvas { context, _ in
+                let imageRect = Path(CGRect(origin: t.origin, size: t.contentSize))
+                if session.gradientRadial {
+                    let radius = max(1, hypot(b.x - a.x, b.y - a.y))
+                    context.fill(imageRect, with: .radialGradient(
+                        colors, center: a, startRadius: 0, endRadius: radius))
+                } else {
+                    context.fill(imageRect, with: .linearGradient(
+                        colors, startPoint: a, endPoint: b))
+                }
+            }
+            .allowsHitTesting(false)
+            .opacity(0.92)
         }
     }
 

@@ -408,8 +408,10 @@ final class ImageEditorDocument: ObservableObject {
         commit()
     }
 
-    func setLayerStyle(_ id: UUID, style: ImageLayerStyle?) {
+    /// record 语义同 setLayerOpacity（fx 弹窗滑杆连续帧不进历史）。
+    func setLayerStyle(_ id: UUID, style: ImageLayerStyle?, record: Bool = true) {
         guard let index = layers.firstIndex(where: { $0.id == id }) else { return }
+        if record { pushHistory("Layer Style") }
         layers[index].style = style
         compositeCache = nil
         revision += 1
@@ -445,8 +447,12 @@ final class ImageEditorDocument: ObservableObject {
         commit()
     }
 
-    func setLayerOpacity(_ id: UUID, opacity: Double) {
+    /// record=false = 滑杆拖动中的连续帧（调用方在交互开始时
+    /// beginContinuousEdit("Opacity Layer") 记一步）；离散调用（命令/桥）
+    /// 默认每步进历史。
+    func setLayerOpacity(_ id: UUID, opacity: Double, record: Bool = true) {
         guard let index = layers.firstIndex(where: { $0.id == id }) else { return }
+        if record { pushHistory("Opacity Layer") }
         layers[index].opacity = min(1, max(0, opacity))
         compositeCache = nil
         commit()

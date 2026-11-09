@@ -736,6 +736,7 @@ enum ImageEditorCommands {
                 "blend": layer.blend.rawValue,
                 "active": layer.id == document.activeLayerID,
                 "text": layer.textSpec != nil,
+                "style": layer.style?.isActive ?? false,
             ]
         }
         return [

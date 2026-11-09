@@ -87,6 +87,13 @@ struct ImageEditorAdjustmentsPanel: View {
             }
             .padding(10)
         }
+        .onAppear {
+            // 载入活动层已落的非破坏参数（面板打开即可微调）
+            if let layer = document.activeLayer {
+                params = layer.adjust ?? ImageAdjustParams()
+                filter = layer.filter ?? .none
+            }
+        }
         .onChange(of: params) { _, newValue in
             document.setPreview(adjust: newValue, filter: filter)
         }

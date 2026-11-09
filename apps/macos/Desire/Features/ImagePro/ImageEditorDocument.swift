@@ -142,6 +142,7 @@ final class ImageEditorDocument: ObservableObject {
             return image
         }
         var effective = bitmaps
+        var effectiveLayers = layers
         if previewAdjust != nil || previewFilter != nil,
            let base = bitmaps[activeLayerID] {
             if let rendered = ImageEditorRaster.applyEffect(base,
@@ -149,9 +150,15 @@ final class ImageEditorDocument: ObservableObject {
                                                             filter: previewFilter,
                                                             mask: bitmapMask()) {
                 effective[activeLayerID] = rendered
+                // 活动层参数已含在预览渲染里——剥掉，否则 Raster 会对同一层
+                // 再应用一次（双重调色）。
+                if let idx = effectiveLayers.firstIndex(where: { $0.id == activeLayerID }) {
+                    effectiveLayers[idx].adjust = nil
+                    effectiveLayers[idx].filter = nil
+                }
             }
         }
-        let image = ImageEditorRaster.composite(layers: layers, bitmaps: effective,
+        let image = ImageEditorRaster.composite(layers: effectiveLayers, bitmaps: effective,
                                                 size: canvasSize)
         compositeCache = (revision, image)
         return image
@@ -173,6 +180,7 @@ final class ImageEditorDocument: ObservableObject {
             return image
         }
         var effective = bitmaps
+        var effectiveLayers = layers
         if previewAdjust != nil || previewFilter != nil,
            let base = bitmaps[activeLayerID] {
             if let rendered = ImageEditorRaster.applyEffect(base,
@@ -180,10 +188,14 @@ final class ImageEditorDocument: ObservableObject {
                                                             filter: previewFilter,
                                                             mask: bitmapMask()) {
                 effective[activeLayerID] = rendered
+                if let idx = effectiveLayers.firstIndex(where: { $0.id == activeLayerID }) {
+                    effectiveLayers[idx].adjust = nil
+                    effectiveLayers[idx].filter = nil
+                }
             }
         }
         let image = ImageEditorRaster.composite(
-            layers: layers, bitmaps: effective, size: canvasSize,
+            layers: effectiveLayers, bitmaps: effective, size: canvasSize,
             matching: nil, maxRenderSide: maxSide)
         displayCache = (revision, maxSide, image)
         return image ?? composite()
@@ -417,8 +429,11 @@ final class ImageEditorDocument: ObservableObject {
     /// 向下合并：当前图层按自身透明度/混合叠加到下方图层。
     func mergeDown() {
         guard let index = layers.firstIndex(where: { $0.id == activeLayerID }),
-              index > 0,
-              let upper = bitmaps[layers[index].id],
+              index > 0 else { return }
+        // 合并前烘两层参数（合并产生新位图，参数必须落进去）
+        bakeLayerEffects(at: index)
+        bakeLayerEffects(at: index - 1)
+        guard let upper = bitmaps[layers[index].id],
               let lower = bitmaps[layers[index - 1].id] else { return }
         pushHistory("Merge Down")
         let size = canvasSize
@@ -809,7 +824,69 @@ final class ImageEditorDocument: ObservableObject {
         return ImageEditorRaster.shiftedMask(mask, dx: -offset.width, dy: -offset.height) ?? mask
     }
 
+    // MARK: - 非破坏调整/滤镜（图层级参数）
+
+    /// 设图层调整参数（nil/neutral = 清除）。无选区时**不落像素**——参数挂
+    /// 图层上合成时现算，可反复调；落像素工具/导出前烘焙。有选区时参数无法
+    /// 表达"只作用选区"，保持烙像素（applyEffect with mask）。
+    func setLayerAdjust(_ id: UUID, params: ImageAdjustParams?, record: Bool = true) {
+        guard let index = layers.firstIndex(where: { $0.id == id }) else { return }
+        let neutral = params == nil || params!.isNeutral
+        if neutral {
+            guard layers[index].adjust != nil else { return }
+            if record { pushHistory("Clear Adjust") }
+            layers[index].adjust = nil
+        } else {
+            if record { pushHistory("Adjust") }
+            layers[index].adjust = params
+        }
+        compositeCache = nil
+        commit()
+    }
+
+    func setLayerFilter(_ id: UUID, preset: ImageFilterPreset?, record: Bool = true) {
+        guard let index = layers.firstIndex(where: { $0.id == id }) else { return }
+        let none = preset == nil || preset == ImageFilterPreset.none
+        if none {
+            guard layers[index].filter != nil else { return }
+            if record { pushHistory("Clear Filter") }
+            layers[index].filter = nil
+        } else {
+            if record { pushHistory("Filter") }
+            layers[index].filter = preset
+        }
+        compositeCache = nil
+        commit()
+    }
+
+    /// 落像素工具前把活动层的参数烘进位图（烘焙后的渲染复用 Raster 的
+    /// 效果缓存），参数清空——像素从此就是"底稿"。
+    func bakeActiveLayerEffects() {
+        bakeLayerEffects(at: layers.firstIndex(where: { $0.id == activeLayerID }) ?? -1)
+    }
+
+    /// 按索引烘焙层参数（mergeDown 等结构操作前用）。
+    private func bakeLayerEffects(at index: Int) {
+        guard index >= 0, index < layers.count,
+              let bitmap = bitmaps[layers[index].id],
+              layers[index].adjust != nil || layers[index].filter != nil else { return }
+        let id = layers[index].id
+        let rendered = ImageEditorRaster.effectApplied(
+            bitmap, id: id,
+            adjust: layers[index].adjust, filter: layers[index].filter)
+        bitmaps[id] = rendered
+        layers[index].adjust = nil
+        layers[index].filter = nil
+        compositeCache = nil
+        revision += 1
+    }
+
     func applyAdjust(_ params: ImageAdjustParams, title: String = "Adjust") {
+        // 无选区：设参数（非破坏）；有选区：烙像素（选区感知的参数无法表达）。
+        if bitmapMask() == nil {
+            setLayerAdjust(activeLayerID, params: params)
+            return
+        }
         guard let current = bitmaps[activeLayerID] else { return }
         let mask = bitmapMask()
         guard let output = ImageEditorRaster.applyEffect(current, adjust: params,
@@ -819,6 +896,10 @@ final class ImageEditorDocument: ObservableObject {
     }
 
     func applyFilter(_ preset: ImageFilterPreset, title: String = "Filter") {
+        if bitmapMask() == nil {
+            setLayerFilter(activeLayerID, preset: preset)
+            return
+        }
         guard let current = bitmaps[activeLayerID] else { return }
         let mask = bitmapMask()
         guard let output = ImageEditorRaster.applyEffect(current, adjust: nil,

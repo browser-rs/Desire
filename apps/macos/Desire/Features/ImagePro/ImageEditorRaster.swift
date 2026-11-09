@@ -74,6 +74,35 @@ nonisolated enum ImageEditorRaster {
                                               image: CGImage)] = [:]
     private static let prescaleLock = NSLock()
 
+    /// 非破坏参数（adjust/filter）的渲染缓存：key = 图层 id + 位图身份 + 参数。
+    /// 参数化位图挂在图层上合成时现算——缓存让"参数不变的连续编辑"不重跑
+    /// CI 效果（96MP 上一次 applyEffect ~200ms+）。
+    private static var effectCache: [UUID: (source: CGImage, adjust: ImageAdjustParams?,
+                                            filter: ImageFilterPreset?, image: CGImage)] = [:]
+    private static let effectLock = NSLock()
+
+    /// 参数化位图（带缓存）。Document 烘焙活动层参数时复用同一份渲染。
+    static func effectApplied(_ bitmap: CGImage, id: UUID,
+                                      adjust: ImageAdjustParams?,
+                                      filter: ImageFilterPreset?) -> CGImage {
+        let neutral = (adjust == nil || adjust!.isNeutral)
+            && (filter == nil || filter == ImageFilterPreset.none)
+        if neutral { return bitmap }
+        effectLock.lock()
+        if let hit = effectCache[id], hit.source === bitmap,
+           hit.adjust == adjust, hit.filter == filter {
+            effectLock.unlock()
+            return hit.image
+        }
+        effectLock.unlock()
+        let rendered = applyEffect(bitmap, adjust: adjust, filter: filter, mask: nil)
+            ?? bitmap
+        effectLock.lock()
+        effectCache[id] = (bitmap, adjust, filter, rendered)
+        effectLock.unlock()
+        return rendered
+    }
+
     /// 合成。`maxRenderSide` 非空 = 显示路径：画布先缩到该边长内，各层位图
     /// 也按同一比例预缩（结果按图层 id 缓存）——超大图每笔编辑从
     /// "全分辨率合成+降采样"（6000×4000 实测 ~660ms）降到"小画布合成"
@@ -101,11 +130,19 @@ nonisolated enum ImageEditorRaster {
         for layer in layers where layer.isVisible && layer.opacity > 0.001
             && (matching?(layer) ?? true) {
             guard let rawBitmap = bitmaps[layer.id] else { continue }
-            var bitmap = (layer.style?.isActive == true)
-                ? (styled(rawBitmap, style: layer.style!) ?? rawBitmap)
-                : rawBitmap
+            var bitmap = rawBitmap
             if renderScale < 1 {
                 bitmap = prescaled(bitmap, id: layer.id, maxSide: maxRenderSide!)
+            }
+            // 非破坏参数（预缩后应用：显示路径小尺寸 CI 更便宜，视觉等价）。
+            // 显示路径的 maxRenderSide 伴随更小的位图，effectCache 按位图身份
+            // 分键，全分辨率与显示路径互不踩。
+            if layer.adjust != nil || layer.filter != nil {
+                bitmap = effectApplied(bitmap, id: layer.id,
+                                       adjust: layer.adjust, filter: layer.filter)
+            }
+            if layer.style?.isActive == true {
+                bitmap = styled(bitmap, style: layer.style!) ?? bitmap
             }
             ctx.saveGState()
             ctx.setAlpha(CGFloat(layer.opacity))

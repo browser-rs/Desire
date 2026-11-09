@@ -642,9 +642,10 @@ struct ImageCanvasView: View {
             return
         }
         // 画笔/形状/文字按文档坐标绘制；图层有缩放/旋转/偏移时先烘平，
-        // 否则坐标会被二次变换。
+        // 否则坐标会被二次变换。非破坏参数同理先烘（否则笔迹也带调色）。
         if [.brush, .eraser, .shape, .text, .gradient].contains(session.tool) {
             document.bakeActiveLayerGeometry()
+            document.bakeActiveLayerEffects()
         }
         switch session.tool {
         case .hand:

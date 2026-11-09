@@ -169,6 +169,10 @@ nonisolated struct ImageEditorLayer: Identifiable, Equatable, Sendable {
     /// 非空 = 文字层（规格可再编辑）。位图被其它工具改写或几何带缩放/旋转
     /// 烘焙后置空（降级为普通像素层，规格无法复现视觉）。
     var textSpec: ImageTextSpec?
+    /// 非破坏调整参数（合成时现算；nil/neutral = 无）。落像素工具前烘焙。
+    var adjust: ImageAdjustParams?
+    /// 非破坏滤镜预设（nil/.none = 无）。
+    var filter: ImageFilterPreset?
 }
 
 

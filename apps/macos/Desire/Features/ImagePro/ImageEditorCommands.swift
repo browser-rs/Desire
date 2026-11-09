@@ -69,6 +69,7 @@ enum ImageEditorCommands {
                     return ["error": "gradient needs from:[x,y] and to:[x,y]"]
                 }
                 document.bakeActiveLayerGeometry()
+                document.bakeActiveLayerEffects()
                 guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
                 let start = (body["start"] as? String).flatMap { ImageEditorRaster.color(from: $0) }
                     ?? ImageEditorRaster.color(from: NSColor(session.primaryColor))
@@ -95,6 +96,7 @@ enum ImageEditorCommands {
                 session.retouchMode = mode
                 session.tool = .retouch
                 document.bakeActiveLayerGeometry()
+                document.bakeActiveLayerEffects()
                 guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
                 let size = Self.number(body["size"]).map { CGFloat($0) } ?? session.brushSize
                 let strength = Self.number(body["strength"]) ?? session.retouchStrength
@@ -120,6 +122,7 @@ enum ImageEditorCommands {
                     return ["error": "dumpsubject needs path"]
                 }
                 document.bakeActiveLayerGeometry()
+                document.bakeActiveLayerEffects()
                 guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
                 guard let mask = await ImageAICore.subjectMask(bitmap) else {
                     return ["error": "no mask"]
@@ -138,6 +141,7 @@ enum ImageEditorCommands {
             case "cutout":
                 let mode = (body["mode"] as? String)?.lowercased() ?? "erase"
                 document.bakeActiveLayerGeometry()
+                document.bakeActiveLayerEffects()
                 guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
                 guard let mask = await ImageAICore.subjectMask(bitmap) else {
                     return ["error": "No subject found (subject lifting returned no mask)"]
@@ -417,6 +421,7 @@ enum ImageEditorCommands {
                               document: ImageEditorDocument,
                               erase: Bool = false) throws -> [String: Any] {
         document.bakeActiveLayerGeometry()
+                document.bakeActiveLayerEffects()
         guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
         guard points.isEmpty == false else { return ["error": "points is empty"] }
         let size = Self.number(body["size"]).map { CGFloat($0) } ?? session.brushSize
@@ -452,6 +457,7 @@ enum ImageEditorCommands {
     private static func shape(body: [String: Any], session: ImageEditorSession,
                               document: ImageEditorDocument) throws -> [String: Any] {
         document.bakeActiveLayerGeometry()
+                document.bakeActiveLayerEffects()
         guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
         guard let from = Self.point(body["from"]), let to = Self.point(body["to"]) else {
             return ["error": "shape needs from:[x,y] and to:[x,y]"]
@@ -754,6 +760,9 @@ enum ImageEditorCommands {
                 "active": layer.id == document.activeLayerID,
                 "text": layer.textSpec != nil,
                 "style": layer.style?.isActive ?? false,
+                "adjust": layer.adjust?.isNeutral == false,
+                "filter": (layer.filter != nil && layer.filter != ImageFilterPreset.none)
+                    ? layer.filter!.rawValue : "",
             ]
         }
         return [

@@ -33,10 +33,19 @@
     }
     try {
         var _ipr;
+        // get/set 入 toString 掩护表（共享协议见 yt-json-prune 头注释；
+        // YouTube 也会探 descriptor 的 get/set 是否 native）。
+        var mask = window.__desireMaskNative;
+        var getter = function() { return _ipr; };
+        var setter = function(v) { _ipr = stripAds(v); };
+        if (mask) {
+            mask(getter, 'function get ytInitialPlayerResponse() { [native code] }');
+            mask(setter, 'function set ytInitialPlayerResponse(v) { [native code] }');
+        }
         Object.defineProperty(window, 'ytInitialPlayerResponse', {
             configurable: true,
-            get: function() { return _ipr; },
-            set: function(v) { _ipr = stripAds(v); }
+            get: getter,
+            set: setter
         });
     } catch (e) {}
 
@@ -61,23 +70,51 @@
         dialog.remove();
     }
 
-    function scanDialogs(root) {
-        try {
-            if (!root.querySelectorAll) return;
-            root.querySelectorAll('tp-yt-paper-dialog').forEach(function(d) {
-                // 结构证据：弹窗内必须有 enforcement 视图模型才动手。
-                if (d.querySelector(ENFORCEMENT)) killDialog(d);
-            });
-        } catch (e) {}
+    // ---- 整页 enforcement（2026-11-09 用户截图实锤的新形态）----
+    // 不再是 tp-yt-paper-dialog 弹窗，而是 watch 页内容被整个替换成
+    // enforcement 页（标题"使用广告拦截器违反 YouTube 服务条款" +
+    // "允许展示 YouTube 广告"按钮）。旧选择器只盯 dialog，整页形态完全
+    // 不覆盖。处置：remove 整页结构后 reload 一次——检测状态在内存里，
+    // reload 后本脚本先于检测脚本运行，不再触发；sessionStorage 计数
+    // 防循环（同一导航最多 reload 两次）。
+    var RELOAD_KEY = '__desireAdblockReload';
+    var RELOAD_MAX = 2;
+
+    function handleFullPageEnforcement(root) {
+        var nodes = root.querySelectorAll(ENFORCEMENT);
+        if (!nodes.length) return;
+        for (var i = 0; i < nodes.length; i++) {
+            var el = nodes[i];
+            // 只处理"整页形态"：不在 paper dialog 里的 enforcement 结构
+            if (el.closest && el.closest('tp-yt-paper-dialog')) continue;
+            var rect = el.getBoundingClientRect();
+            if (rect.height < 50) continue;  // 预置隐藏结构不动
+            try {
+                var count = parseInt(sessionStorage.getItem(RELOAD_KEY) || '0', 10);
+                if (count < RELOAD_MAX) {
+                    sessionStorage.setItem(RELOAD_KEY, String(count + 1));
+                    location.reload();
+                    return true;
+                }
+            } catch (e) {}
+            // reload 配额用尽：退化为直接移除（尽力而为）
+            var host = el.closest('ytd-watch-flexy, ytd-app, body') || el.parentElement;
+            if (host) { try { el.remove(); } catch (e2) {} }
+        }
+        return false;
     }
     var mo = new MutationObserver(function(muts) {
         for (var i = 0; i < muts.length; i++) {
             var added = muts[i].addedNodes;
             for (var j = 0; j < added.length; j++) {
                 var n = added[j];
-                if (n.nodeType === 1 && (n.matches && (n.matches('tp-yt-paper-dialog') || n.querySelector('tp-yt-paper-dialog, ytd-popup-container')))) {
+                if (n.nodeType !== 1) continue;
+                if (n.matches && (n.matches('tp-yt-paper-dialog') || n.querySelector('tp-yt-paper-dialog, ytd-popup-container'))) {
                     scanDialogs(document);
-                    return;
+                }
+                // 整页 enforcement：任何新增子树里出现即处置
+                if (n.matches && (n.matches(ENFORCEMENT) || n.querySelector(ENFORCEMENT))) {
+                    if (handleFullPageEnforcement(document)) return;
                 }
             }
         }
@@ -98,5 +135,18 @@
     var baitObserver = new MutationObserver(clearBaits);
     if (document.documentElement) {
         baitObserver.observe(document.documentElement, { childList: true, subtree: true });
+    }
+
+    // 整页 enforcement 开机即扫（SPA 路由恢复时结构已存在，MutationObserver
+    // 只看新增节点会漏）。
+    function initialScan() {
+        try { scanDialogs(document); } catch (e) {}
+        try { handleFullPageEnforcement(document); } catch (e2) {}
+        try { clearBaits(); } catch (e3) {}
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initialScan);
+    } else {
+        initialScan();
     }
 })();

@@ -26,6 +26,8 @@
 - ImagePro 编辑器会话生命周期三修：① 切走标签再切回，未保存修改不再丢失（会话挂到标签上跨切换存活 + 打开时自动恢复未落盘草稿并提示，Revert 现在会清掉草稿——否则下次打开又"恢复"回来）；② 状态提示的延迟清理任务改为弱捕获（强捕获曾把刚关闭的编辑器钉活 2.5 秒，弱注册表里留下可被 AI 寻址的幽灵会话）；③ 会话创建从视图 body 挪到路由层（StateObject 自动闭包每次重算都会执行，曾产生僵尸会话且反复读盘）。
 - 画布事件层两修：① 后台窗口首击直达画布（acceptsFirstMouse，PS/Figma 语义——此前非 key 窗口的第一次点击只用于激活窗口，画布收不到 mouseDown）；② 桥合成鼠标事件直接投给目标窗口（NSApp.sendEvent 按屏幕位置解析目标，会被浮动面板整窗截走）。
 - ImagePro 图层属性撤销补齐：不透明度与图层样式（投影/描边/发光）此前不进历史——现在命令路径每步进历史（Opacity Layer / Layer Style），面板滑杆在拖动开始时记一步、拖动中的连续帧不灌历史；/image/state 图层带 style 标记。
+- YouTube 整页"使用广告拦截器违反服务条款"检测弹出修复：yt-json-prune 的 JSON.parse 替换是裸 hook——`JSON.parse.toString()` 直接吐出脚本源码，YouTube 的反拦截检测第一步探这个就穿帮（实测 parseNative=false 即弹整页 enforcement）。现在用 uBO 同款 Function.prototype.toString 掩护（WeakMap 存 native 样子源码、toString 自掩、yt-anti-detect 共享同一协议），自有标签实测：换视频/刷新/延迟 25s 均不再弹检测页、播放正常。附：yt-anti-detect 补整页 enforcement 形态的清除能力（旧版只认 paper-dialog 弹窗；该脚本仍在退役状态未接线，档案保留）。
+
 
 
 

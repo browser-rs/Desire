@@ -160,6 +160,12 @@ struct ImageEventCatcher: NSViewRepresentable {
         }
         #endif
 
+        /// 后台窗口首击直达画布（PS/Figma 语义）：默认行为里非 key 窗口的
+        /// 第一次点击只用于激活窗口、不进视图；画布应接受首击直接开始编辑。
+        /// （也是合成事件测试的前提：窗口非 key 时 mouseDown 会被激活路径
+        /// 整个吞掉——2026-11-09 实测 evtDown 恒 0 的根因。）
+        override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
+
         override func mouseDown(with event: NSEvent) {
             window?.makeFirstResponder(self)
             #if DEBUG

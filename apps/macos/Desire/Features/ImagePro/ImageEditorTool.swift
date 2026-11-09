@@ -125,6 +125,33 @@ nonisolated struct ImageLayerStyle: Equatable, Sendable {
     var isActive: Bool { shadowEnabled || strokeEnabled || glowEnabled }
 }
 
+/// 文字规格（可再编辑）：文字提交为自己的图层，规格存图层上，文字工具
+/// 点回该层即重新打开编辑卡。颜色存 hex 字符串（CGColor 非 Sendable，
+/// 模型层不能持有）；渲染时经 `textStyle()` 转换。
+nonisolated struct ImageTextSpec: Equatable, Sendable {
+    var text: String
+    var anchorX: Double
+    var anchorY: Double
+    var fontName: String?
+    var weight: String = "semibold"
+    var fontSize: Double = 32
+    var colorHex: String = "#FFFFFF"
+    var alignment: String = "left"
+    var lineSpacing: Double = 1.2
+    var strokeWidth: Double = 0
+    var strokeColorHex: String = "#000000"
+    var shadow: Bool = false
+    var backgroundHex: String?
+    /// 渲染后的文字包围盒（图层像素；提交/重渲染时扫描一次，命中测试用，
+    /// 避免每次点击全图扫描）。
+    var inkBoxX: Double = 0
+    var inkBoxY: Double = 0
+    var inkBoxW: Double = 0
+    var inkBoxH: Double = 0
+
+    var anchor: CGPoint { CGPoint(x: anchorX, y: anchorY) }
+}
+
 /// 图层（账本；像素在 ImageEditorDocument.bitmaps）。
 nonisolated struct ImageEditorLayer: Identifiable, Equatable, Sendable {
     var id: UUID
@@ -139,6 +166,9 @@ nonisolated struct ImageEditorLayer: Identifiable, Equatable, Sendable {
     var rotation: Double = 0
     var isLocked: Bool = false
     var style: ImageLayerStyle?
+    /// 非空 = 文字层（规格可再编辑）。位图被其它工具改写或几何带缩放/旋转
+    /// 烘焙后置空（降级为普通像素层，规格无法复现视觉）。
+    var textSpec: ImageTextSpec?
 }
 
 

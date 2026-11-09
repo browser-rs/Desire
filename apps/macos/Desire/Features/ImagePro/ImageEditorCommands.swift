@@ -24,7 +24,7 @@ enum ImageEditorCommands {
         }
         let document = session.document
         if document.isActiveLayerLocked,
-           ["brush", "stroke", "eraser", "shape", "text", "fill", "mosaic",
+           ["brush", "stroke", "eraser", "shape", "fill", "mosaic",
             "move", "retouch"].contains(action) {
             return ["error": "Layer is locked"]
         }
@@ -460,42 +460,74 @@ enum ImageEditorCommands {
         return ["ok": true]
     }
 
+    /// 文字（可再编辑）：新建 = 自己的透明图层；`layer` = 重编辑该文字层
+    /// （未给的字段继承原规格，锚点保留原位）。
     private static func text(body: [String: Any], session: ImageEditorSession,
                              document: ImageEditorDocument) throws -> [String: Any] {
-        document.bakeActiveLayerGeometry()
-        guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
         guard let value = body["text"] as? String, !value.isEmpty else {
             return ["error": "text needs text"]
         }
-        let at = Self.point(body["at"]) ?? CGPoint(x: 20, y: 20)
-        var style = ImageEditorRaster.TextStyle()
-        style.fontSize = Self.number(body["size"]).map { CGFloat($0) } ?? session.fontSize
-        style.color = (body["color"] as? String).flatMap { ImageEditorRaster.color(from: $0) }
-            ?? session.primaryCGColor
-        style.fontName = body["font"] as? String ?? session.textFontFamily
-        style.weight = (body["weight"] as? String) ?? session.textWeight
-        style.alignment = (body["align"] as? String) ?? session.textAlignment
-        style.lineSpacing = Self.number(body["lineSpacing"]).map { CGFloat($0) }
-            ?? CGFloat(session.textLineSpacing)
-        style.strokeWidth = Self.number(body["strokeWidth"]).map { CGFloat($0) }
-            ?? session.textStrokeWidth
-        if let hex = body["strokeColor"] as? String,
-           let c = ImageEditorRaster.color(from: hex) { style.strokeColor = c }
-        style.shadow = (body["shadow"] as? Bool) ?? session.textShadow
-        if let hex = body["shadowColor"] as? String,
-           let c = ImageEditorRaster.color(from: hex) { style.shadowColor = c }
-        if (body["background"] as? Bool) ?? session.textBackground {
-            style.backgroundColor = (body["backgroundColor"] as? String)
-                .flatMap { ImageEditorRaster.color(from: $0) }
-                ?? ImageEditorRaster.color(from: NSColor(session.textBackgroundColor))
+        // 起始规格：重编辑 = 原规格（未给字段保持原样）；新建 = 会话默认。
+        var spec: ImageTextSpec
+        let editID = (body["layer"] as? String).flatMap(UUID.init(uuidString:))
+        if let editID {
+            guard let stored = document.textSpec(of: editID) else {
+                return ["error": "layer is not a text layer"]
+            }
+            guard !document.isLayerLocked(editID) else { return ["error": "Layer is locked"] }
+            spec = stored
+            spec.text = value
+        } else {
+            spec = ImageTextSpec(
+                text: value,
+                anchorX: Double((Self.point(body["at"]) ?? CGPoint(x: 20, y: 20)).x),
+                anchorY: Double((Self.point(body["at"]) ?? CGPoint(x: 20, y: 20)).y))
+            spec.fontName = session.textFontFamily
+            spec.weight = session.textWeight
+            spec.fontSize = Double(session.fontSize)
+            spec.colorHex = ImageEditorRaster.hexString(from: session.primaryCGColor)
+            spec.alignment = session.textAlignment
+            spec.lineSpacing = session.textLineSpacing
+            spec.strokeWidth = Double(session.textStrokeWidth)
+            spec.shadow = session.textShadow
+            if session.textBackground {
+                spec.backgroundHex = ImageEditorRaster.hexString(
+                    from: ImageEditorRaster.color(from: NSColor(session.textBackgroundColor)))
+            }
         }
-        guard let output = ImageEditorRaster.drawText(
-            bitmap, text: value, at: clamp(at, to: document.canvasSize),
-            style: style, contentOffset: document.activeLayerOffset) else {
+        if let at = Self.point(body["at"]) {
+            let clamped = clamp(at, to: document.canvasSize)
+            spec.anchorX = Double(clamped.x)
+            spec.anchorY = Double(clamped.y)
+        }
+        if let v = body["font"] as? String { spec.fontName = v }
+        if let v = body["weight"] as? String { spec.weight = v }
+        if let v = Self.number(body["size"]) { spec.fontSize = v }
+        if let v = body["color"] as? String { spec.colorHex = v }
+        if let v = body["align"] as? String { spec.alignment = v }
+        if let v = Self.number(body["lineSpacing"]) { spec.lineSpacing = v }
+        if let v = Self.number(body["strokeWidth"]) { spec.strokeWidth = v }
+        if let v = body["strokeColor"] as? String { spec.strokeColorHex = v }
+        if let v = body["shadow"] as? Bool { spec.shadow = v }
+        if let v = body["background"] as? Bool {
+            spec.backgroundHex = v
+                ? (body["backgroundColor"] as? String)
+                    ?? ImageEditorRaster.hexString(
+                        from: ImageEditorRaster.color(from: NSColor(session.textBackgroundColor)))
+                : nil
+        } else if let v = body["backgroundColor"] as? String, v.isEmpty == false {
+            spec.backgroundHex = v
+        }
+        if let editID {
+            guard document.updateTextLayer(editID, spec: spec) else {
+                return ["error": "text failed"]
+            }
+            return ["ok": true, "edited": true, "layer": editID.uuidString]
+        }
+        guard let id = document.addTextLayer(spec: spec) else {
             return ["error": "text failed"]
         }
-        document.replaceActiveBitmap(output, title: "Text")
-        return ["ok": true]
+        return ["ok": true, "layer": id.uuidString]
     }
 
     private static func fill(body: [String: Any], document: ImageEditorDocument) throws -> [String: Any] {
@@ -703,6 +735,7 @@ enum ImageEditorCommands {
                 "opacity": layer.opacity,
                 "blend": layer.blend.rawValue,
                 "active": layer.id == document.activeLayerID,
+                "text": layer.textSpec != nil,
             ]
         }
         return [

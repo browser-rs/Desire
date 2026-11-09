@@ -4151,7 +4151,15 @@ final class AutomationServer {
             windowNumber: windowNumber, context: nil,
             eventNumber: 0, clickCount: clickCount,
             pressure: type == .leftMouseDown ? 1.0 : 0.0) else { return }
-        NSApp.sendEvent(event)
+        // 直接投给目标窗口，不走 NSApp.sendEvent：后者对鼠标事件按屏幕位置
+        // 解析目标（顶层优先），浮动面板（如独立 Agent 窗，NSFloatingWindowLevel）
+        // 盖住编辑器时会把合成事件整窗截走（2026-11-09 实测：evtDown 恒 0、
+        // 键事件因走 key-equivalent 链不受影响）。指定窗口投递不受覆盖物影响。
+        if let window = NSApp.window(withWindowNumber: windowNumber) {
+            window.sendEvent(event)
+        } else {
+            NSApp.sendEvent(event)
+        }
     }
 
     private static func navigate(_ rawURL: String?, index: Int?,

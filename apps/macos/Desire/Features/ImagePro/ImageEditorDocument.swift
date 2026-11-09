@@ -208,6 +208,79 @@ final class ImageEditorDocument: ObservableObject {
 
     // MARK: - 图层
 
+    // MARK: - 文字层（可再编辑）
+
+    /// 新文字 = 自己的透明图层（规格存图层上）。inkBox 扫描一次供命中测试。
+    @discardableResult
+    func addTextLayer(spec: ImageTextSpec) -> UUID? {
+        let trimmed = spec.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let rendered = ImageEditorRaster.renderTextLayer(spec, canvasSize: canvasSize)
+        else { return nil }
+        var newSpec = spec
+        if let box = ImageEditorRaster.maskBounds(rendered) {
+            newSpec.inkBoxX = Double(box.minX)
+            newSpec.inkBoxY = Double(box.minY)
+            newSpec.inkBoxW = Double(box.width)
+            newSpec.inkBoxH = Double(box.height)
+        }
+        pushHistory("Text")
+        let preview = String(trimmed.prefix(12))
+        var layer = ImageEditorLayer(id: UUID(), name: "Text · \(preview)")
+        layer.textSpec = newSpec
+        let index = layers.firstIndex { $0.id == activeLayerID }.map { $0 + 1 } ?? layers.count
+        layers.insert(layer, at: index)
+        bitmaps[layer.id] = rendered
+        activeLayerID = layer.id
+        compositeCache = nil
+        commit()
+        return layer.id
+    }
+
+    /// 重编辑文字层：位图按新规格重渲染；offset/scale/rotation 保留
+    /// （几何不动 = 视觉位置不变）。空文本由调用方决定（UI 删层）。
+    @discardableResult
+    func updateTextLayer(_ id: UUID, spec: ImageTextSpec) -> Bool {
+        guard let index = layers.firstIndex(where: { $0.id == id }),
+              layers[index].textSpec != nil, !layers[index].isLocked else { return false }
+        let trimmed = spec.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let rendered = ImageEditorRaster.renderTextLayer(spec, canvasSize: canvasSize)
+        else { return false }
+        var newSpec = spec
+        if let box = ImageEditorRaster.maskBounds(rendered) {
+            newSpec.inkBoxX = Double(box.minX)
+            newSpec.inkBoxY = Double(box.minY)
+            newSpec.inkBoxW = Double(box.width)
+            newSpec.inkBoxH = Double(box.height)
+        }
+        pushHistory("Edit Text")
+        layers[index].textSpec = newSpec
+        layers[index].name = "Text · \(String(trimmed.prefix(12)))"
+        bitmaps[id] = rendered
+        compositeCache = nil
+        commit()
+        return true
+    }
+
+    func textSpec(of id: UUID) -> ImageTextSpec? {
+        layers.first { $0.id == id }?.textSpec
+    }
+
+    /// 命中测试（文字工具点回）：从上往下找第一个文字墨迹命中（容差 8px）。
+    func textLayerID(at base: CGPoint) -> UUID? {
+        for layer in layers.reversed() where layer.isVisible && layer.textSpec != nil {
+            guard let spec = layer.textSpec else { continue }
+            let local = CGPoint(x: base.x - layer.offset.width,
+                                y: base.y - layer.offset.height)
+            let box = CGRect(x: spec.inkBoxX, y: spec.inkBoxY,
+                             width: spec.inkBoxW, height: spec.inkBoxH)
+                .insetBy(dx: -8, dy: -8)
+            if box.contains(local) { return layer.id }
+        }
+        return nil
+    }
+
     @discardableResult
     func addLayer(name: String? = nil, bitmap: CGImage? = nil) -> UUID? {
         pushHistory("New Layer")
@@ -351,6 +424,10 @@ final class ImageEditorDocument: ObservableObject {
 
     var debugCachedRevision: Int { compositeCache?.revision ?? -1 }
 
+    func isLayerLocked(_ id: UUID) -> Bool {
+        layers.first { $0.id == id }?.isLocked ?? false
+    }
+
     var isActiveLayerLocked: Bool {
         activeLayer?.isLocked ?? false
     }
@@ -396,6 +473,11 @@ final class ImageEditorDocument: ObservableObject {
         guard bitmaps[id] != nil else { return }
         pushHistory(title)
         bitmaps[id] = image
+        // 位图被任意工具改写（画笔/滤镜/调整…）→ 不再是纯文字层，
+        // 规格无法复现视觉，降级为普通像素层（文字工具点回不再可编辑）。
+        if let index = layers.firstIndex(where: { $0.id == id }) {
+            layers[index].textSpec = nil
+        }
         compositeCache = nil
         commit()
     }
@@ -469,6 +551,22 @@ final class ImageEditorDocument: ObservableObject {
         if layer.scale != 1 { ctx.scaleBy(x: CGFloat(layer.scale), y: CGFloat(layer.scale)) }
         ctx.draw(bitmap, in: CGRect(x: -bw / 2, y: -bh / 2, width: bw, height: bh))
         bitmaps[layer.id] = ctx.makeImage()
+        // 文字层烘焙：纯平移折进规格锚点（仍可再编辑）；带缩放/旋转的
+        // 烘焙无法用规格复现 → 降级为普通像素层。
+        if layers[index].textSpec != nil {
+            if layer.rotation == 0 && layer.scale == 1 {
+                layers[index].textSpec?.anchorX =
+                    (layers[index].textSpec!.anchorX + layer.offset.width).rounded()
+                layers[index].textSpec?.anchorY =
+                    (layers[index].textSpec!.anchorY + layer.offset.height).rounded()
+                layers[index].textSpec?.inkBoxX =
+                    (layers[index].textSpec!.inkBoxX + layer.offset.width).rounded()
+                layers[index].textSpec?.inkBoxY =
+                    (layers[index].textSpec!.inkBoxY + layer.offset.height).rounded()
+            } else {
+                layers[index].textSpec = nil
+            }
+        }
         layers[index].offset = .zero
         layers[index].scale = 1
         layers[index].rotation = 0

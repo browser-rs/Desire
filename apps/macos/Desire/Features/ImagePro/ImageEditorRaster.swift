@@ -667,6 +667,33 @@ nonisolated enum ImageEditorRaster {
 
     /// 蒙版包围盒（文档坐标 y-down）。用与 maskedBlend 同一份像素视图，
     /// 避免两套方向约定（旧版自己建 context 扫描，实测 bbox 只有 1/3 高）。
+    // MARK: - 文字层（可再编辑）
+
+    /// 规格 → 渲染样式（hex → CGColor）。
+    static func textStyle(from spec: ImageTextSpec) -> TextStyle {
+        var style = TextStyle()
+        style.fontName = spec.fontName
+        style.weight = spec.weight
+        style.fontSize = CGFloat(spec.fontSize)
+        if let c = color(from: spec.colorHex) { style.color = c }
+        style.alignment = spec.alignment
+        style.lineSpacing = CGFloat(spec.lineSpacing)
+        style.strokeWidth = CGFloat(spec.strokeWidth)
+        if let c = color(from: spec.strokeColorHex) { style.strokeColor = c }
+        style.shadow = spec.shadow
+        if let hex = spec.backgroundHex, let c = color(from: hex) {
+            style.backgroundColor = c
+        }
+        return style
+    }
+
+    /// 在画布尺寸的透明位图上渲染文字（= 文字层位图）。
+    static func renderTextLayer(_ spec: ImageTextSpec, canvasSize: CGSize) -> CGImage? {
+        guard let base = transparent(size: canvasSize) else { return nil }
+        return drawText(base, text: spec.text, at: spec.anchor,
+                        style: textStyle(from: spec), contentOffset: .zero)
+    }
+
     static func maskBounds(_ mask: CGImage) -> CGRect? {
         guard let bytes = grayBytes(mask) else { return nil }
         let w = mask.width, h = mask.height

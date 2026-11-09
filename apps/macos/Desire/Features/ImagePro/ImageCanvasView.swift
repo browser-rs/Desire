@@ -25,6 +25,8 @@ struct ImageCanvasView: View {
     @State private var textAnchor: CGPoint?
     @State private var textEntry = ""
     @State private var showTextEntry = false
+    /// 非空 = 正在重编辑该文字层（点回文字打开）。
+    @State private var editingTextID: UUID?
     @FocusState private var textFocused: Bool
     @State private var panLast: CGPoint?
     @State private var moveStart: CGPoint?
@@ -177,6 +179,13 @@ struct ImageCanvasView: View {
             "redoCount": document.redoCount,
             "layers": document.layers.count,
             "activeLayer": document.activeLayer?.name ?? "",
+            "textCard": showTextEntry,
+            "editingText": editingTextID?.uuidString ?? "",
+            "textHit": document.textLayerID(at: session.cursorBase ?? .zero)?.uuidString ?? "",
+            "cursorX": session.cursorBase.map { Double($0.x) } ?? -1,
+            "cursorY": session.cursorBase.map { Double($0.y) } ?? -1,
+            "textEntry": textEntry,
+            "textFocused": textFocused,
         ]
         #endif
     }
@@ -412,6 +421,7 @@ struct ImageCanvasView: View {
                 Button(String(localized: "Cancel")) {
                     showTextEntry = false
                     textAnchor = nil
+                    editingTextID = nil
                     refocusCanvas()
                 }
                 .buttonStyle(.bordered)
@@ -540,9 +550,17 @@ struct ImageCanvasView: View {
         case .wand:
             combineMode = selectionCombine(from: flags)
         case .text:
-            textAnchor = base
-            textEntry = ""
-            showTextEntry = true
+            // 点回已有文字 = 重编辑（规格载入卡片与工具选项）；
+            // 点空白 = 新建文字层。
+            if let hit = document.textLayerID(at: base),
+               let spec = document.textSpec(of: hit) {
+                beginEditText(spec, layerID: hit)
+            } else {
+                textAnchor = base
+                textEntry = ""
+                editingTextID = nil
+                showTextEntry = true
+            }
         }
     }
 
@@ -848,30 +866,79 @@ struct ImageCanvasView: View {
         document.replaceActiveBitmap(output, title: session.shape.localizedTitle)
     }
 
+    /// 把会话里的文字样式字段装进规格（hex 存色）。
+    private func textSpec(text: String, anchor: CGPoint) -> ImageTextSpec {
+        var spec = ImageTextSpec(text: text, anchorX: Double(anchor.x), anchorY: Double(anchor.y))
+        spec.fontName = session.textFontFamily
+        spec.weight = session.textWeight
+        spec.fontSize = Double(session.fontSize)
+        spec.colorHex = ImageEditorRaster.hexString(from: session.primaryCGColor)
+        spec.alignment = session.textAlignment
+        spec.lineSpacing = session.textLineSpacing
+        spec.strokeWidth = Double(session.textStrokeWidth)
+        spec.strokeColorHex = ImageEditorRaster.hexString(
+            from: ImageEditorRaster.color(from: NSColor(session.textStrokeColor)))
+        spec.shadow = session.textShadow
+        if session.textBackground {
+            spec.backgroundHex = ImageEditorRaster.hexString(
+                from: ImageEditorRaster.color(from: NSColor(session.textBackgroundColor)))
+        }
+        return spec
+    }
+
+    /// 点回文字层：规格载入会话（卡片与选项栏跟随），进入重编辑态。
+    private func beginEditText(_ spec: ImageTextSpec, layerID: UUID) {
+        editingTextID = layerID
+        document.selectLayer(layerID)
+        textEntry = spec.text
+        textAnchor = spec.anchor
+        session.textFontFamily = spec.fontName
+        session.textWeight = spec.weight
+        session.fontSize = CGFloat(spec.fontSize)
+        if let c = ImageEditorRaster.color(from: spec.colorHex) {
+            session.primaryColor = Color(nsColor: NSColor(cgColor: c) ?? .white)
+        }
+        session.textAlignment = spec.alignment
+        session.textLineSpacing = spec.lineSpacing
+        session.textStrokeWidth = CGFloat(spec.strokeWidth)
+        if let c = ImageEditorRaster.color(from: spec.strokeColorHex) {
+            session.textStrokeColor = Color(nsColor: NSColor(cgColor: c) ?? .black)
+        }
+        session.textShadow = spec.shadow
+        if let hex = spec.backgroundHex,
+           let c = ImageEditorRaster.color(from: hex) {
+            session.textBackground = true
+            session.textBackgroundColor = Color(nsColor: NSColor(cgColor: c) ?? .black)
+        } else {
+            session.textBackground = false
+        }
+        showTextEntry = true
+    }
+
     private func commitText() {
         defer {
             showTextEntry = false
             textAnchor = nil
+            editingTextID = nil
             refocusCanvas()
         }
-        guard let anchor = textAnchor, let bitmap = document.activeBitmap else { return }
-        var style = ImageEditorRaster.TextStyle()
-        style.fontName = session.textFontFamily
-        style.weight = session.textWeight
-        style.fontSize = session.fontSize
-        style.color = session.primaryCGColor
-        style.alignment = session.textAlignment
-        style.lineSpacing = CGFloat(session.textLineSpacing)
-        style.strokeWidth = session.textStrokeWidth
-        style.strokeColor = ImageEditorRaster.color(from: NSColor(session.textStrokeColor))
-        style.shadow = session.textShadow
-        if session.textBackground {
-            style.backgroundColor = ImageEditorRaster.color(from: NSColor(session.textBackgroundColor))
+        let trimmed = textEntry.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 重编辑：空文本 = 删除该文字层；否则按当前样式重渲染（锚点保留原位）。
+        if let id = editingTextID {
+            guard trimmed.isEmpty == false else {
+                document.selectLayer(id)
+                document.deleteActiveLayer()
+                return
+            }
+            let anchor = document.textSpec(of: id)?.anchor
+                ?? textAnchor
+                ?? CGPoint(x: 20, y: 20)
+            _ = document.updateTextLayer(id, spec: textSpec(text: trimmed, anchor: anchor))
+            return
         }
-        guard let output = ImageEditorRaster.drawText(
-            bitmap, text: textEntry, at: anchor, style: style,
-            contentOffset: document.activeLayerOffset) else { return }
-        document.replaceActiveBitmap(output, title: "Text")
+        // 新建：文字 = 自己的透明图层（烙进当前层的老行为废弃——不可再编辑）。
+        guard let anchor = textAnchor, trimmed.isEmpty == false else { return }
+        _ = document.addTextLayer(spec: textSpec(text: trimmed, anchor: anchor))
     }
 
     // MARK: - 裁剪（拖框 + 8 手柄 + 框内拖动 + 双击应用）

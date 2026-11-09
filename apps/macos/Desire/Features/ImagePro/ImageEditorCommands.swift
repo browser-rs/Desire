@@ -75,7 +75,7 @@ enum ImageEditorCommands {
                 let end = (body["end"] as? String).flatMap { ImageEditorRaster.color(from: $0) }
                     ?? ImageEditorRaster.color(from: NSColor(session.secondaryColor))
                 let radial = (body["radial"] as? Bool) ?? session.gradientRadial
-                let mask = document.selection.maskImage(canvasSize: document.canvasSize)
+                let mask = document.selectionMaskImage()
                 guard let output = ImageEditorRaster.drawGradient(
                     bitmap, from: from, to: to, colors: [start, end], radial: radial,
                     clipMask: mask, contentOffset: document.activeLayerOffset) else {
@@ -312,7 +312,7 @@ enum ImageEditorCommands {
             case "dumpmask":
                 // DEBUG 排障：把当前选区蒙版写成 PNG（检查 y 方向约定）。
                 guard let path = body["path"] as? String,
-                      let mask = document.selection.maskImage(canvasSize: document.canvasSize),
+                      let mask = document.selectionMaskImage(),
                       let data = NSBitmapImageRep(cgImage: mask)
                         .representation(using: .png, properties: [:]) else {
                     return ["error": "no mask"]
@@ -420,13 +420,24 @@ enum ImageEditorCommands {
         let color = (body["color"] as? String).flatMap { ImageEditorRaster.color(from: $0) }
             ?? session.primaryCGColor
         let clamped = points.map { clamp($0, to: document.canvasSize) }
-        let mask = document.selection.maskImage(canvasSize: document.canvasSize)
+        let offset = document.activeLayerOffset
+        // 纯矩形选区（无羽化/反选）走几何 clip：蒙版生成 + maskedBlend 全链
+        // 在 96MP 上 ~600ms，几何 clip ~0ms，像素结果一致。
+        var clipRect: CGRect?
+        var clipMask: CGImage?
+        if let rect = document.selection.rect, document.selection.feather == 0,
+           document.selection.inverted == false, document.selection.isEllipse == false {
+            clipRect = rect.offsetBy(dx: -offset.width, dy: -offset.height)
+        } else {
+            clipMask = document.selectionMaskImage()
+        }
         guard let output = ImageEditorRaster.stroke(bitmap, points: clamped, size: size,
                                                     color: color, opacity: CGFloat(opacity),
                                                     hardness: CGFloat(hardness),
                                                     erase: erase,
-                                                    clipMask: mask,
-                                                    contentOffset: document.activeLayerOffset) else {
+                                                    clipMask: clipMask,
+                                                    clipRect: clipRect,
+                                                    contentOffset: offset) else {
             return ["error": "stroke failed"]
         }
         document.replaceActiveBitmap(output, title: erase ? "Erase" : "Brush")
@@ -549,7 +560,7 @@ enum ImageEditorCommands {
         ctx.fill(rect)
         guard let filled = ctx.makeImage() else { return ["error": "fill failed"] }
         var output = filled
-        if let mask = document.selection.maskImage(canvasSize: document.canvasSize),
+        if let mask = document.selectionMaskImage(),
            let blended = ImageEditorRaster.maskedBlend(base: bitmap, effect: filled,
                                                        mask: mask) {
             output = blended
@@ -560,8 +571,9 @@ enum ImageEditorCommands {
 
     private static func mosaic(body: [String: Any], document: ImageEditorDocument) throws -> [String: Any] {
         guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
+        var selection = document.selection
         let rect = Self.rect(body["rect"])
-            ?? document.selection.bounds(canvasSize: document.canvasSize)
+            ?? selection.bounds(canvasSize: document.canvasSize)
         guard var target = rect else { return ["error": "mosaic needs rect or a selection"] }
         target = target.intersection(CGRect(origin: .zero, size: document.canvasSize))
         let block = Self.number(body["block"]).map { CGFloat($0) } ?? 12

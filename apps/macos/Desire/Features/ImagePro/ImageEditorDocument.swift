@@ -16,6 +16,44 @@ final class ImageEditorDocument: ObservableObject {
     @Published private(set) var historyTitles: [String] = []
     @Published private(set) var redoCount = 0
     @Published private(set) var selection = ImageEditorSelection()
+    /// bounds 的缓存包装（selection 是值类型，bounds() 是 mutating——缓存放
+    /// 这里跨调用存活；蒙版不变时 maskBounds 不再反复全图扫描）。
+    private var selectionBoundsCache: (mask: CGImage, box: CGRect?)?
+    /// maskImage 的缓存包装：selectionMask 每次生成 = 96MB 灰度图 + alpha 转换
+    /// 全链重跑（96MP 上画一笔 ~900ms 的主因——mask 身份每次都变，下游缓存
+    /// 全部失效）。selection 不变期间复用同一产物。
+    private var selectionMaskCache: (key: Int, image: CGImage?)?
+    func selectionMaskImage() -> CGImage? {
+        let sel = selection
+        var hasher = Hasher()
+        hasher.combine(sel.rect)
+        hasher.combine(sel.isEllipse)
+        hasher.combine(sel.mask)
+        hasher.combine(sel.feather)
+        hasher.combine(sel.inverted)
+        hasher.combine(sel.selectAll)
+        hasher.combine(canvasSize)
+        let key = hasher.finalize()
+        if let cache = selectionMaskCache, cache.key == key {
+            return cache.image
+        }
+        let image = sel.maskImage(canvasSize: canvasSize)
+        selectionMaskCache = (key, image)
+        return image
+    }
+    var selectionBounds: CGRect? {
+        if selection.selectAll { return CGRect(origin: .zero, size: canvasSize) }
+        if let rect = selection.rect { return rect }
+        if let mask = selection.mask {
+            if let cache = selectionBoundsCache, cache.mask === mask {
+                return cache.box
+            }
+            let box = ImageEditorRaster.maskBounds(mask)
+            selectionBoundsCache = (mask, box)
+            return box
+        }
+        return nil
+    }
     @Published private(set) var canvasSize = CGSize(width: 1, height: 1)
     @Published private(set) var isDirty = false
     /// 调整/滤镜的实时预览（不落库、不进历史；保存/导出不含预览）。
@@ -32,7 +70,10 @@ final class ImageEditorDocument: ObservableObject {
     /// 大图不限制会在 40 步内吃掉数 GB（6000×4000 ≈ 每步 96MB 像素）。
     private var maxHistory: Int {
         let pixels = Int(canvasSize.width) * Int(canvasSize.height)
-        if pixels > 64_000_000 { return 4 }
+        // 96MP 实测：每步快照持有全图层位图，4 步 ≈ 1.5GB——长会话内存压力把
+        // 单笔拖进换页（2026-11-09：RSS 7GB 时单笔 2s+）。>64MP 收到 2 步
+        // （undo/redo 各一步的可用下限）。
+        if pixels > 64_000_000 { return 2 }
         if pixels > 16_000_000 { return 10 }
         return 40
     }

@@ -315,13 +315,17 @@ final class ImageEditorSession: ObservableObject {
     }
 
     /// 编辑后 3s 防抖写草稿（崩溃/强杀后可恢复）。
+    ///
+    /// 草稿用**显示级**合成（4096 内）：flattened() 全分辨率在 96MP 上
+    /// ~600ms 且跑在主线程——连续作画时防抖 Task 每次醒来都把下一笔卡住
+    /// （实测笔画 60ms → 530ms 交替）。草稿只用于崩溃恢复，显示分辨率足够。
     func scheduleDraftSave() {
         draftTask?.cancel()
         guard document.isDirty else { return }
         draftTask = Task { @MainActor in
             try? await Task.sleep(for: .seconds(3))
             guard !Task.isCancelled, document.isDirty,
-                  let image = document.flattened(over: nil) else { return }
+                  let image = document.displayComposite() else { return }
             _ = ImageEditorDraft.save(image, for: draftSourceKey)
         }
     }

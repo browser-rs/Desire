@@ -155,6 +155,10 @@ struct ImageCanvasView: View {
         syncProbe()
     }
 
+    private func probeSelectionBounds() -> CGRect? {
+        document.selectionBounds
+    }
+
     private func syncProbe() {
         #if DEBUG
         let t = transform
@@ -174,7 +178,7 @@ struct ImageCanvasView: View {
             "cropRectW": cropRect?.width ?? 0, "cropRectH": cropRect?.height ?? 0,
             "selectionEmpty": document.selection.isEmpty,
             "selectionDesc": document.selection.describe,
-            "selectionBounds": document.selection.bounds(canvasSize: document.canvasSize).map {
+            "selectionBounds": probeSelectionBounds().map {
                 [Double($0.minX), Double($0.minY), Double($0.width), Double($0.height)]
             } ?? [],
             "brushPoints": strokePoints.count,
@@ -221,6 +225,7 @@ struct ImageCanvasView: View {
             lassoPreview(t)
             shapePreview(t)
             gradientPreview(t)
+            strokeLive(t)
             strokePreview(t)
             guideOverlay(t)
             cropOverlay(t)
@@ -235,7 +240,7 @@ struct ImageCanvasView: View {
             let rect = t.canvasRect(fromBaseRect: normalized(start, current))
             marchingAnts(rect: rect, ellipse: session.marqueeEllipse, phase: 0)
                 .opacity(0.9)
-        } else if let bounds = document.selection.bounds(canvasSize: document.canvasSize) {
+        } else if let bounds = document.selectionBounds {
             // 自定义蒙版（魔棒/套索）：额外把真实形状叠出来（灰度蒙版 screen
             // 提亮），否则只看到包围盒蚂蚁线，完全不知道选了什么。
             if let mask = document.selection.mask {
@@ -298,6 +303,41 @@ struct ImageCanvasView: View {
             }
             .allowsHitTesting(false)
             .opacity(0.92)
+        }
+    }
+
+    /// 画笔/橡皮拖动中的实时笔画预览：等宽圆头折线（overlay），落点跟随
+    /// 硬度调软边观感。橡皮用中灰色半透明示意"将擦除"，提交时才真正
+    /// destinationOut。选区约束在预览中不裁（蚂蚁线已提示边界）。
+    @ViewBuilder
+    private func strokeLive(_ t: ImageCanvasTransform) -> some View {
+        if let points = liveStrokePoints, points.count >= 2 {
+            let pts = points.map { t.canvasPoint(fromBasePixel: $0) }
+            let width = max(1, session.brushSize * canvas.zoom)
+            Canvas { context, _ in
+                var path = Path()
+                path.move(to: pts[0])
+                if pts.count == 2 {
+                    path.addLine(to: pts[1])
+                } else {
+                    for i in 1..<(pts.count - 1) {
+                        let mid = CGPoint(x: (pts[i].x + pts[i+1].x) / 2,
+                                          y: (pts[i].y + pts[i+1].y) / 2)
+                        path.addQuadCurve(to: mid, control: pts[i])
+                    }
+                    path.addLine(to: pts[pts.count - 1])
+                }
+                let erase = session.tool == .eraser
+                let color = erase
+                    ? Color.gray.opacity(0.45)
+                    : session.primaryColor.opacity(session.brushOpacity)
+                context.stroke(
+                    path,
+                    with: .color(color),
+                    style: StrokeStyle(lineWidth: width,
+                                       lineCap: .round, lineJoin: .round))
+            }
+            .allowsHitTesting(false)
         }
     }
 
@@ -920,12 +960,19 @@ struct ImageCanvasView: View {
         }
     }
 
+    /// 拖动中才有值（松手 commitStroke 清空 strokePoints → overlay 消失，
+    /// 位图上的真实笔画接管，无闪空）。
+    private var liveStrokePoints: [CGPoint]? {
+        guard session.tool == .brush || session.tool == .eraser else { return nil }
+        return strokePoints.count >= 2 ? strokePoints : nil
+    }
+
     private func commitStroke(_ t: ImageCanvasTransform) {
         _ = t
         defer { strokePoints = [] }
         guard let bitmap = document.activeBitmap, strokePoints.isEmpty == false else { return }
         let erase = session.tool == .eraser
-        let mask = document.selection.maskImage(canvasSize: document.canvasSize)
+        let mask = document.selectionMaskImage()
         guard let output = ImageEditorRaster.stroke(
             bitmap, points: strokePoints,
             size: session.brushSize,
@@ -946,7 +993,7 @@ struct ImageCanvasView: View {
         guard let start = dragStart, let end = dragCurrent,
               let bitmap = document.activeBitmap else { return }
         let colors = [session.primaryCGColor, ImageEditorRaster.color(from: NSColor(session.secondaryColor))]
-        let mask = document.selection.maskImage(canvasSize: document.canvasSize)
+        let mask = document.selectionMaskImage()
         guard let output = ImageEditorRaster.drawGradient(
             bitmap, from: start, to: end, colors: colors,
             radial: session.gradientRadial, clipMask: mask,

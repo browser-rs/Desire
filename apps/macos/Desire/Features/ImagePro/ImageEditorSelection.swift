@@ -29,11 +29,23 @@ nonisolated struct ImageEditorSelection {
         return "None"
     }
 
-    /// 选区在 base 像素里的包围盒（绘制蚂蚁线用）。
-    func bounds(canvasSize: CGSize) -> CGRect? {
+    /// mask 包围盒缓存：maskBounds 要把 96MB 蒙版整幅提取+逐像素扫描
+    ///（96MP 实测 ~500ms），而 selectionOverlay 每帧都调 bounds()。
+    /// key = 蒙版对象身份（选区变化 = 新 CGImage，缓存自动失效）。
+    private var maskBoundsCache: (mask: CGImage, box: CGRect?)?
+
+    /// 选区在 base 像素里的包围盒（绘制蚂蚁线/调试探针用）。
+    mutating func bounds(canvasSize: CGSize) -> CGRect? {
         if selectAll { return CGRect(origin: .zero, size: canvasSize) }
         if let rect { return rect }
-        if let mask { return ImageEditorRaster.maskBounds(mask) }
+        if let mask {
+            if let cache = maskBoundsCache, cache.mask === mask {
+                return cache.box
+            }
+            let box = ImageEditorRaster.maskBounds(mask)
+            maskBoundsCache = (mask, box)
+            return box
+        }
         return nil
     }
 

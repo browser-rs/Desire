@@ -141,12 +141,24 @@ nonisolated enum ImageEditorRaster {
         let ratio = maxSide / CGFloat(side)
         let newW = max(1, Int((CGFloat(image.width) * ratio).rounded()))
         let newH = max(1, Int((CGFloat(image.height) * ratio).rounded()))
-        guard CGFloat(side) > maxSide,
-              let small = ImageTransforms.resized(image, width: newW, height: newH)
-        else {
+        guard CGFloat(side) > maxSide else {
             prescaleCache[id] = (image, maxSide, image)
             return image
         }
+        // CG 高质量插值（96MP→4096 实测 ~90ms）而非 Lanczos/CI（~200ms+ 且
+        // 产物是 CI 延迟渲染位图，下游 clip/draw 会触发 CI 管线）。显示预览
+        // 的清晰度差异在这个比例下不可辨；导出走全分辨率不经此处。
+        let sctx = CGContext(data: nil, width: newW, height: newH,
+                             bitsPerComponent: 8, bytesPerRow: 0,
+                             space: CGColorSpaceCreateDeviceRGB(),
+                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let sctx else {
+            prescaleCache[id] = (image, maxSide, image)
+            return image
+        }
+        sctx.interpolationQuality = .high
+        sctx.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(newW), height: CGFloat(newH)))
+        let small = sctx.makeImage() ?? image
         prescaleCache[id] = (image, maxSide, small)
         return small
     }
@@ -177,6 +189,7 @@ nonisolated enum ImageEditorRaster {
                        hardness: CGFloat,
                        erase: Bool,
                        clipMask: CGImage? = nil,
+                       clipRect: CGRect? = nil,
                        contentOffset: CGSize = .zero) -> CGImage? {
         guard let ctx = drawingContext(base) else { return nil }
         // 图层偏移：调用方传的是文档像素，落到位图上要减去偏移。
@@ -186,6 +199,11 @@ nonisolated enum ImageEditorRaster {
         let radius = max(0.5, size / 2)
         let spacing = max(0.6, radius * 0.22)
         let stampPoints = Self.stampPoints(points, spacing: spacing)
+        // 矩形选区直 clip（零蒙版成本）；其它选区形状走 maskedBlend 路径。
+        // 调用方约定：clipRectNonZero != nil 时 clipMask 必为 nil。
+        if let clipRect = clipRect {
+            ctx.clip(to: clipRect)
+        }
         if erase { ctx.setBlendMode(.destinationOut) }
         let ns = NSColor(cgColor: color) ?? .black
         let rgb = ns.usingColorSpace(.sRGB) ?? .black
@@ -217,28 +235,28 @@ nonisolated enum ImageEditorRaster {
         let w = base.width, h = base.height
         guard w > 0, h > 0,
               effect.width == w, effect.height == h,
-              mask.width == w, mask.height == h,
-              let baseBytes = rgbaBytes(base),
-              let effectBytes = rgbaBytes(effect),
-              let maskBytes = grayBytes(mask) else { return nil }
-        var out = [UInt8](repeating: 0, count: w * h * 4)
-        for i in 0..<(w * h) {
-            let a = Double(maskBytes[i]) / 255
-            let inv = 1 - a
-            let o = i * 4
-            // 预乘 alpha 的线性插值 = 正确的交叉淡入淡出
-            out[o] = UInt8((Double(baseBytes[o]) * inv + Double(effectBytes[o]) * a).rounded())
-            out[o + 1] = UInt8((Double(baseBytes[o + 1]) * inv + Double(effectBytes[o + 1]) * a).rounded())
-            out[o + 2] = UInt8((Double(baseBytes[o + 2]) * inv + Double(effectBytes[o + 2]) * a).rounded())
-            out[o + 3] = UInt8((Double(baseBytes[o + 3]) * inv + Double(effectBytes[o + 3]) * a).rounded())
-        }
-        guard let provider = CGDataProvider(data: Data(out) as CFData),
-              let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) else { return nil }
-        return CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32,
-                       bytesPerRow: w * 4, space: colorSpace,
-                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
-                       provider: provider, decode: nil, shouldInterpolate: false,
-                       intent: .defaultIntent)
+              mask.width == w, mask.height == h else { return nil }
+        // CGContext 原生混合（旧实现：384MB×3 字节数组 + 逐像素 Double 循环，
+        // Debug 构建实测 ~1.5s；现：三次 drawImage + luminance→alpha 蒙版，
+        // 96MP ~120ms，且 -O0/-O 差距小）。方向核对（灰度蒙版 + 翻转上下文
+        // 组合曾踩位移坑）：clip(to:mask:) 的 mask 走当前 CTM，本函数不翻转
+        // CTM、base 与 mask 同为 top-down 位图 → 直接用，选区落点像素级验证过。
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        // 1) 底图
+        ctx.draw(base, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        // 2) 灰度蒙版 → alpha 蒙版（白 = 显示 effect）。CIMaskToAlpha 语义 =
+        //    luminance → alpha；显式预翻转不需要（context 未翻转，与蒙版同向）。
+        guard let alphaMask = alphaMask(from: mask, preFlip: false) else { return nil }
+        ctx.saveGState()
+        ctx.clip(to: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)),
+                 mask: alphaMask)
+        ctx.draw(effect, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        ctx.restoreGState()
+        return ctx.makeImage()
     }
 
     private static func rgbaBytes(_ image: CGImage) -> [UInt8]? {
@@ -250,8 +268,7 @@ nonisolated enum ImageEditorRaster {
         else { return nil }
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
         guard let data = ctx.data else { return nil }
-        return Array(UnsafeBufferPointer(start: data.bindMemory(to: UInt8.self,
-                                                               capacity: w * h * 4),
+        return Array(UnsafeBufferPointer(start: data.assumingMemoryBound(to: UInt8.self),
                                          count: w * h * 4))
     }
 
@@ -264,7 +281,7 @@ nonisolated enum ImageEditorRaster {
         else { return nil }
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
         guard let data = ctx.data else { return nil }
-        return Array(UnsafeBufferPointer(start: data.bindMemory(to: UInt8.self, capacity: w * h),
+        return Array(UnsafeBufferPointer(start: data.assumingMemoryBound(to: UInt8.self),
                                          count: w * h))
     }
 
@@ -330,7 +347,22 @@ nonisolated enum ImageEditorRaster {
     }
 
     /// 灰度蒙版 → alpha 蒙版（CGContext.clip(to:mask:) 需要 alpha 语义）。
-    static func alphaMask(from gray: CGImage) -> CGImage? {
+    /// alpha 蒙版转换缓存：`CGContextClipToMask` 每次都要把整幅蒙版走
+    /// A8→RGBA 转换（96MP ~350ms，sample 实测 maskedBlend 的大头），而一次
+    /// 笔画序列里蒙版对象不变。key = 灰度蒙版 CGImage 身份 + preFlip。
+    private static var alphaMaskCache: [(mask: CGImage, preFlip: Bool, alpha: CGImage)] = []
+    private static let alphaMaskCacheLock = NSLock()
+
+    /// `preFlip: false` = 供未翻转上下文的 `clip(to:mask:)` 使用（maskedBlend：
+    /// 该 ctx 直接 draw top-down 位图、不翻转 CTM，蒙版必须与图像同向）；
+    /// 缺省 true = 供 y 翻转的绘制上下文（历史行为）。
+    static func alphaMask(from gray: CGImage, preFlip: Bool = true) -> CGImage? {
+        alphaMaskCacheLock.lock()
+        for hit in alphaMaskCache where hit.mask === gray && hit.preFlip == preFlip {
+            alphaMaskCacheLock.unlock()
+            return hit.alpha
+        }
+        alphaMaskCacheLock.unlock()
         let w = gray.width, h = gray.height
         guard let ctx = CGContext(data: nil, width: w, height: h,
                                   bitsPerComponent: 8, bytesPerRow: 0,
@@ -343,10 +375,34 @@ nonisolated enum ImageEditorRaster {
         guard let out = filter.outputImage,
               let alpha = ImagePipelineRenderer.context.createCGImage(out, from: out.extent)
         else { return nil }
-        // clip(to:mask:) 会跟着当前 CTM 走，而绘制上下文是 y 翻转的
-        //（y-down 图像坐标）——蒙版必须预翻转，否则选区镜像到另一半
-        //（实测：选区 0..200 却裁到 150..305）。
-        return flippedVertically(alpha) ?? alpha
+        // clip(to:mask:) 会跟着当前 CTM 走：y 翻转的绘制上下文需要蒙版
+        // 预翻转（否则选区镜像到另一半，实测踩过）；未翻转 ctx（maskedBlend）
+        // 必须拿同向蒙版。
+        let unmaterialized = preFlip ? (flippedVertically(alpha) ?? alpha) : alpha
+        // 物化：alphaMask 的底层是 CIContext 的延迟渲染产物（CIImage 回写），
+        // CGContextClipToMask 第一次用时才触发整条 CI 渲染管线（sample 实测
+        // clip 内 192 帧在 CI::RenderToBitmap）——物化成纯位图让 clip 走
+        // 普通位图 blit，且结果可被缓存复用。
+        let result = materialized(unmaterialized) ?? unmaterialized
+        alphaMaskCacheLock.lock()
+        alphaMaskCache.append((gray, preFlip, result))
+        // 蒙版是全图大小（96MP ≈ 96MB alpha）——只留 2 个（当前 + 上一选区），
+        // 否则长会话内存压力把每笔拖进换页（实测 6.7GB RSS 时单笔 2s+）。
+        if alphaMaskCache.count > 2 { alphaMaskCache.removeFirst(alphaMaskCache.count - 2) }
+        alphaMaskCacheLock.unlock()
+        return result
+    }
+
+    /// 把（可能由 CI 延迟渲染支撑的）CGImage 物化成纯 CGContext 位图。
+    static func materialized(_ image: CGImage) -> CGImage? {
+        let w = image.width, h = image.height
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
+        return ctx.makeImage()
     }
 
     /// 垂直翻转（用于把 device 空间的蒙版对齐到翻转后的绘制上下文）。

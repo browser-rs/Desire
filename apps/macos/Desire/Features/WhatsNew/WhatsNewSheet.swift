@@ -14,16 +14,15 @@ struct WhatsNewSheet: View {
         let detail: String
     }
 
-    /// 每次发版更新为当版亮点（v0.8.26 这版漏刷，用户装上看到的还是 0.8.0 的；
-    /// v0.8.46 又漏刷一次——ImagePro 亮点随 v0.8.47 才展示）。
+    /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "photo.stack", title: String(localized: "ImagePro: a real image editor"),
-                  detail: String(localized: "The rebuilt ImagePro brings layers, selections, multi-line text, shapes, gradients, retouch tools (clone, heal, dodge & burn), live-preview adjustments, layer styles and a histogram — everything recorded in an undoable history.")),
-            .init(icon: "wand.and.stars", title: String(localized: "Edit images by asking"),
-                  detail: String(localized: "Tell the Agent what you want — cut out the subject, brighten the shadows, make a poster — and it drives the same editor tools through editImage, on the same image-pixel coordinates and the same history.")),
-            .init(icon: "film", title: String(localized: "Templates and video covers"),
-                  detail: String(localized: "Start from YouTube 1280×720, Shorts 1080×1920, A4/A3 posters and more, or pull any frame out of a video file and design the cover on top of it.")),
+            .init(icon: "photo.stack", title: String(localized: "ImagePro: layers, retouch, and safe edits"),
+                  detail: String(localized: "Adjustments and filters are now non-destructive layer parameters you can retune any time, a read-only original anchor means Revert All always brings the opening image back, and real-photo cutout is fixed. Painting tools bake automatically.")),
+            .init(icon: "rectangle.on.rectangle", title: String(localized: "Edit several images side by side"),
+                  detail: String(localized: "Every tab keeps its own editor session — switch tabs without losing unsaved work, and point the Agent at a specific image when more than one is open.")),
+            .init(icon: "eye.slash", title: String(localized: "YouTube ad-block detection fixed"),
+                  detail: String(localized: "The full-page \"using an ad blocker\" interstitial is gone: the JSON hook that gave it away now presents as native code, verified across navigation, reloads and long sessions.")),
         ]
     }
 

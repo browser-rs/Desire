@@ -103567,6 +103567,144 @@
           }
         }
       }
+    },
+    "ImagePro: layers, retouch, and safe edits":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ImagePro: layers, retouch, and safe edits"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ImagePro：图层、修饰与安心编辑"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ImagePro：圖層、修飾與安心編輯"
+          }
+        }
+      }
+    },
+    "Edit several images side by side":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Edit several images side by side"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"多张图片并排编辑"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"多張圖片並排編輯"
+          }
+        }
+      }
+    },
+    "Every tab keeps its own editor session — switch tabs without losing unsaved work, and point the Agent at a specific image when more than one is open.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Every tab keeps its own editor session — switch tabs without losing unsaved work, and point the Agent at a specific image when more than one is open."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"每个标签都有自己的编辑器会话——切走再切回不丢未保存的修改；多图同开时可让 Agent 定向编辑指定那张。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"每個分頁都有自己的編輯器會話——切走再切回不丟未儲存的修改；多圖同開時可讓 Agent 定向編輯指定那張。"
+          }
+        }
+      }
+    },
+    "YouTube ad-block detection fixed":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"YouTube ad-block detection fixed"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"修复 YouTube 广告拦截检测页"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"修復 YouTube 廣告攔截偵測頁"
+          }
+        }
+      }
+    },
+    "Adjustments and filters are now non-destructive layer parameters you can retune any time, a read-only original anchor means Revert All always brings the opening image back, and real-photo cutout is fixed. Painting tools bake automatically.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Adjustments and filters are now non-destructive layer parameters you can retune any time, a read-only original anchor means Revert All always brings the opening image back, and real-photo cutout is fixed. Painting tools bake automatically."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"调整与滤镜升级为非破坏的图层参数，随时可反复调；原图以只读锚点保留，「还原全部」总能回到打开时的样子；真实照片抠图已修复。落笔工具自动烘焙。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"調整與濾鏡升級為非破壞的圖層參數，隨時可反覆調整；原圖以唯讀錨點保留，「還原全部」總能回到開啟時的樣子；真實照片去背已修復。落筆工具自動烘焙。"
+          }
+        }
+      }
+    },
+    "The full-page \"using an ad blocker\" interstitial is gone: the JSON hook that gave it away now presents as native code, verified across navigation, reloads and long sessions.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The full-page \"using an ad blocker\" interstitial is gone: the JSON hook that gave it away now presents as native code, verified across navigation, reloads and long sessions."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"整页「正在使用广告拦截器」拦截页不再出现：暴露身份的 JSON hook 现已伪装成原生代码，经导航、刷新与长会话验证。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"整頁「正在使用廣告攔截器」攔截頁不再出現：暴露身份的 JSON hook 現已偽裝成原生程式碼，經導航、重新整理與長時間會話驗證。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

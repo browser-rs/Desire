@@ -70,9 +70,22 @@ class PluginStore: ObservableObject {
 
     func update(_ plugin: Plugin) {
         guard let i = plugins.firstIndex(where: { $0.id == plugin.id }) else { return }
+        let wasEnabled = plugins[i].isEnabled
         plugins[i] = plugin
         save()
         onPluginsChanged?()
+        guard wasEnabled != plugin.isEnabled else { return }
+        // DNR 规则随启停热插拔（停用=摘规则，启用=重编译挂回）——此前只有
+        // 卸载才清，停用的拦截类插件继续拦请求（用户实测"勾选没作用"主诉）。
+        PluginDNRStore.shared.setEnabled(pluginID: plugin.id, enabled: plugin.isEnabled)
+        // 内置广告拦截：插件面板是同一状态的另一个入口（v0.8.32 单一真相
+        // 在插件）——反向同步设置层（VideoAdBlocker.isEnabled/UserDefaults/
+        // ContentBlocker 网络层规则此前不更新：面板勾掉后已开标签继续拦、
+        // 设置页开关仍显示开）。setEnabled 内部的 setBuiltInAdGuardEnabled
+        // 回写是幂等的（isEnabled 已同值 → 不再进本分支），无循环。
+        if plugin.id == Self.builtInAdGuardID, let blocker = AppState.live?.videoAdBlocker {
+            blocker.setEnabled(plugin.isEnabled)
+        }
     }
 
     func remove(_ plugin: Plugin) {
@@ -103,10 +116,17 @@ class PluginStore: ObservableObject {
 
     /// 启用/停用（面板与桥共用；停用后不再自动注入，固定图标同步隐藏）。
     func setEnabled(_ id: UUID, _ enabled: Bool) {
+        // 语义同 update()（桥/程序化入口）；内置广告拦截的反向同步一致。
         guard let i = plugins.firstIndex(where: { $0.id == id }) else { return }
+        let wasEnabled = plugins[i].isEnabled
         plugins[i].isEnabled = enabled
         save()
         onPluginsChanged?()
+        guard wasEnabled != enabled else { return }
+        PluginDNRStore.shared.setEnabled(pluginID: id, enabled: enabled)
+        if id == Self.builtInAdGuardID, let blocker = AppState.live?.videoAdBlocker {
+            blocker.setEnabled(enabled)
+        }
     }
 
     /// 手动运行一次（工具栏固定图标点击）：绕过 URL 匹配直接在当前页

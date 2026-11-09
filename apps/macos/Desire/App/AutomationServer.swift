@@ -585,6 +585,7 @@ final class AutomationServer {
         ep("POST", "/plugins/pin", "Pin/unpin a plugin to the toolbar", params: ["id:string", "pinned:bool"], example: "-d '{\"id\":\"<uuid>\",\"pinned\":true}'")
         ep("POST", "/plugins/bg-eval", "Evaluate JS in a plugin's background webview (debugging/E2E)", params: ["id:string", "js:string"], example: "-d '{\"id\":\"<uuid>\",\"js\":\"window.__bgLog\"}'")
         ep("GET", "/plugins/dnr", "Plugin declarativeNetRequest diagnostics (rule counts per store + dropped rules)", params: ["id:string"], example: "…/plugins/dnr?id=<uuid>")
+        ep("POST", "/plugins/setEnabled", "Enable/disable a plugin (hot-plugs its declarativeNetRequest rules and syncs the built-in ad guard to the settings layer)", params: ["id:string", "enabled:bool"], example: #"-d '{"id":"<uuid>","enabled":false}'"#)
         ep("POST", "/plugins/install-msex", "Install a .msex package (manifest v3 subset: content_scripts + popup)", params: ["path:string"], example: "-d '{\"path\":\"/tmp/demo.msex\"}'")
         ep("POST", "/plugins/remove", "Remove a plugin", params: ["id:string"], example: "-d '{\"id\":\"<uuid>\"}'")
         ep("GET", "/passwords", "Password metadata + pendingSave (never secrets)", example: "…/passwords")
@@ -1230,6 +1231,22 @@ final class AutomationServer {
                     app?.pluginStore.togglePin(uuid)
                 }
                 return try Self.json(["ok": true])
+            case ("POST", "/plugins/setEnabled"):
+                guard let raw = Self.string(body, "id"), let id = UUID(uuidString: raw) else {
+                    return try Self.json(["error": "id required"])
+                }
+                let enabled = (body["enabled"] as? Bool) ?? false
+                guard let store = AppState.live?.pluginStore else {
+                    return try Self.json(["error": "app state not ready"])
+                }
+                guard store.plugins.contains(where: { $0.id == id }) else {
+                    return try Self.json(["error": "plugin not found"])
+                }
+                store.setEnabled(id, enabled)
+                let plugin = store.plugins.first { $0.id == id }
+                return try Self.json(["ok": true,
+                                      "name": plugin?.name ?? "",
+                                      "enabled": plugin?.isEnabled ?? enabled])
             case ("POST", "/plugins/remove"):
                 return try Self.json(Self.pluginRemove(id: Self.string(body, "id") ?? ""))
             case ("GET", "/passwords"):

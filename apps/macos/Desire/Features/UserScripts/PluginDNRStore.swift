@@ -63,6 +63,23 @@ final class PluginDNRStore {
         discardStoredList(pluginID: pluginID)
     }
 
+    /// 插件启停热插拔（PluginStore.update/setEnabled 调用）：停用 = 从全部
+    /// 已注册 controller 摘下规则（**规则数据保留**，重启用直接挂回）——
+    /// 此前只有卸载清场，停用的拦截类插件继续拦请求（用户实测
+    /// "勾选没作用"主诉）。启用 = 重编译挂回（数据没动过就纯重挂）。
+    func setEnabled(pluginID: UUID, enabled: Bool) {
+        if enabled {
+            if let list = compiled[pluginID] {
+                addEverywhere(pluginID: pluginID, list: list)
+            } else {
+                recompile(pluginID: pluginID)
+            }
+        } else {
+            removeEverywhere(pluginID: pluginID)
+        }
+        Log.userScripts.info("dnr: plugin \(pluginID.uuidString.prefix(8), privacy: .public) \(enabled ? "enabled" : "disabled", privacy: .public)")
+    }
+
     /// manifest 静态规则（MSExInstaller 装载时调用；重装 = 替换）。
     func setStaticRules(pluginID: UUID, rules: [DNRRule]) {
         staticRules[pluginID] = rules

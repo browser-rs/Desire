@@ -10,10 +10,14 @@ import os
 @MainActor
 enum VideoProCommands {
 
+    /// 命令入口。`store` 仅在 UI 内部直调时显式给；桥/Agent 省略它，由
+    /// `session`/`file` 参数路由到对应编辑器会话（缺省 = 当前活动编辑器）。
     static func apply(_ body: [String: Any],
-                      store: VideoEditorStore?) async -> [String: Any] {
-        guard let store else {
-            return ["error": "No video editor is open. Open VideoPro (desire://tools/videoEditor) first."]
+                      store explicitStore: VideoEditorStore? = nil) async -> [String: Any] {
+        guard let store = explicitStore ?? VideoEditorStore.resolve(body) else {
+            return ["error": VideoEditorStore.hasExplicitTarget(body)
+                    ? "No video editor session matches the given session/file. GET /video/state lists sessions."
+                    : "No video editor is open. Open VideoPro (desire://tools/videoEditor) first."]
         }
         guard let action = (body["action"] as? String)?.lowercased(), !action.isEmpty else {
             return ["error": "Missing action"]
@@ -25,6 +29,7 @@ enum VideoProCommands {
             case "new":
                 store.commit(TimelineCore.Project())
                 store.setPlayhead(0)
+                store.noteProjectFile(nil)
                 return ["ok": true]
             case "addmedia":
                 let paths = (body["paths"] as? [String]) ?? []
@@ -149,6 +154,7 @@ enum VideoProCommands {
                 let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
                 let data = try JSONEncoder().encode(store.project)
                 try data.write(to: url)
+                store.noteProjectFile(url)
                 return ["ok": true, "path": url.path]
             case "load":
                 guard let path = body["path"] as? String, !path.isEmpty else {
@@ -158,6 +164,7 @@ enum VideoProCommands {
                 let project = try JSONDecoder().decode(TimelineCore.Project.self, from: Data(contentsOf: url))
                 store.commit(project)
                 store.setPlayhead(0)
+                store.noteProjectFile(url)
                 return ["ok": true, "duration": TimelineCore.projectDuration(project)]
             default:
                 return ["error": "Unknown action: \(action)"]
@@ -224,7 +231,19 @@ enum VideoProCommands {
         case .done(let url): export = ["state": "done", "path": url.path]
         case .failed(let message): export = ["state": "failed", "error": message]
         }
+        // 多编辑器会话清单：桥/Agent 按 session/file 定向（ImagePro 同款）。
+        let sessions: [[String: Any]] = VideoEditorStore.liveSessions.map { session in
+            ["session": session.sessionID.uuidString,
+             "file": session.projectFileURL?.path ?? "",
+             "title": session.project.title,
+             "active": session === VideoEditorStore.active,
+             "duration": TimelineCore.projectDuration(session.project),
+             "clips": session.project.tracks.reduce(0) { $0 + $1.clips.count }]
+        }
         return ["ok": true,
+                "session": store.sessionID.uuidString,
+                "file": store.projectFileURL?.path ?? "",
+                "sessions": sessions,
                 "duration": TimelineCore.projectDuration(project),
                 "playhead": store.playhead,
                 "playing": store.isPlaying,

@@ -5,6 +5,8 @@ import SwiftUI
 /// 精确重编码）+ 多段拼接。执行走 MediaEditStore（AVFoundation 主 +
 /// ffmpeg 回退），本视图只管输入与展示。
 struct VideoEditorToolView: View {
+    /// 编辑器会话（标签级；无标签上下文时由调用方提供兜底实例）。
+    var videoProStore: VideoEditorStore
     @ObservedObject private var store = MediaEditStore.shared
     @ObservedObject private var handoff = ToolboxHandoff.shared
 
@@ -53,7 +55,7 @@ struct VideoEditorToolView: View {
             .labelsHidden()
             .frame(maxWidth: 200)
             if topMode == .multiTrack {
-                MultiTrackEditorView()
+                MultiTrackEditorView(store: videoProStore)
             } else {
                 quickContent
             }

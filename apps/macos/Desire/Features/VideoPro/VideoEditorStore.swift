@@ -15,6 +15,55 @@ final class VideoEditorStore: ObservableObject {
     /// 当前活动编辑器（桥/Agent 命令入口）。弱引用，视图销毁自动失效。
     static weak var active: VideoEditorStore?
 
+    /// 全部活着的编辑器会话（弱持有，对象释放自动摘除）。多标签/多窗口各开
+    /// 一个工程时，命令 API 靠 `session`（UUID）/`file`（工程路径）定向。
+    private static let registry = NSHashTable<VideoEditorStore>.weakObjects()
+    static var liveSessions: [VideoEditorStore] {
+        registry.objectEnumerator().allObjects.compactMap { $0 as? VideoEditorStore }
+    }
+
+    /// 会话稳定标识（命令定向路由 + `/video/state` 的 sessions 清单）。
+    let sessionID = UUID()
+    /// 最近一次 save/load 的工程文件（`file=` 定向按它匹配）。
+    private(set) var projectFileURL: URL?
+
+    func activate() {
+        Self.registry.add(self)
+        Self.active = self
+    }
+
+    func noteProjectFile(_ url: URL?) {
+        projectFileURL = url
+    }
+
+    /// 命令路由：`session`/`file` 优先，都没给才回落 active。**显式给了却没
+    /// 匹配到 → nil**（调用方报错）——多标签时宁可失败也不改错工程。
+    static func resolve(_ body: [String: Any]) -> VideoEditorStore? {
+        let rawSession = (body["session"] as? String) ?? (body["session"] as? NSNumber)?.stringValue
+        let rawFile = body["file"] as? String
+        if let raw = rawSession, !raw.isEmpty, let uuid = UUID(uuidString: raw),
+           let hit = liveSessions.first(where: { $0.sessionID == uuid }) {
+            return hit
+        }
+        if let file = rawFile, !file.isEmpty {
+            let wanted = (file as NSString).expandingTildeInPath
+            if let hit = liveSessions.first(where: {
+                $0.projectFileURL?.path == (wanted as NSString).standardizingPath
+            }) {
+                return hit
+            }
+        }
+        if (rawSession?.isEmpty == false) || (rawFile?.isEmpty == false) { return nil }
+        return active
+    }
+
+    /// 显式给了 session/file 但没匹配到（用于错误文案区分）。
+    static func hasExplicitTarget(_ body: [String: Any]) -> Bool {
+        let session = (body["session"] as? String)?.isEmpty == false
+        let file = (body["file"] as? String)?.isEmpty == false
+        return session || file
+    }
+
     struct SourceMedia: Identifiable, Equatable {
         let id = UUID()
         let url: URL
@@ -71,6 +120,9 @@ final class VideoEditorStore: ObservableObject {
 
     init() {
         _ = Self.installExceptionHandlerOnce
+        // 后台标签里的编辑器也要能被 session/file 定向到（注册在 init，
+        // 不等 onAppear——切到后台后 active 会指向别人）。
+        Self.registry.add(self)
         timeObserver = player.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: 0.2, preferredTimescale: 600),
             queue: .main) { [weak self] time in

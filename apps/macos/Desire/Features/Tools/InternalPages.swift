@@ -224,6 +224,9 @@ enum InternalPages {
         tab.isOnToolsPage = true
         tab.browser.internalPage = nil
         tab.toolsPageSelection = destination.param
+        // VideoPro：编辑器会话挂标签（切走标签不销毁工程、可被命令路由）。
+        // 工具页内点卡片也要能拿到，所以进工具页就建（每个工具页标签一个）。
+        tab.browser.ensureVideoProStore()
         if let text = destination.query["text"], !text.isEmpty,
            let tool = ToolboxLauncher.matchTool(destination.param) {
             ToolboxHandoff.shared.setPendingText(text, for: tool)

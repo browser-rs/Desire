@@ -7,6 +7,8 @@ import SwiftUI
 struct ToolsPageView: View {
     @Environment(\.appAccent) private var appAccent: Color
     var initialTool: String? = nil
+    /// 标签级 VideoPro 会话（InternalPages 打开工具时创建；切走标签不丢）。
+    var videoProStore: VideoEditorStore? = nil
 
     /// 大屏布局（v0.8.33）：详情与首页各自限宽并**居中**——此前两者都
     /// 靠左（maxWidth 900/940 + alignment .leading），2560pt 窗口右侧留下
@@ -27,8 +29,9 @@ struct ToolsPageView: View {
     @ObservedObject private var handoff = ToolboxHandoff.shared
     @State private var showQuickSwitcher = false
 
-    init(initialTool: String? = nil) {
+    init(initialTool: String? = nil, videoProStore: VideoEditorStore? = nil) {
         self.initialTool = initialTool
+        self.videoProStore = videoProStore
         if let id = Self.match(initialTool) {
             _selected = State(initialValue: id)
         } else {
@@ -393,7 +396,17 @@ struct ToolsPageView: View {
         case .discount: DiscountToolView()
         case .billSplit: BillSplitToolView()
         case .barcode: BarcodeToolView()
-        case .videoEditor: VideoEditorToolView()
+        case .videoEditor:
+            if let videoProStore {
+                VideoEditorToolView(videoProStore: videoProStore)
+            } else {
+                // 只有"工具页不是经 InternalPages 打开"才会到这里（正常路径
+                // 一进工具页就已建标签级会话）。
+                Text(String(localized: "Reopen the video editor from the toolbox."))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         case .audioEditor: AudioEditorToolView()
         case .mediaConvert: MediaConvertToolView(mode: .convert)
         case .videoGIF: MediaConvertToolView(mode: .gif)

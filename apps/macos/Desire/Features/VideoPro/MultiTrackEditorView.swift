@@ -7,7 +7,7 @@ import UniformTypeIdentifiers
 /// 编辑操作全走 TimelineCore（重叠校验失败即弹回原位）。
 struct MultiTrackEditorView: View {
     @Environment(\.appAccent) private var appAccent: Color
-    @StateObject private var store = VideoEditorStore()
+    @ObservedObject var store: VideoEditorStore
     /// 命令入口接线（VideoProCommands / 桥 / Agent 共用）。
     @State private var isActiveWired = false
     /// 源监视器正在查看的素材（nil = 关闭）。
@@ -27,7 +27,7 @@ struct MultiTrackEditorView: View {
                 .onAppear {
                     if !isActiveWired {
                         isActiveWired = true
-                        VideoEditorStore.active = store
+                        store.activate()
                     }
                 }
             zoomRow

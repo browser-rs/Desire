@@ -426,7 +426,8 @@ struct SelectedTabContent: View {
     private var mainPane: some View {
         Group {
             if tab.isOnToolsPage {
-                ToolsPageView(initialTool: tab.toolsPageSelection)
+                ToolsPageView(initialTool: tab.toolsPageSelection,
+                              videoProStore: tab.browser.videoProStore)
             } else if let bookID = tab.browser.ebookViewerBookID {
                 if let book = EbookLibraryStore.shared.book(id: bookID) {
                     Group {

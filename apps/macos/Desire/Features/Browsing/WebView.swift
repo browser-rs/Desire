@@ -199,6 +199,20 @@ class BrowserState: ObservableObject {
     /// 对后台标签的编辑器无法路由。URL 变化时重建。
     var imageEditorSession: ImageEditorSession?
 
+    /// VideoPro 编辑器会话（与标签同生命周期，ImagePro 同款）：切走标签
+    /// 不销毁工程，后台标签的编辑器也能被 `/video/edit session=` 定向。
+    var videoProStore: VideoEditorStore?
+
+    /// 打开视频编辑器的唯一入口（路由层调用；**勿在视图 body 里创建**——
+    /// 每次重算都会建一个僵尸会话）。
+    @discardableResult
+    func ensureVideoProStore() -> VideoEditorStore {
+        if let videoProStore { return videoProStore }
+        let store = VideoEditorStore()
+        videoProStore = store
+        return store
+    }
+
     /// 打开图片编辑器的唯一入口（路由层调用，勿在视图 body 里创建会话——
     /// StateObject 自动闭包每次重算都会执行，会灌僵尸会话并反复读盘）。
     func openImageEditor(url: URL, fileName: String) {

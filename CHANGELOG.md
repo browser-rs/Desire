@@ -17,6 +17,8 @@
 
 - 视频剪辑升级为 VideoPro 独立模块（Features/VideoPro/，对齐 ImagePro 架构）：多轨时间线核心/波形/执行引擎/多轨 UI 整体迁移，新增统一命令 API（UI、桥 POST /video/edit 与 Agent 工具 editVideoPro 共用同一套动作：state/new/addmedia/addclip/addtext/split/trim/move/delete/select/setclip/envelope/transition/track/play/zoom/undo/export/save/load，时间=秒）；编辑器挂载即注册为命令目标。Agent 的 editTimeline 保持离线批式合成不变（描述澄清两者分工）。走带补齐：空格播放与 J/K/L 专业走带（连按加速/倒放，S 拆分/Delete/⌘Z⌘A/箭头/Home/End/±缩放既有）。
 - VideoPro 文字烧录：文字片段不再只是时间线占位——每个文字片段预渲染成 ProRes 4444（带 alpha）小视频段，按 clip.start 叠进合成（预览与导出同源），淡入淡出直接烘进 alpha；渲染 = CoreText 逐帧（PingFang SC Semibold、白字黑描边、底部居中）。文件按**内容键**（片段 id + 文本 + 时长 + 尺寸）命名，改文案/裁剪时长自动换新文件；生成走单飞（并发请求共享同一个 Task）+ `.partial` 原子改名，中断只留残件。命令层不再返回"文字暂未烧录"的告警。
+- VideoPro 多编辑器会话路由（对齐 ImagePro）：编辑器会话改为挂在标签上（进入工具页时创建、切走标签不销毁工程，此前 @StateObject 随视图销毁，切个标签工程就没了），命令 API 支持 `session=<uuid>` / `file=<工程路径>` 定向到指定编辑器（`/video/state` 新增 `sessions` 清单与当前 `session`/`file`；显式给了目标却没匹配到**报错**而不是静默改到活动工程）；桥 `/video/edit` 与 Agent `editVideoPro` 同一条路由，缺省仍打当前活动编辑器。
+
 
 
 

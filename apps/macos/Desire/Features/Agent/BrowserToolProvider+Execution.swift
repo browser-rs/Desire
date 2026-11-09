@@ -343,7 +343,7 @@ extension BrowserToolProvider {
             guard VideoEditorStore.active != nil else {
                 return Self.fail("No video editor is open. Ask the user to open VideoPro (desire://tools/videoEditor) first, or use editTimeline for offline rendering.")
             }
-            let result = await VideoProCommands.apply(command, store: VideoEditorStore.active)
+            let result = await VideoProCommands.apply(command)
             if let error = result["error"] as? String { return Self.fail(error) }
             let data = (try? JSONSerialization.data(withJSONObject: result,
                                                     options: [.sortedKeys])) ?? Data()

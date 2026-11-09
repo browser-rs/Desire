@@ -4713,3 +4713,20 @@ readFeedArticles/unsubscribeFeed/markArticleRead）+ 简报/通知 + E18 评估
 DOMAINS 白名单，无迁移需部署）+ FeedSyncCore 进 harness。**规划调整**：
 Remote 手机侧 UI 本版未做（sync 行 /sync/status 自动可见，手机端读取留下一
 版）；OPML 维持不做。harness 2879/0。
+
+## v0.8.48 规划稿（2026-11-10）—— VideoPro 收官：剪辑软件补全 + 可靠性贯穿
+
+> 详情见 `docs/ROADMAP-0.8.48-PLAN.md`。视频剪辑已升级为独立模块 VideoPro
+> （0.8.47 后批：命令 API / 桥 / Agent 工具 / 活动会话，见 CHANGELOG），本版
+> 补齐"剪辑软件"差距并清掉 E2E 暴露的已知限制。
+
+**四主题**：① 旗舰 = VideoPro 剪辑软件补全（文字烧录导出修复 P0、多标签
+会话路由、视频轨缩略图条、导出看门狗、工程自动草稿、导出产物直达）；
+② 融合 = 媒体池增强（双击插入/过滤/徽标）；③ 替人干活 = batchTrimVideos
+（批量 trim/concat 走 Jobs）；④ Agent 基础 = editVideoPro 进桥评估。
+**贯穿**：可靠性 = 导出看门狗 + assumeIsolated 余量审计；可发现性 =
+VideoPro 空态引导 + 快捷键速查卡。
+
+**批次**：批 1 文字烧录 + 看门狗 → 批 2 会话路由 + 草稿 + 缩略图 →
+批 3 媒体池 + batchTrim + 评估 + 收口。**不做**：多机位、色轮、混音台、
+关键帧动画、字幕轨编辑器、4K 导出专项、时间线框选、Remote 剪辑面、音频降噪。

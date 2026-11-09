@@ -4,6 +4,9 @@
 - VideoPro 导出引擎两修（E2E 暴露的既有 bug）：① 无转场/旋转的直出导出必然崩溃——无 videoConfig 时给 setVideoComposition: 传默认 Configuration 是空壳（renderSize 零/frameDuration 无效），AVFCore 抛 ObjC 异常且穿 async 帧直接杀进程（崩溃报告 __cxa_throw 实证）——现在只在真需要 composition（转场/缩放/文字烧录）时构造并显式填全字段；② 合成自然尺寸探测的 KVC value(forKey:"naturalSize") 在占位 segment 上抛 valueForUndefinedKey 同样杀进程——改类型化 track.naturalSize；③ 命令层在主 actor 上 await 导出与引擎回主 actor 更新进度互等死锁——导出 hop 出主 actor 执行。
 - 三处定时器回调 MainActor.assumeIsolated 的 PAC 崩溃（剪贴板轮询/标签自动刷新/阅读进度采样——崩溃报告 SerialExecutor EXC_ARM_DA_ALIGN 实证，环境抖动下定时器回调偶发非主线程 fire）——全部改为 Task @MainActor 跳帧。
 - 插件启停勾选真正生效（用户实测"勾选没作用"）：① 停用的插件的 declarativeNetRequest 规则此前继续在 WebKit 里拦请求（只有卸载才清规则集）——启停现在热插拔 DNR 规则（停用摘下全部 controller 的挂载、规则数据保留重启用直接挂回）；② 内置广告拦截的插件面板勾选与设置层（VideoAdBlocker.isEnabled/UserDefaults/ContentBlocker 网络规则）此前只有单向同步（设置页→插件）——面板勾停现在反向同步设置层并关掉网络层规则（勾回同步恢复），两入口等价；桥新增 POST /plugins/setEnabled（启停 + 双向同步可脚本验证）。
+- VideoPro 带文字轨的导出必杀进程（规划批 1 P0）：① AVFCore 在 macOS 27.2 对「Configuration→AVVideoComposition + animationTool」组合渲染期失败（AVFoundationErrorDomain -11841，独立宿主对照实证——set 能过、export 抛）；② 空壳 Configuration（renderSize 零/frameDuration=.zero——zero 的 isValid 为 true 必须判 positive）触发 setVideoComposition: 抛 ObjC 异常且穿 async 帧（崩溃报告 __cxa_throw 实证）；③ 合成自然尺寸探测的 KVC 在占位 segment 上抛 valueForUndefinedKey 同样杀进程。本轮：导出不再崩（带文字轨导出成功出片、命令层返回 warning 提示文字暂未烧录）；文字烧录本体（AVFCore 缺陷绕行：文字片段预渲染小视频段进 composition）挪下批交付，UI 预览中文字仍可见。附带：导出加看门狗（600s 总时长/120s 无进度 → 取消导出 = failed 终态，此前挂起无终态 UI 永转）；AVFCore 拒绝时 ObjC 异常 reason 现有 unified log 记录（NSSetUncaughtExceptionHandler 探针）。
+- 三处定时器回调 MainActor.assumeIsolated 的 PAC 崩溃（剪贴板轮询/标签自动刷新/阅读进度采样）——改为 Task @MainActor 跳帧。
+
 
 
 ### Added

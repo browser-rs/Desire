@@ -1,4 +1,5 @@
 import AVFoundation
+import os
 import AppKit
 import Combine
 import Foundation
@@ -58,7 +59,18 @@ final class VideoEditorStore: ObservableObject {
     /// 撤销快照栈（cap 50；redo 不做——剪辑场景撤销到头重做价值有限）。
     private var undoStack: [TimelineCore.Project] = []
 
+    /// ObjC 异常现场记录器（一次）：AVFCore 拒绝参数时抛 NSException 后
+    /// abort——崩溃报告只有 __cxa_throw 栈没有 reason；装全局 handler 把
+    /// reason 写进 unified log（VideoPro 排障用，2026-11-10 文字烧录批次）。
+    private static let installExceptionHandlerOnce: Void = {
+        NSSetUncaughtExceptionHandler { exception in
+            Logger(subsystem: "me.siwi.Desire", category: "video")
+                .fault("uncaught ObjC exception: \(exception.name.rawValue, privacy: .public) — \(exception.reason ?? "-", privacy: .public) stack: \(exception.callStackSymbols.joined(separator: " | ").prefix(800), privacy: .public)")
+        }
+    }()
+
     init() {
+        _ = Self.installExceptionHandlerOnce
         timeObserver = player.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: 0.2, preferredTimescale: 600),
             queue: .main) { [weak self] time in
@@ -710,20 +722,18 @@ final class VideoEditorStore: ObservableObject {
             // 抛错 → 穿 async 帧就是主 actor 僵尸/进程终止——2026-11-10
             // 崩溃报告 AVFCore __cxa_throw 实证；editTimeline 默认加转场，
             // 所以该路径从没被测过）。
-            let textClips = project.tracks
-                .filter { $0.kind == .text }
-                .flatMap { $0.clips }
-                .sorted { $0.start < $1.start }
-            if videoConfig != nil || targetHeight != nil || !textClips.isEmpty {
+            if videoConfig != nil || targetHeight != nil {
+                // 无文字：新 API（Configuration → 不可变 composition）。
+                // 无 videoConfig（无旋转/转场）时 Configuration 是空壳——
+                // renderSize=.zero / frameDuration=.zero（zero 的 isValid 为
+                // true，必须判 positive）——不填全 setVideoComposition: 会抛
+                // ObjC 异常。只在真需要（转场/缩放）时构造。
                 var config = videoConfig?(await compositionNaturalSize(composition))
                     ?? AVVideoComposition.Configuration()
-                // 无 videoConfig（无旋转/转场）时 Configuration 是空壳——
-                // renderSize=.zero / frameDuration 无效，setVideoComposition:
-                // 直接抛 ObjC 异常。必须显式填全（源自然尺寸 + 30fps）。
                 if config.renderSize.width <= 0 || config.renderSize.height <= 0 {
                     config.renderSize = await compositionNaturalSize(composition)
                 }
-                if !config.frameDuration.isValid {
+                if config.frameDuration.seconds <= 0 {
                     config.frameDuration = CMTime(value: 1, timescale: 30)
                 }
                 if let targetHeight {
@@ -731,12 +741,6 @@ final class VideoEditorStore: ObservableObject {
                     let ratio = source.height > 0 ? targetHeight / source.height : 1
                     config.renderSize = CGSize(width: (source.width * ratio).rounded(),
                                                height: targetHeight)
-                }
-                if !textClips.isEmpty {
-                    let renderSize = config.renderSize
-                    config.animationTool = makeTextOverlayTool(
-                        clips: textClips, totalDuration: max(TimelineCore.projectDuration(project), 0.1),
-                        renderSize: renderSize)
                 }
                 session.videoComposition = AVVideoComposition(configuration: config)
             }
@@ -759,6 +763,12 @@ final class VideoEditorStore: ObservableObject {
         }
         defer { watcher.cancel() }
         try await session.export(to: destination, as: hasVideo ? .mp4 : .m4a)
+        // 文字片段暂不进导出（2026-11-10 诚实降级）：AVFCore 的
+        // Configuration+animationTool 组合在 macOS 27.2 渲染期失败（-11841
+        // 未能创作视频，独立宿主对照实证），deprecated 老路径进不了零警告
+        // 构建，进程内手动画帧管线触发主 actor 僵尸（原因未定位）——文字
+        // 烧录挪 v0.8.48 批 2（方案：文字片段预渲染 PNG→小视频段进
+        // composition）。UI 预览中文字可见，导出暂不含；命令层返回 warning。
         return destination
     }
 

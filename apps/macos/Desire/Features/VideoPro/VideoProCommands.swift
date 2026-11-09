@@ -1,6 +1,7 @@
 import AppKit
 import AVFoundation
 import Foundation
+import os
 
 /// VideoPro 命令 API（对齐 ImageEditorCommands）：UI、桥（POST /video/edit）、
 /// Agent 共用同一套动作。时间值一律**秒**（时间线位置），与缩放无关。
@@ -384,6 +385,8 @@ enum VideoProCommands {
     }
 
     private static func export(_ body: [String: Any], store: VideoEditorStore) async throws -> [String: Any] {
+        let log = Logger(subsystem: "me.siwi.Desire", category: "video")
+        log.info("videopro export: enter cancelled=\(Task.isCancelled)")
         guard let path = body["path"] as? String, !path.isEmpty else {
             throw VideoProError(message: "export needs path (.mp4 or .m4a)")
         }
@@ -398,20 +401,35 @@ enum VideoProCommands {
         guard TimelineCore.projectDuration(store.project) > 0 else {
             throw VideoProError(message: "Timeline is empty")
         }
-        // **必须 hop 出主 actor 再 await**：apply 在 @MainActor 上，export 内部
-        // 会回主 actor 更新 @Published 进度——在主 actor 上直接 await 就是
-        // "apply 等 export、export 内部等主 actor" 的死锁（僵尸态：主线程
-        // runloop 空闲但全端点空响应，2026-11-10 sample+探针实证；
-        // editTimeline 不死锁是因为它在 Agent 工具的非主 actor 上下文 await）。
-        let project = store.project
-        let rendered = try await Task.detached {
-            try await VideoEditorStore.export(project: project) { _ in }
-        }.value
+        // 直接 await：static export 是 **nonisolated**（纯后台协作线程执行，
+        // 不回主 actor——进度回调由命令层传空），await 它不占主 actor。
+        // （曾包 Task.detached——非必要；.value 的 await 反而成了取消传播
+        // 通道，导出中途被外围取消传染抛"操作已停止"。2026-11-10 实测。）
+        let rendered: URL
+        do {
+            rendered = try await withTaskCancellationHandler {
+                try await VideoEditorStore.export(
+                    project: store.project, progress: { fraction in
+                        log.info("videopro export: progress \(fraction, format: .fixed(precision: 2))")
+                    })
+            } onCancel: {
+                log.fault("videopro export: CANCELLED while running")
+            }
+        } catch {
+            let ns = error as NSError
+            log.fault("videopro export FAILED: domain=\(ns.domain, privacy: .public) code=\(ns.code) desc=\(ns.localizedDescription, privacy: .public) userInfo=\(String(describing: ns.userInfo).prefix(600), privacy: .public)")
+            throw error
+        }
         let destination = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
         if rendered.path != destination.path {
             try? FileManager.default.moveItem(at: rendered, to: destination)
         }
-        return ["ok": true, "path": destination.path,
-                "duration": TimelineCore.projectDuration(store.project)]
+        var response: [String: Any] = ["ok": true, "path": destination.path,
+                                       "duration": TimelineCore.projectDuration(store.project)]
+        // 文字片段暂不进导出（诚实降级，2026-11-10）——有文字轨时显式告知。
+        if store.project.tracks.contains(where: { $0.kind == .text && !$0.clips.isEmpty }) {
+            response["warning"] = "text clips are not burned into the export yet (crash workaround; planned for the next batch)"
+        }
+        return response
     }
 }

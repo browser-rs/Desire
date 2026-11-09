@@ -16,6 +16,10 @@ final class ImageEditorDocument: ObservableObject {
     @Published private(set) var historyTitles: [String] = []
     @Published private(set) var redoCount = 0
     @Published private(set) var selection = ImageEditorSelection()
+    /// 打开时的原图（只读锚点，任何编辑都不碰它）："还原全部"一键恢复，
+    /// 超大图撤销栈被截断后仍有可靠退路（撤销快照按内存预算只有 2-40 步）。
+    private(set) var originalImage: CGImage?
+    private(set) var originalName = "Background"
     /// bounds 的缓存包装（selection 是值类型，bounds() 是 mutating——缓存放
     /// 这里跨调用存活；蒙版不变时 maskBounds 不再反复全图扫描）。
     private var selectionBoundsCache: (mask: CGImage, box: CGRect?)?
@@ -95,6 +99,8 @@ final class ImageEditorDocument: ObservableObject {
         layers = [base]
         activeLayerID = base.id
         bitmaps = [base.id: image]
+        originalImage = image
+        originalName = base.name
     }
 
     // MARK: - 查询
@@ -872,7 +878,40 @@ final class ImageEditorDocument: ObservableObject {
         previewFilter = nil
         compositeCache = nil
         isDirty = false
+        originalImage = image
+        originalName = name
         revision += 1
+    }
+
+    /// 是否偏离打开/重置时的状态（restoreall / UI 还原按钮的可用判据）。
+    /// 不用 isDirty：undo/restoreall 也标脏（历史语义），但"当前内容 === 原图
+    /// 且单层同画布"时还原无事可做。
+    var hasEdits: Bool {
+        guard let original = originalImage else { return false }
+        if layers.count != 1 { return true }
+        if canvasSize != CGSize(width: original.width, height: original.height) { return true }
+        return bitmaps[activeLayerID] !== original
+    }
+
+    /// 一键还原全部：恢复打开时的原图（单层、清选区/预览/裁剪后的画布），
+    /// 记一步历史（可撤销这个"还原"本身）。画布尺寸跟着原图走。
+    @discardableResult
+    func restoreOriginal() -> Bool {
+        guard let original = originalImage else { return false }
+        if hasEdits == false { return false }
+        pushHistory("Revert All")
+        canvasSize = CGSize(width: original.width, height: original.height)
+        let base = ImageEditorLayer(id: UUID(), name: originalName)
+        layers = [base]
+        bitmaps = [base.id: original]
+        activeLayerID = base.id
+        selection = ImageEditorSelection()
+        previewAdjust = nil
+        previewFilter = nil
+        compositeCache = nil
+        displayCache = nil
+        commit()
+        return true
     }
 
     func resize(to size: CGSize) {

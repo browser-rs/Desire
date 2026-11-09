@@ -224,6 +224,17 @@ struct ImageEditorView: View {
                     sizeHeight = "\(Int(session.canvasSize.height))"
                     showImageSize = true
                 }
+                Divider()
+                Button(String(localized: "Revert All")) {
+                    if session.document.restoreOriginal() {
+                        session.canvas.updateContent(
+                            display: session.document.canvasSize,
+                            base: session.document.canvasSize, ops: [])
+                        session.canvas.recomputeFit()
+                        session.flash(String(localized: "Restored to original"))
+                    }
+                }
+                .disabled(!session.document.hasEdits)
             } label: {
                 Image(systemName: "aspectratio")
                     .font(.system(size: 12, weight: .medium))

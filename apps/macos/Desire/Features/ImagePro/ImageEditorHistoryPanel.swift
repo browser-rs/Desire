@@ -59,6 +59,20 @@ struct ImageEditorHistoryPanel: View {
                         .font(.system(size: 10))
                         .foregroundStyle(.tertiary)
                 }
+                Button(String(localized: "Revert All")) {
+                    if document.restoreOriginal() {
+                        session.canvas.updateContent(
+                            display: document.canvasSize,
+                            base: document.canvasSize, ops: [])
+                        session.canvas.recomputeFit()
+                        session.flash(String(localized: "Restored to original"))
+                    }
+                }
+                .font(.system(size: 10))
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .disabled(!document.hasEdits)
+                .help(String(localized: "Restore the original image (undo history stays available)"))
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)

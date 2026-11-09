@@ -350,6 +350,11 @@ enum ImageEditorCommands {
                 }
             case "revert":
                 return ["ok": session.revertToSaved()]
+            case "restoreall":
+                // 一键还原到打开时的原图（区别于 revert=重新从磁盘读文件；
+                // restoreall 用内存里的只读锚点，另存为/未保存文档也能还原）。
+                let restored = document.restoreOriginal()
+                return ["ok": true, "restored": restored]
             case "histogram":
                 guard let image = document.composite(),
                       let hist = ImageEditorRaster.histogram(image) else {
@@ -772,6 +777,8 @@ enum ImageEditorCommands {
             "history": document.historyTitles,
             "redoCount": document.redoCount,
             "dirty": document.isDirty,
+            // 有原图锚点且当前已偏离 = restoreall 有事可做
+            "originalAvailable": document.originalImage != nil && document.hasEdits,
             "previewing": document.previewAdjust != nil || document.previewFilter != nil,
             "layers": layers,
             // 多窗口会话清单：AI/脚本据此发现全部打开的编辑器，再用

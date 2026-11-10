@@ -8,13 +8,19 @@ struct SuspendedTabView: View {
             Image(systemName: "moon.zzz")
                 .font(.system(size: 40))
                 .foregroundStyle(.tertiary)
-            Text("Tab Suspended")
+            Text(String(localized: "Tab Suspended"))
                 .font(.title2)
                 .foregroundStyle(.secondary)
-            Text("Click to reload — \(tab.displayTitle)")
+            Text(tab.displayTitle)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .padding(.horizontal, 24)
+            Text(String(localized: "Click to reload"))
                 .font(.caption)
                 .foregroundStyle(.tertiary)
-            Button("Reload") {
+            Button(String(localized: "Reload")) {
                 reload()
             }
             .buttonStyle(.borderedProminent)

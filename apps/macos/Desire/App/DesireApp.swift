@@ -503,16 +503,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let previous = defaults.object(forKey: key) as? Bool
         defaults.set(false, forKey: key)
         guard previous == false else { return }  // 首次启动（无标志）不算异常
+        // 提示交给 SessionRestore 的非阻塞 toast（带恢复的标签数）；这里只记日志。
+        // 旧实现是启动时弹 NSAlert（阻塞且硬编码中文），v0.8.49 批 4 移除。
         Log.app.info("previous run did not exit cleanly — sessions restored, interrupted turns offer resume")
-        guard !CommandLine.arguments.contains("--automation") else { return }
-        Task { @MainActor in
-            try? await Task.sleep(for: .seconds(1.5))  // 等窗口/恢复装配完
-            let alert = NSAlert()
-            alert.messageText = "上次没有正常退出"
-            alert.informativeText = "标签与会话已尽量恢复。Agent 会话里被中断的回合，\n会在该会话顶部给出「继续」入口。"
-            alert.addButton(withTitle: "好")
-            alert.runModal()
-        }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {

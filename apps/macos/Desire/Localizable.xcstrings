@@ -104372,6 +104372,29 @@
           }
         }
       }
+    },
+    "Click to reload":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Click to reload"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"点击恢复"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"點擊還原"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

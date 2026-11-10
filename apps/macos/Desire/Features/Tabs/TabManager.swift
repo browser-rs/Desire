@@ -60,6 +60,10 @@ class Tab: ObservableObject {
     var suspendedURL: URL?
     var suspendedTitle: String?
     var suspendedInteractionState: Data?
+    /// 挂起前的滚动位置（URL 重载回退路径用——interactionState 路径由
+    /// WebKit 自带恢复；`loadHTMLString("")` 清空页面时 lastScrollY 会被
+    /// didStart 归零，所以必须在挂起瞬间抓走）。v0.8.49 批 4。
+    var suspendedScrollY: Double = 0
     /// 挂起前的视觉快照（v0.7.4 切换感知优化）：恢复时 `interactionState`
     /// 回灌后 WebKit 重建页面树要 250-350ms（实测探针），期间 webview 是
     /// 白屏——垫这张图淡出，"白屏跳变"变"快照过渡"。恢复完成即置 nil
@@ -71,6 +75,7 @@ class Tab: ObservableObject {
     func captureSuspendedState() {
         suspendedURL = browser.webView.url
         suspendedTitle = browser.webView.title
+        suspendedScrollY = browser.lastScrollY
         if let state = browser.webView.interactionState {
             suspendedInteractionState = try? NSKeyedArchiver.archivedData(
                 withRootObject: state,
@@ -111,11 +116,17 @@ class Tab: ObservableObject {
                     suspendedURL = nil
                     suspendedTitle = nil
                     suspendedInteractionState = nil
+                    suspendedScrollY = 0
                     return
                 }
             } catch {
                 // Decoding failed — fall through to URL reload below.
             }
+        }
+        if suspendedScrollY > 0 {
+            // didStart 会把 lastScrollY 归零，这里先把目标位置交给
+            // didFinish 的恢复钩子（WebView.pendingScrollRestore）。
+            browser.pendingScrollRestore = suspendedScrollY
         }
         if let url = suspendedURL ?? browser.webView.url {
             browser.webView.load(URLRequest(url: url))
@@ -125,6 +136,7 @@ class Tab: ObservableObject {
         suspendedURL = nil
         suspendedTitle = nil
         suspendedInteractionState = nil
+        suspendedScrollY = 0
     }
 
     private var cancellables = Set<AnyCancellable>()

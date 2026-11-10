@@ -301,6 +301,12 @@ def main():
         ok("预算：快照字段齐全",
            all(k in budget for k in ("budget", "used", "state", "stopLevel")))
 
+        # 启动诊断（0.8.49）：窗口/标签/异常退出标志可断言
+        startup = br("GET", "/diag/startup")
+        ok("启动诊断：可见窗口与标签",
+           int(startup.get("visibleWindows", 0)) >= 1 and int(startup.get("tabs", 0)) >= 1,
+           f'{startup.get("visibleWindows")}/{startup.get("tabs")}')
+
     finally:
         if server:
             server.shutdown()

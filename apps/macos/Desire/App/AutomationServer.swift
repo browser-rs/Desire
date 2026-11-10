@@ -883,9 +883,9 @@ final class AutomationServer {
             case ("POST", "/diag/simulate-stall"):
                 #if DEBUG
                 let seconds = min(30, max(1, body["seconds"] as? Double ?? 15))
-                // 阻塞主 actor 的测试钩子（async 上下文里用 sleep(for:)——
-                // Thread.sleep 在 Swift 6 是错误）。
-                try? await Task.sleep(for: .seconds(seconds))
+                // **必须真阻塞主线程**：Task.sleep 会挂起而不是卡住，心跳照常，
+                // 测不到停滞。usleep 是 C 函数，不进 async 限制。
+                usleep(useconds_t(seconds * 1_000_000))
                 return try Self.json(["ok": true, "slept": seconds])
                 #else
                 return try Self.json(["error": "simulate-stall is debug-only"])

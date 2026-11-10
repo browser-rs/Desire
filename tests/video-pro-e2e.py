@@ -61,8 +61,11 @@ def make_fixtures():
     os.makedirs(TMP, exist_ok=True)
     for name, color in (("a.mp4", "red"), ("b.mp4", "blue")):
         path = os.path.join(TMP, name)
-        if os.path.exists(path):
-            continue
+        # 每次都重建：旧版 fixture 没有音轨，跳过会让「仅音频」用例假失败。
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
         # 带一条 440Hz 正弦音轨：批量「仅音频」用例需要真实音频。
         subprocess.run(["ffmpeg", "-v", "error",
                         "-f", "lavfi", "-i", f"color=c={color}:s=320x180:d=3:r=24",
@@ -157,7 +160,9 @@ def main():
     check("导出进 Jobs 台账", export_job is not None and export_job.get("state") == "done",
           export_job and export_job.get("state"))
 
-    # 1b) 字幕往返：SRT → 文字片段 → SRT
+    # 1b) 字幕往返：SRT → 文字片段 → SRT（先清空工程——上一段命令留了文字片段，
+    # 重叠会让 cue 被跳过，产生假失败）
+    edit(action="new")
     srt_path = os.path.join(TMP, "subs.srt")
     with open(srt_path, "w", encoding="utf-8") as fh:
         fh.write("1\n00:00:00,500 --> 00:00:01,500\n第一句\n\n"
@@ -209,7 +214,7 @@ def main():
     # 4) 批量裁剪/拼接
     batch_in = os.path.join(TMP, "batch")
     os.makedirs(batch_in, exist_ok=True)
-    for sub in ("Trimmed", "Merged"):
+    for sub in ("Trimmed", "Merged", "Audio"):
         shutil.rmtree(os.path.join(batch_in, sub), ignore_errors=True)
     shutil.copy(os.path.join(TMP, "a.mp4"), os.path.join(batch_in, "a.mp4"))
     shutil.copy(os.path.join(TMP, "b.mp4"), os.path.join(batch_in, "b.mp4"))

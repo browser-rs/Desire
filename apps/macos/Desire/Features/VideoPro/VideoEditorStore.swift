@@ -1058,6 +1058,10 @@ final class VideoEditorStore: ObservableObject {
         let height = exportTargetHeight
         let audioOnly = exportAudioOnly
         exportState = .running(0)
+        // 导出进 Jobs 台账（产物可从 Jobs 面板直达；v0.8.48 批 3）。
+        let exportJob = JobStore.shared.start(
+            title: String(localized: "Timeline export"),
+            kind: .media, detail: snapshot.title, source: "videopro")
         // 捕获强引用局部量（不是 var）——Sendable 闭包里捕获 var self 是 Swift 6 错误。
         let store = self
         exportTask = Task { [weak self] in
@@ -1068,6 +1072,9 @@ final class VideoEditorStore: ObservableObject {
                     }
                 }, targetHeight: height, forceAudioOnly: audioOnly)
                 await MainActor.run {
+                    JobStore.shared.finish(exportJob, state: .done,
+                                           detail: url.lastPathComponent,
+                                           artifactURL: url.path)
                     self?.exportState = .done(url)
                     if let self, !self.exportHistory.contains(url) {
                         self.exportHistory.insert(url, at: 0)
@@ -1077,9 +1084,16 @@ final class VideoEditorStore: ObservableObject {
                     }
                 }
             } catch is CancellationError {
-                await MainActor.run { self?.exportState = .idle }
+                await MainActor.run {
+                    JobStore.shared.finish(exportJob, state: .cancelled, detail: "Cancelled")
+                    self?.exportState = .idle
+                }
             } catch {
-                await MainActor.run { self?.exportState = .failed(error.localizedDescription) }
+                await MainActor.run {
+                    JobStore.shared.finish(exportJob, state: .failed,
+                                           error: error.localizedDescription)
+                    self?.exportState = .failed(error.localizedDescription)
+                }
             }
         }
     }

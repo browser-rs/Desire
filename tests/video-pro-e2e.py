@@ -147,6 +147,12 @@ def main():
     check("导出成功", r.get("ok") is True and os.path.exists(out), r)
     check("导出时长==时间线", abs(ffprobe_duration(out) - timeline) < 0.2,
           (ffprobe_duration(out), timeline))
+    jobs = call("/jobs", timeout=15).get("jobs", [])
+    export_job = next((j for j in jobs
+                       if j.get("artifactURL") == out
+                       or j.get("artifactUrl") == out), None)
+    check("导出进 Jobs 台账", export_job is not None and export_job.get("state") == "done",
+          export_job and export_job.get("state"))
 
     # 2) 会话路由
     second_tab = call("/new-tab", {"url": "desire://tools/videoEditor"})

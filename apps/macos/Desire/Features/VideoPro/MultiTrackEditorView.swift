@@ -632,6 +632,23 @@ struct MultiTrackEditorView: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(appAccent)
+                .help(String(localized: "Show in Finder"))
+                Button {
+                    NSWorkspace.shared.open(url)
+                } label: {
+                    Image(systemName: "play.circle")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(appAccent)
+                .help(String(localized: "Play Export"))
+                Button {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                } label: {
+                    Image(systemName: "folder")
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(appAccent)
+                .help(String(localized: "Show in Finder"))
             case .failed(let message):
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.red)

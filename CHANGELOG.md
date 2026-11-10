@@ -27,6 +27,8 @@
 - VideoPro 素材池增强（批 3）：名称筛选、每条素材带时长与分辨率徽标、**双击素材直接插到播放头**（原按钮保留）；空工程给上手引导卡（添加素材 + 快捷键速查浮层：Space/J-K-L/S/⌘Z/⌘A/←→/Home-End/Delete，与时间线按键一一对应）。
 - 新 Agent 工具 `batchTrimVideos`（批 3）：对文件夹内 mp4/mov/m4v 批量裁剪（start/end）或按名拼接（concat），走统一 Jobs 台账（立即返回 job id、逐项进度/产物/失败），底层复用 TimelineCore + 离线导出引擎；桥新增 `POST /video/batch`（与工具同一条 store 路径），产物落 `Trimmed/` 或 `Merged/`。
 - 视频剪辑测试进仓库（批 3）：`tests/video-pro-e2e.py`（自包含 21 项：命令全链路/导出时长==时间线/多会话 session·file 定向/草稿/批量裁剪拼接，只开关自己创建的编辑器标签）与 `tests/video-pro-actions.py`（实现 vs Agent 描述 vs 桥文档的动作面漂移对账，静态检查）。
+- VideoPro 导出产物直达（批 3）：导出完成行内加「播放 / 在访达中显示」；每次导出（UI 与桥/Agent 同路径）写一条 Jobs 台账记录（标题/时长、产物路径、失败原因），Jobs 面板可直接看到并定位产物。
+
 
 
 

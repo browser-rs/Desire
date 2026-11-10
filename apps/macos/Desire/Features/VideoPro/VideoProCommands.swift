@@ -454,6 +454,10 @@ enum VideoProCommands {
         // 不回主 actor——进度回调由命令层传空），await 它不占主 actor。
         // （曾包 Task.detached——非必要；.value 的 await 反而成了取消传播
         // 通道，导出中途被外围取消传染抛"操作已停止"。2026-11-10 实测。）
+        // 导出进 Jobs 台账（桥/Agent 与 UI 同一条可见出口）。
+        let exportJob = JobStore.shared.start(
+            title: String(localized: "Timeline export"),
+            kind: .media, detail: store.project.title, source: "videopro")
         let rendered: URL
         do {
             rendered = try await withTaskCancellationHandler {
@@ -466,6 +470,8 @@ enum VideoProCommands {
             }
         } catch {
             let ns = error as NSError
+            JobStore.shared.finish(exportJob, state: error is CancellationError ? .cancelled : .failed,
+                                   error: ns.localizedDescription)
             log.fault("videopro export FAILED: domain=\(ns.domain, privacy: .public) code=\(ns.code) desc=\(ns.localizedDescription, privacy: .public) userInfo=\(String(describing: ns.userInfo).prefix(600), privacy: .public)")
             throw error
         }
@@ -476,6 +482,9 @@ enum VideoProCommands {
             try? FileManager.default.removeItem(at: destination)
             try FileManager.default.moveItem(at: rendered, to: destination)
         }
+        JobStore.shared.finish(exportJob, state: .done,
+                               detail: destination.lastPathComponent,
+                               artifactURL: destination.path)
         return ["ok": true, "path": destination.path,
                 "duration": TimelineCore.projectDuration(store.project)]
     }

@@ -63,9 +63,12 @@ def make_fixtures():
         path = os.path.join(TMP, name)
         if os.path.exists(path):
             continue
-        subprocess.run(["ffmpeg", "-v", "error", "-f", "lavfi",
-                        "-i", f"color=c={color}:s=320x180:d=3:r=24",
-                        "-c:v", "libx264", "-pix_fmt", "yuv420p", "-y", path],
+        # 带一条 440Hz 正弦音轨：批量「仅音频」用例需要真实音频。
+        subprocess.run(["ffmpeg", "-v", "error",
+                        "-f", "lavfi", "-i", f"color=c={color}:s=320x180:d=3:r=24",
+                        "-f", "lavfi", "-i", "sine=frequency=440:duration=3",
+                        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+                        "-c:a", "aac", "-shortest", "-y", path],
                        check=True)
 
 

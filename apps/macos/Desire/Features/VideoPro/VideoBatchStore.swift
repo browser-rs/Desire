@@ -95,8 +95,10 @@ final class VideoBatchStore {
                            outputDir: URL) async {
         var project = TimelineCore.Project()
         project.title = "merged"
-        guard let videoTrack = project.tracks.first(where: { $0.kind == .video }) else {
-            JobStore.shared.finish(jobID, state: .failed, error: "No video track in project")
+        let wantedKind: TimelineCore.TrackKind = options.audioOnly ? .audio : .video
+        guard let track = project.tracks.first(where: { $0.kind == wantedKind }) else {
+            JobStore.shared.finish(jobID, state: .failed,
+                                   error: "No \(wantedKind.rawValue) track in project")
             return
         }
         JobStore.shared.update(jobID, detail: "Collecting clips…", progress: 0.1)
@@ -114,7 +116,7 @@ final class VideoBatchStore {
             let clip = TimelineCore.Clip(start: at, duration: clipDuration,
                                          sourceStart: start, sourceURL: file,
                                          label: file.lastPathComponent)
-            if let next = TimelineCore.upsertClip(project, trackID: videoTrack.id, clip: clip) {
+            if let next = TimelineCore.upsertClip(project, trackID: track.id, clip: clip) {
                 project = next
                 at += clipDuration
             } else {
@@ -163,13 +165,14 @@ final class VideoBatchStore {
         let clipDuration = max(0.1, end - start)
         var project = TimelineCore.Project()
         project.title = file.deletingPathExtension().lastPathComponent
-        guard let videoTrack = project.tracks.first(where: { $0.kind == .video }) else {
-            throw BatchError.message("no video track")
+        let wantedKind: TimelineCore.TrackKind = options.audioOnly ? .audio : .video
+        guard let track = project.tracks.first(where: { $0.kind == wantedKind }) else {
+            throw BatchError.message("no \(wantedKind.rawValue) track")
         }
         let clip = TimelineCore.Clip(start: 0, duration: clipDuration,
                                      sourceStart: start, sourceURL: file,
                                      label: file.lastPathComponent)
-        guard let next = TimelineCore.upsertClip(project, trackID: videoTrack.id, clip: clip) else {
+        guard let next = TimelineCore.upsertClip(project, trackID: track.id, clip: clip) else {
             throw BatchError.message("timeline rejected the clip")
         }
         project = next

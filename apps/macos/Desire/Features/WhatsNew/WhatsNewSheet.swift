@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "film", title: String(localized: "VideoPro: text that actually burns in"),
-                  detail: String(localized: "Text clips are rendered with fades into the exported file, cross-dissolves finally composite on their own tracks, and the export length always matches the timeline.")),
-            .init(icon: "clock.arrow.circlepath", title: String(localized: "Your edit survives a crash"),
-                  detail: String(localized: "VideoPro saves a draft three seconds after every change and offers to recover it on reopen, and the video track now shows thumbnails so you can see what is where.")),
-            .init(icon: "eye.slash", title: String(localized: "YouTube's new ad-block detector, defused"),
-                  detail: String(localized: "The player started fingerprinting its own JSON parsing; ad data is now pruned at the response boundary and the fetch wrapper presents as native code. Playback stays clean.")),
+            .init(icon: "shield.lefthalf.filled", title: String(localized: "Sessions that survive a crash"),
+                  detail: String(localized: "Session snapshots keep a backup copy, the next launch recovers your tabs, and a launch watchdog brings the window back if it ever starts invisible.")),
+            .init(icon: "waveform.path.ecg", title: String(localized: "A freeze now leaves evidence"),
+                  detail: String(localized: "A background heartbeat records any main-thread stall longer than ten seconds, with a stack sample, so a silent freeze can be diagnosed on the next launch.")),
+            .init(icon: "captions.bubble", title: String(localized: "Subtitles in, audio out"),
+                  detail: String(localized: "Import an SRT or VTT into editable text clips (and export it back), and batch-extract m4a audio from a folder of videos through the Jobs ledger.")),
         ]
     }
 

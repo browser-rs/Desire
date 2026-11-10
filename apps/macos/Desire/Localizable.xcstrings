@@ -104395,6 +104395,144 @@
           }
         }
       }
+    },
+    "Sessions that survive a crash":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Sessions that survive a crash"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"崩溃也带不走的会话"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"崩潰也帶不走的會話"
+          }
+        }
+      }
+    },
+    "Session snapshots keep a backup copy, the next launch recovers your tabs, and a launch watchdog brings the window back if it ever starts invisible.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Session snapshots keep a backup copy, the next launch recovers your tabs, and a launch watchdog brings the window back if it ever starts invisible."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"会话快照保留备份副本，下次启动恢复你的标签；若启动时窗口没出现，看门狗会把它带回来。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"會話快照保留備份副本，下次啟動還原你的標籤；若啟動時視窗沒出現，看門狗會把它帶回來。"
+          }
+        }
+      }
+    },
+    "A freeze now leaves evidence":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"A freeze now leaves evidence"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"卡死会留下证据"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"卡死會留下證據"
+          }
+        }
+      }
+    },
+    "A background heartbeat records any main-thread stall longer than ten seconds, with a stack sample, so a silent freeze can be diagnosed on the next launch.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"A background heartbeat records any main-thread stall longer than ten seconds, with a stack sample, so a silent freeze can be diagnosed on the next launch."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"后台心跳会记录超过十秒的主线程停滞并尽量抓一份栈，下次启动即可诊断那次没有崩溃报告的卡死。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"後台心跳會記錄超過十秒的主執行緒停滯並盡量抓一份堆疊，下次啟動即可診斷那次沒有崩潰報告的卡死。"
+          }
+        }
+      }
+    },
+    "Subtitles in, audio out":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Subtitles in, audio out"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"字幕进得来，音频拿得走"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"字幕進得來，音訊拿得走"
+          }
+        }
+      }
+    },
+    "Import an SRT or VTT into editable text clips (and export it back), and batch-extract m4a audio from a folder of videos through the Jobs ledger.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Import an SRT or VTT into editable text clips (and export it back), and batch-extract m4a audio from a folder of videos through the Jobs ledger."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"导入 SRT/VTT 成可再编辑的文字片段（也能导出回去），还能把一文件夹视频批量抽成 m4a，进度进 Jobs 台账。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"匯入 SRT/VTT 成可再編輯的文字片段（也能匯出回去），還能把它們批次抽成 m4a，進度進 Jobs 台帳。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

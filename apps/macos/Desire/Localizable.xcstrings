@@ -104533,6 +104533,29 @@
           }
         }
       }
+    },
+    "Last run had a main-thread stall — diagnostics were recorded.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Last run had a main-thread stall — diagnostics were recorded."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上次运行出现主线程停滞，已记录诊断。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上次執行出現主執行緒停滯，已記錄診斷。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

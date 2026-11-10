@@ -365,6 +365,20 @@ struct ContentView: View {
             Log.app.info("launch phase: first window content appeared +\(Int(Date().timeIntervalSince(DesireApp.launchStart) * 1000), privacy: .public)ms")
             LaunchAudit.mark("first window")
             LaunchAudit.summarize()
+            // 上次运行的主线程停滞 → 非阻塞提示（v0.8.49；同一 stall 只提示一次）。
+            if let stall = RuntimeHealthMonitor.lastStall(),
+               Date().timeIntervalSince(stall.startedAt) < 24 * 3600 {
+                let stampKey = "app.lastStallToastShownAt"
+                let stamp = stall.startedAt.timeIntervalSince1970
+                if UserDefaults.standard.double(forKey: stampKey) < stamp {
+                    UserDefaults.standard.set(stamp, forKey: stampKey)
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                        actionToast = StatusBarToast(
+                            icon: "waveform.path.ecg",
+                            text: String(localized: "Last run had a main-thread stall — diagnostics were recorded."))
+                    }
+                }
+            }
             // 后台标签页缩略图轮捕的 tab 源（hover 预览秒开，见 TabThumbnailStore）。
             thumbnailStore.setTabsProvider { [tabManager] in tabManager.tabs }
             if aiFloatingPanel == nil {

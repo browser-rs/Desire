@@ -9,6 +9,8 @@
 - 主线程健康监测（v0.8.49 批 2）：2s 心跳 + 后台 watchdog（10s 无心跳判定停滞，fault 日志 + `health/last-stall.json` + 尝试 `sample` 抓栈，Hardened Runtime 下抓不到只标记）；全局 ObjC 异常探针（reason + 栈进统一日志，VideoPro 局部探针退役）；Agent 面板新增被中断回合的「恢复」提示条；`POST /diag/simulate-stall`（DEBUG）可复现。
 - 字幕闭环（v0.8.49 批 3）：VideoPro 导入 SRT/VTT/ASS → 按 cue 批量建**可再编辑**的文字片段（重叠 cue 跳过并计数），文字轨一键导出 SRT；命令 API `addsubtitles`/`exportsubtitles`，桥/Agent 同一路径；字幕文本解码补 GB18030 兜底（中文 SRT）。批量剪辑新增「仅音频」（视频 → `Audio/*.m4a`，concat 时输出 `merged.m4a`）；导出预设（高度/仅音频）跨会话记忆。
 - 挂起标签可恢复（v0.8.49 批 4）：挂起瞬间记住滚动位置，URL 重载回退路径在 didFinish 恢复（interactionState 路径由 WebKit 自带）；占位页改本地化文案（站点标题 + 点击恢复）。启动时"上次没有正常退出"不再弹阻塞 NSAlert（恢复 toast 已带标签数），只留日志。
+- 主线程停滞的用户可见面（v0.8.49 批 4 收口）：体检页新增「主线程健康」检查（最近一次停滞时长/时间/是否抓到栈）；上次运行有停滞时启动给一次非阻塞提示（同一记录只提示一次，24h 内有效）；诊断包带 `runtime-health.json` / `runtime-stall.txt`。
+
 
 
 

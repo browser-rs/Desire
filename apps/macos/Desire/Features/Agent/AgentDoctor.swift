@@ -106,6 +106,18 @@ enum AgentDoctor {
         checks.append(Check(name: "心跳巡检", ok: true,
                             detail: heartbeat.isEnabled ? "每 \(heartbeat.intervalMinutes) 分钟" : "未启用（设置页 AI 区可开）"))
 
+        // 9. 主线程健康（v0.8.49）：最近一次停滞记录（体检页与诊断包同源）
+        if let stall = RuntimeHealthMonitor.lastStall() {
+            let minutes = Int(Date().timeIntervalSince(stall.startedAt) / 60)
+            checks.append(Check(
+                name: "主线程健康",
+                ok: false,
+                detail: "上次运行出现 \(Int(stall.seconds)) 秒停滞（\(minutes) 分钟前）"
+                    + (stall.sampled ? "，已抓到栈（诊断包可见）" : "，未抓到栈（Hardened Runtime 限制）")))
+        } else {
+            checks.append(Check(name: "主线程健康", ok: true, detail: "未记录到主线程停滞"))
+        }
+
         return Report(checks: checks)
     }
 

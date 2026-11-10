@@ -8184,6 +8184,18 @@ func testMediaEditCore() {
     check("字幕：候选排除无关与隐藏", !candidates.contains("other.srt") && !candidates.contains(".hidden.srt"))
     check("字幕：无视频后缀同格式序", candidates.count == 4)
 
+    // GB18030（中文 SRT 常见编码，v0.8.49）：decodeText 兜底 + 整条解析。
+    let gbEncoding = String.Encoding(
+        rawValue: CFStringConvertEncodingToNSStringEncoding(
+            CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)))
+    if let gbData = "1\n00:00:01,000 --> 00:00:02,000\n第一句字幕\n".data(using: gbEncoding) {
+        check("字幕：GB18030 解码", SubtitleCore.decodeText(gbData)?.contains("第一句字幕") ?? false)
+        let gbCues = SubtitleCore.parse(gbData) ?? []
+        eq("字幕：GB18030 解析", gbCues.first?.text ?? "", "第一句字幕")
+    } else {
+        check("字幕：GB18030 样本编码失败", false)
+    }
+
     // ---- 多轨时间线 ----
     var project = TimelineCore.Project()
     let videoTrack = project.tracks.first { $0.kind == .video }!
@@ -8509,6 +8521,8 @@ testReadingDigestCore()
 testFB2Core()
 testEbookSyncCore()
 testExcerptLocatorCodable()
+testHealthClock()
+
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
@@ -10054,4 +10068,18 @@ func testExcerptLocatorCodable() {
           decoded.bookHash == "abc" && decoded.chapterIndex == 2
             && decoded.chapterTitle == "第二章"
             && decoded.startOffset == 10 && decoded.endOffset == 12)
+}
+
+
+// ---------- 主线程健康时钟（v0.8.49） ----------
+
+func testHealthClock() {
+    let clock = HealthClock()
+    let before = clock.lastAck()
+    check("健康时钟：初始新鲜", Date().timeIntervalSince1970 - before < 2)
+    check("健康时钟：停滞只记一次",
+          clock.claimStallRecord() == true && clock.claimStallRecord() == false)
+    clock.ack()
+    check("健康时钟：ack 后重新可记", clock.claimStallRecord() == true)
+    check("健康时钟：ack 推进时间", clock.lastAck() >= before)
 }

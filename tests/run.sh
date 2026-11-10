@@ -28,6 +28,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/PageProtocol/DPPOpsContract.swift
   apps/macos/Desire/Features/Agent/PageEventPolicy.swift
   apps/macos/Desire/App/Log.swift
+  apps/macos/Desire/App/HealthClock.swift
   apps/macos/Desire/Features/Agent/AgentPlanStep.swift
   apps/macos/Desire/App/JSString.swift
   apps/macos/Desire/App/BearerAuthentication.swift

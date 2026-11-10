@@ -15,35 +15,6 @@ import os
 ///   fault 日志 + `health/last-stall.json`，并尝试 `/usr/bin/sample` 抓栈
 ///   （Hardened Runtime 下可能失败，失败只记 sampled=false）。
 /// - 只取证，不尝试自愈（RunLoop 已坏，进程内救不回来）。
-nonisolated final class HealthClock: @unchecked Sendable {
-    static let shared = HealthClock()
-    private let lock = NSLock()
-    private var ackAt: TimeInterval = Date().timeIntervalSince1970
-    private var stallClaimed = false
-
-    func ack() {
-        lock.lock()
-        ackAt = Date().timeIntervalSince1970
-        stallClaimed = false
-        lock.unlock()
-    }
-
-    func lastAck() -> TimeInterval {
-        lock.lock()
-        defer { lock.unlock() }
-        return ackAt
-    }
-
-    /// 本次停滞只记一次：返回 true = 由调用方写证据。
-    func claimStallRecord() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        if stallClaimed { return false }
-        stallClaimed = true
-        return true
-    }
-}
-
 @MainActor
 final class RuntimeHealthMonitor {
     static let shared = RuntimeHealthMonitor()

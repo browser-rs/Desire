@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.49] - 2026-11-11
 ### Changed
 
 - 诊断包带上主线程停滞证据：`health/last-stall.json` 与最新一份 sample 栈以 `runtime-health.json` / `runtime-stall.txt` 随包导出，"没有崩溃报告的卡死"可以直接带走排查。

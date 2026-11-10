@@ -79,6 +79,8 @@ final class VideoEditorStore: ObservableObject {
         let url: URL
         let duration: Double
         let hasVideo: Bool
+        /// 视频素材分辨率（素材池徽标；音频为 nil）。
+        var resolution: CGSize?
         var name: String { url.lastPathComponent }
     }
 
@@ -504,12 +506,19 @@ final class VideoEditorStore: ObservableObject {
         for url in urls where !sources.contains(where: { $0.url == url }) {
             Task { [weak self] in
                 let duration = await MediaEditProbe.duration(url) ?? 0
-                let hasVideo = ((try? await AVURLAsset(url: url)
-                    .loadTracks(withMediaType: .video).count) ?? 0) > 0
+                let asset = AVURLAsset(url: url)
+                let videoTrack = try? await asset.loadTracks(withMediaType: .video).first
+                var resolution: CGSize?
+                if let videoTrack, let size = try? await videoTrack.load(.naturalSize),
+                   size.width > 0, size.height > 0 {
+                    resolution = size
+                }
                 await MainActor.run { [weak self] in
                     guard let self, duration > 0 else { return }
                     self.sources.append(SourceMedia(url: url,
-                                                    duration: duration, hasVideo: hasVideo))
+                                                    duration: duration,
+                                                    hasVideo: videoTrack != nil,
+                                                    resolution: resolution))
                 }
             }
         }

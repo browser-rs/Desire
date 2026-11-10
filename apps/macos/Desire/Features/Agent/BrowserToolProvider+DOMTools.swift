@@ -988,6 +988,8 @@ extension BrowserToolProvider {
             return Self.markArticleRead(args)
         case "batchProcessPDFs":
             return Self.batchProcessPDFs(args, conversationID: ownerSession?.conversationId)
+        case "batchTrimVideos":
+            return Self.batchTrimVideos(args, conversationID: ownerSession?.conversationId)
         case "batchWatermarkImages":
             return Self.batchWatermarkImages(args, conversationID: ownerSession?.conversationId)
 

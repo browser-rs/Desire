@@ -380,6 +380,18 @@ extension BrowserToolProvider {
                 ], required: ["paths"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "batchTrimVideos",
+                description: "Batch-trim or concatenate every video in a folder (mp4/mov/m4v). trim: cut each file to [start, end) and write <name>-trimmed.mp4 into Trimmed/. concat: join all files in name order into Merged/merged.mp4. Runs as a background job (returns a job id immediately); check progress with backgroundTaskStatus and results in the Jobs panel. For arbitrary multi-clip timelines use editTimeline instead.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "folder": AgentJSONSchemaValue(type: "string", description: "Folder path"),
+                    "start": AgentJSONSchemaValue(type: "number", description: "Trim in-point in seconds (default 0)"),
+                    "end": AgentJSONSchemaValue(type: "number", description: "Trim out-point in seconds (default: full length)"),
+                    "concat": AgentJSONSchemaValue(type: "boolean", description: "Join all files into one instead of per-file output (default false)"),
+                    "recursive": AgentJSONSchemaValue(type: "boolean", description: "Scan subfolders too (default false)"),
+                    "height": AgentJSONSchemaValue(type: "number", description: "Optional output height (e.g. 720)"),
+                ], required: ["folder"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "batchProcessPDFs",
                 description: "Batch process every PDF in a folder: merge (all PDFs into one, name order), split (per-page files), extract (page range per PDF) or rotate (all pages). Writes into Merged/ Split/ Extracted/ Rotated/ inside the folder. Runs as a background job; check progress with backgroundTaskStatus.",
                 parameters: AgentJSONSchema(type: "object", properties: [
@@ -2107,7 +2119,7 @@ extension BrowserToolProvider {
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "editVideoPro",
-                description: "Drive the open VideoPro multi-track video editor (desire://tools/videoEditor). Time values are SECONDS on the timeline. Multiple editors may be open: pass session (UUID from GET /video/state sessions) or file (project path) to target one; omit for the active editor (an explicit target that matches nothing errors instead of editing the wrong project). Actions: state; new; addmedia {paths}; addclip {path, track: video|audio, in?, duration?, at?, speed?, volume?}; addtext {text, at?, duration?}; split {at?} (default playhead); trim {id, start?, duration?, sourceStart?}; move {id, track?, at}; delete {ids?}; select {id?}; setclip {id, speed?, volume?, fadeIn?, fadeOut?, rotate?}; envelope {id, points:[{at,volume}]}; transition {left, right, overlap?}; track {op: add|mute|move|remove, kind?, name?, id?, up?}; play {toggle?, seek?}; zoom {pps 8-600}; undo; export {path: .mp4|.m4a, height?}; save/load {path: .dtl}. For offline batch rendering without the editor, use editTimeline instead. Pass parameters as a JSON object string in `params`.",
+                description: "Drive the open VideoPro multi-track video editor (desire://tools/videoEditor). Time values are SECONDS on the timeline. Multiple editors may be open: pass session (UUID from GET /video/state sessions) or file (project path) to target one; omit for the active editor (an explicit target that matches nothing errors instead of editing the wrong project). Actions: state; new; addmedia {paths}; addclip {path, track: video|audio, in?, duration?, at?, speed?, volume?}; addtext {text, at?, duration?}; split {at?} (default playhead); trim {id, start?, duration?, sourceStart?}; move {id, track?, at}; delete {ids?}; select {id?}; setclip {id, speed?, volume?, fadeIn?, fadeOut?, rotate?}; envelope {id, points:[{at,volume}]}; transition {left, right, overlap?}; track {op: add|mute|move|remove, kind?, name?, id?, up?}; play {toggle?, seek?}; zoom {pps 8-600}; undo; export {path: .mp4|.m4a, height?}; save {path}; load {path}; draft {op: status|save|restore|discard}. For offline batch rendering without the editor, use editTimeline instead. Pass parameters as a JSON object string in `params`.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "action": AgentJSONSchemaValue(type: "string", description: "Command action (state, addclip, split, trim, setclip, export, …)"),
                     "params": AgentJSONSchemaValue(type: "string", description: "JSON object with the action's parameters, e.g. {\"path\":\"/tmp/a.mp4\",\"in\":5,\"duration\":10}"),

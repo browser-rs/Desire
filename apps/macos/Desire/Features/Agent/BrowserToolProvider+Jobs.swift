@@ -355,6 +355,37 @@ extension BrowserToolProvider {
         }
     }
 
+    /// 批量剪辑（v0.8.48 批 3）：trim（裁头尾）/ concat（按名拼成一条）。
+    /// 走 Jobs 台账，立即返回 job id；底层复用 TimelineCore + 离线导出引擎。
+    static func batchTrimVideos(_ args: [String: Any], conversationID: UUID?) -> String {
+        guard let folder = args["folder"] as? String, !folder.isEmpty else {
+            return fail("Missing folder")
+        }
+        let resolved: URL
+        switch AgentWorkspace.shared.resolve(folder, write: true) {
+        case .granted(let url): resolved = url
+        case .denied(let reason): return reason
+        }
+        let start = args["start"] as? Double
+        let end = args["end"] as? Double
+        if let start, let end, end <= start {
+            return fail("end must be greater than start")
+        }
+        let options = VideoBatchStore.Options(
+            folder: resolved, start: start, end: end,
+            concat: (args["concat"] as? Bool) ?? false,
+            recursive: (args["recursive"] as? Bool) ?? false,
+            height: args["height"] as? Double)
+        switch VideoBatchStore.shared.start(options: options, conversationID: conversationID) {
+        case .success(let id):
+            return "Video batch started as job \(id.uuidString). Output goes to \(options.outputDirectoryName)/ inside the folder. Check progress with backgroundTaskStatus."
+        case .failure(let error):
+            switch error {
+            case .message(let message): return fail(message)
+            }
+        }
+    }
+
     /// PDF 批量处理（v0.8.44 批 4）：merge/split/extract/rotate。
     static func batchProcessPDFs(_ args: [String: Any],
                                  conversationID: UUID?) -> String {

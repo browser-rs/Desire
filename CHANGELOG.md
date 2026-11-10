@@ -24,6 +24,10 @@
 - VideoPro 多编辑器会话路由（对齐 ImagePro）：编辑器会话改为挂在标签上（进入工具页时创建、切走标签不销毁工程，此前 @StateObject 随视图销毁，切个标签工程就没了），命令 API 支持 `session=<uuid>` / `file=<工程路径>` 定向到指定编辑器（`/video/state` 新增 `sessions` 清单与当前 `session`/`file`；显式给了目标却没匹配到**报错**而不是静默改到活动工程）；桥 `/video/edit` 与 Agent `editVideoPro` 同一条路由，缺省仍打当前活动编辑器。
 - VideoPro 工程自动草稿：编辑后 3s 防抖写 `.dtl` 草稿（Application Support/Desire/VideoProDrafts，键 = 工程路径 / 未命名 = untitled），崩溃或强杀后重开编辑器会出「发现上次未保存的修改」提示条，可一键恢复或丢弃；恢复后草稿即被消费，显式保存/新建/丢弃时按语义清掉（未命名工程另存为文件会同时清掉旧 untitled 草稿）。命令 API 新增 `draft {op: status|save|restore|discard}`，桥可脚本验证（E2E 含真 pkill -9 后恢复，8/8）。
 - VideoPro 视频轨缩略图条：素材用 AVAssetImageGenerator 等距抽 12 帧缓存（同素材并发请求共享一个生成任务），视频片段 lane 内按源区间切帧平铺（只画可见宽度，拖动/裁边跟着重排），与音频轨波形对齐的画面预览；缩放/亮度不变，选中时提亮。
+- VideoPro 素材池增强（批 3）：名称筛选、每条素材带时长与分辨率徽标、**双击素材直接插到播放头**（原按钮保留）；空工程给上手引导卡（添加素材 + 快捷键速查浮层：Space/J-K-L/S/⌘Z/⌘A/←→/Home-End/Delete，与时间线按键一一对应）。
+- 新 Agent 工具 `batchTrimVideos`（批 3）：对文件夹内 mp4/mov/m4v 批量裁剪（start/end）或按名拼接（concat），走统一 Jobs 台账（立即返回 job id、逐项进度/产物/失败），底层复用 TimelineCore + 离线导出引擎；桥新增 `POST /video/batch`（与工具同一条 store 路径），产物落 `Trimmed/` 或 `Merged/`。
+- 视频剪辑测试进仓库（批 3）：`tests/video-pro-e2e.py`（自包含 21 项：命令全链路/导出时长==时间线/多会话 session·file 定向/草稿/批量裁剪拼接，只开关自己创建的编辑器标签）与 `tests/video-pro-actions.py`（实现 vs Agent 描述 vs 桥文档的动作面漂移对账，静态检查）。
+
 
 
 

@@ -14,6 +14,8 @@ struct MultiTrackEditorView: View {
     /// 源监视器正在查看的素材（nil = 关闭）。
     @State private var monitoring: VideoEditorStore.SourceMedia?
     @State private var showHistory = false
+    @State private var poolQuery = ""
+    @State private var showShortcuts = false
 
     static let laneHeights: [TimelineCore.TrackKind: CGFloat] = [.text: 30, .video: 56, .audio: 40]
     static let laneGap: CGFloat = 6
@@ -219,44 +221,137 @@ struct MultiTrackEditorView: View {
         .padding(10)
     }
 
-    /// 素材池（v0.8.28 批次二）：点名字开源监视器，点 + 直接插入时间线。
+    /// 素材池（v0.8.48 增强）：名称筛选、时长/分辨率徽标、双击插入。
+    /// 点名字开源监视器，点 + 插入到对应轨道。
     @ViewBuilder
     private var sourcePool: some View {
         if !store.sources.isEmpty {
-            ScrollView([.horizontal]) {
-                HStack(spacing: 6) {
-                    ForEach(store.sources) { source in
-                        HStack(spacing: 5) {
-                            Button {
-                                monitoring = source
-                            } label: {
-                                Label(source.name, systemImage: source.hasVideo ? "film" : "waveform")
-                                    .font(.system(size: 10))
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 9))
+                    .foregroundStyle(.tertiary)
+                TextField(String(localized: "Filter media…"), text: $poolQuery)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 10))
+                    .frame(width: 130)
+                ScrollView([.horizontal]) {
+                    HStack(spacing: 6) {
+                        ForEach(filteredSources) { source in
+                            HStack(spacing: 5) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: source.hasVideo ? "film" : "waveform")
+                                        .font(.system(size: 9))
+                                    Text(source.name)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                    Text(MediaEditCore.formatClock(source.duration))
+                                        .font(.system(size: 8.5, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                    if let resolution = source.resolution {
+                                        Text("\(Int(resolution.width))×\(Int(resolution.height))")
+                                            .font(.system(size: 8.5, design: .monospaced))
+                                            .foregroundStyle(.tertiary)
+                                    }
+                                }
+                                .font(.system(size: 10))
+                                .foregroundStyle(.primary)
+                                .contentShape(Rectangle())
+                                .onTapGesture(count: 2) { store.insertSource(source) }
+                                .onTapGesture { monitoring = source }
+                                .help(String(localized: "Double-click to insert at playhead"))
+                                Button {
+                                    store.insertSource(source)
+                                } label: {
+                                    Image(systemName: "plus.circle")
+                                        .font(.system(size: 10))
+                                }
+                                .buttonStyle(.plain)
+                                .foregroundStyle(appAccent)
+                                .help(String(localized: "Insert at Playhead"))
                             }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(.primary)
-                            .help(String(localized: "Open in Source Monitor"))
-                            Button {
-                                store.insertSource(source)
-                            } label: {
-                                Image(systemName: "plus.circle")
-                                    .font(.system(size: 10))
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(appAccent)
-                            .help(String(localized: "Insert at Playhead"))
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(RoundedRectangle(cornerRadius: 6)
+                                .fill(Color(nsColor: .controlBackgroundColor)))
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(RoundedRectangle(cornerRadius: 6)
-                            .fill(Color(nsColor: .controlBackgroundColor)))
                     }
+                    .padding(.horizontal, 2)
                 }
-                .padding(.horizontal, 2)
             }
         }
+    }
+
+    private var filteredSources: [VideoEditorStore.SourceMedia] {
+        let needle = poolQuery.trimmingCharacters(in: .whitespaces).lowercased()
+        guard !needle.isEmpty else { return store.sources }
+        return store.sources.filter { $0.name.lowercased().contains(needle) }
+    }
+
+    /// 空工程引导（可发现性）：没有任何素材与片段时给一张上手卡。
+    @ViewBuilder
+    private var emptyStateCard: some View {
+        if store.sources.isEmpty
+            && store.project.tracks.allSatisfy({ $0.clips.isEmpty }) {
+            HStack(spacing: 12) {
+                Image(systemName: "film.stack")
+                    .font(.system(size: 26))
+                    .foregroundStyle(appAccent)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(String(localized: "Add media to start editing"))
+                        .font(.system(size: 12, weight: .semibold))
+                    Text(String(localized: "Video and audio go onto their own tracks; double-click a source to insert it at the playhead."))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button(String(localized: "Add Media…")) { addMedia() }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                Button(String(localized: "Shortcuts")) { showShortcuts = true }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .popover(isPresented: $showShortcuts, arrowEdge: .bottom) {
+                        shortcutCheatSheet
+                    }
+            }
+            .padding(12)
+            .background(RoundedRectangle(cornerRadius: 8)
+                .fill(appAccent.opacity(0.08)))
+            .overlay(RoundedRectangle(cornerRadius: 8)
+                .strokeBorder(appAccent.opacity(0.25), lineWidth: 0.8))
+        }
+    }
+
+    /// 快捷键速查（与 EditorTimeline.onKeyPress 一一对应）。
+    private var shortcutCheatSheet: some View {
+        let rows: [(String, String)] = [
+            ("Space", String(localized: "Play / Pause")),
+            ("J / L", String(localized: "Rewind / Fast-forward")),
+            ("K", String(localized: "Pause")),
+            ("S", String(localized: "Split at Playhead")),
+            ("⌘Z", String(localized: "Undo")),
+            ("⌘A", String(localized: "Select All")),
+            ("← / →", String(localized: "Step Playhead")),
+            ("Home / End", String(localized: "Start / End")),
+            ("Delete", String(localized: "Delete Selected")),
+        ]
+        return VStack(alignment: .leading, spacing: 5) {
+            Text(String(localized: "Shortcuts"))
+                .font(.system(size: 11, weight: .semibold))
+            ForEach(rows, id: \.0) { key, label in
+                HStack(spacing: 10) {
+                    Text(key)
+                        .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                        .frame(width: 76, alignment: .leading)
+                    Text(label)
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+            }
+        }
+        .padding(12)
+        .frame(width: 240)
     }
 
     /// 源监视器（剪映式）：预览 + 入出点修剪 + 插入播放头。

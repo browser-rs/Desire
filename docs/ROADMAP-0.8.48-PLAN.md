@@ -76,3 +76,34 @@ Remote 剪辑面、音频降噪/变调。
 - 批 2：双编辑器 file 定向互不串扰；强杀后重开恢复草稿；视频轨缩略图可见。
 - 批 3：batchTrimVideos 出 Jobs 台账与产物；评估用例进 tests；assumeIsolated
   审计清单归档。
+
+## 附录：`MainActor.assumeIsolated` 审计（2026-11-10 归档）
+
+本轮实测崩溃点（`Timer` 回调 + assumeIsolated = SerialExecutor PAC 崩溃）已全部改为
+`Task { @MainActor }` 跳帧：
+
+- `FeedFetcher.scheduleTimer()`（本轮崩溃报告点名）
+- `EbookReaderModel.startReadingSession()` 的统计计时器
+- `EbookPDFReaderView.startStatsTimer()`
+- `PeekOverlayController` 的 didBecome/didResignActive 观察者
+
+此前已修（同形态，见 CHANGELOG）：ClipboardHistoryStore 轮询、TabManager 自动刷新、
+ReadingProgressTracker 采样。
+
+**保留 assumeIsolated 的调用点及理由**（再遇同类崩溃先看这张表）：
+
+| 位置 | 形态 | 为什么保留 |
+|---|---|---|
+| `PluginStore.liveBuiltInAdGuardEnabled` | 同步取值 | 返回值必须可同步消费（webview 创建期） |
+| `VideoAdBlocker:61` | 同步取值 | 同上（开关同步） |
+| `AutomationServer:9204` | 同步取值 | 路由响应内联取数 |
+| `TabManager:1471` | willTerminate、queue .main | 终止路径，跳帧可能来不及执行 |
+| `TabManager:395` | DispatchSource、queue .main | 主队列事件源 |
+| `EbookReaderModel:195/203` | 通知、queue .main | 主队列通知 |
+| `ReaderSpeechService:40` | 通知、queue .main | 主队列通知 |
+| `PeekOverlayController`（其余） | 通知、queue .main | 主队列通知 |
+| `PluginsWindowController:56` | 通知、queue .main | 主队列通知 |
+| `MediaPlayerModel:78` / `VideoEditorStore:139` | 周期观察者、queue .main | 0.2–0.25s 热路径，跳帧会积压 |
+
+**结论**：`Timer.scheduledTimer` + assumeIsolated 这一对在本机是事故形态，
+禁止新增；主队列通知/观察者可用，但性能敏感回调优先避免每帧创建 Task。

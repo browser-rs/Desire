@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "photo.stack", title: String(localized: "ImagePro: layers, retouch, and safe edits"),
-                  detail: String(localized: "Adjustments and filters are now non-destructive layer parameters you can retune any time, a read-only original anchor means Revert All always brings the opening image back, and real-photo cutout is fixed. Painting tools bake automatically.")),
-            .init(icon: "rectangle.on.rectangle", title: String(localized: "Edit several images side by side"),
-                  detail: String(localized: "Every tab keeps its own editor session — switch tabs without losing unsaved work, and point the Agent at a specific image when more than one is open.")),
-            .init(icon: "eye.slash", title: String(localized: "YouTube ad-block detection fixed"),
-                  detail: String(localized: "The full-page \"using an ad blocker\" interstitial is gone: the JSON hook that gave it away now presents as native code, verified across navigation, reloads and long sessions.")),
+            .init(icon: "film", title: String(localized: "VideoPro: text that actually burns in"),
+                  detail: String(localized: "Text clips are rendered with fades into the exported file, cross-dissolves finally composite on their own tracks, and the export length always matches the timeline.")),
+            .init(icon: "clock.arrow.circlepath", title: String(localized: "Your edit survives a crash"),
+                  detail: String(localized: "VideoPro saves a draft three seconds after every change and offers to recover it on reopen, and the video track now shows thumbnails so you can see what is where.")),
+            .init(icon: "eye.slash", title: String(localized: "YouTube's new ad-block detector, defused"),
+                  detail: String(localized: "The player started fingerprinting its own JSON parsing; ad data is now pruned at the response boundary and the fetch wrapper presents as native code. Playback stays clean.")),
         ]
     }
 

@@ -104096,6 +104096,144 @@
           }
         }
       }
+    },
+    "VideoPro: text that actually burns in":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"VideoPro: text that actually burns in"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"VideoPro：文字真正烧进视频"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"VideoPro：文字真正燒進影片"
+          }
+        }
+      }
+    },
+    "Text clips are rendered with fades into the exported file, cross-dissolves finally composite on their own tracks, and the export length always matches the timeline.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Text clips are rendered with fades into the exported file, cross-dissolves finally composite on their own tracks, and the export length always matches the timeline."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"文字片段带淡入淡出渲染进导出文件，交叉溶解终于能正确叠印，导出时长与时间线严格一致。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"文字片段帶淡入淡出算繪進匯出檔案，交叉溶解終於能正確疊印，匯出時長與時間軸嚴格一致。"
+          }
+        }
+      }
+    },
+    "Your edit survives a crash":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Your edit survives a crash"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"工程崩了也不丢"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"專案崩了也不丟"
+          }
+        }
+      }
+    },
+    "VideoPro saves a draft three seconds after every change and offers to recover it on reopen, and the video track now shows thumbnails so you can see what is where.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"VideoPro saves a draft three seconds after every change and offers to recover it on reopen, and the video track now shows thumbnails so you can see what is where."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"VideoPro 每次改动后 3 秒落一份草稿，重开时可一键恢复；视频轨现在显示缩略图，一眼看清画面位置。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"VideoPro 每次改動後 3 秒落一份草稿，重開時可一鍵還原；影片軌現在顯示縮圖，一眼看清畫面位置。"
+          }
+        }
+      }
+    },
+    "YouTube's new ad-block detector, defused":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"YouTube's new ad-block detector, defused"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"YouTube 新的拦截检测被拆掉"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"YouTube 新的攔截偵測被拆掉"
+          }
+        }
+      }
+    },
+    "The player started fingerprinting its own JSON parsing; ad data is now pruned at the response boundary and the fetch wrapper presents as native code. Playback stays clean.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The player started fingerprinting its own JSON parsing; ad data is now pruned at the response boundary and the fetch wrapper presents as native code. Playback stays clean."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"播放器开始对自己的 JSON 解析做指纹检测；广告数据改在响应边界剪掉，fetch 包装与原生同形，播放保持干净。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"播放器開始對自己的 JSON 解析做指紋偵測；廣告資料改在回應邊界剪掉，fetch 包裝與原生同形，播放保持乾淨。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.48] - 2026-11-10
 ### Fixed
 
 - VideoPro 导出引擎两修（E2E 暴露的既有 bug）：① 无转场/旋转的直出导出必然崩溃——无 videoConfig 时给 setVideoComposition: 传默认 Configuration 是空壳（renderSize 零/frameDuration 无效），AVFCore 抛 ObjC 异常且穿 async 帧直接杀进程（崩溃报告 __cxa_throw 实证）——现在只在真需要 composition（转场/缩放/文字烧录）时构造并显式填全字段；② 合成自然尺寸探测的 KVC value(forKey:"naturalSize") 在占位 segment 上抛 valueForUndefinedKey 同样杀进程——改类型化 track.naturalSize；③ 命令层在主 actor 上 await 导出与引擎回主 actor 更新进度互等死锁——导出 hop 出主 actor 执行。

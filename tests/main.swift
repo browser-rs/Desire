@@ -8524,6 +8524,7 @@ testExcerptLocatorCodable()
 testHealthClock()
 testResearchBriefCore()
 runAsync { await testResearchBriefComposer() }
+testResearchBriefSearchParser()
 
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
@@ -10234,4 +10235,41 @@ func testResearchBriefComposer() async {
         topic: "多页", pages: many, maxPages: 4, complete: complete)
     eq("简报编排：页数预算生效", trimmed.sources.count, 4)
     check("简报编排：预算截断标记", trimmed.truncatedByBudget)
+}
+
+
+// ---------- 搜索结果解析（v0.8.50 批 2）：三引擎 fixture ----------
+
+func testResearchBriefSearchParser() {
+    func load(_ name: String) -> String {
+        (try? String(contentsOfFile: "tests/fixtures/search/\(name)", encoding: .utf8)) ?? ""
+    }
+
+    let bing = ResearchBriefSearchParser.parse(
+        html: load("bing.html"), baseURL: "https://www.bing.com/search?q=x")
+    eq("搜索解析：Bing 命中数", bing.count, 2)
+    eq("搜索解析：Bing 首条标题", bing.first?.title ?? "", "Understanding Distributed Systems")
+    eq("搜索解析：Bing 域名", bing.first?.domain ?? "", "example.com")
+    check("搜索解析：Bing 过滤站内导航/登录/图片",
+          !bing.contains { $0.url.contains("bing.com") || $0.url.contains("/login") || $0.url.hasSuffix(".jpg") })
+
+    let ddg = ResearchBriefSearchParser.parse(
+        html: load("ddg.html"), baseURL: "https://html.duckduckgo.com/html/?q=x")
+    eq("搜索解析：DDG 同域封顶 2 条", ddg.count, 2)
+    check("搜索解析：DDG uddg 还原", ddg.first?.url == "https://example.net/deep-dive")
+    check("搜索解析：DDG 登录链接被丢", !ddg.contains { $0.url.contains("/login") })
+
+    let baidu = ResearchBriefSearchParser.parse(
+        html: load("baidu.html"), baseURL: "https://www.baidu.com/s?wd=x")
+    eq("搜索解析：百度命中数（跳转链接保留）", baidu.count, 3)
+    check("搜索解析：百度跳转链接保留", baidu.first?.url.contains("/link?url=abc123") ?? false)
+    eq("搜索解析：百度第二条域名", baidu.count > 1 ? baidu[1].domain : "", "blog.example.cn")
+
+    // 相对地址补全 + 实体解码
+    check("搜索解析：相对地址补全",
+          ResearchBriefSearchParser.realURL(from: "/article/9", baseURL: "https://a.example/x") == "https://a.example/article/9")
+    check("搜索解析：实体解码",
+          ResearchBriefSearchParser.cleanTitle("A &amp; B 标题") == "A & B 标题")
+    check("搜索解析：资源与脚本被拒",
+          ResearchBriefSearchParser.realURL(from: "https://a.example/app.js", baseURL: "") == nil)
 }

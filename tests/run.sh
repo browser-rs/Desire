@@ -273,6 +273,7 @@ SOURCES=(
   apps/macos/Desire/Features/ResearchBrief/ResearchBriefModels.swift
   apps/macos/Desire/Features/ResearchBrief/ResearchBriefCore.swift
   apps/macos/Desire/Features/ResearchBrief/ResearchBriefComposer.swift
+  apps/macos/Desire/Features/ResearchBrief/ResearchBriefSearchParser.swift
   apps/macos/Desire/Features/VideoPro/WaveformCore.swift
   apps/macos/Desire/Features/Ebooks/Ebook.swift
   apps/macos/Desire/Features/Ebooks/EbookCore.swift

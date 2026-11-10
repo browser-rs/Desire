@@ -104556,6 +104556,52 @@
           }
         }
       }
+    },
+    "Research brief":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Research brief"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"研究简报"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"研究簡報"
+          }
+        }
+      }
+    },
+    "Research brief ready":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Research brief ready"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"研究简报已完成"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"研究簡報已完成"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

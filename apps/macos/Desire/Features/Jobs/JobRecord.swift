@@ -18,6 +18,7 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
         case office
         case pdf
         case agent
+        case research
         case other
 
         /// 跨版本同步兼容（v0.8.39）：旧客户端不认识 `media`/`command` 时，
@@ -46,6 +47,7 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
             case .office: String(localized: "Office")
             case .pdf: String(localized: "PDF")
             case .agent: String(localized: "Agent task")
+            case .research: String(localized: "Research")
             case .other: String(localized: "Job")
             }
         }
@@ -63,6 +65,7 @@ nonisolated struct JobRecord: Identifiable, Codable, Equatable {
             case .office: "doc.on.doc"
             case .pdf: "doc.richtext"
             case .agent: "sparkles"
+            case .research: "doc.text.magnifyingglass"
             case .other: "square.stack.3d.up"
             }
         }

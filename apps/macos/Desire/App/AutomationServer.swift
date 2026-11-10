@@ -751,6 +751,11 @@ final class AutomationServer {
         ep("POST", "/promotion/mentions/source", "Add/remove/toggle a mention-radar source", params: ["action:add|remove|toggle", "name?:string", "platform?:string", "searchURL?:string (use {query})", "id?:uuid", "enabled?:bool"], example: #"-d '{"action":"add","name":"DuckDuckGo","platform":"Web","searchURL":"https://duckduckgo.com/html/?q={query}"}'"#)
         ep("POST", "/promotion/mentions/scan", "Scan enabled sources off-screen for a keyword; new links go to the interaction ledger (deduped)", params: ["query:string", "limit?:int"], example: #"-d '{"query":"Desire browser"}'"#)
         ep("POST", "/promotion/share", "Build a ready-to-post Desire caption + UTM link for a channel (no network, no posting)", params: ["channel?:string (X/小红书/V2EX/掘金/即刻/Hacker News)", "version?:string"], example: #"-d '{"channel":"X"}'"#)
+        ep("POST", "/research/briefs", "Start a web research brief (background job): search → fetch → read → compose with citations. Returns the brief id", params: ["topic:string", "urls?:array (skip search, research these pages)", "depth?:int(3-12)", "language?:string", "template?:summary|compare|timeline"], example: #"-d '{"topic":"macOS browser architectures","depth":5}'"#)
+        ep("GET", "/research/briefs", "List research briefs (id/topic/state/sources/createdAt)", example: "…/research/briefs")
+        ep("GET", "/research/briefs/state", "One brief's full document + rendered markdown", params: ["id:uuid"], example: "…/research/briefs/state?id=<uuid>")
+        ep("POST", "/research/briefs/cancel", "Cancel a running brief", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
+        ep("POST", "/research/briefs/delete", "Delete a brief's stored files", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/video/batch", "Batch trim/concat videos in a folder (mp4/mov/m4v). trim writes <name>-trimmed.mp4 into Trimmed/, concat joins name order into Merged/merged.mp4. Returns a job id; poll GET /jobs for progress/results", params: ["folder:string", "start?:number", "end?:number", "concat?:bool", "recursive?:bool", "height?:number", "audioOnly?:bool"], example: #"-d '{"folder":"~/Movies/clips","start":3,"end":42}'"#)
         ep("GET", "/jobs", "Unified job ledger (publish/mention scan/campaign…) with states, artifacts and receipts", params: ["limit?:int"], example: "…/jobs")
         ep("POST", "/jobs/run", "Start an allowlisted CLI tool in the background (argv-only, no shell); returns a job id immediately", params: ["tool:string", "args?:string[]", "title?:string", "cwd?:string", "timeoutMinutes?:number", "report?:notify|resume|none", "conversationId?:uuid"], example: #"-d '{"tool":"python3","args":["-c","print(1)"],"title":"smoke"}'"#)
@@ -1383,6 +1388,16 @@ case ("GET", "/state"):
                 return try Self.json(Self.promotionShare(body))
             case ("POST", "/video/batch"):
                 return try Self.json(Self.videoBatch(body))
+            case ("POST", "/research/briefs"):
+                return try Self.json(Self.researchBriefStart(body))
+            case ("GET", "/research/briefs"):
+                return try Self.json(Self.researchBriefList())
+            case ("GET", "/research/briefs/state"):
+                return try Self.json(Self.researchBriefState(query))
+            case ("POST", "/research/briefs/cancel"):
+                return try Self.json(Self.researchBriefCancel(body))
+            case ("POST", "/research/briefs/delete"):
+                return try Self.json(Self.researchBriefDelete(body))
             case ("GET", "/jobs"):
                 return try Self.json(Self.jobsList(
                     limit: Int(Self.string(query, "limit") ?? "") ?? 100))
@@ -3809,6 +3824,74 @@ case ("GET", "/state"):
         default:
             return value
         }
+    }
+
+    // MARK: - 研究简报（v0.8.50）
+
+    @MainActor
+    private static func researchBriefStart(_ body: [String: Any]) -> [String: Any] {
+        guard let topic = Self.string(body, "topic")?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !topic.isEmpty else {
+            return ["error": "topic required"]
+        }
+        let depth = Int(body["depth"] as? Double ?? 6)
+        let language = Self.string(body, "language") ?? "zh-Hans"
+        let template = ResearchBriefTemplate(rawValue: Self.string(body, "template") ?? "summary") ?? .summary
+        var conversationID: UUID?
+        if let raw = Self.string(body, "conversationId") { conversationID = UUID(uuidString: raw) }
+        let seedURLs = (body["urls"] as? [String]) ?? []
+        let document = ResearchBriefService.shared.start(
+            topic: topic, depth: depth, language: language,
+            template: template, seedURLs: seedURLs, conversationID: conversationID)
+        return ["ok": true, "id": document.id.uuidString, "state": document.state.rawValue]
+    }
+
+    @MainActor
+    private static func researchBriefList() -> [String: Any] {
+        let items = ResearchBriefStore.shared.briefs.map { document -> [String: Any] in
+            ["id": document.id.uuidString,
+             "topic": document.topic,
+             "state": document.state.rawValue,
+             "sources": document.sources.count,
+             "unverified": document.unverifiedQuotes,
+             "createdAt": ISO8601DateFormatter().string(from: document.createdAt)]
+        }
+        return ["ok": true, "briefs": items]
+    }
+
+    @MainActor
+    private static func researchBriefState(_ query: [String: String]) -> [String: Any] {
+        guard let raw = query["id"], let id = UUID(uuidString: raw),
+              let document = ResearchBriefStore.shared.document(id: id) else {
+            return ["error": "brief not found"]
+        }
+        var payload: [String: Any] = [:]
+        if let data = try? JSONEncoder().encode(document),
+           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            payload = object
+        }
+        payload["markdown"] = ResearchBriefCore.render(document)
+        payload["running"] = ResearchBriefService.shared.isRunning(id)
+        return payload
+    }
+
+    @MainActor
+    private static func researchBriefCancel(_ body: [String: Any]) -> [String: Any] {
+        guard let raw = Self.string(body, "id"), let id = UUID(uuidString: raw) else {
+            return ["error": "id required"]
+        }
+        ResearchBriefService.shared.cancel(id: id)
+        return ["ok": true]
+    }
+
+    @MainActor
+    private static func researchBriefDelete(_ body: [String: Any]) -> [String: Any] {
+        guard let raw = Self.string(body, "id"), let id = UUID(uuidString: raw) else {
+            return ["error": "id required"]
+        }
+        ResearchBriefService.shared.cancel(id: id)
+        ResearchBriefStore.shared.delete(id: id)
+        return ["ok": true]
     }
 
     /// 启动诊断（v0.8.49 批 1）：无窗自愈与异常退出恢复的可断言面。

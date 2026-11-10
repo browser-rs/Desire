@@ -8522,6 +8522,8 @@ testFB2Core()
 testEbookSyncCore()
 testExcerptLocatorCodable()
 testHealthClock()
+testResearchBriefCore()
+runAsync { await testResearchBriefComposer() }
 
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
@@ -10082,4 +10084,154 @@ func testHealthClock() {
     clock.ack()
     check("健康时钟：ack 后重新可记", clock.claimStallRecord() == true)
     check("健康时钟：ack 推进时间", clock.lastAck() >= before)
+}
+
+
+// ---------- 研究简报核心（v0.8.50） ----------
+
+func testResearchBriefCore() {
+    // 引用清洗：越界引用丢弃并计数
+    let cleaned = ResearchBriefCore.sanitizeReferences("结论 A[1]，结论 B[5]，另有 [2]。", sourceCount: 3)
+    eq("简报：越界引用被丢弃", cleaned.text, "结论 A[1]，结论 B，另有 [2]。")
+    eq("简报：丢弃计数", cleaned.dropped, 1)
+    check("简报：引用集合", ResearchBriefCore.citedSourceIDs(in: cleaned.text) == Set([1, 2]))
+
+    // 列表项没有引用 → 标记（段落不标）
+    let flagged = ResearchBriefCore.flagUncitedBullets(
+        "- 有出处[1]\n- 没有出处的断言\n* 星号也算\n段落不标",
+        marker: "（未找到来源）")
+    eq("简报：未引用列表项计数", flagged.flagged, 2)
+    check("简报：已引用列表项不动", flagged.text.contains("- 有出处[1]\n"))
+
+    // 引文核验：允许空白/换行/大小写差异，不允许改字
+    let sourceText = "The quick brown fox\njumps over the lazy dog."
+    check("简报：引文逐字命中", ResearchBriefCore.verifyQuote("quick brown fox jumps", in: sourceText))
+    check("简报：引文改字不命中", !ResearchBriefCore.verifyQuote("quick brown cat jumps", in: sourceText))
+    check("简报：过短引文不核验", !ResearchBriefCore.verifyQuote("fox", in: sourceText))
+
+    // JSON 容错解析
+    let queries = ResearchBriefCore.parseQueries("```json\n{\"queries\":[\"a b\",\"A B\",\"\",\"c\"]}\n```")
+    eq("简报：检索式去重去空", queries, ["a b", "c"])
+
+    let points = ResearchBriefCore.parsePoints(
+        "{\"points\":[{\"point\":\"p1\",\"quote\":\"quick brown fox\"},{\"point\":\"p2\",\"quote\":\"not in source at all\"}]}",
+        sourceID: 2, sourceText: sourceText)
+    eq("简报：要点条数", points.count, 2)
+    check("简报：要点逐句核验", points[0].verified && !points[1].verified)
+
+    // 分节解析：丢掉模型自带的"来源"节
+    let sections = ResearchBriefCore.parseSections("## 概述\nA[1]\n\n## 要点\n- x[2]\n\n## 来源\n1. fake")
+    eq("简报：分节数", sections.count, 2)
+    eq("简报：分节标题", sections.map(\.heading), ["概述", "要点"])
+
+    // 渲染：来源列表由宿主重建
+    var doc = ResearchBriefDocument(topic: "主题")
+    doc.createdAt = Date(timeIntervalSince1970: 1_700_000_000)
+    doc.sources = [
+        ResearchBriefSource(id: 1, title: "一", url: "https://a.example/x", domain: "a.example",
+                            publishedAt: "2026-01-01", fetchedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                            excerpt: sourceText, gated: false, note: nil),
+        ResearchBriefSource(id: 2, title: "二", url: "https://b.example/y", domain: "b.example",
+                            publishedAt: nil, fetchedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                            excerpt: "", gated: true, note: "gated"),
+    ]
+    doc.sections = [ResearchBriefSection(heading: "概述", markdown: "A[1]")]
+    doc.unverifiedQuotes = 1
+    let rendered = ResearchBriefCore.render(doc)
+    check("简报：渲染含来源列表", rendered.contains("1. [一](https://a.example/x) — a.example"))
+    check("简报：登录墙标注", rendered.contains("未取正文"))
+    check("简报：未核验说明", rendered.contains("未核验引用 1 处"))
+
+    // Codable 往返
+    let data = try! JSONEncoder().encode(doc)
+    let decoded = try! JSONDecoder().decode(ResearchBriefDocument.self, from: data)
+    eq("简报：模型往返", decoded, doc)
+}
+
+
+/// 同步跑一个 async 测试（harness 的主流程是同步的；Task + 信号量即可，
+/// compose 是 nonisolated async，不依赖主 actor）。
+func runAsync(_ body: @escaping () async -> Void) {
+    let semaphore = DispatchSemaphore(value: 0)
+    Task {
+        await body()
+        semaphore.signal()
+    }
+    semaphore.wait()
+}
+
+// ---------- 研究简报编排（v0.8.50 批 1）：fixture 端到端 ----------
+
+func testResearchBriefComposer() async {
+    // 本地三页 fixture（不联网、不真调模型）
+    let pages: [ResearchBriefComposer.Page] = [
+        .init(title: "甲页", url: "https://a.example/one",
+              text: "Alpha beta gamma delta. The quick brown fox jumps over the lazy dog. Second sentence here.",
+              publishedAt: "2026-01-02"),
+        .init(title: "乙页", url: "https://b.example/two",
+              text: "Beta gamma epsilon. Another paragraph with enough words to match a quote cleanly.",
+              publishedAt: nil),
+        .init(title: "丙页", url: "https://c.example/three",
+              text: "Gamma delta zeta. Third page body, written to be long enough for verbatim checks.",
+              publishedAt: "2026-02-03"),
+    ]
+
+    // 假模型：按提示词特征分支（plan / read / compose）
+    let complete: ResearchBriefComposer.Completion = { prompt in
+        if prompt.contains("Return ONLY JSON: {\"queries\"") {
+            return "{\"queries\": [\"alpha beta\", \"gamma delta\"]}"
+        }
+        if prompt.contains("Extract 3 to 5 key points") {
+            if prompt.contains("b.example") {
+                // 乙页：一条真引文 + 一条伪造引文
+                return "{\"points\": [{\"point\":\"要点一\",\"quote\":\"Beta gamma epsilon\"},"
+                    + "{\"point\":\"要点二\",\"quote\":\"this sentence is fabricated entirely\"}]}"
+            }
+            if prompt.contains("c.example") {
+                return "{\"points\": [{\"point\":\"要点\",\"quote\":\"Third page body, written to be long enough\"}]}"
+            }
+            return "{\"points\": [{\"point\":\"要点\",\"quote\":\"The quick brown fox jumps over the lazy dog\"}]}"
+        }
+        // 成文：两节；一条带越界引用 [9]、一条列表项没有引用、一条段落无引用（不该被标）
+        return "## 概述\n甲页给了背景[1]。\n\n"
+            + "## 要点\n- 有出处的一条[1][2]\n- 没有出处的断言\n- 越界引用这条[9]\n\n"
+            + "段落里的无出处陈述保持原样。"
+    }
+
+    let document = await ResearchBriefComposer.compose(
+        topic: "测试主题", pages: pages, complete: complete)
+
+    eq("简报编排：终态 done", document.state, .done)
+    eq("简报编排：来源三条", document.sources.count, 3)
+    eq("简报编排：编号 1..3", document.sources.map(\.id), [1, 2, 3])
+    eq("简报编排：分节数（丢掉模型来源节）", document.sections.count, 2)
+    eq("简报编排：越界引用计数", document.droppedRefs, 1)
+    eq("简报编排：未引用列表项计数（越界那条失去唯一引用也计入）", document.uncitedBullets, 2)
+    eq("简报编排：未核验引文计数", document.unverifiedQuotes, 1)
+    check("简报编排：要点进文档", document.points.count >= 3)
+    check("简报编排：预算未截断", !document.truncatedByBudget)
+
+    let rendered = ResearchBriefCore.render(document)
+    check("简报编排：渲染含三来源", rendered.contains("1. [甲页](https://a.example/one)")
+        && rendered.contains("3. [丙页](https://c.example/three)"))
+    check("简报编排：未核验有说明", rendered.contains("未核验引用 1 处"))
+    check("简报编排：未引用被标注", rendered.contains("（未找到来源）"))
+
+    // 全部不可用 → failed（出失败原因，不产出空简报）
+    let failed = await ResearchBriefComposer.compose(
+        topic: "无源", pages: [.init(title: "墙", url: "https://x.example/y", text: "", gated: true)],
+        complete: { _ in "{}" })
+    eq("简报编排：无可用来源即失败", failed.state, .failed)
+    check("简报编排：失败有原因", !(failed.error ?? "").isEmpty)
+
+    // 超页数预算 → truncated 标记
+    let many = (0..<9).map { index in
+        ResearchBriefComposer.Page(title: "p\(index)", url: "https://s\(index).example/x",
+                                   text: "Some body text for page \(index) that is long enough.",
+                                   publishedAt: nil)
+    }
+    let trimmed = await ResearchBriefComposer.compose(
+        topic: "多页", pages: many, maxPages: 4, complete: complete)
+    eq("简报编排：页数预算生效", trimmed.sources.count, 4)
+    check("简报编排：预算截断标记", trimmed.truncatedByBudget)
 }

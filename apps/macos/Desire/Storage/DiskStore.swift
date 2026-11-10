@@ -238,9 +238,12 @@ actor DiskStoreWriter {
         case .write(_, let data):
             try? data.write(to: url, options: .atomic)
         case .writeBackup(_, let data):
-            // 上一份完整文件先落到 .bak，再原子覆盖主文件。
+            // 上一份完整文件先落到 .bak，再原子覆盖主文件。**只备份能解析的
+            // 旧文件**——否则"从备份恢复后第一次保存"会把坏文件轮进 .bak，
+            // 再坏一次就两份全废（v0.8.49 实测边角）。
             let backup = directory.appendingPathComponent("\(key).json.bak")
-            if FileManager.default.fileExists(atPath: url.path) {
+            if let existing = try? Data(contentsOf: url),
+               (try? JSONSerialization.jsonObject(with: existing)) != nil {
                 try? FileManager.default.removeItem(at: backup)
                 try? FileManager.default.copyItem(at: url, to: backup)
             }
@@ -266,7 +269,8 @@ actor DiskStoreWriter {
                 try? data.write(to: url, options: .atomic)
             case .writeBackup(_, let data):
                 let backup = directory.appendingPathComponent("\(key).json.bak")
-                if FileManager.default.fileExists(atPath: url.path) {
+                if let existing = try? Data(contentsOf: url),
+                   (try? JSONSerialization.jsonObject(with: existing)) != nil {
                     try? FileManager.default.removeItem(at: backup)
                     try? FileManager.default.copyItem(at: url, to: backup)
                 }

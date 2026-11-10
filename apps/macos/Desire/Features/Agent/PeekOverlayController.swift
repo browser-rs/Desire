@@ -26,11 +26,11 @@ final class PeekOverlayController {
         let center = NotificationCenter.default
         observers.append(center.addObserver(forName: NSApplication.didResignActiveNotification,
                                             object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.pauseTimer() }
+            Task { @MainActor [weak self] in self?.pauseTimer() }
         })
         observers.append(center.addObserver(forName: NSApplication.didBecomeActiveNotification,
                                             object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated { self?.resumeTimerIfVisible() }
+            Task { @MainActor [weak self] in self?.resumeTimerIfVisible() }
         })
     }
 

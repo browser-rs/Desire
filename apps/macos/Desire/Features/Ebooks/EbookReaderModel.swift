@@ -556,8 +556,9 @@ final class EbookReaderModel: ObservableObject {
         updateSession()
         guard statsSessionStart == nil else { return }
         statsSessionStart = Date()
+        // 同上：Timer 回调不假设主线程（PAC 崩溃形态），跳帧回 MainActor。
         let timer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
+            Task { @MainActor [weak self] in
                 self?.flushReadingTime()
             }
         }

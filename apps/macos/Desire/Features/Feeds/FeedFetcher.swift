@@ -33,9 +33,12 @@ final class FeedFetcher {
 
     private func scheduleTimer() {
         let minutes = refreshIntervalMinutes
+        // Timer + MainActor.assumeIsolated 在本机是已知 PAC 崩溃形态
+        //（SerialExecutor EXC_BAD_ACCESS，回调偶发非主线程 fire）——
+        // 一律 Task @MainActor 跳帧（2026-11-10 崩溃报告实证）。
         timer = Timer.scheduledTimer(withTimeInterval: minutes * 60, repeats: true) { [weak self] _ in
-            MainActor.assumeIsolated {
-                _ = Task { await self?.fetchAll() }
+            Task { @MainActor [weak self] in
+                _ = await self?.fetchAll()
             }
         }
     }

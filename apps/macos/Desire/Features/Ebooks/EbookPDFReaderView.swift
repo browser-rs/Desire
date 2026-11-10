@@ -1033,7 +1033,7 @@ struct EbookPDFReaderView: View {
         guard statsSessionStart == nil else { return }
         statsSessionStart = Date()
         statsTimer = Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in
-            MainActor.assumeIsolated {
+            Task { @MainActor in
                 self.flushReadingTime()
             }
         }

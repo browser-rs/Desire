@@ -3735,8 +3735,30 @@ final class AutomationServer {
     }
 
     private static func json(_ object: [String: Any]) throws -> String {
-        let data = try JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])
+        // **NaN/Infinity 必须先清洗**：JSONSerialization 遇到非有限 Double 抛
+        // NSInvalidArgumentException，这个 ObjC 异常穿过 async 帧会把主 actor
+        // 钉成僵尸（窗口照常渲染、桥全超时，2026-11-10 实测——页面里
+        // `Math.round(video.duration)` 在元数据就绪前就是 NaN）。页面/工具能
+        // 轻易造出这种值，所以收口在这里而不是逐个调用点。
+        let data = try JSONSerialization.data(withJSONObject: jsonSafe(object),
+                                              options: [.sortedKeys])
         return String(data: data, encoding: .utf8) ?? "{}"
+    }
+
+    /// 把对象图里的非有限数换成 null（Bool 是 NSNumber 子类，先判 CFBoolean）。
+    private static func jsonSafe(_ value: Any) -> Any {
+        switch value {
+        case let number as NSNumber:
+            if CFGetTypeID(number) == CFBooleanGetTypeID() { return number }
+            let double = number.doubleValue
+            return double.isFinite ? number : NSNull()
+        case let dict as [String: Any]:
+            return dict.mapValues { jsonSafe($0) }
+        case let array as [Any]:
+            return array.map { jsonSafe($0) }
+        default:
+            return value
+        }
     }
 
     private static func error(_ message: String) -> String {

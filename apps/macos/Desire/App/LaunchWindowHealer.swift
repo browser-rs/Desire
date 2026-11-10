@@ -75,7 +75,9 @@ enum LaunchWindowHealer {
         let args = CommandLine.arguments.dropFirst()
             .map { "'" + $0.replacingOccurrences(of: "'", with: "'\\''") + "'" }
             .joined(separator: " ")
-        let command = "sleep 1.5; /usr/bin/open \"\(bundle)\" --args \(args)"
+        // `open --args` 后面一个参数都没有时行为不保证——无参数就不带这一段。
+        let argsClause = args.isEmpty ? "" : " --args \(args)"
+        let command = "sleep 1.5; /usr/bin/open \"\(bundle)\"\(argsClause)"
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/sh")
         process.arguments = ["-c", command]

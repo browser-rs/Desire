@@ -1,3 +1,12 @@
+## [Unreleased]
+### Added
+
+- 崩溃韧性（v0.8.49 批 1）：会话快照带上一份备份（覆盖前留 `.bak`，主文件损坏时自动回退）；启动无窗自愈（4/8/12s 探针 → 把已存在的窗口带回 → 仍无则保留参数重启一次，计数防循环）；桥新增 `GET /diag/startup`（异常退出标志/窗口与标签数/首窗耗时/自愈计数/最近停滞）。
+- 主线程健康监测（v0.8.49 批 2）：2s 心跳 + 后台 watchdog（10s 无心跳判定停滞，fault 日志 + `health/last-stall.json` + 尝试 `sample` 抓栈，Hardened Runtime 下抓不到只标记）；全局 ObjC 异常探针（reason + 栈进统一日志，VideoPro 局部探针退役）；Agent 面板新增被中断回合的「恢复」提示条；`POST /diag/simulate-stall`（DEBUG）可复现。
+- 字幕闭环（v0.8.49 批 3）：VideoPro 导入 SRT/VTT/ASS → 按 cue 批量建**可再编辑**的文字片段（重叠 cue 跳过并计数），文字轨一键导出 SRT；命令 API `addsubtitles`/`exportsubtitles`，桥/Agent 同一路径；字幕文本解码补 GB18030 兜底（中文 SRT）。批量剪辑新增「仅音频」（视频 → `Audio/*.m4a`，concat 时输出 `merged.m4a`）；导出预设（高度/仅音频）跨会话记忆。
+
+
+
 ## [v0.8.48] - 2026-11-10
 ### Fixed
 

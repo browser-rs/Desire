@@ -104234,6 +104234,144 @@
           }
         }
       }
+    },
+    "The last turn was interrupted.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The last turn was interrupted."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上次回合被中断了。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上次回合被中斷了。"
+          }
+        }
+      }
+    },
+    "Import Subtitles…":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Import Subtitles…"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"导入字幕…"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"匯入字幕…"
+          }
+        }
+      }
+    },
+    "Export Subtitles…":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Export Subtitles…"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"导出字幕…"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"匯出字幕…"
+          }
+        }
+      }
+    },
+    "Create text clips from an SRT/VTT file":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Create text clips from an SRT/VTT file"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"从 SRT/VTT 文件创建文字片段"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"從 SRT/VTT 檔案建立文字片段"
+          }
+        }
+      }
+    },
+    "Write the text track as an SRT file":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Write the text track as an SRT file"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"把文字轨写成 SRT 文件"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"把文字軌寫成 SRT 檔案"
+          }
+        }
+      }
+    },
+    "Batch audio extraction":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Batch audio extraction"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批量提取音频"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批次擷取音訊"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

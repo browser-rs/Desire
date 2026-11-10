@@ -53,6 +53,32 @@ enum DiskStore {
         }
     }
 
+    /// 带上一份备份的保存（会话快照用）：覆盖前把当前文件复制成 `.json.bak`。
+    /// 崩溃/断电把主文件写坏（或半截）时，`loadWithBackup` 能回退到上一份
+    /// 完整快照，而不是当"没有会话"处理（v0.8.49 批 1）。
+    nonisolated static func saveWithBackup<T: Encodable>(_ value: T, key: String) {
+        let box = EncodableBox(value: value)
+        _ = coordination.schedule { generation in
+            Task.detached {
+                guard let data = try? JSONEncoder().encode(box.value) else {
+                    Log.storage.error("DiskStore encode failed for key \(key, privacy: .public) generation \(generation, privacy: .public)")
+                    return
+                }
+                await writer.stageWithBackup(data: data, key: key, generation: generation)
+            }
+        }
+    }
+
+    /// 读主文件；解码失败再回退 `.json.bak`。
+    nonisolated static func loadWithBackup<T: Decodable>(_ type: T.Type, key: String) -> T? {
+        if let value = load(type, key: key) { return value }
+        let backup = directory.appendingPathComponent("\(key).json.bak")
+        guard let data = try? Data(contentsOf: backup),
+              let value = try? JSONDecoder().decode(T.self, from: data) else { return nil }
+        Log.storage.warning("session snapshot decoded from backup: \(key, privacy: .public)")
+        return value
+    }
+
     /// Schedules a debounced removal of the file for `key`. No-op if missing.
     nonisolated static func remove(key: String) {
         _ = coordination.schedule { generation in
@@ -125,11 +151,15 @@ fileprivate nonisolated struct EncodableBox<T>: @unchecked Sendable {
 actor DiskStoreWriter {
     private enum PendingOperation {
         case write(generation: UInt64, data: Data)
+        /// 覆盖前备份旧文件（会话快照）。
+        case writeBackup(generation: UInt64, data: Data)
         case remove(generation: UInt64)
 
         var generation: UInt64 {
             switch self {
-            case .write(let generation, _), .remove(let generation): return generation
+            case .write(let generation, _), .writeBackup(let generation, _),
+                 .remove(let generation):
+                return generation
             }
         }
     }
@@ -167,6 +197,13 @@ actor DiskStoreWriter {
         scheduleFlush(for: key)
     }
 
+    func stageWithBackup(data: Data, key: String, generation: UInt64) {
+        nextGeneration = max(nextGeneration, generation)
+        if let existing = pending[key], existing.generation > generation { return }
+        pending[key] = .writeBackup(generation: generation, data: data)
+        scheduleFlush(for: key)
+    }
+
     @discardableResult
     func stageRemoval(key: String) -> UInt64 {
         nextGeneration &+= 1
@@ -200,6 +237,14 @@ actor DiskStoreWriter {
             try? FileManager.default.removeItem(at: url)
         case .write(_, let data):
             try? data.write(to: url, options: .atomic)
+        case .writeBackup(_, let data):
+            // 上一份完整文件先落到 .bak，再原子覆盖主文件。
+            let backup = directory.appendingPathComponent("\(key).json.bak")
+            if FileManager.default.fileExists(atPath: url.path) {
+                try? FileManager.default.removeItem(at: backup)
+                try? FileManager.default.copyItem(at: url, to: backup)
+            }
+            try? data.write(to: url, options: .atomic)
         }
     }
 
@@ -218,6 +263,13 @@ actor DiskStoreWriter {
             case .remove:
                 try? FileManager.default.removeItem(at: url)
             case .write(_, let data):
+                try? data.write(to: url, options: .atomic)
+            case .writeBackup(_, let data):
+                let backup = directory.appendingPathComponent("\(key).json.bak")
+                if FileManager.default.fileExists(atPath: url.path) {
+                    try? FileManager.default.removeItem(at: backup)
+                    try? FileManager.default.copyItem(at: url, to: backup)
+                }
                 try? data.write(to: url, options: .atomic)
             }
         }

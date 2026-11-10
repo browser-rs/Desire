@@ -1142,7 +1142,8 @@ final class TabSessionCoordinator {
             return
         }
         let session = SavedSession(tabs: savedTabs, selectedIndex: manager.selectedIndex, profileID: manager.profileID)
-        DiskStore.save(session, key: key)
+        // 会话快照带上一份备份（v0.8.49 批 1）：主文件损坏时回退 .bak。
+        DiskStore.saveWithBackup(session, key: key)
     }
 
     /// Persists every registered window (15s timer / willTerminate).
@@ -1451,7 +1452,7 @@ final class TabSessionCoordinator {
 
     /// Loads a stored session without consuming it.
     func session(forKey key: String) -> SavedSession? {
-        DiskStore.load(SavedSession.self, key: key)
+        DiskStore.loadWithBackup(SavedSession.self, key: key)
     }
 
     private func startTimerIfNeeded() {

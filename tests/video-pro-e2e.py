@@ -154,6 +154,28 @@ def main():
     check("导出进 Jobs 台账", export_job is not None and export_job.get("state") == "done",
           export_job and export_job.get("state"))
 
+    # 1b) 字幕往返：SRT → 文字片段 → SRT
+    srt_path = os.path.join(TMP, "subs.srt")
+    with open(srt_path, "w", encoding="utf-8") as fh:
+        fh.write("1\n00:00:00,500 --> 00:00:01,500\n第一句\n\n"
+                 "2\n00:00:02,000 --> 00:00:03,200\n第二句\n\n"
+                 "3\n00:00:04,000 --> 00:00:05,000\nThird line\n")
+    r = edit(action="addsubtitles", path=srt_path)
+    check("导入字幕 3 条", r.get("added") == 3, r)
+    s = state()
+    text_clips = [c for c in s["clips"] if c["kind"] == "text"]
+    check("文字片段时间正确",
+          sorted((round(c["start"], 2), round(c["duration"], 2)) for c in text_clips)
+          == [(0.5, 1.0), (2.0, 1.2), (4.0, 1.0)],
+          [(c["start"], c["duration"]) for c in text_clips])
+    out_srt = os.path.join(TMP, "out.srt")
+    r = edit(action="exportsubtitles", path=out_srt)
+    exported = open(out_srt, encoding="utf-8").read() if os.path.exists(out_srt) else ""
+    check("导出字幕 3 条", r.get("count") == 3, r)
+    check("字幕往返文本一致",
+          "第一句" in exported and "第三句" not in exported and "Third line" in exported,
+          exported[:120])
+
     # 2) 会话路由
     second_tab = call("/new-tab", {"url": "desire://tools/videoEditor"})
     created_tabs.append(second_tab.get("index"))
@@ -206,6 +228,19 @@ def main():
                     + ffprobe_duration(os.path.join(TMP, "b.mp4")))
         check("concat 时长==两段之和", abs(ffprobe_duration(merged) - expected) < 0.4,
               (ffprobe_duration(merged), expected))
+
+    # 4b) 批量音频提取
+    r = call("/video/batch", {"folder": batch_in, "audioOnly": True})
+    job = wait_job(r.get("job", "")) if r.get("ok") else None
+    audio_dir = os.path.join(batch_in, "Audio")
+    files = sorted(os.listdir(audio_dir)) if os.path.isdir(audio_dir) else []
+    check("批量音频 2 个 m4a",
+          job and job.get("state") == "done" and len(files) == 2
+          and all(f.endswith(".m4a") for f in files), files)
+    if files:
+        check("音频时长与源一致",
+              all(abs(ffprobe_duration(os.path.join(audio_dir, f)) - 3.0) < 0.3 for f in files),
+              [ffprobe_duration(os.path.join(audio_dir, f)) for f in files])
 
     close_created_tabs()
     failed = [x for x in res if not x[1]]

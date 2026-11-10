@@ -86,6 +86,14 @@ struct MultiTrackEditorView: View {
             Button(String(localized: "Add Text")) { store.addTextClip() }
                 .buttonStyle(.bordered)
                 .controlSize(.small)
+            Button(String(localized: "Import Subtitles…")) { importSubtitles() }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(String(localized: "Create text clips from an SRT/VTT file"))
+            Button(String(localized: "Export Subtitles…")) { exportSubtitles() }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help(String(localized: "Write the text track as an SRT file"))
             Divider().frame(height: 14)
             Button {
                 store.splitAtPlayhead()
@@ -692,6 +700,23 @@ struct MultiTrackEditorView: View {
         panel.allowsMultipleSelection = true
         guard panel.runModal() == .OK, !panel.urls.isEmpty else { return }
         store.addSourceFiles(panel.urls)
+    }
+
+    private func importSubtitles() {
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = false
+        panel.allowsMultipleSelection = false
+        if let type = UTType(filenameExtension: "srt") { panel.allowedContentTypes = [type] }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        store.importSubtitles(from: url)
+    }
+
+    private func exportSubtitles() {
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "\(store.project.title).srt"
+        if let type = UTType(filenameExtension: "srt") { panel.allowedContentTypes = [type] }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        _ = store.exportSubtitles(to: url)
     }
 
     private func saveProject() {

@@ -22,8 +22,13 @@ final class VideoBatchStore {
         var concat: Bool
         var recursive: Bool
         var height: Double?
+        /// 仅音频：视频文件 → m4a（`Audio/` 目录；concat 时合并成 merged.m4a）。
+        var audioOnly: Bool = false
 
-        var outputDirectoryName: String { concat ? "Merged" : "Trimmed" }
+        var outputDirectoryName: String {
+            if audioOnly { return "Audio" }
+            return concat ? "Merged" : "Trimmed"
+        }
     }
 
     private nonisolated static let videoExtensions: Set<String> = ["mp4", "mov", "m4v"]
@@ -36,9 +41,11 @@ final class VideoBatchStore {
                 "No video files (mp4/mov/m4v) in \(options.folder.path)"))
         }
         let jobID = JobStore.shared.start(
-            title: options.concat
-                ? String(localized: "Video batch merge")
-                : String(localized: "Video batch trim"),
+            title: options.audioOnly
+                ? String(localized: "Batch audio extraction")
+                : options.concat
+                    ? String(localized: "Video batch merge")
+                    : String(localized: "Video batch trim"),
             kind: .media,
             detail: "\(files.count) file(s)",
             source: "videoBatch",
@@ -130,8 +137,10 @@ final class VideoBatchStore {
                         JobStore.shared.update(jobID, progress: 0.3 + fraction * 0.7)
                     }
                 },
-                targetHeight: options.height)
-            let output = outputDir.appendingPathComponent("merged.mp4")
+                targetHeight: options.height,
+                forceAudioOnly: options.audioOnly)
+            let output = outputDir.appendingPathComponent(
+                options.audioOnly ? "merged.m4a" : "merged.mp4")
             try? FileManager.default.removeItem(at: output)
             try FileManager.default.moveItem(at: rendered, to: output)
             finish(jobID: jobID, outputs: [output], failures: failures,
@@ -165,12 +174,15 @@ final class VideoBatchStore {
         }
         project = next
         let rendered = try await VideoEditorStore.export(
-            project: project, progress: { _ in }, targetHeight: options.height)
+            project: project, progress: { _ in },
+            targetHeight: options.height, forceAudioOnly: options.audioOnly)
         let base = file.deletingPathExtension().lastPathComponent
-        var output = outputDir.appendingPathComponent(base + "-trimmed.mp4")
+        let suffix = options.audioOnly ? "" : "-trimmed"
+        let ext = options.audioOnly ? "m4a" : "mp4"
+        var output = outputDir.appendingPathComponent("\(base)\(suffix).\(ext)")
         var counter = 2
         while FileManager.default.fileExists(atPath: output.path) {
-            output = outputDir.appendingPathComponent("\(base)-trimmed-\(counter).mp4")
+            output = outputDir.appendingPathComponent("\(base)\(suffix)-\(counter).\(ext)")
             counter += 1
         }
         try? FileManager.default.removeItem(at: output)

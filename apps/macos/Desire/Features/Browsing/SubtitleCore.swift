@@ -22,8 +22,7 @@ nonisolated enum SubtitleCore {
 
     /// 按内容嗅探格式解析（不信任扩展名）；识别不了返回 nil。
     static func parse(_ data: Data) -> [Cue]? {
-        guard var text = String(data: data, encoding: .utf8)
-            ?? String(data: data, encoding: .isoLatin1) else { return nil }
+        guard var text = decodeText(data) else { return nil }
         text = text
             .replacingOccurrences(of: "\r\n", with: "\n")
             .replacingOccurrences(of: "\r", with: "\n")
@@ -35,6 +34,17 @@ nonisolated enum SubtitleCore {
         let cues = parseSRT(text)
         // SRT 解析至少要真的吃到时间轴，否则就是识别不了。
         return cues.isEmpty ? nil : cues
+    }
+
+    /// 文本解码：UTF-8 → GB18030（中文 SRT 常见）→ Latin-1 兜底。
+    /// `String(data:encoding:)` 不支持 GB18030，走 CoreFoundation 编码映射。
+    static func decodeText(_ data: Data) -> String? {
+        if let text = String(data: data, encoding: .utf8) { return text }
+        let gbEncoding = String.Encoding(
+            rawValue: CFStringConvertEncodingToNSStringEncoding(
+                CFStringEncoding(CFStringEncodings.GB_18030_2000.rawValue)))
+        if let text = String(data: data, encoding: gbEncoding) { return text }
+        return String(data: data, encoding: .isoLatin1)
     }
 
     // MARK: - SRT

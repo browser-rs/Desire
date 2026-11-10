@@ -358,6 +358,28 @@ struct AgentPanel: View {
                 messageScrollView
             }
 
+            // 被中断的回合：面板给恢复入口（此前只能靠 /resume 或桥）。
+            if store.hasInterruptedTurn && !store.isProcessing && !store.awaitingQuestion {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.clockwise.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.orange)
+                    Text(String(localized: "The last turn was interrupted."))
+                        .font(.system(size: 11))
+                    Spacer(minLength: 0)
+                    Button(String(localized: "Resume")) {
+                        store.resumeInterruptedTurn()
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.12)))
+                .frame(maxWidth: Self.contentMaxWidth)
+                .frame(maxWidth: .infinity)
+            }
+
             if !store.messages.isEmpty && !store.awaitingQuestion && !store.isProcessing {
                 AgentQuickActionBar(
                     isProcessing: store.isProcessing,

@@ -375,7 +375,8 @@ extension BrowserToolProvider {
             folder: resolved, start: start, end: end,
             concat: (args["concat"] as? Bool) ?? false,
             recursive: (args["recursive"] as? Bool) ?? false,
-            height: args["height"] as? Double)
+            height: args["height"] as? Double,
+            audioOnly: (args["audioOnly"] as? Bool) ?? false)
         switch VideoBatchStore.shared.start(options: options, conversationID: conversationID) {
         case .success(let id):
             return "Video batch started as job \(id.uuidString). Output goes to \(options.outputDirectoryName)/ inside the folder. Check progress with backgroundTaskStatus."

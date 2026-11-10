@@ -376,6 +376,8 @@ final class AutomationServer {
                         "example": "curl -s \(method == "GET" ? "" : "-X \(method) ")\(baseURL)\(path) → \(example)"])
         }
         // Browsing
+        ep("GET", "/diag/startup", "Launch diagnostics: window/managers, abnormal-exit flag, first-window ms, self-heal attempts", example: "…/diag/startup")
+        ep("POST", "/diag/simulate-stall", "DEBUG-only: block the main thread for N seconds to exercise the health watchdog", params: ["seconds?:number"], example: "-d '{}'")
         ep("GET", "/state", "All tabs (index/title/url/incognito/selected/suspended/domNodes) + selected + window flags", example: #"{"tabs":[…],"selected":0}"#)
         ep("POST", "/navigate", "Navigate a tab", params: ["url:string (required)", "index?:int"], example: #"-d '{"url":"https://example.com"}'"#)
         ep("POST", "/video-speed", "Set video playback rate for the selected tab (persisted per page via video-speed.js)", params: ["rate:number (0.25-3)", "window?:uuid"], example: #"-d '{"rate":1.5}'"#)
@@ -474,7 +476,7 @@ final class AutomationServer {
         ep("POST", "/bookmarks/health/check", "Start a background bookmark link check (nothing deleted automatically)", params: ["urls?:[string]", "limit?:int"], example: #"-d '{"limit":100}'"#)
         ep("POST", "/open-url", "Open an internal deep link (desire://tools[/<tool>]) in a new tab — same path external URL opens use", params: ["url:string"], example: #"-d '{"url":"desire://tools/mortgage"}'"#)
         ep("POST", "/open-file", "Open a local file through the viewer routing (PDF/tables/images/zip/JSON/PPTX/documents/media) in a new tab — same mapping as drag-and-drop and \"Open With\"", params: ["path:string"], example: #"-d '{"path":"/tmp/probe.json"}'"#)
-        ep("POST", "/video/edit", "VideoPro command API (drive the open multi-track editor). Time values are SECONDS on the timeline. Target a specific editor with session=<uuid> or file=<project path> (omitted = active one; no match = error). Actions: state; new; addmedia {paths}; addclip {path,track:video|audio,in?,duration?,at?,speed?,volume?}; addtext {text,at?,duration?}; split {at?}; trim {id,start?,duration?,sourceStart?}; move {id,track?,at}; delete {ids?}; select {id?}; setclip {id,speed?,volume?,fadeIn?,fadeOut?,rotate?}; envelope {id,points:[{at,volume}]}; transition {left,right,overlap?}; track {op:add|mute|move|remove,...}; play {toggle?,seek?}; zoom {pps}; undo; export {path,height?}; save {path}; load {path}; draft {op:status|save|restore|discard}", params: ["action:string"], example: #"-d '{"action":"state"}'"#)
+        ep("POST", "/video/edit", "VideoPro command API (drive the open multi-track editor). Time values are SECONDS on the timeline. Target a specific editor with session=<uuid> or file=<project path> (omitted = active one; no match = error). Actions: state; new; addmedia {paths}; addclip {path,track:video|audio,in?,duration?,at?,speed?,volume?}; addtext {text,at?,duration?}; split {at?}; trim {id,start?,duration?,sourceStart?}; move {id,track?,at}; delete {ids?}; select {id?}; setclip {id,speed?,volume?,fadeIn?,fadeOut?,rotate?}; envelope {id,points:[{at,volume}]}; transition {left,right,overlap?}; track {op:add|mute|move|remove,...}; play {toggle?,seek?}; zoom {pps}; undo; export {path,height?}; save {path}; load {path}; draft {op:status|save|restore|discard}; addsubtitles {path}; exportsubtitles {path}", params: ["action:string"], example: #"-d '{"action":"state"}'"#)
         ep("GET", "/video/state", "VideoPro editor state (tracks/clips/playhead/export)", example: "…/video/state")
         ep("GET", "/reading-list", "Reading list", example: "…/reading-list")
         ep("GET", "/workspaces", "Saved window workspaces (name/tabs/savedAt)", example: "…/workspaces")
@@ -749,7 +751,7 @@ final class AutomationServer {
         ep("POST", "/promotion/mentions/source", "Add/remove/toggle a mention-radar source", params: ["action:add|remove|toggle", "name?:string", "platform?:string", "searchURL?:string (use {query})", "id?:uuid", "enabled?:bool"], example: #"-d '{"action":"add","name":"DuckDuckGo","platform":"Web","searchURL":"https://duckduckgo.com/html/?q={query}"}'"#)
         ep("POST", "/promotion/mentions/scan", "Scan enabled sources off-screen for a keyword; new links go to the interaction ledger (deduped)", params: ["query:string", "limit?:int"], example: #"-d '{"query":"Desire browser"}'"#)
         ep("POST", "/promotion/share", "Build a ready-to-post Desire caption + UTM link for a channel (no network, no posting)", params: ["channel?:string (X/小红书/V2EX/掘金/即刻/Hacker News)", "version?:string"], example: #"-d '{"channel":"X"}'"#)
-        ep("POST", "/video/batch", "Batch trim/concat videos in a folder (mp4/mov/m4v). trim writes <name>-trimmed.mp4 into Trimmed/, concat joins name order into Merged/merged.mp4. Returns a job id; poll GET /jobs for progress/results", params: ["folder:string", "start?:number", "end?:number", "concat?:bool", "recursive?:bool", "height?:number"], example: #"-d '{"folder":"~/Movies/clips","start":3,"end":42}'"#)
+        ep("POST", "/video/batch", "Batch trim/concat videos in a folder (mp4/mov/m4v). trim writes <name>-trimmed.mp4 into Trimmed/, concat joins name order into Merged/merged.mp4. Returns a job id; poll GET /jobs for progress/results", params: ["folder:string", "start?:number", "end?:number", "concat?:bool", "recursive?:bool", "height?:number", "audioOnly?:bool"], example: #"-d '{"folder":"~/Movies/clips","start":3,"end":42}'"#)
         ep("GET", "/jobs", "Unified job ledger (publish/mention scan/campaign…) with states, artifacts and receipts", params: ["limit?:int"], example: "…/jobs")
         ep("POST", "/jobs/run", "Start an allowlisted CLI tool in the background (argv-only, no shell); returns a job id immediately", params: ["tool:string", "args?:string[]", "title?:string", "cwd?:string", "timeoutMinutes?:number", "report?:notify|resume|none", "conversationId?:uuid"], example: #"-d '{"tool":"python3","args":["-c","print(1)"],"title":"smoke"}'"#)
         ep("POST", "/jobs/watch", "Watch one or more jobs; one completion note/notification when ALL reach a terminal state", params: ["ids?:string[]", "kind?:string", "mode?:notify|resume", "conversationId?:uuid"], example: #"-d '{"ids":["<uuid>"],"mode":"notify"}'"#)
@@ -876,7 +878,19 @@ final class AutomationServer {
             switch (method, path) {
             case ("GET", "/"):
                 return try Self.json(Self.index())
-            case ("GET", "/state"):
+                        case ("GET", "/diag/startup"):
+                return try Self.json(Self.startupDiagnostics())
+            case ("POST", "/diag/simulate-stall"):
+                #if DEBUG
+                let seconds = min(30, max(1, body["seconds"] as? Double ?? 15))
+                // 阻塞主 actor 的测试钩子（async 上下文里用 sleep(for:)——
+                // Thread.sleep 在 Swift 6 是错误）。
+                try? await Task.sleep(for: .seconds(seconds))
+                return try Self.json(["ok": true, "slept": seconds])
+                #else
+                return try Self.json(["error": "simulate-stall is debug-only"])
+                #endif
+case ("GET", "/state"):
                 // ?window=<sessionKey|UUID|windowNumber>：指定窗口读状态
                 // （自动化用自己那扇窗，不碰用户的前台窗口）。
                 return try Self.json(Self.appState(window: Self.string(query, "window")))
@@ -3768,7 +3782,8 @@ final class AutomationServer {
             folder: url, start: start, end: end,
             concat: (body["concat"] as? Bool) ?? false,
             recursive: (body["recursive"] as? Bool) ?? false,
-            height: body["height"] as? Double)
+            height: body["height"] as? Double,
+            audioOnly: (body["audioOnly"] as? Bool) ?? false)
         switch VideoBatchStore.shared.start(options: options, conversationID: nil) {
         case .success(let id):
             return ["ok": true, "job": id.uuidString,
@@ -3794,6 +3809,33 @@ final class AutomationServer {
         default:
             return value
         }
+    }
+
+    /// 启动诊断（v0.8.49 批 1）：无窗自愈与异常退出恢复的可断言面。
+    @MainActor
+    private static func startupDiagnostics() -> [String: Any] {
+        let managers = TabSessionCoordinator.shared.liveManagers()
+        let userManagers = managers.filter { manager in
+            guard let key = manager.sessionKey else { return false }
+            return !WindowRoleRegistry.shared.isAgentSession(key)
+        }
+        let defaults = UserDefaults.standard
+        var visibleWindows = 0
+        for window in NSApp.windows where window.isVisible && window.canBecomeMain {
+            visibleWindows += 1
+        }
+        return ["abnormalExit": TabSessionCoordinator.shared.launchedAfterCrash,
+                "managers": managers.count,
+                "userManagers": userManagers.count,
+                "tabs": userManagers.reduce(0) { $0 + $1.tabs.count },
+                "visibleWindows": visibleWindows,
+                "firstWindowMs": StartupMetric.firstWindowMs ?? -1,
+                "healAttempts": defaults.integer(forKey: "app.launchWindowHealAttempts"),
+                "cleanExitFlag": defaults.object(forKey: "app.cleanExit") as? Bool ?? true,
+                "lastStallAt": RuntimeHealthMonitor.lastStall().map {
+                    ISO8601DateFormatter().string(from: $0.startedAt)
+                } ?? "",
+                "lastStallSeconds": RuntimeHealthMonitor.lastStall()?.seconds ?? 0]
     }
 
     private static func error(_ message: String) -> String {

@@ -431,6 +431,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // 系统服务（v0.8.22 批四）：任意应用选中文本 → 收进摘录 / 打开链接。
         NSApp.servicesProvider = self
         noticeAbnormalPreviousExit()
+        // 主线程健康监测 + 全局 ObjC 异常探针（v0.8.49 批 2）。
+        RuntimeHealthMonitor.shared.start()
+        installGlobalExceptionProbe()
+        // 无窗自愈（v0.8.49 批 1）：强杀/崩溃后首启偶发没有主窗——探针 +
+        // 尝试把已有窗口带回 + 兜底重启一次。见 LaunchWindowHealer。
+        LaunchWindowHealer.start()
         // 冷启动带 URL 启动（默认浏览器点链接拉起 app）：窗口装配晚于
         // didFinishLaunching，走重试 flush。
         schedulePendingURLRetry()
@@ -482,6 +488,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// 存在即上次异常退出（崩溃/强杀）。标签与会话由既有恢复链路还原，这里
     /// 只补一句知情提示；被打断的回合在对应会话顶部有「继续」入口
     /// （turnActive 检查点）。automation 模式跳过弹窗（E2E 友好），只记日志。
+    /// 全局 ObjC 异常探针（v0.8.49 批 2）：此前只有 VideoPro 局部装过。
+    /// 穿 async 帧的 NSException（KVC 错键 / NSRange 越界 / JSON NaN）会直接
+    /// 终止进程且不写崩溃报告——reason + 栈进统一日志，诊断包能带走。
+    private func installGlobalExceptionProbe() {
+        NSSetUncaughtExceptionHandler { exception in
+            Log.app.fault("uncaught ObjC exception: \(exception.name.rawValue, privacy: .public) — \(exception.reason ?? "-", privacy: .public)\n\(exception.callStackSymbols.prefix(28).joined(separator: "\n"), privacy: .public)")
+        }
+    }
+
     private func noticeAbnormalPreviousExit() {
         let key = "app.cleanExit"
         let defaults = UserDefaults.standard

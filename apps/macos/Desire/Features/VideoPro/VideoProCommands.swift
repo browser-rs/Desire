@@ -151,6 +151,27 @@ enum VideoProCommands {
                 return ["ok": true, "canUndo": store.canUndo]
             case "export":
                 return try await export(body, store: store)
+            case "addsubtitles":
+                guard let path = body["path"] as? String, !path.isEmpty else {
+                    return ["error": "addsubtitles needs path (.srt/.vtt/.ass)"]
+                }
+                let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+                guard let result = store.importSubtitles(from: url) else {
+                    return ["error": "No subtitle cues parsed from \(url.lastPathComponent)"]
+                }
+                guard result.added > 0 else {
+                    return ["error": "All cues overlap existing clips"]
+                }
+                return ["ok": true, "added": result.added, "skipped": result.skipped]
+            case "exportsubtitles":
+                guard let path = body["path"] as? String, !path.isEmpty else {
+                    return ["error": "exportsubtitles needs path (.srt)"]
+                }
+                let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+                guard let count = store.exportSubtitles(to: url) else {
+                    return ["error": "No text clips to export"]
+                }
+                return ["ok": true, "path": url.path, "count": count]
             case "draft":
                 switch (body["op"] as? String) ?? "status" {
                 case "save":

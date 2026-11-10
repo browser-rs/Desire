@@ -99,8 +99,20 @@ final class VideoEditorStore: ObservableObject {
     /// 贴齐开关（⌘ 按住临时反转；默认开）。
     @Published var snappingEnabled = true
     /// 导出预设：目标高度（nil=源分辨率）与仅音频。
-    @Published var exportTargetHeight: Double?
-    @Published var exportAudioOnly = false
+    /// 导出预设跨会话记忆（v0.8.49 批 3）：高度/仅音频用户选过就记住。
+    @Published var exportTargetHeight: Double? {
+        didSet {
+            let defaults = UserDefaults.standard
+            if let exportTargetHeight {
+                defaults.set(exportTargetHeight, forKey: "videopro.exportHeight")
+            } else {
+                defaults.removeObject(forKey: "videopro.exportHeight")
+            }
+        }
+    }
+    @Published var exportAudioOnly = false {
+        didSet { UserDefaults.standard.set(exportAudioOnly, forKey: "videopro.exportAudioOnly") }
+    }
     @Published var pixelsPerSecond: Double = 60
     @Published private(set) var isPlaying = false
     @Published private(set) var sources: [SourceMedia] = []
@@ -123,18 +135,13 @@ final class VideoEditorStore: ObservableObject {
     /// ObjC 异常现场记录器（一次）：AVFCore 拒绝参数时抛 NSException 后
     /// abort——崩溃报告只有 __cxa_throw 栈没有 reason；装全局 handler 把
     /// reason 写进 unified log（VideoPro 排障用，2026-11-10 文字烧录批次）。
-    private static let installExceptionHandlerOnce: Void = {
-        NSSetUncaughtExceptionHandler { exception in
-            Logger(subsystem: "me.siwi.Desire", category: "video")
-                .fault("uncaught ObjC exception: \(exception.name.rawValue, privacy: .public) — \(exception.reason ?? "-", privacy: .public) stack: \(exception.callStackSymbols.joined(separator: " | ").prefix(800), privacy: .public)")
-        }
-    }()
-
     init() {
-        _ = Self.installExceptionHandlerOnce
         // 后台标签里的编辑器也要能被 session/file 定向到（注册在 init，
         // 不等 onAppear——切到后台后 active 会指向别人）。
         Self.registry.add(self)
+        let defaults = UserDefaults.standard
+        exportTargetHeight = defaults.object(forKey: "videopro.exportHeight") as? Double
+        exportAudioOnly = defaults.bool(forKey: "videopro.exportAudioOnly")
         timeObserver = player.addPeriodicTimeObserver(
             forInterval: CMTime(seconds: 0.2, preferredTimescale: 600),
             queue: .main) { [weak self] time in
@@ -522,6 +529,52 @@ final class VideoEditorStore: ObservableObject {
                 }
             }
         }
+    }
+
+    // MARK: - 字幕（SRT/VTT ↔ 文字片段）
+
+    /// 导入字幕文件：每个 cue 建一个文字片段（可逐条再编辑）。返回 (added, skipped)。
+    @discardableResult
+    func importSubtitles(from url: URL) -> (added: Int, skipped: Int)? {
+        guard let data = try? Data(contentsOf: url),
+              let cues = SubtitleCore.parse(data), !cues.isEmpty else { return nil }
+        guard let trackID = project.tracks.first(where: { $0.kind == .text })?.id
+                ?? project.tracks.first?.id else { return nil }
+        var next = project
+        var added = 0
+        var skipped = 0
+        for cue in cues {
+            let duration = max(0.2, cue.end - cue.start)
+            let preview = String(cue.text.prefix(12)).replacingOccurrences(of: "\n", with: " ")
+            let clip = TimelineCore.Clip(start: cue.start, duration: duration,
+                                         sourceURL: nil, label: preview, text: cue.text)
+            if let updated = TimelineCore.upsertClip(next, trackID: trackID, clip: clip) {
+                next = updated
+                added += 1
+            } else {
+                skipped += 1
+            }
+        }
+        guard added > 0 else { return (0, skipped) }
+        commit(next)
+        return (added, skipped)
+    }
+
+    /// 导出文字轨为 SRT（空文本片段跳过）。返回写入的 cue 数。
+    @discardableResult
+    func exportSubtitles(to url: URL) -> Int? {
+        let textClips = project.tracks
+            .filter { $0.kind == .text }
+            .flatMap(\.clips)
+            .filter { !($0.text ?? "").isEmpty }
+            .sorted { $0.start < $1.start }
+        guard !textClips.isEmpty else { return nil }
+        let cues = textClips.map {
+            SubtitleCore.Cue(start: $0.start, end: $0.end, text: $0.text ?? "")
+        }
+        let srt = SubtitleCore.encode(cues, as: .srt)
+        guard (try? srt.write(to: url, atomically: true, encoding: .utf8)) != nil else { return nil }
+        return cues.count
     }
 
     /// 把素材插到对应轨道（视频→主视频轨，音频→第一条音频轨），起点=播放头

@@ -192,6 +192,15 @@ def main():
         check("落盘 sources.json", os.path.exists(os.path.join(folder, "sources.json")), folder)
         check("落盘 meta.json", os.path.exists(os.path.join(folder, "meta.json")), folder)
 
+        deliverable = state.get("deliverablePath") or ""
+        check("交付物在 Downloads/Research", deliverable.endswith(".md") and os.path.exists(deliverable),
+              deliverable)
+        exported = call("/research/briefs/export", {"id": brief_id}, timeout=10)
+        check("导出接口可用", exported.get("ok") is True and os.path.exists(exported.get("path", "")),
+              exported)
+        excerpts = call("/research/briefs/toexcerpts", {"id": brief_id}, timeout=10)
+        check("关键引用进摘录", excerpts.get("added", 0) >= 1, excerpts)
+
         jobs = call("/jobs", timeout=10).get("jobs", [])
         research_jobs = [j for j in jobs if j.get("kind") == "research"]
         check("Jobs 台账含研究任务", any(j.get("state") == "done" for j in research_jobs),
@@ -202,6 +211,17 @@ def main():
                 call("/research/briefs/delete", {"id": brief_id}, timeout=10)
             except Exception:
                 pass
+        # 清掉本测试写进用户数据的东西：fixture 摘录 + Downloads 交付物
+        try:
+            for excerpt in call("/excerpts", timeout=10).get("excerpts", []):
+                if "127.0.0.1:8879" in (excerpt.get("source") or ""):
+                    call("/excerpts/delete", {"id": excerpt["id"]}, timeout=10)
+        except Exception as exc:
+            print("WARN excerpt cleanup failed:", exc)
+        for name in ("", "-2", "-3"):
+            path = os.path.expanduser(f"~/Downloads/Research/fixture research topic{name}.md")
+            if os.path.exists(path):
+                os.remove(path)
         # 还原旁路设置（原来有就设回去，没有就清空）
         try:
             if original_bypass.get("id"):

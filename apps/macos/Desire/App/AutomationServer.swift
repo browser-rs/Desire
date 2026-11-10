@@ -756,6 +756,10 @@ final class AutomationServer {
         ep("GET", "/research/briefs/state", "One brief's full document + rendered markdown", params: ["id:uuid"], example: "…/research/briefs/state?id=<uuid>")
         ep("POST", "/research/briefs/cancel", "Cancel a running brief", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/research/briefs/delete", "Delete a brief's stored files", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
+        ep("POST", "/research/briefs/export", "Copy the rendered brief to Downloads/Research/", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
+        ep("POST", "/research/briefs/toexcerpts", "Add one verified quote per source to Excerpts", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
+        ep("GET", "/excerpts", "Excerpt library (id/kind/title/source/createdAt)", params: ["limit?:int"], example: "…/excerpts")
+        ep("POST", "/excerpts/delete", "Delete one excerpt", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/video/batch", "Batch trim/concat videos in a folder (mp4/mov/m4v). trim writes <name>-trimmed.mp4 into Trimmed/, concat joins name order into Merged/merged.mp4. Returns a job id; poll GET /jobs for progress/results", params: ["folder:string", "start?:number", "end?:number", "concat?:bool", "recursive?:bool", "height?:number", "audioOnly?:bool"], example: #"-d '{"folder":"~/Movies/clips","start":3,"end":42}'"#)
         ep("GET", "/jobs", "Unified job ledger (publish/mention scan/campaign…) with states, artifacts and receipts", params: ["limit?:int"], example: "…/jobs")
         ep("POST", "/jobs/run", "Start an allowlisted CLI tool in the background (argv-only, no shell); returns a job id immediately", params: ["tool:string", "args?:string[]", "title?:string", "cwd?:string", "timeoutMinutes?:number", "report?:notify|resume|none", "conversationId?:uuid"], example: #"-d '{"tool":"python3","args":["-c","print(1)"],"title":"smoke"}'"#)
@@ -1398,6 +1402,14 @@ case ("GET", "/state"):
                 return try Self.json(Self.researchBriefCancel(body))
             case ("POST", "/research/briefs/delete"):
                 return try Self.json(Self.researchBriefDelete(body))
+            case ("POST", "/research/briefs/export"):
+                return try Self.json(Self.researchBriefExport(body))
+            case ("POST", "/research/briefs/toexcerpts"):
+                return try Self.json(Self.researchBriefToExcerpts(body))
+            case ("GET", "/excerpts"):
+                return try Self.json(Self.excerptsList(query))
+            case ("POST", "/excerpts/delete"):
+                return try Self.json(Self.excerptsDelete(body))
             case ("GET", "/jobs"):
                 return try Self.json(Self.jobsList(
                     limit: Int(Self.string(query, "limit") ?? "") ?? 100))
@@ -3881,6 +3893,61 @@ case ("GET", "/state"):
             return ["error": "id required"]
         }
         ResearchBriefService.shared.cancel(id: id)
+        return ["ok": true]
+    }
+
+    @MainActor
+    private static func researchBriefExport(_ body: [String: Any]) -> [String: Any] {
+        guard let raw = Self.string(body, "id"), let id = UUID(uuidString: raw),
+              let document = ResearchBriefStore.shared.document(id: id) else {
+            return ["error": "brief not found"]
+        }
+        guard let url = ResearchBriefStore.shared.exportToDownloads(document) else {
+            return ["error": "export failed"]
+        }
+        return ["ok": true, "path": url.path]
+    }
+
+    @MainActor
+    private static func researchBriefToExcerpts(_ body: [String: Any]) -> [String: Any] {
+        guard let raw = Self.string(body, "id"), let id = UUID(uuidString: raw),
+              let document = ResearchBriefStore.shared.document(id: id) else {
+            return ["error": "brief not found"]
+        }
+        var added = 0
+        var seen = Set<Int>()
+        for point in document.points where point.verified {
+            guard seen.insert(point.sourceID).inserted,
+                  let source = document.sources.first(where: { $0.id == point.sourceID }) else { continue }
+            if ExcerptStore.shared.add(kind: .webSelection, title: source.title,
+                                       source: source.url, content: point.quote,
+                                       note: point.point) {
+                added += 1
+            }
+        }
+        return ["ok": true, "added": added]
+    }
+
+    @MainActor
+    private static func excerptsList(_ query: [String: String]) -> [String: Any] {
+        let limit = Int(query["limit"] ?? "") ?? 200
+        let items = ExcerptStore.shared.excerpts.prefix(max(1, limit)).map { excerpt -> [String: Any] in
+            ["id": excerpt.id.uuidString,
+             "kind": excerpt.kind.rawValue,
+             "title": excerpt.title,
+             "source": excerpt.source,
+             "content": String(excerpt.content.prefix(160)),
+             "createdAt": ISO8601DateFormatter().string(from: excerpt.createdAt)]
+        }
+        return ["ok": true, "count": ExcerptStore.shared.excerpts.count, "excerpts": Array(items)]
+    }
+
+    @MainActor
+    private static func excerptsDelete(_ body: [String: Any]) -> [String: Any] {
+        guard let raw = Self.string(body, "id"), let id = UUID(uuidString: raw) else {
+            return ["error": "id required"]
+        }
+        ExcerptStore.shared.remove(id: id)
         return ["ok": true]
     }
 

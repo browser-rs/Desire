@@ -380,6 +380,19 @@ extension BrowserToolProvider {
                 ], required: ["paths"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "researchBrief",
+                description: "Research a topic on the web and produce a cited brief, in the background (Jobs ledger) and without touching the user's tabs. action=start: search the web (or use urls), fetch the pages in a non-persistent session, read each source, then compose a Markdown brief where every claim cites [n] and quotes are verified verbatim against the source text. Returns a brief id immediately. action=status shows the rendered brief, list shows all briefs, cancel stops one, export copies it to Downloads/Research/, toexcerpts adds one verified quote per source to Excerpts. For local documents use researchDocuments; for a quick page summary use the chat tools instead.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "action": AgentJSONSchemaValue(type: "string", description: "start | status | list | cancel | export | toexcerpts"),
+                    "topic": AgentJSONSchemaValue(type: "string", description: "Research topic (start)"),
+                    "urls": AgentJSONSchemaValue(type: "array", description: "Optional seed URLs — skip search and research exactly these pages"),
+                    "depth": AgentJSONSchemaValue(type: "number", description: "Target number of sources, 3-12 (default 6)"),
+                    "language": AgentJSONSchemaValue(type: "string", description: "Output language, e.g. zh-Hans or en (default zh-Hans)"),
+                    "template": AgentJSONSchemaValue(type: "string", description: "summary | compare | timeline (default summary)"),
+                    "id": AgentJSONSchemaValue(type: "string", description: "Brief id for status/cancel/export/toexcerpts"),
+                ], required: ["action"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "batchTrimVideos",
                 description: "Batch-trim or concatenate every video in a folder (mp4/mov/m4v). trim: cut each file to [start, end) and write <name>-trimmed.mp4 into Trimmed/. concat: join all files in name order into Merged/merged.mp4. Runs as a background job (returns a job id immediately); check progress with backgroundTaskStatus and results in the Jobs panel. For arbitrary multi-clip timelines use editTimeline instead.",
                 parameters: AgentJSONSchema(type: "object", properties: [

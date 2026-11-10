@@ -80,4 +80,28 @@ final class ResearchBriefStore: ObservableObject {
     func markdownURL(id: UUID) -> URL {
         Self.folder(id).appendingPathComponent("brief.md")
     }
+
+    /// 交付：复制渲染结果到 `~/Downloads/Research/<slug>.md`（冲突顺延）。
+    @discardableResult
+    func exportToDownloads(_ document: ResearchBriefDocument) -> URL? {
+        let folder = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Research", isDirectory: true)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        let markdown = ResearchBriefCore.render(document)
+        var base = document.topic
+            .replacingOccurrences(of: "/", with: "-")
+            .replacingOccurrences(of: ":", with: "-")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if base.isEmpty { base = "research" }
+        var destination = folder.appendingPathComponent("\(base).md")
+        var counter = 2
+        while FileManager.default.fileExists(atPath: destination.path) {
+            destination = folder.appendingPathComponent("\(base)-\(counter).md")
+            counter += 1
+        }
+        guard (try? markdown.write(to: destination, atomically: true, encoding: .utf8)) != nil else {
+            return nil
+        }
+        return destination
+    }
 }

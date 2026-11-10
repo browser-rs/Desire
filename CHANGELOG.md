@@ -1,3 +1,9 @@
+## [Unreleased]
+### Added
+
+- 研究简报（v0.8.50 批 1–3）：给一个题目，后台在**非持久会话**里检索（Bing/DDG/百度 HTML 解析）→ 抓取 → 每源阅读 → 按模板成文，交一份带引用的 Markdown 简报。硬约束：正文 `[n]` 与来源一一对应（越界引用丢弃并计数）、引文与源正文**逐字核验**（不匹配标 ⚠️ 并计入说明）、无出处的结论必须标注；抓取失败/登录墙/超时/正文为空逐项归因。产物落 `Application Support/Desire/ResearchBriefs/<id>/`（meta/brief.md/sources.json），完成自动复制到 `Downloads/Research/`，进 Jobs 台账 + 完成通知 + 会话备注。工具 `researchBrief`（start/status/list/cancel/export/toexcerpts）与桥 `/research/briefs*` 同源；支持 `urls` 直接研究指定页面（跳过检索）。离线 E2E：本地 fixture 站 + 假 OpenAI SSE，18/18（含伪造引文/越界引用/无出处列表项/登录墙/交付物/摘录回填，测试后自清用户数据）。
+
+
 ## [v0.8.49] - 2026-11-11
 ### Changed
 

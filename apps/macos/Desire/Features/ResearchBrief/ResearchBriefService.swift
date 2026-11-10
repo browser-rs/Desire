@@ -90,8 +90,12 @@ final class ResearchBriefService {
                                    artifactURL: ResearchBriefStore.shared.markdownURL(id: documentID).path,
                                    error: error)
             if state == .done {
+                if let exported = ResearchBriefStore.shared.exportToDownloads(document) {
+                    document.deliverablePath = exported.path
+                    ResearchBriefStore.shared.save(document)
+                }
                 AgentScheduler.shared.deliveryTarget?.appendExternalNote(
-                    "Research brief ready: \"\(document.topic)\" — \(document.sources.count) source(s), \(document.unverifiedQuotes) unverified quote(s). File: \(ResearchBriefStore.shared.markdownURL(id: documentID).path)")
+                    "Research brief ready: \"\(document.topic)\" — \(document.sources.count) source(s), \(document.unverifiedQuotes) unverified quote(s). File: \(document.deliverablePath ?? ResearchBriefStore.shared.markdownURL(id: documentID).path)")
                 ProactiveNotificationStore.shared.deliver(
                     title: String(localized: "Research brief ready"),
                     body: document.topic, tier: .routine)

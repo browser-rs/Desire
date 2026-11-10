@@ -86,6 +86,8 @@ nonisolated struct ResearchBriefDocument: Codable, Identifiable, Equatable {
     var truncatedByBudget = false
     var tokensUsed = 0
     var error: String?
+    /// 交付物（复制到 Downloads/Research 的那份 Markdown）。
+    var deliverablePath: String?
 
     var isChinese: Bool { language.lowercased().hasPrefix("zh") }
 }

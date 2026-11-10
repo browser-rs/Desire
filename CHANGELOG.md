@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- 诊断包带上主线程停滞证据：`health/last-stall.json` 与最新一份 sample 栈以 `runtime-health.json` / `runtime-stall.txt` 随包导出，"没有崩溃报告的卡死"可以直接带走排查。
+
 ### Added
 
 - 崩溃韧性（v0.8.49 批 1）：会话快照带上一份备份（覆盖前留 `.bak`，主文件损坏时自动回退）；启动无窗自愈（4/8/12s 探针 → 把已存在的窗口带回 → 仍无则保留参数重启一次，计数防循环）；桥新增 `GET /diag/startup`（异常退出标志/窗口与标签数/首窗耗时/自愈计数/最近停滞）。

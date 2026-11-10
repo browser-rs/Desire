@@ -54,6 +54,7 @@ final class MetricsManager: NSObject, MXMetricManagerSubscriber {
         writeSystemLog(into: directory)
         writeCrashSummary(into: directory)
         writeLaunchAudit(into: directory)
+        writeRuntimeHealth(into: directory)
         guard let entries = try? fm.contentsOfDirectory(atPath: directory.path),
               !entries.isEmpty else { return nil }
         let formatter = DateFormatter()
@@ -72,6 +73,27 @@ final class MetricsManager: NSObject, MXMetricManagerSubscriber {
             return nil
         }
         return process.terminationStatus == 0 ? destination : nil
+    }
+
+    /// 主线程停滞证据（v0.8.49）：`health/last-stall.json` + 最新的 sample
+    /// 栈文件一起进诊断包——"没有崩溃报告的卡死"从此可带走。
+    private func writeRuntimeHealth(into directory: URL) {
+        let fm = FileManager.default
+        let health = RuntimeHealthMonitor.directory
+        let json = health.appendingPathComponent("last-stall.json")
+        if fm.fileExists(atPath: json.path) {
+            try? fm.removeItem(at: directory.appendingPathComponent("runtime-health.json"))
+            try? fm.copyItem(at: json, to: directory.appendingPathComponent("runtime-health.json"))
+        }
+        guard let entries = try? fm.contentsOfDirectory(at: health,
+                                                        includingPropertiesForKeys: nil) else { return }
+        let samples = entries.filter { $0.lastPathComponent.hasPrefix("stall-") }
+            .sorted { $0.lastPathComponent > $1.lastPathComponent }
+        if let newest = samples.first {
+            let dest = directory.appendingPathComponent("runtime-stall.txt")
+            try? fm.removeItem(at: dest)
+            try? fm.copyItem(at: newest, to: dest)
+        }
     }
 
     /// 最近 30 分钟的进程内 OSLog（`currentProcessIdentifier` 不需要额外

@@ -8527,6 +8527,7 @@ runAsync { await testResearchBriefComposer() }
 testResearchBriefSearchParser()
 testAgentToolCatalog()
 testToolChainCore()
+testToolResultBudget()
 
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
@@ -10375,4 +10376,28 @@ func testToolChainCore() {
         .init(index: 2, tool: "b", result: String(repeating: "y", count: 600), seconds: 0, failed: false),
     ], onError: "continue", stopped: false)
     check("工具链：摘要长结果截断", continued.contains("…") && !continued.contains(String(repeating: "y", count: 450)))
+}
+
+
+// ---------- 工具结果预算（v0.8.51 批 3） ----------
+
+func testToolResultBudget() {
+    let short = "hello"
+    eq("结果预算：未超限原样返回", ToolResultBudget.apply(short, tool: "executeJS"), short)
+
+    let exact = String(repeating: "a", count: ToolResultBudget.defaultBudget)
+    eq("结果预算：恰好等于上限不截断", ToolResultBudget.apply(exact, tool: "executeJS"), exact)
+
+    let over = String(repeating: "b", count: ToolResultBudget.defaultBudget + 100)
+    let clipped = ToolResultBudget.apply(over, tool: "executeJS")
+    check("结果预算：超限截断到上限", clipped.hasPrefix(String(repeating: "b", count: ToolResultBudget.defaultBudget)))
+    check("结果预算：截断标记含丢弃字符数", clipped.contains("truncated 100 chars"))
+    check("结果预算：截断标记给出取法", clipped.contains("limit/offset"))
+
+    // 覆盖表：readFile 64k、runCommand 48k、未列出的走默认。
+    eq("结果预算：readFile 覆盖", ToolResultBudget.budget(for: "readFile"), 64_000)
+    eq("结果预算：runCommand 覆盖", ToolResultBudget.budget(for: "runCommand"), 48_000)
+    eq("结果预算：默认值", ToolResultBudget.budget(for: "getPageTitle"), 24_000)
+    let fileOver = String(repeating: "c", count: 30_000)
+    eq("结果预算：覆盖内不截断", ToolResultBudget.apply(fileOver, tool: "readFile"), fileOver)
 }

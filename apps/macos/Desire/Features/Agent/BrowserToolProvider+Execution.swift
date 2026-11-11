@@ -168,6 +168,7 @@ extension BrowserToolProvider {
     }
 
     func execute(_ call: AgentToolCall, in webView: WKWebView) async -> String {
+        if Task.isCancelled { return Self.fail("cancelled by user") }
         let leasedTabID = ownerSession?.boundTabManager?.selectedTab?.id
         if let leasedTabID { AgentScheduler.shared.acquireTabLease(leasedTabID) }
         defer {
@@ -177,7 +178,11 @@ extension BrowserToolProvider {
         // 等到变化或稳定（≤1s），给模型一个 [verify] 结论。
         let needsVerify = PostActionVerifier.tools.contains(call.function.name)
         let pre = needsVerify ? await Self.fingerprint(in: webView) : nil
-        var result = await executeBody(call, in: webView)
+        // 超时分级 + 结果预算（v0.8.51 批 3）：默认 120s 兜底，长任务工具不套；
+        // 超限结果显式截断（见 BrowserToolProvider+ResultPolicy）。
+        var result = await Self.withToolTimeout(call.function.name) { [self] in
+            await self.executeBody(call, in: webView)
+        }
         // 观测缓存（v0.8.25）：副作用动作可能重排 DOM，缓存整体作废。
         if needsVerify { PageObservationCache.shared.invalidate(webView: webView) }
         if needsVerify, !result.hasPrefix("Error:") {
@@ -196,7 +201,7 @@ extension BrowserToolProvider {
                 "(function(){return !!document.querySelector('input[type=password]');})()") as? Bool) ?? false
             result += PostActionVerifier.loginHint(hasPasswordField: hasPasswordField)
         }
-        return result
+        return Self.applyResultBudget(result, tool: call.function.name)
     }
 
     private func executeBody(_ call: AgentToolCall, in webView: WKWebView) async -> String {

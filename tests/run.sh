@@ -24,6 +24,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/AgentToolSchema.swift
   apps/macos/Desire/Features/Agent/AgentToolCatalog.swift
   apps/macos/Desire/Features/Agent/ToolChainCore.swift
+  apps/macos/Desire/Features/Agent/ToolResultBudget.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DesireProtocol.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DPPAdapter.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DPPAdapterAuthoring.swift

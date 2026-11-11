@@ -2,10 +2,14 @@
 ### Added
 
 - 工具链 `runToolChain`（v0.8.51 批 2）：一次调用按顺序跑最多 10 个工具（每步走与普通调用完全相同的路径——标签租约/动作后核验/观测缓存失效照常生效）。参数支持变量 `$prev`（上一步结果原文）、`$prev.field`（上一步结果是 JSON 时取字段）、`$n`（第 n 步结果），字符串值里整值或混排都可；`onError=stop`（默认）失败即停且整体以 `Error:` 开头，`continue` 跑完并逐项报告；`background: true` 进 Jobs 台账并立刻返回 job id（完成会话备注 + 通知）。嵌套调用被拒（`__chainDepth` 哨兵，不依赖可变状态）。调试面 `POST /diag/tool-chain`（DEBUG）；E2E 14/14（顺序执行/两种失败语义/嵌套守卫/后台 Jobs），核心替换与摘要进 harness。
+- 工具使用统计可脚本读取（v0.8.51 批 3）：`GET /agent/tool-stats[?sinceDays=N]` 与统计页/能力页同源（`ToolUsageStats.derive`，从已存盘会话派生），返回 totals 与按调用数降序的逐工具 calls/failures/failureRate/averageMs；伴随诊断面 `POST /diag/tool-timeout-probe`（DEBUG，可指定超时与工作时长验证竞速语义）。
+
 
 ### Changed
 
 - 工具目录 3.0（v0.8.51 批 1）：Agent 工具已 284 个，系统提示词里的逐工具索引（28.8KB/回合，每回合都付）改为**按域分组的摘要**（16 组、1.7KB，压缩到 6%），完整定义由新元工具 `listTools` 按需展开（无参列组；`group=` 列该组全部工具；`query=` 按名称/描述搜索，驼峰拆词命中优先、返回参数签名与必填标记）。子代理等小工具集仍用逐行索引。调试面：`GET /agent/tool-catalog`（两种渲染的精确体积/压缩比/分组）、`GET /diag/tools-section`（真实 `<tools>` 段）、`GET /diag/list-tools`（DEBUG）；验收：空结果走"成功但为空"（非 `Error:`）。
+- 工具执行策略（v0.8.51 批 3）：① **结果预算**——单工具结果默认上限 24k 字符，超出时在尾部追加显式截断标记（含省略字数与"缩小查询/用 limit/offset/改用 job 型工具"的指引），不再静默把大段内容塞回模型；读文件/文档/日志类工具按表声明更大预算（readFile/readURL/readPdf 64k、getPageHTML/runCommand 48k 等），不让统一上限砍掉既有能力。② **超时分级**——普通工具 120s 兜底竞速（超时返回 `Error: timed out after 120s`，工具本体若在后台跑完只记日志、结果丢弃），长任务型工具（runCommand、download*/researchBrief、waitFor*/spawnSubagent 等以及名字含 batch/export 的）**不套超时**——它们本就会立刻返回 job id 或自带等待参数，误判超时比慢更糟。③ **取消传播**——`execute` 入口与工具链每步之间检查 `Task.isCancelled`，回合取消后不再启动后续工具/步骤。E2E：`tests/tool-policy-e2e.py` 8/8（超时触发且不等工作完成、正常路径不误伤、统计端点口径）。
+
 
 
 ## [v0.8.50] - 2026-11-11

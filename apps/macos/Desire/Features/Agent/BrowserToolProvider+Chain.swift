@@ -42,6 +42,15 @@ extension BrowserToolProvider {
         var stopped = false
 
         for (index, step) in steps.enumerated() {
+            // 回合被取消：链就地收尾（不再启动后续步骤）。
+            if Task.isCancelled {
+                let message = "Error: cancelled by user"
+                outcomes.append(.init(index: index + 1, tool: step.tool, result: message,
+                                      seconds: 0, failed: true))
+                results.append(message)
+                stopped = true
+                break
+            }
             if step.tool == "runToolChain" {
                 let message = "Error: nested chains are not allowed"
                 outcomes.append(.init(index: index + 1, tool: step.tool, result: message,

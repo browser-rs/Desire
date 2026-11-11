@@ -629,6 +629,8 @@ final class AutomationServer {
         ep("GET", "/ai/prices", "Model price table (USD per Mtok) used to turn token usage into cost", example: "…/ai/prices")
         ep("POST", "/ai/prices", "Set/clear model prices; 0 or omitted = unknown (that model shows no money)", params: ["models?:{model:{input,output}}", "remove?:[model]"], example: #"-d '{"models":{"gpt-4o":{"input":2.5,"output":10}}}'"#)
         ep("GET", "/agent/tool-catalog", "Tool catalog stats: total count, groups, flat vs grouped prompt index sizes", example: "…/agent/tool-catalog")
+        ep("GET", "/agent/tool-stats", "Per-tool usage from saved conversations (calls/failures/avg ms) — same source as the stats page", params: ["sinceDays?:int"], example: "…/agent/tool-stats?sinceDays=7")
+        ep("POST", "/diag/tool-timeout-probe", "DEBUG-only: exercise the tool timeout race (seconds vs workSeconds)", params: ["seconds?:number", "workSeconds?:number"], example: #"-d '{"seconds":1,"workSeconds":2}'"#)
         ep("GET", "/diag/list-tools", "DEBUG-only: run the listTools catalog expansion (query/group) without an agent turn", params: ["query?:string", "group?:string"], example: "…/diag/list-tools?query=read%20file")
         ep("GET", "/diag/tools-section", "DEBUG-only: the exact <tools> block the prompt builder inserts, plus its size", example: "…/diag/tools-section")
         ep("POST", "/diag/tool-chain", "DEBUG-only: run runToolChain against the live session without an agent turn", params: ["steps:array", "onError?:stop|continue"], example: #"-d '{"steps":[{"tool":"listTools","args":{"group":"sync"}}]}'"#)
@@ -3118,6 +3120,22 @@ case ("GET", "/state"):
                 return try Self.json(Self.agentWindows())
                         case ("GET", "/agent/tool-catalog"):
                 return try Self.json(Self.toolCatalogStats())
+            case ("GET", "/agent/tool-stats"):
+                return try Self.json(Self.agentToolStats(query))
+            case ("POST", "/diag/tool-timeout-probe"):
+                #if DEBUG
+                let timeout = max(0.5, body["seconds"] as? Double ?? 1)
+                let work = max(0.1, body["workSeconds"] as? Double ?? 2)
+                let started = Date()
+                let result = await BrowserToolProvider.withToolTimeout("probe", seconds: timeout) {
+                    try? await Task.sleep(for: .seconds(work))
+                    return "done"
+                }
+                return try Self.json(["ok": true, "result": result,
+                                      "elapsed": Date().timeIntervalSince(started)])
+                #else
+                return try Self.json(["error": "timeout probe is debug-only"])
+                #endif
             case ("POST", "/diag/tool-chain"):
                 #if DEBUG
                 guard let session = AgentScheduler.shared.deliveryTarget else {
@@ -3897,6 +3915,31 @@ case ("GET", "/agent/messages"):
                 "flatChars": flat,
                 "digestChars": digestText.count,
                 "ratio": flat > 0 ? Double(digestText.count) / Double(flat) : 0]
+    }
+
+    /// 按工具聚合的使用/健康（v0.8.51 批 3）：与统计页/能力页同源（ToolUsageStats）。
+    @MainActor
+    private static func agentToolStats(_ query: [String: String]) -> [String: Any] {
+        let conversations = ConversationStore().conversations
+        let samples = ToolUsageStats.samples(from: conversations)
+        var since: Date?
+        if let days = Int(query["sinceDays"] ?? ""), days > 0 {
+            since = Date().addingTimeInterval(-Double(days) * 86_400)
+        }
+        let stats = ToolUsageStats.derive(from: samples, since: since)
+        let tools = stats.map { stat -> [String: Any] in
+            ["tool": stat.name,
+             "calls": stat.calls,
+             "failures": stat.failures,
+             "failureRate": stat.failureRate,
+             "averageMs": stat.averageMs ?? 0]
+        }
+        let totals: [String: Any] = [
+            "tools": stats.count,
+            "calls": stats.reduce(0) { $0 + $1.calls },
+            "failures": stats.reduce(0) { $0 + $1.failures },
+        ]
+        return ["ok": true, "totals": totals, "tools": tools]
     }
 
     // MARK: - 研究简报（v0.8.50）

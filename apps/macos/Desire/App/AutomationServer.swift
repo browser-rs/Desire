@@ -4121,6 +4121,12 @@ case ("GET", "/agent/messages"):
                 ?? selected?.browser.webView.window
             let windowTitle = hostWindow?.title ?? ""
             let isKey = hostWindow?.isKeyWindow ?? false
+            var frame: [String: Any] = [:]
+            if let hostWindow {
+                frame = ["x": hostWindow.frame.origin.x, "y": hostWindow.frame.origin.y,
+                         "width": hostWindow.frame.size.width,
+                         "height": hostWindow.frame.size.height]
+            }
             return [
                 "sessionKey": manager.sessionKey ?? "",
                 "role": WindowRoleRegistry.shared.role(for: manager.sessionKey).rawValue,
@@ -4131,12 +4137,35 @@ case ("GET", "/agent/messages"):
                 "title": windowTitle,
                 "isKey": isKey,
                 "windowNumber": hostWindow?.windowNumber ?? 0,
+                "frame": frame,
+                "minimized": hostWindow?.isMiniaturized ?? false,
                 "locked": SurfaceLock.shared.reason(for: manager) != nil,
             ]
         }
+        // 多窗口恢复诊断（v0.8.52）：磁盘上的 v2 快照 + 启动时排定但未认领的窗口。
+        let snapshots = (DiskStore.load([WindowSnapshot].self,
+                                        key: TabSessionCoordinator.windowIndexKey) ?? [])
+            .map { snapshot -> [String: Any] in
+                var row: [String: Any] = [
+                    "sessionKey": snapshot.sessionKey,
+                    "role": snapshot.role,
+                    "tabs": snapshot.tabCount,
+                    "active": snapshot.isActive,
+                    "lastActiveAt": ISO.string(from: snapshot.lastActiveAt),
+                    "minimized": snapshot.isMinimized,
+                ]
+                if let frame = snapshot.frame {
+                    row["frame"] = ["x": frame.x, "y": frame.y,
+                                    "width": frame.width, "height": frame.height]
+                }
+                return row
+            }
         return ["keyWindowTitle": keyTitle,
                 "mode": AppModeStore.shared.mode.rawValue,
-                "windows": rows]
+                "windows": rows,
+                "restoreMode": AppState.live?.settings.windowRestoreMode.rawValue ?? "all",
+                "pendingRestore": TabSessionCoordinator.shared.pendingRestoreCount,
+                "windowIndex": snapshots]
     }
 
     /// 站点数据端点用的数据存储：按容器名，缺省 = 默认档案。

@@ -8544,6 +8544,7 @@ testToolResultBudget()
 testTabLinkList()
 testToolResultDispatch()
 testBatchToolCore()
+testWindowRestoreCore()
 
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
@@ -10589,4 +10590,91 @@ func testBatchToolCore() {
     case .success(let request): check("批量：parseRequest 命中文件", request.files.count == 1)
     case .failure: check("批量：parseRequest 命中文件", false)
     }
+}
+
+
+// ---------- 多窗口恢复（v0.8.52 批 1） ----------
+
+func testWindowRestoreCore() {
+    let now = Date()
+    func snap(_ key: String, role: String = "user", active: Bool = false,
+              ageDays: Double = 0, tabs: Int = 2,
+              frame: WindowFrame? = nil) -> WindowSnapshot {
+        WindowSnapshot(sessionKey: key, frame: frame, role: role,
+                       isActive: active,
+                       lastActiveAt: now.addingTimeInterval(-ageDays * 86_400),
+                       tabCount: tabs)
+    }
+
+    // 计划：跳过 agent / 无文件 / 空窗 / 过旧 / 已采纳，活动优先
+    let planInput = [
+        snap("session-a", active: true, ageDays: 1, tabs: 3),
+        snap("session-b", ageDays: 2, tabs: 5),
+        snap("session-agent", role: "agent", ageDays: 0.1, tabs: 9),
+        snap("session-missing", ageDays: 0.5, tabs: 4),
+        snap("session-old", ageDays: 30, tabs: 6),
+        snap("session-empty", ageDays: 0.2, tabs: 0),
+        snap("session-adopted", ageDays: 0.05, tabs: 7),
+    ]
+    let existing: Set<String> = ["session-a", "session-b", "session-adopted",
+                                 "session-old", "session-empty"]
+    let plan = WindowRestoreCore.plan(snapshots: planInput, mode: .all,
+                                      existingKeys: existing,
+                                      adoptedKey: "session-adopted", now: now)
+    eq("窗口恢复：补开数量", plan.count, 2)
+    eq("窗口恢复：活动窗口排第一", plan.first?.sessionKey ?? "", "session-a")
+    check("窗口恢复：跳过 agent 窗口", !plan.contains { $0.sessionKey == "session-agent" })
+    check("窗口恢复：跳过无会话文件", !plan.contains { $0.sessionKey == "session-missing" })
+    check("窗口恢复：跳过过旧", !plan.contains { $0.sessionKey == "session-old" })
+    check("窗口恢复：跳过空窗", !plan.contains { $0.sessionKey == "session-empty" })
+    check("窗口恢复：排除首窗已认领", !plan.contains { $0.sessionKey == "session-adopted" })
+    eq("窗口恢复：cap 生效",
+       WindowRestoreCore.plan(snapshots: planInput, mode: .all,
+                              existingKeys: existing, adoptedKey: nil,
+                              cap: 1, now: now).count, 1)
+    check("窗口恢复：activeOnly 不补开",
+          WindowRestoreCore.plan(snapshots: planInput, mode: .activeOnly,
+                                 existingKeys: existing, adoptedKey: nil,
+                                 now: now).isEmpty)
+    check("窗口恢复：off 不补开",
+          WindowRestoreCore.plan(snapshots: planInput, mode: .off,
+                                 existingKeys: existing, adoptedKey: nil,
+                                 now: now).isEmpty)
+
+    // frame 裁剪：单屏 1440x900（原点 0,0）
+    let main = WindowFrame(x: 0, y: 0, width: 1440, height: 900)
+    let inside = WindowFrame(x: 100, y: 120, width: 800, height: 600)
+    eq("窗口恢复：屏内 frame 原样",
+       WindowRestoreCore.clampedFrame(inside, screens: [main]), inside)
+    let offscreen = WindowRestoreCore.clampedFrame(
+        WindowFrame(x: 99_999, y: 99_999, width: 800, height: 600), screens: [main])
+    check("窗口恢复：屏外拉回可见区",
+          offscreen.x <= main.width - 800 && offscreen.y <= main.height - 600)
+    let huge = WindowRestoreCore.clampedFrame(
+        WindowFrame(x: 10, y: 10, width: 5000, height: 4000), screens: [main])
+    check("窗口恢复：超大尺寸裁到屏幕", huge.width == 1440 && huge.height == 900)
+    let invalid = WindowRestoreCore.clampedFrame(
+        WindowFrame(x: .nan, y: 10, width: 10, height: 10), screens: [main])
+    check("窗口恢复：非法尺寸回落默认", invalid.width == 1000 && invalid.height == 700)
+    let cascaded = WindowRestoreCore.clampedFrame(inside, screens: [main], cascadeIndex: 1)
+    eq("窗口恢复：同帧阶梯偏移", cascaded.x, inside.x + 24)
+    check("窗口恢复：可见性判定", WindowRestoreCore.isVisible(inside, screens: [main]))
+    check("窗口恢复：远屏不可见判定",
+          !WindowRestoreCore.isVisible(WindowFrame(x: 5000, y: 5000, width: 400, height: 300),
+                                       screens: [main]))
+
+    // 多屏：右侧第二屏
+    let second = WindowFrame(x: 1440, y: 0, width: 1920, height: 1080)
+    let onSecond = WindowFrame(x: 2000, y: 200, width: 900, height: 700)
+    eq("窗口恢复：多屏留在本屏",
+       WindowRestoreCore.clampedFrame(onSecond, screens: [main, second]), onSecond)
+
+    // 阶梯分配：只有同位置（≤2pt）才错开
+    let sameFrame = WindowFrame(x: 100, y: 100, width: 800, height: 600)
+    eq("窗口恢复：同帧阶梯序号",
+       WindowRestoreCore.cascadeIndexes(for: [sameFrame, sameFrame, sameFrame]), [0, 1, 2])
+    eq("窗口恢复：异位不偏移",
+       WindowRestoreCore.cascadeIndexes(for: [sameFrame, inside]), [0, 0])
+    eq("窗口恢复：nil 帧不参与阶梯",
+       WindowRestoreCore.cascadeIndexes(for: [nil, sameFrame]), [0, 0])
 }

@@ -124,6 +124,11 @@ class Settings: ObservableObject {
     @Published var startupPageSet: String {
         didSet { UserDefaults.standard.set(startupPageSet, forKey: "startupPageSet") }
     }
+    /// 多窗口恢复策略（v0.8.52）：全部窗口 / 仅上次活跃窗口 / 不恢复。
+    /// 只在启动行为为「恢复上次会话」时生效。
+    @Published var windowRestoreMode: WindowRestoreMode {
+        didSet { UserDefaults.standard.set(windowRestoreMode.rawValue, forKey: "windowRestoreMode") }
+    }
     @Published var autoPlayPolicy: AutoPlayPolicy {
         didSet { UserDefaults.standard.set(autoPlayPolicy.rawValue, forKey: "autoPlayPolicy") }
     }
@@ -187,6 +192,7 @@ class Settings: ObservableObject {
         warnDangerousDownloads = UserDefaults.standard.object(forKey: "warnDangerousDownloads") as? Bool ?? true
         startupBehavior = StartupBehavior(rawValue: UserDefaults.standard.string(forKey: "startupBehavior") ?? "") ?? .restoreSession
         startupPageSet = UserDefaults.standard.string(forKey: "startupPageSet") ?? ""
+        windowRestoreMode = WindowRestoreMode(rawValue: UserDefaults.standard.string(forKey: "windowRestoreMode") ?? "") ?? .all
         autoPlayPolicy = AutoPlayPolicy(rawValue: UserDefaults.standard.string(forKey: "autoPlayPolicy") ?? "") ?? .requireUserAction
         suspendAfterMinutes = UserDefaults.standard.object(forKey: "suspendAfterMinutes") as? Double ?? 30
         openLinksInBackground = UserDefaults.standard.bool(forKey: "openLinksInBackground")

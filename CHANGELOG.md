@@ -1,3 +1,9 @@
+## [Unreleased]
+### Added
+
+- 多窗口会话恢复（v0.8.52 批 1）：窗口升级为一等公民。① 新增 `WindowSnapshot` + `window-index-v2`（sessionKey / frame / 角色 / 是否活动 / 最近活跃时间 / 标签数 / 最小化），与旧裸 key 索引并行写（旧版本回退可用）；② **正常退出也恢复全部窗口**（此前只有崩溃路径补开、且只恢复首窗）——首窗采纳最近会话后，其余窗口按快照逐个 `openWindow` 复活，标签/选中/URL 原样回来；③ **窗口位置持久化**（此前全仓无 frame 落盘）：恢复时按可见屏幕裁剪、同位置窗口阶梯错开，并在 SwiftUI 晚到的级联排列之后持续校正 ~4s；④ 恢复计划纯逻辑 `WindowRestoreCore`（角色过滤 / 空窗与无会话文件过滤 / 崩溃恢复上限 5 窗 + 7 天年龄过滤 / 多屏裁剪 / 阶梯分配）进 harness；⑤ 恢复策略设置 `windowRestoreMode`（all/activeOnly/off，默认 all，UI 随批 4）；⑥ `/diag/windows` 增加每窗 frame/最小化/`windowIndex`/`pendingRestore`/`restoreMode`；⑦ 自愈：10s 内仍有排定窗口未被认领则补开一轮（最多 3 扇）。验收：新增 `tests/multi-window-restore-e2e.py`（两窗→退出→重启→标签/URL/frame 全对→清理）10/10；崩溃恢复套件 3/3；harness 3114/0。
+
+
 ## [v0.8.51] - 2026-11-11
 ### Fixed
 

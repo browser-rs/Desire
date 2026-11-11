@@ -1,5 +1,6 @@
 import AppKit
 import Foundation
+import os
 
 /// 首窗口的**会话恢复编排**（从 ContentView.onAppear 抽出——组合根只该拼装
 /// 视图，不该编排恢复流程；ARCH-8）。
@@ -193,18 +194,32 @@ enum SessionRestore {
         return Result(sessionID: sessionID, sessionKey: sessionKey)
     }
 
-    /// 崩溃后补开其他窗口：首窗已认领一个会话，其余 live key 入队；每开一扇
-    /// 新窗，它的 `run` 会在顶部 `takePendingRestoreKey()` 认领一份。
-    /// 只在崩溃 + "恢复上次会话"启动设置下动作；最多补开 4 扇（防窗口爆炸）。
+    /// 补开其他窗口（v0.8.0 崩溃恢复 → v0.8.52 正常退出也恢复）：
+    /// 首窗已认领一个会话，其余窗口按 `window-index-v2` 快照入队（含 frame）；
+    /// 每开一扇新窗，它的 `run` 会在顶部 `takePendingRestoreKey()` 认领一份。
+    /// 只在「恢复上次会话」启动设置 + 窗口恢复策略为全部时动作；上限/年龄/
+    /// 角色过滤在 `WindowRestoreCore.plan`。
     private static func restoreAdditionalWindows(excluding key: String?, context: Context) {
-        guard TabSessionCoordinator.shared.launchedAfterCrash,
-              context.settings.startupBehavior == .restoreSession,
+        guard context.settings.startupBehavior == .restoreSession,
               context.openWindowForRestore != nil else { return }
-        let others = TabSessionCoordinator.shared.crashRestoreSessionKeys(excluding: key)
-        guard !others.isEmpty else { return }
-        TabSessionCoordinator.shared.enqueueRestoreKeys(others)
-        for _ in others {
+        let plan = TabSessionCoordinator.shared.restorationPlan(
+            excluding: key, mode: context.settings.windowRestoreMode)
+        guard !plan.isEmpty else { return }
+        TabSessionCoordinator.shared.enqueueRestoreSnapshots(plan)
+        for _ in plan {
             context.openWindowForRestore?()
+        }
+        // 自愈探针（v0.8.52）：10s 后仍有排定窗口没被认领（SwiftUI 偶发建窗
+        // 失败），补开一轮（最多 3 扇）；再失败只记 fault，不再循环。
+        let openWindow = context.openWindowForRestore
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(10))
+            let remaining = TabSessionCoordinator.shared.pendingRestoreCount
+            guard remaining > 0, let openWindow else { return }
+            Log.tabs.fault("window-restore: \(remaining, privacy: .public) planned window(s) unclaimed after 10s — retrying once")
+            for _ in 0..<min(remaining, 3) {
+                openWindow()
+            }
         }
     }
 }

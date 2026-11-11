@@ -1101,6 +1101,8 @@ final class TabSessionCoordinator {
     static let legacyStorageKey = "session"
     static let indexKey = "session-index"
     static let archiveIndexKey = "session-archive-index"
+    /// 多窗口快照索引（v0.8.52）：`[WindowSnapshot]`，与裸 key 的旧索引并行。
+    static let windowIndexKey = "window-index-v2"
 
     private struct WeakManager { weak var manager: TabManager? }
     private var managers: [WeakManager] = []
@@ -1144,7 +1146,13 @@ final class TabSessionCoordinator {
     /// the window the user is actually looking at.
     func setActive(_ manager: TabManager) {
         activeManager = manager
+        if let key = manager.sessionKey {
+            lastActiveTimes[key] = Date()
+        }
     }
+
+    /// 每个窗口最后一次成为 key 的时间（v0.8.52 多窗口恢复排序用）。
+    private var lastActiveTimes: [String: Date] = [:]
 
     /// The active window's TabManager — read by the automation server.
     var activeTabManager: TabManager? {
@@ -1189,7 +1197,43 @@ final class TabSessionCoordinator {
         let keys = managers.compactMap { $0.manager?.sessionKey }
         if !keys.isEmpty {
             DiskStore.save(keys, key: Self.indexKey)
+            persistWindowIndex()
         }
+    }
+
+    /// 多窗口快照索引（v0.8.52）：key + frame + 角色 + 活跃时间 + 标签数。
+    /// 与旧 `session-index` 并行写——旧版本回退仍能读裸 key 数组。
+    private func persistWindowIndex() {
+        let now = Date()
+        let previous = Dictionary(
+            uniqueKeysWithValues: (DiskStore.load([WindowSnapshot].self,
+                                                  key: Self.windowIndexKey) ?? [])
+                .map { ($0.sessionKey, $0) })
+        let snapshots = managers.compactMap { box -> WindowSnapshot? in
+            guard let manager = box.manager, let key = manager.sessionKey else { return nil }
+            return windowSnapshot(for: manager, key: key, now: now,
+                                  previous: previous[key])
+        }
+        guard !snapshots.isEmpty else { return }
+        DiskStore.save(snapshots, key: Self.windowIndexKey)
+    }
+
+    private func windowSnapshot(for manager: TabManager, key: String, now: Date,
+                                previous: WindowSnapshot?) -> WindowSnapshot {
+        let window = WindowSurfaceRegistry.shared.window(for: key)
+            ?? manager.selectedTab?.browser.webView.window
+        let frame = window.map {
+            WindowFrame(x: $0.frame.origin.x, y: $0.frame.origin.y,
+                        width: $0.frame.size.width, height: $0.frame.size.height)
+        }
+        return WindowSnapshot(
+            sessionKey: key,
+            frame: frame,
+            role: WindowRoleRegistry.shared.role(for: key).rawValue,
+            isActive: window?.isKeyWindow ?? false,
+            lastActiveAt: lastActiveTimes[key] ?? previous?.lastActiveAt ?? now,
+            tabCount: manager.tabs.count,
+            isMinimized: window?.isMiniaturized ?? false)
     }
 
     /// Called from applicationShouldTerminate — windows are still open here.
@@ -1443,6 +1487,77 @@ final class TabSessionCoordinator {
 
     func enqueueRestoreKeys(_ keys: [String]) {
         pendingRestoreKeys = keys
+        pendingRestoreFrames = [:]
+    }
+
+    /// 本次启动要补开的窗口（v0.8.52）：优先用 v2 快照（带 frame）；没有 v2
+    /// 且是崩溃启动时回退旧 index（帧缺失）。上限/年龄/角色过滤在
+    /// `WindowRestoreCore.plan`。
+    func restorationPlan(excluding adoptedKey: String?,
+                         mode: WindowRestoreMode) -> [WindowSnapshot] {
+        guard mode == .all else { return [] }
+        let fm = FileManager.default
+        var stored = DiskStore.load([WindowSnapshot].self, key: Self.windowIndexKey) ?? []
+        if stored.isEmpty, launchedAfterCrash {
+            stored = crashRestoreSessionKeys(excluding: adoptedKey, limit: 40).map { key in
+                WindowSnapshot(sessionKey: key, frame: nil,
+                               role: WindowRoleRegistry.shared.role(for: key).rawValue,
+                               isActive: false,
+                               lastActiveAt: sessionFileDate(key) ?? .distantPast,
+                               tabCount: session(forKey: key)?.tabs.count ?? 0)
+            }
+        }
+        guard !stored.isEmpty else { return [] }
+        // 用磁盘上的真实会话校正 tabCount（快照可能落后一个 tick），并筛出
+        // 真有非空会话文件的 key。
+        var existing = Set<String>()
+        let corrected = stored.map { snapshot -> WindowSnapshot in
+            let path = DiskStore.directory
+                .appendingPathComponent("\(snapshot.sessionKey).json").path
+            guard fm.fileExists(atPath: path),
+                  let session = session(forKey: snapshot.sessionKey),
+                  !session.tabs.isEmpty else { return snapshot }
+            existing.insert(snapshot.sessionKey)
+            var copy = snapshot
+            copy.tabCount = session.tabs.count
+            return copy
+        }
+        return WindowRestoreCore.plan(snapshots: corrected, mode: mode,
+                                      existingKeys: existing, adoptedKey: adoptedKey,
+                                      now: Date())
+    }
+
+    /// 首窗自己恢复时用：该 key 上次保存的 frame（v2 索引）。
+    func storedFrame(for key: String?) -> WindowFrame? {
+        guard let key else { return nil }
+        let stored = DiskStore.load([WindowSnapshot].self, key: Self.windowIndexKey) ?? []
+        return stored.first { $0.sessionKey == key }?.frame
+    }
+
+    /// 本窗排定的 frame 与阶梯序号（补开窗口用）。
+    func pendingRestoreFrame(for key: String?) -> (frame: WindowFrame, cascade: Int)? {
+        guard let key else { return nil }
+        return pendingRestoreFrames[key]
+    }
+
+    func enqueueRestoreSnapshots(_ snapshots: [WindowSnapshot]) {
+        pendingRestoreKeys = snapshots.map(\.sessionKey)
+        pendingRestoreFrames = [:]
+        let cascades = WindowRestoreCore.cascadeIndexes(for: snapshots.map(\.frame))
+        for (snapshot, cascade) in zip(snapshots, cascades) {
+            guard let frame = snapshot.frame else { continue }
+            pendingRestoreFrames[snapshot.sessionKey] = (frame, cascade)
+        }
+    }
+
+    /// 计划补开但尚未被任何窗口认领的数量（自愈探针用）。
+    var pendingRestoreCount: Int { pendingRestoreKeys.count }
+
+    private var pendingRestoreFrames: [String: (frame: WindowFrame, cascade: Int)] = [:]
+
+    private func sessionFileDate(_ key: String) -> Date? {
+        let path = DiskStore.directory.appendingPathComponent("\(key).json").path
+        return (try? FileManager.default.attributesOfItem(atPath: path))?[.modificationDate] as? Date
     }
 
     /// 新开的窗口在普通恢复前先认领一个待恢复会话（崩溃多窗口恢复用）。

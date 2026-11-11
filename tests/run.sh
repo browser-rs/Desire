@@ -10,6 +10,8 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/AgentBudget.swift
   apps/macos/Desire/Features/Settings/TabBehavior.swift
   apps/macos/Desire/Features/Tabs/TabGroupCluster.swift
+  apps/macos/Desire/Features/Tabs/WindowSnapshot.swift
+  apps/macos/Desire/Features/Tabs/WindowRestoreCore.swift
   apps/macos/Desire/Features/Tabs/TabLinkList.swift
   apps/macos/Desire/Features/Browsing/MouseGestureTrail.swift
   apps/macos/Desire/Features/Agent/AgentGuard.swift

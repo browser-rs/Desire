@@ -1058,14 +1058,17 @@ struct ContentView: View {
                     }
                 },
                 openWindowForRestore: {
-                    // 崩溃多窗口恢复：新窗带全新 UUID，由 SessionRestore
-                    // 认领 pending key（不是这个 UUID 自己的会话）。
+                    // 多窗口恢复（v0.8.0 崩溃 / v0.8.52 正常退出同样走这里）：
+                    // 新窗带全新 UUID，由 SessionRestore 认领 pending key
+                    // （不是这个 UUID 自己的会话）。
                     openWindow(id: "main", value: UUID())
                 }
             )
         ) {
             sessionID = restored.sessionID
             windowContext.sessionKey = restored.sessionKey
+            // frame 还原由窗口标记（AgentWindowTitleMarker）在拿到真实
+            // NSWindow 后执行——这里只绑定身份，不碰几何（v0.8.52）。
         }
     }
 
@@ -1191,6 +1194,9 @@ private struct AgentWindowTitleMarker: NSViewRepresentable {
 
     final class Coordinator {
         var task: Task<Void, Never>?
+        /// 每个 sessionKey 的 frame 只还原一次（key 在恢复流程里会从临时
+        /// UUID 变成采纳的会话 key——变化后补一次即可，不反复 setFrame）。
+        var framedKeys: Set<String> = []
     }
 
     func makeCoordinator() -> Coordinator { Coordinator() }
@@ -1216,6 +1222,22 @@ private struct AgentWindowTitleMarker: NSViewRepresentable {
                     // 所有窗口都登记（diag/Peek 需要），agent 角色额外写标题。
                     let key = sessionKey()
                     WindowSurfaceRegistry.shared.register(window, sessionKey: key)
+                    // 多窗口位置还原（v0.8.52）：拿到真实 NSWindow 后按快照
+                    // 设置一次 frame（补开的窗口用排定值，首窗用它会话里存的）。
+                    if let key, !key.isEmpty, !coordinator.framedKeys.contains(key) {
+                        if let pending = TabSessionCoordinator.shared
+                            .pendingRestoreFrame(for: key) {
+                            coordinator.framedKeys.insert(key)
+                            WindowFrameRestorer.apply(window: window, sessionKey: key,
+                                                      frame: pending.frame,
+                                                      cascade: pending.cascade)
+                        } else if let frame = TabSessionCoordinator.shared
+                            .storedFrame(for: key) {
+                            coordinator.framedKeys.insert(key)
+                            WindowFrameRestorer.apply(window: window, sessionKey: key,
+                                                      frame: frame)
+                        }
+                    }
                     let agent = isAgentWindow()
                     if agent, window.title != title {
                         window.title = title

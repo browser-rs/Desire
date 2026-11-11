@@ -106493,6 +106493,50 @@
           }
         }
       }
+    },
+    "Aggressive Local Routing":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Aggressive Local Routing"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"激进本地路由"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"激進本地路由"
+          }
+        }
+      }
+    },
+    "Drop the short-text length limit: every text-only turn (no tools) runs on the free local model. If the local model fails, the turn falls back to the cloud.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Drop the short-text length limit: every text-only turn (no tools) runs on the free local model. If the local model fails, the turn falls back to the cloud."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"取消「短文本」长度限制：所有无工具流量的纯文本回合都走免费本地模型；本地失败自动回退云。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"取消「短文字」長度限制：所有無工具流量的純文字回合都走免費本地模型；本地失敗自動回退雲。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

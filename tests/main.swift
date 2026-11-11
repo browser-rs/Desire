@@ -1563,6 +1563,23 @@ func testRoutingDecision() {
     }), .cloud)
     // Rule 3: 默认云
     eq("默认 → 云", d({ $0.hasCloudKey = true }), .cloud)
+    // 激进档（v0.8.53 批 3）：无长度上限，但工具粘滞仍优先
+    eq("激进：长文本 → 本地", d({
+        $0.costAware = true; $0.aggressive = true
+        $0.lastUserPrompt = String(repeating: "长", count: 300); $0.foundationAvailable = true
+    }), .foundationModels)
+    eq("激进：上下文超限也 → 本地", d({
+        $0.costAware = true; $0.aggressive = true; $0.lastUserPrompt = "你好"
+        $0.contextChars = 5000; $0.foundationAvailable = true
+    }), .foundationModels)
+    eq("激进：工具流量仍 → 云", d({
+        $0.costAware = true; $0.aggressive = true
+        $0.toolsOffered = true; $0.hasToolTraffic = true
+    }), .cloud)
+    eq("激进关闭：长度限制仍在", d({
+        $0.costAware = true
+        $0.lastUserPrompt = String(repeating: "长", count: 300); $0.foundationAvailable = true
+    }), .cloud)
 }
 testRoutingDecision()
 

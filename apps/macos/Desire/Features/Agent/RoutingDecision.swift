@@ -29,8 +29,11 @@ nonisolated enum RoutingDecision {
         var foundationAvailable: Bool = false
         var ollamaConfigured: Bool = false
         var hasCloudKey: Bool = false
-        /// 用户设置的"成本感知路由"开关。
+        /// 用户设置的"成本感知路由"开关（smart：短文本启发式）。
         var costAware: Bool = false
+        /// 激进档（v0.8.53 批 3）：成本感知开启时**取消长度限制**——无工具
+        /// 流量的回合全部走本地。仅在 costAware = true 时生效。
+        var aggressive: Bool = false
     }
 
     /// 本地可胜任的输入长度上限（成本感知启发式）：本轮输入与上下文都小，
@@ -47,7 +50,8 @@ nonisolated enum RoutingDecision {
         // Rule 2: 本地可胜任的纯文本任务。
         if !input.toolsOffered, !input.hasToolTraffic,
            let prompt = input.lastUserPrompt,
-           isLocalEligible(prompt: prompt, contextChars: input.contextChars, costAware: input.costAware) {
+           isLocalEligible(prompt: prompt, contextChars: input.contextChars,
+                           costAware: input.costAware, aggressive: input.aggressive) {
             if input.foundationAvailable { return .foundationModels }
             if input.ollamaConfigured { return .ollama }
             return .cloud
@@ -65,10 +69,13 @@ nonisolated enum RoutingDecision {
         return .cloud
     }
 
-    /// 关键词命中（保守），或成本感知下的"简单短文本"启发式。
-    static func isLocalEligible(prompt: String, contextChars: Int, costAware: Bool) -> Bool {
+    /// 关键词命中（保守），或成本感知下的"简单短文本"启发式；激进档取消
+    /// 长度限制（无工具流量全走本地）。
+    static func isLocalEligible(prompt: String, contextChars: Int,
+                                costAware: Bool, aggressive: Bool = false) -> Bool {
         if Self.keywords.contains(where: { prompt.lowercased().contains($0) }) { return true }
         guard costAware else { return false }
+        if aggressive { return true }
         return prompt.count <= simplePromptMaxChars && contextChars <= simpleContextMaxChars
     }
 

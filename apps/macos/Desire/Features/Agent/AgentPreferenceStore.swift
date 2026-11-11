@@ -170,6 +170,11 @@ class AgentPreferenceStore: ObservableObject {
     @Published var costAwareRouting: Bool {
         didSet { UserDefaults.standard.set(costAwareRouting, forKey: "aiCostAwareRouting") }
     }
+    /// 激进档（v0.8.53 批 3）：成本感知开启时**取消"短文本"长度限制**——
+    /// 无工具流量的回合全部走本地（Foundation Models / Ollama）。默认关。
+    @Published var aggressiveLocalRouting: Bool {
+        didSet { UserDefaults.standard.set(aggressiveLocalRouting, forKey: "aiAggressiveLocalRouting") }
+    }
     /// Subtle chime when an agent turn completes successfully.
     @Published var completionSound: Bool {
         didSet { UserDefaults.standard.set(completionSound, forKey: "aiCompletionSound") }
@@ -539,6 +544,7 @@ class AgentPreferenceStore: ObservableObject {
             customTemplates = []
         }
         costAwareRouting = UserDefaults.standard.object(forKey: "aiCostAwareRouting") as? Bool ?? false
+        aggressiveLocalRouting = UserDefaults.standard.bool(forKey: "aiAggressiveLocalRouting")
         completionSound = UserDefaults.standard.object(forKey: "aiCompletionSound") as? Bool ?? true
         tokenBudget = UserDefaults.standard.object(forKey: "agentTokenBudget") as? Int ?? 0
         temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7

@@ -653,6 +653,15 @@ struct AgentSettingsSection: View {
                     systemImage: "scalemass",
                     isOn: $store.costAwareRouting
                 )
+                if store.costAwareRouting {
+                    SettingsRowDivider()
+                    SettingsToggleRow(
+                        "Aggressive Local Routing",
+                        subtitle: String(localized: "Drop the short-text length limit: every text-only turn (no tools) runs on the free local model. If the local model fails, the turn falls back to the cloud."),
+                        systemImage: "bolt.horizontal.circle",
+                        isOn: $store.aggressiveLocalRouting
+                    )
+                }
                 SettingsRowDivider()
                 // 会话预算（v0.7.26）：此前只能经工具/桥/UserDefaults 改，用户机器上
                 // 因此留着 500 token 的遗留值无人察觉——这里是可见的控制面。

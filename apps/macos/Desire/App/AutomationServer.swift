@@ -2653,14 +2653,18 @@ case ("GET", "/state"):
                 guard let pref = AppState.live?.aiPreference else { return try Self.json(["error": "preference not ready"]) }
                 return try Self.json([
                     "enabled": pref.costAwareRouting,
+                    "aggressive": pref.aggressiveLocalRouting,
                     "providerKind": pref.providerKind.rawValue,
                     "lockedToCloud": pref.routingLockedToCloud,
                     "lastProviderUsed": AgentScheduler.shared.deliveryTarget?.lastProviderUsed ?? NSNull(),
                 ])
             case ("POST", "/ai/routing"):
                 guard let pref = AppState.live?.aiPreference else { return try Self.json(["error": "preference not ready"]) }
-                pref.costAwareRouting = body["enabled"] as? Bool ?? false
-                return try Self.json(["ok": true, "enabled": pref.costAwareRouting])
+                if let enabled = body["enabled"] as? Bool { pref.costAwareRouting = enabled }
+                if let aggressive = body["aggressive"] as? Bool { pref.aggressiveLocalRouting = aggressive }
+                return try Self.json(["ok": true,
+                                      "enabled": pref.costAwareRouting,
+                                      "aggressive": pref.aggressiveLocalRouting])
             case ("GET", "/ai/bypass-profile"):
                 guard let pref = AppState.live?.aiPreference else { return try Self.json(["error": "preference not ready"]) }
                 var payload: [String: Any] = ["profileId": NSNull()]

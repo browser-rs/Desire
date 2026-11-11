@@ -1,5 +1,6 @@
 import Foundation
 import FoundationModels
+import os
 
 /// A `ModelProvider` that picks among the concrete providers per call based
 /// on lightweight rules, delivering the "full model strategy" automatically:
@@ -36,6 +37,43 @@ struct RoutingProvider: ModelProvider {
     ) -> AsyncThrowingStream<AgentStreamEvent, Error> {
         let target = decide(messages: messages, tools: tools)
         onDecision(target)
+        // 本地优先档失败回退（v0.8.53 批 3）：本地流抛错且**什么都没流出来**
+        // 时回退云（与备用档案 failover 同口径——已流出正文不重试，避免重复）。
+        // 有云 Key 才回退；工具链锁定态不在此路径（decide 已保证）。
+        if target != .cloud, prefs.hasAPIKey {
+            let local = concrete(for: target)
+            let cloud = concrete(for: .cloud)
+            return AsyncThrowingStream { continuation in
+                let task = Task {
+                    var emitted = false
+                    do {
+                        for try await event in local.stream(messages: messages,
+                                                            tools: tools, prefs: prefs) {
+                            emitted = true
+                            continuation.yield(event)
+                        }
+                        continuation.finish()
+                    } catch {
+                        guard !emitted else {
+                            continuation.finish(throwing: error)
+                            return
+                        }
+                        Log.agent.info("local routing failed before any output — falling back to cloud")
+                        onDecision(.cloud)
+                        do {
+                            for try await event in cloud.stream(messages: messages,
+                                                                tools: tools, prefs: prefs) {
+                                continuation.yield(event)
+                            }
+                            continuation.finish()
+                        } catch {
+                            continuation.finish(throwing: error)
+                        }
+                    }
+                }
+                continuation.onTermination = { _ in task.cancel() }
+            }
+        }
         return concrete(for: target).stream(messages: messages, tools: tools, prefs: prefs)
     }
 
@@ -51,7 +89,8 @@ struct RoutingProvider: ModelProvider {
             foundationAvailable: foundationAvailable,
             ollamaConfigured: ollamaConfigured,
             hasCloudKey: prefs.hasAPIKey,
-            costAware: prefs.costAwareRouting
+            costAware: prefs.costAwareRouting,
+            aggressive: prefs.aggressiveLocalRouting
         )
         // 锁语义 = "留在有工具能力的提供方"（原实现规则 1 命中即锁，
         // 即便回落到 Ollama 也锁）——不是"结果为云才锁"。

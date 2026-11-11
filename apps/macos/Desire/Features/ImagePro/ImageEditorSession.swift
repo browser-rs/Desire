@@ -75,6 +75,8 @@ final class ImageEditorSession: ObservableObject {
     @Published var retouchMode: ImageRetouchMode = .clone
     @Published var retouchStrength: Double = 0.7
     @Published var cloneSample: CGPoint?
+    /// 蒙版绘制模式（v0.8.54 批 2）：true = 画笔在图层蒙版上画黑/白（而非内容位图）。
+    @Published var paintOnMask = false
     @Published var gradientRadial = false
     @Published var cornerRadius: CGFloat = 0
     @Published var dashedStroke = false

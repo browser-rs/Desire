@@ -230,6 +230,11 @@ nonisolated struct ImageEditorLayer: Identifiable, Equatable, Sendable {
     var adjust: ImageAdjustParams?
     /// 非破坏滤镜预设（nil/.none = 无）。
     var filter: ImageFilterPreset?
+    /// 图层蒙版（v0.8.54 批 2）：非 nil = 该层有蒙版。蒙版位图存在
+    /// `ImageEditorDocument.masks[layer.id]`（灰度图，白 = 显示、黑 = 隐藏），
+    /// 非破坏——画笔在蒙版上画黑/白不碰内容位图。
+    var hasMask: Bool = false
+    var maskInverted: Bool = false
 }
 
 

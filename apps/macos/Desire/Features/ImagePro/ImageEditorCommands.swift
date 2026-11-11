@@ -424,6 +424,15 @@ enum ImageEditorCommands {
                 document.bakeActiveLayerEffects()
         guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
         guard points.isEmpty == false else { return ["error": "points is empty"] }
+        // 蒙版绘制模式（v0.8.54 批 2）：画笔在图层蒙版上画黑/白，不碰内容位图。
+        if session.paintOnMask, document.activeLayer?.hasMask == true {
+            let radius = (Self.number(body["size"]).map { CGFloat($0) } ?? session.brushSize) / 2
+            let gray: Double = erase ? 0 : 1
+            for point in points.map({ clamp($0, to: document.canvasSize) }) {
+                document.paintMask(at: point, radius: radius, gray: gray)
+            }
+            return ["ok": true, "paintedOn": "mask", "points": points.count]
+        }
         let size = Self.number(body["size"]).map { CGFloat($0) } ?? session.brushSize
         let opacity = Self.number(body["opacity"]) ?? session.brushOpacity
         let hardness = Self.number(body["hardness"]) ?? session.brushHardness

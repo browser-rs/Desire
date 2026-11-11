@@ -65,6 +65,8 @@ final class ImageEditorDocument: ObservableObject {
     @Published private(set) var previewFilter: ImageFilterPreset?
 
     private var bitmaps: [UUID: CGImage] = [:]
+    /// 图层蒙版位图（v0.8.54 批 2）：key = layer.id，灰度图（白 = 显示、黑 = 隐藏）。
+    private var masks: [UUID: CGImage] = [:]
     private var undoStack: [Snapshot] = []
     private var redoStack: [Snapshot] = []
     private var compositeCache: (revision: Int, image: CGImage?)?
@@ -86,6 +88,7 @@ final class ImageEditorDocument: ObservableObject {
         var title: String
         var layers: [ImageEditorLayer]
         var bitmaps: [UUID: CGImage]
+        var masks: [UUID: CGImage]
         var activeLayerID: UUID
         var selection: ImageEditorSelection
         var canvasSize: CGSize
@@ -159,7 +162,8 @@ final class ImageEditorDocument: ObservableObject {
             }
         }
         let image = ImageEditorRaster.composite(layers: effectiveLayers, bitmaps: effective,
-                                                size: canvasSize)
+                                                size: canvasSize,
+                                                masks: masks)
         compositeCache = (revision, image)
         return image
     }
@@ -220,6 +224,7 @@ final class ImageEditorDocument: ObservableObject {
 
     private func pushHistory(_ title: String) {
         undoStack.append(Snapshot(title: title, layers: layers, bitmaps: bitmaps,
+                                  masks: masks,
                                   activeLayerID: activeLayerID,
                                   selection: selection, canvasSize: canvasSize))
         if undoStack.count > maxHistory { undoStack.removeFirst() }
@@ -238,6 +243,7 @@ final class ImageEditorDocument: ObservableObject {
     func undo() {
         guard let snapshot = undoStack.popLast() else { return }
         redoStack.append(Snapshot(title: snapshot.title, layers: layers, bitmaps: bitmaps,
+                                  masks: masks,
                                   activeLayerID: activeLayerID,
                                   selection: selection, canvasSize: canvasSize))
         restore(snapshot)
@@ -250,6 +256,7 @@ final class ImageEditorDocument: ObservableObject {
     func redo() {
         guard let snapshot = redoStack.popLast() else { return }
         undoStack.append(Snapshot(title: snapshot.title, layers: layers, bitmaps: bitmaps,
+                                  masks: masks,
                                   activeLayerID: activeLayerID,
                                   selection: selection, canvasSize: canvasSize))
         restore(snapshot)
@@ -268,6 +275,7 @@ final class ImageEditorDocument: ObservableObject {
     private func restore(_ snapshot: Snapshot) {
         layers = snapshot.layers
         bitmaps = snapshot.bitmaps
+        masks = snapshot.masks
         activeLayerID = snapshot.activeLayerID
         selection = snapshot.selection
         canvasSize = snapshot.canvasSize
@@ -387,11 +395,94 @@ final class ImageEditorDocument: ObservableObject {
         pushHistory("Delete Layer")
         let removed = layers.remove(at: index)
         bitmaps[removed.id] = nil
+        masks[removed.id] = nil
         let next = min(index, layers.count - 1)
         activeLayerID = layers[max(0, next)].id
         compositeCache = nil
         commit()
     }
+
+    // MARK: - 图层蒙版（v0.8.54 批 2）
+
+    /// 给活动层添加白色蒙版（全显示，画黑隐藏）。
+    func addMask() {
+        guard !activeLayerID.uuidString.isEmpty,
+              masks[activeLayerID] == nil,
+              let bitmap = bitmaps[activeLayerID] else { return }
+        pushHistory("Add Mask")
+        let w = bitmap.width, h = bitmap.height
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: w,
+                                  space: CGColorSpaceCreateDeviceGray(),
+                                  bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return }
+        ctx.setFillColor(gray: 1, alpha: 1)
+        ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        masks[activeLayerID] = ctx.makeImage()
+        if let idx = layers.firstIndex(where: { $0.id == activeLayerID }) {
+            layers[idx].hasMask = true
+        }
+        compositeCache = nil
+        commit()
+    }
+
+    /// 移除图层蒙版（内容位图不变）。
+    func removeMask() {
+        pushHistory("Remove Mask")
+        masks[activeLayerID] = nil
+        if let idx = layers.firstIndex(where: { $0.id == activeLayerID }) {
+            layers[idx].hasMask = false
+            layers[idx].maskInverted = false
+        }
+        compositeCache = nil
+        commit()
+    }
+
+    /// 反转蒙版（黑白互换）。
+    func invertMask() {
+        guard let mask = masks[activeLayerID] else { return }
+        pushHistory("Invert Mask")
+        let w = mask.width, h = mask.height
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: w,
+                                  space: CGColorSpaceCreateDeviceGray(),
+                                  bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return }
+        ctx.setFillColor(gray: 0, alpha: 1)
+        ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        ctx.setBlendMode(.difference)
+        ctx.draw(mask, in: CGRect(x: 0, y: 0, width: w, height: h))
+        masks[activeLayerID] = ctx.makeImage()
+        if let idx = layers.firstIndex(where: { $0.id == activeLayerID }) {
+            layers[idx].maskInverted.toggle()
+        }
+        compositeCache = nil
+        commit()
+    }
+
+    /// 在蒙版上画软边圆（color: 0 = 黑隐藏 / 1 = 白显示）。画笔工具蒙版模式调用。
+    func paintMask(at point: CGPoint, radius: CGFloat, gray: Double) {
+        guard let mask = masks[activeLayerID] else { return }
+        let w = mask.width, h = mask.height
+        let softMask = ImageEditorRaster.softMask(
+            size: CGSize(width: w, height: h),
+            center: CGPoint(x: point.x, y: CGFloat(h) - point.y),
+            radius: radius, strength: gray
+        )
+        guard let overlay = softMask else { return }
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: w,
+                                  space: CGColorSpaceCreateDeviceGray(),
+                                  bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return }
+        ctx.draw(mask, in: CGRect(x: 0, y: 0, width: w, height: h))
+        // gray > 0.5 = 白（显示），gray < 0.5 = 黑（隐藏）；最大亮度合成。
+        ctx.setBlendMode(gray > 0.5 ? .plusLighter : .multiply)
+        ctx.draw(overlay, in: CGRect(x: 0, y: 0, width: w, height: h))
+        masks[activeLayerID] = ctx.makeImage()
+        compositeCache = nil
+        revision += 1
+    }
+
+    /// 蒙版位图（图层面板缩略图 / 导出）。
+    func mask(for layerID: UUID) -> CGImage? { masks[layerID] }
 
     func moveActiveLayer(up: Bool) {
         guard let index = layers.firstIndex(where: { $0.id == activeLayerID }) else { return }
@@ -474,7 +565,7 @@ final class ImageEditorDocument: ObservableObject {
         guard layers.count > 1 else { return }
         pushHistory("Flatten")
         guard let flat = ImageEditorRaster.composite(layers: layers, bitmaps: bitmaps,
-                                                     size: canvasSize) else { return }
+                                                     size: canvasSize, masks: masks) else { return }
         let background = ImageEditorLayer(id: UUID(), name: "Background")
         layers = [background]
         bitmaps = [background.id: flat]

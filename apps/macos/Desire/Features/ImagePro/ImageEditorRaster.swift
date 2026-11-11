@@ -111,7 +111,8 @@ nonisolated enum ImageEditorRaster {
                           bitmaps: [UUID: CGImage],
                           size: CGSize,
                           matching: ((ImageEditorLayer) -> Bool)? = nil,
-                          maxRenderSide: CGFloat? = nil) -> CGImage? {
+                          maxRenderSide: CGFloat? = nil,
+                          masks: [UUID: CGImage]? = nil) -> CGImage? {
         // 显示比例：画布最长边钳到 maxRenderSide（仅显示路径）。
         let renderScale: CGFloat
         if let maxRenderSide {
@@ -144,6 +145,10 @@ nonisolated enum ImageEditorRaster {
             if layer.style?.isActive == true {
                 bitmap = styled(bitmap, style: layer.style!) ?? bitmap
             }
+            // 图层蒙版（v0.8.54 批 2）：灰度图亮度 × 图层 alpha——白显示/黑隐藏。
+            if layer.hasMask, let mask = masks?[layer.id] {
+                bitmap = maskApplied(bitmap, mask: mask, inverted: layer.maskInverted) ?? bitmap
+            }
             ctx.saveGState()
             ctx.setAlpha(CGFloat(layer.opacity))
             ctx.setBlendMode(layer.blend.cgBlendMode)
@@ -163,6 +168,23 @@ nonisolated enum ImageEditorRaster {
             ctx.draw(bitmap, in: CGRect(x: -bw / 2, y: -bh / 2, width: bw, height: bh))
             ctx.restoreGState()
         }
+        return ctx.makeImage()
+    }
+
+    /// 图层蒙版应用（v0.8.54 批 2）：把灰度蒙版乘入图层位图的 alpha 通道。
+    /// 白 = 保留、黑 = 隐藏；inverted 反转（蒙版反转快捷键）。
+    static func maskApplied(_ bitmap: CGImage, mask: CGImage, inverted: Bool) -> CGImage? {
+        let w = bitmap.width, h = bitmap.height
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.interpolationQuality = .none
+        ctx.draw(bitmap, in: CGRect(x: 0, y: 0, width: w, height: h))
+        // 蒙版 → 灰度 alpha：destinationIn 用 mask 的亮度。
+        ctx.setBlendMode(inverted ? .xor : .destinationIn)
+        ctx.draw(mask, in: CGRect(x: 0, y: 0, width: w, height: h))
         return ctx.makeImage()
     }
 

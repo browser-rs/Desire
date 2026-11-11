@@ -243,6 +243,12 @@ struct ImageEditorLayersPanel: View {
                     .font(.system(size: 8))
                     .foregroundStyle(.tertiary)
             }
+            if layer.hasMask {
+                Image(systemName: "theatermasks")
+                    .font(.system(size: 8))
+                    .foregroundStyle(appAccent.opacity(0.7))
+                    .help(String(localized: "Has mask"))
+            }
             if layer.blend != .normal {
                 Text(layer.blend.localizedTitle)
                     .font(.system(size: 9))
@@ -277,6 +283,23 @@ struct ImageEditorLayersPanel: View {
             Button(String(localized: "Merge Down")) {
                 document.selectLayer(layer.id)
                 document.mergeDown()
+            }
+            Divider()
+            // 图层蒙版（v0.8.54 批 2）：添加/移除/反转。
+            if layer.hasMask {
+                Button(String(localized: "Invert Mask")) {
+                    document.selectLayer(layer.id)
+                    document.invertMask()
+                }
+                Button(String(localized: "Remove Mask")) {
+                    document.selectLayer(layer.id)
+                    document.removeMask()
+                }
+            } else {
+                Button(String(localized: "Add Mask")) {
+                    document.selectLayer(layer.id)
+                    document.addMask()
+                }
             }
             Divider()
             Button(String(localized: "Delete Layer")) {

@@ -80,6 +80,8 @@ enum ToolID: String, CaseIterable, Identifiable {
     case timezone, zhConvert, pinyin, zhTypography, contrast, qrDecode
     // 文件批（v0.8.33）：批量重命名 / 压缩解压
     case batchRename, archive
+    /// 批量纯工具（v0.8.51）：正则替换 / 哈希 / 编码转换，逐文件进 Jobs。
+    case batchTools
     // 流水线（v0.8.38 A5）
     case pipeline
 
@@ -98,7 +100,7 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .videoEditor, .audioEditor, .imageConvert, .subtitle,
              .mediaConvert, .videoGIF: return .media
         case .pdfMerge, .pdfSplit, .pdfRotate, .pdfToImages, .imagesToPDF, .imageOCR,
-             .batchRename, .archive: return .document
+             .batchRename, .archive, .batchTools: return .document
         case .morse, .dataURI, .width, .csvJSON: return .codec
         case .diff, .xml, .sql, .urlParse, .cidr, .httpStatus, .mime, .userAgent, .cron: return .dev
         case .pipeline: return .dev
@@ -195,6 +197,7 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .contrast: return String(localized: "Contrast Checker")
         case .qrDecode: return String(localized: "Barcode Scanner")
         case .batchRename: return String(localized: "Batch Rename")
+        case .batchTools: return String(localized: "Batch Tools")
         case .archive: return String(localized: "Archive")
         case .pipeline: return String(localized: "Pipeline")
         }
@@ -284,6 +287,7 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .contrast: return String(localized: "WCAG contrast ratio with AA/AAA ratings and a small palette")
         case .qrDecode: return String(localized: "Decode QR codes and barcodes from an image or the clipboard")
         case .batchRename: return String(localized: "Rename many files with find/replace, numbering, dates and a live conflict preview")
+        case .batchTools: return String(localized: "Run regex replace, hashing or encoding conversion across many files; every run lands in Jobs with per-file results")
         case .archive: return String(localized: "Create ZIP/TAR.GZ archives or extract them with zip-slip protection")
         case .pipeline: return String(localized: "Chain text tools into one reusable flow, with each step feeding the next")
         }
@@ -373,6 +377,7 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .contrast: return "circle.lefthalf.filled"
         case .qrDecode: return "qrcode.viewfinder"
         case .batchRename: return "character.cursor.ibeam"
+        case .batchTools: return "square.stack.3d.up"
         case .archive: return "archivebox"
         case .pipeline: return "point.topleft.down.to.point.bottomright.curvepath"
         }
@@ -464,6 +469,7 @@ enum ToolID: String, CaseIterable, Identifiable {
         case .contrast: keywords = ["对比度", "wcag", "无障碍", "配色", "aa", "aaa"]
         case .qrDecode: keywords = ["二维码", "条码", "扫描", "识别", "qr", "barcode"]
         case .batchRename: keywords = ["批量", "重命名", "改名", "rename", "正则", "序号"]
+        case .batchTools: keywords = ["批量", "正则", "替换", "哈希", "编码", "转换", "batch", "regex", "hash", "encoding"]
         case .archive: keywords = ["压缩", "解压", "zip", "tar", "gz", "归档", "archive"]
         case .pipeline: keywords = ["流水线", "管道", "多步", "批量", "pipeline", "chain", "workflow"]
         }

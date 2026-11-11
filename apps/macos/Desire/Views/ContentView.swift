@@ -791,6 +791,22 @@ struct ContentView: View {
                         }
                         tabManager.closeToTheRight(of: index)
                     },
+                    onCloseTabsToLeft: { index in
+                        for i in (0..<index) {
+                            thumbnailStore.clearThumbnail(for: tabManager.tabs[i].id)
+                        }
+                        tabManager.closeToTheLeft(of: index)
+                    },
+                    onCopyAllTabLinks: { markdown in
+                        // 无痕标签的 URL 不进剪贴板（批量导出不做隐私外泄）。
+                        let pairs = tabManager.tabs.filter { !$0.isIncognito }.map { tab in
+                            (title: tab.displayTitle,
+                             url: tab.browser.webView.url?.absoluteString ?? tab.urlString)
+                        }
+                        let text = TabLinkList.render(TabLinkList.entries(pairs), markdown: markdown)
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(text, forType: .string)
+                    },
                     onRemoveFromGroup: { tabGroupStore.removeTabFromAll($0) },
                     tabGroups: tabGroupStore.groups,
                     onToggleGroupCollapse: { tabGroupStore.toggleCollapsed($0) },

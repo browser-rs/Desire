@@ -8528,6 +8528,9 @@ testResearchBriefSearchParser()
 testAgentToolCatalog()
 testToolChainCore()
 testToolResultBudget()
+testTabLinkList()
+testToolResultDispatch()
+testBatchToolCore()
 
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
@@ -10291,6 +10294,8 @@ func testAgentToolCatalog() {
         if AgentToolCatalog.classify(name: name) == .other { other += 1 }
     }
     check("工具目录：other 占比 < 15%", Double(other) / Double(max(1, names.count)) < 0.15)
+    check("工具目录：批量文件作业归 files", AgentToolCatalog.classify(name: "runBatchTool") == .files)
+    check("工具目录：工具链不落 other", AgentToolCatalog.classify(name: "runToolChain") != .other)
 
     // 压缩比：283 个工具、每个 60 字摘要 → 分组摘要必须显著更小。
     let tools = names.map { (name: $0, summary: String(repeating: "x", count: 60)) }
@@ -10400,4 +10405,175 @@ func testToolResultBudget() {
     eq("结果预算：默认值", ToolResultBudget.budget(for: "getPageTitle"), 24_000)
     let fileOver = String(repeating: "c", count: 30_000)
     eq("结果预算：覆盖内不截断", ToolResultBudget.apply(fileOver, tool: "readFile"), fileOver)
+}
+
+
+// ---------- 标签链接清单（v0.8.51 批 4） ----------
+
+func testTabLinkList() {
+    check("标签链接：跳过 about:blank", !TabLinkList.isCopyable(url: "about:blank"))
+    check("标签链接：跳过新标签页", !TabLinkList.isCopyable(url: "desire://newtab"))
+    check("标签链接：跳过空白 URL", !TabLinkList.isCopyable(url: "  "))
+    check("标签链接：保留普通 URL", TabLinkList.isCopyable(url: "https://example.com/a"))
+
+    let entries = TabLinkList.entries([
+        (title: " Example ", url: " https://example.com/a "),
+        (title: "", url: "https://news.example.com/x"),
+        (title: "Blank", url: "about:blank"),
+        (title: "New Tab", url: "desire://newtab"),
+    ])
+    eq("标签链接：过滤占位并去空白", entries.count, 2)
+    eq("标签链接：首条 URL 去空白", entries[0].url, "https://example.com/a")
+    eq("标签链接：标题去空白", entries[0].title, "Example")
+    eq("标签链接：标题空回退 host", entries[1].title, "news.example.com")
+    eq("标签链接：Markdown 列表", TabLinkList.render(entries, markdown: true),
+       "[Example](https://example.com/a)\n[news.example.com](https://news.example.com/x)")
+    eq("标签链接：纯文本只有 URL", TabLinkList.render(entries, markdown: false),
+       "https://example.com/a\nhttps://news.example.com/x")
+    eq("标签链接：空清单", TabLinkList.render([], markdown: true), "")
+    eq("标签链接：标题方括号转义",
+       TabLinkList.markdownLine(.init(title: "a [b]", url: "https://e.com")),
+       "[a \\[b\\]](https://e.com)")
+    eq("标签链接：URL 带右括号用尖括号",
+       TabLinkList.markdownLine(.init(title: "w", url: "https://e.com/a(b)")),
+       "[w](<https://e.com/a(b)>)")
+    eq("标签链接：换行与制表压成空格", TabLinkList.escapeTitle("a\nb\tc\rd"), "a b c d")
+    eq("标签链接：顺序保持且不去重",
+       TabLinkList.render(TabLinkList.entries([
+           (title: "A", url: "https://a.com"),
+           (title: "A again", url: "https://a.com"),
+       ]), markdown: false),
+       "https://a.com\nhttps://a.com")
+}
+
+
+// ---------- 工具结果分发（v0.8.51 批 4） ----------
+
+func testToolResultDispatch() {
+    // 文本出口：空与图片被拒
+    check("结果分发：空结果不进文本出口", ToolResultDispatch.text("   ") == nil)
+    check("结果分发：图片结果不进文本出口",
+          ToolResultDispatch.text("data:image/png;base64,AAAA") == nil)
+    eq("结果分发：文本去首尾空白", ToolResultDispatch.text("  hi  ") ?? "", "hi")
+
+    // Markdown：json 围栏
+    let json = "{\"a\":1}"
+    let md = ToolResultDispatch.markdown(tool: "executeJS", result: json)
+    check("结果分发：Markdown 标题用工具名", md.hasPrefix("### executeJS\n\n"))
+    check("结果分发：JSON 用 json 围栏", md.contains("```json\n{\"a\":1}\n```"))
+    let plain = ToolResultDispatch.markdown(tool: "getPageText", result: "hello")
+    check("结果分发：纯文本无语言标记", plain.contains("```\nhello\n```"))
+
+    // 围栏避让：内容自带三个反引号 → 用四个
+    let tricky = "before ```inner``` after"
+    let trickyMD = ToolResultDispatch.markdown(tool: "readFile", result: tricky)
+    check("结果分发：围栏加长", trickyMD.contains("````\n" + tricky + "\n````"))
+
+    // 截断：超 20k 带显式标记
+    let huge = String(repeating: "x", count: ToolResultDispatch.contentLimit + 50)
+    let clipped = ToolResultDispatch.clipped(huge)
+    check("结果分发：截断到上限", clipped.hasPrefix(String(repeating: "x", count: ToolResultDispatch.contentLimit)))
+    check("结果分发：截断带标记", clipped.contains("truncated 50 chars"))
+
+    // 白板载荷：标题 + 笔记正文；空结果 nil
+    let payload = ToolResultDispatch.whiteboardPayload(tool: "getPageText", result: "正文")
+    eq("结果分发：白板标题 = 工具名", payload?.title ?? "", "getPageText")
+    check("结果分发：白板内容含结果", payload?.content.contains("正文") == true)
+    check("结果分发：图片不发白板", ToolResultDispatch.whiteboardPayload(
+        tool: "screenshot", result: "data:image/png;base64,AA") == nil)
+
+    // 摘录：原文（不带 Markdown 包装）
+    eq("结果分发：摘录正文是原文",
+       ToolResultDispatch.excerptContent(tool: "executeJS", result: "  {\"a\":1}  ") ?? "",
+       "{\"a\":1}")
+    check("结果分发：图片不存摘录",
+          ToolResultDispatch.excerptContent(tool: "screenshot", result: "data:image/png;base64,AA") == nil)
+}
+
+
+// ---------- 批量纯工具（v0.8.51 批 4） ----------
+
+func testBatchToolCore() {
+    let manager = FileManager.default
+    let root = manager.temporaryDirectory
+        .appendingPathComponent("batch-tool-tests-\(UUID().uuidString)")
+    try? manager.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? manager.removeItem(at: root) }
+
+    // 编码表
+    check("批量：gb18030 可用", BatchToolCore.encoding(named: "gb18030") != nil)
+    check("批量：utf-8 可用", BatchToolCore.encoding(named: "utf-8") == .utf8)
+    check("批量：未知编码为 nil", BatchToolCore.encoding(named: "klingon") == nil)
+
+    // 写好 fixture
+    let a = root.appendingPathComponent("a.txt")
+    try? "hello foo world foo".write(to: a, atomically: true, encoding: .utf8)
+    let b = root.appendingPathComponent("b.txt")
+    try? "second".write(to: b, atomically: true, encoding: .utf8)
+
+    // 目录展开
+    let expanded = BatchToolCore.expand(paths: [root.path])
+    eq("批量：目录展开文件数", expanded.count, 2)
+
+    // 正则替换：输出到旁边、源文件不动
+    var regexOptions = BatchToolOptions()
+    regexOptions.pattern = "foo"
+    regexOptions.template = "bar"
+    let regexResult = BatchToolCore.process(file: a, action: .regexReplace, options: regexOptions)
+    check("批量：正则成功", regexResult.isSuccess)
+    let sourceText = (try? String(contentsOf: a, encoding: .utf8)) ?? ""
+    eq("批量：源文件未被修改", sourceText, "hello foo world foo")
+    let outputText = regexResult.output.flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? ""
+    eq("批量：输出已替换", outputText, "hello bar world bar")
+    eq("批量：输出文件名带后缀",
+       regexResult.output?.lastPathComponent ?? "", "a.batch.txt")
+
+    // 哈希（sha256("hello") 的已知值）
+    let hello = root.appendingPathComponent("hello.txt")
+    try? "hello".write(to: hello, atomically: true, encoding: .utf8)
+    var hashOptions = BatchToolOptions()
+    hashOptions.algorithm = .sha256
+    let hashResult = BatchToolCore.process(file: hello, action: .hash, options: hashOptions)
+    eq("批量：sha256 已知值", hashResult.value ?? "",
+       "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824")
+    check("批量：哈希不写文件", hashResult.output == nil)
+
+    // 编码转换 utf-8 → utf-16
+    var encodingOptions = BatchToolOptions()
+    encodingOptions.fromEncoding = "utf-8"
+    encodingOptions.toEncoding = "utf-16"
+    let encodingResult = BatchToolCore.process(file: hello, action: .encoding, options: encodingOptions)
+    check("批量：编码转换成功", encodingResult.isSuccess)
+    let converted = encodingResult.output.flatMap { try? Data(contentsOf: $0) } ?? Data()
+    eq("批量：编码转换内容正确", String(data: converted, encoding: .utf16) ?? "", "hello")
+    eq("批量：编码输出文件名", encodingResult.output?.lastPathComponent ?? "", "hello.utf-16.txt")
+
+    // 失败可见：不可解码的文件
+    let binary = root.appendingPathComponent("binary.txt")
+    try? Data([0xFF, 0xFE, 0x00]).write(to: binary)
+    var strict = BatchToolOptions()
+    strict.fromEncoding = "utf-8"
+    strict.toEncoding = "utf-16"
+    let failed = BatchToolCore.process(file: binary, action: .encoding, options: strict)
+    check("批量：解码失败逐文件报错", !failed.isSuccess && (failed.error ?? "").contains("decode"))
+
+    // 摘要：成功/失败行都出现
+    let summary = BatchToolCore.summary(action: .encoding, results: [encodingResult, failed])
+    check("批量：摘要带成功行", summary.contains("✓ hello.txt"))
+    check("批量：摘要带失败行", summary.contains("✗ binary.txt"))
+    check("批量：摘要统计", summary.contains("1/2 ok"))
+
+    // parseRequest 校验
+    switch BatchToolCore.parseRequest(["action": "regexReplace", "paths": [a.path]]) {
+    case .success: check("批量：缺 pattern 被拒", false)
+    case .failure(let error): check("批量：缺 pattern 被拒", error.message.contains("pattern"))
+    }
+    switch BatchToolCore.parseRequest(["action": "nope", "paths": [a.path]]) {
+    case .success: check("批量：非法 action 被拒", false)
+    case .failure: check("批量：非法 action 被拒", true)
+    }
+    switch BatchToolCore.parseRequest(["action": "hash", "paths": [a.path]]) {
+    case .success(let request): check("批量：parseRequest 命中文件", request.files.count == 1)
+    case .failure: check("批量：parseRequest 命中文件", false)
+    }
 }

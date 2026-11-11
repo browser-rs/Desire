@@ -766,6 +766,23 @@ class TabManager: ObservableObject {
         persistSession()
     }
 
+    func closeToTheLeft(of index: Int) {
+        guard tabs.indices.contains(index) else { return }
+        let toRemove = Array(tabs[..<index])
+        for tab in toRemove {
+            recordClosed(tab)
+            tearDown(tab)
+        }
+        tabs = Array(tabs[index...])
+        // 选中项在被删的左段里 → 落到原 index 那个标签（现在在 0 位）；
+        // 否则索引整体左移 index。
+        selectedIndex = selectedIndex < index ? 0 : selectedIndex - index
+        if let partnerID = splitPartnerID, !tabs.contains(where: { $0.id == partnerID }) {
+            splitPartnerID = nil
+        }
+        persistSession()
+    }
+
     func closeToTheRight(of index: Int) {
         guard tabs.indices.contains(index) else { return }
         let toRemove = Array(tabs[(index + 1)...])

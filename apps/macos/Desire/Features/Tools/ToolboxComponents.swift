@@ -106,6 +106,22 @@ struct ToolOutput: View {
                 .background(RoundedRectangle(cornerRadius: 7)
                     .fill(Color(nsColor: .controlBackgroundColor)))
                 .foregroundStyle(text.isEmpty ? AnyShapeStyle(.tertiary) : AnyShapeStyle(.primary))
+            if !text.isEmpty {
+                // 结果分发（v0.8.51 融合）：白板 / 摘录 / Markdown。
+                ResultDispatchBar(
+                    text: text,
+                    toolName: title,
+                    onWhiteboard: {
+                        ToolResultDispatcher.sendToWhiteboard(
+                            tool: title, result: text, conversationID: nil)
+                    },
+                    onExcerpt: {
+                        ToolResultDispatcher.saveExcerpt(
+                            tool: title, result: text,
+                            sourceTitle: title, sourceURL: "desire://tools")
+                    }
+                )
+            }
         }
     }
 }

@@ -57,7 +57,7 @@ def main():
     check("query 命中排第一（readFile）", first.startswith("readFile —"), first[:60])
     check("展开带参数签名", "params: path:string" in expanded)
 
-    files = call("/diag/list-tools?group=files").get("text", "")
+    files = call("/diag/list-tools?group=files&limit=40").get("text", "")
     check("group=files 展开 readFile", "readFile —" in files and "params:" in files)
     check("group=files 含 writeFile", "writeFile —" in files)
 

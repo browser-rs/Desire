@@ -24,6 +24,8 @@ struct VerticalTabBarView: View {
     let onTogglePin: (Int) -> Void
     let onCloseOtherTabs: (Int) -> Void
     let onCloseTabsToRight: (Int) -> Void
+    let onCloseTabsToLeft: (Int) -> Void
+    let onCopyAllTabLinks: (Bool) -> Void
     let onRemoveFromGroup: (UUID) -> Void
     /// 标签组全套操作（v0.7.18 UI 收口）：与顶部栏同款的折叠行 + 右键菜单
     /// （重命名 / 折叠 / 删组 / 移出组 / 加入组）——此前侧栏只有"移出组"
@@ -235,12 +237,18 @@ struct VerticalTabBarView: View {
         .contextMenu {
             Button("Reload") { onReloadTab(tab) }
             Button("Copy URL") { onCopyTabURL(tab) }
+            Menu("Copy All Tab Links") {
+                Button("Markdown List") { onCopyAllTabLinks(true) }
+                Button("Plain URLs") { onCopyAllTabLinks(false) }
+            }
             Button(tab.audioMuted ? "Unmute Tab" : "Mute Tab") { onToggleAudioMute(index) }
             Button(tab.isPinned ? "Unpin Tab" : "Pin Tab") { onTogglePin(index) }
             Divider()
             Button("Close Tab") { onCloseTab(index) }
             Button("Close Other Tabs") { onCloseOtherTabs(index) }
-            Button("Close Tabs to the Right") { onCloseTabsToRight(index) }
+            Button("Close Tabs to Left") { onCloseTabsToLeft(index) }
+                .disabled(index <= 0)
+            Button("Close Tabs to Right") { onCloseTabsToRight(index) }
             Divider()
             // 组操作与顶部栏胶囊一致（v0.7.18）：组名进菜单标题，改名/折叠/
             // 删组/移出组齐备；未入组的提供"加入组"。

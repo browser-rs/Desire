@@ -28,6 +28,9 @@ struct TabBar: View {
     @FocusState private var isSearchFocused: Bool
     let onCloseOtherTabs: (Int) -> Void
     let onCloseTabsToRight: (Int) -> Void
+    let onCloseTabsToLeft: (Int) -> Void
+    /// 复制整排标签的链接（v0.8.51 浏览器基础）：参数 = Markdown 还是纯文本。
+    let onCopyAllTabLinks: (Bool) -> Void
     /// 休眠其他标签（v0.8.33 浏览器基础）：保留快照、释放 live page。
     let onSuspendOtherTabs: () -> Void
     let onToggleAudioMute: (Int) -> Void
@@ -146,7 +149,9 @@ struct TabBar: View {
                                     toggleAudioMute: onToggleAudioMute,
                                     togglePin: onTogglePin,
                                     closeOtherTabs: onCloseOtherTabs,
+                                    closeTabsToLeft: onCloseTabsToLeft,
                                     closeTabsToRight: onCloseTabsToRight,
+                                    copyAllTabLinks: onCopyAllTabLinks,
                                     suspendOtherTabs: onSuspendOtherTabs,
                                     addTab: onAddTab,
                                     createGroup: onCreateGroup,
@@ -217,7 +222,9 @@ struct TabBar: View {
                                     toggleAudioMute: onToggleAudioMute,
                                     togglePin: onTogglePin,
                                     closeOtherTabs: onCloseOtherTabs,
+                                    closeTabsToLeft: onCloseTabsToLeft,
                                     closeTabsToRight: onCloseTabsToRight,
+                                    copyAllTabLinks: onCopyAllTabLinks,
                                     suspendOtherTabs: onSuspendOtherTabs,
                                     addTab: onAddTab,
                                     createGroup: onCreateGroup,
@@ -352,7 +359,9 @@ struct TabBar: View {
         let toggleAudioMute: (Int) -> Void
         let togglePin: (Int) -> Void
         let closeOtherTabs: (Int) -> Void
+        let closeTabsToLeft: (Int) -> Void
         let closeTabsToRight: (Int) -> Void
+        let copyAllTabLinks: (Bool) -> Void
         let suspendOtherTabs: () -> Void
         let addTab: () -> Void
         let createGroup: (Int) -> Void
@@ -595,6 +604,10 @@ private struct TabPillView: View {
         Button(String(localized: "Unload Other Tabs")) { actions.suspendOtherTabs() }
             .disabled(tabs.count <= 1)
         Button("Copy URL") { actions.copyTabURL(tab) }
+        Menu("Copy All Tab Links") {
+            Button("Markdown List") { actions.copyAllTabLinks(true) }
+            Button("Plain URLs") { actions.copyAllTabLinks(false) }
+        }
         Button("Copy Performance Snapshot") { actions.copyPerfSnapshot(tab) }
             .disabled(tab.isOnNewTabPage)
         Button(index == splitPartnerIndex ? "Remove from Split" : "Show Alongside (Split)") {
@@ -642,6 +655,8 @@ private struct TabPillView: View {
             .disabled(tabs.count <= 1)
         Button("Close Other Tabs") { actions.closeOtherTabs(index) }
             .disabled(tabs.count <= 1)
+        Button("Close Tabs to Left") { actions.closeTabsToLeft(index) }
+            .disabled(index <= 0)
         Button("Close Tabs to Right") { actions.closeTabsToRight(index) }
             .disabled(index >= tabs.count - 1)
     }

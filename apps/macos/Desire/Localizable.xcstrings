@@ -105085,6 +105085,578 @@
           }
         }
       }
+    },
+    "Copy All Tab Links":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Copy All Tab Links"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"复制全部标签链接"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"複製全部分頁連結"
+          }
+        }
+      }
+    },
+    "Markdown List":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Markdown List"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Markdown 列表"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Markdown 清單"
+          }
+        }
+      }
+    },
+    "Plain URLs":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Plain URLs"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"纯 URL 列表"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"純 URL 清單"
+          }
+        }
+      }
+    },
+    "Close Tabs to Left":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Close Tabs to Left"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"关闭左侧标签"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"關閉左側分頁"
+          }
+        }
+      }
+    },
+    "Batch Tools":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Batch Tools"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批量工具"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批次工具"
+          }
+        }
+      }
+    },
+    "Run regex replace, hashing or encoding conversion across many files; every run lands in Jobs with per-file results":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Run regex replace, hashing or encoding conversion across many files; every run lands in Jobs with per-file results"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批量执行正则替换、哈希或编码转换；每次运行进 Jobs 台账并逐文件给出结果"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批次執行正規表示式取代、雜湊或編碼轉換；每次執行進 Jobs 帳本並逐檔案給出結果"
+          }
+        }
+      }
+    },
+    "Add files or a folder. Source files are never modified.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Add files or a folder. Source files are never modified."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"添加文件或文件夹。源文件永远不会被修改。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"新增檔案或資料夾。來源檔案永遠不會被修改。"
+          }
+        }
+      }
+    },
+    "Text encoding":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Text encoding"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"文本编码"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"文字編碼"
+          }
+        }
+      }
+    },
+    "Output Folder…":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Output Folder…"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"输出文件夹…"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"輸出資料夾…"
+          }
+        }
+      }
+    },
+    "Output goes next to each source file with a suffix; sources are never modified.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Output goes next to each source file with a suffix; sources are never modified."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"结果写到每个源文件旁带后缀的新文件；源文件不会被修改。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"結果寫到每個來源檔案旁帶後綴的新檔案；來源檔案不會被修改。"
+          }
+        }
+      }
+    },
+    "Run Batch":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Run Batch"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"开始批量"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"開始批次"
+          }
+        }
+      }
+    },
+    "Hash runs do not write files; digests appear in the results and in Jobs.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Hash runs do not write files; digests appear in the results and in Jobs."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"哈希只计算摘要、不写文件；结果会出现在结果区与 Jobs 里。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"雜湊只計算摘要、不寫檔案；結果會出現在結果區與 Jobs 裡。"
+          }
+        }
+      }
+    },
+    "Batch %@":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Batch %@"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批量 %@"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批次 %@"
+          }
+        }
+      }
+    },
+    "%lld of %lld file(s) succeeded.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"%lld of %lld file(s) succeeded."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"%lld / %lld 个文件成功。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"%lld / %lld 個檔案成功。"
+          }
+        }
+      }
+    },
+    "Encoding Convert":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Encoding Convert"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"编码转换"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"編碼轉換"
+          }
+        }
+      }
+    },
+    "Replacement":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Replacement"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"替换为"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"取代為"
+          }
+        }
+      }
+    },
+    "Case insensitive":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Case insensitive"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"忽略大小写"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"忽略大小寫"
+          }
+        }
+      }
+    },
+    "Algorithm":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Algorithm"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"算法"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"演算法"
+          }
+        }
+      }
+    },
+    "Tools you can actually find":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Tools you can actually find"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"工具真的找得到"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"工具真的找得到"
+          }
+        }
+      }
+    },
+    "The tool index is grouped by domain — 16 lines instead of 284 — and listTools expands any group or search term with full parameter signatures on demand.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The tool index is grouped by domain — 16 lines instead of 284 — and listTools expands any group or search term with full parameter signatures on demand."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"工具索引按域分组——284 行变 16 行——listTools 可按组或关键词按需展开完整参数签名。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"工具索引按域分組——284 行變 16 行——listTools 可按組或關鍵詞按需展開完整參數簽名。"
+          }
+        }
+      }
+    },
+    "Chain tools in one call":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Chain tools in one call"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一次调用串起多个工具"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一次呼叫串起多個工具"
+          }
+        }
+      }
+    },
+    "runToolChain runs up to 10 tools in order with $prev/$n variables, stop-or-continue failure rules, and an optional background job for long chains.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"runToolChain runs up to 10 tools in order with $prev/$n variables, stop-or-continue failure rules, and an optional background job for long chains."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"runToolChain 按顺序最多跑 10 个工具，支持 $prev/$n 变量、失败停止或继续，长链可转后台 Jobs。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"runToolChain 按順序最多跑 10 個工具，支援 $prev/$n 變數、失敗停止或繼續，長鏈可轉後台 Jobs。"
+          }
+        }
+      }
+    },
+    "Bounded, cancellable, measurable":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Bounded, cancellable, measurable"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"有边界、可取消、可度量"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"有邊界、可取消、可度量"
+          }
+        }
+      }
+    },
+    "Tool results cap at 24k characters with an explicit marker, ordinary tools time out after 120s instead of hanging the turn, and a per-tool stats endpoint shows what fails and what is slow.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Tool results cap at 24k characters with an explicit marker, ordinary tools time out after 120s instead of hanging the turn, and a per-tool stats endpoint shows what fails and what is slow."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"工具结果默认 24k 字符封顶并显式标记；普通工具 120s 超时不再挂死回合；逐工具统计端点看清谁失败、谁慢。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"工具結果預設 24k 字元封頂並明確標記；一般工具 120s 逾時不再掛死回合；逐工具統計端點看清誰失敗、誰慢。"
+          }
+        }
+      }
+    },
+    "Batch work that keeps going":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Batch work that keeps going"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批量活可以一直跑"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批次活可以一直跑"
+          }
+        }
+      }
+    },
+    "Batch regex replace, hashing and encoding conversion run through the Jobs ledger with per-file results — plus copy-all-tab links, close-left/right, and one-click send of any tool result to the whiteboard or Excerpts.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Batch regex replace, hashing and encoding conversion run through the Jobs ledger with per-file results — plus copy-all-tab links, close-left/right, and one-click send of any tool result to the whiteboard or Excerpts."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批量正则替换、哈希、编码转换走 Jobs 台账并逐文件给结果——另有复制全部标签链接、关闭左/右标签，以及任意工具结果一键发白板或摘录。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批次正規表示式取代、雜湊、編碼轉換走 Jobs 帳本並逐檔案給結果——另有複製全部分頁連結、關閉左/右分頁，以及任意工具結果一鍵送白板或摘錄。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

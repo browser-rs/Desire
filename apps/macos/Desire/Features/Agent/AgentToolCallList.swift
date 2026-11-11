@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import WebKit
 
 /// Inline rendering of a `data:image/…` tool result inside a chip.
 private struct InlineResultImage: View {
@@ -51,6 +52,8 @@ struct ToolCallList: View {
     var results: [String: String] = [:]
     /// toolCallId → 耗时（毫秒）。用来在聊天里直接看出"哪个工具慢"。
     var durations: [String: Double] = [:]
+    /// 白板按会话分板（v0.8.51 分发条）；nil = 默认板。
+    var conversationID: String? = nil
     /// 展开的折叠段（段序号）——默认全部折叠（≥3 同名才成段）。
     @State private var expandedRuns: Set<Int> = []
 
@@ -63,7 +66,8 @@ struct ToolCallList: View {
                 } else {
                     ForEach(toolCalls[group.range]) { call in
                         ToolCallChip(toolCall: call, result: results[call.id],
-                                     durationMs: durations[call.id])
+                                     durationMs: durations[call.id],
+                                     conversationID: conversationID)
                     }
                 }
             }
@@ -121,6 +125,7 @@ private struct ToolCallChip: View {
     let toolCall: AgentToolCall
     var result: String?
     var durationMs: Double?
+    var conversationID: String? = nil
     @State private var isExpanded = false
     @State private var isHovering = false
 
@@ -242,6 +247,26 @@ private struct ToolCallChip: View {
                                 .font(.system(size: 10, design: .monospaced))
                                 .foregroundStyle(.primary.opacity(0.85))
                                 .textSelection(.enabled)
+                            // 一键分发（v0.8.51 融合）：白板 / 摘录 / Markdown。
+                            ResultDispatchBar(
+                                text: result,
+                                toolName: toolCall.function.name,
+                                onWhiteboard: {
+                                    ToolResultDispatcher.sendToWhiteboard(
+                                        tool: toolCall.function.name,
+                                        result: result,
+                                        conversationID: conversationID)
+                                },
+                                onExcerpt: {
+                                    let tab = TabSessionCoordinator.shared.activeTabManager?.selectedTab
+                                    return ToolResultDispatcher.saveExcerpt(
+                                        tool: toolCall.function.name,
+                                        result: result,
+                                        sourceTitle: tab?.displayTitle ?? "",
+                                        sourceURL: tab?.browser.webView.url?.absoluteString
+                                            ?? "desire://agent")
+                                }
+                            )
                         }
                     }
                 }

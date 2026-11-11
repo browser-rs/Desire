@@ -283,7 +283,7 @@ struct ToolsPageView: View {
     private func detailWidth(_ tool: ToolID) -> CGFloat {
         switch tool {
         case .videoEditor, .audioEditor,
-             .batchRename, .archive,
+             .batchRename, .archive, .batchTools,
              .json, .csvJSON, .structuredData, .diff, .markdown, .xml:
             return Layout.wideMaxWidth
         default:
@@ -416,6 +416,7 @@ struct ToolsPageView: View {
         case .pdfToImages: PDFToImagesToolView()
         case .imagesToPDF: ImagesToPDFToolView()
         case .imageOCR: ImageOCRToolView()
+        case .batchTools: BatchToolsView()
         case .subtitle: SubtitleToolView()
         case .base32: Base32ToolView()
         case .totp: TOTPToolView()

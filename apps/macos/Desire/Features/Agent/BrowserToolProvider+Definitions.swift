@@ -2065,6 +2065,23 @@ extension BrowserToolProvider {
                 ], required: ["tool"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "runBatchTool",
+                description: "Run a pure file batch job in the background: regex replace, hashing (md5/sha1/sha256/sha512) or text encoding conversion across many files. Returns a job id immediately; per-file results land in the Jobs ledger (backgroundTaskStatus). Source files are never modified — outputs are written next to each source with a suffix, or into outputDir. Use this instead of looping runCommand/readFile over many files.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "action": AgentJSONSchemaValue(type: "string", description: "regexReplace | hash | encoding"),
+                    "paths": AgentJSONSchemaValue(type: "array", description: "Files and/or directories (directories expand non-recursively, max 500 files)", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                    "pattern": AgentJSONSchemaValue(type: "string", description: "Regex pattern (regexReplace)"),
+                    "template": AgentJSONSchemaValue(type: "string", description: "Replacement template with $1/$2 (regexReplace)"),
+                    "caseInsensitive": AgentJSONSchemaValue(type: "boolean", description: "Regex option"),
+                    "multiline": AgentJSONSchemaValue(type: "boolean", description: "Regex ^/$ per line option"),
+                    "algorithm": AgentJSONSchemaValue(type: "string", description: "md5 | sha1 | sha256 | sha512 (hash, default sha256)"),
+                    "fromEncoding": AgentJSONSchemaValue(type: "string", description: "Source encoding, e.g. gb18030 (encoding, default utf-8)"),
+                    "toEncoding": AgentJSONSchemaValue(type: "string", description: "Target encoding, e.g. utf-8 (encoding)"),
+                    "textEncoding": AgentJSONSchemaValue(type: "string", description: "Text encoding for regexReplace (default utf-8)"),
+                    "outputDir": AgentJSONSchemaValue(type: "string", description: "Existing directory for outputs (optional)"),
+                ], required: ["action", "paths"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "listBooks",
                 description: "List the user's local ebook library (id, title, author, format, progress, chapter count). Use the id or a title fragment as `book` in the other book tools. Defaults to the most recently read book when omitted.",
                 parameters: AgentJSONSchema(type: "object", properties: [:])

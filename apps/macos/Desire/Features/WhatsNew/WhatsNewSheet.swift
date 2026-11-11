@@ -17,12 +17,14 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "doc.text.magnifyingglass", title: String(localized: "Research briefs from the real web"),
-                  detail: String(localized: "Give Desire a topic: it searches, opens the sources in a private session, reads them, and writes a brief with every claim cited — without touching your tabs.")),
-            .init(icon: "checkmark.seal", title: String(localized: "Citations you can actually check"),
-                  detail: String(localized: "Quotes are verified verbatim against the source text, out-of-range citations are dropped and counted, and claims without a source are marked instead of hidden.")),
-            .init(icon: "square.and.arrow.down", title: String(localized: "Delivered, not just displayed"),
-                  detail: String(localized: "Finished briefs land in Downloads/Research and the Jobs ledger, with failed or gated sources attributed one by one; verified quotes can be sent to Excerpts.")),
+            .init(icon: "wrench.and.screwdriver", title: String(localized: "Tools you can actually find"),
+                  detail: String(localized: "The tool index is grouped by domain — 16 lines instead of 284 — and listTools expands any group or search term with full parameter signatures on demand.")),
+            .init(icon: "link", title: String(localized: "Chain tools in one call"),
+                  detail: String(localized: "runToolChain runs up to 10 tools in order with $prev/$n variables, stop-or-continue failure rules, and an optional background job for long chains.")),
+            .init(icon: "gauge.with.dots.needle.50percent", title: String(localized: "Bounded, cancellable, measurable"),
+                  detail: String(localized: "Tool results cap at 24k characters with an explicit marker, ordinary tools time out after 120s instead of hanging the turn, and a per-tool stats endpoint shows what fails and what is slow.")),
+            .init(icon: "square.stack.3d.up", title: String(localized: "Batch work that keeps going"),
+                  detail: String(localized: "Batch regex replace, hashing and encoding conversion run through the Jobs ledger with per-file results — plus copy-all-tab links, close-left/right, and one-click send of any tool result to the whiteboard or Excerpts.")),
         ]
     }
 

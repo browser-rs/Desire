@@ -17,6 +17,14 @@ enum JobControl {
             return .success(String(localized: "Cancellation requested for \(job.title)."))
         }
         let external = job.externalID ?? ""
+        if job.source == "batchTool" {
+            guard BatchToolStore.shared.jobID == id else {
+                return .failure(CommandLaunchError(
+                    String(localized: "That batch is not running (state: \(job.state.label))")))
+            }
+            BatchToolStore.shared.cancel()
+            return .success(String(localized: "Cancellation requested for the batch."))
+        }
         if external.hasPrefix("batch-"),
            let batchID = UUID(uuidString: String(external.dropFirst("batch-".count))) {
             BatchMediaExportStore.shared.cancel(batchID: batchID)

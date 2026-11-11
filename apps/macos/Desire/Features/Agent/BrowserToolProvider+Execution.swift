@@ -397,6 +397,8 @@ extension BrowserToolProvider {
                 }
             }
             return ToolboxRuntimeCore.run(tool: tool, args: strings).text
+        case "runBatchTool":
+            return runBatchTool(args)
         case "listBooks":
             return EbookAgentTools.listBooks()
         case "readBook":

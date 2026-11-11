@@ -67,6 +67,10 @@ nonisolated enum AgentToolCatalog {
 
         if n.hasPrefix("research") { return .research }
         if n == "runtoolboxtool" { return .toolbox }
+        // 批量文件作业（v0.8.51）：runBatchTool 名字里没有 file/folder 词根。
+        if n.hasPrefix("runbatch") { return .files }
+        // 工具链是编排元工具，归 Agent 自身。
+        if n.hasPrefix("runtoolchain") { return .agent }
         if n.hasPrefix("sync") { return .sync }
         if n.hasPrefix("promotion") || has(["campaign", "dataset", "growth"]) { return .growth }
 

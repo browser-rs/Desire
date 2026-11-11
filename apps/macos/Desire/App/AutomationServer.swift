@@ -569,7 +569,8 @@ final class AutomationServer {
         ep("POST", "/elements/remove", "Remove rule", params: ["selector:string", "pattern:string"], example: "-d '{…}'")
         ep("POST", "/tabs/pin", "Pin/unpin", params: ["index?:int", "pinned?:bool"], example: #"-d '{"index":0,"pinned":true}'"#)
         ep("GET", "/tabs/resources", "Tab resource overview: per-site counts, suspended/audio state, duplicate URL groups", example: "…/tabs/resources")
-        ep("POST", "/tabs/resources/action", "Tab resource action: suspendBackground | closeDuplicates | closeHost (host)", params: ["action:string", "host?:string"], example: #"-d '{"action":"closeDuplicates"}'"#)
+        ep("POST", "/tabs/resources/action", "Tab resource action: suspendBackground | closeDuplicates | closeHost (host) | closeOthers | closeLeft | closeRight (index? = target tab)", params: ["action:string", "host?:string", "index?:int"], example: #"-d '{"action":"closeDuplicates"}'"#)
+        ep("GET", "/tabs/links", "All tab links as a Markdown list or plain URLs (skips blank/new-tab pages)", params: ["format?:string (markdown|plain)"], example: "…/tabs/links?format=markdown")
         ep("GET", "/tabgroups", "Tab groups", example: "…/tabgroups")
         ep("POST", "/tabgroups/create", "Create group (optionally absorb tab)", params: ["name:string", "index?:int"], example: #"-d '{"name":"Work","index":1}'"#)
         ep("POST", "/tabgroups/collapse", "Collapse/expand", params: ["name:string", "collapsed?:bool"], example: "-d '{\"name\":\"Work\"}'")
@@ -772,6 +773,9 @@ final class AutomationServer {
         ep("POST", "/jobs/watch", "Watch one or more jobs; one completion note/notification when ALL reach a terminal state", params: ["ids?:string[]", "kind?:string", "mode?:notify|resume", "conversationId?:uuid"], example: #"-d '{"ids":["<uuid>"],"mode":"notify"}'"#)
         ep("POST", "/jobs/cancel", "Cancel a running background job (command/download/batch/export)", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/jobs/retry", "Retry a failed background command as a NEW job", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
+        ep("GET", "/tools/batch", "Current batch-tool run: running/progress/detail/summary and per-file results", example: "…/tools/batch")
+        ep("POST", "/tools/batch", "Run a pure file batch in the background: regexReplace | hash | encoding (sources are never modified; returns a job id)", params: ["action:string", "paths?:string[]", "path?:string", "pattern?:string", "template?:string", "algorithm?:string", "fromEncoding?:string", "toEncoding?:string", "textEncoding?:string", "outputDir?:string"], example: #"-d '{"action":"hash","paths":["/tmp/a.txt"],"algorithm":"sha256"}'"#)
+        ep("POST", "/tools/batch/cancel", "Cancel the running batch-tool job", example: "-d '{}'")
         ep("GET", "/jobs/log", "Tail a background command's log file", params: ["id:uuid", "lines?:int"], example: "…/jobs/log?id=<uuid>&lines=40")
         ep("GET", "/jobs/watches", "List job watchers (active/delivered/resume state)", example: "…/jobs/watches")
         ep("GET", "/books", "Local ebook library (id/title/author/format/progress/chapterCount/favorite/collection/highlights)", example: "…/books")
@@ -1429,6 +1433,13 @@ case ("GET", "/state"):
                 return try Self.json(Self.jobsCancel(body))
             case ("POST", "/jobs/retry"):
                 return try Self.json(await Self.jobsRetry(body))
+            case ("GET", "/tools/batch"):
+                return try Self.json(Self.batchToolStatus())
+            case ("POST", "/tools/batch"):
+                return try Self.json(Self.startBatchTool(body))
+            case ("POST", "/tools/batch/cancel"):
+                BatchToolStore.shared.cancel()
+                return try Self.json(["ok": true, "running": BatchToolStore.shared.isRunning])
             case ("GET", "/jobs/log"):
                 return try Self.json(Self.jobsLog(query))
             case ("GET", "/jobs/watches"):
@@ -2247,6 +2258,8 @@ case ("GET", "/state"):
                 return try Self.json(Self.setPin(index: Self.index(body), pinned: body["pinned"] as? Bool))
             case ("GET", "/tabs/resources"):
                 return try Self.json(Self.tabResources())
+            case ("GET", "/tabs/links"):
+                return try Self.json(Self.tabLinks(format: query["format"]))
             case ("POST", "/tabs/resources/action"):
                 return try Self.json(Self.tabResourceAction(body: body))
             case ("GET", "/reading-list"):
@@ -3165,6 +3178,7 @@ case ("GET", "/state"):
                                       "text": BrowserToolProvider.listToolsTool([
                                         "query": query["query"] ?? "",
                                         "group": query["group"] ?? "",
+                                        "limit": Double(query["limit"] ?? "") ?? 15,
                                       ])])
                 #else
                 return try Self.json(["error": "list-tools is debug-only"])
@@ -7114,9 +7128,78 @@ case ("GET", "/agent/messages"):
             closed = closeTabIDs(ids, in: manager)
             return ["ok": true, "closed": closed, "host": host,
                     "remaining": manager.tabs.count]
+        case "closeothers", "closeleft", "closeright":
+            // 标签批量（v0.8.51）：默认以选中标签为目标，`index` 可指定。
+            guard let target = Self.index(body) ?? manager.selectedTab.flatMap({ selected in
+                manager.tabs.firstIndex(where: { $0.id == selected.id })
+            }), manager.tabs.indices.contains(target) else {
+                return ["error": "no target tab"]
+            }
+            let before = manager.tabs.count
+            switch action {
+            case "closeothers": manager.closeOthers(keeping: target)
+            case "closeleft": manager.closeToTheLeft(of: target)
+            default: manager.closeToTheRight(of: target)
+            }
+            return ["ok": true, "closed": before - manager.tabs.count,
+                    "remaining": manager.tabs.count, "index": target]
         default:
-            return ["error": "action must be suspendBackground | closeDuplicates | closeHost"]
+            return ["error": "action must be suspendBackground | closeDuplicates | closeHost | closeOthers | closeLeft | closeRight"]
         }
+    }
+
+    /// 批量纯工具的当前状态（v0.8.51）：逐文件结果 + 进度摘要。
+    private static func batchToolStatus() -> [String: Any] {
+        let store = BatchToolStore.shared
+        return [
+            "running": store.isRunning,
+            "jobId": store.jobID?.uuidString ?? "",
+            "progress": store.progress,
+            "detail": store.detail,
+            "summary": store.summary,
+            "results": store.results.map { result -> [String: Any] in
+                var out: [String: Any] = ["file": result.file.path, "ok": result.isSuccess]
+                if let output = result.output { out["output"] = output.path }
+                if let value = result.value { out["value"] = value }
+                if let error = result.error { out["error"] = error }
+                return out
+            },
+        ]
+    }
+
+    /// 启动批量纯工具（与 Agent 工具共用解析/执行）。
+    private static func startBatchTool(_ body: [String: Any]) -> [String: Any] {
+        switch BatchToolCore.parseRequest(body) {
+        case .failure(let error):
+            return ["error": error.message]
+        case .success(let request):
+            guard let job = BatchToolStore.shared.start(action: request.action,
+                                                        files: request.files,
+                                                        options: request.options) else {
+                return ["error": "another batch is already running"]
+            }
+            return ["ok": true, "jobID": job.uuidString,
+                    "action": request.action.rawValue, "files": request.files.count]
+        }
+    }
+
+    /// 整排标签的链接清单（v0.8.51）：与右键菜单共用 `TabLinkList`。
+    private static func tabLinks(format: String?) -> [String: Any] {        guard let manager = TabSessionCoordinator.shared.activeTabManager else {
+            return ["error": "no active window"]
+        }
+        let markdown = (format ?? "markdown").lowercased() != "plain"
+        // 无痕标签不导出（与右键菜单同一口径）。
+        let privateCount = manager.tabs.filter(\.isIncognito).count
+        let pairs = manager.tabs.filter { !$0.isIncognito }.map { tab in
+            (title: tab.displayTitle,
+             url: tab.browser.webView.url?.absoluteString ?? tab.urlString)
+        }
+        let entries = TabLinkList.entries(pairs)
+        return ["count": entries.count,
+                "tabs": manager.tabs.count,
+                "skippedPrivate": privateCount,
+                "format": markdown ? "markdown" : "plain",
+                "text": TabLinkList.render(entries, markdown: markdown)]
     }
 
     private static func closeTabIDs(_ ids: [UUID], in manager: TabManager) -> Int {

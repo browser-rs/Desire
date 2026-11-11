@@ -10,6 +10,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/AgentBudget.swift
   apps/macos/Desire/Features/Settings/TabBehavior.swift
   apps/macos/Desire/Features/Tabs/TabGroupCluster.swift
+  apps/macos/Desire/Features/Tabs/TabLinkList.swift
   apps/macos/Desire/Features/Browsing/MouseGestureTrail.swift
   apps/macos/Desire/Features/Agent/AgentGuard.swift
   apps/macos/Desire/Features/Agent/HeartbeatDecision.swift
@@ -25,6 +26,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/AgentToolCatalog.swift
   apps/macos/Desire/Features/Agent/ToolChainCore.swift
   apps/macos/Desire/Features/Agent/ToolResultBudget.swift
+  apps/macos/Desire/Features/Agent/ToolResultDispatch.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DesireProtocol.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DPPAdapter.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DPPAdapterAuthoring.swift
@@ -268,6 +270,7 @@ SOURCES=(
   apps/macos/Desire/Features/Tools/ZhTextCore.swift
   apps/macos/Desire/Features/Tools/ContrastCore.swift
   apps/macos/Desire/Features/Tools/BatchRenameCore.swift
+  apps/macos/Desire/Features/Tools/BatchToolCore.swift
   apps/macos/Desire/Features/Tools/ArchiveCore.swift
   apps/macos/Desire/Features/Tools/ToolboxRuntimeCore.swift
   apps/macos/Desire/Features/Tools/ToolboxPipeline.swift

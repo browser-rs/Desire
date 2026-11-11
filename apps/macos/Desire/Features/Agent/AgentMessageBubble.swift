@@ -68,7 +68,8 @@ struct AgentMessageBubble: View {
                 onLearnReason: onLearnReason,
                 toolDurations: toolDurations,
                 citationSources: Self.citationSources(for: message, toolResults: toolResults),
-                onFork: onFork
+                onFork: onFork,
+                conversationID: conversationID
             )
         case .tool:
             ToolBubble(
@@ -302,6 +303,8 @@ private struct AssistantBubble: View {
     var citationSources: [String] = []
     /// 会话分支（v0.8.20）：从这条消息 fork 新会话。
     var onFork: ((UUID) -> Void)? = nil
+    /// 工具结果分发到白板时用的会话键（v0.8.51）。
+    var conversationID: String? = nil
     @State private var isHovering = false
     /// 回复朗读（v0.7.28）：复用端上 TTS，不产生网络/费用。
     @ObservedObject private var speech = ReaderSpeechService.shared
@@ -347,7 +350,9 @@ private struct AssistantBubble: View {
                     // 白板卡（内嵌实时板），chip 行会跟卡片重复出现。
                     if let tcs = message.toolCalls?.filter({ $0.function.name != "whiteboard" }),
                        !tcs.isEmpty {
-                        ToolCallList(toolCalls: tcs, results: toolResults, durations: toolDurations)
+                        ToolCallList(toolCalls: tcs, results: toolResults,
+                                     durations: toolDurations,
+                                     conversationID: conversationID)
                     }
 
                     if let critique = message.critique, !critique.isEmpty {

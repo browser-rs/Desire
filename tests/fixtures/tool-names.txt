@@ -206,8 +206,10 @@ restoreWorkspace
 retryBackgroundTask
 retryBatchDownloads
 runBackgroundCommand
+runBatchTool
 runCommand
 runJobTemplate
+runToolChain
 runToolboxTool
 runWorkflow
 saveAsPDF

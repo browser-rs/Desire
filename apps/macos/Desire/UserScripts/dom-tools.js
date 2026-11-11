@@ -133,6 +133,36 @@ async function __desireElementRect({selector, ref, text}) {
 // In-page click fallback: full pointer+mouse sequence with coordinates, so
 // delegated listeners (React/Vue root handlers, jQuery) see a realistic
 // activation — a bare `.click()` misses pointerdown/mousedown consumers.
+// dblclick 探针与合成兜底（v0.8.53 回归）：darwin 27 上 NSApp.sendEvent 的
+// clickCount=2 trusted 序列实测不再被 WebKit 合成 dblclick（E2E 两次实证，
+// 工具却照报成功）。先装 document 级探针，trusted 序列发完后读计数；没触发
+// 就按目标元素补发合成 dblclick（detail=2、bubbles），并如实回报。
+async function __desireDblProbeInstall() {
+    window.__desireDblHits = 0;
+    window.__desireDblHandler = function () { window.__desireDblHits++; };
+    document.addEventListener("dblclick", window.__desireDblHandler, true);
+    return "installed";
+}
+async function __desireDblProbeCount() {
+    var hits = window.__desireDblHits || 0;
+    if (window.__desireDblHandler) {
+        document.removeEventListener("dblclick", window.__desireDblHandler, true);
+        window.__desireDblHandler = null;
+    }
+    return String(hits);
+}
+async function __desireDblSynthesize({selector, ref, text}) {
+    var el = await __desireResolveEl(selector, ref, text);
+    if (!el) return "target not found";
+    var r = el.getBoundingClientRect();
+    var opts = {
+        bubbles: true, cancelable: true, view: window, detail: 2,
+        clientX: r.left + r.width / 2, clientY: r.top + r.height / 2
+    };
+    el.dispatchEvent(new MouseEvent("dblclick", opts));
+    return "synthesized dblclick on " + (el.tagName || "?");
+}
+
 async function __desireClick({selector, ref, text}) {
     var el = await __desireResolveEl(selector, ref, text);
     if (!el) {

@@ -2,10 +2,15 @@
 ### Changed
 
 - 破坏性 E2E 统一多实例守卫（v0.8.53）：新增 `tests/e2e_guard.py`，execution/session-recovery/multi-window/closed-window/release-smoke 五个套件跑前强制校验——**多实例或"运行的是用户已安装版（/Applications）"一律拒绝执行**。事故背景：全量回归在 MUSCLE12A 两次中止，根因是用户同时打开了正式版——两个同名实例让 AppleScript/AX 目标歧义、且共用同一份用户数据互相覆盖会话；此前"12→4 标签"疑团同源。
+- 执行肌肉套件健壮化（v0.8.53 回归）：① `setChecked 读回` 断言剥离 action 工具的 `[verify]` 后缀（v0.8.25 动作后核验引入后该断言就一直按旧口径误报）；② `listTabs/pinTab/listTabs 复查` 失败时输出实际工具结果与 fixture_idx（本轮定位用）；③ 桥调用加幂等重试（GET 与 /agent/new）、stdout 行缓冲（硬退出不丢已打印检查项）；④ 回归结论：v0.8.52 代码全量 190 项 **189✓**，唯一 ✗ 为 page-watch 跨线告警的时序断言（相邻 listPageWatches 检查证实告警已触发并记录，产品行为正常）；MUSCLE12A 前两次中止为双实例环境事故（见上批守卫），单实例下 12A/12B 全过。
+
 
 ### Fixed
 
 - 回归排查四修（v0.8.53，不做新功能）：① 离屏快照宿主（工作区面板 snapshot）误创建**会自注册的 TabManager**——每次拍快照留一个无 key 的幽灵 manager 混进窗口列表/15s 落盘，改 headless 实例；② **索引启动自愈**——0.8.51 的重复键缺陷会在磁盘上留下脏数据：`session-index` 去重并剔除无会话文件的 key，`window-index-v2` 按 sessionKey 去重（协调器初始化时执行）；③ **首窗采纳改为"你最后在用的那扇窗"**——旧逻辑取索引顺序最后一个（= 退出时的注册顺序），多窗口下经常不是最后活跃的那扇；现在优先读 `window-index-v2` 的活跃/最近活跃用户窗口；④ **Jobs 启动清扫**——进程重启后残留的 running/queued 作业标 failed（"被应用重启打断"），`.command`（自带 interrupted 收口）、`.paused`（下载要跨重启）、待审/待批例外；`pendingDeletions` 的 `Dictionary(uniqueKeysWithValues:)` 同步改为逐条覆盖（同族重复键 SIGTRAP 预防）。
+- 双击工具静默失真（v0.8.53 回归全量套件抓到）：darwin 27 上经 `NSApp.sendEvent` 注入的 trusted clickCount=2 序列**不再被 WebKit 合成 dblclick**（fixture 页两次实证：工具报 "Double-clicked" 而页面事件日志无记录；实现自加入以来未改动，属 OS 演进）。修复：发序列前装 document 级一次性探针，发完读计数——真触发了就照旧；没触发就在同一元素上补发合成 dblclick（detail=2、bubbles）并在结果里如实说明"trusted 事件未产生 dblclick，已补发合成事件（要求 isTrusted 的处理器不会触发）"。
+- i18n 对账清零（v0.8.53 回归，新增脚本级对账口径：源码字面量键（去转义/去插值）逐一对照三语目录）：补齐 10 个缺失键的三语——`Tool chain`/`Tool chain finished`（0.8.51 批 2 漏）、分发条的 "Copy as a Markdown code block"/"Save this output to Excerpts"/"Send this output to the whiteboard"、`JobControl` 的批量取消提示、DPP Studio 提示、视频剪辑器重开提示、批量下载/摘录起草两条中文长文案的英文与繁体。
+
 
 
 ## [v0.8.52] - 2026-11-11

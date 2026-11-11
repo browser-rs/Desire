@@ -55,8 +55,26 @@ extension BrowserToolProvider {
                     await SyntheticInput.rightClick(at: point, in: webView)
                     clickResult = "Right-clicked (trusted mouse event) — a context menu should be open; click its item by text next"
                 } else if isDoubleClick {
+                    // 双击探针 + 合成兜底（v0.8.53 回归）：darwin 27 上 trusted
+                    // clickCount=2 序列实测不再被 WebKit 合成 dblclick，而工具
+                    // 照报成功——静默失真。装探针测真伪，没触发就在同一元素上
+                    // 补发合成 dblclick 并如实回报。
+                    _ = await callAsync(webView, function: "__desireDblProbeInstall",
+                                        args: [:])
                     await SyntheticInput.doubleClick(at: point, in: webView)
-                    clickResult = "Double-clicked (trusted mouse event)"
+                    let hits = await callAsync(webView, function: "__desireDblProbeCount",
+                                               args: [:])
+                    if hits == "0" {
+                        let synth = await callAsync(webView, function: "__desireDblSynthesize",
+                                                    args: ["selector": sel ?? "",
+                                                           "ref": ref ?? "",
+                                                           "text": text ?? ""])
+                        clickResult = "Double-clicked — the trusted mouse event did not produce a "
+                            + "page dblclick on this OS; dispatched a synthesized dblclick instead "
+                            + "(\(synth)). Handlers that require isTrusted may not fire."
+                    } else {
+                        clickResult = "Double-clicked (trusted mouse event)"
+                    }
                 } else {
                     await SyntheticInput.click(at: point, in: webView)
                     clickResult = "Clicked (trusted mouse event)"

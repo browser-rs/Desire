@@ -38,7 +38,12 @@ import time
 import urllib.parse
 import urllib.request
 
+import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+try:
+    sys.stdout.reconfigure(line_buffering=True)
+except Exception:
+    pass
 from e2e_guard import guard_single_dev_instance
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -305,6 +310,20 @@ def bridge(method, path, body=None):
         req.add_header("Content-Type", "application/json")
     with urllib.request.urlopen(req, data=data, timeout=20) as r:
         return json.loads(r.read().decode())
+
+
+def bridge_retry(method, path, body=None, attempts=3):
+    """localhost 偶发 reset/超时的重试包装（回归迭代 2026-11-12 加）。
+    只重试幂等调用：GET 与 /agent/new（/agent/send 等动作路径不重试）。"""
+    idempotent = method == "GET" or path == "/agent/new"
+    last = None
+    for attempt in range(attempts if idempotent else 1):
+        try:
+            return bridge(method, path, body)
+        except Exception as exc:
+            last = exc
+            time.sleep(1.0 + attempt)
+    raise last
 
 
 def current_conversation_id(timeout=10):
@@ -836,7 +855,7 @@ class Fake(BaseHTTPRequestHandler):
 def main():
     if not guard_single_dev_instance():
         return 2
-    state = bridge("GET", "/state")
+    state = bridge_retry("GET", "/state")
     workspace = state.get("agentWorkspace")
     assert workspace, "拿不到 agentWorkspace"
     fix_dir = Path(workspace) / "muscle-e2e"
@@ -928,12 +947,12 @@ def main():
         bridge("POST", "/new-tab", {"url": f"http://127.0.0.1:{API_PORT}/fixture"})
         time.sleep(1.5)
         bridge("POST", "/agent/new", {})
-        before = {m.get("id") for m in bridge("GET", "/agent/messages").get("messages", [])}
+        before = {m.get("id") for m in bridge_retry("GET", "/agent/messages").get("messages", [])}
         bridge("POST", "/agent/send", {"text": "MUSCLE 执行肌肉测试"})
         deadline = time.time() + 180
         final = None
         while time.time() < deadline:
-            st = bridge("GET", "/agent/messages")
+            st = bridge_retry("GET", "/agent/messages")
             fresh = [m for m in st.get("messages", [])
                      if m.get("id") not in before and m.get("role") == "assistant"]
             if fresh and not st.get("busy") and "MUSCLE-DONE" in (fresh[-1].get("content") or ""):
@@ -976,7 +995,10 @@ def main():
         ok("setChecked 幂等", "Already checked" in joined)
         readback = next((r.split(" ", 1)[1].strip() for r in results
                          if "call_setChecked_5" in r), "")
-        ok("setChecked 读回（整条=Checked）", readback == "Checked")
+        # action 工具的结果带 [verify] 后缀（v0.8.25 动作后核验）——比较前剥离
+        readback = readback.split("\n[verify]")[0].strip()
+        ok("setChecked 读回（整条=Checked）", readback == "Checked",
+           f"readback={readback!r}")
         ok("setChecked aria 开关", "switch:true" in joined)
         ok("快照含 checked 字段", '"checked":true' in joined)
         ok("editFile 成功", any("Edited" in r for r in results))
@@ -1014,7 +1036,7 @@ def main():
         # ── 阅读列表离线缓存（关掉 fixture 标签后走离屏抓取，覆盖后台加载路径）──
         # 关掉所有 /fixture 标签（重快照收敛——关一个会挪索引，单遍快照会漏）。
         for _ in range(4):
-            stale = [t for t in bridge("GET", "/state").get("tabs", [])
+            stale = [t for t in bridge_retry("GET", "/state").get("tabs", [])
                      if "/fixture" in (t.get("url") or "")]
             if not stale:
                 break
@@ -1050,7 +1072,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE2 首载自愈探针"})
         deadline2 = time.time() + 120
         while time.time() < deadline2:
-            st2 = bridge("GET", "/agent/messages")
+            st2 = bridge_retry("GET", "/agent/messages")
             if not st2.get("busy") and any("MUSCLE2-DONE" in (m.get("content") or "")
                                            for m in st2.get("messages", [])):
                 break
@@ -1070,7 +1092,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE3 OS 工具校验"})
         deadline3 = time.time() + 90
         while time.time() < deadline3:
-            st3 = bridge("GET", "/agent/messages")
+            st3 = bridge_retry("GET", "/agent/messages")
             if not st3.get("busy") and any("MUSCLE3-DONE" in (m.get("content") or "")
                                            for m in st3.get("messages", [])):
                 break
@@ -1098,7 +1120,7 @@ def main():
                 bridge("POST", "/approvals/resolve", {"decision": "allow_once"})
                 time.sleep(0.5)
                 continue
-            st4 = bridge("GET", "/agent/messages")
+            st4 = bridge_retry("GET", "/agent/messages")
             if not st4.get("busy") and any("MUSCLE4-DONE" in (m.get("content") or "")
                                            for m in st4.get("messages", [])):
                 break
@@ -1125,7 +1147,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE5 PDF 工具链"})
         deadline5 = time.time() + 120
         while time.time() < deadline5:
-            st5 = bridge("GET", "/agent/messages")
+            st5 = bridge_retry("GET", "/agent/messages")
             if not st5.get("busy") and any("MUSCLE5-DONE" in (m.get("content") or "")
                                            for m in st5.get("messages", [])):
                 break
@@ -1150,7 +1172,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE6 文档表格读取"})
         deadline6 = time.time() + 120
         while time.time() < deadline6:
-            st6 = bridge("GET", "/agent/messages")
+            st6 = bridge_retry("GET", "/agent/messages")
             if not st6.get("busy") and any("MUSCLE6-DONE" in (m.get("content") or "")
                                            for m in st6.get("messages", [])):
                 break
@@ -1170,7 +1192,7 @@ def main():
         ok("错类型走 Error: 约定并指对工具", wrong_out.startswith("Error:") and "readSpreadsheet" in wrong_out)
 
         # ── MUSCLE7：标签治理（pin / mute / move / setZoom + listTabs 状态标记）──
-        state7 = bridge("GET", "/state")
+        state7 = bridge_retry("GET", "/state")
         fixture_idx = next((t.get("index") for t in state7.get("tabs", [])
                             if "/flaky" in (t.get("url") or "")), None)
         assert fixture_idx is not None, "找不到 fixture 标签（/flaky）"
@@ -1183,7 +1205,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE7 标签治理"})
         deadline7 = time.time() + 120
         while time.time() < deadline7:
-            st7 = bridge("GET", "/agent/messages")
+            st7 = bridge_retry("GET", "/agent/messages")
             if not st7.get("busy") and any("MUSCLE7-DONE" in (m.get("content") or "")
                                            for m in st7.get("messages", [])):
                 break
@@ -1199,14 +1221,17 @@ def main():
         zoom_out = next((t for t in tools7 if t.startswith("Zoom set to")), "")
         move_out = next((t for t in tools7 if t.startswith("Moved tab")), "")
         final_out = tools7[-1] if tools7 else ""
-        ok("listTabs 基线无状态标记", bool(baseline) and "[pinned" not in baseline and "[muted" not in baseline)
-        ok("pinTab 落地", pin_out.startswith(f"Pinned tab {fixture_idx}"))
+        ok("listTabs 基线无状态标记", bool(baseline) and "[pinned" not in baseline and "[muted" not in baseline,
+           f"baseline={baseline!r} · tools7={len(tools7)} 条")
+        ok("pinTab 落地", pin_out.startswith(f"Pinned tab {fixture_idx}"),
+           f"pin_out={pin_out[:120]!r} · fixture_idx={fixture_idx}")
         ok("muteTab 落地（劫持式静音）", mute_out.startswith(f"Muted tab {fixture_idx}") and "blocked" in mute_out)
         ok("setZoom 落到 125%", zoom_out == "Zoom set to 125%")
         ok("moveTab 落到目标位", move_out.startswith(f"Moved tab {fixture_idx} → {Fake.move_to}"))
         final_line = next((l for l in final_out.splitlines() if l.startswith(f"[{Fake.move_to}]")), "")
         ok("listTabs 复查：标记齐 + 位次正确",
-           "[pinned,muted,zoom 125%]" in final_line and "/flaky" in final_line)
+           "[pinned,muted,zoom 125%]" in final_line and "/flaky" in final_line,
+           f"final_line={final_line!r} · final_out={final_out[:160]!r}")
 
         # ── MUSCLE8：窗口/工作区/隐私标签（全部在**新窗口**里做）──
         # 回合 A 开新窗口（新窗口即 key → deliveryTarget 切到它的会话），
@@ -1230,7 +1255,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE8A 新窗口"})
         deadlineA = time.time() + 60
         while time.time() < deadlineA:
-            stA = bridge("GET", "/agent/messages")
+            stA = bridge_retry("GET", "/agent/messages")
             if not stA.get("busy") and any("MUSCLE8A-DONE" in (m.get("content") or "")
                                            for m in stA.get("messages", [])):
                 break
@@ -1260,7 +1285,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE8B 工作区闭环"})
         deadlineB = time.time() + 120
         while time.time() < deadlineB:
-            stB = bridge("GET", "/agent/messages")
+            stB = bridge_retry("GET", "/agent/messages")
             msgsB = stB.get("messages", []) if isinstance(stB, dict) else []
             if any("MUSCLE8-DONE" in (m.get("content") or "") for m in msgsB):
                 break
@@ -1323,7 +1348,7 @@ def main():
         # 归属可能有一瞬没落定——重试几拍并打印现场。
         fix_idx9 = None
         for _attempt in range(6):
-            st9 = bridge("GET", "/state")
+            st9 = bridge_retry("GET", "/state")
             fix_idx9 = next((t.get("index") for t in st9.get("tabs", [])
                              if "/fixture" in (t.get("url") or "") or "/flaky" in (t.get("url") or "")), None)
             if fix_idx9 is not None:
@@ -1337,7 +1362,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE9 标签组与历史清理"})
         deadline9 = time.time() + 120
         while time.time() < deadline9:
-            st9b = bridge("GET", "/agent/messages")
+            st9b = bridge_retry("GET", "/agent/messages")
             if not st9b.get("busy") and any("MUSCLE9-DONE" in (m.get("content") or "")
                                             for m in st9b.get("messages", [])):
                 break
@@ -1370,7 +1395,7 @@ def main():
 
         # ── MUSCLE10：分屏 + 标签组折叠（fixture 标签为左栏；右栏用 user tab 0，
         #    只是显示、可逆，随后解除）──
-        st10 = bridge("GET", "/state")
+        st10 = bridge_retry("GET", "/state")
         fix10 = next((t.get("index") for t in st10.get("tabs", [])
                       if "/fixture" in (t.get("url") or "") or "/flaky" in (t.get("url") or "")), None)
         assert fix10 is not None, "找不到 fixture 标签（MUSCLE10 需要它做左栏）"
@@ -1384,7 +1409,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE10 分屏与组折叠"})
         deadline10 = time.time() + 120
         while time.time() < deadline10:
-            st10b = bridge("GET", "/agent/messages")
+            st10b = bridge_retry("GET", "/agent/messages")
             if not st10b.get("busy") and any("MUSCLE10-DONE" in (m.get("content") or "")
                                              for m in st10b.get("messages", [])):
                 break
@@ -1448,7 +1473,7 @@ def main():
             bridge("POST", "/agent/send", {"text": "MUSCLE11 收件箱扣通知"})
             deadline11 = time.time() + 90
             while time.time() < deadline11:
-                st11 = bridge("GET", "/agent/messages")
+                st11 = bridge_retry("GET", "/agent/messages")
                 if not st11.get("busy") and any("MUSCLE11-DONE" in (m.get("content") or "")
                                                 for m in st11.get("messages", [])):
                     break
@@ -1494,7 +1519,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE12A 开窗"})
         deadlineA12 = time.time() + 60
         while time.time() < deadlineA12:
-            stA12 = bridge("GET", "/agent/messages")
+            stA12 = bridge_retry("GET", "/agent/messages")
             if not stA12.get("busy") and any("MUSCLE12A-DONE" in (m.get("content") or "")
                                              for m in stA12.get("messages", [])):
                 break
@@ -1509,7 +1534,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE12 归档恢复"})
         deadline12 = time.time() + 120
         while time.time() < deadline12:
-            st12 = bridge("GET", "/agent/messages")
+            st12 = bridge_retry("GET", "/agent/messages")
             if not st12.get("busy") and any("MUSCLE12-DONE" in (m.get("content") or "")
                                             for m in st12.get("messages", [])):
                 break
@@ -1533,13 +1558,13 @@ def main():
             time.sleep(0.5)
         ok("MUSCLE12 测试窗口已关闭", len(windows_live()) <= wins_before)
         # ── MUSCLE13：readURL 离屏取正文（不开标签）──
-        st13 = bridge("GET", "/state")
+        st13 = bridge_retry("GET", "/state")
         tabs13_before = len(st13.get("tabs", []))
         bridge("POST", "/agent/new", {})
         bridge("POST", "/agent/send", {"text": "MUSCLE13 readURL 离屏取文"})
         deadline13 = time.time() + 120
         while time.time() < deadline13:
-            st13b = bridge("GET", "/agent/messages")
+            st13b = bridge_retry("GET", "/agent/messages")
             if not st13b.get("busy") and any("MUSCLE13-DONE" in (m.get("content") or "")
                                              for m in st13b.get("messages", [])):
                 break
@@ -1552,7 +1577,7 @@ def main():
         offscreen13 = next((t for t in tools13 if "(loaded off-screen)" in t), "")
         bad13 = next((t for t in tools13 if t.startswith("Error:")), "")
         time.sleep(0.5)
-        tabs13_after = len(bridge("GET", "/state").get("tabs", []))
+        tabs13_after = len(bridge_retry("GET", "/state").get("tabs", []))
         ok("readURL 走已开标签路径（含正文）",
            open13.startswith("Page text (from the open tab)")
            and ("右键目标" in open13 or "FLAKY-FULL-OK" in open13 or "flaky" in open13))
@@ -1566,7 +1591,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE14 数值盯梢"})
         deadline14 = time.time() + 150
         while time.time() < deadline14:
-            st14 = bridge("GET", "/agent/messages")
+            st14 = bridge_retry("GET", "/agent/messages")
             if not st14.get("busy") and any("MUSCLE14-DONE" in (m.get("content") or "")
                                             for m in st14.get("messages", [])):
                 break
@@ -1580,7 +1605,7 @@ def main():
         alert14 = next((t for t in tools14 if "alert:" in t and "Dropped below" in t), "")
         list14 = next((t for t in tools14 if "numbers: latest" in t), "")
         remove14 = next((t for t in tools14 if t.startswith("Removed page watch")), "")
-        watch_left = [w for w in bridge("GET", "/watches").get("watches", []) if w.get("name") == "E2E 价格"]
+        watch_left = [w for w in bridge_retry("GET", "/watches").get("watches", []) if w.get("name") == "E2E 价格"]
         ok("addPageWatch 建数值监视", add14.startswith("Added page watch") and ".price" in add14)
         ok("基线读数记录（1,299）", "1299" in check14a.replace(",", ""))
         ok("改价后跨线告警（低于 1200）",
@@ -1593,7 +1618,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE15 每站缩放记忆"})
         deadline15 = time.time() + 150
         while time.time() < deadline15:
-            st15 = bridge("GET", "/agent/messages")
+            st15 = bridge_retry("GET", "/agent/messages")
             if not st15.get("busy") and any("MUSCLE15-DONE" in (m.get("content") or "")
                                             for m in st15.get("messages", [])):
                 break
@@ -1619,7 +1644,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE16A 朗读这段"})
         deadline16 = time.time() + 150
         while time.time() < deadline16:
-            st16 = bridge("GET", "/agent/messages")
+            st16 = bridge_retry("GET", "/agent/messages")
             if not st16.get("busy") and any("MUSCLE16A-DONE" in (m.get("content") or "")
                                             for m in st16.get("messages", [])):
                 break
@@ -1633,7 +1658,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE16B 停"})
         deadline16b = time.time() + 150
         while time.time() < deadline16b:
-            st16b = bridge("GET", "/agent/messages")
+            st16b = bridge_retry("GET", "/agent/messages")
             if not st16b.get("busy") and any("MUSCLE16B-DONE" in (m.get("content") or "")
                                              for m in st16b.get("messages", [])):
                 break
@@ -1645,7 +1670,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE16C 念这篇"})
         deadline16c = time.time() + 150
         while time.time() < deadline16c:
-            st16c = bridge("GET", "/agent/messages")
+            st16c = bridge_retry("GET", "/agent/messages")
             if not st16c.get("busy") and any("MUSCLE16C-DONE" in (m.get("content") or "")
                                              for m in st16c.get("messages", [])):
                 break
@@ -1667,7 +1692,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE17A 预算预警"})
         deadline17 = time.time() + 150
         while time.time() < deadline17:
-            st17 = bridge("GET", "/agent/messages")
+            st17 = bridge_retry("GET", "/agent/messages")
             if not st17.get("busy") and any("MUSCLE17A-DONE" in (m.get("content") or "")
                                             for m in st17.get("messages", [])):
                 break
@@ -1678,7 +1703,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE17B 续跑"})
         deadline17b = time.time() + 150
         while time.time() < deadline17b:
-            st17b = bridge("GET", "/agent/messages")
+            st17b = bridge_retry("GET", "/agent/messages")
             if not st17b.get("busy") and any("预算已用尽" in (m.get("content") or "")
                                              for m in st17b.get("messages", [])):
                 break
@@ -1715,7 +1740,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE18 找热点选题"})
         deadline18 = time.time() + 150
         while time.time() < deadline18:
-            st18 = bridge("GET", "/agent/messages")
+            st18 = bridge_retry("GET", "/agent/messages")
             if not st18.get("busy") and any("MUSCLE18-DONE" in (m.get("content") or "")
                                             for m in st18.get("messages", [])):
                 break
@@ -1765,7 +1790,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE20 备忘录校验"})
         deadline20 = time.time() + 150
         while time.time() < deadline20:
-            st20 = bridge("GET", "/agent/messages")
+            st20 = bridge_retry("GET", "/agent/messages")
             if not st20.get("busy") and any("MUSCLE20-DONE" in (m.get("content") or "")
                                             for m in st20.get("messages", [])):
                 break
@@ -1778,7 +1803,7 @@ def main():
         ok("备忘录：addNote 缺标题走 Error 约定", note20.startswith("Error:"))
         ok("备忘录：searchNotes 太短走 Error 约定", search20.startswith("Error:"))
         ok("备忘录：校验路径不发 AppleEvent（无授权等待——回合自行收尾）",
-           "MUSCLE20-DONE" in " ".join(m.get("content") or "" for m in bridge("GET", "/agent/messages").get("messages", [])))
+           "MUSCLE20-DONE" in " ".join(m.get("content") or "" for m in bridge_retry("GET", "/agent/messages").get("messages", [])))
         # ── MUSCLE21：站点字体（最小字号 + 字体族；桥直接驱动，无模型往返）──
         bridge("POST", "/navigate", {"url": f"http://127.0.0.1:{API_PORT}/fontpage"})
         time.sleep(2)
@@ -1897,7 +1922,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE24 面板检索标记"})
         deadline24 = time.time() + 90
         while time.time() < deadline24:
-            st24 = bridge("GET", "/agent/messages")
+            st24 = bridge_retry("GET", "/agent/messages")
             if not st24.get("busy") and any("MUSCLE24-DONE" in (m.get("content") or "")
                                             for m in st24.get("messages", [])):
                 break
@@ -1948,7 +1973,7 @@ def main():
         TALL_URL = f"http://127.0.0.1:{API_PORT}/tallpage"
         bridge("POST", "/reading-list/remove", {"url": TALL_URL})
         bridge("POST", "/reading-list/add", {"title": "Tall Page", "url": TALL_URL})
-        for t in bridge("GET", "/state").get("tabs", []):
+        for t in bridge_retry("GET", "/state").get("tabs", []):
             if "/tallpage" in (t.get("url") or ""):
                 bridge("POST", "/close-tab", {"index": t.get("index")})
         bridge("POST", "/new-tab", {"url": TALL_URL})
@@ -1958,7 +1983,7 @@ def main():
         rows25 = bridge("GET", "/reading-list").get("items", [])
         row25 = next((i for i in rows25 if i.get("url") == TALL_URL), {})
         ok("阅读进度：列表行带 progress 字段", abs((row25.get("progress") or 0) - 0.5) < 0.001)
-        for t in bridge("GET", "/state").get("tabs", []):
+        for t in bridge_retry("GET", "/state").get("tabs", []):
             if "/tallpage" in (t.get("url") or ""):
                 bridge("POST", "/close-tab", {"index": t.get("index")})
         time.sleep(1)
@@ -1969,7 +1994,7 @@ def main():
             "return m<=40?0:(window.scrollY||d.scrollTop||0)/m;})()")}).get("result")
         ok("阅读进度：重开自动恢复到 ≈50%（didFinish 钩子）",
            isinstance(restored25, (int, float)) and 0.4 < float(restored25) < 0.6, restored25)
-        for t in bridge("GET", "/state").get("tabs", []):
+        for t in bridge_retry("GET", "/state").get("tabs", []):
             if "/tallpage" in (t.get("url") or ""):
                 bridge("POST", "/close-tab", {"index": t.get("index")})
         bridge("POST", "/reading-list/remove", {"url": TALL_URL})
@@ -1978,7 +2003,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE26 会话内查找标记"})
         deadline26 = time.time() + 90
         while time.time() < deadline26:
-            st26 = bridge("GET", "/agent/messages")
+            st26 = bridge_retry("GET", "/agent/messages")
             if not st26.get("busy") and any("MUSCLE26-DONE" in (m.get("content") or "")
                                             for m in st26.get("messages", [])):
                 break
@@ -2020,7 +2045,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE28 提炼演练：先打开目标页面核对价格节点的当前展示值，再把这一套流程记录成可复用的步骤说明，确保下次遇到同类需求能照着做"})
         deadline28 = time.time() + 90
         while time.time() < deadline28:
-            st28 = bridge("GET", "/agent/messages")
+            st28 = bridge_retry("GET", "/agent/messages")
             if not st28.get("busy") and any("MUSCLE28-DONE" in (m.get("content") or "")
                                             for m in st28.get("messages", [])):
                 break
@@ -2080,7 +2105,7 @@ def main():
         bridge("POST", "/agent/send", {"text": "MUSCLE30 规则草稿演练：先读一个不存在的文件再汇报"})
         deadline30 = time.time() + 90
         while time.time() < deadline30:
-            st30 = bridge("GET", "/agent/messages")
+            st30 = bridge_retry("GET", "/agent/messages")
             if not st30.get("busy") and any("MUSCLE30-DONE" in (m.get("content") or "")
                                             for m in st30.get("messages", [])):
                 break
@@ -2118,7 +2143,7 @@ def main():
            r31.get("due") is False and (r31.get("lastDeliveredAt") or 0) > 0)
         time.sleep(0.5)
         first31 = t31.splitlines()[0] if t31 else "zzz"
-        msgs31 = bridge("GET", "/agent/messages").get("messages", [])
+        msgs31 = bridge_retry("GET", "/agent/messages").get("messages", [])
         ok("周报：会话备注命中首行",
            any(first31 in (m.get("content") or "") for m in msgs31))
         d31 = bridge("POST", "/agent/weekly-digest", {"action": "disable"})
@@ -2167,12 +2192,12 @@ def main():
         bridge("POST", "/agent/send", {"text": "EVAL-MUSCLE33 导出演练"})
         deadline33 = time.time() + 90
         while time.time() < deadline33:
-            st33 = bridge("GET", "/agent/messages")
+            st33 = bridge_retry("GET", "/agent/messages")
             if not st33.get("busy") and any("MUSCLE33-DONE" in (m.get("content") or "")
                                             for m in st33.get("messages", [])):
                 break
             time.sleep(1)
-        msgs33 = bridge("GET", "/agent/messages").get("messages", [])
+        msgs33 = bridge_retry("GET", "/agent/messages").get("messages", [])
         last33 = next((m for m in reversed(msgs33)
                        if m.get("role") == "assistant" and (m.get("content") or "").strip()), None)
         ok("评估集：回合完成", last33 is not None)
@@ -2253,7 +2278,7 @@ def main():
                     if ap4c.get("pending"):
                         bridge("POST", "/approvals/resolve", {"decision": "allow_once"})
                         continue
-                    msgs4c = bridge("GET", "/agent/messages")
+                    msgs4c = bridge_retry("GET", "/agent/messages")
                     if not msgs4c.get("busy") and any("MUSCLE4CLEAN-DONE" in (m.get("content") or "")
                                                       for m in msgs4c.get("messages", [])):
                         break
@@ -2322,7 +2347,7 @@ def main():
         # 收敛式：每次重快照，因为关一个标签会挪掉后面所有索引。
         try:
             for _ in range(4):
-                stale = [t for t in bridge("GET", "/state").get("tabs", [])
+                stale = [t for t in bridge_retry("GET", "/state").get("tabs", [])
                          if "/fixture" in (t.get("url") or "")
                          or f"127.0.0.1:{API_PORT}/dl" in (t.get("url") or "")
                          or f"127.0.0.1:{API_PORT}/flaky" in (t.get("url") or "")
@@ -2348,7 +2373,7 @@ def main():
             for _arch in bridge("GET", "/session-archives").get("archives", []):
                 if "E2E12" in (_arch.get("file") or ""):
                     bridge("POST", "/session-archives/delete", {"file": _arch["file"]})
-            for _w in bridge("GET", "/watches").get("watches", []):
+            for _w in bridge_retry("GET", "/watches").get("watches", []):
                 if "E2E" in (_w.get("name") or ""):
                     bridge("POST", "/watches/remove", {"name": _w["name"]})
             # 关窗即归档（v0.7.18）：测试窗的会话会进归档——把"URL 全是本地

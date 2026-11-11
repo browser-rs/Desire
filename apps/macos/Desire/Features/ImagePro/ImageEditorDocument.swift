@@ -1145,4 +1145,35 @@ final class ImageEditorDocument: ObservableObject {
         guard let composite = composite() else { return nil }
         return ImageEditorRaster.sampleColor(composite, at: point)
     }
+
+    // MARK: - 选区精修（v0.8.54 批 2）
+
+    /// 选区扩张（像素）。
+    func expandSelection(_ amount: CGFloat) {
+        guard let rect = selection.rect else { return }
+        let inflated = rect.insetBy(dx: -amount, dy: -amount)
+        selection.rect = inflated.intersection(CGRect(origin: .zero, size: canvasSize))
+        compositeCache = nil
+        commit()
+    }
+
+    /// 选区收缩（像素）。
+    func contractSelection(_ amount: CGFloat) {
+        guard let rect = selection.rect else { return }
+        let deflated = rect.insetBy(dx: amount, dy: amount)
+        guard deflated.width > 10, deflated.height > 10 else { return }
+        selection.rect = deflated
+        compositeCache = nil
+        commit()
+    }
+
+    /// 活动层斜切（度；X 水平倾斜，Y 垂直倾斜）。非破坏。
+    func setLayerSkew(x: Double? = nil, y: Double? = nil) {
+        guard let idx = layers.firstIndex(where: { $0.id == activeLayerID }) else { return }
+        pushHistory("Skew Layer")
+        if let x { layers[idx].skewX = x }
+        if let y { layers[idx].skewY = y }
+        compositeCache = nil
+        commit()
+    }
 }

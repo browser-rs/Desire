@@ -237,6 +237,9 @@ nonisolated struct ImageEditorLayer: Identifiable, Equatable, Sendable {
     /// 非破坏——画笔在蒙版上画黑/白不碰内容位图。
     var hasMask: Bool = false
     var maskInverted: Bool = false
+    /// 斜切角度（度）：X 斜切 = 水平倾斜，Y 斜切 = 垂直倾斜（v0.8.54 变换增强）。
+    var skewX: Double = 0
+    var skewY: Double = 0
 }
 
 

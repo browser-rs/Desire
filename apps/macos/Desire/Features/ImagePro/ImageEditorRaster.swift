@@ -175,6 +175,12 @@ nonisolated enum ImageEditorRaster {
             if layer.scale != 1 {
                 ctx.scaleBy(x: CGFloat(layer.scale), y: CGFloat(layer.scale))
             }
+            // 斜切（v0.8.54 批 2 变换增强）：X 斜切 = 水平倾斜，Y 斜切 = 垂直。
+            if layer.skewX != 0 || layer.skewY != 0 {
+                let skewX = CGFloat(tan(layer.skewX * .pi / 180))
+                let skewY = CGFloat(tan(layer.skewY * .pi / 180))
+                ctx.concatenate(CGAffineTransform(a: 1, b: skewY, c: skewX, d: 1, tx: 0, ty: 0))
+            }
             ctx.draw(bitmap, in: CGRect(x: -bw / 2, y: -bh / 2, width: bw, height: bh))
             ctx.restoreGState()
         }

@@ -26,6 +26,9 @@ import threading
 import time
 import urllib.request
 import zipfile
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from e2e_guard import guard_single_dev_instance
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 BRIDGE = "http://127.0.0.1:8799"
@@ -118,6 +121,8 @@ def start_fixture():
 
 
 def main():
+    if not guard_single_dev_instance():
+        return 2
     parser = argparse.ArgumentParser()
     parser.add_argument("--quit", action="store_true", help="结束时优雅退出应用")
     args = parser.parse_args()

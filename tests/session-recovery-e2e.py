@@ -23,6 +23,9 @@ import sys
 import time
 import urllib.request
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from e2e_guard import guard_single_dev_instance
+
 BASE = os.environ.get("DESIRE_BASE", "http://127.0.0.1:8799")
 TEST_URLS = [f"https://example.com/?desire-session-test={i}" for i in range(3)]
 
@@ -70,6 +73,8 @@ def main():
     args = parser.parse_args()
     if not args.force:
         print("refusing to kill the app without --force")
+        return 2
+    if not guard_single_dev_instance():
         return 2
     bundle = app_bundle_path()
     if not bundle:

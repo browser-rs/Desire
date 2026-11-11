@@ -5929,7 +5929,9 @@ case ("GET", "/agent/messages"):
         let size = NSSize(width: max(360, width), height: max(320, height))
         let host = NSHostingView(
             rootView: WorkspacePanel(
-                tabManager: TabManager(),
+                // headless：离屏快照是一次性展示实例，不能注册进窗口协调器——
+                // 否则每次快照都留一个无 key 的幽灵 manager（回归排查 2026-11-12）。
+                tabManager: TabManager(headless: true),
                 settings: app.settings,
                 contentBlocker: app.contentBlocker,
                 videoAdBlocker: app.videoAdBlocker,

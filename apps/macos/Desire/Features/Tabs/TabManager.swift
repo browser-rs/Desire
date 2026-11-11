@@ -1114,6 +1114,40 @@ final class TabSessionCoordinator {
 
     private(set) var launchedAfterCrash = UserDefaults.standard.bool(forKey: "session.running")
 
+    private init() {
+        sanitizeWindowIndexes()
+    }
+
+    /// 启动自愈（v0.8.53 回归）：清理历史版本污染的索引——
+    /// `session-index` 去重并剔除无会话文件的 key（0.8.51 的重复键缺陷在
+    /// 磁盘上留下的脏数据），`window-index-v2` 按 sessionKey 去重。
+    /// 崩溃恢复本来就只挑"有非空会话文件"的 key，剔除无文件条目是安全的。
+    private func sanitizeWindowIndexes() {
+        let fm = FileManager.default
+        if let index: [String] = DiskStore.load([String].self, key: Self.indexKey) {
+            var seen = Set<String>()
+            let cleaned = index.filter { key in
+                seen.insert(key).inserted
+                    && fm.fileExists(atPath: DiskStore.directory
+                        .appendingPathComponent("\(key).json").path)
+            }
+            if cleaned != index {
+                DiskStore.save(cleaned, key: Self.indexKey)
+                Log.tabs.info("session-index sanitized: \(index.count) → \(cleaned.count) key(s)")
+            }
+        }
+        if let snapshots: [WindowSnapshot] = DiskStore.load([WindowSnapshot].self,
+                                                            key: Self.windowIndexKey),
+           !snapshots.isEmpty {
+            var seen = Set<String>()
+            let cleaned = snapshots.filter { seen.insert($0.sessionKey).inserted }
+            if cleaned.count != snapshots.count {
+                DiskStore.save(cleaned, key: Self.windowIndexKey)
+                Log.tabs.info("window-index-v2 sanitized: \(snapshots.count) → \(cleaned.count) snapshot(s)")
+            }
+        }
+    }
+
     /// 终止流程进行中（ContentView 激活自愈等旁路据此让路——AppKit 在
     /// applicationShouldTerminate 之后会给窗口补发 willClose，别在退出
     /// 尾声再开标签/建窗）。
@@ -1515,13 +1549,38 @@ final class TabSessionCoordinator {
         if launchedAfterCrash {
             return newestSessionFileKey()
         }
+        let fm = FileManager.default
+        // v0.8.53 回归修正：首窗采纳"你最后在用的那扇窗"——v2 快照里活动的、
+        // 最近活跃的用户窗口。旧逻辑取 index 顺序的最后一个，而 index 顺序 =
+        // 退出时的注册顺序，多窗口下常常不是你最后在用的那扇。
+        if let snapshots: [WindowSnapshot] = DiskStore.load([WindowSnapshot].self,
+                                                            key: Self.windowIndexKey),
+           !snapshots.isEmpty {
+            let candidates = snapshots
+                .filter { $0.role == "user" || $0.role.isEmpty }
+                .filter { $0.tabCount > 0 }
+                .sorted { a, b in
+                    if a.isActive != b.isActive { return a.isActive }
+                    if a.lastActiveAt != b.lastActiveAt { return a.lastActiveAt > b.lastActiveAt }
+                    return a.sessionKey < b.sessionKey
+                }
+            if let picked = candidates.first(where: { snapshot in
+                fm.fileExists(atPath: DiskStore.directory
+                    .appendingPathComponent("\(snapshot.sessionKey).json").path)
+                    && !WindowRoleRegistry.shared.isAgentSession(snapshot.sessionKey)
+                    && DiskStore.load(SavedSession.self, key: snapshot.sessionKey)?
+                        .tabs.isEmpty == false
+            }) {
+                return picked.sessionKey
+            }
+            // v2 全部无效 → 落回旧 index 逻辑
+        }
         guard let index: [String] = DiskStore.load([String].self, key: Self.indexKey) else { return nil }
         // **跳过无文件的 key**：纯无痕窗口的可存标签为空，15s tick 会
         // `DiskStore.remove` 自己的会话文件，但 index（上次干净退出写的）
         // 仍列着它的 key——`index.last` 若恰是它，"继续上次会话"就采纳了
         // 一个空 key、真正最新的会话反而不被采纳（P2：纯无痕窗口删自己
         // 会话文件的余波）。
-        let fm = FileManager.default
         return index.last {
             fm.fileExists(atPath: DiskStore.directory
                 .appendingPathComponent("\($0).json").path)

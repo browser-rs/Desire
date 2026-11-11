@@ -21,6 +21,9 @@ import sys
 import time
 import urllib.request
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from e2e_guard import guard_single_dev_instance
+
 BASE = os.environ.get("DESIRE_BASE", "http://127.0.0.1:8799")
 TEST_URL = "https://example.com/?desire-closed-window-test=1"
 AX_TOOL = "/tmp/desire-axmenupress"
@@ -181,6 +184,8 @@ def main():
     args = parser.parse_args()
     if not args.force:
         print("拒绝执行：会开关窗口并重启应用。确认后加 --force。")
+        return 2
+    if not guard_single_dev_instance():
         return 2
     try:
         call("/state", timeout=5)

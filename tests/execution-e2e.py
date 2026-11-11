@@ -37,6 +37,9 @@ import threading
 import time
 import urllib.parse
 import urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from e2e_guard import guard_single_dev_instance
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -831,6 +834,8 @@ class Fake(BaseHTTPRequestHandler):
 
 
 def main():
+    if not guard_single_dev_instance():
+        return 2
     state = bridge("GET", "/state")
     workspace = state.get("agentWorkspace")
     assert workspace, "拿不到 agentWorkspace"

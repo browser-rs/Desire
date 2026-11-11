@@ -1,3 +1,13 @@
+## [Unreleased]
+### Changed
+
+- 破坏性 E2E 统一多实例守卫（v0.8.53）：新增 `tests/e2e_guard.py`，execution/session-recovery/multi-window/closed-window/release-smoke 五个套件跑前强制校验——**多实例或"运行的是用户已安装版（/Applications）"一律拒绝执行**。事故背景：全量回归在 MUSCLE12A 两次中止，根因是用户同时打开了正式版——两个同名实例让 AppleScript/AX 目标歧义、且共用同一份用户数据互相覆盖会话；此前"12→4 标签"疑团同源。
+
+### Fixed
+
+- 回归排查四修（v0.8.53，不做新功能）：① 离屏快照宿主（工作区面板 snapshot）误创建**会自注册的 TabManager**——每次拍快照留一个无 key 的幽灵 manager 混进窗口列表/15s 落盘，改 headless 实例；② **索引启动自愈**——0.8.51 的重复键缺陷会在磁盘上留下脏数据：`session-index` 去重并剔除无会话文件的 key，`window-index-v2` 按 sessionKey 去重（协调器初始化时执行）；③ **首窗采纳改为"你最后在用的那扇窗"**——旧逻辑取索引顺序最后一个（= 退出时的注册顺序），多窗口下经常不是最后活跃的那扇；现在优先读 `window-index-v2` 的活跃/最近活跃用户窗口；④ **Jobs 启动清扫**——进程重启后残留的 running/queued 作业标 failed（"被应用重启打断"），`.command`（自带 interrupted 收口）、`.paused`（下载要跨重启）、待审/待批例外；`pendingDeletions` 的 `Dictionary(uniqueKeysWithValues:)` 同步改为逐条覆盖（同族重复键 SIGTRAP 预防）。
+
+
 ## [v0.8.52] - 2026-11-11
 ### Changed
 

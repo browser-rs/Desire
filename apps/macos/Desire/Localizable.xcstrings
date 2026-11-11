@@ -107044,28 +107044,6 @@
         }
       }
     },
-    "17 blend modes (from Color Burn to Luminosity), interactive curves editor with per-channel control and histogram backdrop, non-destructive layer masks, and manual levels with gamma — all with live preview.":{
-      "localizations":{
-        "en":{
-          "stringUnit":{
-            "state":"translated",
-            "value":"17 blend modes (from Color Burn to Luminosity), interactive curves editor with per-channel control and histogram backdrop, non-destructive layer masks, and manual levels with gamma — all with live preview."
-          }
-        },
-        "zh-Hans":{
-          "stringUnit":{
-            "state":"translated",
-            "value":"17 种混合模式（Color Burn 到 Luminosity）、交互式曲线编辑器（分通道 + 直方图背景）、非破坏图层蒙版、手动色阶与 gamma——全部实时预览。"
-          }
-        },
-        "zh-Hant":{
-          "stringUnit":{
-            "state":"translated",
-            "value":"17 種混合模式（Color Burn 到 Luminosity）、互動式曲線編輯器（分通道 + 直方圖背景）、非破壞圖層遮色片、手動色階與 gamma——全部即時預覽。"
-          }
-        }
-      }
-    },
     "Levels and color balance":{
       "localizations":{
         "en":{
@@ -107568,6 +107546,28 @@
           "stringUnit":{
             "state":"translated",
             "value":"垂直翻轉圖層"
+          }
+        }
+      }
+    },
+    "17 blend modes (from Color Burn to Luminosity), interactive curves editor with per-channel control and histogram backdrop, non-destructive layer masks, manual levels with gamma, layer groups, per-layer flip, and 13 pro filters (blur/distort/stylize) — all with live preview.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"17 blend modes (from Color Burn to Luminosity), interactive curves editor with per-channel control and histogram backdrop, non-destructive layer masks, manual levels with gamma, layer groups, per-layer flip, and 13 pro filters (blur/distort/stylize) — all with live preview."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"17 种混合模式（Color Burn 到 Luminosity）、交互式曲线编辑器（分通道 + 直方图背景）、非破坏图层蒙版、手动色阶与 gamma、图层组、逐层翻转、13 种专业滤镜（模糊/扭曲/风格化）——全部实时预览。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"17 種混合模式（Color Burn 到 Luminosity）、互動式曲線編輯器（分通道 + 直方圖背景）、非破壞圖層遮色片、手動色階與 gamma、圖層群組、逐層翻轉、13 種專業濾鏡（模糊/扭曲/風格化）——全部即時預覽。"
           }
         }
       }

@@ -18,7 +18,7 @@ struct WhatsNewSheet: View {
     private var highlights: [Highlight] {
         [
             .init(icon: "paintbrush.pointed.fill", title: String(localized: "ImagePro goes pro"),
-                  detail: String(localized: "17 blend modes (from Color Burn to Luminosity), interactive curves editor with per-channel control and histogram backdrop, non-destructive layer masks, and manual levels with gamma — all with live preview.")),
+                  detail: String(localized: "17 blend modes (from Color Burn to Luminosity), interactive curves editor with per-channel control and histogram backdrop, non-destructive layer masks, manual levels with gamma, layer groups, per-layer flip, and 13 pro filters (blur/distort/stylize) — all with live preview.")),
             .init(icon: "slider.horizontal.3", title: String(localized: "Levels and color balance"),
                   detail: String(localized: "Manual black point, gamma and white point sliders, plus independent R/G/B balance controls — applied non-destructively with the existing pipeline.")),
             .init(icon: "star.square.on.square", title: String(localized: "A bookmarks bar that finally keeps up"),

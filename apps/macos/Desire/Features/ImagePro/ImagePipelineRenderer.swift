@@ -88,16 +88,18 @@ nonisolated enum ImagePipelineRenderer {
         } else if let curve = toneCurveFilter(ci, params: params) {
             ci = curve
         }
-        if params.blackPoint > 0 || params.whitePoint < 1,
+        if params.blackPoint > 0 || params.whitePoint < 1 || params.gamma != 1,
            let filter = CIFilter(name: "CIToneCurve") {
             let black = params.blackPoint
             let white = params.whitePoint
             let span = max(0.000_001, white - black)
-            // 线性映射：黑点→0，中点→0.5，白点→1
+            // 线性映射：黑点→0，中点→gamma 调整后，白点→1
+            // gamma > 1 提亮中间调（0.5^(1/gamma) 上移），<1 压暗。
+            let midY = pow(0.5, 1.0 / max(0.1, params.gamma))
             filter.setValue(ci, forKey: kCIInputImageKey)
             filter.setValue(CIVector(x: 0, y: 0), forKey: "inputPoint0")
             filter.setValue(CIVector(x: black + span * 0.5,
-                                     y: 0.5), forKey: "inputPoint1")
+                                     y: midY), forKey: "inputPoint1")
             filter.setValue(CIVector(x: white, y: 1), forKey: "inputPoint2")
             ci = filter.outputImage ?? ci
         }
@@ -112,6 +114,15 @@ nonisolated enum ImagePipelineRenderer {
         if params.vibrance != 0, let filter = CIFilter(name: "CIVibrance") {
             filter.setValue(ci, forKey: kCIInputImageKey)
             filter.setValue(params.vibrance, forKey: "inputAmount")
+            ci = filter.outputImage ?? ci
+        }
+        // 色彩平衡（v0.8.54 批 3）：R/G/B 通道独立偏移。
+        if params.redBalance != 0 || params.greenBalance != 0 || params.blueBalance != 0,
+           let filter = CIFilter(name: "CIColorMatrix") {
+            filter.setValue(ci, forKey: kCIInputImageKey)
+            filter.setValue(CIVector(x: 1, y: 0, z: 0, w: params.redBalance), forKey: "inputRVector")
+            filter.setValue(CIVector(x: 0, y: 1, z: 0, w: params.greenBalance), forKey: "inputGVector")
+            filter.setValue(CIVector(x: 0, y: 0, z: 1, w: params.blueBalance), forKey: "inputBVector")
             ci = filter.outputImage ?? ci
         }
         if params.clarity > 0, let filter = CIFilter(name: "CIUnsharpMask") {

@@ -38,6 +38,12 @@ nonisolated struct ImageAdjustParams: Codable, Hashable {
     var blackPoint: Double = 0
     /// 色阶白点 0.6…1
     var whitePoint: Double = 1
+    /// 色阶 gamma（中间调）0.2…5（1 = 原样，>1 提亮中间调）
+    var gamma: Double = 1
+    /// 色彩平衡 -0.3…0.3（正 = 增加该通道）
+    var redBalance: Double = 0
+    var greenBalance: Double = 0
+    var blueBalance: Double = 0
     /// 曲线控制点（0…1，x 升序；空 = 不启用）。curvePoints = RGB 总曲线，
     /// curveRed/Green/Blue = 分通道曲线（分通道存在时优先）。
     var curvePoints: [CurvePoint] = []

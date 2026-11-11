@@ -35,6 +35,12 @@ struct ImageEditorAdjustmentsPanel: View {
                     slider(String(localized: "Shadows"), \.shadows, -1...1, format: "%.2f")
 
                     Divider().padding(.vertical, 2)
+                    header(String(localized: "Color Balance"))
+                    slider(String(localized: "Red Balance"), \.redBalance, -0.3...0.3, format: "%.2f")
+                    slider(String(localized: "Green Balance"), \.greenBalance, -0.3...0.3, format: "%.2f")
+                    slider(String(localized: "Blue Balance"), \.blueBalance, -0.3...0.3, format: "%.2f")
+
+                    Divider().padding(.vertical, 2)
                     header(String(localized: "Detail"))
                     slider(String(localized: "Sharpen"), \.sharpen, 0...2, format: "%.2f")
                     slider(String(localized: "Clarity"), \.clarity, 0...1, format: "%.2f")
@@ -44,6 +50,12 @@ struct ImageEditorAdjustmentsPanel: View {
                     header(String(localized: "Curves"))
                     ImageEditorCurvesView(params: $params, histogram: histogram)
                         .padding(.horizontal, 2)
+
+                    Divider().padding(.vertical, 2)
+                    header(String(localized: "Levels"))
+                    slider(String(localized: "Black Point"), \.blackPoint, 0...0.4, format: "%.2f")
+                    slider(String(localized: "Gamma"), \.gamma, 0.2...5, format: "%.2f")
+                    slider(String(localized: "White Point"), \.whitePoint, 0.6...1, format: "%.2f")
 
                     Divider().padding(.vertical, 2)
                     header(String(localized: "Filter Effect"))

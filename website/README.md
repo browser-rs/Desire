@@ -76,13 +76,35 @@ browser macOS`、`agentic browser`）能排上。
    - 任何一次发帖都会带来新外链与首批真实搜索行为——Google 对"有外链 +
    - 有点击"的新站收录显著更快。
 
+### 服务器侧（上线时检查，2026-11-11 实测待修）
+
+- **软 404**：当前任意不存在的路径都返回 `200 + index.html`（nginx 回退），
+  Google 会把它们当重复页/软 404，浪费抓取配额。静态站应改为：
+
+  ```nginx
+  location / {
+      try_files $uri $uri/ =404;
+  }
+  error_page 404 /404.html;
+  ```
+
+  本站已备 `404.html`（noindex + 返回首页链接）。改完用
+  `curl -o /dev/null -w '%{http_code}' https://desire.mankong.icu/does-not-exist`
+  验证为 `404`。
+- `http://` → `https://` 已 301（实测 2026-11-11）；`www.` 子域未解析，
+  无需处理（不要为它再加一份站点）。
+
 ### 部署注意
 
-`og.jpg`、`robots.txt`、`sitemap.xml`、`llms.txt`、favicon 系列、
-`apple-touch-icon.png`、IndexNow key 文件（`<32位hex>.txt`）必须位于**域名根
-路径**才生效；`en/index.html` 必须落在 `/en/`。若只上传了 `index.html`，
-把 `website/` 整个目录同步上线（`/en/` 目前在线上会回退成中文页——说明
-`en/` 还没传上去）。
+`og.jpg`、`robots.txt`、`sitemap.xml`、`llms.txt`、favicon 系列
+（含 `favicon.ico`）、`apple-touch-icon.png`、IndexNow key 文件
+（`<32位hex>.txt`）必须位于**域名根路径**才生效；`en/index.html` 必须落在
+`/en/`。若只上传了 `index.html`，把 `website/` 整个目录同步上线。
+
+**已上线核验（2026-11-11）**：`/en/` 返回真实英文页、sitemap 含 `/en/`、
+key 文件与 favicon 可访问、IndexNow 提交返回 202。待办：GSC/Bing 提交
+（需账号）、软 404 修复（需 nginx 配置）、外链发布（见
+`docs/SEO-LAUNCH-POSTS.md`）。
 
 ## 发布与更新
 
@@ -100,7 +122,8 @@ browser macOS`、`agentic browser`）能排上。
 
 - 版本号出现在四处（中文英雄区 CTA、中文下载区、英文英雄区、英文下载区），
   发新版时一起改；下载按钮指向 `releases/latest`。
-- **新增文件的常驻清单**（导出 App 图标时别漏）：`favicon-16/32/48/96/192.png`、
-  `apple-touch-icon.png`。
+- **新增文件的常驻清单**（导出 App 图标时别漏）：`favicon.ico`、
+  `favicon-16/32/48/96/192.png`、`apple-touch-icon.png`；`404.html` 配合
+  nginx `error_page` 使用。
 - 文案与产品事实对应：功能宣称全部来自 README/CHANGELOG 已落地能力，
   不要加"即将推出"类空承诺。

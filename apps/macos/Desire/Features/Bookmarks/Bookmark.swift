@@ -65,4 +65,31 @@ extension [Bookmark] {
         }
         return false
     }
+
+    /// 同层重排（v0.8.53 书签 2.0）：把 id 移到其所在层的 toIndex 位置
+    /// （该层其余兄弟的原始下标口径，先摘除再按钳制后的目标位插入）。
+    /// 只做同层重排；跨层移动走 BookmarkStore.move(ids:toFolder:)。
+    /// 找不到节点 / 目标位就是原位时返回 false，树保持不变。
+    mutating func reorder(id: UUID, toIndex: Int) -> Bool {
+        // 根层
+        if let current = firstIndex(where: { $0.id == id }) {
+            let clamped = Swift.min(Swift.max(0, toIndex), count - 1)
+            guard clamped != current else { return false }
+            let node = remove(at: current)
+            insert(node, at: clamped)
+            return true
+        }
+        // 子层
+        for i in indices {
+            guard let current = self[i].children.firstIndex(where: { $0.id == id }) else {
+                continue
+            }
+            let clamped = Swift.min(Swift.max(0, toIndex), self[i].children.count - 1)
+            guard clamped != current else { return false }
+            let node = self[i].children.remove(at: current)
+            self[i].children.insert(node, at: clamped)
+            return true
+        }
+        return false
+    }
 }

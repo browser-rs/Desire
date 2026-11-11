@@ -97,6 +97,15 @@ extension ContentView {
             if settings.showBookmarksBar {
                 BookmarksBarView(store: bookmarkStore) { url in
                     b.navigateToURL(url, for: tab)
+                } onNavigateBackground: { url in
+                    // 中键 / 打开全部：后台标签打开（v0.8.53 书签 2.0）。
+                    tabManager.addTab(url: url,
+                                      javaScriptEnabled: settings.isJavaScriptEnabled,
+                                      contentBlocker: contentBlocker,
+                                      videoAdBlocker: videoAdBlocker,
+                                      autoPlayPolicy: settings.autoPlayPolicy,
+                                      newTabPosition: settings.newTabPosition,
+                                      makeActive: false)
                 } onToggleVisibility: {
                     withAnimation(.layoutSpring) { settings.showBookmarksBar = false }
                 }

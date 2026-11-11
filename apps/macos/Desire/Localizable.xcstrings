@@ -106405,6 +106405,50 @@
           }
         }
       }
+    },
+    "Open All (%lld)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Open All (%lld)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"打开全部（%lld）"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"開啟全部（%lld）"
+          }
+        }
+      }
+    },
+    "More bookmarks":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"More bookmarks"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"更多书签"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"更多書籤"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

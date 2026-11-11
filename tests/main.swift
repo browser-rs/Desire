@@ -5109,6 +5109,7 @@ func testBookmarkImportDedupe() {
                                      existingURLs: []).hasDuplicates)
 }
 testBookmarkImportDedupe()
+testBookmarkBarTree()
 
 func testBookmarkHTMLParser() {
     // TAGS 往返（v0.8.6）：导出写 TAGS、导入读回。
@@ -10677,4 +10678,89 @@ func testWindowRestoreCore() {
        WindowRestoreCore.cascadeIndexes(for: [sameFrame, inside]), [0, 0])
     eq("窗口恢复：nil 帧不参与阶梯",
        WindowRestoreCore.cascadeIndexes(for: [nil, sameFrame]), [0, 0])
+}
+
+
+// ---------- 书签栏 2.0（v0.8.53 批 1） ----------
+
+func testBookmarkBarTree() {
+    // build：标题回退 / 叶子与文件夹 / 递归 children
+    let tree: [Bookmark] = [
+        .leaf(title: "", url: "https://example.com/page"),
+        .leaf(title: "Docs", url: "https://docs.example.com"),
+        .folder(title: "工作", children: [
+            .leaf(title: "Juejin", url: "https://juejin.cn"),
+            .folder(title: "Nested", children: [
+                .leaf(title: "Deep", url: "https://deep.example.com"),
+            ]),
+        ]),
+    ]
+    let nodes = BookmarkBarTree.build(tree)
+    eq("书签栏：节点数", nodes.count, 3)
+    eq("书签栏：空标题回退 host", nodes[0].title, "example.com")
+    check("书签栏：叶子无 children", nodes[1].children.isEmpty)
+    eq("书签栏：文件夹叶数（含嵌套）", nodes[2].leafCount, 2)
+    eq("书签栏：嵌套节点传递", nodes[2].children[1].children[0].title, "Deep")
+    check("书签栏：文件夹标记", nodes[2].isFolder && !nodes[1].isFolder)
+
+    // leafURLs：递归收集，顺序 = 树顺序
+    eq("书签栏：打开全部收集",
+       BookmarkBarTree.leafURLs(nodes[2]),
+       ["https://juejin.cn", "https://deep.example.com"])
+    eq("书签栏：叶子打开全部", BookmarkBarTree.leafURLs(nodes[1]), ["https://docs.example.com"])
+
+    // estimatedWidth：文件夹比同题叶子宽；超长标题封顶
+    let leaf = nodes[1]
+    let folder = BookmarkBarTree.Node(id: UUID(), title: "Docs", url: nil,
+                                      isFolder: true, children: [])
+    let leafWidth = BookmarkBarTree.estimatedWidth(leaf)
+    check("书签栏：文件夹更宽", BookmarkBarTree.estimatedWidth(folder) > leafWidth)
+    let longTitle = BookmarkBarTree.Node(id: UUID(), title: String(repeating: "长", count: 60),
+                                         url: "https://e.com", isFolder: false, children: [])
+    check("书签栏：超长标题封顶",
+          BookmarkBarTree.estimatedWidth(longTitle) <= BookmarkBarTree.itemChromeWidth
+              + BookmarkBarTree.maxTitleWidth + 1)
+
+    // split：宽屏全可见；窄屏全部进溢出；边界计入分隔线与溢出按钮
+    let a = BookmarkBarTree.Node(id: UUID(), title: "A", url: "https://a.com",
+                                 isFolder: false, children: [])
+    let b = BookmarkBarTree.Node(id: UUID(), title: "B", url: "https://b.com",
+                                 isFolder: false, children: [])
+    let wide = BookmarkBarTree.split(nodes: [a, b], availableWidth: 1000)
+    eq("书签栏：宽屏全可见", wide.visible.count, 2)
+    check("书签栏：宽屏无溢出", wide.overflow.isEmpty)
+    let narrow = BookmarkBarTree.split(nodes: [a, b], availableWidth: 100)
+    eq("书签栏：窄屏全进溢出", narrow.visible.count, 0)
+    eq("书签栏：窄屏溢出数", narrow.overflow.count, 2)
+    let medium = BookmarkBarTree.split(nodes: [a, b], availableWidth: 200)
+    check("书签栏：中屏分割", medium.visible.count >= 1 && !medium.overflow.isEmpty)
+
+    // [Bookmark].reorder：根层前移/后移/同位/越界/子层
+    var root: [Bookmark] = [.leaf(title: "0", url: "https://0.com"),
+                            .leaf(title: "1", url: "https://1.com"),
+                            .leaf(title: "2", url: "https://2.com")]
+    var moved = root
+    check("书签栏：根层后移", moved.reorder(id: root[0].id, toIndex: 2) && moved[2].title == "0")
+    moved = root
+    check("书签栏：根层前移", moved.reorder(id: root[2].id, toIndex: 0) && moved[0].title == "2")
+    moved = root
+    check("书签栏：同位不动", moved.reorder(id: root[1].id, toIndex: 1) == false)
+    moved = root
+    check("书签栏：越界钳制", moved.reorder(id: root[0].id, toIndex: 99) && moved[2].title == "0")
+    moved = root
+    check("书签栏：缺失节点不动", moved.reorder(id: UUID(), toIndex: 0) == false)
+
+    var withChild: [Bookmark] = [.folder(title: "F", children: [
+        .leaf(title: "c0", url: "https://c0.com"),
+        .leaf(title: "c1", url: "https://c1.com"),
+        .leaf(title: "c2", url: "https://c2.com"),
+    ]), .leaf(title: "x", url: "https://x.com")]
+    var childMoved = withChild
+    check("书签栏：子层重排",
+          childMoved.reorder(id: withChild[0].children[0].id, toIndex: 2)
+          && withChild[0].children.count == 3)
+    eq("书签栏：子层重排结果", childMoved[0].children[2].title, "c0")
+    childMoved = withChild
+    check("书签栏：子层缺失节点不动", childMoved.reorder(id: UUID(), toIndex: 0) == false)
+    eq("书签栏：子层不影响根", childMoved[1].title, "x")
 }

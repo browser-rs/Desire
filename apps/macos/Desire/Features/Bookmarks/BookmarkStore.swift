@@ -163,6 +163,19 @@ class BookmarkStore: ObservableObject {
         return moved
     }
 
+    /// 同层重排（v0.8.53 书签 2.0）：栏上拖拽排序用。成功后盖父层时间戳 +
+    /// 落盘（URL 索引不受影响，无需重建）。
+    @discardableResult
+    func reorder(id: UUID, toIndex: Int) -> Bool {
+        let oldParentID = parentID(of: id)
+        guard bookmarks.reorder(id: id, toIndex: toIndex) else { return false }
+        if let oldParentID {
+            _ = bookmarks.update(id: oldParentID) { $0.updatedAt = Date() }
+        }
+        save()
+        return true
+    }
+
     /// 整表替换标签（空 = 清掉标签）。
     func setTags(_ tags: [String], forIDs ids: Set<UUID>) {
         let normalized = BookmarkBatchEdit.normalizeTags(tags)

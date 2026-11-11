@@ -252,6 +252,8 @@ struct ImageEditorView: View {
             Menu {
                 Button(String(localized: "Export as PNG…")) { export(as: "png") }
                 Button(String(localized: "Export as JPEG…")) { export(as: "jpg") }
+                Button(String(localized: "Export as WebP…")) { export(as: "webp") }
+                Button(String(localized: "Export as HEIF…")) { export(as: "heic") }
                 Button(String(localized: "Export as TIFF…")) { export(as: "tiff") }
             } label: {
                 Image(systemName: "square.and.arrow.up")

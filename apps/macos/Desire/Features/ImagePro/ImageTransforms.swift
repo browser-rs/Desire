@@ -2,6 +2,7 @@ import AppKit
 import CoreGraphics
 import CoreImage
 import Foundation
+import UniformTypeIdentifiers
 
 /// 照片滤镜预设（v0.8.27 媒体批）：none=原图（不参与烙印），其余一键套用。
 nonisolated enum ImageFilterPreset: String, CaseIterable, Identifiable {
@@ -231,6 +232,22 @@ nonisolated enum ImageTransforms {
                               userInfo: [NSLocalizedDescriptionKey: "HEIC representation failed"])
             }
             data = heic
+        case "webp":
+            // CGImageDestination + UTType.webP（macOS 11+）。
+            guard let dest = CGImageDestinationCreateWithURL(
+                url as CFURL, UTType.webP.identifier as CFString, 1, nil) else {
+                throw NSError(domain: "ImageTransforms", code: 4,
+                              userInfo: [NSLocalizedDescriptionKey: "WebP destination failed"])
+            }
+            let properties: [CFString: Any] = [
+                kCGImageDestinationLossyCompressionQuality: quality
+            ]
+            CGImageDestinationAddImage(dest, image, properties as CFDictionary)
+            guard CGImageDestinationFinalize(dest) else {
+                throw NSError(domain: "ImageTransforms", code: 4,
+                              userInfo: [NSLocalizedDescriptionKey: "WebP representation failed"])
+            }
+            return
         default:
             let rep = NSBitmapImageRep(cgImage: image)
             guard let png = rep.representation(using: .png, properties: [:]) else {

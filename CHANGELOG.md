@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- 工具链 `runToolChain`（v0.8.51 批 2）：一次调用按顺序跑最多 10 个工具（每步走与普通调用完全相同的路径——标签租约/动作后核验/观测缓存失效照常生效）。参数支持变量 `$prev`（上一步结果原文）、`$prev.field`（上一步结果是 JSON 时取字段）、`$n`（第 n 步结果），字符串值里整值或混排都可；`onError=stop`（默认）失败即停且整体以 `Error:` 开头，`continue` 跑完并逐项报告；`background: true` 进 Jobs 台账并立刻返回 job id（完成会话备注 + 通知）。嵌套调用被拒（`__chainDepth` 哨兵，不依赖可变状态）。调试面 `POST /diag/tool-chain`（DEBUG）；E2E 14/14（顺序执行/两种失败语义/嵌套守卫/后台 Jobs），核心替换与摘要进 harness。
+
 ### Changed
 
 - 工具目录 3.0（v0.8.51 批 1）：Agent 工具已 284 个，系统提示词里的逐工具索引（28.8KB/回合，每回合都付）改为**按域分组的摘要**（16 组、1.7KB，压缩到 6%），完整定义由新元工具 `listTools` 按需展开（无参列组；`group=` 列该组全部工具；`query=` 按名称/描述搜索，驼峰拆词命中优先、返回参数签名与必填标记）。子代理等小工具集仍用逐行索引。调试面：`GET /agent/tool-catalog`（两种渲染的精确体积/压缩比/分组）、`GET /diag/tools-section`（真实 `<tools>` 段）、`GET /diag/list-tools`（DEBUG）；验收：空结果走"成功但为空"（非 `Error:`）。

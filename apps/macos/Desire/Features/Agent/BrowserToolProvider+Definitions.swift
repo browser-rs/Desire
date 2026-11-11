@@ -380,6 +380,15 @@ extension BrowserToolProvider {
                 ], required: ["paths"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "runToolChain",
+                description: "Run several tools in order within ONE call (max 10 steps) instead of spending a round-trip per step. Steps run strictly sequentially, each one behaves exactly like a normal tool call (tab lease, post-action verify). Arguments support variables: $prev (previous step's result text), $prev.field (a field when the previous result is a JSON object), $n (the n-th step's result); variables expand inside string values (whole value or mixed). onError=stop (default) halts at the first failure and the overall result starts with Error:; continue keeps going and reports each failure. background=true runs the chain as a Jobs task and returns a job id immediately. Prefer purpose-built tools inside the chain; do not nest runToolChain.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "steps": AgentJSONSchemaValue(type: "array", description: "Array of {tool: string, args?: object} — executed in order"),
+                    "onError": AgentJSONSchemaValue(type: "string", description: "stop (default) | continue"),
+                    "background": AgentJSONSchemaValue(type: "boolean", description: "Run as a background job and return a job id immediately"),
+                ], required: ["steps"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "listTools",
                 description: "Expand the grouped tool index in your context. No arguments: list every group with counts and samples. group=<name>: full definitions (description + parameters) of that group's tools. query=<words>: search names and descriptions (all words must match). Use this before guessing a tool's parameters or when you are unsure which tool fits.",
                 parameters: AgentJSONSchema(type: "object", properties: [

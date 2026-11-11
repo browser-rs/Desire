@@ -994,6 +994,8 @@ extension BrowserToolProvider {
             return Self.researchBriefTool(args, conversationID: ownerSession?.conversationId)
         case "listTools":
             return Self.listToolsTool(args)
+        case "runToolChain":
+            return await runToolChain(args, in: webView)
         case "batchWatermarkImages":
             return Self.batchWatermarkImages(args, conversationID: ownerSession?.conversationId)
 

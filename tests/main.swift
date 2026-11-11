@@ -8526,6 +8526,7 @@ testResearchBriefCore()
 runAsync { await testResearchBriefComposer() }
 testResearchBriefSearchParser()
 testAgentToolCatalog()
+testToolChainCore()
 
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
@@ -10316,4 +10317,62 @@ func testAgentToolCatalog() {
     let described = AgentToolCatalog.describe(def)
     check("工具目录：describe 必填参数", described.contains("alpha:string"))
     check("工具目录：describe 可选参数", described.contains("beta?:number"))
+}
+
+
+// ---------- 工具链核心（v0.8.51 批 2） ----------
+
+func testToolChainCore() {
+    // 步骤解析
+    let steps = ToolChainCore.parseSteps([
+        ["tool": "listTools", "args": ["group": "sync"]],
+        ["tool": "  "],
+        ["tool": "getPageTitle"],
+    ])
+    eq("工具链：解析步数（空名跳过）", steps.count, 2)
+    eq("工具链：第一步带参数", steps.first?.args["group"] as? String ?? "", "sync")
+    eq("工具链：无参步为空表", steps.last?.args.isEmpty ?? false, true)
+    check("工具链：非数组输入为空", ToolChainCore.parseSteps("nope").isEmpty)
+
+    // 失败判据
+    check("工具链：Error: 判失败", ToolChainCore.isFailure("Error: boom"))
+    check("工具链：普通文本不算失败", !ToolChainCore.isFailure("Missing file"))
+
+    // 变量替换：$prev / $prev.field / $n / 混排 / 嵌套
+    let results = ["2", "third", "{\"videoId\":\"abc123\",\"ready\":true}"]
+    eq("工具链：$prev", ToolChainCore.substitute(text: "got $prev", results: results), "got {\"videoId\":\"abc123\",\"ready\":true}")
+    eq("工具链：$prev.field", ToolChainCore.substitute(text: "$prev.videoId", results: results), "abc123")
+    eq("工具链：$prev 布尔字段", ToolChainCore.substitute(text: "$prev.ready", results: results), "true")
+    eq("工具链：$prev 缺失字段", ToolChainCore.substitute(text: "[$prev.nope]", results: results), "[]")
+    eq("工具链：$1 与 $2", ToolChainCore.substitute(text: "$1-$2", results: results), "2-third")
+    eq("工具链：越界编号变空", ToolChainCore.substitute(text: "x$9y", results: results), "xy")
+    eq("工具链：无结果时 $prev 为空", ToolChainCore.substitute(text: "a$prevb", results: []), "ab")
+    check("工具链：无变量不触碰", ToolChainCore.substitute(text: "plain $ dollar", results: results) == "plain $ dollar")
+
+    // 嵌套参数递归 + 多字节混排（单趟切片，不缓存旧 range）
+    let nested: [String: Any] = ["a": ["$1", ["deep": "$prev"]], "b": 3]
+    let replaced = ToolChainCore.substitute(args: nested, results: results)
+    eq("工具链：嵌套数组替换", (replaced["a"] as? [Any])?.first as? String ?? "", "2")
+    let deep = ((replaced["a"] as? [Any])?.last as? [String: Any])?["deep"] as? String ?? ""
+    eq("工具链：嵌套字典替换", deep, "{\"videoId\":\"abc123\",\"ready\":true}")
+    eq("工具链：非字符串原样", replaced["b"] as? Int ?? 0, 3)
+    eq("工具链：多字节混排", ToolChainCore.substitute(text: "中文$1文", results: results), "中文2文")
+    eq("工具链：多变量混排", ToolChainCore.substitute(text: "$1和$2", results: results), "2和third")
+
+    // 摘要
+    let ok = ToolChainCore.summarize(outcomes: [
+        .init(index: 1, tool: "listTools", result: "readFile — …", seconds: 0.1, failed: false),
+    ], onError: "stop", stopped: false)
+    check("工具链：摘要成功", ok.contains("[1] listTools ✓") && ok.contains("1 succeeded"))
+    let stopped = ToolChainCore.summarize(outcomes: [
+        .init(index: 1, tool: "newTab", result: "Error: boom", seconds: 0.2, failed: true),
+    ], onError: "stop", stopped: true)
+    check("工具链：摘要提前停", stopped.contains("stopped at step 1") && stopped.contains("0 succeeded, 1 failed"))
+    check("工具链：整体 Error 前缀", (ToolChainCore.overallPrefix(stopped: true) + stopped).hasPrefix("Error:"))
+    check("工具链：continue 无 Error 前缀", ToolChainCore.overallPrefix(stopped: false).isEmpty)
+    let continued = ToolChainCore.summarize(outcomes: [
+        .init(index: 1, tool: "a", result: "Error: x", seconds: 0, failed: true),
+        .init(index: 2, tool: "b", result: String(repeating: "y", count: 600), seconds: 0, failed: false),
+    ], onError: "continue", stopped: false)
+    check("工具链：摘要长结果截断", continued.contains("…") && !continued.contains(String(repeating: "y", count: 450)))
 }

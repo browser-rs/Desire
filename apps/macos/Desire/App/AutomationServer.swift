@@ -631,6 +631,7 @@ final class AutomationServer {
         ep("GET", "/agent/tool-catalog", "Tool catalog stats: total count, groups, flat vs grouped prompt index sizes", example: "…/agent/tool-catalog")
         ep("GET", "/diag/list-tools", "DEBUG-only: run the listTools catalog expansion (query/group) without an agent turn", params: ["query?:string", "group?:string"], example: "…/diag/list-tools?query=read%20file")
         ep("GET", "/diag/tools-section", "DEBUG-only: the exact <tools> block the prompt builder inserts, plus its size", example: "…/diag/tools-section")
+        ep("POST", "/diag/tool-chain", "DEBUG-only: run runToolChain against the live session without an agent turn", params: ["steps:array", "onError?:stop|continue"], example: #"-d '{"steps":[{"tool":"listTools","args":{"group":"sync"}}]}'"#)
         ep("GET", "/agent/messages", "Live agent conversation + busy (+hasInterruptedTurn: 上回合被中断待继续)", example: "…/agent/messages")
         ep("POST", "/knowledge/weekly", "Cluster this week's excerpts into themes on-device and write a Markdown digest into the agent workspace", params: ["days?:int (default 7)", "path?:string (target directory)"], example: "-d '{}'")
         ep("GET", "/review/queue", "Spaced-repetition review queue (total/due + per-entry stage/dueAt/lapses)", example: "…/review/queue")
@@ -3117,6 +3118,20 @@ case ("GET", "/state"):
                 return try Self.json(Self.agentWindows())
                         case ("GET", "/agent/tool-catalog"):
                 return try Self.json(Self.toolCatalogStats())
+            case ("POST", "/diag/tool-chain"):
+                #if DEBUG
+                guard let session = AgentScheduler.shared.deliveryTarget else {
+                    return try Self.json(["error": "no live agent session"])
+                }
+                guard let webView = TabSessionCoordinator.shared.activeTabManager?
+                    .selectedTab?.browser.webView else {
+                    return try Self.json(["error": "no active tab"])
+                }
+                let text = await session.toolProvider.runToolChain(body, in: webView)
+                return try Self.json(["ok": true, "text": text])
+                #else
+                return try Self.json(["error": "tool-chain is debug-only"])
+                #endif
             case ("GET", "/diag/tools-section"):
                 #if DEBUG
                 let defs = BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs

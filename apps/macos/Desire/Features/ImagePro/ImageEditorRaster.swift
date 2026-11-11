@@ -7,6 +7,8 @@ import Foundation
 /// ImagePro 像素引擎（v0.8.46 重写）：所有绘制/合成/选区/滤镜都在这里，
 /// 输入输出一律 **base 像素坐标（左上原点、y 向下）**。纯函数，便于测试。
 nonisolated enum ImageEditorRaster {
+    /// 专业滤镜的共享 CI 渲染上下文（复用，避免每次滤镜调用创建新 context）。
+    static let sharedCIContext = CIContext(options: [.useSoftwareRenderer: false])
 
     // MARK: - 基础画布
 
@@ -144,6 +146,14 @@ nonisolated enum ImageEditorRaster {
             }
             if layer.style?.isActive == true {
                 bitmap = styled(bitmap, style: layer.style!) ?? bitmap
+            }
+            // 专业滤镜（v0.8.54 专项）：CI 创作滤镜族（模糊/扭曲/风格化等）。
+            if let proFilter = layer.proFilter {
+                let ciInput = CIImage(cgImage: bitmap)
+                let ciOutput = ImageProFilter.apply(ciInput, filter: proFilter)
+                if let rendered = sharedCIContext.createCGImage(ciOutput, from: ciOutput.extent) {
+                    bitmap = rendered
+                }
             }
             // 图层蒙版（v0.8.54 批 2）：灰度图亮度 × 图层 alpha——白显示/黑隐藏。
             if layer.hasMask, let mask = masks?[layer.id] {

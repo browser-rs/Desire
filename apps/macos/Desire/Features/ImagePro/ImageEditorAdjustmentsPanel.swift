@@ -8,6 +8,8 @@ struct ImageEditorAdjustmentsPanel: View {
 
     @State private var params = ImageAdjustParams()
     @State private var filter: ImageFilterPreset = .none
+    /// 专业滤镜（v0.8.54 专项）。
+    @State private var proFilter = ImageProFilter(kind: .gaussianBlur)
     /// 曲线编辑器的直方图背景（onAppear 从活动图层位图计算）。
     @State private var histogram: (r: [Int], g: [Int], b: [Int])?
 
@@ -57,6 +59,35 @@ struct ImageEditorAdjustmentsPanel: View {
                     slider(String(localized: "Gamma"), \.gamma, 0.2...5, format: "%.2f")
                     slider(String(localized: "White Point"), \.whitePoint, 0.6...1, format: "%.2f")
 
+                    Divider().padding(.vertical, 2)
+                    header(String(localized: "Pro Filters"))
+                    Picker("", selection: $proFilter.kind) {
+                        ForEach(ImageProFilter.Kind.allCases, id: \.rawValue) { kind in
+                            Text(kind.localizedTitle).tag(kind)
+                        }
+                    }
+                    .labelsHidden()
+                    .controlSize(.small)
+                    .onChange(of: proFilter.kind) { _, newKind in
+                        proFilter.radius = newKind.defaultRadius
+                        applyProFilter()
+                    }
+                    HStack(spacing: 8) {
+                        Text(String(localized: "Radius"))
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 78, alignment: .leading)
+                        Slider(value: $proFilter.radius,
+                               in: proFilter.kind.radiusRange)
+                            .controlSize(.mini)
+                        Text(verbatim: String(format: "%.0f", proFilter.radius))
+                            .font(.system(size: 9.5, design: .monospaced))
+                            .foregroundStyle(.tertiary)
+                            .frame(width: 32, alignment: .trailing)
+                    }
+                    .onChange(of: proFilter.radius) { _, _ in
+                        applyProFilter()
+                    }
                     Divider().padding(.vertical, 2)
                     header(String(localized: "Filter Effect"))
                     Picker("", selection: $filter) {
@@ -133,6 +164,11 @@ struct ImageEditorAdjustmentsPanel: View {
         if let image = document.bitmap(for: document.activeLayerID) {
             histogram = ImageEditorRaster.histogram(image)
         }
+    }
+
+    /// 应用专业滤镜到活动图层。
+    private func applyProFilter() {
+        document.setLayerProFilter(id: session.document.activeLayerID, filter: proFilter)
     }
 
     private func header(_ text: String) -> some View {

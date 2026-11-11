@@ -63,6 +63,8 @@ final class ImageEditorDocument: ObservableObject {
     /// 调整/滤镜的实时预览（不落库、不进历史；保存/导出不含预览）。
     @Published private(set) var previewAdjust: ImageAdjustParams?
     @Published private(set) var previewFilter: ImageFilterPreset?
+    /// 专业滤镜实时预览（v0.8.54 专项）。
+    @Published private(set) var previewProFilter: ImageProFilter?
 
     private var bitmaps: [UUID: CGImage] = [:]
     /// 图层蒙版位图（v0.8.54 批 2）：key = layer.id，灰度图（白 = 显示、黑 = 隐藏）。
@@ -124,19 +126,32 @@ final class ImageEditorDocument: ObservableObject {
     func bitmap(for id: UUID) -> CGImage? { bitmaps[id] }
 
     /// 设置实时预览（滑杆拖动时调用）。nil/neutral = 无预览。
-    func setPreview(adjust: ImageAdjustParams?, filter: ImageFilterPreset?) {
+    func setPreview(adjust: ImageAdjustParams?, filter: ImageFilterPreset?,
+                    proFilter: ImageProFilter? = nil) {
         previewAdjust = (adjust?.isNeutral == true) ? nil : adjust
         previewFilter = (filter == nil || filter == ImageFilterPreset.none) ? nil : filter
+        previewProFilter = proFilter
         compositeCache = nil
         revision += 1
     }
 
     func clearPreview() {
-        guard previewAdjust != nil || previewFilter != nil else { return }
+        guard previewAdjust != nil || previewFilter != nil || previewProFilter != nil else { return }
         previewAdjust = nil
         previewFilter = nil
+        previewProFilter = nil
         compositeCache = nil
         revision += 1
+    }
+
+    /// 设置图层专业滤镜（v0.8.54 专项；进历史可撤销）。
+    func setLayerProFilter(id: UUID, filter: ImageProFilter?) {
+        pushHistory(filter == nil ? "Remove Pro Filter" : "Pro Filter")
+        if let idx = layers.firstIndex(where: { $0.id == id }) {
+            layers[idx].proFilter = filter
+        }
+        compositeCache = nil
+        commit()
     }
 
     /// 合成结果（按图层顺序自下而上，含可见性/透明度/混合）。

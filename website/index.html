@@ -3,22 +3,32 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Desire — 会替你动手的浏览器 · macOS AI 浏览器</title>
-<meta name="description" content="Desire 是为 macOS 而生的浏览器：内置 AI 智能体，读页、执行、汇报一气呵成；DPP 页面协议让网页主动向 AI 声明能力；书签与记忆端到端加密同步，服务器上只有你能解开的密文。Apple Silicon / Intel · macOS 26.5+ · 免费使用。">
+<title>Desire Browser — 会替你动手的 macOS AI 浏览器（Desire Agent Browser）</title>
+<meta name="description" content="Desire Browser（Desire Agent Browser）是为 macOS 而生的 AI 智能体浏览器：内置 Agent 驱动 100+ 真实浏览器工具，读页、执行、汇报一气呵成；DPP 页面协议让网页主动向 AI 声明能力；书签与记忆端到端加密同步，服务器上只有你能解开的密文。Apple Silicon / Intel · macOS 26.5+ · 免费使用。">
+<meta name="keywords" content="Desire, Desire Browser, Desire Agent Browser, macOS browser, AI browser, agent browser, AI agent browser, 智能体浏览器, AI 浏览器, macOS 浏览器">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
 <meta name="theme-color" content="#f6f1e7">
 <link rel="canonical" href="https://desire.mankong.icu/">
-<meta property="og:title" content="Desire — 会替你动手的浏览器">
-<meta property="og:description" content="内置 AI 智能体 · 81 个离线小工具的内置工具箱 · 端到端加密同步 · 视频批量下载。为 macOS 而生，Apple Silicon / Intel · 免费。">
+<link rel="alternate" hreflang="zh-Hans" href="https://desire.mankong.icu/">
+<link rel="alternate" hreflang="en" href="https://desire.mankong.icu/en/">
+<link rel="alternate" hreflang="x-default" href="https://desire.mankong.icu/en/">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<meta property="og:title" content="Desire Browser — 会替你动手的 macOS AI 浏览器">
+<meta property="og:description" content="内置 AI 智能体（100+ 浏览器工具）· 81 个离线小工具的内置工具箱 · 端到端加密同步 · 视频批量下载。为 macOS 而生，Apple Silicon / Intel · 免费。">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://desire.mankong.icu/">
-<meta property="og:site_name" content="Desire">
+<meta property="og:site_name" content="Desire Browser">
 <meta property="og:locale" content="zh_CN">
+<meta property="og:locale:alternate" content="en_US">
 <meta property="og:image" content="https://desire.mankong.icu/og.jpg">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="Desire——会替你动手的浏览器。朱砂「欲」字印章与 macOS 标语。">
+<meta property="og:image:alt" content="Desire Browser——会替你动手的浏览器。朱砂「欲」字印章与 macOS 标语。">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Desire — 会替你动手的浏览器">
+<meta name="twitter:title" content="Desire Browser — 会替你动手的 macOS AI 浏览器">
 <meta name="twitter:description" content="内置 AI 智能体 · 内置工具箱 · 端到端加密同步 · 为 macOS 而生。免费，Apple Silicon / Intel。">
 <meta name="twitter:image" content="https://desire.mankong.icu/og.jpg">
 <script type="application/ld+json">
@@ -27,19 +37,32 @@
   "@graph": [
     {
       "@type": "WebSite",
-      "name": "Desire",
+      "name": "Desire Browser",
+      "alternateName": ["Desire", "Desire Agent Browser"],
       "url": "https://desire.mankong.icu/",
       "inLanguage": "zh-Hans",
-      "description": "为 macOS 而生的 AI 浏览器：内置智能体、端到端加密同步。"
+      "description": "Desire Browser（Desire Agent Browser）：为 macOS 而生的 AI 智能体浏览器，内置智能体、端到端加密同步。"
+    },
+    {
+      "@type": "Organization",
+      "name": "browser-rs",
+      "url": "https://github.com/browser-rs/Desire",
+      "sameAs": ["https://github.com/browser-rs/Desire"]
     },
     {
       "@type": "SoftwareApplication",
-      "name": "Desire",
+      "name": "Desire Browser",
+      "alternateName": ["Desire", "Desire Agent Browser", "Desire AI Browser"],
       "operatingSystem": "macOS",
       "applicationCategory": "BrowserApplication",
       "softwareVersion": "0.8.51",
       "url": "https://desire.mankong.icu/",
       "downloadUrl": "https://github.com/browser-rs/Desire/releases/latest",
+      "softwareHelp": "https://desire.mankong.icu/#faq",
+      "releaseNotes": "https://github.com/browser-rs/Desire/releases",
+      "sameAs": ["https://github.com/browser-rs/Desire"],
+      "screenshot": "https://desire.mankong.icu/og.jpg",
+      "isAccessibleForFree": true,
       "inLanguage": ["zh-Hans", "zh-Hant", "en"],
       "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
       "author": { "@type": "Organization", "name": "browser-rs", "url": "https://github.com/browser-rs/Desire" },
@@ -48,6 +71,14 @@
     {
       "@type": "FAQPage",
       "mainEntity": [
+        {
+                    "@type": "Question",
+                    "name": "Desire、Desire Browser、Desire Agent Browser 是同一个东西吗？",
+                    "acceptedAnswer": {
+                                "@type": "Answer",
+                                "text": "是。Desire 是产品名，Desire Browser（也写作 Desire Agent Browser、Desire AI Browser）是同一款 macOS AI 智能体浏览器的完整叫法——同一个安装包、同一套功能。GitHub 仓库名是 browser-rs/Desire。"
+                    }
+        },
         {
                     "@type": "Question",
                     "name": "Desire 是免费的吗？",
@@ -332,6 +363,15 @@
     color: var(--ink-soft);
   }
   .hero-lede strong { color: var(--ink); font-weight: 600; }
+  .hero-alias {
+    margin: 0.9rem 0 0;
+    font-family: var(--serif-en, Georgia, "Times New Roman", serif);
+    font-size: 0.92rem;
+    font-style: italic;
+    letter-spacing: 0.02em;
+    color: var(--ink-soft);
+    opacity: 0.85;
+  }
 
   .cta-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: center; }
   .btn {
@@ -825,6 +865,7 @@
       <a href="#e2e">加密</a>
       <a href="#faq">问答</a>
       <a href="#download">下载</a>
+      <a href="/en/" hreflang="en" lang="en">EN</a>
       <a class="gh-link" href="https://github.com/browser-rs/Desire" target="_blank" rel="noopener">GitHub ↗</a>
     </nav>
   </div>
@@ -836,8 +877,9 @@
   <section class="hero">
     <div class="wrap hero-grid">
       <div>
-        <p class="kicker reveal">为 macOS 而生的浏览器</p>
+        <p class="kicker reveal">Desire Browser · 为 macOS 而生的智能体浏览器</p>
         <h1 class="display reveal">会替你<em>动手</em>的<br>浏览器。</h1>
+        <p class="hero-alias reveal">Desire Browser — also known as Desire Agent Browser. The AI agent browser for macOS.</p>
         <p class="hero-lede reveal">
           内置 AI 智能体：读懂页面、执行操作、跑完命令再来汇报。
           书签与记忆<strong>端到端加密同步</strong>——服务器上躺着的，
@@ -1213,6 +1255,10 @@
       </div>
       <div class="faq-list">
         <details class="faq-item reveal" open>
+          <summary>Desire、Desire Browser、Desire Agent Browser 是同一个东西吗？</summary>
+          <p>是。Desire 是产品名，Desire Browser（也写作 Desire Agent Browser、Desire AI Browser）是同一款 macOS AI 智能体浏览器的完整叫法——同一个安装包、同一套功能。GitHub 仓库名是 browser-rs/Desire。</p>
+        </details>
+        <details class="faq-item reveal">
           <summary>Desire 是免费的吗？</summary>
           <p>是。全部功能免费使用，安装包从 GitHub Releases 下载。无需注册即可使用所有本地功能——账号只在你需要多设备同步时才出现。</p>
         </details>
@@ -1347,7 +1393,7 @@
         <a href="#download">下载</a>
       </nav>
     </div>
-    <p class="foot-fine">© <span id="year">2026</span> browser-rs / Desire · SwiftUI on macOS · 简體 / 繁體 / English</p>
+    <p class="foot-fine">© <span id="year">2026</span> browser-rs / Desire Browser · SwiftUI on macOS · <a href="/" hreflang="zh-Hans">简体中文</a> · <a href="/en/" hreflang="en" lang="en">English</a></p>
   </div>
 </footer>
 

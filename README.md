@@ -1,8 +1,8 @@
 # Desire
 
-**Product page: [desire.mankong.icu](https://desire.mankong.icu/)**
+**Product page: [desire.mankong.icu](https://desire.mankong.icu/) · [English](https://desire.mankong.icu/en/)**
 
-**An AI-native web browser for macOS.** Built with SwiftUI and WebKit — and
+**Desire Browser** (also known as **Desire Agent Browser**) — **an AI-native web browser for macOS.** Built with SwiftUI and WebKit — and
 the browser itself is the agent's execution environment: a built-in AI agent
 drives 100+ real browser tools, while an automation bridge and an MCP server
 let external agents do the same.

@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Desire Browser — AI Agent Browser for macOS | Desire Agent Browser</title>
+<meta name="description" content="Desire Browser (Desire Agent Browser) is an AI agent browser for macOS. A built-in agent drives 100+ real browser tools — read, click, type, run commands, verify — with approvals, memory and full traces. Native SwiftUI + WebKit, offline toolbox, end-to-end encrypted sync, video download. Free for Apple Silicon and Intel.">
+<meta name="keywords" content="Desire Browser, Desire Agent Browser, AI agent browser, agentic browser, macOS AI browser, AI browser macOS, WebKit browser, MCP browser, open source AI browser">
+<meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1">
+<meta name="theme-color" content="#f6f1e7">
+<link rel="canonical" href="https://desire.mankong.icu/en/">
+<link rel="alternate" hreflang="zh-Hans" href="https://desire.mankong.icu/">
+<link rel="alternate" hreflang="en" href="https://desire.mankong.icu/en/">
+<link rel="alternate" hreflang="x-default" href="https://desire.mankong.icu/en/">
+<link rel="icon" type="image/png" sizes="32x32" href="/favicon-32.png">
+<link rel="icon" type="image/png" sizes="48x48" href="/favicon-48.png">
+<link rel="icon" type="image/png" sizes="96x96" href="/favicon-96.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
+<meta property="og:title" content="Desire Browser — the AI agent browser for macOS">
+<meta property="og:description" content="A built-in AI agent drives 100+ real browser tools with approvals, memory and traces. Native SwiftUI + WebKit, offline toolbox, E2E-encrypted sync. Free.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://desire.mankong.icu/en/">
+<meta property="og:site_name" content="Desire Browser">
+<meta property="og:locale" content="en_US">
+<meta property="og:locale:alternate" content="zh_CN">
+<meta property="og:image" content="https://desire.mankong.icu/og.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Desire Browser — the AI agent browser for macOS.">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Desire Browser — the AI agent browser for macOS">
+<meta name="twitter:description" content="100+ real browser tools, approvals you control, offline toolbox, E2E-encrypted sync. Free, Apple Silicon / Intel.">
+<meta name="twitter:image" content="https://desire.mankong.icu/og.jpg">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "WebSite",
+      "name": "Desire Browser",
+      "alternateName": ["Desire", "Desire Agent Browser"],
+      "url": "https://desire.mankong.icu/en/",
+      "inLanguage": "en",
+      "description": "Desire Browser (Desire Agent Browser): an AI agent browser for macOS with 100+ real browser tools and end-to-end encrypted sync."
+    },
+    {
+      "@type": "Organization",
+      "name": "browser-rs",
+      "url": "https://github.com/browser-rs/Desire",
+      "sameAs": ["https://github.com/browser-rs/Desire"]
+    },
+    {
+      "@type": "SoftwareApplication",
+      "name": "Desire Browser",
+      "alternateName": ["Desire", "Desire Agent Browser", "Desire AI Browser"],
+      "operatingSystem": "macOS",
+      "applicationCategory": "BrowserApplication",
+      "softwareVersion": "0.8.51",
+      "url": "https://desire.mankong.icu/en/",
+      "downloadUrl": "https://github.com/browser-rs/Desire/releases/latest",
+      "softwareHelp": "https://desire.mankong.icu/en/#faq",
+      "releaseNotes": "https://github.com/browser-rs/Desire/releases",
+      "sameAs": ["https://github.com/browser-rs/Desire"],
+      "screenshot": "https://desire.mankong.icu/og.jpg",
+      "isAccessibleForFree": true,
+      "inLanguage": ["en", "zh-Hans", "zh-Hant"],
+      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
+      "author": { "@type": "Organization", "name": "browser-rs", "url": "https://github.com/browser-rs/Desire" },
+      "featureList": "Built-in AI agent with 100+ browser tools (read page text/HTML/DOM/screenshots/network log, click, type, fill, scroll, upload, run commands) with approval policy, plans, memory, skills, subagents and traces; MCP server and client; 81 offline toolbox utilities (JSON, CSV, regex, hashes, crypto, QR, calculators, video/audio editing, image filters); native video player with picture-in-picture, AB loop, subtitles and frame capture; ebook shelf and reader (EPUB/TXT/Markdown/HTML/FB2/CBZ); office workbench (spreadsheets, documents, PDF annotation, image editor, PPTX outline); whiteboard with Mermaid and ECharts; end-to-end encrypted sync across devices; video ad blocking; HLS to MP4 batch downloads; Chrome MV3-style plugin loader; password manager; DevTools; global semantic search; window workspaces."
+    },
+    {
+      "@type": "FAQPage",
+      "mainEntity": [
+        {
+          "@type": "Question",
+          "name": "Is Desire Browser the same as Desire Agent Browser?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. Desire is the product name; Desire Browser, Desire Agent Browser and Desire AI Browser all refer to the same macOS AI agent browser. The source repository is github.com/browser-rs/Desire."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What makes Desire an AI agent browser?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "The agent is not a chat sidebar. It sees the page like a user (text, HTML, DOM tree, screenshots, network log), acts like a user (click, type, scroll, fill, upload), and every side effect passes an approval policy. It runs 100+ real browser tools, keeps plans, memory and skills, and records a full trace with token usage and cost."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is Desire Browser free?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Yes. All features are free; installers are published on GitHub Releases. No account is required for local features — an account only appears when you enable multi-device sync."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "What are the system requirements?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Apple Silicon (arm64) or Intel (x86_64) Mac running macOS 26.5 or later. The Intel build is cross-compiled and not verified on physical Intel hardware."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Is Desire built on Chromium?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Desire is a native SwiftUI app using Apple's WebKit (WKWebView), not Chromium. It supports mainstream Chrome MV3 extension capabilities through its own plugin runtime."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Which AI models can I use?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Bring your own key (BYOK): any OpenAI-compatible endpoint, Anthropic Messages API, a local Ollama server, or Apple's on-device Foundation Models. Each provider profile stores its own endpoint, key, model list and extra headers."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "Does sync expose my data to the server?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "No. Bookmarks, settings, memory and other synced domains are encrypted on-device before upload (AES-256-GCM with keys derived from your password). The server stores ciphertext only."
+          }
+        },
+        {
+          "@type": "Question",
+          "name": "The app says it is damaged or cannot be verified. What do I do?",
+          "acceptedAnswer": {
+            "@type": "Answer",
+            "text": "Desire is an unsigned build (no Developer ID certificate). After moving Desire.app into Applications, run xattr -cr /Applications/Desire.app once in Terminal to remove the quarantine flag."
+          }
+        }
+      ]
+    }
+  ]
+}
+</script>
+<style>
+  :root {
+    --paper: #f6f1e7;
+    --paper-2: #efe8da;
+    --ink: #211d18;
+    --ink-soft: #4d463c;
+    --cinnabar: #b23a2e;
+    --line: rgba(33, 29, 24, 0.14);
+    --serif: "Hoefler Text", "Songti SC", Georgia, serif;
+    --sans: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+  a { color: var(--cinnabar); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { width: min(1080px, calc(100% - 48px)); margin: 0 auto; }
+  header.site {
+    position: sticky; top: 0; z-index: 20;
+    background: rgba(246, 241, 231, 0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--line);
+  }
+  .nav {
+    display: flex; align-items: center; gap: 1.2rem;
+    padding: 0.9rem 0; font-size: 0.85rem;
+  }
+  .brand { display: flex; align-items: center; gap: 0.55rem; font-weight: 600; letter-spacing: 0.02em; }
+  .brand .seal {
+    width: 26px; height: 26px; border-radius: 5px;
+    background: var(--cinnabar); color: #fff;
+    display: grid; place-items: center;
+    font-family: var(--serif); font-size: 0.95rem;
+  }
+  .nav nav { display: flex; gap: 1rem; margin-left: auto; flex-wrap: wrap; }
+  .nav nav a { color: var(--ink-soft); }
+  .hero { padding: 5rem 0 3.4rem; }
+  .kicker {
+    display: flex; align-items: center; gap: 0.7rem;
+    margin: 0 0 1rem; font-size: 0.76rem; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--cinnabar);
+  }
+  .kicker::before { content: ""; width: 2.4rem; height: 1px; background: var(--cinnabar); }
+  h1 {
+    margin: 0; font-family: var(--serif); font-weight: 500;
+    font-size: clamp(2.6rem, 6.2vw, 4.6rem); line-height: 1.08;
+    letter-spacing: -0.01em;
+  }
+  h1 em { color: var(--cinnabar); }
+  .lede { max-width: 40em; margin: 1.6rem 0 2.2rem; font-size: 1.08rem; color: var(--ink-soft); }
+  .lede strong { color: var(--ink); }
+  .cta { display: flex; gap: 0.9rem; flex-wrap: wrap; align-items: center; }
+  .btn {
+    display: inline-flex; align-items: center; gap: 0.5rem;
+    padding: 0.72rem 1.15rem; border-radius: 999px;
+    font-size: 0.92rem; font-weight: 500; border: 1px solid transparent;
+  }
+  .btn.solid { background: var(--ink); color: var(--paper); }
+  .btn.solid:hover { background: var(--cinnabar); text-decoration: none; }
+  .btn.ghost { border-color: var(--line); color: var(--ink); }
+  .btn.ghost:hover { border-color: var(--cinnabar); color: var(--cinnabar); text-decoration: none; }
+  .meta { margin-top: 1.4rem; font-size: 0.82rem; color: var(--ink-soft); display: flex; gap: 1rem; flex-wrap: wrap; }
+  section { padding: 3.2rem 0; border-top: 1px solid var(--line); }
+  h2 { margin: 0 0 1.1rem; font-family: var(--serif); font-weight: 500; font-size: clamp(1.7rem, 3.4vw, 2.4rem); line-height: 1.2; }
+  h3 { margin: 0 0 0.4rem; font-size: 1rem; }
+  p.note { color: var(--ink-soft); max-width: 46em; }
+  .grid { display: grid; gap: 1.4rem; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); margin-top: 1.6rem; }
+  .card { padding: 1.2rem 1.25rem; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,0.28); }
+  .card p { margin: 0.35rem 0 0; font-size: 0.93rem; color: var(--ink-soft); }
+  .card .tag { font-family: var(--mono); font-size: 0.72rem; color: var(--cinnabar); letter-spacing: 0.04em; }
+  ul.plain { margin: 1rem 0 0; padding-left: 1.1rem; color: var(--ink-soft); }
+  ul.plain li { margin: 0.35rem 0; }
+  code { font-family: var(--mono); font-size: 0.86em; background: var(--paper-2); padding: 0.12em 0.35em; border-radius: 4px; }
+  .faq details { border-bottom: 1px solid var(--line); padding: 0.85rem 0; }
+  .faq summary { cursor: pointer; font-weight: 500; }
+  .faq p { margin: 0.5rem 0 0; color: var(--ink-soft); font-size: 0.95rem; }
+  .download-box { margin-top: 1.2rem; padding: 1.3rem 1.4rem; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-2); }
+  .download-box p { margin: 0.2rem 0; }
+  .download-box .ver { font-weight: 600; }
+  footer {
+    border-top: 1px solid var(--line); padding: 2rem 0 3rem;
+    font-size: 0.82rem; color: var(--ink-soft);
+  }
+  footer .links { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.6rem; }
+  @media (max-width: 640px) {
+    .hero { padding-top: 3.4rem; }
+    .nav nav { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap nav">
+    <div class="brand"><span class="seal">欲</span> Desire Browser</div>
+    <nav aria-label="Site">
+      <a href="#agent">Agent</a>
+      <a href="#features">Features</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#download">Download</a>
+      <a href="#faq">FAQ</a>
+      <a href="https://github.com/browser-rs/Desire" target="_blank" rel="noopener">GitHub ↗</a>
+      <a href="/" hreflang="zh-Hans" lang="zh-Hans">中文</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <section class="hero">
+    <div class="wrap">
+      <p class="kicker">Desire Browser · AI agent browser for macOS</p>
+      <h1>The browser that <em>does</em><br>the work.</h1>
+      <p class="lede">
+        <strong>Desire Browser</strong> — also called <strong>Desire Agent Browser</strong> — is a native
+        macOS browser with an AI agent built into the browser itself. It reads the page, clicks, types,
+        runs commands, checks its own work and reports back. Not a chatbot in a sidebar:
+        the agent is the user, and the page is its workspace.
+      </p>
+      <div class="cta">
+        <a class="btn solid" href="https://github.com/browser-rs/Desire/releases/latest" target="_blank" rel="noopener">
+          Download for macOS <span>v0.8.51</span>
+        </a>
+        <a class="btn ghost" href="https://github.com/browser-rs/Desire" target="_blank" rel="noopener">
+          Source &amp; release notes ↗
+        </a>
+      </div>
+      <p class="meta">
+        <span>Apple Silicon · Intel</span>
+        <span>macOS 26.5+</span>
+        <span>Free</span>
+        <span>SwiftUI + WebKit</span>
+      </p>
+    </div>
+  </section>
+
+  <section id="agent">
+    <div class="wrap">
+      <h2>An agent browser, not a browser with a chat box</h2>
+      <p class="note">
+        Most "AI browsers" put a text field next to the page and hope the model can describe what to click.
+        Desire gives the agent the same channels a person has: it reads text, HTML, the DOM tree, screenshots
+        and the network log; it clicks, types, scrolls, fills forms and uploads files; and every side effect
+        passes an approval policy you set.
+      </p>
+      <div class="grid">
+        <div class="card">
+          <span class="tag">100+ TOOLS</span>
+          <h3>Real browser tools</h3>
+          <p>Navigation, page reading, element refs, waits, form filling, uploads, downloads, captures, history, bookmarks, zoom, reader mode, PiP and an escape hatch to JavaScript and shell commands.</p>
+        </div>
+        <div class="card">
+          <span class="tag">CONTROL</span>
+          <h3>Approvals you own</h3>
+          <p>Three access levels: confirm before every side effect (default), auto-edit page operations while commands stay gated, or full access. Command allow-lists are separate.</p>
+        </div>
+        <div class="card">
+          <span class="tag">LONG HORIZON</span>
+          <h3>Plans, memory, skills</h3>
+          <p>A live checklist, mid-task questions, persistent memory per profile, reusable skills, subagents, scheduled tasks and a trace of every step with tokens and cost.</p>
+        </div>
+        <div class="card">
+          <span class="tag">INTEROP</span>
+          <h3>MCP and automation</h3>
+          <p>Connect MCP servers, or drive the browser from your own agents through the MCP server and a 60+ endpoint local automation bridge.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="features">
+    <div class="wrap">
+      <h2>What else a browser should not be missing</h2>
+      <div class="grid">
+        <div class="card">
+          <h3>Offline toolbox — 81 utilities</h3>
+          <p>Calculators, unit conversion, JSON/CSV conversion, regex testing, hashes and crypto, QR and barcodes, timestamps, Base64, video and audio trimming, image filters. All on-device.</p>
+        </div>
+        <div class="card">
+          <h3>Media player and downloader</h3>
+          <p>Native video mode with speed control, picture-in-picture, AB loop, external subtitles and frame capture. HLS-to-MP4 batch downloads with resume and disk-space guards.</p>
+        </div>
+        <div class="card">
+          <h3>Reading that holds up</h3>
+          <p>Reader mode, PDF viewer and annotation, ebook shelf and paginated reader (EPUB/TXT/Markdown/HTML/FB2/CBZ), bilingual chapter translation, read-aloud and excerpts.</p>
+        </div>
+        <div class="card">
+          <h3>Extensions and privacy</h3>
+          <p>A Chrome MV3-style plugin loader (content scripts, background pages, popups, messaging, declarativeNetRequest), ad and video-ad blocking, per-site permissions, containers and profiles.</p>
+        </div>
+        <div class="card">
+          <h3>Office without leaving the tab</h3>
+          <p>Spreadsheets, documents, PDF annotation, an image editor and PPTX outlines open in place, with format conversion and an agent that can batch-process them.</p>
+        </div>
+        <div class="card">
+          <h3>A whiteboard for structured output</h3>
+          <p>Mermaid and ECharts render locally; the agent can draw diagrams and charts straight into the conversation and onto a board you keep.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="privacy">
+    <div class="wrap">
+      <h2>Your data stays yours</h2>
+      <p class="note">
+        There is no account requirement for local features. When you turn on multi-device sync, bookmarks,
+        settings, memory and the other synced domains are encrypted on this Mac before upload — AES-256-GCM
+        with keys derived from your password. The server stores ciphertext and cannot read your items.
+      </p>
+      <ul class="plain">
+        <li>Bring your own model key — OpenAI-compatible, Anthropic, local Ollama, or Apple on-device models.</li>
+        <li>Chat history stays on the Mac by default; it is not part of sync.</li>
+        <li>Model requests go to the provider you configured, not to us.</li>
+        <li>Everything above is open source: <a href="https://github.com/browser-rs/Desire" target="_blank" rel="noopener">github.com/browser-rs/Desire</a>.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section id="download">
+    <div class="wrap">
+      <h2>Install Desire Browser</h2>
+      <div class="download-box">
+        <p class="ver">Latest version: v0.8.51</p>
+        <p>Apple Silicon (arm64) and Intel (x86_64) builds · macOS 26.5 or later · free.</p>
+        <p style="margin-top:0.8rem">
+          <a class="btn solid" href="https://github.com/browser-rs/Desire/releases/latest" target="_blank" rel="noopener">Open GitHub Releases</a>
+        </p>
+        <p style="margin-top:1rem;font-size:0.9rem">
+          After moving <code>Desire.app</code> into Applications, run
+          <code>xattr -cr /Applications/Desire.app</code> once in Terminal. Desire is an unsigned build,
+          so macOS otherwise reports it as damaged or unverified.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq">
+    <div class="wrap faq">
+      <h2>Frequently asked questions</h2>
+      <details open>
+        <summary>Is Desire Browser the same as Desire Agent Browser?</summary>
+        <p>Yes. Desire is the product name; Desire Browser, Desire Agent Browser and Desire AI Browser all refer to the same macOS AI agent browser. The source repository is <a href="https://github.com/browser-rs/Desire" target="_blank" rel="noopener">github.com/browser-rs/Desire</a>.</p>
+      </details>
+      <details>
+        <summary>What makes Desire an AI agent browser?</summary>
+        <p>The agent is not a chat sidebar. It sees the page like a user (text, HTML, DOM tree, screenshots, network log), acts like a user (click, type, scroll, fill, upload), and every side effect passes an approval policy. It runs 100+ real browser tools, keeps plans, memory and skills, and records a full trace with token usage and cost.</p>
+      </details>
+      <details>
+        <summary>Is Desire Browser free?</summary>
+        <p>Yes. All features are free; installers are published on GitHub Releases. No account is required for local features — an account only appears when you enable multi-device sync.</p>
+      </details>
+      <details>
+        <summary>What are the system requirements?</summary>
+        <p>Apple Silicon (arm64) or Intel (x86_64) Mac running macOS 26.5 or later. The Intel build is cross-compiled and not verified on physical Intel hardware.</p>
+      </details>
+      <details>
+        <summary>Is Desire built on Chromium?</summary>
+        <p>No. Desire is a native SwiftUI app using Apple's WebKit (WKWebView), not Chromium. It supports mainstream Chrome MV3 extension capabilities through its own plugin runtime.</p>
+      </details>
+      <details>
+        <summary>Which AI models can I use?</summary>
+        <p>Bring your own key (BYOK): any OpenAI-compatible endpoint, Anthropic Messages API, a local Ollama server, or Apple's on-device Foundation Models. Each provider profile stores its own endpoint, key, model list and extra headers.</p>
+      </details>
+      <details>
+        <summary>Does sync expose my data to the server?</summary>
+        <p>No. Bookmarks, settings, memory and other synced domains are encrypted on-device before upload (AES-256-GCM with keys derived from your password). The server stores ciphertext only.</p>
+      </details>
+      <details>
+        <summary>The app says it is damaged or cannot be verified. What do I do?</summary>
+        <p>Desire is an unsigned build (no Developer ID certificate). After moving Desire.app into Applications, run <code>xattr -cr /Applications/Desire.app</code> once in Terminal to remove the quarantine flag.</p>
+      </details>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="https://github.com/browser-rs/Desire" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/browser-rs/Desire/releases" target="_blank" rel="noopener">Releases</a>
+      <a href="/">中文页面</a>
+      <a href="/dpp/">DPP for AI agents</a>
+    </div>
+    <p>© <span id="year">2026</span> browser-rs / Desire Browser · SwiftUI on macOS · This page is static and collects no analytics.</p>
+  </div>
+  <script>document.getElementById('year').textContent = new Date().getFullYear();</script>
+</footer>
+</body>
+</html>

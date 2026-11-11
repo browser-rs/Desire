@@ -107021,6 +107021,94 @@
           }
         }
       }
+    },
+    "ImagePro goes pro":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ImagePro goes pro"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ImagePro 迈向专业"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ImagePro 邁向專業"
+          }
+        }
+      }
+    },
+    "17 blend modes (from Color Burn to Luminosity), interactive curves editor with per-channel control and histogram backdrop, non-destructive layer masks, and manual levels with gamma — all with live preview.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"17 blend modes (from Color Burn to Luminosity), interactive curves editor with per-channel control and histogram backdrop, non-destructive layer masks, and manual levels with gamma — all with live preview."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"17 种混合模式（Color Burn 到 Luminosity）、交互式曲线编辑器（分通道 + 直方图背景）、非破坏图层蒙版、手动色阶与 gamma——全部实时预览。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"17 種混合模式（Color Burn 到 Luminosity）、互動式曲線編輯器（分通道 + 直方圖背景）、非破壞圖層遮色片、手動色階與 gamma——全部即時預覽。"
+          }
+        }
+      }
+    },
+    "Levels and color balance":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Levels and color balance"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"色阶与色彩平衡"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"色階與色彩平衡"
+          }
+        }
+      }
+    },
+    "Manual black point, gamma and white point sliders, plus independent R/G/B balance controls — applied non-destructively with the existing pipeline.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Manual black point, gamma and white point sliders, plus independent R/G/B balance controls — applied non-destructively with the existing pipeline."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"手动黑场、gamma 与白场滑块，加独立 R/G/B 平衡控制——通过既有管线非破坏应用。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"手動黑場、gamma 與白場滑塊，加獨立 R/G/B 平衡控制——透過既有管線非破壞應用。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

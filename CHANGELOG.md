@@ -1,3 +1,13 @@
+## [Unreleased]
+### Changed
+
+- What's New 刷成 v0.8.54 亮点（ImagePro 专业版 / 色阶与色彩平衡 / 书签栏终于跟上了 / 处处可发送）；新增文案三语。
+
+### Added
+
+- ImagePro 专业版（v0.8.54 批 1–4）：① **混合模式 7→17 种**——CG 原生支持的全量（Color Burn / Soft Light / Hard Light / Difference / Exclusion / Hue / Saturation / Color / Luminosity 等），按专业编辑器惯例分六组；旧的 cgBlendMode 映射去重移入 enum。② **交互式曲线编辑器**——RGB 总曲线 + R/G/B 分通道标签页，拖拽控制点（x 保序）、点击空白添加、双击移除；直方图背景（活动图层位图计算）；数据写入既有 `curvePoints` / `curveRed/Green/Blue`（每通道 CIColorCube 32³），实时预览走既有 `setPreview(adjust:)`。③ **图层蒙版**——非破坏 per-layer mask（灰度位图存 `ImageEditorDocument.masks`，白显示/黑隐藏）：合成时 mask 亮度乘入图层 alpha；蒙版画笔（`paintOnMask` 开关 + `paintMask(at:radius:gray:)`）；图层面板右键 Add/Remove/Invert Mask + theatermasks 指示器；蒙版随 Snapshot 进历史/可撤销。④ **色阶 UI**——黑场/gamma/白场三滑块（gamma 调整 CIToneCurve 中间调 y = 0.5^(1/gamma)）；⑤ **色彩平衡**——R/G/B 三通道独立偏移（CIColorMatrix 通道 alpha 向量）。
+
+
 ## [v0.8.53] - 2026-11-12
 ### Added
 

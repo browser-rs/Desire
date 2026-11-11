@@ -17,14 +17,14 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
+            .init(icon: "paintbrush.pointed.fill", title: String(localized: "ImagePro goes pro"),
+                  detail: String(localized: "17 blend modes (from Color Burn to Luminosity), interactive curves editor with per-channel control and histogram backdrop, non-destructive layer masks, and manual levels with gamma — all with live preview.")),
+            .init(icon: "slider.horizontal.3", title: String(localized: "Levels and color balance"),
+                  detail: String(localized: "Manual black point, gamma and white point sliders, plus independent R/G/B balance controls — applied non-destructively with the existing pipeline.")),
             .init(icon: "star.square.on.square", title: String(localized: "A bookmarks bar that finally keeps up"),
                   detail: String(localized: "Multi-level folders on the bar, drag to reorder, Open All, middle-click to open in a background tab, and an overflow menu when the bar runs out of room.")),
-            .init(icon: "arrow.down.circle", title: String(localized: "The context menu pulls its weight"),
-                  detail: String(localized: "Download Linked File lands in the downloads panel with pause and resume, Copy Link Text grabs the anchor's words, and Search with… picks the engine for any selection.")),
             .init(icon: "square.and.arrow.up.on.square", title: String(localized: "Send to… everywhere"),
                   detail: String(localized: "History, downloads and bookmark rows all gain the Send to… menu — drop a link onto the whiteboard, into Excerpts, or hand it to the Agent as a draft prompt.")),
-            .init(icon: "scalemass", title: String(localized: "Spend less on simple turns"),
-                  detail: String(localized: "Cost-aware routing gains an aggressive tier — every text-only turn runs on the free local model, falling back to the cloud when it fails — and routing decisions are visible in traces and stats.")),
         ]
     }
 

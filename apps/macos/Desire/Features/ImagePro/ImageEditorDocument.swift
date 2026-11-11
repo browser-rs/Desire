@@ -589,6 +589,22 @@ final class ImageEditorDocument: ObservableObject {
         commit()
     }
 
+    /// 盖章可见（v0.8.54 批 5）：把全部可见图层的合成结果作为**新图层**
+    /// 置顶（不动既有层）——专业编辑器的 ⌘⌥⇧E 语义。
+    @discardableResult
+    func stampVisible(name: String = "Stamped") -> UUID? {
+        guard let flat = composite() else { return nil }
+        pushHistory("Stamp Visible")
+        let layer = ImageEditorLayer(id: UUID(), name: name)
+        layers.append(layer)
+        bitmaps[layer.id] = flat
+        activeLayerID = layer.id
+        masks[layer.id] = nil
+        compositeCache = nil
+        commit()
+        return layer.id
+    }
+
     /// 拼合可见图层为单一背景层（隐藏层丢弃）。
     func flattenLayers() {
         guard layers.count > 1 else { return }

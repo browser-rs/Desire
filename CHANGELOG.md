@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- ImageEditorRaster 内存访问安全（编译器指出的潜在越界）：`healedTexture` 的 CGDataProvider 字节指针可选解包补齐、输出位图改走 CGDataProvider+CGImage 显式构造（CGContext 无 dataProvider 属性）、`var mask` → `let mask`；`ImageProFilter.swift` 里 emboss 的错误三元表达式（CIConvolutionRGB9Vertical 不存在）修正为 CIConvolutionRGB3X3。
+
 ### Changed
 
 - What's New 刷成 v0.8.54 亮点（ImagePro 专业版 / 色阶与色彩平衡 / 书签栏终于跟上了 / 处处可发送）；新增文案三语。
@@ -9,6 +13,8 @@
 
 - ImagePro 专业版（v0.8.54 批 1–4）：① **混合模式 7→17 种**——CG 原生支持的全量（Color Burn / Soft Light / Hard Light / Difference / Exclusion / Hue / Saturation / Color / Luminosity 等），按专业编辑器惯例分六组；旧的 cgBlendMode 映射去重移入 enum。② **交互式曲线编辑器**——RGB 总曲线 + R/G/B 分通道标签页，拖拽控制点（x 保序）、点击空白添加、双击移除；直方图背景（活动图层位图计算）；数据写入既有 `curvePoints` / `curveRed/Green/Blue`（每通道 CIColorCube 32³），实时预览走既有 `setPreview(adjust:)`。③ **图层蒙版**——非破坏 per-layer mask（灰度位图存 `ImageEditorDocument.masks`，白显示/黑隐藏）：合成时 mask 亮度乘入图层 alpha；蒙版画笔（`paintOnMask` 开关 + `paintMask(at:radius:gray:)`）；图层面板右键 Add/Remove/Invert Mask + theatermasks 指示器；蒙版随 Snapshot 进历史/可撤销。④ **色阶 UI**——黑场/gamma/白场三滑块（gamma 调整 CIToneCurve 中间调 y = 0.5^(1/gamma)）；⑤ **色彩平衡**——R/G/B 三通道独立偏移（CIColorMatrix 通道 alpha 向量）。
 - 图层组与逐层翻转（v0.8.54 批 3）：① 图层组——`ImageEditorLayer.groupID` + `LayerGroup`（名称/折叠/可见）随 Snapshot 进历史；面板组头行可折叠/整组显隐/重命名/解散；删除组内最后一员自动解散空组；组不可见时成员从合成剔除（单层 isVisible 不动）；② 逐层翻转（水平/垂直，翻转位图 + 取反 offset），canvas flip 翻全部的既有行为不变；③ 层右键新增 Flip Layer Horizontal/Vertical 与 Move to Group 子菜单；面板工具栏 Group 按钮把活动层纳入新组。
+- ImagePro 深化二批（v0.8.54 专项继续）：① **修复画笔增强**——heal 从"纯克隆"升级为**分离式修复**：克隆源纹理 + 目标低频亮度比值融合（保纹理保光照，减少复制感）；② **Stamp Visible（盖章可见）**——把全部可见图层合成结果作为新图层置顶，不动既有层；图层面板右键可见。两者都在 ImagePro 专项清单内（专业工作流补全）。
+
 
 
 

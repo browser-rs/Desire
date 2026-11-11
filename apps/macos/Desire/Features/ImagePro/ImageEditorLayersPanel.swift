@@ -352,6 +352,10 @@ struct ImageEditorLayersPanel: View {
                 document.selectLayer(layer.id)
                 document.mergeDown()
             }
+            Button(String(localized: "Stamp Visible")) {
+                document.selectLayer(layer.id)
+                _ = document.stampVisible()
+            }
             Button(horizontalFlipTitle) {
                 document.selectLayer(layer.id)
                 document.flipActiveLayer(horizontal: true)

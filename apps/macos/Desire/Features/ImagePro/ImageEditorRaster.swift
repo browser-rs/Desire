@@ -970,7 +970,7 @@ nonisolated extension ImageEditorRaster {
                                   strength: strength) else { return nil }
         let effect: CGImage?
         switch mode {
-        case .clone, .heal:
+        case .clone:
             guard let source else { return base }
             let w = base.width, h = base.height
             guard let ctx = CGContext(data: nil, width: w, height: h,
@@ -984,6 +984,47 @@ nonisolated extension ImageEditorRaster {
             ctx.draw(base, in: CGRect(x: dx, y: -dy,
                                       width: CGFloat(w), height: CGFloat(h)))
             effect = ctx.makeImage()
+        case .heal:
+            // 修复画笔（v0.8.54 增强）：克隆源纹理后，把目标的**低频亮度**
+            // 融合回效果（保纹理、保目标光照），再用蒙版混回——比纯克隆
+            // 少"复制感"（E2E/视觉对照用的经典分离式修复）。
+            guard let source else { return base }
+            let w = base.width, h = base.height
+            guard let ctx = CGContext(data: nil, width: w, height: h,
+                                      bitsPerComponent: 8, bytesPerRow: 0,
+                                      space: CGColorSpaceCreateDeviceRGB(),
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            else { return nil }
+            let dx = point.x - source.x
+            let dy = point.y - source.y
+            ctx.draw(base, in: CGRect(x: dx, y: -dy,
+                                      width: CGFloat(w), height: CGFloat(h)))
+            var cloned = ctx.makeImage() ?? base
+            // 低频亮度提取：大幅高斯模糊 + 下采样，再回贴到全分辨率。
+            let ciBase = CIImage(cgImage: base)
+            let ciCloned = CIImage(cgImage: cloned)
+            if let lowPassFilter = CIFilter(name: "CIGaussianBlur") {
+                lowPassFilter.setValue(ciBase, forKey: kCIInputImageKey)
+                lowPassFilter.setValue(30.0, forKey: kCIInputRadiusKey)
+                if let lowTarget = lowPassFilter.outputImage,
+                   let lowTargetCG = ImagePipelineRenderer.context.createCGImage(
+                        lowTarget.cropped(to: CGRect(x: 0, y: 0, width: w, height: h)),
+                        from: CGRect(x: 0, y: 0, width: w, height: h)) {
+                    if let lowCloneFilter = CIFilter(name: "CIGaussianBlur") {
+                        lowCloneFilter.setValue(ciCloned, forKey: kCIInputImageKey)
+                        lowCloneFilter.setValue(30.0, forKey: kCIInputRadiusKey)
+                        if let lowClone = lowCloneFilter.outputImage,
+                           let lowCloneCG = ImagePipelineRenderer.context.createCGImage(
+                                lowClone.cropped(to: CGRect(x: 0, y: 0, width: w, height: h)),
+                                from: CGRect(x: 0, y: 0, width: w, height: h)) {
+                            if let healed = healedTexture(lowCloneCG, lowTargetCG, cloned) {
+                                cloned = healed
+                            }
+                        }
+                    }
+                }
+            }
+            effect = cloned
         case .dodge, .burn:
             effect = adjustedBrightness(base, amount: mode == .dodge ? 0.35 : -0.35)
         case .blur:
@@ -993,6 +1034,44 @@ nonisolated extension ImageEditorRaster {
         }
         guard let effect else { return base }
         return maskedBlend(base: base, effect: effect, mask: mask) ?? base
+    }
+
+    /// 分离式修复：克隆纹理 + 目标低频亮度 = healed。
+    /// 实现：healed = cloned × (lowTarget / lowClone)（逐像素比值融合）。
+    private static func healedTexture(_ cloned: CGImage, _ lowTarget: CGImage,
+                                      _ lowClone: CGImage) -> CGImage? {
+        let w = cloned.width, h = cloned.height
+        guard let cData = cloned.dataProvider?.data,
+              let tData = lowTarget.dataProvider?.data,
+              let lcData = lowClone.dataProvider?.data else { return nil }
+        let bytesPerRow = 4 * w
+        guard let cBuf = CFDataGetBytePtr(cData),
+              let tBuf = CFDataGetBytePtr(tData),
+              let lcBuf = CFDataGetBytePtr(lcData) else { return nil }
+        let outBuf = UnsafeMutablePointer<UInt8>.allocate(capacity: bytesPerRow * h)
+        defer { outBuf.deallocate() }
+        for y in 0..<h {
+            for x in 0..<w {
+                let o = y * bytesPerRow + x * 4
+                for c in 0..<3 {
+                    let cv = Double(cBuf[o + c])
+                    let tv = Double(tBuf[o + c])
+                    let lv = Double(lcBuf[o + c])
+                    // 比值融合：低频比值（限制幅度防除零爆炸），乘克隆纹理
+                    let ratio = lv < 8 ? 1.0 : min(2.0, max(0.5, tv / lv))
+                    outBuf[o + c] = UInt8(max(0, min(255, cv * ratio)))
+                }
+                outBuf[o + 3] = cBuf[o + 3]
+            }
+        }
+        guard let provider = CGDataProvider(dataInfo: nil, data: outBuf,
+                                            size: bytesPerRow * h,
+                                            releaseData: { _, _, _ in }) else { return nil }
+        return CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32,
+                       bytesPerRow: bytesPerRow, space: CGColorSpaceCreateDeviceRGB(),
+                       bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+                       provider: provider, decode: nil, shouldInterpolate: false,
+                       intent: .defaultIntent)
     }
 
     private static func adjustedBrightness(_ image: CGImage, amount: Double) -> CGImage? {

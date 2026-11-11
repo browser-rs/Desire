@@ -90,19 +90,76 @@ nonisolated enum ImageEditorShape: String, CaseIterable, Sendable {
     }
 }
 
-/// 图层混合模式（CGContext 原生支持子集）。
+/// 图层混合模式（v0.8.54 扩展到 CG 原生支持的 17 种，按专业编辑器惯例分组）。
+/// CGBlendMode 没有 linearBurn/darkerColor/vividLight/pinLight/subtract/divide
+/// 等变体——那些需要 CIFilter 级实现，暂不纳入。
 nonisolated enum ImageEditorBlend: String, CaseIterable, Sendable {
-    case normal, multiply, screen, overlay, darken, lighten, add
+    // 基础
+    case normal
+    // 加深
+    case darken, multiply, colorBurn
+    // 提亮
+    case lighten, screen, colorDodge
+    // 对比
+    case overlay, softLight, hardLight
+    // 差值
+    case difference, exclusion
+    // 色彩
+    case hue, saturation, color, luminosity
+    // 旧版别名（数据兼容；映射到 plusLighter）
+    case add
+
+    /// 分组标题（混合模式选择器的段落头，专业编辑器惯例）。
+    static let groups: [(title: String, modes: [ImageEditorBlend])] = [
+        ("Basic", [.normal]),
+        ("Darken", [.darken, .multiply, .colorBurn]),
+        ("Lighten", [.lighten, .screen, .colorDodge]),
+        ("Contrast", [.overlay, .softLight, .hardLight]),
+        ("Difference", [.difference, .exclusion]),
+        ("Color", [.hue, .saturation, .color, .luminosity]),
+    ]
 
     var localizedTitle: String {
         switch self {
         case .normal: return String(localized: "Normal")
-        case .multiply: return String(localized: "Multiply")
-        case .screen: return String(localized: "Screen")
-        case .overlay: return String(localized: "Overlay")
         case .darken: return String(localized: "Darken")
+        case .multiply: return String(localized: "Multiply")
+        case .colorBurn: return String(localized: "Color Burn")
         case .lighten: return String(localized: "Lighten")
+        case .screen: return String(localized: "Screen")
+        case .colorDodge: return String(localized: "Color Dodge")
+        case .overlay: return String(localized: "Overlay")
+        case .softLight: return String(localized: "Soft Light")
+        case .hardLight: return String(localized: "Hard Light")
+        case .difference: return String(localized: "Difference")
+        case .exclusion: return String(localized: "Exclusion")
+        case .hue: return String(localized: "Hue")
+        case .saturation: return String(localized: "Saturation")
+        case .color: return String(localized: "Color")
+        case .luminosity: return String(localized: "Luminosity")
         case .add: return String(localized: "Add")
+        }
+    }
+
+    var cgBlendMode: CGBlendMode {
+        switch self {
+        case .normal: return .normal
+        case .darken: return .darken
+        case .multiply: return .multiply
+        case .colorBurn: return .colorBurn
+        case .lighten: return .lighten
+        case .screen: return .screen
+        case .colorDodge: return .colorDodge
+        case .overlay: return .overlay
+        case .softLight: return .softLight
+        case .hardLight: return .hardLight
+        case .difference: return .difference
+        case .exclusion: return .exclusion
+        case .hue: return .hue
+        case .saturation: return .saturation
+        case .color: return .color
+        case .luminosity: return .luminosity
+        case .add: return .plusLighter
         }
     }
 }

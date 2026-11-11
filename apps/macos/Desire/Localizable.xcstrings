@@ -106757,6 +106757,50 @@
           }
         }
       }
+    },
+    "Curves":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Curves"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"曲线"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"曲線"
+          }
+        }
+      }
+    },
+    "Hide / Show":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Hide / Show"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"显示 / 隐藏"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"顯示 / 隱藏"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

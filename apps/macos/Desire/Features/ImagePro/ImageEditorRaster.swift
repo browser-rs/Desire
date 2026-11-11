@@ -891,19 +891,7 @@ nonisolated enum ImageEditorRaster {
     }
 }
 
-nonisolated extension ImageEditorBlend {
-    var cgBlendMode: CGBlendMode {
-        switch self {
-        case .normal: return .normal
-        case .multiply: return .multiply
-        case .screen: return .screen
-        case .overlay: return .overlay
-        case .darken: return .darken
-        case .lighten: return .lighten
-        case .add: return .plusLighter
-        }
-    }
-}
+// cgBlendMode 映射已移至 ImageEditorBlend（v0.8.54 扩展 17 种混合模式）。
 
 // MARK: - 修饰工具（迭代 7：全部用绘制/CIImage 语义，不碰原始 buffer）
 

@@ -8,6 +8,8 @@ struct ImageEditorAdjustmentsPanel: View {
 
     @State private var params = ImageAdjustParams()
     @State private var filter: ImageFilterPreset = .none
+    /// 曲线编辑器的直方图背景（onAppear 从活动图层位图计算）。
+    @State private var histogram: (r: [Int], g: [Int], b: [Int])?
 
     init(session: ImageEditorSession) {
         _session = ObservedObject(wrappedValue: session)
@@ -37,6 +39,11 @@ struct ImageEditorAdjustmentsPanel: View {
                     slider(String(localized: "Sharpen"), \.sharpen, 0...2, format: "%.2f")
                     slider(String(localized: "Clarity"), \.clarity, 0...1, format: "%.2f")
                     slider(String(localized: "Vignette"), \.vignette, 0...1, format: "%.2f")
+
+                    Divider().padding(.vertical, 2)
+                    header(String(localized: "Curves"))
+                    ImageEditorCurvesView(params: $params, histogram: histogram)
+                        .padding(.horizontal, 2)
 
                     Divider().padding(.vertical, 2)
                     header(String(localized: "Filter Effect"))
@@ -100,8 +107,19 @@ struct ImageEditorAdjustmentsPanel: View {
         .onChange(of: filter) { _, newValue in
             document.setPreview(adjust: params, filter: newValue)
         }
+        .onChange(of: document.activeLayerID) { _, _ in
+            computeHistogram()
+        }
+        .onAppear { computeHistogram() }
         .onDisappear {
             document.clearPreview()
+        }
+    }
+
+    /// 曲线编辑器的直方图背景（活动图层位图 → RGB 计数）。
+    private func computeHistogram() {
+        if let image = document.bitmap(for: document.activeLayerID) {
+            histogram = ImageEditorRaster.histogram(image)
         }
     }
 

@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.52] - 2026-11-11
 ### Changed
 
 - 多窗口恢复套件补窗口探针（v0.8.52 批 4）：`/diag/windows` 的 windowIndex/restoreMode 断言、`/windows/organize` 非法模式报错、`/windows/focus` 命中窗口；窗口创建/恢复主链路仍由 AX 驱动的双窗/整窗重开 E2E 覆盖（10/10、8/8）。已知环境限制：应用不在前台且系统拒绝激活时，AX「新建窗口」不会生效——套件在此环境会停在新建窗口一步，属既有 CI/激活限制而非产品回归。

@@ -73,6 +73,8 @@ struct CommandDispatcher {
         var focusUrlBar: () -> Void
         var openFile: () -> Void
         var closeWindow: () -> Void
+        /// 整窗重开（v0.8.52）：从 ClosedWindowStore 取最近关闭的窗口，开新窗。
+        var reopenClosedWindow: () -> Void
         var findNext: () -> Void
         var findPrevious: () -> Void
         var addToReadingList: () -> Void
@@ -125,12 +127,18 @@ struct CommandDispatcher {
             }
 
         case .reopenClosedTab:
-            tabManager.reopenLastClosedTab(
+            let restored = tabManager.reopenLastClosedTab(
                 javaScriptEnabled: settings.isJavaScriptEnabled,
                 contentBlocker: contentBlocker,
                 videoAdBlocker: videoAdBlocker,
                 autoPlayPolicy: settings.autoPlayPolicy
             )
+            // Chrome 语义（v0.8.52）：本窗没有可恢复的标签时，⌘⇧T 回退到
+            // 最近关闭的**窗口**。
+            if !restored { actions.reopenClosedWindow() }
+
+        case .reopenClosedWindow:
+            actions.reopenClosedWindow()
 
         case .selectTab(let index):
             actions.clearUrlFocus()

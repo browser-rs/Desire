@@ -31,6 +31,14 @@ struct TabBar: View {
     let onCloseTabsToLeft: (Int) -> Void
     /// 复制整排标签的链接（v0.8.51 浏览器基础）：参数 = Markdown 还是纯文本。
     let onCopyAllTabLinks: (Bool) -> Void
+    /// 标签移动（v0.8.52 批 2）。
+    let onMoveTabToNewWindow: (Int) -> Void
+    let onMoveTabToWindow: (Int, UUID) -> Void
+    /// 其他窗口（移动目标；本窗口已被排除）。
+    var otherWindows: [OtherWindowTarget] = []
+    /// 跨窗口标签搜索（v0.8.52 批 2）：其他窗口的标签 + 点击跳转。
+    var externalTabs: [ExternalTabEntry] = []
+    var onSelectExternalTab: (UUID, UUID) -> Void = { _, _ in }
     /// 休眠其他标签（v0.8.33 浏览器基础）：保留快照、释放 live page。
     let onSuspendOtherTabs: () -> Void
     let onToggleAudioMute: (Int) -> Void
@@ -152,6 +160,9 @@ struct TabBar: View {
                                     closeTabsToLeft: onCloseTabsToLeft,
                                     closeTabsToRight: onCloseTabsToRight,
                                     copyAllTabLinks: onCopyAllTabLinks,
+                                    moveTabToNewWindow: onMoveTabToNewWindow,
+                                    moveTabToWindow: onMoveTabToWindow,
+                                    otherWindows: otherWindows,
                                     suspendOtherTabs: onSuspendOtherTabs,
                                     addTab: onAddTab,
                                     createGroup: onCreateGroup,
@@ -225,6 +236,9 @@ struct TabBar: View {
                                     closeTabsToLeft: onCloseTabsToLeft,
                                     closeTabsToRight: onCloseTabsToRight,
                                     copyAllTabLinks: onCopyAllTabLinks,
+                                    moveTabToNewWindow: onMoveTabToNewWindow,
+                                    moveTabToWindow: onMoveTabToWindow,
+                                    otherWindows: otherWindows,
                                     suspendOtherTabs: onSuspendOtherTabs,
                                     addTab: onAddTab,
                                     createGroup: onCreateGroup,
@@ -331,7 +345,9 @@ struct TabBar: View {
                 onAddTab: onAddTab,
                 searchText: $searchText,
                 isSearchFocused: $isSearchFocused,
-                onClose: { showSwitcher = false }
+                onClose: { showSwitcher = false },
+                externalTabs: externalTabs,
+                onSelectExternalTab: onSelectExternalTab
             )
         }
         .onChange(of: showSwitcher) { _, shown in
@@ -362,6 +378,10 @@ struct TabBar: View {
         let closeTabsToLeft: (Int) -> Void
         let closeTabsToRight: (Int) -> Void
         let copyAllTabLinks: (Bool) -> Void
+        /// 标签移动（v0.8.52 批 2）：移到新窗口 / 指定窗口（与拖拽同一路径）。
+        let moveTabToNewWindow: (Int) -> Void
+        let moveTabToWindow: (Int, UUID) -> Void
+        let otherWindows: [OtherWindowTarget]
         let suspendOtherTabs: () -> Void
         let addTab: () -> Void
         let createGroup: (Int) -> Void
@@ -615,6 +635,16 @@ private struct TabPillView: View {
         }
         .disabled(index == selectedIndex)
 
+        Menu("Move Tab to Window") {
+            Button(String(localized: "New Window")) { actions.moveTabToNewWindow(index) }
+            if !actions.otherWindows.isEmpty {
+                Divider()
+                ForEach(actions.otherWindows) { target in
+                    Button(target.title) { actions.moveTabToWindow(index, target.id) }
+                }
+            }
+        }
+
         Divider()
 
         if let group = tabGroups.first(where: { $0.tabIds.contains(tab.id) }) {
@@ -670,26 +700,59 @@ private struct TabPopoverView: View {
     @Binding var searchText: String
     var isSearchFocused: FocusState<Bool>.Binding
     let onClose: () -> Void
+    /// 其他窗口的标签（跨窗搜索，v0.8.52 批 2）。
+    var externalTabs: [ExternalTabEntry] = []
+    var onSelectExternalTab: (UUID, UUID) -> Void = { _, _ in }
+
+    private struct Row: Identifiable {
+        let id: String
+        let tab: Tab
+        /// 本窗标签的下标（跨窗行为 nil）。
+        let offset: Int?
+        let sessionID: UUID?
+        let windowTitle: String?
+        var isExternal: Bool { offset == nil }
+    }
 
     /// 键盘导航（↑/↓ 移动、Enter 选中、Esc 关闭）：本地事件监视器，
     /// 优先于搜索框的 field editor 消费方向键。
     @State private var keyboardRow: Int?
     @State private var keyMonitor: Any?
 
-    private var activeRow: Int? {
-        keyboardRow ?? filtered.firstIndex(where: { $0.offset == selectedIndex })
+    private var rows: [Row] {
+        let q = searchText.lowercased()
+        func matches(_ tab: Tab) -> Bool {
+            q.isEmpty
+                || tab.displayTitle.lowercased().contains(q)
+                || tab.urlString.lowercased().contains(q)
+                || (tab.browser.webView.url?.absoluteString.lowercased().contains(q) ?? false)
+        }
+        var out: [Row] = tabs.enumerated().compactMap { offset, tab in
+            guard matches(tab) else { return nil }
+            return Row(id: tab.id.uuidString, tab: tab, offset: offset,
+                       sessionID: nil, windowTitle: nil)
+        }
+        // 无搜索词时不列其他窗口（全量太吵）；有搜索词才跨窗。
+        if !q.isEmpty {
+            for entry in externalTabs where matches(entry.tab) {
+                out.append(Row(id: entry.id, tab: entry.tab, offset: nil,
+                               sessionID: entry.sessionID, windowTitle: entry.windowTitle))
+            }
+        }
+        return out
     }
 
-    private var filtered: [(offset: Int, element: Tab)] {
-        if searchText.isEmpty {
-            return Array(tabs.enumerated())
+    private var activeRow: Int? {
+        keyboardRow ?? rows.firstIndex(where: { $0.offset == selectedIndex })
+    }
+
+    private func select(_ row: Row) {
+        if let offset = row.offset {
+            onSelectTab(offset)
+        } else if let sessionID = row.sessionID {
+            onSelectExternalTab(sessionID, row.tab.id)
         }
-        let q = searchText.lowercased()
-        return tabs.enumerated().filter { _, t in
-            t.displayTitle.lowercased().contains(q) ||
-            t.urlString.lowercased().contains(q) ||
-            (t.browser.webView.url?.absoluteString.lowercased().contains(q) ?? false)
-        }
+        onClose()
     }
 
     var body: some View {
@@ -710,7 +773,8 @@ private struct TabPopoverView: View {
 
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    ForEach(filtered, id: \.element.id) { index, tab in
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { rowIndex, row in
+                        let tab = row.tab
                         HStack(spacing: 8) {
                             Circle()
                                 .fill(statusDotStyle(tab))
@@ -731,7 +795,16 @@ private struct TabPopoverView: View {
                                 }
                             }
                             Spacer()
-                            if index == selectedIndex {
+                            if row.isExternal, let windowTitle = row.windowTitle {
+                                Text(windowTitle)
+                                    .font(.system(size: 9, weight: .medium))
+                                    .lineLimit(1)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 5)
+                                    .padding(.vertical, 1)
+                                    .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                            }
+                            if !row.isExternal, row.offset == selectedIndex {
                                 Image(systemName: "checkmark")
                                     .font(.caption2)
                                     .foregroundStyle(.tint)
@@ -739,10 +812,10 @@ private struct TabPopoverView: View {
                         }
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(hotRowBackground(index))
+                        .background(hotRowBackground(rowIndex))
                         .contentShape(Rectangle())
                         .onTapGesture {
-                            onSelectTab(index)
+                            select(row)
                         }
                     }
                 }
@@ -762,7 +835,7 @@ private struct TabPopoverView: View {
 
                 Spacer()
 
-                Text("\(filtered.count) / \(tabs.count)")
+                Text("\(rows.count) / \(tabs.count)")
                     .font(.caption)
                     .foregroundStyle(.tertiary)
             }
@@ -787,7 +860,7 @@ private struct TabPopoverView: View {
     }
 
     private func hotRowBackground(_ index: Int) -> AnyShapeStyle {
-        let active = activeRow ?? selectedIndex
+        let active = activeRow ?? rows.firstIndex(where: { $0.offset == selectedIndex })
         return index == active ? AnyShapeStyle(.tint.opacity(0.1)) : AnyShapeStyle(Color.clear)
     }
 
@@ -800,7 +873,7 @@ private struct TabPopoverView: View {
     private func installKeyMonitor() {
         guard keyMonitor == nil else { return }
         keyMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            let rows = filtered
+            let rows = self.rows
             guard !rows.isEmpty else { return event }
             switch event.keyCode {
             case 125: // down
@@ -811,8 +884,7 @@ private struct TabPopoverView: View {
                 return nil
             case 36: // return
                 if let row = activeRow, rows.indices.contains(row) {
-                    onSelectTab(rows[row].offset)
-                    onClose()
+                    select(rows[row])
                 }
                 return nil
             case 53: // esc

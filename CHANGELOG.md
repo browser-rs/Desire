@@ -1,7 +1,13 @@
 ## [Unreleased]
+### Fixed
+
+- 多窗口索引重复键崩溃（v0.8.52 批 1 的自伤，批 2 E2E 抓到）：SwiftUI 场景重建会同时存在两个同 sessionKey 的 manager，`persistWindowIndex` 用 `Dictionary(uniqueKeysWithValues:)` 建旧快照表时直接 SIGTRAP（三份崩溃报告实证：persistWindowIndex → Dictionary.init trapping）。修复：注册时同 key 只保留最新 manager；`session-index` 与 `window-index-v2` 写入均按 key 去重；旧索引读取改为逐条覆盖（字典合并），不再会因重复键崩溃。
+
 ### Added
 
 - 多窗口会话恢复（v0.8.52 批 1）：窗口升级为一等公民。① 新增 `WindowSnapshot` + `window-index-v2`（sessionKey / frame / 角色 / 是否活动 / 最近活跃时间 / 标签数 / 最小化），与旧裸 key 索引并行写（旧版本回退可用）；② **正常退出也恢复全部窗口**（此前只有崩溃路径补开、且只恢复首窗）——首窗采纳最近会话后，其余窗口按快照逐个 `openWindow` 复活，标签/选中/URL 原样回来；③ **窗口位置持久化**（此前全仓无 frame 落盘）：恢复时按可见屏幕裁剪、同位置窗口阶梯错开，并在 SwiftUI 晚到的级联排列之后持续校正 ~4s；④ 恢复计划纯逻辑 `WindowRestoreCore`（角色过滤 / 空窗与无会话文件过滤 / 崩溃恢复上限 5 窗 + 7 天年龄过滤 / 多屏裁剪 / 阶梯分配）进 harness；⑤ 恢复策略设置 `windowRestoreMode`（all/activeOnly/off，默认 all，UI 随批 4）；⑥ `/diag/windows` 增加每窗 frame/最小化/`windowIndex`/`pendingRestore`/`restoreMode`；⑦ 自愈：10s 内仍有排定窗口未被认领则补开一轮（最多 3 扇）。验收：新增 `tests/multi-window-restore-e2e.py`（两窗→退出→重启→标签/URL/frame 全对→清理）10/10；崩溃恢复套件 3/3；harness 3114/0。
+- 窗口操作面（v0.8.52 批 2）：① **整窗快照** `ClosedWindowStore`——用户关窗时记录标签集 + 窗口位置（cap 20），退出流程或 SwiftUI 场景重建误发的 willClose 会延迟 1.5s 复核（终止中/窗口仍活着就不记）；② File 菜单新增「Reopen Closed Window」，且 **⌘⇧T 在本窗标签队列为空时回退整窗重开**（Chrome 语义）；恢复 = 新窗口装载快照（写会话文件后 `flushSync`，否则 500ms 防抖窗口内开窗会读到空文件——实测踩过）；③ 「最近关闭」面板新增 Windows 段：整窗恢复/删除，标题带标签数与相对时间；④ 标签右键新增「Move Tab to Window」子菜单（新窗口 / 指定窗口，与拖拽同一条迁移路径，保留 history 与挂起状态；顶栏与侧栏两个菜单一致）；⑤ 标签切换器支持**跨窗口搜索**：输入搜索词时列出其他用户窗口的标签（胶囊标窗口标题），回车/点击跳转激活目标窗口并选中该标签。验收：多窗口恢复 E2E 10/10、整窗重开 E2E 8/8。
+
 
 
 ## [v0.8.51] - 2026-11-11

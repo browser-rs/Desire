@@ -216,6 +216,12 @@ struct ContentView: View {
                 focusUrlBar: { focusUrlBar() },
                 openFile: { openFileInNewTab() },
                 closeWindow: { hostingWindow?.close() },
+                reopenClosedWindow: {
+                    // 整窗重开（v0.8.52）：最近关闭的窗口快照 → 新窗口。
+                    guard let closed = ClosedWindowStore.shared.mostRecent(),
+                          let id = ClosedWindowRestorer.stage(closed) else { return }
+                    openWindow(id: "main", value: id)
+                },
                 findNext: { performFindNext() },
                 findPrevious: { performFindPrevious() },
                 addToReadingList: { addToReadingList() },
@@ -471,7 +477,12 @@ struct ContentView: View {
                 tabManager: tabManager,
                 settings: settings,
                 contentBlocker: contentBlocker,
-                videoAdBlocker: videoAdBlocker)
+                videoAdBlocker: videoAdBlocker,
+                onOpenClosedWindow: { closed in
+                    if let id = ClosedWindowRestorer.stage(closed) {
+                        openWindow(id: "main", value: id)
+                    }
+                })
         }
         .sheet(isPresented: $promotionShare.isPresented) {
             PromotionShareSheet()
@@ -807,6 +818,14 @@ struct ContentView: View {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(text, forType: .string)
                     },
+                    onMoveTabToNewWindow: { index in
+                        guard tabManager.tabs.indices.contains(index) else { return }
+                        tearOut(tab: tabManager.tabs[index])
+                    },
+                    onMoveTabToWindow: { index, target in
+                        moveTabToOtherWindow(index, target)
+                    },
+                    otherWindows: otherWindowTargets,
                     onRemoveFromGroup: { tabGroupStore.removeTabFromAll($0) },
                     tabGroups: tabGroupStore.groups,
                     onToggleGroupCollapse: { tabGroupStore.toggleCollapsed($0) },

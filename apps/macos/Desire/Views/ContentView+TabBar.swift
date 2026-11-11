@@ -5,6 +5,61 @@ import UniformTypeIdentifiers
 import WebKit
 
 extension ContentView {
+    /// 其他用户窗口（标签"移动到窗口"的目标；v0.8.52 批 2）。
+    var otherWindowTargets: [OtherWindowTarget] {
+        TabSessionCoordinator.shared.liveManagers().compactMap { manager in
+            guard manager !== tabManager,
+                  let key = manager.sessionKey,
+                  WindowRoleRegistry.shared.role(for: key) == .user,
+                  let id = TabSessionCoordinator.shared.sessionID(forKey: key) else { return nil }
+            let window = WindowSurfaceRegistry.shared.window(for: key)
+            guard window?.isVisible != false else { return nil }
+            let title = window?.title.isEmpty == false
+                ? window?.title ?? ""
+                : (manager.selectedTab?.displayTitle ?? "\(manager.tabs.count) tabs")
+            return OtherWindowTarget(id: id, title: title)
+        }
+    }
+
+    /// 跨窗口标签搜索的数据源（v0.8.52 批 2）。
+    var externalTabEntries: [ExternalTabEntry] {
+        TabSessionCoordinator.shared.liveManagers().flatMap { manager -> [ExternalTabEntry] in
+            guard manager !== tabManager,
+                  let key = manager.sessionKey,
+                  WindowRoleRegistry.shared.role(for: key) == .user,
+                  let sid = TabSessionCoordinator.shared.sessionID(forKey: key) else { return [] }
+            let window = WindowSurfaceRegistry.shared.window(for: key)
+            guard window?.isVisible != false else { return [] }
+            let title = window?.title.isEmpty == false
+                ? window?.title ?? ""
+                : "\(manager.tabs.count) tabs"
+            return manager.tabs.map { ExternalTabEntry(sessionID: sid, windowTitle: title, tab: $0) }
+        }
+    }
+
+    /// 跨窗搜索命中：激活目标窗口并选中该标签。
+    func selectExternalTab(sessionID: UUID, tabID: UUID) {
+        guard let manager = TabSessionCoordinator.shared.manager(forSession: sessionID),
+              let index = manager.tabs.firstIndex(where: { $0.id == tabID }) else { return }
+        WindowSurfaceRegistry.shared.window(for: manager.sessionKey)?.makeKeyAndOrderFront(nil)
+        manager.selectTab(at: index)
+    }
+
+    /// 把标签移到另一扇窗口（与拖拽同一路径：保 history/挂起状态）。
+    func moveTabToOtherWindow(_ index: Int, _ target: UUID) {        guard tabManager.tabs.indices.contains(index),
+              let targetManager = TabSessionCoordinator.shared.manager(forSession: target),
+              targetManager !== tabManager else { return }
+        let tab = tabManager.tabs[index]
+        tabGroupStore.removeTabFromAll(tab.id)
+        tabManager.moveOut(tab)
+        targetManager.absorb(tab)
+        WindowSurfaceRegistry.shared.window(for: targetManager.sessionKey)?.makeKeyAndOrderFront(nil)
+        if tabManager.tabs.isEmpty {
+            (WindowSurfaceRegistry.shared.window(for: tabManager.sessionKey)
+                ?? tab.browser.webView.window)?.close()
+        }
+    }
+
     /// Tab strip. Extracted from `body` (L1-1) to keep `body` scannable.
     /// Pure view slice — no state or logic moved, closures retained verbatim.
     /// 新建组（顶栏与侧栏共用）：TabGroupPrompts 收名 → store 建组并把该
@@ -117,6 +172,18 @@ extension ContentView {
                 let text = TabLinkList.render(TabLinkList.entries(pairs), markdown: markdown)
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(text, forType: .string)
+            },
+            onMoveTabToNewWindow: { index in
+                guard tabManager.tabs.indices.contains(index) else { return }
+                tearOut(tab: tabManager.tabs[index])
+            },
+            onMoveTabToWindow: { index, target in
+                moveTabToOtherWindow(index, target)
+            },
+            otherWindows: otherWindowTargets,
+            externalTabs: externalTabEntries,
+            onSelectExternalTab: { sessionID, tabID in
+                selectExternalTab(sessionID: sessionID, tabID: tabID)
             },
             onSuspendOtherTabs: {
                 tabManager.suspendAllBackgroundTabs()

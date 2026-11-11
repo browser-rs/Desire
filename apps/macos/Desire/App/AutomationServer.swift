@@ -5497,6 +5497,7 @@ case ("GET", "/agent/messages"):
         case "newTab": command = .newTab
         case "newIncognitoTab": command = .newIncognitoTab
         case "closeTab": command = .closeTab
+        case "reopenClosedWindow": command = .reopenClosedWindow
         case "reopenClosedTab": command = .reopenClosedTab
         case "selectTab":
             guard let index else { return ["error": "selectTab requires index"] }

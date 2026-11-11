@@ -26,6 +26,10 @@ struct VerticalTabBarView: View {
     let onCloseTabsToRight: (Int) -> Void
     let onCloseTabsToLeft: (Int) -> Void
     let onCopyAllTabLinks: (Bool) -> Void
+    /// 标签移动（v0.8.52 批 2）。
+    let onMoveTabToNewWindow: (Int) -> Void
+    let onMoveTabToWindow: (Int, UUID) -> Void
+    var otherWindows: [OtherWindowTarget] = []
     let onRemoveFromGroup: (UUID) -> Void
     /// 标签组全套操作（v0.7.18 UI 收口）：与顶部栏同款的折叠行 + 右键菜单
     /// （重命名 / 折叠 / 删组 / 移出组 / 加入组）——此前侧栏只有"移出组"
@@ -243,6 +247,15 @@ struct VerticalTabBarView: View {
             }
             Button(tab.audioMuted ? "Unmute Tab" : "Mute Tab") { onToggleAudioMute(index) }
             Button(tab.isPinned ? "Unpin Tab" : "Pin Tab") { onTogglePin(index) }
+            Menu("Move Tab to Window") {
+                Button(String(localized: "New Window")) { onMoveTabToNewWindow(index) }
+                if !otherWindows.isEmpty {
+                    Divider()
+                    ForEach(otherWindows) { target in
+                        Button(target.title) { onMoveTabToWindow(index, target.id) }
+                    }
+                }
+            }
             Divider()
             Button("Close Tab") { onCloseTab(index) }
             Button("Close Other Tabs") { onCloseOtherTabs(index) }

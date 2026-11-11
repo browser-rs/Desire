@@ -1121,6 +1121,13 @@ final class TabSessionCoordinator {
 
     func sessionKey(for id: UUID) -> String { "session-" + id.uuidString }
 
+    /// 反向解析（v0.8.52）：`session-<uuid>` → UUID（窗口间移动/搜索用）。
+    func sessionID(forKey key: String) -> UUID? {
+        let prefix = "session-"
+        guard key.hasPrefix(prefix) else { return nil }
+        return UUID(uuidString: String(key.dropFirst(prefix.count)))
+    }
+
     /// 全部存活窗口的 TabManager（webext windows.getAll 用；弱引用自动清理）。
     func liveManagers() -> [TabManager] {
         managers.removeAll { $0.manager == nil }
@@ -1137,6 +1144,11 @@ final class TabSessionCoordinator {
     func register(_ manager: TabManager) {
         managers.removeAll { $0.manager == nil }
         guard !managers.contains(where: { $0.manager === manager }) else { return }
+        // SwiftUI 场景重建会造出**同 sessionKey 的新 manager**（旧实例滞留）：
+        // 只留最新的那个，否则索引/快照会出现重复键，persist 侧要处处去重。
+        if let key = manager.sessionKey {
+            managers.removeAll { $0.manager !== manager && $0.manager?.sessionKey == key }
+        }
         managers.append(WeakManager(manager: manager))
         UserDefaults.standard.set(true, forKey: Self.runningSentinelKey)
         startTimerIfNeeded()
@@ -1194,7 +1206,13 @@ final class TabSessionCoordinator {
             guard let manager = box.manager, let key = manager.sessionKey else { continue }
             persistWindow(manager, key: key, force: force)
         }
-        let keys = managers.compactMap { $0.manager?.sessionKey }
+        // 去重：同一 sessionKey 只留一条（场景重建期间可能短暂重复）。
+        var seenKeys = Set<String>()
+        let keys = managers.compactMap { box -> String? in
+            guard let key = box.manager?.sessionKey,
+                  seenKeys.insert(key).inserted else { return nil }
+            return key
+        }
         if !keys.isEmpty {
             DiskStore.save(keys, key: Self.indexKey)
             persistWindowIndex()
@@ -1205,14 +1223,21 @@ final class TabSessionCoordinator {
     /// 与旧 `session-index` 并行写——旧版本回退仍能读裸 key 数组。
     private func persistWindowIndex() {
         let now = Date()
-        let previous = Dictionary(
-            uniqueKeysWithValues: (DiskStore.load([WindowSnapshot].self,
-                                                  key: Self.windowIndexKey) ?? [])
-                .map { ($0.sessionKey, $0) })
-        let snapshots = managers.compactMap { box -> WindowSnapshot? in
-            guard let manager = box.manager, let key = manager.sessionKey else { return nil }
-            return windowSnapshot(for: manager, key: key, now: now,
-                                  previous: previous[key])
+        // 不用 uniqueKeysWithValues：SwiftUI 场景重建期间可能同时存在两个
+        // 同 sessionKey 的 manager，旧索引也可能已有重复键——那会直接 SIGTRAP
+        // （2026-11-11 崩溃报告：persistWindowIndex → Dictionary.init trapping）。
+        var previous: [String: WindowSnapshot] = [:]
+        for snapshot in DiskStore.load([WindowSnapshot].self,
+                                       key: Self.windowIndexKey) ?? [] {
+            previous[snapshot.sessionKey] = snapshot
+        }
+        var seen = Set<String>()
+        var snapshots: [WindowSnapshot] = []
+        for box in managers {
+            guard let manager = box.manager, let key = manager.sessionKey,
+                  seen.insert(key).inserted else { continue }
+            snapshots.append(windowSnapshot(for: manager, key: key, now: now,
+                                            previous: previous[key]))
         }
         guard !snapshots.isEmpty else { return }
         DiskStore.save(snapshots, key: Self.windowIndexKey)
@@ -1262,6 +1287,39 @@ final class TabSessionCoordinator {
     /// "上次会话"留给下次启动采纳（关窗 ≠ 清仓；Chrome 同语义）。
     private var lastClosedSessionKey: String?
 
+    /// 记录一扇用户关闭的窗口（整窗快照，供 RecentlyClosedPanel 重开）。
+    /// 同步取快照，延迟判定是否真的关闭——退出流程与 SwiftUI 场景重建都会
+    /// 误发 willClose（2026-11-11 实测：退出时把全部窗口记成"已关闭"、
+    /// 关测试窗时把用户窗也记了一条）。
+    private func stageClosedWindowRecord(_ manager: TabManager, key: String) {
+        var savedTabs: [SavedTab] = []
+        manager.appendSessionTabs(into: &savedTabs, force: true)
+        guard !savedTabs.isEmpty else { return }
+        let window = WindowSurfaceRegistry.shared.window(for: key)
+            ?? manager.selectedTab?.browser.webView.window
+        let frame = window.map {
+            WindowFrame(x: $0.frame.origin.x, y: $0.frame.origin.y,
+                        width: $0.frame.size.width, height: $0.frame.size.height)
+        }
+        let fallbackTitle = manager.tabs.first(where: { !$0.isOnNewTabPage })?.displayTitle ?? ""
+        let windowTitle = window?.title ?? ""
+        let title = windowTitle.isEmpty ? fallbackTitle : windowTitle
+        let session = SavedSession(tabs: savedTabs,
+                                   selectedIndex: manager.selectedIndex,
+                                   profileID: manager.profileID)
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1.5))
+            guard let self, !self.isTerminating else { return }
+            // 窗口其实还活着（场景重建/误发 willClose）：不记录。
+            let alive = self.managers.compactMap(\.manager).contains { other in
+                other.sessionKey == key
+                    && other.tabs.contains { $0.browser.webView.window?.isVisible == true }
+            }
+            guard !alive else { return }
+            ClosedWindowStore.shared.record(session: session, frame: frame, title: title)
+        }
+    }
+
     /// 窗口关闭时摘除其 manager（ContentView 的 willClose 观察调用）。
     /// 不摘除的话：SwiftUI 窗口 close 后实例不立即释放 → manager 存活 →
     /// 退出时它照样 persistAll + 进 index → 下次启动多还一扇窗/抢"最近
@@ -1269,6 +1327,12 @@ final class TabSessionCoordinator {
     func unregister(_ manager: TabManager) {
         if let key = manager.sessionKey {
             lastClosedSessionKey = key
+            // 整窗快照（v0.8.52 批 2）：只在**真的关了**这扇窗时记录。
+            // 同步取快照（标签还在），1.5s 后再决定：退出流程中（isTerminating）
+            // 或窗口其实还活着（SwiftUI 场景重建会误发 willClose）都不记录。
+            if !isTerminating, WindowRoleRegistry.shared.role(for: key) == .user {
+                stageClosedWindowRecord(manager, key: key)
+            }
             // **关窗即归档它的会话文件**（v0.7.18）：文件留在 storage/ 会变成
             // 下次启动"最近会话"采纳的诱饵——实测一天攒了 23 个已关窗口的
             // 会话文件，直接导致"幽灵窗口/投递目标指向已关窗口/启动找不到
@@ -1538,6 +1602,12 @@ final class TabSessionCoordinator {
     func pendingRestoreFrame(for key: String?) -> (frame: WindowFrame, cascade: Int)? {
         guard let key else { return nil }
         return pendingRestoreFrames[key]
+    }
+
+    /// 运行期恢复（整窗重开/工作区开新窗）用：只排 frame，不动待认领 key 队列。
+    func stageFrame(for key: String, frame: WindowFrame?, cascade: Int = 0) {
+        guard let frame else { return }
+        pendingRestoreFrames[key] = (frame, cascade)
     }
 
     func enqueueRestoreSnapshots(_ snapshots: [WindowSnapshot]) {

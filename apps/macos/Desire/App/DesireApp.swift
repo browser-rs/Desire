@@ -202,6 +202,8 @@ enum BrowserCommand {
     case addSelectionToWhiteboard
     // 菜单补全二批（0.2.14）：文件/查找/导航/阅读列表/Agent。
     case openLocation, openFile, closeWindow
+    /// 整窗重开（v0.8.52）：⌘⇧T 在本窗标签队列空时也回退到这里。
+    case reopenClosedWindow
     case findNext, findPrevious, addToReadingList, askAgentAboutPage
     case goBack, goForward
     case toggleTabOverview

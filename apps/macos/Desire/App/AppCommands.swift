@@ -72,6 +72,7 @@ struct AppCommands: Commands {
                 .keyboardShortcut(binding("closeTab", "w", .command))
             Button("Reopen Closed Tab") { postCommand(.reopenClosedTab) }
                 .keyboardShortcut(binding("reopenClosedTab", "t", [.command, .shift]))
+            Button("Reopen Closed Window") { postCommand(.reopenClosedWindow) }
             Divider()
             Button("Save Page…") { postCommand(.savePage) }
                 .keyboardShortcut(binding("savePage", "s", .command))

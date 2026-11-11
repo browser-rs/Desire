@@ -992,6 +992,8 @@ extension BrowserToolProvider {
             return Self.batchTrimVideos(args, conversationID: ownerSession?.conversationId)
         case "researchBrief":
             return Self.researchBriefTool(args, conversationID: ownerSession?.conversationId)
+        case "listTools":
+            return Self.listToolsTool(args)
         case "batchWatermarkImages":
             return Self.batchWatermarkImages(args, conversationID: ownerSession?.conversationId)
 

@@ -22,6 +22,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/Memory/MemoryKB.swift
   apps/macos/Desire/Features/Notifications/NotificationPolicy.swift
   apps/macos/Desire/Features/Agent/AgentToolSchema.swift
+  apps/macos/Desire/Features/Agent/AgentToolCatalog.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DesireProtocol.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DPPAdapter.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DPPAdapterAuthoring.swift

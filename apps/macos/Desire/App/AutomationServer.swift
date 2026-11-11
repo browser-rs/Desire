@@ -628,6 +628,9 @@ final class AutomationServer {
         ep("POST", "/ai/output-rules/remove", "Remove one output rule by exact text", params: ["text:string"], example: #"-d '{"text":"…"}'"#)
         ep("GET", "/ai/prices", "Model price table (USD per Mtok) used to turn token usage into cost", example: "…/ai/prices")
         ep("POST", "/ai/prices", "Set/clear model prices; 0 or omitted = unknown (that model shows no money)", params: ["models?:{model:{input,output}}", "remove?:[model]"], example: #"-d '{"models":{"gpt-4o":{"input":2.5,"output":10}}}'"#)
+        ep("GET", "/agent/tool-catalog", "Tool catalog stats: total count, groups, flat vs grouped prompt index sizes", example: "…/agent/tool-catalog")
+        ep("GET", "/diag/list-tools", "DEBUG-only: run the listTools catalog expansion (query/group) without an agent turn", params: ["query?:string", "group?:string"], example: "…/diag/list-tools?query=read%20file")
+        ep("GET", "/diag/tools-section", "DEBUG-only: the exact <tools> block the prompt builder inserts, plus its size", example: "…/diag/tools-section")
         ep("GET", "/agent/messages", "Live agent conversation + busy (+hasInterruptedTurn: 上回合被中断待继续)", example: "…/agent/messages")
         ep("POST", "/knowledge/weekly", "Cluster this week's excerpts into themes on-device and write a Markdown digest into the agent workspace", params: ["days?:int (default 7)", "path?:string (target directory)"], example: "-d '{}'")
         ep("GET", "/review/queue", "Spaced-repetition review queue (total/due + per-entry stage/dueAt/lapses)", example: "…/review/queue")
@@ -3112,7 +3115,28 @@ case ("GET", "/state"):
                 return try Self.json(Self.agentHandoff(window: Self.string(body, "window")))
             case ("GET", "/agent/windows"):
                 return try Self.json(Self.agentWindows())
-            case ("GET", "/agent/messages"):
+                        case ("GET", "/agent/tool-catalog"):
+                return try Self.json(Self.toolCatalogStats())
+            case ("GET", "/diag/tools-section"):
+                #if DEBUG
+                let defs = BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs
+                let section = AgentPromptBuilder.toolsSection(
+                    BrowserToolProvider.promptInventory(for: defs))
+                return try Self.json(["ok": true, "chars": section.count, "text": section])
+                #else
+                return try Self.json(["error": "tools-section is debug-only"])
+                #endif
+            case ("GET", "/diag/list-tools"):
+                #if DEBUG
+                return try Self.json(["ok": true,
+                                      "text": BrowserToolProvider.listToolsTool([
+                                        "query": query["query"] ?? "",
+                                        "group": query["group"] ?? "",
+                                      ])])
+                #else
+                return try Self.json(["error": "list-tools is debug-only"])
+                #endif
+case ("GET", "/agent/messages"):
                 return try Self.json(Self.agentMessages(window: Self.string(query, "window")))
             case ("POST", "/knowledge/weekly"):
                 let days = min(365, max(1, (body["days"] as? Int) ?? 7))
@@ -3836,6 +3860,28 @@ case ("GET", "/state"):
         default:
             return value
         }
+    }
+
+    /// 工具目录统计（v0.8.51 批 1）：压缩比的**精确**度量面（同一份清单两种渲染）。
+    @MainActor
+    private static func toolCatalogStats() -> [String: Any] {
+        let defs = BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs
+        let mcpNames = Set(MCPStore.shared.toolDefs.map { $0.function.name })
+        let inventory = BrowserToolProvider.promptInventory(for: defs)
+        let flat = AgentToolCatalog.flatChars(inventory)
+        let digestText = AgentToolCatalog.digest(inventory, mcpNames: mcpNames)
+        let summaries = AgentToolCatalog.groups(inventory, mcpNames: mcpNames)
+        let groups = summaries.map { summary -> [String: Any] in
+            ["group": summary.group.rawValue,
+             "title": summary.group.title,
+             "count": summary.count,
+             "samples": summary.samples]
+        }
+        return ["count": inventory.count,
+                "groups": groups,
+                "flatChars": flat,
+                "digestChars": digestText.count,
+                "ratio": flat > 0 ? Double(digestText.count) / Double(flat) : 0]
     }
 
     // MARK: - 研究简报（v0.8.50）

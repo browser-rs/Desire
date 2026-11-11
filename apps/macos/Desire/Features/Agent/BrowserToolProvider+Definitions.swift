@@ -380,6 +380,15 @@ extension BrowserToolProvider {
                 ], required: ["paths"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listTools",
+                description: "Expand the grouped tool index in your context. No arguments: list every group with counts and samples. group=<name>: full definitions (description + parameters) of that group's tools. query=<words>: search names and descriptions (all words must match). Use this before guessing a tool's parameters or when you are unsure which tool fits.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "group": AgentJSONSchemaValue(type: "string", description: "Group name from the index, e.g. tabs & windows, page interaction, files, media, documents, library & data, agent & memory, background jobs, site settings & privacy, system & clipboard"),
+                    "query": AgentJSONSchemaValue(type: "string", description: "Keywords matched against tool names and descriptions"),
+                    "limit": AgentJSONSchemaValue(type: "number", description: "Max tools to return (default 15, max 40)"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "researchBrief",
                 description: "Research a topic on the web and produce a cited brief, in the background (Jobs ledger) and without touching the user's tabs. action=start: search the web (or use urls), fetch the pages in a non-persistent session, read each source, then compose a Markdown brief where every claim cites [n] and quotes are verified verbatim against the source text. Returns a brief id immediately. action=status shows the rendered brief, list shows all briefs, cancel stops one, export copies it to Downloads/Research/, toexcerpts adds one verified quote per source to Excerpts. For local documents use researchDocuments; for a quick page summary use the chat tools instead.",
                 parameters: AgentJSONSchema(type: "object", properties: [

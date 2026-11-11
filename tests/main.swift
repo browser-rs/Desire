@@ -8525,6 +8525,7 @@ testHealthClock()
 testResearchBriefCore()
 runAsync { await testResearchBriefComposer() }
 testResearchBriefSearchParser()
+testAgentToolCatalog()
 
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
@@ -10272,4 +10273,47 @@ func testResearchBriefSearchParser() {
           ResearchBriefSearchParser.cleanTitle("A &amp; B 标题") == "A & B 标题")
     check("搜索解析：资源与脚本被拒",
           ResearchBriefSearchParser.realURL(from: "https://a.example/app.js", baseURL: "") == nil)
+}
+
+
+// ---------- 工具目录分组（v0.8.51 批 1） ----------
+
+func testAgentToolCatalog() {
+    // 真实工具名清单（tests/fixtures/tool-names.txt，源码提取）：守住分类覆盖率。
+    let names = (try? String(contentsOfFile: "tests/fixtures/tool-names.txt", encoding: .utf8))?
+        .components(separatedBy: .newlines)
+        .filter { !$0.isEmpty } ?? []
+    check("工具目录：清单非空", names.count >= 250)
+    var other = 0
+    for name in names {
+        if AgentToolCatalog.classify(name: name) == .other { other += 1 }
+    }
+    check("工具目录：other 占比 < 15%", Double(other) / Double(max(1, names.count)) < 0.15)
+
+    // 压缩比：283 个工具、每个 60 字摘要 → 分组摘要必须显著更小。
+    let tools = names.map { (name: $0, summary: String(repeating: "x", count: 60)) }
+    let flat = AgentToolCatalog.flatChars(tools)
+    let digest = AgentToolCatalog.digest(tools, mcpNames: ["mcpDemo"]).count
+    check("工具目录：压缩比 < 40%", Double(digest) / Double(flat) < 0.40)
+    let digestText = AgentToolCatalog.digest(tools, mcpNames: ["mcpDemo"])
+    check("工具目录：含 listTools 指引", digestText.contains("listTools"))
+    check("工具目录：含 MCP 提醒", digestText.contains("MCP servers"))
+    check("工具目录：分组摘要含代表工具", digestText.contains("tabs & windows (") && digestText.contains("page interaction ("))
+
+    // 分组：至少覆盖 10 组，且 browse 组里有标签类工具。
+    let summaries = AgentToolCatalog.groups(tools, mcpNames: ["mcpDemo"])
+    check("工具目录：组数 ≥ 10", summaries.count >= 10)
+    check("工具目录：标签组命中", (summaries.first { $0.group == .browse }?.count ?? 0) >= 5)
+
+    // describe：必填/可选参数标记。
+    let def = AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "demoTool",
+        description: "Demo",
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "alpha": AgentJSONSchemaValue(type: "string"),
+            "beta": AgentJSONSchemaValue(type: "number"),
+        ], required: ["alpha"])))
+    let described = AgentToolCatalog.describe(def)
+    check("工具目录：describe 必填参数", described.contains("alpha:string"))
+    check("工具目录：describe 可选参数", described.contains("beta?:number"))
 }

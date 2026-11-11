@@ -604,6 +604,28 @@ class AgentPreferenceStore: ObservableObject {
                 .flatMap { UUID(uuidString: $0) }
         }
 
+        // 悬空指针自愈（v0.8.51 回归发现）：活动/旁路/评审/备用档案指向
+        // **已不存在的档案**时（临时档案清理、快照式还原档案表都可能留下），
+        // 设置页会没有选中项、有效档案悄悄回落到第一个。这里落到第一个并
+        // 显式落盘——init 里的赋值**不触发 didSet**。
+        if let id = activeProfileID, !profiles.contains(where: { $0.id == id }) {
+            activeProfileID = profiles.first?.id
+            UserDefaults.standard.set(activeProfileID?.uuidString, forKey: "aiActiveProfileID")
+            Log.agent.info("active profile pointer was dangling — repaired to the first profile")
+        }
+        if let id = bypassProfileID, !profiles.contains(where: { $0.id == id }) {
+            bypassProfileID = nil
+            UserDefaults.standard.removeObject(forKey: "aiBypassProfile")
+        }
+        if let id = criticProfileID, !profiles.contains(where: { $0.id == id }) {
+            criticProfileID = nil
+            UserDefaults.standard.removeObject(forKey: "agentCriticProfile")
+        }
+        if let id = fallbackProfileID, !profiles.contains(where: { $0.id == id }) {
+            fallbackProfileID = nil
+            UserDefaults.standard.removeObject(forKey: "aiFallbackProfile")
+        }
+
         // 全部初始化完成——可以调用 self 方法了。**非交互**：init 跑在
         // applicationWillFinishLaunching 的主线程上，这里若同步等一个显示不出来的
         // 授权窗，整个应用就死在启动里（2026-09-24）。

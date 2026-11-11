@@ -4225,6 +4225,19 @@ func testToolUsageStats() {
     let noDur = ToolUsageStats.derive(from: [.init(name: "x", resultText: nil, durationMs: nil, at: now)])
     check("工具：无耗时均值 nil", noDur.first?.averageMs == nil)
     check("工具：nil 结果不计失败", noDur.first?.failures == 0)
+
+    // 排序档（v0.8.51）：调用 / 失败 / 最慢；无耗时样本排最后。
+    check("工具：排序-调用最多", ToolUsageStats.sorted(all, by: .calls).first?.name == "readFile")
+    check("工具：排序-失败最多", ToolUsageStats.sorted(all, by: .failures).first?.name == "readFile")
+    check("工具：排序-最慢", ToolUsageStats.sorted(all, by: .slowest).first?.name == "navigate")
+    let withNoDur = ToolUsageStats.sorted(all + noDur, by: .slowest)
+    check("工具：排序-无耗时排最后", withNoDur.last?.name == "x")
+    // 失败档：次数优先，1/1 的 100% 不压过更多失败
+    let failureTie = [
+        ToolUsageStats.ToolStat(name: "oneOfOne", calls: 1, failures: 1, averageMs: nil),
+        ToolUsageStats.ToolStat(name: "manyOfTen", calls: 10, failures: 3, averageMs: nil),
+    ]
+    check("工具：排序-失败次数优先", ToolUsageStats.sorted(failureTie, by: .failures).first?.name == "manyOfTen")
 }
 
 testToolUsageStats()

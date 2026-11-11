@@ -74,6 +74,8 @@ struct AgentStatsView: View {
 
     /// 工具统计（v0.8.6）：全部历史（无窗口）——会话量级有限，全量更有用。
     @State private var toolStats: [ToolUsageStats.ToolStat]
+    /// 工具统计排序档（v0.8.51）：调用最多 / 失败最多 / 最慢。
+    @State private var toolSort: ToolUsageStats.SortOrder = .calls
 
     /// 会用到的模型（按 token 降序），超过 5 个时只画前 5 条线。
     private var seriesModels: [UsageModelStat] { Array(stats.models.prefix(5)) }
@@ -652,6 +654,15 @@ struct AgentStatsView: View {
                 Text("Tool Usage")
                     .font(.system(size: 12.5, weight: .semibold))
                 Spacer()
+                Picker("Sort", selection: $toolSort) {
+                    ForEach(ToolUsageStats.SortOrder.allCases, id: \.self) { order in
+                        Text(order.title).tag(order)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .controlSize(.mini)
+                .frame(maxWidth: 280)
                 Text(String(localized: "all conversations"))
                     .font(.system(size: 10))
                     .foregroundStyle(.tertiary)
@@ -665,7 +676,8 @@ struct AgentStatsView: View {
                     .padding(.vertical, 16)
             } else {
                 VStack(spacing: 0) {
-                    let top = Array(toolStats.prefix(12))
+                    let top = Array(ToolUsageStats.sorted(toolStats, by: toolSort).prefix(12))
+                    let maxCalls = max(1, top.map(\.calls).max() ?? 1)
                     ForEach(Array(top.enumerated()), id: \.element.name) { index, stat in
                         HStack(spacing: 8) {
                             Text(stat.name)
@@ -675,7 +687,7 @@ struct AgentStatsView: View {
                             GeometryReader { geo in
                                 RoundedRectangle(cornerRadius: 2.5)
                                     .fill(stat.failures > 0 ? Color.orange.opacity(0.65) : appAccent.opacity(0.55))
-                                    .frame(width: max(4, geo.size.width * CGFloat(stat.calls) / CGFloat(max(1, top.first?.calls ?? 1))), height: 9)
+                                    .frame(width: max(4, geo.size.width * CGFloat(stat.calls) / CGFloat(maxCalls)), height: 9)
                             }
                             .frame(maxWidth: 180)
                             Text("×\(stat.calls)")

@@ -18,6 +18,41 @@ nonisolated enum ToolUsageStats {
         var failureRate: Double { calls > 0 ? Double(failures) / Double(calls) : 0 }
     }
 
+    /// 统计页的排序档（v0.8.51 批 4 收口）：调用最多 / 失败最多 / 最慢。
+    enum SortOrder: String, CaseIterable, Sendable {
+        case calls
+        case failures
+        case slowest
+
+        var title: String {
+            switch self {
+            case .calls: return String(localized: "Most Calls")
+            case .failures: return String(localized: "Most Failures")
+            case .slowest: return String(localized: "Slowest")
+            }
+        }
+    }
+
+    /// 排序的纯函数（视图与桥同一口径）。同档内按名字升序保持稳定；
+    /// 失败档先比次数再比调用量（1/1 的 100% 不该压过 40 次失败）；
+    /// 耗时档把没有耗时样本的放最后。
+    static func sorted(_ stats: [ToolStat], by order: SortOrder) -> [ToolStat] {
+        stats.sorted { a, b in
+            switch order {
+            case .calls:
+                if a.calls != b.calls { return a.calls > b.calls }
+            case .failures:
+                if a.failures != b.failures { return a.failures > b.failures }
+                if a.calls != b.calls { return a.calls > b.calls }
+            case .slowest:
+                let aMs = a.averageMs ?? -1
+                let bMs = b.averageMs ?? -1
+                if aMs != bMs { return aMs > bMs }
+            }
+            return a.name < b.name
+        }
+    }
+
     /// 汇总输入：逐条工具结果（调用方从会话消息里折出，避免这里依赖
     /// AgentMessage 类型——harness 里用轻量结构测）。
     struct Sample: Equatable {

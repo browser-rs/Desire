@@ -9,6 +9,8 @@ import WebKit
 /// Stores are plain `let` references (closures read them live at callback
 /// time); panel visibility comes in as bindings owned by `ContentView`.
 struct PanelsRouter: ViewModifier {
+    /// 工作区/归档"开新窗"需要（v0.8.52 批 3）。
+    @Environment(\.openWindow) private var openWindow
     let settings: Settings
     let historyStore: HistoryStore
     let bookmarkStore: BookmarkStore
@@ -148,7 +150,20 @@ struct PanelsRouter: ViewModifier {
                     contentBlocker: contentBlockerStore,
                     videoAdBlocker: videoAdBlocker,
                     profileDataStore: profileDataStore,
-                    onClose: { showWorkspacesPanel = false }
+                    onClose: { showWorkspacesPanel = false },
+                    onOpenWorkspaceInNewWindow: { workspace in
+                        if let id = ClosedWindowRestorer.stage(session: workspace.session,
+                                                               frame: workspace.frame) {
+                            openWindow(id: "main", value: id)
+                        }
+                    },
+                    onOpenArchivedInNewWindow: { entry in
+                        guard let session = TabSessionCoordinator.shared
+                            .archivedSession(named: entry.fileName),
+                              let id = ClosedWindowRestorer.stage(session: session,
+                                                                  frame: nil) else { return }
+                        openWindow(id: "main", value: id)
+                    }
                 )
             }
     }

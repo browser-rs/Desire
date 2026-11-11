@@ -14,6 +14,10 @@ struct WorkspacePanel: View {
     let videoAdBlocker: VideoAdBlocker
     let profileDataStore: WKWebsiteDataStore?
     let onClose: () -> Void
+    /// 整窗恢复（v0.8.52 批 3）：由 PanelsRouter 提供 openWindow 环境；
+    /// nil = 该入口不可用（离屏快照宿主）。
+    var onOpenWorkspaceInNewWindow: ((WorkspaceStore.Workspace) -> Void)? = nil
+    var onOpenArchivedInNewWindow: ((SessionArchive.Entry) -> Void)? = nil
 
     @State private var newName = ""
     @State private var restoreTarget: WorkspaceStore.Workspace?
@@ -162,6 +166,16 @@ struct WorkspacePanel: View {
             .buttonStyle(.bordered)
             .controlSize(.small)
             Button {
+                onOpenArchivedInNewWindow?(entry)
+                onClose()
+            } label: {
+                Text(String(localized: "New Window"))
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(onOpenArchivedInNewWindow == nil)
+            Button {
                 _ = TabSessionCoordinator.shared.removeArchivedSession(named: entry.fileName)
                 reloadArchives()
             } label: {
@@ -221,6 +235,17 @@ struct WorkspacePanel: View {
             }
             .buttonStyle(.bordered)
             .controlSize(.small)
+            Button {
+                onOpenWorkspaceInNewWindow?(ws)
+                onClose()
+            } label: {
+                Text(String(localized: "New Window"))
+                    .font(.system(size: 11, weight: .medium))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(onOpenWorkspaceInNewWindow == nil)
+            .help(String(localized: "Restore this workspace into a new window"))
             Button {
                 store.remove(ws.id)
             } label: {

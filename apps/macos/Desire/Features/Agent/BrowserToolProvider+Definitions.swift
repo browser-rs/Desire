@@ -106,8 +106,36 @@ extension BrowserToolProvider {
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "listWindows",
-                description: "List browser windows with their agent session ids (multi-window). Each entry: id (pass as the window parameter of navigate/switchTab/readTab etc. to act on THAT window), title (its current tab), busy. Operations without a window parameter act on YOUR OWN window.",
+                description: "List every browser window (user windows, not only agent-bound ones): bracketed id, title, tab count, active flag and frame. Pass that id as the `window` parameter of navigate/switchTab/readTab/focusWindow/moveTabToWindow to act on THAT window. Operations without a window parameter act on YOUR OWN window.",
                 parameters: AgentJSONSchema(type: "object", properties: [:], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "focusWindow",
+                description: "Bring a browser window to the front and make it the active window. Use listWindows for the id.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "window": AgentJSONSchemaValue(type: "string", description: "Window id from listWindows (8-char prefix)"),
+                ], required: ["window"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "moveTabToWindow",
+                description: "Move one tab from a source window to another window (same semantics as dragging between windows: history and suspended state are preserved). Defaults: source = your window, tab = the selected tab, target = append and select. If the source window ends up empty it is closed.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "window": AgentJSONSchemaValue(type: "string", description: "Target window id from listWindows"),
+                    "from": AgentJSONSchemaValue(type: "string", description: "Optional source window id (default: your window)"),
+                    "index": AgentJSONSchemaValue(type: "number", description: "Source tab index (default: selected tab)"),
+                    "tabId": AgentJSONSchemaValue(type: "string", description: "Optional exact tab UUID instead of index"),
+                    "tabTitle": AgentJSONSchemaValue(type: "string", description: "Optional title/URL substring to pick the tab"),
+                    "targetIndex": AgentJSONSchemaValue(type: "number", description: "Optional drop index in the target window"),
+                ], required: ["window"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "organizeWindows",
+                description: "Reorganize tabs across browser windows. Modes: mergeAll (move every other user window's tabs into this window), dedupe (close duplicate URLs across windows, keeping the first occurrence), onlyHost (close tabs in this window that are not on `host`), splitBySite (split this window into one site per window, opening new windows; needs an agent-bound window). Large runs (>60 tabs) go to the background Jobs ledger and return a job id.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "mode": AgentJSONSchemaValue(type: "string", description: "mergeAll | dedupe | onlyHost | splitBySite"),
+                    "host": AgentJSONSchemaValue(type: "string", description: "Required for onlyHost, e.g. github.com"),
+                    "window": AgentJSONSchemaValue(type: "string", description: "Optional source window id (default: your window)"),
+                ], required: ["mode"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "updatePlan", description: "Maintain a VISIBLE task checklist for multi-step work. Send the FULL step list every time with per-step status (pending / in_progress / done); the user watches progress live. Required for any task with 3+ steps — update after each step completes.",

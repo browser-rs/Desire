@@ -9,15 +9,20 @@ import Foundation
 enum ClosedWindowRestorer {
     /// 准备恢复；返回新窗口应携带的会话 UUID（调用方负责 openWindow）。
     static func stage(_ closed: ClosedWindow) -> UUID? {
-        guard !closed.session.tabs.isEmpty else { return nil }
+        stage(session: closed.session, frame: closed.frame)
+    }
+
+    /// 通用入口（工作区/归档"开新窗"也走这里）：写会话文件 + 排 frame。
+    static func stage(session: SavedSession, frame: WindowFrame?) -> UUID? {
+        guard !session.tabs.isEmpty else { return nil }
         let uuid = UUID()
         let key = TabSessionCoordinator.shared.sessionKey(for: uuid)
-        DiskStore.saveWithBackup(closed.session, key: key)
+        DiskStore.saveWithBackup(session, key: key)
         // DiskStore 是 500ms 防抖异步写；openWindow 紧接着就会读这个文件——
         // 不 flush 会读到缺失/旧内容，新窗口开成空白页（2026-11-11 实测）。
         DiskStore.flushSync()
         WindowRoleRegistry.shared.register(sessionKey: key, role: .user)
-        TabSessionCoordinator.shared.stageFrame(for: key, frame: closed.frame)
+        TabSessionCoordinator.shared.stageFrame(for: key, frame: frame)
         return uuid
     }
 }

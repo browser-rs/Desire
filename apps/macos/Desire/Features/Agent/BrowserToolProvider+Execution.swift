@@ -71,11 +71,9 @@ extension BrowserToolProvider {
     /// TabManager。返回 nil = 参数缺失或找不到（调用方决定回落自己窗口或报错）。
     func resolveWindowTarget(_ raw: String?) -> TabManager? {
         guard let raw, !raw.isEmpty else { return nil }
-        let lowered = raw.lowercased()
-        let sessions = AgentScheduler.shared.liveSessions()
-        guard let target = sessions.first(where: { $0.id.uuidString.lowercased().hasPrefix(lowered) }),
-              let tm = target.store?.boundTabManager else { return nil }
-        return tm
+        // v0.8.52：window 参数现在同时接受窗口 session id（8 位前缀）与
+        // 既有 agent 会话短 id——统一收口在 TabWindowMove.resolve。
+        return TabWindowMove.resolve(raw)
     }
 
     /// `executeJS` 的单次执行：callAsyncJavaScript 跑包装器（预览转换 +
@@ -235,16 +233,16 @@ extension BrowserToolProvider {
         switch call.function.name {
         // --- Utilities ---
         case "listWindows":
-            let ownTM = surface.tabManager
-            let rows = AgentScheduler.shared.liveSessions()
-            guard !rows.isEmpty else { return Self.fail("No agent windows registered") }
-            let lines = rows.map { entry -> String in
-                let ownMark = entry.store?.boundTabManager === ownTM ? " (your window)" : ""
-                let busy = entry.store?.isProcessing == true ? " — busy" : ""
-                let title = entry.windowTitle ?? entry.displayLabel
-                return "[\(entry.id.uuidString.prefix(8))] \(title)\(ownMark)\(busy)"
-            }
-            return "Agent windows:\n" + lines.joined(separator: "\n")
+            return listBrowserWindows()
+
+        case "focusWindow":
+            return focusWindowTool(args)
+
+        case "moveTabToWindow":
+            return moveTabToWindowTool(args)
+
+        case "organizeWindows":
+            return await organizeWindowsTool(args)
 
         case "wait":
             // Capped so a misbehaving plan can't stall the loop for minutes.

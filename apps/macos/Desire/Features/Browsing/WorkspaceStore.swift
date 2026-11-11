@@ -1,3 +1,4 @@
+import AppKit
 import Combine
 import Foundation
 
@@ -15,6 +16,8 @@ final class WorkspaceStore: ObservableObject {
         var name: String
         var session: SavedSession
         var savedAt: Date
+        /// 保存时窗口位置（v0.8.52）：旧文件缺键 → nil（向后兼容）。
+        var frame: WindowFrame? = nil
 
         var displayTitle: String {
             let n = session.tabs.count
@@ -44,12 +47,18 @@ final class WorkspaceStore: ObservableObject {
         tabManager.appendSessionTabs(into: &savedTabs, force: true)
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedName = trimmedName.isEmpty ? Self.fallbackName : trimmedName
+        let windowFrame = WindowSurfaceRegistry.shared.window(for: tabManager.sessionKey)
+            .map { window in
+                WindowFrame(x: window.frame.origin.x, y: window.frame.origin.y,
+                            width: window.frame.size.width, height: window.frame.size.height)
+            }
         let workspace = Workspace(
             id: UUID(),
             name: resolvedName,
             session: SavedSession(tabs: savedTabs, selectedIndex: tabManager.selectedIndex,
                                   profileID: tabManager.profileID),
-            savedAt: Date())
+            savedAt: Date(),
+            frame: windowFrame)
         workspaces.removeAll { $0.name.lowercased() == resolvedName.lowercased() }
         workspaces.insert(workspace, at: 0)
         persist()

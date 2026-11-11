@@ -1407,6 +1407,16 @@ final class TabSessionCoordinator {
         }
     }
 
+    /// 读一个归档会话（不落盘、不替换窗口）：整窗重开/开新窗用。
+    func archivedSession(named fileName: String) -> SavedSession? {
+        guard Self.isSafeArchiveName(fileName) else { return nil }
+        let url = Self.archiveDirectory.appendingPathComponent(fileName)
+        guard let data = try? Data(contentsOf: url),
+              let session = try? JSONDecoder().decode(SavedSession.self, from: data),
+              !session.tabs.isEmpty else { return nil }
+        return session
+    }
+
     /// 从归档恢复一个会话到指定窗口（**替换**其标签；与工作区恢复同一
     /// apply 路径）。返回恢复后的标签数；文件名非法（含路径分隔/穿越）或
     /// 文件损坏返回 nil。fileName 只接受归档目录里的**纯文件名**。

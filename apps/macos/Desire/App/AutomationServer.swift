@@ -571,6 +571,9 @@ final class AutomationServer {
         ep("GET", "/tabs/resources", "Tab resource overview: per-site counts, suspended/audio state, duplicate URL groups", example: "…/tabs/resources")
         ep("POST", "/tabs/resources/action", "Tab resource action: suspendBackground | closeDuplicates | closeHost (host) | closeOthers | closeLeft | closeRight (index? = target tab)", params: ["action:string", "host?:string", "index?:int"], example: #"-d '{"action":"closeDuplicates"}'"#)
         ep("GET", "/tabs/links", "All tab links as a Markdown list or plain URLs (skips blank/new-tab pages)", params: ["format?:string (markdown|plain)"], example: "…/tabs/links?format=markdown")
+        ep("POST", "/windows/focus", "Bring a browser window to the front", params: ["window:string (8-char session id or full session-<uuid>)"], example: #"-d '{"window":"8E6AEA63"}'"#)
+        ep("POST", "/windows/move-tab", "Move a tab between windows (same semantics as drag)", params: ["to:string", "from?:string", "index?:int", "tabId?:string", "targetIndex?:int"], example: #"-d '{"to":"8E6AEA63"}'"#)
+        ep("POST", "/windows/organize", "Organize tabs across windows: mergeAll | dedupe | onlyHost (host) | splitBySite", params: ["mode:string", "host?:string", "from?:string"], example: #"-d '{"mode":"mergeAll"}'"#)
         ep("GET", "/tabgroups", "Tab groups", example: "…/tabgroups")
         ep("POST", "/tabgroups/create", "Create group (optionally absorb tab)", params: ["name:string", "index?:int"], example: #"-d '{"name":"Work","index":1}'"#)
         ep("POST", "/tabgroups/collapse", "Collapse/expand", params: ["name:string", "collapsed?:bool"], example: "-d '{\"name\":\"Work\"}'")
@@ -2260,6 +2263,12 @@ case ("GET", "/state"):
                 return try Self.json(Self.tabResources())
             case ("GET", "/tabs/links"):
                 return try Self.json(Self.tabLinks(format: query["format"]))
+            case ("POST", "/windows/focus"):
+                return try Self.json(Self.windowsFocus(body))
+            case ("POST", "/windows/move-tab"):
+                return try Self.json(Self.windowsMoveTab(body))
+            case ("POST", "/windows/organize"):
+                return try Self.json(await Self.windowsOrganize(body))
             case ("POST", "/tabs/resources/action"):
                 return try Self.json(Self.tabResourceAction(body: body))
             case ("GET", "/reading-list"):
@@ -7210,6 +7219,100 @@ case ("GET", "/agent/messages"):
             }
             return ["ok": true, "jobID": job.uuidString,
                     "action": request.action.rawValue, "files": request.files.count]
+        }
+    }
+
+    /// 窗口聚焦（v0.8.52 批 3）：按窗口会话 id 前缀激活并设为活动窗口。
+    private static func windowsFocus(_ body: [String: Any]) -> [String: Any] {
+        guard let raw = Self.string(body, "window"),
+              let manager = TabWindowMove.resolve(raw) else {
+            return ["error": "unknown window (see GET /diag/windows)"]
+        }
+        TabWindowMove.focus(manager)
+        return ["ok": true, "window": TabWindowMove.identifier(manager),
+                "tabs": manager.tabs.count, "title": TabWindowMove.displayTitle(manager)]
+    }
+
+    /// 跨窗口移动标签（v0.8.52 批 3）：与拖拽/菜单同一条路径。
+    private static func windowsMoveTab(_ body: [String: Any]) -> [String: Any] {
+        guard let toRaw = Self.string(body, "to"),
+              let target = TabWindowMove.resolve(toRaw) else {
+            return ["error": "to required (target window id)"]
+        }
+        let source = Self.string(body, "from").flatMap { TabWindowMove.resolve($0) }
+            ?? TabSessionCoordinator.shared.activeTabManager
+        guard let source, source !== target else {
+            return ["error": "need distinct source and target windows"]
+        }
+        let tab: Tab?
+        if let idText = Self.string(body, "tabId"), let uuid = UUID(uuidString: idText) {
+            tab = source.tabs.first { $0.id == uuid }
+        } else {
+            let index = Self.index(body) ?? source.selectedIndex
+            tab = source.tabs.indices.contains(index) ? source.tabs[index] : nil
+        }
+        guard let tab else { return ["error": "no matching tab in the source window"] }
+        guard TabWindowMove.move(tab, from: source, to: target,
+                                 index: body["targetIndex"] as? Int) else {
+            return ["error": "move failed"]
+        }
+        return ["ok": true, "tab": tab.displayTitle,
+                "url": tab.browser.webView.url?.absoluteString ?? tab.urlString,
+                "from": TabWindowMove.identifier(source),
+                "to": TabWindowMove.identifier(target),
+                "targetTabs": target.tabs.count]
+    }
+
+    /// 窗口整理（v0.8.52 批 3）：桥侧同源入口（splitBySite 需要该窗口有
+    /// 绑定的 Agent 会话来创建新窗口）。
+    private static func windowsOrganize(_ body: [String: Any]) async -> [String: Any] {
+        let modeRaw = (Self.string(body, "mode") ?? "").lowercased()
+        let mode: WindowOrganizer.Mode
+        switch modeRaw {
+        case "mergeall": mode = .mergeAll
+        case "dedupe": mode = .dedupe
+        case "onlyhost":
+            guard let host = Self.string(body, "host"), !host.isEmpty else {
+                return ["error": "host required for onlyHost"]
+            }
+            mode = .onlyHost(host)
+        case "splitbysite": mode = .splitBySite
+        default:
+            return ["error": "mode must be mergeAll | dedupe | onlyHost | splitBySite"]
+        }
+        guard let source = Self.string(body, "from").flatMap({ TabWindowMove.resolve($0) })
+                ?? TabSessionCoordinator.shared.activeTabManager else {
+            return ["error": "no source window"]
+        }
+        var opener: (() async -> TabManager?)?
+        if mode == .splitBySite {
+            guard let sessionID = AgentScheduler.shared.liveSessions()
+                .first(where: { $0.store?.boundTabManager === source })?.id.uuidString else {
+                return ["error": "splitBySite needs an agent-bound window to open new windows"]
+            }
+            opener = {
+                NSApp.activate(ignoringOtherApps: true)
+                let before = Set(TabSessionCoordinator.shared.liveManagers()
+                    .map(ObjectIdentifier.init))
+                NotificationCenter.default.post(name: .desireOpenNewWindow, object: nil,
+                                                userInfo: ["session": sessionID])
+                for _ in 0..<26 {
+                    try? await Task.sleep(for: .milliseconds(150))
+                    if let fresh = TabSessionCoordinator.shared.liveManagers()
+                        .first(where: { !before.contains(ObjectIdentifier($0)) }) {
+                        return fresh
+                    }
+                }
+                return nil
+            }
+        }
+        switch await WindowOrganizer.organize(mode: mode, source: source, opener: opener) {
+        case .failure(let failure):
+            return ["error": failure.message]
+        case .success(let summary):
+            return ["ok": true, "moved": summary.moved, "closed": summary.closed,
+                    "windowsOpened": summary.windowsOpened,
+                    "detail": summary.detail.joined(separator: "; ")]
         }
     }
 

@@ -24,17 +24,18 @@ enum InternalPageKind: String, CaseIterable, Sendable {
     case whatsnew
     case search
     case sync
+    case research
 
     /// 首页/索引里展示的顺序（fallback 不列）。
     static let all: [InternalPageKind] = [
         .tools, .books, .about, .newtab, .settings, .search, .agent,
         .history, .bookmarks, .downloads, .passwords, .plugins,
-        .whiteboard, .whatsnew, .sync,
+        .whiteboard, .whatsnew, .sync, .research,
     ]
 
     var isRenderedInTab: Bool {
         switch self {
-        case .tools, .books, .about, .newtab, .fallback: return true
+        case .tools, .books, .about, .newtab, .fallback, .research: return true
         default: return false
         }
     }
@@ -56,6 +57,7 @@ enum InternalPageKind: String, CaseIterable, Sendable {
         case .whiteboard: return String(localized: "Whiteboard")
         case .whatsnew: return String(localized: "What's New")
         case .search: return String(localized: "Search Everywhere")
+        case .research: return String(localized: "Research briefs")
         }
     }
 
@@ -76,6 +78,7 @@ enum InternalPageKind: String, CaseIterable, Sendable {
         case .whiteboard: return "rectangle.dashed"
         case .whatsnew: return "sparkles"
         case .search: return "magnifyingglass"
+        case .research: return "doc.text.magnifyingglass"
         }
     }
 }
@@ -138,6 +141,9 @@ enum InternalPages {
         case .about, .fallback:
             guard let tab else { return }
             showInTab(destination.page, in: tab, urlString: destination.urlString)
+        case .research:
+            guard let tab else { return }
+            showInTab(.research, in: tab, urlString: destination.urlString)
         case .newtab:
             guard let tab else { return }
             tab.browser.closeAllViewers()

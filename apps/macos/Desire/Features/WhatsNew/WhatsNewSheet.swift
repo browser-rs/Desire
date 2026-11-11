@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "shield.lefthalf.filled", title: String(localized: "Sessions that survive a crash"),
-                  detail: String(localized: "Session snapshots keep a backup copy, the next launch recovers your tabs, and a launch watchdog brings the window back if it ever starts invisible.")),
-            .init(icon: "waveform.path.ecg", title: String(localized: "A freeze now leaves evidence"),
-                  detail: String(localized: "A background heartbeat records any main-thread stall longer than ten seconds, with a stack sample, so a silent freeze can be diagnosed on the next launch.")),
-            .init(icon: "captions.bubble", title: String(localized: "Subtitles in, audio out"),
-                  detail: String(localized: "Import an SRT or VTT into editable text clips (and export it back), and batch-extract m4a audio from a folder of videos through the Jobs ledger.")),
+            .init(icon: "doc.text.magnifyingglass", title: String(localized: "Research briefs from the real web"),
+                  detail: String(localized: "Give Desire a topic: it searches, opens the sources in a private session, reads them, and writes a brief with every claim cited — without touching your tabs.")),
+            .init(icon: "checkmark.seal", title: String(localized: "Citations you can actually check"),
+                  detail: String(localized: "Quotes are verified verbatim against the source text, out-of-range citations are dropped and counted, and claims without a source are marked instead of hidden.")),
+            .init(icon: "square.and.arrow.down", title: String(localized: "Delivered, not just displayed"),
+                  detail: String(localized: "Finished briefs land in Downloads/Research and the Jobs ledger, with failed or gated sources attributed one by one; verified quotes can be sent to Excerpts.")),
         ]
     }
 

@@ -879,6 +879,26 @@ class AgentSessionStore: ObservableObject {
                     self?.appendLocalAssistant(String(localized: "Export failed: \(error.localizedDescription)"))
                 }
             }
+        case "research":
+            if parsed.argument.isEmpty {
+                if let tm = TabSessionCoordinator.shared.activeTabManager {
+                    let before = Set(tm.tabs.map(\.id))
+                    tm.addTab(url: "desire://research")
+                    if let created = tm.tabs.first(where: { !before.contains($0.id) }),
+                       let destination = InternalPages.parse("desire://research") {
+                        InternalPages.open(destination, in: created)
+                    }
+                    appendLocalAssistant(String(localized: "Opened the research page."))
+                } else {
+                    appendLocalAssistant(String(localized: "No browser window is available."))
+                }
+            } else {
+                let document = ResearchBriefService.shared.start(
+                    topic: parsed.argument, template: .summary,
+                    conversationID: conversationId)
+                appendLocalAssistant(String(localized: "Research brief started: ")
+                    + document.topic + " · " + document.id.uuidString)
+            }
         case "templates":
             // 会话模板（v0.8.14 融合 12）：无参 = 列表；带名 = 骨架发到会话
             //（{{变量}} 由用户直接改后发送——变量表单 UI 见面板侧）。

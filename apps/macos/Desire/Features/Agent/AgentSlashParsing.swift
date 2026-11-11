@@ -21,6 +21,8 @@ nonisolated enum AgentSlashParsing {
         "promote",
         // v0.8.13：会话模板（无参 = 列表；带名 = 套用预填）。
         "templates",
+        // v0.8.50：研究简报（带参 = 开始；无参 = 打开研究页）。
+        "research",
     ]
 
     /// 命令一句话说明（/help 输出与输入框候选菜单同源，防漂移）。
@@ -49,6 +51,7 @@ nonisolated enum AgentSlashParsing {
         "export": String(localized: "save this conversation as a Markdown file"),
         "promote": String(localized: "operations workbench: goals, accounts, lessons, drafts — /promote <goal> adds a goal"),
         "templates": String(localized: "list session templates, or apply: /templates <名称>"),
+        "research": String(localized: "start a web research brief: /research <topic>（no argument opens the research page）"),
     ]
 
     static func parse(_ text: String) -> Parsed? {

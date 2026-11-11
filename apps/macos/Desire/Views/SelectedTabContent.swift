@@ -483,6 +483,8 @@ struct SelectedTabContent: View {
                     tab.browser.ebookViewerInitialChapter = chapter
                     tab.browser.ebookViewerInitialQuery = query
                 })
+            } else if tab.browser.internalPage == .research {
+                ResearchBriefsPage()
             } else if tab.browser.internalPage == .about {
                 AboutPageView(onOpen: { destination in
                     InternalPages.open(destination, in: tab)

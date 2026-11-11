@@ -128,3 +128,14 @@
 
 **发版**：用户说「发」才发；本地 Release clean 零警告 + harness + release-smoke
 是硬闸门。
+
+## 实现状态（2026-11-11）
+
+**已交付**：批 1（模型/引用契约/渲染 + 注入式编排 + fixture 测试）、批 2（三引擎检索解析/
+非持久会话抓取/服务编排/Jobs/桥端点 + 离线 E2E 18/18）、批 3（交付物落 Downloads/摘录
+回填/Agent 工具/桥对齐）、批 4 部分（`desire://research` 研究页、`/research` 斜杠命令、
+三语键、What's New）。
+
+**未做（明确挪后）**：DOCX 导出（当前交付 Markdown；DOCX 需要最小 WordprocessingML 写出器，
+单独排期）、简报 → 白板块回填（先保留「关键引用进摘录」）、研究页的实时进度条与来源预览
+（当前靠 state/Jobs 面板）、模板的对比表渲染优化。

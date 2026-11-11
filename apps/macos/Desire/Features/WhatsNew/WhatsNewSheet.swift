@@ -17,14 +17,14 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "macwindow.on.rectangle", title: String(localized: "Windows come back as windows"),
-                  detail: String(localized: "Quit with three windows open and launch again: every window returns with its tabs, selection and on-screen position. Empty and agent-only windows are never resurrected.")),
-            .init(icon: "arrow.uturn.backward.circle", title: String(localized: "Closed a window by mistake?"),
-                  detail: String(localized: "Reopen Closed Window (also the Cmd-Shift-T fallback) rebuilds the whole window — tabs and position — in a new window. Recently Closed now lists closed windows next to closed tabs.")),
-            .init(icon: "arrow.left.arrow.right.square", title: String(localized: "Tabs travel between windows"),
-                  detail: String(localized: "Move Tab to Window from the tab's context menu, search every window from the tab switcher, and let the agent focus, move or reorganize windows.")),
-            .init(icon: "sparkles", title: String(localized: "The agent can manage windows"),
-                  detail: String(localized: "listWindows now lists every browser window; focusWindow, moveTabToWindow and organizeWindows (merge, dedupe, split by site) work across them — large reorganizations run as background Jobs.")),
+            .init(icon: "star.square.on.square", title: String(localized: "A bookmarks bar that finally keeps up"),
+                  detail: String(localized: "Multi-level folders on the bar, drag to reorder, Open All, middle-click to open in a background tab, and an overflow menu when the bar runs out of room.")),
+            .init(icon: "arrow.down.circle", title: String(localized: "The context menu pulls its weight"),
+                  detail: String(localized: "Download Linked File lands in the downloads panel with pause and resume, Copy Link Text grabs the anchor's words, and Search with… picks the engine for any selection.")),
+            .init(icon: "square.and.arrow.up.on.square", title: String(localized: "Send to… everywhere"),
+                  detail: String(localized: "History, downloads and bookmark rows all gain the Send to… menu — drop a link onto the whiteboard, into Excerpts, or hand it to the Agent as a draft prompt.")),
+            .init(icon: "scalemass", title: String(localized: "Spend less on simple turns"),
+                  detail: String(localized: "Cost-aware routing gains an aggressive tier — every text-only turn runs on the free local model, falling back to the cloud when it fails — and routing decisions are visible in traces and stats.")),
         ]
     }
 

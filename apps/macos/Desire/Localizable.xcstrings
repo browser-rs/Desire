@@ -106537,6 +106537,226 @@
           }
         }
       }
+    },
+    "Take a look at this page and summarize what's worth knowing: %@":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Take a look at this page and summarize what's worth knowing: %@"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"看看这个页面，总结一下值得了解的内容：%@"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"看看這個頁面，總結一下值得了解的內容：%@"
+          }
+        }
+      }
+    },
+    "Inspect this downloaded file and tell me what it contains: %@":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Inspect this downloaded file and tell me what it contains: %@"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"检查这个下载的文件，告诉我里面是什么：%@"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"檢查這個下載的檔案，告訴我裡面是什麼：%@"
+          }
+        }
+      }
+    },
+    "A bookmarks bar that finally keeps up":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"A bookmarks bar that finally keeps up"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"书签栏终于跟上了"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"書籤列終於跟上了"
+          }
+        }
+      }
+    },
+    "Multi-level folders on the bar, drag to reorder, Open All, middle-click to open in a background tab, and an overflow menu when the bar runs out of room.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Multi-level folders on the bar, drag to reorder, Open All, middle-click to open in a background tab, and an overflow menu when the bar runs out of room."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"栏上多级文件夹、拖拽排序、打开全部、中键后台打开，放不下时收进溢出菜单。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"列上多層資料夾、拖曳排序、開啟全部、中鍵背景開啟，放不下時收進溢出選單。"
+          }
+        }
+      }
+    },
+    "The context menu pulls its weight":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The context menu pulls its weight"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"右键菜单干正事"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"右鍵選單幹正事"
+          }
+        }
+      }
+    },
+    "Download Linked File lands in the downloads panel with pause and resume, Copy Link Text grabs the anchor's words, and Search with… picks the engine for any selection.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Download Linked File lands in the downloads panel with pause and resume, Copy Link Text grabs the anchor's words, and Search with… picks the engine for any selection."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"「下载链接文件」进下载面板可暂停续传，「复制链接文字」抓锚点文字，「用…搜索」为选区挑引擎。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"「下載連結檔案」進下載面板可暫停續傳，「複製連結文字」抓錨點文字，「用…搜尋」為選區挑引擎。"
+          }
+        }
+      }
+    },
+    "Send to… everywhere":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Send to… everywhere"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"处处可发送"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"處處可傳送"
+          }
+        }
+      }
+    },
+    "History, downloads and bookmark rows all gain the Send to… menu — drop a link onto the whiteboard, into Excerpts, or hand it to the Agent as a draft prompt.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"History, downloads and bookmark rows all gain the Send to… menu — drop a link onto the whiteboard, into Excerpts, or hand it to the Agent as a draft prompt."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"历史、下载、书签行都有了「发送到…」——链接上白板、进摘录，或作为草稿交给 Agent。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"歷史、下載、書籤列都有了「傳送到…」——連結上白板、進摘錄，或作為草稿交給 Agent。"
+          }
+        }
+      }
+    },
+    "Spend less on simple turns":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Spend less on simple turns"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"简单回合花小钱"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"簡單回合花小錢"
+          }
+        }
+      }
+    },
+    "Cost-aware routing gains an aggressive tier — every text-only turn runs on the free local model, falling back to the cloud when it fails — and routing decisions are visible in traces and stats.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Cost-aware routing gains an aggressive tier — every text-only turn runs on the free local model, falling back to the cloud when it fails — and routing decisions are visible in traces and stats."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"成本感知路由新增激进档——无工具的纯文本回合全走免费本地模型，失败自动回退云；路由决策在轨迹与统计里可见。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"成本感知路由新增激進檔——無工具的純文字回合全走免費本地模型，失敗自動回退雲；路由決策在軌跡與統計裡可見。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

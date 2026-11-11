@@ -321,7 +321,7 @@ final class AgentScheduler: ObservableObject {
                     targetSessionID: UUID? = nil) -> ScheduledTask? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty,
-              ["weeklyReport", "dailyBrief", "promotionMentionScan"].contains(kind)
+              ["weeklyReport", "dailyBrief", "promotionMentionScan", "bookmarkLinkCheck"].contains(kind)
                 || Self.workflowID(in: kind) != nil
                 || Self.datasetID(in: kind) != nil
         else { return nil }
@@ -334,6 +334,8 @@ final class AgentScheduler: ObservableObject {
             let workflowName = WorkflowStore.shared.workflows
                 .first(where: { $0.id == wid })?.name ?? wid.uuidString
             displayPrompt = "（内置）定时工作流：\(workflowName)"
+        } else if kind == "bookmarkLinkCheck" {
+            displayPrompt = "（内置）书签死链检查：全量检查 → 报告 → 异常才通知"
         } else {
             displayPrompt = "（内置）周报流水线：汇总 → 上板 → 可选备忘录"
         }
@@ -765,6 +767,54 @@ final class AgentScheduler: ObservableObject {
                     $0.error = nil
                 }
                 Self.log.info("Daily brief done: \(text.count) chars")
+            }
+        case "bookmarkLinkCheck":
+            // 死链值守（v0.8.53 批 4）：全量检查书签 → 报告进 lastResult；
+            // 有死链才发 routine 通知（异常才开口，复用通知分级）。
+            Task { @MainActor [weak self] in
+                let checker = BookmarkLinkChecker.shared
+                guard let store = AppState.live?.bookmarkStore else {
+                    self?.updateRun(id: runID) {
+                        $0.status = "failed"
+                        $0.finishedAt = Date()
+                        $0.error = "bookmark store unavailable"
+                    }
+                    return
+                }
+                let queued = checker.start(store: store, limit: 300, session: nil)
+                guard queued > 0 else {
+                    self?.updateRun(id: runID) {
+                        $0.status = "success"
+                        $0.finishedAt = Date()
+                        $0.error = nil
+                    }
+                    return
+                }
+                let deadline = Date().addingTimeInterval(600)
+                while checker.isRunning, Date() < deadline {
+                    try? await Task.sleep(for: .seconds(1))
+                }
+                let checked = checker.checked
+                let dead = checker.dead
+                let redirected = checker.redirected.count
+                self?.updateRun(id: runID) {
+                    $0.status = "success"
+                    $0.finishedAt = Date()
+                    $0.error = nil
+                }
+                if let i = self?.tasks.firstIndex(where: { $0.id == task.id }) {
+                    self?.tasks[i].lastResult = String(
+                        localized: "link check: \(checked) checked · \(dead.count) dead · \(redirected) redirect(s)")
+                }
+                if !dead.isEmpty {
+                    let names = dead.prefix(3).map { "\($0.title)（\($0.reason))" }
+                        .joined(separator: "、")
+                    ProactiveNotificationStore.shared.deliver(
+                        title: String(localized: "Dead bookmarks found: \(dead.count)"),
+                        body: String(localized: "\(names) — open the bookmark health sheet for the full list."),
+                        tier: .routine)
+                }
+                Self.log.info("bookmark link check done: checked=\(checked, privacy: .public) dead=\(dead.count, privacy: .public)")
             }
         case let kind where Self.datasetID(in: kind) != nil:
             // 数据集定时采集（v0.8.20 融合 12）：跑命名规格 → 快照落盘

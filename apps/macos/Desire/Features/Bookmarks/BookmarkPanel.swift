@@ -373,6 +373,20 @@ struct BookmarkPanel: View {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(url, forType: .string)
                     }
+                    Menu("Send to…") {
+                        Button("Whiteboard") {
+                            SendTo.whiteboardNote(
+                                title: item.bookmark.title,
+                                content: "[\(item.bookmark.title)](\(url))")
+                        }
+                        Button("Excerpts") {
+                            SendTo.excerptLink(title: item.bookmark.title, url: url)
+                        }
+                        Button("Agent") {
+                            SendTo.agentDraft(
+                                String(localized: "Take a look at this page and summarize what's worth knowing: \(url)"))
+                        }
+                    }
                     Button(String(localized: "Find Related")) {
                         let tags = (item.bookmark.tags ?? []).joined(separator: " ")
                         relatedRequest = SemanticRelatedRequest(

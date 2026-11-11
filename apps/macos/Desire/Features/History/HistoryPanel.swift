@@ -435,6 +435,20 @@ struct HistoryPanel: View {
                                         NSPasteboard.general.clearContents()
                                         NSPasteboard.general.setString(entry.url, forType: .string)
                                     }
+                                    Menu("Send to…") {
+                                        Button("Whiteboard") {
+                                            SendTo.whiteboardNote(
+                                                title: entry.title,
+                                                content: "[\(entry.title)](\(entry.url))")
+                                        }
+                                        Button("Excerpts") {
+                                            SendTo.excerptLink(title: entry.title, url: entry.url)
+                                        }
+                                        Button("Agent") {
+                                            SendTo.agentDraft(
+                                                String(localized: "Take a look at this page and summarize what's worth knowing: \(entry.url)"))
+                                        }
+                                    }
                                     Divider()
                                     Button("Delete", role: .destructive) { store.removeEntry(id: entry.id) }
                                     // 按域名批量清理（v0.8.11）：任意分组模式都可用了

@@ -1032,6 +1032,19 @@ private struct DownloadRow: View {
                 Button(String(localized: "Save As…")) { saveAs(item) }
             }
             if let url = item.fileURL, FileManager.default.fileExists(atPath: url.path) {
+                Menu("Send to…") {
+                    Button("Whiteboard") {
+                        SendTo.whiteboardNote(
+                            title: item.filename,
+                            content: "\(item.filename) — \(url.path)")
+                    }
+                    Button("Agent") {
+                        SendTo.agentDraft(
+                            String(localized: "Inspect this downloaded file and tell me what it contains: \(url.path)"))
+                    }
+                }
+            }
+            if let url = item.fileURL, FileManager.default.fileExists(atPath: url.path) {
                 Button("Preview") { onPreview(url) }
                 Button("Copy Path") {
                     NSPasteboard.general.clearContents()

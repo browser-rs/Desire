@@ -132,6 +132,7 @@ class BrowserWKWebView: WKWebView {
             return JSON.stringify({
                 imageUrl: img ? img.src : null,
                 linkUrl: link ? link.href : null,
+                linkText: link ? (link.innerText || link.textContent || '').trim().substring(0, 200) || null : null,
                 bgImageUrl: bg && bg.startsWith('url(') ? bg.slice(4, -1).replace(/['"]/g, '') : null,
                 selection: sel.length > 0 ? sel.substring(0, 200) : null
             });
@@ -144,6 +145,7 @@ class BrowserWKWebView: WKWebView {
 
             let imageURL = info["imageUrl"].flatMap(URL.init)
             let linkURL = info["linkUrl"].flatMap(URL.init)
+            let linkText = info["linkText"]
             let bgImageURL = info["bgImageUrl"].flatMap(URL.init)
             let selection = info["selection"]
 
@@ -282,6 +284,27 @@ class BrowserWKWebView: WKWebView {
                 copyLink.representedObject = url
                 menu.addItem(copyLink)
 
+                // 下载链接文件（v0.8.53 批 2）：走 downloadFile 工具同款的
+                // 台账式下载引擎（下载面板：暂停/恢复/进度全复用）。
+                if url.scheme == "http" || url.scheme == "https" {
+                    let download = NSMenuItem(title: String(localized: "Download Linked File"),
+                                              action: #selector(self.downloadLinkedFile),
+                                              keyEquivalent: "")
+                    download.target = self
+                    download.representedObject = url
+                    menu.addItem(download)
+                }
+
+                // 复制链接文字（v0.8.53 批 2）：锚文字取不到时不出该项。
+                if let linkText, !linkText.isEmpty {
+                    let copyText = NSMenuItem(title: String(localized: "Copy Link Text"),
+                                              action: #selector(self.copyLinkText),
+                                              keyEquivalent: "")
+                    copyText.target = self
+                    copyText.representedObject = linkText
+                    menu.addItem(copyText)
+                }
+
                 // Open this link inside a container tab (isolated cookies).
                 let containers = ContainerStore.shared.containers
                 if !containers.isEmpty {
@@ -366,6 +389,20 @@ class BrowserWKWebView: WKWebView {
     @objc private func openLinkInNewTab(_ sender: NSMenuItem) {
         guard let url = sender.representedObject as? URL else { return }
         onOpenLinkInNewTab?(url)
+    }
+
+    @objc private func downloadLinkedFile(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL,
+              url.scheme == "http" || url.scheme == "https" else { return }
+        DownloadStore.live?.startURLSessionDownload(
+            sourceURL: url,
+            filename: url.lastPathComponent.isEmpty ? "download" : url.lastPathComponent)
+    }
+
+    @objc private func copyLinkText(_ sender: NSMenuItem) {
+        guard let text = sender.representedObject as? String, !text.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 
     @objc private func openLinkInIncognito(_ sender: NSMenuItem) {

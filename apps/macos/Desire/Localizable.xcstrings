@@ -106449,6 +106449,50 @@
           }
         }
       }
+    },
+    "Download Linked File":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Download Linked File"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"下载链接文件"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"下載連結檔案"
+          }
+        }
+      }
+    },
+    "Copy Link Text":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Copy Link Text"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"复制链接文字"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"複製連結文字"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

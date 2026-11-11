@@ -17,14 +17,14 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "wrench.and.screwdriver", title: String(localized: "Tools you can actually find"),
-                  detail: String(localized: "The tool index is grouped by domain — 16 lines instead of 284 — and listTools expands any group or search term with full parameter signatures on demand.")),
-            .init(icon: "link", title: String(localized: "Chain tools in one call"),
-                  detail: String(localized: "runToolChain runs up to 10 tools in order with $prev/$n variables, stop-or-continue failure rules, and an optional background job for long chains.")),
-            .init(icon: "gauge.with.dots.needle.50percent", title: String(localized: "Bounded, cancellable, measurable"),
-                  detail: String(localized: "Tool results cap at 24k characters with an explicit marker, ordinary tools time out after 120s instead of hanging the turn, and a per-tool stats endpoint shows what fails and what is slow.")),
-            .init(icon: "square.stack.3d.up", title: String(localized: "Batch work that keeps going"),
-                  detail: String(localized: "Batch regex replace, hashing and encoding conversion run through the Jobs ledger with per-file results — plus copy-all-tab links, close-left/right, and one-click send of any tool result to the whiteboard or Excerpts.")),
+            .init(icon: "macwindow.on.rectangle", title: String(localized: "Windows come back as windows"),
+                  detail: String(localized: "Quit with three windows open and launch again: every window returns with its tabs, selection and on-screen position. Empty and agent-only windows are never resurrected.")),
+            .init(icon: "arrow.uturn.backward.circle", title: String(localized: "Closed a window by mistake?"),
+                  detail: String(localized: "Reopen Closed Window (also the Cmd-Shift-T fallback) rebuilds the whole window — tabs and position — in a new window. Recently Closed now lists closed windows next to closed tabs.")),
+            .init(icon: "arrow.left.arrow.right.square", title: String(localized: "Tabs travel between windows"),
+                  detail: String(localized: "Move Tab to Window from the tab's context menu, search every window from the tab switcher, and let the agent focus, move or reorganize windows.")),
+            .init(icon: "sparkles", title: String(localized: "The agent can manage windows"),
+                  detail: String(localized: "listWindows now lists every browser window; focusWindow, moveTabToWindow and organizeWindows (merge, dedupe, split by site) work across them — large reorganizations run as background Jobs.")),
         ]
     }
 

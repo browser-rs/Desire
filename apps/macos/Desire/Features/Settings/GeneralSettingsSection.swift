@@ -150,6 +150,17 @@ struct GeneralSettingsSection: View {
                         options: StartupBehavior.allCases,
                         label: startupLabel
                     )
+                    if settings.startupBehavior == .restoreSession {
+                        SettingsRowDivider()
+                        SettingsPickerRow(
+                            "Windows",
+                            subtitle: "Restore every window with its tabs and position, only the last active window, or none.",
+                            systemImage: "macwindow.on.rectangle",
+                            selection: $settings.windowRestoreMode,
+                            options: WindowRestoreMode.allCases,
+                            label: windowRestoreLabel
+                        )
+                    }
                     if settings.startupBehavior == .pageSet {
                         SettingsRowDivider()
                         SettingsRow(
@@ -703,6 +714,14 @@ struct GeneralSettingsSection: View {
         case .newTabPage: "Open new tab page"
         case .homePage: "Open homepage"
         case .pageSet: "Open a set of pages"
+        }
+    }
+
+    private func windowRestoreLabel(_ mode: WindowRestoreMode) -> String {
+        switch mode {
+        case .all: "All windows"
+        case .activeOnly: "Last active window only"
+        case .off: "Do not restore windows"
         }
     }
 

@@ -97,7 +97,11 @@ class BrowserWKWebView: WKWebView {
     }
 
     var onOpenLinkInNewTab: ((URL) -> Void)?
+    /// 链接 → 无痕标签（v0.8.52 批 4）。
+    var onOpenLinkInIncognito: ((URL) -> Void)?
     var onSearchText: ((String) -> Void)?
+    /// 选区 → 指定搜索引擎（右键「Search with…」；v0.8.52 批 4）。
+    var onSearchTextWithEngine: ((String, SearchEngine) -> Void)?
     /// Opens `url` in a new tab bound to `container` (isolated cookies) —
     /// wired by ContentView to TabManager.addTab.
     var onOpenInContainer: ((URL, TabContainer) -> Void)?
@@ -179,6 +183,20 @@ class BrowserWKWebView: WKWebView {
                 menu.addItem(.separator())
                 menu.addItem(search)
 
+                // 选区 → 指定引擎（v0.8.52 批 4）：默认引擎一行 + 「Search with…」子菜单。
+                let searchWith = NSMenuItem(title: String(localized: "Search with…"), action: nil, keyEquivalent: "")
+                let engineMenu = NSMenu()
+                for engine in SearchEngine.allCases {
+                    let item = NSMenuItem(title: engine.rawValue,
+                                          action: #selector(self.searchSelectionWithEngine),
+                                          keyEquivalent: "")
+                    item.target = self
+                    item.representedObject = ["text": sel, "engine": engine.rawValue]
+                    engineMenu.addItem(item)
+                }
+                searchWith.submenu = engineMenu
+                menu.addItem(searchWith)
+
                 // 选区 → 白板（note 块，带来源 URL；§三期）
                 let board = NSMenuItem(title: String(localized: "Add to Whiteboard"), action: #selector(self.addSelectionToWhiteboard(_:)), keyEquivalent: "")
                 board.target = self
@@ -251,6 +269,13 @@ class BrowserWKWebView: WKWebView {
                 open.target = self
                 open.representedObject = url
                 menu.addItem(open)
+
+                let privateOpen = NSMenuItem(title: String(localized: "Open Link in New Private Tab"),
+                                             action: #selector(self.openLinkInIncognito),
+                                             keyEquivalent: "")
+                privateOpen.target = self
+                privateOpen.representedObject = url
+                menu.addItem(privateOpen)
 
                 let copyLink = NSMenuItem(title: String(localized: "Copy Link URL"), action: #selector(self.copyLinkURL), keyEquivalent: "")
                 copyLink.target = self
@@ -341,6 +366,18 @@ class BrowserWKWebView: WKWebView {
     @objc private func openLinkInNewTab(_ sender: NSMenuItem) {
         guard let url = sender.representedObject as? URL else { return }
         onOpenLinkInNewTab?(url)
+    }
+
+    @objc private func openLinkInIncognito(_ sender: NSMenuItem) {
+        guard let url = sender.representedObject as? URL else { return }
+        onOpenLinkInIncognito?(url)
+    }
+
+    @objc private func searchSelectionWithEngine(_ sender: NSMenuItem) {
+        guard let info = sender.representedObject as? [String: String],
+              let text = info["text"], !text.isEmpty,
+              let raw = info["engine"], let engine = SearchEngine(rawValue: raw) else { return }
+        onSearchTextWithEngine?(text, engine)
     }
 
     /// 插件 contextMenus 项点击 → 派发给所属插件的 background。

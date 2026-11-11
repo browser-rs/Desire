@@ -714,6 +714,10 @@ struct WebView: NSViewRepresentable {
     /// 启用的 SponsorBlock 类别（随开关注入页面）。
     var sponsorBlockCategories: [String] = []
     var onOpenLinkInNewTab: ((URL) -> Void)?
+    /// 链接 → 无痕标签（v0.8.52 批 4）。
+    var onOpenLinkInIncognito: ((URL) -> Void)?
+    /// 选区 → 指定搜索引擎（v0.8.52 批 4）。
+    var onSearchTextWithEngine: ((String, SearchEngine) -> Void)?
     /// 文件拖入且网页没接住 → 宿主开新标签（v0.8.22）。
     var onOpenFilesInNewTabs: (([URL]) -> Void)?
     /// 自动播策略补烙（v0.8.8）：didFinish 发现视频站 + 本应 allowAll 但创建期
@@ -873,6 +877,12 @@ struct WebView: NSViewRepresentable {
         webView.uiDelegate = context.coordinator
         webView.onOpenLinkInNewTab = { url in
             context.coordinator.parent.onOpenLinkInNewTab?(url)
+        }
+        webView.onOpenLinkInIncognito = { url in
+            context.coordinator.parent.onOpenLinkInIncognito?(url)
+        }
+        webView.onSearchTextWithEngine = { text, engine in
+            context.coordinator.parent.onSearchTextWithEngine?(text, engine)
         }
         webView.onFilesDropped = { urls in
             context.coordinator.parent.onOpenFilesInNewTabs?(urls)
@@ -1176,6 +1186,8 @@ try {
             wv.navigationDelegate = nil
             wv.uiDelegate = nil
             wv.onOpenLinkInNewTab = nil
+            wv.onOpenLinkInIncognito = nil
+            wv.onSearchTextWithEngine = nil
             wv.onFilesDropped = nil
             wv.onOpenInContainer = nil
             wv.onSearchText = nil

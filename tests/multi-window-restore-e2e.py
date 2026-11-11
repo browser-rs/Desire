@@ -157,6 +157,17 @@ def main():
     before = keyed_windows()
     test_key = None
     try:
+        # 窗口诊断与桥探针（v0.8.52 批 3/4）：不改变任何标签。
+        diag = call("/diag/windows")
+        ok("诊断含 windowIndex 与恢复策略",
+           "windowIndex" in diag and "restoreMode" in diag)
+        bad = call("/windows/organize", {"mode": "nope"})
+        ok("organize 非法模式报错", "error" in bad, bad)
+        focus_key = next((k for k, w in before.items() if w.get("isKey")), None) \
+            or next(iter(before), None)
+        if focus_key:
+            focus = call("/windows/focus", {"window": focus_key[8:16]})
+            ok("focusWindow 命中窗口", focus.get("ok") is True, focus)
         ok("AX：新建窗口", press_new_window())
         deadline = time.time() + 12
         while time.time() < deadline:

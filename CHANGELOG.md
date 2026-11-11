@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- 多窗口恢复套件补窗口探针（v0.8.52 批 4）：`/diag/windows` 的 windowIndex/restoreMode 断言、`/windows/organize` 非法模式报错、`/windows/focus` 命中窗口；窗口创建/恢复主链路仍由 AX 驱动的双窗/整窗重开 E2E 覆盖（10/10、8/8）。已知环境限制：应用不在前台且系统拒绝激活时，AX「新建窗口」不会生效——套件在此环境会停在新建窗口一步，属既有 CI/激活限制而非产品回归。
+
 ### Fixed
 
 - 多窗口索引重复键崩溃（v0.8.52 批 1 的自伤，批 2 E2E 抓到）：SwiftUI 场景重建会同时存在两个同 sessionKey 的 manager，`persistWindowIndex` 用 `Dictionary(uniqueKeysWithValues:)` 建旧快照表时直接 SIGTRAP（三份崩溃报告实证：persistWindowIndex → Dictionary.init trapping）。修复：注册时同 key 只保留最新 manager；`session-index` 与 `window-index-v2` 写入均按 key 去重；旧索引读取改为逐条覆盖（字典合并），不再会因重复键崩溃。
@@ -8,6 +12,8 @@
 - 多窗口会话恢复（v0.8.52 批 1）：窗口升级为一等公民。① 新增 `WindowSnapshot` + `window-index-v2`（sessionKey / frame / 角色 / 是否活动 / 最近活跃时间 / 标签数 / 最小化），与旧裸 key 索引并行写（旧版本回退可用）；② **正常退出也恢复全部窗口**（此前只有崩溃路径补开、且只恢复首窗）——首窗采纳最近会话后，其余窗口按快照逐个 `openWindow` 复活，标签/选中/URL 原样回来；③ **窗口位置持久化**（此前全仓无 frame 落盘）：恢复时按可见屏幕裁剪、同位置窗口阶梯错开，并在 SwiftUI 晚到的级联排列之后持续校正 ~4s；④ 恢复计划纯逻辑 `WindowRestoreCore`（角色过滤 / 空窗与无会话文件过滤 / 崩溃恢复上限 5 窗 + 7 天年龄过滤 / 多屏裁剪 / 阶梯分配）进 harness；⑤ 恢复策略设置 `windowRestoreMode`（all/activeOnly/off，默认 all，UI 随批 4）；⑥ `/diag/windows` 增加每窗 frame/最小化/`windowIndex`/`pendingRestore`/`restoreMode`；⑦ 自愈：10s 内仍有排定窗口未被认领则补开一轮（最多 3 扇）。验收：新增 `tests/multi-window-restore-e2e.py`（两窗→退出→重启→标签/URL/frame 全对→清理）10/10；崩溃恢复套件 3/3；harness 3114/0。
 - 窗口操作面（v0.8.52 批 2）：① **整窗快照** `ClosedWindowStore`——用户关窗时记录标签集 + 窗口位置（cap 20），退出流程或 SwiftUI 场景重建误发的 willClose 会延迟 1.5s 复核（终止中/窗口仍活着就不记）；② File 菜单新增「Reopen Closed Window」，且 **⌘⇧T 在本窗标签队列为空时回退整窗重开**（Chrome 语义）；恢复 = 新窗口装载快照（写会话文件后 `flushSync`，否则 500ms 防抖窗口内开窗会读到空文件——实测踩过）；③ 「最近关闭」面板新增 Windows 段：整窗恢复/删除，标题带标签数与相对时间；④ 标签右键新增「Move Tab to Window」子菜单（新窗口 / 指定窗口，与拖拽同一条迁移路径，保留 history 与挂起状态；顶栏与侧栏两个菜单一致）；⑤ 标签切换器支持**跨窗口搜索**：输入搜索词时列出其他用户窗口的标签（胶囊标窗口标题），回车/点击跳转激活目标窗口并选中该标签。验收：多窗口恢复 E2E 10/10、整窗重开 E2E 8/8。
 - 多窗口 Agent 与窗口整理（v0.8.52 批 3）：① `listWindows` 改为列出**所有用户浏览器窗口**（括号 id、标题、标签数、是否活动、frame），并明确该 id 可作 `window` 参数用于 navigate/switchTab/readTab/focusWindow/moveTabToWindow；窗口解析扩展为 session UUID 前缀 / `session-<uuid>` / 既有 agent 会话短 id 三种写法。② 新工具 `focusWindow`（激活置前）、`moveTabToWindow`（源/目标窗口、按 index/tabId/标题选标签、目标落点可选；与拖拽同一路径，保留 history 与挂起状态；源窗搬空自动关闭）。③ 新工具 `organizeWindows`：`mergeAll`（其他用户窗口标签并入本窗）/ `dedupe`（跨窗 URL 去重、保留最先出现）/ `onlyHost`（本窗只留指定站点）/ `splitBySite`（按站点拆成多窗，需 agent 绑定窗口）；标签总数 >60 自动进 Jobs 台账（进度 = 已处理标签数，完成会话备注 + 通知）。④ 桥端点 `/windows/focus`、`/windows/move-tab`、`/windows/organize` 与工具同源。⑤ 工作区与归档会话支持「开新窗口恢复」：工作区保存时记录窗口 frame，恢复可选替换当前窗或开新窗（新窗按保存位置）；归档会话同理（`archivedSession(named:)` 读取不落盘）。
+- 浏览器基础收口（v0.8.52 批 4）：① 链接右键新增「Open Link in New Private Tab」（无痕标签直接打开，不污染当前会话）；② 选区右键新增「Search with…」子菜单，可指定 Google / DuckDuckGo / Bing / Baidu 搜索选中文字（默认引擎一行仍在）。③ 设置 ▸ 通用 ▸ 启动新增「Windows」三档：全部窗口（标签 + 位置）/ 仅上次活跃窗口 / 不恢复窗口（与 `windowRestoreMode` 同源）。④ 新增文案 21 条三语；What's New 刷成 v0.8.52 亮点（多窗口原样回来 / 整窗重开 / 标签跨窗 / Agent 管窗口）。
+
 
 
 

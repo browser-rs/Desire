@@ -720,6 +720,29 @@ extension BrowsingActions {
                                         newTabPosition: settings.newTabPosition,
                                         makeActive: !settings.openLinksInBackground)
             },
+            onOpenLinkInIncognito: { [weak self] url in
+                self?.tabManager.addTab(url: url.absoluteString,
+                                        incognito: true,
+                                        javaScriptEnabled: settings.isJavaScriptEnabled,
+                                        contentBlocker: contentBlocker,
+                                        videoAdBlocker: videoAdBlocker,
+                                        autoPlayPolicy: settings.autoPlayPolicy,
+                                        newTabPosition: settings.newTabPosition,
+                                        makeActive: true)
+            },
+            onSearchTextWithEngine: { [weak self] text, engine in
+                guard let self else { return }
+                let target = URLResolution.SearchTarget(displayName: engine.rawValue,
+                                                        searchTemplate: engine.searchURL)
+                guard let url = URLResolution.searchURL(query: text, target: target)?
+                    .absoluteString else { return }
+                self.tabManager.addTab(url: url,
+                                       javaScriptEnabled: settings.isJavaScriptEnabled,
+                                       contentBlocker: contentBlocker,
+                                       videoAdBlocker: videoAdBlocker,
+                                       autoPlayPolicy: settings.autoPlayPolicy,
+                                       newTabPosition: settings.newTabPosition)
+            },
             onSearchText: { [weak self] text in
                 guard let self else { return }
                 // Route through the shared resolver so a "Search …" menu pick

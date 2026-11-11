@@ -105723,6 +105723,468 @@
           }
         }
       }
+    },
+    "Reopen Closed Window":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Reopen Closed Window"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重开已关闭窗口"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重新開啟已關閉視窗"
+          }
+        }
+      }
+    },
+    "Recently Closed":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Recently Closed"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"最近关闭"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"最近關閉"
+          }
+        }
+      }
+    },
+    "Windows":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Windows"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"窗口"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"視窗"
+          }
+        }
+      }
+    },
+    "Move Tab to Window":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Move Tab to Window"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"移动标签到窗口"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"移動分頁到視窗"
+          }
+        }
+      }
+    },
+    "Restore this workspace into a new window":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Restore this workspace into a new window"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"把这个工作区恢复到新窗口"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"將此工作區還原到新視窗"
+          }
+        }
+      }
+    },
+    "Organize windows":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Organize windows"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"整理窗口"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"整理視窗"
+          }
+        }
+      }
+    },
+    "Window organize finished":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Window organize finished"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"窗口整理完成"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"視窗整理完成"
+          }
+        }
+      }
+    },
+    "Open Link in New Private Tab":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Open Link in New Private Tab"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"在无痕标签页中打开链接"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"在無痕分頁中開啟連結"
+          }
+        }
+      }
+    },
+    "Search with…":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Search with…"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"用其他搜索引擎…"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"用其他搜尋引擎…"
+          }
+        }
+      }
+    },
+    "Restore every window with its tabs and position, only the last active window, or none.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Restore every window with its tabs and position, only the last active window, or none."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"恢复全部窗口（标签与位置）、只恢复上次活跃窗口，或不恢复。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"還原全部視窗（分頁與位置）、只還原上次作用中視窗，或不還原。"
+          }
+        }
+      }
+    },
+    "All windows":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"All windows"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"全部窗口"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"全部視窗"
+          }
+        }
+      }
+    },
+    "Last active window only":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Last active window only"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"仅上次活跃窗口"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"僅上次作用中視窗"
+          }
+        }
+      }
+    },
+    "Do not restore windows":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Do not restore windows"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"不恢复窗口"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"不還原視窗"
+          }
+        }
+      }
+    },
+    "Windows come back as windows":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Windows come back as windows"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"多窗口原样回来"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"多視窗原樣回來"
+          }
+        }
+      }
+    },
+    "Quit with three windows open and launch again: every window returns with its tabs, selection and on-screen position. Empty and agent-only windows are never resurrected.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Quit with three windows open and launch again: every window returns with its tabs, selection and on-screen position. Empty and agent-only windows are never resurrected."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"开着三扇窗退出再启动：每扇窗带着标签、选中项和屏幕位置回来。空窗口与 Agent 专用窗口不会被复活。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"開著三個視窗結束再啟動：每個視窗帶著分頁、選取項目和螢幕位置回來。空視窗與 Agent 專用視窗不會被復活。"
+          }
+        }
+      }
+    },
+    "Closed a window by mistake?":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Closed a window by mistake?"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"误关了一扇窗？"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"誤關了一個視窗？"
+          }
+        }
+      }
+    },
+    "Reopen Closed Window (also the Cmd-Shift-T fallback) rebuilds the whole window — tabs and position — in a new window. Recently Closed now lists closed windows next to closed tabs.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Reopen Closed Window (also the Cmd-Shift-T fallback) rebuilds the whole window — tabs and position — in a new window. Recently Closed now lists closed windows next to closed tabs."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"「重开已关闭窗口」（⌘⇧T 在无可恢复标签时也会回退到它）会把整扇窗——标签与位置——在新窗口里重建；「最近关闭」里窗口与标签并列。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"「重新開啟已關閉視窗」（⌘⇧T 在無可分頁可還原時也會回退到它）會把整個視窗——分頁與位置——在新視窗裡重建；「最近關閉」裡視窗與分頁並列。"
+          }
+        }
+      }
+    },
+    "Tabs travel between windows":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Tabs travel between windows"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"标签在窗口间随意搬"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"分頁在視窗間隨意搬"
+          }
+        }
+      }
+    },
+    "Move Tab to Window from the tab's context menu, search every window from the tab switcher, and let the agent focus, move or reorganize windows.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Move Tab to Window from the tab's context menu, search every window from the tab switcher, and let the agent focus, move or reorganize windows."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"标签右键可直接「移动到窗口」；标签切换器能搜索所有窗口；Agent 也能聚焦、搬移与整理窗口。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"分頁右鍵可直接「移動到視窗」；分頁切換器能搜尋所有視窗；Agent 也能聚焦、搬移與整理視窗。"
+          }
+        }
+      }
+    },
+    "The agent can manage windows":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The agent can manage windows"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Agent 也能管窗口"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Agent 也能管視窗"
+          }
+        }
+      }
+    },
+    "listWindows now lists every browser window; focusWindow, moveTabToWindow and organizeWindows (merge, dedupe, split by site) work across them — large reorganizations run as background Jobs.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"listWindows now lists every browser window; focusWindow, moveTabToWindow and organizeWindows (merge, dedupe, split by site) work across them — large reorganizations run as background Jobs."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"listWindows 现在列出每一扇浏览器窗口；focusWindow、moveTabToWindow 与 organizeWindows（合并/去重/按站点拆分）都能跨窗执行——大规模整理走后台 Jobs。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"listWindows 現在列出每一個瀏覽器視窗；focusWindow、moveTabToWindow 與 organizeWindows（合併/去重/按網站拆分）都能跨視窗執行——大規模整理走後台 Jobs。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

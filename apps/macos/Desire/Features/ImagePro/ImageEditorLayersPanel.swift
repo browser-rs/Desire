@@ -9,6 +9,7 @@ struct ImageEditorLayersPanel: View {
     @State private var renamingID: UUID?
     @State private var renameText = ""
     @State private var showStyle = false
+    @State private var renamingGroupID: UUID?
 
     init(session: ImageEditorSession) {
         _session = ObservedObject(wrappedValue: session)
@@ -38,6 +39,9 @@ struct ImageEditorLayersPanel: View {
                     document.flattenLayers()
                 }
                 .disabled(document.layers.count <= 1)
+                iconButton("folder.badge.plus", help: String(localized: "Group from active layer")) {
+                    document.createGroup(name: "Group")
+                }
                 Button {
                     showStyle.toggle()
                 } label: {
@@ -58,11 +62,24 @@ struct ImageEditorLayersPanel: View {
             Divider()
 
             List {
-                ForEach(Array(document.layers.reversed())) { layer in
-                    row(layer)
+                // 图层组头（v0.8.54 批 3）：按组 id 聚合，每组一个头行（折叠/可见/重命名）。
+                ForEach(document.groups.values.sorted { $0.id.uuidString < $1.id.uuidString }) { group in
+                    groupRow(group)
                         .listRowInsets(EdgeInsets(top: 1, leading: 4, bottom: 1, trailing: 4))
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
+                }
+                ForEach(Array(document.layers.reversed())) { layer in
+                    // 折叠组内的成员层不显示（组头代表整组）。
+                    if let gid = layer.groupID,
+                       document.groups[gid]?.isCollapsed == true {
+                        EmptyView()
+                    } else {
+                        row(layer)
+                            .listRowInsets(EdgeInsets(top: 1, leading: 4, bottom: 1, trailing: 4))
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                    }
                 }
                 .onMove(perform: moveLayers)
             }
@@ -217,6 +234,57 @@ struct ImageEditorLayersPanel: View {
         renamingID = nil
     }
 
+    private var horizontalFlipTitle: String { String(localized: "Flip Layer Horizontal") }
+    private var verticalFlipTitle: String { String(localized: "Flip Layer Vertical") }
+
+    @ViewBuilder
+    private func groupRow(_ group: ImageEditorDocument.LayerGroup) -> some View {
+        HStack(spacing: 6) {
+            Button {
+                document.toggleGroupCollapsed(group.id)
+            } label: {
+                Image(systemName: group.isCollapsed ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 12)
+            }
+            .buttonStyle(.plain)
+            Button {
+                document.setGroupVisible(group.id, visible: !group.isVisible)
+            } label: {
+                Image(systemName: group.isVisible ? "eye" : "eye.slash")
+                    .font(.system(size: 10))
+                    .foregroundStyle(group.isVisible ? AnyShapeStyle(.secondary)
+                                                     : AnyShapeStyle(.tertiary))
+            }
+            .buttonStyle(.plain)
+            Text(group.name)
+                .font(.system(size: 11, weight: .semibold))
+                .lineLimit(1)
+            Spacer(minLength: 2)
+        }
+        .padding(.horizontal, 5)
+        .padding(.vertical, 4)
+        .background(RoundedRectangle(cornerRadius: 5)
+            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5)))
+        .contextMenu {
+            Button(String(localized: "Ungroup")) { document.dissolveGroup(group.id) }
+            Button(String(localized: "Rename Group")) {
+                renamingGroupID = group.id
+                renameText = group.name
+            }
+            Divider()
+            Button(String(localized: "Delete Group"), role: .destructive) {
+                document.dissolveGroup(group.id)
+            }
+        }
+        if renamingGroupID == group.id {
+            TextField("", text: $renameText) { _ in renamingGroupID = nil }
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 11))
+        }
+    }
+
     private func row(_ layer: ImageEditorLayer) -> some View {
         let isActive = layer.id == document.activeLayerID
         return HStack(spacing: 7) {
@@ -283,6 +351,28 @@ struct ImageEditorLayersPanel: View {
             Button(String(localized: "Merge Down")) {
                 document.selectLayer(layer.id)
                 document.mergeDown()
+            }
+            Button(horizontalFlipTitle) {
+                document.selectLayer(layer.id)
+                document.flipActiveLayer(horizontal: true)
+            }
+            Button(verticalFlipTitle) {
+                document.selectLayer(layer.id)
+                document.flipActiveLayer(horizontal: false)
+            }
+            Divider()
+            Menu(String(localized: "Move to Group")) {
+                ForEach(document.groups.values.sorted { $0.name < $1.name }) { group in
+                    Button(group.name) {
+                        document.selectLayer(layer.id)
+                        document.addToGroup(layer.id, groupID: group.id)
+                    }
+                }
+                Divider()
+                Button(String(localized: "Remove from Group")) {
+                    document.selectLayer(layer.id)
+                    document.removeFromGroup(layer.id)
+                }
             }
             Divider()
             // 图层蒙版（v0.8.54 批 2）：添加/移除/反转。

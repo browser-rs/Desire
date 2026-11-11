@@ -91,6 +91,7 @@ final class ImageEditorDocument: ObservableObject {
         var layers: [ImageEditorLayer]
         var bitmaps: [UUID: CGImage]
         var masks: [UUID: CGImage]
+        var groups: [UUID: LayerGroup]
         var activeLayerID: UUID
         var selection: ImageEditorSelection
         var canvasSize: CGSize
@@ -161,6 +162,13 @@ final class ImageEditorDocument: ObservableObject {
         }
         var effective = bitmaps
         var effectiveLayers = layers
+        // 组级可见性（v0.8.54 批 3）：组不可见 → 成员层从合成里剔除
+        // （成员层的 isVisible 不动——组标志独立于单层开关）。
+        effectiveLayers.removeAll { layer in
+            guard let gid = layer.groupID, let group = groups[gid],
+                  !group.isVisible else { return false }
+            return true
+        }
         if previewAdjust != nil || previewFilter != nil,
            let base = bitmaps[activeLayerID] {
             if let rendered = ImageEditorRaster.applyEffect(base,
@@ -239,7 +247,7 @@ final class ImageEditorDocument: ObservableObject {
 
     private func pushHistory(_ title: String) {
         undoStack.append(Snapshot(title: title, layers: layers, bitmaps: bitmaps,
-                                  masks: masks,
+                                  masks: masks, groups: groups,
                                   activeLayerID: activeLayerID,
                                   selection: selection, canvasSize: canvasSize))
         if undoStack.count > maxHistory { undoStack.removeFirst() }
@@ -258,7 +266,7 @@ final class ImageEditorDocument: ObservableObject {
     func undo() {
         guard let snapshot = undoStack.popLast() else { return }
         redoStack.append(Snapshot(title: snapshot.title, layers: layers, bitmaps: bitmaps,
-                                  masks: masks,
+                                  masks: masks, groups: groups,
                                   activeLayerID: activeLayerID,
                                   selection: selection, canvasSize: canvasSize))
         restore(snapshot)
@@ -271,7 +279,7 @@ final class ImageEditorDocument: ObservableObject {
     func redo() {
         guard let snapshot = redoStack.popLast() else { return }
         undoStack.append(Snapshot(title: snapshot.title, layers: layers, bitmaps: bitmaps,
-                                  masks: masks,
+                                  masks: masks, groups: groups,
                                   activeLayerID: activeLayerID,
                                   selection: selection, canvasSize: canvasSize))
         restore(snapshot)
@@ -291,6 +299,7 @@ final class ImageEditorDocument: ObservableObject {
         layers = snapshot.layers
         bitmaps = snapshot.bitmaps
         masks = snapshot.masks
+        groups = snapshot.groups
         activeLayerID = snapshot.activeLayerID
         selection = snapshot.selection
         canvasSize = snapshot.canvasSize
@@ -411,6 +420,11 @@ final class ImageEditorDocument: ObservableObject {
         let removed = layers.remove(at: index)
         bitmaps[removed.id] = nil
         masks[removed.id] = nil
+        // 删除组内最后一员时解散该组（空组无意义）
+        if let gid = removed.groupID,
+           !layers.contains(where: { $0.groupID == gid }) {
+            groups[gid] = nil
+        }
         let next = min(index, layers.count - 1)
         activeLayerID = layers[max(0, next)].id
         compositeCache = nil
@@ -1137,6 +1151,108 @@ final class ImageEditorDocument: ObservableObject {
         selection = ImageEditorSelection()
         compositeCache = nil
         commit()
+    }
+
+    /// 逐层翻转（v0.8.54 批 3）：只翻转活动层（canvas flip 翻全部）。
+    func flipActiveLayer(horizontal: Bool) {
+        guard let bitmap = bitmaps[activeLayerID],
+              let flipped = ImageTransforms.flipped(bitmap, horizontal: horizontal) else { return }
+        pushHistory(horizontal ? "Flip Layer Horizontal" : "Flip Layer Vertical")
+        bitmaps[activeLayerID] = flipped
+        if let idx = layers.firstIndex(where: { $0.id == activeLayerID }) {
+            if horizontal {
+                layers[idx].offset.width = -layers[idx].offset.width
+            } else {
+                layers[idx].offset.height = -layers[idx].offset.height
+            }
+        }
+        compositeCache = nil
+        commit()
+    }
+
+    // MARK: - 图层组（v0.8.54 批 3）
+
+    struct LayerGroup: Codable, Equatable, Identifiable {
+        var id: UUID
+        var name: String
+        var isCollapsed: Bool = false
+        var isVisible: Bool = true
+    }
+
+    /// 组元数据（key = group.id）；组的成员 = `layers` 里 groupID 相同的层。
+    @Published private(set) var groups: [UUID: LayerGroup] = [:]
+
+    /// 从活动层创建组（活动层加入该组；可继续把其它层加进来）。
+    func createGroup(name: String) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        let group = LayerGroup(id: UUID(),
+                               name: trimmed.isEmpty ? "Group" : trimmed)
+        groups[group.id] = group
+        if let idx = layers.firstIndex(where: { $0.id == activeLayerID }) {
+            layers[idx].groupID = group.id
+        }
+        pushHistory("Group: \(group.name)")
+        commit()
+    }
+
+    /// 把活动层加入指定组（跨组移动）。
+    func addToGroup(_ layerID: UUID, groupID: UUID) {
+        guard groups[groupID] != nil,
+              let idx = layers.firstIndex(where: { $0.id == layerID }) else { return }
+        pushHistory("Add to Group")
+        layers[idx].groupID = groupID
+        commit()
+    }
+
+    /// 把层从所在组移出（保留层本体）。
+    func removeFromGroup(_ layerID: UUID) {
+        guard let idx = layers.firstIndex(where: { $0.id == layerID }),
+              layers[idx].groupID != nil else { return }
+        pushHistory("Remove from Group")
+        layers[idx].groupID = nil
+        commit()
+    }
+
+    /// 折叠/展开组（UI 状态，不进历史）。
+    func toggleGroupCollapsed(_ groupID: UUID) {
+        guard var group = groups[groupID] else { return }
+        group.isCollapsed.toggle()
+        groups[groupID] = group
+    }
+
+    /// 组级显示/隐藏（成员层的 isVisible 不动——组标志独立于单层开关）。
+    func setGroupVisible(_ groupID: UUID, visible: Bool) {
+        guard var group = groups[groupID] else { return }
+        group.isVisible = visible
+        groups[groupID] = group
+        compositeCache = nil
+    }
+
+    func renameGroup(_ groupID: UUID, name: String) {
+        guard var group = groups[groupID] else { return }
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        group.name = trimmed.isEmpty ? group.name : trimmed
+        groups[groupID] = group
+    }
+
+    /// 解散组（保留层，组内层的 groupID 清空）。
+    func dissolveGroup(_ groupID: UUID) {
+        guard groups[groupID] != nil else { return }
+        pushHistory("Ungroup")
+        for idx in layers.indices where layers[idx].groupID == groupID {
+            layers[idx].groupID = nil
+        }
+        groups[groupID] = nil
+        commit()
+    }
+
+    /// 组是否应渲染（组可见 && 至少一个成员可见）。
+    func groupEffectiveVisible(_ groupID: UUID) -> Bool {
+        groups[groupID]?.isVisible ?? true
+    }
+
+    func groupCollapsed(_ groupID: UUID) -> Bool {
+        groups[groupID]?.isCollapsed ?? false
     }
 
     // MARK: - 采样

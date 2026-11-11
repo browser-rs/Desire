@@ -240,6 +240,9 @@ nonisolated struct ImageEditorLayer: Identifiable, Equatable, Sendable {
     /// 斜切角度（度）：X 斜切 = 水平倾斜，Y 斜切 = 垂直倾斜（v0.8.54 变换增强）。
     var skewX: Double = 0
     var skewY: Double = 0
+    /// 图层组（v0.8.54 批 3）：非 nil = 该层属于此组。组元数据（名称/折叠/
+    /// 可见）存在 `ImageEditorDocument.groups[groupID]`。
+    var groupID: UUID?
 }
 
 

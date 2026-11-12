@@ -10,6 +10,10 @@ struct ImageEditorAdjustmentsPanel: View {
     @State private var filter: ImageFilterPreset = .none
     /// 专业滤镜（v0.8.54 专项）。
     @State private var proFilter = ImageProFilter(kind: .gaussianBlur)
+    /// 渐变映射（v0.8.54 批 6）：暗部/亮部颜色（两个 stop）。
+    @State private var gmShadow: Color = Color(red: 0.12, green: 0.07, blue: 0.25)
+    @State private var gmHighlight: Color = Color(red: 1.0, green: 0.92, blue: 0.75)
+    @State private var gmEnabled = false
     /// 曲线编辑器的直方图背景（onAppear 从活动图层位图计算）。
     @State private var histogram: (r: [Int], g: [Int], b: [Int])?
 
@@ -58,6 +62,46 @@ struct ImageEditorAdjustmentsPanel: View {
                     slider(String(localized: "Black Point"), \.blackPoint, 0...0.4, format: "%.2f")
                     slider(String(localized: "Gamma"), \.gamma, 0.2...5, format: "%.2f")
                     slider(String(localized: "White Point"), \.whitePoint, 0.6...1, format: "%.2f")
+
+                    Divider().padding(.vertical, 2)
+                    header(String(localized: "Gradient Map"))
+                    Toggle(isOn: $gmEnabled) {
+                        Text(String(localized: "Enable Gradient Map"))
+                            .font(.system(size: 10.5))
+                    }
+                    .toggleStyle(.checkbox)
+                    HStack(spacing: 12) {
+                        ColorPicker(String(localized: "Shadows"), selection: $gmShadow,
+                                    supportsOpacity: false)
+                            .font(.system(size: 10.5))
+                        ColorPicker(String(localized: "Highlights"), selection: $gmHighlight,
+                                    supportsOpacity: false)
+                            .font(.system(size: 10.5))
+                    }
+                    HStack(spacing: 6) {
+                        duotoneButton(shadow: Color(red: 0.17, green: 0.06, blue: 0.33),
+                                      highlight: Color(red: 1.0, green: 0.62, blue: 0.37),
+                                      name: "Sunset")
+                        duotoneButton(shadow: Color(red: 0.06, green: 0.13, blue: 0.15),
+                                      highlight: Color(red: 0.17, green: 0.33, blue: 0.39),
+                                      name: "Deep Sea")
+                        duotoneButton(shadow: Color(red: 0.25, green: 0.16, blue: 0.35),
+                                      highlight: Color(red: 0.18, green: 0.5, blue: 0.93),
+                                      name: "Violet")
+                        duotoneButton(shadow: Color(red: 0.23, green: 0.11, blue: 0.44),
+                                      highlight: Color(red: 0.84, green: 0.43, blue: 0.47),
+                                      name: "Retro")
+                        Spacer(minLength: 2)
+                    }
+                    .onChange(of: gmEnabled) { _, on in
+                        syncGradientMap(enabled: on)
+                    }
+                    .onChange(of: gmShadow) { _, _ in
+                        if gmEnabled { syncGradientMap(enabled: true) }
+                    }
+                    .onChange(of: gmHighlight) { _, _ in
+                        if gmEnabled { syncGradientMap(enabled: true) }
+                    }
 
                     Divider().padding(.vertical, 2)
                     header(String(localized: "Pro Filters"))
@@ -164,6 +208,39 @@ struct ImageEditorAdjustmentsPanel: View {
         if let image = document.bitmap(for: document.activeLayerID) {
             histogram = ImageEditorRaster.histogram(image)
         }
+    }
+
+    private func duotoneButton(shadow: Color, highlight: Color, name: String) -> some View {
+        Button {
+            gmShadow = shadow
+            gmHighlight = highlight
+            gmEnabled = true
+            syncGradientMap(enabled: true)
+        } label: {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(LinearGradient(colors: [shadow, highlight],
+                                     startPoint: .bottom, endPoint: .top))
+                .frame(width: 34, height: 18)
+                .overlay(RoundedRectangle(cornerRadius: 4)
+                    .stroke(.white.opacity(0.2), lineWidth: 0.5))
+                .help(name)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func hexString(_ color: Color) -> String {
+        let ns = NSColor(color).usingColorSpace(.sRGB)
+        let r = Int(round((ns?.redComponent ?? 0) * 255))
+        let g = Int(round((ns?.greenComponent ?? 0) * 255))
+        let b = Int(round((ns?.blueComponent ?? 0) * 255))
+        return String(format: "#%02X%02X%02X", r, g, b)
+    }
+
+    private func syncGradientMap(enabled: Bool) {
+        params.gradientMapStops = enabled
+            ? [ImageAdjustParams.GradientMapStop.shadow(hexString(gmShadow)),
+               ImageAdjustParams.GradientMapStop.highlight(hexString(gmHighlight))]
+            : []
     }
 
     /// 应用专业滤镜到活动图层。

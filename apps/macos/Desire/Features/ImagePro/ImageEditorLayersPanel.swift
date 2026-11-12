@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// 图层面板 2.0（迭代 4）：缩略图、拖拽排序、向下合并、拼合、锁定、重命名。
 struct ImageEditorLayersPanel: View {
@@ -282,6 +284,28 @@ struct ImageEditorLayersPanel: View {
             TextField("", text: $renameText) { _ in renamingGroupID = nil }
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 11))
+        }
+    }
+
+    /// 导出图层为 PNG（v0.8.54 批 6）：含该层的效果/蒙版，透明背景。
+    private func exportLayerPNG(_ layer: ImageEditorLayer) {
+        guard var output = document.bitmap(for: layer.id) else { return }
+        if layer.hasMask, let mask = document.mask(for: layer.id) {
+            output = ImageEditorRaster.maskApplied(output, mask: mask,
+                                                   inverted: layer.maskInverted) ?? output
+        }
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.png]
+        panel.nameFieldStringValue = (layer.name.isEmpty ? "layer" : layer.name) + ".png"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        let rep = NSBitmapImageRep(cgImage: output)
+        guard let data = rep.representation(using: .png, properties: [:]) else {
+            NSSound.beep(); return
+        }
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            NSSound.beep()
         }
     }
 

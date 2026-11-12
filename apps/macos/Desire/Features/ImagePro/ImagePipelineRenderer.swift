@@ -125,6 +125,15 @@ nonisolated enum ImagePipelineRenderer {
             filter.setValue(CIVector(x: 0, y: 0, z: 1, w: params.blueBalance), forKey: "inputBVector")
             ci = filter.outputImage ?? ci
         }
+        // 渐变映射（v0.8.54 批 6）：按亮度查渐变（CIColorMap 用梯度图 x 轴 = 亮度）。
+        if params.gradientMapStops.count >= 2 {
+            let gradient = gradientImage(from: params.gradientMapStops)
+            if let filter = CIFilter(name: "CIColorMap") {
+                filter.setValue(ci, forKey: kCIInputImageKey)
+                filter.setValue(gradient, forKey: "inputGradientImage")
+                ci = filter.outputImage ?? ci
+            }
+        }
         if params.clarity > 0, let filter = CIFilter(name: "CIUnsharpMask") {
             filter.setValue(ci, forKey: kCIInputImageKey)
             filter.setValue(12.0, forKey: kCIInputRadiusKey)
@@ -153,6 +162,61 @@ nonisolated enum ImagePipelineRenderer {
     }
 
     /// 分通道曲线：按曲线生成 RGB 立方 LUT（CIColorCube），通道独立映射。
+    /// 由渐变映射 stops 生成 256×1 查找图（CIColorMap 的梯度输入）。
+    static func gradientImage(from stops: [ImageAdjustParams.GradientMapStop]) -> CGImage? {
+        let w = 256, h = 1
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: w * 4,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        let sorted = stops.sorted { $0.position < $1.position }
+        guard let first = sorted.first, let last = sorted.last else { return nil }
+        for x in 0..<w {
+            let t = Double(x) / Double(w - 1)
+            let color = gradientColor(at: t, stops: sorted, first: first, last: last)
+            ctx.setFillColor(color)
+            ctx.fill(CGRect(x: x, y: 0, width: 1, height: h))
+        }
+        return ctx.makeImage()
+    }
+
+    private static func gradientColor(at t: Double, stops: [ImageAdjustParams.GradientMapStop],
+                                      first: ImageAdjustParams.GradientMapStop,
+                                      last: ImageAdjustParams.GradientMapStop) -> CGColor {
+        if t <= first.position { return color(fromHex: first.colorHex) }
+        if t >= last.position { return color(fromHex: last.colorHex) }
+        for i in 1..<stops.count {
+            let right = stops[i]
+            let left = stops[i - 1]
+            if t <= right.position {
+                let span = max(0.000001, right.position - left.position)
+                let local = (t - left.position) / span
+                let lc = color(fromHex: left.colorHex)
+                let rc = color(fromHex: right.colorHex)
+                let c1 = lc.components ?? []
+                let c2 = rc.components ?? []
+                // CGColor components 可能是 Double 数组（非 CGColor 的 underlying）
+                let rC = CGFloat(c1.count > 0 ? c1[0] : 0) + (CGFloat(c2.count > 0 ? c2[0] : 0) - CGFloat(c1.count > 0 ? c1[0] : 0)) * CGFloat(local)
+                let gC = CGFloat(c1.count > 1 ? c1[1] : 0) + (CGFloat(c2.count > 1 ? c2[1] : 0) - CGFloat(c1.count > 1 ? c1[1] : 0)) * CGFloat(local)
+                let bC = CGFloat(c1.count > 2 ? c1[2] : 0) + (CGFloat(c2.count > 2 ? c2[2] : 0) - CGFloat(c1.count > 2 ? c1[2] : 0)) * CGFloat(local)
+                let aC = CGFloat(c1.count > 3 ? c1[3] : 1) + (CGFloat(c2.count > 3 ? c2[3] : 1) - CGFloat(c1.count > 3 ? c1[3] : 1)) * CGFloat(local)
+                return CGColor(srgbRed: rC, green: gC, blue: bC, alpha: aC)
+            }
+        }
+        return color(fromHex: last.colorHex)
+    }
+
+    private static func color(fromHex hex: String) -> CGColor {
+        var value: UInt64 = 0
+        let cleaned = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
+        Scanner(string: cleaned).scanHexInt64(&value)
+        let r = CGFloat((value >> 16) & 0xFF) / 255
+        let g = CGFloat((value >> 8) & 0xFF) / 255
+        let b = CGFloat(value & 0xFF) / 255
+        return CGColor(srgbRed: r, green: g, blue: b, alpha: 1)
+    }
+
     private static func channelCurveFilter(
         _ input: CIImage, params: ImageAdjustParams
     ) -> CIImage? {

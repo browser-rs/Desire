@@ -44,6 +44,22 @@ nonisolated struct ImageAdjustParams: Codable, Hashable {
     var redBalance: Double = 0
     var greenBalance: Double = 0
     var blueBalance: Double = 0
+    /// 渐变映射（v0.8.54 批 6）：按亮度映射到渐变色。stops 按位置升序；
+    /// ≥2 个 stop 才启用（经典渐变映射 = 全图色彩替换为渐变对应色）。
+    var gradientMapStops: [GradientMapStop] = []
+
+    nonisolated struct GradientMapStop: Codable, Hashable, Sendable {
+        /// 0…1（暗→亮）
+        var position: Double
+        var colorHex: String
+
+        static func shadow(_ hex: String) -> GradientMapStop {
+            GradientMapStop(position: 0, colorHex: hex)
+        }
+        static func highlight(_ hex: String) -> GradientMapStop {
+            GradientMapStop(position: 1, colorHex: hex)
+        }
+    }
     /// 曲线控制点（0…1，x 升序；空 = 不启用）。curvePoints = RGB 总曲线，
     /// curveRed/Green/Blue = 分通道曲线（分通道存在时优先）。
     var curvePoints: [CurvePoint] = []

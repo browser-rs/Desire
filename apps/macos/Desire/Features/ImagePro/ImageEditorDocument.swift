@@ -408,6 +408,10 @@ final class ImageEditorDocument: ObservableObject {
         copy.name += " copy"
         layers.insert(copy, at: index + 1)
         bitmaps[copy.id] = bitmap
+        // 蒙版一并复制（v0.8.54 批 6）
+        if let mask = masks[layers[index].id] {
+            masks[copy.id] = mask
+        }
         activeLayerID = copy.id
         compositeCache = nil
         commit()

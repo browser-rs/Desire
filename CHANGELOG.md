@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.54] - 2026-11-12
 ### Fixed
 
 - ImageEditorRaster 内存访问安全（编译器指出的潜在越界）：`healedTexture` 的 CGDataProvider 字节指针可选解包补齐、输出位图改走 CGDataProvider+CGImage 显式构造（CGContext 无 dataProvider 属性）、`var mask` → `let mask`；`ImageProFilter.swift` 里 emboss 的错误三元表达式（CIConvolutionRGB9Vertical 不存在）修正为 CIConvolutionRGB3X3。

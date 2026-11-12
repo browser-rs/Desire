@@ -16,7 +16,9 @@ nonisolated struct ImageProFilter: Codable, Equatable, Sendable {
         // 风格化
         case pixelate, crystallize, emboss, edgeWork
         // 扭曲
-        case twirl, bump, glassLoops
+        case twirl, bump, glassLoops, liquify
+        // 几何校正
+        case keystone
         // 锐化
         case unsharpMask, highPass
 
@@ -33,6 +35,8 @@ nonisolated struct ImageProFilter: Codable, Equatable, Sendable {
             case .twirl: return String(localized: "Twirl")
             case .bump: return String(localized: "Bump")
             case .glassLoops: return String(localized: "Glass Loops")
+            case .liquify: return String(localized: "Liquify")
+            case .keystone: return String(localized: "Keystone")
             case .unsharpMask: return String(localized: "Unsharp Mask")
             case .highPass: return String(localized: "High Pass")
             }
@@ -52,6 +56,8 @@ nonisolated struct ImageProFilter: Codable, Equatable, Sendable {
             case .twirl: return 0...3000
             case .bump: return 0...3000
             case .glassLoops: return 1...100
+            case .liquify: return 0...500
+            case .keystone: return -60...60
             case .unsharpMask: return 0...20
             case .highPass: return 1...20
             }
@@ -70,6 +76,8 @@ nonisolated struct ImageProFilter: Codable, Equatable, Sendable {
             case .twirl: return 500
             case .bump: return 500
             case .glassLoops: return 20
+            case .liquify: return 100
+            case .keystone: return 20
             case .unsharpMask: return 5
             case .highPass: return 5
             }
@@ -91,6 +99,8 @@ nonisolated struct ImageProFilter: Codable, Equatable, Sendable {
         case .twirl: name = "CITwirlDistortion"
         case .bump: name = "CIBumpDistortion"
         case .glassLoops: name = "CIGlassLoops"
+        case .liquify: name = "CILiquifyDistortion"
+        case .keystone: name = "CIPerspectiveTransform"
         case .unsharpMask: name = "CIUnsharpMask"
         case .highPass: name = "CIHighPassFilter"
         }
@@ -108,8 +118,16 @@ nonisolated struct ImageProFilter: Codable, Equatable, Sendable {
             f.setValue(filter.radius, forKey: "inputWeight")
         case .edgeWork:
             f.setValue(filter.radius, forKey: kCIInputRadiusKey)
-        case .twirl, .bump:
+        case .twirl, .bump, .liquify:
             f.setValue(filter.radius, forKey: kCIInputRadiusKey)
+        case .keystone:
+            // 透视梯形（v0.8.54 批 7）：radius = 顶部内收百分比（-60…60）。
+            let t = max(-45, min(45, filter.radius / 2))
+            let inset = t / 100
+            f.setValue(CIVector(x: inset, y: 1), forKey: "inputTopLeft")
+            f.setValue(CIVector(x: 1 - inset, y: 1), forKey: "inputTopRight")
+            f.setValue(CIVector(x: 0, y: 0), forKey: "inputBottomLeft")
+            f.setValue(CIVector(x: 1, y: 0), forKey: "inputBottomRight")
         }
         return f.outputImage ?? input
     }

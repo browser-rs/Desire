@@ -11,6 +11,10 @@ struct ImageEditorView: View {
     @ObservedObject private var document: ImageEditorDocument
     @State private var inspector: Inspector?
     @State private var exportFormat = "png"
+    /// 导出选项（v0.8.54 批 7）：质量与缩放，随导出面板调整。
+    @AppStorage("imagePro.exportQuality") private var exportQuality: Double = 0.92
+    @AppStorage("imagePro.exportScale") private var exportScale: Double = 1
+    @State private var showExportSheet = false
     @State private var showAI = false
     @State private var showTextStyle = false
     @State private var showCanvasSize = false
@@ -255,6 +259,8 @@ struct ImageEditorView: View {
                 Button(String(localized: "Export as WebP…")) { export(as: "webp") }
                 Button(String(localized: "Export as HEIF…")) { export(as: "heic") }
                 Button(String(localized: "Export as TIFF…")) { export(as: "tiff") }
+                Divider()
+                Button(String(localized: "Export Options…")) { showExportSheet = true }
             } label: {
                 Image(systemName: "square.and.arrow.up")
                     .font(.system(size: 12, weight: .medium))
@@ -263,6 +269,12 @@ struct ImageEditorView: View {
             .menuIndicator(.hidden)
             .buttonStyle(.plain)
             .help(String(localized: "Export"))
+            .popover(isPresented: $showExportSheet, arrowEdge: .bottom) {
+                ImageExportOptionsSheet(format: $exportFormat, quality: $exportQuality,
+                                        scale: $exportScale) { format in
+                    export(as: format)
+                }
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
@@ -888,6 +900,60 @@ struct ImageEditorView: View {
         panel.allowedContentTypes = []
         let response = panel.runModal()
         guard response == .OK, let url = panel.url else { return }
-        _ = session.export(format: format, to: url)
+        _ = session.export(format: format, to: url,
+                           quality: exportQuality, scale: exportScale)
+    }
+}
+
+/// 导出选项弹层（v0.8.54 批 7）：质量滑块 + 缩放步进（进 AppStorage 记忆）。
+struct ImageExportOptionsSheet: View {
+    @Binding var format: String
+    @Binding var quality: Double
+    @Binding var scale: Double
+    let onExport: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(String(localized: "Export Options"))
+                .font(.system(size: 12, weight: .semibold))
+            Picker("", selection: $format) {
+                Text("PNG").tag("png")
+                Text("JPEG").tag("jpg")
+                Text("WebP").tag("webp")
+                Text("HEIF").tag("heic")
+                Text("TIFF").tag("tiff")
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+            if format == "jpg" || format == "webp" || format == "heic" {
+                HStack {
+                    Text(String(localized: "Quality"))
+                        .font(.system(size: 10.5))
+                        .foregroundStyle(.secondary)
+                    Slider(value: $quality, in: 0.3...1)
+                    Text(verbatim: "\(Int(quality * 100))%")
+                        .font(.system(size: 9.5, design: .monospaced))
+                        .frame(width: 34, alignment: .trailing)
+                }
+            }
+            HStack {
+                Text(String(localized: "Scale"))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                Slider(value: $scale, in: 0.1...3)
+                Text(verbatim: String(format: "%.0f%%", scale * 100))
+                    .font(.system(size: 9.5, design: .monospaced))
+                    .frame(width: 44, alignment: .trailing)
+            }
+            Button(String(localized: "Choose File…")) {
+                dismiss()
+                onExport(format)
+            }
+            .buttonStyle(.borderedProminent)
+            .frame(maxWidth: .infinity)
+        }
+        .padding(14)
+        .frame(width: 300)
     }
 }

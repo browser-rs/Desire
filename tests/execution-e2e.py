@@ -1614,7 +1614,11 @@ def main():
         while time.time() < deadline_alert:
             conv14 = read_conversation(conv14_id)
             tools14 = [m.get("content") or "" for m in conv14.get("messages", []) if m.get("role") == "tool"]
-            alert14 = next((t for t in tools14 if "alert:" in t and "Dropped below" in t), "")
+            # 告警文本本地化了（PageWatch.swift 的 String(localized:)——本机
+            # 中文环境 = "已低于 1200.00 — 当前 1150.00"），按数值+alert 标记
+            # 语言无关匹配。
+            alert14 = next((t for t in tools14
+                            if "alert:" in t and "1150" in t.replace(",", "")), "")
             if alert14:
                 break
             time.sleep(2)
@@ -1624,7 +1628,7 @@ def main():
         ok("addPageWatch 建数值监视", add14.startswith("Added page watch") and ".price" in add14)
         ok("基线读数记录（1,299）", "1299" in check14a.replace(",", ""))
         ok("改价后跨线告警（低于 1200）",
-           alert14 != "" and "Dropped below" in alert14 and "1150" in alert14.replace(",", ""))
+           alert14 != "" and "1150" in alert14.replace(",", ""))
         ok("listPageWatches 带数值面与告警",
            "numbers: latest 1150" in list14.replace(",", "") and "last alert:" in list14)
         ok("removePageWatch 清干净（桥复核）", remove14 != "" and not watch_left)

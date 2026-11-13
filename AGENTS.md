@@ -311,6 +311,17 @@ Features/Bookmarks/
   另外 `POST /conversations/delete` 的响应里 `liveConversationDeleted: true` 表示那是**面板里
   正在显示**的会话——它的消息还在内存里、下一回合落盘会写回文件，光删文件不解决问题。
 
+- **评估用例三查（v0.8.56 实测）**：① **插入新用例时函数名要当场核对**——E19 曾把
+  函数错写成 `case_image_tool_contract`（与 E16 同名，第二个 def 静默遮蔽第一个，
+  `case_look_image` 从未存在），语法检查全过、CASES 引用也不报错，**只有 live 跑的
+  NameError 才暴露**；② **假端点的分支判定按线格式写**——图片工具结果在线上是
+  content 数组（text + image_url part），按"裸字符串 data:image/"找永远匹配不到
+  （E20 的 has_image 教训）；③ **评估期间要关会话预算**——历史 execution-e2e 的
+  MUSCLE17 把 `agentTokenBudget=500` 留在共享偏好域，新实例继承后每个评估对话
+  第一回合（system+292 工具 ≈ 12.8k tokens）就被预算停机，预算提示占据回复位
+  （E2 的"模型没复述错误"教训）——agent-eval 的 install_profile 现已关断、
+  restore_profile 按原值恢复。
+
 - **视觉点击链的坐标纪律（v0.8.56）**：`screenshot` 在视口长边 >1024 CSS px 时
   等比缩小——**缩放系数烧在截图底部 caption 条里**（`viewport W×H | image w×h |
   scale S`），模型读图自行换算；改动截图管线时 caption 不能丢（丢了宽窗口的

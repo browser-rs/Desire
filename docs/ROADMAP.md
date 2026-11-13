@@ -4910,3 +4910,12 @@ caption 烧图 + clickAt 准星 + 工具面纪律 + ScreenshotScaleNote 进 harn
 >700ms 标黄不阻塞）→ 批 4（密码填充同源：fill 调 `__desirePickUsername` 打分
 选字段 + aria/tel 信号；WhatsNew 三条三语）。**挂起（dev 实例被占用）**：E19/
 E20 live 跑、10/10 强杀首启、套件时序 5 项确定性化、流式/挂起护栏复验。
+
+**实况补（2026-11-13 晚，完善两批 + live 验证全过）**：完善批 1（6a5b5be7——
+clickAt right/double 变体、hoverAt、drag 起点准星、**clickAt 像素后验兜底**
+（PixelDiff：canvas 点击 DOM 指纹不变曾误报 unchanged 误导模型））→ 完善批 2
+（ef008d70——scrollAt 滚轮（CGEvent 转制）、像素后验扩到 drag/scrollAt、
+screenshotElement 坐标警告）→ 评估修复批（7e183baf——E19 函数遮蔽、E20 线格式/
+坐标稳定窗/标题通道命中断言、E2 预算残留、smoke 700ms 观测行）。
+**Live 验证全过**：agent-eval 79/79（E19 修图闭环 + E20 视觉点击链）、强杀首启
+10/10（476-508ms，全在 700ms 预算内）、harness 3191/0、增量构建零警告。

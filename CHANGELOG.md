@@ -2,6 +2,8 @@
 ### Fixed
 
 - **密码填充与检测同源（v0.8.56 批 4）**：PasswordFillBar 的注入片段此前按固定 selector 取"表单里第一个 text input"——`autocomplete="username"` 这一最强信号不认、搜索框/姓名框可能被误填，与检测端（打分选最优）不同源。现填充优先调 password-detect.js 暴露的 `__desirePickUsername`（同一打分器），脚本未注入时回退原 selector；打分器补 **aria-label 与 type=tel** 两个信号（无 label 的手写布局、手机号即账号的登录框此前识别不到）。roadmap"非常规字段名识别不到"缺口经核实大半已随 v0.8.8 打分制修复，本批收掉剩余边角。
+- 评估修复随 live 验证（v0.8.56）：E19 的函数曾被错名遮蔽（live 跑才暴露）、E20 的视觉结果判定按线格式修正 + 坐标稳定窗（dev 实例窗口 frame 启动数秒后才恢复，900→2560 让 canvas 按钮移位）、评估期间关断会话预算（历史 MUSCLE17 残留的 500 tokens 让每个评估对话第一回合被停机）。**全套件 79/79**（E19 修图闭环 + E20 视觉点击链 live 全过）+ **强杀首启 10/10**（476-508ms）。
+
 
 ### Added
 

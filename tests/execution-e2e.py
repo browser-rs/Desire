@@ -1602,8 +1602,13 @@ def main():
         tools14 = [m.get("content") or "" for m in conv14.get("messages", []) if m.get("role") == "tool"]
         add14 = next((t for t in tools14 if "Added page watch" in t), "")
         check14a = next((t for t in tools14 if t.startswith("Checked «E2E 价格»") and "latest value" in t), "")
-        # 告警由监视器自己的定时器异步追加——回合结束时未必已写回（本轮
-        # 189/190 的唯一 ✗）。有界轮询会话文件直到告警出现（确定性化）。
+        # 告警由监视器自己的定时器异步追加——监视间隔最低 5 分钟，等定时器
+        # 不现实。桥直驱一次强制复检（/watches/check，与 UI"立即检查"同
+        # 路径），告警随即落会话；再轮询兜底。
+        try:
+            bridge("POST", "/watches/check", body={"name": "E2E 价格"})
+        except Exception:
+            pass
         alert14 = ""
         deadline_alert = time.time() + 30
         while time.time() < deadline_alert:
@@ -1998,10 +2003,17 @@ def main():
                 bridge("POST", "/close-tab", {"index": t.get("index")})
         time.sleep(1)
         bridge("POST", "/new-tab", {"url": TALL_URL})
-        time.sleep(3.5)
-        restored25 = bridge("POST", "/execute", {"js": (
-            "(function(){var d=document.documentElement;var m=d.scrollHeight-window.innerHeight;"
-            "return m<=40?0:(window.scrollY||d.scrollTop||0)/m;})()")}).get("result")
+        # 恢复走 didFinish 钩子——单次 sleep(3.5) 在长套件尾部会漂（实测），
+        # 改轮询：恢复到 0.4-0.6 或 12s 超时为止。
+        restored25 = None
+        deadline_pr = time.time() + 12
+        while time.time() < deadline_pr:
+            time.sleep(1)
+            restored25 = bridge("POST", "/execute", {"js": (
+                "(function(){var d=document.documentElement;var m=d.scrollHeight-window.innerHeight;"
+                "return m<=40?0:(window.scrollY||d.scrollTop||0)/m;})()")}).get("result")
+            if isinstance(restored25, (int, float)) and 0.4 < float(restored25) < 0.6:
+                break
         ok("阅读进度：重开自动恢复到 ≈50%（didFinish 钩子）",
            isinstance(restored25, (int, float)) and 0.4 < float(restored25) < 0.6, restored25)
         for t in bridge_retry("GET", "/state").get("tabs", []):

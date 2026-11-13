@@ -105,6 +105,40 @@ class FixtureHandler(BaseHTTPRequestHandler):
             self.send_response(404)
             self.end_headers()
 
+    def do_POST(self):
+        # 流式压测端点（v0.8.56 批 3）：分块吐 ~40KB Markdown（SSE），供
+        # "流式零卡顿"探针采样 /state 往返延迟——主线程被流式渲染卡住会
+        # 直接体现在延迟尖峰上。
+        if self.path.split("?")[0] == "/v1/chat/completions":
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            para = "这是一段用于流式压测的正文，带 **加粗**、`inline code` 和一个 [链接](https://example.com/x)。"
+            try:
+                for i in range(72):
+                    chunk = {"id": "smoke", "object": "chat.completion.chunk",
+                             "created": 0, "model": "fake-1",
+                             "choices": [{"index": 0,
+                                          "delta": {"content": f"## 段 {i}\n\n{para}\n\n"},
+                                          "finish_reason": None}]}
+                    self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                    self.wfile.flush()
+                    time.sleep(0.045)
+                done = {"id": "smoke", "object": "chat.completion.chunk",
+                        "created": 0, "model": "fake-1",
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+                self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                pass
+            self.close_connection = True
+        else:
+            self.send_response(404)
+            self.end_headers()
+
     def log_message(self, *args):
         pass
 
@@ -277,6 +311,51 @@ def main():
         activity = br("GET", "/activity")
         ok("活动中心：/activity 可用",
            activity.get("ok") is True and isinstance(activity.get("items"), list))
+
+        # 2d) 流式零卡顿探针（v0.8.56 批 3）：假端点流式吐 ~40KB Markdown，
+        # 期间采样 /state 往返延迟（主线程探针）——流式渲染卡主线程会直接
+        # 变成延迟尖峰。档案/预算装了就恢复（防污染用户偏好）。
+        stream_profile = None
+        prev_active = None
+        saved_budget = None
+        try:
+            prev_active = (br("GET", "/ai/profiles") or {}).get("active")
+            created = br("POST", "/ai/profiles", body={
+                "name": "smoke-stream",
+                "endpoint": fixture_url.rsplit("/", 1)[0] + "/v1/chat/completions",
+                "model": "fake-1", "key": "smoke-key"})
+            stream_profile = created.get("id")
+            br("POST", "/ai/profiles/activate", body={"id": stream_profile})
+            saved_budget = (br("GET", "/agent/budget") or {}).get("budget", 0)
+            if saved_budget:
+                br("POST", "/agent/budget", body={"tokens": 0})
+            br("POST", "/agent/new", {})
+            br("POST", "/agent/send", {"text": "BIGSTREAM 流式压测"})
+            lat = []
+            t_end = time.time() + 6
+            while time.time() < t_end:
+                t0 = time.time()
+                try:
+                    br("GET", "/state", timeout=5)
+                except Exception:
+                    pass
+                lat.append((time.time() - t0) * 1000)
+                time.sleep(0.15)
+            p95 = sorted(lat)[max(0, int(len(lat) * 0.95) - 1)] if lat else 0
+            ok("流式零卡顿：/state p95 < 500ms", p95 < 500,
+               f"p95={p95:.0f}ms samples={len(lat)}")
+        except Exception as exc:
+            ok("流式零卡顿：探针异常", False, str(exc)[:120])
+        finally:
+            try:
+                if prev_active:
+                    br("POST", "/ai/profiles/activate", body={"id": prev_active})
+                if stream_profile:
+                    br("POST", "/ai/profiles/delete", body={"id": stream_profile})
+                if saved_budget:
+                    br("POST", "/agent/budget", body={"tokens": saved_budget})
+            except Exception:
+                pass
 
         # 3) 诊断包：OSLog + 崩溃摘要
         diag = br("POST", "/diag/export", {})

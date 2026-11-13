@@ -4868,3 +4868,13 @@ Agent 无确认自动修图、视频大件、iPad 编辑器、视觉通道协议
 
 **批次**：批 1 lookImage 通道（地基）→ 批 2 修图工作流面（右键/模板/报告/评估）→
 批 3 contentfill + 全屏编辑 → 批 4 AI 批量值守 + 首启无窗收口 + i18n/WhatsNew + 闸门。
+
+**实况（2026-11-13，四批全部落地推送，894a750f）**：批 1 lookImage 视觉通道
+（e561eb77，顺带修掉两个 vision 通道既有 bug：预算对 dataURI 截断、OpenAI 端点
+只认两个工具名）→ 批 2 右键"让 Agent 修这张图"+ E19 评估（c9e0a57e）→ 批 3
+contentfill + heal 融合公式修复（12b04324+e4342f74——healedTexture 实参错位是
+潜代 bug，heal 小笔刷靠局部性掩盖，contentfill 大比值直接花掉；全屏编辑经核实
+**已存在**：编辑器是标签页内容、原生窗口全屏保 chrome，无需新代码）→ 批 4
+lookImageFile + batchEditImages 内联 adjust + 自愈加档（894a750f）。harness
+3172/0；增量构建绿。**待办**：E19 live 跑 + 10/10 强杀首启验证（dev 实例被
+用户正式版占用时挂起）；发版闸门（Release clean 零警告）等"发"指令。

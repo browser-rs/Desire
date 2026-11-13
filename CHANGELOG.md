@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- **密码填充与检测同源（v0.8.56 批 4）**：PasswordFillBar 的注入片段此前按固定 selector 取"表单里第一个 text input"——`autocomplete="username"` 这一最强信号不认、搜索框/姓名框可能被误填，与检测端（打分选最优）不同源。现填充优先调 password-detect.js 暴露的 `__desirePickUsername`（同一打分器），脚本未注入时回退原 selector；打分器补 **aria-label 与 type=tel** 两个信号（无 label 的手写布局、手机号即账号的登录框此前识别不到）。roadmap"非常规字段名识别不到"缺口经核实大半已随 v0.8.8 打分制修复，本批收掉剩余边角。
+
 ### Added
 
 - **视觉点击收口（v0.8.56 批 1）**：① `captureScreenshot` 在视口长边 >1024 缩放后，把 **viewport/图片尺寸与换算系数烧进截图底部 caption 条**（`viewport 1512x850 | image 1024x576 | scale 0.677 | clickAt: viewport px = image px / scale`）——模型读图即知换算，宽窗口（全屏 1512px 漂 ~1.4x）的 screenshot→clickAt 回路恢复可信；② **clickAt 落点准星**：派发真实点击前在屏幕落点闪强调色准星环 0.6s（非激活透明浮层，用户看得见、诊断截图拍得到）；③ 工具面写明 DOM 优先/视觉兜底的切换时机与 caption 换算纪律。换算纯逻辑 `ScreenshotScaleNote` 进 harness（3183/0）。

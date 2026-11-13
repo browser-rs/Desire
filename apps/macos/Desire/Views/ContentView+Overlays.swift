@@ -140,7 +140,16 @@ extension ContentView {
                     var p = document.querySelector('input[type=password]');
                     if (!p) return;
                     var f = p.closest('form') || document;
-                    var u = f.querySelector('input[type=email], input[type=text], input[name*="user" i], input[id*="user" i], input[name*="login" i], input[id*="login" i]');
+                    // 与检测端同源（v0.8.56 批 4）：优先调 password-detect.js
+                    // 暴露的打分选字段（autocomplete/aria/label 全认）；脚本未
+                    // 注入的旧兜底 = 原固定 selector。
+                    var u = null;
+                    if (typeof window.__desirePickUsername === 'function') {
+                        u = window.__desirePickUsername(f, p);
+                    }
+                    if (!u) {
+                        u = f.querySelector('input[type=email], input[type=text], input[name*="user" i], input[id*="user" i], input[name*="login" i], input[id*="login" i]');
+                    }
                     if (u) {
                         u.value = \(JSString.literal(username));
                         u.dispatchEvent(new Event('input', { bubbles: true }));

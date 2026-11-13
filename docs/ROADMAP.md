@@ -4902,3 +4902,11 @@ clickAt 准星环 0.6s 用户可见、E20 canvas fixture 评估 EVAL_E20=1、DOM
 **批次**：批 1 点得准（caption+准星+换算进 harness）→ 批 2 评估与欠账（E20+
 E19 live+强杀 10/10+时序确定性化）→ 批 3 跑得快（/diag/launch+诊断卡+CI 预算）→
 批 4 收口（密码字段容错批前核实 + i18n/WhatsNew + 闸门）。
+
+**实况（2026-11-13，批 1-4 代码全部落地，待发）**：批 1 点得准（5961edc7——
+caption 烧图 + clickAt 准星 + 工具面纪律 + ScreenshotScaleNote 进 harness
+3183/0 + caption PNG 目检）→ 批 2/3 代码件（8f0ed3fc——E20 canvas fixture +
+/diag/startup.launchAudit + 诊断 pill + ci.yml launch 预算探针 >5s 硬失败/
+>700ms 标黄不阻塞）→ 批 4（密码填充同源：fill 调 `__desirePickUsername` 打分
+选字段 + aria/tel 信号；WhatsNew 三条三语）。**挂起（dev 实例被占用）**：E19/
+E20 live 跑、10/10 强杀首启、套件时序 5 项确定性化、流式/挂起护栏复验。

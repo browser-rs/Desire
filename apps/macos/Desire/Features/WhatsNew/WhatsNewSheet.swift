@@ -17,14 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "eye.fill", title: String(localized: "The Agent can finally see images"),
-                  detail: String(localized: "Right-click any image and ask the Agent to fix it: it looks at the canvas, repairs exposure and color, removes flaws, then verifies its own work with a before/after comparison before reporting back.")),
-            .init(icon: "wand.and.stars", title: String(localized: "Liquify, perspective, content fill"),
-                  detail: String(localized: "Three new pro tools in ImagePro: a liquify brush (push / expand / pinch), one-shot perspective correction through the Agent, and content-aware fill that smooths away watermarks and clutter on clean backgrounds.")),
-            .init(icon: "photo.stack", title: String(localized: "Batch fixes with taste"),
-                  detail: String(localized: "The Agent can look at sample photos from a folder, decide the adjustments itself, and hand the whole folder to a background job — progress and failures land in the Jobs center.")),
-            .init(icon: "wrench.and.screwdriver.fill", title: String(localized: "Under-the-hood repairs"),
-                  detail: String(localized: "The fix brush keeps cloned texture detail (fusion formula corrected), screenshots now reach vision models without truncation, and the windowless-launch self-healing gained patience plus audit breadcrumbs.")),
+            .init(icon: "target", title: String(localized: "The Agent now clicks exactly where it looks"),
+                  detail: String(localized: "Screenshots now carry their own scale note, so coordinate clicks stay accurate on any window size — and a crosshair flashes at each landing point so you can see exactly where the Agent is about to click.")),
+            .init(icon: "speedometer", title: String(localized: "Launch speed you can check"),
+                  detail: String(localized: "First-window time now shows in Settings › Diagnostics against the 700 ms budget, with per-phase breakdowns in the diagnostics endpoint — and CI watches the trend on every build.")),
+            .init(icon: "key.horizontal.fill", title: String(localized: "Smarter password filling"),
+                  detail: String(localized: "Filling now picks the username box the same way detection does — autocomplete hints, labels and aria attributes all count — so login forms with unusual layouts fill the right field.")),
         ]
     }
 

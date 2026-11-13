@@ -19,8 +19,13 @@
         if (/user|email|login|mail|account|手机|邮箱|账号|用户/.test(ph)) s += 2;
         var lb = el.labels && el.labels[0] ? el.labels[0].textContent.toLowerCase() : '';
         if (/user|email|login|mail|account|手机|邮箱|账号|用户/.test(lb)) s += 2;
+        // aria-label / tel（v0.8.56 批 4）：无 label 元素的手写布局与
+        // "手机号即账号"的登录框此前识别不到。
+        var aria = (el.getAttribute('aria-label') || '').toLowerCase();
+        if (/user|email|login|mail|account|phone|mobile|手机|邮箱|账号|用户/.test(aria)) s += 2;
         var type = (el.getAttribute('type') || 'text').toLowerCase();
         if (type === 'email') s += 2;
+        if (type === 'tel') s += 2;
         return s;
     }
     function pickUsername(scope, pwd) {
@@ -54,6 +59,12 @@
             username: r.username.name || r.username.id || 'username'
         });
     }
+    /* 填充同源（v0.8.56 批 4）：把打分选字段暴露给 fill 侧（PasswordFillBar
+     * 的注入片段调用）——此前 fill 用固定 selector 取"第一个 text input"，
+     * autocomplete="username" 不认、搜索框可能被误填，与检测端不同源。 */
+    window.__desirePickUsername = function(scope, pwd) {
+        try { return pickUsername(scope || document, pwd); } catch (e) { return null; }
+    };
     /* Save-prompt: listen for form submit */
     document.addEventListener('submit', function(e) {
         var form = e.target;

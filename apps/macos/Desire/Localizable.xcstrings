@@ -108270,6 +108270,144 @@
           }
         }
       }
+    },
+    "The Agent now clicks exactly where it looks":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The Agent now clicks exactly where it looks"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Agent 现在看得准、点得准"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Agent 現在看得準、點得準"
+          }
+        }
+      }
+    },
+    "Screenshots now carry their own scale note, so coordinate clicks stay accurate on any window size — and a crosshair flashes at each landing point so you can see exactly where the Agent is about to click.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Screenshots now carry their own scale note, so coordinate clicks stay accurate on any window size — and a crosshair flashes at each landing point so you can see exactly where the Agent is about to click."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"截图自带缩放标注，任意窗口尺寸下坐标点击都精准；每次落点前会闪一圈准星，Agent 要点哪里你看得一清二楚。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"截圖自帶縮放標註，任意視窗尺寸下座標點擊都精準；每次落點前會閃一圈準星，Agent 要點哪裡你看得一清二楚。"
+          }
+        }
+      }
+    },
+    "Launch speed you can check":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Launch speed you can check"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"启动速度可以自己查了"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"啟動速度可以自己查了"
+          }
+        }
+      }
+    },
+    "First-window time now shows in Settings › Diagnostics against the 700 ms budget, with per-phase breakdowns in the diagnostics endpoint — and CI watches the trend on every build.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"First-window time now shows in Settings › Diagnostics against the 700 ms budget, with per-phase breakdowns in the diagnostics endpoint — and CI watches the trend on every build."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"首窗耗时现在显示在设置 › 诊断里，对照 700 毫秒预算，诊断端点还有分段明细——CI 每次构建都在盯趋势。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"首窗耗時現在顯示在設定 › 診斷裡，對照 700 毫秒預算，診斷端點還有分段明細——CI 每次構建都在盯趨勢。"
+          }
+        }
+      }
+    },
+    "Smarter password filling":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Smarter password filling"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"更聪明的密码填充"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"更聰明的密碼填充"
+          }
+        }
+      }
+    },
+    "Filling now picks the username box the same way detection does — autocomplete hints, labels and aria attributes all count — so login forms with unusual layouts fill the right field.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Filling now picks the username box the same way detection does — autocomplete hints, labels and aria attributes all count — so login forms with unusual layouts fill the right field."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"填充现在与检测用同一套识别——autocomplete 提示、标签与 aria 属性都算数——非常规布局的登录框也能填对框。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"填充現在與檢測用同一套識別——autocomplete 提示、標籤與 aria 屬性都算數——非常規佈局的登入框也能填對框。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

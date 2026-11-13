@@ -570,13 +570,15 @@ enum ImageEditorCommands {
         document.bakeActiveLayerGeometry()
         document.bakeActiveLayerEffects()
         guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
-        let canvasSize = document.canvasSize
-        guard let bounds = document.selection.bounds(canvasSize: canvasSize) else {
-            return ["error": "contentfill: selection has no bounds"]
-        }
         guard let mask = document.selectionMaskImage() else {
             return ["error": "contentfill: no selection mask"]
         }
+        // selection.bounds(canvasSize:) 是 mutating（蒙版包围盒缓存）——命令层
+        // 直接用 maskBounds 从蒙版现算（同一实现，含全选/反选/套索/魔棒）。
+        guard let bounds = ImageEditorRaster.maskBounds(mask) else {
+            return ["error": "contentfill: selection has no bounds"]
+        }
+        let canvasSize = document.canvasSize
         let sourceOrigin: CGPoint
         if let raw = body["source"] as? [Any], raw.count >= 2,
            let sx = Self.number(raw[0]).map({ CGFloat($0) }),

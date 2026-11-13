@@ -23,13 +23,17 @@ enum LaunchWindowHealer {
 
     static func start() {
         Task { @MainActor in
-            for seconds in [4.0, 8.0, 12.0] {
+            // 4/8/12s 探针 + 20s 末档：慢机器上首窗 + 会话恢复（索引采纳 +
+            // 多窗复活）可能超过 12s——直接进 heal 会误触发 order-front /
+            // 重启（v0.8.55 批 4：收口强杀后首启无窗的残余路径，先给足耐心）。
+            for seconds in [4.0, 8.0, 12.0, 20.0] {
                 try? await Task.sleep(for: .seconds(seconds - (lastCheck ?? 0)))
                 lastCheck = seconds
                 if hasUserWindow {
                     UserDefaults.standard.removeObject(forKey: attemptsKey)
                     return
                 }
+                LaunchAudit.mark("noWindow@\(Int(seconds))s")
                 Log.app.fault("launch: no user window after \(Int(seconds), privacy: .public)s")
             }
             await heal()
@@ -49,9 +53,10 @@ enum LaunchWindowHealer {
         // (1) 窗口对象存在但没上屏/没成为 key：先试着拿回来。
         if let hidden = NSApp.windows.first(where: { $0.canBecomeMain }) {
             Log.app.fault("launch heal: ordering an existing window front")
+            LaunchAudit.mark("heal.orderFront")
             hidden.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
-            try? await Task.sleep(for: .seconds(2))
+            try? await Task.sleep(for: .seconds(4))
             if hasUserWindow {
                 Log.app.info("launch heal: recovered by ordering an existing window")
                 UserDefaults.standard.removeObject(forKey: attemptsKey)
@@ -62,9 +67,11 @@ enum LaunchWindowHealer {
         let attempts = UserDefaults.standard.integer(forKey: attemptsKey)
         guard attempts < maxAttempts else {
             Log.app.fault("launch heal: still no window after relaunch — giving up (diagnose via LaunchAudit)")
+            LaunchAudit.mark("heal.giveUp")
             return
         }
         UserDefaults.standard.set(attempts + 1, forKey: attemptsKey)
+        LaunchAudit.mark("heal.relaunch")
         relaunch()
     }
 

@@ -14,6 +14,10 @@
 - **右键"让 Agent 修这张图"**（v0.8.55 批 2）：网页图片右键直接把修图任务投递给 Agent 会话（下载带 referer → 编辑器打开 → sendMessage 注入"看 → 修 → compare 自检"闭环指令 → 面板亮出）；投递口径与菜单栏快速入口一致（deliveryTarget），无会话时 toast 提示先开一次面板。
 - Agent 评估 **E19 look-image**（本地 EVAL_E19=1）：fixture PNG 走 /navigate 进编辑器 → lookImage（vision 返回）→ adjust → lookImage compare → DONE 四拍闭环；断言 vision 通道端到端——工具图片结果以 image_url part 进请求体（OpenAI 线格式）、标签随工具语义、轨迹两次 look 且结果为 data:image/。假端点按（vision part 数， editImage 调用数）四拍推进，并把 imageParts/visionLabels 记进 /requests。
 - ImagePro **选区内容填充（contentfill，内容感知·简化版）**（v0.8.55 批 3）：源区纹理克隆进选区 + 原图低频亮度融合（分离式修复的区域化放大）。源区缺省自动选（选区正上方同尺寸 → 下 → 左 → 右），`source: [x,y]` 可显式指定；画布菜单新入口"内容填充（选区）"（有选区才可用）；命令 API `contentfill`。诚实边界：平滑/规则背景（天空、墙面、纯色地面）去水印/去杂物可用，复杂纹理不做 patch 级合成。探针 `tests/imagepro-contentfill`（4/4：水印替换/选区外不动/边缘平滑/显式源区）。
+- **AI 批量修图值守**（v0.8.55 批 4）：新工具 `lookImageFile`（图片**文件**渲染成 vision 输入，与 screenshot/lookImage 同通道）+ `batchEditImages` 新增 `adjust` 内联参数（AI 看 1-3 张样张定参后整文件夹进后台 Job——成本与样张数成正比而非文件夹大小，工具描述写明推荐流程）。配套 `ImageAdjustParams.from(looseJSON:)` 宽松解码（缺键/多余键/字符串数字都认，过 clamped 钳制；进 harness）。
+- 启动无窗自愈加一档探针（4/8/12s → +20s，慢机器上多窗恢复可能超 12s 误触发重启）+ LaunchAudit 面包屑（noWindow@Ns / heal.orderFront / heal.relaunch / heal.giveUp）。10/10 强杀验证与 E19 一起排在 dev 实例可用时（v0.8.52 窗口 2.0 后无复发记录，残余路径先观测）。
+- What's New 刷 v0.8.55 亮点（Agent 看图修图 / 液化·透视·内容填充 / 批量修图 / 底层修复）；新增 8 条文案三语。
+
 
 
 

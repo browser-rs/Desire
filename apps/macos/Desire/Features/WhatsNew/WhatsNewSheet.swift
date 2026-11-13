@@ -17,14 +17,14 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "paintbrush.pointed.fill", title: String(localized: "ImagePro goes pro"),
-                  detail: String(localized: "17 blend modes (from Color Burn to Luminosity), interactive curves editor with per-channel control and histogram backdrop, non-destructive layer masks, manual levels with gamma, layer groups, per-layer flip, and 13 pro filters (blur/distort/stylize) — all with live preview.")),
-            .init(icon: "slider.horizontal.3", title: String(localized: "Levels and color balance"),
-                  detail: String(localized: "Manual black point, gamma and white point sliders, plus independent R/G/B balance controls — applied non-destructively with the existing pipeline.")),
-            .init(icon: "star.square.on.square", title: String(localized: "A bookmarks bar that finally keeps up"),
-                  detail: String(localized: "Multi-level folders on the bar, drag to reorder, Open All, middle-click to open in a background tab, and an overflow menu when the bar runs out of room.")),
-            .init(icon: "square.and.arrow.up.on.square", title: String(localized: "Send to… everywhere"),
-                  detail: String(localized: "History, downloads and bookmark rows all gain the Send to… menu — drop a link onto the whiteboard, into Excerpts, or hand it to the Agent as a draft prompt.")),
+            .init(icon: "eye.fill", title: String(localized: "The Agent can finally see images"),
+                  detail: String(localized: "Right-click any image and ask the Agent to fix it: it looks at the canvas, repairs exposure and color, removes flaws, then verifies its own work with a before/after comparison before reporting back.")),
+            .init(icon: "wand.and.stars", title: String(localized: "Liquify, perspective, content fill"),
+                  detail: String(localized: "Three new pro tools in ImagePro: a liquify brush (push / expand / pinch), one-shot perspective correction through the Agent, and content-aware fill that smooths away watermarks and clutter on clean backgrounds.")),
+            .init(icon: "photo.stack", title: String(localized: "Batch fixes with taste"),
+                  detail: String(localized: "The Agent can look at sample photos from a folder, decide the adjustments itself, and hand the whole folder to a background job — progress and failures land in the Jobs center.")),
+            .init(icon: "wrench.and.screwdriver.fill", title: String(localized: "Under-the-hood repairs"),
+                  detail: String(localized: "The fix brush keeps cloned texture detail (fusion formula corrected), screenshots now reach vision models without truncation, and the windowless-launch self-healing gained patience plus audit breadcrumbs.")),
         ]
     }
 

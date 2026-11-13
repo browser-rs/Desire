@@ -309,16 +309,25 @@ extension BrowserToolProvider {
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "batchEditImages",
-                description: "Batch-edit every image in a folder with a saved preset (curves/levels/HSL/…), optional long-edge resize, writing to Edited/ as JPEG/PNG/HEIC. Long task: returns a job id immediately; progress and failures are visible in the Jobs center.",
+                description: "Batch-edit every image in a folder with a saved preset OR inline adjust parameters, optional long-edge resize, writing to Edited/ as JPEG/PNG/HEIC. Recommended AI flow: lookImageFile on 1-3 sample images first, decide the adjust parameters from what you SEE, then pass them as adjust (each image costs zero vision tokens — cost stays proportional to samples, not folder size). Long task: returns a job id immediately; progress and failures are visible in the Jobs center.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "folder": AgentJSONSchemaValue(type: "string", description: "Folder path containing images"),
                     "format": AgentJSONSchemaValue(type: "string", description: "jpeg (default) | png | heic"),
                     "preset": AgentJSONSchemaValue(type: "string", description: "Saved edit-preset name (from the editor's Presets panel)"),
+                    "adjust": AgentJSONSchemaValue(type: "string", description: "Inline adjust JSON (wins over preset): {brightness:-0.3…0.3, contrast:0.5…1.8, saturation:0…2, sharpen:0…2, exposure:-2…2 EV, temperature:-100…100, tint:-100…100, highlights:-1…1, shadows:-1…1, vibrance:-1…1, clarity:0…1, denoise:0…1, vignette:0…1, blackPoint:0…0.4, whitePoint:0.6…1, gamma:0.2…5, redBalance/greenBalance/blueBalance:-0.3…0.3} — unknown/missing keys keep defaults"),
                     "quality": AgentJSONSchemaValue(type: "number", description: "JPEG/HEIC quality 0.3-1 (default 0.9)"),
                     "longEdge": AgentJSONSchemaValue(type: "number", description: "Long-edge px resize (optional)"),
                     "recursive": AgentJSONSchemaValue(type: "boolean", description: "Include subfolders (default true)"),
                     "report": AgentJSONSchemaValue(type: "string", description: "notify (default) | resume | none"),
                 ], required: ["folder"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "lookImageFile",
+                description: "Look at an image FILE as a vision input (returns the image itself, max 1024px). Use to judge photos before editing: pick adjust parameters for batchEditImages, verify a watermark/wash result, or answer visual questions about a local image. Read-only.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "path": AgentJSONSchemaValue(type: "string", description: "Image file path (workspace or absolute)"),
+                    "maxSide": AgentJSONSchemaValue(type: "number", description: "Long-edge px cap 128-1024 (default 1024)"),
+                ], required: ["path"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "imageInfo",

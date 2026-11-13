@@ -12,12 +12,14 @@ final class ImageBatchEditStore: ObservableObject {
 
     func start(folder: URL, format: String, quality: Double,
                longEdge: Int?, recursive: Bool,
-               presetName: String?, conversationID: UUID?) -> Result<UUID, CommandLaunchError> {
+               presetName: String?, inlineAdjust: ImageAdjustParams? = nil,
+               conversationID: UUID?) -> Result<UUID, CommandLaunchError> {
         let fmt = format.lowercased()
         if let error = ImageBatchEditCore.validationError(folder: folder, format: fmt) {
             return .failure(CommandLaunchError(error))
         }
-        let params = presetName.flatMap { name -> ImageAdjustParams? in
+        // 参数优先级：内联 adjust（AI 看样张定参）> 保存的 preset。
+        let params = inlineAdjust ?? presetName.flatMap { name -> ImageAdjustParams? in
             ImageEditPresetStore.shared.presets
                 .first { $0.name.caseInsensitiveCompare(name) == .orderedSame }?
                 .params

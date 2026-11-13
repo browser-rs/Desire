@@ -8566,6 +8566,22 @@ testWindowRestoreCore()
 
 
 testLookImageCompare()
+
+func testAdjustLooseJSON() {
+    // 宽松解码（v0.8.55 批 4）：模型/桥的 JSON 缺键/多余键/字符串数字都认
+    let p = ImageAdjustParams.from(looseJSON: ["exposure": 0.5, "saturation": "1.3",
+                                               "gamma": Double(2), "unknown": "x"])
+    check("adjust：已知键生效", p.exposure == 0.5 && p.gamma == 2)
+    check("adjust：字符串数字兼容", abs(p.saturation - 1.3) < 0.001)
+    check("adjust：缺键保持默认", p.brightness == 0 && p.contrast == 1)
+    check("adjust：未知键忽略", p.saturation == 1.3 && p.vignette == 0)
+    let clamped = ImageAdjustParams.from(looseJSON: ["brightness": 99.0])
+    check("adjust：钳制生效", clamped.brightness == 0.3)
+    let intVal = ImageAdjustParams.from(looseJSON: ["temperature": NSNumber(value: 30)])
+    check("adjust：NSNumber 兼容（JSONSerialization 实际类型）", intVal.temperature == 30)
+    check("adjust：空 JSON = 中性", ImageAdjustParams.from(looseJSON: [:]).isNeutral)
+}
+testAdjustLooseJSON()
 testVisionResultLabels()
 testBudgetImageExemption()
 

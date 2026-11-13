@@ -108040,6 +108040,190 @@
           }
         }
       }
+    },
+    "The Agent can finally see images":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The Agent can finally see images"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Agent 终于能看见图片了"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Agent 終於能看見圖片了"
+          }
+        }
+      }
+    },
+    "Right-click any image and ask the Agent to fix it: it looks at the canvas, repairs exposure and color, removes flaws, then verifies its own work with a before/after comparison before reporting back.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Right-click any image and ask the Agent to fix it: it looks at the canvas, repairs exposure and color, removes flaws, then verifies its own work with a before/after comparison before reporting back."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"右键任意图片让 Agent 修图：它会先看画布，修正曝光与色彩、清理瑕疵，再用前后对比自检，最后才汇报。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"右鍵任意圖片讓 Agent 修圖：它會先看畫布，修正曝光與色彩、清理瑕疵，再用前後對比自檢，最後才匯報。"
+          }
+        }
+      }
+    },
+    "Liquify, perspective, content fill":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Liquify, perspective, content fill"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"液化、透视、内容填充"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"液化、透視、內容填充"
+          }
+        }
+      }
+    },
+    "Three new pro tools in ImagePro: a liquify brush (push / expand / pinch), one-shot perspective correction through the Agent, and content-aware fill that smooths away watermarks and clutter on clean backgrounds.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Three new pro tools in ImagePro: a liquify brush (push / expand / pinch), one-shot perspective correction through the Agent, and content-aware fill that smooths away watermarks and clutter on clean backgrounds."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ImagePro 三个新专业工具：液化画笔（推挤/膨胀/收缩）、Agent 一句话透视校正，以及能抹平干净背景上水印与杂物的内容感知填充。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ImagePro 三個新專業工具：液化畫筆（推擠/膨脹/收縮）、Agent 一句話透視校正，以及能抹平乾淨背景上浮水印與雜物的內容感知填充。"
+          }
+        }
+      }
+    },
+    "Batch fixes with taste":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Batch fixes with taste"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"有品位的批量修图"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"有品味的批次修圖"
+          }
+        }
+      }
+    },
+    "The Agent can look at sample photos from a folder, decide the adjustments itself, and hand the whole folder to a background job — progress and failures land in the Jobs center.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The Agent can look at sample photos from a folder, decide the adjustments itself, and hand the whole folder to a background job — progress and failures land in the Jobs center."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Agent 可以先看文件夹里的样张、自己定调节参数，再把整个文件夹交给后台任务——进度与失败项都在任务中心。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Agent 可以先看資料夾裡的樣張、自己定調節參數，再把整個資料夾交給背景工作——進度與失敗項都在任務中心。"
+          }
+        }
+      }
+    },
+    "Under-the-hood repairs":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Under-the-hood repairs"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"底层修复"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"底層修復"
+          }
+        }
+      }
+    },
+    "The fix brush keeps cloned texture detail (fusion formula corrected), screenshots now reach vision models without truncation, and the windowless-launch self-healing gained patience plus audit breadcrumbs.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The fix brush keeps cloned texture detail (fusion formula corrected), screenshots now reach vision models without truncation, and the windowless-launch self-healing gained patience plus audit breadcrumbs."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"修复画笔保留克隆纹理细节（融合公式修正）、截图不再被截断直达视觉模型，无窗启动自愈更有耐心并带审计面包屑。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"修復畫筆保留克隆紋理細節（融合公式修正）、截圖不再被截斷直達視覺模型，無窗啟動自癒更有耐心並帶審計麵包屑。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

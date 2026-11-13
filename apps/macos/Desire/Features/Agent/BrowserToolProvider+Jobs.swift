@@ -1,3 +1,4 @@
+import AppKit
 import CoreGraphics
 import Foundation
 
@@ -339,6 +340,17 @@ extension BrowserToolProvider {
            }) == nil {
             return fail("No preset named \(presetName)")
         }
+        // adjust（v0.8.55 批 4）：内联调节参数 JSON（AI 看样张后定参）——
+        // 与 preset 二选一，同时给时 adjust 优先。宽松解码见 ImageAdjustParams。
+        var inlineAdjust: ImageAdjustParams?
+        if let raw = args["adjust"] as? String, !raw.isEmpty {
+            guard let data = raw.data(using: .utf8),
+                  let object = (try? JSONSerialization.jsonObject(with: data))
+                    as? [String: Any] else {
+                return fail("adjust must be a JSON object string, e.g. {\"exposure\":0.3,\"saturation\":1.2}")
+            }
+            inlineAdjust = ImageAdjustParams.from(looseJSON: object)
+        }
         let quality = min(max(args["quality"] as? Double ?? 0.9, 0.3), 1)
         let longEdge = Int(args["longEdge"] as? Double ?? 0)
         let result = ImageBatchEditStore.shared.start(
@@ -346,6 +358,7 @@ extension BrowserToolProvider {
             longEdge: longEdge >= 16 ? longEdge : nil,
             recursive: (args["recursive"] as? Bool) ?? true,
             presetName: presetName?.isEmpty == false ? presetName : nil,
+            inlineAdjust: inlineAdjust,
             conversationID: conversationID)
         switch result {
         case .success(let id):
@@ -430,6 +443,31 @@ extension BrowserToolProvider {
 // MARK: - 编辑器工具族（v0.8.42 批 3）
 
 extension BrowserToolProvider {
+    /// lookImageFile（v0.8.55 批 4）：把图片**文件**渲染成 vision 输入裸返
+    /// （dataURI 通道，与 screenshot / editImage lookImage 同机制——结果以
+    /// `data:image/` 开头即进模型）。AI 批量修图值守的"看"：看 1-3 张样张
+    /// 定参 → batchEditImages {adjust}。maxSide 控长边（默认 1024 省 token）。
+    static func lookImageFile(_ args: [String: Any]) -> String {
+        guard let path = args["path"] as? String, !path.isEmpty else {
+            return fail("Missing path")
+        }
+        let resolved: URL
+        switch AgentWorkspace.shared.resolve(path, write: false) {
+        case .granted(let url): resolved = url
+        case .denied(let reason): return reason
+        }
+        guard let image = ImageTransforms.load(from: resolved) else {
+            return fail("Could not load image at \(resolved.path)")
+        }
+        let maxSide = min(1024, max(128, args["maxSide"] as? Double ?? 1024))
+        let scaled = ImageLookCompare.downscaled(image, maxSide: CGFloat(maxSide))
+        guard let uri = ImageAttachment.dataURI(from: NSImage(
+            cgImage: scaled, size: CGSize(width: scaled.width, height: scaled.height))) else {
+            return fail("Could not encode image")
+        }
+        return uri
+    }
+
     static func imageInfo(_ args: [String: Any]) -> String {
         guard let path = args["path"] as? String, !path.isEmpty else {
             return fail("Missing path")

@@ -108,6 +108,37 @@ nonisolated struct ImageAdjustParams: Codable, Hashable {
         return p
     }
 
+    /// 双字段名表（宽松解码用）。
+    private static let looseDoubleFields: [String: WritableKeyPath<ImageAdjustParams, Double>] = [
+        "brightness": \.brightness, "contrast": \.contrast, "saturation": \.saturation,
+        "sharpen": \.sharpen, "exposure": \.exposure, "temperature": \.temperature,
+        "tint": \.tint, "highlights": \.highlights, "shadows": \.shadows,
+        "vibrance": \.vibrance, "clarity": \.clarity, "denoise": \.denoise,
+        "vignette": \.vignette, "vignetteFeather": \.vignetteFeather,
+        "blackPoint": \.blackPoint, "whitePoint": \.whitePoint, "gamma": \.gamma,
+        "redBalance": \.redBalance, "greenBalance": \.greenBalance,
+        "blueBalance": \.blueBalance,
+    ]
+
+    /// 宽松解码（v0.8.55 批 4）：模型/桥给的 JSON 常缺键、带多余键或带
+    /// 整数/小数差异——合成 Codable 缺键即抛，这里只认已知 Double 字段
+    /// （其余保持默认），最后过 `clamped` 钳制。未知键静默忽略。
+    static func from(looseJSON object: [String: Any]) -> ImageAdjustParams {
+        var params = ImageAdjustParams()
+        for (key, path) in looseDoubleFields {
+            guard let raw = object[key] else { continue }
+            let value: Double?
+            if let d = raw as? Double { value = d }
+            else if let n = raw as? NSNumber { value = n.doubleValue }
+            else if let s = raw as? String { value = Double(s) }
+            else { value = nil }
+            if let value, value.isFinite {
+                params[keyPath: path] = value
+            }
+        }
+        return ImageAdjustParams.clamped(params)
+    }
+
     /// 曲线点：x 固定升序去重，y 限制 0…1，首尾自动补 (0,0)/(1,1)。
     static func sanitizeCurve(_ points: [CurvePoint]) -> [CurvePoint] {
         let sorted = points

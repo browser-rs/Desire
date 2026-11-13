@@ -104,6 +104,10 @@ extension BrowserToolProvider {
                 return Self.fail("No window attached — coordinate clicks need a visible webview")
             }
             let point = windowPoint(fromViewportX: x, y: y, in: webView)
+            // 准星（v0.8.56 批 1）：落点闪现，用户看得见、截图拍得到；稍候一拍
+            // 再点击，保证准星在点击瞬间可见。
+            ClickCrosshair.flash(at: point, in: webView)
+            try? await Task.sleep(nanoseconds: 250_000_000)
             await SyntheticInput.click(at: point, in: webView)
             return "Clicked at (\(Int(x)), \(Int(y)))"
 

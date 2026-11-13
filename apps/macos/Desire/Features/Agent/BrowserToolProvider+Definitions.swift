@@ -723,7 +723,7 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "screenshot", description: "Capture the viewport as an image and return it for visual analysis. Use before clickAt(x,y) to see what's on screen, or whenever you need to verify layout/appearance. The image is delivered to you as a vision input.",
+                name: "screenshot", description: "Capture the viewport as an image and return it for visual analysis. Use before clickAt(x,y) to see what's on screen, or whenever you need to verify layout/appearance. The image carries a dark caption strip at the bottom stating viewport size, image size and scale — convert coordinates with it (viewport px = image px / scale; 1:1 when stated) so clickAt lands exactly.",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),
 
@@ -736,7 +736,7 @@ extension BrowserToolProvider {
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "clickAt", description: "Dispatch a real mouse click at viewport CSS-pixel coordinates (x, y). Use when DOM selectors fail (canvas apps, shadow DOM, virtual lists) or when a screenshot shows something you can't locate in the DOM.",
+                name: "clickAt", description: "Dispatch a real mouse click at viewport CSS-pixel coordinates (x, y). This is the VISUAL FALLBACK — try getPageSnapshot/click {ref} first; reach for clickAt only when the target has no DOM handle (canvas-drawn UI, shadow-DOM widgets, virtualized lists) or a screenshot shows something you can't locate in the DOM. Take a screenshot first, read its bottom caption strip (viewport px = image px / scale), convert before clicking. A crosshair flashes at the landing point so the user can see the click coming.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "x": AgentJSONSchemaValue(type: "number", description: "Viewport X in CSS pixels"),
                     "y": AgentJSONSchemaValue(type: "number", description: "Viewport Y in CSS pixels"),

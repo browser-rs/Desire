@@ -121,6 +121,9 @@ class BrowserToolProvider {
     /// sized for vision-model consumption (max 1024px wide, JPEG q80 — a full
     /// PNG would be 1–2 MB and blow the token budget; JPEG at this size is
     /// ~100–200 KB, enough for layout understanding).
+    ///
+    /// 坐标自描述（v0.8.56 批 1）：缩放系数与 viewport 尺寸烧进图内底部
+    /// caption——模型读图即知换算，宽窗口（>1024 CSS px）的 clickAt 不再漂移。
     func captureScreenshot(_ wv: WKWebView) async -> String {
         await withCheckedContinuation { continuation in
             wv.takeSnapshot(with: nil) { image, error in
@@ -128,15 +131,16 @@ class BrowserToolProvider {
                     continuation.resume(returning: "")
                     return
                 }
-                // Resize off-main: draw into a constrained bitmap.
-                let maxDim: CGFloat = 1024
-                let px = image.size
-                let scale = min(1, maxDim / max(px.width, px.height))
-                let targetW = Int(px.width * scale)
-                let targetH = Int(px.height * scale)
+                let note = ScreenshotScaleNote.note(
+                    viewportWidth: Double(image.size.width),
+                    viewportHeight: Double(image.size.height))
+                let targetW = note.targetWidth
+                let targetH = note.targetHeight
+                let captionH = CGFloat(ScreenshotScaleNote.captionHeight)
                 guard targetW > 0, targetH > 0,
                       let rep = NSBitmapImageRep(
-                          bitmapDataPlanes: nil, pixelsWide: targetW, pixelsHigh: targetH,
+                          bitmapDataPlanes: nil, pixelsWide: targetW,
+                          pixelsHigh: targetH + ScreenshotScaleNote.captionHeight,
                           bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true,
                           isPlanar: false, colorSpaceName: .calibratedRGB,
                           bytesPerRow: 0, bitsPerPixel: 0
@@ -146,7 +150,24 @@ class BrowserToolProvider {
                 }
                 NSGraphicsContext.saveGraphicsState()
                 NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
-                image.draw(in: NSRect(x: 0, y: 0, width: targetW, height: targetH))
+                // NSGraphicsContext 坐标系原点在左下：内容画在上部，caption 贴底。
+                image.draw(in: NSRect(x: 0, y: captionH,
+                                      width: CGFloat(targetW), height: CGFloat(targetH)))
+                NSColor(calibratedRed: 0.10, green: 0.10, blue: 0.12, alpha: 0.92).setFill()
+                NSBezierPath(rect: NSRect(x: 0, y: 0,
+                                          width: CGFloat(targetW), height: captionH)).fill()
+                let paragraph = NSMutableParagraphStyle()
+                paragraph.alignment = .center
+                let attributes: [NSAttributedString.Key: Any] = [
+                    .font: NSFont.monospacedDigitSystemFont(ofSize: 10, weight: .medium),
+                    .foregroundColor: NSColor(calibratedWhite: 0.92, alpha: 1),
+                    .paragraphStyle: paragraph,
+                ]
+                let line = note.caption as NSString
+                let textSize = line.size(withAttributes: attributes)
+                line.draw(at: NSPoint(x: (CGFloat(targetW) - textSize.width) / 2,
+                                      y: (captionH - textSize.height) / 2),
+                          withAttributes: attributes)
                 NSGraphicsContext.restoreGraphicsState()
                 let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.8])
                 if let jpegData = jpeg {

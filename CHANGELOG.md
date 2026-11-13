@@ -1,3 +1,9 @@
+## [Unreleased]
+### Added
+
+- **视觉点击收口（v0.8.56 批 1）**：① `captureScreenshot` 在视口长边 >1024 缩放后，把 **viewport/图片尺寸与换算系数烧进截图底部 caption 条**（`viewport 1512x850 | image 1024x576 | scale 0.677 | clickAt: viewport px = image px / scale`）——模型读图即知换算，宽窗口（全屏 1512px 漂 ~1.4x）的 screenshot→clickAt 回路恢复可信；② **clickAt 落点准星**：派发真实点击前在屏幕落点闪强调色准星环 0.6s（非激活透明浮层，用户看得见、诊断截图拍得到）；③ 工具面写明 DOM 优先/视觉兜底的切换时机与 caption 换算纪律。换算纯逻辑 `ScreenshotScaleNote` 进 harness（3183/0）。
+
+
 ## [v0.8.55] - 2026-11-13
 ### Fixed
 

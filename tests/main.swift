@@ -8585,6 +8585,36 @@ testAdjustLooseJSON()
 testVisionResultLabels()
 testBudgetImageExemption()
 
+func testScreenshotScaleNote() {
+    // 宽视口（全屏 1512）→ 缩放 + caption 自述换算
+    let wide = ScreenshotScaleNote.note(viewportWidth: 1512, viewportHeight: 850)
+    check("scale：宽视口缩到 1024", wide.targetWidth == 1024)
+    check("scale：等比高 576", wide.targetHeight == 576)
+    check("scale：非精确", wide.isExact == false)
+    check("scale：caption 带 viewport 尺寸", wide.caption.contains("viewport 1512x850"))
+    check("scale：caption 带图片尺寸", wide.caption.contains("image 1024x576"))
+    check("scale：caption 带换算系数", wide.caption.contains("scale 0.677"))
+    // 坐标换算闭环：图片 (693, 300) → viewport ≈ (1023, 443)
+    let vx = Double(693) / wide.scale
+    check("scale：坐标换算回 viewport", Int(vx.rounded()) == 1023)
+
+    // 窄视口（分栏 Agent 面板 ~800）→ 1:1 精确
+    let narrow = ScreenshotScaleNote.note(viewportWidth: 800, viewportHeight: 600)
+    check("scale：窄视口 1:1", narrow.isExact && narrow.targetWidth == 800
+          && narrow.targetHeight == 600)
+    check("scale：caption 标 1:1", narrow.caption.contains("scale 1:1"))
+
+    // 长边恰在边界的横向长条（2000x500）
+    let wideShort = ScreenshotScaleNote.note(viewportWidth: 2000, viewportHeight: 500)
+    check("scale：长边驱动缩放", wideShort.targetWidth == 1024
+          && wideShort.targetHeight == 256)
+
+    // 极小视口不放大
+    let tiny = ScreenshotScaleNote.note(viewportWidth: 320, viewportHeight: 240)
+    check("scale：小视口不放大", tiny.isExact && tiny.targetWidth == 320)
+}
+testScreenshotScaleNote()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")

@@ -4919,3 +4919,18 @@ screenshotElement 坐标警告）→ 评估修复批（7e183baf——E19 函数�
 坐标稳定窗/标题通道命中断言、E2 预算残留、smoke 700ms 观测行）。
 **Live 验证全过**：agent-eval 79/79（E19 修图闭环 + E20 视觉点击链）、强杀首启
 10/10（476-508ms，全在 700ms 预算内）、harness 3191/0、增量构建零警告。
+
+**完善两轮补（2026-11-13 深夜，6a5b5be7→0b2254b9）**：视觉操作面再补全
+（clickAt right/double 变体、hoverAt、scrollAt 坐标滚轮、drag 准星、**clickAt
+像素后验兜底**——canvas 点击 DOM 指纹不变曾误报 unchanged 误导模型重试）；
+性能预算三接线（/diag/startup.launchAudit、设置诊断 pill、ci.yml launch 预算
+探针 >5s 硬失败/>700ms 标黄不阻塞）；密码填充与检测同源（fill 调
+__desirePickUsername 打分选字段 + aria/tel 信号——"非常规字段名"缺口核实后
+大半已随 v0.8.8 修复，本批收掉剩余边角）。**Live 验证全过**：agent-eval
+79/79（E19 修图闭环 + E20 视觉点击链真实命中——评估修复三件：E19 函数名
+遮蔽 live 才暴露、E20 线格式/坐标稳定窗/标题通道断言、评估期预算关断——
+历史 MUSCLE17 残留 agentTokenBudget=500 让每个评估对话第一回合被停机，E2
+假失败根因）；强杀首启 **10/10**（476-508ms）；全量套件四轮跑失败**轮换**
+（改价告警系告警文本本地化——断言已改数值+alert 标记语言无关匹配并通过；
+splitView/收件箱/阅读进度等轮换出现 = 长套件尾部退化已知类，各失败在相邻
+轮通过；分节隔离留后续）。harness 3191/0。

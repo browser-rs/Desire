@@ -77,9 +77,7 @@ jobs:
           for i in $(seq 1 30); do
             sleep 1
             RESP=$(curl -s -m 3 http://127.0.0.1:8799/state || true)
-            MS=$(echo "$RESP" | /usr/bin/python3 -c 'import json,sys
-try: print(json.load(sys.stdin)["startup"]["firstWindowMs"])
-except Exception: pass' 2>/dev/null || true)
+            MS=$(echo "$RESP" | /usr/bin/python3 -c 'import json,sys; print((json.load(sys.stdin).get("startup") or {}).get("firstWindowMs") or "")' 2>/dev/null || true)
             [ -n "$MS" ] && break
           done
           if [ -z "$MS" ] || [ "$MS" = "-1" ]; then

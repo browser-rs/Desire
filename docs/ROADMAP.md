@@ -4878,3 +4878,27 @@ contentfill + heal 融合公式修复（12b04324+e4342f74——healedTexture 实
 lookImageFile + batchEditImages 内联 adjust + 自愈加档（894a750f）。harness
 3172/0；增量构建绿。**待办**：E19 live 跑 + 10/10 强杀首启验证（dev 实例被
 用户正式版占用时挂起）；发版闸门（Release clean 零警告）等"发"指令。
+
+## v0.8.56 规划稿（2026-11-13）—— 跑得快·点得准：性能预算闭环 + 视觉操作收口
+
+> 详情见 `docs/ROADMAP-0.8.56-PLAN.md`。四版功能轰炸后的工程复利版。盘点发现两个
+> 真缺口：① **视觉点击链坐标漂移**——captureScreenshot 在视口 >1024 CSS px 时
+> 等比缩小且模型无从知道缩放系数（全屏 1512px 时漂 ~1.4x），screenshot→clickAt
+> 兜底回路在宽窗口不可信；② **性能无预算线**——StartupMetric 打点在、≤700ms
+> 口径在案，CI 却没有断言。规划前证伪排除：端上模型（FM/Ollama/Routing 已建成）、
+> 数据搬运值守（PageWatch+Dataset 已深建）、端上翻译（Reader 已走 Translation
+> framework）、下载限速（WebKit 无 API）、密码多账号 UI（v0.8.8 chip）、clickAt
+> 后验（已在 verifier 列表）。
+
+**四主题**：① 浏览器基础（旗舰）= 性能预算闭环（`GET /diag/launch` 分段耗时+
+慢段 top3+设置诊断卡；CI 预算断言 ≤700ms 超线标黄不阻塞先建观测；流式/挂起护栏
+复验）；② Agent 基础 = 视觉操作收口（screenshot 图内烧 caption 自述坐标换算、
+clickAt 准星环 0.6s 用户可见、E20 canvas fixture 评估 EVAL_E20=1、DOM/视觉切换
+决策规则句式）；③ 融合 = 准星可视化（Agent 落点第三层可观测：DOM 高亮/坐标准星/
+审批现场）；④ 替人干活 = 欠账清零（E19 live + 10/10 强杀 + 套件时序 5 项确定性化）。
+**贯穿**：换算纯逻辑进 harness、AGENTS.md 记坐标纪律、i18n/WhatsNew。**不做**：
+下载限速/翻译插拔/端上模型深化/数据搬运新形态/ImagePro 大图重做/预算阻塞化。
+
+**批次**：批 1 点得准（caption+准星+换算进 harness）→ 批 2 评估与欠账（E20+
+E19 live+强杀 10/10+时序确定性化）→ 批 3 跑得快（/diag/launch+诊断卡+CI 预算）→
+批 4 收口（密码字段容错批前核实 + i18n/WhatsNew + 闸门）。

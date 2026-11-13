@@ -402,6 +402,72 @@ c.addEventListener('click', function(ev) {
                 emit_tool("call_e20_look", "screenshot", {})
             return
 
+        # CHAINTEST（v0.8.57 批 2）：作业链三拍——saveJobTemplate(steps) →
+        # runJobTemplate（链推进）→ DONE。步骤全用 python3（allowlist 内、
+        # 不需要浏览器——CI 可跑）；产物经 @@desire:artifact 控制行自报，
+        # 第二步用 {prev.artifact} 占位符读回。
+        if "CHAINTEST" in mode_text:
+            def emit_tool(call_id, name, args):
+                call = {"index": 0, "id": call_id, "type": "function",
+                        "function": {"name": name, "arguments": json.dumps(args)}}
+                chunk = {"id": "chatcmpl-chain", "object": "chat.completion.chunk",
+                         "created": int(time.time()), "model": model,
+                         "choices": [{"index": 0,
+                                      "delta": {"role": "assistant", "tool_calls": [call]},
+                                      "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                done = {"id": "chatcmpl-chain", "object": "chat.completion.chunk",
+                        "created": int(time.time()), "model": model,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+                self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush(); self.close_connection = True
+            ran_chain = any(m.get("role") == "tool"
+                            and "started" in str(m.get("content") or "")
+                            and ("chain" in str(m.get("content") or "").lower()
+                                 or "job" in str(m.get("content") or "").lower())
+                            for m in round_msgs)
+            saved_chain = any(m.get("role") == "tool"
+                              and "Saved template" in str(m.get("content") or "")
+                              for m in round_msgs)
+            if ran_chain:
+                reply = "CHAIN-DONE"
+                chunk = {"id": "chatcmpl-chain", "object": "chat.completion.chunk",
+                         "created": int(time.time()), "model": model,
+                         "choices": [{"index": 0,
+                                      "delta": {"role": "assistant", "content": reply},
+                                      "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                done = {"id": "chatcmpl-chain", "object": "chat.completion.chunk",
+                        "created": int(time.time()), "model": model,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+                self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush(); self.close_connection = True
+            elif saved_chain:
+                emit_tool("call_chain_run", "runJobTemplate", {"name": "eval-chain"})
+            else:
+                emit_tool("call_chain_save", "saveJobTemplate", {
+                    "name": "eval-chain",
+                    "steps": [
+                        {"kind": "command", "params": {
+                            "tool": "python3",
+                            "args": json.dumps([
+                                "-c",
+                                "import os; os.makedirs('/tmp/eval-chain', exist_ok=True); "
+                                "open('/tmp/eval-chain/data.json', 'w').write('{}'); "
+                                "print('@@desire:artifact {\"path\": \"/tmp/eval-chain\"}')",
+                            ])}},
+                        {"kind": "command", "params": {
+                            "tool": "python3",
+                            "args": json.dumps([
+                                "-c",
+                                "import os; "
+                                "print('CHAIN-STEP2:', sorted(os.listdir('{prev.artifact}')))",
+                            ])}},
+                    ]})
+            return
+
         # LOOKFIX（v0.8.55 批 2）：修图闭环四拍——lookImage canvas → adjust →
         # lookImage compare → DONE。按（vision part 数, editImage 调用数）推进，
         # 同时把"请求体里有没有 image_url part"作为断言素材（vision 通道 E2E）。
@@ -1696,6 +1762,48 @@ def case_look_click_canvas():
         pass
 
 
+def case_job_chain():
+    """E21 作业链（v0.8.57 批 2，CI 可跑）：saveJobTemplate(steps 两步
+    command，产物经 @@desire:artifact 自报) → runJobTemplate → 链自动推进。
+    断言：两步 Job 都出现且 done、占位符解析（step2 列出 step1 产物目录）。"""
+    import shutil as _shutil
+    _shutil.rmtree("/tmp/eval-chain", ignore_errors=True)
+    try:
+        msgs = run_case("EVAL-CHAINTEST 保存并运行一条两步作业链")
+        _, assistant, _ = last_exchange(msgs)
+        check("E21 模型走完链", (assistant.get("content") or "") == "CHAIN-DONE")
+        turn = json.loads(bridge("GET", "/agent/trace")["jsonl"].split("\n")[-1])
+        steps = turn.get("steps") or []
+        saved = [s for s in steps if s.get("action") == "saveJobTemplate"]
+        ran = [s for s in steps if s.get("action") == "runJobTemplate"]
+        check("E21 saveJobTemplate 成功", len(saved) == 1
+              and not (saved[0].get("result") or "").startswith("Error:"))
+        check("E21 runJobTemplate 启动链", len(ran) == 1
+              and not (ran[0].get("result") or "").startswith("Error:"))
+        # 轮询 jobs 台账：两步 Job 都 done（step2 由链引擎自动起）
+        step1_done = False
+        step2_done = False
+        step2_content = ""
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            jobs = bridge("GET", "/jobs?limit=6").get("jobs", [])
+            s1 = [j for j in jobs if (j.get("title") or "").startswith("eval-chain · step 1")]
+            s2 = [j for j in jobs if (j.get("title") or "").startswith("eval-chain · step 2")]
+            step1_done = bool(s1) and s1[0].get("state") == "done"
+            step2_done = bool(s2) and s2[0].get("state") == "done"
+            if step1_done and step2_done:
+                step2_content = s2[0].get("receipt") or ""
+                break
+            time.sleep(1.5)
+        check("E21 step1 done（产物自报）", step1_done)
+        check("E21 step2 由链引擎自动推进并 done", step2_done)
+        check("E21 占位符解析（step2 列出产物目录）", "data.json" in step2_content,
+              step2_content[:120])
+    finally:
+        _shutil.rmtree("/tmp/eval-chain", ignore_errors=True)
+        bridge("POST", "/jobs/templates", body={"action": "delete", "name": "eval-chain"})
+
+
 def case_look_image():
     """E19 修图闭环（v0.8.55 批 2，本地专属 EVAL_E19=1）：fixture PNG 经
     /navigate 打进图片编辑器 → lookImage（vision 返回）→ adjust →
@@ -1837,6 +1945,7 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E16 image-tool-contract", case_image_tool_contract),
          ("E17 job-template-lifecycle", case_job_template_lifecycle),
          ("E18 feed-lifecycle", case_feed_lifecycle),
+         ("E21 job-chain", case_job_chain),
          ("E19 look-image（本地专属，EVAL_E19=1 开启）", case_look_image),
          ("E20 look-click-canvas（本地专属，EVAL_E20=1 开启）", case_look_click_canvas)]
 

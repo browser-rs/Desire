@@ -2,6 +2,8 @@
 ### Added
 
 - **产物中心地基（v0.8.57 批 1）**：`ArtifactIndex` 从 Job 台账**派生**产物清单（带 artifactURL 的 Job → 分类 folder/image/video/…/data → 同路径去重取最新 → 时间降序；不另存状态，JobStore 是唯一事实源）→ 新面板 **Artifacts**（`desire://artifacts` 唤起；今天/本周/更早分组 + 类型过滤 + 现查尺寸/丢失标记 + Finder 显示/拷贝路径）+ 桥 `GET /artifacts`（kind/days 过滤）+ Agent 工具 **listArtifacts**（jobs 组，模型据此对上次批量作业的输出文件夹发起再加工）+ Jobs 面板行"产物"按钮双向跳转。live 验证：office batch → pdf 产 Converted/ → 桥端点与面板同现（截图目检）。harness 3211/0。
+- **作业链 2.0（v0.8.57 批 2）**：`JobChainCore`（纯逻辑进 harness 3223/0——steps 校验、`{prev.artifact}`/`{prev.artifactDir}` 占位符替换〔目录产物规范去尾斜杠〕、推进状态机 done→下一步/failed→停链不回滚）+ `JobChainRunner`（挂 `JobEventCenter.recordTerminal` 终态自动推进；command/officeBatch/imageBatch 三类启动器；app 退出未完成链随 Job 标 interrupted）。`JobTemplate` 扩 `steps`（nil = 旧单命令模板，语义不变）；`saveJobTemplate`/`runJobTemplate`/桥 `/jobs/templates` 全支持链；kind 大小写不敏感解析。**live 三步链全通**：python3 造文件+`@@desire:artifact` 自报产物 → officeBatch 对 `{prev.artifactDir}` 转 pdf → python3 校验产物目录（三步 done、占位符解析正确）。配套 **LaunchWindowHealer reopen 自愈**：批 2 live 验证时**活体复现强杀后首启无窗**（4/8/12/20s 探针 + relaunch 依旧无窗——relaunch 是 cold start 救不了场景未建窗类）→ heal 加 (1.5) 程序化 reopen 分支（NSWorkspace open 自己 = LaunchServices 发 reopen 给现有实例 → applicationShouldHandleReopen → SwiftUI 建窗语义），复现现场验证 recovered by reopen。
+
 
 
 ## [v0.8.56] - 2026-11-14

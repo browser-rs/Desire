@@ -64,6 +64,7 @@ SOURCES=(
   apps/macos/Desire/Features/Jobs/JobLogRedactor.swift
   apps/macos/Desire/Features/Jobs/JobTemplate.swift
   apps/macos/Desire/Features/Jobs/ArtifactIndex.swift
+  apps/macos/Desire/Features/Jobs/JobChainCore.swift
   apps/macos/Desire/Features/Jobs/JobMetricsCore.swift
   apps/macos/Desire/Features/Promotion/Playbook.swift
   apps/macos/Desire/Features/Promotion/PlaybookTemplate.swift

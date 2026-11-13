@@ -8585,6 +8585,46 @@ testAdjustLooseJSON()
 testVisionResultLabels()
 testBudgetImageExemption()
 
+func testJobChainCore() {
+    // 占位符替换：文件产物 / 目录产物
+    let dir = JobChainCore.substituteValue("{prev.artifactDir}/new", artifactPath: "/a/Converted/")
+    check("chain：目录产物的 dir = 自身", dir == "/a/Converted/new")
+    let dir2 = JobChainCore.substituteValue("{prev.artifactDir}/new", artifactPath: "/a/out.md")
+    check("chain：文件产物的 dir = 所在目录", dir2 == "/a/new")
+    let full = JobChainCore.substituteValue("{prev.artifact}", artifactPath: "/a/out.md")
+    check("chain：artifact 原样", full == "/a/out.md")
+
+    // 全量替换 + 残留检测
+    let (resolved, unresolved) = JobChainCore.substitute(
+        ["folder": "{prev.artifactDir}", "path": "{prev.artifact}", "note": "fixed"],
+        artifactPath: "/a/Converted/")
+    // artifactDir 规范去尾斜杠——模板自己拼 "/"（上一条 dir=="/a/Converted/new"）
+    check("chain：全量替换", resolved["folder"] == "/a/Converted"
+          && resolved["path"] == "/a/Converted/" && resolved["note"] == "fixed")
+    check("chain：无残留", unresolved.isEmpty)
+    let (r2, u2) = JobChainCore.substitute(
+        ["folder": "{prev.missing}"], artifactPath: "/a/x")
+    check("chain：未知占位符原样保留（不归本层管）", r2["folder"] == "{prev.missing}" && u2.isEmpty)
+
+    // 校验：首步不得引用占位符
+    let okSteps = [JobChainCore.Step(kind: .command, params: ["tool": "/bin/echo"]),
+                   JobChainCore.Step(kind: .officeBatch, params: ["folder": "{prev.artifactDir}"])]
+    check("chain：合法链校验通过", JobChainCore.validationError(steps: okSteps) == nil)
+    let badSteps = [JobChainCore.Step(kind: .command, params: ["folder": "{prev.artifact}"])]
+    check("chain：首步占位符报错", JobChainCore.validationError(steps: badSteps) != nil)
+    check("chain：空链报错", JobChainCore.validationError(steps: []) != nil)
+
+    // 推进状态机
+    check("chain：成功→下一步",
+          JobChainCore.advance(stepCount: 3, finishedStepIndex: 0, state: "done") == .start(index: 1))
+    check("chain：最后一步→完成",
+          JobChainCore.advance(stepCount: 3, finishedStepIndex: 2, state: "done") == .finished)
+    if case .stopped(let reason) = JobChainCore.advance(stepCount: 3, finishedStepIndex: 1, state: "failed") {
+        check("chain：失败停链", reason.contains("2") && reason.contains("failed"))
+    } else {
+        check("chain：失败停链", false)
+    }
+}
 func testArtifactIndex() {
     let now = Date()
     func job(_ id: UUID, _ title: String, artifact: String?, at: Date,
@@ -8703,6 +8743,7 @@ func testScreenshotScaleNote() {
 testScreenshotScaleNote()
 testPixelDiff()
 testArtifactIndex()
+testJobChainCore()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

@@ -8557,6 +8557,18 @@ case ("GET", "/agent/messages"):
             }()
             let conversationID = (body["conversationId"] as? String)
                 .flatMap(UUID.init(uuidString:))
+            // 作业链（v0.8.57 批 2）：steps 非空走链推进引擎。
+            if !(template.steps ?? []).isEmpty {
+                let chain = await JobChainRunner.shared.start(
+                    template: template, conversationID: conversationID)
+                switch chain {
+                case .success(let chainID):
+                    return ["ok": true, "chainID": chainID.uuidString,
+                            "steps": template.chainSteps.count]
+                case .failure(let error):
+                    return ["error": error.message]
+                }
+            }
             let result = await BackgroundCommandStore.shared.start(
                 tool: template.tool, args: template.args, title: template.name,
                 cwd: template.cwd, timeoutMinutes: template.timeoutMinutes,
@@ -8570,19 +8582,45 @@ case ("GET", "/agent/messages"):
                 return ["error": error.message]
             }
         default:
-            guard let name = string(body, "name"), let tool = string(body, "tool") else {
-                return ["error": "name and tool are required"]
+            // 作业链（v0.8.57 批 2）：steps 非空 = 链模板（tool 免填）。
+            let stepsRaw = body["steps"] as? [[String: Any]] ?? []
+            var chainSteps: [JobChainCore.Step] = []
+            for (index, raw) in stepsRaw.enumerated() {
+                let kindRaw = raw["kind"] as? String ?? "command"
+                guard let kind = JobChainCore.StepKind.parse(kindRaw) else {
+                    return ["error": "step \(index + 1): unknown kind \(kindRaw)"]
+                }
+                guard let params = raw["params"] as? [String: String] else {
+                    return ["error": "step \(index + 1): params must be string->string"]
+                }
+                chainSteps.append(JobChainCore.Step(kind: kind, params: params))
+            }
+            let name = string(body, "name")
+            let tool = string(body, "tool")
+            if chainSteps.isEmpty {
+                guard name != nil, tool != nil else {
+                    return ["error": "name and tool are required"]
+                }
+            } else {
+                guard name != nil else {
+                    return ["error": "name is required"]
+                }
+                if let error = JobChainCore.validationError(steps: chainSteps) {
+                    return ["error": error]
+                }
             }
             let args = (body["args"] as? [String]) ?? []
-            let existing = JobTemplateStore.shared.template(named: name)
+            let existing = JobTemplateStore.shared.template(named: string(body, "name") ?? "")
             let template = JobTemplate(
-                id: existing?.id ?? UUID(), name: name, tool: tool,
+                id: existing?.id ?? UUID(), name: string(body, "name") ?? "",
+                tool: tool ?? "true",
                 args: args, cwd: body["cwd"] as? String,
                 timeoutMinutes: body["timeoutMinutes"] as? Double ?? 60,
                 maxAttempts: Int(body["maxAttempts"] as? Double ?? 1),
                 retryOn: (body["retryOn"] as? String ?? "nonZero"),
                 priority: (body["priority"] as? String ?? "normal"),
-                createdAt: existing?.createdAt ?? Date())
+                createdAt: existing?.createdAt ?? Date(),
+                steps: chainSteps.isEmpty ? nil : chainSteps)
             guard JobTemplateStore.shared.save(template) else {
                 return ["error": "invalid template"]
             }

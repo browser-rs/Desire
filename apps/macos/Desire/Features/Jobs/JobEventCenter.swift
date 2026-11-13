@@ -17,6 +17,8 @@ final class JobEventCenter {
     /// 任务刚进入终态时调用（JobStore 已写好 state/exitCode/artifact）。
     func recordTerminal(jobID: UUID) {
         guard let job = JobStore.shared.job(id: jobID), job.isTerminal else { return }
+        // 作业链推进（v0.8.57 批 2）：先于通知交付——链的下一步要立刻起。
+        JobChainRunner.shared.jobDidFinish(jobID: jobID)
         let watched = JobWatchStore.shared.active.contains {
             $0.jobIDs.contains(jobID.uuidString)
         }

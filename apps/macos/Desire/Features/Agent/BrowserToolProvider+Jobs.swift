@@ -212,25 +212,50 @@ extension BrowserToolProvider {
 
 extension BrowserToolProvider {
     static func saveJobTemplate(_ args: [String: Any]) -> String {
-        guard let name = args["name"] as? String,
-              let tool = args["tool"] as? String else {
-            return fail("Missing name / tool")
+        guard let name = args["name"] as? String else {
+            return fail("Missing name")
         }
+        // 作业链（v0.8.57 批 2）：steps 非空 = 链模板（tool/args 免填——
+        // 单命令模板仍走 tool/args）。
+        let stepsRaw = args["steps"] as? [[String: Any]] ?? []
+        var chainSteps: [JobChainCore.Step] = []
+        if !stepsRaw.isEmpty {
+            for (index, raw) in stepsRaw.enumerated() {
+                let kindRaw = raw["kind"] as? String ?? "command"
+                guard let kind = JobChainCore.StepKind.parse(kindRaw) else {
+                    return fail("Step \(index + 1): unknown kind \(kindRaw) (command | officeBatch | imageBatch)")
+                }
+                guard let params = raw["params"] as? [String: String] else {
+                    return fail("Step \(index + 1): params must be a string->string object")
+                }
+                chainSteps.append(JobChainCore.Step(kind: kind, params: params))
+            }
+            if let error = JobChainCore.validationError(steps: chainSteps) {
+                return fail(error)
+            }
+        }
+        let tool = args["tool"] as? String
         let commandArgs = args["args"] as? [String] ?? []
-        if let error = JobTemplateValidation.error(name: name, tool: tool, args: commandArgs) {
-            return fail(error)
+        if chainSteps.isEmpty {
+            guard let tool, !tool.isEmpty else {
+                return fail("Missing tool (or provide steps for a chain template)")
+            }
+            if let error = JobTemplateValidation.error(name: name, tool: tool, args: commandArgs) {
+                return fail(error)
+            }
         }
         let existing = JobTemplateStore.shared.template(named: name)
         let template = JobTemplate(
             id: existing?.id ?? UUID(),
             name: name.trimmingCharacters(in: .whitespacesAndNewlines),
-            tool: tool, args: commandArgs,
+            tool: tool ?? "true", args: commandArgs,
             cwd: args["cwd"] as? String,
             timeoutMinutes: min(max(args["timeoutMinutes"] as? Double ?? 60, 1), 360),
             maxAttempts: min(max(Int(args["maxAttempts"] as? Double ?? 1), 1), 5),
             retryOn: (args["retryOn"] as? String ?? "nonZero").lowercased(),
             priority: (args["priority"] as? String ?? "normal").lowercased(),
-            createdAt: existing?.createdAt ?? Date())
+            createdAt: existing?.createdAt ?? Date(),
+            steps: chainSteps.isEmpty ? nil : chainSteps)
         guard JobTemplateStore.shared.save(template) else {
             return fail("Could not save the template")
         }
@@ -266,6 +291,18 @@ extension BrowserToolProvider {
             default: return .notify
             }
         }()
+        // 作业链（v0.8.57 批 2）：steps 非空 = 链模板——推进引擎按序起各步，
+        // {prev.artifact} 占位符串起产物；单命令模板走原路径。
+        if !(template.steps ?? []).isEmpty {
+            let chain = await JobChainRunner.shared.start(template: template,
+                                                          conversationID: conversationID)
+            switch chain {
+            case .success(let chainID):
+                return String(localized: "Chain template “\(template.name)” started (\(template.chainSteps.count) steps) as chain \(chainID.uuidString). Each step starts when the previous one finishes.")
+            case .failure(let error):
+                return fail(error.message)
+            }
+        }
         let result = await BackgroundCommandStore.shared.start(
             tool: template.tool, args: template.args, title: template.name,
             cwd: template.cwd, timeoutMinutes: template.timeoutMinutes,

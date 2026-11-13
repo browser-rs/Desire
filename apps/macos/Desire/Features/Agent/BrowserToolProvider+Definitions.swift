@@ -272,11 +272,12 @@ extension BrowserToolProvider {
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "saveJobTemplate",
-                description: "Save a named background-command template (allowlisted tool + argv) for one-click reuse. Same safety model as runBackgroundCommand. Saving an existing name updates it.",
+                description: "Save a named background-command template (allowlisted tool + argv) for one-click reuse, OR a JOB CHAIN: give steps[] (kind: command | officeBatch | imageBatch, params object) instead of tool/args — steps run in order and {prev.artifact}/{prev.artifactDir} in params resolve to the previous step's output (e.g. convert a folder, then watermark the converted dir). Same safety model as runBackgroundCommand. Saving an existing name updates it.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "name": AgentJSONSchemaValue(type: "string", description: "Template name"),
-                    "tool": AgentJSONSchemaValue(type: "string", description: "Allowlisted binary"),
+                    "tool": AgentJSONSchemaValue(type: "string", description: "Allowlisted binary (single-command template; omit when steps is given)"),
                     "args": AgentJSONSchemaValue(type: "array", description: "Arguments", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+                    "steps": AgentJSONSchemaValue(type: "array", description: "Job-chain steps (optional): [{kind, params:{...}}]; params values may contain {prev.artifact} / {prev.artifactDir}", items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "object"))),
                     "cwd": AgentJSONSchemaValue(type: "string", description: "Working directory (optional)"),
                     "timeoutMinutes": AgentJSONSchemaValue(type: "number", description: "Timeout minutes (default 60)"),
                     "maxAttempts": AgentJSONSchemaValue(type: "number", description: "Automatic attempts 1-5"),
@@ -299,7 +300,7 @@ extension BrowserToolProvider {
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "runJobTemplate",
-                description: "Run a saved background-command template. Same approval tier as runBackgroundCommand; returns a job id immediately. Use report=resume when the user wants a report-back.",
+                description: "Run a saved background-command template (or a chained template — each step starts when the previous one finishes, outputs flowing via {prev.artifact}). Same approval tier as runBackgroundCommand; returns a job id immediately. Use report=resume when the user wants a report-back.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "name": AgentJSONSchemaValue(type: "string", description: "Template name"),
                     "report": AgentJSONSchemaValue(type: "string", description: "notify (default) | resume | none"),

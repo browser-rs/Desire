@@ -63,6 +63,23 @@ enum LaunchWindowHealer {
                 return
             }
         }
+        // (1.5) 场景根本没建窗（v0.8.57 批 2 活体复现：cold start 后 SwiftUI
+        // scene 未建窗、relaunch 的 cold start 依旧）——**程序化 reopen**：
+        // NSWorkspace open 自己 = LaunchServices 对已运行实例发 reopen 事件
+        // → applicationShouldHandleReopen → SwiftUI 默认建窗语义（实测救活；
+        // relaunch 只会再造一次同样的 cold start，救不了这类）。
+        Log.app.fault("launch heal: sending reopen to self (no window objects at all)")
+        LaunchAudit.mark("heal.reopen")
+        let config = NSWorkspace.OpenConfiguration()
+        config.createsNewApplicationInstance = false
+        _ = try? await NSWorkspace.shared.openApplication(
+            at: Bundle.main.bundleURL, configuration: config)
+        try? await Task.sleep(for: .seconds(4))
+        if hasUserWindow {
+            Log.app.info("launch heal: recovered by reopen")
+            UserDefaults.standard.removeObject(forKey: attemptsKey)
+            return
+        }
         // (2) 真的没有窗口：重启一次（保留参数）。
         let attempts = UserDefaults.standard.integer(forKey: attemptsKey)
         guard attempts < maxAttempts else {

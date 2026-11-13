@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.55] - 2026-11-13
 ### Fixed
 
 - **vision 通道两处修复（v0.8.55 批 1，修图闭环地基）**：① 工具结果预算对 dataURI 图片结果不再按 24k 文本预算截断——此前 screenshot 的 base64 一律被砍断，vision 模型解码必败；② OpenAI 兼容端点的 vision 编码此前硬编码只认 screenshot/screenshotElement 两个工具名（pdfPageScreenshot、whiteboard 自检截图在 OpenAI 端点上模型根本看不到图）——放宽为**任何** `data:image/` 前缀的工具结果都进 vision（与 AnthropicProvider 既有口径一致），文本标签随工具语义（AgentVisionResult）。

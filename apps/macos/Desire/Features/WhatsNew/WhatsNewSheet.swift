@@ -17,6 +17,10 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
+            .init(icon: "shippingbox.fill", title: String(localized: "Your job outputs, all in one place"),
+                  detail: String(localized: "Batch edits, conversions and downloads now land in a single Artifacts view (desire://artifacts) — send any output to the whiteboard, excerpts or your phone, or chain the next job right onto it.")),
+            .init(icon: "link", title: String(localized: "Jobs that chain themselves"),
+                  detail: String(localized: "Save multi-step templates (convert, then watermark, then export) — each step starts automatically when the previous one finishes, with outputs flowing between steps.")),
             .init(icon: "target", title: String(localized: "The Agent now clicks exactly where it looks"),
                   detail: String(localized: "Screenshots now carry their own scale note, so coordinate clicks stay accurate on any window size — and a crosshair flashes at each landing point so you can see exactly where the Agent is about to click.")),
             .init(icon: "speedometer", title: String(localized: "Launch speed you can check"),

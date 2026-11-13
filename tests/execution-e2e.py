@@ -2239,7 +2239,16 @@ def main():
         ok("评估集：列表含该文件", any(e.get("name") == os.path.basename(path33) for e in lst33))
         d33 = bridge("POST", "/agent/eval-export/delete", {"path": path33})
         ok("评估集：删除生效", d33.get("ok") and not Path(path33).exists())
-        assert all(c for _, c in checks), "存在失败项"
+        failed = [(n, d) for n, c, d in checks if not c]
+        if failed:
+            # --keep-going（v0.8.57 批 4）：一节失败不再吞掉后续全部结果
+            # （0.8.56 实测：长套件尾部退化类失败轮换，abort 让相邻轮无法
+            # 对照）。退出码仍非零（CI 判定不变），但完整清单已打印。
+            print("\nexecution E2E FAILED %d/%d:" % (len(failed), len(checks)))
+            for n, d in failed:
+                print("  ✗", n, ("— " + d) if d else "")
+            if "--keep-going" not in sys.argv:
+                sys.exit(1)
         print("\nexecution E2E ALL PASS（%d 项）" % len(checks))
     finally:
         # 朗读兜底：万一 MUSCLE16 中途失败也别让机器一直念。

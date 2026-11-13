@@ -379,7 +379,7 @@ Features/Bookmarks/
   页面拒绝离开时弹 sheet（PendingBeforeUnload，可经桥
   `GET /beforeunload` / `POST /beforeunload/resolve` 程序化决策）。
   back/forward/reload 沿用"不拦截"既定策略不在此保护内。
-- **多窗口 Agent 联动**：未实现。
+- **多窗口 Agent 联动**：已实现（v0.8.52——listWindows/focusWindow/moveTabToWindow/organizeWindows + 桥；此前的"未实现"条目已过时）。
 - **passkey**：需要 Apple 签发 private-key-credential entitlement，
   已申请流程见 docs/。
 - **Keychain 域**：沙盒移除后 API key 需在设置里重新保存一次

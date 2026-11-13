@@ -60,6 +60,19 @@ struct ArtifactsPanel: View {
         }
         .padding(16)
         .frame(width: 560, height: 480)
+        .overlay(alignment: .bottom) {
+            if let actionToast {
+                Text(actionToast)
+                    .font(.system(size: 11))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .controlBackgroundColor)))
+                    .shadow(radius: 4)
+                    .padding(.bottom, 10)
+                    .transition(.opacity)
+            }
+        }
+        .animation(.easeOut(duration: 0.2), value: actionToast)
     }
 
     private var kindFilterMenu: some View {
@@ -138,6 +151,26 @@ struct ArtifactsPanel: View {
         .contextMenu {
             Button(String(localized: "Show in Finder")) { reveal(item) }
             Button(String(localized: "Copy Path")) { copyPath(item) }
+            Divider()
+            Menu(String(localized: "Send to…")) {
+                Button("Whiteboard") {
+                    SendTo.whiteboardNote(title: itemName(item),
+                                          content: "Artifact: `\(item.path)` (from \(item.jobTitle))")
+                }
+                Button("Excerpts") {
+                    SendTo.excerptLink(title: itemName(item), url: "file://" + item.path)
+                }
+                Button("Agent") {
+                    SendTo.agentDraft(
+                        String(localized: "Look at this job artifact and tell me what's in it: \(item.path)"))
+                }
+            }
+            Menu(String(localized: "Reprocess…")) {
+                Button(String(localized: "Convert to PDF")) { reprocess(item, format: "pdf") }
+                Button(String(localized: "Convert to DOCX")) { reprocess(item, format: "docx") }
+                Button(String(localized: "Batch Edit Images…")) { reprocessImages(item) }
+            }
+            .disabled(item.kind == .other)
         }
         .onAppear { enrich(item) }
     }
@@ -184,5 +217,41 @@ struct ArtifactsPanel: View {
     private func copyPath(_ item: ArtifactIndex.Item) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(item.path, forType: .string)
+    }
+
+    /// 再加工（v0.8.57 批 3）：产物目录 → 转换作业（officeBatch，与作业链
+    /// 同一启动器）；产物文件 → 按类型路由（图片进批量修图；其余转 pdf）。
+    private func reprocess(_ item: ArtifactIndex.Item, format: String) {
+        let target: String
+        if item.kind == .folder {
+            target = item.path.hasSuffix("/") ? String(item.path.dropLast()) : item.path
+        } else {
+            target = (item.path as NSString).deletingLastPathComponent
+        }
+        let result = OfficeBatchStore.shared.start(
+            folder: URL(fileURLWithPath: target), format: format,
+            recursive: false, conversationID: nil, report: nil)
+        if case .failure(let error) = result {
+            flash(error.message)
+        }
+    }
+
+    private func reprocessImages(_ item: ArtifactIndex.Item) {
+        let target = item.kind == .folder
+            ? (item.path.hasSuffix("/") ? String(item.path.dropLast()) : item.path)
+            : (item.path as NSString).deletingLastPathComponent
+        let result = ImageBatchEditStore.shared.start(
+            folder: URL(fileURLWithPath: target), format: "jpeg",
+            quality: 0.9, longEdge: nil, recursive: false,
+            presetName: nil, conversationID: nil)
+        if case .failure(let error) = result {
+            flash(error.message)
+        }
+    }
+
+    @State private var actionToast: String?
+    private func flash(_ message: String) {
+        actionToast = message
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { actionToast = nil }
     }
 }

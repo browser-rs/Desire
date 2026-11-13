@@ -108592,6 +108592,213 @@
           }
         }
       }
+    },
+    "Reprocess…":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Reprocess…"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"再加工…"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"再加工…"
+          }
+        }
+      }
+    },
+    "Convert to PDF":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Convert to PDF"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"转换为 PDF"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"轉換為 PDF"
+          }
+        }
+      }
+    },
+    "Convert to DOCX":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Convert to DOCX"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"转换为 DOCX"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"轉換為 DOCX"
+          }
+        }
+      }
+    },
+    "Batch Edit Images…":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Batch Edit Images…"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批量修图…"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批次修圖…"
+          }
+        }
+      }
+    },
+    "Look at this job artifact and tell me what's in it: %@":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Look at this job artifact and tell me what's in it: %@"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"看看这个作业产物里是什么：%@"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"看看這個作業產物裡是什麼：%@"
+          }
+        }
+      }
+    },
+    "Your job outputs, all in one place":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Your job outputs, all in one place"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"作业产出，一处尽览"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"作業產出，一處盡覽"
+          }
+        }
+      }
+    },
+    "Batch edits, conversions and downloads now land in a single Artifacts view (desire://artifacts) — send any output to the whiteboard, excerpts or your phone, or chain the next job right onto it.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Batch edits, conversions and downloads now land in a single Artifacts view (desire://artifacts) — send any output to the whiteboard, excerpts or your phone, or chain the next job right onto it."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批量修图、转换与下载的产出统一进产物中心（desire://artifacts）——可发送到白板、摘录或手机，也能直接在产物上接续下一道作业。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批次修圖、轉換與下載的產出統一進產物中心（desire://artifacts）——可傳送到白板、摘錄或手機，也能直接在產物上接續下一道作業。"
+          }
+        }
+      }
+    },
+    "Jobs that chain themselves":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Jobs that chain themselves"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"作业自动成链"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"作業自動成鏈"
+          }
+        }
+      }
+    },
+    "Save multi-step templates (convert, then watermark, then export) — each step starts automatically when the previous one finishes, with outputs flowing between steps.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Save multi-step templates (convert, then watermark, then export) — each step starts automatically when the previous one finishes, with outputs flowing between steps."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"保存多步模板（转换 → 加水印 → 导出）——上一步完成下一步自动开始，产物在步骤间自动流转。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"儲存多步模板（轉換 → 加浮水印 → 匯出）——上一步完成下一步自動開始，產物在步驟間自動流轉。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

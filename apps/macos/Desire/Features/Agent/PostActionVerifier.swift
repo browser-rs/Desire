@@ -15,7 +15,7 @@ nonisolated enum PostActionVerifier {
     /// 需要核验的工具：改变页面状态或有导航意图的。
     static let tools: Set<String> = [
         "click", "clickAt", "type", "fill", "fillForm", "fillLogin",
-        "pressKey", "select", "setChecked", "setUploadFile", "drag",
+        "pressKey", "select", "setChecked", "setUploadFile", "drag", "scrollAt",
         "navigate", "goBack", "goForward", "submit",
     ]
 

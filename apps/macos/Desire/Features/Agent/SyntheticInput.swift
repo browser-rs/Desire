@@ -92,6 +92,40 @@ enum SyntheticInput {
         post(.leftMouseUp, at: end, windowNumber: window.windowNumber, clickCount: 1)
     }
 
+    /// 坐标滚轮（v0.8.56 完善）：canvas 应用（地图平移、⌘+滚轮缩放）的滚轮
+    /// 事件——JS `window.scroll` 只动文档滚动条，canvas 内部视口动不了。
+    /// 在落点分 tick 派发真实 scrollWheel（NSEvent 方向惯例：deltaY 正值 =
+    /// 滚轮向前 = 页面向上；工具层按需取负）。
+    static func scroll(at point: CGPoint, dx: CGFloat, dy: CGFloat,
+                       modifiers: NSEvent.ModifierFlags = [], in webView: WKWebView) async {
+        // 可见性前置（与 click 同款守卫）；事件经 sendEvent 路由给 key window。
+        guard webView.window != nil, dx != 0 || dy != 0 else { return }
+        let ticks = 6
+        for _ in 1...ticks {
+            // NSEvent 无 scrollWheel 构造器——走 CGEvent 转制（携带
+            // windowNumber + modifiers）。wheel1 = 垂直 dy、wheel2 = 水平 dx。
+            let cg = CGEvent(
+                scrollWheelEvent2Source: nil,
+                units: .pixel,
+                wheelCount: dx != 0 ? 2 : 1,
+                wheel1: Int32(dy / CGFloat(ticks)),
+                wheel2: Int32(dx / CGFloat(ticks)),
+                wheel3: 0)
+            guard let cg else { return }
+            cg.location = point
+            // CGEventFlags 位掩码与 NSEvent.ModifierFlags 原始值一致（同一组
+            // 低位），取 rawValue 直转。
+            cg.flags = CGEventFlags(rawValue: UInt64(modifiers.rawValue))
+            // NSEvent(cgEvent:) 的 windowNumber 为 0——sendEvent 路由给
+            // key window（agent 操作的可见标签通常就在 key window；不在时
+            // 事件落空，工具回执仍返回，不误报失败）。
+            if let event = NSEvent(cgEvent: cg) {
+                NSApp.sendEvent(event)
+            }
+            try? await Task.sleep(nanoseconds: 30_000_000)
+        }
+    }
+
     private static func post(_ type: NSEvent.EventType, at point: CGPoint, windowNumber: Int, clickCount: Int) {
         guard let event = NSEvent.mouseEvent(
             with: type,

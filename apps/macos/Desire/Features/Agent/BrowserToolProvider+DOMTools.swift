@@ -135,6 +135,34 @@ extension BrowserToolProvider {
             await SyntheticInput.hover(at: point, in: webView)
             return "Hovered at (\(Int(x)), \(Int(y)))"
 
+        case "scrollAt":
+            // 坐标滚轮（v0.8.56 完善）：canvas 地图/画布的平移（dy/dx）与
+            // 缩放（modifier=command + dy）——JS scroll 只动文档滚动条。
+            guard let x = args["x"] as? Double, let y = args["y"] as? Double else {
+                return Self.fail("Missing x or y (viewport CSS pixels)")
+            }
+            guard webView.window != nil else {
+                return Self.fail("No window attached — coordinate scroll needs a visible webview")
+            }
+            let dx = args["dx"] as? Double ?? 0
+            let dy = args["dy"] as? Double ?? 0
+            guard dx != 0 || dy != 0 else {
+                return Self.fail("Give dx and/or dy (wheel deltas; positive dy = wheel forward = content up)")
+            }
+            let point = windowPoint(fromViewportX: x, y: y, in: webView)
+            var flags: NSEvent.ModifierFlags = []
+            switch (args["modifier"] as? String ?? "").lowercased() {
+            case "command": flags = [.command]
+            case "control": flags = [.control]
+            case "option", "alt": flags = [.option]
+            case "shift": flags = [.shift]
+            default: break
+            }
+            await SyntheticInput.scroll(at: point, dx: CGFloat(dx), dy: CGFloat(dy),
+                                        modifiers: flags, in: webView)
+            let modNote = flags.isEmpty ? "" : " with \(args["modifier"] ?? "")"
+            return "Scrolled at (\(Int(x)), \(Int(y))) by (dx \(Int(dx)), dy \(Int(dy)))\(modNote)"
+
         case "highlight":
             // Agent visibility: scroll to the element and flash an orange
             // outline so the user can SEE what is about to be acted on.

@@ -728,7 +728,7 @@ extension BrowserToolProvider {
             )),
 
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "screenshotElement", description: "Capture a close-up screenshot of ONE element (chart, icon, widget) for visual analysis — sharper than the full-viewport screenshot. Same targeting as click: ref, text, or selector.",
+                name: "screenshotElement", description: "Capture a close-up screenshot of ONE element (chart, icon, widget) for visual analysis — sharper than the full-viewport screenshot. Same targeting as click: ref, text, or selector. NOTE: coordinates inside this crop are element-relative, NOT viewport coordinates — never feed them to clickAt; use the full-viewport screenshot (with its caption) for coordinate clicks.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "ref": AgentJSONSchemaValue(type: "string", description: "Element ref from the latest getPageSnapshot"),
                     "text": AgentJSONSchemaValue(type: "string", description: "Visible text of the target"),
@@ -749,6 +749,16 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "x": AgentJSONSchemaValue(type: "number", description: "Viewport X in CSS pixels"),
                     "y": AgentJSONSchemaValue(type: "number", description: "Viewport Y in CSS pixels"),
+                ], required: ["x", "y"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "scrollAt", description: "Dispatch real wheel events at viewport CSS-pixel coordinates (x, y) — visual fallback for canvas maps/boards (pan with dx/dy) and ⌘+wheel zoom (modifier=command). JS scroll only moves the document; this moves what's under the cursor. Direction: positive dy = wheel forward = content up. Post-action verify uses pixel comparison.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "x": AgentJSONSchemaValue(type: "number", description: "Viewport X in CSS pixels"),
+                    "y": AgentJSONSchemaValue(type: "number", description: "Viewport Y in CSS pixels"),
+                    "dx": AgentJSONSchemaValue(type: "number", description: "Horizontal wheel delta (default 0)"),
+                    "dy": AgentJSONSchemaValue(type: "number", description: "Vertical wheel delta (default 0; one or both required)"),
+                    "modifier": AgentJSONSchemaValue(type: "string", description: "command | control | option | shift (e.g. command for canvas zoom)"),
                 ], required: ["x", "y"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(

@@ -9,6 +9,8 @@
 - **性能预算接线（v0.8.56 批 3）**：① `/diag/startup` 增 `launchAudit` 字段（LaunchAudit 分段耗时+预算判定+overBudget，桥探针可读）；② 设置 › 通用 › 诊断行新增**启动性能 pill**（首窗可交互 ms vs 700ms 预算，超线黄色）；③ **ci.yml 新增 launch 预算探针**（arm64 构建后启动 app 读 firstWindowMs：>5s 硬失败、>700ms `::warning::` 标黄记趋势不阻塞——先建观测，连续两版超线再议阻塞化；数字进 run summary 可比趋势）。
 - **视觉点击评估 E20**（本地 EVAL_E20=1）：canvas fixture 页（按钮只画在 canvas、故意偏离中心——DOM 点 canvas 中心必 miss）→ screenshot → clickAt（坐标从 fixture 的 document.title 读出）→ 页面状态翻转；断言视觉点击链端到端（坐标空间一致、后验标注在场、轨迹 look→click 配对）；caption 换算数学已在 harness。
 - **视觉操作面补全（v0.8.56 完善）**：`clickAt` 增 `button: right`（canvas 右键菜单）与 `double: true`（双击）变体；新工具 `hoverAt {x,y}`（canvas 悬停菜单/tooltips 的坐标 mouse-move，配 screenshot 读悬停结果）；坐标 `drag` 起点闪准星（与 clickAt 同一可见性）。`clickAt` 像素后验兜底：canvas/自绘 UI 点击后 DOM 指纹不变会误报"未变化"误导模型——落点前后各抓 160px 灰度缩略图（`PixelDiff`，>2% 像素差即判 changed），进 harness（3191/0）。
+- **视觉操作面再补两件（v0.8.56 完善 2）**：① 新工具 `scrollAt {x,y,dx,dy,modifier?}`——canvas 地图/画布的滚轮平移与 ⌘+滚轮缩放（JS scroll 只动文档滚动条；CGEvent 转制 scrollWheel、分 6 tick 派发）；② `clickAt` 像素后验扩展到 `drag`/`scrollAt`（坐标类动作改的是画布内部像素，DOM 指纹看不见）；③ `screenshotElement` 描述加坐标警告（特写图内坐标是元素相对的，喂给 clickAt 会错位）。
+
 
 
 

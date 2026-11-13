@@ -150,6 +150,10 @@ extension BrowserToolProvider {
         return candidates
     }
 
+    /// 视觉兜底工具族（坐标类，canvas/自绘 UI 点击/拖拽/滚轮）——这些动作
+    /// 改的是画布内部像素，DOM 指纹看不见，后验走像素对比兜底。
+    static let pixelVerifyTools: Set<String> = ["clickAt", "drag", "scrollAt"]
+
     /// 视口灰度缩略图（clickAt 像素后验用）：160px 宽、逐字节灰阶。
     /// 快照失败 = nil（调用方退回纯 DOM 指纹判定）。
     static func grayThumbnail(in webView: WKWebView) async -> [UInt8]? {
@@ -188,9 +192,10 @@ extension BrowserToolProvider {
         let pre = needsVerify ? await Self.fingerprint(in: webView) : nil
         // clickAt 像素后验预取（v0.8.56）：canvas/自绘 UI 点击后 DOM 指纹
         // 纹丝不动，指纹判"未变化"会误导模型弃用刚生效的操作——落点前后
-        // 各抓一张灰度缩略图做像素对比兜底。
-        let isCoordClick = call.function.name == "clickAt"
-        let visualPre = isCoordClick ? await Self.grayThumbnail(in: webView) : nil
+        // 各抓一张灰度缩略图做像素对比兜底。坐标 scroll/drag 同理（地图
+        // 平移/画布拖拽也不动 DOM）。
+        let usesPixelVerify = Self.pixelVerifyTools.contains(call.function.name)
+        let visualPre = usesPixelVerify ? await Self.grayThumbnail(in: webView) : nil
         // 超时分级 + 结果预算（v0.8.51 批 3）：默认 120s 兜底，长任务工具不套；
         // 超限结果显式截断（见 BrowserToolProvider+ResultPolicy）。
         var result = await Self.withToolTimeout(call.function.name) { [self] in
@@ -205,7 +210,7 @@ extension BrowserToolProvider {
             while tries < 4,
                   PostActionVerifier.verdict(before: pre, after: after) == .unchanged {
                 // 像素对比兜底（clickAt）：像素先变就提前收口，不再等 DOM。
-                if isCoordClick, let visualPre,
+                if usesPixelVerify, let visualPre,
                    let visualPost = await Self.grayThumbnail(in: webView),
                    PixelDiff.changedRatio(visualPre, visualPost) > PixelDiff.changedThreshold {
                     pixelsChanged = true

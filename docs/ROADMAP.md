@@ -4959,3 +4959,16 @@ AGENTS.md 过时条目修正、i18n/WhatsNew。**不做**：跨设备产物同�
 
 **批次**：批 1 产物中心地基 → 批 2 作业链 → 批 3 融合面（Remote 卡/发送到/
 pixelRatio）→ 批 4 收口（分节隔离 + 闸门）。
+
+**实况（2026-11-14，批 1-3 落地推送，b838c970）**：批 1 产物中心（c42dc908——
+ArtifactIndex 派生进 harness 3211/0、desire://artifacts 面板、GET /artifacts、
+listArtifacts 工具、Jobs 行双向跳转；live：office batch→pdf 产 Converted/ →
+桥与面板同现〔截图目检〕）→ 批 2 作业链（8622a97a——JobChainCore 进 harness
+3223/0、JobChainRunner 挂 recordTerminal 自动推进、JobTemplate.steps 向后兼容、
+saveJobTemplate/runJobTemplate/桥全支持；live 三步链全通：python3 造文件自报
+产物 → officeBatch 转 {prev.artifactDir} → 校验产物目录）。**批 2 验证时活体
+复现强杀后首启无窗**（relaunch 也救不了——cold start 再来一次）→ heal 加
+程序化 reopen 分支，复现现场验证 recovered by reopen。批 3 发送到/再加工右键 +
+keep-going + AGENTS.md 过时条目修正 + WhatsNew。**遗留**：E16+ 回合卡死在
+0.8.56 基线同样复现（日期相关环境问题，非回归——专项处理）；分节独立跑/
+Remote 产物卡 UI（iOS 端）/pixelRatio 记档后延。

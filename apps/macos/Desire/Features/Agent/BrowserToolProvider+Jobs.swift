@@ -468,6 +468,41 @@ extension BrowserToolProvider {
         return uri
     }
 
+    /// listArtifacts（v0.8.57 批 1）：产物清单（文本行格式——每行一条，
+    /// 模型可直接把 path 填进后续作业的 folder/path 参数）。
+    static func listArtifacts(_ args: [String: Any]) -> String {
+        let kindRaw = (args["kind"] as? String ?? "").lowercased()
+        let days = min(365, max(0, Int(args["days"] as? Double ?? 30)))
+        let kind = ArtifactIndex.Kind(rawValue: kindRaw)
+        let items = ArtifactIndex.filter(
+            ArtifactIndex.derive(from: JobStore.shared.allJobs),
+            kind: kind, withinDays: days)
+        if items.isEmpty {
+            return "No artifacts yet (finished jobs with outputs will list here)"
+        }
+        let fm = FileManager.default
+        let lines = items.prefix(40).map { item -> String in
+            var isDir: ObjCBool = false
+            let exists = fm.fileExists(atPath: item.path, isDirectory: &isDir)
+            let sizeText: String
+            if !exists {
+                sizeText = "missing"
+            } else if isDir.boolValue {
+                sizeText = "dir"
+            } else if let bytes = (try? fm.attributesOfItem(atPath: item.path)[.size]) as? Int {
+                sizeText = ByteCountFormatter.string(fromByteCount: Int64(bytes), countStyle: .file)
+            } else {
+                sizeText = "?"
+            }
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MM-dd HH:mm"
+            return "[\(item.kind.rawValue)] \(item.path) · \(sizeText) · \(item.jobTitle) · \(formatter.string(from: item.at))"
+        }
+        let total = items.count
+        let header = total > 40 ? "(showing 40 of \(total))\n" : ""
+        return header + lines.joined(separator: "\n")
+    }
+
     static func imageInfo(_ args: [String: Any]) -> String {
         guard let path = args["path"] as? String, !path.isEmpty else {
             return fail("Missing path")

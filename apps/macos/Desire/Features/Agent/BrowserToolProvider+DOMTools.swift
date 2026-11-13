@@ -1050,6 +1050,8 @@ extension BrowserToolProvider {
             return Self.mergeImages(args)
         case "batchEditImages":
             return Self.batchEditImages(args, conversationID: ownerSession?.conversationId)
+        case "listArtifacts":
+            return Self.listArtifacts(args)
         case "lookImageFile":
             return Self.lookImageFile(args)
         case "listFeeds":

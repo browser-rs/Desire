@@ -8585,6 +8585,54 @@ testAdjustLooseJSON()
 testVisionResultLabels()
 testBudgetImageExemption()
 
+func testArtifactIndex() {
+    let now = Date()
+    func job(_ id: UUID, _ title: String, artifact: String?, at: Date,
+             conversation: UUID? = nil) -> JobRecord {
+        JobRecord(id: id, title: title, kind: .office, state: .done,
+                  artifactURL: artifact, conversationID: conversation,
+                  createdAt: at, updatedAt: at)
+    }
+    let idA = UUID(), idB = UUID(), conv = UUID()
+    let jobs = [
+        job(idA, "批量修图 demo", artifact: "/tmp/out/Edited/", at: now.addingTimeInterval(-3600)),
+        job(idB, "转码", artifact: "/tmp/out/Edited/", at: now, conversation: conv),  // 同路径重跑 → 取最新（含其会话）
+        job(UUID(), "水印", artifact: "/tmp/wm-photo.png", at: now.addingTimeInterval(-86400 * 10)),
+        job(UUID(), "无产物", artifact: nil, at: now),
+    ]
+    let items = ArtifactIndex.derive(from: jobs)
+    check("artifacts：无产物 Job 不进清单", items.count == 2)
+    check("artifacts：同路径去重取最新", items.first(where: { $0.path == "/tmp/out/Edited/" })?.jobID == idB)
+    check("artifacts：按时间降序", items.first?.at == now)
+    check("artifacts：目录分类", items.first(where: { $0.path == "/tmp/out/Edited/" })?.kind == .folder)
+    check("artifacts：图片分类", items.first(where: { $0.path == "/tmp/wm-photo.png" })?.kind == .image)
+    check("artifacts：会话透传", items.first(where: { $0.path == "/tmp/out/Edited/" })?.conversationID == conv)
+    check("artifacts：稳定 id = 路径", items.allSatisfy { $0.id == $0.path })
+
+    // 分类表
+    check("artifacts：mp4=video", ArtifactIndex.classify(path: "/a/b.mp4") == .video)
+    check("artifacts：pdf", ArtifactIndex.classify(path: "/a/report.pdf") == .pdf)
+    check("artifacts：xlsx=data", ArtifactIndex.classify(path: "/a/表.xlsx") == .data)
+    check("artifacts：zip=archive", ArtifactIndex.classify(path: "/a/x.zip") == .archive)
+    check("artifacts：md=data", ArtifactIndex.classify(path: "/a/brief.md") == .data)
+    check("artifacts：未知扩展=other", ArtifactIndex.classify(path: "/a/x.xyz") == .other)
+    check("artifacts：无扩展名=folder", ArtifactIndex.classify(path: "/a/输出目录") == .folder)
+    check("artifacts：结尾斜杠=folder", ArtifactIndex.classify(path: "/a/dir/") == .folder)
+    check("artifacts：点文件不是目录", ArtifactIndex.classify(path: "/a/.hidden") == .other)
+
+    // 过滤
+    let filteredKind = ArtifactIndex.filter(items, kind: .image, withinDays: 0)
+    check("artifacts：类型过滤", filteredKind.count == 1 && filteredKind[0].kind == .image)
+    let filteredDays = ArtifactIndex.filter(items, kind: nil, withinDays: 2, now: now)
+    check("artifacts：天数过滤", filteredDays.count == 1 && filteredDays[0].path == "/tmp/out/Edited/")
+
+    // 分组（10 天前 → earlier；今天 → today）
+    let groups = ArtifactIndex.groups(items, now: now)
+    check("artifacts：分组含 today", groups.first?.key == "today"
+          && groups.first?.items.count == 1)
+    check("artifacts：分组含 earlier", groups.last?.key == "earlier"
+          && groups.last?.items.count == 1)
+}
 func testPixelDiff() {
     // 同图 = 0；全变 = 1；阈值判定
     check("pixdiff：同图差异 0", PixelDiff.changedRatio([10, 20, 30], [10, 20, 30]) == 0)
@@ -8654,6 +8702,7 @@ func testScreenshotScaleNote() {
 }
 testScreenshotScaleNote()
 testPixelDiff()
+testArtifactIndex()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

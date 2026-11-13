@@ -772,6 +772,7 @@ final class AutomationServer {
         ep("POST", "/excerpts/delete", "Delete one excerpt", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/video/batch", "Batch trim/concat videos in a folder (mp4/mov/m4v). trim writes <name>-trimmed.mp4 into Trimmed/, concat joins name order into Merged/merged.mp4. Returns a job id; poll GET /jobs for progress/results", params: ["folder:string", "start?:number", "end?:number", "concat?:bool", "recursive?:bool", "height?:number", "audioOnly?:bool"], example: #"-d '{"folder":"~/Movies/clips","start":3,"end":42}'"#)
         ep("GET", "/jobs", "Unified job ledger (publish/mention scan/campaign…) with states, artifacts and receipts", params: ["limit?:int"], example: "…/jobs")
+        ep("GET", "/artifacts", "Artifact index derived from the job ledger (deduped by path, newest wins)", params: ["kind?:string (folder|image|video|audio|pdf|document|archive|data|other)", "days?:int (0=all)"], example: "…/artifacts?kind=folder&days=7")
         ep("POST", "/jobs/run", "Start an allowlisted CLI tool in the background (argv-only, no shell); returns a job id immediately", params: ["tool:string", "args?:string[]", "title?:string", "cwd?:string", "timeoutMinutes?:number", "report?:notify|resume|none", "conversationId?:uuid"], example: #"-d '{"tool":"python3","args":["-c","print(1)"],"title":"smoke"}'"#)
         ep("POST", "/jobs/watch", "Watch one or more jobs; one completion note/notification when ALL reach a terminal state", params: ["ids?:string[]", "kind?:string", "mode?:notify|resume", "conversationId?:uuid"], example: #"-d '{"ids":["<uuid>"],"mode":"notify"}'"#)
         ep("POST", "/jobs/cancel", "Cancel a running background job (command/download/batch/export)", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
@@ -1426,6 +1427,25 @@ case ("GET", "/state"):
             case ("GET", "/jobs"):
                 return try Self.json(Self.jobsList(
                     limit: Int(Self.string(query, "limit") ?? "") ?? 100))
+            case ("GET", "/artifacts"):
+                // 产物中心（v0.8.57 批 1）：ArtifactIndex 从 Job 台账派生。
+                let kindRaw = Self.string(query, "kind") ?? ""
+                let days = Int(Self.string(query, "days") ?? "") ?? 0
+                let items = ArtifactIndex.derive(from: JobStore.shared.allJobs)
+                let filtered = ArtifactIndex.filter(
+                    items,
+                    kind: ArtifactIndex.Kind(rawValue: kindRaw),
+                    withinDays: days)
+                return try Self.json([
+                    "ok": true,
+                    "count": filtered.count,
+                    "artifacts": filtered.map { item -> [String: Any] in
+                        ["path": item.path, "kind": item.kind.rawValue,
+                         "jobId": item.jobID.uuidString, "jobTitle": item.jobTitle,
+                         "at": ISO8601DateFormatter().string(from: item.at),
+                         "conversationId": item.conversationID?.uuidString ?? ""]
+                    },
+                ])
             case ("POST", "/jobs/action"):
                 return try Self.json(Self.jobsAction(body))
             case ("POST", "/jobs/watch"):

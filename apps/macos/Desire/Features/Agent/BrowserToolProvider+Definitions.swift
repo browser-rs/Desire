@@ -290,6 +290,14 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [:], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "listArtifacts",
+                description: "List ARTIFACTS produced by finished jobs (batch edits -> Edited/, watermarks -> Converted/, media downloads, briefs) — deduped by path, newest first. Use this to find the output folder of a previous batch before chaining another job onto it (e.g. batchEditImages with folder=<artifact path>). READ-ONLY.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "kind": AgentJSONSchemaValue(type: "string", description: "folder | image | video | audio | pdf | document | archive | data | other (optional)"),
+                    "days": AgentJSONSchemaValue(type: "number", description: "Only artifacts from the last N days (default 30, 0 = all)"),
+                ], required: [])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "runJobTemplate",
                 description: "Run a saved background-command template. Same approval tier as runBackgroundCommand; returns a job id immediately. Use report=resume when the user wants a report-back.",
                 parameters: AgentJSONSchema(type: "object", properties: [

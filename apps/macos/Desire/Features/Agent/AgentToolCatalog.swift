@@ -77,7 +77,7 @@ nonisolated enum AgentToolCatalog {
         // 后台/定时（"job" 只认 jobTemplate/schedule 这类词，避免误伤）
         if has(["backgroundtask", "scheduledtask", "schedule", "jobtemplate",
                  "backgroundcommand", "workflowrecording", "runworkflow",
-                 "listworkflows", "saveworkflow"]) { return .jobs }
+                 "listworkflows", "saveworkflow", "artifact"]) { return .jobs }
 
         // Agent 自身：人机卡点 / 子代理 / 记忆 / 技能 / 会话
         if has(["crew", "subagent", "askuser", "requestuserhelp", "updateplan",

@@ -146,6 +146,7 @@ struct Toolbar: View {
     @State private var showWebAppInstall = false
     @State private var showWebApps = false
     @State private var showJobs = false
+    @State private var showArtifacts = false
     @State private var showDatasetCollect = false
     @ObservedObject private var playbooks = PlaybookStore.shared
     @State private var runPlaybook: Playbook?
@@ -238,6 +239,9 @@ struct Toolbar: View {
         .sheet(isPresented: $showJobs) {
             JobsPanel()
         }
+        .sheet(isPresented: $showArtifacts) {
+            ArtifactsPanel()
+        }
         .sheet(isPresented: $showDatasetCollect) {
             DatasetCollectSheet()
         }
@@ -249,6 +253,9 @@ struct Toolbar: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .openJobsPanel)) { _ in
             showJobs = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openArtifactsPanel)) { _ in
+            showArtifacts = true
         }
         .sheet(isPresented: $showAgentActions) {
             AgentActionsPanel()

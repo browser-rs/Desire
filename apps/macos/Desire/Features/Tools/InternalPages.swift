@@ -25,12 +25,13 @@ enum InternalPageKind: String, CaseIterable, Sendable {
     case search
     case sync
     case research
+    case artifacts
 
     /// 首页/索引里展示的顺序（fallback 不列）。
     static let all: [InternalPageKind] = [
         .tools, .books, .about, .newtab, .settings, .search, .agent,
         .history, .bookmarks, .downloads, .passwords, .plugins,
-        .whiteboard, .whatsnew, .sync, .research,
+        .whiteboard, .whatsnew, .sync, .research, .artifacts,
     ]
 
     var isRenderedInTab: Bool {
@@ -58,6 +59,7 @@ enum InternalPageKind: String, CaseIterable, Sendable {
         case .whatsnew: return String(localized: "What's New")
         case .search: return String(localized: "Search Everywhere")
         case .research: return String(localized: "Research briefs")
+        case .artifacts: return String(localized: "Artifacts")
         }
     }
 
@@ -79,6 +81,7 @@ enum InternalPageKind: String, CaseIterable, Sendable {
         case .whatsnew: return "sparkles"
         case .search: return "magnifyingglass"
         case .research: return "doc.text.magnifyingglass"
+        case .artifacts: return "shippingbox"
         }
     }
 }
@@ -168,6 +171,8 @@ enum InternalPages {
         case .passwords: CommandBus.shared.send(.showPasswordManager)
         case .plugins: CommandBus.shared.send(.showPlugins)
         case .whatsnew: WhatsNewStore.shared.show()
+        case .artifacts:
+            NotificationCenter.default.post(name: .openArtifactsPanel, object: nil)
         case .search:
             let q = destination.query["q"] ?? destination.param ?? ""
             if !q.isEmpty {

@@ -270,6 +270,12 @@ struct JobsPanel: View {
             if let artifact = job.artifactURL, !artifact.isEmpty {
                 Button(String(localized: "Open")) { open(artifact) }
                     .controlSize(.small)
+                // 产物中心（v0.8.57）：跨 Job 视图直达。
+                Button(String(localized: "Artifacts")) {
+                    NotificationCenter.default.post(name: .openArtifactsPanel, object: nil)
+                }
+                .controlSize(.small)
+                .help(String(localized: "Show in Artifacts"))
                 // 任务产出统一出件（v0.8.15）：本地 md/txt/csv 产物一键转
                 // docx/rtf 正式文件（exportDocument 管道），转好在 Finder 选中。
                 if isExportableArtifact(artifact) {

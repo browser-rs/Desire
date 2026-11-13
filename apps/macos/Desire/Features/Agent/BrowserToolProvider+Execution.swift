@@ -150,6 +150,16 @@ extension BrowserToolProvider {
         return candidates
     }
 
+    /// 视口灰度缩略图（clickAt 像素后验用）：160px 宽、逐字节灰阶。
+    /// 快照失败 = nil（调用方退回纯 DOM 指纹判定）。
+    static func grayThumbnail(in webView: WKWebView) async -> [UInt8]? {
+        guard let image = try? await webView.takeSnapshot(configuration: nil),
+              let cg = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+            return nil
+        }
+        return PixelDiff.grayscale(cg)
+    }
+
     /// 页面指纹（核验用）：URL/标题/正文长度/节点数。取不到 = nil（unknown）。
     private static func fingerprint(in webView: WKWebView) async -> PostActionVerifier.Fingerprint? {
         let js = "(function(){var b=document.body;return JSON.stringify({u:location.href,t:document.title||'',n:b?b.innerText.length:0,c:document.getElementsByTagName('*').length});})()"
@@ -176,6 +186,11 @@ extension BrowserToolProvider {
         // 等到变化或稳定（≤1s），给模型一个 [verify] 结论。
         let needsVerify = PostActionVerifier.tools.contains(call.function.name)
         let pre = needsVerify ? await Self.fingerprint(in: webView) : nil
+        // clickAt 像素后验预取（v0.8.56）：canvas/自绘 UI 点击后 DOM 指纹
+        // 纹丝不动，指纹判"未变化"会误导模型弃用刚生效的操作——落点前后
+        // 各抓一张灰度缩略图做像素对比兜底。
+        let isCoordClick = call.function.name == "clickAt"
+        let visualPre = isCoordClick ? await Self.grayThumbnail(in: webView) : nil
         // 超时分级 + 结果预算（v0.8.51 批 3）：默认 120s 兜底，长任务工具不套；
         // 超限结果显式截断（见 BrowserToolProvider+ResultPolicy）。
         var result = await Self.withToolTimeout(call.function.name) { [self] in
@@ -186,14 +201,23 @@ extension BrowserToolProvider {
         if needsVerify, !result.hasPrefix("Error:") {
             var after = await Self.fingerprint(in: webView)
             var tries = 0
+            var pixelsChanged = false
             while tries < 4,
                   PostActionVerifier.verdict(before: pre, after: after) == .unchanged {
+                // 像素对比兜底（clickAt）：像素先变就提前收口，不再等 DOM。
+                if isCoordClick, let visualPre,
+                   let visualPost = await Self.grayThumbnail(in: webView),
+                   PixelDiff.changedRatio(visualPre, visualPost) > PixelDiff.changedThreshold {
+                    pixelsChanged = true
+                    break
+                }
                 try? await Task.sleep(nanoseconds: 250_000_000)
                 after = await Self.fingerprint(in: webView)
                 tries += 1
             }
-            result += PostActionVerifier.annotation(
-                PostActionVerifier.verdict(before: pre, after: after))
+            var verdict = PostActionVerifier.verdict(before: pre, after: after)
+            if pixelsChanged { verdict = .changed }
+            result += PostActionVerifier.annotation(verdict)
             // 登录态引导（v0.8.25）：落到登录页时给出两条可行路径。
             let hasPasswordField = (try? await webView.evaluateJavaScript(
                 "(function(){return !!document.querySelector('input[type=password]');})()") as? Bool) ?? false

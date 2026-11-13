@@ -8585,6 +8585,45 @@ testAdjustLooseJSON()
 testVisionResultLabels()
 testBudgetImageExemption()
 
+func testPixelDiff() {
+    // 同图 = 0；全变 = 1；阈值判定
+    check("pixdiff：同图差异 0", PixelDiff.changedRatio([10, 20, 30], [10, 20, 30]) == 0)
+    check("pixdiff：全变比例 1", abs(PixelDiff.changedRatio([0, 0], [255, 255]) - 1) < 0.001)
+    check("pixdiff：噪声不敏感", PixelDiff.changedRatio([100, 100, 100], [108, 104, 100]) == 0)
+    check("pixdiff：显著变化计数", abs(PixelDiff.changedRatio([10, 10, 10, 10], [10, 200, 10, 210]) - 0.5) < 0.001)
+    check("pixdiff：长度不符 = 不可判", PixelDiff.changedRatio([1, 2], [1, 2, 3]) == 0)
+    check("pixdiff：空输入 = 0", PixelDiff.changedRatio([], []) == 0)
+    // grayscale：尺寸与画灰阶
+    let w = 320, h = 160
+    let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8,
+                        bytesPerRow: w, space: CGColorSpaceCreateDeviceGray(),
+                        bitmapInfo: CGImageAlphaInfo.none.rawValue)!
+    ctx.setFillColor(gray(0.2))
+    ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+    ctx.setFillColor(gray(0.9))
+    ctx.fill(CGRect(x: 0, y: h / 2, width: w, height: h / 2))
+    let image = ctx.makeImage()!
+    let bytes = PixelDiff.grayscale(image, width: 160)
+    check("pixdiff：缩略图宽度", bytes?.count == 160 * 80)
+    // 上暗下亮 → 前半均值显著低于后半
+    if let bytes {
+        let top = bytes[0..<4000].reduce(0, { $0 + Int($1) }) / 4000
+        let bottom = bytes[4000..<8000].reduce(0, { $0 + Int($1) }) / 4000
+        // CG 坐标系 y 向上：context 里 y<h/2 的 0.2 灰在图像下半，
+        // 行 0 = 图像顶 = 0.9 亮灰。
+        // top = 行 0-24（亮区）；bottom 改取行 50-79（暗区）——4000 字节切片
+        // 是 25 行，会跨过行 40 的分界混出均值（167 的教训）。
+        let bottomDark = bytes[8000..<12800].reduce(0, { $0 + Int($1) }) / 4800
+        check("pixdiff：灰阶方向正确", top > 200 && bottomDark < 80
+              && top > bottomDark + 100)
+    } else {
+        check("pixdiff：缩略图生成", false)
+    }
+}
+
+func gray(_ v: CGFloat) -> CGColor {
+    CGColor(gray: v, alpha: 1)
+}
 func testScreenshotScaleNote() {
     // 宽视口（全屏 1512）→ 缩放 + caption 自述换算
     let wide = ScreenshotScaleNote.note(viewportWidth: 1512, viewportHeight: 850)
@@ -8614,6 +8653,7 @@ func testScreenshotScaleNote() {
     check("scale：小视口不放大", tiny.isExact && tiny.targetWidth == 320)
 }
 testScreenshotScaleNote()
+testPixelDiff()
 
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {

@@ -108,8 +108,32 @@ extension BrowserToolProvider {
             // 再点击，保证准星在点击瞬间可见。
             ClickCrosshair.flash(at: point, in: webView)
             try? await Task.sleep(nanoseconds: 250_000_000)
+            // 变体（v0.8.56 完善）：canvas 右键菜单/双击也是纯视觉场景。
+            let button = (args["button"] as? String ?? "left").lowercased()
+            let doubleClick = (args["double"] as? Bool) ?? false
+            if button == "right" {
+                await SyntheticInput.rightClick(at: point, in: webView)
+                return "Right-clicked at (\(Int(x)), \(Int(y)))"
+            }
+            if doubleClick {
+                await SyntheticInput.doubleClick(at: point, in: webView)
+                return "Double-clicked at (\(Int(x)), \(Int(y)))"
+            }
             await SyntheticInput.click(at: point, in: webView)
             return "Clicked at (\(Int(x)), \(Int(y)))"
+
+        case "hoverAt":
+            // 坐标 hover（v0.8.56 完善）：canvas 应用悬停菜单/tooltips 与
+            // clickAt 同理——DOM 悬停工具够不着，真实 mouse-moved 事件直达。
+            guard let x = args["x"] as? Double, let y = args["y"] as? Double else {
+                return Self.fail("Missing x or y (viewport CSS pixels)")
+            }
+            guard webView.window != nil else {
+                return Self.fail("No window attached — coordinate hover needs a visible webview")
+            }
+            let point = windowPoint(fromViewportX: x, y: y, in: webView)
+            await SyntheticInput.hover(at: point, in: webView)
+            return "Hovered at (\(Int(x)), \(Int(y)))"
 
         case "highlight":
             // Agent visibility: scroll to the element and flash an orange
@@ -2935,6 +2959,9 @@ extension BrowserToolProvider {
             guard let startPoint = dragStart, let endPoint = dragEnd else {
                 return Self.fail("Could not resolve both drag endpoints — give ref/text/selector (or fromX/fromY, toX/toY as viewport pixels); elements need on-screen geometry")
             }
+            // 起点准星（v0.8.56 完善）：与 clickAt 同一可见性哲学。
+            ClickCrosshair.flash(at: startPoint, in: webView)
+            try? await Task.sleep(nanoseconds: 250_000_000)
             await SyntheticInput.drag(from: startPoint, to: endPoint, in: webView)
             return "Dragged (trusted mouse events, 8 interpolated moves) — verify the result with a fresh getPageSnapshot/readTab"
 

@@ -736,7 +736,16 @@ extension BrowserToolProvider {
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "clickAt", description: "Dispatch a real mouse click at viewport CSS-pixel coordinates (x, y). This is the VISUAL FALLBACK — try getPageSnapshot/click {ref} first; reach for clickAt only when the target has no DOM handle (canvas-drawn UI, shadow-DOM widgets, virtualized lists) or a screenshot shows something you can't locate in the DOM. Take a screenshot first, read its bottom caption strip (viewport px = image px / scale), convert before clicking. A crosshair flashes at the landing point so the user can see the click coming.",
+                name: "clickAt", description: "Dispatch a real mouse click at viewport CSS-pixel coordinates (x, y). This is the VISUAL FALLBACK — try getPageSnapshot/click {ref} first; reach for clickAt only when the target has no DOM handle (canvas-drawn UI, shadow-DOM widgets, virtualized lists) or a screenshot shows something you can't locate in the DOM. Take a screenshot first, read its bottom caption strip (viewport px = image px / scale), convert before clicking. Supports right button (canvas context menus) and double-click variants. A crosshair flashes at the landing point so the user can see the click coming.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "x": AgentJSONSchemaValue(type: "number", description: "Viewport X in CSS pixels"),
+                    "y": AgentJSONSchemaValue(type: "number", description: "Viewport Y in CSS pixels"),
+                    "button": AgentJSONSchemaValue(type: "string", description: "left (default) | right"),
+                    "double": AgentJSONSchemaValue(type: "boolean", description: "true = double-click"),
+                ], required: ["x", "y"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "hoverAt", description: "Dispatch a real mouse-move (hover) at viewport CSS-pixel coordinates (x, y) — visual fallback for hover menus and tooltips on canvas-drawn UI. Pair with a screenshot afterwards to read what the hover revealed.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "x": AgentJSONSchemaValue(type: "number", description: "Viewport X in CSS pixels"),
                     "y": AgentJSONSchemaValue(type: "number", description: "Viewport Y in CSS pixels"),

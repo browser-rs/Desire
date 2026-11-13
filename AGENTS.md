@@ -311,6 +311,15 @@ Features/Bookmarks/
   另外 `POST /conversations/delete` 的响应里 `liveConversationDeleted: true` 表示那是**面板里
   正在显示**的会话——它的消息还在内存里、下一回合落盘会写回文件，光删文件不解决问题。
 
+- **视觉点击链的坐标纪律（v0.8.56）**：`screenshot` 在视口长边 >1024 CSS px 时
+  等比缩小——**缩放系数烧在截图底部 caption 条里**（`viewport W×H | image w×h |
+  scale S`），模型读图自行换算；改动截图管线时 caption 不能丢（丢了宽窗口的
+  clickAt 会漂 ~1.4x，E20 会挂）。`clickAt`/`drag` 落点前闪准星环（非激活透明
+  浮层 `ClickCrosshair`，非激活面板不会抢焦点），拍准星用 `screencapture -o -x -l
+  <winid>`（0.6s 内拍，`/panel/snapshot` 拍不到它——它不是 SwiftUI 面板）。
+  canvas/自绘 UI 点击后 DOM 指纹不变，后验走**像素对比兜底**（`PixelDiff`
+  160px 灰度缩略图，>2% 差异即判 changed）；像素差 = nil 时退回 DOM 指纹。
+
 ## 已知半成品 / 未支持完整的功能
 
 修功能前先查此清单，避免重复踩坑或误判"这是新 bug"：

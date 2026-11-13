@@ -173,10 +173,14 @@ enum OpenAICompatSSE {
                 parts.append(["type": "image_url", "image_url": ["url": uri]])
             }
             m["content"] = parts
-        } else if msg.role == .tool, msg.toolName == "screenshot" || msg.toolName == "screenshotElement",
-           let content = msg.content, content.hasPrefix("data:image/") {
+        } else if msg.role == .tool, let content = msg.content,
+           ToolResultDispatch.isImage(content) {
+            // 任何 dataURI 工具结果都进 vision（与 AnthropicProvider 同口径）——
+            // 此前硬编码只认 screenshot/screenshotElement，pdfPageScreenshot、
+            // whiteboard 自检截图、editImage lookImage 在 OpenAI 端点上模型
+            // 看不到图（v0.8.55 批 1 放宽）。
             m["content"] = [
-                ["type": "text", "text": "Screenshot of the current viewport"],
+                ["type": "text", "text": AgentVisionResult.label(tool: msg.toolName)],
                 ["type": "image_url", "image_url": ["url": content]],
             ]
         } else if let content = msg.content {

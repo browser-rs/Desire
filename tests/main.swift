@@ -8565,6 +8565,10 @@ testBatchToolCore()
 testWindowRestoreCore()
 
 
+testLookImageCompare()
+testVisionResultLabels()
+testBudgetImageExemption()
+
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
 if !failures.isEmpty {
     print("失败清单：")
@@ -10780,4 +10784,98 @@ func testBookmarkBarTree() {
     childMoved = withChild
     check("书签栏：子层缺失节点不动", childMoved.reorder(id: UUID(), toIndex: 0) == false)
     eq("书签栏：子层不影响根", childMoved[1].title, "x")
+}
+
+// MARK: - ImageLookCompare + vision 标签 + 图片预算豁免（v0.8.55 批 1）
+
+func testLookImageCompare() {
+    // 布局：等高并排 + 分隔带
+    let l = ImageLookCompare.layout(beforeSize: CGSize(width: 800, height: 400),
+                                    afterSize: CGSize(width: 400, height: 400),
+                                    divider: 4, maxHeight: 1024)
+    check("look：同高并排", l.canvasSize.height == 400)
+    check("look：总宽 = 前 + divider + 后", l.canvasSize.width == 800 + 4 + 400)
+    check("look：前矩形从 0 起", l.beforeRect == CGRect(x: 0, y: 0, width: 800, height: 400))
+    check("look：后矩形紧跟分隔带", l.afterRect.minX == 804 && l.afterRect.width == 400)
+    check("look：分隔带位置", l.dividerRect == CGRect(x: 800, y: 0, width: 4, height: 400))
+
+    // maxHeight 钳制 + 纵横比保持
+    let l2 = ImageLookCompare.layout(beforeSize: CGSize(width: 2000, height: 1000),
+                                     afterSize: CGSize(width: 500, height: 1000),
+                                     divider: 4, maxHeight: 500)
+    check("look：maxHeight 钳制", l2.canvasSize.height == 500)
+    check("look：前图等比缩小", l2.beforeRect.width == 1000)
+    check("look：后图等比缩小", l2.afterRect.width == 250)
+
+    // compose：尺寸 + 像素断言（左蓝右红，中隔灰）
+    func solid(_ w: Int, _ h: Int, _ r: UInt8, _ g: UInt8, _ b: UInt8) -> CGImage? {
+        guard let ctx = CGContext(data: nil, width: w, height: h, bitsPerComponent: 8,
+                                  bytesPerRow: w * 4, space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            return nil
+        }
+        ctx.setFillColor(CGColor(red: CGFloat(r) / 255, green: CGFloat(g) / 255,
+                                 blue: CGFloat(b) / 255, alpha: 1))
+        ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        return ctx.makeImage()
+    }
+    // 坑（v0.8.55 批 1 实测）：CG 位图的每行字节数可能带对齐 padding
+    // （164×4=656 实际 672），真实 bpr = dataLen / height；字节序平台相关
+    // （RGBA/BGRA 都出现），断言走"与同管线参考图逐分量比对"绕开两者。
+    func px(_ image: CGImage, _ x: Int, _ y: Int) -> (UInt8, UInt8, UInt8) {
+        guard let data = image.dataProvider?.data,
+              let ptr = CFDataGetBytePtr(data) else { return (255, 255, 255) }
+        let bpr = CFDataGetLength(data) / image.height
+        let i = y * bpr + x * 4
+        return (ptr[i], ptr[i + 1], ptr[i + 2])
+    }
+    func near(_ a: (UInt8, UInt8, UInt8), _ b: (UInt8, UInt8, UInt8)) -> Bool {
+        zip([a.0, a.1, a.2], [b.0, b.1, b.2]).allSatisfy {
+            abs(Int($0) - Int($1)) <= 12
+        }
+    }
+    // 目标高 = min(maxHeight, 较小高)——**只缩不放**（放大只会糊）；
+    // 两图 80x40 → 同高 40，总宽 = 80 + 4 + 80 = 164
+    if let blue = solid(80, 40, 0, 0, 255), let red = solid(80, 40, 255, 0, 0),
+       let refBlue = solid(1, 1, 0, 0, 255), let refRed = solid(1, 1, 255, 0, 0),
+       let refGray = solid(1, 1, 140, 140, 153),
+       let out = ImageLookCompare.compose(before: blue, after: red, divider: 4) {
+        check("look：compose 尺寸", out.width == 164 && out.height == 40)
+        check("look：compose 左侧是 before", near(px(out, 20, 20), px(refBlue, 0, 0)))
+        check("look：compose 右侧是 after", near(px(out, 160, 20), px(refRed, 0, 0)))
+        check("look：compose 中缝是分隔灰", near(px(out, 82, 20), px(refGray, 0, 0)))
+    } else {
+        check("look：compose 生成", false)
+    }
+
+    // downscaled：长边钳制 + 已小不重采样
+    if let big = solid(1600, 800, 255, 255, 255) {
+        let small = ImageLookCompare.downscaled(big, maxSide: 400)
+        check("look：downscaled 长边钳制", small.width == 400 && small.height == 200)
+        check("look：downscaled 已小原样", ImageLookCompare.downscaled(small, maxSide: 1024) == small)
+    } else {
+        check("look：downscaled 造图", false)
+    }
+}
+
+func testVisionResultLabels() {
+    check("vision：screenshot 标签", AgentVisionResult.label(tool: "screenshot") == "Screenshot of the current viewport")
+    check("vision：editImage 标签", AgentVisionResult.label(tool: "editImage") == "Image editor canvas (lookImage)")
+    check("vision：pdfPageScreenshot 标签", AgentVisionResult.label(tool: "pdfPageScreenshot").contains("PDF"))
+    check("vision：whiteboard 标签", AgentVisionResult.label(tool: "whiteboard").contains("whiteboard"))
+    check("vision：未知工具通用标签", AgentVisionResult.label(tool: "mystery") == "Image returned by mystery")
+    check("vision：nil 工具", AgentVisionResult.label(tool: nil) == "Image returned by tool")
+}
+
+func testBudgetImageExemption() {
+    // dataURI 结果不走 24k 文本预算（截断 base64 = 毁图，v0.8.55 修复）
+    let uri = "data:image/jpeg;base64," + String(repeating: "Q", count: 30_000)
+    check("预算：图片结果原样通过", ToolResultBudget.apply(uri, tool: "screenshot") == uri)
+    // 文本照旧截断并带显式标记
+    let text = String(repeating: "x", count: 30_000)
+    let budgeted = ToolResultBudget.apply(text, tool: "screenshot")
+    check("预算：文本照旧截断", budgeted.count < 30_000 && budgeted.contains("truncated"))
+    // 带首尾空白的 dataURI 也认（结果分发同一 trim 口径）
+    let padded = "  \n" + uri + "  "
+    check("预算：空白包裹的图片也豁免", ToolResultBudget.apply(padded, tool: "screenshot") == padded)
 }

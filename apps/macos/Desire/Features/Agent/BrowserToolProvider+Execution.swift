@@ -372,6 +372,11 @@ extension BrowserToolProvider {
             }
             let result = await ImageEditorCommands.apply(command, session: target)
             if let error = result["error"] as? String { return Self.fail(error) }
+            // lookImage：图片结果必须**裸返** dataURI——vision 通道按结果
+            // 前缀识别（ToolResultDispatch.isImage），包进 JSON 模型就看不到图。
+            if let uri = result["visionImage"] as? String, uri.hasPrefix("data:image/") {
+                return uri
+            }
             let data = (try? JSONSerialization.data(withJSONObject: result,
                                                     options: [.sortedKeys])) ?? Data()
             return String(data: data, encoding: .utf8) ?? "{\"ok\":true}"

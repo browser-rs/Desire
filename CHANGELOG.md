@@ -1,9 +1,15 @@
 ## [Unreleased]
+### Fixed
+
+- **vision 通道两处修复（v0.8.55 批 1，修图闭环地基）**：① 工具结果预算对 dataURI 图片结果不再按 24k 文本预算截断——此前 screenshot 的 base64 一律被砍断，vision 模型解码必败；② OpenAI 兼容端点的 vision 编码此前硬编码只认 screenshot/screenshotElement 两个工具名（pdfPageScreenshot、whiteboard 自检截图在 OpenAI 端点上模型根本看不到图）——放宽为**任何** `data:image/` 前缀的工具结果都进 vision（与 AnthropicProvider 既有口径一致），文本标签随工具语义（AgentVisionResult）。
+
 ### Added
 
 - ImagePro 液化变形工具：推挤/膨胀/收缩三模式画笔（软边位移，随笔画逐段应用），工具轨新入口 + 命令 API `liquify`（AI 可驱动）
 - ImagePro 透视校正：命令 API `perspective` 传 4 角拉直变形区域（CIPerspectiveCorrection）
 - ImagePro 工具面文档：editImage 工具描述补 liquify/perspective 两个 action（Agent 自动可见）
+- ImagePro `editImage` 新增 **lookImage** action（v0.8.55 批 1）：把画布渲染成图片**裸返**给模型（vision 输入，与 screenshot 同通道）——mode：`canvas` 当前合成 / `layer` 活动图层 / `before` 原图锚点 / `compare` before|now 同高并排（自检用）；`maxSide` 控长边（默认 1024）。editImage 工具描述同步写入"看 → 修 → compare 自检"反盲修工作流。配套：`ImageLookCompare`（并排拼图 + 等比缩放，Foundation/CoreGraphics 进 harness 3165 项）。
+
 
 
 ## [v0.8.54] - 2026-11-12

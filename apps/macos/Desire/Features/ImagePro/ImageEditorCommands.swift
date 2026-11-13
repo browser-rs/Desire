@@ -415,6 +415,8 @@ enum ImageEditorCommands {
                 return ["ok": true, "rPeak": peak(hist.r), "gPeak": peak(hist.g),
                         "bPeak": peak(hist.b),
                         "width": image.width, "height": image.height]
+            case "lookImage", "look":
+                return lookImage(body: body, document: document)
             case "copy":
                 return ["ok": session.copyToClipboard()]
             case "export":
@@ -508,6 +510,50 @@ enum ImageEditorCommands {
         }
         document.replaceActiveBitmap(output, title: erase ? "Erase" : "Brush")
         return ["ok": true, "points": clamped.count]
+    }
+
+    /// lookImage（v0.8.55 批 1）：修图闭环的"看"——把画布渲染成 dataURI
+    /// 裸返（vision 通道与 screenshot 同机制；执行端按 `visionImage` 键
+    /// 特判剥壳，见 BrowserToolProvider+Execution）。mode：
+    /// `canvas` 当前合成（含蒙版/样式/组）｜`layer` 活动图层独立内容｜
+    /// `before` 原图锚点｜`compare` before|now 同高并排（自检）。
+    /// `maxSide` 控制长边（默认 1024，vision 通道的实用分辨率）。
+    private static func lookImage(body: [String: Any],
+                                  document: ImageEditorDocument) -> [String: Any] {
+        let modeRaw = (body["mode"] as? String ?? "canvas").lowercased()
+        let maxSide = min(1024, max(128, Self.number(body["maxSide"]).map { CGFloat($0) } ?? 1024))
+        let rendered: CGImage?
+        switch modeRaw {
+        case "layer":
+            rendered = document.activeBitmap.map { ImageLookCompare.downscaled($0, maxSide: maxSide) }
+        case "before":
+            rendered = document.originalImage.map { ImageLookCompare.downscaled($0, maxSide: maxSide) }
+            if document.originalImage == nil {
+                return ["error": "No original image anchor (use canvas instead)"]
+            }
+        case "compare":
+            guard let before = document.originalImage else {
+                return ["error": "No original image anchor (use canvas instead)"]
+            }
+            guard let now = document.displayComposite(maxSide: maxSide) else {
+                return ["error": "composite failed"]
+            }
+            rendered = ImageLookCompare.compose(
+                before: ImageLookCompare.downscaled(before, maxSide: maxSide), after: now)
+        default:
+            rendered = document.displayComposite(maxSide: maxSide)
+        }
+        guard let image = rendered else {
+            return ["error": "lookImage render failed"]
+        }
+        guard let uri = ImageAttachment.dataURI(from: NSImage(cgImage: image,
+                                                               size: CGSize(width: image.width,
+                                                                            height: image.height))) else {
+            return ["error": "lookImage encode failed"]
+        }
+        return ["ok": true, "mode": modeRaw,
+                "visionImage": uri,
+                "width": image.width, "height": image.height]
     }
 
     /// 液化变形（v0.8.54 批 7）：brush 命令的 `mode: liquify-push|expand|pinch`

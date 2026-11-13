@@ -128,7 +128,7 @@ draw(false);
 c.addEventListener('click', function(ev) {
   const r = window.__e20rect;
   if (ev.clientX >= r[0] && ev.clientX <= r[0]+r[2] && ev.clientY >= r[1] && ev.clientY <= r[1]+r[3]) {
-    window.__e20clicked = true; draw(true);
+    window.__e20clicked = true; draw(true); document.title = 'E20 HIT';
   } else { window.__e20miss = (window.__e20miss||0)+1; }
 });
 </script></body></html>"""
@@ -368,9 +368,16 @@ c.addEventListener('click', function(ev) {
             clicked = any(m.get("role") == "tool"
                           and "Clicked at" in str(m.get("content") or "")
                           for m in round_msgs)
-            has_image = any(m.get("role") == "tool"
-                            and isinstance(m.get("content"), str)
-                            and m["content"].startswith("data:image/") for m in round_msgs)
+            # 线格式：图片工具结果编码成 content 数组（text + image_url）——
+            # 与 LOOKFIX 的 image_parts 同一判定，别按裸字符串找。
+            has_image = any(
+                m.get("role") == "tool"
+                and ((isinstance(m.get("content"), str)
+                      and m["content"].startswith("data:image/"))
+                     or (isinstance(m.get("content"), list)
+                         and any(isinstance(p, dict) and p.get("type") == "image_url"
+                                 for p in m["content"])))
+                for m in round_msgs)
             if clicked:
                 reply = "E20-DONE clicked"
                 chunk = {"id": "chatcmpl-e20", "object": "chat.completion.chunk",
@@ -1132,9 +1139,17 @@ eval_profile_id = None
 
 
 def install_profile():
-    global previous_active, eval_profile_id
+    global previous_active, eval_profile_id, original_budget
     profiles = bridge("GET", "/ai/profiles")
     previous_active = profiles.get("active")
+    # 预算关断（v0.8.56 实测）：历史 execution-e2e 的 MUSCLE17 把
+    # agentTokenBudget=500 留在共享偏好域，dev 实例继承后每个评估对话
+    # 第一回合（system+292 工具 ≈ 12.8k tokens）就被预算停机——E2 的
+    # 回复位被预算提示占据。评估期间关掉，结束按原值恢复。
+    global original_budget_value
+    original_budget_value = bridge("GET", "/agent/budget").get("budget", 0)
+    if original_budget_value:
+        bridge("POST", "/agent/budget", body={"tokens": 0})
     created = bridge("POST", "/ai/profiles", body={
         "name": "eval-fixture",
         "endpoint": fixture_endpoint(),
@@ -1147,6 +1162,8 @@ def install_profile():
 
 def restore_profile():
     try:
+        if globals().get("original_budget_value"):
+            bridge("POST", "/agent/budget", body={"tokens": globals()["original_budget_value"]})
         if previous_active:
             bridge("POST", "/ai/profiles/activate", body={"id": previous_active})
         if eval_profile_id:
@@ -1215,6 +1232,9 @@ def case_fail_convention():
     check("E2 工具结果以 Error: 开头", (step.get("result") or "").startswith("Error:"))
     check("E2 轨迹标记 threwError", step.get("threwError") is True)
     seen = assistant.get("content") or ""
+    if not seen.startswith("MODEL-SAW>>>Error:"):
+        # 套件内偶发（隔离复放通过）——打印实际回复定位状态依赖。
+        print(f"E2-DIAG reply={seen[:220]!r}")
     check("E2 模型看到的也是失败（Error:）", seen.startswith("MODEL-SAW>>>Error:"))
     check("E2 机械核验触发（全部失败 → 提示）", bool(assistant.get("verificationNote")))
 
@@ -1625,12 +1645,22 @@ def case_look_click_canvas():
     title = ""
     while time.time() < deadline:
         state = bridge("GET", "/state")
+        # /navigate 打的是**选中标签**——只读它（扫全部会撞上上一轮残留的
+        # 旧 E20 标签，坐标错配成点击落空）。
         tabs = state.get("tabs") or []
-        if tabs:
-            title = str(tabs[-1].get("title") or "")
-            if "btn=" in title:
+        sel = state.get("selected")
+        candidate = ""
+        if isinstance(sel, int) and 0 <= sel < len(tabs):
+            candidate = str(tabs[sel].get("title") or "")
+        if "btn=" in candidate:
+            # 坐标稳定窗（v0.8.56 实测教训）：dev 实例启动数秒后窗口 frame
+            # 才恢复（900 宽 → 2560 全屏），按钮随 viewport 重画——读两次
+            # 一致才动手，否则坐标来自旧 frame，点击落空。
+            if candidate == title:
+                title = candidate
                 break
-        time.sleep(0.5)
+            title = candidate
+        time.sleep(0.6)
     m = _re.search(r"btn=(\d+),(\d+)", title)
     check("E20 fixture 按钮坐标就绪", m is not None)
     if m is None:
@@ -1647,15 +1677,26 @@ def case_look_click_canvas():
         check("E20 轨迹 look→click 配对", len(look) >= 1 and len(click) == 1)
         click_result = (click[0].get("result") or "") if click else ""
         check("E20 clickAt 后验标注在场", "[verify" in click_result)
-        # 页面状态翻转（真命中：hit-region 判定，点偏=miss 不翻转）
-        exec = bridge("POST", "/execute", body={"script": "window.__e20clicked === true"})
-        check("E20 canvas 按钮命中", str(exec.get("result") or exec.get("value") or "").lower()
-              in ("true", "1"))
+        # 页面状态翻转（真命中：hit-region 判定，点偏=miss 不翻转）。
+        # 走 title 通道（fixture 命中时翻成 'E20 HIT'）——与坐标读取同一
+        # 标签定位路径，比 /execute 的时序/定位可靠（实测教训）。
+        hit_seen = False
+        deadline = time.time() + 8
+        while time.time() < deadline:
+            st = bridge("GET", "/state")
+            tabs = st.get("tabs") or []
+            sel = st.get("selected")
+            t = str(tabs[sel].get("title") or "") if isinstance(sel, int) and sel < len(tabs) else ""
+            if "E20 HIT" in t:
+                hit_seen = True
+                break
+            time.sleep(0.5)
+        check("E20 canvas 按钮命中", hit_seen)
     finally:
         pass
 
 
-def case_image_tool_contract():
+def case_look_image():
     """E19 修图闭环（v0.8.55 批 2，本地专属 EVAL_E19=1）：fixture PNG 经
     /navigate 打进图片编辑器 → lookImage（vision 返回）→ adjust →
     lookImage compare → DONE。断言 vision 通道端到端：工具图片结果以

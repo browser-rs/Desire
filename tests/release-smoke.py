@@ -136,6 +136,15 @@ def main():
     ok("应用就绪（/state tabs≥1）", len(s.get("tabs", [])) >= 1,
        f"tabs={len(s.get('tabs', []))}")
 
+    # 启动预算观测（v0.8.56 批 3）：首窗可交互 ms vs 700ms 警戒线——超线打印
+    # 警戒不阻塞（硬线 ≤2000ms 在 execution-e2e；runner/用户机差异只记趋势）。
+    startup_ms = (s.get("startup") or {}).get("firstWindowMs")
+    if isinstance(startup_ms, int) and startup_ms >= 0:
+        if startup_ms > 700:
+            print(f"△ 启动预算：首窗 {startup_ms}ms 超 700ms 警戒线（观测项，不阻塞）")
+        else:
+            print(f"✓ 启动预算：首窗 {startup_ms}ms ≤ 700ms")
+
     original_url = selected_tab().get("url") or ""
     server = None
     backup_path = pathlib.Path(f"/tmp/desire-release-smoke-{os.getpid()}.json")

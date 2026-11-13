@@ -415,7 +415,9 @@ enum ImageEditorCommands {
                 return ["ok": true, "rPeak": peak(hist.r), "gPeak": peak(hist.g),
                         "bPeak": peak(hist.b),
                         "width": image.width, "height": image.height]
-            case "lookImage", "look":
+            case "lookimage", "look":
+                // apply() 入口把 action 统一 lowercased——文档/工具面写
+                // `lookImage`，到这里是 "lookimage"（camelCase 别名同义）。
                 return lookImage(body: body, document: document)
             case "contentfill":
                 return contentFill(body: body, session: session, document: document)

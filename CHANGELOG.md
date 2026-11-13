@@ -9,6 +9,9 @@
 - ImagePro 透视校正：命令 API `perspective` 传 4 角拉直变形区域（CIPerspectiveCorrection）
 - ImagePro 工具面文档：editImage 工具描述补 liquify/perspective 两个 action（Agent 自动可见）
 - ImagePro `editImage` 新增 **lookImage** action（v0.8.55 批 1）：把画布渲染成图片**裸返**给模型（vision 输入，与 screenshot 同通道）——mode：`canvas` 当前合成 / `layer` 活动图层 / `before` 原图锚点 / `compare` before|now 同高并排（自检用）；`maxSide` 控长边（默认 1024）。editImage 工具描述同步写入"看 → 修 → compare 自检"反盲修工作流。配套：`ImageLookCompare`（并排拼图 + 等比缩放，Foundation/CoreGraphics 进 harness 3165 项）。
+- **右键"让 Agent 修这张图"**（v0.8.55 批 2）：网页图片右键直接把修图任务投递给 Agent 会话（下载带 referer → 编辑器打开 → sendMessage 注入"看 → 修 → compare 自检"闭环指令 → 面板亮出）；投递口径与菜单栏快速入口一致（deliveryTarget），无会话时 toast 提示先开一次面板。
+- Agent 评估 **E19 look-image**（本地 EVAL_E19=1）：fixture PNG 走 /navigate 进编辑器 → lookImage（vision 返回）→ adjust → lookImage compare → DONE 四拍闭环；断言 vision 通道端到端——工具图片结果以 image_url part 进请求体（OpenAI 线格式）、标签随工具语义、轨迹两次 look 且结果为 data:image/。假端点按（vision part 数， editImage 调用数）四拍推进，并把 imageParts/visionLabels 记进 /requests。
+
 
 
 

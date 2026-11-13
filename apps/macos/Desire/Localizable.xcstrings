@@ -107948,6 +107948,52 @@
           }
         }
       }
+    },
+    "Ask Agent to Fix This Image":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Ask Agent to Fix This Image"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"让 Agent 修这张图"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"讓 Agent 修這張圖"
+          }
+        }
+      }
+    },
+    "Open the Agent panel once to start a session first":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Open the Agent panel once to start a session first"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"先打开一次 Agent 面板以创建会话"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"先打開一次 Agent 面板以建立會話"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

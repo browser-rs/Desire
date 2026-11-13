@@ -41,6 +41,9 @@ enum PageContextMenu {
             menu.addItem(item(String(localized: "Edit with Desire"), action: {
                 editImage(urlString: info.imageUrl, pageURLString: info.pageUrl)
             }))
+            menu.addItem(item(String(localized: "Ask Agent to Fix This Image"), action: {
+                askAgentFixImage(urlString: info.imageUrl, pageURLString: info.pageUrl)
+            }))
             let search = NSMenu(title: String(localized: "Reverse Search"))
             for (name, template) in reverseEngines {
                 search.addItem(item(name) {
@@ -145,6 +148,42 @@ enum PageContextMenu {
 
     /// 图片下载进图片编辑器：带页面 referer（防盗链站点），落临时目录。
     private static func editImage(urlString: String, pageURLString: String) {
+        downloadForEdit(urlString: urlString, pageURLString: pageURLString) { destination, displayName in
+            guard let manager = TabSessionCoordinator.shared.activeTabManager,
+                  let tab = manager.selectedTab else { return }
+            tab.browser.openImageEditor(url: destination, fileName: displayName)
+            RecentLocalFiles.record(url: destination)
+        }
+    }
+
+    /// 让 Agent 修图（v0.8.55 批 2）：下载 → 编辑器打开 → 把修图任务投递给
+    /// Agent 会话（与菜单栏入口/定时任务同一投递口径）→ 亮出面板。
+    /// 提示词走"看 → 修 → compare 自检"闭环（与 editImage 工具描述同一句式）。
+    private static func askAgentFixImage(urlString: String, pageURLString: String) {
+        downloadForEdit(urlString: urlString, pageURLString: pageURLString) { destination, displayName in
+            guard let manager = TabSessionCoordinator.shared.activeTabManager,
+                  let tab = manager.selectedTab else { return }
+            tab.browser.openImageEditor(url: destination, fileName: displayName)
+            RecentLocalFiles.record(url: destination)
+            // 投递口径与菜单栏快速入口一致：deliveryTarget（最新注册的会话）。
+            guard let session = AgentScheduler.shared.deliveryTarget else {
+                toast(String(localized: "Open the Agent panel once to start a session first"))
+                return
+            }
+            let path = destination.path
+            session.sendMessage("""
+                这张图片已在图片编辑器中打开（文件：\(path)）。请先用 lookImage 看图再动手：\
+                修正曝光与色彩、突出主体、清理明显瑕疵（水印、杂物），必要时裁剪构图；\
+                改完用 lookImage compare 自检，通过后保存并简述你做了什么。
+                """)
+            NotificationCenter.default.post(name: .desireShowAgentPanel, object: nil)
+        }
+    }
+
+    /// 共用下载（编辑器/Agent 修图两条入口）：带页面 referer（防盗链站点），
+    /// 落临时目录；成功回调在主线程。
+    private static func downloadForEdit(urlString: String, pageURLString: String,
+                                        completion: @escaping (URL, String) -> Void) {
         guard let url = URL(string: urlString) else { return }
         var request = URLRequest(url: url)
         if let page = URL(string: pageURLString) {
@@ -166,15 +205,9 @@ enum PageContextMenu {
                 DispatchQueue.main.async { toast(error.localizedDescription) }
                 return
             }
-            DispatchQueue.main.async {
-                guard let manager = TabSessionCoordinator.shared.activeTabManager,
-                      let tab = manager.selectedTab else { return }
-                tab.browser.openImageEditor(
-                    url: destination,
-                    fileName: url.lastPathComponent.isEmpty
-                        ? destination.lastPathComponent : url.lastPathComponent)
-                RecentLocalFiles.record(url: destination)
-            }
+            let displayName = url.lastPathComponent.isEmpty
+                ? destination.lastPathComponent : url.lastPathComponent
+            DispatchQueue.main.async { completion(destination, displayName) }
         }.resume()
     }
 

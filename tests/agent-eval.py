@@ -172,7 +172,25 @@ class Handler(BaseHTTPRequestHandler):
         round_msgs = msgs_all[last_user_idx + 1:]
         has_tool = any(m.get("role") == "tool" for m in round_msgs)
         # E7：逐请求记录（model + system 首段 + 末条 user），供 GET /requests 断言。
-        REQUESTS.append({"model": model, "system": system_text[:160], "lastUser": mode_text[:64]})
+        # LOOKFIX（v0.8.55 批 2）：另记本轮 vision part 数与标签——断言
+        # "工具图片结果真进了请求体"（vision 通道 E2E 的核心证据）。
+        image_parts = 0
+        vision_labels = []
+        for m in round_msgs:
+            if m.get("role") != "tool" or not isinstance(m.get("content"), list):
+                continue
+            for part in m["content"]:
+                if isinstance(part, dict) and part.get("type") == "image_url":
+                    image_parts += 1
+                elif isinstance(part, dict) and part.get("type") == "text":
+                    vision_labels.append(part.get("text") or "")
+        edit_calls = sum(
+            1 for m in round_msgs if m.get("role") == "assistant"
+            for tc in (m.get("tool_calls") or [])
+            if tc.get("function", {}).get("name") == "editImage")
+        REQUESTS.append({"model": model, "system": system_text[:160], "lastUser": mode_text[:64],
+                         "imageParts": image_parts, "visionLabels": vision_labels,
+                         "editCalls": edit_calls})
         # 诊断（CI E6 超时用）：分支输入落盘 + stderr（CI 日志可见）。
         import sys as _sys
         _line = f"FIXTURE-REQ: mode={mode_text[:48]!r} has_tool={has_tool} tools={len([m for m in round_msgs if m.get('role') == 'tool'])}"
@@ -291,6 +309,50 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush(); self.close_connection = True
+            return
+
+        # LOOKFIX（v0.8.55 批 2）：修图闭环四拍——lookImage canvas → adjust →
+        # lookImage compare → DONE。按（vision part 数, editImage 调用数）推进，
+        # 同时把"请求体里有没有 image_url part"作为断言素材（vision 通道 E2E）。
+        if "LOOKFIX" in mode_text:
+            def emit_tool(call_id, name, args):
+                call = {"index": 0, "id": call_id, "type": "function",
+                        "function": {"name": name, "arguments": json.dumps(args)}}
+                chunk = {"id": "chatcmpl-look", "object": "chat.completion.chunk",
+                         "created": int(time.time()), "model": model,
+                         "choices": [{"index": 0,
+                                      "delta": {"role": "assistant", "tool_calls": [call]},
+                                      "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                done = {"id": "chatcmpl-look", "object": "chat.completion.chunk",
+                        "created": int(time.time()), "model": model,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+                self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush(); self.close_connection = True
+            if image_parts >= 2:
+                reply = "LOOKFIX-DONE compare looks good"
+                chunk = {"id": "chatcmpl-look", "object": "chat.completion.chunk",
+                         "created": int(time.time()), "model": model,
+                         "choices": [{"index": 0,
+                                      "delta": {"role": "assistant", "content": reply},
+                                      "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                done = {"id": "chatcmpl-look", "object": "chat.completion.chunk",
+                        "created": int(time.time()), "model": model,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+                self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush(); self.close_connection = True
+            elif image_parts >= 1 and edit_calls >= 2:
+                emit_tool("call_look2", "editImage",
+                          {"action": "lookImage", "params": json.dumps({"mode": "compare"})})
+            elif image_parts >= 1:
+                emit_tool("call_adj1", "editImage",
+                          {"action": "adjust", "params": json.dumps({"brightness": 0.05})})
+            else:
+                emit_tool("call_look1", "editImage",
+                          {"action": "lookImage", "params": json.dumps({"mode": "canvas"})})
             return
 
         # 白板契约（E8，0.6.7）：一条消息连发 10 个 whiteboard/screenshot 调用——
@@ -1466,6 +1528,56 @@ def case_har_export():
     check("E15 非法 tab uuid 报错", "error" in bad)
 
 
+def case_look_image():
+    """E19 修图闭环（v0.8.55 批 2，本地专属 EVAL_E19=1）：fixture PNG 经
+    /navigate 打进图片编辑器 → lookImage（vision 返回）→ adjust →
+    lookImage compare → DONE。断言 vision 通道端到端：工具图片结果以
+    image_url part 进请求体（OpenAI 线格式）、标签随工具语义、轨迹两次 look。"""
+    import struct as _struct
+    import zlib as _zlib
+    png_path = "/tmp/eval-look-fixture.png"
+
+    def write_png(path, w, h):
+        def chunk(typ, data):
+            return (_struct.pack(">I", len(data)) + typ + data
+                    + _struct.pack(">I", _zlib.crc32(typ + data) & 0xFFFFFFFF))
+        ihdr = _struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0)  # 8bit truecolor RGB
+        raw = b"".join(b"\x00" + bytes([30, 144, 255]) * w for _ in range(h))
+        with open(path, "wb") as f:
+            f.write(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", ihdr)
+                    + chunk(b"IDAT", _zlib.compress(raw)) + chunk(b"IEND", b""))
+
+    write_png(png_path, 64, 64)
+    bridge("POST", "/navigate", body={"url": "file://" + png_path})
+    time.sleep(1.5)  # 编辑器建会话（openImageEditor 是同步置位，给渲染一拍）
+    state = bridge("GET", "/image/state")
+    check("E19 编辑器已打开 fixture 图", state.get("ok") is True
+          and state.get("width") == 64 and state.get("height") == 64)
+    try:
+        msgs = run_case("EVAL-LOOKFIX 修一下这张图")
+        _, assistant, _ = last_exchange(msgs)
+        check("E19 模型走完闭环", (assistant.get("content") or "")
+              == "LOOKFIX-DONE compare looks good")
+        reqs = json.loads(fixture_bridge("GET", "/requests"))["requests"]
+        look_reqs = [r for r in reqs if r.get("imageParts")]
+        check("E19 vision part 两次进请求体", sum(r.get("imageParts") or 0 for r in reqs) >= 2
+              and len(look_reqs) >= 2)
+        labels = [l for r in reqs for l in (r.get("visionLabels") or [])]
+        check("E19 vision 标签随工具语义", any("lookImage" in l for l in labels))
+        turn = json.loads(bridge("GET", "/agent/trace")["jsonl"].split("\n")[-1])
+        steps = turn.get("steps") or []
+        looks = [s for s in steps if s.get("action") == "editImage"
+                 and "lookImage" in json.dumps(s.get("args") or "")]
+        check("E19 轨迹两次 lookImage", len(looks) == 2)
+        check("E19 lookImage 返回图片",
+              all((s.get("result") or "").startswith("data:image/") for s in looks))
+    finally:
+        try:
+            os.remove(png_path)
+        except OSError:
+            pass
+
+
 def case_image_tool_contract():
     """E16 图片工具失败回执（v0.8.44）：不存在路径的 mergeImages/cropImage
     全部走统一 Error: 约定，轨迹标记 threwError。"""
@@ -1556,7 +1668,8 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E15 har-export", case_har_export),
          ("E16 image-tool-contract", case_image_tool_contract),
          ("E17 job-template-lifecycle", case_job_template_lifecycle),
-         ("E18 feed-lifecycle", case_feed_lifecycle)]
+         ("E18 feed-lifecycle", case_feed_lifecycle),
+         ("E19 look-image（本地专属，EVAL_E19=1 开启）", case_look_image)]
 
 results = []
 
@@ -1608,6 +1721,10 @@ def main():
                 # CI runner 上应用无法激活（isActive 恒 false）——浏览器端点
                 # 全部挂起，浏览器依赖用例只能在本地跑（0.7.0 发版实测）。
                 results.append((name + " — CI 跳过（本地 EVAL_E15=1 运行）", True, ""))
+                continue
+            if case is case_look_image and os.environ.get("EVAL_E19") != "1":
+                # 同上：E19 要 /navigate 开编辑器 + 真实修图回合（本地专属）。
+                results.append((name + " — CI 跳过（本地 EVAL_E19=1 运行）", True, ""))
                 continue
             try:
                 case()

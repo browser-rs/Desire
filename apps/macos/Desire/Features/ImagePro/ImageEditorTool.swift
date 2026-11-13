@@ -13,6 +13,7 @@ nonisolated enum ImageEditorTool: String, CaseIterable, Sendable {
     case text
     case shape
     case retouch
+    case liquify     // 液化变形（v0.8.54 批 7）
     case gradient
     case eyedropper
     case hand
@@ -30,6 +31,7 @@ nonisolated enum ImageEditorTool: String, CaseIterable, Sendable {
         case .text: return "t"
         case .shape: return "u"
         case .retouch: return "j"
+        case .liquify: return nil
         case .gradient: return "g"
         case .eyedropper: return "i"
         case .hand: return "h"
@@ -49,6 +51,7 @@ nonisolated enum ImageEditorTool: String, CaseIterable, Sendable {
         case .text: return String(localized: "Text Tool")
         case .shape: return String(localized: "Shape")
         case .retouch: return String(localized: "Retouch")
+        case .liquify: return String(localized: "Liquify Tool")
         case .gradient: return String(localized: "Gradient")
         case .eyedropper: return String(localized: "Eyedropper Tool")
         case .hand: return String(localized: "Hand")
@@ -68,6 +71,7 @@ nonisolated enum ImageEditorTool: String, CaseIterable, Sendable {
         case .text: return "character.textbox"
         case .shape: return "square.on.circle"
         case .retouch: return "bandage"
+        case .liquify: return "tornado"
         case .gradient: return "circle.lefthalf.filled"
         case .eyedropper: return "eyedropper"
         case .hand: return "hand.raised"
@@ -258,6 +262,19 @@ nonisolated enum ImageRetouchMode: String, CaseIterable, Sendable {
         case .burn: return String(localized: "Burn Tool")
         case .blur: return String(localized: "Blur Tool")
         case .sharpen: return String(localized: "Sharpen Tool")
+        }
+    }
+}
+
+/// 液化变形模式（v0.8.54 批 7）：推挤沿拖拽方向位移；膨胀/收缩径向位移。
+nonisolated enum ImageLiquifyMode: String, CaseIterable, Sendable {
+    case push, expand, pinch
+
+    var localizedTitle: String {
+        switch self {
+        case .push: return String(localized: "Push")
+        case .expand: return String(localized: "Expand")
+        case .pinch: return String(localized: "Pinch")
         }
     }
 }

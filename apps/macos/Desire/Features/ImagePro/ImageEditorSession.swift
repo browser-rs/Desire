@@ -75,6 +75,8 @@ final class ImageEditorSession: ObservableObject {
     @Published var retouchMode: ImageRetouchMode = .clone
     @Published var retouchStrength: Double = 0.7
     @Published var cloneSample: CGPoint?
+    /// 液化变形模式（v0.8.54 批 7）：push / expand / pinch。
+    @Published var liquifyMode: ImageLiquifyMode = .push
     /// 蒙版绘制模式（v0.8.54 批 2）：true = 画笔在图层蒙版上画黑/白（而非内容位图）。
     @Published var paintOnMask = false
     @Published var gradientRadial = false

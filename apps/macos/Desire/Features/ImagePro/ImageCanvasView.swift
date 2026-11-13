@@ -527,7 +527,8 @@ struct ImageCanvasView: View {
 
     @ViewBuilder
     private func brushCursor(_ t: ImageCanvasTransform) -> some View {
-        if (session.tool == .brush || session.tool == .eraser || session.tool == .retouch),
+        if (session.tool == .brush || session.tool == .eraser || session.tool == .retouch
+            || session.tool == .liquify),
            let hover = hoverCanvas {
             Circle()
                 .stroke(Color.white.opacity(0.9), lineWidth: 1)
@@ -671,7 +672,7 @@ struct ImageCanvasView: View {
             if let color = document.sampleColor(at: base) {
                 session.setPrimaryColor(color)
             }
-        case .brush, .eraser:
+        case .brush, .eraser, .liquify:
             strokePoints = [base]
         case .marquee, .shape, .gradient:
             combineMode = selectionCombine(from: flags)
@@ -737,7 +738,7 @@ struct ImageCanvasView: View {
                 }
                 document.setLayerOffset(document.activeLayerID, target)
             }
-        case .brush, .eraser:
+        case .brush, .eraser, .liquify:
             strokePoints.append(base)
         case .retouch:
             let start = retouchLast ?? base
@@ -780,6 +781,8 @@ struct ImageCanvasView: View {
         case .brush, .eraser:
             if strokePoints.isEmpty { strokePoints = [base] }
             commitStroke(t)
+        case .liquify:
+            if strokePoints.count >= 2 { commitLiquify() }
         case .marquee:
             if let start = dragStart {
                 let rect = normalized(start, base)
@@ -964,8 +967,37 @@ struct ImageCanvasView: View {
     /// 拖动中才有值（松手 commitStroke 清空 strokePoints → overlay 消失，
     /// 位图上的真实笔画接管，无闪空）。
     private var liveStrokePoints: [CGPoint]? {
-        guard session.tool == .brush || session.tool == .eraser else { return nil }
+        guard session.tool == .brush || session.tool == .eraser || session.tool == .liquify
+        else { return nil }
         return strokePoints.count >= 2 ? strokePoints : nil
+    }
+
+    /// 液化变形（v0.8.54 批 7）：沿笔画逐段对内容位图做位移
+    /// （与命令 API `liquify` 同一实现；半径/模式取工具选项栏）。
+    private func commitLiquify() {
+        defer { strokePoints = [] }
+        guard let bitmap = document.activeBitmap, strokePoints.count >= 2 else { return }
+        var output = bitmap
+        let radius = max(2, session.brushSize / 2)
+        let mode: LiquifyBrush.Mode
+        switch session.liquifyMode {
+        case .push: mode = .push
+        case .expand: mode = .expand
+        case .pinch: mode = .pinch
+        }
+        var applied = 0
+        for i in 1..<strokePoints.count {
+            let from = strokePoints[i - 1]
+            let to = strokePoints[i]
+            let delta = CGPoint(x: to.x - from.x, y: to.y - from.y)
+            if let warped = LiquifyBrush.warp(output, center: to, radius: radius,
+                                              mode: mode, delta: delta) {
+                output = warped
+                applied += 1
+            }
+        }
+        guard applied > 0 else { return }
+        document.replaceActiveBitmap(output, title: String(localized: "Liquify"))
     }
 
     private func commitStroke(_ t: ImageCanvasTransform) {

@@ -1,3 +1,11 @@
+## [Unreleased]
+### Added
+
+- ImagePro 液化变形工具：推挤/膨胀/收缩三模式画笔（软边位移，随笔画逐段应用），工具轨新入口 + 命令 API `liquify`（AI 可驱动）
+- ImagePro 透视校正：命令 API `perspective` 传 4 角拉直变形区域（CIPerspectiveCorrection）
+- ImagePro 工具面文档：editImage 工具描述补 liquify/perspective 两个 action（Agent 自动可见）
+
+
 ## [v0.8.54] - 2026-11-12
 ### Fixed
 

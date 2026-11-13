@@ -461,6 +461,20 @@ struct ImageEditorView: View {
                             .font(.system(size: 10))
                             .foregroundStyle(.tertiary)
                     }
+                case .liquify:
+                    Picker("", selection: $session.liquifyMode) {
+                        ForEach(ImageLiquifyMode.allCases, id: \.rawValue) { mode in
+                            Text(mode.localizedTitle).tag(mode)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .frame(width: 190)
+                    optionSlider(String(localized: "Size"), value: $session.brushSize,
+                                 range: 4...400, width: 100)
+                    Text(String(localized: "Drag to warp pixels"))
+                        .font(.system(size: 10))
+                        .foregroundStyle(.tertiary)
                 case .gradient:
                     Toggle(String(localized: "Radial"), isOn: $session.gradientRadial)
                         .toggleStyle(.checkbox)
@@ -915,7 +929,7 @@ struct ImageExportOptionsSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            Text(String(localized: "Export Options"))
+            Text(String(localized: "Export Image"))
                 .font(.system(size: 12, weight: .semibold))
             Picker("", selection: $format) {
                 Text("PNG").tag("png")

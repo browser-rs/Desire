@@ -52,6 +52,53 @@ enum ImageEditorCommands {
                 }
                 return try brush(points: points, body: body, session: session,
                                  document: document, erase: true)
+            case "liquify":
+                guard let raw = body["points"] as? [[Any]],
+                      let points = Self.points(raw) else {
+                    return ["error": "liquify needs points: [[x,y], ...]"]
+                }
+                return liquify(points: points, body: body, session: session,
+                               document: document)
+            case "perspective":
+                // 透视校正（v0.8.54 批 8）：4 角（[x,y] 数组，TL/TR/BL/BR）
+                // → CIPerspectiveCorrection 拉直 → 裁剪到校正后范围。
+                guard let cornersRaw = body["corners"] as? [[Any]],
+                      cornersRaw.count == 4 else {
+                    return ["error": "perspective needs corners: [[x,y]×4] (TL/TR/BL/BR)"]
+                }
+                let corners: [CGPoint] = cornersRaw.map { raw in
+                    let x = Self.number(raw.count > 0 ? raw[0] : nil).map { CGFloat($0) } ?? 0
+                    let y = Self.number(raw.count > 1 ? raw[1] : nil).map { CGFloat($0) } ?? 0
+                    return CGPoint(x: x, y: y)
+                }
+                document.bakeActiveLayerGeometry()
+                document.bakeActiveLayerEffects()
+                guard let bitmap = document.activeBitmap else {
+                    return ["error": "No active layer"]
+                }
+                let ciInput = CIImage(cgImage: bitmap)
+                guard let filter = CIFilter(name: "CIPerspectiveCorrection") else {
+                    return ["error": "CIPerspectiveCorrection unavailable"]
+                }
+                filter.setValue(ciInput, forKey: kCIInputImageKey)
+                filter.setValue(CIVector(cgPoint: corners[0]), forKey: "inputTopLeft")
+                filter.setValue(CIVector(cgPoint: corners[1]), forKey: "inputTopRight")
+                filter.setValue(CIVector(cgPoint: corners[2]), forKey: "inputBottomLeft")
+                filter.setValue(CIVector(cgPoint: corners[3]), forKey: "inputBottomRight")
+                guard let output = filter.outputImage,
+                      let rendered = ImagePipelineRenderer.context.createCGImage(
+                        output.cropped(to: CGRect(x: 0, y: 0,
+                                                  width: bitmap.width,
+                                                  height: bitmap.height)),
+                        from: CGRect(x: 0, y: 0,
+                                     width: bitmap.width, height: bitmap.height)) else {
+                    return ["error": "perspective correction failed"]
+                }
+                document.replaceActiveBitmap(rendered, title: "Perspective")
+                let cornerText = corners.map { point in
+                    "[\(Int(point.x)),\(Int(point.y))]"
+                }.joined(separator: " ")
+                return ["ok": true, "corners": cornerText]
             case "shape":
                 return try shape(body: body, session: session, document: document)
             case "text":
@@ -461,6 +508,41 @@ enum ImageEditorCommands {
         }
         document.replaceActiveBitmap(output, title: erase ? "Erase" : "Brush")
         return ["ok": true, "points": clamped.count]
+    }
+
+    /// 液化变形（v0.8.54 批 7）：brush 命令的 `mode: liquify-push|expand|pinch`
+    /// 路径——逐段对内容位图做向前推挤/径向膨胀/收缩（软边位移，非破坏走历史）。
+    private static func liquify(points: [CGPoint], body: [String: Any],
+                                session: ImageEditorSession,
+                                document: ImageEditorDocument) -> [String: Any] {
+        document.bakeActiveLayerGeometry()
+        document.bakeActiveLayerEffects()
+        guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
+        guard points.count >= 2 else { return ["error": "liquify needs at least 2 points"] }
+        let radius = (Self.number(body["size"]).map { CGFloat($0) } ?? session.brushSize) / 2
+        let modeRaw = (body["liquifyMode"] as? String ?? "push").lowercased()
+        let mode: LiquifyBrush.Mode
+        switch modeRaw {
+        case "expand": mode = .expand
+        case "pinch": mode = .pinch
+        default: mode = .push
+        }
+        var output = bitmap
+        var applied = 0
+        for i in 1..<points.count {
+            let from = points[i - 1]
+            let to = points[i]
+            let delta = CGPoint(x: to.x - from.x, y: to.y - from.y)
+            if let warped = LiquifyBrush.warp(output, center: to, radius: radius,
+                                              mode: mode, delta: delta) {
+                output = warped
+                applied += 1
+            }
+        }
+        guard applied > 0 else { return ["error": "liquify failed"] }
+        document.replaceActiveBitmap(output, title: "Liquify")
+        return ["ok": true, "mode": modeRaw, "segments": applied,
+                "points": points.count]
     }
 
     private static func shape(body: [String: Any], session: ImageEditorSession,

@@ -4934,3 +4934,28 @@ __desirePickUsername 打分选字段 + aria/tel 信号——"非常规字段名"
 （改价告警系告警文本本地化——断言已改数值+alert 标记语言无关匹配并通过；
 splitView/收件箱/阅读进度等轮换出现 = 长套件尾部退化已知类，各失败在相邻
 轮通过；分节隔离留后续）。harness 3191/0。
+
+## v0.8.57 规划稿（2026-11-14）—— 产物闭环：干完的活有地方看、拿着就能继续干
+
+> 详情见 `docs/ROADMAP-0.8.57-PLAN.md`。**替人干活旗舰**（主题轮换，该主题上次
+> 当旗舰是 0.8.40）。产能面已极厚（批量下载/剪辑/修图/转码/PDF/纯工具/研究简报/
+> 死链值守全部走 Job 台账），但产出物是散的——Edited/Converted/下载目录/简报
+> md 各回各家、Jobs 面板随 Job 老化只显近期、没有跨 Job 的产物视图。产物没有
+> 组织，活就没有连续性。规划前证伪排除：多窗 Agent 联动（0.8.52 已落，AGENTS.md
+> 条目过时）、回合检查点、记忆 decay、任务分组、离线阅读缓存、提醒/备忘录
+> （EventKitBridge）、C7 admin CLI（0.8.44）均已存在；后台命令 dependsOn 已有
+> 但只覆盖 runBackgroundCommand。
+
+**四主题**：① 替人干活（旗舰）= 产物中心（`ArtifactIndex` 派生清单进 harness +
+`desire://artifacts` 页 + `GET /artifacts` + `listArtifacts` 工具 + 行右键
+发送到…/拿去再加工）；② Agent 基础 = 作业链 2.0（JobChain steps + `{prev.artifact}`
+占位符 + JobEventCenter 终态推进、失败停链不回滚、危险步骤整链预览审批、
+JobTemplate 扩 steps 向后兼容单步）；③ 融合 = Remote 产物卡（结构化卡+深链+
+手机发再加工指令）+ 响应式 pixelRatio 收口（真网络节流维持证伪）；④ 浏览器基础 =
+execution-e2e 分节隔离（--section/--sections fast，轮换失败类逐节定位，agent-eval
+E19/E20 归入 smoke 可选档）。**贯穿**：E21 评估（listArtifacts→自主发起再加工）、
+AGENTS.md 过时条目修正、i18n/WhatsNew。**不做**：跨设备产物同步、新作业类型、
+响应式网络节流、passkey、产物 OCR、Workflow 与作业链合并。
+
+**批次**：批 1 产物中心地基 → 批 2 作业链 → 批 3 融合面（Remote 卡/发送到/
+pixelRatio）→ 批 4 收口（分节隔离 + 闸门）。

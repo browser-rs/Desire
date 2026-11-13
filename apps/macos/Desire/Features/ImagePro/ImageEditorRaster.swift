@@ -989,42 +989,17 @@ nonisolated extension ImageEditorRaster {
             // 融合回效果（保纹理、保目标光照），再用蒙版混回——比纯克隆
             // 少"复制感"（E2E/视觉对照用的经典分离式修复）。
             guard let source else { return base }
-            let w = base.width, h = base.height
-            guard let ctx = CGContext(data: nil, width: w, height: h,
+            let dx = point.x - source.x
+            let dy = point.y - source.y
+            guard let ctx = CGContext(data: nil, width: base.width, height: base.height,
                                       bitsPerComponent: 8, bytesPerRow: 0,
                                       space: CGColorSpaceCreateDeviceRGB(),
                                       bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
             else { return nil }
-            let dx = point.x - source.x
-            let dy = point.y - source.y
             ctx.draw(base, in: CGRect(x: dx, y: -dy,
-                                      width: CGFloat(w), height: CGFloat(h)))
-            var cloned = ctx.makeImage() ?? base
-            // 低频亮度提取：大幅高斯模糊 + 下采样，再回贴到全分辨率。
-            let ciBase = CIImage(cgImage: base)
-            let ciCloned = CIImage(cgImage: cloned)
-            if let lowPassFilter = CIFilter(name: "CIGaussianBlur") {
-                lowPassFilter.setValue(ciBase, forKey: kCIInputImageKey)
-                lowPassFilter.setValue(30.0, forKey: kCIInputRadiusKey)
-                if let lowTarget = lowPassFilter.outputImage,
-                   let lowTargetCG = ImagePipelineRenderer.context.createCGImage(
-                        lowTarget.cropped(to: CGRect(x: 0, y: 0, width: w, height: h)),
-                        from: CGRect(x: 0, y: 0, width: w, height: h)) {
-                    if let lowCloneFilter = CIFilter(name: "CIGaussianBlur") {
-                        lowCloneFilter.setValue(ciCloned, forKey: kCIInputImageKey)
-                        lowCloneFilter.setValue(30.0, forKey: kCIInputRadiusKey)
-                        if let lowClone = lowCloneFilter.outputImage,
-                           let lowCloneCG = ImagePipelineRenderer.context.createCGImage(
-                                lowClone.cropped(to: CGRect(x: 0, y: 0, width: w, height: h)),
-                                from: CGRect(x: 0, y: 0, width: w, height: h)) {
-                            if let healed = healedTexture(lowCloneCG, lowTargetCG, cloned) {
-                                cloned = healed
-                            }
-                        }
-                    }
-                }
-            }
-            effect = cloned
+                                      width: CGFloat(base.width), height: CGFloat(base.height)))
+            let cloned = ctx.makeImage() ?? base
+            effect = lowFrequencyFused(original: base, cloned: cloned) ?? cloned
         case .dodge, .burn:
             effect = adjustedBrightness(base, amount: mode == .dodge ? 0.35 : -0.35)
         case .blur:
@@ -1036,8 +1011,62 @@ nonisolated extension ImageEditorRaster {
         return maskedBlend(base: base, effect: effect, mask: mask) ?? base
     }
 
+    /// 低频亮度融合（heal 与 contentfill 共用）：把**原图**的低频亮度
+    /// （大幅高斯模糊）以逐像素比值乘回克隆结果——保纹理、保光照。
+    /// 失败（无 CI）返回 nil（调用方退回纯克隆）。
+    private static func lowFrequencyFused(original: CGImage, cloned: CGImage) -> CGImage? {
+        guard let lowOriginal = blurred(original, radius: 30),
+              let lowCloned = blurred(cloned, radius: 30) else { return nil }
+        // CI 产出的位图字节序/色彩空间平台相关，与 CG 位图直接逐字节混读
+        // 会张冠李戴（v0.8.55 批 3 探针抓到）。统一规范成 RGBA 再算比值。
+        guard let lowOriginalN = normalizedRGBA(lowOriginal),
+              let lowClonedN = normalizedRGBA(lowCloned) else { return nil }
+        // 公式本义：healed = 全分辨率克隆 × (模糊原图/模糊克隆)
+        // ——保纹理（全分辨率）+ 迁移目标光照（低频比值）。
+        // （heal 的旧调用把实参错位成"模糊克隆×(模糊原图/全分辨率克隆)"，
+        // 小笔刷靠局部性掩盖，contentfill 大比值下花掉。）
+        return healedTexture(cloned, lowOriginalN, lowClonedN)
+    }
+
+    /// 把任意来源的 CGImage 重画进标准 RGBA 位图（字节布局与色彩空间
+    /// 都以 CG DeviceRGB 为准）。
+    private static func normalizedRGBA(_ image: CGImage) -> CGImage? {
+        guard let ctx = CGContext(data: nil, width: image.width, height: image.height,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.draw(image, in: CGRect(x: 0, y: 0,
+                                   width: CGFloat(image.width), height: CGFloat(image.height)))
+        return ctx.makeImage()
+    }
+
+    /// 选区内容填充（内容感知·简化版，v0.8.55 批 3）：源区（`sourceOrigin`
+    /// 为源区左上，通常 = 选区正上方同尺寸区域）纹理克隆进选区，再把原图
+    /// 低频亮度融合回——分离式修复的区域化放大（保纹理、保周边光照）。
+    /// 诚实边界：平滑/规则背景（天空、墙面、纯色地面）去水印/去杂物可用；
+    /// 复杂纹理不做 patch 级合成。`mask` = 选区蒙版（白 = 选中，含椭圆/羽化）。
+    static func contentFill(_ base: CGImage, bounds: CGRect, mask: CGImage,
+                            sourceOrigin: CGPoint) -> CGImage? {
+        let w = base.width, h = base.height
+        // 平移语义与 heal 一致：源区内容移到选区位置（图像坐标）。
+        let shift = CGPoint(x: bounds.minX - sourceOrigin.x,
+                            y: bounds.minY - sourceOrigin.y)
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: 8, bytesPerRow: 0,
+                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.draw(base, in: CGRect(x: shift.x, y: -shift.y,
+                                  width: CGFloat(w), height: CGFloat(h)))
+        let cloned = ctx.makeImage() ?? base
+        let fused = lowFrequencyFused(original: base, cloned: cloned) ?? cloned
+        return maskedBlend(base: base, effect: fused, mask: mask) ?? base
+    }
+
     /// 分离式修复：克隆纹理 + 目标低频亮度 = healed。
-    /// 实现：healed = cloned × (lowTarget / lowClone)（逐像素比值融合）。
+    /// 实现：healed = cloned（全分辨率克隆纹理）× (lowTarget / lowClone)
+    /// （两张**模糊**图的逐像素比值；限制幅度防除零爆炸）。
     private static func healedTexture(_ cloned: CGImage, _ lowTarget: CGImage,
                                       _ lowClone: CGImage) -> CGImage? {
         let w = cloned.width, h = cloned.height

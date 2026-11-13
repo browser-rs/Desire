@@ -220,6 +220,19 @@ struct ImageEditorView: View {
                         }
                     }
                 }
+                Button(String(localized: "Content Fill (Selection)")) {
+                    Task { @MainActor in
+                        let result = await ImageEditorCommands.apply(
+                            ["action": "contentfill"],
+                            session: session)
+                        if let error = result["error"] as? String {
+                            session.flash(error)
+                        } else {
+                            session.flash(String(localized: "Content filled"))
+                        }
+                    }
+                }
+                .disabled(session.document.selection.isEmpty)
                 Toggle(String(localized: "Show Grid"), isOn: $session.showGrid)
                 Toggle(String(localized: "Center Guides"), isOn: $session.showCenterGuides)
                 Toggle(String(localized: "Snapping"), isOn: $session.snapping)

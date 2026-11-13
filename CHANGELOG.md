@@ -2,6 +2,8 @@
 ### Fixed
 
 - **vision 通道两处修复（v0.8.55 批 1，修图闭环地基）**：① 工具结果预算对 dataURI 图片结果不再按 24k 文本预算截断——此前 screenshot 的 base64 一律被砍断，vision 模型解码必败；② OpenAI 兼容端点的 vision 编码此前硬编码只认 screenshot/screenshotElement 两个工具名（pdfPageScreenshot、whiteboard 自检截图在 OpenAI 端点上模型根本看不到图）——放宽为**任何** `data:image/` 前缀的工具结果都进 vision（与 AnthropicProvider 既有口径一致），文本标签随工具语义（AgentVisionResult）。
+- **ImagePro 分离式修复（heal）的低频融合实参错位**（v0.8.55 批 3 探针抓到）：`healedTexture` 的调用惯例与注释公式错位——第三参数收全分辨率克隆却被当"模糊克隆"用，实际算的是"模糊克隆×(模糊原图/全分辨率克隆)"；小笔刷靠局部性（比值≈1）掩盖，新 contentfill 的大比值直接花掉。修正为公式本义 healed = 全分辨率克隆 × (模糊原图/模糊克隆)——**修复刷现在保留克隆纹理细节**（此前输出偏糊）。顺带修 CI 产出位图与 CG 位图字节序/色彩空间不一致的混读（统一 normalize 成 RGBA 再算比值）。
+
 
 ### Added
 
@@ -11,6 +13,8 @@
 - ImagePro `editImage` 新增 **lookImage** action（v0.8.55 批 1）：把画布渲染成图片**裸返**给模型（vision 输入，与 screenshot 同通道）——mode：`canvas` 当前合成 / `layer` 活动图层 / `before` 原图锚点 / `compare` before|now 同高并排（自检用）；`maxSide` 控长边（默认 1024）。editImage 工具描述同步写入"看 → 修 → compare 自检"反盲修工作流。配套：`ImageLookCompare`（并排拼图 + 等比缩放，Foundation/CoreGraphics 进 harness 3165 项）。
 - **右键"让 Agent 修这张图"**（v0.8.55 批 2）：网页图片右键直接把修图任务投递给 Agent 会话（下载带 referer → 编辑器打开 → sendMessage 注入"看 → 修 → compare 自检"闭环指令 → 面板亮出）；投递口径与菜单栏快速入口一致（deliveryTarget），无会话时 toast 提示先开一次面板。
 - Agent 评估 **E19 look-image**（本地 EVAL_E19=1）：fixture PNG 走 /navigate 进编辑器 → lookImage（vision 返回）→ adjust → lookImage compare → DONE 四拍闭环；断言 vision 通道端到端——工具图片结果以 image_url part 进请求体（OpenAI 线格式）、标签随工具语义、轨迹两次 look 且结果为 data:image/。假端点按（vision part 数， editImage 调用数）四拍推进，并把 imageParts/visionLabels 记进 /requests。
+- ImagePro **选区内容填充（contentfill，内容感知·简化版）**（v0.8.55 批 3）：源区纹理克隆进选区 + 原图低频亮度融合（分离式修复的区域化放大）。源区缺省自动选（选区正上方同尺寸 → 下 → 左 → 右），`source: [x,y]` 可显式指定；画布菜单新入口"内容填充（选区）"（有选区才可用）；命令 API `contentfill`。诚实边界：平滑/规则背景（天空、墙面、纯色地面）去水印/去杂物可用，复杂纹理不做 patch 级合成。探针 `tests/imagepro-contentfill`（4/4：水印替换/选区外不动/边缘平滑/显式源区）。
+
 
 
 

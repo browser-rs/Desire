@@ -417,6 +417,8 @@ enum ImageEditorCommands {
                         "width": image.width, "height": image.height]
             case "lookImage", "look":
                 return lookImage(body: body, document: document)
+            case "contentfill":
+                return contentFill(body: body, session: session, document: document)
             case "copy":
                 return ["ok": session.copyToClipboard()]
             case "export":
@@ -554,6 +556,54 @@ enum ImageEditorCommands {
         return ["ok": true, "mode": modeRaw,
                 "visionImage": uri,
                 "width": image.width, "height": image.height]
+    }
+
+    /// 选区内容填充（v0.8.55 批 3，内容感知·简化版）：源区纹理克隆进选区 +
+    /// 原图低频亮度融合（ImageEditorRaster.contentFill）。源区缺省自动选：
+    /// 选区正上方同尺寸 → 下方 → 左 → 右，最后钳进画布；`source: [x,y]`
+    /// 显式指定源区左上。适用平滑背景去水印/去杂物（诚实边界见 Raster 注释）。
+    private static func contentFill(body: [String: Any], session: ImageEditorSession,
+                                    document: ImageEditorDocument) -> [String: Any] {
+        guard !document.selection.isEmpty else {
+            return ["error": "contentfill needs a selection"]
+        }
+        document.bakeActiveLayerGeometry()
+        document.bakeActiveLayerEffects()
+        guard let bitmap = document.activeBitmap else { return ["error": "No active layer"] }
+        let canvasSize = document.canvasSize
+        guard let bounds = document.selection.bounds(canvasSize: canvasSize) else {
+            return ["error": "contentfill: selection has no bounds"]
+        }
+        guard let mask = document.selectionMaskImage() else {
+            return ["error": "contentfill: no selection mask"]
+        }
+        let sourceOrigin: CGPoint
+        if let raw = body["source"] as? [Any], raw.count >= 2,
+           let sx = Self.number(raw[0]).map({ CGFloat($0) }),
+           let sy = Self.number(raw[1]).map({ CGFloat($0) }) {
+            sourceOrigin = CGPoint(x: sx, y: sy)
+        } else {
+            let bw = bounds.width, bh = bounds.height
+            if bounds.minY - bh >= 0 {
+                sourceOrigin = CGPoint(x: bounds.minX, y: bounds.minY - bh)          // 上
+            } else if bounds.maxY + bh <= canvasSize.height {
+                sourceOrigin = CGPoint(x: bounds.minX, y: bounds.maxY)               // 下
+            } else if bounds.minX - bw >= 0 {
+                sourceOrigin = CGPoint(x: bounds.minX - bw, y: bounds.minY)          // 左
+            } else {
+                // 右 + 钳进画布（源区与选区可能部分重叠——低频融合仍能兜住平滑区）
+                let x = min(bounds.maxX, canvasSize.width - bw)
+                sourceOrigin = CGPoint(x: max(0, x), y: bounds.minY)
+            }
+        }
+        guard let output = ImageEditorRaster.contentFill(
+            bitmap, bounds: bounds, mask: mask, sourceOrigin: sourceOrigin) else {
+            return ["error": "contentfill failed"]
+        }
+        document.replaceActiveBitmap(output, title: "Content Fill")
+        return ["ok": true,
+                "bounds": "[\(Int(bounds.minX)),\(Int(bounds.minY)) \(Int(bounds.width))×\(Int(bounds.height))]",
+                "source": "[\(Int(sourceOrigin.x)),\(Int(sourceOrigin.y))]"]
     }
 
     /// 液化变形（v0.8.54 批 7）：brush 命令的 `mode: liquify-push|expand|pinch`

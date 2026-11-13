@@ -1602,7 +1602,17 @@ def main():
         tools14 = [m.get("content") or "" for m in conv14.get("messages", []) if m.get("role") == "tool"]
         add14 = next((t for t in tools14 if "Added page watch" in t), "")
         check14a = next((t for t in tools14 if t.startswith("Checked «E2E 价格»") and "latest value" in t), "")
-        alert14 = next((t for t in tools14 if "alert:" in t and "Dropped below" in t), "")
+        # 告警由监视器自己的定时器异步追加——回合结束时未必已写回（本轮
+        # 189/190 的唯一 ✗）。有界轮询会话文件直到告警出现（确定性化）。
+        alert14 = ""
+        deadline_alert = time.time() + 30
+        while time.time() < deadline_alert:
+            conv14 = read_conversation(conv14_id)
+            tools14 = [m.get("content") or "" for m in conv14.get("messages", []) if m.get("role") == "tool"]
+            alert14 = next((t for t in tools14 if "alert:" in t and "Dropped below" in t), "")
+            if alert14:
+                break
+            time.sleep(2)
         list14 = next((t for t in tools14 if "numbers: latest" in t), "")
         remove14 = next((t for t in tools14 if t.startswith("Removed page watch")), "")
         watch_left = [w for w in bridge_retry("GET", "/watches").get("watches", []) if w.get("name") == "E2E 价格"]

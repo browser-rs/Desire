@@ -68,6 +68,39 @@ jobs:
           [ "$VER" = "$EXPECTED" ] || { echo "::error::built version $VER != $EXPECTED"; exit 1; }
           echo "arm64 OK: $VER"
 
+      - name: Launch budget probe (trend, non-blocking)
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/dd-arm64/Build/Products/Release/Desire.app"
+          /usr/bin/open "$APP" --args --automation
+          MS=""
+          for i in $(seq 1 30); do
+            sleep 1
+            RESP=$(curl -s -m 3 http://127.0.0.1:8799/state || true)
+            MS=$(echo "$RESP" | /usr/bin/python3 -c 'import json,sys
+try: print(json.load(sys.stdin)["startup"]["firstWindowMs"])
+except Exception: pass' 2>/dev/null || true)
+            [ -n "$MS" ] && break
+          done
+          if [ -z "$MS" ] || [ "$MS" = "-1" ]; then
+            echo "::warning::launch probe: firstWindowMs unavailable on headless runner (trend data skipped)"
+            pkill -x Desire 2>/dev/null || true
+            exit 0
+          fi
+          echo "firstWindowMs=$MS" >> "$GITHUB_STEP_SUMMARY"
+          echo "launch: first window interactive in ${MS}ms"
+          if [ "$MS" -gt 5000 ]; then
+            echo "::error::first window interactive ${MS}ms — something is broken (>5s)"
+            pkill -x Desire 2>/dev/null || true
+            exit 1
+          fi
+          if [ "$MS" -gt 700 ]; then
+            # 警戒线（v0.8.56 批 3）：runner 硬件/冷缓存有抖动——只标黄记趋势，
+            # 连续两版超线再议阻塞化（规划口径）。
+            echo "::warning::first window interactive ${MS}ms — over the 700ms budget (trend only)"
+          fi
+          pkill -x Desire 2>/dev/null || true
+
       - name: Upload build log on failure
         if: failure()
         uses: actions/upload-artifact@v4

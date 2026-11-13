@@ -4111,6 +4111,9 @@ case ("GET", "/agent/messages"):
                 "tabs": userManagers.reduce(0) { $0 + $1.tabs.count },
                 "visibleWindows": visibleWindows,
                 "firstWindowMs": StartupMetric.firstWindowMs ?? -1,
+                // 启动审计（v0.8.56 批 3）：分段耗时 + 预算判定（summarize 前
+                // 返回空——首窗前的调用拿不到，桥探针在启动完成后读）。
+                "launchAudit": LaunchAudit.snapshot(),
                 "healAttempts": defaults.integer(forKey: "app.launchWindowHealAttempts"),
                 "cleanExitFlag": defaults.object(forKey: "app.cleanExit") as? Bool ?? true,
                 "lastStallAt": RuntimeHealthMonitor.lastStall().map {

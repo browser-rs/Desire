@@ -1256,6 +1256,15 @@ private struct DiagnosticsRow: View {
             systemImage: "stethoscope"
         ) {
             HStack(spacing: 6) {
+                // 启动性能（v0.8.56 批 3）：首窗可交互 ms vs 700ms 预算——
+                // "这版启动慢"从此可自查（分段明细走 /diag/startup 或统一日志
+                // "launch audit" 行）。
+                if let ms = StartupMetric.firstWindowMs {
+                    let over = Double(ms) > LaunchAudit.budgetMs
+                    StatusPill(text: String(localized: "Launch \(ms) ms"),
+                               kind: over ? .warning : .neutral)
+                        .help(String(localized: "First-window interactive time; budget \(Int(LaunchAudit.budgetMs)) ms. Per-phase breakdown: unified log 'launch audit' or GET /diag/startup."))
+                }
                 if browserDiagnostics.totalCrashes > 0 {
                     StatusPill(text: "\(browserDiagnostics.totalCrashes) content crash(es)",
                                kind: .warning)

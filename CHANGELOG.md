@@ -2,6 +2,9 @@
 ### Added
 
 - **视觉点击收口（v0.8.56 批 1）**：① `captureScreenshot` 在视口长边 >1024 缩放后，把 **viewport/图片尺寸与换算系数烧进截图底部 caption 条**（`viewport 1512x850 | image 1024x576 | scale 0.677 | clickAt: viewport px = image px / scale`）——模型读图即知换算，宽窗口（全屏 1512px 漂 ~1.4x）的 screenshot→clickAt 回路恢复可信；② **clickAt 落点准星**：派发真实点击前在屏幕落点闪强调色准星环 0.6s（非激活透明浮层，用户看得见、诊断截图拍得到）；③ 工具面写明 DOM 优先/视觉兜底的切换时机与 caption 换算纪律。换算纯逻辑 `ScreenshotScaleNote` 进 harness（3183/0）。
+- **性能预算接线（v0.8.56 批 3）**：① `/diag/startup` 增 `launchAudit` 字段（LaunchAudit 分段耗时+预算判定+overBudget，桥探针可读）；② 设置 › 通用 › 诊断行新增**启动性能 pill**（首窗可交互 ms vs 700ms 预算，超线黄色）；③ **ci.yml 新增 launch 预算探针**（arm64 构建后启动 app 读 firstWindowMs：>5s 硬失败、>700ms `::warning::` 标黄记趋势不阻塞——先建观测，连续两版超线再议阻塞化；数字进 run summary 可比趋势）。
+- **视觉点击评估 E20**（本地 EVAL_E20=1）：canvas fixture 页（按钮只画在 canvas、故意偏离中心——DOM 点 canvas 中心必 miss）→ screenshot → clickAt（坐标从 fixture 的 document.title 读出）→ 页面状态翻转；断言视觉点击链端到端（坐标空间一致、后验标注在场、轨迹 look→click 配对）；caption 换算数学已在 harness。
+
 
 
 ## [v0.8.55] - 2026-11-13

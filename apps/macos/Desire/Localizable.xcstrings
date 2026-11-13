@@ -108224,6 +108224,52 @@
           }
         }
       }
+    },
+    "Launch %lld ms":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Launch %lld ms"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"启动 %lld 毫秒"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"啟動 %lld 毫秒"
+          }
+        }
+      }
+    },
+    "First-window interactive time; budget %lld ms. Per-phase breakdown: unified log 'launch audit' or GET /diag/startup.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"First-window interactive time; budget %lld ms. Per-phase breakdown: unified log 'launch audit' or GET /diag/startup."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"首窗可交互耗时；预算 %lld 毫秒。分段明细见统一日志 'launch audit' 行或 GET /diag/startup。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"首窗可互動耗時；預算 %lld 毫秒。分段明細見統一日誌 'launch audit' 行或 GET /diag/startup。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

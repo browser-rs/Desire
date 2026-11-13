@@ -103,6 +103,41 @@ class Handler(BaseHTTPRequestHandler):
             overflow_seen = 0
             self.send_response(200); self.send_header("Content-Length", "2"); self.end_headers()
             self.wfile.write(b"ok"); return
+        # /e20：canvas 按钮 fixture（E20 视觉点击——按钮只在 canvas 里画出来，
+        # DOM 无对应节点且故意偏离中心，DOM 点 canvas 中心会 miss；真实命中
+        # 需要截图→clickAt 坐标链）。按钮坐标写进 document.title 供评估读取。
+        if self.path.startswith("/e20"):
+            html = """<!doctype html><html><head><title>E20</title></head>
+<body style="margin:0">
+<canvas id="c" style="width:100vw;height:100vh;display:block"></canvas>
+<script>
+const c = document.getElementById('c');
+function draw(clicked) {
+  c.width = innerWidth; c.height = innerHeight;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f0f0f0'; g.fillRect(0,0,c.width,c.height);
+  const bw = 200, bh = 64;
+  const bx = Math.round(c.width*0.12), by = Math.round(c.height*0.68);
+  g.fillStyle = '#1560ff'; g.fillRect(bx, by, bw, bh);
+  g.fillStyle = '#fff'; g.font = '24px sans-serif';
+  g.fillText(clicked ? 'CLICKED' : 'CANVAS BUTTON', bx + 28, by + 40);
+  window.__e20rect = [bx, by, bw, bh];
+  document.title = 'E20 btn=' + (bx + bw/2) + ',' + (by + bh/2);
+}
+draw(false);
+c.addEventListener('click', function(ev) {
+  const r = window.__e20rect;
+  if (ev.clientX >= r[0] && ev.clientX <= r[0]+r[2] && ev.clientY >= r[1] && ev.clientY <= r[1]+r[3]) {
+    window.__e20clicked = true; draw(true);
+  } else { window.__e20miss = (window.__e20miss||0)+1; }
+});
+</script></body></html>"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(html.encode())))
+            self.end_headers()
+            self.wfile.write(html.encode())
+            return
         # /feed.xml：RSS fixture（E18 订阅全链——subscribeFeed 抓这里的真实 RSS）。
         if self.path.startswith("/feed.xml"):
             rss = """<?xml version="1.0" encoding="UTF-8"?>
@@ -309,6 +344,55 @@ class Handler(BaseHTTPRequestHandler):
             self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush(); self.close_connection = True
+            return
+
+        # E20CLICK（v0.8.56 批 2）：视觉点击三拍——screenshot → clickAt(坐标
+        # 由评估从 fixture 的 document.title 读出并写进 prompt) → DONE。
+        # 断言素材：点击回执文本 + 后验标注。
+        if "E20CLICK" in mode_text:
+            def emit_tool(call_id, name, args):
+                call = {"index": 0, "id": call_id, "type": "function",
+                        "function": {"name": name, "arguments": json.dumps(args)}}
+                chunk = {"id": "chatcmpl-e20", "object": "chat.completion.chunk",
+                         "created": int(time.time()), "model": model,
+                         "choices": [{"index": 0,
+                                      "delta": {"role": "assistant", "tool_calls": [call]},
+                                      "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                done = {"id": "chatcmpl-e20", "object": "chat.completion.chunk",
+                        "created": int(time.time()), "model": model,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+                self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush(); self.close_connection = True
+            clicked = any(m.get("role") == "tool"
+                          and "Clicked at" in str(m.get("content") or "")
+                          for m in round_msgs)
+            has_image = any(m.get("role") == "tool"
+                            and isinstance(m.get("content"), str)
+                            and m["content"].startswith("data:image/") for m in round_msgs)
+            if clicked:
+                reply = "E20-DONE clicked"
+                chunk = {"id": "chatcmpl-e20", "object": "chat.completion.chunk",
+                         "created": int(time.time()), "model": model,
+                         "choices": [{"index": 0,
+                                      "delta": {"role": "assistant", "content": reply},
+                                      "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                done = {"id": "chatcmpl-e20", "object": "chat.completion.chunk",
+                        "created": int(time.time()), "model": model,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+                self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush(); self.close_connection = True
+            elif has_image:
+                # prompt 里带 fixture 报告的按钮中心坐标（btn=X,Y）
+                import re as _re
+                m = _re.search(r"btn=(\d+),(\d+)", mode_text)
+                cx, cy = (m.group(1), m.group(2)) if m else ("200", "300")
+                emit_tool("call_e20_click", "clickAt", {"x": float(cx), "y": float(cy)})
+            else:
+                emit_tool("call_e20_look", "screenshot", {})
             return
 
         # LOOKFIX（v0.8.55 批 2）：修图闭环四拍——lookImage canvas → adjust →
@@ -1528,7 +1612,50 @@ def case_har_export():
     check("E15 非法 tab uuid 报错", "error" in bad)
 
 
-def case_look_image():
+def case_look_click_canvas():
+    """E20 视觉点击（v0.8.56 批 2，本地专属 EVAL_E20=1）：canvas fixture 页
+    （按钮只在 canvas 画出、故意偏离中心，DOM 点 canvas 中心必 miss）→
+    screenshot → clickAt（坐标从 fixture 的 document.title 读出写进 prompt）
+    → 页面状态翻转。断言视觉点击链：坐标空间一致（viewport CSS px 直达）、
+    clickAt 后验标注、轨迹 look→click 配对。caption 换算的数学在 harness。"""
+    import re as _re
+    # fixture 由假端点顺带服务（8880 /e20）
+    bridge("POST", "/navigate", body={"url": f"{fixture_endpoint().rsplit('/v1', 1)[0]}/e20"})
+    deadline = time.time() + 8
+    title = ""
+    while time.time() < deadline:
+        state = bridge("GET", "/state")
+        tabs = state.get("tabs") or []
+        if tabs:
+            title = str(tabs[-1].get("title") or "")
+            if "btn=" in title:
+                break
+        time.sleep(0.5)
+    m = _re.search(r"btn=(\d+),(\d+)", title)
+    check("E20 fixture 按钮坐标就绪", m is not None)
+    if m is None:
+        return
+    cx, cy = m.group(1), m.group(2)
+    try:
+        msgs = run_case(f"EVAL-E20CLICK 画布上有按钮 btn={cx},{cy} 用视觉点击它")
+        _, assistant, _ = last_exchange(msgs)
+        check("E20 模型走完点击链", (assistant.get("content") or "") == "E20-DONE clicked")
+        turn = json.loads(bridge("GET", "/agent/trace")["jsonl"].split("\n")[-1])
+        steps = turn.get("steps") or []
+        look = [s for s in steps if s.get("action") == "screenshot"]
+        click = [s for s in steps if s.get("action") == "clickAt"]
+        check("E20 轨迹 look→click 配对", len(look) >= 1 and len(click) == 1)
+        click_result = (click[0].get("result") or "") if click else ""
+        check("E20 clickAt 后验标注在场", "[verify" in click_result)
+        # 页面状态翻转（真命中：hit-region 判定，点偏=miss 不翻转）
+        exec = bridge("POST", "/execute", body={"script": "window.__e20clicked === true"})
+        check("E20 canvas 按钮命中", str(exec.get("result") or exec.get("value") or "").lower()
+              in ("true", "1"))
+    finally:
+        pass
+
+
+def case_image_tool_contract():
     """E19 修图闭环（v0.8.55 批 2，本地专属 EVAL_E19=1）：fixture PNG 经
     /navigate 打进图片编辑器 → lookImage（vision 返回）→ adjust →
     lookImage compare → DONE。断言 vision 通道端到端：工具图片结果以
@@ -1669,7 +1796,8 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E16 image-tool-contract", case_image_tool_contract),
          ("E17 job-template-lifecycle", case_job_template_lifecycle),
          ("E18 feed-lifecycle", case_feed_lifecycle),
-         ("E19 look-image（本地专属，EVAL_E19=1 开启）", case_look_image)]
+         ("E19 look-image（本地专属，EVAL_E19=1 开启）", case_look_image),
+         ("E20 look-click-canvas（本地专属，EVAL_E20=1 开启）", case_look_click_canvas)]
 
 results = []
 
@@ -1725,6 +1853,10 @@ def main():
             if case is case_look_image and os.environ.get("EVAL_E19") != "1":
                 # 同上：E19 要 /navigate 开编辑器 + 真实修图回合（本地专属）。
                 results.append((name + " — CI 跳过（本地 EVAL_E19=1 运行）", True, ""))
+                continue
+            if case is case_look_click_canvas and os.environ.get("EVAL_E20") != "1":
+                # 同上：E20 要 /navigate 开 fixture 页 + 真实视觉点击回合（本地专属）。
+                results.append((name + " — CI 跳过（本地 EVAL_E20=1 运行）", True, ""))
                 continue
             try:
                 case()

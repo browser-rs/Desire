@@ -4999,3 +4999,11 @@ harness、i18n/WhatsNew。**不做**：Remote 产物卡 UI、pixelRatio、跨设
 
 **批次**：批 1 僵尸专项（复现→定位→修复→常驻探针）→ 批 2 分节 → 批 3 评估
 可用性 + 融合小件 → 批 4 收口。
+
+**v0.8.58 批 1 实况（2026-11-14，6aef0fbf）**：僵尸专项闭环——**E16+ 挂死真因 =
+无人值守环境里 sideEffect 工具的审批卡挂 600s**（`tests/zombie-repro.py` 确定性
+复现 1 轮即中 → `/agent/approvals` 铁证 → 答掉回合立即继续）；**"主 actor 僵尸"
+定性被推翻**（lldb Task 探针是伪信号——健康 Debug 实例同样 enqueued；判定改
+行为级）。两个修复：approvalHost 对文件/作业类工具返回 nil（站点归属污染修正）+
+eval/repro 预置审批 allow 政策；修复后 repro 两轮 E16 全过、全套件解锁。ExceptionTrap
+（NSSetUncaughtExceptionHandler 常驻）与 DiskStoreWriter 同步 IO 发现一并记档。

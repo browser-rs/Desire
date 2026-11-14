@@ -2,10 +2,22 @@
 ### Changed
 
 - Agent 面板的后台任务条从输入框上方移到头部：收成一枚紧凑 chip（图标+数量+迷你进度），点击弹 popover 查看任务/进度/订阅完成通知——输入区不再被任务卡挤压。
+- 批量下载并发上限 1-4 放宽到 1-16（默认仍 2）：偏好钳制、工具参数校验、桥端点、设置页选择器（segmented 改 menu）、工具描述同步；顺带接线两个从未生效的死参数——downloadAllPageVideos 的 maxConcurrent（声明了但执行器没应用）与 manageBatchDownloads 的 maxConcurrent（描述写"更新批次并发"实为空操作）。纯逻辑单测套件的汇总输出此前位于 8748 行，其后约 19 项用例不计总数、失败也静默——汇总移到文件末尾（3223→3251）。
+- 批量下载单批上限 100→500（用户实测列表页 100+ 部被截断）：引擎有暂停/断点续传/磁盘预留/看门狗兜底，面板明细已全量展示；工具描述同步声明"更长列表分批收集"。
+
+
 
 ### Fixed
 
 - 批量下载保存位置改为应用层智能归并（BatchLocationResolver）：用户给的路径可能恰好等于批根目录、在根目录之下、或在其之外，三种形态各有明确落位——等于根目录视同默认（host 子夹照垫）、根目录之下按子文件夹处理（不再双层嵌套）、根目录之外原样直落；裸名字按根下子文件夹；folderName 误传绝对路径沿用历史等价语义。工具描述同步写成短契约（用户指定→原样传参；未指定→不传，由应用定位），工具层把站点 host 作为默认子夹传给解析器；落点解析含 21 项纯逻辑单测。另：manageBatchDownloads 新增 cancel 动作——此前模型停批次只能误用 cancelBackgroundTask（批次不在其注册表），报错后批次继续写盘。
+- 批量下载的人工验证窗"正在验证…"无限转圈（无复选框可点、手动无从下手）：解析器 webview 此前全量复用应用内脚本，network-monitor/network-tools/yt-json-prune/dpp-route-watch/video-speed 等全局补丁原样打进 CF 挑战页；现收窄为解析真正需要的两个（media-sniffer 页面世界 + dom-tools 隔离世界），media-sniffer 自身对 challenges.cloudflare.com 帧整帧退出；人工等待循环对连续 45s 无进展的卡死挑战自动整页重载拿新挑战（上限 2 次，5 分钟总上限不变）。
+- 批量列表页里"一个详情页多条视频只下一条"：此前解析成功后 pickBestResource 只挑全局最优，同页其余视频（分集/上下部）静默丢失。现按"同 stem + 目录亲缘"聚类（surrit 形态的子目录变体、同目录同名 stem 画质对、先嗅到变体后到 master 三种形态都能并簇；跨 uuid 同名 playlist.m3u8 保持分立），主条目之外的视频簇追加兄弟项继续下载（编号 01-2/01-3…，每页上限 4 条，只认 video/stream 簇防止独立音轨当正片）。stemKey/distinctMediaFamilies 为 Foundation-only 纯逻辑，9 项单测。
+- 批量下载面板条目明细此前只显示前 40 条，100+ 项的批次后半截不可见——改为全量展示（外层已是 ScrollView+LazyVStack，行极轻）。
+- Agent 面板上下文占用芯片口径修正：此前按落盘全文/预算且封顶 100%——一条 48k 的 HTML 读进来落盘后芯片永远钉死在 100% 红色警告，看起来像"自动压缩没触发"（实际请求侧每回合都在压缩：最老轮次裁进摘要 + 大工具结果折叠成句柄）。现改显示发送侧口径（与 compactWithDigest 同一裁剪语义的估算，ContextCompaction.estimatedSentTotal，4 项单测）：允许显示 >100%，压缩生效时橙色循环图标 + "已压缩进摘要"说明，仅"超预算且没有可裁轮次"（单轮巨型会话）才保持红色警告。另：大工具结果改为转存全文（ToolResultSpill：超预算写工作区 tool-results/，上下文只留头 4000+尾 1000+路径标记，预览低于请求侧 8k 折叠阈值不会被二次折叠），getToolResult 对转存结果自动回退读文件——query（grep 式命中行±上下文，ToolResultBudget.search 8 项单测）/offset+length 切片均对全文生效，readFile 也能直接读路径；getPageHTML 维持 48k，不再丢尾巴。
+
+
+
+
 
 
 ## [v0.8.58] - 2026-11-14

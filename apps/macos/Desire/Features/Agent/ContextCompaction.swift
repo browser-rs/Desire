@@ -47,6 +47,38 @@ nonisolated enum ContextCompaction {
         return (kept, digest.isEmpty ? nil : digest)
     }
 
+    /// 请求侧"实际会发送"的字符总账（与 `compactWithDigest` 同一裁剪语义，
+    /// 只算总账不建数组）——上下文占用芯片用它显示**发送侧**口径。此前芯片
+    /// 算落盘全文/预算且封顶 100%：一条 48k 的 HTML 落盘后就永远钉死在
+    /// 100% 红色警告，看起来像"压缩没触发"，实际每回合请求都在压缩
+    /// （2026-11-15 用户反馈"没有触发自动压缩"的真因）。
+    /// - Returns: `total` = 裁剪后总字符；`dropped` = 是否裁掉了最老轮次
+    ///   （压缩已生效）；`stuck` = 超预算且没有任何可裁轮次（单轮巨型会话，
+    ///   只有这种形态才是真的需要 /new）。
+    static func estimatedSentTotal(_ messages: [AgentMessage], budget: Int = 160_000)
+        -> (total: Int, dropped: Bool, stuck: Bool) {
+        func size(_ m: AgentMessage) -> Int {
+            (m.content?.count ?? 0)
+                + (m.toolCalls?.reduce(0) { $0 + $1.function.arguments.count + $1.function.name.count } ?? 0)
+        }
+        let sizes = messages.map(size)
+        let total = sizes.reduce(0, +)
+        guard total > budget else { return (total, false, false) }
+        let starts = messages.indices.filter { messages[$0].role == .user }
+        guard starts.count > 1 else { return (total, false, true) }
+        var running = total
+        var keepStart = 0
+        for (i, s) in starts.enumerated() {
+            if running <= budget { break }
+            if i == starts.count - 1 { break }   // never drop the final block
+            let end = i + 1 < starts.count ? starts[i + 1] : messages.count
+            running -= (s..<end).reduce(0) { $0 + sizes[$1] }
+            keepStart = end
+        }
+        guard keepStart > 0 else { return (total, false, true) }
+        return (running, true, false)
+    }
+
     /// **悬空 tool_calls 清理**：应用在工具执行中途被杀时，最后一条 assistant 的
     /// tool_calls 没有等到结果 —— 原样发给 OpenAI 兼容服务会被直接拒绝
     /// （"assistant message with tool_calls must be followed by tool messages"），

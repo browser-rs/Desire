@@ -228,7 +228,20 @@ extension BrowserToolProvider {
                 "(function(){return !!document.querySelector('input[type=password]');})()") as? Bool) ?? false
             result += PostActionVerifier.loginHint(hasPasswordField: hasPasswordField)
         }
-        return Self.applyResultBudget(result, tool: call.function.name)
+        // 结果收口（2026-11-15）：超预算**转存全文**而非硬截断——上下文只留
+        // "头 4000 + 尾 1000 + 文件路径标记"，检索走 getToolResult（query/
+        // offset/length，转存结果自动回退读文件）或 readFile。此前 24k/48k
+        // 一刀切丢尾巴，小说级长文本直接被砍（用户定案：大文件转存 + 按需
+        // 检索）。图片结果不走文本预算。
+        if ToolResultDispatch.isImage(result) { return result }
+        let budget = ToolResultBudget.budget(for: call.function.name)
+        if result.count > budget {
+            return ToolResultSpill.spill(
+                result, tool: call.function.name, callID: call.id,
+                directory: AgentWorkspace.shared.directory
+                    .appendingPathComponent("tool-results", isDirectory: true))
+        }
+        return result
     }
 
     private func executeBody(_ call: AgentToolCall, in webView: WKWebView) async -> String {

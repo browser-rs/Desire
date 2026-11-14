@@ -395,14 +395,21 @@ struct AgentHeaderView: View {
     }
 
     /// 上下文占用的颜色分级：60% 起提醒、85% 起警告（此时 /new 更划算）。
+    /// **压缩生效时只给橙色**：历史超预算、请求侧已把最老轮次裁进摘要，
+    /// 这是设计内运转而不是错误（2026-11-15 前的口径把落盘全文/预算封顶
+    /// 100% 永远显示红 ⚠️，看起来像"自动压缩没触发"）。只有 stuck（超
+    /// 预算且没有可裁轮次）才是真红。
     private var contextColor: Color {
+        if store.contextOverStuck { return .red }
+        if store.contextCompacted { return .orange }
         if store.contextFraction >= 0.85 { return .red }
         if store.contextFraction >= 0.6 { return .orange }
         return .secondary
     }
 
     private var contextSymbol: String {
-        store.contextFraction >= 0.6 ? "exclamationmark.triangle.fill" : "gauge.medium"
+        if store.contextCompacted || store.contextOverStuck { return "arrow.triangle.2.circlepath" }
+        return store.contextFraction >= 0.6 ? "exclamationmark.triangle.fill" : "gauge.medium"
     }
 
     /// 提示里带上"最近一次请求的 prompt token"，但主信号是百分比。
@@ -411,7 +418,11 @@ struct AgentHeaderView: View {
         if store.lastPromptTokens > 0 {
             text += String(format: " · ≈%.1fk tokens", Double(store.lastPromptTokens) / 1000)
         }
-        if store.contextFraction >= 0.6 {
+        if store.contextOverStuck {
+            text += " · " + String(localized: "Context is over budget with nothing left to drop — /new starts a fresh conversation")
+        } else if store.contextCompacted {
+            text += " · " + String(localized: "Oldest turns were compacted into a summary — the request stays within budget")
+        } else if store.contextFraction >= 0.6 {
             text += " · " + String(localized: "Context is getting long — /new starts a fresh conversation")
         }
         return text

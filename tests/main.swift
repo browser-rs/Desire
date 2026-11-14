@@ -8745,13 +8745,6 @@ testPixelDiff()
 testArtifactIndex()
 testJobChainCore()
 
-print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
-if !failures.isEmpty {
-    print("失败清单：")
-    for f in failures { print("  - \(f)") }
-    exit(1)
-}
-print("全部通过 ✓")
 
 // ---------- 文档批（v0.8.33）：PDF 页码/命名 + 字幕编码 ----------
 
@@ -11099,3 +11092,158 @@ do {
     // 消毒：host 里的点保留
     check("落点：host 点保留", r(nil, "missav.ws").folderName == "missav.ws")
 }
+
+// ---------- BatchMediaPlan.stemKey / distinctMediaFamilies（多视频详情页） ----------
+
+do {
+    func res(_ url: String, kind: MediaResource.Kind, mime: String = "", source: String = "network") -> MediaResource {
+        MediaResource(url: url, kind: kind, mime: mime, sizeBytes: 0, source: source, detectedAt: Date())
+    }
+
+    // surrit 形态：master 在 /uuid/，变体在 /uuid/720p/ —— 目录亲缘并簇
+    let surrit = BatchMediaPlan.distinctMediaFamilies([
+        res("https://surrit.com/uuid-a/playlist.m3u8", kind: .stream, mime: "application/vnd.apple.mpegurl"),
+        res("https://surrit.com/uuid-a/720p/playlist.m3u8", kind: .stream, mime: "application/vnd.apple.mpegurl"),
+    ])
+    check("多视频：master+子目录变体 = 1 簇取 master", surrit.count == 1 && surrit[0].url.contains("/uuid-a/playlist.m3u8"))
+
+    // 跨 uuid 的两部电影（同名 playlist.m3u8）保持分立
+    let twoMovies = BatchMediaPlan.distinctMediaFamilies([
+        res("https://surrit.com/uuid-a/playlist.m3u8", kind: .stream, mime: "application/vnd.apple.mpegurl"),
+        res("https://surrit.com/uuid-b/playlist.m3u8", kind: .stream, mime: "application/vnd.apple.mpegurl"),
+    ])
+    check("多视频：跨 uuid 同名 master = 2 簇", twoMovies.count == 2)
+
+    // 无 master 的画质对（同目录同名 stem）= 1 簇取高画质（stream 优先级内
+    // 是 master 分；video 之间取先发现——画质靠 stem 归并保证不重复下载）
+    let qualityPair = BatchMediaPlan.distinctMediaFamilies([
+        res("https://cdn.x/v/video-720p.mp4", kind: .video, mime: "video/mp4"),
+        res("https://cdn.x/v/video-1080p.mp4", kind: .video, mime: "video/mp4"),
+    ])
+    check("多视频：画质对 = 1 簇", qualityPair.count == 1)
+
+    // 变体先于 master 嗅到（目录亲缘双向）也能并簇
+    let lateMaster = BatchMediaPlan.distinctMediaFamilies([
+        res("https://surrit.com/uuid-c/720p/playlist.m3u8", kind: .stream, mime: "application/vnd.apple.mpegurl"),
+        res("https://surrit.com/uuid-c/playlist.m3u8", kind: .stream, mime: "application/vnd.apple.mpegurl"),
+    ])
+    check("多视频：变体先到也并簇取 master", lateMaster.count == 1 && lateMaster[0].url.contains("/uuid-c/playlist.m3u8"))
+
+    // 分集同目录不同 stem = 2 簇（一部不能吞掉另一部）
+    let episodes = BatchMediaPlan.distinctMediaFamilies([
+        res("https://cdn.x/d/ep1.m3u8", kind: .stream, mime: "application/vnd.apple.mpegurl"),
+        res("https://cdn.x/d/ep2.m3u8", kind: .stream, mime: "application/vnd.apple.mpegurl"),
+    ])
+    check("多视频：同目录不同 stem = 2 簇", episodes.count == 2)
+
+    // 音频簇照常返回（调用方决定要不要）
+    let withAudio = BatchMediaPlan.distinctMediaFamilies([
+        res("https://cdn.x/d/ep1.m3u8", kind: .stream, mime: "application/vnd.apple.mpegurl"),
+        res("https://cdn.x/d/ep1-audio.m4a", kind: .audio, mime: "audio/mp4"),
+    ])
+    check("多视频：音频簇独立返回", withAudio.count == 2 && withAudio.contains(where: { $0.kind == .audio }))
+
+    // 广告位资源不进簇
+    let withAd = BatchMediaPlan.distinctMediaFamilies([
+        res("https://cdn.x/d/ep1.m3u8", kind: .stream, mime: "application/vnd.apple.mpegurl"),
+        res("https://cdn.x/d/300x250.medium.mp4", kind: .video, mime: "video/mp4"),
+    ])
+    check("多视频：广告位资源被滤", withAd.count == 1)
+
+    // stemKey：去画质标记同键
+    check("族键：画质标记归一", BatchMediaPlan.stemKey(for: "https://c/v/video-720p.mp4") == BatchMediaPlan.stemKey(for: "https://c/v/video-1080p.mp4"))
+    check("族键：不同 stem 不同键", BatchMediaPlan.stemKey(for: "https://c/v/a.mp4") != BatchMediaPlan.stemKey(for: "https://c/v/b.mp4"))
+}
+
+
+// ---------- ContextCompaction.estimatedSentTotal（上下文占用芯片的发送侧口径） ----------
+
+do {
+    func msg(_ role: AgentMessageRole, _ text: String) -> AgentMessage {
+        AgentMessage(role: role, content: text)
+    }
+
+    // 未超预算：原样返回
+    let small = [msg(.user, "hi"), msg(.assistant, "hello")]
+    let r1 = ContextCompaction.estimatedSentTotal(small, budget: 160_000)
+    check("芯片口径：未超预算原样", r1.total == 7 && !r1.dropped && !r1.stuck)
+
+    // 超预算 + 多轮：裁最老轮次直到入预算
+    let big1 = String(repeating: "x", count: 90_000)
+    let big2 = String(repeating: "y", count: 90_000)
+    let over = [msg(.user, big1), msg(.assistant, "a1"), msg(.user, big2), msg(.assistant, "a2")]
+    let r2 = ContextCompaction.estimatedSentTotal(over, budget: 160_000)
+    check("芯片口径：超预算裁最老轮次", r2.dropped && !r2.stuck && r2.total <= 160_000 && r2.total > 90_000)
+
+    // 超预算 + 单轮（末轮不可裁）→ stuck
+    let huge = String(repeating: "z", count: 200_000)
+    let stuck = [msg(.user, huge), msg(.assistant, "b")]
+    let r3 = ContextCompaction.estimatedSentTotal(stuck, budget: 160_000)
+    check("芯片口径：单轮巨型 stuck", r3.stuck && !r3.dropped && r3.total == 200_001)
+
+    // 两轮：首轮可裁 → 裁掉入预算（末轮不可裁不等于全部裁不动）
+    let r4 = ContextCompaction.estimatedSentTotal([msg(.user, big1), msg(.user, big2)], budget: 160_000)
+    check("芯片口径：首轮可裁即裁", r4.dropped && !r4.stuck && r4.total == 90_000)
+}
+
+
+// ---------- ToolResultBudget.search（大结果 "search, don't dump"） ----------
+
+do {
+    let html = """
+    <html><head><title>Page</title></head>
+    <body>
+    <div class="player" data-src="https://cdn.x/a/playlist.m3u8"></div>
+    <video id="main" src="fallback.mp4"></video>
+    <p>some text here</p>
+    <script>var alt = "https://cdn.x/b/1080p/playlist.m3u8";</script>
+    </body></html>
+    """
+    // 命中 + 行号 + 上下文
+    let hits = ToolResultBudget.search(html, query: "m3u8")
+    check("检索：命中行带行号", hits != nil && hits!.contains(">3:") && hits!.contains("playlist.m3u8"))
+    check("检索：上下文行无标记", hits!.contains(" 2:"))
+    check("检索：多命中", hits!.contains(">6:"))
+    // 无命中 = nil（执行器回报"换个词"）
+    check("检索：无命中 nil", ToolResultBudget.search(html, query: "jpeg") == nil)
+    // 大小写不敏感
+    check("检索：大小写不敏感", ToolResultBudget.search(html, query: "VIDEO") != nil)
+    // 命中数钳制
+    let many = String(repeating: "needle line\n", count: 120)
+    let capped = ToolResultBudget.search(many, query: "needle")
+    check("检索：命中数钳制 40", capped!.contains("40 matches shown"))
+    // 字符钳制（超长行）
+    let longLine = String(repeating: "n", count: 20_000) + " needle"
+    let charCapped = ToolResultBudget.search(longLine, query: "needle")
+    check("检索：字符钳制", charCapped!.contains("search output capped"))
+    // 空 query = nil
+    check("检索：空 query nil", ToolResultBudget.search(html, query: "  ") == nil)
+}
+
+// ---------- ToolResultSpill（大结果转存文件） ----------
+
+do {
+    let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+        .appendingPathComponent("spill-test-\(UUID().uuidString.prefix(6))")
+    let body = String(repeating: "novel line\n", count: 50_000)
+    let spilled = ToolResultSpill.spill(body, tool: "readURL", callID: "abcdefgh-1234", directory: dir)
+    check("转存：头尾预览 + 省略标注", spilled.contains("result truncated for context")
+        && spilled.contains("middle \(body.count - 5_000) omitted"))
+    check("转存：标记行含绝对路径", spilled.contains("[desire-spill: "))
+    let path = ToolResultSpill.parsePath(from: spilled)
+    check("转存：解析路径且文件存在", path != nil && FileManager.default.fileExists(atPath: path!))
+    check("转存：全文完整落盘", ToolResultSpill.readFile(at: path!) == body)
+    check("转存：预览 < 8k 折叠阈值", spilled.count < 8_000)
+    let short = ToolResultSpill.spill("x", tool: "getPageHTML", callID: "zzzz", directory: dir)
+    check("转存：短结果标记仍在", short.contains("[desire-spill: ") && ToolResultSpill.parsePath(from: short) != nil)
+    try? FileManager.default.removeItem(at: dir)
+}
+// 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
+// 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
+print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
+if !failures.isEmpty {
+    print("失败清单：")
+    for f in failures { print("  - \(f)") }
+    exit(1)
+}
+print("全部通过 ✓")

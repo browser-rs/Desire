@@ -234,6 +234,10 @@ extension BrowserToolProvider {
             } else {
                 folderName = nil
             }
+            // 并发参数此前声明了却没接线（描述与实现不符）。
+            if let mc = args["maxConcurrent"] as? Int, (1...16).contains(mc) {
+                BatchMediaPreferences.maxConcurrent = mc
+            }
             let batch = BatchMediaExportStore.shared.startPageBatch(
                 candidates: candidates.map { ($0.url, $0.kind, $0.mime, $0.isBlob) },
                 referer: webView.url,
@@ -251,7 +255,7 @@ extension BrowserToolProvider {
             let dest = batch.saveRoot ?? (BatchMediaPreferences.baseDirectory ?? NSHomeDirectory() + "/Downloads")
             let leaf = batch.folderName.isEmpty ? "" : "/" + batch.folderName
             var reply = """
-            Batch \(batch.id.uuidString.prefix(8)) started: \(downloading) video(s) into \(dest)\(leaf) (≤2 concurrent). \
+            Batch \(batch.id.uuidString.prefix(8)) started: \(downloading) video(s) into \(dest)\(leaf) (concurrency per the configured slots). \
             Failed items are retried automatically in the same batch/folder — do NOT fall back to downloadMedia for them. \
             Do NOT wait or poll in a loop — listBatchDownloads reports progress, and the user is notified when the batch finishes.
             """
@@ -284,7 +288,7 @@ extension BrowserToolProvider {
             } else {
                 folderName = nil
             }
-            if let mc = args["maxConcurrent"] as? Int, (1...4).contains(mc) {
+            if let mc = args["maxConcurrent"] as? Int, (1...16).contains(mc) {
                 BatchMediaPreferences.maxConcurrent = mc
             }
             let batch = BatchMediaExportStore.shared.startListBatch(
@@ -306,7 +310,7 @@ extension BrowserToolProvider {
             let leaf = batch.folderName.isEmpty ? "" : "/" + batch.folderName
             var reply = """
             Batch \(batch.id.uuidString.prefix(8)) started: \(queued) page(s) queued → \(dest)\(leaf). Each page is loaded in a hidden browser \
-            (serialized, paced with the download slots so signed URLs never expire), the stream is captured and downloaded (≤2 concurrent). \
+            (serialized, paced with the download slots so signed URLs never expire), the stream is captured and downloaded (concurrency per the configured slots). \
             Cloudflare checks pass automatically; an interactive one is clicked with real mouse events, and only falls back to waiting for the \
             user in a popup window if that fails. Failed items are retried automatically in the SAME batch/folder — do NOT fall back to \
             downloadMedia for them. Do NOT wait or poll in a loop — listBatchDownloads reports progress, and the user is notified when the batch finishes.
@@ -387,6 +391,12 @@ extension BrowserToolProvider {
                 return Self.fail(batchError ?? "invalid batchId")
             }
             let batchID = batch.id
+            // maxConcurrent 此前是死参数（声明"add only + 更新批次并发"但
+            // 执行器从未应用）——下载闸门本来就是全局的，这里照工具层同款
+            // 钳制应用到全局并发。
+            if let mc = args["maxConcurrent"] as? Int, (1...16).contains(mc) {
+                BatchMediaPreferences.maxConcurrent = mc
+            }
             guard let action = (args["action"] as? String)?.lowercased() else {
                 return Self.fail("Missing action (pause/resume/skip/add/remove/cancel)")
             }
@@ -602,10 +612,29 @@ extension BrowserToolProvider {
                 return Self.fail("No live agent session")
             }
             guard let toolMessage = session.messages.last(where: { $0.role == .tool && $0.toolCallId == callID }),
-                  let content = toolMessage.content, !content.isEmpty else {
+                  let storedContent = toolMessage.content, !storedContent.isEmpty else {
                 return Self.fail("No tool result for callId \(callID) — it may belong to another conversation or window")
             }
+            // 转存结果（2026-11-15）：消息里只有"预览 + [desire-spill: 路径]"
+            // ——查询/切片都对**文件里的全文**做，不是对预览。
+            let content: String
+            if let spillPath = ToolResultSpill.parsePath(from: storedContent),
+               let full = ToolResultSpill.readFile(at: spillPath), !full.isEmpty {
+                content = full
+            } else {
+                content = storedContent
+            }
             let total = content.count
+            // query（grep 模式，2026-11-15）：大 HTML/大文件的正确用法是
+            // "search, don't dump"——直接搜命中行而不是盲目切片。纯匹配
+            // 逻辑在 ToolResultBudget.search（进单测）。
+            if let query = args["query"] as? String,
+               !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if let hits = ToolResultBudget.search(content, query: query) {
+                    return "[search '\(query)' in result \(callID) — \(total) chars total]\n\(hits)"
+                }
+                return "No match for '\(query)' in this result (\(total) chars). Try a shorter/different term, or slice with offset/length."
+            }
             let offset = min(max((args["offset"] as? Int)
                 ?? (args["offset"] as? Double).map(Int.init) ?? 0, 0), total)
             let requestedLength = (args["length"] as? Int)

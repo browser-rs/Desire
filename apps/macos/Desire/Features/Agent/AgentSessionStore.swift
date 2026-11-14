@@ -315,12 +315,15 @@ class AgentSessionStore: ObservableObject {
         let now = Date()
         if !force, now.timeIntervalSince(contextFractionLastComputeAt) < 1.0 { return }
         contextFractionLastComputeAt = now
-        var total = 0
-        for m in messages {
-            total += m.content?.count ?? 0
-            for tc in m.toolCalls ?? [] { total += tc.function.arguments.count + tc.function.name.count }
-        }
-        contextFraction = min(1.0, Double(total) / Double(effectiveContextBudget))
+        // **发送侧口径**（2026-11-15）：显示的是"这一轮实际会发给模型多少"
+        // （与 compactWithDigest 同一裁剪语义），不再是落盘全文/预算——
+        // 此前一条 48k 的 HTML 落盘后芯片永远钉死 100% 红色警告，看起来
+        // 像"自动压缩没触发"，实际请求侧每回合都在压缩。允许 >100%：
+        // 配合 contextCompacted 徽标表达"历史超出预算，压缩在 carry"。
+        let estimate = ContextCompaction.estimatedSentTotal(messages, budget: effectiveContextBudget)
+        contextFraction = Double(estimate.total) / Double(effectiveContextBudget)
+        contextCompacted = estimate.dropped
+        contextOverStuck = estimate.stuck
     }
 
     @Published private(set) var queuedMessages: [QueuedMessage] = []
@@ -415,6 +418,10 @@ class AgentSessionStore: ObservableObject {
     /// 当前对话占用 `compactForContext` 预算的比例（同一口径：字符数 / 160k）。
     /// 模型开始返回空、或自动压缩要生效之前，用户至少能看到它在逼近上限。
     @Published private(set) var contextFraction: Double = 0
+    /// 压缩已生效：落盘历史超预算、最老轮次被裁进摘要（发送侧 ≤ 预算）。
+    @Published private(set) var contextCompacted = false
+    /// 超预算且没有可裁轮次（单轮巨型会话）——真正需要 /new 的形态。
+    @Published private(set) var contextOverStuck = false
     private var contextFractionStamp = ""
     /// 子代理用量"待认领桶"：子代理的消息不进会话，token 由 `runSubagentLoop` 累到这里，
     /// 主循环在追加 `spawnSubagent` 的工具结果时把它记到那条消息上（成本才算得全）。

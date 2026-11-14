@@ -4976,3 +4976,26 @@ Remote 产物卡 UI（iOS 端）/pixelRatio 记档后延。
 **完善补（2026-11-14，29648ee5）**：smoke 27/27（+产物中心探针）；E16 卡死定性
 为**主 actor 僵尸活体**（lldb 探针 suspended|enqueued、0 AI request、0.8.56
 基线 stash 对照同挂、日期相关——证据链进 [[desire-testing-env]] 记忆，待专项）。
+
+## v0.8.58 规划稿（2026-11-14）—— 卡住即报警：僵尸专项 + 常驻探针 + 评估分节
+
+> 详情见 `docs/ROADMAP-0.8.58-PLAN.md`。**Agent 基础旗舰（可靠性/可观测）**。
+> v0.8.57 批 2 验证时活体复现主 actor 僵尸第 3 例（E16 起全部回合挂死；lldb
+> 探针 suspended|enqueued 实锤；0.8.56 基线 stash 对照同挂——非回归、日期相关；
+> 概率性与流式分块时序吻合）。僵尸恶劣在：无崩溃报告、界面照常、用户只觉得卡，
+> 现在连评估套件都吞。规划前排除：SecretRedactor（已安全版）、MemoryExtractor
+> （无正则）、路由/FM、批 2 新代码。根因候选 1 = Markdown 流式中间态
+> AttributedString（0.8.55 第一例同源、"只在流式中间态"吻合）。
+
+**四主题**：① Agent 基础（旗舰）= 僵尸专项（zombie-repro.sh 复现固化 → 二分
+定位〔收尾/流式渲染逐段打点〕→ 修复 + **常驻主 actor 探针**：RuntimeHealthMonitor
+扩、15s 未翻转 = 僵尸 → fault + actorHealthy 字段 + urgent 通知——两种死法
+〔stall/僵尸〕都看得见）；② 浏览器基础 = execution-e2e 每节闭包化
+（--section/--sections fast，轮换失败类逐节转稳）；③ Agent 基础第二件 =
+agent-eval --only + E19/E20/E21 归 smoke 可选档；④ 融合 = 白板导出图一键进
+ImagePro + 产物缩略卡。**贯穿**：AGENTS.md 僵尸手法更新（第 3 例）、纯逻辑进
+harness、i18n/WhatsNew。**不做**：Remote 产物卡 UI、pixelRatio、跨设备产物
+同步、Markdown 重写、评估集自动扩面。
+
+**批次**：批 1 僵尸专项（复现→定位→修复→常驻探针）→ 批 2 分节 → 批 3 评估
+可用性 + 融合小件 → 批 4 收口。

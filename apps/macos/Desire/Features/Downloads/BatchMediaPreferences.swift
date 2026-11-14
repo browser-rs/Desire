@@ -17,13 +17,14 @@ enum BatchMediaPreferences {
         set { defaults.set(newValue, forKey: skipDownloadedKey) }
     }
 
-    /// 同批下载并发上限（1-4，默认 2）。
+    /// 同批下载并发上限（1-16，默认 2；2026-11-15 用户要求放宽——1-4 对
+    /// 大批次太保守）。
     static var maxConcurrent: Int {
         get {
             let raw = defaults.object(forKey: "batch.maxConcurrent") as? Int ?? 2
-            return max(1, min(raw, 4))
+            return max(1, min(raw, 16))
         }
-        set { defaults.set(max(1, min(newValue, 4)), forKey: "batch.maxConcurrent") }
+        set { defaults.set(max(1, min(newValue, 16)), forKey: "batch.maxConcurrent") }
     }
 
     private static let defaults = UserDefaults.standard

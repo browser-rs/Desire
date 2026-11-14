@@ -155,10 +155,10 @@ struct BatchDownloadSettingsContent: View {
             subtitle: String(localized: "How many videos download at the same time.")
         ) {
             Picker("", selection: $maxConcurrent) {
-                ForEach(1...4, id: \.self) { n in Text(verbatim: "\(n)").tag(n) }
+                ForEach(1...16, id: \.self) { n in Text(verbatim: "\(n)").tag(n) }
             }
-            .pickerStyle(.segmented)
-            .frame(width: 150)
+            .pickerStyle(.menu)
+            .frame(width: 70)
             .labelsHidden()
             .onChange(of: maxConcurrent) { _, n in
                 BatchMediaPreferences.maxConcurrent = n

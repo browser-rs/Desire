@@ -57,11 +57,27 @@ final class HeadlessMediaResolver: NSObject {
         // 默认参数值不能调 MainActor 隔离的 `.default()`，在这里兜底。
         config.websiteDataStore = dataStore ?? .default()
         let controller = config.userContentController
-        // 全量复用应用内脚本（嗅探/dom-tools/console…）。dom-tools 不发消息，
-        // 嗅探只依赖 mediaFound 一个 handler。
-        for script in UserScriptLoader.builtinScripts() {
-            controller.addUserScript(script)
+        // 只进解析真正需要的两个脚本（2026-11-14 收窄，此前全量复用应用内
+        // 脚本）：嗅探 = 页面世界的 media-sniffer（mediaFound 一个 handler，
+        // 自带 fetch/XHR 钩子）；DOM 扫描 = 隔离世界的 dom-tools
+        // （__desireScanMedia，见 runScan）。其余脚本（network-monitor/
+        // network-tools 猴补 fetch/XHR、yt-json-prune 包 fetch、
+        // dpp-route-watch 包 history、video-speed 动播放……）都是全局补丁，
+        // 会原样打进 CF 挑战页——挑战 JS 的指纹/一致性检查遇到被改过的全局
+        // 就可能永远转圈（人工验证窗里"正在验证…"无限循环、无复选框可点、
+        // 手动无从下手的形态）。挑战环境要尽量像真 Safari。
+        let sniffer = UserScriptLoader.load("media-sniffer")
+        if !sniffer.isEmpty {
+            controller.addUserScript(WKUserScript(
+                source: sniffer,
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: false))
         }
+        controller.addUserScript(WKUserScript(
+            source: UserScriptLoader.load("dom-tools"),
+            injectionTime: .atDocumentStart,
+            forMainFrameOnly: false,
+            in: WebView.agentToolWorld))
         webView = WKWebView(frame: NSRect(x: 0, y: 0, width: 1280, height: 800), configuration: config)
         super.init()
         BrowserState.applyDesktopSafariUA(to: webView)
@@ -121,6 +137,30 @@ final class HeadlessMediaResolver: NSObject {
     /// 人工验证解除后，在已加载的页面上继续等媒体。
     func awaitMedia() async -> Outcome {
         await awaitMedia(budget: Self.postVerifyBudgetSeconds, allowNeedsHuman: false)
+    }
+
+    /// 人工验证阶段的**卡死挑战**（spinner 型 managed challenge，无复选框
+    /// 可点）整页重载拿一份新挑战——CF 的 interstitial 常在重载后直接放行。
+    /// 桥 didFinish，30s 兜底（挑战页黑洞也不拖死调用方）。
+    func reloadForChallenge() async {
+        await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await self.awaitReload() }
+            group.addTask {
+                try await Task.sleep(for: .seconds(30))
+                throw URLError(.timedOut)
+            }
+            _ = try? await group.next()
+            group.cancelAll()
+        }
+    }
+
+    /// reload 复用 loadContinuation 桥（didFinish 放行 / didFail 抛错）。
+    private func awaitReload() async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            self.loadContinuation?.resume(throwing: URLError(.cancelled))
+            self.loadContinuation = continuation
+            self.webView.reload()
+        }
     }
 
     /// 页面当前是否还卡在挑战（引擎以 2s 轮询驱动此检查）。

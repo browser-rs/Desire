@@ -9492,7 +9492,7 @@ case ("GET", "/agent/messages"):
             // 追加任务的**最新参数同步进批次**（并发/分卷）——否则旧批次
             // 的遗留参数（并发 1、分卷 2）绑架后续 12 部，模型只能逐项
             // skip + 重建队列（用户实测的"骚操作"链）。
-            if let mc = body["maxConcurrent"] as? Int, (1...4).contains(mc) {
+            if let mc = body["maxConcurrent"] as? Int, (1...16).contains(mc) {
                 BatchMediaPreferences.maxConcurrent = mc
             }
             if let se = body["splitEvery"] as? Int {

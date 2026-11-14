@@ -7,6 +7,11 @@
 //
 // Reports go to the `mediaFound` script-message handler (BrowserState).
 (function () {
+    // CF 挑战帧（Turnstile/interstitial 的 iframe）不嗅探：challenges.
+    // cloudflare.com 的脚本对被包过的 fetch 敏感，任何钩子都是 bot 信号，
+    // 挑战可能因此永远转圈。整帧退出，让挑战环境保持原生（正常浏览与
+    // 批量解析的验证窗都受益）。挑战解除后的详情页照常嗅探。
+    if (/(^|\.)challenges\.cloudflare\.com$/.test(location.hostname)) return;
     if (window.__desireMediaSniffer) return;
     window.__desireMediaSniffer = true;
 

@@ -90,8 +90,10 @@ final class BatchMediaExportStore: ObservableObject {
     static let maxItemAttempts = 3
     /// 自动重试前的冷却（签名地址按需签 + 冷却，避免立刻再撞墙）。
     private let retryCooldownSeconds: TimeInterval = 15
-    /// 批量上限（Agent 工具描述与桥文档同步声明）。
-    static let maxItemsPerBatch = 100
+    /// 批量上限（Agent 工具描述与桥文档同步声明）。100→500（2026-11-15 用户
+    /// 实测列表页 100+ 部被截断"不合理的啊"）：引擎有暂停/断点续传/磁盘
+    /// 预留/看门狗兜底，大批次撑得住；面板明细已全量展示。
+    static let maxItemsPerBatch = 500
 
     private init() {}
 
@@ -845,10 +847,21 @@ final class BatchMediaExportStore: ObservableObject {
                 // 的话整批永远停摆（2026-09-30 用户实测强退）。5 分钟没人处理
                 // 判失败，队列继续——事后 retryBatchDownloads 可补。
                 let verifyDeadline = Date().addingTimeInterval(300)
+                // 转圈无解的挑战（spinner 型，无复选框可点）连续 45s 没过 →
+                // 整页重载拿新挑战，上限 2 次防拉锯（2026-11-14 实测形态：
+                // "正在验证…"无限循环，人工无从下手）。
+                var stuckSince = Date()
+                var challengeReloads = 0
                 while !Task.isCancelled {
                     try? await Task.sleep(for: .seconds(2))
                     if state(of: itemID, in: batchID) == .skipped { return }
                     if await resolver.refreshChallengeState() == false { break }
+                    if Date().timeIntervalSince(stuckSince) > 45 && challengeReloads < 2 {
+                        challengeReloads += 1
+                        stuckSince = Date()
+                        blog(batchID, "challenge stuck — reloading for a fresh one (attempt \(challengeReloads)/2)")
+                        await resolver.reloadForChallenge()
+                    }
                     if Date() > verifyDeadline {
                         setState(batchID, itemID, .failed, summary: "verification not completed within 5 minutes — batch moved on; retry this item later")
                         return
@@ -885,6 +898,35 @@ final class BatchMediaExportStore: ObservableObject {
             // 叠加会翻倍——"01-Retry Episode-Retry Episode"，实测踩过）。
             batches[bi].items[ii].title = "\(batches[bi].items[ii].numberPrefix)-\(base)"
             batches[bi].items[ii].state = .pending
+            // **多视频详情页**（2026-11-15）：同一页族分组后还有别的视频
+            // （分集/上下部）→ 追加兄弟项继续下载，编号 "01-2/01-3…"。此前
+            // pickBestResource 只挑一条，其余视频静默丢失。只认 video/stream
+            // 族（详情页的独立音轨文件当正片下是垃圾）；上限 4 条防病态页
+            // 面灌爆队列。
+            // 排除主条目按 URL 判等——同 stem 不同目录（跨 uuid 的
+            // playlist.m3u8）是独立簇，按 stem 排除会误杀第二部。
+            let extras = BatchMediaPlan.distinctMediaFamilies(resources)
+                .filter { ($0.kind == .stream || $0.kind == .video)
+                    && $0.url != best.url }
+                .prefix(4)
+            var siblings: [BatchMediaItem] = []
+            for (n, extra) in extras.enumerated() {
+                guard let mURL = URL(string: extra.url) else { continue }
+                let name = BatchMediaPlan.displayName(pageTitle: pageTitle, mediaURL: mURL, style: BatchMediaPreferences.namingStyle)
+                siblings.append(BatchMediaItem(
+                    id: UUID(),
+                    sourceURL: sourceURL,
+                    mediaURL: mURL,
+                    referer: sourceURL,
+                    title: "\(batches[bi].items[ii].numberPrefix)-\(n + 2)-\(name)",
+                    numberPrefix: "\(batches[bi].items[ii].numberPrefix)-\(n + 2)",
+                    state: .pending
+                ))
+            }
+            if !siblings.isEmpty {
+                batches[bi].items.insert(contentsOf: siblings, at: ii + 1)
+                blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 页面含 \(1 + siblings.count) 条视频 → 主条目 + \(siblings.count) 条兄弟项")
+            }
             persistUnfinished()
             Log.downloads.info("resolved → \(mediaURL.absoluteString, privacy: .public)")
             pumpDownloads(batchID)

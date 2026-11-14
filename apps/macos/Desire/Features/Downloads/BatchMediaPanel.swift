@@ -195,7 +195,10 @@ struct BatchMediaPanel: View {
 
     @ViewBuilder
     private func itemRows(_ batch: BatchMediaBatch) -> some View {
-        let visible = batch.items.prefix(40)
+        // 全量展示（2026-11-15：此前 prefix(40)，100+ 项的批次后半截看不
+        // 见）。行极轻（一行文本 + 进度），外层又是 ScrollView+LazyVStack，
+        // 全量渲染无压力。
+        let visible = batch.items
         VStack(alignment: .leading, spacing: 4) {
             ForEach(Array(visible.enumerated()), id: \.element.id) { _, item in
                 HStack(alignment: .firstTextBaseline, spacing: 6) {
@@ -231,10 +234,6 @@ struct BatchMediaPanel: View {
                     }
                 }
                 .padding(.vertical, 2)
-            }
-            if batch.items.count > 40 {
-                Text("…").foregroundStyle(.tertiary)
-                    .font(.system(size: 10.5))
             }
         }
         .padding(.leading, 14)

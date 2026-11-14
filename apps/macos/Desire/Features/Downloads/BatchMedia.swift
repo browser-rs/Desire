@@ -155,16 +155,7 @@ enum BatchMediaPlan {
     /// 按画质标记取最高——"按最高清晰度下载"是用户的明确偏好。同 kind 取
     /// 先发现的。返回 nil 表示页面无可下载媒体。
     static func pickBestResource(_ resources: [MediaResource]) -> MediaResource? {
-        var downloadable = resources
-            .filter { !$0.isBlob && !isDASH(urlString: $0.url, mime: $0.mime) }
-            .filter { !isAdSlotResource($0.url) }
-        // 协议相对地址（//cdn…，广告脚本/部分站点模板常见）就地补 https:——
-        // 下载器对无 scheme 的 URL 直接报"不支持的URL"（批量列表全灭事故根因）。
-        downloadable = downloadable.map { r in
-            r.url.hasPrefix("//") ? MediaResource(url: "https:" + r.url, kind: r.kind,
-                                                  mime: r.mime, sizeBytes: r.sizeBytes,
-                                                  source: r.source, detectedAt: r.detectedAt) : r
-        }
+        let downloadable = downloadableResources(resources)
         let priority = ["stream", "video", "audio"]
         for kind in priority {
             let candidates = downloadable.filter { $0.kind.rawValue == kind }
@@ -176,6 +167,75 @@ enum BatchMediaPlan {
             }
         }
         return nil
+    }
+
+    /// pickBestResource 的公共预处理：滤 blob/DASH/广告位 + 协议相对地址
+    /// 就地补 https（下载器对无 scheme 的 URL 直接报"不支持的URL"——批量
+    /// 列表全灭事故根因）。
+    private static func downloadableResources(_ resources: [MediaResource]) -> [MediaResource] {
+        var downloadable = resources
+            .filter { !$0.isBlob && !isDASH(urlString: $0.url, mime: $0.mime) }
+            .filter { !isAdSlotResource($0.url) }
+        downloadable = downloadable.map { r in
+            r.url.hasPrefix("//") ? MediaResource(url: "https:" + r.url, kind: r.kind,
+                                                  mime: r.mime, sizeBytes: r.sizeBytes,
+                                                  source: r.source, detectedAt: r.detectedAt) : r
+        }
+        return downloadable
+    }
+
+    /// **stem 聚类键**（多视频详情页）：host + 去画质标记的文件名 stem
+    /// （query/fragment 剥离）。`video-720p.mp4` 与 `video-1080p.mp4` 同键；
+    /// 不同视频 stem 不同。目录亲缘由 distinctMediaFamilies 的聚类判定。
+    static func stemKey(for urlString: String) -> String {
+        var s = urlString
+        if s.hasPrefix("//") { s = "https:" + s }
+        if let q = s.firstIndex(of: "?") { s = String(s[..<q]) }
+        if let f = s.firstIndex(of: "#") { s = String(s[..<f]) }
+        guard let url = URL(string: s) else { return s.lowercased() }
+        var stem = url.lastPathComponent
+        if let dot = stem.lastIndex(of: "."), dot != stem.startIndex {
+            stem = String(stem[..<dot])
+        }
+        if let regex = try? NSRegularExpression(pattern: "(?i)[._-]?\\d{3,4}p(?=$|[._-])") {
+            let ns = stem as NSString
+            stem = regex.stringByReplacingMatches(
+                in: stem, range: NSRange(location: 0, length: ns.length), withTemplate: "")
+        }
+        return (url.host ?? "") + "#" + stem.lowercased()
+    }
+
+    /// **多视频详情页**（2026-11-15）：可下载资源按"同 stem + 目录亲缘"
+    /// 聚类、每簇取最优（复用 pickBestResource），按发现顺序返回。三种
+    /// 真实形态并进同一条视频：
+    /// · /uuid/playlist.m3u8 + /uuid/720p/playlist.m3u8（变体在子目录，
+    ///   surrit 形态——目录双向前缀亲缘，先嗅到变体也能并簇）；
+    /// · video.m3u8 + video-720p.mp4（同目录同名 stem）；
+    /// · video-720p.mp4 + video-1080p.mp4（无 master 的画质对）。
+    /// 不同视频（不同 stem；或同 stem 不同目录且无目录亲缘，如跨 uuid
+    /// 的 playlist.m3u8）保持分立。音频簇也返回——调用方决定要不要
+    /// （详情页独立音轨当正片下是垃圾，list 模式只认 video/stream 簇）。
+    static func distinctMediaFamilies(_ resources: [MediaResource]) -> [MediaResource] {
+        let downloadable = downloadableResources(resources)
+        struct Cluster {
+            var anchorDir: String
+            var stem: String
+            var items: [MediaResource]
+        }
+        var clusters: [Cluster] = []
+        for r in downloadable {
+            let urlString = r.url
+            let stem = stemKey(for: urlString)
+            let dir = URL(string: urlString)?.deletingLastPathComponent().absoluteString ?? urlString
+            if let idx = clusters.firstIndex(where: {
+                $0.stem == stem && (dir.hasPrefix($0.anchorDir) || $0.anchorDir.hasPrefix(dir))
+            }) {
+                clusters[idx].items.append(r)
+            } else {
+                clusters.append(Cluster(anchorDir: dir, stem: stem, items: [r]))
+            }
+        }
+        return clusters.compactMap { pickBestResource($0.items) }
     }
 
     /// stream 候选排序：master 形态（无画质标记）> 画质标记最高 > 原顺序。

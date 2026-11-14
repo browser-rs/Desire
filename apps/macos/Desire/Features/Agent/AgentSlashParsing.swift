@@ -29,7 +29,7 @@ nonisolated enum AgentSlashParsing {
     nonisolated static let descriptions: [String: String] = [
         "help": String(localized: "show this list"),
         "new": String(localized: "start a fresh conversation"),
-        "compact": String(localized: "shrink the context budget now (older turns stay recallable)"),
+        "compact": String(localized: "archive & shrink the conversation now (archived turns stay searchable)"),
         "stats": String(localized: "token usage and cost for this conversation"),
         "doctor": String(localized: "run the agent self-check"),
         "mode": String(localized: "switch agent mode: /mode standard|research|writing"),

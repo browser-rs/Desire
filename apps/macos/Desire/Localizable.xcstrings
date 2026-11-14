@@ -108928,6 +108928,138 @@
           }
         }
       }
+    },
+    "Compacted: %lld older messages were archived and replaced by a summary. Archived turns stay searchable via recallConversation.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Compacted: %lld older messages were archived and replaced by a summary. Archived turns stay searchable via recallConversation."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已压缩：%lld 条更早的消息已归档并替换为摘要。归档轮次仍可用 recallConversation 检索。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已壓縮：%lld 條更早的訊息已歸檔並替換為摘要。歸檔輪次仍可用 recallConversation 檢索。"
+          }
+        }
+      }
+    },
+    "Nothing to compact — the conversation already fits within the context budget.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Nothing to compact — the conversation already fits within the context budget."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"无需压缩——会话还在上下文预算之内。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"無需壓縮——會話還在上下文預算之內。"
+          }
+        }
+      }
+    },
+    "Context is getting long — it will auto-compact when it exceeds the budget":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Context is getting long — it will auto-compact when it exceeds the budget"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上下文偏长——超出预算时会自动压缩"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上下文偏長——超出預算時會自動壓縮"
+          }
+        }
+      }
+    },
+    "Will auto-compact into a summary when this turn ends":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Will auto-compact into a summary when this turn ends"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"本回合结束后会自动压缩成摘要"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"本回合結束後會自動壓縮成摘要"
+          }
+        }
+      }
+    },
+    "The model returned an empty response — nothing was generated. Usually the context is too long for this service or the endpoint failed upstream. Try /compact to shrink the context, or switch model/service in Settings.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The model returned an empty response — nothing was generated. Usually the context is too long for this service or the endpoint failed upstream. Try /compact to shrink the context, or switch model/service in Settings."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"模型返回了空响应——没有生成任何内容。通常是上下文对该服务过长，或上游端点故障。试试 /compact 收紧上下文，或在设置里切换模型/服务。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"模型返回了空響應——沒有生成任何內容。通常是上下文對該服務過長，或上游端點故障。試試 /compact 收緊上下文，或在設定裡切換模型/服務。"
+          }
+        }
+      }
+    },
+    "archive & shrink the conversation now (archived turns stay searchable)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"archive & shrink the conversation now (archived turns stay searchable)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"立即归档并收缩会话（归档轮次仍可检索）"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"立即歸檔並收縮會話（歸檔輪次仍可檢索）"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

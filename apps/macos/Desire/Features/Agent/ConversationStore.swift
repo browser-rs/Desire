@@ -146,6 +146,9 @@ class ConversationStore: ObservableObject {
         guard !ids.isEmpty else { return }
         for id in ids {
             DiskStore.remove(key: "conversation-\(id.uuidString)")
+            // 持久化压缩的归档伴生文件一并清（2026-11-15）——否则删会话
+            // 留孤儿归档，占盘且不可达。
+            DiskStore.remove(key: "conversation-\(id.uuidString).archive")
         }
         conversations.removeAll { ids.contains($0.id) }
     }

@@ -394,7 +394,9 @@ struct AgentHeaderView: View {
         return text
     }
 
-    /// 上下文占用的颜色分级：60% 起提醒、85% 起警告（此时 /new 更划算）。
+    /// 上下文占用的颜色分级：60% 起提醒、85% 起警告。**不再引导 /new**——
+    /// 落盘历史超预算时回合结束会自动持久化压缩（归档 + 摘要），用户无需
+    /// 开新会话（2026-11-15 用户定案）。
     /// **压缩生效时只给橙色**：历史超预算、请求侧已把最老轮次裁进摘要，
     /// 这是设计内运转而不是错误（2026-11-15 前的口径把落盘全文/预算封顶
     /// 100% 永远显示红 ⚠️，看起来像"自动压缩没触发"）。只有 stuck（超
@@ -419,11 +421,11 @@ struct AgentHeaderView: View {
             text += String(format: " · ≈%.1fk tokens", Double(store.lastPromptTokens) / 1000)
         }
         if store.contextOverStuck {
-            text += " · " + String(localized: "Context is over budget with nothing left to drop — /new starts a fresh conversation")
+            text += " · " + String(localized: "Will auto-compact into a summary when this turn ends")
         } else if store.contextCompacted {
             text += " · " + String(localized: "Oldest turns were compacted into a summary — the request stays within budget")
         } else if store.contextFraction >= 0.6 {
-            text += " · " + String(localized: "Context is getting long — /new starts a fresh conversation")
+            text += " · " + String(localized: "Context is getting long — it will auto-compact when it exceeds the budget")
         }
         return text
     }

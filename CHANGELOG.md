@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- 上下文用尽改为自动压缩，不再引导 /new：落盘历史超出预算时，回合结束自动做**持久化压缩**（compactNow）——最老轮次归档到伴生文件 conversation-<id>.archive.json（recallConversation 连归档一起搜，完整历史不丢），要点合成 [compacted history] system 备注（请求组装时并入开头 system 的 Session notes），会话文件/内存/占用芯片随之真正变小；连续多次压缩时旧摘要并入新摘要。/compact 从"请求侧预算减半"改为手动触发持久化压缩（无需压缩时明确告知）；芯片提示与空响应文案同步去 /new 化；删除会话时一并清理归档伴生文件。
+
 ### Changed
 
 - Agent 面板的后台任务条从输入框上方移到头部：收成一枚紧凑 chip（图标+数量+迷你进度），点击弹 popover 查看任务/进度/订阅完成通知——输入区不再被任务卡挤压。

@@ -420,7 +420,8 @@ class AgentSessionStore: ObservableObject {
     @Published private(set) var contextFraction: Double = 0
     /// 压缩已生效：落盘历史超预算、最老轮次被裁进摘要（发送侧 ≤ 预算）。
     @Published private(set) var contextCompacted = false
-    /// 超预算且没有可裁轮次（单轮巨型会话）——真正需要 /new 的形态。
+    /// 超预算且没有可裁轮次（单轮巨型会话）——瞬态：回合结束后自动压缩
+    /// 就有新块可裁了（2026-11-15 持久化压缩）。
     @Published private(set) var contextOverStuck = false
     private var contextFractionStamp = ""
     /// 子代理用量"待认领桶"：子代理的消息不进会话，token 由 `runSubagentLoop` 累到这里，
@@ -663,13 +664,60 @@ class AgentSessionStore: ObservableObject {
         saveCurrentConversation()
     }
 
-    /// /compact：手动收紧上下文预算（每次减半、下限 20k，可叠加）。压缩发生在
-    /// 请求组装时——旧轮次转为摘要，完整内容仍可用 recallConversation 取回。
+    /// 压缩摘要备注的识别头（重复压缩时把旧摘要并入新摘要用）。
+    private static let compactedHistoryMarker = "[compacted history]"
+
+    /// 归档文件 key：与会话文件同目录（DiskStore），recallConversation 连
+    /// 归档一起搜——归档不是删除，是"换地方存放完整历史"。
+    private var archiveKey: String? {
+        guard let id = conversationId else { return nil }
+        return "conversation-\(id.uuidString).archive"
+    }
+
+    /// **持久化压缩**（2026-11-15 用户定案"上下文用尽自动压缩，而不是去开
+    /// 新会话"）：超出目标预算的最老轮次**归档**到伴生文件，要点合成一条
+    /// system 备注（请求组装时并入开头 system 的 Session notes 段），
+    /// messages 替换为"摘要 + 保留轮次"——会话文件、内存、占用芯片随之
+    /// 真正变小。请求侧压缩（compactWithDigest）保留为回合中增长的兜底，
+    /// 两者并存。轨迹/用量统计只反映保留轮次（被归档轮次的要点在摘要里）。
+    /// - Returns: 归档的消息条数（0 = 无需压缩，或无可裁轮次——单轮巨型会
+    ///   话要等回合结束后有了新块才压得动）。
     @discardableResult
-    func applyManualCompaction() -> Int {
-        let tightened = max(20_000, effectiveContextBudget / 2)
-        compactionBudgetOverride = tightened
-        return tightened
+    func compactNow(target: Int? = nil) -> Int {
+        let targetBudget = max(20_000, target ?? Int(Double(effectiveContextBudget) * 0.6))
+        let snapshot = messages
+        let estimate = ContextCompaction.estimatedSentTotal(snapshot, budget: targetBudget)
+        guard estimate.dropped else { return 0 }
+        let (kept, digest) = ContextCompaction.compactWithDigest(snapshot, budget: targetBudget)
+        guard let digest, !digest.isEmpty else { return 0 }
+        let droppedCount = snapshot.count - kept.count
+        guard droppedCount > 0 else { return 0 }
+        let dropped = Array(snapshot.prefix(droppedCount))
+        // 旧摘要备注并入新摘要（连续多次压缩，更早的要点不丢）。
+        let carriedNotes = dropped
+            .filter { $0.role == .system && ($0.content ?? "").contains(Self.compactedHistoryMarker) }
+            .compactMap { $0.content?.replacingOccurrences(of: Self.compactedHistoryMarker + "\n", with: "") }
+        let body = (carriedNotes + [digest]).joined(separator: "\n")
+        let note = AgentMessage(role: .system, content: Self.compactedHistoryMarker + "\n" + body)
+        // 归档：被裁轮次整条写入伴生文件（DiskStore 防抖异步写）。
+        if let key = archiveKey {
+            var archived = DiskStore.load([AgentMessage].self, key: key) ?? []
+            archived.append(contentsOf: dropped)
+            DiskStore.save(archived, key: key)
+        }
+        messages = [note] + kept
+        saveCurrentConversation()
+        updateContextFraction(force: true)
+        Log.agent.info("conversation compacted: \(droppedCount) messages archived, \(kept.count) kept (target \(targetBudget))")
+        return droppedCount
+    }
+
+    /// 归档轮次（持久化压缩裁出的历史）。nil/空 = 无归档。每次读盘——
+    /// recallConversation 才会走到，不在热路径上。
+    func archivedMessages() -> [AgentMessage]? {
+        guard let key = archiveKey else { return nil }
+        let archived = DiskStore.load([AgentMessage].self, key: key)
+        return (archived?.isEmpty == false) ? archived : nil
     }
 
     private func performSlash(_ text: String) {
@@ -680,8 +728,12 @@ class AgentSessionStore: ObservableObject {
         case "new":
             clear()
         case "compact":
-            let budget = applyManualCompaction()
-            appendLocalAssistant(String(localized: "Context budget tightened to \(budget) characters — older turns are kept as a digest and stay recallable via recallConversation."))
+            let dropped = compactNow()
+            if dropped > 0 {
+                appendLocalAssistant(String(localized: "Compacted: \(dropped) older messages were archived and replaced by a summary. Archived turns stay searchable via recallConversation."))
+            } else {
+                appendLocalAssistant(String(localized: "Nothing to compact — the conversation already fits within the context budget."))
+            }
         case "stats":
             let usage = conversationUsage
             let turns = messages.filter { $0.role == .user }.count
@@ -2000,6 +2052,14 @@ class AgentSessionStore: ObservableObject {
         turnCheckpointActive = false
         saveCurrentConversation()
 
+        // **上下文用尽 → 自动压缩**（2026-11-15 用户定案）：落盘历史超出
+        // 预算时归档最老轮次并缩成摘要——不引导 /new。请求侧压缩仍是回合
+        // 中增长的兜底；压缩在脱敏落盘之后、标题/记忆整理之前（都是本地
+        // 快操作，不与下一轮抢锁）。
+        if contextFraction > 1.0 {
+            compactNow()
+        }
+
         // **先把"忙碌"交还给界面，再做收尾**：标题生成与记忆整理都是额外的模型
         // 调用，此前它们跑在 `isProcessing == true` 期间，于是正文早就渲染完了、
         // 面板却一直显示"流式中"（实测反馈："消息都渲染完了还在流式输出"）。
@@ -2436,7 +2496,7 @@ class AgentSessionStore: ObservableObject {
                 let reasoningOnly = !(assistantMsg?.reasoning?.isEmpty ?? true)
                 let note = reasoningOnly
                     ? String(localized: "The model only produced its thinking and never wrote an answer. Try asking again, or switch model/service in Settings.")
-                    : String(localized: "The model returned an empty response — nothing was generated. Usually the context is too long for this service or the endpoint failed upstream. Try /new to start a fresh conversation, or switch model/service in Settings.")
+                    : String(localized: "The model returned an empty response — nothing was generated. Usually the context is too long for this service or the endpoint failed upstream. Try /compact to shrink the context, or switch model/service in Settings.")
                 messages.append(AgentMessage(role: .assistant, content: "⚠️ " + note))
                 turnFailed = true
                 lastTurnErrorText = note

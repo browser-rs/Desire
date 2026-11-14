@@ -1877,9 +1877,17 @@ extension BrowserToolProvider {
             guard let session = ownerSession else {
                 return Self.fail("No live agent session")
             }
-            let pairs = session.messages.enumerated().compactMap { index, message -> (Int, String, String)? in
+            var pairs = session.messages.enumerated().compactMap { index, message -> (Int, String, String)? in
                 guard let content = message.content, !content.isEmpty else { return nil }
                 return (index, message.role.rawValue, content)
+            }
+            // 持久化压缩的归档轮次也在可搜范围（2026-11-15）：被裁历史换了
+            // 地方存放，不是消失。
+            if let archived = session.archivedMessages(), !archived.isEmpty {
+                pairs += archived.enumerated().compactMap { index, message -> (Int, String, String)? in
+                    guard let content = message.content, !content.isEmpty else { return nil }
+                    return (index, message.role.rawValue + "(archived)", content)
+                }
             }
             let hits = ConversationRecall.pick(pairs, query: query)
             return ConversationRecall.render(hits: hits, query: query, totalMessages: pairs.count)

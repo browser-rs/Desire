@@ -242,7 +242,9 @@ extension BrowserToolProvider {
                 naming: args["naming"] as? String,
                 force: (args["force"] as? Bool) ?? false,
                 directory: args["directory"] as? String,
-                splitEvery: args["splitEvery"] as? Int
+                splitEvery: args["splitEvery"] as? Int,
+                // 默认子夹（站点 host）交给落点解析器，同 downloadVideoList。
+                defaultFolderName: webView.url?.host
             )
             let downloading = batch.items.filter { $0.state == .pending }.count
             let skipped = batch.items.filter { $0.state == .skipped }
@@ -292,7 +294,11 @@ extension BrowserToolProvider {
                 naming: args["naming"] as? String,
                 force: (args["force"] as? Bool) ?? false,
                 directory: args["directory"] as? String,
-                splitEvery: args["splitEvery"] as? Int
+                splitEvery: args["splitEvery"] as? Int,
+                // 默认子夹（站点 host）交给落点解析器：路径恰好等于批根目录
+                // 时按默认链垫 host（工具层只在"没给 directory"时垫 folderName，
+                // ==根目录的场景要靠这个参数）。
+                defaultFolderName: URL(string: urls[0])?.host
             )
             let queued = batch.items.filter { $0.state == .pending }.count
             let skipped = batch.items.filter { $0.state == .skipped }
@@ -382,12 +388,18 @@ extension BrowserToolProvider {
             }
             let batchID = batch.id
             guard let action = (args["action"] as? String)?.lowercased() else {
-                return Self.fail("Missing action (pause/resume/skip/add/remove)")
+                return Self.fail("Missing action (pause/resume/skip/add/remove/cancel)")
             }
             switch action {
             case "pause":
                 store.pause(batchID: batchID)
                 return "Batch paused. Resume with manageBatchDownloads action=resume."
+            case "cancel":
+                // 中止整批：已完成文件原地保留，进行中/排队项终止（用户"停掉
+                // 批次"的规范入口——此前模型只能误用 cancelBackgroundTask，
+                // 批次不在那个注册表里，报错后批次继续往错的地方写）。
+                store.cancel(batchID: batchID)
+                return "Batch cancelled — finished files stay where they were written; in-flight and pending items aborted. Confirm with listBatchDownloads, and use action=remove afterwards if the user wants the settled batch out of the panel."
             case "resume":
                 store.resume(batchID: batchID)
                 return "Batch resumed."
@@ -424,7 +436,7 @@ extension BrowserToolProvider {
                     ? Self.fail("Batch is still running — cancel it first (no remove action for running batches; pause then remove works)")
                     : "Batch removed from the panel."
             default:
-                return Self.fail("Unknown action '\(action)' (pause/resume/skip/add/remove)")
+                return Self.fail("Unknown action '\(action)' (pause/resume/skip/add/remove/cancel)")
             }
 
         case "downloadMedia":

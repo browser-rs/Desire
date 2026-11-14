@@ -11055,3 +11055,47 @@ func testBudgetImageExemption() {
     let padded = "  \n" + uri + "  "
     check("预算：空白包裹的图片也豁免", ToolResultBudget.apply(padded, tool: "screenshot") == padded)
 }
+
+// ---------- BatchLocationResolver（批量下载落点智能归并） ----------
+
+do {
+    func r(_ directory: String?, _ folderName: String? = nil,
+           baseDirectory: String? = "/Volumes/sd",
+           defaultFolderName: String = "Desire-Batch-t") -> BatchLocationResolver.Resolution {
+        BatchLocationResolver.resolve(directory: directory, folderName: folderName,
+                                      baseDirectory: baseDirectory,
+                                      defaultFolderName: defaultFolderName)
+    }
+
+    // 没给 → 默认链（folderName 由调用方垫 host）
+    check("落点：没给路径 → 默认子夹", r(nil, "missav.ws") == BatchLocationResolver.Resolution(saveRoot: nil, folderName: "missav.ws"))
+    check("落点：没给路径没给子夹 → 兜底默认名", r(nil, nil) == BatchLocationResolver.Resolution(saveRoot: nil, folderName: "Desire-Batch-t"))
+    // 裸名字 → 根目录下的子文件夹
+    check("落点：裸名字 → 根下子文件夹", r("shows") == BatchLocationResolver.Resolution(saveRoot: nil, folderName: "shows"))
+    // 路径 == 根目录 → 视同默认（host 子夹照垫）
+    check("落点：等于根目录 → 默认链", r("/Volumes/sd", nil, defaultFolderName: "missav.ws") == BatchLocationResolver.Resolution(saveRoot: nil, folderName: "missav.ws"))
+    check("落点：等于根目录带尾斜杠 → 默认链", r("/Volumes/sd/", nil, defaultFolderName: "missav.ws") == BatchLocationResolver.Resolution(saveRoot: nil, folderName: "missav.ws"))
+    // 根目录之下 → 超出部分即子文件夹路径，不再垫默认名
+    check("落点：根下子目录 → 子文件夹路径", r("/Volumes/sd/shows") == BatchLocationResolver.Resolution(saveRoot: nil, folderName: "shows"))
+    check("落点：根下多级 → 保留层级", r("/Volumes/sd/shows/fc2") == BatchLocationResolver.Resolution(saveRoot: nil, folderName: "shows/fc2"))
+    check("落点：根下子目录+显式子夹 → 父子组合", r("/Volumes/sd/shows", "missav.ws") == BatchLocationResolver.Resolution(saveRoot: nil, folderName: "shows/missav.ws"))
+    // 根目录之外 → 用户显式覆盖，原样直落
+    check("落点：根目录外 → 原样直落", r("/Volumes/other/shows") == BatchLocationResolver.Resolution(saveRoot: "/Volumes/other/shows", folderName: ""))
+    check("落点：根目录外+子夹 → 父子组合", r("/Volumes/other", "shows") == BatchLocationResolver.Resolution(saveRoot: "/Volumes/other", folderName: "shows"))
+    // macOS 默认文件系统大小写不敏感
+    check("落点：大小写不敏感归并", r("/volumes/SD/shows") == BatchLocationResolver.Resolution(saveRoot: nil, folderName: "shows"))
+    // 前缀相似但不是同一目录 → 算根目录之外
+    check("落点：前缀相似非子目录 → 独立直落", r("/Volumes/sdcard/x") == BatchLocationResolver.Resolution(saveRoot: "/Volumes/sdcard/x", folderName: ""))
+    // folderName 误传绝对路径 = 等价 directory（历史语义保留）
+    check("落点：folderName 绝对路径在根下 → 归并", r(nil, "/Volumes/sd/shows") == BatchLocationResolver.Resolution(saveRoot: nil, folderName: "shows"))
+    check("落点：folderName 绝对路径在外 → 直落", r(nil, "/Volumes/x/y") == BatchLocationResolver.Resolution(saveRoot: "/Volumes/x/y", folderName: ""))
+    // ~ 展开
+    check("落点：~ 展开", r("~/Movies") == BatchLocationResolver.Resolution(saveRoot: NSString(string: "~/Movies").expandingTildeInPath, folderName: ""))
+    // 点噪音 → 兜底默认名
+    check("落点：folder 点噪音 → 兜底", r(nil, ".") == BatchLocationResolver.Resolution(saveRoot: nil, folderName: "Desire-Batch-t"))
+    // 未配置根目录
+    check("落点：无 base 且没给路径 → 兜底", r(nil, nil, baseDirectory: nil) == BatchLocationResolver.Resolution(saveRoot: nil, folderName: "Desire-Batch-t"))
+    check("落点：无 base 且给路径 → 直落", r("/Volumes/x", nil, baseDirectory: nil) == BatchLocationResolver.Resolution(saveRoot: "/Volumes/x", folderName: ""))
+    // 消毒：host 里的点保留
+    check("落点：host 点保留", r(nil, "missav.ws").folderName == "missav.ws")
+}

@@ -108,7 +108,8 @@ final class BatchMediaExportStore: ObservableObject {
         naming: String? = nil,
         force: Bool = false,
         directory: String? = nil,
-        splitEvery: Int? = nil
+        splitEvery: Int? = nil,
+        defaultFolderName: String? = nil
     ) -> BatchMediaBatch {
         BatchMediaPreferences.applyExplicitNaming(naming)
         let plan = BatchMediaPlan.planPageBatch(candidates: candidates)
@@ -133,7 +134,8 @@ final class BatchMediaExportStore: ObservableObject {
             userAgent: userAgent,
             force: force,
             directory: directory,
-            splitEvery: splitEvery
+            splitEvery: splitEvery,
+            defaultFolderName: defaultFolderName
         )
     }
 
@@ -146,7 +148,8 @@ final class BatchMediaExportStore: ObservableObject {
         naming: String? = nil,
         force: Bool = false,
         directory: String? = nil,
-        splitEvery: Int? = nil
+        splitEvery: Int? = nil,
+        defaultFolderName: String? = nil
     ) -> BatchMediaBatch {
         BatchMediaPreferences.applyExplicitNaming(naming)
         let plan = BatchMediaPlan.planListBatch(urls: pageURLs)
@@ -170,7 +173,8 @@ final class BatchMediaExportStore: ObservableObject {
             userAgent: userAgent,
             force: force,
             directory: directory,
-            splitEvery: splitEvery
+            splitEvery: splitEvery,
+            defaultFolderName: defaultFolderName
         )
     }
 
@@ -183,39 +187,23 @@ final class BatchMediaExportStore: ObservableObject {
         userAgent: String?,
         force: Bool = false,
         directory: String? = nil,
-        splitEvery: Int? = nil
+        splitEvery: Int? = nil,
+        defaultFolderName: String? = nil
     ) -> BatchMediaBatch {
-        // 用户/模型可能把**绝对路径**当 folderName 传（"存到 /Volumes/x"）——
-        // 直接消毒会把斜杠打成横杠、落在 Downloads 下的畸形文件夹。拆出
-        // 目录部分作为本批 saveRoot，末段才是子文件夹名。
-        // **组合语义**（用户实测三轮定案）：directory 与 folderName **可以组合**——
-        //   · directory = 保存**父目录**（精确路径，展开 ~）；
-        //   · folderName = 其下的子文件夹名；与 directory 同给 → 父/子组合
-        //     （"/Volumes/盘" + "站点名" → /Volumes/盘/站点名，用户直觉）；
-        //     不给 → 直接落在 directory（不硬造子文件夹）；
-        //   · folderName 误传**绝对路径** = 等价 directory（整段直落）；
-        //   · 都不给 → 默认下载根 + 时间戳文件夹；folder 点噪音（"." / ".."）= 无。
-        // 目标目录随批持久化（restore 曾丢 saveRoot——恢复后回落默认 Downloads）。
-        var saveRootOverride: String?
-        if let dir = directory?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !dir.isEmpty, dir != "/" {
-            saveRootOverride = NSString(string: dir).expandingTildeInPath
-        }
-        var folderInput = folderName ?? ""
-        if let raw = folderInput.trimmingCharacters(in: .whitespacesAndNewlines) as String?,
-           raw.hasPrefix("/"), raw != "/" {
-            // 绝对路径进 folderName = 整段就是目标目录（优先于 directory）
-            saveRootOverride = NSString(string: raw).expandingTildeInPath
-            folderInput = ""
-        }
-        let folderProbe = folderInput.trimmingCharacters(in: .whitespacesAndNewlines)
-        if folderProbe.isEmpty || folderProbe == "." || folderProbe == ".." {
-            folderInput = ""
-        }
-        let folder = BatchMediaPlan.sanitizedFileName(
-            from: folderInput,
-            fallback: saveRootOverride != nil ? "" : "Desire-Batch-" + Self.folderTimestamp()
+        // 落点智能归并（BatchLocationResolver）：用户路径可能恰好等于根目录、
+        // 在根目录之下、或在其之外——三种形态各有明确落位（含 folderName
+        // 误传绝对路径 = 等价 directory 的历史语义）。`defaultFolderName`
+        // 是调用方给的默认子夹（工具层传站点 host）：只用于"没给路径"与
+        // "路径 == 根目录"两分支。目标目录随批持久化（restore 曾丢
+        // saveRoot——恢复后回落默认 Downloads）。
+        let resolution = BatchLocationResolver.resolve(
+            directory: directory,
+            folderName: folderName,
+            baseDirectory: BatchMediaPreferences.baseDirectory,
+            defaultFolderName: defaultFolderName ?? "Desire-Batch-" + Self.folderTimestamp()
         )
+        let saveRootOverride = resolution.saveRoot
+        let folder = resolution.folderName
         var batchItems = items
         var overflow = skipped
         if batchItems.count > Self.maxItemsPerBatch {

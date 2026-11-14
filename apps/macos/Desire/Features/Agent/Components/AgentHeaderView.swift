@@ -74,6 +74,9 @@ struct AgentHeaderView: View {
             // 跨窗口 Agent 会话指示器（v0.9.0）：其他窗口有活跃会话时显示。
             CrossWindowSessionsIndicator(currentStore: store)
 
+            // 后台任务 chip（v0.8.59 自输入框上方移来）：运行中任务常驻可见。
+            AgentJobsChip(conversationID: store.conversationId)
+
             if store.fullAccess {
                 fullAccessBadge
             }

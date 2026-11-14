@@ -150,6 +150,7 @@ SOURCES=(
   apps/macos/Desire/Features/Bookmarks/BookmarkBatchEdit.swift
   apps/macos/Desire/Features/Browsing/MediaResource.swift
   apps/macos/Desire/Features/Downloads/BatchMedia.swift
+  apps/macos/Desire/Features/Downloads/BatchLocationResolver.swift
   apps/macos/Desire/Features/Downloads/BatchStallPolicy.swift
   apps/macos/Desire/Features/Agent/ReasoningEffortPolicy.swift
   apps/macos/Desire/Features/PageWatch/PageWatchDiff.swift

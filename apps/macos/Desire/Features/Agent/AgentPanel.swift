@@ -16,8 +16,6 @@ struct AgentPanel: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var crewStore = AgentCrewStore.shared
-    @ObservedObject private var jobs = JobStore.shared
-    @ObservedObject private var jobWatches = JobWatchStore.shared
     @ObservedObject var store: AgentSessionStore
     @ObservedObject var conversationStore: ConversationStore
     @ObservedObject private var draftInbox = AgentDraftInbox.shared
@@ -560,7 +558,6 @@ struct AgentPanel: View {
             }
 
             sessionDirectiveBar
-            backgroundJobsBar
             AgentInputBar(
                 text: $inputText,
                 isProcessing: store.isProcessing,
@@ -724,78 +721,6 @@ struct AgentPanel: View {
     /// 会话级临时指令条（输入框上方）：活跃时显示，点文案编辑、✕ 清除。
     @State private var directiveEditing = false
     @State private var directiveDraft = ""
-
-    /// 后台任务条（v0.8.39）：运行中的任务在输入框上方保持可见，
-    /// 可一键订阅完成通知或打开 Jobs 面板。
-    @ViewBuilder
-    private var backgroundJobsBar: some View {
-        let active = Array(jobs.active.prefix(3))
-        if !active.isEmpty {
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 6) {
-                    Image(systemName: "square.stack.3d.up")
-                        .font(.system(size: 10))
-                        .foregroundStyle(appAccent)
-                    Text(String(localized: "\(jobs.active.count) background task(s)"))
-                        .font(.system(size: 10.5, weight: .medium))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Button(String(localized: "Jobs")) {
-                        NotificationCenter.default.post(name: .openJobsPanel, object: nil)
-                    }
-                    .buttonStyle(.link)
-                    .font(.system(size: 10.5))
-                }
-                ForEach(active) { job in
-                    HStack(spacing: 6) {
-                        Image(systemName: job.kind.icon)
-                            .font(.system(size: 9.5))
-                            .foregroundStyle(.secondary)
-                            .frame(width: 12)
-                        Text(job.title)
-                            .font(.system(size: 10.5))
-                            .lineLimit(1)
-                        Spacer(minLength: 4)
-                        if let progress = job.progress, job.state == .running {
-                            ProgressView(value: progress)
-                                .progressViewStyle(.linear)
-                                .frame(width: 80)
-                        }
-                        if isJobWatched(job) {
-                            Text(String(localized: "Watching"))
-                                .font(.system(size: 9))
-                                .foregroundStyle(appAccent)
-                        } else {
-                            Button(String(localized: "Notify")) {
-                                _ = JobWatchStore.shared.register(
-                                    jobIDs: [job.id.uuidString],
-                                    conversationID: store.conversationId,
-                                    mode: .notify,
-                                    reason: String(localized: "From Agent panel"))
-                            }
-                            .buttonStyle(.borderless)
-                            .font(.system(size: 9.5))
-                            .foregroundStyle(appAccent)
-                        }
-                    }
-                }
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color.secondary.opacity(0.06))
-            )
-            .frame(maxWidth: Self.contentMaxWidth)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 12)
-            .padding(.bottom, 2)
-        }
-    }
-
-    private func isJobWatched(_ job: JobRecord) -> Bool {
-        jobWatches.active.contains { $0.jobIDs.contains(job.id.uuidString) }
-    }
 
     @ViewBuilder
     private var sessionDirectiveBar: some View {

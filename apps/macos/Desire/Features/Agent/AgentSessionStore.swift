@@ -127,11 +127,28 @@ class AgentSessionStore: ObservableObject {
     }
 
     /// 审批时的站点归属：pageAction 用 DPP 声明 host，其他工具用当前页面。
+    /// **文件/作业类工具不挂站点**（v0.8.58 批 1 修复）：它们不读页面，审批
+    /// 记忆却按"当前页面 host"分桶——文件工具的"Always on site"语义错误
+    /// （换一个页面就重新问），且闸门判定把无关页面的 host（如 fixture 页的
+    /// 127.0.0.1）算进审批上下文，自动化环境里没人点卡就挂 600s。
+    private static let nonSiteTools: Set<String> = [
+        "mergeImages", "cropImage", "resizeImage", "flipImage", "straightenImage",
+        "autoEnhanceImage", "setImageWatermark", "batchWatermarkImages",
+        "batchEditImages", "imageInfo", "lookImageFile", "readFile", "writeFile",
+        "editFile", "appendFile", "listFiles", "organizeFiles", "zipFiles",
+        "unzipArchive", "listArchive", "batchConvertFolder", "batchProcessPDFs",
+        "batchTrimVideos", "convertDocument", "batchDocuments",
+        "saveJobTemplate", "runJobTemplate", "listJobTemplates", "runBackgroundCommand",
+        "batchEditImagesJob",
+    ]
+
     private func approvalHost(for toolCall: AgentToolCall) -> String? {
         if toolCall.function.name == "pageAction",
            let host = peekDPPActionHost(for: toolCall.id) {
             return ApprovalPolicy.normalizeHost(host)
         }
+        // 文件/作业族：无站点归属——审批记忆走全局桶。
+        guard !Self.nonSiteTools.contains(toolCall.function.name) else { return nil }
         return ApprovalPolicy.normalizeHost(activePageHost)
     }
 
@@ -1907,6 +1924,7 @@ class AgentSessionStore: ObservableObject {
     }
 
     private func processLoop(turnID: UUID) async {
+        Log.agent.info("zombie-bisect: processLoop enter turn=\(turnID.uuidString.prefix(8), privacy: .public)")
         defer {
             if isCurrentTurn(turnID) {
                 isProcessing = false
@@ -2012,6 +2030,7 @@ class AgentSessionStore: ObservableObject {
     /// One model→tools→model turn. Returns when the model stops calling
     /// tools, errors out, or the iteration cap is hit.
     private func runTurn(turnID: UUID) async {
+        Log.agent.info("zombie-bisect: runTurn enter turn=\(turnID.uuidString.prefix(8), privacy: .public)")
         // AgentRuntime v2: budget-based loop replaces the old hardcoded
         // `0..<20` iteration cap. The soft limit (`maxIterations`) prevents
         // runaway execution while allowing genuinely long multi-step tasks.

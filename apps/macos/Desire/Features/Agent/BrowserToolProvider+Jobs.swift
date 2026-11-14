@@ -1,4 +1,5 @@
 import AppKit
+import os
 import CoreGraphics
 import Foundation
 
@@ -886,6 +887,7 @@ extension BrowserToolProvider {
 
 extension BrowserToolProvider {
     static func mergeImages(_ args: [String: Any]) -> String {
+        Log.agent.info("zombie-bisect: mergeImages enter")
         let paths = (args["paths"] as? [String] ?? []).filter { !$0.isEmpty }
         guard paths.count >= 2 else {
             return fail("Provide at least 2 image paths")

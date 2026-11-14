@@ -111,6 +111,13 @@ def install_profile():
         "endpoint": f"http://127.0.0.1:{FIXTURE_PORT}/v1/chat/completions",
         "model": "fake-1", "key": "zombie-key-1234567890"})
     br("POST", "/ai/profiles/activate", body={"id": created["id"]})
+    # 审批政策预置（v0.8.58 批 1）：mergeImages 等 sideEffect 工具在无人值守
+    # 环境挂审批卡 600s——E16 挂死的直接根因。预置 allow，轮末清理。
+    for tool in ["mergeImages", "cropImage", "runBackgroundCommand"]:
+        try:
+            br("POST", "/approvals/policy/add", body={"tool": tool, "decision": "allow"})
+        except Exception:
+            pass
     # 预算关断（MUSCLE17 残留会吞回合——0.8.57 教训）
     budget = (br("GET", "/agent/budget") or {}).get("budget", 0)
     if budget:
@@ -120,6 +127,11 @@ def install_profile():
 
 def restore_profile(profile_id, budget):
     try:
+        for tool in ["mergeImages", "cropImage", "runBackgroundCommand"]:
+            try:
+                br("POST", "/approvals/policy/remove", body={"tool": tool})
+            except Exception:
+                pass
         profiles = br("GET", "/ai/profiles")
         if profiles.get("active") == profile_id:
             # 恢复到档案列表里第一个非 eval 档案

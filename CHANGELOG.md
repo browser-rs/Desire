@@ -2,6 +2,8 @@
 ### Fixed
 
 - **僵尸调查批一（v0.8.58 批 1）**：① `tests/zombie-repro.py`——E16 挂死**从概率变确定性复现**（重启实例 → E9 大文本回合 → E16 send → 行为级判定〔lldb Task 探针在 Debug 实例是伪信号：健康实例同样 suspended|enqueued，弃用〕）；② **"主 actor 僵尸"定性推翻**——挂死现场桥正常响应（主队列在 drain）、进程无任何 app 回合/工具执行帧、无异常落点（ExceptionTrap 无捕获）＝ **processLoop 任务卡在某 await 的挂起态**，非执行器死亡；③ **ExceptionTrap**（NSSetUncaughtExceptionHandler 常驻，异常落 Application Support/exceptions/，诊断可查）；④ 伴生发现：`DiskStoreWriter.flush` 的同步磁盘 IO 卡在协作线程池（E9 会话保存的写盘阻塞过一次）——协作线程池是共享资源，同步阻塞类 actor 方法是全仓审计方向。**下一层二分**（待续）：processLoop 入口/stream 入口打 os_log 点 → 复现 → 定位挂死 await。
+- **E16+ 挂死根因闭环（v0.8.58 批 1，此前定稿的"主 actor 僵尸"定性被推翻）**：① `tests/zombie-repro.py` 把挂死从概率变**确定性复现**（1 轮即中）；② 直接根因 = **sideEffect 工具（mergeImages 等）的审批卡在无人值守环境挂 600s**——`/agent/approvals` 现场铁证（pending mergeImages，"Changes state"），答掉审批回合立即继续；③ **lldb Task 探针是伪信号**（健康 Debug 实例同样 suspended|enqueued——0.8.55 记录的判定手法作废，判定改行为级：send 后看回合是否真的跑）；④ 两个修复：`approvalHost` 对**文件/作业类工具返回 nil**（审批记忆不再被当前页面 host 污染成站点桶——"Always on site"语义错误 + 自动化环境挂 600s 的温床）；agent-eval/zombie-repro 的 install_profile **预置审批 allow 政策**（评估族 sideEffect 工具，restore 时逐个 remove）。修复后 repro 两轮 E16 全过、全套件不再卡死。
+
 
 
 ## [v0.8.57] - 2026-11-14

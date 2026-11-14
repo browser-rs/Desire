@@ -1213,6 +1213,18 @@ def install_profile():
     global previous_active, eval_profile_id, original_budget
     profiles = bridge("GET", "/ai/profiles")
     previous_active = profiles.get("active")
+    # 审批政策预置（v0.8.58 批 1）：评估会触发的 sideEffect 工具在无人值守
+    # 环境会挂审批卡 600s（mergeImages 曾被当前页面 host 污染成站点审批）。
+    # 预置 allow，restore 时逐个 remove。
+    global eval_policies
+    eval_policies = []
+    for tool in ["mergeImages", "cropImage", "saveJobTemplate", "runJobTemplate",
+                 "subscribeFeed", "batchEditImages", "runBackgroundCommand"]:
+        try:
+            br("POST", "/approvals/policy/add", body={"tool": tool, "decision": "allow"})
+            eval_policies.append(tool)
+        except Exception:
+            pass
     # 预算关断（v0.8.56 实测）：历史 execution-e2e 的 MUSCLE17 把
     # agentTokenBudget=500 留在共享偏好域，dev 实例继承后每个评估对话
     # 第一回合（system+292 工具 ≈ 12.8k tokens）就被预算停机——E2 的
@@ -1233,6 +1245,11 @@ def install_profile():
 
 def restore_profile():
     try:
+        for tool in globals().get("eval_policies") or []:
+            try:
+                br("POST", "/approvals/policy/remove", body={"tool": tool})
+            except Exception:
+                pass
         if globals().get("original_budget_value"):
             bridge("POST", "/agent/budget", body={"tokens": globals()["original_budget_value"]})
         if previous_active:

@@ -13,22 +13,19 @@ pub struct Claims {
 pub fn create_token(sub: i64, ttl: Duration, secret: &str) -> Result<String, AppError> {
   let exp = (Utc::now() + ttl).timestamp() as usize;
   let claims = Claims { sub, exp };
-  encode(
-    &Header::default(),
-    &claims,
-    &EncodingKey::from_secret(secret.as_bytes()),
-  )
-  .map_err(|e| AppError::Internal(format!("jwt encode failed: {e}")))
+  // jsonwebtoken 12：from_secret 返回 Result（空 secret 报 InvalidKeyFormat）。
+  let key = EncodingKey::from_secret(secret.as_bytes())
+    .map_err(|e| AppError::Internal(format!("jwt key build failed: {e}")))?;
+  encode(&Header::default(), &claims, &key)
+    .map_err(|e| AppError::Internal(format!("jwt encode failed: {e}")))
 }
 
 pub fn parse_token(token: &str, secret: &str) -> Result<Claims, AppError> {
-  decode::<Claims>(
-    token,
-    &DecodingKey::from_secret(secret.as_bytes()),
-    &Validation::new(Algorithm::HS256),
-  )
-  .map(|d| d.claims)
-  .map_err(|_| AppError::Unauthorized("invalid or expired token".into()))
+  let key = DecodingKey::from_secret(secret.as_bytes())
+    .map_err(|_| AppError::Unauthorized("invalid or expired token".into()))?;
+  decode::<Claims>(token, &key, &Validation::new(Algorithm::HS256))
+    .map(|d| d.claims)
+    .map_err(|_| AppError::Unauthorized("invalid or expired token".into()))
 }
 
 #[cfg(test)]

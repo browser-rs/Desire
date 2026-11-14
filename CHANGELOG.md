@@ -1,4 +1,9 @@
 ## [Unreleased]
+### Fixed
+
+- 发版冒烟补产物中心探针（v0.8.57 完善）：`GET /artifacts` 结构与派生可见性断言（27/27）。
+- **已知问题记档（v0.8.57）**：agent-eval E16 起全部回合超时——**主 actor 僵尸态活体**（lldb 投 `Task { @MainActor in NSLog }` 停在 suspended|enqueued、30s 未执行；0 AI request、busy 恒真、主线程 sample 空闲、全部 Task 只排队）；**0.8.56 发布基线同挂**（git stash 对照实证，非本版回归）——触发序列 E9（41KB 工具结果）→ E14（纯 HTTP）→ E16 send 后僵尸；昨天同序列 79/79 全过，日期相关。复现序列与证据链已记档，专项排查（怀疑 E9 大文本的收尾路径〔记忆抽取/脱敏〕的正则 NSRange 类异常穿 async 帧——与 0.8.55 两例同族）。
+
 ### Added
 
 - **产物中心地基（v0.8.57 批 1）**：`ArtifactIndex` 从 Job 台账**派生**产物清单（带 artifactURL 的 Job → 分类 folder/image/video/…/data → 同路径去重取最新 → 时间降序；不另存状态，JobStore 是唯一事实源）→ 新面板 **Artifacts**（`desire://artifacts` 唤起；今天/本周/更早分组 + 类型过滤 + 现查尺寸/丢失标记 + Finder 显示/拷贝路径）+ 桥 `GET /artifacts`（kind/days 过滤）+ Agent 工具 **listArtifacts**（jobs 组，模型据此对上次批量作业的输出文件夹发起再加工）+ Jobs 面板行"产物"按钮双向跳转。live 验证：office batch → pdf 产 Converted/ → 桥端点与面板同现（截图目检）。harness 3211/0。

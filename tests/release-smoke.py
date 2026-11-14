@@ -312,6 +312,15 @@ def main():
         ok("活动中心：/activity 可用",
            activity.get("ok") is True and isinstance(activity.get("items"), list))
 
+        # 2c-2) 产物中心（v0.8.57）：端点结构 + 派生可见（批 2 的链探针 Job
+        # 会留在台账里——只断言结构不断言数量）。
+        artifacts = br("GET", "/artifacts?days=30")
+        art_items = artifacts.get("artifacts") or []
+        ok("产物中心：/artifacts 可用",
+           artifacts.get("ok") is True and isinstance(art_items, list)
+           and all("path" in a and "kind" in a for a in art_items[:5]),
+           json.dumps(artifacts, ensure_ascii=False)[:120])
+
         # 2d) 流式零卡顿探针（v0.8.56 批 3）：假端点流式吐 ~40KB Markdown，
         # 期间采样 /state 往返延迟（主线程探针）——流式渲染卡主线程会直接
         # 变成延迟尖峰。档案/预算装了就恢复（防污染用户偏好）。

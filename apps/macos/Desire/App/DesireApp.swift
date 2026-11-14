@@ -56,6 +56,7 @@ struct DesireApp: App {
         Log.app.info("launch phase: app init +\(Int(Date().timeIntervalSince(DesireApp.launchStart) * 1000), privacy: .public)ms")
         LaunchAudit.mark("app init")
         StartupMetric.anchorLaunch()
+        ExceptionTrap.install()
         // 系统通知统一路由（深链：agent 通知点击开面板、更新通知开 release 页）。
         // 必须先装委托再发任何通知。
         NotificationRouter.shared.install()

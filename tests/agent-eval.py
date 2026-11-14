@@ -559,14 +559,19 @@ c.addEventListener('click', function(ev) {
         # 图片工具失败回执（E16，v0.8.44）：mergeImages/cropImage 对不存在
         # 路径的操作必须走统一 Error: 约定（2026-09-23 全工具约定）。
         if "IMGTOOLTEST" in mode_text and not has_tool:
+            # 单工具二分（v0.8.58 批 1 挂死排查）：ZOMBIE_SINGLE=1 只发
+            # mergeImages——挂死归属判定（自身 vs 并行批）。
+            single = os.environ.get("ZOMBIE_SINGLE") == "1"
             calls = [
                 {"index": 0, "id": "call_img1", "type": "function",
                  "function": {"name": "mergeImages",
                               "arguments": json.dumps({"paths": ["/tmp/desire-eval/missing-a.png", "/tmp/desire-eval/missing-b.png"]})}},
-                {"index": 1, "id": "call_img2", "type": "function",
-                 "function": {"name": "cropImage",
-                              "arguments": json.dumps({"path": "/tmp/desire-eval/missing-a.png", "x": 0, "y": 0, "width": 10, "height": 10})}},
             ]
+            if not single:
+                calls.append(
+                    {"index": 1, "id": "call_img2", "type": "function",
+                     "function": {"name": "cropImage",
+                                  "arguments": json.dumps({"path": "/tmp/desire-eval/missing-a.png", "x": 0, "y": 0, "width": 10, "height": 10})}})
             chunk = {"id": "chatcmpl-img", "object": "chat.completion.chunk", "created": int(time.time()),
                      "model": model,
                      "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": calls},

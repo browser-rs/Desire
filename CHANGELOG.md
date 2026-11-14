@@ -1,3 +1,9 @@
+## [Unreleased]
+### Fixed
+
+- **僵尸调查批一（v0.8.58 批 1）**：① `tests/zombie-repro.py`——E16 挂死**从概率变确定性复现**（重启实例 → E9 大文本回合 → E16 send → 行为级判定〔lldb Task 探针在 Debug 实例是伪信号：健康实例同样 suspended|enqueued，弃用〕）；② **"主 actor 僵尸"定性推翻**——挂死现场桥正常响应（主队列在 drain）、进程无任何 app 回合/工具执行帧、无异常落点（ExceptionTrap 无捕获）＝ **processLoop 任务卡在某 await 的挂起态**，非执行器死亡；③ **ExceptionTrap**（NSSetUncaughtExceptionHandler 常驻，异常落 Application Support/exceptions/，诊断可查）；④ 伴生发现：`DiskStoreWriter.flush` 的同步磁盘 IO 卡在协作线程池（E9 会话保存的写盘阻塞过一次）——协作线程池是共享资源，同步阻塞类 actor 方法是全仓审计方向。**下一层二分**（待续）：processLoop 入口/stream 入口打 os_log 点 → 复现 → 定位挂死 await。
+
+
 ## [v0.8.57] - 2026-11-14
 ### Fixed
 

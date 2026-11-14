@@ -4972,3 +4972,7 @@ saveJobTemplate/runJobTemplate/桥全支持；live 三步链全通：python3 造
 keep-going + AGENTS.md 过时条目修正 + WhatsNew。**遗留**：E16+ 回合卡死在
 0.8.56 基线同样复现（日期相关环境问题，非回归——专项处理）；分节独立跑/
 Remote 产物卡 UI（iOS 端）/pixelRatio 记档后延。
+
+**完善补（2026-11-14，29648ee5）**：smoke 27/27（+产物中心探针）；E16 卡死定性
+为**主 actor 僵尸活体**（lldb 探针 suspended|enqueued、0 AI request、0.8.56
+基线 stash 对照同挂、日期相关——证据链进 [[desire-testing-env]] 记忆，待专项）。

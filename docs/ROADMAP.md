@@ -5007,3 +5007,27 @@ harness、i18n/WhatsNew。**不做**：Remote 产物卡 UI、pixelRatio、跨设
 行为级）。两个修复：approvalHost 对文件/作业类工具返回 nil（站点归属污染修正）+
 eval/repro 预置审批 allow 政策；修复后 repro 两轮 E16 全过、全套件解锁。ExceptionTrap
 （NSSetUncaughtExceptionHandler 常驻）与 DiskStoreWriter 同步 IO 发现一并记档。
+
+## v0.8.59 规划稿（2026-11-15）—— 上下文自治：Agent 上下文全链路治理 + 批量下载智能化
+
+> 详情见 `docs/ROADMAP-0.8.59-PLAN.md`。**内容已全部落地**（27d6e48c…4020ceb2
+> 六提交，随本版发布，不发热点版）。
+
+**四主题**：① Agent 基础（旗舰）= 上下文自治——持久化自动压缩（超预算回合末
+自动归档+摘要，/compact 同款手动，recallConversation 连归档可搜）+ 大结果转存
+（ToolResultSpill：超预算全文落工作区 tool-results/，上下文留头尾预览+路径，
+getToolResult query/offset 检索全文）+ 芯片发送侧口径（压缩态不再假红 100%）
++ 流式停摆看门狗（六调用点全覆盖，keepalive 黑洞不再挂死回合）；② 浏览器基础/
+替人干活 = 批量下载智能化与可靠性——落点智能归并 BatchLocationResolver（=根/
+根下/根外/裸名各有落位，21 单测）、CF 验证窗自愈（脚本收窄+CF 帧跳嗅探+45s
+卡死重载）、一页多视频兄弟项（stem+目录亲缘聚类，9 单测）、单批 500、并发
+1-16（两个死参数接线）、面板全量展示、后台任务条移头部 chip；③ 贯穿（可靠性）
+= 压缩计数器回归修复（记忆学习停摆）、Doctor 压缩/转存体检、45 项新单测
+（3223→3272）；④ 贯穿（可发现性）= /compact、芯片提示、空响应文案全面去
+/new 化。**随版附带**：Rust jsonwebtoken 12 适配（随服务端部署）。
+
+**验收门**：run.sh 3272/0 → 本地 Release clean 零警告 → release-smoke → 四
+探针（自动压缩/转存/看门狗/Doctor）→ UI 用户过目 → WhatsNew 刷新 →
+release.sh 0.8.59。**发布前清单**：agent-memory.json 两事实修正（需退 App）、
+WhatsNew.highlights、changelog verify、冻结发布内容。**遗留**：token 校准
+（需窗口口径）、归档 GC、agent-eval 扩面、execution-e2e 下里程碑。

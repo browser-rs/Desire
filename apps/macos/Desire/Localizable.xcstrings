@@ -109060,6 +109060,226 @@
           }
         }
       }
+    },
+    "The Agent keeps its own context healthy":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The Agent keeps its own context healthy"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Agent 会自己打理上下文"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Agent 會自己打理上下文"
+          }
+        }
+      }
+    },
+    "Long conversations compact themselves automatically: older turns are archived (still searchable) and summarized, the context gauge shows what is actually sent, and /compact does a real shrink on demand — no more starting a new chat.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Long conversations compact themselves automatically: older turns are archived (still searchable) and summarized, the context gauge shows what is actually sent, and /compact does a real shrink on demand — no more starting a new chat."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"长会话自动压缩：更早的轮次归档（仍可检索）并保留要点，占用芯片显示实际发送量，/compact 随时手动收紧——再也不用开新会话。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"長會話自動壓縮：更早的輪次歸檔（仍可檢索）並保留要點，佔用晶片顯示實際發送量，/compact 隨時手動收緊——再也不用開新會話。"
+          }
+        }
+      }
+    },
+    "Huge pages don't blow up the chat":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Huge pages don't blow up the chat"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"超大页面不再挤爆会话"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"超大頁面不再擠爆會話"
+          }
+        }
+      }
+    },
+    "Oversized tool results are saved to files with a preview in the chat — search inside them (grep-style hits) or pull exact slices, and the full text always stays on disk.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Oversized tool results are saved to files with a preview in the chat — search inside them (grep-style hits) or pull exact slices, and the full text always stays on disk."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"超长的工具结果转存为文件、聊天里只留预览——可在其中检索（grep 式命中）或精确切片，全文始终在盘上。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"超長的工具結果轉存為檔案、聊天裡只留預覽——可在其中檢索（grep 式命中）或精確切片，全文始終在盤上。"
+          }
+        }
+      }
+    },
+    "Batch downloads land in the right folder":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Batch downloads land in the right folder"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批量下载落对文件夹"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"批量下載落對資料夾"
+          }
+        }
+      }
+    },
+    "Name a destination and it's used exactly; say nothing and the smart default applies (base folder + site host, rolling archive). Pages with several videos download all of them, batches grew to 500 items, and concurrency goes up to 16.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Name a destination and it's used exactly; say nothing and the smart default applies (base folder + site host, rolling archive). Pages with several videos download all of them, batches grew to 500 items, and concurrency goes up to 16."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"你指定路径就精确照办；不指定就走智能默认（根目录+站点子夹+分卷归档）。一页多条视频全部下载，单批上限 500，并发可到 16。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"你指定路徑就精確照辦；不指定就走智慧預設（根目錄+站點子夾+分卷歸檔）。一頁多條影片全部下載，單批上限 500，並發可到 16。"
+          }
+        }
+      }
+    },
+    "Cloudflare checks unstick themselves":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Cloudflare checks unstick themselves"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Cloudflare 验证自动解卡"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Cloudflare 驗證自動解卡"
+          }
+        }
+      }
+    },
+    "The verification window no longer spins forever — the resolver runs a near-vanilla browser and reloads a stuck challenge for a fresh one. Model streams that hang are cut off and retried instead of waiting forever.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The verification window no longer spins forever — the resolver runs a near-vanilla browser and reloads a stuck challenge for a fresh one. Model streams that hang are cut off and retried instead of waiting forever."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"验证窗不再无限转圈——解析器以接近原生的浏览器环境运行，卡住的挑战自动重载换新。挂死的模型流会被掐断重试，而不是永远等待。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"驗證窗不再無限轉圈——解析器以接近原生的瀏覽器環境運行，卡住的挑戰自動重載換新。掛死的模型流會被掐斷重試，而不是永遠等待。"
+          }
+        }
+      }
+    },
+    "Background tasks in one glance":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Background tasks in one glance"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"后台任务一眼可见"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"後台任務一眼可見"
+          }
+        }
+      }
+    },
+    "Running background tasks now live in a compact chip at the panel header — tap it for progress and completion notifications, without the input box getting squeezed.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Running background tasks now live in a compact chip at the panel header — tap it for progress and completion notifications, without the input box getting squeezed."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"运行中的后台任务收进面板头部的一枚紧凑 chip——点它看进度、订阅完成通知，输入区不再被挤。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"運行中的後台任務收進面板頭部的一枚緊湊 chip——點它看進度、訂閱完成通知，輸入區不再被擠。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

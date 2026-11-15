@@ -17,16 +17,16 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "shippingbox.fill", title: String(localized: "Your job outputs, all in one place"),
-                  detail: String(localized: "Batch edits, conversions and downloads now land in a single Artifacts view (desire://artifacts) — send any output to the whiteboard, excerpts or your phone, or chain the next job right onto it.")),
-            .init(icon: "link", title: String(localized: "Jobs that chain themselves"),
-                  detail: String(localized: "Save multi-step templates (convert, then watermark, then export) — each step starts automatically when the previous one finishes, with outputs flowing between steps.")),
-            .init(icon: "target", title: String(localized: "The Agent now clicks exactly where it looks"),
-                  detail: String(localized: "Screenshots now carry their own scale note, so coordinate clicks stay accurate on any window size — and a crosshair flashes at each landing point so you can see exactly where the Agent is about to click.")),
-            .init(icon: "speedometer", title: String(localized: "Launch speed you can check"),
-                  detail: String(localized: "First-window time now shows in Settings › Diagnostics against the 700 ms budget, with per-phase breakdowns in the diagnostics endpoint — and CI watches the trend on every build.")),
-            .init(icon: "key.horizontal.fill", title: String(localized: "Smarter password filling"),
-                  detail: String(localized: "Filling now picks the username box the same way detection does — autocomplete hints, labels and aria attributes all count — so login forms with unusual layouts fill the right field.")),
+            .init(icon: "arrow.triangle.2.circlepath", title: String(localized: "The Agent keeps its own context healthy"),
+                  detail: String(localized: "Long conversations compact themselves automatically: older turns are archived (still searchable) and summarized, the context gauge shows what is actually sent, and /compact does a real shrink on demand — no more starting a new chat.")),
+            .init(icon: "doc.text.magnifyingglass", title: String(localized: "Huge pages don't blow up the chat"),
+                  detail: String(localized: "Oversized tool results are saved to files with a preview in the chat — search inside them (grep-style hits) or pull exact slices, and the full text always stays on disk.")),
+            .init(icon: "folder.badge.gearshape", title: String(localized: "Batch downloads land in the right folder"),
+                  detail: String(localized: "Name a destination and it's used exactly; say nothing and the smart default applies (base folder + site host, rolling archive). Pages with several videos download all of them, batches grew to 500 items, and concurrency goes up to 16.")),
+            .init(icon: "checkmark.shield.fill", title: String(localized: "Cloudflare checks unstick themselves"),
+                  detail: String(localized: "The verification window no longer spins forever — the resolver runs a near-vanilla browser and reloads a stuck challenge for a fresh one. Model streams that hang are cut off and retried instead of waiting forever.")),
+            .init(icon: "square.stack.3d.up", title: String(localized: "Background tasks in one glance"),
+                  detail: String(localized: "Running background tasks now live in a compact chip at the panel header — tap it for progress and completion notifications, without the input box getting squeezed.")),
         ]
     }
 

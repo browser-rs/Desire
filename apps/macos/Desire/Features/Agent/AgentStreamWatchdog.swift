@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// **流式停摆看门狗**（2026-11-15）：模型流可能"永远不来下一个事件"——
 /// 上游黑洞、网关只发 SSE keepalive 注释行（`for try await line` 循环里
@@ -14,12 +15,13 @@ nonisolated enum AgentStreamWatchdog {
 
     static var stallSeconds: TimeInterval {
         let raw = UserDefaults.standard.double(forKey: "agentStreamStallSeconds")
-        return raw > 30 ? raw : 180
+        return raw >= 30 ? raw : 180
     }
 
     static func wrap(_ stream: AsyncThrowingStream<AgentStreamEvent, Error>,
                      window: TimeInterval? = nil) -> AsyncThrowingStream<AgentStreamEvent, Error> {
         let window = window ?? stallSeconds
+        Log.agent.info("stream watchdog: armed (window \(Int(window))s)")
         let deadline = DeadlineHolder(window: window)
         return AsyncThrowingStream { continuation in
             // 泵：消费内层流并转发（每个事件把超时线推后）。
@@ -48,6 +50,7 @@ nonisolated enum AgentStreamWatchdog {
                     try? await Task.sleep(for: .seconds(5))
                     if deadline.isFinished { return }
                     if deadline.expired() {
+                        Log.agent.fault("stream watchdog: no event for \(Int(window))s — cancelling the stream")
                         deadline.markExpired()
                         pump.cancel()
                         return

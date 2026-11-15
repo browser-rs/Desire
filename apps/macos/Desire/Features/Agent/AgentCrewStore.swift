@@ -469,7 +469,8 @@ final class AgentCrewStore: ObservableObject {
             do {
                 // 走用户配置的 provider(routing/Ollama/cloud)——旧的
                 // AgentService facade 写死云端,无 API key 的配置必然失败。
-                for try await event in surface.agentPreference.provider.stream(messages: transcript, tools: toolDefs, prefs: surface.agentPreference) {
+                // 停摆看门狗（2026-11-15）：worker 挂死由看门狗掐断，槽位不空转。
+                for try await event in AgentStreamWatchdog.wrap(surface.agentPreference.provider.stream(messages: transcript, tools: toolDefs, prefs: surface.agentPreference)) {
                     if worker.state == .cancelled { break }
                     switch event {
                     case .text(let chunk):

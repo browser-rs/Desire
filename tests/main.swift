@@ -11238,6 +11238,29 @@ do {
     check("转存：短结果标记仍在", short.contains("[desire-spill: ") && ToolResultSpill.parsePath(from: short) != nil)
     try? FileManager.default.removeItem(at: dir)
 }
+
+// ---------- digest：无正文回合（只跑工具）报工具动作 ----------
+
+do {
+    func call(_ name: String) -> AgentToolCall {
+        AgentToolCall(id: UUID().uuidString, type: "function",
+                      function: AgentToolFunction(name: name, arguments: "{}"))
+    }
+    let turns = [
+        AgentMessage(role: .user, content: "查一下这批数据"),
+        AgentMessage(role: .assistant, content: "", toolCalls: [call("executeJS"), call("readFile"), call("getNetworkLog")]),
+        AgentMessage(role: .tool, content: "结果略", toolCallId: "t1"),
+        AgentMessage(role: .user, content: "继续"),
+        AgentMessage(role: .assistant, content: "最终回答"),
+    ]
+    let (kept, digest) = ContextCompaction.compactWithDigest(turns, budget: 30)
+    check("摘要：无正文回合报工具动作", (digest ?? "").contains("执行了 3 次工具调用")
+        && (digest ?? "").contains("executeJS/readFile/getNetworkLog")
+        && (digest ?? "").contains("无文字结论"))
+    check("摘要：无正文回合不虚构结论", !(digest ?? "").contains("｜结论："))
+    check("摘要：末块保留", kept.last?.content == "最终回答")
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

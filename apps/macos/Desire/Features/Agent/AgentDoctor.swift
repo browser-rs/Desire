@@ -66,6 +66,32 @@ enum AgentDoctor {
                                 detail: "\(connected)/\(mcpServers.count) 台已连接"))
         }
 
+        // 3.5 上下文压缩与归档（2026-11-15）：当前会话压过没有、归档多大。
+        if let store = AgentScheduler.shared.deliveryTarget,
+           let id = store.conversationId {
+            let archiveURL = DiskStore.directory
+                .appendingPathComponent("conversation-\(id.uuidString).archive.json")
+            let attrs = try? FileManager.default.attributesOfItem(atPath: archiveURL.path)
+            let size = (attrs?[.size] as? NSNumber)?.intValue ?? 0
+            checks.append(Check(
+                name: "上下文压缩",
+                ok: true,
+                detail: size > 0
+                    ? "已有归档（\(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))）——归档轮次用 recallConversation 检索"
+                    : "未触发过（会话仍在预算内）"))
+        }
+
+        // 3.6 大结果转存目录（tool-results/）：超 1GB 提示清理。
+        let spillDir = AgentWorkspace.shared.directory
+            .appendingPathComponent("tool-results", isDirectory: true)
+        let spillSize = Self.directorySize(spillDir)
+        checks.append(Check(
+            name: "转存目录",
+            ok: spillSize < 1_000_000_000,
+            detail: spillSize == 0
+                ? "空（尚无大结果转存）"
+                : "\(ByteCountFormatter.string(fromByteCount: Int64(spillSize), countStyle: .file))（\(spillDir.path)）"))
+
         // 4. ffmpeg（HLS 直连 MP4 的前置）
         let fm = FileManager.default
         let ffmpegPaths = ["/opt/homebrew/bin/ffmpeg", "/usr/local/bin/ffmpeg",
@@ -131,5 +157,15 @@ enum AgentDoctor {
         request.httpMethod = "GET"
         guard let (_, response) = try? await URLSession.shared.data(for: request) else { return false }
         return response is HTTPURLResponse
+    }
+
+    /// 目录总大小（转存目录体检用）。目录不存在 = 0。
+    static func directorySize(_ url: URL) -> Int {
+        guard let enumerator = FileManager.default.enumerator(at: url, includingPropertiesForKeys: [.fileSizeKey]) else { return 0 }
+        var total = 0
+        for case let file as URL in enumerator {
+            total += (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        }
+        return total
     }
 }

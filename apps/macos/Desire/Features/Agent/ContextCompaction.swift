@@ -214,13 +214,26 @@ nonisolated enum ContextCompaction {
             var line = "用户：\(String(goal.prefix(80)))"
             let answer = turn.last(where: { $0.role == .assistant && !($0.content ?? "").isEmpty })?
                 .content?.replacingOccurrences(of: "\n", with: " ") ?? ""
-            if !answer.isEmpty { line += "｜结论：\(String(answer.prefix(80)))" }
+            if !answer.isEmpty {
+                line += "｜结论：\(String(answer.prefix(80)))"
+            } else {
+                // 无正文回合（只跑了工具就被打断/被裁）：报工具调用摘要——
+                // 让模型知道这一轮"做了什么"，而不是只剩一句目标。
+                let calls = turn.compactMap { $0.toolCalls }.flatMap { $0 }
+                if !calls.isEmpty {
+                    let names = calls.prefix(4).map { $0.function.name }.joined(separator: "/")
+                    line += "｜执行了 \(calls.count) 次工具调用（\(names)\(calls.count > 4 ? " 等" : "")），无文字结论"
+                }
+            }
             lines.append(line)
         }
         guard !lines.isEmpty else { return "" }
         var out = "以下 \(lines.count) 轮更早的对话已被上下文裁剪，仅保留要点：\n"
             + lines.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
         if out.count > limit { out = String(out.prefix(limit)) + "\n（更早的轮次从略）" }
+        // 归档可达性（2026-11-15 持久化压缩）：被裁内容没有消失——完整历史
+        // 在会话与归档里，模型需要细节时按关键词检索，而不是凭摘要猜。
+        out += "\n（需要细节时用 recallConversation(query) 按关键词检索本会话的完整历史与归档，不要凭要点猜测）"
         return out
     }
 }

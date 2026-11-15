@@ -8,6 +8,10 @@
 - Agent 面板的后台任务条从输入框上方移到头部：收成一枚紧凑 chip（图标+数量+迷你进度），点击弹 popover 查看任务/进度/订阅完成通知——输入区不再被任务卡挤压。
 - 批量下载并发上限 1-4 放宽到 1-16（默认仍 2）：偏好钳制、工具参数校验、桥端点、设置页选择器（segmented 改 menu）、工具描述同步；顺带接线两个从未生效的死参数——downloadAllPageVideos 的 maxConcurrent（声明了但执行器没应用）与 manageBatchDownloads 的 maxConcurrent（描述写"更新批次并发"实为空操作）。纯逻辑单测套件的汇总输出此前位于 8748 行，其后约 19 项用例不计总数、失败也静默——汇总移到文件末尾（3223→3251）。
 - 批量下载单批上限 100→500（用户实测列表页 100+ 部被截断）：引擎有暂停/断点续传/磁盘预留/看门狗兜底，面板明细已全量展示；工具描述同步声明"更长列表分批收集"。
+- Agent 回合优化三件：①请求组装单趟压缩——此前第一次全量压缩算出的摘要直接丢弃、digestProvider 又在主线程对全量快照重算一遍 compactWithDigest（大会话每请求两次全量扫描 + 主线程尖刺）；现 digest 与 kept 同趟在后台产出。②空响应重试前收紧压缩预算（与超限重试同一动作）——此前原样重发，上下文过长导致的空响应必再空。③listBatchDownloads 分级输出：默认 summary（每批汇总行 + 人工验证/失败条目），detail="full" 才列前 30 条明细——500 项批次逐条轮询不再撑肥上下文。
+- Agent 深入优化两件：①系统提示静态层按回合缓存——记忆检索（BM25+CoreML 向量嵌入）、106 工具索引拼装、skills 清单在一轮的多次迭代里全部不变却每次请求重算；现以指纹（提示词/规则/档位/指令/记忆条数/MCP 连接数/当前 host/检索词）判定缓存，回合内换站、加记忆自动失效，environment/page_context 照旧每请求新鲜。②压缩摘要尾部注入 recallConversation 检索提示——被裁历史没有消失，需要细节时按关键词检索会话完整历史与归档，不要凭要点猜测。
+
+
 
 
 
@@ -18,6 +22,8 @@
 - 批量列表页里"一个详情页多条视频只下一条"：此前解析成功后 pickBestResource 只挑全局最优，同页其余视频（分集/上下部）静默丢失。现按"同 stem + 目录亲缘"聚类（surrit 形态的子目录变体、同目录同名 stem 画质对、先嗅到变体后到 master 三种形态都能并簇；跨 uuid 同名 playlist.m3u8 保持分立），主条目之外的视频簇追加兄弟项继续下载（编号 01-2/01-3…，每页上限 4 条，只认 video/stream 簇防止独立音轨当正片）。stemKey/distinctMediaFamilies 为 Foundation-only 纯逻辑，9 项单测。
 - 批量下载面板条目明细此前只显示前 40 条，100+ 项的批次后半截不可见——改为全量展示（外层已是 ScrollView+LazyVStack，行极轻）。
 - Agent 面板上下文占用芯片口径修正：此前按落盘全文/预算且封顶 100%——一条 48k 的 HTML 读进来落盘后芯片永远钉死在 100% 红色警告，看起来像"自动压缩没触发"（实际请求侧每回合都在压缩：最老轮次裁进摘要 + 大工具结果折叠成句柄）。现改显示发送侧口径（与 compactWithDigest 同一裁剪语义的估算，ContextCompaction.estimatedSentTotal，4 项单测）：允许显示 >100%，压缩生效时橙色循环图标 + "已压缩进摘要"说明，仅"超预算且没有可裁轮次"（单轮巨型会话）才保持红色警告。另：大工具结果改为转存全文（ToolResultSpill：超预算写工作区 tool-results/，上下文只留头 4000+尾 1000+路径标记，预览低于请求侧 8k 折叠阈值不会被二次折叠），getToolResult 对转存结果自动回退读文件——query（grep 式命中行±上下文，ToolResultBudget.search 8 项单测）/offset+length 切片均对全文生效，readFile 也能直接读路径；getPageHTML 维持 48k，不再丢尾巴。
+- Agent 可靠性与质量批（深入优化轮 A/B）：①持久化压缩后 memoryProcessedCount/summarizedCount 两个按数组下标计数的增量门槛未随 messages 缩短调整——压缩一次后差值变负，记忆学习静默停摆；compactNow 现同步扣减。②记忆事实提取输入排除 [compacted history] system 备注（摘要是已学事实的回声，重复提取只会制造近似重复）。③流式停摆看门狗（AgentStreamWatchdog，默认 180s、UserDefaults agentStreamStallSeconds 可调）覆盖全部六个模型流调用点（主回合/记忆与标题等旁路 collectText/子代理/crew worker/自评/划词旁路）——上游黑洞或网关只发 keepalive 不发事件时，回合曾永久挂在 "Thinking…"，现在超窗抛 timedOut 走既有瞬态/failover 重试路径。④AgentDoctor 新增"上下文压缩"（归档有无与大小）与"转存目录"（tool-results 体量）体检项。⑤压缩摘要对"无正文回合"（只跑工具就被裁）标注工具调用动作摘要，不再只剩一句目标。
+
 
 
 

@@ -164,7 +164,11 @@ enum MemoryExtractor {
         var usageCompletion = 0
         var reportedModel: String?
         do {
-            for try await event in provider.stream(messages: messages, tools: [], prefs: preference) {
+            // 同一套停摆看门狗（2026-11-15）：旁路调用挂死会让回合收尾的
+            // 标题/记忆整理永远等不到，面板虽已还"忙"但任务在后台悬着。
+            let guarded = AgentStreamWatchdog.wrap(
+                provider.stream(messages: messages, tools: [], prefs: preference))
+            for try await event in guarded {
                 switch event {
                 case .text(let delta): output += delta
                 case .usage(let prompt, let completion):

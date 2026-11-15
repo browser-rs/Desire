@@ -37,7 +37,7 @@ enum SelectionAssistService {
         var usagePrompt = 0
         var usageCompletion = 0
         var reportedModel: String?
-        for try await event in sidePrefs.provider.stream(messages: messages, tools: [], prefs: sidePrefs) {
+        for try await event in AgentStreamWatchdog.wrap(sidePrefs.provider.stream(messages: messages, tools: [], prefs: sidePrefs)) {
             switch event {
             case .text(let delta):
                 output += delta

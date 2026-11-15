@@ -706,6 +706,11 @@ class AgentSessionStore: ObservableObject {
             DiskStore.save(archived, key: key)
         }
         messages = [note] + kept
+        // 计数器同步（2026-11-15 bug 修复）：两个增量门槛都按 messages 数组
+        // 下标计数——压缩把数组缩短后不调整的话 `count - processed` 变负，
+        // 记忆学习从此静默停摆（归档里未提取的轮次不补提取，要点在摘要）。
+        memoryProcessedCount = max(0, memoryProcessedCount - droppedCount)
+        summarizedCount = max(0, summarizedCount - droppedCount)
         saveCurrentConversation()
         updateContextFraction(force: true)
         Log.agent.info("conversation compacted: \(droppedCount) messages archived, \(kept.count) kept (target \(targetBudget))")
@@ -1797,8 +1802,12 @@ class AgentSessionStore: ObservableObject {
         let snapshot = messages
         let budget = effectiveContextBudget
         let turnID = currentTurnIDForPreparation ?? UUID()
-        let prepared = await Task.detached(priority: .userInitiated) { () -> [AgentMessage] in
-            let (kept, _) = ContextCompaction.compactWithDigest(snapshot, budget: budget)
+        let prepared = await Task.detached(priority: .userInitiated) { () -> (messages: [AgentMessage], digest: String?) in
+            // **单趟压缩**（2026-11-15）：此前第一次调用算出的 digest 直接
+            // 丢弃（`let (kept, _)`），digestProvider 又对全量快照**在主线程
+            // 上**重算一遍 compactWithDigest——大会话每个请求两次全量扫描
+            // 加一次主线程尖刺。现在 digest 与 kept 同一趟产出。
+            let (kept, digest) = ContextCompaction.compactWithDigest(snapshot, budget: budget)
             var prepared = ContextCompaction.repairUnpairedToolCalls(kept)
             let (summarized, toolCharsSaved) = ContextCompaction.summarizingOversizedToolResults(prepared)
             prepared = summarized
@@ -1812,21 +1821,18 @@ class AgentSessionStore: ObservableObject {
             }
             // 机械摘要的注入需要宿主上下文（identity/memory/skills 分层），
             // 留在 MainActor 侧拼装——后台只做纯转换。
-            return prepared
+            return (prepared, digest)
         }.value
         guard isCurrentTurn(turnID) else { return [] }
-        return await assembleRequestMessages(from: prepared, digestProvider: { () -> String? in
-            ContextCompaction.compactWithDigest(snapshot, budget: budget).digest
-        })
+        return await assembleRequestMessages(from: prepared.messages, digest: prepared.digest)
     }
 
     /// 从后台 prepared 消息拼装最终请求（system 分层注入——需要宿主依赖，
-    /// 留在 MainActor）。digestProvider 只在被需要时重算（压缩摘要惰性）。
+    /// 留在 MainActor）。digest 由后台同趟产出（见 buildRequestMessages）。
     private func assembleRequestMessages(
         from request: [AgentMessage],
-        digestProvider: @escaping () -> String?
+        digest: String?
     ) async -> [AgentMessage] {
-        let digest = digestProvider()
         // 压缩/修复/摘要/封顶四步纯转换已在后台完成（见 buildRequestMessages）。
         var request = request
 
@@ -1856,12 +1862,27 @@ class AgentSessionStore: ObservableObject {
             .suffix(3)
             .compactMap { $0.content }
             .joined(separator: " ")
-        let memoryBlock = await AgentMemoryStore.shared.promptBlock(
-            excluding: conversationId,
-            currentHost: currentHost,
-            query: retrievalQuery
-        )
-        let skills = SkillStore.shared.skills.map { ($0.name, $0.description) }
+        // **静态层缓存**（2026-11-15）：一轮的多次迭代里，记忆检索（BM25 +
+        // CoreML 向量嵌入）、工具索引拼装（106 工具 ~16KB）、skills 清单全部
+        // 不变——只有 pageContext 每请求要新鲜。指纹覆盖所有会影响这三样
+        // 的输入（提示词/规则/档位/指令/记忆条数/MCP 连接数/当前 host/检索
+        // 词），变了即失效——回合内导航换站、加记忆都会正确刷新。
+        let fingerprint = promptStaticFingerprint(
+            identity: identity, currentHost: currentHost, retrievalQuery: retrievalQuery)
+        let statics: PromptStaticLayers
+        if promptStaticCache?.fingerprint == fingerprint {
+            statics = promptStaticCache!.layers
+        } else {
+            let memoryBlock = await AgentMemoryStore.shared.promptBlock(
+                excluding: conversationId,
+                currentHost: currentHost,
+                query: retrievalQuery
+            )
+            let skills = SkillStore.shared.skills.map { ($0.name, $0.description) }
+            let tools = BrowserToolProvider.promptInventory(for: BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs)
+            statics = PromptStaticLayers(memoryBlock: memoryBlock, skills: skills, tools: tools)
+            promptStaticCache = (fingerprint, statics)
+        }
         let pageContext = await fetchCompactPageContext()
         let composed = AgentPromptBuilder.compose(.init(
             identity: identity,
@@ -1871,9 +1892,9 @@ class AgentSessionStore: ObservableObject {
             outputRules: preference.outputRules,
             answerLength: preference.answerLength,
             sessionDirective: activeDirective,
-            memoryBlock: memoryBlock,
-            skills: skills,
-            tools: BrowserToolProvider.promptInventory(for: BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs),
+            memoryBlock: statics.memoryBlock,
+            skills: statics.skills,
+            tools: statics.tools,
             workspacePath: SystemCommandStore.shared.workingDirectory.path,
             downloadsPath: AgentPromptBuilder.downloadsPath,
             ffmpegAvailable: FFmpegExporter.isAvailable,
@@ -1888,6 +1909,36 @@ class AgentSessionStore: ObservableObject {
         let digestBlock = digest.map { "\n\n## Earlier conversation (compacted)\n\($0)" } ?? ""
         request.insert(AgentMessage(role: .system, content: composed + notesBlock + digestBlock), at: 0)
         return request
+    }
+
+    /// 静态提示层缓存条目（persona/identity/directive/rules 之外的三个**重**
+    /// 输入：记忆检索块、skills 清单、工具索引）。
+    private struct PromptStaticLayers {
+        var memoryBlock: String?
+        var skills: [(name: String, description: String)]
+        var tools: [(name: String, summary: String)]
+    }
+
+    private var promptStaticCache: (fingerprint: String, layers: PromptStaticLayers)? = nil
+
+    /// 静态层指纹：任一会影响 memoryBlock/skills/tools 的输入变化都会改变
+    /// 它（hashValue 仅用于本进程内的相等比较，不跨运行）。
+    private func promptStaticFingerprint(identity: String, currentHost: String?,
+                                         retrievalQuery: String) -> String {
+        [
+            String(identity.hashValue),
+            String(preference.outputRules.joined(separator: "¦").hashValue),
+            String(preference.answerLength.rawValue),
+            activeDirective ?? "",
+            String((effectiveAgentName ?? "").hashValue),
+            String((effectiveAgentPersona ?? "").hashValue),
+            effectiveMode.rawValue,
+            String(AgentMemoryStore.shared.factsSnapshot.count),
+            String(SkillStore.shared.skills.count),
+            String(MCPStore.shared.toolDefs.count),
+            currentHost ?? "",
+            String(retrievalQuery.hashValue),
+        ].joined(separator: "¦")
     }
 
     // 多 Agent roster v1：本窗口绑定的人设（nil = 全局默认）。只覆盖 <persona>
@@ -2213,11 +2264,14 @@ class AgentSessionStore: ObservableObject {
                 let streamTools = BrowserToolProvider.toolDefs
                     .filter { !mode.excludedTools.contains($0.function.name) }
                     + MCPStore.shared.toolDefs
-                let stream = active.provider.stream(
+                // **流式停摆看门狗**（2026-11-15）：上游黑洞 / 网关只发 keepalive
+                // 不发事件时，回合曾永久挂在 "Thinking…"。超窗（默认 180s）
+                // 抛 timedOut → 走既有瞬态/failover 重试路径。
+                let stream = AgentStreamWatchdog.wrap(active.provider.stream(
                     messages: request,
                     tools: streamTools,
                     prefs: prefs
-                )
+                ))
                 // UI flush state: per-token array writes + view
                 // invalidations dominate long streams, so the tail message
                 // is published at ~12 fps instead of per token.
@@ -2485,6 +2539,14 @@ class AgentSessionStore: ObservableObject {
                 if isCancelled { return }
                 emptyRetryAttempts += 1
                 if emptyRetryAttempts >= 2 { break }
+                // 空响应多为"上下文对该服务过长"的表征（报错文案自己也这么
+                // 说）——重试前收紧压缩预算（与超限重试同一动作），让第二次
+                // 尝试的请求真的变小，而不是原样重发必再空（2026-11-15）。
+                let tightened = max(20_000, effectiveContextBudget / 2)
+                if tightened < effectiveContextBudget {
+                    compactionBudgetOverride = tightened
+                    Log.agent.info("empty response — tightened compaction budget to \(tightened) chars before retry")
+                }
                 assistantMsg = nil
                 hasContent = false
             } while !hasContent && emptyRetryAttempts < 2
@@ -2883,11 +2945,12 @@ class AgentSessionStore: ObservableObject {
                 do {
                     let active = makeActiveProvider()
                     // No recursion: the subagent cannot spawn subagents.
-                    let stream = active.provider.stream(
+                    // 停摆看门狗（2026-11-15）：子代理挂死不再拖住主回合。
+                    let stream = AgentStreamWatchdog.wrap(active.provider.stream(
                         messages: subMessages,
                         tools: Self.subagentAllowedToolDefs + MCPStore.shared.toolDefs,
                         prefs: preference
-                    )
+                    ))
                     for try await event in stream {
                         receivedAny = true
                         if isCancelled { return "[Cancelled]" }
@@ -3046,7 +3109,7 @@ class AgentSessionStore: ObservableObject {
         var usageCompletion = 0
         var reportedModel: String?
         do {
-            for try await event in reviewer.stream(messages: request, tools: [], prefs: reviewingPrefs) {
+            for try await event in AgentStreamWatchdog.wrap(reviewer.stream(messages: request, tools: [], prefs: reviewingPrefs)) {
                 if isCancelled { return nil }
                 switch event {
                 case .text(let delta): text += delta
@@ -3295,7 +3358,9 @@ class AgentSessionStore: ObservableObject {
             await MemoryExtractor.extractFacts(
                 preference: prefs,
                 memory: AgentMemoryStore.shared,
-                messages: Array(snapshot.suffix(14)),
+                // system（[compacted history] 摘要备注）不进事实提取——摘要
+                // 里的要点本来就是已学事实的回声，重复提取只会制造近似重复。
+                messages: Array(snapshot.suffix(14).filter { $0.role != .system }),
                 source: conversationId.flatMap { conversationStore.conversation(for: $0)?.title },
                 onUsage: { [weak self] p, c, m in
                     self?.attributeBypassUsage("facts", p, c, model: m, to: tailID)

@@ -693,8 +693,10 @@ extension BrowserToolProvider {
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "listBatchDownloads",
-                description: "Progress of batch video downloads (downloadAllPageVideos / downloadVideoList / retryBatchDownloads): per-batch aggregates and per-item states with progress (pending/resolving/needsHuman/downloading/finished/failed/skipped). paused/suspended batches are waiting — suspended means the disk-space reserve was hit and the batch auto-resumes when space recovers. needsHuman means an interactive check is waiting — the app already tried clicking it automatically; only NOW tell the user to finish it in the popup window. To STOP a running batch use manageBatchDownloads action=cancel — cancelBackgroundTask does NOT manage batches.",
-                parameters: AgentJSONSchema(type: "object", properties: [:])
+                description: "Progress of batch video downloads (downloadAllPageVideos / downloadVideoList / retryBatchDownloads): per-batch aggregate line + actionable items (needsHuman / failed). paused/suspended batches are waiting — suspended means the disk-space reserve was hit and the batch auto-resumes when space recovers. needsHuman means an interactive check is waiting — the app already tried clicking it automatically; only NOW tell the user to finish it in the popup window. To STOP a running batch use manageBatchDownloads action=cancel — cancelBackgroundTask does NOT manage batches. detail=\"full\" additionally lists the first 30 items per batch — use it only when the user asks for an item-level breakdown; for progress checks the default summary is enough (do NOT poll in a loop).",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "detail": AgentJSONSchemaValue(type: "string", description: "\"summary\" (default — aggregate + actionable items) or \"full\" (first 30 items per batch)"),
+                ])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "manageBatchDownloads",

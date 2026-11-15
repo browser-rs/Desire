@@ -347,6 +347,10 @@ extension BrowserToolProvider {
             let store = BatchMediaExportStore.shared
             let batches = store.batches
             guard !batches.isEmpty else { return "No batch downloads." }
+            // 分级输出（2026-11-15）：默认 **summary**——每批一行汇总 + 需要
+            // 动作的条目（人工验证/失败）。500 项的批次逐条轮询会把上下文
+            // 撑肥（模型还爱反复查）；全量明细用 detail=full 显式要。
+            let detail = (args["detail"] as? String)?.lowercased() == "full" ? "full" : "summary"
             var lines: [String] = []
             for batch in batches.prefix(10) {
                 // 落点按批次**实际**的 saveRoot/folder 拼接（此前写死默认目录，
@@ -364,7 +368,16 @@ extension BrowserToolProvider {
                     line += " — WAITING FOR HUMAN VERIFICATION (\(needsHuman.count)) — automatic clicking already failed; tell the user to finish the check in the popup window"
                 }
                 lines.append(line)
-                for item in batch.items.prefix(30) {
+                let actionable: [BatchMediaItem]
+                if detail == "full" {
+                    actionable = Array(batch.items.prefix(30))
+                } else {
+                    // summary：只列需要动作/值得注意的条目（验证、失败），上限 10。
+                    actionable = Array(batch.items.filter {
+                        $0.state == .needsHuman || $0.state == .failed
+                    }.prefix(10))
+                }
+                for item in actionable {
                     var itemLine = "  · [#\(item.id.uuidString.prefix(8).lowercased())] [\(item.state.rawValue)] \(item.title.isEmpty ? item.sourceURL.absoluteString : item.title)"
                     if let progress = store.progress(for: item.id) {
                         itemLine += " (\(progress.done)/\(progress.total) \(progress.unit.rawValue))"
@@ -375,8 +388,11 @@ extension BrowserToolProvider {
                     }
                     lines.append(itemLine)
                 }
-                if batch.items.count > 30 {
-                    lines.append("  … \(batch.items.count - 30) more items")
+                let hidden = batch.items.count - actionable.count
+                if hidden > 0 {
+                    lines.append(detail == "full"
+                        ? "  … \(hidden) more items"
+                        : "  … \(hidden) routine item(s) not shown (resolving/downloading/finished/skipped) — detail=\"full\" lists the first 30")
                 }
             }
             return lines.joined(separator: "\n")

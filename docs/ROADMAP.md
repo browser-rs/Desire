@@ -5031,3 +5031,25 @@ getToolResult query/offset 检索全文）+ 芯片发送侧口径（压缩态不
 release.sh 0.8.59。**发布前清单**：agent-memory.json 两事实修正（需退 App）、
 WhatsNew.highlights、changelog verify、冻结发布内容。**遗留**：token 校准
 （需窗口口径）、归档 GC、agent-eval 扩面、execution-e2e 下里程碑。
+
+## v0.8.60 规划稿（2026-11-15）—— 自校准与值守：Agent 上下文真值化 + 自主处置闭环
+
+> 详情见 `docs/ROADMAP-0.8.60-PLAN.md`。**着重智能体本身的完善与改进**。规划前
+> 核实：跨会话语义检索已存在（searchConversations mode=semantic）、watch 已有
+> notify/resume 两档与条件触发面——真空白 = 窗口字段/请求字符落盘/处置档。
+
+**四主题**：① Agent 基础（旗舰）= **上下文预算 token 真值化**——档案级
+contextWindowTokens（模型名前缀默认表+设置页编辑）、请求字符落盘与 promptTokens
+配对校准（TokenCalibrator EMA，夹逼 1.5–6，Foundation-only 进 harness）、芯片/
+压缩触发/budget 全换 token 口径，样本 <3 灰度回退字符口径；② Agent 基础 =
+**值守从"汇报"升级"处置"**——JobWatch.Mode 增 .handle（异常条件触发 → 空闲
+会话自动发处置回合，走 guard/审批/无人值守超时），条件补 failureRate/stalled
+两个 kind，五套守望统一走条件触发面，JobsPanel 加 mode 选择；③ Agent 基础 =
+**记忆使用反馈闭环**——promptBlock 返回注入 factIDs，回合成功强化/点踩弱化，
+检索得分乘 (1+0.1·ln(1+usage))，decay 整合；④ 工程 = v0.8.59 四探针产品化进
+agent-eval（E22-E25）+ release-smoke 可选档 + AGENTS.md 更新。
+
+**批次**：批 1 token 真值化 → 批 2 值守处置 → 批 3 记忆反馈 → 批 4 评估回归
+收口。**不做**：动态成本路由、技能全自动沉淀、跨设备记忆同步、多代理协议、
+MCP 新能力、passkey。**风险**：校准改预算语义（灰度+override 优先）、.handle
+无人值守安全面（复用 guard/审批/限频）、promptBlock 签名变更（两调用点）。

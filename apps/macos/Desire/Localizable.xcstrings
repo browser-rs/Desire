@@ -109676,6 +109676,94 @@
           }
         }
       }
+    },
+    "Stall %.1fs":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Stall %.1fs"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"停顿 %.1fs"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"停頓 %.1fs"
+          }
+        }
+      }
+    },
+    "Pool p95 %lld ms":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Pool p95 %lld ms"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"协作池 p95 %lld ms"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"協作池 p95 %lld ms"
+          }
+        }
+      }
+    },
+    "Last detected main-thread stall (see health/last-stall.json; samples may exist)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Last detected main-thread stall (see health/last-stall.json; samples may exist)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"最近一次检测到的主线程停顿（详见 health/last-stall.json，可能附有抓栈）"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"最近一次偵測到的主執行緒停頓（詳見 health/last-stall.json，可能附有抓棧）"
+          }
+        }
+      }
+    },
+    "Cooperative-pool scheduling latency (12-min window) — high values mean background tasks are starving":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Cooperative-pool scheduling latency (12-min window) — high values mean background tasks are starving"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"协作线程池调度延迟（12 分钟滑动窗口）——偏高说明后台任务在挨饿"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"協作執行緒池排程延遲（12 分鐘滑動視窗）——偏高說明背景任務在挨餓"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

@@ -47,6 +47,24 @@ final class RuntimeHealthMonitor {
         return try? JSONDecoder().decode(StallRecord.self, from: data)
     }
 
+    /// 数据面汇总（诊断行 / GET /diag/health 用）。
+    nonisolated static func healthSummary() -> [String: Any] {
+        var out: [String: Any] = [:]
+        if let stall = lastStall() {
+            out["lastStall"] = [
+                "startedAt": ISO8601DateFormatter().string(from: stall.startedAt),
+                "seconds": stall.seconds,
+                "sampled": stall.sampled,
+                "samplePath": stall.samplePath ?? "",
+            ] as [String: Any]
+        }
+        let pool = CooperativePool.stats()
+        if let p50 = pool.p50 { out["poolP50ms"] = Int(p50 * 1000) }
+        if let p95 = pool.p95 { out["poolP95ms"] = Int(p95 * 1000) }
+        out["poolSamples"] = pool.sampleCount
+        return out
+    }
+
     func start() {
         guard watchdog == nil else { return }
         HealthClock.shared.ack()

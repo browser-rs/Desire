@@ -1270,6 +1270,20 @@ private struct DiagnosticsRow: View {
                                kind: .warning)
                         .help(lastCrashHelp)
                 }
+                // 运行健康（v0.8.61）：主线程 stall 历史 + 协作池水位。
+                // 0 停滞/无积压时不显示（确定性文案走 GET /diag/health）。
+                if let stall = RuntimeHealthMonitor.lastStall() {
+                    StatusPill(text: String(format: String(localized: "Stall %.1fs"), stall.seconds),
+                               kind: .warning)
+                        .help(String(localized: "Last detected main-thread stall (see health/last-stall.json; samples may exist)"))
+                }
+                let pool = CooperativePool.stats()
+                if let p95 = pool.p95, pool.sampleCount >= 4 {
+                    let ms = Int(p95 * 1000)
+                    StatusPill(text: String(localized: "Pool p95 \(ms) ms"),
+                               kind: ms > 2000 ? .warning : .neutral)
+                        .help(String(localized: "Cooperative-pool scheduling latency (12-min window) — high values mean background tasks are starving"))
+                }
                 if hasReports {
                     StatusPill(text: "\(reportCount)", kind: .neutral)
                 }

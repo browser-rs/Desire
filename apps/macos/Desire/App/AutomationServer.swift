@@ -435,6 +435,7 @@ final class AutomationServer {
         ep("POST", "/whatsnew/reset", "Forget the seen marker (testing/replay)", example: "-d '{}'")
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
         ep("GET", "/diag/browser", "Browser diagnostics: content-process crash count + recent crashes", example: "…/diag/browser")
+        ep("GET", "/diag/health", "Runtime health: main-thread stall history + cooperative-pool scheduling latency (p50/p95 over a 12-min sliding window)", example: "…/diag/health")
         ep("GET", "/activity", "Activity center: downloads/batch media/exports/scheduled runs/agent sessions/crew", example: "…/activity")
         ep("POST", "/diag/export", "Export a diagnostics zip (MetricKit + crash counters + last 30 min OSLog)", example: "-d '{}'")
         ep("POST", "/workflow/start", "Start recording a web workflow on the active tab", example: "-d '{}'")
@@ -1023,6 +1024,8 @@ case ("GET", "/state"):
                 return try Self.json(Self.history(count: Int(query["count"] ?? "10") ?? 10))
             case ("GET", "/diag/geometry"):
                 return try Self.json(Self.geometry(index: Self.index(query)))
+            case ("GET", "/diag/health"):
+                return try Self.json(RuntimeHealthMonitor.healthSummary())
             case ("GET", "/diag/browser"):
                 return try Self.json(BrowserDiagnostics.shared.summary())
             case ("GET", "/activity"):

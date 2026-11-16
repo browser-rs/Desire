@@ -433,7 +433,17 @@ class AgentSessionStore: ObservableObject {
     static let contextBudget = 160_000
     private var compactionBudgetOverride: Int?
     /// 实际生效的预算（覆盖值优先）——占用表与压缩都用它，口径永远一致。
-    var effectiveContextBudget: Int { compactionBudgetOverride ?? Self.contextBudget }
+    /// 生效字符预算（v0.8.60 token 真值化）：优先级 = compactionBudgetOverride
+    /// （超限/空响应重试按真实窗口写下的校准）> TokenCalibration 换算
+    /// （档案窗口 × 0.9 ÷ EMA 比率，样本 <3 用默认比率）> 160k 默认。
+    /// 换算用的模型/档案跟**实际发请求的** streamPreference 走（每窗模型
+    /// 路由下可能与全局 activeProfile 不同）。
+    var effectiveContextBudget: Int {
+        if let compactionBudgetOverride { return compactionBudgetOverride }
+        return preference.calibratedBudgetChars(
+            forModel: streamPreference.model,
+            profile: streamPreference.activeProfile)
+    }
 
     /// 当前对话的 token 用量与折算成本（面板状态行用）。
     ///
@@ -2235,6 +2245,8 @@ class AgentSessionStore: ObservableObject {
             var assistantMsg: AgentMessage?
             // usage chunk 先于正文到达的兜底桶（创建消息时回填）。
             var pendingStreamUsage = AgentUsage()
+            /// 本请求的字符总量（校准采样用，runStream 内赋值）。
+            var requestChars = 0
             var hasContent = false
             var pendingTokenCount = 0
             var rateWindowStart = Date()
@@ -2259,6 +2271,13 @@ class AgentSessionStore: ObservableObject {
                 requestedModel = prefs.model
                 reportedModel = nil
                 let request = await buildRequestMessages()
+                // **校准采样**（v0.8.60）：请求字符数与随后服务端自报的
+                // promptTokens 配对 → 每模型 EMA 字符/令牌比。字符统计与
+                // compactWithDigest 的 size 同口径（content + toolCalls 参数）。
+                requestChars = request.reduce(0) {
+                    $0 + ($1.content?.count ?? 0)
+                        + ($1.toolCalls?.reduce(0) { $0 + $1.function.arguments.count + $1.function.name.count } ?? 0)
+                }
                 // 模式工具子集（Loop 工程）：被排除的工具根本不进工具索引。
                 let mode = effectiveMode
                 let streamTools = BrowserToolProvider.toolDefs
@@ -2391,6 +2410,15 @@ class AgentSessionStore: ObservableObject {
                         usagePromptTokens += prompt
                         usageCompletionTokens += completion
                         if prompt > 0 { lastPromptTokens = prompt }
+                        // **校准采样**（v0.8.60）：本请求字符数 ÷ 服务端自报
+                        // promptTokens → 该模型的 EMA 字符/令牌比（仅主回合的
+                        // runStream 采样；子代理/自评/旁路各走自己的 stream）。
+                        if requestChars > 0 {
+                            prefs.recordCalibrationSample(
+                                model: reportedModel ?? requestedModel,
+                                requestChars: requestChars,
+                                promptTokens: prompt)
+                        }
                         // 也记在这次调用的助手消息上（随会话落盘）——成本要从**历史**
                         // 会话里算出来，而这条用量派生不出来。usage chunk 可能先于
                         // 正文（个别网关首个 chunk 就带）→ 先挂 pending，消息创建时回填。

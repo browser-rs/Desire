@@ -33,6 +33,9 @@ struct AIProviderProfile: Identifiable, Codable, Equatable {
     /// Keychain 账号。内置档案沿用 `ai-key-<providerID>`（升级后老 Key 直接
     /// 可用），自定义档案按 id 隔离（`ai-key-profile-<uuid>`）。
     var keychainAccount: String
+    /// 上下文窗口（tokens，v0.8.60 token 真值化）。nil = 按模型名前缀默认表
+    /// （`TokenCalibration.defaultWindowTokens`）；旧档案无此字段解码为 nil。
+    var contextWindowTokens: Int?
 
     /// 生效格式（nil 视为 openai）。
     var format: APIFormat { apiFormat ?? .openai }
@@ -47,7 +50,8 @@ struct AIProviderProfile: Identifiable, Codable, Equatable {
         isBuiltin: Bool = false,
         createdAt: Date = Date(),
         apiFormat: APIFormat? = nil,
-        keychainAccount: String? = nil
+        keychainAccount: String? = nil,
+        contextWindowTokens: Int? = nil
     ) {
         self.id = id
         self.name = name
@@ -59,6 +63,7 @@ struct AIProviderProfile: Identifiable, Codable, Equatable {
         self.createdAt = createdAt
         self.apiFormat = apiFormat
         self.keychainAccount = keychainAccount ?? "ai-key-profile-\(id.uuidString)"
+        self.contextWindowTokens = contextWindowTokens
     }
 
     /// 端点主机（设置页副标题里显示，比整条 URL 好读）。

@@ -250,6 +250,32 @@ class AgentPreferenceStore: ObservableObject {
         didSet { DiskStore.save(modelPrices, key: "aiModelPrices") }
     }
 
+    /// **Token 校准表**（v0.8.60）：模型名 → EMA 字符/令牌比与样本数。
+    /// 请求侧每回合采样（请求字符数 ÷ 服务端自报 promptTokens），消费端
+    /// （effectiveContextBudget）据此把窗口 tokens 换算成字符预算。
+    @Published var modelCalibration: [String: TokenCalibration.Entry] {
+        didSet { DiskStore.save(modelCalibration, key: "aiModelCalibration") }
+    }
+
+    /// 采样一条校准数据（runStream 的 usage 落账处调用；便宜、幂等）。
+    func recordCalibrationSample(model: String, requestChars: Int, promptTokens: Int) {
+        let key = TokenCalibration.key(forModel: model)
+        guard !key.isEmpty else { return }
+        modelCalibration[key] = TokenCalibration.update(
+            modelCalibration[key], chars: requestChars, promptTokens: promptTokens)
+    }
+
+    /// **校准字符预算**（token 真值化的换算入口）：档案窗口（nil = 模型名
+    /// 默认表）× 0.9 ÷ EMA 比率（样本不足用默认比率），上限 160k。
+    /// 会话侧的 compactionBudgetOverride（超限/空响应重试写）在
+    /// `effectiveContextBudget` 里优先于本值。
+    func calibratedBudgetChars(forModel model: String?, profile: AIProviderProfile?) -> Int {
+        let window = profile?.contextWindowTokens
+            ?? model.map { TokenCalibration.defaultWindowTokens(forModel: $0) }
+        let calibration = model.flatMap { modelCalibration[TokenCalibration.key(forModel: $0)] }
+        return TokenCalibration.budgetChars(windowTokens: window, calibration: calibration)
+    }
+
     /// 查一个模型的单价。精确匹配；nil/空 → nil（旧会话没记模型，调用方再兜底）。
     func price(forModel model: String?) -> ModelPrice? {
         guard let model, !model.isEmpty else { return nil }
@@ -572,6 +598,7 @@ class AgentPreferenceStore: ObservableObject {
         ollamaModel = UserDefaults.standard.string(forKey: "aiOllamaModel") ?? "llama3.2"
         allowedTools = Set(UserDefaults.standard.stringArray(forKey: "aiAllowedTools") ?? [])
         modelPrices = DiskStore.load([String: ModelPrice].self, key: "aiModelPrices") ?? [:]
+        modelCalibration = DiskStore.load([String: TokenCalibration.Entry].self, key: "aiModelCalibration") ?? [:]
 
         // 服务档案：首次运行（或从旧版本升级）时构建，并立即落盘。
         let storedProfiles = DiskStore.load([AIProviderProfile].self, key: "aiProfiles") ?? []

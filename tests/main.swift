@@ -11261,6 +11261,46 @@ do {
     check("摘要：末块保留", kept.last?.content == "最终回答")
 }
 
+
+// ---------- TokenCalibration（上下文预算 token 真值化） ----------
+
+do {
+    // update：首样本立值（夹逼）、后续 EMA、无效样本原样返回
+    let e0 = TokenCalibration.update(nil, chars: 50_000, promptTokens: 20_000)
+    check("校准：首样本立值", e0?.ratio == 2.5 && e0?.samples == 1)
+    let e1 = TokenCalibration.update(e0, chars: 100_000, promptTokens: 20_000)
+    check("校准：EMA 融合", abs((e1?.ratio ?? 0) - (2.5 * 0.7 + 5.0 * 0.3)) < 0.001 && e1?.samples == 2)
+    let e2 = TokenCalibration.update(e1, chars: 10_000, promptTokens: 0)
+    check("校准：无效样本跳过", e2 == e1)
+    // 夹逼：极端样本拉不飞
+    var extreme = TokenCalibration.Entry(ratio: 2.0, samples: 10)
+    for _ in 0..<20 { extreme = TokenCalibration.update(extreme, chars: 200_000, promptTokens: 1_000)! }
+    check("校准：夹逼上限", extreme.ratio <= TokenCalibration.ratioUpper + 0.001)
+
+    // budgetChars：无窗口无校准 → 160k（0.8.59 口径）
+    check("预算：全默认回退", TokenCalibration.budgetChars(windowTokens: nil, calibration: nil) == 160_000)
+    // 有校准有窗口 → min(160k, 窗×0.9÷比率)
+    let trusted = TokenCalibration.Entry(ratio: 2.5, samples: 5)
+    check("预算：按校准换算", TokenCalibration.budgetChars(windowTokens: 200_000, calibration: trusted) == 72_000)
+    // 有窗口无校准 → 默认比率
+    check("预算：未校准用默认比率", TokenCalibration.budgetChars(windowTokens: 200_000, calibration: nil) == 72_000)
+    // 样本不足 → 默认比率
+    let young = TokenCalibration.Entry(ratio: 5.9, samples: 2)
+    check("预算：样本<3 不信任校准", TokenCalibration.budgetChars(windowTokens: 200_000, calibration: young) == 72_000)
+    // 下限 20k
+    let tight = TokenCalibration.budgetChars(windowTokens: 8_000, calibration: trusted)
+    check("预算：下限 20k", tight == 20_000)
+    // 大窗口钳到 160k 上限
+    check("预算：上限 160k", TokenCalibration.budgetChars(windowTokens: 1_000_000, calibration: trusted) == 160_000)
+
+    // 默认窗口表
+    check("窗口表：gpt-4", TokenCalibration.defaultWindowTokens(forModel: "gpt-4o") == 128_000)
+    check("窗口表：claude", TokenCalibration.defaultWindowTokens(forModel: "claude-sonnet-4") == 200_000)
+    check("窗口表：deepseek", TokenCalibration.defaultWindowTokens(forModel: "deepseek-chat") == 64_000)
+    check("窗口表：gemini", TokenCalibration.defaultWindowTokens(forModel: "gemini-2") == 1_000_000)
+    check("窗口表：未知保守", TokenCalibration.defaultWindowTokens(forModel: "mystery-model") == 32_000)
+    check("窗口表：大小写不敏感", TokenCalibration.defaultWindowTokens(forModel: "Claude-3") == 200_000)
+}
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

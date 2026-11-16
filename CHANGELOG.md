@@ -1,3 +1,9 @@
+## [Unreleased]
+### Added
+
+- Agent 上下文预算 token 真值化（批 1）：服务档案新增"上下文窗口 (tokens)"（留空按模型名前缀默认表：gpt-4 128k / claude 200k / deepseek 64k / gemini 1M / 未知 32k 保守值）；每回合采样请求字符数 ÷ 服务端自报 promptTokens，按模型维护 EMA 字符/令牌比（夹逼 1.5–6，TokenCalibration 进纯逻辑 harness 16 项单测）；生效预算 = 窗口 × 0.9 ÷ 比率（上限 160k、下限 20k），样本 <3 灰度回退字符口径——行为与 0.8.59 完全一致直到校准数据就绪。占用芯片、回合末自动压缩触发、压缩预算换算同源（compactionBudgetOverride 优先级最高）。
+
+
 ## [v0.8.59] - 2026-11-15
 ### Added
 

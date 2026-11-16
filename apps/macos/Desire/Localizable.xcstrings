@@ -109280,6 +109280,72 @@
           }
         }
       }
+    },
+    "Context Window (tokens)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Context Window (tokens)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上下文窗口（tokens）"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上下文視窗（tokens）"
+          }
+        }
+      }
+    },
+    "Auto by model name":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Auto by model name"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"按模型名自动"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"按模型名自動"
+          }
+        }
+      }
+    },
+    "Default for %@: %lld tokens":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Default for %@: %lld tokens"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"%@ 的默认窗口：%lld tokens"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"%@ 的預設視窗：%lld tokens"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

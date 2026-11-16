@@ -72,6 +72,8 @@ struct AgentSettingsSection: View {
     @State private var draftModels: [String] = []
     @State private var draftHeaders: [HeaderDraft] = []
     @State private var draftFormat: AIProviderProfile.APIFormat = .openai
+    /// 上下文窗口 tokens 草稿（空串 = 未设，按模型名默认表；v0.8.60）。
+    @State private var draftWindowTokens = ""
     @State private var newModelName = ""
     /// 成本段"添加模型"输入框的内容。
     @State private var newPriceModel = ""
@@ -1286,6 +1288,21 @@ struct AgentSettingsSection: View {
                 .labelsHidden()
             }
 
+            // 上下文窗口（tokens，v0.8.60）：留空 = 按模型名默认表。用于
+            // token 真值化换算字符预算（校准样本就绪后自动收紧/放宽）。
+            VStack(alignment: .leading, spacing: 3) {
+                Text(String(localized: "Context Window (tokens)"))
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                SettingsTextField(placeholder: String(localized: "Auto by model name"), text: $draftWindowTokens, width: 240)
+            }
+            if !draftModel.isEmpty {
+                Text(String(format: String(localized: "Default for %@: %lld tokens"), draftModel,
+                            TokenCalibration.defaultWindowTokens(forModel: draftModel)))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+
             VStack(alignment: .leading, spacing: 3) {
                 Text(String(localized: "API Key"))
                     .font(.system(size: 11, weight: .medium))
@@ -1510,6 +1527,7 @@ struct AgentSettingsSection: View {
         draftModels = profile?.modelList ?? []
         draftHeaders = (profile?.headers ?? [:]).sorted { $0.key < $1.key }.map { HeaderDraft(name: $0.key, value: $0.value) }
         draftFormat = profile?.format ?? .openai
+        draftWindowTokens = profile?.contextWindowTokens.map(String.init) ?? ""
         cloudTestStatus = nil
     }
 
@@ -1537,6 +1555,7 @@ struct AgentSettingsSection: View {
             store.profiles[index].modelList = draftModels
             store.profiles[index].headers = headers
             store.profiles[index].apiFormat = draftFormat
+            store.profiles[index].contextWindowTokens = Int(draftWindowTokens.trimmingCharacters(in: .whitespaces))
             store.activeProfileID = id
         } else {
             let profile = store.addProfile(name: draftName, endpoint: endpoint, model: draftModel)
@@ -1544,6 +1563,7 @@ struct AgentSettingsSection: View {
                 store.profiles[index].modelList = draftModels
                 store.profiles[index].headers = headers
                 store.profiles[index].apiFormat = draftFormat
+                store.profiles[index].contextWindowTokens = Int(draftWindowTokens.trimmingCharacters(in: .whitespaces))
             }
             store.activeProfileID = profile.id
         }

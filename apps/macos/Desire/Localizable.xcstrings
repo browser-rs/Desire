@@ -109544,6 +109544,138 @@
           }
         }
       }
+    },
+    "Context budget calibrated to your model":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Context budget calibrated to your model"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上下文预算按你的模型校准"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上下文預算按你的模型校準"
+          }
+        }
+      }
+    },
+    "Set a context window per model service (or trust the built-in defaults) — the Agent measures real token usage each turn and tightens or relaxes its memory budget accordingly, so long conversations stay within your model's true limits.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Set a context window per model service (or trust the built-in defaults) — the Agent measures real token usage each turn and tightens or relaxes its memory budget accordingly, so long conversations stay within your model's true limits."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"可以为每个模型服务设置上下文窗口（或用内置默认表）——Agent 每回合实测 token 用量并相应收紧或放宽记忆预算，长会话不再超出模型的真实上限。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"可以為每個模型服務設置上下文視窗（或用內建預設表）——Agent 每回合實測 token 用量並相應收緊或放寬記憶預算，長會話不再超出模型的真實上限。"
+          }
+        }
+      }
+    },
+    "Watched tasks can fix themselves":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Watched tasks can fix themselves"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"被订阅的任务能自己修复"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"被訂閱的任務能自己修復"
+          }
+        }
+      }
+    },
+    "Background tasks now have a Handle mode: when a failure rate or stall threshold trips, the Agent autonomously retries, adjusts, or abandons the work — then reports what it did and why. Every action still passes your approval rules.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Background tasks now have a Handle mode: when a failure rate or stall threshold trips, the Agent autonomously retries, adjusts, or abandons the work — then reports what it did and why. Every action still passes your approval rules."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"后台任务新增“处置”模式：失败率或卡死阈值触发时，Agent 自主重试、调整或放弃——然后简报做了什么、为什么。每个动作仍走你的审批规则。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"後台任務新增「處置」模式：失敗率或卡死閾值觸發時，Agent 自主重試、調整或放棄——然後簡報做了什麼、為什麼。每個動作仍走你的審批規則。"
+          }
+        }
+      }
+    },
+    "Memory learns from use":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Memory learns from use"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"记忆越用越准"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"記憶越用越準"
+          }
+        }
+      }
+    },
+    "Memories the Agent actually uses get reinforced and recalled more often; ones you thumb down fade faster. Regularly-used facts also survive the automatic cleanup longer.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Memories the Agent actually uses get reinforced and recalled more often; ones you thumb down fade faster. Regularly-used facts also survive the automatic cleanup longer."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Agent 实际用到的记忆会被强化、更常被想起；你点踩的更快淡出。常用记忆在自动清理中存活更久。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Agent 實際用到的記憶會被強化、更常被想起；你點踩的更快淡出。常用記憶在自動清理中存活更久。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

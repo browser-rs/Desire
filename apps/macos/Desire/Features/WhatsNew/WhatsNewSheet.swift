@@ -15,7 +15,14 @@ struct WhatsNewSheet: View {
     }
 
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
-    private var highlights: [Highlight] {
+    private var highlights: [
+            .init(icon: "target", title: String(localized: "Context budget calibrated to your model"),
+                  detail: String(localized: "Set a context window per model service (or trust the built-in defaults) — the Agent measures real token usage each turn and tightens or relaxes its memory budget accordingly, so long conversations stay within your model's true limits.")),
+            .init(icon: "wrench.and.screwdriver.fill", title: String(localized: "Watched tasks can fix themselves"),
+                  detail: String(localized: "Background tasks now have a Handle mode: when a failure rate or stall threshold trips, the Agent autonomously retries, adjusts, or abandons the work — then reports what it did and why. Every action still passes your approval rules.")),
+            .init(icon: "brain.head.profile", title: String(localized: "Memory learns from use"),
+                  detail: String(localized: "Memories the Agent actually uses get reinforced and recalled more often; ones you thumb down fade faster. Regularly-used facts also survive the automatic cleanup longer.")),
+        ] {
         [
             .init(icon: "arrow.triangle.2.circlepath", title: String(localized: "The Agent keeps its own context healthy"),
                   detail: String(localized: "Long conversations compact themselves automatically: older turns are archived (still searchable) and summarized, the context gauge shows what is actually sent, and /compact does a real shrink on demand — no more starting a new chat.")),

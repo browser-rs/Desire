@@ -50,6 +50,7 @@ final class RuntimeHealthMonitor {
     func start() {
         guard watchdog == nil else { return }
         HealthClock.shared.ack()
+        CooperativePool.startProbe()
         heartbeat = Timer.scheduledTimer(withTimeInterval: Self.beatInterval, repeats: true) { _ in
             HealthClock.shared.ack()
         }
@@ -92,5 +93,82 @@ final class RuntimeHealthMonitor {
         }
         Logger(subsystem: "me.siwi.Desire", category: "health").fault(
             "runtime health: main thread stalled for \(seconds, format: .fixed(precision: 1), privacy: .public)s (sample=\(sampled, privacy: .public))")
+    }
+}
+
+/// **协作线程池水位观测**（v0.8.61）：协作池被长占时全局 async 任务饿死
+/// （0.8.58 DiskStoreWriter / 0.8.60 watchdog 两案），此前只能靠 sample 抓
+/// 栈事后取证。探针每 30s 派一个 utility detached 任务，"派发→执行"的延迟
+/// 就是协作池的排队水位；滑动窗口（24 样本 = 12 分钟）取 p50/p95。p95 超
+/// 2s fault 一条（10 分钟节流）——协作池饿死从此可看见。
+nonisolated enum CooperativePool {
+
+    /// 纯计算：排序样本取分位（空样本返回 nil）。进 tests/run.sh。
+    static func percentile(_ samples: [Double], _ fraction: Double) -> Double? {
+        guard !samples.isEmpty else { return nil }
+        let sorted = samples.sorted()
+        let idx = min(sorted.count - 1,
+                      max(0, Int((Double(sorted.count) * fraction).rounded(.down))))
+        return sorted[idx]
+    }
+
+    private static let lock = NSLock()
+    private static var samples: [Double] = []
+    private static var lastFaultAt: Date = .distantPast
+    private static var probeStarted = false
+
+    static func startProbe() {
+        lock.lock()
+        if probeStarted {
+            lock.unlock()
+            return
+        }
+        probeStarted = true
+        lock.unlock()
+        schedule()
+    }
+
+    private static func schedule() {
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 30) {
+            measure()
+            schedule()
+        }
+    }
+
+    /// 探针本体：detached 任务的**首行时间戳 - 派发时刻** = 协作池排队延迟。
+    /// （utility QoS 与业务后台任务同池——它慢就代表池在积压。）
+    private static func measure() {
+        let dispatched = Date()
+        Task.detached(priority: .utility) {
+            let latency = Date().timeIntervalSince(dispatched)
+            record(latency)
+        }
+    }
+
+    private static func record(_ latency: Double) {
+        var shouldFault = false
+        var p95: Double = 0
+        lock.lock()
+        samples.append(latency)
+        if samples.count > 24 { samples.removeFirst(samples.count - 24) }
+        if let q95 = percentile(samples, 0.95), samples.count >= 4 {
+            p95 = q95
+            if q95 > 2.0, Date().timeIntervalSince(lastFaultAt) > 600 {
+                lastFaultAt = Date()
+                shouldFault = true
+            }
+        }
+        lock.unlock()
+        if shouldFault {
+            Logger(subsystem: "me.siwi.Desire", category: "health").fault(
+                "runtime health: cooperative pool backed up — p95 scheduling latency \(String(format: "%.2f", p95), privacy: .public)s")
+        }
+    }
+
+    /// 数据面（Doctor / 诊断端点）。
+    static func stats() -> (p50: Double?, p95: Double?, sampleCount: Int) {
+        lock.lock()
+        defer { lock.unlock() }
+        return (percentile(samples, 0.5), percentile(samples, 0.95), samples.count)
     }
 }

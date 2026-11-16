@@ -139,7 +139,12 @@ class FaviconStore {
             if let http = response as? HTTPURLResponse, http.statusCode >= 400 { continue }
             if let img = await Self.decode(data) {
                 memoryCache.setObject(img, forKey: key)
-                try? data.write(to: diskPath, options: .atomic)
+                // 写盘外移（v0.8.61 协作池卫生）：actor 方法跑在协作线程上，
+                // 磁盘写别占着它（读侧早已 detached，写侧对齐）。
+                let path = diskPath
+                Task.detached(priority: .utility) {
+                    try? data.write(to: path, options: .atomic)
+                }
                 return img
             }
         }

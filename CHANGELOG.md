@@ -1,3 +1,9 @@
+## [Unreleased]
+### Changed
+
+- 协作线程池卫生专项（批 1，三案同根收口）：DiskStoreWriter 的磁盘 IO（flush/flushNow）从 actor（=协作线程）外移到专用 GCD 串行队列——协作线程在 IO 期间释放，防抖/原子写/flush barrier 语义不变（同 key 顺序由串行队列保证）；FaviconStore 写盘对齐读侧外移；全仓同步 IO/长循环审计清单落档（截图/视频工程/过滤列表三处低频记档）。RuntimeHealthMonitor 新增协作池水位观测：每 30s utility 探针测调度延迟，24 样本滑动窗口取 p50/p95，p95 超 2s fault（10 分钟节流）——协作池饿死从此可看见。
+
+
 ## [v0.8.60] - 2026-11-17
 ### Fixed
 

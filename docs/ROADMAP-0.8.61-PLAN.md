@@ -49,6 +49,19 @@
   → .handle 自动回合 → resumeUsed 断言；本地专属档，复用 0.8.60 的
   活体验证手法）。
 
+### 批 1 审计清单（2026-11-17 实扫）
+
+| 对象 | 定性 | 处置 |
+|---|---|---|
+| DiskStoreWriter.flush/flushNow 同步写 | 高（多 key 并发 + 外置卷秒级） | **已修**：IO 外移专用 GCD 串行队列 |
+| AgentStreamWatchdog Task.sleep 轮询 | 高（每流常驻一协作线程） | 0.8.60 已修（asyncAfter 链） |
+| AppSecretsVault Keychain 预载 | 高（26 条 data 读） | 0.8.49 已修（preload 外移） |
+| FaviconStore 写盘 | 中（高频小写） | **已修**：写侧 detached（读侧早已外移） |
+| ScreenshotOverlayView 大 PNG 写盘 | 低（低频用户触发） | 记档 |
+| VideoEditorStore 工程文件 IO | 低（低频大文件） | 记档 |
+| FilterListStore 列表编译/写 | 低（更新时一次性） | 记档 |
+| AgentSessionStore 会话落盘 | 已走 DiskStore（本批外移覆盖） | 无需动作 |
+
 ## 批次
 
 批 1 协作池专项（IO 外移 → 审计清单 → 水位观测）→ 批 2 GC + 芯片 token →

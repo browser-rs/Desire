@@ -149,6 +149,13 @@ fileprivate nonisolated struct EncodableBox<T>: @unchecked Sendable {
 /// of `save` calls (e.g. one per tab mutation, one per history entry) into a
 /// single file write.
 actor DiskStoreWriter {
+    /// 磁盘 IO 专用串行队列（v0.8.61 协作池卫生）：actor 方法跑在 Swift
+    /// 协作线程池上，`data.write` 这类同步磁盘 IO 会**长占协作线程**——
+    /// 外置卷/HDD 上秒级，多 key 并发时把协作池吃光（全局 async 任务饿死，
+    /// 0.8.58 实测"flush 卡协作池"；0.8.60 watchdog 事故同根）。IO 全部
+    /// 交给本 GCD 串行队列执行，协作线程在 await 期间释放；串行保证同
+    /// key 顺序，`.atomic` 写保证文件完整（完成顺序无关紧要）。
+    private let ioQueue = DispatchQueue(label: "me.siwi.Desire.DiskStore.io", qos: .utility)
     private enum PendingOperation {
         case write(generation: UInt64, data: Data)
         /// 覆盖前备份旧文件（会话快照）。
@@ -228,33 +235,45 @@ actor DiskStoreWriter {
         }
     }
 
-    private func flush(key: String) {
+    private func flush(key: String) async {
         tasks[key] = nil
         guard let operation = pending.removeValue(forKey: key) else { return }
         let url = directory.appendingPathComponent("\(key).json")
-        switch operation {
-        case .remove:
-            try? FileManager.default.removeItem(at: url)
-        case .write(_, let data):
-            try? data.write(to: url, options: .atomic)
-        case .writeBackup(_, let data):
-            // 上一份完整文件先落到 .bak，再原子覆盖主文件。**只备份能解析的
-            // 旧文件**——否则"从备份恢复后第一次保存"会把坏文件轮进 .bak，
-            // 再坏一次就两份全废（v0.8.49 实测边角）。
-            let backup = directory.appendingPathComponent("\(key).json.bak")
-            if let existing = try? Data(contentsOf: url),
-               (try? JSONSerialization.jsonObject(with: existing)) != nil {
-                try? FileManager.default.removeItem(at: backup)
-                try? FileManager.default.copyItem(at: url, to: backup)
+        await Self.perform(operation, url: url, ioQueue: ioQueue)
+    }
+
+    /// 磁盘操作本体（nonisolated + GCD 队列执行，协作线程零占用）。
+    private nonisolated static func perform(
+        _ operation: PendingOperation, url: URL,
+        ioQueue: DispatchQueue) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            ioQueue.async {
+                switch operation {
+                case .remove:
+                    try? FileManager.default.removeItem(at: url)
+                case .write(_, let data):
+                    try? data.write(to: url, options: .atomic)
+                case .writeBackup(_, let data):
+                    // 上一份完整文件先落到 .bak，再原子覆盖主文件。**只备份能
+                    // 解析的旧文件**——否则"从备份恢复后第一次保存"会把坏文件
+                    // 轮进 .bak，再坏一次就两份全废（v0.8.49 实测边角）。
+                    let backup = URL(fileURLWithPath: url.path + ".bak")
+                    if let existing = try? Data(contentsOf: url),
+                       (try? JSONSerialization.jsonObject(with: existing)) != nil {
+                        try? FileManager.default.removeItem(at: backup)
+                        try? FileManager.default.copyItem(at: url, to: backup)
+                    }
+                    try? data.write(to: url, options: .atomic)
+                }
+                continuation.resume()
             }
-            try? data.write(to: url, options: .atomic)
         }
     }
 
     /// Writes every pending payload immediately and cancels debounce timers.
     /// Terminate-time: a quit must not lose saves still inside their
     /// debounce window.
-    func flushNow(upTo limit: UInt64? = nil) {
+    func flushNow(upTo limit: UInt64? = nil) async {
         let target = limit ?? .max
         for key in Array(pending.keys) {
             guard let operation = pending[key], operation.generation <= target else { continue }
@@ -262,20 +281,7 @@ actor DiskStoreWriter {
             tasks[key] = nil
             pending.removeValue(forKey: key)
             let url = directory.appendingPathComponent("\(key).json")
-            switch operation {
-            case .remove:
-                try? FileManager.default.removeItem(at: url)
-            case .write(_, let data):
-                try? data.write(to: url, options: .atomic)
-            case .writeBackup(_, let data):
-                let backup = directory.appendingPathComponent("\(key).json.bak")
-                if let existing = try? Data(contentsOf: url),
-                   (try? JSONSerialization.jsonObject(with: existing)) != nil {
-                    try? FileManager.default.removeItem(at: backup)
-                    try? FileManager.default.copyItem(at: url, to: backup)
-                }
-                try? data.write(to: url, options: .atomic)
-            }
+            await Self.perform(operation, url: url, ioQueue: ioQueue)
         }
     }
 }

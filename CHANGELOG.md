@@ -2,6 +2,8 @@
 ### Fixed
 
 - 自动压缩触发条件修正（0.8.59 引入，探针评估化时活体抓到）：触发看的是 contextFraction（发送侧估算——估算本身会把最老轮次裁进摘要），多轮溢出时分数永远 ≤1，自动压缩从未点火过；改为直接判落盘总字符是否超生效预算（compactNow 内部仍按 60% 目标裁）。agent-eval 新增 E22 自动压缩/E23 转存全文检索（浏览器依赖）/E24 看门狗（需 30s 窗前置）/E25 Doctor 四用例 + --only 过滤；release-smoke 增 --with-agent-probes 可选档（E22/E25）。
+- 流式停摆看门狗两处实现缺陷（E24 评估化时活体暴露，独立最小复现定案）：①守望定时器改用 GCD asyncAfter 自重排链——DispatchSourceTimer 在 AsyncThrowingStream 消费挂起的进程形态里不触发（同队列 asyncAfter 正常、独立程序同款 timer 正常，原因未明）；Task.sleep 轮询版本也不可用（每条活跃流常驻占一个协作线程，多流并发把协作池吃光——桥曾因此全端点饿死）。②超窗 cancelPump 后 AsyncThrowingStream 的 next() 返回 nil 而非抛 CancellationError——timedOut 曾被吞成"正常结束"，现于 next() 返回 nil 的分支检测 expiry 标志补抛。泵闭包对 holder 全弱引用防强环。
+
 
 ### Added
 

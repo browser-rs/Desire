@@ -774,7 +774,7 @@ final class AutomationServer {
         ep("GET", "/jobs", "Unified job ledger (publish/mention scan/campaign…) with states, artifacts and receipts", params: ["limit?:int"], example: "…/jobs")
         ep("GET", "/artifacts", "Artifact index derived from the job ledger (deduped by path, newest wins)", params: ["kind?:string (folder|image|video|audio|pdf|document|archive|data|other)", "days?:int (0=all)"], example: "…/artifacts?kind=folder&days=7")
         ep("POST", "/jobs/run", "Start an allowlisted CLI tool in the background (argv-only, no shell); returns a job id immediately", params: ["tool:string", "args?:string[]", "title?:string", "cwd?:string", "timeoutMinutes?:number", "report?:notify|resume|none", "conversationId?:uuid"], example: #"-d '{"tool":"python3","args":["-c","print(1)"],"title":"smoke"}'"#)
-        ep("POST", "/jobs/watch", "Watch one or more jobs; one completion note/notification when ALL reach a terminal state", params: ["ids?:string[]", "kind?:string", "mode?:notify|resume", "conversationId?:uuid"], example: #"-d '{"ids":["<uuid>"],"mode":"notify"}'"#)
+        ep("POST", "/jobs/watch", "Watch one or more jobs; one completion note/notification when ALL reach a terminal state", params: ["ids?:string[]", "kind?:string", "mode?:notify|resume|handle", "conversationId?:uuid", "condition?:terminal|failed|progress|logMatch|heartbeat|failureRate|stalled", "failureRate?:double", "stalledMinutes?:int"], example: #"-d '{"ids":["<uuid>"],"mode":"notify"}'"#)
         ep("POST", "/jobs/cancel", "Cancel a running background job (command/download/batch/export)", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("POST", "/jobs/retry", "Retry a failed background command as a NEW job", params: ["id:uuid"], example: #"-d '{"id":"<uuid>"}'"#)
         ep("GET", "/tools/batch", "Current batch-tool run: running/progress/detail/summary and per-file results", example: "…/tools/batch")
@@ -8442,8 +8442,13 @@ case ("GET", "/agent/messages"):
             return ["error": "invalid job id"]
         }
         let kind = (body["kind"] as? String)?.lowercased()
-        let mode: JobWatch.Mode = (body["mode"] as? String)?.lowercased() == "resume"
-            ? .resume : .notify
+        let modeRaw = (body["mode"] as? String)?.lowercased() ?? "notify"
+        let mode: JobWatch.Mode
+        switch modeRaw {
+        case "resume": mode = .resume
+        case "handle": mode = .handle
+        default: mode = .notify
+        }
         if let error = JobWatchCore.validationError(ids: ids, kind: kind, mode: mode) {
             return ["error": error]
         }
@@ -8476,8 +8481,18 @@ case ("GET", "/agent/messages"):
                 return ["error": "heartbeatMinutes must be 1-120"]
             }
             condition = JobWatchCondition(kind: .heartbeat, minutes: minutes)
+        case "failurerate", "failure-rate":
+            let value = body["failureRate"] as? Double ?? 0.3
+            guard value > 0, value <= 1 else { return ["error": "failureRate must be 0-1"] }
+            condition = JobWatchCondition(kind: .failureRate, value: value)
+        case "stalled":
+            let minutes = Int(body["stalledMinutes"] as? Double ?? 10)
+            guard minutes >= 1, minutes <= 240 else {
+                return ["error": "stalledMinutes must be 1-240"]
+            }
+            condition = JobWatchCondition(kind: .stalled, minutes: minutes)
         default:
-            return ["error": "condition must be terminal|failed|progress|logMatch|heartbeat"]
+            return ["error": "condition must be terminal|failed|progress|logMatch|heartbeat|failureRate|stalled"]
         }
         let watch = JobWatchStore.shared.register(
             jobIDs: targets.map(\.id.uuidString),

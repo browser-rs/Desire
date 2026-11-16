@@ -102,8 +102,11 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/bigpage"):
             parts = [f"<p class='para-{i}'>这是第 {i} 段填充文本，用来把页面撑到 60k 字符以上。</p>"
                      for i in range(1200)]
+            # 标记放**中部**（~27k 处）：转存 stub 只带头 4000 + 尾 1000，
+            # 放头部/尾部会被预览覆盖，"只有读全文才命中"的探测前提就没了。
+            parts.insert(600, "<p id='mid'>SPILLMARKER-7f3a</p>")
             html = ("<html><body><h1>Big Fixture Page</h1>" + "".join(parts)
-                    + "<p id='tail'>SPILLMARKER-7f3a</p></body></html>")
+                    + "</body></html>")
             body = html.encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -242,7 +245,9 @@ c.addEventListener('click', function(ev) {
                          "editCalls": edit_calls})
         # 诊断（CI E6 超时用）：分支输入落盘 + stderr（CI 日志可见）。
         import sys as _sys
-        _line = f"FIXTURE-REQ: mode={mode_text[:48]!r} has_tool={has_tool} tools={len([m for m in round_msgs if m.get('role') == 'tool'])}"
+        _tool_ids = [m.get("toolCallId") or m.get("tool_call_id") for m in round_msgs if m.get("role") == "tool"]
+        _line = (f"FIXTURE-REQ: mode={mode_text[:48]!r} has_tool={has_tool} "
+                 f"tools={len(_tool_ids)} toolIds={_tool_ids[-3:]!r}")
         with open("/tmp/eval-fixture-debug.log", "a") as _dbg:
             _dbg.write(_line + "\n")
         print(_line, file=_sys.stderr)
@@ -386,6 +391,18 @@ c.addEventListener('click', function(ev) {
             self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush(); self.close_connection = True
+            return
+        # E23c 先判：call_search 的结果已出现（无论命中与否）→ 回合收口。
+        # （放前面防死循环：E23b 的判据在后续轮次恒为真。）
+        # wire 格式的键是 tool_call_id（snake_case，服务端口径）。
+        def _tcid(m):
+            return m.get("toolCallId") or m.get("tool_call_id")
+        if any(_tcid(m) == "call_search"
+               for m in round_msgs if m.get("role") == "tool"):
+            ok = any("SPILLMARKER-7f3a" in (m.get("content") or "")
+                     for m in round_msgs if m.get("role") == "tool"
+                     and _tcid(m) == "call_search")
+            sse_reply("SEARCH-OK SPILL-FOUND" if ok else "SEARCH-MISS")
             return
         # E23b：工具结果带转存标记 → 按 query 检索全文（getToolResult）。
         tool_texts = [m.get("content") or "" for m in round_msgs if m.get("role") == "tool"]
@@ -2078,7 +2095,10 @@ def case_compaction_probe():
 
 def case_spill_search():
     """E23 大结果转存 + getToolResult 全文检索（浏览器依赖，本地专属）。"""
-    bridge("POST", "/navigate", body={"url": fixture_endpoint().rstrip("/") + "/bigpage"})
+    bridge("POST", "/agent/new", body={})
+    time.sleep(1)
+    fixture_base = fixture_endpoint().rsplit("/v1/", 1)[0]
+    bridge("POST", "/navigate", body={"url": fixture_base + "/bigpage"})
     time.sleep(2)
     msgs = run_case("READPAGE 请读取当前页面 HTML")
     _, assistant, _ = last_exchange(msgs)

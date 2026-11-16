@@ -292,6 +292,13 @@ Features/Bookmarks/
   `GET /diag/geometry?index=N`（webview frame/bounds/父视图链/子视图树 +
   每个窗口的 frame/contentLayout/styleMask/全屏状态/所在屏幕）定位几何归属。
 
+- **v0.8.60 探针评估（tests/agent-eval.py E22-E25）**：E22 自动压缩 / E25 Doctor
+  走桥可直接跑（`--only E22,E25`）；E23 转存检索需浏览器（`EVAL_E23=1`）；E24
+  看门狗前置 = **先 quit 再 `defaults write me.siwi.Desire agentStreamStallSeconds
+  -int 30` 再启动**——顺序反了会被退出时的偏好缓存 flush 覆盖（CLI 写入运行中
+  进程也不可见），测完 `defaults delete`。fixture 的 SPILLMARKER 放页面**中部**
+  （转存 stub 只带头 4000+尾 1000，放头尾会被预览覆盖、探测前提失效）。
+
 - **测试用假端点：登记 + 按模式全清，并且一定要放掉端口**（2026-09-23 真踩）：
   我用来验证脱敏的 `/tmp/fake_leak.py` 监听在 **127.0.0.1:8889 —— 那正是用户 `amd` 档案的
   端点**；收尾时我只按文件名清了 `fake_openai.py`（`pgrep -f fake_openai.py`），这个假端点

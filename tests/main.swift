@@ -11344,6 +11344,35 @@ do {
     check("值守：.handle 已用过不再起", !JobWatchCore.canResume(used, sessionExists: true, sessionBusy: false))
     check("值守：.notify 永不起回合", !JobWatchCore.canResume(watch([f1], kind: .terminal, mode: .notify), sessionExists: true, sessionBusy: false))
 }
+
+// ---------- MemoryRetrieval.usageBoost（记忆使用反馈加权） ----------
+
+do {
+    func fact(_ content: String, usage: Int? = nil, negative: Int? = nil) -> MemoryFact {
+        var f = MemoryFact(content: content, category: "fact")
+        f.usageCount = usage
+        f.negativeCount = negative
+        return f
+    }
+    // 无反馈 = 1.0（不改变既有排序）
+    check("反馈：无反馈不加权", MemoryRetrieval.usageBoost(fact("x")) == 1.0)
+    // 成功使用提升
+    let boosted = MemoryRetrieval.usageBoost(fact("x", usage: 10))
+    check("反馈：使用提升 >1", boosted > 1.15 && boosted < 1.3)
+    // 点踩降权
+    check("反馈：点踩降权 <1", MemoryRetrieval.usageBoost(fact("x", negative: 10)) < 0.9 && MemoryRetrieval.usageBoost(fact("x", negative: 10)) > 0.7)
+    // BM25 路径：高频使用的事实排到前面（同分时 boost 决胜）
+    let a = fact("用户偏好深色主题", usage: 20)
+    let b = fact("用户偏好深色主题", usage: 0)
+    let ranked = MemoryRetrieval.rank(facts: [b, a], query: "深色 主题")
+    check("反馈：BM25 高使用排前", ranked.first?.usageCount == 20)
+    // 向量路径：boost 作用于余弦排序
+    let v = [1.0, 0.0]
+    let rankedV = MemoryRetrieval.rankWithVectors(
+        facts: [b, a], query: "主题", queryVector: v,
+        vectorsByFactID: [a.id: [0.9, 0.1], b.id: [0.9, 0.1]])
+    check("反馈：向量高使用排前", rankedV.first?.usageCount == 20)
+}
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

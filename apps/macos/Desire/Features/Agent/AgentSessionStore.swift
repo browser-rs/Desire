@@ -335,6 +335,16 @@ class AgentSessionStore: ObservableObject {
     private var lastHookDenial: String?
     /// Error text of the most recent failed turn (scheduler run records).
     private var lastTurnErrorText: String?
+    /// 本回合注入的记忆事实（assembleRequestMessages 写入；回合末反馈用）。
+    private var injectedFactIDs: [UUID] = []
+    /// 最近一个回合是否干净结束（记忆强化用；while 循环内 outcome 的捕获）。
+    private var lastTurnSucceeded = false
+
+    /// 点踩弱化本回合注入过的记忆（面板 learnFromDislike 调用；负反馈侧）。
+    func weakenInjectedMemory() {
+        guard !injectedFactIDs.isEmpty else { return }
+        AgentMemoryStore.shared.recordNegative(factIDs: injectedFactIDs)
+    }
     /// Result of a finished turn, delivered to registered handlers (the
     /// scheduler's run records subscribe to learn how scheduled prompts ended).
     struct TurnOutcome {
@@ -1883,16 +1893,18 @@ class AgentSessionStore: ObservableObject {
         if promptStaticCache?.fingerprint == fingerprint {
             statics = promptStaticCache!.layers
         } else {
-            let memoryBlock = await AgentMemoryStore.shared.promptBlock(
+            let (memoryBlock, injectedFactIDs) = await AgentMemoryStore.shared.promptBlock(
                 excluding: conversationId,
                 currentHost: currentHost,
                 query: retrievalQuery
             )
             let skills = SkillStore.shared.skills.map { ($0.name, $0.description) }
             let tools = BrowserToolProvider.promptInventory(for: BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs)
-            statics = PromptStaticLayers(memoryBlock: memoryBlock, skills: skills, tools: tools)
+            statics = PromptStaticLayers(memoryBlock: memoryBlock, skills: skills, tools: tools,
+                                         injectedFactIDs: injectedFactIDs)
             promptStaticCache = (fingerprint, statics)
         }
+        injectedFactIDs = statics.injectedFactIDs
         let pageContext = await fetchCompactPageContext()
         let composed = AgentPromptBuilder.compose(.init(
             identity: identity,
@@ -1927,6 +1939,8 @@ class AgentSessionStore: ObservableObject {
         var memoryBlock: String?
         var skills: [(name: String, description: String)]
         var tools: [(name: String, summary: String)]
+        /// 本缓存注入过的记忆事实（回合末使用反馈用；v0.8.60）。
+        var injectedFactIDs: [UUID] = []
     }
 
     private var promptStaticCache: (fingerprint: String, layers: PromptStaticLayers)? = nil
@@ -2068,6 +2082,7 @@ class AgentSessionStore: ObservableObject {
             // （turnFailed 未置）也不算 success（C-5）。
             let outcome = TurnOutcome(success: !turnFailed && !isCancelled,
                                       error: isCancelled ? "cancelled by user" : lastTurnErrorText)
+            lastTurnSucceeded = outcome.success
             let handlers = turnFinishHandlers
             turnFinishHandlers.removeAll()
             handlers.forEach { $0(outcome) }
@@ -2119,6 +2134,13 @@ class AgentSessionStore: ObservableObject {
         // 快操作，不与下一轮抢锁）。
         if contextFraction > 1.0 {
             compactNow()
+        }
+
+        // **记忆使用反馈**（v0.8.60）：回合干净结束（非失败/取消）→ 本回合
+        // 注入过的记忆事实 usage+1（检索加权与 decay 续命用）。
+        if lastTurnSucceeded, !injectedFactIDs.isEmpty {
+            AgentMemoryStore.shared.recordUsage(factIDs: injectedFactIDs)
+            injectedFactIDs = []
         }
 
         // **先把"忙碌"交还给界面，再做收尾**：标题生成与记忆整理都是额外的模型

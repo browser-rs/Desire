@@ -711,6 +711,8 @@ struct AgentPanel: View {
     /// 联 String(localized:) 插值曾让 SwiftUI 表达式 type-check 超时。
     private func learnFromDislike(_ messageID: UUID, _ reason: String) {
         guard store.preference.memoryLearning else { return }
+        // 点踩同时弱化本回合注入过的记忆（使用反馈闭环的负反馈侧）。
+        store.weakenInjectedMemory()
         let trimmed = reason.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
         AgentMemoryStore.shared.addFact(

@@ -467,13 +467,48 @@ final class AgentMemoryStore: ObservableObject {
     }
 
     /// Memory decay: removes unpinned facts older than `days` that haven't
-    /// been updated (low-engagement cleanup). Returns the count removed.
+    /// been updated (low-engagement cleanup). 使用反馈续命（v0.8.60）：最近
+    /// 被使用过的事实按 lastUsedAt 计龄——常带常准的记忆不会被时间清掉。
+    /// Returns the count removed.
     @discardableResult
     func decayOldFacts(olderThanDays: Int = 90) -> Int {
         let cutoff = Calendar.current.date(byAdding: .day, value: -olderThanDays, to: Date()) ?? Date()
-        let stale = archive.facts.filter { !$0.pinned && $0.updatedAt < cutoff }
+        let stale = archive.facts.filter { !$0.pinned && effectiveAge($0) < cutoff }
         for fact in stale { removeFact(fact.id) }
         return stale.count
+    }
+
+    /// 计龄基准 = updatedAt 与 lastUsedAt 取新（使用即续命）。
+    private func effectiveAge(_ fact: MemoryFact) -> Date {
+        guard let used = fact.lastUsedAt, used > fact.updatedAt else { return fact.updatedAt }
+        return used
+    }
+
+    /// **使用反馈**（v0.8.60）：注入过这些事实的回合成功 → 计数+1。
+    @discardableResult
+    func recordUsage(factIDs: [UUID]) -> Int {
+        var touched = 0
+        for id in factIDs {
+            guard let idx = archive.facts.firstIndex(where: { $0.id == id }) else { continue }
+            archive.facts[idx].usageCount = (archive.facts[idx].usageCount ?? 0) + 1
+            archive.facts[idx].lastUsedAt = Date()
+            touched += 1
+        }
+        if touched > 0 { save() }
+        return touched
+    }
+
+    /// 点踩弱化：negativeCount+1（检索分乘降权系数）。
+    @discardableResult
+    func recordNegative(factIDs: [UUID]) -> Int {
+        var touched = 0
+        for id in factIDs {
+            guard let idx = archive.facts.firstIndex(where: { $0.id == id }) else { continue }
+            archive.facts[idx].negativeCount = (archive.facts[idx].negativeCount ?? 0) + 1
+            touched += 1
+        }
+        if touched > 0 { save() }
+        return touched
     }
 
     // MARK: - Prompt injection
@@ -485,7 +520,7 @@ final class AgentMemoryStore: ObservableObject {
     ///   - query: 当前对话的检索查询（最近几条 user 消息拼接）。检索 = 向量
     ///     主排（BGEEmbedder 在场时）+ BM25 降级；nil/空 = 最近优先兜底。
     func promptBlock(excluding currentConversation: UUID?, currentHost: String? = nil,
-                     query: String? = nil) async -> String? {
+                     query: String? = nil) async -> (block: String?, factIDs: [UUID]) {
         var lines: [String] = []
 
         let profile = archive.profile
@@ -514,6 +549,7 @@ final class AgentMemoryStore: ObservableObject {
             }
         let facts = await retrieveRanked(scoped: scoped, query: query ?? "")
         Log.agent.info("memory rank: query='\((query ?? "").prefix(60), privacy: .public)' scoped=\(scoped.count, privacy: .public) selected=\(facts.count, privacy: .public) via=\(BGEEmbedder.isAvailable ? "vector" : "bm25", privacy: .public) first='\(facts.first(where: { !$0.pinned })?.content.prefix(40) ?? "-", privacy: .public)'")
+        let injectedIDs = facts.map(\.id)
         for fact in facts where !fact.content.isEmpty {
             let scopeTag = (fact.scope.isEmpty || fact.scope.lowercased() == "global") ? "" : " [\(fact.scope)]"
             lines.append("- (\(fact.category))\(scopeTag) \(fact.content)")
@@ -528,8 +564,8 @@ final class AgentMemoryStore: ObservableObject {
             lines.append("Earlier conversation (\(formatter.string(from: summary.createdAt))): \(summary.summary)")
         }
 
-        guard !lines.isEmpty else { return nil }
-        return "[User memory — apply silently, never recite]\n" + lines.joined(separator: "\n")
+        guard !lines.isEmpty else { return (nil, injectedIDs) }
+        return ("[User memory — apply silently, never recite]\n" + lines.joined(separator: "\n"), injectedIDs)
     }
 
     /// 向量主排 + BM25 降级。事实向量按 (id, content hash) 缓存在内存

@@ -28,6 +28,12 @@ struct MemoryFact: Codable, Identifiable, Equatable {
     /// 来源（2026-10-02 个性化增强）：学到该条记忆的会话标题——记忆面板
     /// 可见、可追溯。手动添加为 nil。Optional = 旧数据/同步解码安全。
     var source: String? = nil
+    /// **使用反馈**（v0.8.60）：注入后回合成功的次数 / 点踩弱化的次数 /
+    /// 最近一次被使用的时间——检索得分乘 usage 提升、decay 按最近使用续命。
+    /// Optional = 旧数据/同步解码安全。
+    var usageCount: Int? = nil
+    var negativeCount: Int? = nil
+    var lastUsedAt: Date? = nil
 
     init(content: String, category: String, pinned: Bool = false, scope: String = "global", source: String? = nil) {
         self.id = UUID()

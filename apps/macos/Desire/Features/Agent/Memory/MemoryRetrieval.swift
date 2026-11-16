@@ -61,6 +61,15 @@ enum MemoryRetrieval {
         let score: Double
     }
 
+    /// **使用反馈加权**（v0.8.60）：注入后成功回合多的事实小幅提升分，
+    /// 被点踩过的降权。乘法作用于正分（BM25 零分项仍被排除；余弦可为负，
+    /// 负值乘大 boost 更沉底——方向一致）。
+    static func usageBoost(_ fact: MemoryFact) -> Double {
+        let usage = Double(fact.usageCount ?? 0)
+        let negative = Double(fact.negativeCount ?? 0)
+        return 1 + 0.1 * log(1 + usage) - 0.08 * log(1 + negative)
+    }
+
     /// BM25 排序。返回 (pinned 恒定在前) + 非 pinned 按 BM25 分数取 topK；
     /// **全部 0 分**（词法无重叠）时退化为最近优先取 topK 条（新记忆先验
     /// 更相关）——绝不注入 0 分且陈旧的沉底项。
@@ -118,7 +127,7 @@ enum MemoryRetrieval {
                Set(tokenize(source)).contains(where: { Set(queryTokens).contains($0) }) {
                 score += 0.5
             }
-            scored.append(Scored(fact: fact, score: score))
+            scored.append(Scored(fact: fact, score: score * usageBoost(fact)))
         }
 
         let hits = scored
@@ -155,7 +164,7 @@ enum MemoryRetrieval {
         var scored: [(fact: MemoryFact, score: Double)] = []
         for fact in pool {
             guard let fv = usableVector(vectorsByFactID[fact.id]) else { continue }
-            scored.append((fact, cosine(qv, fv)))
+            scored.append((fact, cosine(qv, fv) * usageBoost(fact)))
         }
         guard !scored.isEmpty else {
             return rank(facts: facts, query: query, params: params)

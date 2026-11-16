@@ -3,6 +3,8 @@
 
 - Agent 上下文预算 token 真值化（批 1）：服务档案新增"上下文窗口 (tokens)"（留空按模型名前缀默认表：gpt-4 128k / claude 200k / deepseek 64k / gemini 1M / 未知 32k 保守值）；每回合采样请求字符数 ÷ 服务端自报 promptTokens，按模型维护 EMA 字符/令牌比（夹逼 1.5–6，TokenCalibration 进纯逻辑 harness 16 项单测）；生效预算 = 窗口 × 0.9 ÷ 比率（上限 160k、下限 20k），样本 <3 灰度回退字符口径——行为与 0.8.59 完全一致直到校准数据就绪。占用芯片、回合末自动压缩触发、压缩预算换算同源（compactionBudgetOverride 优先级最高）。
 - Agent 值守升级：订阅模式新增"处置"档（JobWatch.Mode.handle）——异常条件触发后会话空闲时自动发起处置回合，按完成备注里的失败明细自主重试/调参/放弃并简报（动作照走 guard/审批/无人值守超时，处置不是绕过安全面的后门；每组仍限一次）。条件新增两个通用 kind：failureRate（终态数 ≥2 且失败率 ≥ 阈值，默认 0.3）与 stalled（活跃任务无进度超 N 分钟，触发一次）；判定逻辑进纯逻辑 harness（11 项单测）。JobsPanel 的 Watching 胶囊升级为模式菜单（通知/汇报/处置，随时切换）。
+- 记忆使用反馈闭环（批 3）：promptBlock 返回注入的事实清单，回合干净结束自动 usage+1（lastUsedAt 续命——decay 计龄改 updatedAt/lastUsedAt 取新，常带常准的记忆不被时间清掉）；消息点踩同步弱化本回合注入过的记忆（negativeCount）。检索得分乘使用加权（1 + 0.1·ln(1+usage) − 0.08·ln(1+negative)，BM25 与向量主排两路都生效，零分项仍被排除）——高频命中的记忆更常被注入，点踩过的降权。5 项单测进 harness（3299→3304）。
+
 
 
 

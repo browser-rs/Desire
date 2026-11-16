@@ -11301,6 +11301,49 @@ do {
     check("窗口表：未知保守", TokenCalibration.defaultWindowTokens(forModel: "mystery-model") == 32_000)
     check("窗口表：大小写不敏感", TokenCalibration.defaultWindowTokens(forModel: "Claude-3") == 200_000)
 }
+
+// ---------- JobWatchCore：failureRate / stalled / canResume(.handle) ----------
+
+do {
+    func mkJob(_ state: JobRecord.State, progress: Double? = nil, age: TimeInterval = 0) -> JobRecord {
+        JobRecord(id: UUID(), title: "t", kind: .other, state: state,
+                  progress: progress,
+                  createdAt: Date().addingTimeInterval(-age - 60),
+                  updatedAt: Date().addingTimeInterval(-age))
+    }
+    func watch(_ ids: [JobRecord], kind: JobWatchCondition.Kind,
+               value: Double? = nil, minutes: Int? = nil,
+               fired: [String] = [], mode: JobWatch.Mode = .notify) -> JobWatch {
+        JobWatch(jobIDs: ids.map { $0.id.uuidString }, conversationID: nil,
+                 mode: mode,
+                 condition: JobWatchCondition(kind: kind, value: value, pattern: nil, minutes: minutes),
+                 firedConditionKinds: fired.isEmpty ? nil : fired)
+    }
+    // JobRecord init 形状以现仓为准——上面若编译失败按真实签名调整。
+
+    // failureRate：终态 ≥2 且失败率达标
+    let f1 = mkJob(.failed), f2 = mkJob(.failed), d1 = mkJob(.done), r1 = mkJob(.running)
+    let wRate = watch([f1, f2, d1], kind: .failureRate, value: 0.5)
+    check("值守：失败率 2/3 ≥ 0.5 触发", JobWatchCore.event(wRate, jobs: [f1, f2, d1], logTail: nil) == .failureRate)
+    check("值守：终态 <2 不触发", JobWatchCore.event(watch([f1, r1], kind: .failureRate, value: 0.5), jobs: [f1, r1], logTail: nil) == nil)
+    check("值守：失败率不足不触发", JobWatchCore.event(watch([f1, d1], kind: .failureRate, value: 0.9), jobs: [f1, d1], logTail: nil) == nil)
+    check("值守：已 fired 去重", JobWatchCore.event(watch([f1, f2, d1], kind: .failureRate, value: 0.5, fired: ["failureRate"]), jobs: [f1, f2, d1], logTail: nil) == nil)
+
+    // stalled：活跃任务 updatedAt 超龄
+    let oldRunning = mkJob(.running, age: 15 * 60)
+    let freshRunning = mkJob(.running, age: 30)
+    check("值守：卡死 15min 触发（阈值 10）", JobWatchCore.event(watch([oldRunning], kind: .stalled, minutes: 10), jobs: [oldRunning], logTail: nil) == .stalled)
+    check("值守：未超龄不触发", JobWatchCore.event(watch([freshRunning], kind: .stalled, minutes: 10), jobs: [freshRunning], logTail: nil) == nil)
+    check("值守：stalled fired 去重", JobWatchCore.event(watch([oldRunning], kind: .stalled, minutes: 10, fired: ["stalled"]), jobs: [oldRunning], logTail: nil) == nil)
+
+    // canResume 泛化：.handle 与 .resume 同闸
+    let h = watch([f1], kind: .terminal, mode: .handle)
+    check("值守：.handle 空闲可用", JobWatchCore.canResume(h, sessionExists: true, sessionBusy: false))
+    check("值守：.handle 忙碌不可用", !JobWatchCore.canResume(h, sessionExists: true, sessionBusy: true))
+    var used = h; used.resumeUsed = true
+    check("值守：.handle 已用过不再起", !JobWatchCore.canResume(used, sessionExists: true, sessionBusy: false))
+    check("值守：.notify 永不起回合", !JobWatchCore.canResume(watch([f1], kind: .terminal, mode: .notify), sessionExists: true, sessionBusy: false))
+}
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

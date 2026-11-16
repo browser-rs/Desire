@@ -124,6 +124,10 @@ final class JobEventCenter {
             title = String(localized: "Background log matched: \(job?.title ?? "Job")")
         case .heartbeat:
             title = String(localized: "Still running: \(job?.title ?? "Job")")
+        case .failureRate:
+            title = String(localized: "Background tasks failing: \(job?.title ?? "Job")")
+        case .stalled:
+            title = String(localized: "Background task stalled: \(job?.title ?? "Job")")
         case .terminal:
             return
         }
@@ -142,12 +146,15 @@ final class JobEventCenter {
                 id: first.id, title: title, body: summary,
                 failed: failed, artifact: first.artifactURL)
         }
-        if failed, trigger.watch.mode == .resume,
-           let conversationID = trigger.watch.conversationID {
+        // .resume：失败才起汇报回合；.handle：任意条件触发都起处置回合
+        //（失败率/卡死/日志命中本身就是"需要处置"的信号）。
+        let wantsResume = failed && trigger.watch.mode == .resume
+        let wantsHandle = trigger.watch.mode == .handle
+        if wantsResume || wantsHandle,
+           trigger.watch.conversationID != nil {
             maybeResume(
                 JobWatchStore.Delivery(watch: trigger.watch, jobs: trigger.jobs),
                 summary: summary)
-            _ = conversationID
         }
     }
 
@@ -186,9 +193,15 @@ final class JobEventCenter {
             delivery.watch, sessionExists: true, sessionBusy: session.isProcessing)
         JobWatchStore.shared.markResumeUsed(delivery.watch.id)
         guard canResume else { return }
-        session.sendMessage(
-            String(localized: "Background tasks finished. Briefly report the outcome to me using the completion note above — include failures and output paths. Do not start new work unless I ask."),
-            recordHistory: false)
+        // 模式分语义：resume = 只汇报；handle = 自主处置并简报（动作照走
+        // guard/审批/无人值守超时——处置不是绕过安全面的后门）。
+        let prompt: String
+        if delivery.watch.mode == .handle {
+            prompt = String(localized: "A watched background task hit a problem — the completion note above has the details (states, failures, logs). Handle it autonomously: retry what is retryable with the right tools, adjust parameters if a plain retry looks futile, or skip/cancel what is unsalvageable. Then briefly report what you did and why. Do NOT start unrelated new work.")
+        } else {
+            prompt = String(localized: "Background tasks finished. Briefly report the outcome to me using the completion note above — include failures and output paths. Do not start new work unless I ask.")
+        }
+        session.sendMessage(prompt, recordHistory: false)
     }
 
     // MARK: - 会话写入

@@ -91,6 +91,24 @@ nonisolated enum JobWatchCore {
             let minutes = max(1, condition.minutes ?? 10)
             let baseline = watch.lastHeartbeatAt ?? watch.createdAt
             return now.timeIntervalSince(baseline) >= Double(minutes * 60) ? .heartbeat : nil
+        case .failureRate:
+            // 终态数 ≥2 且失败率 ≥ 阈值（默认 0.3）——单任务失败走 .failed。
+            guard !fired.contains(JobWatchCondition.Kind.failureRate.rawValue) else { return nil }
+            let watched = jobs.filter { watch.jobIDs.contains($0.id.uuidString) }
+            let settledJobs = watched.filter { !$0.state.isActive }
+            guard settledJobs.count >= 2 else { return nil }
+            let threshold = min(1, max(0.05, condition.value ?? 0.3))
+            let rate = Double(settledJobs.filter { $0.state == .failed }.count) / Double(settledJobs.count)
+            return rate >= threshold ? .failureRate : nil
+        case .stalled:
+            // 任一活跃任务 updatedAt 距今超阈值 → 触发一次（fired 去重）。
+            guard !fired.contains(JobWatchCondition.Kind.stalled.rawValue) else { return nil }
+            let minutes = max(1, condition.minutes ?? 10)
+            return jobs.contains {
+                watch.jobIDs.contains($0.id.uuidString)
+                    && $0.state.isActive
+                    && now.timeIntervalSince($0.updatedAt) >= Double(minutes * 60)
+            } ? .stalled : nil
         }
     }
 
@@ -118,13 +136,19 @@ nonisolated enum JobWatchCore {
             return String(localized: "At \(Int((condition.value ?? 0.5) * 100))% progress")
         case .logMatch: return String(localized: "When log matches “\(condition.pattern ?? "")”")
         case .heartbeat: return String(localized: "Every \(condition.minutes ?? 10) min")
+        case .failureRate:
+            return String(localized: "Failure rate ≥ \(Int(((condition.value ?? 0.3) * 100).rounded()))%")
+        case .stalled:
+            return String(localized: "No progress for \(condition.minutes ?? 10) min")
         }
     }
 
-    /// 是否允许起 resume 回合：会话仍存在、没有在跑、没有被暂停/取消、且没用过。
+    /// 是否允许起 resume/handle 自动回合：会话仍存在、没有在跑、且没用过。
+    /// .resume = 汇报回合；.handle = 处置回合（闸门语义同 resume：每组一次）。
     static func canResume(_ watch: JobWatch, sessionExists: Bool,
                           sessionBusy: Bool) -> Bool {
-        watch.mode == .resume && !watch.resumeUsed && sessionExists && !sessionBusy
+        (watch.mode == .resume || watch.mode == .handle)
+            && !watch.resumeUsed && sessionExists && !sessionBusy
     }
 }
 

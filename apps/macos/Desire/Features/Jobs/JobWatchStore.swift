@@ -123,6 +123,13 @@ final class JobWatchStore: ObservableObject {
         persist()
     }
 
+    /// 切换订阅模式（JobsPanel 的模式菜单；保留原条件与去重状态）。
+    func setMode(_ mode: JobWatch.Mode, for watchID: UUID) {
+        guard let index = watches.firstIndex(where: { $0.id == watchID }) else { return }
+        watches[index].mode = mode
+        persist()
+    }
+
     func remove(_ id: UUID) {
         watches.removeAll { $0.id == id }
         persist()

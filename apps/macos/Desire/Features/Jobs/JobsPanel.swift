@@ -249,13 +249,27 @@ struct JobsPanel: View {
                 .controlSize(.small)
             }
             if job.state.isActive {
-                if isWatched(job) {
-                    Text(String(localized: "Watching"))
-                        .font(.system(size: 9.5, weight: .medium))
-                        .foregroundStyle(appAccent)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Capsule().fill(appAccent.opacity(0.12)))
+                if let watch = watchFor(job) {
+                    // 模式菜单（v0.8.60）：通知 / 汇报（空闲自动汇报结果）/
+                    // 处置（空闲自主重试-调参-放弃并简报）。
+                    Menu {
+                        ForEach([JobWatch.Mode.notify, .resume, .handle], id: \.self) { mode in
+                            Button(mode.label) {
+                                JobWatchStore.shared.setMode(mode, for: watch.id)
+                            }
+                        }
+                    } label: {
+                        Text(watch.mode.label)
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundStyle(appAccent)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(appAccent.opacity(0.12)))
+                    }
+                    .menuStyle(.borderlessButton)
+                    .menuIndicator(.visible)
+                    .controlSize(.small)
+                    .help(String(localized: "Watch mode"))
                 } else {
                     Button(String(localized: "Notify")) {
                         _ = JobWatchStore.shared.register(
@@ -335,6 +349,11 @@ struct JobsPanel: View {
         let formatter = RelativeDateTimeFormatter()
         formatter.unitsStyle = .short
         return formatter.localizedString(for: date, relativeTo: Date())
+    }
+
+    /// 该任务当前活跃的订阅（模式菜单用；nil = 未订阅）。
+    private func watchFor(_ job: JobRecord) -> JobWatch? {
+        watches.active.first { $0.jobIDs.contains(job.id.uuidString) }
     }
 
     private func isWatched(_ job: JobRecord) -> Bool {

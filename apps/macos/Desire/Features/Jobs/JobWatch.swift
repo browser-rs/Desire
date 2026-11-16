@@ -5,6 +5,12 @@ import Foundation
 nonisolated struct JobWatchCondition: Codable, Equatable {
     enum Kind: String, Codable, CaseIterable {
         case terminal, failed, progress, logMatch, heartbeat
+        /// 失败率阈值（value 0..1，默认 0.3）：终态数 ≥2 且失败率达标触发
+        ///（v0.8.60，处置档的搭配条件——单任务失败用 .failed）。
+        case failureRate
+        /// 无进度时长（minutes，默认 10）：存在活跃任务 updatedAt 距今超阈值
+        /// 触发一次（v0.8.60，卡死处置）。
+        case stalled
 
         var label: String {
             switch self {
@@ -13,6 +19,8 @@ nonisolated struct JobWatchCondition: Codable, Equatable {
             case .progress: String(localized: "At progress")
             case .logMatch: String(localized: "When log matches")
             case .heartbeat: String(localized: "Heartbeat")
+            case .failureRate: String(localized: "Failure rate")
+            case .stalled: String(localized: "Stalled")
             }
         }
     }
@@ -33,6 +41,17 @@ nonisolated struct JobWatch: Identifiable, Codable, Equatable {
         case notify
         /// 备注后，若会话空闲再自动跑一轮“汇报结果”的短回合
         case resume
+        /// 备注后，若会话空闲再自动跑一轮**处置回合**（受 guard/审批/无人值守
+        /// 超时约束）：按失败明细自主重试/调参/放弃并简报（v0.8.60）。
+        case handle
+
+        var label: String {
+            switch self {
+            case .notify: String(localized: "Notify")
+            case .resume: String(localized: "Report")
+            case .handle: String(localized: "Handle")
+            }
+        }
     }
 
     var id: UUID

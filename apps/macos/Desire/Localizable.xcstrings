@@ -109346,6 +109346,204 @@
           }
         }
       }
+    },
+    "Failure rate":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Failure rate"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"失败率"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"失敗率"
+          }
+        }
+      }
+    },
+    "Stalled":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Stalled"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"卡住"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"卡住"
+          }
+        }
+      }
+    },
+    "Failure rate ≥ %lld%%":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Failure rate ≥ %lld%%"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"失败率 ≥ %lld%%"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"失敗率 ≥ %lld%%"
+          }
+        }
+      }
+    },
+    "No progress for %lld min":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"No progress for %lld min"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"%lld 分钟无进度"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"%lld 分鐘無進度"
+          }
+        }
+      }
+    },
+    "Report":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Report"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"汇报"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"匯報"
+          }
+        }
+      }
+    },
+    "Watch mode":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Watch mode"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"订阅模式"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"訂閱模式"
+          }
+        }
+      }
+    },
+    "A watched background task hit a problem — the completion note above has the details (states, failures, logs). Handle it autonomously: retry what is retryable with the right tools, adjust parameters if a plain retry looks futile, or skip/cancel what is unsalvageable. Then briefly report what you did and why. Do NOT start unrelated new work.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"A watched background task hit a problem — the completion note above has the details (states, failures, logs). Handle it autonomously: retry what is retryable with the right tools, adjust parameters if a plain retry looks futile, or skip/cancel what is unsalvageable. Then briefly report what you did and why. Do NOT start unrelated new work."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一个被订阅的后台任务出问题了——上面的完成备注里有明细（状态/失败/日志）。请自主处置：可重试的用对应工具重试，直接重试没意义的就调整参数，救不回来的就跳过/取消；然后简报你做了什么、为什么。不要开始无关的新工作。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一個被訂閱的後台任務出問題了——上面的完成備註裡有明細（狀態/失敗/日誌）。請自主處置：可重試的用對應工具重試，直接重試沒意義的就調整參數，救不回來的就跳過/取消；然後簡報你做了什麼、為什麼。不要開始無關的新工作。"
+          }
+        }
+      }
+    },
+    "Background tasks failing: %@":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Background tasks failing: %@"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"后台任务持续失败：%@"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"後台任務持續失敗：%@"
+          }
+        }
+      }
+    },
+    "Background task stalled: %@":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Background task stalled: %@"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"后台任务卡住：%@"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"後台任務卡住：%@"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

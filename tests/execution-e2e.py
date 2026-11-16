@@ -2239,7 +2239,7 @@ def main():
         ok("评估集：列表含该文件", any(e.get("name") == os.path.basename(path33) for e in lst33))
         d33 = bridge("POST", "/agent/eval-export/delete", {"path": path33})
         ok("评估集：删除生效", d33.get("ok") and not Path(path33).exists())
-        failed = [(n, d) for n, c, d in checks if not c]
+        failed = [(n, d) for n, c, d in [(x[0], x[1], x[2] if len(x) > 2 else "") for x in checks] if not c]
         if failed:
             # --keep-going（v0.8.57 批 4）：一节失败不再吞掉后续全部结果
             # （0.8.56 实测：长套件尾部退化类失败轮换，abort 让相邻轮无法

@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Fixed
+
+- 自动压缩触发条件修正（0.8.59 引入，探针评估化时活体抓到）：触发看的是 contextFraction（发送侧估算——估算本身会把最老轮次裁进摘要），多轮溢出时分数永远 ≤1，自动压缩从未点火过；改为直接判落盘总字符是否超生效预算（compactNow 内部仍按 60% 目标裁）。agent-eval 新增 E22 自动压缩/E23 转存全文检索（浏览器依赖）/E24 看门狗（需 30s 窗前置）/E25 Doctor 四用例 + --only 过滤；release-smoke 增 --with-agent-probes 可选档（E22/E25）。
+
 ### Added
 
 - Agent 上下文预算 token 真值化（批 1）：服务档案新增"上下文窗口 (tokens)"（留空按模型名前缀默认表：gpt-4 128k / claude 200k / deepseek 64k / gemini 1M / 未知 32k 保守值）；每回合采样请求字符数 ÷ 服务端自报 promptTokens，按模型维护 EMA 字符/令牌比（夹逼 1.5–6，TokenCalibration 进纯逻辑 harness 16 项单测）；生效预算 = 窗口 × 0.9 ÷ 比率（上限 160k、下限 20k），样本 <3 灰度回退字符口径——行为与 0.8.59 完全一致直到校准数据就绪。占用芯片、回合末自动压缩触发、压缩预算换算同源（compactionBudgetOverride 优先级最高）。

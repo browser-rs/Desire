@@ -97,6 +97,20 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        # /bigpage：~60k HTML，SPILLMARKER 在尾部（超出转存预览的覆盖范围，
+        # 只有读转存全文才命中——E23 的核心素材）。
+        if self.path.startswith("/bigpage"):
+            parts = [f"<p class='para-{i}'>这是第 {i} 段填充文本，用来把页面撑到 60k 字符以上。</p>"
+                     for i in range(1200)]
+            html = ("<html><body><h1>Big Fixture Page</h1>" + "".join(parts)
+                    + "<p id='tail'>SPILLMARKER-7f3a</p></body></html>")
+            body = html.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         # /reset：清空 OVERFLOW 计数（评估脚本用，保证用例确定性）。
         if self.path.startswith("/reset"):
             global overflow_seen
@@ -332,6 +346,93 @@ c.addEventListener('click', function(ev) {
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush(); self.close_connection = True
             return
+        # ---------- v0.8.59/60 探针（E22-E24） ----------
+
+        def sse_reply(reply):
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            chunk = {"id": "chatcmpl-probe", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "content": reply},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-probe", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+
+        # E22：大回合——回 ~20k 文本（5 轮把落盘历史顶过预算 → 自动压缩）。
+        if "BIGTURN" in mode_text:
+            sse_reply("填充回复。" * 4000)
+            return
+        # E23a：读页面 → getPageHTML 工具调用。
+        if "READPAGE" in mode_text and not has_tool:
+            call = {"index": 0, "id": "call_readpage", "type": "function",
+                    "function": {"name": "getPageHTML", "arguments": "{}"}}
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            chunk = {"id": "chatcmpl-probe", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-probe", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+        # E23b：工具结果带转存标记 → 按 query 检索全文（getToolResult）。
+        tool_texts = [m.get("content") or "" for m in round_msgs if m.get("role") == "tool"]
+        if any("[desire-spill:" in t for t in tool_texts):
+            cid = "call_readpage"
+            for m in round_msgs:
+                for tc in (m.get("tool_calls") or []) if m.get("role") == "assistant" else []:
+                    if tc.get("function", {}).get("name") == "getPageHTML":
+                        cid = tc.get("id", cid)
+            call = {"index": 0, "id": "call_search", "type": "function",
+                    "function": {"name": "getToolResult",
+                                 "arguments": json.dumps({"callId": cid, "query": "SPILLMARKER-7f3a"})}}
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            chunk = {"id": "chatcmpl-probe", "object": "chat.completion.chunk", "created": int(time.time()),
+                     "model": model,
+                     "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": [call]},
+                                  "finish_reason": None}]}
+            self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+            done = {"id": "chatcmpl-probe", "object": "chat.completion.chunk", "created": int(time.time()),
+                    "model": model, "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+            self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            self.wfile.flush(); self.close_connection = True
+            return
+        # E23c：检索命中（全文含标记——只有读转存文件才可能命中）→ 确认。
+        if any("SPILLMARKER-7f3a" in t for t in tool_texts):
+            sse_reply("SEARCH-OK SPILL-FOUND")
+            return
+        # E24：只发 keepalive 注释行，永不发事件（看门狗 30s 窗掐断）。
+        if "STALLTURN" in mode_text:
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.send_header("Connection", "close")
+            self.end_headers()
+            try:
+                while True:
+                    self.wfile.write(b": keepalive\n\n")
+                    self.wfile.flush()
+                    time.sleep(1)
+            except Exception:
+                pass
+            self.close_connection = True
+            return
+
         if "PARAREAD" in mode_text and has_tool:
             reply = "PARA-DONE（%d 个工具结果已收到）" % len([m for m in msgs if m.get("role") == "tool"])
             chunk = {"id": "chatcmpl-para", "object": "chat.completion.chunk", "created": int(time.time()),
@@ -1949,6 +2050,104 @@ def case_feed_lifecycle():
             print(f"E18 清理退订失败（订阅残留，手动在面板退订 {feed_url}）：{exc}")
 
 
+# ---------- v0.8.59/60 探针用例（E22-E25） ----------
+
+STORAGE_DIR = os.path.expanduser("~/Library/Application Support/Desire/storage")
+SPILL_MARKER = "SPILLMARKER-7f3a"
+
+
+def case_compaction_probe():
+    """E22 自动压缩：5 轮大对话顶过预算 → 回合末归档 + /compact 如实回复。"""
+    bridge("POST", "/agent/new", body={})
+    time.sleep(1)
+    for _ in range(5):
+        run_case("BIGTURN " + "u" * 15000)
+    trace = bridge("GET", "/agent/trace")
+    conv = trace["conversation"]
+    archive = os.path.join(STORAGE_DIR, f"conversation-{conv}.archive.json")
+    if not os.path.exists(archive):
+        raise AssertionError(f"归档文件未出现：{archive}")
+    if os.path.getsize(archive) < 200:
+        raise AssertionError("归档文件过小")
+    reply = run_case("/compact")
+    _, assistant, _ = last_exchange(reply)
+    text = assistant.get("content") or ""
+    if not any(k in text for k in ("Nothing to compact", "无需压缩", "Compacted", "已压缩")):
+        raise AssertionError(f"/compact 回复不像压缩语义：{text[:120]}")
+
+
+def case_spill_search():
+    """E23 大结果转存 + getToolResult 全文检索（浏览器依赖，本地专属）。"""
+    bridge("POST", "/navigate", body={"url": fixture_endpoint().rstrip("/") + "/bigpage"})
+    time.sleep(2)
+    msgs = run_case("READPAGE 请读取当前页面 HTML")
+    _, assistant, _ = last_exchange(msgs)
+    text = assistant.get("content") or ""
+    if "SEARCH-OK" not in text:
+        raise AssertionError(f"未确认全文检索命中：{text[:160]}")
+    # 转存文件侧证：工作区 tool-results/ 里应有含标记的文件。
+    spill_dir = os.path.expanduser("~/Documents/DesireAgent/tool-results")
+    found = False
+    for name in os.listdir(spill_dir) if os.path.isdir(spill_dir) else []:
+        path = os.path.join(spill_dir, name)
+        try:
+            if SPILL_MARKER in open(path, encoding="utf-8", errors="replace").read():
+                found = True
+                os.remove(path)
+        except Exception:
+            pass
+    if not found:
+        raise AssertionError("tool-results/ 未找到含标记的转存文件")
+
+
+def case_watchdog():
+    """E24 流式停摆看门狗（本地专属；前置 = defaults write agentStreamStallSeconds
+    -int 30 并重启应用——运行中的进程不感知外部 defaults 写入）。"""
+    raw = ""
+    try:
+        raw = subprocess.check_output(
+            ["defaults", "read", "me.siwi.Desire", "agentStreamStallSeconds"],
+            text=True).strip()
+    except Exception:
+        pass
+    if raw != "30":
+        raise AssertionError(
+            "前置不满足：defaults write me.siwi.Desire agentStreamStallSeconds -int 30 "
+            "并重启应用后再跑（当前值=" + (raw or "未设") + "）")
+    bridge("POST", "/agent/new", body={})
+    time.sleep(1)
+    before_ids = {m.get("id") for m in bridge("GET", "/agent/messages").get("messages", [])}
+    bridge("POST", "/agent/send", body={"text": "STALLTURN"})
+    deadline = time.time() + 240
+    done = None
+    while time.time() < deadline:
+        time.sleep(2)
+        state = bridge("GET", "/agent/messages")
+        if not state.get("busy"):
+            fresh = [m for m in state.get("messages", [])
+                     if m.get("id") not in before_ids and m.get("role") == "assistant"]
+            if fresh:
+                done = time.time() - (deadline - 240)
+                text = fresh[-1].get("content") or ""
+                break
+    if done is None:
+        raise AssertionError("240s 内回合仍 busy——看门狗未掐断挂死流")
+    if done > 150:
+        raise AssertionError(f"回合 {done:.0f}s 才结束（30s 窗 × 2 次尝试应 ~70s）")
+    trace = bridge("GET", "/agent/trace")
+    eval_conversations.append(trace["conversation"])
+
+
+def case_doctor_probes():
+    """E25 Doctor 新体检项：上下文压缩 + 转存目录。"""
+    report = bridge("GET", "/agent/doctor")
+    names = {c.get("name"): c.get("detail", "") for c in report.get("checks", [])}
+    if "上下文压缩" not in names:
+        raise AssertionError(f"Doctor 缺少'上下文压缩'项：{list(names)}")
+    if "转存目录" not in names:
+        raise AssertionError("Doctor 缺少'转存目录'项")
+
+
 CASES = [("E1 plain-echo", case_plain_echo),
          ("E2 fail-convention", case_fail_convention),
          ("E3 redaction", case_redaction),
@@ -1969,9 +2168,14 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E18 feed-lifecycle", case_feed_lifecycle),
          ("E21 job-chain", case_job_chain),
          ("E19 look-image（本地专属，EVAL_E19=1 开启）", case_look_image),
-         ("E20 look-click-canvas（本地专属，EVAL_E20=1 开启）", case_look_click_canvas)]
+         ("E20 look-click-canvas（本地专属，EVAL_E20=1 开启）", case_look_click_canvas),
+         ("E22 compaction-probe", case_compaction_probe),
+         ("E23 spill-search（本地专属，EVAL_E23=1 开启；浏览器依赖）", case_spill_search),
+         ("E24 watchdog（本地专属，EVAL_E24=1 开启；需先设 30s 窗并重启应用）", case_watchdog),
+         ("E25 doctor-probes", case_doctor_probes)]
 
 results = []
+ONLY = set()
 
 
 def check(name, condition):
@@ -1985,10 +2189,14 @@ def main():
     parser.add_argument("--cleanup", action="store_true",
                         help="删除评估写入的会话（按脚本记录的精确 id）")
     parser.add_argument("--keep-fixture", action="store_true")
+    parser.add_argument("--only", default="",
+                        help="只跑指定用例（逗号分隔短名，如 E22,E25）")
     parser.add_argument("--fixtures", default="",
                         help="thumbsup 评估素材 JSON（scripts/export-thumbsup-eval.py 生成）；E5 用例回放其 goal")
     args, _ = parser.parse_known_args()
     BRIDGE = args.base
+    global ONLY
+    ONLY = {x.strip().upper() for x in args.only.split(",") if x.strip()}
     if args.fixtures:
         if os.path.exists(args.fixtures):
             with open(args.fixtures, encoding="utf-8") as fh:
@@ -2030,6 +2238,19 @@ def main():
                 # 同上：E20 要 /navigate 开 fixture 页 + 真实视觉点击回合（本地专属）。
                 results.append((name + " — CI 跳过（本地 EVAL_E20=1 运行）", True, ""))
                 continue
+            if case is case_spill_search and os.environ.get("EVAL_E23") != "1":
+                # E23 要 /navigate（浏览器依赖，CI 上挂起）。
+                results.append((name + " — CI 跳过（本地 EVAL_E23=1 运行）", True, ""))
+                continue
+            if case is case_watchdog and os.environ.get("EVAL_E24") != "1":
+                # E24 前置 = 30s 窗 + 重启应用（本地专属）。
+                results.append((name + " — CI 跳过（本地 EVAL_E24=1 运行）", True, ""))
+                continue
+            # --only：短名过滤（名称首词，如 "E22 compaction-probe" → E22）。
+            if ONLY:
+                short = name.split()[0].upper()
+                if short not in ONLY:
+                    continue
             try:
                 case()
                 results.append((name, True, ""))
@@ -2046,6 +2267,10 @@ def main():
             shutil.rmtree(workdir, ignore_errors=True)
         if args.cleanup and eval_conversations:
             ids = sorted(set(eval_conversations))
+            for conv_id in ids:
+                archive = os.path.join(STORAGE_DIR, f"conversation-{conv_id}.archive.json")
+                if os.path.exists(archive):
+                    os.remove(archive)
             result = bridge("POST", "/conversations/delete", body={"ids": ids})
             if result.get("liveConversationDeleted"):
                 # 活会话删了会把实例的投递目标打残（后续 /agent/send 静默失效），

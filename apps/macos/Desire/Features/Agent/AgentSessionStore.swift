@@ -2128,19 +2128,25 @@ class AgentSessionStore: ObservableObject {
         turnCheckpointActive = false
         saveCurrentConversation()
 
-        // **上下文用尽 → 自动压缩**（2026-11-15 用户定案）：落盘历史超出
-        // 预算时归档最老轮次并缩成摘要——不引导 /new。请求侧压缩仍是回合
-        // 中增长的兜底；压缩在脱敏落盘之后、标题/记忆整理之前（都是本地
-        // 快操作，不与下一轮抢锁）。
-        if contextFraction > 1.0 {
-            compactNow()
-        }
-
         // **记忆使用反馈**（v0.8.60）：回合干净结束（非失败/取消）→ 本回合
         // 注入过的记忆事实 usage+1（检索加权与 decay 续命用）。
         if lastTurnSucceeded, !injectedFactIDs.isEmpty {
             AgentMemoryStore.shared.recordUsage(factIDs: injectedFactIDs)
             injectedFactIDs = []
+        }
+
+        // **上下文用尽 → 自动压缩**（触发口径修正，v0.8.60）：看**落盘总字符**
+        // 是否超预算——contextFraction 是发送侧估算（估算本身会把最老轮次裁
+        // 进摘要，多轮溢出时永远 ≤1，拿它当触发条件自动压缩永不点火）。压缩
+        // 本体（compactNow）内部按 60% 目标裁，估算只用于显示。
+        do {
+            let stored = messages.reduce(0) {
+                $0 + ($1.content?.count ?? 0)
+                    + ($1.toolCalls?.reduce(0) { $0 + $1.function.arguments.count + $1.function.name.count } ?? 0)
+            }
+            if stored > effectiveContextBudget {
+                compactNow()
+            }
         }
 
         // **先把"忙碌"交还给界面，再做收尾**：标题生成与记忆整理都是额外的模型

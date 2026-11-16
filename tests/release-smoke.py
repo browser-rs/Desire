@@ -20,6 +20,7 @@ import base64
 import json
 import os
 import pathlib
+import subprocess
 import sys
 import urllib.parse
 import threading
@@ -159,6 +160,10 @@ def main():
         return 2
     parser = argparse.ArgumentParser()
     parser.add_argument("--quit", action="store_true", help="结束时优雅退出应用")
+    parser.add_argument("--with-agent-probes", action="store_true",
+                        help="追加 agent-eval 的桥端探针（E22 自动压缩 / E25 Doctor；"
+                             "E23/E24 属浏览器/重启前置的本地专属档，用 EVAL_E23=1 "
+                             "EVAL_E24=1 单独跑）")
     args = parser.parse_args()
 
     # 0) 桥与主窗
@@ -428,6 +433,13 @@ def main():
                 pass
         if args.quit:
             os.system('osascript -e \'quit app "Desire"\' >/dev/null 2>&1')
+
+    # 可选档：agent-eval 桥端探针（v0.8.60 批 4）。--only 过滤到桥端可跑的
+    # 两项；非零退出并入失败。
+    if args.with_agent_probes:
+        eval_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "agent-eval.py")
+        rc = subprocess.call([sys.executable, eval_path, "--only", "E22,E25"])
+        checks.append(("agent-eval 探针（E22/E25）", rc == 0))
 
     passed = sum(1 for _, c in checks if c)
     total = len(checks)

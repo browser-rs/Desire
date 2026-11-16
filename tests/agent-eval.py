@@ -2168,6 +2168,49 @@ def case_doctor_probes():
         raise AssertionError("Doctor 缺少'转存目录'项")
 
 
+def case_watch_handle():
+    """E26 值守处置链（本地专属，EVAL_E26=1；~2.5 分钟）：后台 sleep 任务 →
+    stalled 1min 条件触发 → mode=handle 自动处置回合 → resumeUsed 一次。
+    前置：会话须为活会话（liveSession(for:) 找不到只通知不处置）。"""
+    import glob as _glob
+    bridge("POST", "/agent/new", body={})
+    time.sleep(1)
+    # fixture 回一轮，把会话变成"活会话"（scheduler 登记的投递目标）
+    run_case("EVAL-ACTIVATE 请回一个字")
+    # 当前活会话 id（storage 最新）
+    storage = os.path.expanduser("~/Library/Application Support/Desire/storage")
+    convs = sorted(_glob.glob(os.path.join(storage, "conversation-*.json")),
+                   key=os.path.getmtime)
+    conv = os.path.basename(convs[-1])[len("conversation-"):-len(".json")]
+    # 后台 sleep 任务（保持活跃）+ handle 订阅
+    job = bridge("POST", "/jobs/run", body={
+        "tool": "sleep", "args": ["240"], "title": "E26-stalled-sleep",
+        "timeoutMinutes": 5})
+    jid = job.get("jobID")
+    assert jid, f"sleep 任务创建失败：{job}"
+    w = bridge("POST", "/jobs/watch", body={
+        "ids": [jid], "mode": "handle", "conversationId": conv,
+        "condition": "stalled", "stalledMinutes": 1})
+    assert w.get("ok"), w
+    watch_id = w.get("watchId")
+    # stalled 触发（≥60s 无进度）+ 条件轮询 + 处置回合
+    deadline = time.time() + 200
+    fired = False
+    while time.time() < deadline:
+        time.sleep(5)
+        watches = bridge("GET", "/jobs/watches").get("watches", [])
+        me = next((x for x in watches if x.get("id") == watch_id), None)
+        if me and me.get("resumeUsed"):
+            fired = True
+            break
+    # 收尾（尽早，失败也清）
+    bridge("POST", "/jobs/cancel", body={"id": jid})
+    if not fired:
+        raise AssertionError("200s 内处置回合未发起（resumeUsed 仍 False）")
+    trace = bridge("GET", "/agent/trace")
+    eval_conversations.append(trace["conversation"])
+
+
 CASES = [("E1 plain-echo", case_plain_echo),
          ("E2 fail-convention", case_fail_convention),
          ("E3 redaction", case_redaction),
@@ -2192,7 +2235,8 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E22 compaction-probe", case_compaction_probe),
          ("E23 spill-search（本地专属，EVAL_E23=1 开启；浏览器依赖）", case_spill_search),
          ("E24 watchdog（本地专属，EVAL_E24=1 开启；需先设 30s 窗并重启应用）", case_watchdog),
-         ("E25 doctor-probes", case_doctor_probes)]
+         ("E25 doctor-probes", case_doctor_probes),
+         ("E26 watch-handle（本地专属，EVAL_E26=1 开启；~2.5 分钟）", case_watch_handle)]
 
 results = []
 ONLY = set()
@@ -2265,6 +2309,10 @@ def main():
             if case is case_watchdog and os.environ.get("EVAL_E24") != "1":
                 # E24 前置 = 30s 窗 + 重启应用（本地专属）。
                 results.append((name + " — CI 跳过（本地 EVAL_E24=1 运行）", True, ""))
+                continue
+            if case is case_watch_handle and os.environ.get("EVAL_E26") != "1":
+                # E26 要起真实后台任务 + 等 stalled 触发（本地专属）。
+                results.append((name + " — CI 跳过（本地 EVAL_E26=1 运行）", True, ""))
                 continue
             # --only：短名过滤（名称首词，如 "E22 compaction-probe" → E22）。
             if ONLY:

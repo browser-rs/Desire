@@ -109764,6 +109764,138 @@
           }
         }
       }
+    },
+    "A healthier background engine":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"A healthier background engine"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"更健康的后台引擎"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"更健康的背景引擎"
+          }
+        }
+      }
+    },
+    "The shared background-thread pool that powers saves, watchdogs and jobs can no longer be starved by a single slow disk write — IO moved to a dedicated queue, and a new water-level probe makes pool starvation visible in Diagnostics before you feel it.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The shared background-thread pool that powers saves, watchdogs and jobs can no longer be starved by a single slow disk write — IO moved to a dedicated queue, and a new water-level probe makes pool starvation visible in Diagnostics before you feel it."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"驱动保存、看门狗与任务的共享后台线程池，不会再被一次慢速磁盘写饿死——IO 移入专用队列，新增水位探针让池积压在你可感知之前就出现在诊断里。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"驅動儲存、看門狗與任務的共享背景執行緒池，不會再被一次慢速磁碟寫餓死——IO 移入專用佇列，新增水位探針讓池積壓在你可感知之前就出現在診斷裡。"
+          }
+        }
+      }
+    },
+    "Context archives that clean up after themselves":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Context archives that clean up after themselves"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上下文归档自动清理"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上下文歸檔自動清理"
+          }
+        }
+      }
+    },
+    "Conversation archives and spilled tool results now automatically trim to sane size limits (keeping the most recent material), so month-old sessions don't quietly eat your disk.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Conversation archives and spilled tool results now automatically trim to sane size limits (keeping the most recent material), so month-old sessions don't quietly eat your disk."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"会话归档与转存的工具结果现在自动收敛到合理体量（保留最近的内容），陈年会话不再悄悄吃掉你的磁盘。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"會話歸檔與轉存的工具結果現在自動收斂到合理體量（保留最近的內容），陳年會話不再悄悄吃掉你的磁碟。"
+          }
+        }
+      }
+    },
+    "Runtime health at a glance":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Runtime health at a glance"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"运行健康一目了然"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"執行健康一目了然"
+          }
+        }
+      }
+    },
+    "Diagnostics now surfaces main-thread stalls and cooperative-pool scheduling latency as pills and a GET /diag/health endpoint — the same data the health monitor uses, readable by you and by scripts.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Diagnostics now surfaces main-thread stalls and cooperative-pool scheduling latency as pills and a GET /diag/health endpoint — the same data the health monitor uses, readable by you and by scripts."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"诊断面板新增主线程停顿与协作池调度延迟两枚指标，并开放 GET /diag/health 端点——与健康监测同源的数据，人和脚本都能读。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"診斷面板新增主執行緒停頓與協作池排程延遲兩枚指標，並開放 GET /diag/health 端點——與健康監測同源的數據，人和腳本都能讀。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

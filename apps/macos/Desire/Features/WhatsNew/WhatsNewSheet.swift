@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "target", title: String(localized: "Context budget calibrated to your model"),
-                  detail: String(localized: "Set a context window per model service (or trust the built-in defaults) — the Agent measures real token usage each turn and tightens or relaxes its memory budget accordingly, so long conversations stay within your model's true limits.")),
-            .init(icon: "wrench.and.screwdriver.fill", title: String(localized: "Watched tasks can fix themselves"),
-                  detail: String(localized: "Background tasks now have a Handle mode: when a failure rate or stall threshold trips, the Agent autonomously retries, adjusts, or abandons the work — then reports what it did and why. Every action still passes your approval rules.")),
-            .init(icon: "brain.head.profile", title: String(localized: "Memory learns from use"),
-                  detail: String(localized: "Memories the Agent actually uses get reinforced and recalled more often; ones you thumb down fade faster. Regularly-used facts also survive the automatic cleanup longer.")),
+            .init(icon: "gauge.with.needle", title: String(localized: "A healthier background engine"),
+                  detail: String(localized: "The shared background-thread pool that powers saves, watchdogs and jobs can no longer be starved by a single slow disk write — IO moved to a dedicated queue, and a new water-level probe makes pool starvation visible in Diagnostics before you feel it.")),
+            .init(icon: "arrow.uturn.backward.trianglebadge", title: String(localized: "Context archives that clean up after themselves"),
+                  detail: String(localized: "Conversation archives and spilled tool results now automatically trim to sane size limits (keeping the most recent material), so month-old sessions don't quietly eat your disk.")),
+            .init(icon: "stethoscope", title: String(localized: "Runtime health at a glance"),
+                  detail: String(localized: "Diagnostics now surfaces main-thread stalls and cooperative-pool scheduling latency as pills and a GET /diag/health endpoint — the same data the health monitor uses, readable by you and by scripts.")),
         ]
     }
 

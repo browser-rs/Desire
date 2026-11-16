@@ -54,4 +54,43 @@ nonisolated enum ToolResultSpill {
     static func readFile(at path: String) -> String? {
         try? String(contentsOfFile: path, encoding: .utf8)
     }
+
+    // MARK: - 目录 GC（v0.8.61 批 2）
+
+    private static let lastGCKey = "toolResults.lastGCAt"
+    private static let gcInterval: TimeInterval = 6 * 3600
+
+    /// 转存目录最近一次 GC 时间（Doctor 显示用）。
+    static var lastGCAt: Date? {
+        get {
+            UserDefaults.standard.object(forKey: lastGCKey) as? Date
+        }
+        set { UserDefaults.standard.set(newValue, forKey: lastGCKey) }
+    }
+
+    /// 转存目录清理：容量 1GB + 30 天双阈值（判定纯逻辑在 ArchiveGC），
+    /// 6 小时节流——回合结束时顺带跑，低频后台。
+    @discardableResult
+    static func runHousekeepingIfNeeded(directory: URL, now: Date = Date()) -> Int {
+        if let last = lastGCAt, now.timeIntervalSince(last) < gcInterval { return 0 }
+        lastGCAt = now
+        let fm = FileManager.default
+        guard let items = try? fm.contentsOfDirectory(at: directory,
+                                                      includingPropertiesForKeys: [.fileSizeKey, .contentModificationDateKey]) else {
+            return 0
+        }
+        var entries: [(path: String, size: Int, modified: Date)] = []
+        for url in items {
+            let values = try? url.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
+            entries.append((url.path,
+                            values?.fileSize ?? 0,
+                            values?.contentModificationDate ?? now))
+        }
+        let targets = ArchiveGC.spillCleanupTargets(entries)
+        var removed = 0
+        for path in targets {
+            if (try? fm.removeItem(atPath: path)) != nil { removed += 1 }
+        }
+        return removed
+    }
 }

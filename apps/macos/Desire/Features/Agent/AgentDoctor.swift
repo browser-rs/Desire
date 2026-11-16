@@ -85,12 +85,16 @@ enum AgentDoctor {
         let spillDir = AgentWorkspace.shared.directory
             .appendingPathComponent("tool-results", isDirectory: true)
         let spillSize = Self.directorySize(spillDir)
+        let lastGC = ToolResultSpill.lastGCAt
+        let gcNote = lastGC.map {
+            " · 上次清理 " + DateFormatter.localizedString(from: $0, dateStyle: .short, timeStyle: .short)
+        } ?? ""
         checks.append(Check(
             name: "转存目录",
             ok: spillSize < 1_000_000_000,
             detail: spillSize == 0
                 ? "空（尚无大结果转存）"
-                : "\(ByteCountFormatter.string(fromByteCount: Int64(spillSize), countStyle: .file))（\(spillDir.path)）"))
+                : "\(ByteCountFormatter.string(fromByteCount: Int64(spillSize), countStyle: .file))（\(spillDir.path)）\(gcNote)"))
 
         // 4. ffmpeg（HLS 直连 MP4 的前置）
         let fm = FileManager.default

@@ -11373,6 +11373,49 @@ do {
         vectorsByFactID: [a.id: [0.9, 0.1], b.id: [0.9, 0.1]])
     check("反馈：向量高使用排前", rankedV.first?.usageCount == 20)
 }
+
+// ---------- ArchiveGC（落盘生命周期 GC） ----------
+
+do {
+    func msg(_ role: AgentMessageRole, _ text: String) -> AgentMessage {
+        AgentMessage(role: role, content: text)
+    }
+    // 未超限原样
+    let small = [msg(.user, "hi"), msg(.assistant, "hello")]
+    let r1 = ArchiveGC.truncateArchive(small, maxBytes: 100_000)
+    check("GC：未超限原样", r1.messages.count == small.count && !r1.truncated)
+    // 超限：丢最老、头部标注、保留最近
+    let big = [msg(.user, String(repeating: "a", count: 40_000)),
+               msg(.assistant, String(repeating: "b", count: 40_000)),
+               msg(.user, "recent question"),
+               msg(.assistant, "recent answer")]
+    let r2 = ArchiveGC.truncateArchive(big, maxBytes: 30_000)
+    check("GC：超限发生截断", r2.truncated)
+    check("GC：头部插入标注", r2.messages.first?.role == .system
+        && (r2.messages.first?.content ?? "").contains("[archive truncated]"))
+    check("GC：最近的轮次保留", r2.messages.contains(where: { $0.content == "recent answer" }))
+    check("GC：截断后仍可能超限但已尽量小（剩 ≥1 条）", r2.messages.count >= 2)
+    // 单条就超限：不删空（至少留 1 条 + 标注）
+    let huge = [msg(.user, String(repeating: "z", count: 100_000))]
+    let r3 = ArchiveGC.truncateArchive(huge, maxBytes: 10_000)
+    check("GC：单条超限保底", r3.truncated && r3.messages.count == 2)
+
+    // spillCleanupTargets：年龄阈值 + 容量补删（最老优先）
+    let now = Date()
+    let e = { (path: String, size: Int, daysOld: Double) -> (path: String, size: Int, modified: Date) in
+        (path, size, now.addingTimeInterval(-daysOld * 86_400))
+    }
+    // 全部未超龄未超容 → 空
+    let entries1 = [e("a", 100, 1), e("b", 100, 2)]
+    check("GC-spill：健康目录零清理", ArchiveGC.spillCleanupTargets(entries1, capacityBytes: 10_000).isEmpty)
+    // 超龄 → 删（按年龄排）
+    let entries2 = [e("old", 100, 40), e("new", 100, 3)]
+    check("GC-spill：超龄删除", ArchiveGC.spillCleanupTargets(entries2, capacityBytes: 10_000) == ["old"])
+    // 容量超限 → 从最老补删（未超龄的也删，最老优先）
+    let entries3 = [e("big1", 600, 5), e("big2", 500, 6), e("small", 100, 1)]
+    let targets3 = ArchiveGC.spillCleanupTargets(entries3, capacityBytes: 1_000)
+    check("GC-spill：容量补删最老优先", targets3 == ["big2"])
+}
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

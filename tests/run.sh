@@ -152,6 +152,7 @@ SOURCES=(
   apps/macos/Desire/Features/Downloads/BatchMedia.swift
   apps/macos/Desire/Features/Downloads/BatchLocationResolver.swift
   apps/macos/Desire/Features/Agent/ToolResultSpill.swift
+  apps/macos/Desire/Features/Agent/ArchiveGC.swift
   apps/macos/Desire/Features/Agent/TokenCalibration.swift
   apps/macos/Desire/Features/Downloads/BatchStallPolicy.swift
   apps/macos/Desire/Features/Agent/ReasoningEffortPolicy.swift

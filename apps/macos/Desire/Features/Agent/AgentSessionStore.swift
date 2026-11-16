@@ -723,6 +723,10 @@ class AgentSessionStore: ObservableObject {
         if let key = archiveKey {
             var archived = DiskStore.load([AgentMessage].self, key: key) ?? []
             archived.append(contentsOf: dropped)
+            // 容量护栏（v0.8.61）：单份归档超 10MB 时丢最老轮次、头部留截断
+            // 标注（判定纯逻辑在 ArchiveGC，harness 单测）。
+            let (capped, _) = ArchiveGC.truncateArchive(archived)
+            archived = capped
             DiskStore.save(archived, key: key)
         }
         messages = [note] + kept
@@ -2148,6 +2152,11 @@ class AgentSessionStore: ObservableObject {
                 compactNow()
             }
         }
+
+        // 转存目录 GC（6h 节流；容量+年龄双阈值，v0.8.61 批 2）。
+        ToolResultSpill.runHousekeepingIfNeeded(
+            directory: AgentWorkspace.shared.directory
+                .appendingPathComponent("tool-results", isDirectory: true))
 
         // **先把"忙碌"交还给界面，再做收尾**：标题生成与记忆整理都是额外的模型
         // 调用，此前它们跑在 `isProcessing == true` 期间，于是正文早就渲染完了、

@@ -5053,3 +5053,27 @@ agent-eval（E22-E25）+ release-smoke 可选档 + AGENTS.md 更新。
 收口。**不做**：动态成本路由、技能全自动沉淀、跨设备记忆同步、多代理协议、
 MCP 新能力、passkey。**风险**：校准改预算语义（灰度+override 优先）、.handle
 无人值守安全面（复用 guard/审批/限频）、promptBlock 签名变更（两调用点）。
+
+## v0.8.61 规划稿（2026-11-17）—— 健康底盘：协作线程池卫生 + 生命周期 GC + 回归里程碑
+
+> 详情见 `docs/ROADMAP-0.8.61-PLAN.md`。**三连 Agent 版后回到底盘**。三案同源
+> 收口：AppSecretsVault Keychain 读（0.8.49）/ DiskStoreWriter 同步磁盘写
+> （0.8.58）/ Watchdog 协作池轮询（0.8.60）——同一根因"协作线程池被长占 →
+> 全局饿死"的不同切面。规划前核实：RuntimeHealthMonitor 只有主线程 stall
+> （协作池水位 = 真空白）；DiskStoreWriter.flush 的 data.write 仍跑在 actor
+> （=协作线程）；execution-e2e --section 未实现。
+
+**四主题**：① 可靠性（旗舰）= **协作线程池卫生专项**——DiskStoreWriter 的
+IO 外移到专用 GCD 串行队列（协作线程 IO 期间释放，防抖/原子写语义不变）+
+全仓同步 IO/长循环审计清单 + RuntimeHealthMonitor 扩**协作池水位**（utility
+探针测调度延迟 → p50/p95 → Doctor/诊断端点，超阈值 fault）；② Agent 基础 =
+**落盘生命周期 GC**——归档单份 10MB 上限截断、tool-results 容量+30 天双阈值
+自动清、芯片校准后常驻"≈Nk tokens"；③ 可发现性 = 设置诊断页"运行健康"卡 +
+`GET /diag/health`；④ 贯穿 = **execution-e2e 分节化（--section）+ 190 项全量
+回归跑一轮**（0.8.59 承诺的里程碑）+ agent-eval E26 值守处置链。
+
+**批次**：批 1 协作池专项 → 批 2 GC + 芯片 token → 批 3 诊断健康卡 → 批 4
+E2E 全量回归 + E26 → 收口。**不做**：新 Agent 大件（休整，等 0.8.60 的
+校准/处置/记忆真实使用反馈）、动态成本路由、技能自动沉淀、网络节流/pixelRatio、
+passkey、Remote 新能力。**风险**：DiskStoreWriter 外移的 flush barrier 语义
+（0.8.58 记录的退出等待）；E2E 全量可能暴历史问题（目的所在，预留修复轮）。

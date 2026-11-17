@@ -292,14 +292,16 @@ Features/Bookmarks/
   `GET /diag/geometry?index=N`（webview frame/bounds/父视图链/子视图树 +
   每个窗口的 frame/contentLayout/styleMask/全屏状态/所在屏幕）定位几何归属。
 
-- **会话激活链挂死（2026-11-17 实测）**：无人值守环境反复 quit/open/osascript-activate
-  循环会把 macOS 会话的激活状态搞挂——症状 = NSApp.isActive 恒 false（窗口明明
-  frontmost 渲染正常）、System Events 查 frontmost 返回"无效的索引"（**没有任何
-  应用是 frontmost**）、连 Finder 都无法 activate、killall Dock / kickstart Finder
-  均无效（**会话级挂死，恢复 = 物理点击或注销重登**）。后果 = 浏览器依赖端点
-  （navigate 后页面不加载 / WKWebView 静默失效）在未激活实例上不可测。纪律：
-  ①自动化 runner 启动先查 System Events frontmost（最敏感探针），查不到即
-  fail-fast 并提示恢复；②节制 quit/open 循环；③smoke 类探针不依赖激活可照跑。
+- **锁屏态的自动化语义（2026-11-17 实测；初诊"激活链挂死"后被 log 推翻）**：
+  用户锁屏/离开时（loginwindow 前台），会话进入**无 frontmost** 态——NSApp.isActive
+  恒 false、System Events frontmost 查询返回"无效的索引"、`set frontmost` 被静默
+  忽略、Finder/Dock 重启均无效——**这不是故障，是锁屏的正常语义**。后果 = 浏览器
+  依赖端点静默失效（/navigate 返回 ok 但 WKWebView 页面不加载），未激活实例上
+  浏览器用例不可跑；**桥端点、模型流、后台任务、DiskStore 全部照常工作**。纪律：
+  ①自动化 runner 启动先查 System Events frontmost，查不到即 fail-fast 并提示
+  "等待解锁"（不要写成"挂死"误导排查——判定顺序：先 pmset/log 查锁屏，再怀疑
+  真挂死）；②杀 Dock/重启 Finder 对锁屏态无效（别浪费时间）；③smoke 类探针
+  不依赖激活可照跑。深夜无人值守跑浏览器类 E2E 前先确认用户在场。
 
 - **v0.8.60 探针评估（tests/agent-eval.py E22-E25）**：E22 自动压缩 / E25 Doctor
   走桥可直接跑（`--only E22,E25`）；E23 转存检索需浏览器（`EVAL_E23=1`）；E24

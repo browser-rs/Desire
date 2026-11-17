@@ -1,3 +1,9 @@
+## [Unreleased]
+### Added
+
+- 测试套件激活自检（fail-fast）：execution-e2e 与 agent-eval 启动时先查 System Events frontmost——无人值守反复 quit/open 会把会话激活链搞挂（无任何 frontmost 应用，浏览器端点静默失效、页面不加载），此前表现为 19 项假失败+找不到标签的盲跑；现在 e2e 直接报错退出并给出恢复指引，agent-eval 警告不硬退（桥端用例照跑、浏览器类用例入口再硬检）。
+
+
 ## [v0.8.61] - 2026-11-17
 ### Added
 

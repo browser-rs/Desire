@@ -1229,6 +1229,28 @@ def fixture_endpoint() -> str:
 POLL_TIMEOUT = 90
 
 
+
+# ---------- 会话激活自检（2026-11-17 教训） ----------
+# 无人值守反复 quit/open 会把 macOS 会话激活链搞挂：NSApp.isActive 恒 false、
+# System Events 查 frontmost 返回"无效的索引"（整个会话无 frontmost）——此时
+# 浏览器端点静默失效（/navigate 返回 ok 但页面不加载），浏览器依赖用例全部
+# 假跑。恢复 = 物理点击任意窗口或注销重登。详见 AGENTS.md。
+
+def activation_frontmost(timeout: int = 15) -> str:
+    """System Events frontmost 查询。返回前置应用名；会话激活链挂死时抛 RuntimeError。"""
+    try:
+        out = subprocess.run(
+            ["osascript", "-e",
+             'tell application "System Events" to get name of first application process whose frontmost is true'],
+            capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("激活自检超时——会话激活链挂死（物理点击任意窗口或注销重登后重试）") from exc
+    if out.returncode != 0 or not out.stdout.strip():
+        raise RuntimeError(
+            "激活自检失败：会话无 frontmost 应用（" + (out.stderr or "").strip()[:80]
+            + "）——物理点击任意窗口或注销重登后重试")
+    return out.stdout.strip()
+
 def bridge(method, path, body=None):
     req = urllib.request.Request(BRIDGE + path, method=method)
     data = None
@@ -2095,6 +2117,7 @@ def case_compaction_probe():
 
 def case_spill_search():
     """E23 大结果转存 + getToolResult 全文检索（浏览器依赖，本地专属）。"""
+    activation_frontmost()   # 浏览器依赖：激活链挂死即 fail-fast
     bridge("POST", "/agent/new", body={})
     time.sleep(1)
     fixture_base = fixture_endpoint().rsplit("/v1/", 1)[0]
@@ -2270,6 +2293,13 @@ def main():
             print(f"E5 fixtures 文件不存在：{args.fixtures}（用例将跳过）")
 
     bridge("GET", "/state")   # 桥健康检查；不可达会直接抛错
+    try:
+        front = activation_frontmost()
+        print("激活自检 ✓ frontmost =", front)
+    except Exception as exc:
+        # 不硬退：桥端用例（E1-E5/E22/E25 等）不依赖激活；浏览器类用例
+        # （E15/E19/E20/E23）各自入口会再硬检。
+        print("⚠️ 激活自检警告：", exc, "——浏览器依赖用例将不可跑")
     ensure_workdir()
     install_profile()
     try:

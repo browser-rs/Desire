@@ -33,6 +33,7 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 import contextlib
 import json
 import os
+import subprocess
 import threading
 import time
 import urllib.parse
@@ -301,6 +302,28 @@ class TinyAPI(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(payload)
 
+
+
+# ---------- 会话激活自检（2026-11-17 教训） ----------
+# 无人值守反复 quit/open 会把 macOS 会话激活链搞挂：NSApp.isActive 恒 false、
+# System Events 查 frontmost 返回"无效的索引"（整个会话无 frontmost）——此时
+# 浏览器端点静默失效（/navigate 返回 ok 但页面不加载），浏览器依赖用例全部
+# 假跑。恢复 = 物理点击任意窗口或注销重登。详见 AGENTS.md。
+
+def activation_frontmost(timeout: int = 15) -> str:
+    """System Events frontmost 查询。返回前置应用名；会话激活链挂死时抛 RuntimeError。"""
+    try:
+        out = subprocess.run(
+            ["osascript", "-e",
+             'tell application "System Events" to get name of first application process whose frontmost is true'],
+            capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("激活自检超时——会话激活链挂死（物理点击任意窗口或注销重登后重试）") from exc
+    if out.returncode != 0 or not out.stdout.strip():
+        raise RuntimeError(
+            "激活自检失败：会话无 frontmost 应用（" + (out.stderr or "").strip()[:80]
+            + "）——物理点击任意窗口或注销重登后重试")
+    return out.stdout.strip()
 
 def bridge(method, path, body=None):
     req = urllib.request.Request(BRIDGE + path, method=method)
@@ -854,6 +877,12 @@ class Fake(BaseHTTPRequestHandler):
 
 def main():
     if not guard_single_dev_instance():
+        return 2
+    try:
+        front = activation_frontmost()
+        print("激活自检 ✓ frontmost =", front)
+    except RuntimeError as exc:
+        print("✗", exc)
         return 2
     state = bridge_retry("GET", "/state")
     workspace = state.get("agentWorkspace")

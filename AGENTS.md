@@ -292,6 +292,15 @@ Features/Bookmarks/
   `GET /diag/geometry?index=N`（webview frame/bounds/父视图链/子视图树 +
   每个窗口的 frame/contentLayout/styleMask/全屏状态/所在屏幕）定位几何归属。
 
+- **会话激活链挂死（2026-11-17 实测）**：无人值守环境反复 quit/open/osascript-activate
+  循环会把 macOS 会话的激活状态搞挂——症状 = NSApp.isActive 恒 false（窗口明明
+  frontmost 渲染正常）、System Events 查 frontmost 返回"无效的索引"（**没有任何
+  应用是 frontmost**）、连 Finder 都无法 activate、killall Dock / kickstart Finder
+  均无效（**会话级挂死，恢复 = 物理点击或注销重登**）。后果 = 浏览器依赖端点
+  （navigate 后页面不加载 / WKWebView 静默失效）在未激活实例上不可测。纪律：
+  ①自动化 runner 启动先查 System Events frontmost（最敏感探针），查不到即
+  fail-fast 并提示恢复；②节制 quit/open 循环；③smoke 类探针不依赖激活可照跑。
+
 - **v0.8.60 探针评估（tests/agent-eval.py E22-E25）**：E22 自动压缩 / E25 Doctor
   走桥可直接跑（`--only E22,E25`）；E23 转存检索需浏览器（`EVAL_E23=1`）；E24
   看门狗前置 = **先 quit 再 `defaults write me.siwi.Desire agentStreamStallSeconds

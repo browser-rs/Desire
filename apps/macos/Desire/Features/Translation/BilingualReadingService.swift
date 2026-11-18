@@ -171,6 +171,7 @@ final class BilingualReadingService: ObservableObject {
         // 批。键 = urlKey（去 query/fragment）+ DOM 序号 + 原文 SHA256——原
         // 文变更（hash 不符）不命中。
         let urlKey = webView.url.map { TranslationCache.urlKey(for: $0) }
+        Log.agent.info("bilingual: cache urlKey=\(urlKey ?? "nil", privacy: .public)")
         var cacheModel: TranslationCache.CacheModel = (urlKey.flatMap { _ in
             DiskStore.load(TranslationCache.CacheModel.self, key: TranslationCache.storeKey)
         }) ?? [:]
@@ -231,6 +232,7 @@ final class BilingualReadingService: ObservableObject {
                     cacheModel = TranslationCache.merged(model: cacheModel, urlKey: urlKey,
                                                         results: results)
                     DiskStore.save(cacheModel, key: TranslationCache.storeKey)
+                    Log.agent.info("bilingual: cache saved batch (\(results.count) blocks, total pages \(cacheModel.count))")
                 }
             } else if let translations = await Self.translateBatch(batch, preference: preference,
                                                                    glossary: glossary),
@@ -246,6 +248,7 @@ final class BilingualReadingService: ObservableObject {
                     cacheModel = TranslationCache.merged(model: cacheModel, urlKey: urlKey,
                                                         results: results)
                     DiskStore.save(cacheModel, key: TranslationCache.storeKey)
+                    Log.agent.info("bilingual: cache saved batch (\(results.count) blocks, total pages \(cacheModel.count))")
                 }
             } else {
                 failures += batch.count

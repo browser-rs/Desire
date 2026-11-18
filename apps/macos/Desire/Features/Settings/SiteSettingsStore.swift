@@ -65,6 +65,24 @@ class SiteSettingsStore: ObservableObject {
     }
 
     /// 该站点的自动播放覆写（nil = 跟随全局 / 视频平台默认）。
+    /// 站点自动双语（v0.8.62）：读取 + 设置。页面加载完成时 WebView 据此
+    /// 自动开启双语对照。
+    func autoBilingual(for domain: String) -> Bool {
+        settings[domain]?.autoBilingual ?? false
+    }
+
+    func setAutoBilingual(_ enabled: Bool, for domain: String) {
+        var setting = settings[domain] ?? SiteSettings(zoom: 1.0)
+        setting.autoBilingual = enabled
+        settings[domain] = setting
+        save()
+    }
+
+    /// 已开启自动双语的站点列表（设置页管理用）。
+    var autoBilingualSites: [String] {
+        settings.filter { $0.value.autoBilingual }.map(\.key).sorted()
+    }
+
     func autoPlayOverride(for domain: String) -> SiteSettings.AutoPlay? {
         settings[domain]?.autoPlay
     }

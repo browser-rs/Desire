@@ -117,6 +117,27 @@
         return applied;
     };
 
+    // 双语导出（v0.8.62）：收集已翻译的 (原文, 译文) 对——宿主组 Markdown
+    // 存档。只返回有译文的对（翻译未完成的块跳过）。
+    window.__desireBilingualExport = function() {
+        var nodes = document.querySelectorAll('[data-desire-bi]');
+        var out = [];
+        for (var i = 0; i < nodes.length; i++) {
+            var el = nodes[i];
+            var original = (el.innerText || '').trim();
+            if (!original) continue;
+            var tNode = null;
+            var inside = INSIDE[el.tagName] === 1;
+            if (inside) tNode = el.querySelector(':scope > .' + CLASS);
+            else if (el.nextElementSibling && el.nextElementSibling.classList
+                     && el.nextElementSibling.classList.contains(CLASS)) tNode = el.nextElementSibling;
+            var translation = tNode ? (tNode.innerText || '').trim() : '';
+            if (!translation) continue;
+            out.push({ original: original, translation: translation });
+        }
+        return out;
+    };
+
     // 替换式（v0.8.8 自研整页翻译）：原文挂在节点属性上（节点存活期间可
     // 完整还原——不用 data- 属性，避免超长文本/引号转义问题）。
     window.__desireBilingualReplace = function(items) {

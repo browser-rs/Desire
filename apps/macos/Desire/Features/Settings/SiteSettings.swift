@@ -17,6 +17,9 @@ struct SiteSettings: Codable {
         case block
     }
     var autoPlay: AutoPlay?
+    /// 站点自动双语（v0.8.62）：页面加载完成即自动开启 AI 双语对照——
+    /// 常读外文站一次设置永久生效。nil/false = 不自动。
+    var autoBilingual: Bool = false
     /// 站点级最小字号（px，0 = 本站关闭；nil = 跟随全局 `defaultMinFontSize`）。
     var minFontSize: Int?
     /// 站点级字体族（空串 = 本站不覆盖；nil = 跟随全局 `defaultFontFamily`）。

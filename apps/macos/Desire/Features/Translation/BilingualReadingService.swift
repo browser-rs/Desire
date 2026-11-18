@@ -102,6 +102,36 @@ final class BilingualReadingService: ObservableObject {
         translate(webView: webView, tabID: tabID, preference: AppState.live?.aiPreference)
     }
 
+    /// **双语导出**（v0.8.62 批 3）：已翻译页面 → Markdown 对照文档（原文/
+    /// 译文交错）落下载目录。返回文件 URL；nil = 无可导出内容。
+    func exportMarkdown(webView: WKWebView, tabID: UUID) async -> URL? {
+        guard isOn(tabID: tabID) else { return nil }
+        struct Pair: Decodable {
+            let original: String
+            let translation: String
+        }
+        let js = "return window.__desireBilingualExport()"
+        guard let raw = try? await webView.callAsyncJavaScript(
+            js, arguments: [:], in: nil, contentWorld: .page),
+            let data = try? JSONSerialization.data(withJSONObject: raw),
+            let pairs = try? JSONDecoder().decode([Pair].self, from: data),
+            !pairs.isEmpty else { return nil }
+        let host = (webView.url?.host ?? "page").replacingOccurrences(of: ".", with: "-")
+        let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .short)
+            .replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+            .replacingOccurrences(of: " ", with: "_")
+        let downloads = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        let url = downloads.appendingPathComponent("bilingual-\(host)-\(stamp).md")
+        var md = "# Bilingual — \(host)\n\n"
+        for pair in pairs {
+            md += pair.original + "\n\n" + pair.translation + "\n\n---\n\n"
+        }
+        try? md.write(to: url, atomically: true, encoding: .utf8)
+        Log.agent.info("bilingual: exported \(pairs.count) pairs → \(url.lastPathComponent, privacy: .public)")
+        return url
+    }
+
     /// 收集 → 分批翻译 → 逐批回填。后台 Task；状态经 @Published 暴露给工具条
     /// 与桥。
     func translate(webView: WKWebView, tabID: UUID, preference: AgentPreferenceStore?) {

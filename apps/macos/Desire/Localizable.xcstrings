@@ -109896,6 +109896,28 @@
           }
         }
       }
+    },
+    "Export bilingual markdown to Downloads":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Export bilingual markdown to Downloads"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"导出双语 Markdown 到下载目录"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"匯出雙語 Markdown 到下載目錄"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

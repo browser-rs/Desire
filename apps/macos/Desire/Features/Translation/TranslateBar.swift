@@ -1,6 +1,8 @@
+import AppKit
 import SwiftUI
 
 struct TranslateBar: View {
+    @State private var exporting = false
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var service: TranslationService
@@ -45,6 +47,31 @@ struct TranslateBar: View {
                      ? String(localized: "AI translation on (replaced)")
                      : String(localized: "AI translation on (bilingual)"))
                     .font(.caption)
+                if bilingual.isReplaceOn(tabID: tabID) == false {
+                    // 双语导出（v0.8.62 批 3）：Markdown 对照落下载目录。
+                    Button {
+                        exporting = true
+                        Task {
+                            let url = await bilingual.exportMarkdown(webView: webView, tabID: tabID)
+                            await MainActor.run {
+                                exporting = false
+                                if let url {
+                                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                                }
+                            }
+                        }
+                    } label: {
+                        if exporting {
+                            ProgressView().scaleEffect(0.6)
+                        } else {
+                            Image(systemName: "square.and.arrow.up.on.square")
+                                .font(.caption)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(appAccent)
+                    .help(String(localized: "Export bilingual markdown to Downloads"))
+                }
                 Button(String(localized: "Show Original")) {
                     bilingual.stop(webView: webView, tabID: tabID)
                 }

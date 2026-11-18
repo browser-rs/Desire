@@ -2249,6 +2249,15 @@ try {
                parent.siteSettingsStore.effectiveFont(for: host).isActive {
                 SiteFontApplier.apply(to: webView, host: host, store: parent.siteSettingsStore)
             }
+            // 站点自动双语（v0.8.62）：该站点设为自动双语且标签未开启 → 自动开
+            // （translate 内部走旁路档案 + 缓存，重开页面秒出）。
+            if let host = webView.url?.host,
+               parent.siteSettingsStore.autoBilingual(for: host),
+               !BilingualReadingService.shared.isOn(tabID: parent.tabID) {
+                BilingualReadingService.shared.toggleInterlinear(
+                    webView: webView, tabID: parent.tabID,
+                    preference: AppState.live?.aiPreference)
+            }
             // 双语对照：该标签开着时导航后重施（翻译流水线在后台跑、逐批回填）。
             BilingualReadingService.shared.reapplyIfActive(webView: webView, tabID: parent.tabID)
             // 阅读进度：阅读列表里的页面导航完成后回到上次位置（每条一次）。

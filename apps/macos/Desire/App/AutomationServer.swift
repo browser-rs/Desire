@@ -1025,7 +1025,7 @@ case ("GET", "/state"):
             case ("GET", "/diag/geometry"):
                 return try Self.json(Self.geometry(index: Self.index(query)))
             case ("GET", "/diag/health"):
-                return try Self.json(RuntimeHealthMonitor.healthSummary())
+                return try Self.json(RuntimeHealthMonitor.shared.healthSummary())
             case ("GET", "/diag/browser"):
                 return try Self.json(BrowserDiagnostics.shared.summary())
             case ("GET", "/activity"):

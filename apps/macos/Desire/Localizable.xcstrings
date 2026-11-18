@@ -110006,6 +110006,138 @@
           }
         }
       }
+    },
+    "Read the whole world — all of it":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Read the whole world — all of it"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"读遍世界——一整页"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"讀遍世界——一整頁"
+          }
+        }
+      }
+    },
+    "Bilingual translation now covers the entire page: long articles translate in background batches while you read the top, run on your cheap bypass model by default, and remember translations per site — reopen the page and it's instant.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Bilingual translation now covers the entire page: long articles translate in background batches while you read the top, run on your cheap bypass model by default, and remember translations per site — reopen the page and it's instant."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"双语对照现在覆盖整页：长文在后台分批翻译、你在前面照常读，默认走便宜的旁路模型，并按站点记住译文——重开页面瞬时呈现。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"雙語對照現在覆蓋整頁：長文在背景分批翻譯、你在前面照常讀，預設走便宜的旁路模型，並按站點記住譯文——重開頁面瞬時呈現。"
+          }
+        }
+      }
+    },
+    "Sites that translate themselves":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Sites that translate themselves"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"会自己翻译的网站"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"會自己翻譯的網站"
+          }
+        }
+      }
+    },
+    "Mark a site as auto-bilingual once and every page on it starts translated on load. When you're done reading, export the original/translation pairs as a Markdown transcript to Downloads.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Mark a site as auto-bilingual once and every page on it starts translated on load. When you're done reading, export the original/translation pairs as a Markdown transcript to Downloads."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"把网站标记为自动双语一次，其上每个页面加载即已翻译。读完还能把原文/译文对照导出为 Markdown 存到下载目录。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"把網站標記為自動雙語一次，其上每個頁面載入即已翻譯。讀完還能把原文/譯文對照匯出為 Markdown 存到下載目錄。"
+          }
+        }
+      }
+    },
+    "Term-safe, injection-safe translation":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Term-safe, injection-safe translation"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"术语安全、防注入的翻译"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"術語安全、防注入的翻譯"
+          }
+        }
+      }
+    },
+    "Inline code in paragraphs survives translation untouched, and model output is escaped before it ever touches the page — so a crafted page can't inject live HTML through translations.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Inline code in paragraphs survives translation untouched, and model output is escaped before it ever touches the page — so a crafted page can't inject live HTML through translations."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"段落里的行内代码翻译后原样保留，模型输出在触及页面前先做转义——构造的页面无法通过翻译注入活 HTML。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"段落裡的行內代碼翻譯後原樣保留，模型輸出在觸及頁面前先做轉義——構造的頁面無法透過翻譯注入活 HTML。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

@@ -49,7 +49,12 @@ final class RuntimeHealthMonitor {
 
     /// 数据面汇总（诊断行 / GET /diag/health 用）。
     nonisolated static func healthSummary() -> [String: Any] {
-        var out: [String: Any] = [:]
+        var out: [String: Any] = [
+            // 应用前台激活态（v0.8.62 批 4）：false = 后台实例——浏览器端点
+            // （navigate 等）会静默失效（CI 教训的本地同源），测试与值守的
+            // 浏览器类动作前先看这个字段。
+            "appActive": NSApp.isActive,
+        ]
         if let stall = lastStall() {
             out["lastStall"] = [
                 "startedAt": ISO8601DateFormatter().string(from: stall.startedAt),

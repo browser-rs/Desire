@@ -1236,20 +1236,14 @@ POLL_TIMEOUT = 90
 # 浏览器端点静默失效（/navigate 返回 ok 但页面不加载），浏览器依赖用例全部
 # 假跑。恢复 = 物理点击任意窗口或注销重登。详见 AGENTS.md。
 
-def activation_frontmost(timeout: int = 15) -> str:
-    """System Events frontmost 查询。返回前置应用名；会话激活链挂死时抛 RuntimeError。"""
-    try:
-        out = subprocess.run(
-            ["osascript", "-e",
-             'tell application "System Events" to get name of first application process whose frontmost is true'],
-            capture_output=True, text=True, timeout=timeout)
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError("激活自检超时——会话激活链挂死（物理点击任意窗口或注销重登后重试）") from exc
-    if out.returncode != 0 or not out.stdout.strip():
+def activation_active() -> None:
+    """应用前台激活检查（浏览器端点依赖 NSApp.isActive——后台实例静默失效）。
+    探针 = 桥 /state 的 isActive。失败抛 RuntimeError。"""
+    state = bridge("GET", "/state")
+    if not state.get("isActive"):
         raise RuntimeError(
-            "激活自检失败：会话无 frontmost 应用（" + (out.stderr or "").strip()[:80]
-            + "）——物理点击任意窗口或注销重登后重试")
-    return out.stdout.strip()
+            "Desire 不在前台（isActive=false）——浏览器端点将静默失效。"
+            "恢复：osascript -e 'tell application \"Desire\" to activate' 或点击 Desire 窗口后重试")
 
 def bridge(method, path, body=None):
     req = urllib.request.Request(BRIDGE + path, method=method)
@@ -2117,7 +2111,7 @@ def case_compaction_probe():
 
 def case_spill_search():
     """E23 大结果转存 + getToolResult 全文检索（浏览器依赖，本地专属）。"""
-    activation_frontmost()   # 浏览器依赖：激活链挂死即 fail-fast
+    activation_active()   # 浏览器依赖：后台实例即 fail-fast
     bridge("POST", "/agent/new", body={})
     time.sleep(1)
     fixture_base = fixture_endpoint().rsplit("/v1/", 1)[0]
@@ -2294,11 +2288,11 @@ def main():
 
     bridge("GET", "/state")   # 桥健康检查；不可达会直接抛错
     try:
-        front = activation_frontmost()
-        print("激活自检 ✓ frontmost =", front)
+        activation_active()
+        print("激活自检 ✓（应用前台，浏览器端点可用）")
     except Exception as exc:
-        # 不硬退：桥端用例（E1-E5/E22/E25 等）不依赖激活；浏览器类用例
-        # （E15/E19/E20/E23）各自入口会再硬检。
+        # 不硬退：桥端用例（E1-E5/E22/E25/E26 等）不依赖激活；浏览器类用例
+        # 入口各自硬检。
         print("⚠️ 激活自检警告：", exc, "——浏览器依赖用例将不可跑")
     ensure_workdir()
     install_profile()

@@ -109918,6 +109918,94 @@
           }
         }
       }
+    },
+    "Used %lldx":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Used %lldx"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"用过 %lld 次"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"用過 %lld 次"
+          }
+        }
+      }
+    },
+    "Thumb-down %lldx":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Thumb-down %lldx"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"点踩 %lld 次"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"點踩 %lld 次"
+          }
+        }
+      }
+    },
+    "Times this memory was injected into a successful turn":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Times this memory was injected into a successful turn"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"该记忆被注入成功回合的次数"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"該記憶被注入成功回合的次數"
+          }
+        }
+      }
+    },
+    "Times this memory was in a turn you disliked":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Times this memory was in a turn you disliked"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"该记忆出现在你点踩回合中的次数"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"該記憶出現在你點踩回合中的次數"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

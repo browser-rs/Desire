@@ -292,16 +292,16 @@ Features/Bookmarks/
   `GET /diag/geometry?index=N`（webview frame/bounds/父视图链/子视图树 +
   每个窗口的 frame/contentLayout/styleMask/全屏状态/所在屏幕）定位几何归属。
 
-- **锁屏态的自动化语义（2026-11-17 实测；初诊"激活链挂死"后被 log 推翻）**：
-  用户锁屏/离开时（loginwindow 前台），会话进入**无 frontmost** 态——NSApp.isActive
-  恒 false、System Events frontmost 查询返回"无效的索引"、`set frontmost` 被静默
-  忽略、Finder/Dock 重启均无效——**这不是故障，是锁屏的正常语义**。后果 = 浏览器
-  依赖端点静默失效（/navigate 返回 ok 但 WKWebView 页面不加载），未激活实例上
-  浏览器用例不可跑；**桥端点、模型流、后台任务、DiskStore 全部照常工作**。纪律：
-  ①自动化 runner 启动先查 System Events frontmost，查不到即 fail-fast 并提示
-  "等待解锁"（不要写成"挂死"误导排查——判定顺序：先 pmset/log 查锁屏，再怀疑
-  真挂死）；②杀 Dock/重启 Finder 对锁屏态无效（别浪费时间）；③smoke 类探针
-  不依赖激活可照跑。深夜无人值守跑浏览器类 E2E 前先确认用户在场。
+- **后台实例的浏览器端点失效（2026-11-19 终版定性，两次误诊后）**：
+  `--automation` 实例未被切到前台（用户在用别的 app / 冷启动没人激活）时
+  **NSApp.isActive=false 是正常态**——但浏览器端点（navigate 后 WKWebView
+  页面不加载、交互工具静默失效）在该状态下**不可跑**（CI 教训的本地同源）；
+  **桥/模型流/后台任务/存储全部照常**。探针 = 桥 `/state` 的 `isActive`
+  （最准——System Events frontmost 查询在该场景会报"无效的索引"误导排查、
+  NSWorkspace.frontmostApplication 依然显示用户的前台应用）；跑浏览器类
+  E2E 前先 `osascript -e 'tell application "Desire" to activate'` 并确认
+  /state isActive=true；套件已内置 fail-fast（execution-e2e 硬退、agent-eval
+  警告+浏览器用例入口硬检）。smoke 类探针不依赖激活可照跑。
 
 - **v0.8.60 探针评估（tests/agent-eval.py E22-E25）**：E22 自动压缩 / E25 Doctor
   走桥可直接跑（`--only E22,E25`）；E23 转存检索需浏览器（`EVAL_E23=1`）；E24

@@ -310,20 +310,16 @@ class TinyAPI(BaseHTTPRequestHandler):
 # 浏览器端点静默失效（/navigate 返回 ok 但页面不加载），浏览器依赖用例全部
 # 假跑。恢复 = 物理点击任意窗口或注销重登。详见 AGENTS.md。
 
-def activation_frontmost(timeout: int = 15) -> str:
-    """System Events frontmost 查询。返回前置应用名；会话激活链挂死时抛 RuntimeError。"""
-    try:
-        out = subprocess.run(
-            ["osascript", "-e",
-             'tell application "System Events" to get name of first application process whose frontmost is true'],
-            capture_output=True, text=True, timeout=timeout)
-    except subprocess.TimeoutExpired as exc:
-        raise RuntimeError("激活自检超时——会话激活链挂死（物理点击任意窗口或注销重登后重试）") from exc
-    if out.returncode != 0 or not out.stdout.strip():
+def activation_active() -> None:
+    """应用前台激活检查（2026-11-19 终版探针）：浏览器端点依赖 NSApp.isActive
+    ——后台实例（用户在用别的 app）时 navigate 等静默失效、页面不加载（CI
+    教训的本地同源）。探针直接读桥 /state 的 isActive（最准）；false 即
+    fail-fast 并给恢复指引。"""
+    state = bridge_retry("GET", "/state")
+    if not state.get("isActive"):
         raise RuntimeError(
-            "激活自检失败：会话无 frontmost 应用（" + (out.stderr or "").strip()[:80]
-            + "）——物理点击任意窗口或注销重登后重试")
-    return out.stdout.strip()
+            "激活自检失败：Desire 不在前台（isActive=false）——浏览器端点将静默失效。"
+            "恢复：osascript -e 'tell application \"Desire\" to activate' 或点击 Desire 窗口后重试")
 
 def bridge(method, path, body=None):
     req = urllib.request.Request(BRIDGE + path, method=method)
@@ -879,8 +875,8 @@ def main():
     if not guard_single_dev_instance():
         return 2
     try:
-        front = activation_frontmost()
-        print("激活自检 ✓ frontmost =", front)
+        activation_active()
+        print("激活自检 ✓（应用前台，浏览器端点可用）")
     except RuntimeError as exc:
         print("✗", exc)
         return 2

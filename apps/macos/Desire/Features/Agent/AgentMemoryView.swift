@@ -501,6 +501,20 @@ struct AgentMemoryView: View {
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)
                     }
+                    // 使用反馈徽标（v0.8.62 批 4）：0.8.60 的使用数据上屏——
+                    // 注入后被回合用过 N 次/最近使用时间；点踩过标负反馈。
+                    if let usage = fact.usageCount, usage > 0 {
+                        Text(String(localized: "Used \(usage)x"))
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                            .help(String(localized: "Times this memory was injected into a successful turn"))
+                    }
+                    if let negative = fact.negativeCount, negative > 0 {
+                        Text(String(localized: "Thumb-down \(negative)x"))
+                            .font(.system(size: 9))
+                            .foregroundStyle(.orange.opacity(0.8))
+                            .help(String(localized: "Times this memory was in a turn you disliked"))
+                    }
                     if fact.scope.lowercased() != "global", !fact.scope.isEmpty {
                         Text(String(localized: "Only on \(fact.scope)"))
                             .font(.system(size: 9.5))

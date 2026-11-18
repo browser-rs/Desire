@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- 双语翻译全页化 + 便宜模型路由（批 1）：此前只翻页面前 60 块/15k 字符（长文后半段静默不翻），现改为一次收集页面全部可读块（300 块/1.2M 字符上限，撞上限记日志）并按"块数 8 + 字符 12k"双闸切小批后台逐批翻（TranslationBatching 纯逻辑 5 项单测）——用户读首屏时后续已在后台翻完；翻译默认走旁路档案（bypassPreferences 便宜模型路由，未配置回落原行为）。
+
 ### Added
 
 - 测试套件激活自检（fail-fast）：execution-e2e 与 agent-eval 启动时先查 System Events frontmost——无人值守反复 quit/open 会把会话激活链搞挂（无任何 frontmost 应用，浏览器端点静默失效、页面不加载），此前表现为 19 项假失败+找不到标签的盲跑；现在 e2e 直接报错退出并给出恢复指引，agent-eval 警告不硬退（桥端用例照跑、浏览器类用例入口再硬检）。

@@ -39,9 +39,10 @@ final class BilingualReadingService: ObservableObject {
     @Published private(set) var totalCount = 0
     @Published private(set) var lastError: String?
 
-    private static let batchSize = 8
-    private static let maxBlocks = 60
-    private static let maxChars = 15_000
+    /// 全收集预算（v0.8.62 批 1）：一次收集页面全部可读块（此前 60 块/15k
+    /// 只翻长文首段），宿主侧再按"块数 + 字符数"双闸切小批（TranslationBatching）。
+    private static let maxBlocks = 300
+    private static let maxChars = 1_200_000
     /// 每次 start/stop 递增；在跑的批次落地前发现 token 变了就丢弃结果
     /// （关掉之后不该再有译文插进来）。
     private var runToken = 0
@@ -104,10 +105,14 @@ final class BilingualReadingService: ObservableObject {
     /// 收集 → 分批翻译 → 逐批回填。后台 Task；状态经 @Published 暴露给工具条
     /// 与桥。
     func translate(webView: WKWebView, tabID: UUID, preference: AgentPreferenceStore?) {
-        guard let preference = preference ?? AppState.live?.aiPreference else {
+        // 旁路档案省钱（v0.8.62 批 1）：翻译默认走 bypassPreferences（便宜
+        // 模型），未配置旁路回落传入偏好/主模型——行为与 0.8.61 一致。
+        let base = preference ?? AppState.live?.aiPreference
+        guard let base else {
             lastError = String(localized: "No AI profile configured")
             return
         }
+        let preference = base.bypassPreferences() ?? base
         runToken += 1
         let token = runToken
         isRunning = true
@@ -154,16 +159,27 @@ final class BilingualReadingService: ObservableObject {
         }
         let blocks = collected.blocks
         totalCount = blocks.count
+        if blocks.count >= Self.maxBlocks {
+            Log.agent.info("bilingual: page hit the \(Self.maxBlocks)-block collection cap — tail not translated")
+        }
         guard !blocks.isEmpty else {
             finish(token: token, error: String(localized: "No readable paragraphs on this page"))
             return
         }
 
+        // 批切分（v0.8.62）：块数 + 字符数双闸（TranslationBatching，纯逻辑
+        // 进 harness）——长段落的一批不再超模型舒适输入。
         var failures = 0
+        let batches = TranslationBatching.batches(blocks.map {
+            TranslationBatching.Item(id: $0.id, text: $0.text)
+        })
         var index = 0
-        while index < blocks.count {
+        while index < batches.count {
             guard runToken == token else { return }   // 已关掉/已重开
-            let batch = Array(blocks[index..<min(index + Self.batchSize, blocks.count)])
+            let batchItems = batches[index]
+            let batch = batchItems.map {
+                Block(id: $0.id, text: $0.text)
+            }
             if let translations = await Self.translateBatch(batch, preference: preference,
                                                             glossary: glossary),
                translations.count == batch.count {
@@ -172,7 +188,7 @@ final class BilingualReadingService: ObservableObject {
             } else {
                 failures += batch.count
             }
-            index += batch.count
+            index += 1
         }
         guard runToken == token else { return }
         finish(token: token,

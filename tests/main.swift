@@ -11416,6 +11416,38 @@ do {
     let targets3 = ArchiveGC.spillCleanupTargets(entries3, capacityBytes: 1_000)
     check("GC-spill：容量补删最老优先", targets3 == ["big2"])
 }
+
+// ---------- TranslationBatching（双语翻译批切分：块数+字符数双闸） ----------
+
+do {
+    func item(_ text: String) -> TranslationBatching.Item {
+        TranslationBatching.Item(id: text, text: text)
+    }
+    // 块数闸：8 块一切
+    let eight = (0..<16).map { item(String(repeating: "x", count: 100) + String($0)) }
+    let b1 = TranslationBatching.batches(eight)
+    check("批切：8 块一切", b1.count == 2 && b1[0].count == 8)
+
+    // 字符闸：少量大段落提前切批
+    let bigs = [item(String(repeating: "a", count: 6000)),
+                item(String(repeating: "b", count: 6000)),
+                item(String(repeating: "c", count: 6000))]
+    let b2 = TranslationBatching.batches(bigs)
+    check("批切：字符闸提前切批", b2.count == 2 && b2[0].count == 2 && b2[1].count == 1)
+
+    // 单块超限自成一批不截断
+    let huge = [item(String(repeating: "z", count: 15_000))]
+    let b3 = TranslationBatching.batches(huge)
+    check("批切：单块超限自成一批", b3.count == 1 && b3[0].count == 1)
+
+    // 混合：顺序保持
+    let mixed = [item("short1"), item(String(repeating: "m", count: 7000)), item("short2"), item("short3")]
+    let b4 = TranslationBatching.batches(mixed)
+    check("批切：顺序保持", b4.flatMap { $0 }.map { $0.text } == mixed.map { $0.text })
+
+    // 空输入
+    check("批切：空输入零批", TranslationBatching.batches([]).isEmpty)
+}
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

@@ -8,6 +8,8 @@
 (function() {
     if (window.__desireBilingualInstalled) return;
     window.__desireBilingualInstalled = true;
+    // 块 id → inline code 原始 HTML 列表（collect 时生成、apply 时还原）。
+    var codeMap = {};
 
     var BLOCK_SELECTOR = 'p, li, h1, h2, h3, h4, h5, h6, blockquote, td, dd, figcaption';
     var CLASS = 'desire-bilingual';
@@ -38,7 +40,17 @@
         for (var i = 0; i < els.length && out.length < maxBlocks; i++) {
             var el = els[i];
             if (el.closest && el.closest('.' + CLASS)) continue;
-            var text = (el.innerText || el.textContent || '').trim().replace(/\s+/g, ' ');
+            // inline code 占位保护（v0.8.62 批 2）：块内 <code> 替换成 ⟦N⟧
+            // 占位符再提取文本——术语/变量名不被机翻弄坏；映射存 codeMap，
+            // apply 时按占位符还原成原 code 的 HTML。
+            var clone = el.cloneNode(true);
+            var codes = [];
+            var codeNodes = clone.querySelectorAll('code');
+            for (var c = 0; c < codeNodes.length; c++) {
+                codes.push(codeNodes[c].outerHTML);
+                codeNodes[c].textContent = '\u27E6' + c + '\u27E7';
+            }
+            var text = (clone.textContent || '').trim().replace(/\s+/g, ' ');
             if (text.length < 12) continue;
             if (text.length > 1200) text = text.slice(0, 1200);
             if (used + text.length > maxChars) break;
@@ -48,6 +60,7 @@
                 id = String(nextId++);
                 el.setAttribute('data-desire-bi', id);
             }
+            if (codes.length) codeMap[id] = codes;
             used += text.length;
             out.push({ id: id, text: text });
         }
@@ -69,6 +82,20 @@
                        && el.nextElementSibling.classList.contains(CLASS)) {
                 node = el.nextElementSibling;
             }
+            // inline code 还原：译文里的 ⟦N⟧ 占位符换回原始 <code> HTML
+            // （collect 时生成的 codeMap[id]；找不到映射/占位符时译文原样保留）。
+            // **安全**：译文来自模型（可能被页面内容注入诱导），先整段 HTML
+            // 转义再还原占位符——占位符本身用转义安全的 ⟦N⟧ 字符。
+            var codes = codeMap[it.id];
+            var translated = it.text
+                .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+            if (codes && codes.length) {
+                translated = translated.replace(/\u27E6(\d+)\u27E7/g, function (_, n) {
+                    var idx = parseInt(n, 10);
+                    return (idx >= 0 && idx < codes.length) ? codes[idx] : '';
+                });
+            }
             if (!node) {
                 node = document.createElement('div');
                 node.className = CLASS;
@@ -82,7 +109,8 @@
                     el.parentNode.insertBefore(node, el.nextSibling);
                 }
             }
-            node.textContent = it.text;
+            // 占位符已还原成 <code> HTML → 用 innerHTML 而非 textContent
+            node.innerHTML = translated;
             node.setAttribute('data-desire-bi-for', it.id);
             applied++;
         }

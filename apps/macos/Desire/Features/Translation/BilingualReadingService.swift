@@ -167,10 +167,47 @@ final class BilingualReadingService: ObservableObject {
             return
         }
 
+        // **翻译缓存**（v0.8.62 批 2）：命中即插（零模型调用），未命中块才进
+        // 批。键 = urlKey（去 query/fragment）+ DOM 序号 + 原文 SHA256——原
+        // 文变更（hash 不符）不命中。
+        let urlKey = webView.url.map { TranslationCache.urlKey(for: $0) }
+        var cacheModel: TranslationCache.CacheModel = (urlKey.flatMap { _ in
+            DiskStore.load(TranslationCache.CacheModel.self, key: TranslationCache.storeKey)
+        }) ?? [:]
+        let cachedPage = urlKey.flatMap { cacheModel[$0] }
+        let pairs = blocks.compactMap { block -> (index: Int, text: String)? in
+            guard let index = Int(block.id) else { return nil }
+            return (index, block.text)
+        }
+        let hits = TranslationCache.hits(page: cachedPage, pairs: pairs)
+        var pending = blocks
+        if !hits.isEmpty {
+            var hitBlocks: [Block] = []
+            var hitTranslations: [String] = []
+            pending.removeAll()
+            for block in blocks {
+                if let index = Int(block.id), let translation = hits[index] {
+                    hitBlocks.append(block)
+                    hitTranslations.append(translation)
+                } else {
+                    pending.append(block)
+                }
+            }
+            if !hitBlocks.isEmpty {
+                apply(batch: hitBlocks, translations: hitTranslations, webView: webView)
+                doneCount += hitBlocks.count
+            }
+            Log.agent.info("bilingual: cache hits \(hitBlocks.count)/\(blocks.count) — \(pending.count) to translate")
+        }
+        guard !pending.isEmpty else {
+            finish(token: token, error: nil)
+            return
+        }
+
         // 批切分（v0.8.62）：块数 + 字符数双闸（TranslationBatching，纯逻辑
         // 进 harness）——长段落的一批不再超模型舒适输入。
         var failures = 0
-        let batches = TranslationBatching.batches(blocks.map {
+        let batches = TranslationBatching.batches(pending.map {
             TranslationBatching.Item(id: $0.id, text: $0.text)
         })
         var index = 0
@@ -180,11 +217,36 @@ final class BilingualReadingService: ObservableObject {
             let batch = batchItems.map {
                 Block(id: $0.id, text: $0.text)
             }
-            if let translations = await Self.translateBatch(batch, preference: preference,
-                                                            glossary: glossary),
-               translations.count == batch.count {
+            let attempt = await Self.translateBatch(batch, preference: preference,
+                                                    glossary: glossary)
+            if let translations = attempt, translations.count == batch.count {
                 apply(batch: batch, translations: translations, webView: webView)
                 doneCount += batch.count
+                // 翻译成功 → 逐块写缓存（DiskStore 防抖异步落盘）。
+                if let urlKey {
+                    let results = zip(batch, translations).compactMap { block, translation -> (index: Int, text: String, translation: String)? in
+                        guard let index = Int(block.id) else { return nil }
+                        return (index, block.text, translation)
+                    }
+                    cacheModel = TranslationCache.merged(model: cacheModel, urlKey: urlKey,
+                                                        results: results)
+                    DiskStore.save(cacheModel, key: TranslationCache.storeKey)
+                }
+            } else if let translations = await Self.translateBatch(batch, preference: preference,
+                                                                   glossary: glossary),
+                      translations.count == batch.count {
+                // 失败批次重试一次（网络抖动不再让长页翻译半途而废）。
+                apply(batch: batch, translations: translations, webView: webView)
+                doneCount += batch.count
+                if let urlKey {
+                    let results = zip(batch, translations).compactMap { block, translation -> (index: Int, text: String, translation: String)? in
+                        guard let index = Int(block.id) else { return nil }
+                        return (index, block.text, translation)
+                    }
+                    cacheModel = TranslationCache.merged(model: cacheModel, urlKey: urlKey,
+                                                        results: results)
+                    DiskStore.save(cacheModel, key: TranslationCache.storeKey)
+                }
             } else {
                 failures += batch.count
             }

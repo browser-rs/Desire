@@ -11448,6 +11448,46 @@ do {
     // 空输入
     check("批切：空输入零批", TranslationBatching.batches([]).isEmpty)
 }
+
+// ---------- TranslationCache（翻译块级缓存） ----------
+
+do {
+    let url = URL(string: "https://Example.com/articles/view?id=7#top")!
+    let key = TranslationCache.urlKey(for: url)
+    check("翻译缓存：urlKey 去 query/fragment/host 小写", key == "https://example.com/articles/view")
+
+    let text1 = "第一段原文"
+    let hash1 = TranslationCache.blockHash(text1)
+    check("翻译缓存：hash 稳定", hash1 == TranslationCache.blockHash(text1))
+    check("翻译缓存：hash 不同文不同", hash1 != TranslationCache.blockHash("另一段"))
+
+    var page = TranslationCache.CachedPage(urlKey: key, lastUsed: Date(), blocks: [
+        TranslationCache.CachedBlock(index: 0, hash: hash1, translation: "译一"),
+        TranslationCache.CachedBlock(index: 1, hash: TranslationCache.blockHash("第二段"), translation: "译二"),
+    ])
+    // 命中：原文一致
+    let hits = TranslationCache.hits(page: page, pairs: [(0, text1), (1, "第二段")])
+    check("翻译缓存：双块命中", hits[0] == "译一" && hits[1] == "译二")
+    // 原文变了（hash 不符）→ 不命中
+    let miss = TranslationCache.hits(page: page, pairs: [(0, "改动过的原文")])
+    check("翻译缓存：原文变更不命中", miss.isEmpty)
+
+    // merged：新块追加 + 已有块更新
+    let model = TranslationCache.merged(model: [:], urlKey: key,
+        results: [(0, text1, "译一"), (0, text1, "译一改")], now: Date())
+    check("翻译缓存：同序号覆盖", model[key]?.blocks.first?.translation == "译一改")
+
+    // LRU：按 lastUsed 从旧删到预算内
+    let old = Date().addingTimeInterval(-1000)
+    let pages = [
+        TranslationCache.CachedPage(urlKey: "p1", lastUsed: old, blocks: [.init(index: 0, hash: "h", translation: String(repeating: "x", count: 700))]),
+        TranslationCache.CachedPage(urlKey: "p2", lastUsed: Date(), blocks: [.init(index: 0, hash: "h", translation: String(repeating: "y", count: 700))]),
+    ]
+    let targets = TranslationCache.evictionTargets(pages, maxTotalChars: 1_000)
+    check("翻译缓存：LRU 删最旧到预算内", targets == ["p1"])
+    let healthy = TranslationCache.evictionTargets(pages, maxTotalChars: 10_000)
+    check("翻译缓存：未超预算零淘汰", healthy.isEmpty)
+}
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

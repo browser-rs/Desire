@@ -6,6 +6,8 @@
 ### Added
 
 - 测试套件激活自检（fail-fast）：execution-e2e 与 agent-eval 启动时先查 System Events frontmost——无人值守反复 quit/open 会把会话激活链搞挂（无任何 frontmost 应用，浏览器端点静默失效、页面不加载），此前表现为 19 项假失败+找不到标签的盲跑；现在 e2e 直接报错退出并给出恢复指引，agent-eval 警告不硬退（桥端用例照跑、浏览器类用例入口再硬检）。
+- 翻译缓存 + inline code 保护 + 失败批次重试（批 2）：双语对照翻译结果按"URL（去 query/fragment）+ DOM 块序号 + 原文 SHA256 指纹"缓存（DiskStore，LRU 按页面最后使用淘汰，总预算 ~20M 字符）——同页面重开/导航后命中即插、零模型调用，原文变更（hash 不符）不命中；段落内 inline <code> 在收集时替换为 ⟦N⟧ 占位符（映射存页面侧）、apply 时 HTML 转义后还原——术语/变量名不再被机翻弄坏，且模型输出整段转义防页面内容诱导注入；失败批次自动重试一次（网络抖动不再让长页翻译半途而废）。TranslationCache 判定纯逻辑 8 项单测进 harness（3318→3326）。
+
 
 
 ## [v0.8.61] - 2026-11-17

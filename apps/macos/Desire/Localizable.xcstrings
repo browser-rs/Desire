@@ -110775,6 +110775,50 @@
           }
         }
       }
+    },
+    "Already in the library":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Already in the library"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"书架已有此书"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"書架已有此書"
+          }
+        }
+      }
+    },
+    "Save the bilingual pairs as a book in the library":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Save the bilingual pairs as a book in the library"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"把双语对照存为书架里的一本书"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"把雙語對照存為書架裡的一本書"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

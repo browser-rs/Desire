@@ -3,6 +3,8 @@ import SwiftUI
 
 struct TranslateBar: View {
     @State private var exporting = false
+    @State private var savingBook = false
+    @State private var bookConfirmation: String?
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject var service: TranslationService
@@ -71,6 +73,38 @@ struct TranslateBar: View {
                     .buttonStyle(.plain)
                     .foregroundStyle(appAccent)
                     .help(String(localized: "Export bilingual markdown to Downloads"))
+                    // 双语成书（v0.8.64 批 2）：对照对 → HTML 书落书架。
+                    Button {
+                        savingBook = true
+                        Task {
+                            let confirmation = await bilingual.saveBilingualBook(
+                                webView: webView, tabID: tabID)
+                            await MainActor.run {
+                                savingBook = false
+                                bookConfirmation = confirmation
+                                if confirmation != nil {
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                                        bookConfirmation = nil
+                                    }
+                                }
+                            }
+                        }
+                    } label: {
+                        if savingBook {
+                            ProgressView().scaleEffect(0.6)
+                        } else if bookConfirmation != nil {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        } else {
+                            Image(systemName: "book.closed")
+                                .font(.caption)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(appAccent)
+                    .help(bookConfirmation ?? String(localized: "Save the bilingual pairs as a book in the library"))
+                    .disabled(savingBook)
                 }
                 Button(String(localized: "Show Original")) {
                     bilingual.stop(webView: webView, tabID: tabID)

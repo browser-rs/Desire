@@ -327,6 +327,10 @@ Features/Bookmarks/
   会话消息上的 `model` 反查是哪一档）→ `POST /ai/profiles/delete` 删测试档 →
   `POST /ai/calibration/prune {"models":[…]}` 清假模型名的校准条目（否则诊断页出现
   fake-1/muscle-fake 行）→ `/diag/health` 的 activeModel/calibrations 两处都核一遍。
+  **⑤ 旁路类验证（双语翻译/标题/记忆整理…）触发前必须先把 active 切到假档案**
+  （v0.8.64 批 2 真踩）：`/ai/bypass-profile` 为 null 时旁路跟随 active 档案——
+  忘了切就触发翻译，8 段文本直打用户真实网关烧配额。顺序 = 建临时假档案 →
+  activate → 再触发 → 结束按 ④ 清理。
 
 - **清理测试数据别按"含测试字样"搜出来就删**（2026-09-23 我删掉了用户一个会话）：
   `POST /conversations/delete` 的 ids 来自 `conversations/search?q=<测试词>`，但命中的那条

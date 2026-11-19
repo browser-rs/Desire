@@ -11551,6 +11551,39 @@ do {
     check("术语表：行数 = 生效条数", lines.count == 4)
 }
 
+// ---------- BilingualBookBuilder（双语成书 HTML 组装） ----------
+
+do {
+    // 转义：& 优先 + 尖括号/引号——页面原文是不可信输入
+    check("成书：转义 &", BilingualBookBuilder.escape("a&b") == "a&amp;b")
+    check("成书：不二次转义", BilingualBookBuilder.escape("a&amp;b") == "a&amp;amp;b")
+    check("成书：转义尖括号", BilingualBookBuilder.escape("<script>") == "&lt;script&gt;")
+    check("成书：转义引号", BilingualBookBuilder.escape("x\"y") == "x&quot;y")
+
+    // 结构：标题 + 成对段落；内容全部转义后进文档
+    let html = BilingualBookBuilder.buildHTML(
+        title: "Bi <Title>",
+        pairs: [BilingualBookBuilder.Pair(original: "<b>orig</b>", translation: "译&文")])
+    check("成书：标题转义", html.contains("<h1>Bi &lt;Title&gt;</h1>"))
+    check("成书：成对结构", html.contains("<p class=\"orig\">&lt;b&gt;orig&lt;/b&gt;</p>")
+          && html.contains("<p class=\"bi\">译&amp;文</p>"))
+    check("成书：无裸标签残留", !html.contains("<b>orig</b>"))
+    check("成书：article 包裹", html.hasPrefix("<article>") && html.hasSuffix("</article>"))
+
+    // 多对保持顺序
+    let multi = BilingualBookBuilder.buildHTML(
+        title: "t",
+        pairs: [BilingualBookBuilder.Pair(original: "one", translation: "甲"),
+                BilingualBookBuilder.Pair(original: "two", translation: "乙")])
+    let oneIdx = multi.range(of: ">one<")?.lowerBound
+    let twoIdx = multi.range(of: ">two<")?.lowerBound
+    check("成书：多对顺序保持", oneIdx != nil && twoIdx != nil && oneIdx! < twoIdx!)
+
+    // 书名：标题为骨，空标题落 host；固定前缀键拼接
+    check("成书：书名带前缀", BilingualBookBuilder.bookTitle(pageTitle: "Hello", host: "x.test") == String(localized: "Bilingual") + " · Hello")
+    check("成书：空标题用 host", BilingualBookBuilder.bookTitle(pageTitle: "  ", host: "x.test") == String(localized: "Bilingual") + " · x.test")
+}
+
 // ---------- MemoryModels.sortFacts（记忆排序档） ----------
 
 do {

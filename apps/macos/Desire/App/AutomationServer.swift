@@ -565,6 +565,7 @@ final class AutomationServer {
         ep("GET", "/palette", "Command-palette mixed search (commands/tabs/bookmarks/history/conversations, grouped + per-source totals)", params: ["q:string"], example: "…/palette?q=book")
         ep("GET", "/bilingual", "Bilingual reading state for the active tab (on/running/done/total/error)", example: "…/bilingual")
         ep("POST", "/bilingual", "Toggle bilingual reading (AI translations inserted under each paragraph)", params: ["on:bool", "index?:int"], example: #"-d '{"on":true}'"#)
+        ep("POST", "/bilingual/save-book", "Save the active tab's translated bilingual pairs as a book in the library (HTML offline book)", params: ["index?:int"], example: #"-d '{}'"#)
         ep("GET", "/elements", "Element-blocker rules", example: "…/elements")
         ep("POST", "/elements/add", "Hide matching CSS on matching hosts", params: ["selector:string", "pattern:string"], example: #"-d '{"selector":"nav","pattern":"example.com"}'"#)
         ep("POST", "/elements/remove", "Remove rule", params: ["selector:string", "pattern:string"], example: "-d '{…}'")
@@ -2198,6 +2199,8 @@ case ("GET", "/state"):
                 return try Self.json(Self.setBilingual(
                     on: body["on"] as? Bool ?? false,
                     index: Self.index(body)))
+            case ("POST", "/bilingual/save-book"):
+                return try Self.json(await Self.saveBilingualBook(index: Self.index(body)))
             case ("GET", "/quickdial"):
                 return try Self.json(Self.quickDial())
             case ("POST", "/quickdial/add"):
@@ -6484,6 +6487,29 @@ case ("GET", "/agent/messages"):
             tabID: tab.id,
             preference: AppState.live?.aiPreference)
         return try Self.bilingualState()
+    }
+
+    /// 双语成书（v0.8.64 批 2）：活动标签的已翻译对照对 → HTML 书落书架。
+    /// 同步等待 importArticle 完成（纯本地写盘 + 图片定位，无网络）。
+    private static func saveBilingualBook(index: Int?) async throws -> [String: Any] {
+        guard let manager = TabSessionCoordinator.shared.activeTabManager else {
+            return ["error": "no active window"]
+        }
+        let tab: Tab?
+        if let index, index >= 0, index < manager.tabs.count {
+            tab = manager.tabs[index]
+        } else {
+            tab = manager.selectedTab
+        }
+        guard let tab else { return ["error": "no such tab"] }
+        guard BilingualReadingService.shared.isOn(tabID: tab.id) else {
+            return ["error": "bilingual not on for this tab"]
+        }
+        guard let confirmation = await BilingualReadingService.shared.saveBilingualBook(
+            webView: tab.browser.webView, tabID: tab.id) else {
+            return ["error": "no translated pairs on this page"]
+        }
+        return ["ok": true, "confirmation": confirmation]
     }
 
     // MARK: Site settings / QuickDial / Element blocker

@@ -157,6 +157,7 @@ SOURCES=(
   apps/macos/Desire/Features/Translation/TranslationBatching.swift
   apps/macos/Desire/Features/Translation/TranslationCache.swift
   apps/macos/Desire/Features/Translation/TranslationGlossary.swift
+  apps/macos/Desire/Features/Translation/BilingualBookBuilder.swift
   apps/macos/Desire/Features/Agent/TokenCalibration.swift
   apps/macos/Desire/Features/Downloads/BatchStallPolicy.swift
   apps/macos/Desire/Features/Agent/ReasoningEffortPolicy.swift

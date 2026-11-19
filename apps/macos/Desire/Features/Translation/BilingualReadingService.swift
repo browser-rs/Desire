@@ -132,6 +132,45 @@ final class BilingualReadingService: ObservableObject {
         return url
     }
 
+    /// **双语成书**（v0.8.64 批 2）：已翻译页面 → 对照 HTML → 落书架
+    /// （HTML 离线书——阅读器/继续阅读/全库搜索/书架内 EPUB 导出全部
+    /// 直接受益）。返回 UI 确认文案；nil = 无可保存内容或导入失败。
+    func saveBilingualBook(webView: WKWebView, tabID: UUID) async -> String? {
+        guard isOn(tabID: tabID) else { return nil }
+        struct Pair: Decodable {
+            let original: String
+            let translation: String
+        }
+        let js = "return window.__desireBilingualExport()"
+        guard let raw = try? await webView.callAsyncJavaScript(
+            js, arguments: [:], in: nil, contentWorld: .page),
+            let data = try? JSONSerialization.data(withJSONObject: raw),
+            let pairs = try? JSONDecoder().decode([Pair].self, from: data),
+            !pairs.isEmpty else { return nil }
+        let title = BilingualBookBuilder.bookTitle(
+            pageTitle: webView.title ?? "",
+            host: webView.url?.host ?? "page")
+        let html = BilingualBookBuilder.buildHTML(
+            title: title,
+            pairs: pairs.map {
+                BilingualBookBuilder.Pair(original: $0.original,
+                                          translation: $0.translation)
+            })
+        do {
+            let result = try await EbookWebBookImporter.importArticle(
+                title: title, html: html, baseURL: nil)
+            Log.agent.info("bilingual: saved book \"\(result.book.title, privacy: .public)\" (\(pairs.count) pairs, existed=\(result.existed))")
+            if result.existed {
+                return String(localized: "Already in the library") + "："
+                    + result.book.title
+            }
+            return String(localized: "Saved to Books") + "：" + result.book.title
+        } catch {
+            Log.agent.info("bilingual: save to library failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
     /// 收集 → 分批翻译 → 逐批回填。后台 Task；状态经 @Published 暴露给工具条
     /// 与桥。
     func translate(webView: WKWebView, tabID: UUID, preference: AgentPreferenceStore?) {

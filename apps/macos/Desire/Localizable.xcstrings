@@ -111259,6 +111259,138 @@
           }
         }
       }
+    },
+    "Sync integrity, in plain sight":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Sync integrity, in plain sight"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"同步完整性看得见"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"同步完整性看得見"
+          }
+        }
+      }
+    },
+    "Settings ▸ Sync now checks same-address duplicates in quick dials, bookmarks and the reading list. Quick dials converge automatically — the duplicate pairs some of you saw are gone — while bookmarks keep their multi-folder semantics.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Settings ▸ Sync now checks same-address duplicates in quick dials, bookmarks and the reading list. Quick dials converge automatically — the duplicate pairs some of you saw are gone — while bookmarks keep their multi-folder semantics."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"设置 ▸ Sync 现在检测快拨、书签与阅读列表的同址重复；快拨自动收敛（你看到的成对重复已清掉），书签保留多处收藏的语义。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"設定 ▸ Sync 現在檢測快撥、書籤與閱讀列表的同址重複；快撥自動收斂（你看到的成對重複已清掉），書籤保留多處收藏的語義。"
+          }
+        }
+      }
+    },
+    "PDFs travel to your phone":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"PDFs travel to your phone"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"PDF 随身看"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"PDF 隨身看"
+          }
+        }
+      }
+    },
+    "Artifact cards can now preview PDFs up to 10MB straight from your Mac, rendered right on the phone — alongside text and image previews and the one-tap remix actions.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Artifact cards can now preview PDFs up to 10MB straight from your Mac, rendered right on the phone — alongside text and image previews and the one-tap remix actions."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"产物卡现在可以直接从 Mac 预览 10MB 以内的 PDF，在手机上渲染——与文本/图片预览和一键再加工并列。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"產物卡現在可以直接從 Mac 預覽 10MB 以內的 PDF，在手機上渲染——與文字／圖片預覽和一鍵再加工作業並列。"
+          }
+        }
+      }
+    },
+    "Cleaner behind the scenes":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Cleaner behind the scenes"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"幕后更干净"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"幕後更乾淨"
+          }
+        }
+      }
+    },
+    "The admin tooling gained remote-device stats and mailbox cleanup, and the sync health derivation is exposed over the automation bridge for scripting.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The admin tooling gained remote-device stats and mailbox cleanup, and the sync health derivation is exposed over the automation bridge for scripting."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"运维工具补齐远端设备统计与信箱清理；同步健康派生经自动化桥暴露，可脚本化。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"運維工具補齊遠端設備統計與信箱清理；同步健康派生經自動化橋暴露，可腳本化。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

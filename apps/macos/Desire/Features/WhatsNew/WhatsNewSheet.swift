@@ -17,16 +17,15 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "character.book.closed", title: String(localized: "Translations that keep their names"),
-                  detail: String(localized: "A dedicated translation glossary — global or per-site — pins fixed renderings for names and domain terms, and finished bilingual pages can be saved straight into the Books library as a side-by-side book.")),
-            .init(icon: "shippingbox.and.arrow.up", title: String(localized: "Artifacts you can open from your phone"),
-                  detail: String(localized: "Artifact cards gain content previews (text and images read straight from your Mac, with a strict path whitelist) and preset remix actions — summarize, convert to Markdown, tidy the name — sent back to the desktop Agent in one tap.")),
-            .init(icon: "books.vertical", title: String(localized: "Your library, in your pocket"),
-                  detail: String(localized: "Book cards on DesireRemote open a detail page: continue reading on your Mac, ask the Agent about the book, and browse your recent highlights and notes.")),
-            .init(icon: "slider.horizontal.3", title: String(localized: "Calibration and artifacts in plain sight"),
-                  detail: String(localized: "Settings now shows each model's measured calibration (window, samples, chars-per-token, effective budget), and files the Agent writes itself finally appear in the artifact hub — on Mac and on your phone.")),
+            .init(icon: "checkmark.seal", title: String(localized: "Sync integrity, in plain sight"),
+                  detail: String(localized: "Settings ▸ Sync now checks same-address duplicates in quick dials, bookmarks and the reading list. Quick dials converge automatically — the duplicate pairs some of you saw are gone — while bookmarks keep their multi-folder semantics.")),
+            .init(icon: "shippingbox.and.arrow.up", title: String(localized: "PDFs travel to your phone"),
+                  detail: String(localized: "Artifact cards can now preview PDFs up to 10MB straight from your Mac, rendered right on the phone — alongside text and image previews and the one-tap remix actions.")),
+            .init(icon: "server.rack", title: String(localized: "Cleaner behind the scenes"),
+                  detail: String(localized: "The admin tooling gained remote-device stats and mailbox cleanup, and the sync health derivation is exposed over the automation bridge for scripting.")),
         ]
     }
+
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {

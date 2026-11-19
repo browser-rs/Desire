@@ -59,6 +59,14 @@
 批 3 admin remote stats/cleanup → 批 4 反馈修复预留 + 收口
 （i18n/WhatsNew/产品页素材）→ **真机联调（用户）**。
 
+**批 1-3 完成（2026-11-20，a2eee4cc/b155d137/82607e04）**：① 同步完整性卡
++ /sync/health（SyncDomainHealth 7 单测 3369→3376；live：快拨修复首启收敛
+17→9 条、8 墓碑入队推送，书签真实检出 1 份同址——检测不自动动的语义正确）；
+② PDF 预览双端绿（白名单拒绝实测，渲染待真机）；③ admin remote stats/
+cleanup（默认 30 天 dry-run，cargo fmt/test 绿）。**批 4 = 反馈修复预留**
+（等 0.8.63-65 新面真实使用反馈）+ 收口（WhatsNew/i18n 已刷）。
+**发版时机等用户反馈攒够（用户定）**；产品页扩充是发版手工活。
+
 ## 不做
 
 execution-e2e --section（0.8.64 否决维持——依赖图梳理成本高于收益）；passkey

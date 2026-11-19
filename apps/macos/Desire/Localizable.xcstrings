@@ -111149,6 +111149,116 @@
           }
         }
       }
+    },
+    "Sync Integrity":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Sync Integrity"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"同步完整性"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"同步完整性"
+          }
+        }
+      }
+    },
+    "Same-address duplicates in URL-based domains. Quick dials converge automatically; bookmark folders intentionally allow the same site in several places.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Same-address duplicates in URL-based domains. Quick dials converge automatically; bookmark folders intentionally allow the same site in several places."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"对以地址为身份的域做同址重复检测；快拨会自动收敛，书签允许在多个文件夹收藏同一站点（只提示、不自动去重）。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"對以地址為身份的域做同址重複檢測；快撥會自動收斂，書籤允許在多個資料夾收藏同一站點（只提示、不自動去重）。"
+          }
+        }
+      }
+    },
+    "No duplicates · %lld item(s)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"No duplicates · %lld item(s)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"无同址重复 · 共 %lld 条"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"無同址重複 · 共 %lld 條"
+          }
+        }
+      }
+    },
+    "%lld duplicate groups · %lld extra · %lld item(s)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"%lld duplicate groups · %lld extra · %lld item(s)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"同址重复 %lld 组 · 多出 %lld 份 · 共 %lld 条"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"同址重複 %lld 組 · 多出 %lld 份 · 共 %lld 條"
+          }
+        }
+      }
+    },
+    "auto-converges":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"auto-converges"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"自动收敛"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"自動收斂"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

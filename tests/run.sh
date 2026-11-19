@@ -164,6 +164,7 @@ SOURCES=(
   apps/macos/Desire/Features/PageWatch/PageWatchDiff.swift
   apps/macos/Desire/Features/PageWatch/PageWatch.swift
   apps/macos/Desire/Features/NewTab/QuickDial.swift
+  apps/macos/Desire/Features/Sync/SyncDomainHealth.swift
   apps/macos/Desire/Features/UserScripts/PluginResources.swift
   apps/macos/Desire/Features/UserScripts/DNRRule.swift
   apps/macos/Desire/Features/UserScripts/DNRConverter.swift

@@ -517,6 +517,7 @@ final class AutomationServer {
         ep("GET", "/sync/conflicts", "Recent sync conflicts (entries where the server's LWW copy won; decrypted readable labels)", example: "…/sync/conflicts")
         ep("POST", "/sync/conflicts/clear", "Clear the conflict-details ledger", example: "-d '{}'")
         ep("GET", "/sync/status", "Cloud sync state (auth / syncing / lastSyncAt / lastError / per-domain cursors + pending tombstones)", example: "…/sync/status")
+        ep("GET", "/sync/health", "Same-address duplicate detection for URL domains + per-domain local counts/tombstones/cursor presence (sync integrity, v0.8.65)", example: "…/sync/health")
         ep("POST", "/sync/now", "Run a full sync cycle (all domains), return resulting status", example: "-d '{}'")
         ep("POST", "/sync/login", "Sign in (then auto-sync at launch + every 5 min)", params: ["username:string", "password:string"], example: #"-d '{"username":"u","password":"p"}'"#)
         ep("POST", "/sync/register", "Create account + sign in", params: ["username:string", "password:string"], example: #"-d '{"username":"u","password":"p"}'"#)
@@ -2470,6 +2471,11 @@ case ("GET", "/state"):
                     session: rlSession)
                 return try Self.json(["ok": true, "queued": rlStarted,
                                       "running": ReadingListSummarizer.shared.isRunning])
+            case ("GET", "/sync/health"):
+                guard let sync = AppState.live?.syncStore else {
+                    return try Self.json(["error": "sync store not ready"])
+                }
+                return try Self.json(sync.healthReport())
             case ("GET", "/sync/devices"):
                 guard let store = AppState.live?.syncStore else { return try Self.json(["error": "app state not ready"]) }
                 await store.refreshDevices()

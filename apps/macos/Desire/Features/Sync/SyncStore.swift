@@ -2348,6 +2348,56 @@ final class SyncStore: ObservableObject {
         "sync.cursor.\(wireName(domain))"
     }
 
+    // MARK: - 同步健康（v0.8.65 批 1，快拨重复事故的可观测收口）
+
+    /// 同址重复检测（"地址即身份"的 URL 域）+ 各域概览。设置页健康卡与
+    /// 桥 `GET /sync/health` 消费同一份派生（SyncDomainHealth 纯逻辑）。
+    /// 书签域只显示不去重（多处收藏是语义）——auto=false 由 UI 标注豁免。
+    func healthReport() -> [String: Any] {
+        let duplicates: [[String: Any]] = [
+            duplicateRow("quickdials", quickDialStore.dials.map(\.url), autoDedupe: true),
+            duplicateRow("bookmarks", bookmarkStore.bookmarks.compactMap(\.url), autoDedupe: false),
+            duplicateRow("reading_list", readingListStore.items.compactMap(\.url), autoDedupe: false),
+        ]
+        let rows: [[String: Any]] = [
+            domainRow("bookmarks", bookmarkStore.bookmarks.count,
+                      bookmarkStore.pendingDeletions.count),
+            domainRow("quickdials", quickDialStore.dials.count,
+                      quickDialStore.pendingDeletions.count),
+            domainRow("reading_list", readingListStore.items.count,
+                      readingListStore.pendingDeletions.count),
+            domainRow("keyboard_shortcuts", shortcutStore.shortcuts.count, nil),
+            domainRow("history", historyStore.entries.count,
+                      historyStore.pendingDeletions.count),
+            domainRow("agent_memory", agentMemoryStore.archive.facts.count,
+                      agentMemoryStore.pendingDeletions.count),
+            domainRow("jobs", jobStore.allJobs.count, nil),
+            domainRow("excerpts", excerptStore.excerpts.count, nil),
+            domainRow("ebooks", EbookLibraryStore.shared.books.count, nil),
+        ]
+        return ["duplicates": duplicates, "domains": rows]
+    }
+
+    private func duplicateRow(_ domain: String, _ urls: [String],
+                              autoDedupe: Bool) -> [String: Any] {
+        let stats = SyncDomainHealth.urlDuplicates(urls)
+        return ["domain": domain,
+                "groups": stats.groups,
+                "extra": stats.extra,
+                "total": stats.total,
+                // true = 客户端会自动同址收敛（快拨，b10fc03d）
+                "autoDedupe": autoDedupe]
+    }
+
+    private func domainRow(_ domain: String, _ count: Int,
+                           _ tombstones: Int?) -> [String: Any] {
+        var row: [String: Any] = ["domain": domain,
+                                  "localCount": count,
+                                  "hasCursor": defaults.string(forKey: cursorKey(SyncDomain(rawValue: domain) ?? .settings)) != nil]
+        row["tombstoneCount"] = tombstones != nil ? tombstones! : NSNull()
+        return row
+    }
+
     /// 多档案域键（v0.8.18 方案 A）：随档案换桶的域（书签/历史/快拨）拼
     /// `@<profileUUID>` 后缀——服务端行域/游标按档案隔离；其余域全局。
     /// 切档案时 store 换桶发布 → 脏标记 → 后缀变了游标为空 → 全量对账一轮。

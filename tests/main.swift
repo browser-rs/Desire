@@ -11631,6 +11631,37 @@ do {
     check("快拨去重：空 URL 剔除", r5.kept.isEmpty && r5.removedIDs.count == 1)
 }
 
+// ---------- SyncDomainHealth（同步完整性派生） ----------
+
+do {
+    // 归一化：小写/去尾斜杠/保留 query
+    check("健康：归一化", SyncDomainHealth.normalizeURL("https://Site.com/") == "https://site.com")
+    check("健康：query 保留", SyncDomainHealth.normalizeURL("https://site.com/?page=2")
+          == "https://site.com/?page=2")
+
+    // 无重复
+    let clean = SyncDomainHealth.urlDuplicates(["https://a.com", "https://b.com/"])
+    check("健康：无重复", clean.groups == 2 && clean.extra == 0 && clean.total == 2)
+
+    // 同址（大小写/斜杠归一）成组
+    let dup = SyncDomainHealth.urlDuplicates([
+        "https://www.google.com", "https://www.google.com/", "https://WWW.google.com",
+        "https://youtube.com",
+    ])
+    check("健康：重复组", dup.groups == 2 && dup.extra == 2 && dup.total == 4)
+
+    // 空输入与空串
+    check("健康：空输入", SyncDomainHealth.urlDuplicates([]) == .clean)
+    let blanks = SyncDomainHealth.urlDuplicates(["  ", ""])
+    check("健康：空 URL 跳过", blanks == .clean)
+
+    // 快拨事故形态：8 组成对 = 8 组 / 8 多余 / 16 条
+    var incident: [String] = []
+    for i in 0..<8 { incident.append("https://site\(i).com"); incident.append("https://site\(i).com/") }
+    let r = SyncDomainHealth.urlDuplicates(incident)
+    check("健康：事故形态 8 组", r.groups == 8 && r.extra == 8 && r.total == 16)
+}
+
 // ---------- MemoryModels.sortFacts（记忆排序档） ----------
 
 do {

@@ -4,6 +4,16 @@ import SwiftUI
 /// 设置 → Sync：登录/注册 + 同步状态 + 立即同步/退出。
 /// 组合根（SettingsView）注入共享 SyncStore；本视图零业务逻辑，认证与同步
 /// 全部走 store 方法，错误展示用 store.lastError（登录失败是同步态的属性）。
+/// 完整性卡的一行（ViewBuilder 闭包里不能声明类型——提到文件级）。
+private struct SyncIntegrityRow: Identifiable {
+    let id: String
+    let displayName: String
+    let groups: Int
+    let extra: Int
+    let total: Int
+    let auto: Bool
+}
+
 struct SyncSettingsSection: View {
     /// 档案切换要重绘副标题（v0.8.21：此前读 ProfileStore 但未观察它）。
     @ObservedObject private var profileStore = ProfileStore.shared
@@ -367,7 +377,46 @@ struct SyncSettingsSection: View {
         keySection
         passwordSection
         categoriesSection
+        integritySection
         diagnosticsSection
+    }
+
+    /// **同步完整性**（v0.8.65 批 1，快拨重复事故的可观测收口）：
+    /// "地址即身份"的 URL 域做同址重复检测——快拨会自动同址收敛
+    /// （b10fc03d），书签的多处收藏是语义（只显示不自动去重）。
+    private var integritySection: some View {
+        let report = store.healthReport()
+        let duplicates = (report["duplicates"] as? [[String: Any]]) ?? []
+        return SettingsSection(
+            title: String(localized: "Sync Integrity"),
+            subtitle: String(localized: "Same-address duplicates in URL-based domains. Quick dials converge automatically; bookmark folders intentionally allow the same site in several places."),
+            icon: "checkmark.seal"
+        ) {
+            // [String: Any] 不支持 keyPath id——先物化成 Identifiable 行
+            // （DuplicateRow 在文件级：ViewBuilder 闭包里不能声明类型）。
+            let rows = duplicates.map { row -> SyncIntegrityRow in
+                let name = row["domain"] as? String ?? ""
+                return SyncIntegrityRow(
+                    id: name,
+                    displayName: SyncDomain(rawValue: name)?.displayName ?? name,
+                    groups: row["groups"] as? Int ?? 0,
+                    extra: row["extra"] as? Int ?? 0,
+                    total: row["total"] as? Int ?? 0,
+                    auto: row["autoDedupe"] as? Bool ?? false)
+            }
+            ForEach(rows) { row in
+                let subtitle: String = row.groups <= 1
+                    ? String(localized: "No duplicates · \(row.total) item(s)")
+                    : String(localized: "\(row.groups) duplicate groups · \(row.extra) extra · \(row.total) item(s)")
+                    + (row.auto ? " · " + String(localized: "auto-converges") : "")
+                SettingsRow(row.displayName,
+                            subtitle: subtitle,
+                            systemImage: row.groups <= 1 ? "checkmark.circle" : "exclamationmark.triangle") { }
+                if row.id != rows.last?.id {
+                    SettingsRowDivider()
+                }
+            }
+        }
     }
 
     /// 同步日志（0.6.8）：逐域累计 推送/拉取/冲突 与最近一次冲突记号。

@@ -304,6 +304,11 @@ class TinyAPI(BaseHTTPRequestHandler):
 
 
 
+import os as _os_path
+_sys_path_dir = _os_path.path.dirname(_os_path.path.abspath(__file__))
+if _sys_path_dir not in __import__("sys").path:
+    __import__("sys").path.insert(0, _sys_path_dir)
+
 from e2e_lib.activation import ensure_active as activation_active
 
 
@@ -861,7 +866,7 @@ def main():
     if not guard_single_dev_instance():
         return 2
     try:
-        activation_active()
+        activation_active(base_url=BRIDGE)
         print("激活自检 ✓（应用前台，浏览器端点可用）")
     except RuntimeError as exc:
         print("✗", exc)

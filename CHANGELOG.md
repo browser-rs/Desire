@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- 测试基建收尾（批 4）：execution-e2e 与 agent-eval 的激活自检合并为共享模块 tests/e2e_lib/activation.py（探针终版 = 读桥 /state 的 isActive，重复代码合并，-I 隔离模式下自动补脚本目录进 sys.path）；execution-e2e 汇总段解包兼容 2 元组检查项。190 项全量回归在激活正常的新实例上干净重跑（EXIT=0 / 190✓ / 0✗）。
+
 ### Added
 
 - 值守处置"等解锁"语义（批 1，0.8.62 遗留收口）+ 记忆排序档：.handle 处置回合发起时若锁屏/无前台应用（浏览器类动作会静默失效），不再白白消耗一次闸门——挂入等解锁队列，解锁检测链（15s 周期）恢复后自动重发；JobsPanel 订阅行显示"等解锁"状态胶囊。记忆面板排序升级：新增"最常用/最近使用"两档（usageCount/lastUsedAt 排序出口，MemoryModels.sortFacts 纯逻辑 4 项单测），记忆行显示使用反馈徽标（用过 N 次/点踩 N 次——0.8.60 数据首次上屏）。

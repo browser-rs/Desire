@@ -1230,6 +1230,11 @@ POLL_TIMEOUT = 90
 
 
 
+import os as _os_path
+_sys_path_dir = _os_path.path.dirname(_os_path.path.abspath(__file__))
+if _sys_path_dir not in __import__("sys").path:
+    __import__("sys").path.insert(0, _sys_path_dir)
+
 from e2e_lib.activation import ensure_active as _ensure_active
 
 

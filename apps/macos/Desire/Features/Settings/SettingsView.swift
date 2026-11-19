@@ -37,6 +37,7 @@ struct SettingsView: View {
         case batchDownloads
         case search
         case autoplayDiagnostics
+        case translation
 
         var id: String { rawValue }
 
@@ -57,6 +58,7 @@ struct SettingsView: View {
             case .batchDownloads: "square.stack.3d.up"
             case .search: "text.magnifyingglass"
             case .autoplayDiagnostics: "waveform.path.ecg"
+            case .translation: "character.book.closed"
             }
         }
 
@@ -75,6 +77,7 @@ struct SettingsView: View {
             case .batchDownloads: "Batch Downloads"
             case .search: "Search & Index"
             case .autoplayDiagnostics: "Autoplay Diagnostics"
+            case .translation: "Translation"
             }
         }
     }
@@ -257,6 +260,8 @@ struct SettingsView: View {
             SemanticIndexSettingsSection(store: .shared)
         case .autoplayDiagnostics:
             AutoplayDiagnosticsSection()
+        case .translation:
+            TranslationSettingsSection()
         }
     }
 }

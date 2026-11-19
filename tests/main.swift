@@ -11508,6 +11508,49 @@ do {
     check("翻译缓存：未超预算零淘汰", healthy.isEmpty)
 }
 
+// ---------- TranslationGlossary（术语表） ----------
+
+do {
+    func entry(_ term: String, _ translation: String, host: String? = nil) -> TranslationGlossary.Entry {
+        TranslationGlossary.Entry(term: term, translation: translation, host: host)
+    }
+    // 清洗：空白项剔除 / trim / host 小写 / 同 (term, host) 去重保留最后
+    let normalized = TranslationGlossary.normalized([
+        entry("  Desires ", " 欲望 "),
+        entry("", "空术语"),
+        entry("只有术语", ""),
+        entry("dup", "先写", host: "Example.COM"),
+        entry("dup", "后写", host: "example.com"),
+        entry("dup", "全局保留", host: nil),
+    ])
+    check("术语表：清洗后余 3 条", normalized.count == 3)
+    check("术语表：同键去重保留最后", normalized.first(where: { $0.term == "dup" && $0.host == "example.com" })?.translation == "后写")
+    check("术语表：trim 生效", normalized[0].term == "Desires" && normalized[0].translation == "欲望")
+    check("术语表：host 已小写", normalized[1].host == "example.com")
+
+    // host 匹配：全局恒真；站点相等或子域；页面 host 空 = 只取全局
+    check("术语表：nil 条目全局", TranslationGlossary.matches(nil, pageHost: "a.b.com"))
+    check("术语表：站点相等", TranslationGlossary.matches("b.com", pageHost: "b.com"))
+    check("术语表：子域命中", TranslationGlossary.matches("b.com", pageHost: "news.b.com"))
+    check("术语表：别站不命中", !TranslationGlossary.matches("b.com", pageHost: "c.com"))
+    check("术语表：后缀不误命中", !TranslationGlossary.matches("b.com", pageHost: "xb.com"))
+    check("术语表：无页面 host 只取全局", !TranslationGlossary.matches("b.com", pageHost: nil))
+
+    // 生效集：host 过滤 + 长 term 优先
+    let all = [entry("AI", "人工智能"), entry("Desire", "欲"),
+               entry("Desire Browser", "欲浏览器", host: "docs.desire.test"),
+               entry("Desire", "欲桌面版", host: "docs.desire.test")]
+    let global = TranslationGlossary.effectiveEntries(all, host: "other.test")
+    check("术语表：别站只见全局条目", global.count == 2)
+    let site = TranslationGlossary.effectiveEntries(all, host: "docs.desire.test")
+    check("术语表：站点条目合并生效", site.count == 4)
+    check("术语表：长 term 排前", site[0].term == "Desire Browser")
+    // 行格式
+    let lines = TranslationGlossary.lines(all, host: "docs.desire.test")
+    check("术语表：行格式 term → 译法", lines.first == "Desire Browser → 欲浏览器")
+    check("术语表：行数 = 生效条数", lines.count == 4)
+}
+
 // ---------- MemoryModels.sortFacts（记忆排序档） ----------
 
 do {

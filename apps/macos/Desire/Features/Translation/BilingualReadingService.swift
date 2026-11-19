@@ -149,21 +149,22 @@ final class BilingualReadingService: ObservableObject {
         lastError = nil
         doneCount = 0
         totalCount = 0
-        // 术语表（v0.8.8 基础件 10）：记忆里 category=translation 的条目按
-        // 站点作用域（scope=本站 host 或 global）注入系统提示——
-        // "这个站把 X 译成 Y"这类偏好直接生效，复用既有记忆面板维护。
+        // 术语表双源（v0.8.64 批 1）：**专用术语表**（设置页结构化维护，
+        // "term → 译法"）在前 + v0.8.8 的记忆通道（category=translation 的
+        // 记忆事实，自由文本"这个站把 X 译成 Y"）在后——两条维护入口都有效。
         let host = (webView.url?.host ?? "").lowercased()
-        let glossary = AgentMemoryStore.shared.factsSnapshot.filter { fact in
-            guard fact.category.lowercased() == "translation" else { return false }
-            let scope = fact.scope.lowercased()
-            return scope == "global" || scope == host
-                || host.hasSuffix("." + scope)
-        }
+        let glossary = TranslationGlossaryStore.shared.lines(for: host)
+            + AgentMemoryStore.shared.factsSnapshot.filter { fact in
+                guard fact.category.lowercased() == "translation" else { return false }
+                let scope = fact.scope.lowercased()
+                return scope == "global" || scope == host
+                    || host.hasSuffix("." + scope)
+            }.map(\.content)
         let install = UserScriptLoader.load("bilingual-translate")
         webView.evaluateJavaScript(install) { [weak self] _, _ in
             Task { @MainActor [weak self] in
                 await self?.run(webView: webView, tabID: tabID, preference: preference,
-                                token: token, glossary: glossary.map(\.content))
+                                token: token, glossary: glossary)
             }
         }
     }

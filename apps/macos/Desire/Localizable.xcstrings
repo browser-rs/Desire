@@ -9907,7 +9907,28 @@
         }
       }
     },
-    "All sites":{},
+    "All sites":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"All sites"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"所有站点"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"所有站點"
+          }
+        }
+      }
+    },
     "All Statuses":{},
     "All Tabs":{
       "localizations":{
@@ -110465,6 +110486,292 @@
           "stringUnit":{
             "state":"translated",
             "value":"每日簡報新增值守段：今日處置了多少訂閱任務，其中多少由 Agent 自主完成。"
+          }
+        }
+      }
+    },
+    "Translation Glossary":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Translation Glossary"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"翻译术语表"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"翻譯術語表"
+          }
+        }
+      }
+    },
+    "Pin fixed renderings for names, product and domain terms so machine translation keeps them intact.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Pin fixed renderings for names, product and domain terms so machine translation keeps them intact."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"为人名、产品与领域术语固定译法，机翻不再弄坏它们。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"為人名、產品與領域術語固定譯法，機翻不再弄壞它們。"
+          }
+        }
+      }
+    },
+    "No glossary entries yet":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"No glossary entries yet"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"还没有术语"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"還沒有術語"
+          }
+        }
+      }
+    },
+    "Add a term above; it is applied to every bilingual translation.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Add a term above; it is applied to every bilingual translation."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"在上方添加术语，对所有双语翻译生效。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"在上方新增術語，對所有雙語翻譯生效。"
+          }
+        }
+      }
+    },
+    "Scope":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Scope"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"作用域"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"作用域"
+          }
+        }
+      }
+    },
+    "Leave the site field empty to apply everywhere, or enter a host like example.com to pin it to that site (subdomains included). The older memory-based entries (category = translation) keep working alongside this table.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Leave the site field empty to apply everywhere, or enter a host like example.com to pin it to that site (subdomains included). The older memory-based entries (category = translation) keep working alongside this table."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"站点留空 = 全站生效；填 host（如 example.com）= 只对该站（含子域）生效。旧的记忆通道（category = translation 的记忆条目）继续可用，无需迁移。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"站點留空 = 全站生效；填 host（如 example.com）= 只對該站（含子域）生效。舊的記憶通道（category = translation 的記憶條目）繼續可用，無需遷移。"
+          }
+        }
+      }
+    },
+    "Also via memory":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Also via memory"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"记忆通道也在"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"記憶通道也在"
+          }
+        }
+      }
+    },
+    "Memory facts categorized as translation still inject as glossary lines — no need to migrate them.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Memory facts categorized as translation still inject as glossary lines — no need to migrate them."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"category 为 translation 的记忆条目仍会作为术语行注入——不必迁移到本表。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"category 為 translation 的記憶條目仍會作為術語行注入——不必遷移到本表。"
+          }
+        }
+      }
+    },
+    "Original term":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Original term"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"原文术语"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"原文術語"
+          }
+        }
+      }
+    },
+    "Fixed rendering":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Fixed rendering"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"固定译法"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"固定譯法"
+          }
+        }
+      }
+    },
+    "Site (optional)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Site (optional)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"站点（可选）"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"站點（可選）"
+          }
+        }
+      }
+    },
+    "Remove entry":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Remove entry"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"删除该条"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"刪除該條"
+          }
+        }
+      }
+    },
+    "Glossary Term":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Glossary Term"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"术语"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"術語"
           }
         }
       }

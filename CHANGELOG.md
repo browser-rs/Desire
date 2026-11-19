@@ -3,6 +3,8 @@
 
 - 同步健康卡 + GET /sync/health（批 1 旗舰，快拨重复事故的可观测收口）：设置 ▸ Sync 新增"同步完整性"区——以地址为身份的 URL 域（快拨/书签/阅读列表）做同址重复检测（组数/多余份数/总数），快拨标注"自动收敛"（b10fc03d 已修，重启即收敛），书签只提示不去重（多处收藏是语义）；另附各域本地条目数/墓碑数/游标概览（9 域）。SyncDomainHealth 纯逻辑 7 项单测进 harness（3369→3376）；live 验证：快拨修复收敛后 groups=9/extra=0，书签真实检出 1 份同址。
 - iOS 产物 PDF 预览 v2（批 2）：/artifacts/read 支持 PDF——≤10MB 整本 dataURI 回传（产物索引白名单/存在性/大小闸沿用），iOS 端 PDFKit 渲染（DesireRemote 首次引入，只读连续单页/自动缩放；超限回"在 Mac 上打开"）。双端构建绿；白名单拒绝实测。
+- desire-admin 补 remote 子命令（批 3，C7 剩余收编）：`remote stats <username>`（配对设备/在线状态/信箱计数与最近入箱）与 `remote cleanup <username> [--days N] [--apply]`（清已投递信箱行与过期未认领配对，默认 30 天、默认 dry-run）；随下次服务端发版生效（部署手工步）。cargo fmt/test 全绿。
+
 
 
 ### Fixed

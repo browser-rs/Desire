@@ -35,6 +35,21 @@ async fn main() -> anyhow::Result<()> {
     ["device", "revoke", username, device_id] => device_revoke(&pool, username, device_id).await?,
     ["remote", "inbox", username] => remote_inbox(&pool, username, false).await?,
     ["remote", "inbox", username, "--purge"] => remote_inbox(&pool, username, true).await?,
+    ["remote", "stats", username] => remote_stats(&pool, username).await?,
+    ["remote", "cleanup", username] => remote_cleanup(&pool, username, 30, false).await?,
+    ["remote", "cleanup", username, "--days", days] => {
+      let n: u64 = days
+        .parse()
+        .map_err(|_| anyhow::anyhow!("--days 需要数字"))?;
+      remote_cleanup(&pool, username, n, false).await?
+    }
+    ["remote", "cleanup", username, "--apply"] => remote_cleanup(&pool, username, 30, true).await?,
+    ["remote", "cleanup", username, "--days", days, "--apply"] => {
+      let n: u64 = days
+        .parse()
+        .map_err(|_| anyhow::anyhow!("--days 需要数字"))?;
+      remote_cleanup(&pool, username, n, true).await?
+    }
     ["registration", "status"] => registration_status(&pool).await?,
     ["registration", "on"] => registration_set(&pool, true).await?,
     ["registration", "off"] => registration_set(&pool, false).await?,
@@ -60,6 +75,8 @@ static USAGE: &str = "\
   registration status | on | off                  # 注册开关
   sync gc [--dry-run]                             # 通用墓碑 GC(按设备游标)
   remote inbox <username> [--purge]               # 看远端信箱(--purge 清未投递)
+  remote stats <username>                         # 配对设备/在线状态/信箱计数
+  remote cleanup <username> [--days N] [--apply]  # 清已投递信箱与过期配对(默认30天,dry-run)
   device list <username>                          # 该用户全部设备(含撤销态)
   device revoke <username> <device_id>            # 撤销设备(联动吊销其刷新令牌)
   stats                                           # 用户数 / 各域同步行数
@@ -182,6 +199,114 @@ async fn device_revoke(pool: &MySqlPool, username: &str, device_id: &str) -> any
 }
 
 /// 远端信箱：最近 20 条（recipient/投递状态/时间摘要）；--purge 清未投递行。
+
+/// remote stats（v0.8.65 批 3，C7 剩余）：配对设备/在线状态/信箱计数。
+async fn remote_stats(pool: &MySqlPool, username: &str) -> anyhow::Result<()> {
+  let user_id = require_user(pool, username).await?;
+  let devices: Vec<(
+    String,
+    String,
+    Option<chrono::NaiveDateTime>,
+    Option<chrono::NaiveDateTime>,
+    Option<chrono::NaiveDateTime>,
+  )> = sqlx::query_as(
+    "SELECT desktop_device_id, desktop_name, claimed_at, revoked_at, desktop_last_seen_at \
+     FROM remote_pairings WHERE user_id = ? AND claimed_at IS NOT NULL \
+     ORDER BY created_at DESC",
+  )
+  .bind(user_id)
+  .fetch_all(pool)
+  .await?;
+  println!("配对设备 {} 台：", devices.len());
+  let now = chrono::Utc::now().naive_utc();
+  for (id, name, _claimed, revoked, last_seen) in &devices {
+    let state = if revoked.is_some() {
+      "已撤销"
+    } else if let Some(seen) = last_seen {
+      if (now - *seen).num_seconds() < 15 {
+        "在线"
+      } else {
+        "离线"
+      }
+    } else {
+      "未上报"
+    };
+    println!(
+      "  {} {} [{}] 最近在线 {:?}",
+      id,
+      if name.is_empty() { "(未命名)" } else { name },
+      state,
+      last_seen
+    );
+  }
+  let total: i64 = sqlx::query_scalar("SELECT COUNT(*) FROM remote_inbox WHERE user_id = ?")
+    .bind(user_id)
+    .fetch_one(pool)
+    .await?;
+  let pending: i64 = sqlx::query_scalar(
+    "SELECT COUNT(*) FROM remote_inbox WHERE user_id = ? AND delivered_at IS NULL",
+  )
+  .bind(user_id)
+  .fetch_one(pool)
+  .await?;
+  let last: Option<chrono::NaiveDateTime> =
+    sqlx::query_scalar("SELECT MAX(created_at) FROM remote_inbox WHERE user_id = ?")
+      .bind(user_id)
+      .fetch_one(pool)
+      .await?;
+  println!(
+    "信箱：共 {} 条，未投递 {} 条，最近入箱 {:?}",
+    total, pending, last
+  );
+  Ok(())
+}
+
+/// remote cleanup（v0.8.65 批 3）：清已投递信箱行（默认 30 天前）与过期未认领
+/// 配对行。默认 dry-run（只报数），--apply 才删。
+async fn remote_cleanup(
+  pool: &MySqlPool,
+  username: &str,
+  days: u64,
+  apply: bool,
+) -> anyhow::Result<()> {
+  let user_id = require_user(pool, username).await?;
+  let cutoff = chrono::Utc::now().naive_utc() - chrono::Duration::days(days as i64);
+  let inbox: i64 = sqlx::query_scalar(
+    "SELECT COUNT(*) FROM remote_inbox WHERE user_id = ? AND delivered_at IS NOT NULL AND created_at < ?")
+    .bind(user_id).bind(cutoff).fetch_one(pool).await?;
+  let pairings: i64 = sqlx::query_scalar(
+    "SELECT COUNT(*) FROM remote_pairings WHERE user_id = ? AND claimed_at IS NULL AND expires_at < ?")
+    .bind(user_id).bind(cutoff).fetch_one(pool).await?;
+  println!(
+    "dry-run={} · 截止 {:?}：已投递信箱 {} 条，过期未认领配对 {} 行",
+    !apply, cutoff, inbox, pairings
+  );
+  if !apply {
+    println!("加 --apply 才真正删除。");
+    return Ok(());
+  }
+  let r1 = sqlx::query(
+    "DELETE FROM remote_inbox WHERE user_id = ? AND delivered_at IS NOT NULL AND created_at < ?",
+  )
+  .bind(user_id)
+  .bind(cutoff)
+  .execute(pool)
+  .await?;
+  let r2 = sqlx::query(
+    "DELETE FROM remote_pairings WHERE user_id = ? AND claimed_at IS NULL AND expires_at < ?",
+  )
+  .bind(user_id)
+  .bind(cutoff)
+  .execute(pool)
+  .await?;
+  println!(
+    "已删除：信箱 {} 条，配对 {} 行",
+    r1.rows_affected(),
+    r2.rows_affected()
+  );
+  Ok(())
+}
+
 async fn remote_inbox(pool: &MySqlPool, username: &str, purge: bool) -> anyhow::Result<()> {
   let user_id = require_user(pool, username).await?;
   if purge {

@@ -128,6 +128,21 @@ nonisolated enum JobWatchCore {
         return copy
     }
 
+    /// **值守段统计**（v0.8.63 批 4，DailyBrief 与 JobsPanel 共用口径）：
+    /// 今天交付过值守动作（非 notify 的 delivered）的订阅数，其中自主处置
+    /// （mode == .handle）的件数。纯逻辑进 tests/run.sh。
+    static func watchDigest(watches: [JobWatch], now: Date = Date())
+        -> (handledToday: Int, handleModeToday: Int) {
+        let start = Calendar.current.startOfDay(for: now)
+        let acted = watches.filter { watch in
+            guard watch.mode != .notify,
+                  let delivered = watch.deliveredAt,
+                  delivered >= start else { return false }
+            return true
+        }
+        return (acted.count, acted.filter { $0.mode == .handle }.count)
+    }
+
     static func conditionDescription(_ condition: JobWatchCondition) -> String {
         switch condition.kind {
         case .terminal: return String(localized: "When finished")

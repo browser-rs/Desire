@@ -8672,6 +8672,25 @@ func testArtifactIndex() {
           && groups.first?.items.count == 1)
     check("artifacts：分组含 earlier", groups.last?.key == "earlier"
           && groups.last?.items.count == 1)
+
+    // 尺寸现查（v0.8.63 批 4）：真实文件 stat；不存在/目录保持 nil。
+    let sizePath = NSTemporaryDirectory() + "artifact-size-\(UUID().uuidString).txt"
+    try? "0123456789".data(using: .utf8)?.write(to: URL(fileURLWithPath: sizePath))
+    defer { try? FileManager.default.removeItem(atPath: sizePath) }
+    let sized = ArtifactIndex.withSizes([
+        ArtifactIndex.Item(id: sizePath, kind: .data, path: sizePath,
+                           sizeBytes: nil, jobID: UUID(), jobTitle: "t",
+                           at: now, conversationID: nil),
+        ArtifactIndex.Item(id: "/a/missing.png", kind: .image, path: "/a/missing.png",
+                           sizeBytes: nil, jobID: UUID(), jobTitle: "t",
+                           at: now, conversationID: nil),
+        ArtifactIndex.Item(id: "/tmp/dir/", kind: .folder, path: "/tmp/dir/",
+                           sizeBytes: nil, jobID: UUID(), jobTitle: "t",
+                           at: now, conversationID: nil),
+    ])
+    check("artifacts：文件尺寸现查", sized[0].sizeBytes == 10)
+    check("artifacts：不存在路径尺寸 nil", sized[1].sizeBytes == nil)
+    check("artifacts：目录尺寸 nil", sized[2].sizeBytes == nil)
 }
 func testPixelDiff() {
     // 同图 = 0；全变 = 1；阈值判定

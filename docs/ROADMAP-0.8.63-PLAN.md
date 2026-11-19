@@ -16,8 +16,9 @@
 - **iOS 产物卡**（已落地）：ArtifactsView（列表/kind 图标/下拉刷新）+
   ArtifactDetailView（元信息/复制路径/**发回再加工**）+ AgentHome"产物"入口 +
   **iOS 模拟器构建绿**。
-- **批 6 增强（本批）**：桌面 `/artifacts` 增 `size` 字段（文件类 stat 计算，
-  文件夹标 null）+ iOS 端显示大小 + **kind 过滤参数**（`?kind=file|folder`）。
+- **批 4 增强（已完成）**：桌面 `/artifacts` 增 `sizeBytes`（文件 stat
+  现查 ArtifactIndex.withSizes，文件夹 null）+ iOS 端显示大小；kind/days
+  过滤 0.8.57 已有（kind 值 = folder/image/video/…，非 file|folder）。
 - **真机联调**（用户参与环节）：手机装 Remote 配对后验收产物卡三屏
   （列表/详情/发回再加工）。
 
@@ -28,8 +29,8 @@
   + 记忆行使用反馈徽标。
 - **批 4 增强 = token 校准可视化**（0.8.60 数据首次上屏）：设置诊断页 +
   `GET /diag/health` 增"模型校准"段——每模型的窗口 tokens（档案设值/默认表）、
-  校准样本数、EMA 比率、**当前生效字符预算**（compactionBudgetOverride 时
-  标注"重试校准覆盖"）——校准是否在干活一目了然。
+  校准样本数、EMA 比率、**当前生效字符预算**（全局换算值；会话级
+  compactionBudgetOverride 不在此端点反映）——校准是否在干活一目了然。
 - **.handle 等解锁已含于批 1**（见上）。
 
 ### ③ 浏览器基础 = 反馈修复预留
@@ -55,8 +56,10 @@
 
 批 1 SessionGuard+等解锁重发+记忆排序徽标（28637d01 ✓）→ 批 2 iOS 产物卡
 （e7c1e419 ✓）→ 批 3 激活探针共享化+190 干净 EXIT=0（f1df5060 ✓）→
-**批 4 进行中**：/artifacts size+kind 过滤 → token 校准可视化 → 值守月报 →
-E27 翻译缓存 E2E → 收口（i18n/AGENTS/WhatsNew）→ **真机联调（用户）**。
+批 4 完成：/artifacts sizeBytes 现查（withSizes 3 单测）+ token 校准可视化
+（/diag/health 活体验证）→ 值守月报（DailyBrief 值守段+i18n 三语）→
+E27 翻译缓存 E2E 绿灯（12/12，第二遍零模型调用）+ /ai/calibration/prune
+（评估收尾清假模型校准）→ 收口（AGENTS/WhatsNew）→ **真机联调（用户）**。
 
 ## 不做
 

@@ -49,7 +49,7 @@ final class RuntimeHealthMonitor {
 
     /// 数据面汇总（诊断行 / GET /diag/health 用）。@MainActor 实例方法——
     /// NSApp.isActive 只能主线程读（v0.8.62 零警告闸修正）。
-    func healthSummary() -> [String: Any] {
+    func healthSummary(preference: AgentPreferenceStore? = nil) -> [String: Any] {
         var out: [String: Any] = [
             // 应用前台激活态（v0.8.62 批 4）：false = 后台实例——浏览器端点
             // （navigate 等）会静默失效（CI 教训的本地同源），测试与值守的
@@ -68,6 +68,34 @@ final class RuntimeHealthMonitor {
         if let p50 = pool.p50 { out["poolP50ms"] = Int(p50 * 1000) }
         if let p95 = pool.p95 { out["poolP95ms"] = Int(p95 * 1000) }
         out["poolSamples"] = pool.sampleCount
+
+        // **模型校准段**（v0.8.62 批 4 增强）：每模型的窗口 tokens / 校准
+        // 样本数 / EMA 字符-令牌比 / 当前生效字符预算——token 真值化是否在
+        // 干活一目了然。override 生效时标注。
+        if let preference {
+            var calibrations: [[String: Any]] = []
+            for (model, entry) in preference.modelCalibration.sorted(by: { $0.key < $1.key }) {
+                let window = preference.activeProfile?.contextWindowTokens
+                    ?? TokenCalibration.defaultWindowTokens(forModel: model)
+                let budget = TokenCalibration.budgetChars(windowTokens: window, calibration: entry)
+                calibrations.append([
+                    "model": model,
+                    "windowTokens": window,
+                    "samples": entry.samples,
+                    "ratio": (entry.ratio * 100).rounded() / 100,
+                    "budgetChars": budget,
+                    "trusted": entry.samples >= TokenCalibration.minSamples,
+                ])
+            }
+            if let active = preference.activeProfile {
+                // 当前生效预算（会话内的 compactionBudgetOverride 在会话侧，
+                // 诊断端点不反映 per-session 态——显示全局换算值）。
+                out["calibrationBudgetChars"] = preference.calibratedBudgetChars(
+                    forModel: active.model, profile: active)
+                out["activeModel"] = active.model
+            }
+            out["calibrations"] = calibrations
+        }
         return out
     }
 

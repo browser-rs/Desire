@@ -57,10 +57,17 @@ struct ArtifactsView: View {
                 Text(artifact.jobTitle.isEmpty ? artifact.displayName : artifact.jobTitle)
                     .font(.system(size: 14, weight: .medium))
                     .lineLimit(1)
-                Text(artifact.displayName)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
+                HStack(spacing: 4) {
+                    Text(artifact.displayName)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    if let sizeText = artifact.sizeText {
+                        Text(sizeText)
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
             }
             Spacer()
             Text(shortTime(artifact.at))

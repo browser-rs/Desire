@@ -27,6 +27,10 @@ nonisolated enum DailyBrief {
         /// 订阅新文章（v0.8.45）：未读数 + 最新 3 条标题样本。0/空 = 不显示。
         var feedUnreadCount: Int = 0
         var feedSamples: [String] = []
+        /// 值守段（v0.8.63 批 4）：今日交付过值守动作（非 notify）的订阅数，
+        /// 其中自主处置件数。0 = 不显示。
+        var watchHandledToday: Int = 0
+        var watchHandleModeToday: Int = 0
         // 运营段（v0.8.3）：默认 0/空 = 不显示，旧调用点与空工作台保持原样。
         /// 今天到期 / 已逾期的草稿与 Runbook 步骤。
         var opsDueToday: Int = 0
@@ -64,6 +68,17 @@ nonisolated enum DailyBrief {
             if !detail.isEmpty { inboxLine += "（\(detail)）" }
             lines.append("· " + inboxLine)
         }
+        // 值守段（v0.8.63 批 4）：今日有值守动作时出现。
+        if input.watchHandledToday > 0 {
+            var watchLine: String
+            if input.watchHandleModeToday > 0 {
+                watchLine = String(format: String(localized: "Watch handling: %lld handled today, %lld of them self-handled by the Agent"), input.watchHandledToday, input.watchHandleModeToday)
+            } else {
+                watchLine = String(format: String(localized: "Watch handling: %lld handled today"), input.watchHandledToday)
+            }
+            lines.append(watchLine)
+        }
+
         // 订阅段（v0.8.45）：只在有未读时出现。
         if input.feedUnreadCount > 0 {
             var feedLine = String(format: String(localized: "Feeds: %lld unread"), input.feedUnreadCount)

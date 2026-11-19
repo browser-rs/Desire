@@ -107,10 +107,25 @@ nonisolated enum ArtifactIndex {
         return byPath.values.sorted { $0.at > $1.at }
     }
 
+    /// **补全文件尺寸**（v0.8.63 批 4）：桥端展示时在进程内现查 stat
+    /// （derive 保持不碰盘——派生层是纯逻辑，面板自己也有同款现查）。
+    /// 目录/不存在的路径/无扩展名的"目录形态"保持 nil。
+    static func withSizes(_ items: [Item],
+                          fileManager: FileManager = .default) -> [Item] {
+        items.map { item -> Item in
+            guard item.kind != .folder,
+                  let attrs = try? fileManager.attributesOfItem(atPath: item.path),
+                  let size = attrs[.size] as? NSNumber else { return item }
+            return Item(id: item.id, kind: item.kind, path: item.path,
+                        sizeBytes: size.intValue, jobID: item.jobID,
+                        jobTitle: item.jobTitle, at: item.at,
+                        conversationID: item.conversationID)
+        }
+    }
+
     /// 过滤：类型 + 天数（0 = 不限）。
     static func filter(_ items: [Item], kind: Kind?, withinDays days: Int,
-                       now: Date = Date()) -> [Item] {
-        var out = items
+                       now: Date = Date()) -> [Item] {        var out = items
         if let kind {
             out = out.filter { $0.kind == kind }
         }

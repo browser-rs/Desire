@@ -2457,6 +2457,10 @@ def main():
         assert active_back == original_active, f"原档案回切失败: {active_back}"
         deleted = bridge("POST", "/ai/profiles/delete", {"id": temp_id})
         print("临时档案已删:", deleted.get("ok", deleted))
+        try:
+            bridge("POST", "/ai/calibration/prune", {"models": ["muscle-fake"]})
+        except Exception:
+            pass
         print("原档案已恢复:", original_active[:8])
         try:
             (Path.home() / "Downloads" / "muscle-dl.txt").unlink(missing_ok=True)

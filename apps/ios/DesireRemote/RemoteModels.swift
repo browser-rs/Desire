@@ -735,6 +735,9 @@ struct RemoteArtifact: Codable, Identifiable, Equatable {
     let jobTitle: String
     let kind: String
     let path: String
+    /// 字节数（文件；文件夹为 null——尺寸没有意义）。Optional = 旧桌面
+    /// 版本响应无此字段解码安全（v0.8.63 批 6）。
+    var sizeBytes: Int?
 
     var id: String { path }
     /// 展示名：路径末段。
@@ -743,6 +746,11 @@ struct RemoteArtifact: Codable, Identifiable, Equatable {
         return comps.last ?? path
     }
     var isFolder: Bool { kind == "folder" }
+    /// 人类可读大小（nil = 文件夹或未知）。
+    var sizeText: String? {
+        guard let sizeBytes else { return nil }
+        return ByteCountFormatter.string(fromByteCount: Int64(sizeBytes), countStyle: .file)
+    }
 }
 
 struct ArtifactsResponse: Codable {

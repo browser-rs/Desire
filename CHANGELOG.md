@@ -6,6 +6,14 @@
 ### Added
 
 - 值守处置"等解锁"语义（批 1，0.8.62 遗留收口）+ 记忆排序档：.handle 处置回合发起时若锁屏/无前台应用（浏览器类动作会静默失效），不再白白消耗一次闸门——挂入等解锁队列，解锁检测链（15s 周期）恢复后自动重发；JobsPanel 订阅行显示"等解锁"状态胶囊。记忆面板排序升级：新增"最常用/最近使用"两档（usageCount/lastUsedAt 排序出口，MemoryModels.sortFacts 纯逻辑 4 项单测），记忆行显示使用反馈徽标（用过 N 次/点踩 N 次——0.8.60 数据首次上屏）。
+- 融合增强（批 4）：桌面 GET /artifacts 响应新增 sizeBytes（文件 stat 现查，文件夹为 null；ArtifactIndex.withSizes 3 项单测）；iOS 产物列表在文件名旁显示大小（旧桌面版本无此字段时解码安全）。kind/days 过滤沿用 0.8.57 口径（kind = folder/image/video/…）。
+- token 校准可视化（批 4，0.8.60 数据首次上屏）：GET /diag/health 新增 calibrations 段——每模型窗口 tokens（档案显式设值优先、否则默认表）、校准样本数（<3 标注 gray 不可信）、EMA 字符/token 比率、当前生效字符预算（全局换算值；会话级重试覆盖不在此端点）。
+- 值守月报进每日简报（批 4）：DailyBrief 新增值守段——今日 JobWatch 处置数 + 其中 Agent 自主完成（mode=handle）数（JobWatchCore.watchDigest 纯函数派生，与 JobsPanel 同源；0 项不显示）。
+- E27 翻译缓存 E2E（批 4）：agent-eval 新增双语翻译缓存全链用例（41 段落 fixture 页 → 第一遍 6 批模型调用 + 缓存落盘 → 第二遍零翻译请求、秒完），fixture 增 /bipage 页、双语 SSE 分支与 /bi-count 计数端点；本地专属档 EVAL_E27=1。配套新增 POST /ai/calibration/prune——评估收尾删除假模型名的校准条目，诊断面板不再留测试噪音。
+
+
+
+
 
 
 ## [v0.8.62] - 2026-11-19

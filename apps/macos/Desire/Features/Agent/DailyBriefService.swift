@@ -91,6 +91,10 @@ enum DailyBriefService {
         let feedSamples = feedUnread.prefix(3)
             .map { String($0.title.prefix(40)) }
 
+        // 值守段（v0.8.63 批 4）：今日交付过值守动作的订阅数（与 JobsPanel
+        // 同一派生口径——JobWatchCore.watchDigest 纯函数共用）。
+        let watchDigestToday = JobWatchCore.watchDigest(watches: JobWatchStore.shared.watches, now: now)
+
         let dismissals = AgentInboxDismissalStore.shared
         dismissals.purgeExpired()
         let inboxSections = AgentInbox.build(AgentInboxCollector.diskInputs(),
@@ -147,6 +151,8 @@ enum DailyBriefService {
             inboxByTitle: inboxByTitle,
             feedUnreadCount: feedUnreadCount,
             feedSamples: feedSamples,
+            watchHandledToday: watchDigestToday.handledToday,
+            watchHandleModeToday: watchDigestToday.handleModeToday,
             opsDueToday: dueToday,
             opsOverdue: overdue,
             opsPendingReplies: replySummary.pending,

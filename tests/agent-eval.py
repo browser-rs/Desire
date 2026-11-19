@@ -28,6 +28,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import re
 import time
 import urllib.error
 import urllib.request
@@ -46,6 +47,7 @@ FIXTURE_SOURCE = r'''
 """
 import json
 import os
+import re
 import sys
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -59,6 +61,8 @@ BIG_PATH = os.environ.get("EVAL_BIG_PATH")
 # OVERFLOW_ONCE：第一次带 OVERFLOWTEST 的请求报 context length 错误，之后正常 ——
 # 用于验证应用会"压缩预算减半重试"。
 overflow_seen = 0
+# E27：双语翻译请求计数（第二遍缓存命中后应保持 0——"零模型调用"的硬证据）。
+bilingual_request_count = 0
 # E7：逐请求记录（model/system 首段/末条 user）——断言旁路路由后的请求模型。
 REQUESTS = []
 # 每次请求前延迟（秒）：用来放大"正文完成后还在跑额外模型调用"的时间差。
@@ -88,6 +92,7 @@ class Handler(BaseHTTPRequestHandler):
         return "".join(blocks)
 
     def do_GET(self):
+        global overflow_seen, bilingual_request_count
         # /requests：dump 已记录的请求（E7 断言旁路路由后的 model 字段）。
         if self.path.startswith("/requests"):
             body = json.dumps({"requests": REQUESTS}).encode()
@@ -114,10 +119,35 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        # /bipage：E27 双语翻译缓存 fixture——41 个 <p>（40 填充 + 1 个带
+        # inline <code>BILINMARK-77aa</code>，位置在中部），collect 应拿满 41 块。
+        if self.path.startswith("/bipage"):
+            parts = [f"<p>第 {i} 段夹具文本，用于验证双语翻译缓存链路的收集与命中。</p>"
+                     for i in range(40)]
+            parts.insert(20, "<p>段落包含 <code>BILINMARK-77aa</code> 的行内代码，"
+                             "译文应保留占位符还原后的原样。</p>")
+            html = ("<html><head><meta charset='utf-8'><title>BI Fixture</title></head>"
+                    "<body><h1>Bilingual Fixture</h1>" + "".join(parts) + "</body></html>")
+            body = html.encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        # /bi-count：双语翻译请求计数（E27 第二遍断言零模型调用）。
+        if self.path.startswith("/bi-count"):
+            body = json.dumps({"count": bilingual_request_count}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         # /reset：清空 OVERFLOW 计数（评估脚本用，保证用例确定性）。
         if self.path.startswith("/reset"):
-            global overflow_seen
             overflow_seen = 0
+            bilingual_request_count = 0
             self.send_response(200); self.send_header("Content-Length", "2"); self.end_headers()
             self.wfile.write(b"ok"); return
         # /e20：canvas 按钮 fixture（E20 视觉点击——按钮只在 canvas 里画出来，
@@ -247,7 +277,9 @@ c.addEventListener('click', function(ev) {
         import sys as _sys
         _tool_ids = [m.get("toolCallId") or m.get("tool_call_id") for m in round_msgs if m.get("role") == "tool"]
         _line = (f"FIXTURE-REQ: mode={mode_text[:48]!r} has_tool={has_tool} "
-                 f"tools={len(_tool_ids)} toolIds={_tool_ids[-3:]!r}")
+                 f"tools={len(_tool_ids)} sys={system_text[:60]!r} "
+                 f"sysLen={len(system_text)} sysTail={system_text[-50:]!r} "
+                 f"sysCount={sys_count} sysAt={sys_positions}")
         with open("/tmp/eval-fixture-debug.log", "a") as _dbg:
             _dbg.write(_line + "\n")
         print(_line, file=_sys.stderr)
@@ -368,6 +400,21 @@ c.addEventListener('click', function(ev) {
             self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush(); self.close_connection = True
+
+        # E27：双语翻译请求（BilingualReadingService.translateBatch）——system
+        # 带 DESIRE_BILINGUAL_TRANSLATE，user 是编号行。按输入行数回同数
+        # JSON 字符串数组，并累计请求数供"第二遍零模型调用"断言。
+        if "DESIRE_BILINGUAL_TRANSLATE" in system_text:
+            global bilingual_request_count
+            bilingual_request_count += 1
+            count = len(re.findall(r"^\d+\. ", mode_text, re.M)) or 1
+            with open("/tmp/eval-fixture-debug.log", "a") as _dbg:
+                _dbg.write(f"BI-REQ: count={count} sysHead={system_text[:40]!r}\n")
+            # 译文保留块内 ⟦N⟧ 代码占位符（宿主 apply 时会还原成原 <code>）。
+            reply = json.dumps(["【译】第 " + str(i + 1) + " 段对照译文。"
+                                for i in range(count)], ensure_ascii=False)
+            sse_reply(reply)
+            return
 
         # E22：大回合——回 ~20k 文本（5 轮把落盘历史顶过预算 → 自动压缩）。
         if "BIGTURN" in mode_text:
@@ -1383,6 +1430,13 @@ def restore_profile():
             bridge("POST", "/ai/profiles/activate", body={"id": previous_active})
         if eval_profile_id:
             bridge("POST", "/ai/profiles/delete", body={"id": eval_profile_id})
+        # 校准条目清理（v0.8.63 批 4）：评估用假模型名跑出的样本别留在
+        # 诊断面板（fake-* 是 fixture 的模型名）。
+        try:
+            bridge("POST", "/ai/calibration/prune",
+                   body={"models": ["fake-1", "fake-2", "fake-3"]})
+        except Exception:
+            pass
     except Exception as exc:
         print(f"⚠️ 恢复档案失败（请手工检查）：{exc}")
 
@@ -2221,6 +2275,78 @@ def case_watch_handle():
     eval_conversations.append(trace["conversation"])
 
 
+def case_translation_cache():
+    """E27 翻译缓存全链（本地专属，EVAL_E27=1；浏览器依赖）：fixture 页面 →
+    双语翻译（第一遍 N 批模型调用）→ 缓存落盘 → 第二遍零模型调用秒完。"""
+    storage = os.path.expanduser("~/Library/Application Support/Desire/storage")
+    cache_path = os.path.join(storage, "translation-cache.json")
+    if os.path.exists(cache_path):
+        os.remove(cache_path)
+    bridge("POST", "/navigate", body={"url": fixture_base_url() + "/bipage"})  # eval fixture 自带 /bipage
+    # 页面就绪等待（41 段落全渲染才 toggle——早了 collect 只见部分 DOM）。
+    ready = False
+    for attempt in range(15):
+        time.sleep(1)
+        st = bridge("POST", "/execute", body={"js": "document.querySelectorAll('p').length"})
+        raw = st.get("result")
+        print(f"    [E27 ready poll {attempt}] raw={raw!r}")
+        try:
+            n = int(raw)
+        except (TypeError, ValueError):
+            n = -1
+        if n >= 41:
+            ready = True
+            break
+    if not ready:
+        raise AssertionError("15s 内 /bipage 段落未渲染完（41 段）")
+    bridge("POST", "/bilingual", body={"on": True})
+    deadline = time.time() + 120
+    total = None
+    while time.time() < deadline:
+        time.sleep(2)
+        st = bridge("GET", "/bilingual")
+        if not st.get("running"):
+            total = st.get("done")
+            break
+    if not total:
+        raise AssertionError(f"第一遍翻译未完成：{st}")
+    # DiskStore 是 500ms 防抖异步写——缓存文件可能晚一拍落盘，轮询最多 8s。
+    for _ in range(16):
+        if os.path.exists(cache_path):
+            break
+        time.sleep(0.5)
+    if not os.path.exists(cache_path):
+        raise AssertionError("缓存文件未落盘（translation-cache.json）")
+
+    # 第二遍：计数器清零 → 断言零模型请求 + 秒完
+    fixture_base = fixture_endpoint().rsplit("/v1/", 1)[0]
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    with opener.open(fixture_base + "/reset", timeout=10) as resp:
+        resp.read()
+    t0 = time.time()
+    bridge("POST", "/bilingual", body={"on": False})
+    time.sleep(0.5)
+    bridge("POST", "/bilingual", body={"on": True})
+    second_deadline = time.time() + 60
+    while time.time() < second_deadline:
+        time.sleep(1)
+        st = bridge("GET", "/bilingual")
+        if not st.get("running"):
+            break
+    elapsed = time.time() - t0
+    if elapsed > 10:
+        raise AssertionError(f"第二遍耗时 {elapsed:.1f}s——缓存未命中（应秒完）")
+    with opener.open(fixture_base + "/bi-count", timeout=10) as resp:
+        calls = json.loads(resp.read().decode()).get("count", -1)
+    if calls != 0:
+        raise AssertionError(f"第二遍仍发出 {calls} 个翻译模型请求——缓存未命中")
+    bridge("POST", "/bilingual", body={"on": False})
+
+
+def fixture_base_url() -> str:
+    return fixture_endpoint().rsplit("/v1/", 1)[0]
+
+
 CASES = [("E1 plain-echo", case_plain_echo),
          ("E2 fail-convention", case_fail_convention),
          ("E3 redaction", case_redaction),
@@ -2246,7 +2372,8 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E23 spill-search（本地专属，EVAL_E23=1 开启；浏览器依赖）", case_spill_search),
          ("E24 watchdog（本地专属，EVAL_E24=1 开启；需先设 30s 窗并重启应用）", case_watchdog),
          ("E25 doctor-probes", case_doctor_probes),
-         ("E26 watch-handle（本地专属，EVAL_E26=1 开启；~2.5 分钟）", case_watch_handle)]
+         ("E26 watch-handle（本地专属，EVAL_E26=1 开启；~2.5 分钟）", case_watch_handle),
+         ("E27 translation-cache（本地专属，EVAL_E27=1 开启；浏览器依赖）", case_translation_cache)]
 
 results = []
 ONLY = set()
@@ -2330,6 +2457,10 @@ def main():
             if case is case_watch_handle and os.environ.get("EVAL_E26") != "1":
                 # E26 要起真实后台任务 + 等 stalled 触发（本地专属）。
                 results.append((name + " — CI 跳过（本地 EVAL_E26=1 运行）", True, ""))
+                continue
+            if case is case_translation_cache and os.environ.get("EVAL_E27") != "1":
+                # E27 要 /navigate + 真实双语翻译回合（浏览器依赖，本地专属）。
+                results.append((name + " — CI 跳过（本地 EVAL_E27=1 运行）", True, ""))
                 continue
             # --only：短名过滤（名称首词，如 "E22 compaction-probe" → E22）。
             if ONLY:

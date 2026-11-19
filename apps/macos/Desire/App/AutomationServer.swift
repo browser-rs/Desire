@@ -628,6 +628,7 @@ final class AutomationServer {
         ep("POST", "/ai/model", "Switch the current model (same path as the input-bar menu)", params: ["model:string"], example: #"-d '{"model":"gpt-4o-mini"}'"#)
         ep("POST", "/ai/models/fetch", "Fetch a service's /models list into its model list (same fetcher the UI uses)", params: ["id?:uuid (default: active)"], example: "-d '{}'")
         ep("POST", "/ai/profiles/delete", "Delete a custom model service (built-ins cannot be deleted)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
+        ep("POST", "/ai/calibration/prune", "Drop token-calibration entries for the given model names (test teardown)", params: ["models:array"], example: #"-d '{"models":["fake-1"]}'"#)
         ep("GET", "/ai/output-rules", "Output rules (the <output_rules> prompt layer)", example: "…/ai/output-rules")
         ep("POST", "/ai/output-rules/add", "Append one output rule (dedup)", params: ["text:string"], example: #"-d '{"text":"…"}'"#)
         ep("POST", "/ai/output-rules/remove", "Remove one output rule by exact text", params: ["text:string"], example: #"-d '{"text":"…"}'"#)
@@ -1025,7 +1026,7 @@ case ("GET", "/state"):
             case ("GET", "/diag/geometry"):
                 return try Self.json(Self.geometry(index: Self.index(query)))
             case ("GET", "/diag/health"):
-                return try Self.json(RuntimeHealthMonitor.shared.healthSummary())
+                return try Self.json(RuntimeHealthMonitor.shared.healthSummary(preference: AppState.live?.aiPreference))
             case ("GET", "/diag/browser"):
                 return try Self.json(BrowserDiagnostics.shared.summary())
             case ("GET", "/activity"):
@@ -1439,14 +1440,19 @@ case ("GET", "/state"):
                     items,
                     kind: ArtifactIndex.Kind(rawValue: kindRaw),
                     withinDays: days)
+                // 尺寸现查（v0.8.63 批 4）：只对过滤后的条目 stat。
+                let sized = ArtifactIndex.withSizes(filtered)
                 return try Self.json([
                     "ok": true,
-                    "count": filtered.count,
-                    "artifacts": filtered.map { item -> [String: Any] in
+                    "count": sized.count,
+                    "artifacts": sized.map { item -> [String: Any] in
                         ["path": item.path, "kind": item.kind.rawValue,
                          "jobId": item.jobID.uuidString, "jobTitle": item.jobTitle,
                          "at": ISO8601DateFormatter().string(from: item.at),
-                         "conversationId": item.conversationID?.uuidString ?? ""]
+                         "conversationId": item.conversationID?.uuidString ?? "",
+                         // size（v0.8.63 批 4）：iOS 产物卡显示；目录产物为
+                         // null（尺寸没有意义）。既有字段不动。
+                         "sizeBytes": item.sizeBytes != nil ? item.sizeBytes! : NSNull()]
                     },
                 ])
             case ("POST", "/jobs/action"):
@@ -2724,6 +2730,21 @@ case ("GET", "/state"):
                 return try Self.json(["ok": true, "profileId": NSNull()])
             case ("POST", "/ai/profiles/delete"):
                 return try Self.json(Self.aiProfileDelete(id: Self.string(body, "id") ?? ""))
+            case ("POST", "/ai/calibration/prune"):
+                // 测试收尾（v0.8.63 批 4）：评估套件用假模型名跑完把校准
+                // 条目清掉，别在诊断面板留下 fake-1/muscle-fake 之类的噪音。
+                guard let pref = AppState.live?.aiPreference else {
+                    return try Self.json(["error": "preference not ready"])
+                }
+                let models = (body["models"] as? [String]) ?? []
+                var removed: [String] = []
+                for model in models {
+                    let key = TokenCalibration.key(forModel: model)
+                    if pref.modelCalibration.removeValue(forKey: key) != nil {
+                        removed.append(key)
+                    }
+                }
+                return try Self.json(["ok": true, "removed": removed])
             case ("GET", "/ai/output-rules"):
                 return try Self.json(Self.outputRulesList())
             case ("POST", "/ai/output-rules/add"):

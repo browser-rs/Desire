@@ -110248,6 +110248,50 @@
           }
         }
       }
+    },
+    "Watch handling: %lld handled today, %lld of them self-handled by the Agent":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Watch handling: %lld handled today, %lld of them self-handled by the Agent"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"值守处置：今日处置 %lld 项，其中 %lld 项由 Agent 自主完成"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"值守處置：今日處置 %lld 項，其中 %lld 項由 Agent 自主完成"
+          }
+        }
+      }
+    },
+    "Watch handling: %lld handled today":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Watch handling: %lld handled today"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"值守处置：今日处置 %lld 项"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"值守處置：今日處置 %lld 項"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

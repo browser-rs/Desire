@@ -321,6 +321,12 @@ Features/Bookmarks/
   ③ 配套的假凭据文件（如 `~/Documents/DesireAgent/leak.txt`）放在 agent 工作目录里，
   别留在项目根目录（会被顺手提交）。
   诊断这类"行为不对"的入口：`AI request — endpoint: …` 这行 info 日志（见 CHANGELOG）。
+  **④ 手动验证切过的"活动档案"必须切回原档并删测试档**（v0.8.63 真踩）：把 active
+  指到假档案验证完没切回，用户下次打开发现聊天模型变成 fake（`/ai/profiles` 里还留着
+  两个 bi-fake 档）。收尾固定动作：`POST /ai/profiles/activate` 切回原档（可从最近真实
+  会话消息上的 `model` 反查是哪一档）→ `POST /ai/profiles/delete` 删测试档 →
+  `POST /ai/calibration/prune {"models":[…]}` 清假模型名的校准条目（否则诊断页出现
+  fake-1/muscle-fake 行）→ `/diag/health` 的 activeModel/calibrations 两处都核一遍。
 
 - **清理测试数据别按"含测试字样"搜出来就删**（2026-09-23 我删掉了用户一个会话）：
   `POST /conversations/delete` 的 ids 来自 `conversations/search?q=<测试词>`，但命中的那条
@@ -338,7 +344,11 @@ Features/Bookmarks/
   MUSCLE17 把 `agentTokenBudget=500` 留在共享偏好域，新实例继承后每个评估对话
   第一回合（system+292 工具 ≈ 12.8k tokens）就被预算停机，预算提示占据回复位
   （E2 的"模型没复述错误"教训）——agent-eval 的 install_profile 现已关断、
-  restore_profile 按原值恢复。
+  restore_profile 按原值恢复。④ **假端点源码是 agent-eval.py 里的
+  `FIXTURE_SOURCE` 字符串、自带独立 import 区**（v0.8.63 E27 实踩）：在字符串里
+  新加分支用了外层脚本的 import（如 `re`）会 NameError → 500 空响应，表面症状是
+  "所有批次翻译失败"、日志里连分支命中行都没有——**在字符串的 import 区里补**；
+  同理桥 `/execute` 的 result 是**数字类型**不是字符串（判据别只认 `str.isdigit`）。
 
 - **视觉点击链的坐标纪律（v0.8.56）**：`screenshot` 在视口长边 >1024 CSS px 时
   等比缩小——**缩放系数烧在截图底部 caption 条里**（`viewport W×H | image w×h |

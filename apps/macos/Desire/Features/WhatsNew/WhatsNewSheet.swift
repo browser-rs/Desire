@@ -17,12 +17,14 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "character.book.closed.fill", title: String(localized: "Read the whole world — all of it"),
-                  detail: String(localized: "Bilingual translation now covers the entire page: long articles translate in background batches while you read the top, run on your cheap bypass model by default, and remember translations per site — reopen the page and it's instant.")),
-            .init(icon: "globe.asia.australia", title: String(localized: "Sites that translate themselves"),
-                  detail: String(localized: "Mark a site as auto-bilingual once and every page on it starts translated on load. When you're done reading, export the original/translation pairs as a Markdown transcript to Downloads.")),
-            .init(icon: "shield.lefthalf.filled", title: String(localized: "Term-safe, injection-safe translation"),
-                  detail: String(localized: "Inline code in paragraphs survives translation untouched, and model output is escaped before it ever touches the page — so a crafted page can't inject live HTML through translations.")),
+            .init(icon: "shippingbox.fill", title: String(localized: "Your artifacts, in your pocket"),
+                  detail: String(localized: "DesireRemote now lists everything the Agent produces on your Mac — job outputs, converted files, exports — with file sizes. Tap any of them to copy the path, or send it back to the desktop Agent for another pass.")),
+            .init(icon: "lock.open.fill", title: String(localized: "Watch handling survives the lock screen"),
+                  detail: String(localized: "A watched job that fires while your Mac is locked no longer wastes its handling turn: it queues up and replays automatically after unlock. The memory panel also gained recent and most-used sort orders with usage badges.")),
+            .init(icon: "chart.bar.doc.horizontal", title: String(localized: "Calibration you can see"),
+                  detail: String(localized: "The diagnostics bridge now exposes per-model token calibration — context window, sample count, measured chars-per-token ratio and the effective character budget — so context decisions stop being a black box.")),
+            .init(icon: "sun.horizon.fill", title: String(localized: "Your brief counts the watches"),
+                  detail: String(localized: "The daily brief now reports how many watched jobs were handled today, and how many of them the Agent handled on its own.")),
         ]
     }
 

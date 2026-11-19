@@ -110292,6 +110292,182 @@
           }
         }
       }
+    },
+    "Your artifacts, in your pocket":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Your artifacts, in your pocket"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"产物随手机随身看"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"產物隨手機隨身看"
+          }
+        }
+      }
+    },
+    "DesireRemote now lists everything the Agent produces on your Mac — job outputs, converted files, exports — with file sizes. Tap any of them to copy the path, or send it back to the desktop Agent for another pass.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"DesireRemote now lists everything the Agent produces on your Mac — job outputs, converted files, exports — with file sizes. Tap any of them to copy the path, or send it back to the desktop Agent for another pass."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"DesireRemote 现在列出 Agent 在 Mac 上产出的全部东西——作业产物、转换文件、导出件——并显示文件大小。点开即可复制路径，或把它发回桌面 Agent 再加工一轮。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"DesireRemote 現在列出 Agent 在 Mac 上產出的全部東西——作業產物、轉換檔、匯出件——並顯示檔案大小。點開即可複製路徑，或把它發回桌面 Agent 再加工作一輪。"
+          }
+        }
+      }
+    },
+    "Watch handling survives the lock screen":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Watch handling survives the lock screen"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"值守处置不再怕锁屏"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"值守處置不再怕鎖屏"
+          }
+        }
+      }
+    },
+    "A watched job that fires while your Mac is locked no longer wastes its handling turn: it queues up and replays automatically after unlock. The memory panel also gained recent and most-used sort orders with usage badges.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"A watched job that fires while your Mac is locked no longer wastes its handling turn: it queues up and replays automatically after unlock. The memory panel also gained recent and most-used sort orders with usage badges."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"订阅任务在锁屏期间触发时不再白白消耗处置回合：先排队，解锁后自动重发。记忆面板新增“最近使用/最常用”排序与使用徽标。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"訂閱任務在鎖屏期間觸發時不再白白消耗處置回合：先排隊，解鎖後自動重發。記憶面板新增「最近使用／最常用」排序與使用徽標。"
+          }
+        }
+      }
+    },
+    "Calibration you can see":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Calibration you can see"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"看得见的校准"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"看得見的校準"
+          }
+        }
+      }
+    },
+    "The diagnostics bridge now exposes per-model token calibration — context window, sample count, measured chars-per-token ratio and the effective character budget — so context decisions stop being a black box.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The diagnostics bridge now exposes per-model token calibration — context window, sample count, measured chars-per-token ratio and the effective character budget — so context decisions stop being a black box."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"诊断端点现在能看每个模型的 token 校准——上下文窗口、样本数、实测字符/token 比率与生效字符预算——上下文决策不再是黑盒。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"診斷端點現在能看每個模型的 token 校準——上下文視窗、樣本數、實測字元／token 比率與生效字元預算——上下文決策不再是黑盒。"
+          }
+        }
+      }
+    },
+    "Your brief counts the watches":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Your brief counts the watches"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"简报替你数值守"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"簡報替你數值守"
+          }
+        }
+      }
+    },
+    "The daily brief now reports how many watched jobs were handled today, and how many of them the Agent handled on its own.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The daily brief now reports how many watched jobs were handled today, and how many of them the Agent handled on its own."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"每日简报新增值守段：今日处置了多少订阅任务，其中多少由 Agent 自主完成。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"每日簡報新增值守段：今日處置了多少訂閱任務，其中多少由 Agent 自主完成。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

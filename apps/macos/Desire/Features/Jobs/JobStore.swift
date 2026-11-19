@@ -120,6 +120,33 @@ final class JobStore: ObservableObject {
         return job.id
     }
 
+    /// **静默产物登记**（v0.8.64 批 3）：Agent 直接写出的文件（writeFile 等）
+    /// 不走 start/update 生命周期——按 artifactURL 落一条**已完成**的 job，
+    /// 产物中心（ArtifactIndex 派生）/Remote 产物卡因此可见。同路径重复写
+    /// 只盖新戳（重跑语义）；**不走 recordTerminal/通知**——写文件是常态
+    /// 动作，不轰炸值守账本。
+    func registerArtifactJob(title: String, kind: JobRecord.Kind,
+                             artifactURL: String, conversationID: UUID?) {
+        let now = Date()
+        if let idx = jobs.firstIndex(where: {
+            $0.artifactURL == artifactURL && $0.kind == kind && !$0.state.isActive
+        }) {
+            jobs[idx].title = title
+            jobs[idx].state = .done
+            jobs[idx].updatedAt = now
+            jobs[idx].finishedAt = now
+            if let conversationID { jobs[idx].conversationID = conversationID }
+        } else {
+            let record = JobRecord(title: title, kind: kind, state: .done,
+                                   artifactURL: artifactURL,
+                                   conversationID: conversationID,
+                                   createdAt: now, updatedAt: now, finishedAt: now)
+            jobs.insert(record, at: 0)
+            trim()
+        }
+        save()
+    }
+
     func update(_ id: UUID, state: JobRecord.State? = nil,
                 detail: String? = nil, progress: Double? = nil,
                 artifactURL: String? = nil, receipt: String? = nil,

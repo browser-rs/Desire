@@ -110819,6 +110819,160 @@
           }
         }
       }
+    },
+    "Model Calibration":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Model Calibration"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"模型校准"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"模型校準"
+          }
+        }
+      }
+    },
+    "Measured characters-per-token ratios keep context budgets honest. Under 3 samples the default ratio is used (gray).":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Measured characters-per-token ratios keep context budgets honest. Under 3 samples the default ratio is used (gray)."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"实测的字符/token 比率让上下文预算有据可依；样本不足 3 时用默认比率（灰标）。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"實測的字元／token 比率讓上下文預算有據可依；樣本不足 3 時用預設比率（灰標）。"
+          }
+        }
+      }
+    },
+    "No calibration yet":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"No calibration yet"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"暂无校准"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"暫無校準"
+          }
+        }
+      }
+    },
+    "Ratios appear after a few real turns on each model.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Ratios appear after a few real turns on each model."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"每个模型跑过几个真实回合后就会出现。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"每個模型跑過幾個真實回合後就會出現。"
+          }
+        }
+      }
+    },
+    "Window %d tokens · %d samples · %.2f chars/token · budget %d chars":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Window %d tokens · %d samples · %.2f chars/token · budget %d chars"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"窗口 %lld tokens · %lld 样本 · %.2f 字符/token · 预算 %lld 字符"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"視窗 %lld tokens · %lld 樣本 · %.2f 字元/token · 預算 %lld 字符"
+          }
+        }
+      }
+    },
+    "Low samples":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Low samples"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"低样本"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"低樣本"
+          }
+        }
+      }
+    },
+    "Clear calibration for this model":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Clear calibration for this model"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"清除该模型的校准"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"清除該模型的校準"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

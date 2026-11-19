@@ -972,6 +972,13 @@ extension BrowserToolProvider {
                     AgentActionStore.shared.recordFileMutation(
                         tool: "writeFile", path: fileURL.path,
                         before: before, after: Data(content.utf8))
+                    // 产物登记（v0.8.64 批 3）：直写文件进产物中心/Remote
+                    // 产物卡（JobStore 静默登记，无通知）。
+                    JobStore.shared.registerArtifactJob(
+                        title: fileURL.lastPathComponent,
+                        kind: .agent,
+                        artifactURL: fileURL.path,
+                        conversationID: ownerSession?.conversationId)
                     return "Wrote \(content.count) chars → \(fileURL.path)"
                 } catch {
                     return Self.fail("Write failed: \(error.localizedDescription)")

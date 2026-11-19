@@ -141,6 +141,61 @@ struct AgentSettingsSection: View {
         return result.isEmpty ? relative : "\(relative) · \(result)"
     }
 
+    // MARK: - 模型校准（v0.8.64 批 3：0.8.60 数据上屏收口，数据源 /diag/health 同一份）
+
+    private var calibrationSection: some View {
+        SettingsSection(
+            title: String(localized: "Model Calibration"),
+            subtitle: String(localized: "Measured characters-per-token ratios keep context budgets honest. Under 3 samples the default ratio is used (gray)."),
+            icon: "slider.horizontal.3"
+        ) {
+            if store.modelCalibration.isEmpty {
+                SettingsRow(
+                    String(localized: "No calibration yet"),
+                    subtitle: String(localized: "Ratios appear after a few real turns on each model."),
+                    systemImage: "chart.line.uptrend.xyaxis") {
+                        EmptyView()
+                    }
+            } else {
+                ForEach(store.modelCalibration.sorted(by: { $0.key < $1.key }), id: \.key) { model, entry in
+                    if model != store.modelCalibration.sorted(by: { $0.key < $1.key }).first?.key {
+                        SettingsRowDivider()
+                    }
+                    let window = store.activeProfile?.contextWindowTokens
+                        ?? TokenCalibration.defaultWindowTokens(forModel: model)
+                    let budget = TokenCalibration.budgetChars(windowTokens: window,
+                                                              calibration: entry)
+                    SettingsRow(
+                        model,
+                        subtitle: String(format: String(localized: "Window %d tokens · %d samples · %.2f chars/token · budget %d chars"),
+                                         window, entry.samples, entry.ratio, budget),
+                        systemImage: entry.samples >= TokenCalibration.minSamples
+                            ? "checkmark.seal" : "hourglass") {
+                        HStack(spacing: 8) {
+                            if entry.samples < TokenCalibration.minSamples {
+                                Text(String(localized: "Low samples"))
+                                    .font(.system(size: 9.5, weight: .medium))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Button {
+                                store.clearCalibration(forModel: model)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 11))
+                                    .foregroundStyle(.red)
+                            }
+                            .buttonStyle(.plain)
+                            .help(String(localized: "Clear calibration for this model"))
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     var body: some View {
         SettingsContainer {
             DoctorSection()
@@ -148,6 +203,7 @@ struct AgentSettingsSection: View {
             MCPServersSection()
             DPPSettingsSection()
             CostBudgetSection()
+            calibrationSection
 
             // 悬浮球已升级为独立设置子页（Settings → Floating Ball）。
             SettingsSection(

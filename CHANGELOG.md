@@ -3,6 +3,9 @@
 
 - 翻译术语表（批 1）：设置新增"翻译"区——"原文 → 固定译法"的结构化对照表（全局 + 可选站点作用域，子域命中），双语翻译时并入 system 的 Glossary 段（专用表行在前、v0.8.8 的记忆通道行在后，两条维护入口并存）；TranslationGlossary 判定纯逻辑 15 项单测进 harness（3333→3348），live 验证全局/站点两类术语真进了翻译请求。
 - 双语成书（批 2）：双语对照完成后工具条新增"存入书架"——页面侧收集到的 (原文, 译文) 对组装成对照 HTML（整段转义防注入，BilingualBookBuilder 纯逻辑 11 项单测）走既有网页成书管线落书架（HTML 离线书——阅读器/继续阅读/全库搜索/书架内 EPUB 导出直接受益）；桥新增 POST /bilingual/save-book 供自动化与验证驱动。
+- Agent 文件产出入产物中心（批 3）：writeFile 直写的文件此前不进产物卡/Remote 产物卡（ArtifactIndex 只看带 artifactURL 的 Job）——新增 JobStore.registerArtifactJob 静默登记（同路径重写盖新戳、不触发通知/值守账本），产物中心与 iOS 产物卡自动可见；live 验证登记产物带 sizeBytes 与来源会话。
+- 设置 ▸ Agent 新增"模型校准"卡（批 3，0.8.60 数据上屏收口）：每模型窗口 tokens / 样本数 / 实测字符-token 比率 / 当前生效字符预算，<3 样本标"低样本"；单条清除入口（数据源与 /diag/health calibrations 同一份）。
+
 
 
 

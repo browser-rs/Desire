@@ -265,6 +265,11 @@ class AgentPreferenceStore: ObservableObject {
             modelCalibration[key], chars: requestChars, promptTokens: promptTokens)
     }
 
+    /// 清除一条校准（诊断卡的单条"清除"入口；删后回到默认比率灰度态）。
+    func clearCalibration(forModel model: String) {
+        modelCalibration.removeValue(forKey: TokenCalibration.key(forModel: model))
+    }
+
     /// **校准字符预算**（token 真值化的换算入口）：档案窗口（nil = 模型名
     /// 默认表）× 0.9 ÷ EMA 比率（样本不足用默认比率），上限 160k。
     /// 会话侧的 compactionBudgetOverride（超限/空响应重试写）在

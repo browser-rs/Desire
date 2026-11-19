@@ -1041,6 +1041,13 @@ final class RemoteClient: ObservableObject {
         return response.artifacts
     }
 
+    /// 产物内容预览（v0.8.64 批 4）：文本 ≤256KB / 图片 ≤5MB 直接回内容，
+    /// 其余 error = "在 Mac 上打开"（桌面端做安全白名单过滤）。
+    func readArtifact(path: String) async throws -> RemoteArtifactContent {
+        let body = try JSONEncoder().encode(["path": path])
+        return try await authedSend("POST", "/artifacts/read", body: body)
+    }
+
     func sendPrompt(_ text: String) {
         guard sessionKeyB64 != nil else { return }
         var dict: [String: Any] = ["t": "prompt", "text": text]

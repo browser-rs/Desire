@@ -788,6 +788,7 @@ final class AutomationServer {
         ep("GET", "/books", "Local ebook library (id/title/author/format/progress/chapterCount/favorite/collection/highlights)", example: "…/books")
         ep("POST", "/books/import-web", "Save an article HTML fragment as an offline HTML book in the library (images localized, same URL dedupes)", params: ["title?:string", "html:string", "url?:string"], example: #"-d '{"title":"Article","html":"<p>…</p>","url":"https://example.com/a"}'"#)
         ep("POST", "/books/remove", "Remove a book from the library (deleteFiles=false keeps the copy on disk)", params: ["id:uuid", "deleteFiles?:bool"], example: #"-d '{"id":"<uuid>","deleteFiles":true}'"#)
+        ep("POST", "/artifacts/read", "Read an artifact's content for preview — path must be in the artifact index; text ≤256KB or image ≤5MB", params: ["path:string"], example: #"-d '{"path":"/Users/me/Downloads/out.md"}'"#)
         ep("POST", "/jobs/action", "Dismiss an active job / delete a job / clear finished jobs / approve or deny a background approval", params: ["action:dismiss|delete|clearFinished|approve|deny", "id?:uuid"], example: #"-d '{"action":"clearFinished"}'"#)
         ep("GET", "/playbooks", "Operations playbooks (parameterized runnable prompts)", example: "…/playbooks")
         ep("POST", "/playbooks/run", "Compose a playbook with values and send it to the live agent session (no auto-publish)", params: ["id:uuid", "values?:object"], example: #"-d '{"id":"<uuid>","values":{"focus":"pricing"}}'"#)
@@ -1456,6 +1457,12 @@ case ("GET", "/state"):
                          "sizeBytes": item.sizeBytes != nil ? item.sizeBytes! : NSNull()]
                     },
                 ])
+            case ("POST", "/artifacts/read"):
+                // 产物内容读取（v0.8.64 批 4，iOS 预览 v1）：**安全边界铁律
+                // = 路径必须 ∈ 产物索引派生清单**（拒绝任意路径读取）；v1 预
+                // 览范围 = 文本 ≤256KB（UTF-8 解码，含 0 字节即拒绝）+ 图片
+                // ≤5MB（dataURI），其余回 meta only + reason。
+                return try Self.json(Self.readArtifact(path: Self.string(body, "path") ?? ""))
             case ("POST", "/jobs/action"):
                 return try Self.json(Self.jobsAction(body))
             case ("POST", "/jobs/watch"):
@@ -6510,6 +6517,55 @@ case ("GET", "/agent/messages"):
             return ["error": "no translated pairs on this page"]
         }
         return ["ok": true, "confirmation": confirmation]
+    }
+
+    /// **产物内容读取**（v0.8.64 批 4，iOS 预览 v1）。安全边界：
+    /// ① 路径必须 ∈ 产物索引派生清单（`ArtifactIndex.derive`，绝不接受
+    /// 客户端任意路径——防穿越/任意读）；② 目录产物直接拒；③ 大小闸 =
+    /// 文本 ≤256KB、图片 ≤5MB；④ 文本判定 = 无 0 字节且 UTF-8 可解码
+    /// （.docx 这类 zip 容器天然带 0 字节，会被正确拒掉）。
+    private static func readArtifact(path: String) -> [String: Any] {
+        guard !path.isEmpty else { return ["error": "missing path"] }
+        let items = ArtifactIndex.derive(from: JobStore.shared.allJobs)
+        guard let item = items.first(where: { $0.path == path }) else {
+            return ["error": "path is not in the artifact index"]
+        }
+        guard item.kind != .folder else {
+            return ["error": "folder has no preview", "kind": item.kind.rawValue]
+        }
+        let manager = FileManager.default
+        guard let attrs = try? manager.attributesOfItem(atPath: path),
+              let size = (attrs[.size] as? NSNumber)?.intValue else {
+            return ["error": "file is missing on disk", "kind": item.kind.rawValue]
+        }
+        let ext = (path as NSString).pathExtension.lowercased()
+        let imageTypes = ["png": "png", "jpg": "jpeg", "jpeg": "jpeg",
+                          "gif": "gif", "webp": "webp", "heic": "heic", "heif": "heif"]
+        if let mime = imageTypes[ext] {
+            guard size <= 5 * 1024 * 1024 else {
+                return ["error": "image too large for preview (\(size) bytes)",
+                        "kind": item.kind.rawValue, "sizeBytes": size]
+            }
+            guard let data = manager.contents(atPath: path) else {
+                return ["error": "file is unreadable", "kind": item.kind.rawValue]
+            }
+            return ["ok": true, "kind": item.kind.rawValue, "mime": "image/\(mime)",
+                    "sizeBytes": size,
+                    "dataURI": "data:image/\(mime);base64,\(data.base64EncodedString())"]
+        }
+        // 文本：统一闸（大小 + 0 字节 + UTF-8 解码）——源码/Markdown/CSV/JSON
+        // 都覆盖，二进制容器（zip/docx/pdf）自然拒绝。
+        guard size <= 256 * 1024 else {
+            return ["error": "file too large for text preview (\(size) bytes)",
+                    "kind": item.kind.rawValue, "sizeBytes": size]
+        }
+        guard let data = manager.contents(atPath: path), !data.contains(0),
+              let text = String(data: data, encoding: .utf8) else {
+            return ["error": "binary file — preview not supported",
+                    "kind": item.kind.rawValue, "sizeBytes": size]
+        }
+        return ["ok": true, "kind": item.kind.rawValue, "mime": "text/plain",
+                "sizeBytes": size, "content": text]
     }
 
     // MARK: Site settings / QuickDial / Element blocker

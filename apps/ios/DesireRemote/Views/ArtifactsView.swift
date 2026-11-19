@@ -104,16 +104,25 @@ extension Date {
     }
 }
 
-/// 产物详情（v0.8.63 批 2）：元信息 + 复制路径 + **发回再加工**（把产物
-/// 发回桌面 Agent 继续加工的指令）。
+/// 产物详情（v0.8.63 批 2 + v0.8.64 批 4）：元信息 + 复制路径 + **发回再
+/// 加工**（预设指令 chips）+ **内容预览**（文本 ≤256KB / 图片 ≤5MB 直读，
+/// 其余"在 Mac 上打开"——桌面端做白名单与大小闸）。
 struct ArtifactDetailView: View {
     @EnvironmentObject var client: RemoteClient
     let artifact: RemoteArtifact
     @State private var sentConfirmation = false
     @State private var pathCopied = false
+    // 预览（v0.8.64 批 4）
+    @State private var preview: RemoteArtifactContent?
+    @State private var previewLoading = false
+    // 再加工确认态（chips 与自由指令共用，任一发送后短暂禁用全部按钮）
+    @State private var lastSentLabel: String?
 
     var body: some View {
         List {
+            if !artifact.isFolder {
+                previewSection
+            }
             Section("产物") {
                 row("名称", artifact.displayName)
                 row("类型", artifact.isFolder ? "文件夹" : "文件")
@@ -126,6 +135,19 @@ struct ArtifactDetailView: View {
                 }
                 row("时间", artifact.at)
             }
+            if !artifact.isFolder {
+                Section("再加工") {
+                    ForEach(remixActions, id: \.label) { action in
+                        Button {
+                            client.sendPrompt(action.prompt)
+                            flashSent(action.label)
+                        } label: {
+                            Label(action.label, systemImage: action.icon)
+                        }
+                        .disabled(lastSentLabel != nil)
+                    }
+                }
+            }
             Section {
                 Button {
                     UIPasteboard.general.string = artifact.path
@@ -136,14 +158,11 @@ struct ArtifactDetailView: View {
                 Button {
                     client.sendPrompt(
                         "请对产物「\(artifact.displayName)」（路径：\(artifact.path)）继续加工——先查看它的内容/状态，再按合理的方式处理并告诉我结果。")
-                    sentConfirmation = true
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                        sentConfirmation = false
-                    }
+                    flashSent("发回再加工")
                 } label: {
-                    Label(sentConfirmation ? "已发回桌面 Agent" : "发回再加工", systemImage: "arrowshape.turn.up.left.fill")
+                    Label(lastSentLabel == "发回再加工" ? "已发回桌面 Agent" : "发回再加工", systemImage: "arrowshape.turn.up.left.fill")
                 }
-                .disabled(sentConfirmation)
+                .disabled(lastSentLabel != nil)
             } header: {
                 Text("操作")
             } footer: {
@@ -152,6 +171,91 @@ struct ArtifactDetailView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle(artifact.displayName)
+        .task {
+            guard !artifact.isFolder, preview == nil else { return }
+            await loadPreview()
+        }
+    }
+
+    // MARK: - 预览
+
+    @ViewBuilder
+    private var previewSection: some View {
+        Section("预览") {
+            if previewLoading {
+                HStack(spacing: 8) {
+                    ProgressView()
+                    Text("正在读取…").font(.caption).foregroundStyle(.secondary)
+                }
+            } else if let preview {
+                if let error = preview.error {
+                    Text(error.contains("folder")
+                         ? "文件夹没有预览。"
+                         : (error.contains("too large") || error.contains("binary")
+                            ? "内容较大或是二进制格式——请在 Mac 上查看。"
+                            : "暂不可预览：\(error)"))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else if let text = preview.content {
+                    Text(text)
+                        .font(.system(size: 12))
+                        .textSelection(.enabled)
+                } else if let uri = preview.dataURI,
+                          let image = image(fromDataURI: uri) {
+                    Image(uiImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .listRowInsets(EdgeInsets())
+                } else {
+                    Text("暂不支持预览——请在 Mac 上打开。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text("在 Mac 上打开。")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    private func loadPreview() async {
+        previewLoading = true
+        preview = try? await client.readArtifact(path: artifact.path)
+        previewLoading = false
+    }
+
+    private func image(fromDataURI uri: String) -> UIImage? {
+        guard let range = uri.range(of: "base64,") else { return nil }
+        guard let data = Data(base64Encoded: String(uri[range.upperBound...])) else { return nil }
+        return UIImage(data: data)
+    }
+
+    // MARK: - 再加工 chips
+
+    private struct RemixAction {
+        let label: String
+        let icon: String
+        let prompt: String
+    }
+
+    private var remixActions: [RemixAction] {
+        [
+            RemixAction(label: "总结此文件", icon: "text.alignleft",
+                        prompt: "请读取产物「\(artifact.displayName)」（路径：\(artifact.path)）的内容，给我一份简明总结——要点、结构与值得注意的地方。"),
+            RemixAction(label: "转成 Markdown", icon: "doc.plaintext",
+                        prompt: "请把产物「\(artifact.displayName)」（路径：\(artifact.path)）转换成排版良好的 Markdown 文件，保存在同目录并告诉我新路径。"),
+            RemixAction(label: "规整重命名", icon: "gearshape.2",
+                        prompt: "请查看产物「\(artifact.displayName)」（路径：\(artifact.path)）的内容，给出一个更规整的文件名并完成重命名（保留扩展名），告诉我前后名字。"),
+        ]
+    }
+
+    private func flashSent(_ label: String) {
+        lastSentLabel = label
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+            lastSentLabel = nil
+        }
     }
 
     private func row(_ label: String, _ value: String) -> some View {

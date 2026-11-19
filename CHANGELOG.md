@@ -5,6 +5,8 @@
 - 双语成书（批 2）：双语对照完成后工具条新增"存入书架"——页面侧收集到的 (原文, 译文) 对组装成对照 HTML（整段转义防注入，BilingualBookBuilder 纯逻辑 11 项单测）走既有网页成书管线落书架（HTML 离线书——阅读器/继续阅读/全库搜索/书架内 EPUB 导出直接受益）；桥新增 POST /bilingual/save-book 供自动化与验证驱动。
 - Agent 文件产出入产物中心（批 3）：writeFile 直写的文件此前不进产物卡/Remote 产物卡（ArtifactIndex 只看带 artifactURL 的 Job）——新增 JobStore.registerArtifactJob 静默登记（同路径重写盖新戳、不触发通知/值守账本），产物中心与 iOS 产物卡自动可见；live 验证登记产物带 sizeBytes 与来源会话。
 - 设置 ▸ Agent 新增"模型校准"卡（批 3，0.8.60 数据上屏收口）：每模型窗口 tokens / 样本数 / 实测字符-token 比率 / 当前生效字符预算，<3 样本标"低样本"；单条清除入口（数据源与 /diag/health calibrations 同一份）。
+- iOS 产物上手（批 4）：产物详情新增内容预览——桌面 POST /artifacts/read（安全铁律：路径必须 ∈ 产物索引派生清单，防穿越/任意读；文本 ≤256KB 无 0 字节 UTF-8 直读、图片 ≤5MB dataURI，其余回"在 Mac 上打开"）+ iOS 端文本/图片渲染；详情页新增"再加工"预设指令（总结此文件/转成 Markdown/规整重命名，一键发桌面 Agent）。双端构建绿；live 验证白名单拒绝与写读回环。
+
 
 
 

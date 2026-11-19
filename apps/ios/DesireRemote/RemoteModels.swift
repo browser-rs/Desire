@@ -753,6 +753,17 @@ struct RemoteArtifact: Codable, Identifiable, Equatable {
     }
 }
 
+/// 产物内容读取（v0.8.64 批 4）：桌面 /artifacts/read 的响应。文本走
+/// content；图片走 dataURI；其余只回 reason（"在 Mac 上打开"）。
+struct RemoteArtifactContent: Codable {
+    let ok: Bool?
+    let mime: String?
+    let sizeBytes: Int?
+    let content: String?
+    let dataURI: String?
+    let error: String?
+}
+
 struct ArtifactsResponse: Codable {
     let ok: Bool
     let count: Int

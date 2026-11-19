@@ -58,6 +58,49 @@ enum MemoryModels {
         return String(lowered.unicodeScalars.filter { !skipped.contains($0) })
     }
 
+    /// 记忆排序档（v0.8.63 批 1）：最近更新（现状）/ 最常用 / 最近使用——
+    /// 使用反馈数据（0.8.60 的 usageCount/lastUsedAt）的排序出口。
+    /// pinned 恒在前（与既有语义一致）。纯逻辑进 tests/run.sh。
+    enum FactSortOrder: String, CaseIterable {
+        case recentlyUpdated
+        case mostUsed
+        case recentlyUsed
+
+        var title: String {
+            switch self {
+            case .recentlyUpdated: return String(localized: "Recently updated")
+            case .mostUsed: return String(localized: "Most used")
+            case .recentlyUsed: return String(localized: "Recently used")
+            }
+        }
+    }
+
+    /// 排序：pinned 恒在前，非 pinned 按所选档排。
+    /// recentlyUpdated = updatedAt 降序（既有行为）；mostUsed = usageCount
+    /// 降序（平分按生效时间）；recentlyUsed = 生效时间降序（lastUsedAt
+    /// 无值回落 updatedAt）。
+    static func sortFacts(_ facts: [MemoryFact], order: FactSortOrder) -> [MemoryFact] {
+        func effective(_ f: MemoryFact) -> Date {
+            guard let used = f.lastUsedAt, used > f.updatedAt else { return f.updatedAt }
+            return used
+        }
+        let pinned = facts.filter { $0.pinned }
+        let pool = facts.filter { !$0.pinned }
+        switch order {
+        case .recentlyUpdated:
+            return pinned + pool.sorted { $0.updatedAt > $1.updatedAt }
+        case .mostUsed:
+            return pinned + pool.sorted {
+                let a = $0.usageCount ?? 0
+                let b = $1.usageCount ?? 0
+                if a != b { return a > b }
+                return effective($0) > effective($1)
+            }
+        case .recentlyUsed:
+            return pinned + pool.sorted { effective($0) > effective($1) }
+        }
+    }
+
     /// 记忆面板的筛选（v0.7.28）：全部 / 仅 pinned / 仅待复核。
     enum FactFilter: String, CaseIterable {
         case all

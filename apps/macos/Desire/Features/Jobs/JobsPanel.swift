@@ -250,6 +250,16 @@ struct JobsPanel: View {
             }
             if job.state.isActive {
                 if let watch = watchFor(job) {
+                    // 等解锁（v0.8.63）：处置回合挂起等前台恢复。
+                    if JobEventCenter.shared.pendingHandleWatchIDs.contains(watch.id) {
+                        Text(String(localized: "Waiting for unlock"))
+                            .font(.system(size: 9.5, weight: .medium))
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.orange.opacity(0.12)))
+                            .help(String(localized: "The handle turn is queued — it starts automatically when the session unlocks"))
+                    }
                     // 模式菜单（v0.8.60）：通知 / 汇报（空闲自动汇报结果）/
                     // 处置（空闲自主重试-调参-放弃并简报）。
                     Menu {

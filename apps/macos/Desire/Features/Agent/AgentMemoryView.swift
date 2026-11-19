@@ -29,15 +29,15 @@ struct AgentMemoryView: View {
     @State private var isSelectingFacts = false
     @State private var selectedFactIDs: Set<UUID> = []
     @State private var factFilter: MemoryModels.FactFilter = .all
+    /// 排序档（v0.8.63 批 1）：最近更新/最常用/最近使用。
+    @State private var factSort: MemoryModels.FactSortOrder = .recentlyUpdated
 
     private var filteredFacts: [MemoryFact] {
         let pendingIDs = Set(memory.pendingConflicts.map(\.factID))
-        return MemoryModels.filterFacts(memory.archive.facts, query: factSearch,
-                                        filter: factFilter, pendingIDs: pendingIDs)
-            .sorted { a, b in
-                if a.pinned != b.pinned { return a.pinned }
-                return a.updatedAt > b.updatedAt
-            }
+        return MemoryModels.sortFacts(
+            MemoryModels.filterFacts(memory.archive.facts, query: factSearch,
+                                     filter: factFilter, pendingIDs: pendingIDs),
+            order: factSort)
     }
 
     var body: some View {
@@ -415,6 +415,16 @@ struct AgentMemoryView: View {
     /// 窄侧栏里也不会把右侧内容挤出窗口。当前项在菜单里打勾。
     private var memoryFilterMenu: some View {
         Menu {
+            // 排序档（v0.8.63 批 1）：最近更新 / 最常用 / 最近使用。
+            Picker(selection: $factSort) {
+                ForEach(MemoryModels.FactSortOrder.allCases, id: \.self) { order in
+                    Text(order.title).tag(order)
+                }
+            } label: {
+                Text("Sort")
+            }
+            .pickerStyle(.inline)
+            Divider()
             ForEach(MemoryModels.FactFilter.allCases, id: \.self) { filter in
                 Button {
                     factFilter = filter

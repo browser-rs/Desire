@@ -1,4 +1,5 @@
 import Foundation
+import os
 
 /// 后台任务终态的唯一交付口（v0.8.39）。
 ///
@@ -186,9 +187,30 @@ final class JobEventCenter {
         }
     }
 
+    /// **等解锁队列**（v0.8.63 批 1）：处置回合发起时无前台应用（锁屏/会话
+    /// 锁定）——浏览器类处置动作会静默失效，此时不消耗 resumeUsed、挂入
+    /// 队列；解锁检测链（15s 周期）恢复后自动重发。
+    private var pendingHandle: [(watchID: UUID, jobs: [JobRecord], summary: String)] = []
+    private var unlockWatchArmed = false
+
+    /// 等解锁中的订阅 id（JobsPanel 状态胶囊用；只读）。
+    var pendingHandleWatchIDs: Set<UUID> {
+        Set(pendingHandle.map(\.watchID))
+    }
+
     private func maybeResume(_ delivery: JobWatchStore.Delivery, summary: String) {
         guard let conversationID = delivery.watch.conversationID,
               let session = liveSession(for: conversationID) else { return }
+        // **等解锁**（v0.8.63）：锁屏时不发起（不消耗 resumeUsed）——挂入
+        // 队列，解锁检测链恢复后自动重发。
+        guard SessionGuard.isFrontmostAvailable() else {
+            if !pendingHandle.contains(where: { $0.watchID == delivery.watch.id }) {
+                pendingHandle.append((delivery.watch.id, delivery.jobs, summary))
+                armUnlockWatch()
+                Log.app.info("watch handle: screen locked — queued for after unlock (\(delivery.watch.id.uuidString.prefix(8), privacy: .public))")
+            }
+            return
+        }
         let canResume = JobWatchCore.canResume(
             delivery.watch, sessionExists: true, sessionBusy: session.isProcessing)
         JobWatchStore.shared.markResumeUsed(delivery.watch.id)
@@ -202,6 +224,37 @@ final class JobEventCenter {
             prompt = String(localized: "Background tasks finished. Briefly report the outcome to me using the completion note above — include failures and output paths. Do not start new work unless I ask.")
         }
         session.sendMessage(prompt, recordHistory: false)
+    }
+
+    /// 解锁检测链：每 15s 查一次前台状态；恢复可用后按序重发挂起的处置回合。
+    private func armUnlockWatch() {
+        guard !unlockWatchArmed else { return }
+        unlockWatchArmed = true
+        pollUnlock()
+    }
+
+    private func pollUnlock() {
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 15) { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                guard SessionGuard.isFrontmostAvailable() else {
+                    self.pollUnlock()   // 仍锁定：继续等
+                    return
+                }
+                Log.app.info("watch handle: unlocked — replaying \(self.pendingHandle.count) queued handle turn(s)")
+                let drained = self.pendingHandle
+                self.pendingHandle.removeAll()
+                self.unlockWatchArmed = false
+                for entry in drained {
+                    if let watch = JobWatchStore.shared.watches
+                        .first(where: { $0.id == entry.watchID }) {
+                        self.maybeResume(
+                            JobWatchStore.Delivery(watch: watch, jobs: entry.jobs),
+                            summary: entry.summary)
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - 会话写入

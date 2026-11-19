@@ -23,6 +23,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/AgentConversationExport.swift
   apps/macos/Desire/Features/Agent/SkillScanner.swift
   apps/macos/Desire/Features/Agent/Memory/MemoryKB.swift
+  apps/macos/Desire/Features/Agent/Memory/MemoryModels.swift
   apps/macos/Desire/Features/Notifications/NotificationPolicy.swift
   apps/macos/Desire/Features/Agent/AgentToolSchema.swift
   apps/macos/Desire/Features/Agent/AgentToolCatalog.swift
@@ -178,7 +179,7 @@ SOURCES=(
   apps/macos/Desire/Features/Browsing/SessionArchive.swift
   apps/macos/Desire/Features/Agent/DocumentText.swift
   apps/macos/Desire/Features/Sync/SyncModels.swift
-  apps/macos/Desire/Features/Agent/Memory/MemoryModels.swift
+
   apps/macos/Desire/Features/Agent/Memory/MemoryRetrieval.swift
   apps/macos/Desire/Features/Settings/SiteFont.swift
   apps/macos/Desire/Features/Bookmarks/BookmarkImportDedupe.swift

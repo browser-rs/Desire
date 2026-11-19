@@ -11488,6 +11488,38 @@ do {
     let healthy = TranslationCache.evictionTargets(pages, maxTotalChars: 10_000)
     check("翻译缓存：未超预算零淘汰", healthy.isEmpty)
 }
+
+// ---------- MemoryModels.sortFacts（记忆排序档） ----------
+
+do {
+    let now = Date()
+    func fact(_ content: String, pinned: Bool = false,
+              usage: Int? = nil, usedAgo: TimeInterval? = nil,
+              updatedAgo: TimeInterval = 100) -> MemoryFact {
+        var f = MemoryFact(content: content, category: "fact", pinned: pinned)
+        f.updatedAt = now.addingTimeInterval(-updatedAgo)
+        if let usage { f.usageCount = usage }
+        if let usedAgo { f.lastUsedAt = now.addingTimeInterval(-usedAgo) }
+        return f
+    }
+    let a = fact("A 常用", usage: 9, usedAgo: 50)          // 最近被用
+    let b = fact("B 更常用", usage: 20, usedAgo: 200)       // 用得更多但更久前
+    let c = fact("C 没用过", updatedAgo: 10)                // 刚更新但零使用
+    // mostUsed：usage 降序（20 > 9 > 0）
+    let r1 = MemoryModels.sortFacts([c, a, b], order: .mostUsed)
+    check("排序：mostUsed 按使用次数", r1.map { $0.content }.prefix(2) == ["B 更常用", "A 常用"])
+    // recentlyUsed：lastUsedAt 降序（A 50s 前 > B 200s 前 > C 无值回落）
+    let r2 = MemoryModels.sortFacts([b, c, a], order: .recentlyUsed)
+    check("排序：recentlyUsed 按最近使用", r2.map { $0.content }.prefix(2) == ["C 没用过", "A 常用"])
+    // recentlyUpdated：现状行为不变（updatedAt 降序）
+    let b2 = fact("B 更常用", updatedAgo: 50)
+    let r3 = MemoryModels.sortFacts([a, c, b2], order: .recentlyUpdated)
+    check("排序：recentlyUpdated 现状", r3.map { $0.content }.prefix(2) == ["C 没用过", "B 更常用"])
+    // pinned 恒在前
+    let pin = fact("置顶", pinned: true, updatedAgo: 5000)
+    let r4 = MemoryModels.sortFacts([c, pin, b, a], order: .mostUsed)
+    check("排序：pinned 恒在前", r4.first?.content == "置顶")
+}
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

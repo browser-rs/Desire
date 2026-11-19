@@ -697,6 +697,10 @@ final class RemoteControlStore: ObservableObject {
             if let destination = InternalPages.parse(url) {
                 InternalPages.openAnywhere(destination)
             }
+        case "bookHighlights":
+            guard let raw = inner.id, let id = UUID(uuidString: raw),
+                  let frame = Self.bookHighlightsFrame(bookID: id) else { return }
+            sendInnerRaw(frame)
         case "toolboxCatalog":
             if let frame = Self.toolboxCatalogFrame() { sendInnerRaw(frame) }
         case "toolboxRun":
@@ -1082,6 +1086,43 @@ final class RemoteControlStore: ObservableObject {
                     fileSize: book.fileSize)
             }
         let frame = RemoteBooksFrame(t: "books", books: items)
+        guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// 书高亮帧（v0.8.64 批 4，B1 剩余）：单本书的最近高亮/笔记——数据源
+    /// 与摘录库同一份（ExcerptStore，bookHash 关联），手机端只读。
+    nonisolated struct RemoteBookHighlight: Codable {
+        var id: String
+        var chapterTitle: String?
+        var content: String
+        var note: String?
+        var createdAt: Double
+    }
+
+    nonisolated struct RemoteBookHighlightsFrame: Codable {
+        var t: String
+        var bookId: String
+        var highlights: [RemoteBookHighlight]
+    }
+
+    private static func bookHighlightsFrame(bookID: UUID) -> String? {
+        guard let book = EbookLibraryStore.shared.books
+            .first(where: { $0.id == bookID }) else { return nil }
+        let items = ExcerptStore.shared.excerpts
+            .filter { $0.bookHash == book.hash }
+            .sorted { $0.createdAt > $1.createdAt }
+            .prefix(20)
+            .map { excerpt in
+                RemoteBookHighlight(
+                    id: excerpt.id.uuidString,
+                    chapterTitle: excerpt.chapterTitle,
+                    content: String(excerpt.content.prefix(300)),
+                    note: excerpt.note,
+                    createdAt: excerpt.createdAt.timeIntervalSince1970)
+            }
+        let frame = RemoteBookHighlightsFrame(
+            t: "bookHighlights", bookId: bookID.uuidString, highlights: Array(items))
         guard let data = try? SyncJSON.makeEncoder().encode(frame) else { return nil }
         return String(data: data, encoding: .utf8)
     }

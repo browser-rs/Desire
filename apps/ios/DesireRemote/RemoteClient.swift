@@ -134,6 +134,9 @@ final class RemoteClient: ObservableObject {
     @Published private(set) var inbox: [RemoteInboxItem] = []
     /// 书架 / 工具箱 / 工作区（v0.8.38 批二）——Mac 按需回帧，不进每秒快照。
     @Published private(set) var books: [RemoteBookItem] = []
+    /// 书详情页高亮（v0.8.64 批 4）：按请求的 bookId 匹配回包（防串台）。
+    @Published private(set) var bookHighlights: [RemoteBookHighlight] = []
+    @Published private(set) var bookHighlightsRequestID: String?
     @Published private(set) var toolboxTools: [RemoteToolboxTool] = []
     /// 最近一次工具执行结果（读取端自行清空）。
     @Published var toolboxResult: RemoteToolboxResult?
@@ -858,6 +861,11 @@ final class RemoteClient: ObservableObject {
                     books = frame.books
                     cache(books, key: "remote.cache.books")
                 }
+            case "bookHighlights":
+                if let frame = try? JSONDecoder().decode(RemoteBookHighlightsFrame.self, from: data),
+                   frame.bookId == bookHighlightsRequestID {
+                    bookHighlights = frame.highlights
+                }
             case "toolboxCatalog":
                 if let frame = try? JSONDecoder().decode(RemoteToolboxCatalogFrame.self, from: data) {
                     toolboxTools = frame.tools
@@ -1215,6 +1223,13 @@ final class RemoteClient: ObservableObject {
     // v0.8.38 批二：书架 / 工具箱 / 工作区（Mac 按需回帧）。
     func requestBooks() { pushFrame(["t": "books"], replace: false) }
     /// 在 Mac 打开某本书；`chapter` 来自列表里的续读位置。
+    /// 请求单本书的最近高亮/笔记（v0.8.64 批 4）。
+    func requestBookHighlights(id: String) {
+        bookHighlightsRequestID = id
+        bookHighlights = []
+        pushFrame(["t": "bookHighlights", "id": id], replace: false)
+    }
+
     func openBook(id: String, chapter: Int? = nil) {
         var frame: [String: Any] = ["t": "bookOpen", "id": id]
         if let chapter { frame["chapter"] = chapter }

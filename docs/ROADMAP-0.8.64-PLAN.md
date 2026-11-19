@@ -107,7 +107,13 @@ extraHeaders 到达。规划稿由此更正。
 静默登记（同路径盖新戳、不触发通知），live 验证产物带 sizeBytes/来源会话
 （writeFile → /artifacts 直达，iOS 产物卡自动受益）；② 设置 ▸ Agent "模型
 校准"卡（0.8.63 遗留 UI）：每模型窗口/样本/比率/生效预算 + 低样本灰标 +
-单条清除（与 /diag/health 同源）。→ 批 2 双语成书 + 历史同步卫生 →
+单条清除（与 /diag/health 同源）。
+
+**批 4 完成（2026-11-20）**：① iOS 产物预览 + 再加工 chips + /artifacts/read
+（白名单/大小闸/回读 live 验证过）；② B1 剩余收口——Mac 新帧
+bookHighlights（摘录库按 bookHash 过滤前 20 条）+ iOS 书详情页（续读主按钮/
+"问这本书"预填/高亮只读列表），行点击改为进详情页。帧交互待真机联调
+（与 0.8.63 产物卡同环节，用户参与）。→ 批 2 双语成书 + 历史同步卫生 →
 批 3 Agent 产物登记 + 诊断校准卡 → 批 4 iOS 产物预览 + 再加工 chips + B1 剩余 →
 批 5 A7 Office 批量 + C7/Rust 服务端批 → 批 6 --section + A3 夹具 + 收口
 （i18n/WhatsNew/产品页素材）→ **真机联调（用户）**。

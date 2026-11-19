@@ -611,6 +611,21 @@ struct RemoteBooksFrame: Codable {
     var books: [RemoteBookItem]
 }
 
+/// 单本书的高亮/笔记（v0.8.64 批 4，B1 剩余）——桌面摘录库按 bookHash 过滤。
+struct RemoteBookHighlight: Identifiable, Codable, Equatable {
+    var id: String
+    var chapterTitle: String?
+    var content: String
+    var note: String?
+    var createdAt: Double
+}
+
+struct RemoteBookHighlightsFrame: Codable {
+    var t: String
+    var bookId: String
+    var highlights: [RemoteBookHighlight]
+}
+
 /// 工具箱目录：与 Mac 端 `ToolboxRuntimeCore.specs` 同源（纯文本工具）。
 struct RemoteToolboxTool: Identifiable, Codable, Equatable {
     var name: String

@@ -67,8 +67,8 @@ struct RemoteBooksView: View {
     }
 
     private func row(_ book: RemoteBookItem) -> some View {
-        Button {
-            client.openBook(id: book.id, chapter: book.chapterIndex)
+        NavigationLink {
+            RemoteBookDetailView(book: book)
         } label: {
             HStack(spacing: 12) {
                 DesireIconBadge(icon: "book.closed", size: 38)
@@ -103,7 +103,7 @@ struct RemoteBooksView: View {
                     .foregroundStyle(.tertiary)
                 }
                 Spacer(minLength: 0)
-                Image(systemName: "macwindow")
+                Image(systemName: "chevron.right")
                     .font(.system(size: 11))
                     .foregroundStyle(.tertiary)
             }
@@ -118,5 +118,78 @@ struct RemoteBooksView: View {
             }
             .tint(.orange)
         }
+    }
+}
+
+/// 书详情（v0.8.64 批 4，B1 剩余）：进度/续读 + **问这本书**（预填 Agent）
+/// + 最近高亮与笔记（桌面摘录库按 bookHash 过滤，只读）。
+struct RemoteBookDetailView: View {
+    @EnvironmentObject var client: RemoteClient
+    let book: RemoteBookItem
+    @State private var asked = false
+
+    var body: some View {
+        List {
+            Section {
+                Button {
+                    client.openBook(id: book.id, chapter: book.chapterIndex)
+                } label: {
+                    Label(book.progress > 0 ? "在 Mac 上续读" : "在 Mac 上打开",
+                          systemImage: "macwindow")
+                }
+                Button {
+                    client.sendPrompt(
+                        "请打开书《\(book.title)》并结合它当前的内容跟我聊聊——先告诉我它的主题与进度，再问我想深入哪部分。")
+                    asked = true
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 3) { asked = false }
+                } label: {
+                    Label(asked ? "已发送到 Agent" : "问这本书", systemImage: "questionmark.bubble")
+                }
+                .disabled(asked)
+            } footer: {
+                Text("「问这本书」把指令发到桌面 Agent（需 Mac 在线），Agent 会打开书并结合内容作答。")
+            }
+
+            Section("最近高亮与笔记") {
+                if client.bookHighlights.isEmpty {
+                    Text(book.progress > 0 ? "还没有高亮——读的时候划选文字即可收藏。" : "先读几页，划选的文字会出现在这里。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(client.bookHighlights) { highlight in
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "highlighter")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.tertiary)
+                                if let chapter = highlight.chapterTitle, !chapter.isEmpty {
+                                    Text(chapter)
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                                Text(Date(timeIntervalSince1970: highlight.createdAt), style: .relative)
+                                    .font(.caption2)
+                                    .foregroundStyle(.tertiary)
+                            }
+                            Text(highlight.content)
+                                .font(.subheadline)
+                                .lineLimit(4)
+                            if let note = highlight.note, !note.isEmpty {
+                                Text(note)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 2)
+                    }
+                }
+            }
+        }
+        .listStyle(.insetGrouped)
+        .navigationTitle(book.title.isEmpty ? "Untitled" : book.title)
+        .navigationBarTitleDisplayMode(.inline)
+        .onAppear { client.requestBookHighlights(id: book.id) }
+        .refreshable { client.requestBookHighlights(id: book.id) }
     }
 }

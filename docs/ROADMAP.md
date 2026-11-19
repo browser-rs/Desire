@@ -5104,3 +5104,27 @@ passkey、Remote 新能力。**风险**：DiskStoreWriter 外移的 flush barrie
 第三方机翻引擎、沉浸式样式主题、iOS Remote 产物卡、--section、语音翻译。
 **风险**：懒翻与 SPA 交互（白名单式保守：块数超 60 才启用）；缓存命中率受
 动态内容影响（块粒度缓解）；inline code 嵌套边界（占位符找不到保留原文兜底）。
+
+## v0.8.63 规划稿（2026-11-17）—— 随身产物：融合旗舰（iOS 产物卡）+ 值守收尾
+
+> 详情见 `docs/ROADMAP-0.8.63-PLAN.md`。**融合主题旗舰**（0.8.38 后缺席），
+> 兑现 0.8.57 遗留"Remote 产物卡 UI"。规划前核实：iOS DesireRemote 九视图无
+> 产物视图（真空白，连接/加密/通知/Agent 视图全齐）；长截图已存在（排除）；
+> 0.8.62 批 4 的".handle 等解锁"未实施（真遗留）；iOS 工程 SPM 依赖 GitHub
+> （当前网络异常，构建验证顺延）。
+
+**四主题**：① 融合（旗舰）= **iOS 产物卡**——ArtifactsView（列表/分节/
+刷新）+ ArtifactDetailView（预览 + "在 Mac 上打开"）+ **发回再加工**（Remote
+指令通道预填提示词发回桌面 Agent）+ RemoteModels 解码（以 /artifacts 实际
+响应为准，先抓响应再写模型）；② Agent 基础 = **.handle 等解锁收尾**——
+SessionGuard（NSWorkspace 探针）锁屏时不发起处置（浏览器类动作静默失效）、
+firedConditionKinds 保留等解锁轮询重发 + JobsPanel"等解锁"状态 + **记忆面板
+"最近常用"排序**（0.8.62 徽标的排序入口收口）；③ 浏览器基础 = 打磨预留
+（0.8.60-62 三版新能力的反馈修复批，不预规划）；④ 工程 = 激活探针共享化
+（tests/e2e_lib）+ 产物数据面探针进 smoke 可选档。
+
+**批次**：批 1 收尾遗留（SessionGuard+记忆排序）→ 批 2 iOS 产物卡 → 批 3
+发回再加工 → 批 4 构建验证+收口。**不做**：Agent 大件（休整等反馈）、
+第三方翻译引擎、--section、批量下载新能力。**风险**：SPM 网络依赖（构建
+验证顺延）；真机联调需用户参与（标注）；iOS 解码字段以 /artifacts 实际
+响应为准。

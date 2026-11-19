@@ -8,6 +8,8 @@
 - iOS 产物上手（批 4）：产物详情新增内容预览——桌面 POST /artifacts/read（安全铁律：路径必须 ∈ 产物索引派生清单，防穿越/任意读；文本 ≤256KB 无 0 字节 UTF-8 直读、图片 ≤5MB dataURI，其余回"在 Mac 上打开"）+ iOS 端文本/图片渲染；详情页新增"再加工"预设指令（总结此文件/转成 Markdown/规整重命名，一键发桌面 Agent）。双端构建绿；live 验证白名单拒绝与写读回环。
 - Remote 书架详情页（批 4，B1 剩余收口）：书架行点开进详情——进度/续读按钮、"问这本书"（预填指令发桌面 Agent）、最近高亮与笔记列表（Mac 新帧 bookHighlights：摘录库按书 hash 过滤前 20 条，手机只读）；原"点行即在 Mac 续读"保留为详情页主按钮与侧滑快捷动作。
 - 工具箱新增"Office 批量转换"卡（批 5，A7 UI 入口补齐）：引擎/桥/Agent 工具 0.8.40 已有（Jobs/OfficeBatchStore——Converted/ 输出、逐项成败、进值守账本），本项补手动入口——选文件夹、目标格式与递归开关、预览可转换文件数后入队；规划稿"遗留收编"核实修正（A7 引擎早已落地，只有 UI 缺口）。
+- agent-eval E28 工具夹具（批 6，A3 收编）：runToolboxTool / syncStatus / saveWebPageToLibrary / searchLibrary / readBook / addBookNote / analyzeMedia 七段——fixture 按 prompt 关键词回 tool_call、工具真执行后把输出拼回回复，断言即断言工具输出；本地专属档 EVAL_E28=1（浏览器+书库依赖，用例自清测试书）；多 tab 环境下开页改走 /new-tab（navigate 打"当前选中标签"在用户环境不可靠——首跑实踩）。
+
 
 
 

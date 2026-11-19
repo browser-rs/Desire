@@ -110973,6 +110973,182 @@
           }
         }
       }
+    },
+    "Translations that keep their names":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Translations that keep their names"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"译文保得住名字"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"譯文保得住名字"
+          }
+        }
+      }
+    },
+    "A dedicated translation glossary — global or per-site — pins fixed renderings for names and domain terms, and finished bilingual pages can be saved straight into the Books library as a side-by-side book.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"A dedicated translation glossary — global or per-site — pins fixed renderings for names and domain terms, and finished bilingual pages can be saved straight into the Books library as a side-by-side book."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"专用翻译术语表（全局或按站点）为人名与领域术语固定译法；翻完的双语页面可以直接存成书架里的一本对照书。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"專用翻譯術語表（全域或按站點）為人名與領域術語固定譯法；翻完的雙語頁面可以直接存成書架裡的一本對照書。"
+          }
+        }
+      }
+    },
+    "Artifacts you can open from your phone":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Artifacts you can open from your phone"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"手机上直接打开产物"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"手機上直接打開產物"
+          }
+        }
+      }
+    },
+    "Artifact cards gain content previews (text and images read straight from your Mac, with a strict path whitelist) and preset remix actions — summarize, convert to Markdown, tidy the name — sent back to the desktop Agent in one tap.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Artifact cards gain content previews (text and images read straight from your Mac, with a strict path whitelist) and preset remix actions — summarize, convert to Markdown, tidy the name — sent back to the desktop Agent in one tap."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"产物卡新增内容预览（文本与图片直接从 Mac 读取，路径白名单严格把关）与预设再加工动作——总结、转 Markdown、规整命名——一键发回桌面 Agent。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"產物卡新增內容預覽（文字與圖片直接從 Mac 讀取，路徑白名單嚴格把關）與預設再加工作業——總結、轉 Markdown、規整命名——一鍵發回桌面 Agent。"
+          }
+        }
+      }
+    },
+    "Your library, in your pocket":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Your library, in your pocket"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"书架随手机"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"書架隨手機"
+          }
+        }
+      }
+    },
+    "Book cards on DesireRemote open a detail page: continue reading on your Mac, ask the Agent about the book, and browse your recent highlights and notes.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Book cards on DesireRemote open a detail page: continue reading on your Mac, ask the Agent about the book, and browse your recent highlights and notes."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"DesireRemote 的书卡点开进详情页：在 Mac 上续读、问 Agent 关于这本书的问题、翻阅最近的高亮与笔记。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"DesireRemote 的書卡點開進詳情頁：在 Mac 上續讀、問 Agent 關於這本書的問題、翻閱最近的高亮與筆記。"
+          }
+        }
+      }
+    },
+    "Calibration and artifacts in plain sight":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Calibration and artifacts in plain sight"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"校准与产物看得见"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"校準與產物看得見"
+          }
+        }
+      }
+    },
+    "Settings now shows each model's measured calibration (window, samples, chars-per-token, effective budget), and files the Agent writes itself finally appear in the artifact hub — on Mac and on your phone.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Settings now shows each model's measured calibration (window, samples, chars-per-token, effective budget), and files the Agent writes itself finally appear in the artifact hub — on Mac and on your phone."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"设置页展示每个模型的实测校准（窗口、样本、字符/token、生效预算）；Agent 自己写的文件也终于进产物中心——Mac 和手机都看得到。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"設定頁展示每個模型的實測校準（視窗、樣本、字元／token、生效預算）；Agent 自己寫的檔案也終於進產物中心——Mac 和手機都看得到。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

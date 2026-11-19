@@ -416,6 +416,41 @@ c.addEventListener('click', function(ev) {
             sse_reply(reply)
             return
 
+        # E28：A3 六条工具夹具——按最后 user 消息关键词回对应 tool_call；
+        # 带 tool 结果的后续回合把结果拼进回复（断言即断言工具输出）。
+        if mode_text.startswith("E28-"):
+            if has_tool:
+                texts = [(m.get("content") if isinstance(m.get("content"), str) else "")
+                         for m in round_msgs if m.get("role") == "tool"]
+                sse_reply("E28-DONE " + " || ".join(t[:160] for t in texts))
+                return
+            e28_calls = {
+                "E28-TOOLBOX": ("runToolboxTool",
+                                {"tool": "uuid", "arguments": "{\"count\":\"2\"}"}),
+                "E28-SYNCSTATUS": ("syncStatus", {}),
+                "E28-SAVEBOOK": ("saveWebPageToLibrary", {}),
+                "E28-SEARCHLIB": ("searchLibrary", {"query": "夹具"}),
+                "E28-READBOOK": ("readBook", {"maxChars": 2000}),
+                "E28-ADDNOTE": ("addBookNote",
+                                {"content": "E28 eval note marker"}),
+                "E28-MEDIAINFO": ("analyzeMedia",
+                                  {"path": os.environ.get("EVAL_MEDIA_PATH") or "/nonexistent.mp4"}),
+            }
+            for key, (name, args) in e28_calls.items():
+                if mode_text.startswith(key):
+                    call = {"index": 0, "id": "call_" + key[4:].lower(), "type": "function",
+                            "function": {"name": name,
+                                         "arguments": json.dumps(args, ensure_ascii=False)}}
+                    self.send_response(200)
+                    self.send_header("Content-Type", "text/event-stream")
+                    self.send_header("Connection", "close")
+                    self.end_headers()
+                    self.wfile.write(f"data: {json.dumps({'id':'e28','object':'chat.completion.chunk','created':1,'model':model,'choices':[{'index':0,'delta':{'role':'assistant','tool_calls':[call]},'finish_reason':None}]}, ensure_ascii=False)}\n\n".encode())
+                    self.wfile.write(f"data: {json.dumps({'id':'e28','object':'chat.completion.chunk','created':1,'model':model,'choices':[{'index':0,'delta':{},'finish_reason':'tool_calls'}]})}\n\n".encode())
+                    self.wfile.write(b"data: [DONE]\n\n")
+                    self.wfile.flush(); self.close_connection = True
+                    return
+
         # E22：大回合——回 ~20k 文本（5 轮把落盘历史顶过预算 → 自动压缩）。
         if "BIGTURN" in mode_text:
             sse_reply("填充回复。" * 4000)
@@ -1348,7 +1383,8 @@ def ensure_workdir():
                  "EVAL_SECRET_PATH": str(secret),
                  "EVAL_SECRET2_PATH": str(workdir / "secret2.txt"),
                  "EVAL_MISSING_PATH": str(workdir / "missing.txt"),
-                 "EVAL_BIG_PATH": str(big)}
+                 "EVAL_BIG_PATH": str(big),
+                 "EVAL_MEDIA_PATH": str(workdir / "e28-media.mp4")}
     global fixture_proc
     err_file = open(workdir / "fixture.err", "wb")
     fixture_proc = subprocess.Popen(
@@ -2343,6 +2379,93 @@ def case_translation_cache():
     bridge("POST", "/bilingual", body={"on": False})
 
 
+def case_tool_fixtures():
+    """E28 A3 六条工具夹具（本地专属，EVAL_E28=1；浏览器+书库依赖）：
+    runToolboxTool / syncStatus / saveWebPageToLibrary / searchLibrary /
+    readBook / addBookNote / analyzeMedia——0.8.38 A3 遗留的评估集扩面。
+    fixture 按 prompt 关键词回 tool_call，工具真执行后把结果拼回回复，
+    断言即断言工具输出。"""
+    _ensure_active(BRIDGE)
+    uuid_re = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.I)
+
+    def last_reply(messages):
+        assistants = [m for m in messages if m.get("role") == "assistant"]
+        return (assistants[-1].get("content") or "") if assistants else ""
+
+    # 1) runToolboxTool（uuid）
+    messages = run_case("E28-TOOLBOX 生成两个")
+    reply = last_reply(messages)
+    assert "E28-DONE" in reply, f"收口缺失：{reply[:120]}"
+    assert uuid_re.search(reply), f"uuid 工具结果非 UUID：{reply[:200]}"
+
+    # 2) syncStatus（无同步登录也应给出结构化状态）
+    messages = run_case("E28-SYNCSTATUS 报告")
+    reply = last_reply(messages)
+    assert "Account:" in reply, f"syncStatus 缺 Account 行：{reply[:200]}"
+
+    # 3) saveWebPageToLibrary（需要已激活实例 + 已加载页面）——多 tab 环境
+    # 下 navigate 打"当前选中标签"不可靠（E28 首跑实踩：选中是用户正在看的
+    # tab），改 /new-tab 显式开新页（新 tab 必为 selected，execute 稳定命中）。
+    bridge("POST", "/new-tab", body={"url": fixture_base_url() + "/bipage"})
+    for attempt in range(15):
+        time.sleep(1)
+        st = bridge("POST", "/execute", body={"js": "document.querySelectorAll('p').length"})
+        try:
+            if int(st.get("result")) >= 41:
+                break
+        except (TypeError, ValueError):
+            pass
+    else:
+        raise AssertionError("E28：/bipage 未就绪")
+    messages = run_case("E28-SAVEBOOK 存书")
+    reply = last_reply(messages)
+    assert ("library" in reply or "书架" in reply), f"存书失败：{reply[:200]}"
+
+    # 4) searchLibrary（正文含"夹具文本"）
+    messages = run_case("E28-SEARCHLIB 搜夹具")
+    reply = last_reply(messages)
+    assert ("ch" in reply.lower() or "夹具" in reply), f"searchLibrary 未命中：{reply[:200]}"
+
+    # 5) readBook
+    messages = run_case("E28-READBOOK 读最近的书")
+    reply = last_reply(messages)
+    assert "夹具" in reply, f"readBook 未取到正文：{reply[:200]}"
+
+    # 6) addBookNote
+    messages = run_case("E28-ADDNOTE 记一条")
+    reply = last_reply(messages)
+    assert ("Saved the note" in reply or "already in Excerpts" in reply), \
+        f"addBookNote 失败：{reply[:200]}"
+
+    # 7) analyzeMedia（ffmpeg 在才造 fixture；不在则跳过该段）
+    media_path = workdir / "e28-media.mp4"
+    if shutil.which("ffmpeg"):
+        subprocess.run(["ffmpeg", "-y", "-f", "lavfi",
+                        "-i", "testsrc=duration=1:size=128x72:rate=10",
+                        "-pix_fmt", "yuv420p", str(media_path)],
+                       capture_output=True)
+    if media_path.exists():
+        messages = run_case("E28-MEDIAINFO 分析")
+        reply = last_reply(messages)
+        assert ("duration" in reply.lower() or "分辨率" in reply
+                or "128" in reply), f"analyzeMedia 输出异常：{reply[:200]}"
+
+    # 清理：只删 E28 自建的书（/bipage 的 reader title = BI Fixture）与媒体文件
+    try:
+        books = bridge("GET", "/books").get("books", [])
+        for book in books:
+            if book.get("format") == "html" and "Fixture" in (book.get("title") or ""):
+                bridge("POST", "/books/remove",
+                       body={"id": book["id"], "deleteFiles": True})
+                print(f"    [E28 清理] 删除测试书 {book.get('title')}")
+    except Exception as exc:
+        print(f"    [E28 清理] 书清理跳过：{exc}")
+    try:
+        (workdir / "e28-media.mp4").unlink(missing_ok=True)
+    except Exception:
+        pass
+
+
 def fixture_base_url() -> str:
     return fixture_endpoint().rsplit("/v1/", 1)[0]
 
@@ -2373,7 +2496,8 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E24 watchdog（本地专属，EVAL_E24=1 开启；需先设 30s 窗并重启应用）", case_watchdog),
          ("E25 doctor-probes", case_doctor_probes),
          ("E26 watch-handle（本地专属，EVAL_E26=1 开启；~2.5 分钟）", case_watch_handle),
-         ("E27 translation-cache（本地专属，EVAL_E27=1 开启；浏览器依赖）", case_translation_cache)]
+         ("E27 translation-cache（本地专属，EVAL_E27=1 开启；浏览器依赖）", case_translation_cache),
+         ("E28 tool-fixtures（本地专属，EVAL_E28=1 开启；浏览器+书库依赖）", case_tool_fixtures)]
 
 results = []
 ONLY = set()
@@ -2461,6 +2585,9 @@ def main():
             if case is case_translation_cache and os.environ.get("EVAL_E27") != "1":
                 # E27 要 /navigate + 真实双语翻译回合（浏览器依赖，本地专属）。
                 results.append((name + " — CI 跳过（本地 EVAL_E27=1 运行）", True, ""))
+                continue
+            if case is case_tool_fixtures and os.environ.get("EVAL_E28") != "1":
+                results.append((name + " — CI 跳过（本地 EVAL_E28=1 运行）", True, ""))
                 continue
             # --only：短名过滤（名称首词，如 "E22 compaction-probe" → E22）。
             if ONLY:

@@ -121,7 +121,16 @@ report、live 验证 3/3 含递归子目录），0.8.38 遗留清单过时；本
 **工具箱 UI 卡**（OfficeBatchToolView，调既有 store，files 扫描提 internal
 复用预览计数）。"动手前核实已存在"教训第三次应验（前两次 checkpoint/
 routing），已写回记忆。C7 admin CLI 扩展 + Rust sync 三项留下一版（服务端
-改动需要部署配合，避免客户端版与服务端版绑死）。→ 批 2 双语成书 + 历史同步卫生 →
+改动需要部署配合，避免客户端版与服务端版绑死）。
+
+**批 6 完成（2026-11-20）**：① **--section 经评估暂缓**——190 项是单线性
+流程（节间有会话/fixture 依赖），硬拆需先梳理依赖图且会伤全量基线；日常
+回归已有两层（agent-eval --only 按用例选、release-smoke 按链路），全量
+190 保留为里程碑/发版选项——否决记录落档，不为拆而拆。② **A3 六条夹具
+落地（E28）**：七段工具回归（runToolboxTool/syncStatus/saveWebPageToLibrary/
+searchLibrary/readBook/addBookNote/analyzeMedia），工具真执行、结果拼回
+回复断言；多 tab 下开页改走 /new-tab 的教训进用例注释。③ 收口（WhatsNew/
+i18n/CHANGELOG）。→ 批 2 双语成书 + 历史同步卫生 →
 批 3 Agent 产物登记 + 诊断校准卡 → 批 4 iOS 产物预览 + 再加工 chips + B1 剩余 →
 批 5 A7 Office 批量 + C7/Rust 服务端批 → 批 6 --section + A3 夹具 + 收口
 （i18n/WhatsNew/产品页素材）→ **真机联调（用户）**。

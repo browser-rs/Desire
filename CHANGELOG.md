@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.63] - 2026-11-19
 ### Changed
 
 - 测试基建收尾（批 4）：execution-e2e 与 agent-eval 的激活自检合并为共享模块 tests/e2e_lib/activation.py（探针终版 = 读桥 /state 的 isActive，重复代码合并，-I 隔离模式下自动补脚本目录进 sys.path）；execution-e2e 汇总段解包兼容 2 元组检查项。190 项全量回归在激活正常的新实例上干净重跑（EXIT=0 / 190✓ / 0✗）。

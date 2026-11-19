@@ -1,3 +1,4 @@
+import PDFKit
 import SwiftUI
 
 /// 产物列表（v0.8.63 批 2）：桌面 Agent 产出的文件/文件夹（作业产物、转换
@@ -201,6 +202,12 @@ struct ArtifactDetailView: View {
                         .font(.system(size: 12))
                         .textSelection(.enabled)
                 } else if let uri = preview.dataURI,
+                          preview.mime == "application/pdf",
+                          let doc = pdfDocument(fromDataURI: uri) {
+                    PDFKitView(document: doc)
+                        .frame(height: 420)
+                        .listRowInsets(EdgeInsets())
+                } else if let uri = preview.dataURI,
                           let image = image(fromDataURI: uri) {
                     Image(uiImage: image)
                         .resizable()
@@ -230,6 +237,12 @@ struct ArtifactDetailView: View {
         guard let range = uri.range(of: "base64,") else { return nil }
         guard let data = Data(base64Encoded: String(uri[range.upperBound...])) else { return nil }
         return UIImage(data: data)
+    }
+
+    private func pdfDocument(fromDataURI uri: String) -> PDFDocument? {
+        guard let range = uri.range(of: "base64,") else { return nil }
+        guard let data = Data(base64Encoded: String(uri[range.upperBound...])) else { return nil }
+        return PDFDocument(data: data)
     }
 
     // MARK: - 再加工 chips
@@ -270,6 +283,24 @@ struct ArtifactDetailView: View {
             Spacer()
         }
         .padding(.vertical, 2)
+    }
+}
+
+/// PDF 预览（v0.8.65 批 2）：桌面 /artifacts/read 回传的整本 dataURI
+/// 用 PDFKit 渲染——DesireRemote 首次引入 PDFKit（只读/缩放，无批注）。
+private struct PDFKitView: UIViewRepresentable {
+    let document: PDFDocument
+
+    func makeUIView(context: Context) -> PDFView {
+        let view = PDFView()
+        view.document = document
+        view.autoScales = true
+        view.displayMode = .singlePageContinuous
+        return view
+    }
+
+    func updateUIView(_ uiView: PDFView, context: Context) {
+        if uiView.document != document { uiView.document = document }
     }
 }
 

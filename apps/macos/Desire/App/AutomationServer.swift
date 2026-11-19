@@ -6545,6 +6545,20 @@ case ("GET", "/agent/messages"):
             return ["error": "file is missing on disk", "kind": item.kind.rawValue]
         }
         let ext = (path as NSString).pathExtension.lowercased()
+        // PDF（v0.8.65 批 2）：≤10MB 整本 dataURI 回传（iOS PDFKit 渲染）；
+        // 超限回 meta only。白名单/存在性检查与上面共用。
+        if ext == "pdf" {
+            guard size <= 10 * 1024 * 1024 else {
+                return ["error": "pdf too large for preview (\(size) bytes)",
+                        "kind": item.kind.rawValue, "sizeBytes": size]
+            }
+            guard let data = manager.contents(atPath: path) else {
+                return ["error": "file is unreadable", "kind": item.kind.rawValue]
+            }
+            return ["ok": true, "kind": item.kind.rawValue, "mime": "application/pdf",
+                    "sizeBytes": size,
+                    "dataURI": "data:application/pdf;base64,\(data.base64EncodedString())"]
+        }
         let imageTypes = ["png": "png", "jpg": "jpeg", "jpeg": "jpeg",
                           "gif": "gif", "webp": "webp", "heic": "heic", "heif": "heif"]
         if let mime = imageTypes[ext] {

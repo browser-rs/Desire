@@ -113,7 +113,15 @@ extraHeaders 到达。规划稿由此更正。
 （白名单/大小闸/回读 live 验证过）；② B1 剩余收口——Mac 新帧
 bookHighlights（摘录库按 bookHash 过滤前 20 条）+ iOS 书详情页（续读主按钮/
 "问这本书"预填/高亮只读列表），行点击改为进详情页。帧交互待真机联调
-（与 0.8.63 产物卡同环节，用户参与）。→ 批 2 双语成书 + 历史同步卫生 →
+（与 0.8.63 产物卡同环节，用户参与）。
+
+**批 5 完成（2026-11-20）**：A7 核实修正——引擎/桥/Agent 工具 **0.8.40 已
+完整落地**（Jobs/OfficeBatchStore：Converted/ 输出、逐项成败、JobWatch
+report、live 验证 3/3 含递归子目录），0.8.38 遗留清单过时；本批只补
+**工具箱 UI 卡**（OfficeBatchToolView，调既有 store，files 扫描提 internal
+复用预览计数）。"动手前核实已存在"教训第三次应验（前两次 checkpoint/
+routing），已写回记忆。C7 admin CLI 扩展 + Rust sync 三项留下一版（服务端
+改动需要部署配合，避免客户端版与服务端版绑死）。→ 批 2 双语成书 + 历史同步卫生 →
 批 3 Agent 产物登记 + 诊断校准卡 → 批 4 iOS 产物预览 + 再加工 chips + B1 剩余 →
 批 5 A7 Office 批量 + C7/Rust 服务端批 → 批 6 --section + A3 夹具 + 收口
 （i18n/WhatsNew/产品页素材）→ **真机联调（用户）**。

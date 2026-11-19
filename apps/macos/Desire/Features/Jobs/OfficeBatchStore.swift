@@ -126,7 +126,8 @@ final class OfficeBatchStore: ObservableObject {
         return candidate
     }
 
-    private nonisolated static func files(in folder: URL, recursive: Bool) -> [URL] {
+    /// 源扫描（internal：工具箱 UI 卡预览计数复用同一口径，v0.8.64 批 5）。
+    nonisolated static func files(in folder: URL, recursive: Bool) -> [URL] {
         let fm = FileManager.default
         var result: [URL] = []
         if recursive {

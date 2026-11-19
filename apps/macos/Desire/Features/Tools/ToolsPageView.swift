@@ -432,6 +432,7 @@ struct ToolsPageView: View {
         case .contrast: ContrastToolView()
         case .qrDecode: QRDecodeToolView()
         case .batchRename: BatchRenameToolView()
+        case .officeBatch: OfficeBatchToolView()
         case .archive: ArchiveToolView()
         case .pipeline: ToolboxPipelineToolView()
         }

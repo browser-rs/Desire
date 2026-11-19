@@ -1035,6 +1035,12 @@ final class RemoteClient: ObservableObject {
 
     // MARK: - 对外动作
 
+    /// 产物列表（v0.8.63 批 2）：桌面 `/artifacts`（按时间倒序返回）。
+    func fetchArtifacts() async throws -> [RemoteArtifact] {
+        let response: ArtifactsResponse = try await authedSend("GET", "/artifacts")
+        return response.artifacts
+    }
+
     func sendPrompt(_ text: String) {
         guard sessionKeyB64 != nil else { return }
         var dict: [String: Any] = ["t": "prompt", "text": text]

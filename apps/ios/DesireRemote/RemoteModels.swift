@@ -724,3 +724,29 @@ struct RemoteJobDetail: Codable, Equatable {
     var watchMode: String?
     var updatedAt: Double
 }
+
+
+/// 产物（v0.8.63 批 2）：桌面 `/artifacts` 的条目（作业产物/会话产物/转换
+/// 产物统一入库的形态）。`id` = path（桌面端产物以路径为唯一标识）。
+struct RemoteArtifact: Codable, Identifiable, Equatable {
+    let at: String
+    let conversationId: String?
+    let jobId: String
+    let jobTitle: String
+    let kind: String
+    let path: String
+
+    var id: String { path }
+    /// 展示名：路径末段。
+    var displayName: String {
+        let comps = path.split(separator: "/").map(String.init)
+        return comps.last ?? path
+    }
+    var isFolder: Bool { kind == "folder" }
+}
+
+struct ArtifactsResponse: Codable {
+    let ok: Bool
+    let count: Int
+    let artifacts: [RemoteArtifact]
+}

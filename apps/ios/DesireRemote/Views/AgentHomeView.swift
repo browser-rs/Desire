@@ -223,6 +223,15 @@ struct AgentHomeView: View {
                     showsChevron: false)
             }
             NavigationLink {
+                ArtifactsView()
+            } label: {
+                DesireNavRow(
+                    icon: "shippingbox.fill",
+                    title: "产物",
+                    subtitle: "Agent 在 Mac 上产出的文件与文件夹",
+                    showsChevron: false)
+            }
+            NavigationLink {
                 RemoteToolboxView()
             } label: {
                 DesireNavRow(

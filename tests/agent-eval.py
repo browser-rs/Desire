@@ -1230,20 +1230,8 @@ POLL_TIMEOUT = 90
 
 
 
-# ---------- 会话激活自检（2026-11-17 教训） ----------
-# 无人值守反复 quit/open 会把 macOS 会话激活链搞挂：NSApp.isActive 恒 false、
-# System Events 查 frontmost 返回"无效的索引"（整个会话无 frontmost）——此时
-# 浏览器端点静默失效（/navigate 返回 ok 但页面不加载），浏览器依赖用例全部
-# 假跑。恢复 = 物理点击任意窗口或注销重登。详见 AGENTS.md。
+from e2e_lib.activation import ensure_active as _ensure_active
 
-def activation_active() -> None:
-    """应用前台激活检查（浏览器端点依赖 NSApp.isActive——后台实例静默失效）。
-    探针 = 桥 /state 的 isActive。失败抛 RuntimeError。"""
-    state = bridge("GET", "/state")
-    if not state.get("isActive"):
-        raise RuntimeError(
-            "Desire 不在前台（isActive=false）——浏览器端点将静默失效。"
-            "恢复：osascript -e 'tell application \"Desire\" to activate' 或点击 Desire 窗口后重试")
 
 def bridge(method, path, body=None):
     req = urllib.request.Request(BRIDGE + path, method=method)
@@ -2111,7 +2099,7 @@ def case_compaction_probe():
 
 def case_spill_search():
     """E23 大结果转存 + getToolResult 全文检索（浏览器依赖，本地专属）。"""
-    activation_active()   # 浏览器依赖：后台实例即 fail-fast
+    _ensure_active(BRIDGE)   # 浏览器依赖：后台实例即 fail-fast
     bridge("POST", "/agent/new", body={})
     time.sleep(1)
     fixture_base = fixture_endpoint().rsplit("/v1/", 1)[0]
@@ -2288,7 +2276,7 @@ def main():
 
     bridge("GET", "/state")   # 桥健康检查；不可达会直接抛错
     try:
-        activation_active()
+        _ensure_active(BRIDGE)
         print("激活自检 ✓（应用前台，浏览器端点可用）")
     except Exception as exc:
         # 不硬退：桥端用例（E1-E5/E22/E25/E26 等）不依赖激活；浏览器类用例

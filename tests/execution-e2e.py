@@ -304,22 +304,8 @@ class TinyAPI(BaseHTTPRequestHandler):
 
 
 
-# ---------- 会话激活自检（2026-11-17 教训） ----------
-# 无人值守反复 quit/open 会把 macOS 会话激活链搞挂：NSApp.isActive 恒 false、
-# System Events 查 frontmost 返回"无效的索引"（整个会话无 frontmost）——此时
-# 浏览器端点静默失效（/navigate 返回 ok 但页面不加载），浏览器依赖用例全部
-# 假跑。恢复 = 物理点击任意窗口或注销重登。详见 AGENTS.md。
+from e2e_lib.activation import ensure_active as activation_active
 
-def activation_active() -> None:
-    """应用前台激活检查（2026-11-19 终版探针）：浏览器端点依赖 NSApp.isActive
-    ——后台实例（用户在用别的 app）时 navigate 等静默失效、页面不加载（CI
-    教训的本地同源）。探针直接读桥 /state 的 isActive（最准）；false 即
-    fail-fast 并给恢复指引。"""
-    state = bridge_retry("GET", "/state")
-    if not state.get("isActive"):
-        raise RuntimeError(
-            "激活自检失败：Desire 不在前台（isActive=false）——浏览器端点将静默失效。"
-            "恢复：osascript -e 'tell application \"Desire\" to activate' 或点击 Desire 窗口后重试")
 
 def bridge(method, path, body=None):
     req = urllib.request.Request(BRIDGE + path, method=method)

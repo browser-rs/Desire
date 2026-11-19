@@ -1,69 +1,71 @@
-# v0.8.63 规划稿（2026-11-17）—— 随身产物：融合旗舰（iOS 产物卡）+ 值守收尾
+# v0.8.63 规划稿（2026-11-17）—— 随身产物：融合旗舰 + 值守收尾 + 统计可视（丰富版·四主题全覆盖）
 
-> **主题叙事**：融合主题自 0.8.38「连成一片」后缺席旗舰——0.8.57 遗留的
-> "Remote 产物卡 UI（iOS 端）"是明确的欠账：桌面端 0.8.57 已有产物中心
-> （desire://artifacts + /artifacts 端点 + 作业产物自动入库），iOS DesireRemote
-> 已有完整的连接/加密/通知/Agent 视图（九个 View）——**唯独没有产物视图**，
-> 手机上看不到"电脑上 Agent 刚产出的东西"。本版补上这块，同时把 0.8.60/62
-> 的两件小遗留收掉。规划前核实：iOS 工程九视图无产物视图（真空白）；
-> 长截图（fullPageScreenshot）已存在（排除）；0.8.62 批 4 的".handle 等解锁"
-> 未实施（真遗留）；iOS 工程依赖 SPM 远程包（swift-cmark/NetworkImage），
-> 构建验证需要网络正常。
+> **主题叙事**：融合主题自 0.8.38 后缺席旗舰——兑现 0.8.57 遗留的"Remote 产物卡
+> UI（iOS 端）"为旗舰，同时把 0.8.60-62 三版 Agent 能力沉淀的**数据**（校准比率、
+> 使用反馈、值守记录）首次上屏/进简报，浏览器基础明确"反馈修复预留"（核实
+> 否决了隐私统计候选：CSS 拦截天然不可数，无可靠数据源）。规划前核实：iOS
+> DesireRemote 九视图无产物视图（真空白）；产物推送通知已存在（deliver 终态口
+> 调 notifyBackgroundJob，0.8.57——排除）；隐私统计无数据源（否决）；值守月报
+> 数据源 = JobWatchStore.watches 现有字段可派生（deliveredAt/resumeUsed）。
+> **批 1-3 已落地**（28637d01/e7c1e419/6211f373/daf7b43d/1793dfa7——SessionGuard
+> 等解锁重发链、记忆排序档+徽标、iOS 产物卡模拟器构建绿、激活探针共享化）。
 
 ## 四主题
 
-### ① 融合（旗舰）= iOS 产物卡
-- **数据面**（已有）：`GET /artifacts`（列表/元数据/路径，0.8.57 桥端点）——
-  iOS Remote 走既有 RemoteClient（加密 RPC 同管线）。
-- **iOS 端**：
-  · `ArtifactsView`：产物列表（类型图标/名称/大小/来源作业/时间排序）、
-    分节（Converted/Extracted/Merged/…按 artifactType）、下拉刷新；
-  · `ArtifactDetailView`：元数据 + 内容预览（文本类直接显示；图片类走
-    NetworkImage；PDF/Office 类显示元信息 + "在 Mac 上打开"按钮）；
-  · **发回再加工**：复用 Remote 既有指令通道（agent-send 语义）——产物详情
-    页一键"让 Agent 对此产物继续加工"（预填提示词发回桌面 Agent）；
-  · **RemoteModels** 解码扩展（Artifact 元数据结构）。
-- **桌面端配合**：`/artifacts` 若缺 iOS 需要的字段（预览类型判定所需的
-  mime/扩展名）增量补齐。
-- **验证**：macOS 侧 `/artifacts` 探针已有（release-smoke）；iOS 端构建验证
-  （xcodebuild 模拟器目标）+ **真机联调需要用户配对参与**（标注）。
+### ① 融合（旗舰，批 2-3 已落地 + 批 6 增强）
+- **iOS 产物卡**（已落地）：ArtifactsView（列表/kind 图标/下拉刷新）+
+  ArtifactDetailView（元信息/复制路径/**发回再加工**）+ AgentHome"产物"入口 +
+  **iOS 模拟器构建绿**。
+- **批 6 增强（本批）**：桌面 `/artifacts` 增 `size` 字段（文件类 stat 计算，
+  文件夹标 null）+ iOS 端显示大小 + **kind 过滤参数**（`?kind=file|folder`）。
+- **真机联调**（用户参与环节）：手机装 Remote 配对后验收产物卡三屏
+  （列表/详情/发回再加工）。
 
-### ② Agent 基础 = 值守处置收尾（0.8.62 遗留）
-- **SessionGuard**：锁屏/无 frontmost 检测的工具化（NSWorkspace.frontmostApplication
-  探针——0.8.62 批 4 实测它在锁屏/后台态语义清晰）；
-- `.handle` 处置回合发起前的 guard：屏幕锁定时**不发起**（浏览器类处置动作
-  会静默失效——0.8.61 教训），watch 标记"等解锁"（firedConditionKinds 保留、
-  resumeUsed 不消耗），解锁后条件轮询自动重发；
-- JobsPanel 的订阅行显示"等解锁"状态。
-- **测试**：guard 判定纯逻辑进 harness。
+### ② Agent 基础（批 1 已落地 + 批 4 增强）
+- **批 1 已落地**：SessionGuard（NSWorkspace 探针，System Events 误报不采）+
+  `.handle` 等解锁重发链（15s utility tick，不消耗 resumeUsed）+ JobsPanel
+  "等解锁"胶囊；**记忆排序档**（最近更新/最常用/最近使用，sortFacts 4 单测）
+  + 记忆行使用反馈徽标。
+- **批 4 增强 = token 校准可视化**（0.8.60 数据首次上屏）：设置诊断页 +
+  `GET /diag/health` 增"模型校准"段——每模型的窗口 tokens（档案设值/默认表）、
+  校准样本数、EMA 比率、**当前生效字符预算**（compactionBudgetOverride 时
+  标注"重试校准覆盖"）——校准是否在干活一目了然。
+- **.handle 等解锁已含于批 1**（见上）。
 
-### ③ 浏览器基础 = 打磨预留（反馈驱动）
-- 0.8.60-62 三版的新能力（token 校准/值守处置/翻译缓存）进入真实使用期——
-  预留"反馈修复批"（不预规划具体项，按反馈热修）。
-- **记忆面板"最近常用"排序**（0.8.62 批 4 遗留收口：usageCount 数据已有
-  徽标，排序入口本次补上——factSections 排序加"最近常用"档）。
+### ③ 浏览器基础 = 反馈修复预留
+- 0.8.62 翻译 2.0 / 0.8.60-61 的校准/值守/记忆进入真实使用期——**预留反馈
+  修复批**（不预规划具体项）。
+- **核实否决记录**：隐私/拦截统计报告候选否决（CSS 拦截天然不可数，无可靠
+  数据源——除非引入每页扫描统计，开销/可靠性不成立）。
 
-### ④ 工程
-- **激活探针共享化**：execution-e2e 与 agent-eval 的 activation_active()
-  两份重复代码合并为 `tests/e2e_lib/activation.py`（0.8.60 遗留）。
-- iOS 产物卡的桌面端数据面探针进 release-smoke 可选档。
+### ④ 替人干活 = 值守月报进每日简报
+- **DailyBrief 增"值守段"**：Input 增 `watchHandledCount`（今日 resumeUsed=
+  true 的 watch 数）+ `watchQueuedCount`（当前等解锁挂起数）——今日 Agent
+  自主处置了几件后台任务一目了然（数据源 = JobWatchStore.watches 现有字段
+  派生，无新存储）。
+- DailyBrief.compose 的值守段文案（0 项不显示，同既有段模式）。
 
-## 批次
+### 工程（贯穿）
+- **批 4 已落地**：激活探针共享化（tests/e2e_lib/activation.py，-I 模式
+  sys.path 修复）；**批 6 增 = E27 翻译缓存 E2E**（fixture 页面 → 桥 bilingual
+  → 断言缓存文件/二次命中零模型调用——0.8.62 活体验证手法固化成用例，
+  agent-eval 本地专属档）。
 
-批 1 SessionGuard + 记忆"最近常用"排序（收尾遗留，纯逻辑）→ 批 2 iOS
-RemoteModels + ArtifactsView/DetailView → 批 3 发回再加工 + 桌面字段补齐 →
-批 4 构建验证（网络恢复后）+ 激活探针共享化 + 收口（i18n/AGENTS/WhatsNew）。
+## 批次（实况更新）
+
+批 1 SessionGuard+等解锁重发+记忆排序徽标（28637d01 ✓）→ 批 2 iOS 产物卡
+（e7c1e419 ✓）→ 批 3 激活探针共享化+190 干净 EXIT=0（f1df5060 ✓）→
+**批 4 进行中**：/artifacts size+kind 过滤 → token 校准可视化 → 值守月报 →
+E27 翻译缓存 E2E → 收口（i18n/AGENTS/WhatsNew）→ **真机联调（用户）**。
 
 ## 不做
 
-Agent 大件继续休整（校准/处置/记忆/翻译的真实反馈仍在积累）；第三方翻译
-引擎；--section（190 全绿 + fail-fast 已入，优先级低）；批量下载新能力
-（上一轮已极深，等待真实反馈）。
+新 Agent 能力大件（休整等反馈）；隐私统计报告（数据源否决）；第三方翻译
+引擎；--section；批量下载新能力；iOS QuickLook 远程预览。
 
 ## 风险
 
-- iOS 工程构建依赖 SPM 远程包——**当前代理/DNS 对 GitHub 异常**，构建验证
-  顺延至网络恢复；产物卡视图代码先行。
-- 真机联调需要用户（手机配对/远程开关）——标注为用户参与环节。
-- /artifacts 字段若与 iOS 解码对不齐——以桌面端 `/artifacts` 实际响应为准
-  （先抓真实响应再写 RemoteModels，避免拍脑袋字段）。
+- iOS 构建依赖 SPM（GitHub）——当前网络时好时坏，构建验证顺延。
+- 真机联调需用户配对参与（已标注）。
+- DailyBrief 值守段依赖 JobWatchStore 现有字段（无新存储）——聚合口径
+  与 JobsPanel 显示一致（同一派生逻辑，抽纯函数共用）。

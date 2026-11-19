@@ -76,6 +76,7 @@ class QuickDialStore: ObservableObject {
         if let decoded = DiskStore.load([QuickDial].self, key: storageKey) {
             dials = normalizeTimestamps(decoded)
             pendingDeletions = DiskStore.load([UUID: Date].self, key: deletionsKey) ?? [:]
+            dedupeByURL()
             return
         }
         // One-time migration from the legacy UserDefaults blob.
@@ -83,11 +84,27 @@ class QuickDialStore: ObservableObject {
            let decoded = try? JSONDecoder().decode([QuickDial].self, from: data),
            !decoded.isEmpty {
             dials = normalizeTimestamps(decoded)
+            dedupeByURL()
             save()
             UserDefaults.standard.removeObject(forKey: storageKey)
             return
         }
         dials = normalizeTimestamps(defaultDials)
+        dedupeByURL()
+    }
+
+    /// **同址去重收敛**（v0.8.64）：保留 updatedAt 最新的一条，被剔除 id
+    /// 记 tombstone 随同步推送（其他设备/服务端跟着收敛）。三个数据入口
+    /// （load / applyScope / replaceForSync）统一过这道闸。
+    private func dedupeByURL() {
+        let (kept, removedIDs) = QuickDialDedupe.dedupe(dials)
+        guard !removedIDs.isEmpty else { return }
+        dials = kept
+        let now = Date()
+        for id in removedIDs { pendingDeletions[id] = now }
+        saveDeletions()
+        renumberSort(stamping: true)
+        save()
     }
 
     private func save() {
@@ -106,6 +123,7 @@ class QuickDialStore: ObservableObject {
             dials = normalizeTimestamps(defaultDials)
         }
         pendingDeletions = DiskStore.load([UUID: Date].self, key: scopedDeletionsKey) ?? [:]
+        dedupeByURL()
     }
 
     // MARK: - 云同步（SyncStore 驱动）
@@ -114,6 +132,7 @@ class QuickDialStore: ObservableObject {
     func replaceForSync(_ replaced: [QuickDial]) {
         dials = replaced.sorted { $0.sort < $1.sort }
         renumberSort()
+        dedupeByURL()   // 远端并集带回同址双份时本地收敛（tombstone 回推）
         save()
     }
 

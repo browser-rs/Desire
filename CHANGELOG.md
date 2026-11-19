@@ -1,3 +1,9 @@
+## [Unreleased]
+### Fixed
+
+- 常用网站成对重复收敛（实测 8 组同址双份）：某次启动误判空桶重写默认集（新 UUID + nil 戳被盖成当前时间），同步并集语义（同 URL 不同 id 不去重——书签的既定边界在快拨域不成立）把它落成 8 组重复。修复三层：① QuickDialDedupe 同址去重（URL 归一化小写/去尾斜杠，保留 updatedAt 最新，nil 戳视为最旧），load/applyScope/replaceForSync 三个数据入口统一过闸，被剔除 id 记 tombstone 随同步推送（其他设备与服务端跟着收敛）；② 默认集改固定 UUID——即便再误判重写，LWW 按同 id 收敛不再新增；③ 纯逻辑 9 项单测进 harness（3359→3369）。装上修复版重启即自动收敛。
+
+
 ## [v0.8.64] - 2026-11-20
 ### Added
 

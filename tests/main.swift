@@ -11584,6 +11584,53 @@ do {
     check("成书：空标题用 host", BilingualBookBuilder.bookTitle(pageTitle: "  ", host: "x.test") == String(localized: "Bilingual") + " · x.test")
 }
 
+// ---------- QuickDialDedupe（快拨同址去重） ----------
+
+do {
+    func dial(_ title: String, _ url: String, sort: Int,
+              updatedAgo: TimeInterval? = nil, id: UUID = UUID()) -> QuickDial {
+        var q = QuickDial(id: id, title: title, url: url, sort: sort)
+        if let updatedAgo { q.updatedAt = Date().addingTimeInterval(-updatedAgo) }
+        return q
+    }
+    // 归一化：大小写/尾斜杠
+    check("快拨去重：归一化", QuickDialDedupe.normalizeURL("https://GitHub.com/") == "https://github.com")
+    check("快拨去重：根路径不误删", QuickDialDedupe.normalizeURL("/") == "/")
+
+    // 成对重复：保留最新，剔除旧 id
+    let oldID = UUID(), newID = UUID()
+    let pair = [dial("Google", "https://www.google.com", sort: 0, updatedAgo: 100, id: newID),
+                dial("Google", "https://www.google.com", sort: 1, updatedAgo: 9_000_000, id: oldID)]
+    let r1 = QuickDialDedupe.dedupe(pair)
+    check("快拨去重：保留最新", r1.kept.count == 1 && r1.kept[0].id == newID)
+    check("快拨去重：旧 id 进剔除清单", r1.removedIDs == [oldID])
+
+    // nil 戳视为最旧（默认集新写 vs 同步旧条目）
+    let nilStamp = dial("X", "https://x.com", sort: 0, updatedAgo: nil)
+    let stamped = dial("X", "https://x.com", sort: 1, updatedAgo: 500)
+    let r2 = QuickDialDedupe.dedupe([nilStamp, stamped])
+    check("快拨去重：nil 戳让位有戳", r2.kept.count == 1 && r2.kept[0].id == stamped.id)
+
+    // 不同 URL 互不影响 + 原排序保持
+    let distinct = [dial("A", "https://a.com", sort: 1), dial("B", "https://b.com/", sort: 0),
+                    dial("C", "https://A.com", sort: 2, updatedAgo: 1)]
+    let r3 = QuickDialDedupe.dedupe(distinct)
+    check("快拨去重：不同址保留全部", r3.kept.count == 2)
+    check("快拨去重：同址（大小写/斜杠）合并", r3.removedIDs.count == 1)
+    check("快拨去重：kept 按 sort 排序", r3.kept.count == 2
+          && r3.kept[0].url.lowercased().contains("b.com"))
+
+    // 无重复零动作
+    let clean = [dial("A", "https://a.com", sort: 0)]
+    let r4 = QuickDialDedupe.dedupe(clean)
+    check("快拨去重：无重复零剔除", r4.removedIDs.isEmpty && r4.kept.count == 1)
+
+    // 空 URL 条目剔除
+    let blank = dial("空", "   ", sort: 0)
+    let r5 = QuickDialDedupe.dedupe([blank])
+    check("快拨去重：空 URL 剔除", r5.kept.isEmpty && r5.removedIDs.count == 1)
+}
+
 // ---------- MemoryModels.sortFacts（记忆排序档） ----------
 
 do {

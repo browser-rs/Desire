@@ -12,8 +12,10 @@
 	<string>AppIcon</string>
 	<key>NSUserActivityTypes</key>
 	<array>
-		<!-- 与 HandoffRelay.activityType 同源（被系统强路由 Safari 时两处一起切换） -->
+		<!-- 与 HandoffRelay.activityType 同源：默认 Safari 同款 + 自定义兜底
+		     （defaults 覆盖键 handoff.activityType 切换，见 HandoffRelay 注释） -->
 		<string>BrowsingWebPage</string>
+		<string>me.siwi.Desire.browsing</string>
 	</array>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>

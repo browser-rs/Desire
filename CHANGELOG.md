@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- Handoff activityType 路由预案（批 1）：接力类型支持 UserDefaults 覆盖键 handoff.activityType——真机实测接力卡被系统强路由给 Safari 时，defaults write me.siwi.Desire handoff.activityType me.siwi.Desire.browsing 一键切换（下一次导航即生效，无需重启/发版）；两端 Info.plist 同时声明两个类型，iOS 接收端叠加第二个 onContinueUserActivity 监听。
+
 ### Fixed
 
 - 独立 Agent 窗口两则使用反馈修复：① 对话列表批量操作——侧栏"会话"标题旁新增多选入口（⌘/Shift 点选），头部变批量工具条（已选计数/全选/删除/完成），删除走与单删同一确认弹窗并联动 handleConversationsDeleted（正在显示的会话被删时面板正确置空）；② 侧栏容器从自定义 HSplitView 换成设置页同款 NavigationSplitView（系统毛玻璃侧栏列、分隔条可拖）——开合交互不变（detail 顶部 sidebar.left 按钮仍走同一 setSidebarExpanded，columnVisibility 双向映射 + 持久化 + 宿主 minSize 回调，onChange 递归由同步守卫拦下）。

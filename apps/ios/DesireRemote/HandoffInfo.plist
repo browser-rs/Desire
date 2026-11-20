@@ -8,6 +8,7 @@
 	<key>NSUserActivityTypes</key>
 	<array>
 		<string>BrowsingWebPage</string>
+		<string>me.siwi.Desire.browsing</string>
 	</array>
 </dict>
 </plist>

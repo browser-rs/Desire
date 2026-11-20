@@ -30,6 +30,10 @@ struct RootView: View {
         .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
             client.handleHandoff(activity: activity)
         }
+        // 自定义兜底类型（mac 端 defaults handoff.activityType 切换后走这条）。
+        .onContinueUserActivity("me.siwi.Desire.browsing") { activity in
+            client.handleHandoff(activity: activity)
+        }
     }
 }
 

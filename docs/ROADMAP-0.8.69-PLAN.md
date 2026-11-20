@@ -58,6 +58,15 @@
 + 相机）→ 批 3 Live Activity（widget extension + 回合进度）→ 批 4 反馈修复
 预留 + 收口（WhatsNew/i18n/产品页素材）→ **真机联调（用户）**。
 
+**实况（2026-11-21）**：批 1+2 完成（721f7923——手机发图全链：PhotosPicker
+≤3 张 → 压缩 2048/0.8 → base64 切 24KB 片走加密 push 帧分片 → Mac 端按 id
+聚齐落盘 RemoteUploads/ → system 备注（模型可见）+ photo-saved 回执手机；
+双端构建绿）。**批 3 Live Activity 砍除**（同 0.8.67 条款）：widget
+extension 是全新 target（数百行 pbxproj + App Group 门户注册 + entitlements），
+手工编辑风险高且价值依赖真机反馈——留待 SwiftUI 正式加 target 后再评估
+（活动数据管线可复用既有完成通知）。批 4 = 反馈预留 + 收口。
+**剩余 = 真机联调（发图/Handoff 路由/Siri/扫码授权，用户）→ 发版指令**。
+
 ## 不做
 
 站点 Web Notification / 浏览器内代理 / 节流 / 第三方翻译 / 书签同址去重 /

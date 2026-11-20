@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -14,6 +15,9 @@ struct ChatView: View {
     @State private var draft = ""
     @FocusState private var inputFocused: Bool
     @StateObject private var voice = VoiceInputService()
+    /// 手机发图（v0.8.69）：相册多选（PhotosPicker）+ 逐张分片上行。
+    @State private var pendingPhotoItems: [PhotosPickerItem] = []
+    @State private var photoUploading = false
     /// 消息流是否贴底（迟滞：贴到 60pt 内跟随，离开 160pt 停跟随）
     @State private var atBottom = true
     /// Agent 状态弹窗（模型 / 上下文 / 权限 / 本回合控制）
@@ -36,6 +40,11 @@ struct ChatView: View {
         }
         .onChange(of: voice.transcribedText) { _, text in
             if voice.isRecording, !text.isEmpty { draft = text }
+        }
+        .onChange(of: pendingPhotoItems) { _, items in
+            guard !items.isEmpty else { return }
+            pendingPhotoItems = []
+            Task { await sendPickedPhotos(items) }
         }
         // 导航栏**留白但透明**：返回键用系统的（原生玻璃质感，左滑返回手势也
         // 一定可用），同时视觉上仍是全屏聊天——内容会滚到导航栏下面去。
@@ -346,6 +355,36 @@ struct ChatView: View {
             && (!client.quickActions.isEmpty || client.canRegenerate)
     }
 
+
+    // MARK: - 手机发图（v0.8.69）
+
+    /// 相册多选 → 压缩 → 分片上行；逐张回显状态（成功/失败文案进消息流）。
+    private func sendPickedPhotos(_ items: [PhotosPickerItem]) async {
+        photoUploading = true
+        defer { photoUploading = false }
+        for (offset, item) in items.enumerated() {
+            guard let data = try? await item.loadTransferable(type: Data.self),
+                  let image = UIImage(data: data) else {
+                client.messages.append(ChatMessage(
+                    id: "photo-err-\(UUID().uuidString)", role: "assistant",
+                    content: "第 \(offset + 1) 张图片读取失败。", reasoning: nil,
+                    toolCalls: nil))
+                continue
+            }
+            let name = "IMG-\(Int(Date().timeIntervalSince1970))-\(offset + 1).jpg"
+            if let error = await client.sendPhoto(uiImage: image, name: name) {
+                client.messages.append(ChatMessage(
+                    id: "photo-err-\(UUID().uuidString)", role: "assistant",
+                    content: "图片发送失败：\(error)", reasoning: nil, toolCalls: nil))
+            } else {
+                client.messages.append(ChatMessage(
+                    id: "photo-ok-\(UUID().uuidString)", role: "assistant",
+                    content: "📷 图片已发送到 Mac（\(name)）——Agent 可用 lookImage 查看。",
+                    reasoning: nil, toolCalls: nil))
+            }
+        }
+    }
+
     // MARK: - 漂浮输入胶囊
 
     private var floatingInputBar: some View {
@@ -353,6 +392,17 @@ struct ChatView: View {
         // 打字区变宽（原来两个 38pt 圆按钮 + 大间距挤掉了不少宽度）。
         HStack(spacing: 6) {
             statusButton
+            PhotosPicker(selection: $pendingPhotoItems, maxSelectionCount: 3,
+                         matching: .images) {
+                Image(systemName: "photo.badge.plus")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, height: 30)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(photoUploading)
+            .accessibilityLabel("发图片给 Agent")
             micButton
             TextField(placeholder, text: $draft, axis: .vertical)
                 .lineLimit(1...5)

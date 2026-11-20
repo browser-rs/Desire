@@ -1083,6 +1083,44 @@ final class RemoteClient: ObservableObject {
         return try await authedSend("POST", "/artifacts/read", body: body)
     }
 
+    // MARK: - 手机发图（v0.8.69 批 2）
+
+    /// 单张图片分片上行：JPEG → base64 → 24KB 片逐帧 push（32KB 帧硬限；
+    /// Mac 端按 id 聚齐落盘到 workspace/RemoteUploads/ 并写 system 备注，
+    /// Agent 即可用 lookImage 处理）。返回错误文案（nil = 已发完）。
+    func sendPhoto(imageData: Data, name: String) async -> String? {
+        guard sessionKeyB64 != nil else { return "未与 Mac 配对" }
+        guard desktopOnline else { return "Mac 离线——上线后再发" }
+        guard !imageData.isEmpty else { return "图片数据为空" }
+        // base64 是纯 ASCII：UTF-8 字节切片安全（String.Index 不必）。
+        let payload = [UInt8](imageData.base64EncodedString().utf8)
+        let chunkSize = 24_000
+        let total = (payload.count + chunkSize - 1) / chunkSize
+        let id = UUID().uuidString
+        pushFrame(["t": "photo-start", "id": id, "total": total, "name": name],
+                  replace: false)
+        // 逐片发送：小间隔防服务器 240 次/分钟限流（一张图 ≤100 片，安全）。
+        var sent = 0
+        for (index, start) in stride(from: 0, to: payload.count, by: chunkSize).enumerated() {
+            let end = min(start + chunkSize, payload.count)
+            let chunk = String(decoding: payload[start..<end], as: UTF8.self)
+            pushFrame(["t": "photo-chunk", "id": id, "idx": index,
+                       "data": chunk],
+                      replace: false)
+            sent += 1
+            if sent % 6 == 0 { try? await Task.sleep(nanoseconds: 250_000_000) }
+        }
+        return nil
+    }
+
+    /// 压缩并发送：长边 ≤2048px、JPEG 质量 0.8（1-2MB 量级）。
+    func sendPhoto(uiImage: UIImage, name: String) async -> String? {
+        guard let data = uiImage.resizedForUpload().jpegData(compressionQuality: 0.8) else {
+            return "图片编码失败"
+        }
+        return await sendPhoto(imageData: data, name: name)
+    }
+
     func sendPrompt(_ text: String) {
         guard sessionKeyB64 != nil else { return }
         var dict: [String: Any] = ["t": "prompt", "text": text]

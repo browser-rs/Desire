@@ -4,6 +4,7 @@ import CoreImage
 import CryptoKit
 import Foundation
 import LocalAuthentication
+import os   // MemberImportVisibility：Log.app（os.Logger）
 import Security
 
 /// 专用 WebSocket 会话代理：open/close 事件打点（诊断收发问题）。
@@ -458,6 +459,9 @@ final class RemoteControlStore: ObservableObject {
               let inner = try? SyncJSON.makeDecoder().decode(RemoteInnerFrame.self, from: data)
         else { return }
         switch inner.t {
+        case "photo-start", "photo-chunk":
+            handlePhotoFrame(inner)
+            return
         case "openURL":
             guard let raw = inner.text?.trimmingCharacters(in: .whitespacesAndNewlines),
                   !raw.isEmpty else { return }
@@ -2299,6 +2303,85 @@ final class RemoteControlStore: ObservableObject {
         AgentScheduler.shared.deliveryTarget
     }
 
+    // MARK: - 手机发图（v0.8.69 批 1）
+
+    /// 图片分片聚合缓冲（id → 状态）。push 帧硬限 32KB——图片 base64 切
+    /// ~24KB 片分帧传输，Mac 端按 id 聚齐 total 片后落盘。非配对信道的
+    /// 明文不会出现：分片走 innerFrame（端到端密文，与指令同密级）。
+    private var photoBuffers: [String: PhotoTransfer] = [:]
+
+    private struct PhotoTransfer {
+        let total: Int
+        let name: String
+        var parts: [Int: Data] = [:]
+    }
+
+    /// 落盘目录：agent workspace 下的 RemoteUploads/（readFile/lookImage
+    /// 白名单内——Agent 无需额外授权即可读）。
+    private var photoUploadDirectory: URL {
+        AgentWorkspace.shared.directory.appendingPathComponent("RemoteUploads", isDirectory: true)
+    }
+
+    /// 单帧处理入口（photo-start / photo-chunk）。
+    private func handlePhotoFrame(_ inner: RemoteInnerFrame) {
+        guard let id = inner.id, !id.isEmpty else { return }
+        switch inner.t {
+        case "photo-start":
+            let total = max(1, inner.total ?? 1)
+            photoBuffers[id] = PhotoTransfer(
+                total: total,
+                name: (inner.name ?? "photo.jpg").filter {
+                    $0.isLetter || $0.isNumber || $0 == "." || $0 == "-" || $0 == "_"
+                })
+        case "photo-chunk":
+            guard var transfer = photoBuffers[id] else { return }
+            let idx = inner.idx ?? 0
+            guard let b64 = inner.data, let data = Data(base64Encoded: b64) else {
+                photoBuffers[id] = nil
+                sendInner(["t": "photo-error", "id": id,
+                           "message": String(localized: "A chunk failed to decode — please resend the photo")])
+                return
+            }
+            transfer.parts[idx] = data
+            photoBuffers[id] = transfer
+            guard transfer.parts.count >= transfer.total else { return }
+            finishPhoto(id: id, transfer: transfer)
+        default:
+            break
+        }
+    }
+
+    /// 聚齐落盘：workspace/RemoteUploads/<时间戳>-<名> → 当前会话 system 备注
+    /// （模型可见，Agent 可直接 lookImage 该路径）→ 回执手机。
+    private func finishPhoto(id: String, transfer: PhotoTransfer) {
+        photoBuffers[id] = nil
+        let ordered = (0..<transfer.total).compactMap { transfer.parts[$0] }
+        guard ordered.count == transfer.total,
+              let joined = ordered.reduce(Data(), +) as Data?,
+              !joined.isEmpty else {
+            sendInner(["t": "photo-error", "id": id,
+                       "message": String(localized: "Photo chunks arrived incomplete — please resend")])
+            return
+        }
+        try? FileManager.default.createDirectory(at: photoUploadDirectory,
+                                                 withIntermediateDirectories: true)
+        let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .medium)
+            .replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
+            .replacingOccurrences(of: " ", with: "_")
+        let url = photoUploadDirectory.appendingPathComponent("\(stamp)-\(transfer.name)")
+        do {
+            try joined.write(to: url, options: .atomic)
+        } catch {
+            sendInner(["t": "photo-error", "id": id,
+                       "message": String(localized: "Failed to save on the Mac: \(error.localizedDescription)")])
+            return
+        }
+        let size = ByteCountFormatter.string(fromByteCount: Int64(joined.count), countStyle: .file)
+        remoteSession?.appendExternalNote(String(localized: "Phone sent a photo, saved to \(url.path) (\(size)). Use lookImage on this path if the user asks about it."))
+        sendInner(["t": "photo-saved", "id": id, "path": url.path, "size": joined.count])
+        Log.app.info("remote: photo \(transfer.name, privacy: .public) → \(url.path, privacy: .public) (\(joined.count) bytes)")
+    }
+
     /// 在活跃会话里打开手机选中的对话（面板同步切换到该对话）。
     private func openRemoteConversation() {
         guard let remoteConversationID, let id = UUID(uuidString: remoteConversationID) else { return }
@@ -2489,6 +2572,11 @@ nonisolated struct RemoteInnerFrame: Codable {
     var taskID: String?
     /// 电子书续读章节（bookOpen 用，v0.8.38）
     var chapter: Int?
+    /// 手机发图分片（v0.8.69 批 1）：分片序号/总数/base64 载荷/文件名
+    var idx: Int?
+    var total: Int?
+    var data: String?
+    var name: String?
 }
 
 // MARK: - 记忆帧（手机拉取 Agent 记忆：画像 / 事实 / 摘要）

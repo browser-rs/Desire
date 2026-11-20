@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- 手机发图给 Agent（v0.8.69 批 1+2 融合旗舰，DesireRemote 多模态指挥）：聊天输入条新增相册多选（PhotosPicker，≤3 张）——图片压缩（长边 2048/JPEG 0.8）→ base64 切 24KB 片走既有加密 push 帧分片上行（32KB 帧硬限内、端到端密文与指令同密级）→ Mac 端按 id 聚齐落盘到 agent workspace/RemoteUploads/（readFile/lookImage 白名单内）→ 当前会话写 system 备注（模型可见，直接 lookImage 处理）+ 回执手机端消息流；失败明示（离线/解码失败/落盘失败各有文案）。真机联调待用户。
+
 ### Fixed
 
 - DesireRemote 扫码授权入口补全（用户反馈"手机登录后找不到扫码入口、PC 无法扫码登录"）：「扫一扫登录 Mac」此前只在未配对引导页（ConnectMacView）——手机配对过一次后就再也找不到，无法为第二台/重装后的 Mac 免密授权登录。现设置 ▸ 连接区常驻"扫一扫登录 Mac"入口（QRLoginScanSheet，扫 Mac 的 设置 ▸ 同步 → 扫码登录 二维码，用当前账号授权该 Mac 登录；若 Mac 开着远程控制会顺带完成配对，确认弹窗明示）；顺带把 mac 端设置 ▸ 远程 的配对区改为三态常驻引导（未登录/未开启开关时不再整区隐藏，分别给出登录与开关指引）。

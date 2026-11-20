@@ -2,6 +2,8 @@
 ### Fixed
 
 - 独立 Agent 窗口两则使用反馈修复：① 对话列表批量操作——侧栏"会话"标题旁新增多选入口（⌘/Shift 点选），头部变批量工具条（已选计数/全选/删除/完成），删除走与单删同一确认弹窗并联动 handleConversationsDeleted（正在显示的会话被删时面板正确置空）；② 侧栏容器从自定义 HSplitView 换成设置页同款 NavigationSplitView（系统毛玻璃侧栏列、分隔条可拖）——开合交互不变（detail 顶部 sidebar.left 按钮仍走同一 setSidebarExpanded，columnVisibility 双向映射 + 持久化 + 宿主 minSize 回调，onChange 递归由同步守卫拦下）。
+- 独立 Agent 窗口聊天列放开固定限宽（用户反馈）：内容统一宽度上限（960）是浏览器内嵌面板时代的决定，独立窗口可拖到很宽、固定 960 在两侧留大空白——AgentPanel 的限宽参数化（内嵌面板默认 960 不变），独立窗口传 nil 完全通栏；所有内容行（消息/快捷按钮/输入框）仍走同一参数，同宽铁律不破。
+
 
 
 ## [v0.8.67] - 2026-11-21

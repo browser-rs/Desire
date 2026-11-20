@@ -82,7 +82,10 @@ struct AgentWindowRoot: View {
                 onToggleSidebar: { setSidebarExpanded(!isSidebarExpanded) },
                 isSidebarExpanded: isSidebarExpanded,
                 hidesHeaderNavigation: true,
-                promptCenter: store.promptCenter
+                promptCenter: store.promptCenter,
+                // 独立窗口放开限宽（v0.8.67 用户反馈）：窗口可拖到很宽，
+                // 固定 960 会在两侧留大空白。内嵌面板维持默认 960。
+                contentMaxWidth: nil
             )
         case .inbox:
             AgentInboxView(

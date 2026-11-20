@@ -94,7 +94,11 @@ struct AgentPanel: View {
     /// 会话内容的统一宽度上限（消息、快捷按钮、输入框同一列，居中）。
     /// 面板可拖到 1200 宽，不给上限时满行文字很难扫读——但**所有内容行必须用同一个
     /// 值**，否则会出现"上面一列窄、下面输入框通栏"的错位感（用户实测反馈）。
-    static let contentMaxWidth: CGFloat = 960
+    /// v0.8.67 起参数化：浏览器内嵌面板维持 960（默认）；独立 Agent 窗口可拖
+    /// 很宽，传 nil 完全放开（用户反馈"固定了最大宽度…独立窗口了…需要放开"）。
+    var contentMaxWidth: CGFloat? = AgentPanel.defaultContentMaxWidth
+
+    static let defaultContentMaxWidth: CGFloat = 960
 
     /// Memo box for the per-render derived collections (tool result lookup
     /// + tool-call chip ids). Rebuilt only when the message count, the tail
@@ -374,7 +378,7 @@ struct AgentPanel: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 6)
                 .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.12)))
-                .frame(maxWidth: Self.contentMaxWidth)
+                .contentColumnWidth(contentMaxWidth)
                 .frame(maxWidth: .infinity)
             }
 
@@ -390,7 +394,7 @@ struct AgentPanel: View {
                     // 与快捷动作同一行（此前是独立的一行，看着像两组无关按钮）。
                     onRegenerate: canRegenerate ? { store.regenerate() } : nil
                 )
-                .frame(maxWidth: Self.contentMaxWidth)
+                .contentColumnWidth(contentMaxWidth)
                 .frame(maxWidth: .infinity)
             }
 
@@ -398,20 +402,20 @@ struct AgentPanel: View {
                 AgentQuestionCard(question: question.question, quickOptions: question.quickOptions) { answer in
                     promptCenter.answer(answer)
                 }
-                .frame(maxWidth: Self.contentMaxWidth)
+                .contentColumnWidth(contentMaxWidth)
                 .frame(maxWidth: .infinity)
             } else if let question = sharedPromptCenter.pending {
                 // 系统命令协商 / 桥 / 远程的全局提问（同一张卡片样式）。
                 AgentQuestionCard(question: question.question, quickOptions: question.quickOptions) { answer in
                     sharedPromptCenter.answer(answer)
                 }
-                .frame(maxWidth: Self.contentMaxWidth)
+                .contentColumnWidth(contentMaxWidth)
                 .frame(maxWidth: .infinity)
             }
 
             if store.pendingApproval != nil {
                 approvalBar
-                    .frame(maxWidth: Self.contentMaxWidth)
+                    .contentColumnWidth(contentMaxWidth)
                     .frame(maxWidth: .infinity)
             }
 
@@ -481,7 +485,7 @@ struct AgentPanel: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(Color.secondary.opacity(0.10))
                 )
-                .frame(maxWidth: Self.contentMaxWidth)
+                .contentColumnWidth(contentMaxWidth)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 2)
@@ -512,7 +516,7 @@ struct AgentPanel: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(appAccent.opacity(0.06))
                 )
-                .frame(maxWidth: Self.contentMaxWidth)
+                .contentColumnWidth(contentMaxWidth)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 2)
@@ -551,7 +555,7 @@ struct AgentPanel: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .fill(appAccent.opacity(0.06))
                 )
-                .frame(maxWidth: Self.contentMaxWidth)
+                .contentColumnWidth(contentMaxWidth)
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 12)
                 .padding(.bottom, 2)
@@ -619,7 +623,7 @@ struct AgentPanel: View {
                 },
                 isSessionDirectiveActive: store.activeDirective != nil
             )
-            .frame(maxWidth: Self.contentMaxWidth)
+            .contentColumnWidth(contentMaxWidth)
             .frame(maxWidth: .infinity)
             .onChange(of: inputText) { _, _ in
                 // 历史回填的那次变化不算"手打"；其余任何输入都退出翻阅状态。
@@ -956,7 +960,7 @@ struct AgentPanel: View {
                 }
                 .padding(.vertical, 12)
                 // 可读性上限：面板能拖很宽，满行的文字不好扫读。
-                .frame(maxWidth: Self.contentMaxWidth)
+                .contentColumnWidth(contentMaxWidth)
                 .frame(maxWidth: .infinity)
             }
             // 锚点**固定为 .top**：内容增长本身绝不移动视口。
@@ -1451,4 +1455,18 @@ extension Notification.Name {
     /// 集中搜索命中会话正文后请求跳转：userInfo 带 conversationID/messageID/query。
     /// 面板已展示该会话才响应（多窗口各面板按会话 id 认领）。
     static let agentJumpToMessage = Notification.Name("desire.agent.jumpToMessage")
+}
+
+
+/// 内容列限宽（v0.8.67）：nil = 通栏（独立窗口放开），非 nil = 居中限宽。
+/// 统一修饰符，保证所有内容行走同一分支（同宽铁律不因参数化而破）。
+extension View {
+    @ViewBuilder
+    func contentColumnWidth(_ maxWidth: CGFloat?) -> some View {
+        if let maxWidth {
+            self.frame(maxWidth: maxWidth)
+        } else {
+            self
+        }
+    }
 }

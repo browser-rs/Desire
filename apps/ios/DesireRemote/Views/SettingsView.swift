@@ -9,6 +9,9 @@ struct SettingsView: View {
     @State private var confirmUnpair = false
     @State private var confirmLogout = false
     @State private var confirmClearCache = false
+    /// 扫一扫登录 Mac（v0.8.68 用户反馈）：已配对态的扫码授权入口——此前
+    /// 只在未配对引导页（ConnectMacView），配过一次就再也找不到。
+    @State private var showQRLogin = false
 
     var body: some View {
         List {
@@ -70,6 +73,17 @@ struct SettingsView: View {
                     value: client.lastOnlineAt.map {
                         $0.formatted(.relative(presentation: .named))
                     } ?? "—")
+                Button {
+                    showQRLogin = true
+                } label: {
+                    Label("扫一扫登录 Mac", systemImage: "qrcode.viewfinder")
+                        .font(.system(size: 14, weight: .medium))
+                }
+                // 用途提示：为"另一台/重装后的 Mac"免密登录出码——手机扫
+                // Mac 屏幕上的登录码，用当前账号授权它登录。
+                Text("在另一台 Mac 的 设置 → 同步 → 扫码登录 打开二维码，用这里扫码授权它登录当前账号。")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
             } header: {
                 DesireSectionHeader(title: "连接")
             }
@@ -182,6 +196,12 @@ struct SettingsView: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text("会清空离线保存的会话列表、任务、摘录、书架等只读缓存；连接 Mac 后会重新拉取。发件箱不受影响。")
+        }
+        .sheet(isPresented: $showQRLogin) {
+            NavigationStack {
+                QRLoginScanSheet()
+                    .environmentObject(client)
+            }
         }
     }
 

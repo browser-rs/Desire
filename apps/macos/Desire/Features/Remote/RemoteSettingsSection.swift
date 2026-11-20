@@ -82,9 +82,33 @@ struct RemoteSettingsSection: View {
 
     // MARK: - 配对
 
+    /// 配对区**永远可见**（v0.8.68 用户反馈"没有入口"）：此前未登录/未开启
+    /// 时整区隐藏，用户在设置 ▸ 远程里只看到空状态——扫码配对的入口就此
+    /// 消失。现在分三种态引导：**未登录优先**（开关此时也是禁用的，唯一
+    /// 出路是登录）；已登录未开启 → 开关引导；都就绪 → 正常配对流程。
     @ViewBuilder
     private var pairingSection: some View {
-        if store.isEnabled && signedIn {
+        if !signedIn {
+            SettingsSection(
+                title: "Pair a Phone",
+                subtitle: "Pairing signals route through your Desire account (end-to-end encrypted). Sign in under Settings ▸ Sync first.",
+                icon: "qrcode"
+            ) {
+                SettingsRow("Sign in required", subtitle: localizedSettingText("Sign in to your Desire account (Settings ▸ Sync) — the Remote Control switch unlocks after sign-in.")) {
+                    EmptyView()
+                }
+            }
+        } else if !store.isEnabled {
+            SettingsSection(
+                title: "Pair a Phone",
+                subtitle: "Turn on Remote Control above to start pairing.",
+                icon: "qrcode"
+            ) {
+                SettingsRow("Pairing unavailable", subtitle: localizedSettingText("Remote Control is off — enable it above, then come back to pair your phone.")) {
+                    EmptyView()
+                }
+            }
+        } else {
             SettingsSection(
                 title: "Pair a Phone",
                 subtitle: "Scan with the Desire Remote app. The code works once and expires in 10 minutes.",

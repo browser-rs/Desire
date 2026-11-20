@@ -2,6 +2,8 @@
 ### Added
 
 - Handoff activityType 路由预案（批 1）：接力类型支持 UserDefaults 覆盖键 handoff.activityType——真机实测接力卡被系统强路由给 Safari 时，defaults write me.siwi.Desire handoff.activityType me.siwi.Desire.browsing 一键切换（下一次导航即生效，无需重启/发版）；两端 Info.plist 同时声明两个类型，iOS 接收端叠加第二个 onContinueUserActivity 监听。
+- 回归里程碑（批 4）：execution-e2e 190 项全量在含独立窗口三则反馈修复与 Handoff 路由预案的构建上干净跑通（190✓/0✗，EXIT=0）——0.8.65 之后的"每 3 版一次全量"节点兑现。
+
 
 ### Fixed
 

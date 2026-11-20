@@ -58,6 +58,14 @@
 批 3 文档清账（DPP 表/记忆）+ Doctor 小补全（核实后）→ 批 4 反馈修复预留 +
 收口（i18n/WhatsNew/产品页素材）→ **真机联调（用户）**。
 
+**批 1+2+3 完成（2026-11-20，批 2 随批 1 一并交付）**：AskAgentIntent
+（WS prompt 通道 + "新 assistant 消息且 busy=false"判据 + 5 分钟上限）+
+OpenRemoteIntent + 中英 Siri 短语；构建绿且两意图进系统动作库元数据
+（Metadata.appintents/extract.actionsdata 验证）。批 3 = DPP 限制表三行
+修正（跨源 iframe/L1 shadow/per-(host,action) 审批均已交付）。
+**待真机**：Siri 实测"问 Desire Remote ……"（模拟器无 Siri 语义路由）；
+批 4 = 反馈修复预留 + 收口（i18n/WhatsNew 发版时刷）。
+
 ## 不做
 
 --section（0.8.64 否决维持）；passkey（等 Apple entitlement，外部依赖）；

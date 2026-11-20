@@ -15,6 +15,11 @@ import UIKit
 ///   （此前 access token 过期后 WS 永远 401、界面永远"已断开"，即此根因。）
 @MainActor
 final class RemoteClient: ObservableObject {
+    /// AppIntents 的访问入口（v0.8.66 批 1）：App 的 @StateObject 构造时
+    /// 登记唯一实例——Intent 不能用 EnvironmentObject，静态弱引用最直接
+    /// （App 持强引用，生命周期覆盖 app 运行期）。
+    static private(set) weak var shared: RemoteClient?
+
 
     enum Phase: Equatable {
         /// 登录过期/未登录（唯一强制回登录页的情形）
@@ -176,7 +181,8 @@ final class RemoteClient: ObservableObject {
 
     private let defaults = UserDefaults.standard
     private var accessToken: String?
-    private var sessionKeyB64: String?
+    /// 配对密钥（internal：AppIntents 判"已配对"用；值本身不外泄）。
+    var sessionKeyB64: String?
     private var desktopDeviceID: String?
     private var controllerName: String
     private var wsTask: URLSessionWebSocketTask?
@@ -198,6 +204,7 @@ final class RemoteClient: ObservableObject {
 
     convenience init() {
         self.init(appearance: "")
+        Self.shared = self
     }
 
     init(appearance _: String) {

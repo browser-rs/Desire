@@ -639,11 +639,11 @@ SDK `expose()` 同一套协议格式），由第三方为热门站点编写。�
 
 | 限制 | 原因 | 计划 |
 |---|---|---|
-| 跨源 iframe 不可穿透 | 同源已自动搜索；跨源需宿主 frame API | 后续：`frame:` 前缀 |
+| ~~跨源 iframe 不可穿透~~ ✅ 已交付 | `frame:` 前缀 + 宿主 frame API 跨源查询（per-frame 提取/动作） | — |
 | infinite 分页只滚 window | 容器内滚动的站点无效（静默返回已收集部分） | 按需 |
-| L1 属性扫描不进 shadow DOM/iframe | 解析器只扫 light DOM（L2/L3 声明可用 `>>>`，选择器自动搜同源 iframe） | 按需 |
+| ~~L1 属性扫描不进 shadow DOM/iframe~~ ✅ 已交付 | desire-protocol.js L1 递归收集 open shadowRoot（`>>>` 跨边界选择器）+ 同源 iframe 自动搜索 | — |
 | well-known 仅同源 http(s) 页面 | 经页面内 fetch；file:// 等协议跳过 | 设计内 |
-| 审批白名单粒度 = 工具名 | outbound/danger 已强制逐次审批兜底 | 后续：per-(host, action) 放行 |
+| ~~审批白名单粒度 = 工具名~~ ✅ 已交付 | per-(host, action) 审批已上线（0b9c594） | — |
 | SDK 部署依赖产品页 | website/desire-sdk.js 随站点发布 | 用户部署时带上 |
 
 （listChanged / sampling / OAuth 属 MCP 客户端能力，不在 DPP 范围——见 MCP 章节。）

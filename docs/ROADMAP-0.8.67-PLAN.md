@@ -56,6 +56,15 @@
 批 3 WidgetKit 小组件（可选）+ 文档/记忆清账 → 批 4 反馈修复预留 + 收口 →
 **真机联调（Handoff 必须两台真机验收，用户参与）**。
 
+**批 1+2 完成（2026-11-20，59a12baf + 批 2 本提交）**：发射端系统级验证
+（com.apple.useractivity 全链到 Handoff.BecameCurrent——activity 创建/注册/
+成为 currentItem 全通）；iOS 接收卡（配对态才收、防重复弹同 URL）+ 三动作
+复用既有通道（openOnMac/openURL 帧、剪贴板、AskAgent prompt）。工程细节：
+NSUserActivityTypes 不在 INFOPLIST_KEY 集——部分 plist + INFOPLIST_FILE
+合并，同步组 membershipExceptions 排除资源拷贝（warning 消除）。
+**待真机**：接力卡路由归属（BrowsingWebPage 会不会被系统强路由给 Safari）
++ 卡片动作端到端。批 3 WidgetKit 按剩余精力定；批 4 反馈预留+收口。
+
 ## 不做
 
 站点 Web Notification（WebKit 公开 API 缺口——与 Web Push 同口径）；

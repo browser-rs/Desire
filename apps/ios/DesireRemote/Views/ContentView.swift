@@ -24,6 +24,12 @@ struct RootView: View {
         .background(DesireUI.pageFill.ignoresSafeArea())
         .tint(DesireUI.brand)
         .preferredColorScheme(client.preferredColorScheme)
+        // Apple Handoff 接力接收（v0.8.67 批 2）：Mac 端 Desire 停在某个
+        // 网页 → 系统接力卡点开 → activity 到这里（client.handleHandoff
+        // 配对态才收）→ MainView 顶部弹继续浏览卡。
+        .onContinueUserActivity(NSUserActivityTypeBrowsingWeb) { activity in
+            client.handleHandoff(activity: activity)
+        }
     }
 }
 
@@ -44,6 +50,13 @@ struct MainView: View {
     var body: some View {
         if client.hasSavedPairing {
             VStack(spacing: 0) {
+                if let handoff = client.pendingHandoff {
+                    HandoffCardView(item: handoff) {
+                        client.pendingHandoff = nil
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+                }
                 if !client.desktopOnline || client.connectionState.contains("重连") {
                     connectionBanner
                 }

@@ -70,6 +70,26 @@ final class RemoteClient: ObservableObject {
     @Published var pendingEcho: ChatMessage?
     /// Mac 在线（服务器 last_seen 判定；pull 响应携带）
     @Published private(set) var desktopOnline = true
+    /// Apple Handoff 接力卡（v0.8.67 批 2）：Mac 端 Desire 停在某个网页时
+    /// 系统送来的继续浏览上下文——配对态才接收（handleHandoff），消费后置 nil。
+    @Published var pendingHandoff: HandoffItem?
+
+    struct HandoffItem: Identifiable, Equatable {
+        let id = UUID()
+        let url: URL
+        let title: String?
+    }
+
+    /// NSUserActivity 接收入口（onContinueUserActivity 调；非主线程到达时
+    /// SwiftUI 已在主 actor 上下文）。
+    func handleHandoff(activity: NSUserActivity) {
+        guard sessionKeyB64 != nil else { return }   // 未配对静默忽略
+        guard let url = activity.webpageURL ?? (activity.userInfo?["BrowsingWebPage"] as? String).flatMap(URL.init(string:)) else { return }
+        let item = HandoffItem(url: url, title: activity.title)
+        if pendingHandoff?.url != item.url {
+            pendingHandoff = item
+        }
+    }
     /// Agent 状态行（快照携带）：模型 / 上下文占用% / 排队数 / 回合已用时秒
     @Published private(set) var agentModel = ""
     @Published private(set) var contextPercent = 0

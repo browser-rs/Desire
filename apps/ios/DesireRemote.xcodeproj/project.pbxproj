@@ -14,9 +14,22 @@
 		5A0A00012FF7D00000E5D4E8 /* DesireRemote.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DesireRemote.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		5A0A01002FF7D00000E5D4E8 /* Exceptions for "DesireRemote" folder in "DesireRemote" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				HandoffInfo.plist,
+			);
+			target = 5A0A00FA2FF7D00000E5D4E8 /* DesireRemote */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		5A0A00032FF7D00000E5D4E8 /* DesireRemote */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				5A0A01002FF7D00000E5D4E8 /* Exceptions for "DesireRemote" folder in "DesireRemote" target */,
+			);
 			path = DesireRemote;
 			sourceTree = "<group>";
 		};
@@ -209,6 +222,7 @@
 				DEVELOPMENT_TEAM = F8JZTX6J52;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DesireRemote/HandoffInfo.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "扫码配对 Desire Remote";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "语音输入指令";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "把语音转成文字指令";
@@ -242,6 +256,7 @@
 				DEVELOPMENT_TEAM = F8JZTX6J52;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = DesireRemote/HandoffInfo.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "扫码配对 Desire Remote";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "语音输入指令";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "把语音转成文字指令";

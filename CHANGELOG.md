@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.67] - 2026-11-21
 ### Added
 
 - Apple Handoff 接力（批 1+2 融合旗舰，Safari 同款系统级接力）：Mac 端 Desire 停在某个网页（导航 didFinish 更新，查看器 file:// 页不广播）→ iPhone 锁屏/多任务出现系统"继续浏览"卡 → 点开进 DesireRemote 弹接力卡（URL/标题 + 三动作：在 Mac 上打开——复用 0.8.38 openURL 帧 / 复制链接 / 问 Agent——0.8.66 prompt 通道）。activityType = Safari 同款 BrowsingWebPage（两端同源声明；若系统强路由给 Safari，两端一起换 me.siwi.Desire.browsing）。发射端系统级验证：com.apple.useractivity 全链（CREATED→SET-USERINFO→INVALIDATE→BECOMECURRENT→useractivityd 注册→Handoff.BecameCurrent）；iOS 端 NSUserActivityTypes 进打包产物（部分 plist 合并 + 同步组 membership 排除）。

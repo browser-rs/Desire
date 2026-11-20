@@ -23,6 +23,10 @@ struct AgentWindowSidebar: View {
     var onActivateChat: () -> Void
 
     @State private var searchText = ""
+    /// 会话多选模式（v0.8.67 用户反馈"批量操作不方便"）：进入后 ⌘/Shift
+    /// 点选（List 的 Set selection），头部变批量工具条（全选/删除/完成）。
+    @State private var multiSelectMode = false
+    @State private var selectedIDs: Set<UUID> = []
 
     var body: some View {
         VStack(spacing: 0) {
@@ -141,6 +145,19 @@ struct AgentWindowSidebar: View {
     // MARK: - Conversations（会话区）
 
     private var conversationsHeader: some View {
+        Group {
+            if multiSelectMode {
+                multiSelectHeader
+            } else {
+                normalHeader
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
+        .padding(.bottom, 2)
+    }
+
+    private var normalHeader: some View {
         HStack(spacing: 6) {
             Text("Conversations")
                 .font(.system(size: 10.5, weight: .semibold, design: .rounded))
@@ -149,10 +166,56 @@ struct AgentWindowSidebar: View {
             Text("\(conversationStore.conversations.count)")
                 .font(.system(size: 10, weight: .medium))
                 .foregroundStyle(.secondary)
+            HoverIcon(systemName: "checkmark.circle",
+                      action: { enterMultiSelect() },
+                      help: "Select multiple")
         }
-        .padding(.horizontal, 12)
-        .padding(.top, 8)
-        .padding(.bottom, 2)
+    }
+
+    /// 批量工具条：已选计数 + 全选/删除/完成。删除走与单删同一确认弹窗
+    /// 语义（NSAlert），删完退出多选。
+    private var multiSelectHeader: some View {
+        HStack(spacing: 6) {
+            Text(String(localized: "\(selectedIDs.count) selected"))
+                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
+                .foregroundStyle(.secondary)
+            Spacer(minLength: 4)
+            HoverIcon(systemName: "checkmark.circle.fill",
+                      action: { selectedIDs = Set(groups.flatMap { $0.items.map(\.id) }) },
+                      help: "Select all")
+            HoverIcon(systemName: "trash",
+                      action: { confirmBatchDelete() },
+                      help: "Delete selected")
+            HoverIcon(systemName: "xmark.circle",
+                      action: { exitMultiSelect() },
+                      help: "Done")
+        }
+    }
+
+    private func enterMultiSelect() {
+        selectedIDs = []
+        multiSelectMode = true
+    }
+
+    private func exitMultiSelect() {
+        multiSelectMode = false
+        selectedIDs = []
+    }
+
+    private func confirmBatchDelete() {
+        guard !selectedIDs.isEmpty else { return }
+        let alert = NSAlert()
+        alert.messageText = String(localized: "Delete \(selectedIDs.count) Conversations")
+        alert.informativeText = String(localized: "This cannot be undone.")
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: String(localized: "Delete"))
+        alert.addButton(withTitle: String(localized: "Cancel"))
+        if alert.runModal() == .alertFirstButtonReturn {
+            let ids = selectedIDs
+            conversationStore.delete(ids)
+            sessionStore.handleConversationsDeleted(ids)
+            exitMultiSelect()
+        }
     }
 
     private var searchField: some View {
@@ -203,7 +266,32 @@ struct AgentWindowSidebar: View {
 
     /// 原生 `List(selection:)`：选中态直接绑定"当前会话"——点行即切换，
     /// 其他宿主装载了别的会话时高亮也跟着走。行不自绘高亮（系统画）。
+    /// 多选模式（v0.8.67）走独立 List：selection = Set<UUID>（⌘/Shift 点选），
+    /// 行 contextMenu 隐藏（批量工具条在头部）。
+    @ViewBuilder
     private var conversationList: some View {
+        if multiSelectMode {
+            List(selection: $selectedIDs) {
+                ForEach(groups) { group in
+                    Section(group.title) {
+                        ForEach(group.items) { conv in
+                            AgentWindowSidebarRow(
+                                conversation: conv,
+                                isCurrent: conv.id == sessionStore.conversationId
+                            )
+                            .tag(conv.id)
+                        }
+                    }
+                }
+            }
+            .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+        } else {
+            normalConversationList
+        }
+    }
+
+    private var normalConversationList: some View {
         List(
             selection: Binding<UUID?>(
                 get: { sessionStore.conversationId },

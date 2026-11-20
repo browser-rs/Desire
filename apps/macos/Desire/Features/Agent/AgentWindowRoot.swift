@@ -19,8 +19,10 @@ enum AgentWindowDestination: Hashable {
 /// 独立 Agent 窗口的**两栏布局根视图**（2026-10-10）：左栏 = 智能体侧栏
 /// （目的地导航 + 会话列表，`AgentWindowSidebar`），右栏 = 目的地对应的
 /// 页面（默认聊天 `AgentPanel`）。侧栏**默认折叠**，显隐状态落 UserDefaults。
-/// 分栏走 HSplitView 原生分隔条（项目既定方案），宽度协商只在子视图
-/// minWidth/idealWidth/maxWidth 上做。浏览器内嵌的 Agent 侧栏面板是窄列，
+/// 分栏容器 = `NavigationSplitView`（v0.8.67 用户反馈：与设置页同款系统侧栏
+/// ——毛玻璃列、系统分隔条可拖；此前是自定义 HSplitView）。开合交互不变：
+/// detail 顶部 `sidebar.left` 按钮仍走 setSidebarExpanded（映射 columnVisibility
+/// + 持久化 + 宿主 minSize 回调）。浏览器内嵌的 Agent 侧栏面板是窄列，
 /// **不走这里**——保持单栏（用户明确：嵌入的那块不变）。
 struct AgentWindowRoot: View {
     @ObservedObject var store: AgentSessionStore
@@ -36,26 +38,34 @@ struct AgentWindowRoot: View {
     /// `bool(forKey:)` 对不存在的键返回 false = 默认折叠。
     static let sidebarKey = "agent.window.sidebarExpanded"
 
+    /// 与 isSidebarExpanded 双向映射（NavigationSplitView 的显隐枚举）。
+    @State private var columnVisibility: NavigationSplitViewVisibility =
+        UserDefaults.standard.bool(forKey: AgentWindowRoot.sidebarKey) ? .all : .detailOnly
+
     var body: some View {
-        HSplitView {
-            if isSidebarExpanded {
-                AgentWindowSidebar(
-                    destination: $destination,
-                    conversationStore: conversationStore,
-                    sessionStore: store,
-                    onNewChat: {
-                        switchDestination(.chat)
-                        store.clear()
-                    },
-                    onActivateChat: { switchDestination(.chat) }
-                )
-                .frame(minWidth: 190, idealWidth: 232, maxWidth: 340)
-                .frame(maxHeight: .infinity)
-            }
+        NavigationSplitView(columnVisibility: $columnVisibility) {
+            AgentWindowSidebar(
+                destination: $destination,
+                conversationStore: conversationStore,
+                sessionStore: store,
+                onNewChat: {
+                    switchDestination(.chat)
+                    store.clear()
+                },
+                onActivateChat: { switchDestination(.chat) }
+            )
+            .frame(maxHeight: .infinity)
+            .navigationSplitViewColumnWidth(min: 190, ideal: 232, max: 340)
+        } detail: {
             detail
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .navigationSplitViewStyle(.balanced)
+        // 用户点系统列边/列宽变化不会改 visibility；只有显式开合才会，
+        // 这里回写权威状态（持久化 + 宿主 minSize 回调）。
+        .onChange(of: columnVisibility) { _, newValue in
+            setSidebarExpanded(newValue != .detailOnly)
+        }
     }
 
     /// 右栏目的地：聊天之外复用既有子页（记忆/统计/轨迹/能力），任务与
@@ -133,9 +143,12 @@ struct AgentWindowRoot: View {
     }
 
     private func setSidebarExpanded(_ expanded: Bool) {
-        guard expanded != isSidebarExpanded else { return }
+        guard isSidebarExpanded != expanded else { return }
         withAnimation(.transitionNormal) {
             isSidebarExpanded = expanded
+            // columnVisibility 的 onChange 会再进一次 setSidebarExpanded，
+            // 此时 isSidebarExpanded 已同步、guard 直接返回——无递归。
+            columnVisibility = expanded ? .all : .detailOnly
         }
         UserDefaults.standard.set(expanded, forKey: Self.sidebarKey)
         onSidebarVisibilityChanged?(expanded)

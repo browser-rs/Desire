@@ -4498,10 +4498,11 @@ clean build 零警告；i18n 3537 键三语零骨架。
 | 0.8.45 | 订阅与信息流 | RSS/Atom 订阅器（解析/抓取/未读/阅读模式打开）+ 新标签页今日阅读卡 + Agent 订阅工具族 + 简报/通知并入 + feeds 第十六同步域（opt-in） | 开发完成，待验收 |
 > 0.8.46–0.8.63 逐条以 CHANGELOG 为准（各自规划稿 `docs/ROADMAP-0.8.4x/5x/6x-PLAN.md`
 > 不再回填本表）；0.8.64 已发布（604，读以致用）；0.8.65 已发布（605，
-> 账实相符）；0.8.66 已发布（606，一路顺子：iOS Siri 意图）。**当前规划 =
-> `docs/ROADMAP-0.8.67-PLAN.md`「一接到底」**（Apple Handoff 接力旗舰 +
-> 反馈修复版；规划前核实第九连——geolocation/media capture 委托已实现、
-> 站点 Web Notification 是 WebKit 公开 API 缺口归入否决）。
+> 账实相符）；0.8.66 已发布（606，一路顺子：iOS Siri 意图）；0.8.67 已发布
+> （607，一接到底：Apple Handoff 接力）。**当前规划 =
+> `docs/ROADMAP-0.8.68-PLAN.md`「各就各位」**（独立窗口打磨版——首批三条
+> 反馈修复已落 `[Unreleased]`，加 Handoff activityType defaults 覆盖预案；
+> 规划前核实第九连+：历史列表多选已有完整形态）。
 
 ## v0.8.35 规划稿（2026-11-01，已发布）—— 读有所得：笔记本、朗读与网页成书
 

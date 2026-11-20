@@ -10,6 +10,11 @@
 	<string>AppIcon</string>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
+	<key>NSUserActivityTypes</key>
+	<array>
+		<!-- 与 HandoffRelay.activityType 同源（被系统强路由 Safari 时两处一起切换） -->
+		<string>BrowsingWebPage</string>
+	</array>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>

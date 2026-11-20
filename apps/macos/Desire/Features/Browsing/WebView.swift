@@ -2191,6 +2191,10 @@ try {
                    parent.state.jsonViewerURL == nil,
                    parent.state.presentationViewerURL == nil {
                     parent.urlString = url.absoluteString
+                    // Apple Handoff 发射（v0.8.67 批 1）：与地址栏同一分支——
+                    // 查看器挂载中的 file:// 页面不广播（接力浏览上下文，
+                    // 不接力本地文件）。导航 didFinish 才更新，防半加载页接力。
+                    HandoffRelay.shared.update(url: url, title: webView.title)
                 }
                 lastNavigatedURL = url.absoluteString
                 parent.state.isSecure = url.scheme == "https"

@@ -66,6 +66,11 @@ OpenRemoteIntent + 中英 Siri 短语；构建绿且两意图进系统动作库�
 **待真机**：Siri 实测"问 Desire Remote ……"（模拟器无 Siri 语义路由）；
 批 4 = 反馈修复预留 + 收口（i18n/WhatsNew 发版时刷）。
 
+**批 4 收口（2026-11-20，同日）**：Doctor 新增"同步完整性"检查项（判据 =
+多余份数；首版判据写错成地址数被 live 验证当场抓出——快拨 9 个不同地址
+被判 9 组重复，修正后 ok=true）。WhatsNew 刷 v0.8.66 三条亮点（三语）。
+v0.8.66 内容收官，发版等真机 Siri 实测 + 用户指令。
+
 ## 不做
 
 --section（0.8.64 否决维持）；passkey（等 Apple entitlement，外部依赖）；

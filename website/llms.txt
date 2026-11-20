@@ -12,7 +12,7 @@
 - Product page (en): https://desire.mankong.icu/en/
 - Source code: https://github.com/browser-rs/Desire
 - Downloads: https://github.com/browser-rs/Desire/releases/latest
-- Current version: 0.8.51 (November 2026)
+- Current version: 0.8.67 (November 2026)
 - Platform: macOS 26.5+; Apple Silicon (arm64) and Intel (x86_64)
 - Engine: Apple WebKit (WKWebView), native SwiftUI app
 - Price: free; AI models are bring-your-own-key (OpenAI-compatible, Anthropic,
@@ -26,6 +26,15 @@
   skills, subagents, scheduled tasks, full traces with token usage and cost.
 - Approval policy: three access levels (confirm each side effect / auto-edit page
   actions while commands stay gated / full access) plus command allow-lists.
+- Bilingual translation 2.0: whole-page AI translation with a per-site
+  glossary, block-level cache, and save-as-book into the ebook library.
+- Agent artifact hub: files the agent produces are tracked on Mac and iPhone
+  (list, size, preview for text/images/PDF, preset remix actions).
+- Apple Handoff relay and Siri/Shortcuts intents on the iPhone companion app
+  (ask the desktop agent from the lock screen).
+- Sync integrity diagnostics: same-address duplicate detection plus per-domain
+  tombstones and cursors; token-per-model calibration surfaces the effective
+  context budget.
 - MCP server and client; a local automation bridge with 60+ endpoints.
 - Offline toolbox with 81 utilities (calculators, unit conversion, JSON/CSV,
   regex, hashes, crypto, QR/barcodes, timestamps, Base64, video/audio editing,

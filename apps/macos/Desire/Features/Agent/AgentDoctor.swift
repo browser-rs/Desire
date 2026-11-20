@@ -148,6 +148,25 @@ enum AgentDoctor {
             checks.append(Check(name: "主线程健康", ok: true, detail: "未记录到主线程停滞"))
         }
 
+        // 10. 同步完整性（v0.8.65 批 1 的数据面，体检收口：快拨同址重复
+        // 应为 0——收敛修复 b10fc03d 后正常态；书签重复是语义豁免不判失败）。
+        if let sync = AppState.live?.syncStore {
+            let duplicates = (sync.healthReport()["duplicates"] as? [[String: Any]]) ?? []
+            let dial = duplicates.first(where: { ($0["domain"] as? String) == "quickdials" })
+            let groups = dial?["groups"] as? Int ?? 0
+            let extra = dial?["extra"] as? Int ?? 0
+            // 判据 = extra（多出的份数），不是 groups（groups 是"不同地址
+            // 数"，9 条各不相同的快拨 = 9 组，正常态）。
+            if extra > 0 {
+                checks.append(Check(
+                    name: "同步完整性",
+                    ok: false,
+                    detail: "快拨同址重复：\(groups) 个地址多出 \(extra) 份——收敛修复重启后应自动清零"))
+            } else {
+                checks.append(Check(name: "同步完整性", ok: true, detail: "快拨无同址重复（\(groups) 个地址）"))
+            }
+        }
+
         return Report(checks: checks)
     }
 

@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "checkmark.seal", title: String(localized: "Sync integrity, in plain sight"),
-                  detail: String(localized: "Settings ▸ Sync now checks same-address duplicates in quick dials, bookmarks and the reading list. Quick dials converge automatically — the duplicate pairs some of you saw are gone — while bookmarks keep their multi-folder semantics.")),
-            .init(icon: "shippingbox.and.arrow.up", title: String(localized: "PDFs travel to your phone"),
-                  detail: String(localized: "Artifact cards can now preview PDFs up to 10MB straight from your Mac, rendered right on the phone — alongside text and image previews and the one-tap remix actions.")),
-            .init(icon: "server.rack", title: String(localized: "Cleaner behind the scenes"),
-                  detail: String(localized: "The admin tooling gained remote-device stats and mailbox cleanup, and the sync health derivation is exposed over the automation bridge for scripting.")),
+            .init(icon: "bubble.left.and.text.bubble.right", title: String(localized: "Ask Desire from your iPhone"),
+                  detail: String(localized: "Desire Remote gains Siri and Shortcuts support: ask your desktop agent a question from the lock screen and get the final answer back — long turns included.")),
+            .init(icon: "checkmark.seal", title: String(localized: "Doctor checks sync integrity"),
+                  detail: String(localized: "The one-click health check now includes quick-dial duplicate detection, on top of the Sync settings card introduced last release.")),
+            .init(icon: "doc.text.magnifyingglass", title: String(localized: "Protocol docs, corrected"),
+                  detail: String(localized: "The page-protocol limitations table now reflects reality: same-origin iframe piercing, shadow-DOM scans and per-site approval are all shipped.")),
         ]
     }
 

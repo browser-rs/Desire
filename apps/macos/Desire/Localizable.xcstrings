@@ -111391,6 +111391,138 @@
           }
         }
       }
+    },
+    "Ask Desire from your iPhone":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Ask Desire from your iPhone"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"在 iPhone 上问 Desire"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"在 iPhone 上問 Desire"
+          }
+        }
+      }
+    },
+    "Desire Remote gains Siri and Shortcuts support: ask your desktop agent a question from the lock screen and get the final answer back — long turns included.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Desire Remote gains Siri and Shortcuts support: ask your desktop agent a question from the lock screen and get the final answer back — long turns included."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Desire Remote 支持 Siri 与快捷指令：锁屏就能问桌面 Agent，等长回合跑完拿到最终回答。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Desire Remote 支援 Siri 與捷徑：鎖屏就能問桌面 Agent，等長回合跑完拿到最終回答。"
+          }
+        }
+      }
+    },
+    "Doctor checks sync integrity":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Doctor checks sync integrity"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"体检管到同步完整性"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"體檢管到同步完整性"
+          }
+        }
+      }
+    },
+    "The one-click health check now includes quick-dial duplicate detection, on top of the Sync settings card introduced last release.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The one-click health check now includes quick-dial duplicate detection, on top of the Sync settings card introduced last release."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一键体检在上版的同步完整性卡之外，新增快拨同址重复检测。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一鍵體檢在上版的同步完整性卡之外，新增快撥同址重複檢測。"
+          }
+        }
+      }
+    },
+    "Protocol docs, corrected":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Protocol docs, corrected"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"协议文档更正"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"協議文件更正"
+          }
+        }
+      }
+    },
+    "The page-protocol limitations table now reflects reality: same-origin iframe piercing, shadow-DOM scans and per-site approval are all shipped.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The page-protocol limitations table now reflects reality: same-origin iframe piercing, shadow-DOM scans and per-site approval are all shipped."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"页面协议的限制表已与实情一致：同源 iframe 穿透、shadow DOM 扫描与按站点审批都已交付。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"頁面協議的限制表已與實情一致：同源 iframe 穿透、shadow DOM 掃描與按站點審批都已交付。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

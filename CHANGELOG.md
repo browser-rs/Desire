@@ -3,6 +3,8 @@
 
 - DesireRemote App Intents / Siri（批 1+2 融合旗舰，iOS 端首批系统意图）：`AskAgentIntent`（文本入 → 桌面 Agent 最终回答出——复用既有 WS prompt 通道，判据与 macOS 意图/评估脚本同口径：新 assistant 消息且快照帧 busy=false，5 分钟上限）；`OpenRemoteIntent` 打开回聊天页；AppShortcutsProvider 注册中英 Siri 短语（"问/Ask、打开/Open Desire Remote"）。能力边界诚实标注：Siri/快捷指令把 app 拉到前台执行，不承诺后台静默（iOS 后台网络受 BGTask 限制）。构建绿；两意图均进系统动作库元数据（Metadata.appintents/extract.actionsdata 验证）。
 - 同步完整性数据面上屏收口（批 3）：docs/DPP-PROTOCOL.md 限制表过时行修正（跨源 iframe/L1 shadow/per-(host,action) 审批均已交付）。
+- Agent 体检新增"同步完整性"检查项（批 4 收口）：快拨同址重复检测并入一键体检（判据 = 多余份数而非地址数——9 个各不相同的快拨是正常态；live 验证收敛后 ok=true）。
+
 
 
 ## [v0.8.65] - 2026-11-20

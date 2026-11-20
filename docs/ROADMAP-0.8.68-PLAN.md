@@ -57,6 +57,11 @@
 批 4 完成：190 项全量 ALL PASS（EXIT=0）。剩余 = 真机 Handoff/Siri 验收
 （用户）→ 收口（WhatsNew 发版时刷）→ 发版指令。
 
+**收口完成（2026-11-21，同日）**：WhatsNew 刷三条亮点（三语）——独立窗口
+打磨 / Handoff 一键切换 / 体检管到同步。v0.8.68 内容收官：`[Unreleased]`
+= 三条反馈修复 + Handoff defaults 覆盖 + Doctor 同步检查（0.8.66 已带）+
+回归里程碑；190 全量 ALL PASS。**发版等用户**（真机验收 + 指令）。
+
 ## 不做
 
 站点 Web Notification（WebKit 公开 API 缺口）；浏览器内代理（WebKit 无

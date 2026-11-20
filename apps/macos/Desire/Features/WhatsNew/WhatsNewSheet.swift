@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "macwindow.on.rectangle", title: String(localized: "Keep browsing, hand in hand"),
-                  detail: String(localized: "Park a page on your Mac and it shows up as a system Handoff card on your iPhone — open it back on the Mac, copy the link, or ask the agent to summarize it.")),
-            .init(icon: "questionmark.bubble", title: String(localized: "Siri, ask Desire"),
-                  detail: String(localized: "Desire Remote answers to Siri and Shortcuts now: send a prompt to the desktop agent and get the final answer back, long turns included.")),
-            .init(icon: "checkmark.seal", title: String(localized: "Duplicates, diagnosed"),
-                  detail: String(localized: "The one-click health check now verifies quick-dial integrity (the duplicate pairs you saw earlier are auto-converged), and the page-protocol docs match what's actually shipped.")),
+            .init(icon: "rectangle.on.rectangle", title: String(localized: "The standalone window, polished"),
+                  detail: String(localized: "The agent window's sidebar is now the system split style with a draggable divider, conversations support multi-select with batch delete, and the chat column fills the window instead of capping at a fixed width.")),
+            .init(icon: "arrow.triangle.branch", title: String(localized: "Handoff, on your terms"),
+                  detail: String(localized: "If the system routes your continue-browsing card to Safari, a single defaults switch moves it to Desire Remote — no update required.")),
+            .init(icon: "stethoscope", title: String(localized: "Health check covers sync"),
+                  detail: String(localized: "The one-click doctor now verifies quick-dial integrity alongside model, MCP, hooks and heartbeat checks.")),
         ]
     }
 

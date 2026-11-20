@@ -111655,6 +111655,138 @@
           }
         }
       }
+    },
+    "The standalone window, polished":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The standalone window, polished"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"独立窗口，打磨到位"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"獨立視窗，打磨到位"
+          }
+        }
+      }
+    },
+    "The agent window's sidebar is now the system split style with a draggable divider, conversations support multi-select with batch delete, and the chat column fills the window instead of capping at a fixed width.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The agent window's sidebar is now the system split style with a draggable divider, conversations support multi-select with batch delete, and the chat column fills the window instead of capping at a fixed width."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"智能体窗口的侧栏换成系统分栏样式（分隔条可拖），会话列表支持多选与批量删除，聊天列铺满窗口不再固定限宽。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"智慧體視窗的側欄換成系統分割樣式（分隔條可拖），會話列表支援多選與批次刪除，聊天列鋪滿視窗不再固定限寬。"
+          }
+        }
+      }
+    },
+    "Handoff, on your terms":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Handoff, on your terms"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"接力卡听你的"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"接力卡聽你的"
+          }
+        }
+      }
+    },
+    "If the system routes your continue-browsing card to Safari, a single defaults switch moves it to Desire Remote — no update required.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"If the system routes your continue-browsing card to Safari, a single defaults switch moves it to Desire Remote — no update required."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"如果系统把继续浏览卡路由给了 Safari，一条 defaults 命令即可切回 Desire Remote——无需更新版本。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"如果系統把繼續瀏覽卡路由給了 Safari，一條 defaults 命令即可切回 Desire Remote——無需更新版本。"
+          }
+        }
+      }
+    },
+    "Health check covers sync":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Health check covers sync"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"体检管到同步"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"體檢管到同步"
+          }
+        }
+      }
+    },
+    "The one-click doctor now verifies quick-dial integrity alongside model, MCP, hooks and heartbeat checks.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The one-click doctor now verifies quick-dial integrity alongside model, MCP, hooks and heartbeat checks."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一键体检在模型/MCP/钩子/心跳之外，新增快拨同址完整性检查。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一鍵體檢在模型／MCP／鉤子／心跳之外，新增快撥同址完整性檢查。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

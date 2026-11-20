@@ -111523,6 +111523,138 @@
           }
         }
       }
+    },
+    "Keep browsing, hand in hand":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Keep browsing, hand in hand"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"接力浏览，一接到底"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"接力瀏覽，一接到底"
+          }
+        }
+      }
+    },
+    "Park a page on your Mac and it shows up as a system Handoff card on your iPhone — open it back on the Mac, copy the link, or ask the agent to summarize it.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Park a page on your Mac and it shows up as a system Handoff card on your iPhone — open it back on the Mac, copy the link, or ask the agent to summarize it."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"在 Mac 上停留的页面会以系统接力卡出现在 iPhone 上——可以回到 Mac 打开、复制链接，或让 Agent 帮你总结。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"在 Mac 上停留的頁面會以系統接力卡出現在 iPhone 上——可以回到 Mac 打開、複製連結，或讓 Agent 幫你總結。"
+          }
+        }
+      }
+    },
+    "Siri, ask Desire":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Siri, ask Desire"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Siri，问 Desire"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Siri，問 Desire"
+          }
+        }
+      }
+    },
+    "Desire Remote answers to Siri and Shortcuts now: send a prompt to the desktop agent and get the final answer back, long turns included.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Desire Remote answers to Siri and Shortcuts now: send a prompt to the desktop agent and get the final answer back, long turns included."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Desire Remote 现在响应 Siri 与快捷指令：给桌面 Agent 发指令，等长回合跑完拿最终回答。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Desire Remote 現在響應 Siri 與捷徑：給桌面 Agent 發指令，等長回合跑完拿最終回答。"
+          }
+        }
+      }
+    },
+    "Duplicates, diagnosed":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Duplicates, diagnosed"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重复有诊断"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重複有診斷"
+          }
+        }
+      }
+    },
+    "The one-click health check now verifies quick-dial integrity (the duplicate pairs you saw earlier are auto-converged), and the page-protocol docs match what's actually shipped.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The one-click health check now verifies quick-dial integrity (the duplicate pairs you saw earlier are auto-converged), and the page-protocol docs match what's actually shipped."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一键体检新增快拨同址完整性（之前的成对重复已自动收敛）；页面协议文档也与实际交付对齐。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一鍵體檢新增快撥同址完整性（之前的成對重複已自動收斂）；頁面協議文件也與實際交付對齊。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

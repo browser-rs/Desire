@@ -65,6 +65,12 @@ NSUserActivityTypes 不在 INFOPLIST_KEY 集——部分 plist + INFOPLIST_FILE
 **待真机**：接力卡路由归属（BrowsingWebPage 会不会被系统强路由给 Safari）
 + 卡片动作端到端。批 3 WidgetKit 按剩余精力定；批 4 反馈预留+收口。
 
+**批 3 砍除决定 + 批 4 收口（2026-11-20，同日）**：WidgetKit 小组件砍除——
+工程量（新 widget extension target + App Group 数据管线）对价值比不划算，
+且价值验证依赖真机联调之后的反馈；规划稿"超预算即砍"条款兑现。批 4 =
+WhatsNew 刷三条亮点（三语）+ 反馈修复预留（发版时机由用户按反馈定）。
+v0.8.67 内容收官。
+
 ## 不做
 
 站点 Web Notification（WebKit 公开 API 缺口——与 Web Push 同口径）；

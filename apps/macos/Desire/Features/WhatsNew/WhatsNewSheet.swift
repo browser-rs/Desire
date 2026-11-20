@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "bubble.left.and.text.bubble.right", title: String(localized: "Ask Desire from your iPhone"),
-                  detail: String(localized: "Desire Remote gains Siri and Shortcuts support: ask your desktop agent a question from the lock screen and get the final answer back — long turns included.")),
-            .init(icon: "checkmark.seal", title: String(localized: "Doctor checks sync integrity"),
-                  detail: String(localized: "The one-click health check now includes quick-dial duplicate detection, on top of the Sync settings card introduced last release.")),
-            .init(icon: "doc.text.magnifyingglass", title: String(localized: "Protocol docs, corrected"),
-                  detail: String(localized: "The page-protocol limitations table now reflects reality: same-origin iframe piercing, shadow-DOM scans and per-site approval are all shipped.")),
+            .init(icon: "macwindow.on.rectangle", title: String(localized: "Keep browsing, hand in hand"),
+                  detail: String(localized: "Park a page on your Mac and it shows up as a system Handoff card on your iPhone — open it back on the Mac, copy the link, or ask the agent to summarize it.")),
+            .init(icon: "questionmark.bubble", title: String(localized: "Siri, ask Desire"),
+                  detail: String(localized: "Desire Remote answers to Siri and Shortcuts now: send a prompt to the desktop agent and get the final answer back, long turns included.")),
+            .init(icon: "checkmark.seal", title: String(localized: "Duplicates, diagnosed"),
+                  detail: String(localized: "The one-click health check now verifies quick-dial integrity (the duplicate pairs you saw earlier are auto-converged), and the page-protocol docs match what's actually shipped.")),
         ]
     }
 

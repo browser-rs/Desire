@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "rectangle.on.rectangle", title: String(localized: "The standalone window, polished"),
-                  detail: String(localized: "The agent window's sidebar is now the system split style with a draggable divider, conversations support multi-select with batch delete, and the chat column fills the window instead of capping at a fixed width.")),
-            .init(icon: "arrow.triangle.branch", title: String(localized: "Handoff, on your terms"),
-                  detail: String(localized: "If the system routes your continue-browsing card to Safari, a single defaults switch moves it to Desire Remote — no update required.")),
-            .init(icon: "stethoscope", title: String(localized: "Health check covers sync"),
-                  detail: String(localized: "The one-click doctor now verifies quick-dial integrity alongside model, MCP, hooks and heartbeat checks.")),
+            .init(icon: "photo.badge.plus", title: String(localized: "Point your camera at the problem"),
+                  detail: String(localized: "Desire Remote can now send photos to the agent: snap or pick up to three images, they land in the Mac's agent workspace, and the agent can look at them with its vision tool right away.")),
+            .init(icon: "qrcode.viewfinder", title: String(localized: "Authorize a new Mac from your phone"),
+                  detail: String(localized: "The scan-to-sign-in entry now lives in Settings ▸ Connection — always there, so a new or reinstalled Mac can be signed in with a quick scan instead of a password.")),
+            .init(icon: "sidebar.left", title: String(localized: "The agent window, tuned by you"),
+                  detail: String(localized: "Your feedback shaped this release: multi-select conversations with batch delete, the system-style sidebar, and a chat column that fills the whole window.")),
         ]
     }
 

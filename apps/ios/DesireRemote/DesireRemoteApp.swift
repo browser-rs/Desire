@@ -15,20 +15,34 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
 @main
 struct DesireRemoteApp: App {
     @StateObject private var client = RemoteClient()
+    @StateObject private var appLock = AppLock.shared
     @Environment(\.scenePhase) private var scenePhase
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environmentObject(client)
-                .onChange(of: scenePhase) { _, phase in
-                    switch phase {
-                    case .active: client.appForegrounded()
-                    case .background: client.appWentBackground()
-                    default: break
-                    }
+            ZStack {
+                RootView()
+                    .environmentObject(client)
+                // App 锁覆盖层（v0.8.69）：开着且未解锁时全屏盖住——下方
+                // 消息/产物不可见。unlock 在覆盖层按钮上。
+                if appLock.isLocked {
+                    AppLockOverlay(lock: appLock)
+                        .environmentObject(client)
                 }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                switch phase {
+                case .active:
+                    client.appForegrounded()
+                    // 回前台：锁定态不自动弹认证（覆盖层按钮触发——避免
+                    // 系统弹窗与画面切换抢焦点）。
+                case .background: 
+                    client.appWentBackground()
+                    appLock.lockIfEnabled()
+                default: break
+                }
+            }
         }
     }
 }

@@ -18,6 +18,7 @@ struct ChatView: View {
     /// 手机发图（v0.8.69）：相册多选（PhotosPicker）+ 逐张分片上行。
     @State private var pendingPhotoItems: [PhotosPickerItem] = []
     @State private var photoUploading = false
+    @State private var showCamera = false
     /// 消息流是否贴底（迟滞：贴到 60pt 内跟随，离开 160pt 停跟随）
     @State private var atBottom = true
     /// Agent 状态弹窗（模型 / 上下文 / 权限 / 本回合控制）
@@ -45,6 +46,25 @@ struct ChatView: View {
             guard !items.isEmpty else { return }
             pendingPhotoItems = []
             Task { await sendPickedPhotos(items) }
+        }
+        .sheet(isPresented: $showCamera) {
+            CameraSheet { image in
+                Task {
+                    photoUploading = true
+                    let name = "CAM-\(Int(Date().timeIntervalSince1970)).jpg"
+                    if let error = await client.sendPhoto(uiImage: image, name: name) {
+                        client.messages.append(ChatMessage(
+                            id: "photo-err-\(UUID().uuidString)", role: "assistant",
+                            content: "图片发送失败：\(error)", reasoning: nil, toolCalls: nil))
+                    } else {
+                        client.messages.append(ChatMessage(
+                            id: "photo-ok-\(UUID().uuidString)", role: "assistant",
+                            content: "📷 拍照已发送到 Mac（\(name)）——Agent 可用 lookImage 查看。",
+                            reasoning: nil, toolCalls: nil))
+                    }
+                    photoUploading = false
+                }
+            }
         }
         // 导航栏**留白但透明**：返回键用系统的（原生玻璃质感，左滑返回手势也
         // 一定可用），同时视觉上仍是全屏聊天——内容会滚到导航栏下面去。
@@ -403,6 +423,26 @@ struct ChatView: View {
             .buttonStyle(.plain)
             .disabled(photoUploading)
             .accessibilityLabel("发图片给 Agent")
+            // 拍摄入口（v0.8.69）：相机不可用（模拟器）时点击给提示而非死按钮。
+            Button {
+                if UIImagePickerController.isSourceTypeAvailable(.camera) {
+                    showCamera = true
+                } else {
+                    client.messages.append(ChatMessage(
+                        id: "cam-err-\(UUID().uuidString)", role: "assistant",
+                        content: "相机不可用——请从相册选择图片。", reasoning: nil,
+                        toolCalls: nil))
+                }
+            } label: {
+                Image(systemName: "camera")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 30, height: 30)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(photoUploading)
+            .accessibilityLabel("拍照发给 Agent")
             micButton
             TextField(placeholder, text: $draft, axis: .vertical)
                 .lineLimit(1...5)

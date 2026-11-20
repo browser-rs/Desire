@@ -89,6 +89,16 @@ struct SettingsView: View {
             }
 
             Section {
+                Toggle(isOn: Binding(
+                    get: { AppLock.shared.enabled },
+                    set: { AppLock.shared.setEnabled($0) }
+                )) {
+                    Label("App 锁（Face ID）", systemImage: "faceid")
+                        .font(.system(size: 14))
+                }
+                Text("开启后：切后台即锁定，回前台需 Face ID / 设备密码解锁——手机丢失也不会交出 Mac 指挥权。")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
                 TextField("留空 = 使用内置默认地址", text: $serverURL)
                     .keyboardType(.URL)
                     .autocorrectionDisabled()

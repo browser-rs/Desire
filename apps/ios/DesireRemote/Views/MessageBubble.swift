@@ -34,6 +34,13 @@ struct MessageBubble: View {
                 Spacer(minLength: 40)
                 Text(message.content ?? "")
                     .textSelection(.enabled)
+                    .contextMenu {
+                        Button {
+                            UIPasteboard.general.string = message.content ?? ""
+                        } label: {
+                            Label("复制全文", systemImage: "doc.on.doc")
+                        }
+                    }
                     .padding(.horizontal, 14).padding(.vertical, 10)
                     .background(
                         RoundedRectangle(cornerRadius: 18, style: .continuous)

@@ -2308,13 +2308,7 @@ final class RemoteControlStore: ObservableObject {
     /// 图片分片聚合缓冲（id → 状态）。push 帧硬限 32KB——图片 base64 切
     /// ~24KB 片分帧传输，Mac 端按 id 聚齐 total 片后落盘。非配对信道的
     /// 明文不会出现：分片走 innerFrame（端到端密文，与指令同密级）。
-    private var photoBuffers: [String: PhotoTransfer] = [:]
-
-    private struct PhotoTransfer {
-        let total: Int
-        let name: String
-        var parts: [Int: Data] = [:]
-    }
+    private var photoBuffers: [String: RemotePhotoTransfer.Accumulator] = [:]
 
     /// 落盘目录：agent workspace 下的 RemoteUploads/（readFile/lookImage
     /// 白名单内——Agent 无需额外授权即可读）。
@@ -2328,13 +2322,15 @@ final class RemoteControlStore: ObservableObject {
         switch inner.t {
         case "photo-start":
             let total = max(1, inner.total ?? 1)
-            photoBuffers[id] = PhotoTransfer(
-                total: total,
-                name: (inner.name ?? "photo.jpg").filter {
-                    $0.isLetter || $0.isNumber || $0 == "." || $0 == "-" || $0 == "_"
-                })
+            guard let acc = RemotePhotoTransfer.Accumulator(
+                total: total, name: inner.name ?? "photo.jpg") else {
+                sendInner(["t": "photo-error", "id": id,
+                           "message": String(localized: "Invalid photo metadata")])
+                return
+            }
+            photoBuffers[id] = acc
         case "photo-chunk":
-            guard var transfer = photoBuffers[id] else { return }
+            guard photoBuffers[id] != nil else { return }
             let idx = inner.idx ?? 0
             guard let b64 = inner.data, let data = Data(base64Encoded: b64) else {
                 photoBuffers[id] = nil
@@ -2342,10 +2338,14 @@ final class RemoteControlStore: ObservableObject {
                            "message": String(localized: "A chunk failed to decode — please resend the photo")])
                 return
             }
-            transfer.parts[idx] = data
-            photoBuffers[id] = transfer
-            guard transfer.parts.count >= transfer.total else { return }
-            finishPhoto(id: id, transfer: transfer)
+            if !photoBuffers[id]!.add(chunk: idx, data: data) {
+                photoBuffers[id] = nil
+                sendInner(["t": "photo-error", "id": id,
+                           "message": String(localized: "Invalid chunk index — please resend the photo")])
+                return
+            }
+            guard photoBuffers[id]!.isComplete else { return }
+            finishPhoto(id: id)
         default:
             break
         }
@@ -2353,12 +2353,10 @@ final class RemoteControlStore: ObservableObject {
 
     /// 聚齐落盘：workspace/RemoteUploads/<时间戳>-<名> → 当前会话 system 备注
     /// （模型可见，Agent 可直接 lookImage 该路径）→ 回执手机。
-    private func finishPhoto(id: String, transfer: PhotoTransfer) {
+    private func finishPhoto(id: String) {
+        guard let transfer = photoBuffers[id] else { return }
         photoBuffers[id] = nil
-        let ordered = (0..<transfer.total).compactMap { transfer.parts[$0] }
-        guard ordered.count == transfer.total,
-              let joined = ordered.reduce(Data(), +) as Data?,
-              !joined.isEmpty else {
+        guard let joined = transfer.assembled, !joined.isEmpty else {
             sendInner(["t": "photo-error", "id": id,
                        "message": String(localized: "Photo chunks arrived incomplete — please resend")])
             return
@@ -2368,7 +2366,8 @@ final class RemoteControlStore: ObservableObject {
         let stamp = DateFormatter.localizedString(from: Date(), dateStyle: .short, timeStyle: .medium)
             .replacingOccurrences(of: "/", with: "-").replacingOccurrences(of: ":", with: "-")
             .replacingOccurrences(of: " ", with: "_")
-        let url = photoUploadDirectory.appendingPathComponent("\(stamp)-\(transfer.name)")
+        let url = photoUploadDirectory.appendingPathComponent(
+            RemotePhotoTransfer.Accumulator.uploadFileName(name: transfer.name, stamp: stamp))
         do {
             try joined.write(to: url, options: .atomic)
         } catch {

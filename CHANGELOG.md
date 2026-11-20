@@ -2,6 +2,8 @@
 ### Added
 
 - 手机发图给 Agent（v0.8.69 批 1+2 融合旗舰，DesireRemote 多模态指挥）：聊天输入条新增相册多选（PhotosPicker，≤3 张）——图片压缩（长边 2048/JPEG 0.8）→ base64 切 24KB 片走既有加密 push 帧分片上行（32KB 帧硬限内、端到端密文与指令同密级）→ Mac 端按 id 聚齐落盘到 agent workspace/RemoteUploads/（readFile/lookImage 白名单内）→ 当前会话写 system 备注（模型可见，直接 lookImage 处理）+ 回执手机端消息流；失败明示（离线/解码失败/落盘失败各有文案）。真机联调待用户。
+- 手机发图分片聚合抽纯逻辑（测试加固）：RemotePhotoTransfer.Accumulator（乱序收片/序号越界拒绝/重传幂等/聚齐按序拼装/文件名清洗防路径穿越）14 项单测进 harness（3376→3390）——RemoteControlStore 只剩 IO 与帧路由。
+
 
 ### Fixed
 

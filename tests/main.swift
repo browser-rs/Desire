@@ -11631,6 +11631,42 @@ do {
     check("快拨去重：空 URL 剔除", r5.kept.isEmpty && r5.removedIDs.count == 1)
 }
 
+// ---------- RemotePhotoTransfer（手机发图分片聚合） ----------
+
+do {
+    // 文件名清洗：路径成分剥离 / 非法字符剔除 / 空名默认
+    check("发图：剥路径成分", RemotePhotoTransfer.Accumulator
+          .sanitizedFileName("/tmp/evil/../IMG_1.jpg") == "IMG_1.jpg")
+    check("发图：非法字符剔除（空格是合法文件名字符，保留）", RemotePhotoTransfer.Accumulator
+          .sanitizedFileName("照 片:1?.jpg") == "照 片1.jpg")
+    check("发图：空名默认", RemotePhotoTransfer.Accumulator
+          .sanitizedFileName("   ") == "photo.jpg")
+
+    // 构造守卫：total<1 拒绝
+    check("发图：total 0 拒绝", RemotePhotoTransfer.Accumulator(total: 0, name: "a.jpg") == nil)
+
+    // 聚合：3 片乱序收 → isComplete → assembled 顺序正确
+    var acc = RemotePhotoTransfer.Accumulator(total: 3, name: "p.jpg")!
+    let part1 = Data([1]), part2 = Data([2, 2]), part3 = Data([3, 3, 3])
+    check("发图：乱序收片 1", acc.add(chunk: 1, data: part2))
+    check("发图：乱序收片 0", acc.add(chunk: 0, data: part1))
+    check("发图：未齐不完整", !acc.isComplete && acc.assembled == nil)
+    check("发图：收尾片", acc.add(chunk: 2, data: part3))
+    check("发图：聚齐判定", acc.isComplete)
+    let joined = acc.assembled ?? Data()
+    check("发图：按序号拼装", joined == Data([1]) + Data([2, 2]) + Data([3, 3, 3]))
+
+    // 越界序号拒绝；重传同片幂等（不重复计数）
+    check("发图：越界序号拒绝", !acc.add(chunk: 3, data: Data([9])))
+    check("发图：负序号拒绝", !acc.add(chunk: -1, data: Data([9])))
+    check("发图：重传同片幂等", acc.add(chunk: 1, data: part2) && acc.receivedCount == 3)
+
+    // 落盘名
+    check("发图：落盘名拼装", RemotePhotoTransfer.Accumulator
+          .uploadFileName(name: "IMG 1.jpg", stamp: "2026-11-21_10_30")
+          == "2026-11-21_10_30-IMG 1.jpg")
+}
+
 // ---------- SyncDomainHealth（同步完整性派生） ----------
 
 do {

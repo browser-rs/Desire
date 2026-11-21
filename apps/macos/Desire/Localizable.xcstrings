@@ -112271,6 +112271,62 @@
           }
         }
       }
+    },
+    "Compacted: %lld older entries were archived — summarized turns and collapsed tool outputs stay searchable via recallConversation.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Compacted: %lld older entries were archived — summarized turns and collapsed tool outputs stay searchable via recallConversation."
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"圧縮完了：%lld 件の古いエントリをアーカイブしました——要約されたターンと折りたたまれたツール出力は recallConversation で検索できます。"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已压缩：归档 %lld 条更早的条目——轮次进摘要、超长工具输出收起，均可经 recallConversation 检索。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已壓縮：歸檔 %lld 條更早的條目——輪次進摘要、超長工具輸出收起，均可經 recallConversation 檢索。"
+          }
+        }
+      }
+    },
+    "Last request":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Last request"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上次请求"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上次請求"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"前回のリクエスト"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

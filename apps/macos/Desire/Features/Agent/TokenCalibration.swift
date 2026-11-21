@@ -86,6 +86,26 @@ nonisolated enum TokenCalibration {
     /// per-模型名默认窗口表已**永久移除**（v0.8.70 事故：猜测表把 GLM-5.3-Flash
     /// 的 1M 窗口估成 32k → 生效预算崩 19k → 模型"失忆"）。窗口来源 =
     /// 用户在档案里显式设置（serviceEditor 输入框）> provider /models 自报
-    /// （modelContextWindows）> 溢出错误自动学习。窗口未知 → 预算回退
-    /// 160k 字符默认，**不猜**。
+    /// （modelContextWindows）> 溢出错误自动学习（`parseWindowTokens`）。
+    /// 窗口未知 → 预算回退 160k 字符默认，**不猜**。
+
+    /// 溢出错误文本里的窗口数字模式（v0.8.71 批 B 溢出学习）：只认"窗口
+    /// 关键词**后面**紧跟的数字"——报错里请求自身的 token 数出现在别处
+    /// （"your messages resulted in N tokens"），认它会把请求大小当成窗口。
+    static let overflowWindowPattern =
+        "(?:maximum context length|context length|context window|max(?:imum)? context|context limit|最大上下文)[^0-9]{0,40}([0-9][0-9,]{2,})"
+
+    /// 溢出错误文本 → 真实窗口 tokens。解析不出或数字不可信（<1024 或
+    /// >10M）返回 nil——宁可不学，不学错。（文本不可变、单次现算，无
+    /// NSRange 缓存风险。）
+    static func parseWindowTokens(from errorText: String) -> Int? {
+        let text = String(errorText.lowercased().prefix(2_000))
+        guard let regex = try? NSRegularExpression(pattern: overflowWindowPattern) else { return nil }
+        let ns = text as NSString
+        guard let match = regex.firstMatch(in: text, range: NSRange(location: 0, length: ns.length)),
+              match.range(at: 1).location != NSNotFound else { return nil }
+        let raw = ns.substring(with: match.range(at: 1)).replacingOccurrences(of: ",", with: "")
+        guard let value = Int(raw), value >= 1024, value <= 10_000_000 else { return nil }
+        return value
+    }
 }

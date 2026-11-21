@@ -306,9 +306,10 @@ class AgentSessionStore: ObservableObject {
     }
 
     private func updateContextFraction(force: Bool = false) {
-        // key 含当前模型名（v0.8.71）：切换模型即 memo 失效——占用按新
-        // 模型的窗口/校准比率重算（GLM 1M ↔ 32k 之间切换必须立即变）。
-        let key = "\(streamPreference.model)|\(messages.count)-\(messages.last?.content?.count ?? 0)"
+        // key 含当前模型名与窗口值（v0.8.71）：切换模型或改窗口设置即 memo
+        // 失效——占用按新模型的窗口/校准比率重算（GLM 1M ↔ 32k 之间切换
+        // 必须立即变）。
+        let key = "\(streamPreference.model)|\(resolvedWindowTokens.map(String.init) ?? "-")|\(messages.count)-\(messages.last?.content?.count ?? 0)"
         guard key != contextFractionStamp else { return }
         contextFractionStamp = key
         // R2-8：流式期间末条长度每拍必变 → 上述 memo 每拍失配 → 每拍全量
@@ -317,6 +318,16 @@ class AgentSessionStore: ObservableObject {
         let now = Date()
         if !force, now.timeIntervalSince(contextFractionLastComputeAt) < 1.0 { return }
         contextFractionLastComputeAt = now
+        // **真值优先**（批 B）：服务端自报 prompt_tokens ÷ 窗口——对齐模型
+        // 视角（含 system/工具索引等字符口径看不到的部分）；服务端没报
+        // usage 或窗口未知 → 回退字符估算（发送侧口径，见下）。
+        if let window = resolvedWindowTokens, lastPromptTokens > 0 {
+            contextFraction = Double(lastPromptTokens) / Double(window)
+            let estimate = ContextCompaction.estimatedSentTotal(messages, budget: effectiveContextBudget)
+            contextCompacted = estimate.dropped
+            contextOverStuck = estimate.stuck
+            return
+        }
         // **发送侧口径**（2026-11-15）：显示的是"这一轮实际会发给模型多少"
         // （与 compactWithDigest 同一裁剪语义），不再是落盘全文/预算——
         // 此前一条 48k 的 HTML 落盘后芯片永远钉死 100% 红色警告，看起来
@@ -386,6 +397,9 @@ class AgentSessionStore: ObservableObject {
             forName: .agentModelSwitched, object: nil, queue: .main
         ) { [weak self] _ in
             Task { @MainActor [weak self] in
+                // 减半校准（compactionBudgetOverride）是旧模型的——切模型即
+                // 作废，否则新模型的预算被钉死在旧值（0.8.70 事故形态残留）。
+                self?.compactionBudgetOverride = nil
                 self?.updateContextFraction(force: true)
             }
         }
@@ -470,6 +484,16 @@ class AgentSessionStore: ObservableObject {
         return preference.calibratedBudgetChars(
             forModel: streamPreference.model,
             profile: streamPreference.activeProfile)
+    }
+
+    /// 当前生效的窗口 tokens（v0.8.71 批 B 助手）：per-模型映射 > 档案级
+    /// 显式设置；nil = 未知（不猜）。解析链与 calibratedBudgetChars 同源，
+    /// 占用真值/预压/溢出学习判断共用。
+    var resolvedWindowTokens: Int? {
+        let profile = streamPreference.activeProfile
+        let modelKey = TokenCalibration.key(forModel: streamPreference.model)
+        let modelWindows = profile?.modelContextWindows
+        return modelWindows.flatMap { $0[modelKey] } ?? profile?.contextWindowTokens
     }
 
     /// 当前对话的 token 用量与折算成本（面板状态行用）。
@@ -840,7 +864,28 @@ class AgentSessionStore: ObservableObject {
     /// 路径"）——并入语义摘要提示词，让摘要按用户要求侧重保留。
     func compactNow(target: Int? = nil, preservationHint: String? = nil) async -> Int {
         let targetBudget = max(20_000, target ?? Int(Double(effectiveContextBudget) * 0.6))
-        let snapshot = messages
+        var snapshot = messages
+
+        // **Tier 1 微压缩**（批 B）：保留窗（最近 2 个用户块）之外的超长工具
+        // 输出先收起（原文归档），重新计量——够用即停，整块裁（连用户目标
+        // 一起进摘要）根本不会发生。
+        let userStarts = snapshot.indices.filter { snapshot[$0].role == .user }
+        let keepBlocksFrom = userStarts.count >= 2 ? userStarts[userStarts.count - 2] : 0
+        let (tier1, collapsedResults, saved) = ContextCompaction.collapsingOldToolResults(
+            snapshot, keepBlocksFrom: keepBlocksFrom)
+        if saved > 0 {
+            archiveDroppedTurns(collapsedResults)
+            messages = tier1
+            snapshot = tier1
+            updateContextFraction(force: true)
+            if !ContextCompaction.estimatedSentTotal(snapshot, budget: targetBudget).dropped {
+                saveCurrentConversation()
+                Log.agent.info("conversation tier-1 compacted: \(collapsedResults.count) tool outputs collapsed, \(saved) chars saved (target \(targetBudget))")
+                return collapsedResults.count
+            }
+            Log.agent.info("tier-1 saved \(saved) chars, still over target — block-drop follows")
+        }
+
         let estimate = ContextCompaction.estimatedSentTotal(snapshot, budget: targetBudget)
         guard estimate.dropped else { return 0 }
         let (kept, mechanicalDigest, dropped, _) = ContextCompaction.compactWithDropped(
@@ -888,7 +933,13 @@ class AgentSessionStore: ObservableObject {
             .reduce(0) { $0 + ($1.content?.count ?? 0) }
         var lines: [String] = []
         lines.append(String(localized: "Window") + ": " + windowText)
-        lines.append(String(localized: "Sent this turn") + ": \(estimate.total) chars（\(Int((Double(estimate.total) / Double(max(effectiveContextBudget, 1)) * 100).rounded()))%）")
+        // **真值优先**（批 B）：与服务端自报 usage 同口径——占用% = prompt_tokens ÷
+        // 窗口（芯片同源）；没报 usage 或窗口未知才回退字符估算行。
+        if let resolved = resolvedWindowTokens, lastPromptTokens > 0 {
+            lines.append(String(localized: "Last request") + ": \(lastPromptTokens) / \(resolved) tokens（\(Int((Double(lastPromptTokens) / Double(resolved) * 100).rounded()))%）")
+        } else {
+            lines.append(String(localized: "Sent this turn") + ": \(estimate.total) chars（\(Int((Double(estimate.total) / Double(max(effectiveContextBudget, 1)) * 100).rounded()))%）")
+        }
         if estimate.dropped { lines.append(String(localized: "Compaction active — older turns summarized & archived")) }
         if estimate.stuck { lines.append(String(localized: "Single-turn overload — nothing to drop, consider /new")) }
         if summaryChars > 0 {
@@ -921,7 +972,7 @@ class AgentSessionStore: ObservableObject {
                 let dropped = await self?.compactNow(preservationHint: hint.isEmpty ? nil : hint) ?? 0
                 guard let self else { return }
                 if dropped > 0 {
-                    appendLocalAssistant(String(localized: "Compacted: \(dropped) older messages were archived and replaced by a summary. Archived turns stay searchable via recallConversation."))
+                    appendLocalAssistant(String(localized: "Compacted: \(dropped) older entries were archived — summarized turns and collapsed tool outputs stay searchable via recallConversation."))
                 } else {
                     appendLocalAssistant(String(localized: "Nothing to compact — the conversation already fits within the context budget."))
                 }
@@ -2390,6 +2441,26 @@ class AgentSessionStore: ObservableObject {
         AgentScheduler.shared.updateWindowTitle(self, title: windowTitle)
         saveCurrentConversation()
 
+        // **回合发起前预压**（v0.8.71 批 B，设计稿定稿）：上轮 prompt_tokens
+        // 已超窗口 85% → 本轮请求前先持久化压缩（留输出余量），不再等请求
+        // 侧被动裁或撞溢出救火。真值不在（服务端没报 usage）→ 回退落盘总
+        // 字符口径。同一处清 compactionBudgetOverride：减半校准只服务"本
+        // 回合内的重试"，跨回合残留会把预算钉死在旧值。
+        compactionBudgetOverride = nil
+        if let window = resolvedWindowTokens, lastPromptTokens > 0,
+           Double(lastPromptTokens) > Double(window) * 0.85 {
+            Log.agent.info("pre-turn compaction: last prompt \(self.lastPromptTokens) tokens > 85% of \(window)-token window")
+            await compactNow()
+        } else if resolvedWindowTokens == nil {
+            let stored = messages.reduce(0) {
+                $0 + ($1.content?.count ?? 0)
+                    + ($1.toolCalls?.reduce(0) { $0 + $1.function.arguments.count + $1.function.name.count } ?? 0)
+            }
+            if stored > effectiveContextBudget {
+                await compactNow()
+            }
+        }
+
         // 工具级续跑（v0.8.25）：上次回合在工具批中间被打断时，只读调用在这里
         // 补跑并把结果落进会话——模型看到的是真实结果而不是"请重做"。
         // 副作用调用不自动重放（可能已生效），仍由模型按页面现状决定。
@@ -2720,18 +2791,35 @@ class AgentSessionStore: ObservableObject {
                 // 诊断钩子：E4 曾出现"错误匹配却未重试"的偶发（4 连挂后自愈、
                 // 无法复现）——这两行让统一日志能直接回答"重试路径走没走"。
                 Log.agent.info("overflow-retry: compacting once and retrying")
-                // 上下文超限：压缩预算减半后重试一次。被裁轮次由机械摘要顶替（见
-                // ContextCompaction），所以重试不是"失忆重发"；成功后预算被记住，
-                // 后续回合沿用 —— 相当于按这家服务的真实窗口做了校准。
                 contextRetried = true
-                let previous = compactionBudgetOverride ?? Self.contextBudget
-                let reduced = max(20_000, previous / 2)
-                guard reduced < previous else {
-                    fail(error)
-                    return
+                // **溢出学习**（批 B）：错误文本里的真实窗口数字写进 per-模型
+                // 映射（用户没显式设过的口径从此有真值——预算按真窗口换算，
+                // 不再依赖减半逼近）。
+                if let tokens = TokenCalibration.parseWindowTokens(from: String(describing: error)),
+                   let profileID = streamPreference.activeProfile?.id {
+                    preference.learnContextWindow(
+                        tokens, forModelKey: TokenCalibration.key(forModel: streamPreference.model),
+                        profileID: profileID)
+                    Log.agent.info("overflow learning: \(tokens)-token window recorded for \(self.streamPreference.model)")
                 }
-                compactionBudgetOverride = reduced
-                updateContextFraction()
+                if resolvedWindowTokens != nil {
+                    // 窗口已知（显式/自报/刚学到）：减半 override 与真值矛盾
+                    // ——按当前生效预算的 60% 实压一次（比失败那发真的更小），
+                    // 不写 override（真值回归后旧校准没有存在意义）。
+                    updateContextFraction(force: true)
+                    await compactNow(target: max(20_000, Int(Double(effectiveContextBudget) * 0.6)))
+                } else {
+                    // 窗口未知：减半是对真实窗口的唯一逼近手段（回合开始会
+                    // 清，不跨回合残留）。
+                    let previous = compactionBudgetOverride ?? Self.contextBudget
+                    let reduced = max(20_000, previous / 2)
+                    guard reduced < previous else {
+                        fail(error)
+                        return
+                    }
+                    compactionBudgetOverride = reduced
+                    updateContextFraction()
+                }
                 do {
                     try await runStream()
                 } catch {

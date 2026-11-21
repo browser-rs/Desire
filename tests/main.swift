@@ -11759,6 +11759,44 @@ do {
     check("摘要指纹：保留指令入键", fp1 != fp3)
     check("摘要指纹：成员变化即变", fp1 != fp4)
 }
+// ---------- 溢出学习 + Tier-1 工具输出收起（v0.8.71 批 B） ----------
+
+do {
+    // parseWindowTokens：只认窗口关键词后面的数字（请求 token 数在别处，不认）
+    check("溢出学习：OpenAI 措辞（千分位）",
+          TokenCalibration.parseWindowTokens(from: "This model's maximum context length is 131,072 tokens. However, your messages resulted in 150000 tokens.") == 131_072)
+    check("溢出学习：context window 措辞",
+          TokenCalibration.parseWindowTokens(from: "input too long: context window is 32768") == 32_768)
+    check("溢出学习：中文措辞",
+          TokenCalibration.parseWindowTokens(from: "错误：超出最大上下文 1000000 tokens") == 1_000_000)
+    check("溢出学习：无关键词不认（宁可不学）",
+          TokenCalibration.parseWindowTokens(from: "your messages resulted in 150000 tokens") == nil)
+    check("溢出学习：数字过小不认",
+          TokenCalibration.parseWindowTokens(from: "context length is 512") == nil)
+
+    // collapsingOldToolResults：保留窗外超长工具输出收起（id/配对不变、幂等）
+    let big = String(repeating: "数据", count: 5000)          // 10000 chars > 8000 阈值
+    let small = "小结果"
+    let u1 = AgentMessage(role: .user, content: "第一轮")
+    let t1 = AgentMessage(role: .tool, content: big, toolCallId: "c1")
+    let u2 = AgentMessage(role: .user, content: "第二轮")
+    let t2 = AgentMessage(role: .tool, content: small, toolCallId: "c2")
+    let msgs = [u1, t1, u2, t2]
+    // 保留窗 = 最近 2 个用户块（starts=[0,2] → keepBlocksFrom=2）：t1 收起、t2 不动
+    let r = ContextCompaction.collapsingOldToolResults(msgs, keepBlocksFrom: 2)
+    check("Tier1：超长工具输出被收起",
+          r.messages[1].content?.hasPrefix("数据") == true
+              && (r.messages[1].content?.contains("已收起") ?? false))
+    check("Tier1：保留窗内不动", r.messages[3].content == small)
+    check("Tier1：消息数不变（收起 ≠ 删除）", r.messages.count == 4)
+    check("Tier1：id 与 tool_call 配对不变", r.messages[1].id == t1.id && r.messages[1].toolCallId == "c1")
+    check("Tier1：原文进 collapsed（供归档）", r.collapsed.map(\.id) == [t1.id])
+    check("Tier1：savedChars>0", r.savedChars > 1000)
+    check("Tier1：keepBlocksFrom=0 时不收起",
+          ContextCompaction.collapsingOldToolResults(msgs, keepBlocksFrom: 0).savedChars == 0)
+    let r2 = ContextCompaction.collapsingOldToolResults(r.messages, keepBlocksFrom: 2)
+    check("Tier1：替换幂等（占位不会二次命中）", r2.savedChars == 0 && r2.collapsed.isEmpty)
+}
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

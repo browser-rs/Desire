@@ -258,6 +258,43 @@ nonisolated enum ContextCompaction {
         return ids + "#" + (hint ?? "")
     }
 
+    /// **持久层 Tier-1 微压缩**（v0.8.71 批 B）：把保留窗（最近 2 个用户块）
+    /// 之外的超长工具输出收起为"头 600 + 归档指引"占位——工具输出是上下文
+    /// 最大膨胀源（单条可达 47KB），多数会话到这一层就够用，整块裁（连
+    /// 用户目标一起进摘要）根本不会发生。与请求侧 8k stub（`summarizingOversizedToolResults`）
+    /// 同阈值同头部长度；替换幂等（占位远小于阈值，不会二次命中）。
+    /// - Returns: 收起后的数组 + 被收起的原文（调用方归档）+ 节省字符数。
+    static func collapsingOldToolResults(
+        _ messages: [AgentMessage],
+        keepBlocksFrom: Int,
+        threshold: Int = 8_000,
+        headChars: Int = 600
+    ) -> (messages: [AgentMessage], collapsed: [AgentMessage], savedChars: Int) {
+        guard keepBlocksFrom > 0, keepBlocksFrom < messages.count else {
+            return (messages, [], 0)
+        }
+        var out: [AgentMessage] = []
+        out.reserveCapacity(messages.count)
+        var collapsed: [AgentMessage] = []
+        var saved = 0
+        for (index, message) in messages.enumerated() {
+            guard index < keepBlocksFrom, message.role == .tool,
+                  let content = message.content, content.count > threshold else {
+                out.append(message)
+                continue
+            }
+            let stub = String(content.prefix(headChars))
+                + "\n[…工具输出已收起：共 \(content.count) 字符，其余已归档——"
+                + "需要全文用 recallConversation(query) 检索]"
+            saved += content.count - stub.count
+            var trimmed = message
+            trimmed.content = stub
+            out.append(trimmed)
+            collapsed.append(message)
+        }
+        return (out, collapsed, saved)
+    }
+
     /// 被裁轮次的机械摘要：每轮一行"用户目标｜结论"。摘要有上限，更早的只留轮数 ——
     /// 目的是给模型"前文聊过什么"的坐标，不是复述内容。
     private static func digest(for dropped: [AgentMessage], limit: Int) -> String {

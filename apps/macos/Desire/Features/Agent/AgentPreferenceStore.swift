@@ -418,6 +418,18 @@ class AgentPreferenceStore: ObservableObject {
         }
     }
 
+    /// **溢出学习**（v0.8.71 批 B）：服务端拒绝时从错误文本解析出的真实窗口
+    /// tokens 写进 per-模型映射——预算换算从此有"本模型被服务端亲口承认
+    /// 的窗口"（实测证据，与 provider 自报同层；档案级显式设置仍可被它
+    /// 覆盖——服务说了算）。值不变时跳过，避免无谓落盘。
+    func learnContextWindow(_ tokens: Int, forModelKey key: String, profileID: UUID) {
+        guard let index = profiles.firstIndex(where: { $0.id == profileID }) else { return }
+        var windows = profiles[index].modelContextWindows ?? [:]
+        guard windows[key] != tokens else { return }
+        windows[key] = tokens
+        profiles[index].modelContextWindows = windows
+    }
+
     /// **两级联动**：选中"某个服务下的某个模型" = 切到该服务 + 把它的当前模型设成这个。
     /// （以前这两件事是分开的：换服务只能连模型一起换，想用别的服务的别的模型做不到。）
     func select(profileID: UUID, model: String) {

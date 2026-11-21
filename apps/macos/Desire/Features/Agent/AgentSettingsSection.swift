@@ -161,14 +161,21 @@ struct AgentSettingsSection: View {
                     if model != store.modelCalibration.sorted(by: { $0.key < $1.key }).first?.key {
                         SettingsRowDivider()
                     }
-                    let window = store.activeProfile?.contextWindowTokens
-                        ?? TokenCalibration.defaultWindowTokens(forModel: model)
-                    let budget = TokenCalibration.budgetChars(windowTokens: window,
+                    // 窗口真值 = 当前档案显式设置（猜表已移除，v0.8.70 事故）；
+                    // 非当前模型的行窗口未知 → 显示估算预算（defaultRatio 2.5，
+                    // 窗口按 128k 保守假设仅作显示——预算本体不受影响）。
+                    let isCurrentModel = model == store.activeProfile?.model
+                    let displayWindow: String = isCurrentModel
+                        ? (store.activeProfile?.contextWindowTokens).map { "\($0)" } ?? String(localized: "unknown")
+                        : String(localized: "unknown")
+                    let windowTokensForCalc: Int? = isCurrentModel
+                        ? store.activeProfile?.contextWindowTokens : nil
+                    let budget = TokenCalibration.budgetChars(windowTokens: windowTokensForCalc,
                                                               calibration: entry)
                     SettingsRow(
                         model,
-                        subtitle: String(format: String(localized: "Window %d tokens · %d samples · %.2f chars/token · budget %d chars"),
-                                         window, entry.samples, entry.ratio, budget),
+                        subtitle: String(format: String(localized: "Window %@ · %d samples · %.2f chars/token · budget %d chars"),
+                                         displayWindow, entry.samples, entry.ratio, budget),
                         systemImage: entry.samples >= TokenCalibration.minSamples
                             ? "checkmark.seal" : "hourglass") {
                         HStack(spacing: 8) {
@@ -1350,11 +1357,10 @@ struct AgentSettingsSection: View {
                 Text(String(localized: "Context Window (tokens)"))
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.secondary)
-                SettingsTextField(placeholder: String(localized: "Auto by model name"), text: $draftWindowTokens, width: 240)
+                SettingsTextField(placeholder: String(localized: "Leave empty for 160k default"), text: $draftWindowTokens, width: 240)
             }
             if !draftModel.isEmpty {
-                Text(String(format: String(localized: "Default for %@: %lld tokens"), draftModel,
-                            TokenCalibration.defaultWindowTokens(forModel: draftModel)))
+                Text(String(localized: "Leave empty to use a fixed 160k-character budget. Fill in the model\'s real window (e.g. GLM-5.3-Flash = 1000000) for an accurate one."))
                     .font(.system(size: 10))
                     .foregroundStyle(.secondary)
             }
@@ -1641,10 +1647,10 @@ struct AgentSettingsSection: View {
         Task {
             let models = (try? await ModelListFetcher.fetch(endpoint: endpoint, apiKey: key, format: format)) ?? []
             isFetchingModels = false
-            for model in models where !draftModels.contains(model) {
-                draftModels.append(model)
+            for entry in models where !draftModels.contains(entry.id) {
+                draftModels.append(entry.id)
             }
-            fetchedModels = models
+            fetchedModels = models.map(\.id)
             if models.isEmpty { cloudTestStatus = "No models" }
         }
     }

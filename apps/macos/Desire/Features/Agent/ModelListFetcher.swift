@@ -6,13 +6,16 @@ import Foundation
 enum ModelListFetcher {
     struct ModelEntry: Identifiable, Equatable {
         let id: String
+        /// provider 自报的上下文窗口（tokens）——各网关字段名不一，
+        /// 能认出的都收（认不出 = nil，**不猜**）。
+        let contextTokens: Int?
     }
 
     /// Queries `GET {base}/models` for the available model IDs.
     /// `endpoint` is the full chat-completions / messages URL (e.g. `…/v1/chat/completions`);
     /// the base URL is derived by stripping the tail segment.
     /// Anthropic 格式走 `x-api-key` + `anthropic-version` 头（响应 `data[].id` 形状相同）。
-    static func fetch(endpoint: String, apiKey: String, format: AIProviderProfile.APIFormat = .openai) async throws -> [String] {
+    static func fetch(endpoint: String, apiKey: String, format: AIProviderProfile.APIFormat = .openai) async throws -> [ModelEntry] {
         var base = endpoint
             .replacingOccurrences(of: "/chat/completions", with: "")
             .replacingOccurrences(of: "/completions", with: "")
@@ -52,7 +55,22 @@ enum ModelListFetcher {
               let modelList = json["data"] as? [[String: Any]] else {
             throw URLError(.cannotParseResponse)
         }
-        let ids = modelList.compactMap { $0["id"] as? String }.sorted()
-        return ids
+        return modelList.compactMap { entry -> ModelEntry? in
+            guard let id = entry["id"] as? String else { return nil }
+            return ModelEntry(id: id, contextTokens: contextTokens(from: entry))
+        }.sorted { $0.id < $1.id }
+    }
+
+    /// 各网关的窗口字段名兼容（OpenRouter `context_length`、vLLM
+    /// `max_model_len`、Groq `context_window`、部分服务 `max_input_tokens` /
+    /// `max_context_length`——都没有 = nil，绝不猜）。
+    static func contextTokens(from entry: [String: Any]) -> Int? {
+        for key in ["context_length", "max_model_len", "context_window",
+                    "max_input_tokens", "max_context_length", "context_size"] {
+            if let n = entry[key] as? Int, n > 0 { return n }
+            if let s = entry[key] as? String, let n = Int(s), n > 0 { return n }
+            if let n = entry[key] as? Double, n > 0 { return Int(n) }
+        }
+        return nil
     }
 }

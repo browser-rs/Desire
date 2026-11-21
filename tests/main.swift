@@ -11309,16 +11309,12 @@ do {
     // 下限 20k
     let tight = TokenCalibration.budgetChars(windowTokens: 8_000, calibration: trusted)
     check("预算：下限 20k", tight == 20_000)
-    // 大窗口钳到 160k 上限
-    check("预算：上限 160k", TokenCalibration.budgetChars(windowTokens: 1_000_000, calibration: trusted) == 160_000)
-
-    // 默认窗口表
-    check("窗口表：gpt-4", TokenCalibration.defaultWindowTokens(forModel: "gpt-4o") == 128_000)
-    check("窗口表：claude", TokenCalibration.defaultWindowTokens(forModel: "claude-sonnet-4") == 200_000)
-    check("窗口表：deepseek", TokenCalibration.defaultWindowTokens(forModel: "deepseek-chat") == 64_000)
-    check("窗口表：gemini", TokenCalibration.defaultWindowTokens(forModel: "gemini-2") == 1_000_000)
-    check("窗口表：未知保守", TokenCalibration.defaultWindowTokens(forModel: "mystery-model") == 32_000)
-    check("窗口表：大小写不敏感", TokenCalibration.defaultWindowTokens(forModel: "Claude-3") == 200_000)
+    // v0.8.71：窗口真值语义——显式窗口是权威（不再被 160k 封顶）；
+    // 未知窗口回退 160k 字符默认；per-模型名猜测表永久移除。
+    check("预算：1M 窗口=360k（ratio 2.5：1M×0.9÷2.5）", TokenCalibration.budgetChars(windowTokens: 1_000_000, calibration: trusted) == 360_000)
+    check("预算：未知窗口回退 160k", TokenCalibration.budgetChars(windowTokens: nil, calibration: nil) == 160_000)
+    check("预算：窗口未知但校准贴下限 → 仍 160k（不猜窗口）", TokenCalibration.budgetChars(windowTokens: nil, calibration: TokenCalibration.Entry(ratio: 1.5, samples: 76)) == 160_000)
+    check("预算：显式 128k 无校准（默认比率 2.5）= 46.08k", TokenCalibration.budgetChars(windowTokens: 128_000, calibration: nil) == 46_080)
 }
 
 // ---------- JobWatchCore：failureRate / stalled / canResume(.handle) ----------

@@ -63,11 +63,14 @@ nonisolated enum TokenCalibration {
                      updatedAt: Date())
     }
 
-    /// 字符预算换算：
-    /// - 无窗口且无校准 → 160k（0.8.59 口径）；
-    /// - 有校准（≥minSamples）→ min(160k, 窗口 × 0.9 ÷ 比率)；窗口 nil 视为
-    ///   不设限（只按比率收紧字符预算会误伤大窗口模型，保守回退）；
-    /// - 有窗口无校准 → min(160k, 窗口 × 0.9 ÷ 默认比率 2.5)。
+    /// 字符预算换算（v0.8.70 事故定案重构）：
+    /// - 窗口未知（档案未设、provider 未自报）→ **不做窗口换算**，维持
+    ///   默认字符预算 160k（0.8.59 口径）——per-模型名猜测表已永久移除
+    ///   （GLM-5.3-Flash 1M 被猜成 32k、生效预算崩 19k 的根源）；
+    /// - 窗口已知（用户显式 / provider 自报 / 溢出学习）→ 窗口 × 0.9 ÷
+    ///   比率（校准 ≥minSamples 用实测比率，否则默认比率 2.5）。**窗口是
+    ///   权威——不再被 160k 封顶**（封顶曾把用户显式的 1M 静默压回 160k）。
+    ///   下限 20k 仅防手滑填 0。
     static func budgetChars(windowTokens: Int?, calibration: Entry?) -> Int {
         let ratio: Double
         if let calibration, calibration.samples >= minSamples {
@@ -75,23 +78,14 @@ nonisolated enum TokenCalibration {
         } else {
             ratio = defaultRatio
         }
-        // 没配窗口时不做换算（比率只能换算字符↔token，没有窗口就没得换），
-        // 维持默认字符预算。
         guard let windowTokens, windowTokens > 0 else { return fallbackBudgetChars }
         let byWindow = Double(windowTokens) * windowSafety / ratio
-        return max(20_000, min(fallbackBudgetChars, Int(byWindow)))
+        return max(20_000, Int(byWindow))
     }
 
-    /// 模型名前缀默认窗口表（档案未设 contextWindowTokens 时用）。
-    static func defaultWindowTokens(forModel model: String) -> Int {
-        let m = model.lowercased()
-        if m.hasPrefix("gpt-5") || m.hasPrefix("o1") || m.hasPrefix("o3") || m.hasPrefix("o4") { return 200_000 }
-        if m.hasPrefix("gpt-4") || m.hasPrefix("gpt-3") { return 128_000 }
-        if m.hasPrefix("claude") { return 200_000 }
-        if m.hasPrefix("deepseek") { return 64_000 }
-        if m.hasPrefix("qwen") || m.hasPrefix("qwq") { return 128_000 }
-        if m.hasPrefix("gemini") { return 1_000_000 }
-        if m.hasPrefix("llama") || m.hasPrefix("mistral") || m.hasPrefix("glm") { return 32_000 }
-        return 32_000   // 本地/未知 → 保守值
-    }
+    /// per-模型名默认窗口表已**永久移除**（v0.8.70 事故：猜测表把 GLM-5.3-Flash
+    /// 的 1M 窗口估成 32k → 生效预算崩 19k → 模型"失忆"）。窗口来源 =
+    /// 用户在档案里显式设置（serviceEditor 输入框）> provider /models 自报
+    /// （modelContextWindows）> 溢出错误自动学习。窗口未知 → 预算回退
+    /// 160k 字符默认，**不猜**。
 }

@@ -275,8 +275,9 @@ class AgentPreferenceStore: ObservableObject {
     /// 会话侧的 compactionBudgetOverride（超限/空响应重试写）在
     /// `effectiveContextBudget` 里优先于本值。
     func calibratedBudgetChars(forModel model: String?, profile: AIProviderProfile?) -> Int {
+        // 窗口真值优先级：档案显式 > **无**（猜表已永久移除——v0.8.70 GLM
+        // 事故）。nil = 窗口未知 → budgetChars 回退 160k 字符默认，不猜。
         let window = profile?.contextWindowTokens
-            ?? model.map { TokenCalibration.defaultWindowTokens(forModel: $0) }
         let calibration = model.flatMap { modelCalibration[TokenCalibration.key(forModel: $0)] }
         return TokenCalibration.budgetChars(windowTokens: window, calibration: calibration)
     }
@@ -380,11 +381,27 @@ class AgentPreferenceStore: ObservableObject {
     /// 同上，但写进指定档案（下拉里对某个服务单独"刷新模型列表"时用——
     /// 以前那版永远拿当前服务的端点去拉，刷新别人的服务就会写错地方）。
     func applyModelList(_ models: [String], to profileID: UUID) {
+        applyModelList(models.map { ModelListFetcher.ModelEntry(id: $0, contextTokens: nil) }, to: profileID)
+    }
+
+    /// 模型清单写回（v0.8.69）：带 provider 自报窗口时同步更新
+    /// modelContextWindows——预计算法从此有真值可用（不再猜）。
+    func applyModelList(_ models: [ModelListFetcher.ModelEntry], to profileID: UUID) {
         guard let index = profiles.firstIndex(where: { $0.id == profileID }) else { return }
         var seen = Set(profiles[index].modelList)
-        for model in models where !model.isEmpty && !seen.contains(model) {
-            seen.insert(model)
-            profiles[index].modelList.append(model)
+        for model in models where !model.id.isEmpty && !seen.contains(model.id) {
+            seen.insert(model.id)
+            profiles[index].modelList.append(model.id)
+        }
+        // 窗口映射合并：provider 报了的才写（nil 不清除既有值）
+        if models.contains(where: { $0.contextTokens != nil }) {
+            var windows = profiles[index].modelContextWindows ?? [:]
+            for model in models {
+                if let tokens = model.contextTokens {
+                    windows[model.id] = tokens
+                }
+            }
+            profiles[index].modelContextWindows = windows
         }
     }
 

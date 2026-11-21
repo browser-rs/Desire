@@ -75,12 +75,13 @@ final class RuntimeHealthMonitor {
         if let preference {
             var calibrations: [[String: Any]] = []
             for (model, entry) in preference.modelCalibration.sorted(by: { $0.key < $1.key }) {
+                // 窗口真值 = 当前档案显式设置（猜表已移除，v0.8.70 事故）；
+                // 非当前模型的行窗口未知 → nil（budgetChars 回退 160k 默认）。
                 let window = preference.activeProfile?.contextWindowTokens
-                    ?? TokenCalibration.defaultWindowTokens(forModel: model)
                 let budget = TokenCalibration.budgetChars(windowTokens: window, calibration: entry)
                 calibrations.append([
                     "model": model,
-                    "windowTokens": window,
+                    "windowTokens": window as Any,
                     "samples": entry.samples,
                     "ratio": (entry.ratio * 100).rounded() / 100,
                     "budgetChars": budget,

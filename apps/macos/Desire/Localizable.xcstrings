@@ -112051,6 +112051,94 @@
           }
         }
       }
+    },
+    "Leave empty for 160k default":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Leave empty for 160k default"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"留空 = 默认 16 万字符"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"留空 = 預設 16 萬字元"
+          }
+        }
+      }
+    },
+    "Leave empty to use a fixed 160k-character budget. Fill in the model's real window (e.g. GLM-5.3-Flash = 1000000) for an accurate one.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Leave empty to use a fixed 160k-character budget. Fill in the model's real window (e.g. GLM-5.3-Flash = 1000000) for an accurate one."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"留空 = 固定 16 万字符预算。填模型实际窗口（如 GLM-5.3-Flash = 1000000）可获得精确预算。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"留空 = 固定 16 萬字元預算。填模型實際視窗（如 GLM-5.3-Flash = 1000000）可獲得精確預算。"
+          }
+        }
+      }
+    },
+    "Window %@ · %d samples · %.2f chars/token · budget %d chars":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Window %@ · %d samples · %.2f chars/token · budget %d chars"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"窗口 %@ · %lld 样本 · %.2f 字符/token · 预算 %lld 字符"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"視窗 %@ · %lld 樣本 · %.2f 字元/token · 預算 %lld 字元"
+          }
+        }
+      }
+    },
+    "unknown":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"unknown"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"未知"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"未知"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

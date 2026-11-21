@@ -184,6 +184,8 @@ struct AgentModelMenu: View {
             let key = preference.loadAPIKey(profileID: profile.id) ?? ""
             let models = (try? await ModelListFetcher.fetch(endpoint: profile.endpoint, apiKey: key, format: profile.format)) ?? []
             guard !models.isEmpty else { return }
+            preference.applyModelList(models.map { $0.id }, to: profile.id)
+            // provider 自报窗口同步入档（v0.8.69：预计算法有真值可用）
             preference.applyModelList(models, to: profile.id)
         }
     }

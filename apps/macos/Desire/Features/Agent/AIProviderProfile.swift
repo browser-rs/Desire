@@ -22,6 +22,10 @@ struct AIProviderProfile: Identifiable, Codable, Equatable {
     var model: String
     /// 候选模型：预设 + 用户手输记下的 + 从 `/models` 拉回的。
     var modelList: [String]
+    /// 模型 → 上下文窗口 tokens（provider /models 自报或溢出错误学习；
+    /// nil = 未知，**绝不猜**——v0.8.70 事故：per-name 猜表把 GLM-5.3-Flash
+    /// 估成 32k（实际 1M），生效预算崩到 19k 字符）。旧档案解码为 nil。
+    var modelContextWindows: [String: Int]? = nil
     /// 额外请求头（自定义网关常见：租户 id、路由键…）。
     /// `Authorization` / `Content-Type` / `x-api-key` 由请求构造方掌管，这里不参与。
     var headers: [String: String]

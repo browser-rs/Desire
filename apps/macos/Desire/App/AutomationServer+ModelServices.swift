@@ -101,13 +101,7 @@ extension AutomationServer {
         guard !models.isEmpty else {
             return ["error": "no models returned", "endpoint": profile.endpoint]
         }
-        if let index = store.profiles.firstIndex(where: { $0.id == profile.id }) {
-            var seen = Set(store.profiles[index].modelList)
-            for model in models where !seen.contains(model) {
-                seen.insert(model)
-                store.profiles[index].modelList.append(model)
-            }
-        }
+        store.applyModelList(models, to: profile.id)
         return [
             "ok": true,
             "profile": profile.name,

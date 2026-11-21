@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "faceid", title: String(localized: "Lock Desire Remote with Face ID"),
-                  detail: String(localized: "The companion app can now require Face ID or your device passcode after leaving the foreground — a lost phone no longer hands over command of your Mac. Camera capture for send-photo joins too, plus copy-full-text on long press.")),
-            .init(icon: "stethoscope", title: String(localized: "The health check tells the truth"),
-                  detail: String(localized: "This release fixes a phantom 26-second stall the health check reported whenever a modal dialog was open — the heartbeat now runs in a run loop mode that keeps ticking. The job-chain evaluation suite also stops a phantom infinite loop.")),
-            .init(icon: "camera.badge.plus", title: String(localized: "Photos, tests and small print"),
-                  detail: String(localized: "Photo chunking is now covered by unit tests, the agent doctor tracks cooperative-pool water levels, and language no longer breaks the job-chain evaluation.")),
+            .init(icon: "rectangle.compress.vertical", title: String(localized: "Compaction that keeps what matters"),
+                  detail: String(localized: "Long conversations now shrink in tiers: oversized tool outputs collapse first, older turns are summarized semantically (your /compact instructions are respected), and everything archived stays searchable — nothing is silently dropped anymore.")),
+            .init(icon: "gauge", title: String(localized: "Context usage that tells the truth"),
+                  detail: String(localized: "The usage chip now reads the model's own reported token counts against the real context window — guessed windows are gone. Compaction starts before you hit the wall, and /context breaks the numbers down.")),
+            .init(icon: "shippingbox.and.arrow.backward", title: String(localized: "Pipeline fixes for long sessions"),
+                  detail: String(localized: "Repeated compaction no longer piles duplicates into the archive or regenerates the same summary on every request, earlier summaries carry forward, and the busy indicator stops the moment an answer finishes rendering.")),
         ]
     }
 

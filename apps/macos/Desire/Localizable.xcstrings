@@ -112327,6 +112327,174 @@
           }
         }
       }
+    },
+    "Compaction that keeps what matters":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Compaction that keeps what matters"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"压缩分了层，要点不丢"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"壓縮分了層，要點不丟"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"圧縮は段階的に、要点は残す"
+          }
+        }
+      }
+    },
+    "Long conversations now shrink in tiers: oversized tool outputs collapse first, older turns are summarized semantically (your /compact instructions are respected), and everything archived stays searchable — nothing is silently dropped anymore.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Long conversations now shrink in tiers: oversized tool outputs collapse first, older turns are summarized semantically (your /compact instructions are respected), and everything archived stays searchable — nothing is silently dropped anymore."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"长对话现在分层收缩：超长工具输出先收起，更早轮次做语义摘要（尊重你的 /compact 保留指令），全部原文归档可检索——不再有任何内容被无声丢弃。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"長對話現在分層收縮：超長工具輸出先收起，更早輪次做語義摘要（尊重你的 /compact 保留指令），全部原文歸檔可檢索——不再有任何內容被無聲丟棄。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"長い会話は段階的に縮小されます：長大なツール出力を先に折りたたみ、古いターンは意味要約（/compact の保持指定を尊重）、原文はすべてアーカイブして検索可能——黙って捨てられる項目はもうありません。"
+          }
+        }
+      }
+    },
+    "Context usage that tells the truth":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Context usage that tells the truth"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上下文占用说真话"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上下文佔用說真話"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"コンテキスト使用量は真実を語る"
+          }
+        }
+      }
+    },
+    "The usage chip now reads the model's own reported token counts against the real context window — guessed windows are gone. Compaction starts before you hit the wall, and /context breaks the numbers down.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The usage chip now reads the model's own reported token counts against the real context window — guessed windows are gone. Compaction starts before you hit the wall, and /context breaks the numbers down."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"占用芯片现在按模型自报的 token 数与真实上下文窗口计算——猜窗口的时代结束。压缩在你撞墙之前就开始，/context 可看明细。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"佔用晶片現在按模型自報的 token 數與真實上下文視窗計算——猜視窗的時代結束。壓縮在你撞牆之前就開始，/context 可看明細。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"使用量チップはモデル自身が報告したトークン数と実際のコンテキスト窓で計算——窓を推測する時代は終わり。圧縮は壁にぶつかる前に始まり、/context で内訳を確認できます。"
+          }
+        }
+      }
+    },
+    "Pipeline fixes for long sessions":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Pipeline fixes for long sessions"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"长会话管线修复"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"長會話管線修復"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"長時間セッションのパイプライン修正"
+          }
+        }
+      }
+    },
+    "Repeated compaction no longer piles duplicates into the archive or regenerates the same summary on every request, earlier summaries carry forward, and the busy indicator stops the moment an answer finishes rendering.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Repeated compaction no longer piles duplicates into the archive or regenerates the same summary on every request, earlier summaries carry forward, and the busy indicator stops the moment an answer finishes rendering."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"反复压缩不再往归档堆重复内容、同一摘要不再每请求重算，更早的摘要会向前承接，回答渲染完成的那一刻忙碌指示就停止。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"反覆壓縮不再往歸檔堆重複內容、同一摘要不再每請求重算，更早的摘要會向前承接，回答渲染完成的那一刻忙碌指示就停止。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"繰り返しの圧縮でアーカイブに重複が溜まったり、同じ要約がリクエスト毎に再生成されたりしなくなり、古い要約は引き継がれ、回答の描画が終わった瞬間にビジー表示が止まります。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

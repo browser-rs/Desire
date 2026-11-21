@@ -18,15 +18,16 @@ nonisolated enum ContextCompaction {
     ///
     /// 同时返回被裁轮次的**机械摘要**（每轮"用户目标｜结论"，非模型生成）：被裁的
     /// 轮次不再是无声消失 —— 模型仍能从前文知道聊过什么（长对话"越聊越忘"的主因）。
+    /// digestLimit ≤ 0 = 自适应（800 基础 + 每轮 150，封顶 4k，见 digest）。
     static func compactWithDigest(_ messages: [AgentMessage], budget: Int = 160_000,
-                                  digestLimit: Int = 1_500) -> (kept: [AgentMessage], digest: String?) {
+                                  digestLimit: Int = 0) -> (kept: [AgentMessage], digest: String?) {
         compactWithDropped(messages, budget: budget, digestLimit: digestLimit).digestTuple
     }
 
     /// 同 `compactWithDigest`，额外返回**被裁轮次原文**（v0.8.71 批 3）：
     /// 自动压缩路径用它做 ① 归档（数据永不丢）② 旁路语义摘要的输入。
     static func compactWithDropped(_ messages: [AgentMessage], budget: Int = 160_000,
-                                   digestLimit: Int = 1_500)
+                                   digestLimit: Int = 0)
         -> (kept: [AgentMessage], digest: String?, dropped: [AgentMessage],
             digestTuple: (kept: [AgentMessage], digest: String?)) {
         let messages = Self.droppingDanglingToolCalls(messages)
@@ -295,6 +296,32 @@ nonisolated enum ContextCompaction {
         return (out, collapsed, saved)
     }
 
+    /// 语义摘要输入的**钉住段**（v0.8.71 批 C）：从被裁轮次确定性抽取路径
+    /// 与 URL——它们是模型最常回查的数据点，却常落在摘要输入头尾截断的
+    /// 中段。先全部抽出（体积小）钉进输入头部，再截断散文。去重、每条
+    /// 截 200 字符、总量封顶。
+    static func pinnedPathsAndURLs(in messages: [AgentMessage], limit: Int = 60) -> String {
+        let pattern = "https?://[^\\s\"'<>）)】]{4,200}|(?:/[\\w.@+\\-]{2,}){2,}"
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return "" }
+        var seen = Set<String>()
+        var out: [String] = []
+        for message in messages {
+            guard let content = message.content else { continue }
+            let ns = content as NSString
+            for match in regex.matches(in: content, range: NSRange(location: 0, length: ns.length)) {
+                let hit = ns.substring(with: match.range)
+                // 路径误报滤除：纯标点/单段斜杠已被模式挡住；再挡明显的
+                // 非路径（如分数 1/2 已被"段 ≥2 字符"挡住，这里挡尾部悬空点）
+                let trimmed = hit.hasSuffix(".") ? String(hit.dropLast()) : hit
+                guard trimmed.count >= 5, seen.insert(trimmed).inserted else { continue }
+                out.append(trimmed)
+                if out.count >= limit { break }
+            }
+            if out.count >= limit { break }
+        }
+        return out.joined(separator: "\n")
+    }
+
     /// 被裁轮次的机械摘要：每轮一行"用户目标｜结论"。摘要有上限，更早的只留轮数 ——
     /// 目的是给模型"前文聊过什么"的坐标，不是复述内容。
     private static func digest(for dropped: [AgentMessage], limit: Int) -> String {
@@ -323,7 +350,10 @@ nonisolated enum ContextCompaction {
         guard !lines.isEmpty else { return "" }
         var out = "以下 \(lines.count) 轮更早的对话已被上下文裁剪，仅保留要点：\n"
             + lines.enumerated().map { "\($0.offset + 1). \($0.element)" }.joined(separator: "\n")
-        if out.count > limit { out = String(out.prefix(limit)) + "\n（更早的轮次从略）" }
+        // 自适应上限（批 C）：几十轮被裁时固定 1500 字符装不下全部要点——
+        // 800 基础 + 每轮 150，封顶 4k；显式传入 limit 的调用方仍以它为准。
+        let effective = limit > 0 ? limit : min(4_000, 800 + 150 * lines.count)
+        if out.count > effective { out = String(out.prefix(effective)) + "\n（更早的轮次从略）" }
         // 归档可达性（2026-11-15 持久化压缩）：被裁内容没有消失——完整历史
         // 在会话与归档里，模型需要细节时按关键词检索，而不是凭摘要猜。
         out += "\n（需要细节时用 recallConversation(query) 按关键词检索本会话的完整历史与归档，不要凭要点猜测）"

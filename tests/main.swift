@@ -11797,6 +11797,39 @@ do {
     let r2 = ContextCompaction.collapsingOldToolResults(r.messages, keepBlocksFrom: 2)
     check("Tier1：替换幂等（占位不会二次命中）", r2.savedChars == 0 && r2.collapsed.isEmpty)
 }
+// ---------- 批 C：钉住段 + 摘要自适应上限 ----------
+
+do {
+    // pinnedPathsAndURLs：路径/URL 确定性抽取（含头尾截断会丢的中段）
+    let url = "https://example.com/a/b?token=1"
+    let path = "/tmp/hc-3/report.json"
+    let mid = String(repeating: "中", count: 5000)          // 摘要输入的截断中段
+    let msgs = [
+        AgentMessage(role: .user, content: "目标：分析 \(url)"),
+        AgentMessage(role: .tool, content: mid + " 结果在 \(path) 尾部"),
+    ]
+    let pinned = ContextCompaction.pinnedPathsAndURLs(in: msgs)
+    check("钉住：URL 命中", pinned.contains(url))
+    check("钉住：中段路径命中", pinned.contains(path))
+    check("钉住：去重（各一次）", pinned.components(separatedBy: "\n").count == 2)
+    check("钉住：无路径时为空",
+          ContextCompaction.pinnedPathsAndURLs(in: [AgentMessage(role: .user, content: "没有路径")]).isEmpty)
+
+    // digest 自适应上限：被裁轮数多 → 上限随轮数涨（800+150×轮数，封顶 4k）
+    var turns: [AgentMessage] = []
+    for i in 0..<40 {
+        turns.append(AgentMessage(role: .user,
+            content: "第 \(i) 轮目标：\(String(repeating: "目标细节", count: 30))路径 /tmp/t-\(i)"))
+        turns.append(AgentMessage(role: .assistant, content: "第 \(i) 轮结论：完成"))
+    }
+    let (kept, digest, dropped, _) = ContextCompaction.compactWithDropped(turns, budget: 500)
+    check("自适应：被裁多轮", dropped.count > 50 && kept.count < dropped.count)
+    let d = digest ?? ""
+    check("自适应：上限随轮数涨（>1500）", d.count > 1500)
+    check("自适应：仍封顶 4k", d.count <= 4_100)
+    let (_, d2, _, _) = ContextCompaction.compactWithDropped(turns, budget: 500, digestLimit: 600)
+    check("自适应：显式 limit 仍生效", (d2 ?? "").count < 700)
+}
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

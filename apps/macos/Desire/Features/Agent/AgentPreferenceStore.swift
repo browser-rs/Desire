@@ -45,7 +45,14 @@ class AgentPreferenceStore: ObservableObject {
 
     var model: String {
         get { activeProfile?.model ?? "" }
-        set { mutateActiveProfile { $0.model = newValue } }
+        set {
+            mutateActiveProfile { $0.model = newValue }
+            // 模型切换广播（v0.8.71）：各会话按新模型刷新上下文占用/预算
+            // （窗口 per-模型跟随——今天 GLM 1M、明天别的模型各自不同）。
+            NotificationCenter.default.post(
+                name: .agentModelSwitched, object: nil,
+                userInfo: ["model": newValue])
+        }
     }
 
     /// 当前档案的额外请求头（请求构造时叠加）。
@@ -275,9 +282,15 @@ class AgentPreferenceStore: ObservableObject {
     /// 会话侧的 compactionBudgetOverride（超限/空响应重试写）在
     /// `effectiveContextBudget` 里优先于本值。
     func calibratedBudgetChars(forModel model: String?, profile: AIProviderProfile?) -> Int {
-        // 窗口真值优先级：档案显式 > **无**（猜表已永久移除——v0.8.70 GLM
-        // 事故）。nil = 窗口未知 → budgetChars 回退 160k 字符默认，不猜。
-        let window = profile?.contextWindowTokens
+        // 窗口真值优先级（v0.8.71 用户定稿：模型天天换，窗口必须 per-模型
+        // 跟随——今天 GLM 1M、明天别的模型各自不同）：
+        // ① modelContextWindows[当前模型]（provider /models 自报或溢出
+        //    错误自动学习——per-模型精确值）
+        // ② 档案级 contextWindowTokens（serviceEditor 显式填的服务级默认）
+        // ③ 都没有 → nil → budgetChars 回退 160k 字符默认，**不猜**。
+        let key = model.map { TokenCalibration.key(forModel: $0) }
+        let modelLevel = key.flatMap { profile?.modelContextWindows?[$0] }
+        let window = modelLevel ?? profile?.contextWindowTokens
         let calibration = model.flatMap { modelCalibration[TokenCalibration.key(forModel: $0)] }
         return TokenCalibration.budgetChars(windowTokens: window, calibration: calibration)
     }
@@ -947,4 +960,11 @@ struct SavedAIEndpoint: Identifiable, Codable, Equatable {
         self.url = url
         self.model = model
     }
+}
+
+
+extension Notification.Name {
+    /// 模型切换广播（AgentPreferenceStore.model setter 发出；各会话刷新
+    /// 上下文占用/预算——窗口 per-模型跟随，v0.8.71）。
+    static let agentModelSwitched = Notification.Name("agentModelSwitched")
 }

@@ -2,6 +2,8 @@
 ### Fixed
 
 - 上下文窗口真值化定案（用户点名"按模型支持的最大上下文设置"）：① per-模型名窗口猜测表**永久移除**（GLM-5.3-Flash 1M 被猜成 32k 是本轮事故根源）；② 生效预算不再被 160k 封顶——显式设置/ provider 自报（/models 的 context_length 等六种字段名，ModelEntry 带窗口）/ 溢出错误学习三来源直读，未知窗口回退 160k 字符默认；③ modelContextWindows 映射随模型清单刷新自动入档；④ serviceEditor 窗口输入框提示改为明确指引（留空=160k 默认；填实际窗口获得精确预算）。用户显式 1M 已生效（600k chars）。harness 3387/0。
+- 模型切换的上下文预算跟随（用户定稿"模型天天换，窗口必须 per-模型跟随"）：窗口优先级重构为 modelContextWindows[当前模型]（provider 自报/溢出学习，per-模型精确值）> 档案级 contextWindowTokens（服务级默认）> 未知回退 160k——切换模型即按新模型重算预算与占用%（占用 memo key 含模型名，切换即失效；AgentPreferenceStore.model setter 广播 agentModelSwitched，各会话监听强制刷新）。AgentModelMenu 的模型清单写回合成单次调用（拆两次触发两轮 UI 重建，与 hover 分发竞态有关联）。
+
 
 
 ## [v0.8.70] - 2026-11-21

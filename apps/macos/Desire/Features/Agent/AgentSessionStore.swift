@@ -306,7 +306,9 @@ class AgentSessionStore: ObservableObject {
     }
 
     private func updateContextFraction(force: Bool = false) {
-        let key = "\(messages.count)-\(messages.last?.content?.count ?? 0)"
+        // key 含当前模型名（v0.8.71）：切换模型即 memo 失效——占用按新
+        // 模型的窗口/校准比率重算（GLM 1M ↔ 32k 之间切换必须立即变）。
+        let key = "\(streamPreference.model)|\(messages.count)-\(messages.last?.content?.count ?? 0)"
         guard key != contextFractionStamp else { return }
         contextFractionStamp = key
         // R2-8：流式期间末条长度每拍必变 → 上述 memo 每拍失配 → 每拍全量
@@ -377,7 +379,17 @@ class AgentSessionStore: ObservableObject {
         AgentScheduler.shared.deliveryTarget = self
         // Registry for per-window addressing (0.1.8).
         registryID = AgentScheduler.shared.registerSession(self, windowTitle: nil)
-    }
+    
+        // 模型切换广播（v0.8.71）：占用%按新模型立即重算（窗口 per-模型跟随）。
+        // 放 init 末尾——存储属性全部初始化后才能捕获 self。
+        modelSwitchObserver = NotificationCenter.default.addObserver(
+            forName: .agentModelSwitched, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.updateContextFraction(force: true)
+            }
+        }
+}
 
     /// Entry point for `AgentScheduler` firings: starts (or queues) a turn
     /// carrying the scheduled prompt, tagged so the conversation shows
@@ -425,6 +437,8 @@ class AgentSessionStore: ObservableObject {
     private var lastStreamCheckpoint = Date()
     /// **最近一次**请求的 prompt token 数：累计值对用户没意义，他要的是"现在多满"。
     @Published private(set) var lastPromptTokens = 0
+    /// 模型切换广播接收（v0.8.71）：占用%按新模型立即重算（窗口 per-模型）。
+    private var modelSwitchObserver: NSObjectProtocol?
     /// 当前对话占用 `compactForContext` 预算的比例（同一口径：字符数 / 160k）。
     /// 模型开始返回空、或自动压缩要生效之前，用户至少能看到它在逼近上限。
     @Published private(set) var contextFraction: Double = 0
@@ -692,6 +706,89 @@ class AgentSessionStore: ObservableObject {
     private var archiveKey: String? {
         guard let id = conversationId else { return nil }
         return "conversation-\(id.uuidString).archive"
+    }
+
+    /// **自动压缩的归档**（v0.8.71 批 3）：被裁轮次原文追加到伴生归档文件
+    /// （与 compactNow 同一机制——ArchiveGC 容量护栏），数据永不丢。
+    private func archiveDroppedTurns(_ dropped: [AgentMessage]) {
+        guard !dropped.isEmpty, let key = archiveKey else { return }
+        var archived = DiskStore.load([AgentMessage].self, key: key) ?? []
+        archived.append(contentsOf: dropped)
+        let (capped, _) = ArchiveGC.truncateArchive(archived)
+        DiskStore.save(capped, key: key)
+    }
+
+    /// **旁路语义摘要**（v0.8.71 批 3，替代机械动作清单）：被裁轮次交给
+    /// 便宜模型生成"保留目标/决策/路径/数据/未完成"的高质量摘要。
+    /// 12 秒限时（压缩在回合发起路径上，不能等慢模型）；失败/超时返回
+    /// nil → 调用方回退机械 digest（不阻塞回合）。onUsage 走 recordBypassUsage
+    /// （成本可见）。
+    private func generateSemanticDigest(dropped: [AgentMessage]) async -> String? {
+        let bypass = preference.fallbackPreferences() ?? preference
+        // 输入构建：每轮用户目标全文 + assistant 结论 + 工具结果关键头
+        // （路径/数据在工具结果里——机械摘要恰恰丢的就是这些）。总长截 30k。
+        var transcript: [String] = []
+        for message in dropped {
+            switch message.role {
+            case .user:
+                transcript.append("【用户】\(message.content ?? "")")
+            case .assistant:
+                if let c = message.content, !c.isEmpty {
+                    transcript.append("【助手】\(c)")
+                }
+                for call in message.toolCalls ?? [] {
+                    transcript.append("【调用】\(call.function.name) \(call.function.arguments.prefix(400))")
+                }
+            case .tool:
+                transcript.append("【结果】\((message.content ?? "").prefix(600))")
+            default:
+                break
+            }
+        }
+        let input = transcript.joined(separator: "\n\n")
+        let bounded: String
+        if input.count > 30_000 {
+            // 保留最早（目标）与最晚（未完成）两端，中段截断
+            bounded = String(input.prefix(20_000))
+                + "\n[…中段省略…]\n"
+                + String(input.suffix(10_000))
+        } else {
+            bounded = input
+        }
+        let system = """
+        你是浏览器智能体的上下文压缩器。下面的对话轮次即将从上下文中裁剪，
+        请生成一段**语义摘要**，严格保留：1) 用户的目标与明确约束（尽量原话）；
+        2) 关键决策；3) 发现的文件路径、URL 与数据点；4) 未完成事项。
+        不要复述过程，只保留结果性信息。输出不超过 1500 字符，纯文本。
+        """
+        // 12 秒竞速：超时即放弃（压缩在回合发起路径上，不能等慢模型）。
+        // recordBypassUsage 是 MainActor 方法 → onUsage 里 Task hop。
+        let result = await withTaskGroup(of: String?.self) { group in
+            group.addTask {
+                await MemoryExtractor.collectText(
+                    preference: bypass, system: system, user: bounded,
+                    onUsage: { p, c, m in
+                        Task { @MainActor in
+                            AgentSessionStore.recordBypassUsage(
+                                kind: "compaction", prompt: p,
+                                completion: c, model: m)
+                        }
+                    })
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 12_000_000_000)
+                return nil
+            }
+            let first = await group.next() ?? nil
+            group.cancelAll()
+            return first
+        }
+        guard var text = result, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            Log.app.info("semantic digest unavailable — falling back to mechanical digest")
+            return nil
+        }
+        if text.count > 1_500 { text = String(text.prefix(1_500)) + "…" }
+        return "【语义摘要（模型生成，原文见归档）】\n" + text
     }
 
     /// **持久化压缩**（2026-11-15 用户定案"上下文用尽自动压缩，而不是去开
@@ -1826,12 +1923,12 @@ class AgentSessionStore: ObservableObject {
         let snapshot = messages
         let budget = effectiveContextBudget
         let turnID = currentTurnIDForPreparation ?? UUID()
-        let prepared = await Task.detached(priority: .userInitiated) { () -> (messages: [AgentMessage], digest: String?) in
+        let prepared = await Task.detached(priority: .userInitiated) { () -> (messages: [AgentMessage], digest: String?, dropped: [AgentMessage]) in
             // **单趟压缩**（2026-11-15）：此前第一次调用算出的 digest 直接
             // 丢弃（`let (kept, _)`），digestProvider 又对全量快照**在主线程
             // 上**重算一遍 compactWithDigest——大会话每个请求两次全量扫描
             // 加一次主线程尖刺。现在 digest 与 kept 同一趟产出。
-            let (kept, digest) = ContextCompaction.compactWithDigest(snapshot, budget: budget)
+            let (kept, digest, dropped, _) = ContextCompaction.compactWithDropped(snapshot, budget: budget)
             var prepared = ContextCompaction.repairUnpairedToolCalls(kept)
             let (summarized, toolCharsSaved) = ContextCompaction.summarizingOversizedToolResults(prepared)
             prepared = summarized
@@ -1844,11 +1941,24 @@ class AgentSessionStore: ObservableObject {
                 Log.agent.info("huge-message cap: \(hugeSaved) chars trimmed from oversized user/assistant messages in this request")
             }
             // 机械摘要的注入需要宿主上下文（identity/memory/skills 分层），
-            // 留在 MainActor 侧拼装——后台只做纯转换。
-            return (prepared, digest)
+            // 留在 MainActor 侧拼装——后台只做纯转换。dropped（v0.8.71 批 3）
+            // 供 MainActor 侧归档 + 旁路语义摘要。
+            return (prepared, digest, dropped)
         }.value
         guard isCurrentTurn(turnID) else { return [] }
-        return await assembleRequestMessages(from: prepared.messages, digest: prepared.digest)
+
+        // **自动压缩的归档 + 语义摘要层**（v0.8.71 批 3）：与 compactNow 同一
+        // 归档机制（dropped 原文进伴生 .archive，数据永不丢）；摘要升级为
+        // 旁路模型语义摘要（12 秒限时，失败回退机械 digest——不阻塞回合）。
+        var finalDigest = prepared.digest
+        let droppedTurns = prepared.dropped
+        if !droppedTurns.isEmpty {
+            archiveDroppedTurns(droppedTurns)
+            if let semantic = await generateSemanticDigest(dropped: droppedTurns) {
+                finalDigest = semantic
+            }
+        }
+        return await assembleRequestMessages(from: prepared.messages, digest: finalDigest)
     }
 
     /// 从后台 prepared 消息拼装最终请求（system 分层注入——需要宿主依赖，

@@ -20,6 +20,15 @@ nonisolated enum ContextCompaction {
     /// 轮次不再是无声消失 —— 模型仍能从前文知道聊过什么（长对话"越聊越忘"的主因）。
     static func compactWithDigest(_ messages: [AgentMessage], budget: Int = 160_000,
                                   digestLimit: Int = 1_500) -> (kept: [AgentMessage], digest: String?) {
+        compactWithDropped(messages, budget: budget, digestLimit: digestLimit).digestTuple
+    }
+
+    /// 同 `compactWithDigest`，额外返回**被裁轮次原文**（v0.8.71 批 3）：
+    /// 自动压缩路径用它做 ① 归档（数据永不丢）② 旁路语义摘要的输入。
+    static func compactWithDropped(_ messages: [AgentMessage], budget: Int = 160_000,
+                                   digestLimit: Int = 1_500)
+        -> (kept: [AgentMessage], digest: String?, dropped: [AgentMessage],
+            digestTuple: (kept: [AgentMessage], digest: String?)) {
         let messages = Self.droppingDanglingToolCalls(messages)
         func size(_ m: AgentMessage) -> Int {
             (m.content?.count ?? 0)
@@ -27,10 +36,16 @@ nonisolated enum ContextCompaction {
         }
         let sizes = messages.map(size)
         var total = sizes.reduce(0, +)
-        guard total > budget else { return (messages, nil) }
+        guard total > budget else {
+            let t = (kept: messages, digest: nil as String?)
+            return (messages, nil as String?, [], t)
+        }
 
         let starts = messages.indices.filter { messages[$0].role == .user }
-        guard starts.count > 1 else { return (messages, nil) }
+        guard starts.count > 1 else {
+            let t = (kept: messages, digest: nil as String?)
+            return (messages, nil as String?, [], t)
+        }
 
         var keepStart = 0
         for (i, s) in starts.enumerated() {
@@ -40,11 +55,16 @@ nonisolated enum ContextCompaction {
             total -= (s..<end).reduce(0) { $0 + sizes[$1] }
             keepStart = end
         }
-        guard keepStart > 0 else { return (messages, nil) }
+        guard keepStart > 0 else {
+            let t = (kept: messages, digest: nil as String?)
+            return (messages, nil as String?, [], t)
+        }
 
         let kept = Array(messages[keepStart...])
-        let digest = Self.digest(for: Array(messages[..<keepStart]), limit: digestLimit)
-        return (kept, digest.isEmpty ? nil : digest)
+        let dropped = Array(messages[..<keepStart])
+        let digest = Self.digest(for: dropped, limit: digestLimit)
+        let tuple = (kept: kept, digest: digest.isEmpty ? nil : digest)
+        return (kept, tuple.digest, dropped, tuple)
     }
 
     /// 请求侧"实际会发送"的字符总账（与 `compactWithDigest` 同一裁剪语义，

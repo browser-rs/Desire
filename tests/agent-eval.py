@@ -622,13 +622,17 @@ c.addEventListener('click', function(ev) {
                 self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
                 self.wfile.write(b"data: [DONE]\n\n")
                 self.wfile.flush(); self.close_connection = True
+            # 按 tool_call_id 结构判定（v0.8.69 体检修复）：此前按结果文本的
+            # 英文措辞匹配（"Saved template"/"started"），工具结果本地化成中文
+            # 后判定永远不中 → 每轮重发 saveJobTemplate → 死循环到 50 步上限
+            # （E20"按措辞猜"教训的结构版）。tool 消息带 tool_call_id，与语言无关。
+            def _chain_call_id(m):
+                return (m.get("toolCallId") or m.get("tool_call_id") or "")
             ran_chain = any(m.get("role") == "tool"
-                            and "started" in str(m.get("content") or "")
-                            and ("chain" in str(m.get("content") or "").lower()
-                                 or "job" in str(m.get("content") or "").lower())
+                            and _chain_call_id(m) == "call_chain_run"
                             for m in round_msgs)
             saved_chain = any(m.get("role") == "tool"
-                              and "Saved template" in str(m.get("content") or "")
+                              and _chain_call_id(m) == "call_chain_save"
                               for m in round_msgs)
             if ran_chain:
                 reply = "CHAIN-DONE"
@@ -663,7 +667,8 @@ c.addEventListener('click', function(ev) {
                             "args": json.dumps([
                                 "-c",
                                 "import os; "
-                                "print('CHAIN-STEP2:', sorted(os.listdir('{prev.artifact}')))",
+                                "open('/tmp/eval-chain/listing.txt', 'w').write("
+                                "repr(sorted(os.listdir('{prev.artifact}'))))",
                             ])}},
                     ]})
             return
@@ -2036,8 +2041,16 @@ def case_job_chain():
             time.sleep(1.5)
         check("E21 step1 done（产物自报）", step1_done)
         check("E21 step2 由链引擎自动推进并 done", step2_done)
-        check("E21 占位符解析（step2 列出产物目录）", "data.json" in step2_content,
-              step2_content[:120])
+        # 占位符验证走**文件系统**（BackgroundCommandStore 的 done receipt
+        # 只记"完成，耗时"不含 stdout——按 receipt 断言会随格式漂移）：
+        # step2 把 {prev.artifact} 的 listing 写进 listing.txt，替换失败 =
+        # listdir 一个字面 '{prev.artifact}' 路径直接抛错。
+        try:
+            listing = open("/tmp/eval-chain/listing.txt").read()
+        except OSError:
+            listing = ""
+        check("E21 占位符解析（step2 列出产物目录）",
+              "data.json" in listing and "prev.artifact" not in listing)
     finally:
         _shutil.rmtree("/tmp/eval-chain", ignore_errors=True)
         bridge("POST", "/jobs/templates", body={"action": "delete", "name": "eval-chain"})

@@ -103,9 +103,15 @@ final class RuntimeHealthMonitor {
         guard watchdog == nil else { return }
         HealthClock.shared.ack()
         CooperativePool.startProbe()
-        heartbeat = Timer.scheduledTimer(withTimeInterval: Self.beatInterval, repeats: true) { _ in
+        // **common mode**（v0.8.68 体检发现）：scheduledTimer 默认挂 default
+        // mode——模态弹窗（runModal）/菜单跟踪的嵌套事件循环里不触发，主线程
+        // 实际活着却被 watchdog 误判成 26.5s 停滞（现场：样本栈
+        // RunCurrentEventLoopInMode + 主线程全程 idle）。common mode 在这些
+        // 嵌套循环里也触发，"心跳=主线程活着"的语义才成立。
+        heartbeat = Timer(timeInterval: Self.beatInterval, repeats: true) { _ in
             HealthClock.shared.ack()
         }
+        RunLoop.main.add(heartbeat!, forMode: .common)
         let queue = DispatchQueue(label: "me.siwi.Desire.health", qos: .utility)
         let timer = DispatchSource.makeTimerSource(queue: queue)
         timer.schedule(deadline: .now() + Self.stallThreshold, repeating: 5)

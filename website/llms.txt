@@ -12,7 +12,7 @@
 - Product page (en): https://desire.mankong.icu/en/
 - Source code: https://github.com/browser-rs/Desire
 - Downloads: https://github.com/browser-rs/Desire/releases/latest
-- Current version: 0.8.67 (November 2026)
+- Current version: 0.8.69 (November 2026)
 - Platform: macOS 26.5+; Apple Silicon (arm64) and Intel (x86_64)
 - Engine: Apple WebKit (WKWebView), native SwiftUI app
 - Price: free; AI models are bring-your-own-key (OpenAI-compatible, Anthropic,

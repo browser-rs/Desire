@@ -439,6 +439,9 @@ class AgentSessionStore: ObservableObject {
     @Published private(set) var lastPromptTokens = 0
     /// 模型切换广播接收（v0.8.71）：占用%按新模型立即重算（窗口 per-模型）。
     private var modelSwitchObserver: NSObjectProtocol?
+    /// /compact 的保留指令（v0.8.71）：非 nil 时语义摘要提示词并入——
+    /// 自动压缩也尊重最近一次用户指令（用户意图是会话级的）。
+    @Published var compactPreservationHint: String? = nil
     /// 当前对话占用 `compactForContext` 预算的比例（同一口径：字符数 / 160k）。
     /// 模型开始返回空、或自动压缩要生效之前，用户至少能看到它在逼近上限。
     @Published private(set) var contextFraction: Double = 0
@@ -755,10 +758,11 @@ class AgentSessionStore: ObservableObject {
         } else {
             bounded = input
         }
+        let hintLine = compactPreservationHint.map { "\n用户特别要求：\($0)——摘要必须优先满足。" } ?? ""
         let system = """
         你是浏览器智能体的上下文压缩器。下面的对话轮次即将从上下文中裁剪，
         请生成一段**语义摘要**，严格保留：1) 用户的目标与明确约束（尽量原话）；
-        2) 关键决策；3) 发现的文件路径、URL 与数据点；4) 未完成事项。
+        2) 关键决策；3) 发现的文件路径、URL 与数据点；4) 未完成事项。\(hintLine)
         不要复述过程，只保留结果性信息。输出不超过 1500 字符，纯文本。
         """
         // 12 秒竞速：超时即放弃（压缩在回合发起路径上，不能等慢模型）。
@@ -800,7 +804,9 @@ class AgentSessionStore: ObservableObject {
     /// - Returns: 归档的消息条数（0 = 无需压缩，或无可裁轮次——单轮巨型会
     ///   话要等回合结束后有了新块才压得动）。
     @discardableResult
-    func compactNow(target: Int? = nil) -> Int {
+    /// preservationHint（v0.8.71）：用户经 /compact 的保留指令（"保留所有
+    /// 路径"）——并入语义摘要提示词，让摘要按用户要求侧重保留。
+    func compactNow(target: Int? = nil, preservationHint: String? = nil) -> Int {
         let targetBudget = max(20_000, target ?? Int(Double(effectiveContextBudget) * 0.6))
         let snapshot = messages
         let estimate = ContextCompaction.estimatedSentTotal(snapshot, budget: targetBudget)
@@ -838,6 +844,34 @@ class AgentSessionStore: ObservableObject {
         return droppedCount
     }
 
+    /// **/context 占用总览**（v0.8.71 批 4）：窗口真值 + 发送侧字符 +
+    /// 压缩状态——与面板占用 chip 同源（effectiveContextBudget /
+    /// estimatedSentTotal），数字永远只有一个版本。
+    private func contextOverviewText() -> String {
+        let modelWindows = streamPreference.activeProfile?.modelContextWindows
+        let modelKey = TokenCalibration.key(forModel: streamPreference.model)
+        let window = modelWindows?[modelKey] ?? streamPreference.activeProfile?.contextWindowTokens
+        let windowSource = modelWindows?[modelKey] != nil
+            ? String(localized: "provider-reported")
+            : (streamPreference.activeProfile?.contextWindowTokens != nil
+                ? String(localized: "profile default") : String(localized: "unknown"))
+        let windowText = (window.map { String($0) } ?? String(localized: "unknown"))
+            + " tokens（" + windowSource + "）"
+        let estimate = ContextCompaction.estimatedSentTotal(messages, budget: effectiveContextBudget)
+        let summaryChars = messages
+            .filter { $0.role == .system && ($0.content ?? "").contains(Self.compactedHistoryMarker) }
+            .reduce(0) { $0 + ($1.content?.count ?? 0) }
+        var lines: [String] = []
+        lines.append(String(localized: "Window") + ": " + windowText)
+        lines.append(String(localized: "Sent this turn") + ": \(estimate.total) chars（\(Int((Double(estimate.total) / Double(max(effectiveContextBudget, 1)) * 100).rounded()))%）")
+        if estimate.dropped { lines.append(String(localized: "Compaction active — older turns summarized & archived")) }
+        if estimate.stuck { lines.append(String(localized: "Single-turn overload — nothing to drop, consider /new")) }
+        if summaryChars > 0 {
+            lines.append(String(localized: "In-context summaries") + ": \(summaryChars) chars")
+        }
+        return lines.joined(separator: "\n")
+    }
+
     /// 归档轮次（持久化压缩裁出的历史）。nil/空 = 无归档。每次读盘——
     /// recallConversation 才会走到，不在热路径上。
     func archivedMessages() -> [AgentMessage]? {
@@ -854,12 +888,18 @@ class AgentSessionStore: ObservableObject {
         case "new":
             clear()
         case "compact":
-            let dropped = compactNow()
+            // /compact [保留指令]（v0.8.71）：argument 非空 = 用户自定义保留
+            // 要求（如 "保留所有路径"）——并入语义摘要提示词。
+            let hint = parsed.argument.trimmingCharacters(in: .whitespacesAndNewlines)
+            compactPreservationHint = hint.isEmpty ? nil : hint
+            let dropped = compactNow(preservationHint: compactPreservationHint)
             if dropped > 0 {
                 appendLocalAssistant(String(localized: "Compacted: \(dropped) older messages were archived and replaced by a summary. Archived turns stay searchable via recallConversation."))
             } else {
                 appendLocalAssistant(String(localized: "Nothing to compact — the conversation already fits within the context budget."))
             }
+        case "context":
+            appendLocalAssistant(contextOverviewText())
         case "stats":
             let usage = conversationUsage
             let turns = messages.filter { $0.role == .user }.count

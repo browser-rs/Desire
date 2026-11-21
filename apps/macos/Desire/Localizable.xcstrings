@@ -112139,6 +112139,138 @@
           }
         }
       }
+    },
+    "provider-reported":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"provider-reported"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"provider 自报"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"provider 自報"
+          }
+        }
+      }
+    },
+    "profile default":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"profile default"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"档案默认"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"檔案預設"
+          }
+        }
+      }
+    },
+    "Sent this turn":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Sent this turn"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"本轮发送"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"本輪發送"
+          }
+        }
+      }
+    },
+    "Compaction active — older turns summarized & archived":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Compaction active — older turns summarized & archived"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"压缩已生效——更早轮次已摘要并归档"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"壓縮已生效——更早輪次已摘要並歸檔"
+          }
+        }
+      }
+    },
+    "Single-turn overload — nothing to drop, consider /new":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Single-turn overload — nothing to drop, consider /new"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"单轮即超预算——无可裁轮次，考虑 /new"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"單輪即超預算——無可裁輪次，考慮 /new"
+          }
+        }
+      }
+    },
+    "In-context summaries":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"In-context summaries"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上下文内摘要"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"上下文內摘要"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

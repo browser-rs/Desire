@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- /compact 支持自定义保留指令 + /context 占用总览（批 4）：`/compact 保留所有路径`——argument 作为用户保留要求并入语义摘要提示词（自动压缩同样尊重最近一次指令）；新增 `/context` 命令输出窗口真值（显式/provider 自报/未知三态标注）、本轮发送字符与占用%、压缩状态——与面板占用 chip 同源，数字只有一个版本。
+
 ### Fixed
 
 - 上下文窗口真值化定案（用户点名"按模型支持的最大上下文设置"）：① per-模型名窗口猜测表**永久移除**（GLM-5.3-Flash 1M 被猜成 32k 是本轮事故根源）；② 生效预算不再被 160k 封顶——显式设置/ provider 自报（/models 的 context_length 等六种字段名，ModelEntry 带窗口）/ 溢出错误学习三来源直读，未知窗口回退 160k 字符默认；③ modelContextWindows 映射随模型清单刷新自动入档；④ serviceEditor 窗口输入框提示改为明确指引（留空=160k 默认；填实际窗口获得精确预算）。用户显式 1M 已生效（600k chars）。harness 3387/0。

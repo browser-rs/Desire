@@ -12,7 +12,7 @@ nonisolated enum AgentSlashParsing {
 
     /// 已知命令清单（/help 的输出与拦截判据同源）。
     static let known: [String] = [
-        "help", "new", "compact", "stats", "doctor", "mode", "resume",
+        "help", "new", "compact", "context", "stats", "doctor", "mode", "resume",
         "skills", "memory", "model", "persona", "plan", "cancel", "windows",
         // 2026-10-10 二批：访问等级 / 会话指令 / 定时任务 / 工具清单 / MCP /
         // 重命名 / 重试 / 导出。
@@ -30,6 +30,7 @@ nonisolated enum AgentSlashParsing {
         "help": String(localized: "show this list"),
         "new": String(localized: "start a fresh conversation"),
         "compact": String(localized: "archive & shrink the conversation now (archived turns stay searchable)"),
+        "context": String(localized: "show context-window usage breakdown (window source, pinned, summary, full-text)"),
         "stats": String(localized: "token usage and cost for this conversation"),
         "doctor": String(localized: "run the agent self-check"),
         "mode": String(localized: "switch agent mode: /mode standard|research|writing"),

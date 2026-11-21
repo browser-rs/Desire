@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- WhatsNew 刷 v0.8.70 三条亮点（三语）：App 锁（Face ID）/ 体检准确性修复（停滞误报+E21）/ 发图分片单测与协作池水位检查。
+
 ### Fixed
 
 - Agent 基础功能全面体检（桥探针/Doctor/评估套件/代码扫）三发现三修复：① 主线程停滞误报——心跳 Timer 挂在 default run loop mode，模态弹窗（runModal）的嵌套事件循环里不触发，主线程实际活着被 watchdog 误判 26.5 秒停滞（样本栈 RunCurrentEventLoopInMode + 主线程全程 idle 实证）；改挂 common mode（嵌套循环里也触发，"心跳=活着"语义成立）。② agent-eval E21 job-chain 死循环——fixture 分支按工具结果英文措辞匹配（"Saved template"/"started"），结果文案本地化成中文后判定永不中，每轮重发 saveJobTemplate 直到 50 步上限；改按 tool_call_id 结构判定（语言无关，E20"按措辞猜"教训的结构版）。③ E21 占位符断言按 receipt 文本匹配（done receipt 只记"完成，耗时"不含 stdout——格式漂移后失效）；改走文件系统断言（step2 把 listing 写文件）。体检全档复跑 82/82。
@@ -6,6 +10,8 @@
 ### Added
 
 - DesireRemote 优化三件（用户"继续优化远程App"）：① **App 锁**（Face ID/设备密码）——切后台即锁定、回前台需验证，锁定态全屏不透明（消息/产物不泄露）；手机丢失不再等于交出 Mac 指挥权（设置 ▸ App 锁开关，开启即验证一次机主）；② 相机拍照发图（此前只有相册入口，相机不可用时给提示而非死按钮）；③ 消息长按菜单"复制全文"（与既有 textSelection 互补——复制整条含 Markdown）。
+- Doctor 新增"协作池水位"检查项（批 1，0.8.61 数据面收口）：p95 超 2s 阈值判异常（与诊断 pill 同源同口径——后台任务在挨饿），样本 <4 时如实说明"观测窗口未热"不判失败；一键体检覆盖面补齐（模型/端点/MCP/压缩/转存/ffmpeg/钩子/技能/通知/心跳/主线程/同步完整性/协作池 13 项）。live 验证：新实例 0/4 样本时"观测窗口未热"如实呈现。
+
 
 
 ## [v0.8.69] - 2026-11-21

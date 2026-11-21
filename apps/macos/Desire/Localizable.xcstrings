@@ -111919,6 +111919,138 @@
           }
         }
       }
+    },
+    "Lock Desire Remote with Face ID":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Lock Desire Remote with Face ID"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"用 Face ID 锁住 Desire Remote"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"用 Face ID 鎖住 Desire Remote"
+          }
+        }
+      }
+    },
+    "The companion app can now require Face ID or your device passcode after leaving the foreground — a lost phone no longer hands over command of your Mac. Camera capture for send-photo joins too, plus copy-full-text on long press.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The companion app can now require Face ID or your device passcode after leaving the foreground — a lost phone no longer hands over command of your Mac. Camera capture for send-photo joins too, plus copy-full-text on long press."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Desire Remote 现在可以在切后台后要求 Face ID 或设备密码——手机丢了也不会交出 Mac 指挥权。同时新增相机拍照发图与长按复制全文。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Desire Remote 現在可以在切背景後要求 Face ID 或設備密碼——手機丟了也不會交出 Mac 指揮權。同時新增相機拍照發圖與長按複製全文。"
+          }
+        }
+      }
+    },
+    "The health check tells the truth":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The health check tells the truth"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"体检不再说谎"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"體檢不再說謊"
+          }
+        }
+      }
+    },
+    "This release fixes a phantom 26-second stall the health check reported whenever a modal dialog was open — the heartbeat now runs in a run loop mode that keeps ticking. The job-chain evaluation suite also stops a phantom infinite loop.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"This release fixes a phantom 26-second stall the health check reported whenever a modal dialog was open — the heartbeat now runs in a run loop mode that keeps ticking. The job-chain evaluation suite also stops a phantom infinite loop."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"修复了开着模态弹窗时体检误报“停滞 26 秒”的问题——心跳现在跑在持续触发的 run loop mode；作业链评估套件的假死循环也已消除。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"修復了開著模態彈窗時體檢誤報「停滯 26 秒」的問題——心跳現在跑在持續觸發的 run loop mode；作業鏈評估套件的假死循環也已消除。"
+          }
+        }
+      }
+    },
+    "Photos, tests and small print":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Photos, tests and small print"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"图片、测试与细节"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"圖片、測試與細節"
+          }
+        }
+      }
+    },
+    "Photo chunking is now covered by unit tests, the agent doctor tracks cooperative-pool water levels, and language no longer breaks the job-chain evaluation.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Photo chunking is now covered by unit tests, the agent doctor tracks cooperative-pool water levels, and language no longer breaks the job-chain evaluation."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"发图分片有了单元测试覆盖；体检新增协作池水位检查；作业链评估不再被语言差异破坏。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"發圖分片有了單元測試覆蓋；體檢新增協作池水位檢查；作業鏈評估不再被語言差異破壞。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

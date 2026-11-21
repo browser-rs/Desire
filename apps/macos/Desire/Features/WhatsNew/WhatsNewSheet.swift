@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "photo.badge.plus", title: String(localized: "Point your camera at the problem"),
-                  detail: String(localized: "Desire Remote can now send photos to the agent: snap or pick up to three images, they land in the Mac's agent workspace, and the agent can look at them with its vision tool right away.")),
-            .init(icon: "qrcode.viewfinder", title: String(localized: "Authorize a new Mac from your phone"),
-                  detail: String(localized: "The scan-to-sign-in entry now lives in Settings ▸ Connection — always there, so a new or reinstalled Mac can be signed in with a quick scan instead of a password.")),
-            .init(icon: "sidebar.left", title: String(localized: "The agent window, tuned by you"),
-                  detail: String(localized: "Your feedback shaped this release: multi-select conversations with batch delete, the system-style sidebar, and a chat column that fills the whole window.")),
+            .init(icon: "faceid", title: String(localized: "Lock Desire Remote with Face ID"),
+                  detail: String(localized: "The companion app can now require Face ID or your device passcode after leaving the foreground — a lost phone no longer hands over command of your Mac. Camera capture for send-photo joins too, plus copy-full-text on long press.")),
+            .init(icon: "stethoscope", title: String(localized: "The health check tells the truth"),
+                  detail: String(localized: "This release fixes a phantom 26-second stall the health check reported whenever a modal dialog was open — the heartbeat now runs in a run loop mode that keeps ticking. The job-chain evaluation suite also stops a phantom infinite loop.")),
+            .init(icon: "camera.badge.plus", title: String(localized: "Photos, tests and small print"),
+                  detail: String(localized: "Photo chunking is now covered by unit tests, the agent doctor tracks cooperative-pool water levels, and language no longer breaks the job-chain evaluation.")),
         ]
     }
 

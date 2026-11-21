@@ -167,6 +167,24 @@ enum AgentDoctor {
             }
         }
 
+        // 11. 协作池水位（v0.8.70 批 1，诊断 pill 同源同口径）：p95 > 2s =
+        // 后台任务在挨饿（0.8.61 三案同根的 observable 面）；样本 <4 = 观测
+        // 窗口未热，如实说明而不判失败。
+        let pool = CooperativePool.stats()
+        if pool.sampleCount < 4 {
+            checks.append(Check(name: "协作池水位", ok: true,
+                                detail: "观测窗口未热（\(pool.sampleCount)/4 样本）"))
+        } else if let p95 = pool.p95, p95 > 2.0 {
+            checks.append(Check(
+                name: "协作池水位",
+                ok: false,
+                detail: String(format: "p95 %.0f ms 超 2s 阈值——后台任务在挨饿（诊断包可见）", p95 * 1000)))
+        } else {
+            checks.append(Check(name: "协作池水位", ok: true,
+                                detail: String(format: "p95 %.0f ms（%d 样本/12 分钟窗口）",
+                                               (pool.p95 ?? 0) * 1000, pool.sampleCount)))
+        }
+
         return Report(checks: checks)
     }
 

@@ -222,6 +222,42 @@ nonisolated enum ContextCompaction {
         return out
     }
 
+    // MARK: - 压缩收口三件（v0.8.71 批 A）：请求侧与持久化压缩共用
+
+    /// **旧压缩备注承接**：从被裁轮次里取出历史压缩备注正文（去掉 marker 前缀）。
+    /// 此前只有持久化压缩（compactNow）承接旧备注——请求侧再压缩时它们两头
+    /// 进不去（机械 digest 只扫 user 起点、语义摘要输入跳过 system），早期
+    /// 要点静默蒸发。两条路径共用本函数。
+    static func carriedCompactionNotes(from dropped: [AgentMessage], marker: String) -> [String] {
+        dropped
+            .filter { $0.role == .system && ($0.content ?? "").contains(marker) }
+            .compactMap { $0.content?.replacingOccurrences(of: marker, with: "") }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+    }
+
+    /// **归档去重合并**：请求侧压缩不改内存 messages，同一批最老轮次会在超
+    /// 预算期间的每个请求重复抵达——按消息 id 去重后才 append，归档不再被
+    /// 同一内容反复堆高（否则 ArchiveGC 容量护栏丢"最老"轮次时，丢的恰是
+    /// 真正最有价值的早期上下文）。
+    /// - Returns: 合并后的新数组；incoming 全部已在 existing 里时返回 nil
+    ///   （调用方据此跳过落盘）。
+    static func mergingArchive(existing: [AgentMessage], incoming: [AgentMessage]) -> [AgentMessage]? {
+        let ids = Set(existing.map(\.id))
+        let fresh = incoming.filter { !ids.contains($0.id) }
+        guard !fresh.isEmpty else { return nil }
+        return existing + fresh
+    }
+
+    /// **被裁轮次指纹**（语义摘要缓存键）：超预算期间每个请求裁掉的是同一批
+    /// 轮次（消息 id 稳定），指纹相同 → 摘要直接复用，不再每请求烧一次旁路
+    /// 调用（12s 竞速 × 每次迭代）。内容长度一并入键（落盘消息不可变，纯
+    /// 防御）；hint 并入键——保留指令变了摘要必须重做。
+    static func droppedFingerprint(_ dropped: [AgentMessage], hint: String?) -> String {
+        let ids = dropped.map { "\($0.id)|\($0.content?.count ?? 0)" }.joined(separator: ",")
+        return ids + "#" + (hint ?? "")
+    }
+
     /// 被裁轮次的机械摘要：每轮一行"用户目标｜结论"。摘要有上限，更早的只留轮数 ——
     /// 目的是给模型"前文聊过什么"的坐标，不是复述内容。
     private static func digest(for dropped: [AgentMessage], limit: Int) -> String {

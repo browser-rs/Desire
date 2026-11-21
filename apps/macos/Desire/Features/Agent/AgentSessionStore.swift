@@ -715,9 +715,13 @@ class AgentSessionStore: ObservableObject {
     /// （与 compactNow 同一机制——ArchiveGC 容量护栏），数据永不丢。
     private func archiveDroppedTurns(_ dropped: [AgentMessage]) {
         guard !dropped.isEmpty, let key = archiveKey else { return }
-        var archived = DiskStore.load([AgentMessage].self, key: key) ?? []
-        archived.append(contentsOf: dropped)
-        let (capped, _) = ArchiveGC.truncateArchive(archived)
+        let archived = DiskStore.load([AgentMessage].self, key: key) ?? []
+        // 按 id 去重（批 A）：请求侧压缩不改内存 messages，同一批最老轮次会
+        // 在超预算期间的每个请求重复抵达——不去重的话归档被同一内容反复堆高，
+        // ArchiveGC 容量护栏丢"最老"轮次时丢的恰是真正最有价值的早期上下文。
+        guard let merged = ContextCompaction.mergingArchive(existing: archived, incoming: dropped)
+        else { return }
+        let (capped, _) = ArchiveGC.truncateArchive(merged)
         DiskStore.save(capped, key: key)
     }
 
@@ -726,7 +730,17 @@ class AgentSessionStore: ObservableObject {
     /// 12 秒限时（压缩在回合发起路径上，不能等慢模型）；失败/超时返回
     /// nil → 调用方回退机械 digest（不阻塞回合）。onUsage 走 recordBypassUsage
     /// （成本可见）。
+    /// 语义摘要缓存（批 A）：超预算期间每个请求裁掉的是同一批最老轮次——
+    /// 指纹相同直接复用，不再每请求烧一次旁路调用（12s 竞速 × 每次迭代）。
+    /// compactNow 落盘压缩改变 messages 后指纹随之失效，天然正确。
+    private var semanticDigestCacheKey: String?
+    private var semanticDigestCacheValue: String?
+
     private func generateSemanticDigest(dropped: [AgentMessage]) async -> String? {
+        let cacheKey = ContextCompaction.droppedFingerprint(dropped, hint: compactPreservationHint)
+        if cacheKey == semanticDigestCacheKey, let cached = semanticDigestCacheValue {
+            return cached
+        }
         let bypass = preference.fallbackPreferences() ?? preference
         // 输入构建：每轮用户目标全文 + assistant 结论 + 工具结果关键头
         // （路径/数据在工具结果里——机械摘要恰恰丢的就是这些）。总长截 30k。
@@ -792,7 +806,25 @@ class AgentSessionStore: ObservableObject {
             return nil
         }
         if text.count > 1_500 { text = String(text.prefix(1_500)) + "…" }
-        return "【语义摘要（模型生成，原文见归档）】\n" + text
+        let digest = "【语义摘要（模型生成，原文见归档）】\n" + text
+        semanticDigestCacheKey = cacheKey
+        semanticDigestCacheValue = digest
+        return digest
+    }
+
+    /// **最终摘要合成**（批 A 收口）：机械/语义摘要 + 旧压缩备注承接——
+    /// 持久化压缩（compactNow）与请求侧压缩（buildRequestMessages）共用，
+    /// 旧要点不再在请求侧再压缩时蒸发。
+    private func finalizeDigest(dropped: [AgentMessage], mechanical: String?) async -> String? {
+        let carried = ContextCompaction.carriedCompactionNotes(
+            from: dropped, marker: Self.compactedHistoryMarker)
+        var digest = mechanical ?? ""
+        if let semantic = await generateSemanticDigest(dropped: dropped) {
+            digest = semantic
+        }
+        let parts = carried + [digest]
+        let body = parts.joined(separator: "\n")
+        return body.isEmpty ? nil : body
     }
 
     /// **持久化压缩**（2026-11-15 用户定案"上下文用尽自动压缩，而不是去开
@@ -806,36 +838,29 @@ class AgentSessionStore: ObservableObject {
     @discardableResult
     /// preservationHint（v0.8.71）：用户经 /compact 的保留指令（"保留所有
     /// 路径"）——并入语义摘要提示词，让摘要按用户要求侧重保留。
-    func compactNow(target: Int? = nil, preservationHint: String? = nil) -> Int {
+    func compactNow(target: Int? = nil, preservationHint: String? = nil) async -> Int {
         let targetBudget = max(20_000, target ?? Int(Double(effectiveContextBudget) * 0.6))
         let snapshot = messages
         let estimate = ContextCompaction.estimatedSentTotal(snapshot, budget: targetBudget)
         guard estimate.dropped else { return 0 }
-        let (kept, digest) = ContextCompaction.compactWithDigest(snapshot, budget: targetBudget)
-        guard let digest, !digest.isEmpty else { return 0 }
-        let droppedCount = snapshot.count - kept.count
-        guard droppedCount > 0 else { return 0 }
-        let dropped = Array(snapshot.prefix(droppedCount))
-        // 旧摘要备注并入新摘要（连续多次压缩，更早的要点不丢）。
-        let carriedNotes = dropped
-            .filter { $0.role == .system && ($0.content ?? "").contains(Self.compactedHistoryMarker) }
-            .compactMap { $0.content?.replacingOccurrences(of: Self.compactedHistoryMarker + "\n", with: "") }
-        let body = (carriedNotes + [digest]).joined(separator: "\n")
-        let note = AgentMessage(role: .system, content: Self.compactedHistoryMarker + "\n" + body)
-        // 归档：被裁轮次整条写入伴生文件（DiskStore 防抖异步写）。
-        if let key = archiveKey {
-            var archived = DiskStore.load([AgentMessage].self, key: key) ?? []
-            archived.append(contentsOf: dropped)
-            // 容量护栏（v0.8.61）：单份归档超 10MB 时丢最老轮次、头部留截断
-            // 标注（判定纯逻辑在 ArchiveGC，harness 单测）。
-            let (capped, _) = ArchiveGC.truncateArchive(archived)
-            archived = capped
-            DiskStore.save(archived, key: key)
+        let (kept, mechanicalDigest, dropped, _) = ContextCompaction.compactWithDropped(
+            snapshot, budget: targetBudget)
+        guard let mechanicalDigest, !mechanicalDigest.isEmpty else { return 0 }
+        guard dropped.count > 0 else { return 0 }
+        // **摘要合成**（批 A 收口）：语义摘要（12s 竞速，失败回退机械）+ 旧
+        // 压缩备注承接——与请求侧压缩共用 finalizeDigest。
+        guard let body = await finalizeDigest(dropped: dropped, mechanical: mechanicalDigest) else {
+            return 0
         }
+        let note = AgentMessage(role: .system, content: Self.compactedHistoryMarker + "\n" + body)
+        // 归档：被裁轮次整条写入伴生文件（DiskStore 防抖异步写；按 id 去重，
+        // ArchiveGC 容量护栏 10MB，判定纯逻辑在 ArchiveGC）。
+        archiveDroppedTurns(dropped)
         messages = [note] + kept
         // 计数器同步（2026-11-15 bug 修复）：两个增量门槛都按 messages 数组
         // 下标计数——压缩把数组缩短后不调整的话 `count - processed` 变负，
         // 记忆学习从此静默停摆（归档里未提取的轮次不补提取，要点在摘要）。
+        let droppedCount = snapshot.count - kept.count
         memoryProcessedCount = max(0, memoryProcessedCount - droppedCount)
         summarizedCount = max(0, summarizedCount - droppedCount)
         saveCurrentConversation()
@@ -892,11 +917,14 @@ class AgentSessionStore: ObservableObject {
             // 要求（如 "保留所有路径"）——并入语义摘要提示词。
             let hint = parsed.argument.trimmingCharacters(in: .whitespacesAndNewlines)
             compactPreservationHint = hint.isEmpty ? nil : hint
-            let dropped = compactNow(preservationHint: compactPreservationHint)
-            if dropped > 0 {
-                appendLocalAssistant(String(localized: "Compacted: \(dropped) older messages were archived and replaced by a summary. Archived turns stay searchable via recallConversation."))
-            } else {
-                appendLocalAssistant(String(localized: "Nothing to compact — the conversation already fits within the context budget."))
+            Task { [weak self] in
+                let dropped = await self?.compactNow(preservationHint: hint.isEmpty ? nil : hint) ?? 0
+                guard let self else { return }
+                if dropped > 0 {
+                    appendLocalAssistant(String(localized: "Compacted: \(dropped) older messages were archived and replaced by a summary. Archived turns stay searchable via recallConversation."))
+                } else {
+                    appendLocalAssistant(String(localized: "Nothing to compact — the conversation already fits within the context budget."))
+                }
             }
         case "context":
             appendLocalAssistant(contextOverviewText())
@@ -1987,16 +2015,15 @@ class AgentSessionStore: ObservableObject {
         }.value
         guard isCurrentTurn(turnID) else { return [] }
 
-        // **自动压缩的归档 + 语义摘要层**（v0.8.71 批 3）：与 compactNow 同一
-        // 归档机制（dropped 原文进伴生 .archive，数据永不丢）；摘要升级为
-        // 旁路模型语义摘要（12 秒限时，失败回退机械 digest——不阻塞回合）。
+        // **自动压缩的归档 + 语义摘要层**（v0.8.71 批 3/批 A）：与 compactNow
+        // 同一归档机制（dropped 原文进伴生 .archive，按 id 去重，数据永不丢）；
+        // 摘要经 finalizeDigest 合成（旁路语义摘要 + 旧备注承接，指纹缓存——
+        // 超预算期间每个请求裁同一批轮次，摘要只算一次）。
         var finalDigest = prepared.digest
         let droppedTurns = prepared.dropped
         if !droppedTurns.isEmpty {
             archiveDroppedTurns(droppedTurns)
-            if let semantic = await generateSemanticDigest(dropped: droppedTurns) {
-                finalDigest = semantic
-            }
+            finalDigest = await finalizeDigest(dropped: droppedTurns, mechanical: prepared.digest)
         }
         return await assembleRequestMessages(from: prepared.messages, digest: finalDigest)
     }
@@ -2299,7 +2326,7 @@ class AgentSessionStore: ObservableObject {
                     + ($1.toolCalls?.reduce(0) { $0 + $1.function.arguments.count + $1.function.name.count } ?? 0)
             }
             if stored > effectiveContextBudget {
-                compactNow()
+                await compactNow()
             }
         }
 

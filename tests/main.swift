@@ -11725,6 +11725,40 @@ do {
     let r4 = MemoryModels.sortFacts([c, pin, b, a], order: .mostUsed)
     check("排序：pinned 恒在前", r4.first?.content == "置顶")
 }
+// ---------- ContextCompaction 压缩收口三件（v0.8.71 批 A） ----------
+
+do {
+    let marker = "[compacted history]"
+    // carriedCompactionNotes：旧压缩备注承接（请求侧再压缩时不再蒸发）
+    let old1 = AgentMessage(role: .system, content: marker + "\n早期要点 A")
+    let old2 = AgentMessage(role: .system, content: marker)            // 只有 marker，无正文
+    let plain = AgentMessage(role: .system, content: "下载完成备注")     // 非 marker 备注不承接
+    let turns = [old1,
+                 AgentMessage(role: .user, content: "目标"),
+                 AgentMessage(role: .assistant, content: "结论"),
+                 old2, plain]
+    let carried = ContextCompaction.carriedCompactionNotes(from: turns, marker: marker)
+    check("压缩承接：取出旧备注正文", carried == ["早期要点 A"])
+    check("压缩承接：无备注时为空", ContextCompaction.carriedCompactionNotes(from: [plain], marker: marker).isEmpty)
+
+    // mergingArchive：按消息 id 去重（请求侧重复抵达不再堆高归档）
+    let a = AgentMessage(role: .user, content: "A")
+    let b = AgentMessage(role: .user, content: "B")
+    let c = AgentMessage(role: .user, content: "C")
+    let merged = ContextCompaction.mergingArchive(existing: [a, b], incoming: [a, c])
+    check("归档去重：新者并入且顺序保持", merged?.map(\.id) == [a.id, b.id, c.id])
+    check("归档去重：全重复返回 nil（跳过落盘）",
+          ContextCompaction.mergingArchive(existing: [a, b], incoming: [a, b]) == nil)
+
+    // droppedFingerprint：同批轮次同指纹（摘要复用），hint/成员变化即失效
+    let fp1 = ContextCompaction.droppedFingerprint([a, b], hint: nil)
+    let fp2 = ContextCompaction.droppedFingerprint([a, b], hint: nil)
+    let fp3 = ContextCompaction.droppedFingerprint([a, b], hint: "保留路径")
+    let fp4 = ContextCompaction.droppedFingerprint([a, c], hint: nil)
+    check("摘要指纹：同批稳定", fp1 == fp2)
+    check("摘要指纹：保留指令入键", fp1 != fp3)
+    check("摘要指纹：成员变化即变", fp1 != fp4)
+}
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

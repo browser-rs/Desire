@@ -437,12 +437,23 @@ final class AgentCrewStore: ObservableObject {
         let provider = BrowserToolProvider()
         let toolDefs = BrowserToolProvider.toolDefs.filter { Self.workerToolNames.contains($0.function.name) }
         let toolsNote = toolDefs.map(\.function.name).joined(separator: ", ")
+        // 记忆与技能注入（v0.8.73 批 3）：worker 不再对 leader 的记忆全盲——
+        // top-K 事实按子任务检索（promptBlock 同一口径）+ 技能清单。worker
+        // 预算（8 调用）不变；token 影响走用量面板观察。
+        let memoryBlock = await AgentMemoryStore.shared.promptBlock(
+            excluding: nil, currentHost: URL(string: tab.urlString)?.host,
+            query: worker.instruction).block
+        let skillsNote = SkillStore.shared.skills.prefix(12)
+            .map { "- \($0.name): \($0.description)" }
+            .joined(separator: "\n")
         var transcript: [AgentMessage] = [
             AgentMessage(role: .system, content: """
             You are a focused web-research worker for the Desire browser.
             Complete the given subtask using the available tools
             (\(toolsNote)), then reply with a concise final report:
             key facts + source URLs. Budget: at most 8 tool calls.
+            \(memoryBlock ?? "")
+            \(skillsNote.isEmpty ? "" : "Installed skills (load with useSkill when matching):\n\(skillsNote)")
             """),
             AgentMessage(role: .user, content: """
             Subtask: \(worker.instruction)

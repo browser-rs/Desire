@@ -75,6 +75,9 @@ final class SkillStore: ObservableObject {
     struct SkillUsage: Codable, Equatable {
         var count: Int = 0
         var lastUsedAt: Date?
+        /// 最近一次使用的会话（v0.8.73 批 3）：连败技能"重新蒸馏"定位该
+        /// 会话的运行记录；会话可能已清理（按钮据此置灰）。
+        var lastUsedConversationId: UUID?
         /// 最近 ≤20 个回合的成功/失败（时间序）。空 = 无样本（"样本不足"）。
         var outcomes: [Bool] = []
         /// 成功率（无样本返回 nil——UI 标"样本不足"，绝不显示 0%）。
@@ -102,10 +105,11 @@ final class SkillStore: ObservableObject {
     }
 
     /// useSkill 成功加载时调用（模型确认要用这个技能）。
-    func recordUsage(name: String) {
+    func recordUsage(name: String, conversationId: UUID? = nil) {
         var u = usage[name] ?? SkillUsage()
         u.count += 1
         u.lastUsedAt = Date()
+        if let conversationId { u.lastUsedConversationId = conversationId }
         usage[name] = u
         saveUsageMeta()
     }

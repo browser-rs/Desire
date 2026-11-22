@@ -40,6 +40,34 @@ struct AgentSkillsView: View {
     /// nil = 新建；非 nil = 编辑该技能（写入它的 url，同名即覆盖）。
     @State private var editingSkill: SkillStore.Skill?
     @State private var isCreating = false
+    /// 重新蒸馏进行中（技能名）。
+    @State private var isRedistilling: String?
+
+    /// **重新蒸馏**（v0.8.73 批 3）：连败技能定位它最近一次使用的会话，
+    /// 从那份运行记录起草新技能 → 走候选收件箱（用户确认后覆盖）。会话已
+    /// 清理时如实提示。
+    private func handleRedistill(_ skill: SkillStore.Skill) {
+        guard let convId = store.usage[skill.name]?.lastUsedConversationId else { return }
+        let conversation = ConversationStore().conversation(for: convId)
+        guard let messages = conversation?.messages, messages.count >= 8 else {
+            exportedPath = nil
+            importFailure = String(localized: "The source conversation is no longer available")
+            return
+        }
+        guard let preference = AppState.live?.aiPreference else { return }
+        isRedistilling = skill.name
+        Task {
+            let draft = await SkillDistiller.draft(from: messages, preference: preference)
+            isRedistilling = nil
+            guard let draft else {
+                importFailure = String(localized: "Could not distill a draft from that run")
+                return
+            }
+            _ = SkillCandidateStore.shared.offer(
+                name: draft.name, description: draft.description,
+                instructions: draft.instructions, conversationId: convId)
+        }
+    }
 
     private func handleUse(name: String) {
         guard let onUseSkill else { return }
@@ -90,6 +118,7 @@ struct AgentSkillsView: View {
                                 skill: skill,
                                 riskSummary: riskSummaries[skill.name],
                                 usage: store.usage[skill.name],
+                                onRedistill: handleRedistill,
                                 onPreview: { previewSkill = skill },
                                 onEdit: { editingSkill = skill },
                                 onUse: { handleUse(name: $0) },
@@ -456,6 +485,8 @@ private struct AgentSkillCard: View {
     let riskSummary: String?
     /// 使用统计（v0.8.72 批 3，B3 健康展示；nil = 从未使用不显示）。
     var usage: SkillStore.SkillUsage? = nil
+    /// 重新蒸馏（v0.8.73 批 3）：连败技能入口——nil = 不显示（宿主未接）。
+    var onRedistill: ((SkillStore.Skill) -> Void)? = nil
     let onPreview: () -> Void
     let onEdit: () -> Void
     let onUse: ((String) -> Void)?
@@ -483,9 +514,22 @@ private struct AgentSkillCard: View {
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
         case .failingStreak(let streak):
-            Text(String(localized: "Failed \(streak) recent runs in a row — consider re-distilling or retiring this skill"))
-                .font(.system(size: 10))
-                .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(String(localized: "Failed \(streak) recent runs in a row — consider re-distilling or retiring this skill"))
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
+                if let onRedistill {
+                    Button(String(localized: "Re-distill from its last run")) {
+                        onRedistill(skill)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(usage?.lastUsedConversationId == nil)
+                    .help(usage?.lastUsedConversationId == nil
+                          ? String(localized: "The source conversation is no longer available")
+                          : String(localized: "Distill a fresh draft from the conversation that last used this skill"))
+                }
+            }
         }
     }
 

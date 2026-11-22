@@ -112859,6 +112859,118 @@
           }
         }
       }
+    },
+    "Re-distill from its last run":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Re-distill from its last run"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"从最近一次运行重新蒸馏"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"從最近一次執行重新蒸餾"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"最後の実行から再抽出"
+          }
+        }
+      }
+    },
+    "The source conversation is no longer available":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The source conversation is no longer available"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"来源会话已不存在"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"來源會話已不存在"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ソースの会話はもう利用できません"
+          }
+        }
+      }
+    },
+    "Distill a fresh draft from the conversation that last used this skill":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Distill a fresh draft from the conversation that last used this skill"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"从最近使用该技能的会话中蒸馏新草稿"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"從最近使用該技能的會話中蒸餾新草稿"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"このスキルを最後に使った会話から新しい草稿を抽出します"
+          }
+        }
+      }
+    },
+    "Could not distill a draft from that run":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Could not distill a draft from that run"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"无法从那次运行中蒸馏出草稿"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"無法從那次執行中蒸餾出草稿"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"その実行から草稿を抽出できませんでした"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

@@ -1876,7 +1876,8 @@ extension BrowserToolProvider {
                 body = SkillVars.render(body: body, values: values)
             }
             // 使用追踪（v0.8.72 批 2）：判定口径 = useSkill 成功加载（注入≠使用）。
-            SkillStore.shared.recordUsage(name: name)
+            SkillStore.shared.recordUsage(name: name,
+                                          conversationId: ownerSession?.conversationId)
             skillsUsedThisTurn.insert(name)
             var output = "Skill '\(name)' loaded. Follow these instructions:\n\(body)"
             // 技能安全扫描（Skill Scanner）：内容将驱动后续动作，提示模型

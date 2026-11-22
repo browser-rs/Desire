@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.74] - 2026-11-22
 ### Added
 
 - 请求分层计量（执行底座第一步）：每次模型调用的请求按层计量（identity/memory/skills/tools-index/env/page/notes/digest/history/tools-schema），组装点与流式点同源采集；/context 新增"Layer breakdown"段、debug 日志单行、会话累计。量化首战：**固定基础 21.4 万字符/请求可见**——schema 17.8 万（占 85%），其中协议脚手架 ~11 万不可动、描述 ~6 万。

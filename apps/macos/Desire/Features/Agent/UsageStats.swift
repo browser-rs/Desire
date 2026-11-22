@@ -55,6 +55,15 @@ struct UsageStats {
     var days: [UsageDayStat] = []
     /// 分模型累计（token 降序）。
     var models: [UsageModelStat] = []
+    /// 分模型性能（v0.8.74 批 3）：TTFT/总时长的 p50（样本 ≥3 才有值——
+    /// 少样本的 p50 没意义）。键与 models 同源（响应自报 model 优先）。
+    var modelPerf: [String: ModelPerf] = [:]
+
+    struct ModelPerf: Equatable {
+        let samples: Int
+        let ttftP50: Double
+        let latencyP50: Double
+    }
     /// 全部调用都能定价时的总金额；有一笔没定价就是 nil（沿用 `AgentUsage` 的规矩）。
     var cost: Double?
     /// 没法定价的 token 数（界面上提示"金额不完整"用）。
@@ -74,6 +83,7 @@ struct UsageStats {
         var buckets: [Date: DayBucket] = [:]
         struct ModelBucket { var tokens = 0; var prompt = 0; var completion = 0; var cost = 0.0; var unpriced = false }
         var modelBuckets: [String: ModelBucket] = [:]
+        var perfSamples: [String: [(Double, Double)]] = [:]
 
         for conversation in conversations {
             guard !conversation.messages.isEmpty else { continue }
@@ -89,6 +99,10 @@ struct UsageStats {
                     buckets[day, default: DayBucket()].turns += 1
                 }
                 let prompt = message.promptTokens ?? 0
+                if let ttft = message.modelTTFTMs, let latency = message.modelLatencyMs,
+                   let model = message.model, !model.isEmpty {
+                    perfSamples[model, default: []].append((ttft, latency))
+                }
                 let completion = message.completionTokens ?? 0
                 guard prompt > 0 || completion > 0 else { continue }
                 let tokens = prompt + completion
@@ -160,6 +174,14 @@ struct UsageStats {
                                    calendar: calendar)
         stats.currentStreak = streaks.current
         stats.longestStreak = streaks.longest
+        stats.modelPerf = perfSamples.reduce(into: [:]) { out, pair in
+            guard pair.value.count >= 3 else { return }
+            let ttfts = pair.value.map(\.0).sorted()
+            let latencies = pair.value.map(\.1).sorted()
+            out[pair.key] = ModelPerf(samples: pair.value.count,
+                                      ttftP50: ttfts[ttfts.count / 2],
+                                      latencyP50: latencies[latencies.count / 2])
+        }
         return stats
     }
 

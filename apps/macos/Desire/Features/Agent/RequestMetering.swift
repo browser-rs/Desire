@@ -101,15 +101,24 @@ nonisolated enum AgentToolSchemaSlimming {
         }
     }
 
-    /// 按句边界累积（中英句号/换行切句），不超 limit；第一句必须保留。
+    /// 按句边界累积（中英句号/换行切句，**分隔符保留**），不超 limit；
+    /// 第一句必须保留（哪怕它自己就超限）。
     static func firstSentences(_ text: String, limit: Int) -> String {
         guard text.count > limit else { return text }
-        let sentences = text.split(omittingEmptySubsequences: false,
-                                   whereSeparator: { $0 == "." || $0 == "。" || $0 == "\n" })
+        var sentences: [String] = []
+        var current = ""
+        for ch in text {
+            current.append(ch)
+            if ch == "." || ch == "。" || ch == "\n" {
+                sentences.append(current)
+                current = ""
+            }
+        }
+        if !current.isEmpty { sentences.append(current) }
         var out = ""
         for sentence in sentences {
-            let candidate = out.isEmpty ? String(sentence) : out + String(sentence)
-            if candidate.count > limit { break }
+            let candidate = out + sentence
+            if !out.isEmpty, candidate.count > limit { break }
             out = candidate
         }
         if out.isEmpty { out = String(text.prefix(limit)) }

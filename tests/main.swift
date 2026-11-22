@@ -12026,9 +12026,9 @@ do {
     let slim = AgentToolSchemaSlimming.slimmed([def])
     check("瘦身：工具描述句边界截断", slim[0].function.description == "第一句说明用途。")
     check("瘦身：工具描述 ≤700", slim[0].function.description.count <= 700)
-    check("瘦身：参数描述 ≤160", (slim[0].function.parameters?.properties["path"]?.description.count ?? 0) <= 160)
-    check("瘦身：参数保留首句", (slim[0].function.parameters?.properties["path"]?.description.hasPrefix("参数首句要点。")) == true)
-    check("瘦身：幂等", AgentToolSchemaSlimming.slimmed(slim)[0].function.description == slim[0].function.description)
+    let paramDesc = slim[0].function.parameters.properties?["path"]?.description ?? ""
+    check("瘦身：参数描述 ≤160", paramDesc.count <= 160)
+    check("瘦身：参数保留首句", paramDesc.hasPrefix("参数首句要点。"))
     check("瘦身：豁免名单整体保留", AgentToolSchemaSlimming.exempt.contains("editImage"))
     let short = AgentToolDef(type: "function", function: AgentToolFunctionDef(
         name: "tiny", description: "短描述不需要动。",

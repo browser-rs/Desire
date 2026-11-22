@@ -37,6 +37,10 @@ nonisolated struct AgentMessage: Identifiable, Codable, Sendable {
     /// 同样记在消息上、随会话落盘——成本要从**历史**会话里算出来，而它派不出来。
     var promptTokens: Int?
     var completionTokens: Int?
+    /// **性能真值**（v0.8.74 批 3）：本次调用的首 token 延迟与总时长（毫秒）。
+    /// 派生不出来就落盘的老规矩——轨迹/统计页按模型看"网关快不快"。
+    var modelTTFTMs: Double?
+    var modelLatencyMs: Double?
     /// 这次回答实际用的模型 id（优先取响应里的 `model`，服务端没给才用请求时所选）。
     /// 成本按它查单价——会话中途换模型、routing 挑模型的场景因此也算得对。
     var model: String?

@@ -2637,6 +2637,8 @@ class AgentSessionStore: ObservableObject {
             // the transient-error retry below can re-run it on a fresh stream
             // without duplicating the event handling. `prefsOverride`：failover
             // 时传备用档案视图（只换 provider 与 model，事件处理完全同路）。
+            /// 性能真值（v0.8.74 批 3）：runStream 内逐事件更新、写回时挂消息。
+            var lastStreamPerf: (ttft: Double, total: Double)? = nil
             func runStream(prefsOverride: AgentPreferenceStore? = nil) async throws {
                 let prefs = prefsOverride ?? streamPreference
                 let active = makeProvider(for: prefs)
@@ -2673,6 +2675,9 @@ class AgentSessionStore: ObservableObject {
                     tools: streamTools,
                     prefs: prefs
                 ))
+                // **性能真值**（v0.8.74 批 3）：TTFT = 首个事件到达 − 请求发出；
+                // total 随最后一个事件滚动（≈ 流结束时刻）。
+                let streamStartedAt = Date()
                 // UI flush state: per-token array writes + view
                 // invalidations dominate long streams, so the tail message
                 // is published at ~12 fps instead of per token.
@@ -2711,6 +2716,13 @@ class AgentSessionStore: ObservableObject {
                     }
                 }
                 for try await event in stream {
+                    let perfNow = Date()
+                    if lastStreamPerf == nil {
+                        lastStreamPerf = (ttft: perfNow.timeIntervalSince(streamStartedAt) * 1000,
+                                          total: perfNow.timeIntervalSince(streamStartedAt) * 1000)
+                    } else {
+                        lastStreamPerf?.total = perfNow.timeIntervalSince(streamStartedAt) * 1000
+                    }
                     if !isCurrentTurn(turnID) || isCancelled {
                         // 第十一批：打断后**直接完结**——只有 reasoning 没有正文
                         // 时补可见的取消标记（否则 flushTail 会用空正文覆盖，用户
@@ -3005,12 +3017,20 @@ class AgentSessionStore: ObservableObject {
             // token 就只留在本地副本里；`conversationUsage` 从 messages 派生，
             // 于是预算/成本读数偶发**少记最后一轮**（断言在 "920/500" 处飘）。
             // 这里在工具执行/下一轮之前把副本落回，一次收口。
+            // 性能真值先写进本地副本（flushTail 早已同步过一轮，闸门靠字段
+            // 差异触发——latency 在此之前不在副本里，闸门会全等跳过）。
+            if let perf = lastStreamPerf {
+                assistantMsg?.modelTTFTMs = perf.ttft
+                assistantMsg?.modelLatencyMs = perf.total
+            }
             if let current = assistantMsg,
                let idx = messages.firstIndex(where: { $0.id == current.id }),
                messages[idx].promptTokens != current.promptTokens
                    || messages[idx].completionTokens != current.completionTokens
                    || messages[idx].content != current.content
-                   || messages[idx].reasoning != current.reasoning {
+                   || messages[idx].reasoning != current.reasoning
+                   || messages[idx].modelTTFTMs != current.modelTTFTMs
+                   || messages[idx].modelLatencyMs != current.modelLatencyMs {
                 messages[idx] = current
             }
 

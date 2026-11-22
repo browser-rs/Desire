@@ -36,9 +36,27 @@ extension BrowserToolProvider {
     }
 
     /// 竞速超时：首个完成者胜；超时后放弃等待（工具本体在后台跑完只记日志）。
-    static func withToolTimeout(_ tool: String, seconds: Double = toolTimeoutSeconds,
+    /// **按工具分级**（v0.8.74 批 3）：纯本地快速清单/查询类 5s——超时即异常
+    /// 信号，不该让模型等 120s。数值随 toolDurationMs 真值积累再调（当前
+    /// 存量样本太薄，只放"结构性确定快"的清单类）；默认仍是 120s 兜底。
+    nonisolated static let timeoutTiers: [String: Double] = [
+        "listTabs": 5, "listSkills": 5, "listNotes": 5, "listWorkflows": 5,
+        "listMediaExports": 5, "listBackgroundTasks": 5, "listScheduledTasks": 5,
+        "listWindows": 5, "listDetectedMedia": 10, "listPageVideos": 10,
+        "updatePlan": 5, "listBatchDownloads": 5, "getToolResult": 5,
+        "listTools": 5, "listMCP": 5, "listModels": 5,
+    ]
+
+    static func timeoutSeconds(for tool: String) -> Double? {
+        if let tier = timeoutTiers[tool.lowercased()] { return tier }
+        guard shouldTimeOut(tool) else { return nil }
+        return toolTimeoutSeconds
+    }
+
+    /// `seconds` 显式传入时覆盖分级表（E2E 探针用）；nil = 按分级表。
+    static func withToolTimeout(_ tool: String, seconds: Double? = nil,
                                 body: @escaping @MainActor () async -> String) async -> String {
-        guard shouldTimeOut(tool) else { return await body() }
+        guard let seconds = seconds ?? timeoutSeconds(for: tool) else { return await body() }
         final class Gate: @unchecked Sendable {
             private let lock = NSLock()
             private var done = false

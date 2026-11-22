@@ -139,6 +139,46 @@ final class AgentMemoryStore: ObservableObject {
         return Array(ranked.prefix(max(1, limit)))
     }
 
+    // MARK: - 教训节流（v0.8.73 批 1）
+
+    /// 教训提取的节流记账（持久化）：同一天不刷屏。判定复用
+    /// SkillCandidateCore.throttlePasses（会话 2/天、全局 6/天）。
+    private struct LessonLedger: Codable {
+        var offeredAt: [Date]
+        var conversationIDs: [UUID]
+    }
+    private static let lessonLedgerKey = "memory.lessonLedger"
+    private var lessonOfferedAt: [Date] = []
+    private var lessonConversationIDs: [UUID] = []
+
+    func lessonThrottlePasses(conversationId: UUID?) -> Bool {
+        if lessonOfferedAt.isEmpty, lessonConversationIDs.isEmpty,
+           let data = UserDefaults.standard.data(forKey: Self.lessonLedgerKey),
+           let decoded = try? JSONDecoder().decode(LessonLedger.self, from: data) {
+            lessonOfferedAt = decoded.offeredAt
+            lessonConversationIDs = decoded.conversationIDs
+        }
+        return SkillCandidateCore.throttlePasses(
+            offeredAt: lessonOfferedAt, conversationIDs: lessonConversationIDs,
+            conversationId: conversationId, now: Date(),
+            maxPerDay: 6, perConversation: 2)
+    }
+
+    func recordLessonOffered(conversationId: UUID?) {
+        if lessonOfferedAt.isEmpty, lessonConversationIDs.isEmpty,
+           let data = UserDefaults.standard.data(forKey: Self.lessonLedgerKey),
+           let decoded = try? JSONDecoder().decode(LessonLedger.self, from: data) {
+            lessonOfferedAt = decoded.offeredAt
+            lessonConversationIDs = decoded.conversationIDs
+        }
+        lessonOfferedAt.append(Date())
+        if let conversationId { lessonConversationIDs.append(conversationId) }
+        if let data = try? JSONEncoder().encode(
+            LessonLedger(offeredAt: lessonOfferedAt, conversationIDs: lessonConversationIDs)) {
+            UserDefaults.standard.set(data, forKey: Self.lessonLedgerKey)
+        }
+    }
+
     // MARK: - 记忆冲突复核（v0.7.22）
 
     /// 复核决议（面板与桥共用一套语义）。

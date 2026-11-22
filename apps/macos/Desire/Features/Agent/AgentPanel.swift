@@ -719,9 +719,11 @@ struct AgentPanel: View {
         store.weakenInjectedMemory()
         let trimmed = reason.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }
+        // 负反馈统一出口（v0.8.73 批 1）：点踩原因走结构化 correction
+        // （与失败教训同管道、同注入提权），不再裸 feedback fact。
         AgentMemoryStore.shared.addFact(
             content: String(localized: "User dislikes: \(trimmed)"),
-            category: "feedback")
+            category: "correction", source: "lesson")
     }
 
     /// 会话级临时指令条（输入框上方）：活跃时显示，点文案编辑、✕ 清除。

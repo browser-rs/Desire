@@ -11896,6 +11896,49 @@ do {
     check("健康：满样本健康", SkillHealth.assess(count: 10, outcomes: Array(repeating: true, count: 10))
           == .healthy(rate: 1.0))
 }
+// ---------- LessonCore + correction 提权（v0.8.73 批 1） ----------
+
+do {
+    check("教训触发：核验结论非空", LessonCore.qualifies(verificationNote: "全部失败", turnFailed: false))
+    check("教训触发：回合失败", LessonCore.qualifies(verificationNote: nil, turnFailed: true))
+    check("教训触发：干净回合不触发", !LessonCore.qualifies(verificationNote: nil, turnFailed: false))
+    check("教训触发：空白结论不触发", !LessonCore.qualifies(verificationNote: "  ", turnFailed: false))
+
+    // 输入构建：只收失败面（Error:/[User denied），成功工具结果不进
+    let turn = [
+        AgentMessage(role: .user, content: "抓取页面价格"),
+        AgentMessage(role: .assistant, toolCalls: [AgentToolCall(id: "c1", type: "function",
+            function: AgentToolFunction(name: "extractJS", arguments: "{\"q\":\"price\"}"))]),
+        AgentMessage(role: .tool, content: "[{\"price\": 99}]", toolCallId: "c1"),
+        AgentMessage(role: .assistant, toolCalls: [AgentToolCall(id: "c2", type: "function",
+            function: AgentToolFunction(name: "executeJS", arguments: "{\"code\":\"x\"}"))]),
+        AgentMessage(role: .tool, content: "Error: page unloaded", toolCallId: "c2"),
+        AgentMessage(role: .assistant, content: "完成"),
+    ]
+    let input = LessonCore.lessonInput(from: turn, verificationNote: "本轮全部工具调用失败却给出了结论")
+    check("教训输入：含目标", input.contains("【目标】抓取页面价格"))
+    check("教训输入：含失败签名", input.contains("extractJS") == false && input.contains("executeJS") && input.contains("Error: page unloaded"))
+    check("教训输入：成功结果不进", !input.contains("99"))
+    check("教训输入：含核验结论", input.contains("【核验】"))
+
+    // 产物清洗：剥围栏/前缀、截 200、拒短
+    check("清洗：剥围栏", LessonCore.sanitize("```json\n遇到页面卸载先等待 didFinish 再执行\n```")
+          == "遇到页面卸载先等待 didFinish 再执行")
+    check("清洗：剥前缀", LessonCore.sanitize("教训：先确认元素存在再点击") == "先确认元素存在再点击")
+    check("清洗：拒短（含无法归因）", LessonCore.sanitize("无法归因") == nil)
+    let long = String(repeating: "长", count: 260)
+    let trimmedLesson = LessonCore.sanitize(long)
+    check("清洗：超长截 200", trimmedLesson?.count == 201 && trimmedLesson?.hasSuffix("…") == true)
+
+    // correction 提权：同 token 事实，correction 排前
+    var plainFact = MemoryFact(content: "部署机在 ubuntu-04", category: "fact")
+    var corrFact = MemoryFact(content: "部署机在 ubuntu-04", category: "correction")
+    plainFact.usageCount = 0; corrFact.usageCount = 0
+    let ranked = MemoryRetrieval.rank(facts: [plainFact, corrFact], query: "部署机")
+    check("提权：correction 排前", ranked.first?.category == "correction")
+    check("提权：系数 1.35", MemoryRetrieval.categoryBoost(plainFact) == 1.0
+          && MemoryRetrieval.categoryBoost(corrFact) == 1.35)
+}
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

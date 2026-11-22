@@ -347,10 +347,20 @@ def current_conversation_id(timeout=10):
     raise RuntimeError("trace conversation id unavailable")
 
 
+def storage_root() -> Path:
+    """存储根（v0.8.75）：跟随实例的 dataDir——封闭模式（--data-dir）下
+    套件的磁盘读写自动落到实例自己的存储，与用户数据零接触。"""
+    st = bridge("GET", "/state")
+    data_dir = (st.get("startup") or {}).get("dataDir")
+    if data_dir:
+        return Path(data_dir)
+    return Path.home() / "Library/Application Support/Desire"
+
+
 def read_conversation(conv_id, marker=None, timeout=10):
     """读会话 JSON（DiskStore 500ms 防抖：回合刚结束文件可能还是旧的——
     带 marker 轮询到落盘为止，超时返回最后一次能读到的内容）。"""
-    path = Path.home() / "Library/Application Support/Desire/storage" / f"conversation-{conv_id}.json"
+    path = storage_root() / "storage" / f"conversation-{conv_id}.json"
     last = None
     deadline = time.time() + timeout
     while time.time() < deadline:
@@ -1450,7 +1460,7 @@ def main():
 
         # ── MUSCLE11：收件箱（手造待回复会话 + 强制扣通知→补推）──
         import uuid as _uuid
-        storage = Path.home() / "Library/Application Support/Desire/storage"
+        storage = storage_root() / "storage"
         fab_id = str(_uuid.uuid4()).upper()
         now_ref = time.time() - 978307200  # ReferenceDate 秒（手造会话的既定手法）
         fab = {
@@ -1516,7 +1526,7 @@ def main():
                 "dailyRoutineLimit": policy_before.get("dailyRoutineLimit", 12),
             })
         # ── MUSCLE12：归档会话（手造归档 → 列表 → 在新窗口恢复 → 复核 → 关窗）──
-        arch_dir = Path.home() / "Library/Application Support/Desire/session-archives"
+        arch_dir = storage_root() / "session-archives"
         arch_dir.mkdir(parents=True, exist_ok=True)
         arch_name = f"archived-session-E2E12-{int(time.time())}.json"
         (arch_dir / arch_name).write_text(json.dumps({
@@ -2195,7 +2205,7 @@ def main():
         ok("周报：disable 收尾", d31.get("enabled") is False)
         # ── MUSCLE32：收件箱批处理（忽略/稍后/恢复；桥等价）──
         import uuid as _uuid32
-        storage32 = Path.home() / "Library/Application Support/Desire/storage"
+        storage32 = storage_root() / "storage"
         fab32 = str(_uuid32.uuid4()).upper()
         now32 = time.time() - 978307200
         fab32_path = storage32 / f"conversation-{fab32}.json"
@@ -2447,7 +2457,7 @@ def main():
             print("MUSCLE8 收尾跳过:", exc)
         # 清理：测试会话按内容核对后删（别碰用户的）；档案恢复并核对；fixture 目录删除。
         try:
-            for f in (Path.home() / "Library/Application Support/Desire/storage").glob("conversation-*.json"):
+            for f in storage_root().glob("storage/conversation-*.json"):
                 if "MUSCLE" in f.read_text(errors="ignore"):
                     bridge("POST", "/conversations/delete", {"id": f.stem.replace("conversation-", "")})
                     print("清理测试会话:", f.stem[:24])

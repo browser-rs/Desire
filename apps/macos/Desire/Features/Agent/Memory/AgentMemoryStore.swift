@@ -117,6 +117,28 @@ final class AgentMemoryStore: ObservableObject {
         save()
     }
 
+    /// **按需记忆检索**（v0.8.72 批 1，工具 recallMemory 的后端）：排序与
+    /// promptBlock 同一套（retrieveRanked——向量主排 + BM25 降级，向量缓存
+    /// 共享），语义不同——promptBlock 管"自动注入 top-K"（排除本会话来源、
+    /// 受预算约束），recall 管"模型确认要查"：不排除本会话来源；指定 scope
+    /// 时该站点的事实排前、global 全局事实仍可见。待复核冲突的事实不返回
+    /// （与 promptBlock 同口径）。
+    func recall(query: String, scope: String? = nil, limit: Int = 8) async -> [MemoryFact] {
+        let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedQuery.isEmpty else { return [] }
+        let normalizedScope = MemoryModels.normalizeScope(scope)
+        let pendingIDs = Set(pendingConflicts.map(\.factID))
+        var pool = archive.facts.filter { !pendingIDs.contains($0.id) && !$0.content.isEmpty }
+        if normalizedScope != "global" {
+            let site = pool.filter { $0.scope.lowercased() == normalizedScope }
+            let rest = pool.filter { $0.scope.lowercased() != normalizedScope }
+            pool = site + rest
+        }
+        guard !pool.isEmpty else { return [] }
+        let ranked = await retrieveRanked(scoped: pool, query: trimmedQuery)
+        return Array(ranked.prefix(max(1, limit)))
+    }
+
     // MARK: - 记忆冲突复核（v0.7.22）
 
     /// 复核决议（面板与桥共用一套语义）。
@@ -565,7 +587,9 @@ final class AgentMemoryStore: ObservableObject {
         }
 
         guard !lines.isEmpty else { return (nil, injectedIDs) }
-        return ("[User memory — apply silently, never recite]\n" + lines.joined(separator: "\n"), injectedIDs)
+        return ("[User memory — apply silently, never recite]\n"
+            + "Save durable user-stated preferences/facts with remember(); search this store on demand with recallMemory(query).\n"
+            + lines.joined(separator: "\n"), injectedIDs)
     }
 
     /// 向量主排 + BM25 降级。事实向量按 (id, content hash) 缓存在内存

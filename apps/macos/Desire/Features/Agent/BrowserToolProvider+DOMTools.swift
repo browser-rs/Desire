@@ -2388,6 +2388,63 @@ extension BrowserToolProvider {
                 : " Saved DISABLED — review it in Settings › AI › DPP Protocol › Third-Party Adapters and enable it."
             return "DPP adapter \(existed ? "updated" : "saved"): \(name) (\(views.count) view(s), \(actions.count) action(s)) for \(hosts.joined(separator: ", ")).\(opsNote)\(stateNote)\(applyNote)\(riskNote)"
 
+        case "remember":
+            // 工作记忆工具（v0.8.72 批 1）：模型显式保存用户明确表达的
+            // 偏好/事实——补上"记忆只有自动提取、没有主动写入"的缺口。
+            // 限次 = 回合级计数（runTurn 开始清零），防模型刷记忆。
+            rememberCallCount += 1
+            guard rememberCallCount <= 5 else {
+                return Self.fail("Remember limit reached (5 per turn) — this call was NOT saved. Save only the most important facts.")
+            }
+            guard let fact = args["fact"] as? String else {
+                return Self.fail("Missing fact")
+            }
+            let trimmedFact = fact.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard trimmedFact.count >= 4 else {
+                return Self.fail("Fact too short — phrase it as a standalone statement")
+            }
+            let categoryRaw = (args["category"] as? String)?
+                .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let knownCategories: Set<String> = ["preference", "habit", "fact", "correction"]
+            let category = categoryRaw.flatMap { knownCategories.contains($0) ? $0 : nil } ?? "fact"
+            let scope = MemoryModels.normalizeScope(args["scope"] as? String)
+            // 诚实回执：addFact 对近似重复是静默跳过——模型会误以为已保存。
+            // 先查重，命中即如实回报"已在记忆里"。
+            let normalized = MemoryModels.normalizeFact(trimmedFact)
+            let existing = AgentMemoryStore.shared.archive.facts.first {
+                MemoryModels.areNearDuplicates(MemoryModels.normalizeFact($0.content), normalized)
+            }
+            if let existing {
+                return "Already in memory (no change): \(String(existing.content.prefix(100)))"
+            }
+            AgentMemoryStore.shared.addFact(content: trimmedFact, category: category,
+                                            scope: scope, source: "agent-tool")
+            let scopeNote = scope == "global" ? "" : " (applies on \(scope))"
+            return "Remembered (\(category))\(scopeNote): \(String(trimmedFact.prefix(120)))" +
+                " — it will be injected into future conversations when relevant." +
+                " (\(rememberCallCount)/5 saved this turn)"
+
+        case "recallMemory":
+            // 按需查记忆库（v0.8.72 批 1）：AgentMemoryStore.recall——向量
+            // 主排 + BM25 降级，与 promptBlock 自动注入同一套排序。查询成功
+            // 但结果为空不是失败（按失败约定不加 Error: 前缀）。
+            guard let query = args["query"] as? String,
+                  !query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                return Self.fail("Missing query")
+            }
+            let facts = await AgentMemoryStore.shared.recall(
+                query: query, scope: args["scope"] as? String, limit: 8)
+            let total = AgentMemoryStore.shared.archive.facts.count
+            guard !facts.isEmpty else {
+                return "No memory facts match \"\(String(query.prefix(80)))\". (store holds \(total) facts)"
+            }
+            let lines = facts.map { fact in
+                let scopeTag = (fact.scope.isEmpty || fact.scope.lowercased() == "global")
+                    ? "" : " [\(fact.scope)]"
+                return "- (\(fact.category))\(scopeTag) \(fact.content)"
+            }
+            return "Memory recall (top \(facts.count) of \(total) facts):\n" + lines.joined(separator: "\n")
+
         case "saveSkill":
             // 技能自沉淀闭环：模型把刚跑通的多步工作流存成
             // SKILL.md，未来对话经 <skills> 索引 + useSkill 复用。同名覆盖

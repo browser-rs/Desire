@@ -195,6 +195,21 @@ extension BrowserToolProvider {
                 ], required: ["query"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "remember", description: "Save a durable user preference or fact to long-term memory so it applies in ALL future conversations. ONLY when the user explicitly stated it — never save your own inference or a guess. Good: preferences (\"以后都用简洁中文回复\"), standing facts (\"我的部署机是 ubuntu-04\"), corrections of what you got wrong earlier. Not for one-off task details — the conversation history already keeps those. Max 5 per turn; duplicates are ignored silently.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "fact": AgentJSONSchemaValue(type: "string", description: "The fact, phrased as a standalone statement (\"用户偏好深色模式\"), not a quote of the conversation"),
+                    "category": AgentJSONSchemaValue(type: "string", description: "preference | habit | fact | correction (default fact)"),
+                    "scope": AgentJSONSchemaValue(type: "string", description: "Optional: \"global\" (default) or a site host like \"github.com\" to apply only on that site"),
+                ], required: ["fact"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "recallMemory", description: "Search your long-term memory store (facts learned across ALL conversations, including what you saved with remember) by keyword, ranked by relevance. Use when you suspect something relevant was learned earlier but is not visible in your current context. Read-only.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "query": AgentJSONSchemaValue(type: "string", description: "Keyword or phrase to search for"),
+                    "scope": AgentJSONSchemaValue(type: "string", description: "Optional: \"global\" (default, whole store) or a site host to prioritize facts learned for that site"),
+                ], required: ["query"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "startRecording", description: "Start recording the browser window to an MP4 (30fps, with cursor). Use when the user asks to record/demonstrate: start → perform the steps → stopRecording. First use asks for macOS Screen Recording permission.",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

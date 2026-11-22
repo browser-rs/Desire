@@ -12,6 +12,10 @@ class BrowserToolProvider {
     weak var surface: BrowserToolSurface?
     weak var ownerSession: AgentSessionStore?
 
+    /// remember 工具的回合级限次计数（v0.8.72 批 1）：防模型刷记忆。
+    /// AgentSessionStore.runTurn 开始清零——跨回合累积会把后续回合全部限死。
+    var rememberCallCount = 0
+
     /// Attaches the tool surface. Called from `AgentSessionStore.configure`.
     func attach(surface: BrowserToolSurface, owner: AgentSessionStore? = nil) {
         self.surface = surface

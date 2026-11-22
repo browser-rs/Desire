@@ -2460,6 +2460,7 @@ class AgentSessionStore: ObservableObject {
         // 字符口径。同一处清 compactionBudgetOverride：减半校准只服务"本
         // 回合内的重试"，跨回合残留会把预算钉死在旧值。
         compactionBudgetOverride = nil
+        toolProvider.rememberCallCount = 0
         if let window = resolvedWindowTokens, lastPromptTokens > 0,
            Double(lastPromptTokens) > Double(window) * 0.85 {
             Log.agent.info("pre-turn compaction: last prompt \(self.lastPromptTokens) tokens > 85% of \(window)-token window")

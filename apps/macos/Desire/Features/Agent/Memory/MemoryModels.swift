@@ -50,6 +50,27 @@ struct MemoryFact: Codable, Identifiable, Equatable {
 /// L2 — per-conversation summary so past sessions can inform future ones
 /// without loading their raw transcripts (L3, already in ConversationStore).
 enum MemoryModels {
+    /// remember/recallMemory 的 **scope 归一化**（v0.8.72 批 1）：nil/空/
+    /// "global" → "global"；URL → 提 host（scope 按 host 注入激活，模型
+    /// 传整条 URL 是常态）；其他 → trim + 小写原样。纯逻辑进 tests/run.sh。
+    nonisolated static func normalizeScope(_ raw: String?) -> String {
+        guard let raw else { return "global" }
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if trimmed.isEmpty || trimmed == "global" || trimmed == "all" { return "global" }
+        // URL → host：取 scheme// 与第一个 / 之间，再剥端口。
+        if trimmed.contains("://") {
+            var host = trimmed
+            if let schemeRange = host.range(of: "://") {
+                host = String(host[schemeRange.upperBound...])
+            }
+            if let slash = host.firstIndex(of: "/") { host = String(host[..<slash]) }
+            if let colon = host.lastIndex(of: ":") { host = String(host[..<colon]) }
+            host = host.trimmingCharacters(in: .whitespaces)
+            return host.isEmpty ? "global" : host
+        }
+        return trimmed
+    }
+
     /// 记忆事实的**归一化**：小写、去空白与常见标点 —— 近似重复判定用它。
     nonisolated static func normalizeFact(_ text: String) -> String {
         let lowered = text.lowercased()

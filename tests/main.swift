@@ -11830,6 +11830,17 @@ do {
     let (_, d2, _, _) = ContextCompaction.compactWithDropped(turns, budget: 500, digestLimit: 600)
     check("自适应：显式 limit 仍生效", (d2 ?? "").count < 700)
 }
+// ---------- MemoryModels.normalizeScope（v0.8.72 批 1 工作记忆） ----------
+
+do {
+    check("scope：nil→global", MemoryModels.normalizeScope(nil) == "global")
+    check("scope：空→global", MemoryModels.normalizeScope("") == "global")
+    check("scope：GLOBAL→global", MemoryModels.normalizeScope("GLOBAL") == "global")
+    check("scope：URL→host", MemoryModels.normalizeScope("https://github.com/settings") == "github.com")
+    check("scope：URL 带端口剥端口", MemoryModels.normalizeScope("http://127.0.0.1:8877/x") == "127.0.0.1")
+    check("scope：裸 host 小写保留", MemoryModels.normalizeScope("GitHub.com") == "github.com")
+    check("scope：未知词原样小写", MemoryModels.normalizeScope("  Work  ") == "work")
+}
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

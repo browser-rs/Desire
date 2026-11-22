@@ -113363,6 +113363,174 @@
           }
         }
       }
+    },
+    "The cockpit is live":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The cockpit is live"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"驾驶舱上线"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"駕駛艙上線"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"コックピットが稼働開始"
+          }
+        }
+      }
+    },
+    "Stats page shows per-model first-token latency and total duration, the trace grew TTFT chips, the context chip is now clickable for a full breakdown, and /prompt reveals the composed system prompt layer by layer — the 0.8.71-74 machinery is finally on instrument panels.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Stats page shows per-model first-token latency and total duration, the trace grew TTFT chips, the context chip is now clickable for a full breakdown, and /prompt reveals the composed system prompt layer by layer — the 0.8.71-74 machinery is finally on instrument panels."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"统计页显示分模型首 token 延迟与总时长，轨迹页新增 TTFT chips，占用 chip 点击看完整构成，/prompt 逐层展开系统提示词——0.8.71-74 的机器终于装上了仪表。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"統計頁顯示分模型首 token 延遲與總時長，軌跡頁新增 TTFT chips，佔用 chip 點擊看完整構成，/prompt 逐層展開系統提示詞——0.8.71-74 的機器終於裝上了儀表。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"統計ページにモデル別の初トークン遅延と総時間を表示、トレースに TTFT チップ、コンテキストチップをクリックで全内訳、/prompt でシステムプロンプトを層ごとに展開——0.8.71-74 の仕組みにやっと計器が付きました。"
+          }
+        }
+      }
+    },
+    "Lessons now have a scorecard":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Lessons now have a scorecard"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"教训有了记分牌"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"教訓有了記分牌"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"教訓にスコアカードが付く"
+          }
+        }
+      }
+    },
+    "Correction-injected turns are counted by outcome (applied vs repeated failure) in the checkup report, and the doctor grew four sentinels: tool-schema size drift, checkup freshness, lesson ledger, and slow-gateway TTFT alerts.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Correction-injected turns are counted by outcome (applied vs repeated failure) in the checkup report, and the doctor grew four sentinels: tool-schema size drift, checkup freshness, lesson ledger, and slow-gateway TTFT alerts."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"correction 注入的回合按结果计数（生效 vs 重复失败）进体检报告，体检医生新增四哨兵：工具 schema 体积漂移、体检新鲜度、教训账本、慢网关 TTFT 告警。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"correction 注入的回合按結果計數（生效 vs 重複失敗）進體檢報告，體檢醫生新增四哨兵：工具 schema 體積漂移、體檢新鮮度、教訓帳本、慢網關 TTFT 告警。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"correction 注入ターンは結果別にカウント（体检レポートへ）。ドクターに4つの監視項目：schema サイズ漂移・体检鮮度・教訓台帳・遅いゲートウェイの TTFT 警告。"
+          }
+        }
+      }
+    },
+    "Sealed testing foundation":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Sealed testing foundation"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"封闭的测试地基"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"封閉的測試地基"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"密封されたテスト基盤"
+          }
+        }
+      }
+    },
+    "A new --data-dir launch flag redirects the entire storage root, so automated test runs never touch user data — no restored browsing sessions, no shared state, and the full regression suite now passes sealed under any environment.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"A new --data-dir launch flag redirects the entire storage root, so automated test runs never touch user data — no restored browsing sessions, no shared state, and the full regression suite now passes sealed under any environment."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"新增 --data-dir 启动参数重定向整个存储根——自动化测试永不触碰用户数据：不恢复浏览会话、无共享状态，190 项回归在任何环境下封闭全绿。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"新增 --data-dir 啟動參數重定向整個存儲根——自動化測試永不觸碰用戶數據：不恢復瀏覽會話、無共享狀態，190 項回歸在任何環境下封閉全綠。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"新しい --data-dir 起動フラグがストレージルート全体をリダイレクト——自動テストはユーザーデータに触れず、ブラウジングセッションも復元せず、190 項の回帰がどんな環境でも密封状態で全グリーン。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

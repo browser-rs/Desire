@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "speedometer", title: String(localized: "Your agent's costs and speed are now visible"),
-                  detail: String(localized: "Every model call is metered layer by layer (identity, memory, skills, tool schemas, history) — /context shows the breakdown, and the slimmed tool schema already trims what every request re-sends. First-token latency and total duration are tracked per model too.")),
-            .init(icon: "timer", title: String(localized: "Faster tool failures"),
-                  detail: String(localized: "Pure-local list and query tools now fail fast at 5-10 seconds instead of waiting out a 120-second timeout — a hung call is an anomaly signal, not something the model should sit through.")),
-            .init(icon: "arrow.triangle.swap", title: String(localized: "Learning loop keeps compounding"),
-                  detail: String(localized: "Failed turns still distill into lessons that surface first in retrieval, the memory checkup merges and retires with originals archived, and crew workers now see your memory and skills — the whole loop got cheaper to run.")),
+            .init(icon: "gauge.with.needle", title: String(localized: "The cockpit is live"),
+                  detail: String(localized: "Stats page shows per-model first-token latency and total duration, the trace grew TTFT chips, the context chip is now clickable for a full breakdown, and /prompt reveals the composed system prompt layer by layer — the 0.8.71-74 machinery is finally on instrument panels.")),
+            .init(icon: "memorychip", title: String(localized: "Lessons now have a scorecard"),
+                  detail: String(localized: "Correction-injected turns are counted by outcome (applied vs repeated failure) in the checkup report, and the doctor grew four sentinels: tool-schema size drift, checkup freshness, lesson ledger, and slow-gateway TTFT alerts.")),
+            .init(icon: "shippingbox.fill", title: String(localized: "Sealed testing foundation"),
+                  detail: String(localized: "A new --data-dir launch flag redirects the entire storage root, so automated test runs never touch user data — no restored browsing sessions, no shared state, and the full regression suite now passes sealed under any environment.")),
         ]
     }
 

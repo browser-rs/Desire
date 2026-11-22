@@ -112635,6 +112635,174 @@
           }
         }
       }
+    },
+    "The agent can remember things itself":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The agent can remember things itself"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"智能体会自己记东西了"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"智能體會自己記東西了"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"エージェントが自分で記憶できるように"
+          }
+        }
+      }
+    },
+    "New remember and recallMemory tools let the agent save durable preferences you state out loud and search everything it has ever learned on demand — no longer limited to what gets auto-extracted after a turn.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"New remember and recallMemory tools let the agent save durable preferences you state out loud and search everything it has ever learned on demand — no longer limited to what gets auto-extracted after a turn."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"新增 remember 与 recallMemory 工具：智能体把你明确说出的偏好存进长期记忆，并按需检索它学过的一切——不再局限于回合结束后自动提取的那部分。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"新增 remember 與 recallMemory 工具：智能體把你明確說出的偏好存進長期記憶，並按需檢索它學過的一切——不再局限於回合結束後自動提取的那部分。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"remember と recallMemory ツールで、あなたが口にした永続的な設定をエージェントが長期記憶に保存し、学んだことをすべて必要に応じて検索——ターン後の自動抽出だけに頼らなくなります。"
+          }
+        }
+      }
+    },
+    "Skills now come to you":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Skills now come to you"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"技能主动送上门"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"技能主動送上門"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"スキルがこちらから届く"
+          }
+        }
+      }
+    },
+    "After a successful multi-step run, the agent distills what it did into a skill suggestion waiting in the skills page — adopt it with one tap. Usage counts and success rates are tracked per skill, with honest warnings when a skill keeps failing.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"After a successful multi-step run, the agent distills what it did into a skill suggestion waiting in the skills page — adopt it with one tap. Usage counts and success rates are tracked per skill, with honest warnings when a skill keeps failing."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"成功的多步任务跑完后，智能体会把做过的事蒸馏成技能建议放在技能页——一键采纳。每个技能的使用次数与成功率都有追踪，连败时如实预警。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"成功的多步任務跑完後，智能體會把做過的事蒸餾成技能建議放在技能頁——一鍵採納。每個技能的使用次數與成功率都有追蹤，連敗時如實預警。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"成功したマルチステップ実行の後、エージェントが行った内容をスキル候補として技能ページに届け、ワンタップで採用。スキルごとに使用回数と成功率を追跡し、失敗が続けば正直に警告します。"
+          }
+        }
+      }
+    },
+    "Memory and context polish":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Memory and context polish"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"记忆与上下文打磨"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"記憶與上下文打磨"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"メモリとコンテキストの仕上げ"
+          }
+        }
+      }
+    },
+    "Compaction close-out: carried summaries no longer vanish on re-compaction, archives stop piling duplicates, semantic summaries are computed once per dropped set — and the digest no longer burns your main model when no fallback service is configured.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Compaction close-out: carried summaries no longer vanish on re-compaction, archives stop piling duplicates, semantic summaries are computed once per dropped set — and the digest no longer burns your main model when no fallback service is configured."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"压缩收口：再压缩时旧摘要不再丢失、归档不再堆重复内容、同一批被裁轮次的语义摘要只算一次——未配置备用服务时摘要改走机械路径，不再烧主模型。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"壓縮收口：再壓縮時舊摘要不再丟失、歸檔不再堆重複內容、同一批被裁輪次的語義摘要只算一次——未配置備用服務時摘要改走機械路徑，不再燒主模型。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"圧縮の仕上げ：再圧縮で古い要約が消えなくなりました。アーカイブに重複が積み上がらず、同じ圧縮セットの意味要約は一度だけ計算——フォールバック未設定ではメインモデルを焼かず機械要約に切り替えます。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

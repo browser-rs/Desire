@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "rectangle.compress.vertical", title: String(localized: "Compaction that keeps what matters"),
-                  detail: String(localized: "Long conversations now shrink in tiers: oversized tool outputs collapse first, older turns are summarized semantically (your /compact instructions are respected), and everything archived stays searchable — nothing is silently dropped anymore.")),
-            .init(icon: "gauge", title: String(localized: "Context usage that tells the truth"),
-                  detail: String(localized: "The usage chip now reads the model's own reported token counts against the real context window — guessed windows are gone. Compaction starts before you hit the wall, and /context breaks the numbers down.")),
-            .init(icon: "shippingbox.and.arrow.backward", title: String(localized: "Pipeline fixes for long sessions"),
-                  detail: String(localized: "Repeated compaction no longer piles duplicates into the archive or regenerates the same summary on every request, earlier summaries carry forward, and the busy indicator stops the moment an answer finishes rendering.")),
+            .init(icon: "brain.head.profile", title: String(localized: "The agent can remember things itself"),
+                  detail: String(localized: "New remember and recallMemory tools let the agent save durable preferences you state out loud and search everything it has ever learned on demand — no longer limited to what gets auto-extracted after a turn.")),
+            .init(icon: "arrow.triangle.2.circlepath.circle", title: String(localized: "Skills now come to you"),
+                  detail: String(localized: "After a successful multi-step run, the agent distills what it did into a skill suggestion waiting in the skills page — adopt it with one tap. Usage counts and success rates are tracked per skill, with honest warnings when a skill keeps failing.")),
+            .init(icon: "checkmark.seal", title: String(localized: "Memory and context polish"),
+                  detail: String(localized: "Compaction close-out: carried summaries no longer vanish on re-compaction, archives stop piling duplicates, semantic summaries are computed once per dropped set — and the digest no longer burns your main model when no fallback service is configured.")),
         ]
     }
 

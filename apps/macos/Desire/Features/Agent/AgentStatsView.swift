@@ -534,6 +534,29 @@ struct AgentStatsView: View {
                     }
                 }
                 .padding(.top, 12)
+                // 性能真值（v0.8.75 批 1）：0.8.74 批 3 落盘的 modelPerf——
+                // 驾驶舱要的是数字不是装饰，复用分模型列表的样式语言。
+                if !stats.modelPerf.isEmpty {
+                    Divider().padding(.vertical, 10)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Performance — TTFT p50 / total p50")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundStyle(.secondary)
+                        ForEach(stats.modelPerf.sorted(by: { $0.value.ttftP50 > $1.value.ttftP50 }), id: \.key) { key, perf in
+                            HStack {
+                                Text(displayName(for: key))
+                                    .font(.system(size: 11))
+                                    .lineLimit(1)
+                                    .truncationMode(.tail)
+                                Spacer(minLength: 8)
+                                Text(verbatim: msText(perf.ttftP50) + " · " + msText(perf.latencyP50) + " · n=\(perf.samples)")
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .monospacedDigit()
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -638,6 +661,11 @@ struct AgentStatsView: View {
     /// 折线、环形图、列表圆点必须用**同一套固定配色**（Charts 默认按出现顺序自动配色，
     /// 会和列表里我们自己画的圆点对不上，所以显式给 domain/range 映射）。
     /// 环形图给全量（它画所有模型），折线图只给前 5 个（它只画前 5 条）。
+    private func msText(_ ms: Double) -> String {
+        guard ms > 0 else { return "—" }
+        return ms >= 1000 ? String(format: "%.1fs", ms / 1000) : String(format: "%.0fms", ms)
+    }
+
     private var styleDomain: [String] { stats.models.map { displayName(for: $0.id) } }
     private var styleColors: [Color] { stats.models.map { seriesColor(for: $0.id) } }
     private var trendDomain: [String] { seriesModels.map { displayName(for: $0.id) } }

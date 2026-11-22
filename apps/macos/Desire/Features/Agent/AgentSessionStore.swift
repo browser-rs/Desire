@@ -454,6 +454,10 @@ class AgentSessionStore: ObservableObject {
     /// **请求分层计量**（v0.8.74 批 1）：最近一次模型调用的构成 + 会话累计。
     /// 组装点填提示词层、流式点补 schema；/context 与日志同源展示。
     private(set) var lastRequestLayers: RequestMetering.Layers?
+    /// /prompt 调试命令的快照（v0.8.75 批 1）：各层字符数 + 首 200 字符
+    /// 预览（SecretRedactor 过一遍——记忆与页面内容可能带敏感文本）。仅
+    /// 内存，不落盘、不同步；下一条请求发出即被覆盖。
+    private(set) var lastPromptLayerPreviews: [(name: String, chars: Int, preview: String)] = []
     private(set) var requestLayersCumulative: RequestMetering.Layers = RequestMetering.Layers()
     /// 组装点 → 流式点的层间传递（同一请求）。
     private var pendingPromptLayers: RequestMetering.Layers? = nil
@@ -940,7 +944,7 @@ class AgentSessionStore: ObservableObject {
     /// **/context 占用总览**（v0.8.71 批 4）：窗口真值 + 发送侧字符 +
     /// 压缩状态——与面板占用 chip 同源（effectiveContextBudget /
     /// estimatedSentTotal），数字永远只有一个版本。
-    private func contextOverviewText() -> String {
+    func contextOverviewText() -> String {
         let modelWindows = streamPreference.activeProfile?.modelContextWindows
         let modelKey = TokenCalibration.key(forModel: streamPreference.model)
         let window = modelWindows?[modelKey] ?? streamPreference.activeProfile?.contextWindowTokens
@@ -1069,6 +1073,17 @@ class AgentSessionStore: ObservableObject {
                 text += "\n最近更新：\n" + recent.map { "• \($0.content)" }.joined(separator: "\n")
             }
             appendLocalAssistant(text)
+        case "prompt":
+            if let layers = lastRequestLayers, !lastPromptLayerPreviews.isEmpty {
+                var out = RequestMetering.logLine(layers) + "\n"
+                for (name, chars, previewText) in lastPromptLayerPreviews {
+                    out += "\n[\(name)] \(chars) chars\n\(previewText)\n"
+                }
+                out += "\n[toolsSchema] \(layers.toolsSchema) chars（JSON 序列化，无预览）"
+                appendLocalAssistant(out)
+            } else {
+                appendLocalAssistant(String(localized: "No request has been built yet — send a message first."))
+            }
         case "memory-checkup":
             let report = AgentMemoryStore.shared.runCheckup()
             appendLocalAssistant(String(localized: "Memory checkup: \(report.totalBefore) → \(report.totalAfter) facts — \(report.mergedRemoved) merged in \(report.mergedClusters) clusters, \(report.retired) retired, \(report.pendingConflicts) conflicts pending. Removed originals are archived."))
@@ -2217,6 +2232,21 @@ class AgentSessionStore: ObservableObject {
         layers.digest = digestBlock.count
         layers.history = RequestMetering.historyChars(request)
         pendingPromptLayers = layers
+        // /prompt 快照（批 1）：层名 → (字符, 首 200 字符预览)，全量过脱敏。
+        func preview(_ s: String?) -> String {
+            guard let s, !s.isEmpty else { return "（空）" }
+            return SecretRedactor.redact(String(s.prefix(200)), knownKeys: preference.secretsForRedaction())
+        }
+        lastPromptLayerPreviews = [
+            ("identity", layers.identity, preview(identity)),
+            ("memory", layers.memory, preview(statics.memoryBlock)),
+            ("skills", layers.skills, preview(statics.skills.map { "\($0.name): \($0.description)" }.joined(separator: "\n"))),
+            ("toolsIndex", layers.toolsIndex, preview(statics.tools.map { "\($0.name): \($0.summary)" }.joined(separator: "\n"))),
+            ("environment", layers.environment, preview(SystemCommandStore.shared.workingDirectory.path)),
+            ("pageContext", layers.pageContext, preview(pageContext)),
+            ("notes", layers.notes, preview(notes.joined(separator: " | "))),
+            ("digest", layers.digest, preview(digest)),
+        ]
         request.insert(AgentMessage(role: .system, content: composed + notesBlock + digestBlock), at: 0)
         return request
     }

@@ -154,6 +154,10 @@ struct AgentTraceView: View {
                          tint: (value("denied") + value("threwError")) > 0 ? .orange : .secondary)
                 statChip("Denied", text("denied"), tint: value("denied") > 0 ? .orange : .secondary)
                 statChip("Avg tool", msText(double("avgToolMs")))
+                if value("latencyTurns") > 0 {
+                    statChip("TTFT p50", msText(double("ttftP50Ms")))
+                    statChip("Model total", msText(double("modelLatencySumMs")))
+                }
                 statChip("Unverified", text("unverifiedTurns"),
                          tint: value("unverifiedTurns") > 0 ? .orange : .secondary)
                 statChip("👍", text("votesUp"), tint: value("votesUp") > 0 ? appAccent : .secondary)

@@ -127,6 +127,15 @@ enum AgentTrace {
             if let model = slice.last(where: { $0.role == .assistant })?.model, !model.isEmpty {
                 turn["model"] = model
             }
+            // 性能真值（v0.8.75 批 1）：本回合每次模型调用的 TTFT/总时长
+            // （0.8.74 批 3 落在消息上）——轨迹页 chips 的数据源。
+            let ttftValues = slice.compactMap { $0.role == .assistant ? $0.modelTTFTMs : nil }.sorted()
+            let latencyValues = slice.compactMap { $0.role == .assistant ? $0.modelLatencyMs : nil }
+            if !ttftValues.isEmpty {
+                turn["modelCalls"] = ttftValues.count
+                turn["ttftP50Ms"] = (ttftValues[ttftValues.count / 2] * 10).rounded() / 10
+                turn["modelLatencySumMs"] = (latencyValues.reduce(0, +) * 10).rounded() / 10
+            }
             // 路由审计（v0.7.26）：既有 RoutingProvider 的 "via X" 落在消息上，
             // 轨迹照抄——审计页/导出都能回答"这回合到底谁跑的"。
             if let route = slice.last(where: { $0.role == .assistant })?.routeReason, !route.isEmpty {
@@ -157,8 +166,16 @@ enum AgentTrace {
         var cost = 0.0
         var costTurns = 0
         var unpricedTurns = 0
+        var ttftSamples: [Double] = []
+        var modelLatencySum = 0.0
+        var latencyTurns = 0
 
         for turn in turns {
+            if let p50 = turn["ttftP50Ms"] as? Double { ttftSamples.append(p50) }
+            if let sum = turn["modelLatencySumMs"] as? Double {
+                modelLatencySum += sum
+                latencyTurns += 1
+            }
             for step in (turn["steps"] as? [[String: Any]]) ?? [] {
                 guard let action = step["action"] as? String else { continue }
                 toolCalls += 1
@@ -213,6 +230,9 @@ enum AgentTrace {
             "toolCalls": toolCalls,
             "denied": denied,
             "threwError": threwError,
+            "ttftP50Ms": ttftSamples.isEmpty ? 0 : (ttftSamples.sorted()[ttftSamples.count / 2] * 10).rounded() / 10,
+            "modelLatencySumMs": (modelLatencySum * 10).rounded() / 10,
+            "latencyTurns": latencyTurns,
             "avgToolMs": timedCalls > 0 ? (totalMs / Double(timedCalls) * 10).rounded() / 10 : 0,
             "unverifiedTurns": unverified,
             "votesUp": votesUp,

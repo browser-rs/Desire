@@ -34,9 +34,8 @@ nonisolated enum ChannelAssetSpec {
 /// 实际的图片缩放由 Agent 工具层用 CoreGraphics 执行。
 nonisolated enum CampaignAssetPlan {
     static func assetDirectory(campaignID: UUID) -> String {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let base = StorageRoot.directory
         return base
-            .appendingPathComponent("Desire", isDirectory: true)
             .appendingPathComponent("CampaignAssets", isDirectory: true)
             .appendingPathComponent(campaignID.uuidString, isDirectory: true)
             .path

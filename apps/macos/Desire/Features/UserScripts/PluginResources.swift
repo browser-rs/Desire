@@ -13,8 +13,7 @@ enum PluginResources {
     static let sizeCapBytes = 50 * 1024 * 1024
 
     static var baseDirectory: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Desire/PluginResources", isDirectory: true)
+        StorageRoot.directory.appendingPathComponent("PluginResources", isDirectory: true)
     }
 
     /// 相对路径清洗（纯函数）：拒绝绝对路径、`..` 逃逸、盘符/URL 形式与空段；

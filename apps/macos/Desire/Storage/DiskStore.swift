@@ -117,10 +117,7 @@ enum DiskStore {
         let fm = FileManager.default
         // `.applicationSupportDirectory` resolves to the sandbox container's
         // Library/Application Support on a sandboxed app — always writable.
-        let base = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? fm.temporaryDirectory
-        let dir = base
-            .appendingPathComponent("Desire", isDirectory: true)
+        let dir = StorageRoot.directory
             .appendingPathComponent("storage", isDirectory: true)
         if !fm.fileExists(atPath: dir.path) {
             try? fm.createDirectory(at: dir, withIntermediateDirectories: true)

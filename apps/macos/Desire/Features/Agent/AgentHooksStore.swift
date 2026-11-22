@@ -31,8 +31,8 @@ final class AgentHooksStore: ObservableObject {
     @Published private(set) var files: [HookFile] = []
 
     static var directory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        return base.appendingPathComponent("Desire/hooks", isDirectory: true)
+        let base = StorageRoot.directory
+        return base.appendingPathComponent("hooks", isDirectory: true)
     }
 
     private static let disabledKey = "agentHooksDisabledFiles"

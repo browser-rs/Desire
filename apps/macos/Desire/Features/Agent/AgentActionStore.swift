@@ -33,11 +33,7 @@ final class AgentActionStore: ObservableObject {
     }
 
     private init() {
-        let support = FileManager.default.urls(for: .applicationSupportDirectory,
-                                               in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        undoDirectory = support
-            .appendingPathComponent("Desire", isDirectory: true)
+        undoDirectory = StorageRoot.directory
             .appendingPathComponent("agent-undo", isDirectory: true)
         try? FileManager.default.createDirectory(at: undoDirectory,
                                                  withIntermediateDirectories: true)

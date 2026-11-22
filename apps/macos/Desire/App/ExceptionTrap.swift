@@ -35,8 +35,7 @@ enum ExceptionTrap {
     }
 
     nonisolated static var directory: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Desire/exceptions", isDirectory: true)
+        StorageRoot.directory.appendingPathComponent("exceptions", isDirectory: true)
     }
 
     /// 最近一份异常报告（诊断端点用）。

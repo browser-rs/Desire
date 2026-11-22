@@ -7,8 +7,8 @@ class ReadingListStore: ObservableObject {
 
     /// 离线缓存目录（.webarchive；机器本地，不随同步走）。
     static var cacheDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = base.appendingPathComponent("Desire/ReadingListCache", isDirectory: true)
+        let base = StorageRoot.directory
+        let dir = base.appendingPathComponent("ReadingListCache", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

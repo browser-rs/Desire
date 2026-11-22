@@ -895,9 +895,8 @@ final class VideoEditorStore: ObservableObject {
     /// 改文案/裁剪时长后自动换新文件，同内容复用；不会出现"改了字还播旧片"。
     private nonisolated static func textClipVideoURL(for clip: TimelineCore.Clip,
                                                       renderSize: CGSize) -> URL {
-        let dir = FileManager.default.urls(for: .applicationSupportDirectory,
-                                           in: .userDomainMask)[0]
-            .appendingPathComponent("Desire/VideoProTextClips", isDirectory: true)
+        let dir = StorageRoot.directory
+            .appendingPathComponent("VideoProTextClips", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let key = "\(clip.id.uuidString)|\(Int(renderSize.width))x\(Int(renderSize.height))|"
             + String(format: "%.3f", clip.duration) + "|" + (clip.text ?? "")

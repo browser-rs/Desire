@@ -6,9 +6,8 @@ import Foundation
 nonisolated enum ImageEditorDraft {
 
     static var directory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory,
-                                            in: .userDomainMask)[0]
-            .appendingPathComponent("Desire/ImageEditorDrafts", isDirectory: true)
+        let base = StorageRoot.directory
+            .appendingPathComponent("ImageEditorDrafts", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base
     }

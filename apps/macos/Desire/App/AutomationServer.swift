@@ -4470,6 +4470,7 @@ case ("GET", "/agent/messages"):
             // 启动预算（v0.7.26）：首窗可交互 ms + 预算；回归断言读它。
             "startup": [
                 "firstWindowMs": StartupMetric.firstWindowMs.map { $0 as Any } ?? NSNull(),
+                "dataDir": StorageRoot.directory.path,
                 "budgetMs": StartupMetric.budgetMs,
             ] as [String: Any],
             // Agent 的文件工具以这个目录为工作区——自动化/评估要把 fixture

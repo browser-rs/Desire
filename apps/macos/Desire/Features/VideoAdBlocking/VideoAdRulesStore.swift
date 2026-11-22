@@ -70,10 +70,7 @@ final class VideoAdRulesStore: ObservableObject {
 
     /// 规则目录（本地覆盖与远程缓存都在这里）。
     static var rulesDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? URL(fileURLWithPath: NSHomeDirectory() + "/Library/Application Support")
-        return base
-            .appendingPathComponent("Desire", isDirectory: true)
+        return StorageRoot.directory
             .appendingPathComponent("VideoAdRules", isDirectory: true)
     }
 

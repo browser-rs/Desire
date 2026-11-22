@@ -57,7 +57,11 @@ final class SystemCommandStore: ObservableObject {
     private init() {
         let stored = UserDefaults.standard.stringArray(forKey: Self.key) ?? []
         allowedBinaries = stored.isEmpty ? Self.defaultBinaries : Set(stored)
-        if let storedPath = UserDefaults.standard.string(forKey: "agentWorkingDirectory") {
+        // 封闭模式（--data-dir，v0.8.75 批 3）：runCommand 的工作目录重定向
+        // 进 dataDir——用户的 stored 偏好不进测试视野。
+        if StorageRoot.isOverridden {
+            workingDirectory = StorageRoot.directory.appendingPathComponent("agent-workspace", isDirectory: true)
+        } else if let storedPath = UserDefaults.standard.string(forKey: "agentWorkingDirectory") {
             workingDirectory = URL(fileURLWithPath: storedPath)
         } else {
             let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

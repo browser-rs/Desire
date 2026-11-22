@@ -21,7 +21,11 @@ final class AgentWorkspace: ObservableObject {
     @Published private(set) var directory: URL
 
     private init() {
-        if let stored = UserDefaults.standard.string(forKey: Self.key) {
+        // 封闭模式（--data-dir，v0.8.75 批 3）：工作目录重定向进 dataDir——
+        // 用户的 Documents/DesireAgent 与 stored 偏好都不进测试视野。
+        if StorageRoot.isOverridden {
+            directory = StorageRoot.directory.appendingPathComponent("agent-workspace", isDirectory: true)
+        } else if let stored = UserDefaults.standard.string(forKey: Self.key) {
             directory = URL(fileURLWithPath: (stored as NSString).expandingTildeInPath)
         } else {
             let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]

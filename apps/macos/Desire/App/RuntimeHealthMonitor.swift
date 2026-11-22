@@ -26,9 +26,8 @@ final class RuntimeHealthMonitor {
     private var watchdog: DispatchSourceTimer?
 
     nonisolated static var directory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory,
-                                            in: .userDomainMask)[0]
-            .appendingPathComponent("Desire/health", isDirectory: true)
+        let base = StorageRoot.directory
+            .appendingPathComponent("health", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base
     }

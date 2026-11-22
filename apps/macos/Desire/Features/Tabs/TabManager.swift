@@ -1523,9 +1523,7 @@ final class TabSessionCoordinator {
     }
 
     nonisolated static var archiveDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        return base.appendingPathComponent("Desire", isDirectory: true)
+        return StorageRoot.directory
             .appendingPathComponent("session-archives", isDirectory: true)
     }
 

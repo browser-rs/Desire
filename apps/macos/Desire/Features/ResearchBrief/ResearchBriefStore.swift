@@ -11,9 +11,8 @@ final class ResearchBriefStore: ObservableObject {
     @Published private(set) var briefs: [ResearchBriefDocument] = []
 
     nonisolated static var directory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory,
-                                            in: .userDomainMask)[0]
-            .appendingPathComponent("Desire/ResearchBriefs", isDirectory: true)
+        let base = StorageRoot.directory
+            .appendingPathComponent("ResearchBriefs", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base
     }

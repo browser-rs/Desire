@@ -8,8 +8,7 @@ class ConversationStore: ObservableObject {
     /// Legacy on-disk directory used before this store was routed through
     /// `DiskStore`. Read once at init for migration, then ignored.
     private let legacyDirectory: URL = {
-        let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        return paths[0].appendingPathComponent("me.siwi.Desire/conversations")
+        return StorageRoot.conversationsDirectory
     }()
 
     init() {

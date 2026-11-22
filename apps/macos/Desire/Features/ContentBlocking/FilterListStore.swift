@@ -87,9 +87,7 @@ class FilterListStore: ObservableObject {
     /// `WKContentRuleList` 是内存对象，注册到 controller 与 store 是谁无关。
     static func ruleListStore() -> WKContentRuleListStore? {
         if let store = WKContentRuleListStore.default() { return store }
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        let dir = base.appendingPathComponent("Desire", isDirectory: true)
+        let dir = StorageRoot.directory
             .appendingPathComponent("ContentRuleLists", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         Log.contentBlocking.error("default content-rule store unavailable — falling back to a directory store at \(dir.path, privacy: .public)")
@@ -426,9 +424,7 @@ class FilterListStore: ObservableObject {
     }
 
     private func rawFileURL(_ id: String) -> URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        let dir = base.appendingPathComponent("Desire", isDirectory: true).appendingPathComponent("filters", isDirectory: true)
+        let dir = StorageRoot.directory.appendingPathComponent("filters", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir.appendingPathComponent("\(id).txt")
     }

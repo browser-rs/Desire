@@ -21,8 +21,8 @@ final class DPPAdapterStore: ObservableObject {
     private var disabled: Set<String> = []
 
     static var directory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        let dir = base.appendingPathComponent("Desire/DPPAdapters", isDirectory: true)
+        let base = StorageRoot.directory
+        let dir = base.appendingPathComponent("DPPAdapters", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }

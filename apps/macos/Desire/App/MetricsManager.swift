@@ -172,9 +172,7 @@ final class MetricsManager: NSObject, MXMetricManagerSubscriber {
 /// writes callable from MetricKit's delivery queue.
 private nonisolated enum DiagnosticsStore {
     static let directory: URL = {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        let dir = base.appendingPathComponent("Desire", isDirectory: true)
+        let dir = StorageRoot.directory
             .appendingPathComponent("diagnostics", isDirectory: true)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir

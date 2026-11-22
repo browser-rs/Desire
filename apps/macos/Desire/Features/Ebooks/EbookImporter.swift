@@ -40,9 +40,8 @@ nonisolated enum EbookImporter {
     }
 
     static var rootDirectory: URL {
-        FileManager.default.urls(for: .applicationSupportDirectory,
-                                 in: .userDomainMask)[0]
-            .appendingPathComponent("Desire/Ebooks", isDirectory: true)
+        StorageRoot.directory
+            .appendingPathComponent("Ebooks", isDirectory: true)
     }
 
     static func hashFile(at url: URL) throws -> String {

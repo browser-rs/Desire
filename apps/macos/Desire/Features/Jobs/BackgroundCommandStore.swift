@@ -57,9 +57,8 @@ final class BackgroundCommandStore: ObservableObject {
     }
 
     var logDirectory: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory,
-                                            in: .userDomainMask)[0]
-            .appendingPathComponent("Desire/JobLogs", isDirectory: true)
+        let base = StorageRoot.directory
+            .appendingPathComponent("JobLogs", isDirectory: true)
         try? FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         return base
     }

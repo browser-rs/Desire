@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "brain.head.profile", title: String(localized: "The agent can remember things itself"),
-                  detail: String(localized: "New remember and recallMemory tools let the agent save durable preferences you state out loud and search everything it has ever learned on demand — no longer limited to what gets auto-extracted after a turn.")),
-            .init(icon: "arrow.triangle.2.circlepath.circle", title: String(localized: "Skills now come to you"),
-                  detail: String(localized: "After a successful multi-step run, the agent distills what it did into a skill suggestion waiting in the skills page — adopt it with one tap. Usage counts and success rates are tracked per skill, with honest warnings when a skill keeps failing.")),
-            .init(icon: "checkmark.seal", title: String(localized: "Memory and context polish"),
-                  detail: String(localized: "Compaction close-out: carried summaries no longer vanish on re-compaction, archives stop piling duplicates, semantic summaries are computed once per dropped set — and the digest no longer burns your main model when no fallback service is configured.")),
+            .init(icon: "lightbulb.max", title: String(localized: "It learns from what goes wrong"),
+                  detail: String(localized: "When a run fails on objective evidence, the agent distills a short lesson into long-term memory (correction category) — and corrections surface first in retrieval, so the same mistake is far less likely to repeat. Thumb-down reasons flow through the same pipeline.")),
+            .init(icon: "list.clipboard", title: String(localized: "Memory checkup"),
+                  detail: String(localized: "One tap consolidates your agent's memory: near-duplicate facts merge at a strict threshold (originals archived, nothing lost), stale unused facts retire from the injection pool, and pending conflicts are counted for review.")),
+            .init(icon: "arrow.uturn.backward.circle", title: String(localized: "Failing skills can be re-distilled"),
+                  detail: String(localized: "Skills track which conversation last used them — a skill that keeps failing grows a one-tap re-distill button that drafts a fresh version from that run, waiting for your adoption. Crew workers now see your memory and skills too.")),
         ]
     }
 

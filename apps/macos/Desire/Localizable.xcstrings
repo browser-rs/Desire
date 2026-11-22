@@ -112971,6 +112971,174 @@
           }
         }
       }
+    },
+    "It learns from what goes wrong":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"It learns from what goes wrong"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"它会从失败里学习"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"它會從失敗裡學習"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"失敗から学びます"
+          }
+        }
+      }
+    },
+    "When a run fails on objective evidence, the agent distills a short lesson into long-term memory (correction category) — and corrections surface first in retrieval, so the same mistake is far less likely to repeat. Thumb-down reasons flow through the same pipeline.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"When a run fails on objective evidence, the agent distills a short lesson into long-term memory (correction category) — and corrections surface first in retrieval, so the same mistake is far less likely to repeat. Thumb-down reasons flow through the same pipeline."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"回合在客观证据上失败时，智能体会提炼一条简短教训存入长期记忆（correction 类）——教训在检索中优先浮出，同样的错误很难再犯。点踩原因也走同一管道。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"回合在客觀證據上失敗時，智能體會提煉一條簡短教訓存入長期記憶（correction 類）——教訓在檢索中優先浮出，同樣的錯誤很難再犯。點踩原因也走同一管道。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"客観的な証拠で実行が失敗すると、エージェントは短い教訓を長期記憶（correction）に抽出——教訓は検索で優先表示され、同じミスの再発が減ります。低評価の理由も同じ経路で記録。"
+          }
+        }
+      }
+    },
+    "Memory checkup":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Memory checkup"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"记忆体检"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"記憶體檢"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"メモリチェックアップ"
+          }
+        }
+      }
+    },
+    "One tap consolidates your agent's memory: near-duplicate facts merge at a strict threshold (originals archived, nothing lost), stale unused facts retire from the injection pool, and pending conflicts are counted for review.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"One tap consolidates your agent's memory: near-duplicate facts merge at a strict threshold (originals archived, nothing lost), stale unused facts retire from the injection pool, and pending conflicts are counted for review."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一键整理智能体的记忆：近重复事实按严格阈值合并（原文归档、无一丢失），陈旧未用的事实退役出注入池，待审冲突一并计数。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一鍵整理智能體的記憶：近重複事實按嚴格閾值合併（原文歸檔、無一丟失），陳舊未用的事實退役出注入池，待審衝突一併計數。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ワンタップでエージェントの記憶を整理：近似重複は厳格なしきい値で統合（原文はアーカイブ、損失なし）、使われていない古い事実は注入プールから退役、未処理の競合もカウント。"
+          }
+        }
+      }
+    },
+    "Failing skills can be re-distilled":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Failing skills can be re-distilled"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"失灵的技能可以重蒸馏"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"失靈的技能可以重蒸餾"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"失敗続きのスキルは再抽出できます"
+          }
+        }
+      }
+    },
+    "Skills track which conversation last used them — a skill that keeps failing grows a one-tap re-distill button that drafts a fresh version from that run, waiting for your adoption. Crew workers now see your memory and skills too.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Skills track which conversation last used them — a skill that keeps failing grows a one-tap re-distill button that drafts a fresh version from that run, waiting for your adoption. Crew workers now see your memory and skills too."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"技能会记录最近使用它的会话——连败的技能长出一键重蒸馏按钮，从那次运行起草新版本等你采纳。crew worker 现在也能看到你的记忆与技能。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"技能會記錄最近使用它的會話——連敗的技能長出一鍵重蒸餾按鈕，從那次執行起草新版本等你採納。crew worker 現在也能看到你的記憶與技能。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"スキルは最後に使用した会話を記録——失敗続きのスキルにはワンタップ再抽出ボタンが現れ、その実行から新版を起草して採用を待ちます。crew ワーカーもあなたの記憶とスキルを参照します。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

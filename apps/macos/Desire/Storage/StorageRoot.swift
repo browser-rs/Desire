@@ -23,7 +23,8 @@ nonisolated enum StorageRoot {
             try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
             return url
         }
-        return StorageRoot.directory
+        return FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Desire", isDirectory: true)
     }()
 
     /// 会话目录：历史路径 = AppSupport/me.siwi.Desire/conversations（**默认

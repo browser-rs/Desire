@@ -9,6 +9,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/SkillCandidateCore.swift
   apps/macos/Desire/Features/Agent/LessonCore.swift
   apps/macos/Desire/Features/Agent/MemoryCheckupCore.swift
+  apps/macos/Desire/Storage/StorageRoot.swift
   apps/macos/Desire/Features/Agent/AgentMessage.swift
   apps/macos/Desire/Features/Agent/AgentBudget.swift
   apps/macos/Desire/Features/Settings/TabBehavior.swift

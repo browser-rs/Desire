@@ -1,6 +1,12 @@
 ## [Unreleased]
 ### Fixed
 
+- StorageRoot.directory 静态初始化闭包的自引用死锁（闭包 return 写成了 StorageRoot.directory 自己——dispatch_once 永久等待，任何首次触碰该常量的进程启动即 SIGTRAP）；回归=纯逻辑单测 harness（修后 3474/0）。发版闸门逮到——未进 tag。
+
+
+## [v0.8.75] - 2026-11-22
+### Fixed
+
 - 执行套件的磁盘读写跟随实例 dataDir：conversations 归档/收件箱 FAB/会话档案/清理段四处硬编码改为 /state.startup.dataDir 派生——封闭模式（--data-dir）下套件与实例同库，190 项全部真封闭。
 
 ### Added

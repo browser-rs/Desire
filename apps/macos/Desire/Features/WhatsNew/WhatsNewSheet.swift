@@ -17,12 +17,12 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "lightbulb.max", title: String(localized: "It learns from what goes wrong"),
-                  detail: String(localized: "When a run fails on objective evidence, the agent distills a short lesson into long-term memory (correction category) — and corrections surface first in retrieval, so the same mistake is far less likely to repeat. Thumb-down reasons flow through the same pipeline.")),
-            .init(icon: "list.clipboard", title: String(localized: "Memory checkup"),
-                  detail: String(localized: "One tap consolidates your agent's memory: near-duplicate facts merge at a strict threshold (originals archived, nothing lost), stale unused facts retire from the injection pool, and pending conflicts are counted for review.")),
-            .init(icon: "arrow.uturn.backward.circle", title: String(localized: "Failing skills can be re-distilled"),
-                  detail: String(localized: "Skills track which conversation last used them — a skill that keeps failing grows a one-tap re-distill button that drafts a fresh version from that run, waiting for your adoption. Crew workers now see your memory and skills too.")),
+            .init(icon: "speedometer", title: String(localized: "Your agent's costs and speed are now visible"),
+                  detail: String(localized: "Every model call is metered layer by layer (identity, memory, skills, tool schemas, history) — /context shows the breakdown, and the slimmed tool schema already trims what every request re-sends. First-token latency and total duration are tracked per model too.")),
+            .init(icon: "timer", title: String(localized: "Faster tool failures"),
+                  detail: String(localized: "Pure-local list and query tools now fail fast at 5-10 seconds instead of waiting out a 120-second timeout — a hung call is an anomaly signal, not something the model should sit through.")),
+            .init(icon: "arrow.triangle.swap", title: String(localized: "Learning loop keeps compounding"),
+                  detail: String(localized: "Failed turns still distill into lessons that surface first in retrieval, the memory checkup merges and retires with originals archived, and crew workers now see your memory and skills — the whole loop got cheaper to run.")),
         ]
     }
 

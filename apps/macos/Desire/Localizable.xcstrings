@@ -113139,6 +113139,174 @@
           }
         }
       }
+    },
+    "Your agent's costs and speed are now visible":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Your agent's costs and speed are now visible"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"智能体的成本与速度可见了"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"智能體的成本與速度可見了"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"エージェントのコストと速度が見える化"
+          }
+        }
+      }
+    },
+    "Every model call is metered layer by layer (identity, memory, skills, tool schemas, history) — /context shows the breakdown, and the slimmed tool schema already trims what every request re-sends. First-token latency and total duration are tracked per model too.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Every model call is metered layer by layer (identity, memory, skills, tool schemas, history) — /context shows the breakdown, and the slimmed tool schema already trims what every request re-sends. First-token latency and total duration are tracked per model too."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"每次模型调用按层计量（身份/记忆/技能/工具 schema/历史）——/context 看构成，瘦身的工具 schema 已经在裁每次请求的固定开销。首 token 延迟与总时长也按模型记录。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"每次模型調用按層計量（身份/記憶/技能/工具 schema/歷史）——/context 看構成，瘦身的工具 schema 已經在裁每次請求的固定開銷。首 token 延遲與總時長也按模型記錄。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"モデル呼び出しを層ごとに計量（identity/メモリ/スキル/ツール schema/履歴）——/context で内訳を確認、スリム化した schema は毎リクエストの固定コストを既に削減。初トークン遅延と総時間もモデル別に記録。"
+          }
+        }
+      }
+    },
+    "Faster tool failures":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Faster tool failures"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"工具失败更快暴露"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"工具失敗更快暴露"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ツール失敗の高速検出"
+          }
+        }
+      }
+    },
+    "Pure-local list and query tools now fail fast at 5-10 seconds instead of waiting out a 120-second timeout — a hung call is an anomaly signal, not something the model should sit through.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Pure-local list and query tools now fail fast at 5-10 seconds instead of waiting out a 120-second timeout — a hung call is an anomaly signal, not something the model should sit through."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"纯本地清单/查询类工具现在 5-10 秒快速失败，不再陪等 120 秒超时——挂死就是异常信号，模型不该干等。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"純本地清單/查詢類工具現在 5-10 秒快速失敗，不再陪等 120 秒超時——掛死就是異常訊號，模型不該乾等。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ローカルのリスト/クエリツールは 5-10 秒で高速失敗——120 秒のタイムアウトを待つのは異常シグナルの無視です。"
+          }
+        }
+      }
+    },
+    "Learning loop keeps compounding":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Learning loop keeps compounding"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"学习循环持续复利"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"學習循環持續複利"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"学習ループは複利で効く"
+          }
+        }
+      }
+    },
+    "Failed turns still distill into lessons that surface first in retrieval, the memory checkup merges and retires with originals archived, and crew workers now see your memory and skills — the whole loop got cheaper to run.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Failed turns still distill into lessons that surface first in retrieval, the memory checkup merges and retires with originals archived, and crew workers now see your memory and skills — the whole loop got cheaper to run."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"失败回合照常蒸馏成检索优先的教训，记忆体检合并退役且原文归档，crew worker 也能看到你的记忆与技能——整个循环跑起来更便宜。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"失敗回合照常蒸餾成檢索優先的教訓，記憶體檢合併退役且原文歸檔，crew worker 也能看到你的記憶與技能——整個循環跑起來更便宜。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"失敗ターンは検索優先の教訓として蒸留、メモリ整理は原文アーカイブ付きで統合・退役、crew ワーカーも記憶とスキルを参照——ループ全体が安く速く。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

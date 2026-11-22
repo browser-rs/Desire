@@ -435,7 +435,8 @@ final class AgentCrewStore: ObservableObject {
         worker.startedAt = Date()
 
         let provider = BrowserToolProvider()
-        let toolDefs = BrowserToolProvider.toolDefs.filter { Self.workerToolNames.contains($0.function.name) }
+        let toolDefs = AgentToolSchemaSlimming.slimmed(
+            BrowserToolProvider.toolDefs.filter { Self.workerToolNames.contains($0.function.name) })
         let toolsNote = toolDefs.map(\.function.name).joined(separator: ", ")
         // 记忆与技能注入（v0.8.73 批 3）：worker 不再对 leader 的记忆全盲——
         // top-K 事实按子任务检索（promptBlock 同一口径）+ 技能清单。worker

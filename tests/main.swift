@@ -11981,6 +11981,60 @@ do {
     check("体检：加词掉出严阈值（宁漏合不误合）", MemoryModels.bigramSimilarity(
         "部署机在 ubuntu-04 上面", "部署机在 ubuntu-04 上面运行服务") < 0.9)
 }
+
+// ---------- RequestMetering（v0.8.74 批 1 分层计量） ----------
+
+do {
+    var layers = RequestMetering.Layers()
+    layers.identity = 100
+    layers.memory = 2000
+    layers.history = 50000
+    layers.toolsSchema = 30000
+    check("计量：total 逐层求和", layers.total == 82100)
+    let cumulative = layers.adding(layers)
+    check("计量：adding 会话累计", cumulative.identity == 200 && cumulative.history == 100000)
+    let msg = [
+        AgentMessage(role: .user, content: String(repeating: "问", count: 100)),
+        AgentMessage(role: .assistant, toolCalls: [AgentToolCall(id: "c1", type: "function",
+            function: AgentToolFunction(name: "navigate", arguments: String(repeating: "a", count: 50)))]),
+        AgentMessage(role: .tool, content: String(repeating: "果", count: 300), toolCallId: "c1"),
+    ]
+    check("计量：history 口径=正文+tool_calls 参数", RequestMetering.historyChars(msg) == 458)
+    let defs = [AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "navigate",
+        description: String(repeating: "d", count: 80),
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "url": AgentJSONSchemaValue(type: "string", description: String(repeating: "u", count: 40)),
+        ], required: ["url"])))]
+    let schemaChars = RequestMetering.schemaChars(defs)
+    check("计量：schema=JSON 序列化长度（>描述和）",
+          schemaChars > 80 + 40 + 8 && schemaChars < 600)
+}
+
+// ---------- AgentToolSchemaSlimming（v0.8.74 批 2 schema 瘦身） ----------
+
+do {
+    // 工具描述 801 字符、两句：句边界累积超 700 → 只保第一句
+    let longDesc = "第一句说明用途。" + String(repeating: "细节", count: 400)
+    // 参数描述 200 字符、两句：句边界累积超 160 → 只保第一句
+    let longParam = "参数首句要点。" + String(repeating: "参数细节", count: 50)
+    let def = AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "fixtureTool", description: longDesc,
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "path": AgentJSONSchemaValue(type: "string", description: longParam),
+        ], required: ["path"])))
+    let slim = AgentToolSchemaSlimming.slimmed([def])
+    check("瘦身：工具描述句边界截断", slim[0].function.description == "第一句说明用途。")
+    check("瘦身：工具描述 ≤700", slim[0].function.description.count <= 700)
+    check("瘦身：参数描述 ≤160", (slim[0].function.parameters?.properties["path"]?.description.count ?? 0) <= 160)
+    check("瘦身：参数保留首句", (slim[0].function.parameters?.properties["path"]?.description.hasPrefix("参数首句要点。")) == true)
+    check("瘦身：幂等", AgentToolSchemaSlimming.slimmed(slim)[0].function.description == slim[0].function.description)
+    check("瘦身：豁免名单整体保留", AgentToolSchemaSlimming.exempt.contains("editImage"))
+    let short = AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "tiny", description: "短描述不需要动。",
+        parameters: AgentJSONSchema(type: "object", properties: [:])))
+    check("瘦身：短描述原样", AgentToolSchemaSlimming.slimmed([short])[0].function.description == "短描述不需要动。")
+}
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

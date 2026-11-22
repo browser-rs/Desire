@@ -1,3 +1,11 @@
+## [Unreleased]
+### Added
+
+- 请求分层计量（执行底座第一步）：每次模型调用的请求按层计量（identity/memory/skills/tools-index/env/page/notes/digest/history/tools-schema），组装点与流式点同源采集；/context 新增"Layer breakdown"段、debug 日志单行、会话累计。量化首战：**固定基础 21.4 万字符/请求可见**——schema 17.8 万（占 85%），其中协议脚手架 ~11 万不可动、描述 ~6 万。
+- schema 瘦身（运行时句边界截断）：请求发送前对超长描述统一截断（工具 ≤700、参数 ≤160，首句保留；复杂 JSON 契约工具 editImage/editVideoPro/editTimeline 豁免；幂等），源码完整描述不变。配合工具索引行限长 150→72，实测固定基础 −5.6%（21.4 万 → 20.2 万字符/请求）——诚实修正规划期 −30~40% 的预期（协议脚手架不可动，全量参数审计为后续增量）。
+
+
+
 ## [v0.8.73] - 2026-11-22
 ### Added
 

@@ -19,13 +19,15 @@ struct AgentToolFunction: Codable, Sendable {
 
 struct AgentToolDef: Codable, Sendable {
     let type: String
-    let function: AgentToolFunctionDef
+    var function: AgentToolFunctionDef
 }
 
 struct AgentToolFunctionDef: Codable, Sendable {
     let name: String
-    let description: String
-    let parameters: AgentJSONSchema
+    /// 可变（v0.8.74 批 2）：schema 瘦身在请求发送前做句边界截断，源码
+    /// 里的完整描述不变。
+    var description: String
+    var parameters: AgentJSONSchema
 }
 
 // `nonisolated` pure value types: their Codable conformances are used from

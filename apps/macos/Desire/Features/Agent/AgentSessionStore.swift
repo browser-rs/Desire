@@ -451,6 +451,12 @@ class AgentSessionStore: ObservableObject {
     private var lastStreamCheckpoint = Date()
     /// **最近一次**请求的 prompt token 数：累计值对用户没意义，他要的是"现在多满"。
     @Published private(set) var lastPromptTokens = 0
+    /// **请求分层计量**（v0.8.74 批 1）：最近一次模型调用的构成 + 会话累计。
+    /// 组装点填提示词层、流式点补 schema；/context 与日志同源展示。
+    private(set) var lastRequestLayers: RequestMetering.Layers?
+    private(set) var requestLayersCumulative: RequestMetering.Layers = RequestMetering.Layers()
+    /// 组装点 → 流式点的层间传递（同一请求）。
+    private var pendingPromptLayers: RequestMetering.Layers? = nil
     /// 模型切换广播接收（v0.8.71）：占用%按新模型立即重算（窗口 per-模型）。
     private var modelSwitchObserver: NSObjectProtocol?
     /// /compact 的保留指令（v0.8.71）：非 nil 时语义摘要提示词并入——
@@ -961,6 +967,18 @@ class AgentSessionStore: ObservableObject {
         if estimate.stuck { lines.append(String(localized: "Single-turn overload — nothing to drop, consider /new")) }
         if summaryChars > 0 {
             lines.append(String(localized: "In-context summaries") + ": \(summaryChars) chars")
+        }
+        // 分层构成（v0.8.74 批 1）：最近一次请求的字符账——13 万 token 由什么
+        // 构成从此可见（identity/memory/skills/toolsIndex/env/page/notes/
+        // digest/history/schema）。层名保留英文技术词，数字对齐字符账。
+        if let layers = lastRequestLayers {
+            lines.append(String(localized: "Layer breakdown (last request)") + ": "
+                + "identity \(layers.identity) · memory \(layers.memory) · skills \(layers.skills)"
+                + " · toolsIndex \(layers.toolsIndex) · env \(layers.environment)"
+                + " · page \(layers.pageContext) · notes \(layers.notes)"
+                + " · digest \(layers.digest) · history \(layers.history)"
+                + " · schema \(layers.toolsSchema)"
+                + String(localized: " — total \(layers.total) chars"))
         }
         return lines.joined(separator: "\n")
     }
@@ -2181,6 +2199,24 @@ class AgentSessionStore: ObservableObject {
             ? ""
             : "\n\n## Session notes\n" + notes.map { "- \($0)" }.joined(separator: "\n")
         let digestBlock = digest.map { "\n\n## Earlier conversation (compacted)\n\($0)" } ?? ""
+        // **分层计量**（v0.8.74 批 1）：按 compose 输入逐层计量（区块头为
+        // 小常量不计）——与组装同源，字符账管构成、prompt_tokens 真值管成本。
+        var layers = RequestMetering.Layers()
+        layers.identity = identity.count + (effectiveAgentName?.count ?? 0)
+            + (effectiveAgentPersona?.count ?? 0)
+            + (effectiveMode.promptHint?.count ?? 0)
+            + (activeDirective?.count ?? 0)
+        layers.memory = statics.memoryBlock?.count ?? 0
+        layers.skills = statics.skills.reduce(0) { $0 + $1.name.count + $1.description.count }
+        layers.toolsIndex = statics.tools.reduce(0) { $0 + $1.name.count + $1.summary.count }
+        layers.environment = SystemCommandStore.shared.workingDirectory.path.count
+            + (AgentPromptBuilder.downloadsPath?.count ?? 0)
+            + (EbookReaderSession.shared.promptSummary?.count ?? 0)
+        layers.pageContext = pageContext?.count ?? 0
+        layers.notes = notesBlock.count
+        layers.digest = digestBlock.count
+        layers.history = RequestMetering.historyChars(request)
+        pendingPromptLayers = layers
         request.insert(AgentMessage(role: .system, content: composed + notesBlock + digestBlock), at: 0)
         return request
     }
@@ -2618,9 +2654,17 @@ class AgentSessionStore: ObservableObject {
                 }
                 // 模式工具子集（Loop 工程）：被排除的工具根本不进工具索引。
                 let mode = effectiveMode
-                let streamTools = BrowserToolProvider.toolDefs
+                let streamTools = AgentToolSchemaSlimming.slimmed(BrowserToolProvider.toolDefs
                     .filter { !mode.excludedTools.contains($0.function.name) }
-                    + MCPStore.shared.toolDefs
+                    + MCPStore.shared.toolDefs)
+                // 分层计量补 schema 侧并落账（v0.8.74 批 1）：prompt 层来自
+                // 同请求的组装点；schema 用 JSON 序列化长度（与实发形态一致）。
+                var layers = pendingPromptLayers ?? RequestMetering.Layers()
+                layers.toolsSchema = RequestMetering.schemaChars(streamTools)
+                pendingPromptLayers = nil
+                lastRequestLayers = layers
+                requestLayersCumulative = requestLayersCumulative.adding(layers)
+                Log.agent.debug("\(RequestMetering.logLine(layers), privacy: .public)")
                 // **流式停摆看门狗**（2026-11-15）：上游黑洞 / 网关只发 keepalive
                 // 不发事件时，回合曾永久挂在 "Thinking…"。超窗（默认 180s）
                 // 抛 timedOut → 走既有瞬态/failover 重试路径。
@@ -3331,7 +3375,7 @@ class AgentSessionStore: ObservableObject {
                     // 停摆看门狗（2026-11-15）：子代理挂死不再拖住主回合。
                     let stream = AgentStreamWatchdog.wrap(active.provider.stream(
                         messages: subMessages,
-                        tools: Self.subagentAllowedToolDefs + MCPStore.shared.toolDefs,
+                        tools: AgentToolSchemaSlimming.slimmed(Self.subagentAllowedToolDefs + MCPStore.shared.toolDefs),
                         prefs: preference
                     ))
                     for try await event in stream {

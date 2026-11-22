@@ -29,6 +29,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/Memory/MemoryModels.swift
   apps/macos/Desire/Features/Notifications/NotificationPolicy.swift
   apps/macos/Desire/Features/Agent/AgentToolSchema.swift
+  apps/macos/Desire/Features/Agent/RequestMetering.swift
   apps/macos/Desire/Features/Agent/AgentToolCatalog.swift
   apps/macos/Desire/Features/Agent/ToolChainCore.swift
   apps/macos/Desire/Features/Agent/ToolResultBudget.swift

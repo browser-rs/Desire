@@ -561,6 +561,7 @@ final class AutomationServer {
         ep("GET", "/agent/find", "Find messages in the live conversation (case-insensitive; content only)", params: ["q:string", "window?:string"], example: "…/agent/find?q=deploy")
         ep("GET", "/memory/conflicts", "Pending memory-conflict reviews (approximate relatedness; queue from auto-extraction)", example: "…/memory/conflicts")
         ep("POST", "/memory/conflicts/resolve", "Resolve a conflict: resolution=keepNew|keepOld|keepBoth|merge; factID (review) or newText (manual)", params: ["factID?/newText?", "relatedIDs:[uuid]", "resolution", "mergedText?"], example: #"-d '{"newText":"…","relatedIDs":["…"],"resolution":"merge"}'"#)
+        ep("GET", "/skills/candidates", "Skill candidate inbox: drafts distilled from successful long runs, waiting for user adoption", example: "…/skills/candidates")
         ep("POST", "/skills/distill", "Distill a SKILL.md draft from the live conversation (one bypass model call); save=true writes it", params: ["save?:bool", "window?:string"], example: #"-d '{"save":true}'"#)
         ep("POST", "/skills/export", "Export a skill as a .skill package (zip) or single .md to a local path", params: ["name:string", "to:string"], example: #"-d '{"name":"my-skill","to":"/tmp/my.skill"}'"#)
         ep("GET", "/palette", "Command-palette mixed search (commands/tabs/bookmarks/history/conversations, grouped + per-source totals)", params: ["q:string"], example: "…/palette?q=book")
@@ -3854,6 +3855,8 @@ case ("GET", "/agent/messages"):
                 return try await Self.json(Self.retrievalEval(body: body))
             case ("GET", "/skills"):
                 return try Self.json(Self.listSkills())
+            case ("GET", "/skills/candidates"):
+                return try Self.json(Self.listSkillCandidates())
             case ("POST", "/skills/distill"):
                 return try await Self.json(Self.distillSkill(
                     window: Self.string(body, "window"),
@@ -10981,9 +10984,37 @@ case ("GET", "/agent/messages"):
 
     private static func listSkills() throws -> [String: Any] {
         let skills = SkillStore.shared.skills.map { s -> [String: Any] in
-            ["name": s.name, "description": s.description]
+            var entry: [String: Any] = ["name": s.name, "description": s.description]
+            // 使用统计（v0.8.72 批 3）：成功率 = SkillHealth 同源语义（样本
+            // <5 不给 rate，如实标 insufficient）。
+            if let usage = SkillStore.shared.usage[s.name] {
+                entry["usage"] = ["count": usage.count,
+                                  "outcomes": usage.outcomes,
+                                  "lastUsedAt": usage.lastUsedAt.map { ISO8601DateFormatter().string(from: $0) } ?? NSNull(),
+                                  "health": healthName(SkillHealth.assess(count: usage.count, outcomes: usage.outcomes))]
+            }
+            return entry
         }
         return ["skills": skills]
+    }
+
+    private static func healthName(_ status: SkillHealth.Status) -> String {
+        switch status {
+        case .unused: return "unused"
+        case .insufficientSamples: return "insufficient-samples"
+        case .healthy(let rate): return "healthy\(Int((rate * 100).rounded()))"
+        case .failingStreak(let streak): return "failing-streak-\(streak)"
+        }
+    }
+
+    /// 技能候选收件箱（v0.8.72 批 2）：远程/自动化查看当前候选。
+    private static func listSkillCandidates() throws -> [String: Any] {
+        let candidates = SkillCandidateStore.shared.candidates.map { c -> [String: Any] in
+            ["id": c.id.uuidString, "name": c.name, "description": c.description,
+             "createdAt": ISO8601DateFormatter().string(from: c.createdAt),
+             "conversationId": c.conversationId?.uuidString ?? ""]
+        }
+        return ["candidates": candidates]
     }
 
     private static func reloadSkills() throws -> [String: Any] {

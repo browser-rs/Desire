@@ -112551,6 +112551,90 @@
           }
         }
       }
+    },
+    "Used %lld times — insufficient samples":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Used %lld times — insufficient samples"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"使用 %lld 次——样本不足"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"使用 %lld 次——樣本不足"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"%lld 回使用——サンプル不足"
+          }
+        }
+      }
+    },
+    "Used %lld times — success rate: %@":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Used %lld times — success rate: %@"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"使用 %lld 次——成功率：%@"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"使用 %lld 次——成功率：%@"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"%lld 回使用——成功率：%@"
+          }
+        }
+      }
+    },
+    "Failed %lld recent runs in a row — consider re-distilling or retiring this skill":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Failed %lld recent runs in a row — consider re-distilling or retiring this skill"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"最近连续失败 %lld 次——考虑重新蒸馏或退役该技能"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"最近連續失敗 %lld 次——考慮重新蒸餾或退役該技能"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"直近 %lld 回連続で失敗——再抽出するかこのスキルを引退させてください"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

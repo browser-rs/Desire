@@ -67,3 +67,30 @@ nonisolated enum SkillCandidateCore {
         return pendingCandidates.contains { $0.name.lowercased() == lowered }
     }
 }
+
+/// **技能健康评估**（v0.8.72 批 3，B3）：把使用统计（SkillStore.usage）翻译
+/// 成展示语义——只提示不硬闸；样本 <5 如实标注"样本不足"，绝不显示 0%。
+/// 判定顺序：未使用 → 连败预警（≥3 连败即提示，早于样本阈值——连败是
+/// 最有用的信号）→ 样本不足 → 健康。
+nonisolated enum SkillHealth {
+
+    enum Status: Equatable {
+        case unused
+        case insufficientSamples
+        case healthy(rate: Double)
+        case failingStreak(count: Int)
+    }
+
+    static func assess(count: Int, outcomes: [Bool], minSamples: Int = 5,
+                       failingStreakThreshold: Int = 3) -> Status {
+        guard count > 0 else { return .unused }
+        var streak = 0
+        for outcome in outcomes.reversed() where !outcome { streak += 1 }
+        if streak > 0, outcomes.count >= streak, streak >= failingStreakThreshold {
+            return .failingStreak(count: streak)
+        }
+        guard outcomes.count >= minSamples else { return .insufficientSamples }
+        let rate = Double(outcomes.filter { $0 }.count) / Double(outcomes.count)
+        return .healthy(rate: rate)
+    }
+}

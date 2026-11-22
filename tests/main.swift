@@ -11883,6 +11883,18 @@ do {
             instructions: String(repeating: "i", count: 50), conversationId: nil, now: now)]))
     check("查重：全新通过", !SkillCandidateCore.isRedundant(
         name: "abc", existingSkillNames: [], pendingCandidates: []))
+
+    // SkillHealth（B3）：只提示不硬闸；<5 样本"不足"；≥3 连败先于样本阈值
+    check("健康：未使用", SkillHealth.assess(count: 0, outcomes: []) == .unused)
+    check("健康：样本不足", SkillHealth.assess(count: 3, outcomes: [true, true, false]) == .insufficientSamples)
+    check("健康：连败预警早于样本阈值", SkillHealth.assess(count: 3, outcomes: [false, false, false])
+          == .failingStreak(count: 3))
+    check("健康：连败不算中途夹杂", SkillHealth.assess(count: 6, outcomes: [true, false, false, true, true, true])
+          == .healthy(rate: 4.0 / 6.0))
+    check("健康：连败 3", SkillHealth.assess(count: 6, outcomes: [true, true, true, false, false, false])
+          == .failingStreak(count: 3))
+    check("健康：满样本健康", SkillHealth.assess(count: 10, outcomes: Array(repeating: true, count: 10))
+          == .healthy(rate: 1.0))
 }
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。

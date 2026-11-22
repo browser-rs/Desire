@@ -89,6 +89,7 @@ struct AgentSkillsView: View {
                             AgentSkillCard(
                                 skill: skill,
                                 riskSummary: riskSummaries[skill.name],
+                                usage: store.usage[skill.name],
                                 onPreview: { previewSkill = skill },
                                 onEdit: { editingSkill = skill },
                                 onUse: { handleUse(name: $0) },
@@ -453,6 +454,8 @@ private struct AgentSkillCard: View {
     @Environment(\.appAccent) private var appAccent: Color
     let skill: SkillStore.Skill
     let riskSummary: String?
+    /// 使用统计（v0.8.72 批 3，B3 健康展示；nil = 从未使用不显示）。
+    var usage: SkillStore.SkillUsage? = nil
     let onPreview: () -> Void
     let onEdit: () -> Void
     let onUse: ((String) -> Void)?
@@ -462,6 +465,29 @@ private struct AgentSkillCard: View {
     var onShare: ((SkillStore.Skill) -> Void)? = nil
     /// 检查更新（v0.8.11）：远程内容 hash 比对。
     var onUpdateCheck: ((SkillStore.Skill) -> Void)? = nil
+
+    /// **健康展示**（B3）：SkillHealth 语义 → 卡片底行。只提示不硬闸。
+    /// 键用 \(x) 内插形式（目录键自动成 %lld/%@）；字面 % 不能进键。
+    @ViewBuilder
+    private var usageFooter: some View {
+        switch SkillHealth.assess(count: usage?.count ?? 0, outcomes: usage?.outcomes ?? []) {
+        case .unused:
+            EmptyView()
+        case .insufficientSamples:
+            Text(String(localized: "Used \(usage?.count ?? 0) times — insufficient samples"))
+                .font(.system(size: 10))
+                .foregroundStyle(.tertiary)
+        case .healthy(let rate):
+            let pctText = "\(Int((rate * 100).rounded()))%"
+            Text(String(localized: "Used \(usage?.count ?? 0) times — success rate: \(pctText)"))
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        case .failingStreak(let streak):
+            Text(String(localized: "Failed \(streak) recent runs in a row — consider re-distilling or retiring this skill"))
+                .font(.system(size: 10))
+                .foregroundStyle(.orange)
+        }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
@@ -502,6 +528,7 @@ private struct AgentSkillCard: View {
                     .lineLimit(2)
                     .truncationMode(.tail)
             }
+            usageFooter
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)

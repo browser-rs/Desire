@@ -765,7 +765,12 @@ class AgentSessionStore: ObservableObject {
         if cacheKey == semanticDigestCacheKey, let cached = semanticDigestCacheValue {
             return cached
         }
-        let bypass = preference.fallbackPreferences() ?? preference
+        // 批 C ⑩收口：旁路压缩器只在用户配置了备用档案时才跑——没配置就
+        // 直烧主模型（贵且 12s 竞速大概率超时白烧），回退机械摘要。
+        guard let bypass = preference.fallbackPreferences() else {
+            Log.app.info("semantic digest skipped — no fallback service configured (mechanical digest)")
+            return nil
+        }
         // 输入构建：每轮用户目标全文 + assistant 结论 + 工具结果关键头
         // （路径/数据在工具结果里——机械摘要恰恰丢的就是这些）。总长截 30k。
         var transcript: [String] = []

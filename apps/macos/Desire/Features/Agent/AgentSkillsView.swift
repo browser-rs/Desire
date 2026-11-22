@@ -10,6 +10,8 @@ struct AgentSkillsView: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject private var store = SkillStore.shared
+    /// 技能候选收件箱（v0.8.72 批 2）：成功回合蒸馏的草稿等用户采纳。
+    @ObservedObject private var candidateStore = SkillCandidateStore.shared
     var onBack: () -> Void
     /// "在对话中使用"：切回聊天列并把使用指令发给 Agent（nil = 不显示该入口）。
     var onUseSkill: ((String) -> Void)? = nil
@@ -71,11 +73,18 @@ struct AgentSkillsView: View {
         VStack(spacing: 0) {
             header
             toolbar
-            if filtered.isEmpty {
+            if filtered.isEmpty && candidateStore.candidates.isEmpty {
                 emptyState
             } else {
                 ScrollView {
                     VStack(spacing: 8) {
+                        // 候选区（v0.8.72 批 2）置顶：成功回合蒸馏的草稿，浮出来等采纳。
+                        if !candidateStore.candidates.isEmpty {
+                            SkillCandidatesBand(
+                                candidates: candidateStore.candidates,
+                                onAdopt: { _ = candidateStore.adopt($0) },
+                                onDiscard: { candidateStore.discard($0) })
+                        }
                         ForEach(filtered) { skill in
                             AgentSkillCard(
                                 skill: skill,
@@ -809,5 +818,45 @@ private struct SkillShareSheet: View {
         let context = CIContext()
         guard let cg = context.createCGImage(scaled, from: scaled.extent) else { return nil }
         return NSImage(cgImage: cg, size: NSSize(width: cg.width, height: cg.height))
+    }
+}
+
+/// **技能候选收件箱卡组**（v0.8.72 批 2）：成功回合旁路蒸馏的技能草稿，
+/// 置顶浮出——采纳写正式技能库（与 saveSkill 同一写盘路径），忽略即弃。
+/// 候选永不自动入库（SkillCandidateCore 的原则在这里落地成 UI）。
+private struct SkillCandidatesBand: View {
+    let candidates: [SkillCandidateCore.Candidate]
+    let onAdopt: (SkillCandidateCore.Candidate) -> Void
+    let onDiscard: (SkillCandidateCore.Candidate) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label(String(localized: "Skill suggestions — distilled from recent runs"),
+                  systemImage: "sparkles")
+                .font(.system(size: 11.5, weight: .medium))
+                .foregroundStyle(.tint)
+            ForEach(candidates) { candidate in
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(candidate.name)
+                        .font(.system(size: 12.5, weight: .semibold))
+                    Text(candidate.description)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 8) {
+                        Button(String(localized: "Save as Skill")) { onAdopt(candidate) }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        Button(String(localized: "Ignore")) { onDiscard(candidate) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
+                }
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.primary.opacity(0.05)))
+            }
+        }
     }
 }

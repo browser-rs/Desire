@@ -16,6 +16,13 @@ class BrowserToolProvider {
     /// AgentSessionStore.runTurn 开始清零——跨回合累积会把后续回合全部限死。
     var rememberCallCount = 0
 
+    /// **回合内工具调用计数**（v0.8.72 批 2）：技能自动候选的资格判定输入
+    /// （步骤链 ≥6）。runTurn 开始清零，回合收尾读取。
+    var toolCallsThisTurn = 0
+    /// **本回合 useSkill 成功加载过的技能名**（v0.8.72 批 2）：回合收尾按
+    /// 回合结果回填 outcomes（recordOutcome）——B3 成功率评估的数据面。
+    var skillsUsedThisTurn: Set<String> = []
+
     /// Attaches the tool surface. Called from `AgentSessionStore.configure`.
     func attach(surface: BrowserToolSurface, owner: AgentSessionStore? = nil) {
         self.surface = surface

@@ -11841,6 +11841,49 @@ do {
     check("scope：裸 host 小写保留", MemoryModels.normalizeScope("GitHub.com") == "github.com")
     check("scope：未知词原样小写", MemoryModels.normalizeScope("  Work  ") == "work")
 }
+// ---------- SkillCandidateCore（v0.8.72 批 2 技能自动候选） ----------
+
+do {
+    let now = Date()
+    check("候选资格：成功+步骤链≥6", SkillCandidateCore.qualifies(turnToolCount: 6, turnSucceeded: true))
+    check("候选资格：失败回合不触发", !SkillCandidateCore.qualifies(turnToolCount: 10, turnSucceeded: false))
+    check("候选资格：短链不触发", !SkillCandidateCore.qualifies(turnToolCount: 5, turnSucceeded: true))
+
+    let recent = [now.addingTimeInterval(-3600), now.addingTimeInterval(-7200)]
+    let sixRecent = (0..<6).map { now.addingTimeInterval(TimeInterval(-($0 + 1) * 600)) }
+    let convA = UUID()
+    check("节流：24h 内 2/6 通过", SkillCandidateCore.throttlePasses(
+        offeredAt: recent, conversationIDs: [], conversationId: nil, now: now))
+    check("节流：24h 配额打满拒绝", !SkillCandidateCore.throttlePasses(
+        offeredAt: sixRecent, conversationIDs: [], conversationId: nil, now: now))
+    check("节流：30h 前的不计入", SkillCandidateCore.throttlePasses(
+        offeredAt: [now.addingTimeInterval(-30 * 3600)], conversationIDs: [], conversationId: nil, now: now))
+    check("节流：同会话限 1 次", !SkillCandidateCore.throttlePasses(
+        offeredAt: [now.addingTimeInterval(-3600)], conversationIDs: [convA],
+        conversationId: convA, now: now))
+    check("节流：别的会话不受影响", SkillCandidateCore.throttlePasses(
+        offeredAt: [now.addingTimeInterval(-3600)], conversationIDs: [convA],
+        conversationId: UUID(), now: now))
+
+    // 过期：7 天外清洗
+    let fresh = SkillCandidateCore.Candidate(name: "n", description: "d",
+        instructions: String(repeating: "i", count: 50), conversationId: nil, now: now)
+    let stale = SkillCandidateCore.Candidate(name: "s", description: "d",
+        instructions: String(repeating: "i", count: 50), conversationId: nil,
+        now: now.addingTimeInterval(-8 * 86_400))
+    let expired = SkillCandidateCore.expiring([fresh, stale], now: now)
+    check("过期：7 天外清洗", expired.map(\.id) == [fresh.id])
+
+    // 查重：同名正式技能 / 现有候选 / 全新
+    check("查重：同名正式技能（大小写不敏感）", SkillCandidateCore.isRedundant(
+        name: "My-Skill", existingSkillNames: ["my-skill"], pendingCandidates: []))
+    check("查重：同名候选", SkillCandidateCore.isRedundant(
+        name: "abc", existingSkillNames: [],
+        pendingCandidates: [SkillCandidateCore.Candidate(name: "ABC", description: "d",
+            instructions: String(repeating: "i", count: 50), conversationId: nil, now: now)]))
+    check("查重：全新通过", !SkillCandidateCore.isRedundant(
+        name: "abc", existingSkillNames: [], pendingCandidates: []))
+}
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

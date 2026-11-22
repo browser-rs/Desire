@@ -2317,6 +2317,10 @@ class AgentSessionStore: ObservableObject {
         while isCurrentTurn(turnID) && !isCancelled {
             turnFailed = false
             lastTurnErrorText = nil
+            // 回合级计数器清零（v0.8.72 批 2）：工具调用数（技能候选资格）
+            // 与 useSkill 名单（结果回填）。rememberCallCount 在 runTurn 清。
+            toolProvider.toolCallsThisTurn = 0
+            toolProvider.skillsUsedThisTurn = []
             await runTurn(turnID: turnID)
             guard isCurrentTurn(turnID) else { return }
             // 会话预算跃迁（v0.7.18）：用量跨入 80% 时发一次事件。
@@ -2327,6 +2331,10 @@ class AgentSessionStore: ObservableObject {
             let outcome = TurnOutcome(success: !turnFailed && !isCancelled,
                                       error: isCancelled ? "cancelled by user" : lastTurnErrorText)
             lastTurnSucceeded = outcome.success
+            // 技能使用结果回填（v0.8.72 批 2）：本回合 useSkill 过的技能按
+            // 回合结果记成败（B3 成功率评估的数据面；空名单零开销）。
+            SkillStore.shared.recordOutcome(
+                names: Array(toolProvider.skillsUsedThisTurn), success: outcome.success)
             let handlers = turnFinishHandlers
             turnFinishHandlers.removeAll()
             handlers.forEach { $0(outcome) }
@@ -2430,6 +2438,21 @@ class AgentSessionStore: ObservableObject {
             // P1-18：收尾期间用户可能已发出下一回合——自评按消息 id 定位写回，
             // 不再读活体 lastIndex（写进新回合正在流式的消息 = 张冠李戴）。
             await runSelfReviewIfNeeded(tailAssistantID: messages.last(where: { $0.role == .assistant })?.id)
+        }
+
+        // **技能自动候选**（v0.8.72 批 2）：成功 + 长步骤链的回合 → 旁路蒸馏
+        // 候选技能（SkillDistiller 自带用量入账 kind=skillDistill），经 Core 的
+        // 查重 + 节流后落候选收件箱，**等用户采纳**——绝不自动进正式技能库。
+        if lastTurnSucceeded, !isCancelled, isCurrentTurn(turnID),
+           SkillCandidateCore.qualifies(turnToolCount: toolProvider.toolCallsThisTurn,
+                                        turnSucceeded: true) {
+            let draft = await SkillDistiller.draft(from: messages, preference: bypassPrefs)
+            if let draft {
+                let offered = SkillCandidateStore.shared.offer(
+                    name: draft.name, description: draft.description,
+                    instructions: draft.instructions, conversationId: conversationId)
+                Log.agent.info("skill candidate \(offered ? "offered" : "skipped (throttled or duplicate)"): \(draft.name)")
+            }
         }
     }
 

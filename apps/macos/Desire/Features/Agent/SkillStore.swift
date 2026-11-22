@@ -68,6 +68,62 @@ final class SkillStore: ObservableObject {
 
     @Published private(set) var skills: [Skill] = []
 
+    /// **使用追踪**（v0.8.72 批 2）：skill 名 → (使用次数, 最近使用, 最近回合
+    /// 结果序列)。技能本体在盘上，元数据单独持久化（UserDefaults，同
+    /// sourceMeta 模式）。口径 = useSkill 调用（注入 ≠ 使用）；回合结果由
+    /// 会话收尾批量回填（recordOutcome）——B3 成功率评估的数据面。
+    struct SkillUsage: Codable, Equatable {
+        var count: Int = 0
+        var lastUsedAt: Date?
+        /// 最近 ≤20 个回合的成功/失败（时间序）。空 = 无样本（"样本不足"）。
+        var outcomes: [Bool] = []
+        /// 成功率（无样本返回 nil——UI 标"样本不足"，绝不显示 0%）。
+        var successRate: Double? {
+            guard !outcomes.isEmpty else { return nil }
+            return Double(outcomes.filter { $0 }.count) / Double(outcomes.count)
+        }
+    }
+
+    @Published private(set) var usage: [String: SkillUsage] = [:]
+    private static let usageMetaKey = "desire.skills.usageMeta"
+    private static let usageOutcomeCap = 20
+
+    private func loadUsageMeta() {
+        guard let data = UserDefaults.standard.data(forKey: Self.usageMetaKey),
+              let decoded = try? JSONDecoder().decode([String: SkillUsage].self, from: data)
+        else { return }
+        usage = decoded
+    }
+
+    private func saveUsageMeta() {
+        if let data = try? SyncJSON.makeEncoder().encode(usage) {
+            UserDefaults.standard.set(data, forKey: Self.usageMetaKey)
+        }
+    }
+
+    /// useSkill 成功加载时调用（模型确认要用这个技能）。
+    func recordUsage(name: String) {
+        var u = usage[name] ?? SkillUsage()
+        u.count += 1
+        u.lastUsedAt = Date()
+        usage[name] = u
+        saveUsageMeta()
+    }
+
+    /// 回合收尾批量回填使用过技能的回合结果（成功/失败）。
+    func recordOutcome(names: [String], success: Bool) {
+        guard !names.isEmpty else { return }
+        for name in Set(names) {
+            var u = usage[name] ?? SkillUsage(count: 0)
+            u.outcomes.append(success)
+            if u.outcomes.count > Self.usageOutcomeCap {
+                u.outcomes.removeFirst(u.outcomes.count - Self.usageOutcomeCap)
+            }
+            usage[name] = u
+        }
+        saveUsageMeta()
+    }
+
     static var directory: URL {
         let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         let dir = base.appendingPathComponent("Desire/skills", isDirectory: true)
@@ -96,6 +152,7 @@ final class SkillStore: ObservableObject {
 
     private init() {
         seedExamplesIfNeeded()
+        loadUsageMeta()
         reload()
     }
 

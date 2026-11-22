@@ -181,6 +181,7 @@ extension BrowserToolProvider {
 
     func execute(_ call: AgentToolCall, in webView: WKWebView) async -> String {
         if Task.isCancelled { return Self.fail("cancelled by user") }
+        toolCallsThisTurn += 1
         let leasedTabID = ownerSession?.boundTabManager?.selectedTab?.id
         if let leasedTabID { AgentScheduler.shared.acquireTabLease(leasedTabID) }
         defer {

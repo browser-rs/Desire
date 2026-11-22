@@ -6,6 +6,7 @@ set -e
 cd "$(dirname "$0")/.."
 OUT="$(mktemp -d)/puretests"
 SOURCES=(
+  apps/macos/Desire/Features/Agent/SkillCandidateCore.swift
   apps/macos/Desire/Features/Agent/AgentMessage.swift
   apps/macos/Desire/Features/Agent/AgentBudget.swift
   apps/macos/Desire/Features/Settings/TabBehavior.swift

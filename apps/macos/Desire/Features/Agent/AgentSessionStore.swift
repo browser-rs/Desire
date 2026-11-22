@@ -1086,7 +1086,9 @@ class AgentSessionStore: ObservableObject {
             }
         case "memory-checkup":
             let report = AgentMemoryStore.shared.runCheckup()
-            appendLocalAssistant(String(localized: "Memory checkup: \(report.totalBefore) → \(report.totalAfter) facts — \(report.mergedRemoved) merged in \(report.mergedClusters) clusters, \(report.retired) retired, \(report.pendingConflicts) conflicts pending. Removed originals are archived."))
+            let effect = AgentMemoryStore.shared.lessonEffect
+            appendLocalAssistant(String(localized: "Memory checkup: \(report.totalBefore) → \(report.totalAfter) facts — \(report.mergedRemoved) merged in \(report.mergedClusters) clusters, \(report.retired) retired, \(report.pendingConflicts) conflicts pending. Removed originals are archived.")
+                + "\n教训效果：correction 注入 \(effect.totalInjections) 回合（成功 \(effect.appliedOk) / 仍失败 \(effect.repeatAfterInject)）——聚合口径，非归因")
         case "model":
             if parsed.argument.isEmpty {
                 let current = preference.activeProfile
@@ -2453,6 +2455,14 @@ class AgentSessionStore: ObservableObject {
         // 检查点：回合已定局（含取消）→ 清"进行中"标志，恢复提示不再出现。
         turnCheckpointActive = false
         saveCurrentConversation()
+
+        // **教训效果读数**（v0.8.75 批 2，聚合口径）：本回合注入过 correction
+        // 事实 → 按回合结果计数。非归因——回合失败≠教训失败；清空在下一块。
+        let injectedCorrections = AgentMemoryStore.shared.correctionIDs(in: injectedFactIDs)
+        if !injectedCorrections.isEmpty, !isCancelled {
+            AgentMemoryStore.shared.recordLessonEffect(
+                injectedCorrectionIDs: injectedCorrections, turnSucceeded: lastTurnSucceeded)
+        }
 
         // **记忆使用反馈**（v0.8.60）：回合干净结束（非失败/取消）→ 本回合
         // 注入过的记忆事实 usage+1（检索加权与 decay 续命用）。

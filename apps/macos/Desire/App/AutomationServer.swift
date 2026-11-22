@@ -3842,13 +3842,17 @@ case ("GET", "/agent/messages"):
                 return try Self.json(Self.resolveMemoryConflict(body: body))
             case ("POST", "/memory/checkup"):
                 let report = AgentMemoryStore.shared.runCheckup()
+                let effect = AgentMemoryStore.shared.lessonEffect
                 return try Self.json(["ok": true,
                                       "totalBefore": report.totalBefore,
                                       "totalAfter": report.totalAfter,
                                       "mergedRemoved": report.mergedRemoved,
                                       "mergedClusters": report.mergedClusters,
                                       "retired": report.retired,
-                                      "pendingConflicts": report.pendingConflicts])
+                                      "pendingConflicts": report.pendingConflicts,
+                                      "lessonEffect": ["totalInjections": effect.totalInjections,
+                                                       "appliedOk": effect.appliedOk,
+                                                       "repeatAfterInject": effect.repeatAfterInject]])
             case ("POST", "/memory/facts/add"):
                 return try Self.json(Self.addMemoryFact(
                     content: Self.string(body, "content") ?? "",

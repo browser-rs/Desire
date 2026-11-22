@@ -185,6 +185,66 @@ enum AgentDoctor {
                                                (pool.p95 ?? 0) * 1000, pool.sampleCount)))
         }
 
+        // **智能体驾驶舱增项**（v0.8.75 批 2）：0.8.71-74 机器面的健康哨兵。
+        let memoryStore = AgentMemoryStore.shared
+
+        // ① schema 体积漂移：最近请求的 schema vs 0.8.74 基线 17.8 万
+        //（±20% 告警——MCP 工具膨胀/瘦身回退的哨兵）。
+        let session = AgentScheduler.shared.deliveryTarget
+        if let layers = session?.lastRequestLayers, layers.toolsSchema > 0 {
+            let baseline = 179_559.0
+            let drift = (Double(layers.toolsSchema) - baseline) / baseline
+            if abs(drift) > 0.2 {
+                checks.append(Check(name: "Schema 体积", ok: false,
+                    detail: String(format: "较 0.8.74 基线漂移 %+.0f%%（%d 字符）——MCP 工具膨胀或瘦身回退", drift * 100, layers.toolsSchema)))
+            } else {
+                checks.append(Check(name: "Schema 体积", ok: true,
+                    detail: String(format: "%d 字符（基线 ±%+.0f%%）", layers.toolsSchema, drift * 100)))
+            }
+        } else {
+            checks.append(Check(name: "Schema 体积", ok: true, detail: "观测窗口未热——还没有模型调用"))
+        }
+
+        // ② 体检新鲜度：>30 天没跑记忆体检就提醒（手动触发，不自动）。
+        if let last = memoryStore.lastCheckupAt {
+            let days = Int(Date().timeIntervalSince(last) / 86_400)
+            if days > 30 {
+                checks.append(Check(name: "记忆体检", ok: false,
+                    detail: "上次体检是 \(days) 天前——建议 /memory-checkup（合并近重复、退役陈旧）"))
+            } else {
+                checks.append(Check(name: "记忆体检", ok: true, detail: "\(days == 0 ? "今天" : "\(days) 天前")跑过"))
+            }
+        } else {
+            checks.append(Check(name: "记忆体检", ok: true, detail: "从未跑过——/memory-checkup 可合并近重复、退役陈旧事实"))
+        }
+
+        // ③ 教训账本：当日提取次数逼近节流上限（6/天）时提示。
+        let effect = memoryStore.lessonEffect
+        if effect.totalInjections == 0 {
+            checks.append(Check(name: "教训学习", ok: true, detail: "还没有教训入库（失败回合自动提炼；/prompt 可查注入面）"))
+        } else {
+            let total = effect.appliedOk + effect.repeatAfterInject
+            let rate = total > 0 ? effect.appliedOk * 100 / total : 0
+            checks.append(Check(name: "教训学习", ok: true,
+                detail: "注入 \(effect.totalInjections) 回合：成功 \(effect.appliedOk) / 仍失败 \(effect.repeatAfterInject)（\(rate)%）——聚合口径，非归因"))
+        }
+
+        // ④ TTFT 异常：分模型 p50 > 8s = 网关慢（样本 ≥3 才判——少样本不虚报）。
+        do {
+            let stats = UsageStats.derive(from: ConversationStore().conversations,
+                                          price: { _ in nil })
+            let slow = stats.modelPerf.filter { $0.value.ttftP50 > 8_000 }
+            if slow.isEmpty {
+                let fastest = stats.modelPerf.min(by: { $0.value.ttftP50 < $1.value.ttftP50 })
+                checks.append(Check(name: "TTFT", ok: true,
+                    detail: fastest.map { "\($0.key)：p50 \(Int($0.value.ttftP50))ms（样本 \($0.value.samples)）" } ?? "观测窗口未热——还没有带性能数据的调用"))
+            } else {
+                let names = slow.map { "\($0.key)（\(Int($0.value.ttftP50))ms）" }.joined(separator: "、")
+                checks.append(Check(name: "TTFT", ok: false,
+                    detail: "首 token 偏慢：\(names)——超过 8s，考虑换模型/网关"))
+            }
+        }
+
         return Report(checks: checks)
     }
 

@@ -152,6 +152,8 @@ final class AgentMemoryStore: ObservableObject {
         for fact in result.removed { recordDeletion(fact.id.uuidString) }
         archive.facts = result.kept
         save()
+        lastCheckupAt = Date()
+        UserDefaults.standard.set(lastCheckupAt, forKey: Self.lastCheckupKey)
         Log.agent.info("memory checkup: \(result.removed.count) removed (merged \(result.report.mergedRemoved), retired \(result.report.retired))")
         return result.report
     }
@@ -162,7 +164,51 @@ final class AgentMemoryStore: ObservableObject {
         return f.string(from: date)
     }
 
-    // MARK: - 教训节流（v0.8.73 批 1）
+    // MARK: - 教训效果读数（v0.8.75 批 2，聚合口径）
+
+    /// correction 注入的回合里成功/失败的累计计数——学习闭环有没有效的
+    /// 第一读数。**聚合计数，非逐条归因**（回合失败≠教训失败）；点踩仍是
+    /// 教训负反馈的唯一自动通道。落 UserDefaults（生命周期累计）。
+    struct LessonEffect: Codable, Equatable {
+        var appliedOk = 0
+        var repeatAfterInject = 0
+        var totalInjections = 0
+    }
+
+    private static let lessonEffectKey = "memory.lessonEffect"
+    private(set) var lessonEffect: LessonEffect = {
+        if let data = UserDefaults.standard.data(forKey: "memory.lessonEffect"),
+           let decoded = try? JSONDecoder().decode(LessonEffect.self, from: data) {
+            return decoded
+        }
+        return LessonEffect()
+    }()
+
+    func correctionIDs(in ids: [UUID]) -> [UUID] {
+        let set = Set(ids)
+        return archive.facts.filter { set.contains($0.id) && $0.category == "correction" }.map(\.id)
+    }
+
+    func recordLessonEffect(injectedCorrectionIDs: [UUID], turnSucceeded: Bool) {
+        guard !injectedCorrectionIDs.isEmpty else { return }
+        lessonEffect.totalInjections += 1
+        if turnSucceeded {
+            lessonEffect.appliedOk += 1
+        } else {
+            lessonEffect.repeatAfterInject += 1
+        }
+        if let data = try? JSONEncoder().encode(lessonEffect) {
+            UserDefaults.standard.set(data, forKey: Self.lessonEffectKey)
+        }
+    }
+
+    /// 体检新鲜度（Doctor 增项②）：上次 runCheckup 的时间戳。
+    private static let lastCheckupKey = "memory.lastCheckupAt"
+    private(set) var lastCheckupAt: Date? = {
+        UserDefaults.standard.object(forKey: "memory.lastCheckupAt") as? Date
+    }()
+
+    // MARK: - 记忆冲突复核（v0.7.22）
 
     /// 教训提取的节流记账（持久化）：同一天不刷屏。判定复用
     /// SkillCandidateCore.throttlePasses（会话 2/天、全局 6/天）。

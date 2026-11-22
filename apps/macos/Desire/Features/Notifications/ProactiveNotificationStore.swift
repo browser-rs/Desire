@@ -103,6 +103,17 @@ final class ProactiveNotificationStore: ObservableObject {
         }
     }
 
+    /// **自动化测试的当日预算重置**（v0.8.72 批 4）：同一天多轮 190 套件
+    /// 会把 routine 预算烧满——预算满后所有 routine 通知全被扣，MUSCLE11 的
+    /// "聚合一行"断言就吃到前面积压的扣留行（count ≥2 ≠ 1）。仅自动化桥
+    /// 暴露（--automation 才有桥），生产用户无此入口。
+    func resetBudgetAndHeldForTesting() {
+        heldLines.removeAll()
+        routineDeliveredToday = 0
+        UserDefaults.standard.set(0, forKey: "notificationCountValue")
+        UserDefaults.standard.set(Self.dayKey(Date()), forKey: "notificationCountDay")
+    }
+
     /// 跨天时清零当日预算计数（deliver 路径幂等调用）。
     private func rollDayIfNeeded() {
         let today = Self.dayKey(Date())

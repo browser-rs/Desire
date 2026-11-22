@@ -3120,6 +3120,9 @@ case ("GET", "/state"):
             case ("POST", "/notifications/flush"):
                 let delivered = ProactiveNotificationStore.shared.flushDigest(force: true)
                 return try Self.json(["ok": true, "delivered": delivered])
+            case ("POST", "/notifications/test-reset"):
+                ProactiveNotificationStore.shared.resetBudgetAndHeldForTesting()
+                return try Self.json(["ok": true])
             case ("GET", "/ads/stats"):
                 return try Self.json(Self.adBlockStats())
             case ("POST", "/app/quit"):

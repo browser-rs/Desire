@@ -1484,6 +1484,9 @@ def main():
         policy_before = bridge("GET", "/notifications/policy").get("policy", {})
         bridge("POST", "/notifications/policy",
                {"quietHoursEnabled": True, "quietStart": "00:00", "quietEnd": "23:59"})
+        # 当日预算重置（v0.8.72）：同一天多轮套件会把 routine 预算烧满——满额
+        # 后所有 routine 通知全扣，聚合行 count≥2 ≠ 1，断言必挂。先清账再测。
+        bridge("POST", "/notifications/test-reset", {})
         try:
             bridge("POST", "/agent/new", {})
             bridge("POST", "/agent/send", {"text": "MUSCLE11 收件箱扣通知"})

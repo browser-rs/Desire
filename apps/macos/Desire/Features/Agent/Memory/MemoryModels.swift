@@ -169,16 +169,22 @@ enum MemoryModels {
     /// （注释曾写"近似重复"而实现只做精确匹配 —— 语义重复会堆积，
     /// 把 200 条上限挤满。没有端上 embedding，字符 bigram 是够用的下限。）
     nonisolated static func areNearDuplicates(_ a: String, _ b: String) -> Bool {
+        return bigramSimilarity(a, b) >= 0.8
+    }
+
+    /// bigram Jaccard 相似度（0-1）。体检合并用 0.9 严阈值（见
+    /// MemoryCheckupCore），注入去重维持 0.8。
+    nonisolated static func bigramSimilarity(_ a: String, _ b: String) -> Double {
         func bigrams(_ t: String) -> Set<String> {
             let chars = Array(t)
             guard chars.count > 1 else { return [t] }
             return Set((0...(chars.count - 2)).map { String(chars[$0...$0 + 1]) })
         }
         let x = bigrams(a), y = bigrams(b)
-        if x.isEmpty || y.isEmpty { return a == b }
+        if x.isEmpty || y.isEmpty { return a == b ? 1 : 0 }
         let inter = x.intersection(y).count
         let union = x.union(y).count
-        return Double(inter) / Double(union) >= 0.8
+        return Double(inter) / Double(union)
     }
 }
 

@@ -1051,6 +1051,9 @@ class AgentSessionStore: ObservableObject {
                 text += "\n最近更新：\n" + recent.map { "• \($0.content)" }.joined(separator: "\n")
             }
             appendLocalAssistant(text)
+        case "memory-checkup":
+            let report = AgentMemoryStore.shared.runCheckup()
+            appendLocalAssistant(String(localized: "Memory checkup: \(report.totalBefore) → \(report.totalAfter) facts — \(report.mergedRemoved) merged in \(report.mergedClusters) clusters, \(report.retired) retired, \(report.pendingConflicts) conflicts pending. Removed originals are archived."))
         case "model":
             if parsed.argument.isEmpty {
                 let current = preference.activeProfile

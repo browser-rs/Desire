@@ -112803,6 +112803,62 @@
           }
         }
       }
+    },
+    "memory checkup: merge near-duplicates, retire stale facts":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"memory checkup: merge near-duplicates, retire stale facts"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"记忆体检：合并近重复、退役陈旧事实"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"記憶體檢：合併近重複、退役陳舊事實"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"メモリチェックアップ：近似重複を統合し、古い事実を退役"
+          }
+        }
+      }
+    },
+    "Memory checkup: %lld → %lld facts — %lld merged in %lld clusters, %lld retired, %lld conflicts pending. Removed originals are archived.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Memory checkup: %lld → %lld facts — %lld merged in %lld clusters, %lld retired, %lld conflicts pending. Removed originals are archived."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"记忆体检：%lld → %lld 条——%lld 条在 %lld 个簇中合并、退役 %lld 条、待审冲突 %lld 条。被移除原文已归档。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"記憶體檢：%lld → %lld 條——%lld 條在 %lld 個簇中合併、退役 %lld 條、待審衝突 %lld 條。被移除原文已歸檔。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"メモリチェックアップ：%lld → %lld 件——%lld 件を %lld クラスタで統合、%lld 件を退役、未処理の競合 %lld 件。削除された原文はアーカイブ済み。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

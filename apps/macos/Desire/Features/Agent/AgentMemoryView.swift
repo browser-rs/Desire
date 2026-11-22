@@ -22,6 +22,9 @@ struct AgentMemoryView: View {
     @State private var editingFactID: UUID?
     @State private var editingText = ""
     @State private var showClearConfirmation = false
+    /// 体检报告弹窗（v0.8.73 批 2）。
+    @State private var checkupReport: String?
+    @State private var isRunningCheckup = false
     @State private var exportedURL: URL?
     /// 事实搜索与筛选（v0.7.28）。
     @State private var factSearch = ""
@@ -164,6 +167,20 @@ struct AgentMemoryView: View {
             .buttonStyle(.plain)
             .help("导出记忆知识库 Markdown（到“下载”文件夹）")
             Button {
+                guard !isRunningCheckup else { return }
+                isRunningCheckup = true
+                let report = memory.runCheckup()
+                isRunningCheckup = false
+                checkupReport = String(localized: "Memory checkup: \(report.totalBefore) → \(report.totalAfter) facts — \(report.mergedRemoved) merged in \(report.mergedClusters) clusters, \(report.retired) retired, \(report.pendingConflicts) conflicts pending. Removed originals are archived.")
+            } label: {
+                Image(systemName: "stethoscope")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(isRunningCheckup)
+            .help("记忆体检：合并近重复、退役陈旧事实（原文先归档）")
+            Button {
                 importKnowledgeBase()
             } label: {
                 Image(systemName: "square.and.arrow.down")
@@ -194,6 +211,13 @@ struct AgentMemoryView: View {
                 Button("取消", role: .cancel) {}
             } message: {
                 Text("所有 L1 事实和 L2 会话摘要会被删除。个人资料（L0）保留。此操作不可撤销。")
+            }
+            .alert("记忆体检", isPresented: Binding(
+                get: { checkupReport != nil },
+                set: { if !$0 { checkupReport = nil } })) {
+                Button("好", role: .cancel) {}
+            } message: {
+                Text(checkupReport ?? "")
             }
         }
         .padding(.horizontal, 12)

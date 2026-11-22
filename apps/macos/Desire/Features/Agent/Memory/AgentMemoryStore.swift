@@ -139,6 +139,29 @@ final class AgentMemoryStore: ObservableObject {
         return Array(ranked.prefix(max(1, limit)))
     }
 
+    /// **记忆体检**（v0.8.73 批 2）：合并 + 退役 + 报告。被移除的原文先导出
+    /// 归档伴生文件（memory-checkup-<时间戳>，数据不丢），逐条记墓碑（同步域
+    /// 删除传播），pinned 不动。冲突不清账（走既有复核语义），只在报告里计数。
+    @discardableResult
+    func runCheckup() -> MemoryCheckupCore.Report {
+        let result = MemoryCheckupCore.run(archive.facts, now: Date(),
+                                           pendingConflicts: pendingConflicts.count)
+        guard !result.removed.isEmpty else { return result.report }
+        let stamp = Self.dayStamp(Date())
+        DiskStore.save(result.removed, key: "memory-checkup-\(stamp)")
+        for fact in result.removed { recordDeletion(fact.id.uuidString) }
+        archive.facts = result.kept
+        save()
+        Log.agent.info("memory checkup: \(result.removed.count) removed (merged \(result.report.mergedRemoved), retired \(result.report.retired))")
+        return result.report
+    }
+
+    private nonisolated static func dayStamp(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "yyyyMMdd-HHmmss"
+        return f.string(from: date)
+    }
+
     // MARK: - 教训节流（v0.8.73 批 1）
 
     /// 教训提取的节流记账（持久化）：同一天不刷屏。判定复用

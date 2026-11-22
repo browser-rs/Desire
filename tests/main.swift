@@ -2722,7 +2722,7 @@ func testSlashParsing() {
     check("slash：未知命令不拦", AgentSlashParsing.parse("/usr/bin 就是路径") == nil)
     check("slash：裸斜杠不拦", AgentSlashParsing.parse("/") == nil)
     check("slash：非 slash 不拦", AgentSlashParsing.parse("帮我查 /etc/hosts 配置") == nil)
-    check("slash：known 含全部 25 命令", AgentSlashParsing.known.count == 26)
+    check("slash：known 含全部 26 命令", AgentSlashParsing.known.count == 27)
     check("slash：/model 解析", AgentSlashParsing.parse("/model amd")?.argument == "amd")
     check("slash：/persona off 解析", AgentSlashParsing.parse("/persona off")?.argument == "off")
     check("slash：/promote 无参数", AgentSlashParsing.parse("/promote")?.command == "promote" && AgentSlashParsing.parse("/promote")?.argument.isEmpty == true)
@@ -11938,6 +11938,48 @@ do {
     check("提权：correction 排前", ranked.first?.category == "correction")
     check("提权：系数 1.35", MemoryRetrieval.categoryBoost(plainFact) == 1.0
           && MemoryRetrieval.categoryBoost(corrFact) == 1.35)
+}
+
+
+
+// ---------- MemoryCheckupCore（v0.8.73 批 2 记忆体检） ----------
+
+do {
+    let now = Date()
+    func fact(_ content: String, category: String = "fact", source: String? = nil,
+              pinned: Bool = false, age: TimeInterval = 10,
+              usage: Int = 0, usedAgo: TimeInterval? = nil) -> MemoryFact {
+        var f = MemoryFact(content: content, category: category, pinned: pinned, source: source)
+        f.updatedAt = now.addingTimeInterval(-age * 86_400)
+        f.usageCount = usage
+        f.lastUsedAt = usedAgo.map { now.addingTimeInterval(-$0 * 86_400) }
+        return f
+    }
+    let a = fact("部署机在 ubuntu-04 上面", source: "lesson", age: 2)
+    // 规范化后与 a 同串（标点被剥）→ 相似度 1.0，稳过 0.9 严阈值
+    let b = fact("部署机在 ubuntu-04 上面，", source: nil, age: 50)
+    let stale = fact("三年前的一次旧记录", age: 90)
+    let freshUsed = fact("最近在用的事实", age: 70, usage: 2, usedAgo: 3)
+    let pin = fact("置顶事实", pinned: true, age: 90)
+    let unrelated = fact("完全无关的另一条记录", age: 5)
+
+    let result = MemoryCheckupCore.run([a, b, stale, freshUsed, pin, unrelated],
+                                       now: now, pendingConflicts: 2)
+    let keptIDs = Set(result.kept.map(\.id))
+    check("体检：簇代表=来源最硬", result.kept.contains(where: { $0.id == a.id }))
+    check("体检：合并移除 1 条", result.report.mergedRemoved == 1 && result.report.mergedClusters == 1)
+    check("体检：退役 1 条（stale）", result.report.retired == 1 && keptIDs.contains(stale.id) == false)
+    check("体检：有使用不退役", keptIDs.contains(freshUsed.id))
+    check("体检：pinned 不动", keptIDs.contains(pin.id))
+    check("体检：removed 汇总 2 条", result.removed.count == 2)
+    check("体检：报告总数自洽", result.report.totalAfter == result.kept.count
+          && result.report.totalBefore == 6)
+    check("体检：冲突计数透传", result.report.pendingConflicts == 2)
+    check("体检：同串相似度 1.0", MemoryModels.bigramSimilarity(
+        MemoryModels.normalizeFact("部署机在 ubuntu-04 上面"),
+        MemoryModels.normalizeFact("部署机在 ubuntu-04 上面，")) == 1.0)
+    check("体检：加词掉出严阈值（宁漏合不误合）", MemoryModels.bigramSimilarity(
+        "部署机在 ubuntu-04 上面", "部署机在 ubuntu-04 上面运行服务") < 0.9)
 }
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。

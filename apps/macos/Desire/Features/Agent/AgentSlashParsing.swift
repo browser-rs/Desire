@@ -23,6 +23,8 @@ nonisolated enum AgentSlashParsing {
         "templates",
         // v0.8.50：研究简报（带参 = 开始；无参 = 打开研究页）。
         "research",
+        // v0.8.73：记忆体检（合并/退役/报告）。
+        "memory-checkup",
     ]
 
     /// 命令一句话说明（/help 输出与输入框候选菜单同源，防漂移）。
@@ -53,6 +55,7 @@ nonisolated enum AgentSlashParsing {
         "promote": String(localized: "operations workbench: goals, accounts, lessons, drafts — /promote <goal> adds a goal"),
         "templates": String(localized: "list session templates, or apply: /templates <名称>"),
         "research": String(localized: "start a web research brief: /research <topic>（no argument opens the research page）"),
+        "memory-checkup": String(localized: "memory checkup: merge near-duplicates, retire stale facts"),
     ]
 
     static func parse(_ text: String) -> Parsed? {

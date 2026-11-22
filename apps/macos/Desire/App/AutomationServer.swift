@@ -559,6 +559,7 @@ final class AutomationServer {
         ep("POST", "/agent/weekly-digest", "Weekly report actions: run-now (templated digest → session note + routine notification) / run-pipeline (digest → seed weekly board template → append digest block → optional Notes write) / enable / disable", params: ["action", "writeToNotes?:bool (run-pipeline)", "conversationId?:uuid (run-pipeline; default = delivery target)"], example: #"-d '{"action":"run-pipeline"}'"#)
         ep("GET", "/agent/rule-draft", "Derive Output-Rule drafts from a trace turn's failure/slow patterns (templated, no model call)", params: ["conversation?:uuid", "turn?:int (default last)"], example: "…/agent/rule-draft")
         ep("GET", "/agent/find", "Find messages in the live conversation (case-insensitive; content only)", params: ["q:string", "window?:string"], example: "…/agent/find?q=deploy")
+        ep("POST", "/memory/checkup", "Run a memory checkup now: merge near-duplicates (0.9 threshold), retire stale facts, report pending conflicts. Removed originals archived", example: "-d '{}'")
         ep("GET", "/memory/conflicts", "Pending memory-conflict reviews (approximate relatedness; queue from auto-extraction)", example: "…/memory/conflicts")
         ep("POST", "/memory/conflicts/resolve", "Resolve a conflict: resolution=keepNew|keepOld|keepBoth|merge; factID (review) or newText (manual)", params: ["factID?/newText?", "relatedIDs:[uuid]", "resolution", "mergedText?"], example: #"-d '{"newText":"…","relatedIDs":["…"],"resolution":"merge"}'"#)
         ep("GET", "/skills/candidates", "Skill candidate inbox: drafts distilled from successful long runs, waiting for user adoption", example: "…/skills/candidates")
@@ -3839,6 +3840,15 @@ case ("GET", "/agent/messages"):
                 return try Self.json(Self.memoryConflicts())
             case ("POST", "/memory/conflicts/resolve"):
                 return try Self.json(Self.resolveMemoryConflict(body: body))
+            case ("POST", "/memory/checkup"):
+                let report = AgentMemoryStore.shared.runCheckup()
+                return try Self.json(["ok": true,
+                                      "totalBefore": report.totalBefore,
+                                      "totalAfter": report.totalAfter,
+                                      "mergedRemoved": report.mergedRemoved,
+                                      "mergedClusters": report.mergedClusters,
+                                      "retired": report.retired,
+                                      "pendingConflicts": report.pendingConflicts])
             case ("POST", "/memory/facts/add"):
                 return try Self.json(Self.addMemoryFact(
                     content: Self.string(body, "content") ?? "",

@@ -504,6 +504,17 @@ struct AgentMemoryView: View {
         return AnyView(factRowInner(fact).padding(.horizontal, 10))
     }
 
+    /// 来源友好标签（v0.8.75 批 3）：已知来源 → 人话；会话标题等自动来源
+    /// 保持原样。独立函数——ViewBuilder 里 switch 赋值分支会被当成 ()，
+    /// "type () cannot conform to View" 编译错误。
+    nonisolated static func sourceLabel(_ source: String) -> String {
+        switch source {
+        case "lesson": return String(localized: "failure lesson")
+        case "agent-tool": return String(localized: "saved by the agent itself")
+        default: return String(localized: "Learned from: \(source)")
+        }
+    }
+
     private func factRowInner(_ fact: MemoryFact) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Button {
@@ -530,7 +541,7 @@ struct AgentMemoryView: View {
                         .font(.system(size: 9.5))
                         .foregroundStyle(.tertiary)
                     if let source = fact.source, !source.isEmpty {
-                        Text(String(localized: "Learned from: \(source)"))
+                        Text(Self.sourceLabel(source))
                             .font(.system(size: 9.5))
                             .foregroundStyle(.tertiary)
                             .lineLimit(1)

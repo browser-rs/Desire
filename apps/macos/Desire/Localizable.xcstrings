@@ -113307,6 +113307,62 @@
           }
         }
       }
+    },
+    "failure lesson":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"failure lesson"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"失败教训"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"失敗教訓"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"失敗から学んだ教訓"
+          }
+        }
+      }
+    },
+    "saved by the agent itself":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"saved by the agent itself"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"智能体自己保存的"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"智能體自己保存的"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"エージェントが自分で保存"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

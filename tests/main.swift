@@ -12197,6 +12197,88 @@ do {
     ]).repeatedChangedResult == 0)
 }
 
+// ---------- JobWatchCore.resolveIDs 短 id（v0.8.76 批 2） ----------
+
+do {
+    let jobA = UUID(), jobB = UUID(), batchX = UUID(), batchY = UUID()
+    func job(_ id: UUID, external: String? = nil) -> JobRecord {
+        JobRecord(id: id, title: "t", kind: .download, state: .running, detail: "",
+                  progress: nil, artifactURL: nil, receipt: nil, error: nil, source: nil,
+                  externalID: external, conversationID: nil, logFile: nil, exitCode: nil,
+                  retryOf: nil, createdAt: Date(), updatedAt: Date(), finishedAt: nil)
+    }
+    let batchJobX = job(UUID(), external: "batch-\(batchX.uuidString)")
+    let batchJobY = job(UUID(), external: "batch-\(batchY.uuidString)")
+    let jobs = [job(jobA), job(jobB), batchJobX, batchJobY]
+    check("短id：完整 UUID 原样通过", JobWatchCore.resolveIDs(raw: [jobA.uuidString], jobs: jobs) == [jobA])
+    check("短id：作业 id 的 8 位前缀",
+          JobWatchCore.resolveIDs(raw: [String(jobA.uuidString.prefix(8))], jobs: jobs) == [jobA])
+    check("短id：批量回执的批次前缀 → 经外部 id 映射到作业",
+          JobWatchCore.resolveIDs(raw: [String(batchX.uuidString.prefix(8))], jobs: jobs)?.count == 1
+              && jobs.contains { $0.externalID == "batch-\(batchX.uuidString)" })
+    check("短id：认 [#xxxxxxxx] 与 batch- 前缀两种写法",
+          JobWatchCore.resolveIDs(raw: ["[#\(batchY.uuidString.prefix(8).lowercased())]",
+                                        "batch-\(String(jobB.uuidString.prefix(8)).lowercased())"],
+                                 jobs: jobs)?.count == 2)
+    check("短id：解析不出 → 整体 nil", JobWatchCore.resolveIDs(raw: [jobA.uuidString, "zzzz"], jobs: jobs) == nil)
+    check("短id：太短的前缀不认（<4 位）", JobWatchCore.resolveIDs(raw: ["ab"], jobs: jobs) == nil)
+    check("短id：多义前缀 → nil（宁可报错不订错）", {
+        // 与 jobA 前 8 位相同、其余不同（接 jobB 的后 28 位）
+        let twin = UUID(uuidString: String(jobA.uuidString.prefix(8)) + String(jobB.uuidString.dropFirst(8)))!
+        return JobWatchCore.resolveIDs(raw: [String(jobA.uuidString.prefix(8))], jobs: jobs + [job(twin)]) == nil
+    }())
+}
+
+// ---------- TurnGuard 回合内护栏（v0.8.76 批 2） ----------
+
+do {
+    var state = TurnGuard.State()
+    check("护栏：开局不提醒", TurnGuard.note(requestTools: ["getPageSnapshot"], state: &state) == nil)
+    check("护栏：各看一次不提醒", TurnGuard.note(requestTools: ["getPageLinks"], state: &state) == nil)
+    check("护栏：动作打断连续查看", TurnProgress.isObservation(tool: "downloadVideoList") == false
+          && TurnGuard.note(requestTools: ["downloadVideoList"], state: &state) == nil)
+
+    // 同一查看工具第 4 次
+    var tool = TurnGuard.State()
+    for _ in 1...3 { _ = TurnGuard.note(requestTools: ["listDirectory"], state: &tool) }
+    let fourth = TurnGuard.note(requestTools: ["listDirectory"], state: &tool)
+    check("护栏：同一查看工具第 4 次提醒", fourth?.contains("listDirectory has now been called 4 times") == true)
+    check("护栏：同一工具只提醒一次", TurnGuard.note(requestTools: ["listDirectory"], state: &tool) == nil)
+    check("护栏：读结果切片 3 片不触发", {
+        var s = TurnGuard.State()
+        for _ in 1...3 { _ = TurnGuard.note(requestTools: ["getToolResult"], state: &s) }
+        return TurnGuard.note(requestTools: ["getToolResult"], state: &s) != nil
+            && s.perTool["getToolResult"] == 4
+    }())
+    // 连续 4 个纯查看请求
+    var streak = TurnGuard.State()
+    for _ in 1...3 { _ = TurnGuard.note(requestTools: ["listBatchDownloads"], state: &streak) }
+    check("护栏：连续 3 个查看请求还不提醒", streak.streak == 3)
+    let hit = TurnGuard.note(requestTools: ["listBatchDownloads"], state: &streak)
+    check("护栏：连续 4 个纯查看请求提醒", hit?.contains("only looked at state and changed nothing") == true)
+    // 换不同工具的连续查看同样计入；动作归零
+    var mixed = TurnGuard.State()
+    for tool in ["getPageSnapshot", "getPageLinks", "listPageVideos", "getPageHTML"] {
+        _ = TurnGuard.note(requestTools: [tool], state: &mixed)
+    }
+    check("护栏：换着工具看 4 次也算连续查看", mixed.streak == 4)
+    _ = TurnGuard.note(requestTools: ["navigate"], state: &mixed)
+    check("护栏：一次动作后连续计数归零", mixed.streak == 0)
+    // 同一请求里的多个查看工具都计数
+    var batch = TurnGuard.State()
+    for _ in 1...3 { _ = TurnGuard.note(requestTools: ["readFile", "listDirectory"], state: &batch) }
+    check("护栏：一批里的每个查看工具各自计数", batch.perTool["readFile"] == 3 && batch.perTool["listDirectory"] == 3)
+}
+
+// ---------- 长任务回执统一指引（v0.8.76 批 2） ----------
+
+do {
+    let text = LongTaskReceipt.nextStep(watch: "watchBackgroundTasks(kind: \"batch\")")
+    check("回执：给出明确的订阅动作", text.contains("watchBackgroundTasks(kind: \"batch\")"))
+    check("回执：要求结束回合且不要轮询", text.contains("end this turn") && text.contains("do NOT poll"))
+    check("回执：如实描述成功不开回合", text.contains("on success the user is notified"))
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

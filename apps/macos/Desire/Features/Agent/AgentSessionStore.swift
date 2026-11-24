@@ -284,6 +284,8 @@ class AgentSessionStore: ObservableObject {
         let text: String
         let images: [String]?
         var onTurnFinish: ((TurnOutcome) -> Void)? = nil
+        /// 排队的是定时/系统消息时，冲出来的那一回合仍按系统发起对待。
+        var origin: TurnOrigin = .user
     }
 
     /// Input typed mid-turn, flushed by `processLoop` when the turn ends
@@ -416,12 +418,13 @@ class AgentSessionStore: ObservableObject {
         guard !isProcessing else {
             queuedMessages.append(QueuedMessage(
                 text: "[定时任务 · \(taskName)] \(trimmed)", images: nil,
-                onTurnFinish: onTurnFinish))
+                onTurnFinish: onTurnFinish, origin: .system))
             return
         }
         if let onTurnFinish { turnFinishHandlers.append(onTurnFinish) }
         // C-4：自动化提示不进用户输入历史（与桥的 recordHistory: false 同契约）。
-        sendMessage("[定时任务 · \(taskName)] \(trimmed)", recordHistory: false)
+        // 系统发起（v0.8.76）：这回合里启动的长任务默认只通知，不自动开回报回合。
+        sendMessage("[定时任务 · \(taskName)] \(trimmed)", recordHistory: false, origin: .system)
     }
 
     /// Soft cap on agent loop iterations to prevent runaway execution.
@@ -483,6 +486,13 @@ class AgentSessionStore: ObservableObject {
     /// （`compactionBudgetOverride`），相当于按这家服务的真实窗口做了校准。非持久化。
     static let contextBudget = 160_000
     private var compactionBudgetOverride: Int?
+    /// **回合发起方**（v0.8.76 批 2）：见 `TurnOrigin`。长任务的订阅工具据此决定
+    /// 默认档——用户发起的默认失败时自动汇报，系统触发的默认只通知。
+    private(set) var currentTurnOrigin: TurnOrigin = .user
+    /// **回合内护栏状态**（v0.8.76 批 2）：同一查看工具反复调用 / 连续纯查看请求。
+    private var turnGuard = TurnGuard.State()
+    /// 待注入下一个请求的护栏提醒（只进请求副本，不落盘）。
+    private var pendingTurnNudge: String?
     /// 实际生效的预算（覆盖值优先）——占用表与压缩都用它，口径永远一致。
     /// 生效字符预算（v0.8.60 token 真值化）：优先级 = compactionBudgetOverride
     /// （超限/空响应重试按真实窗口写下的校准）> TokenCalibration 换算
@@ -1312,7 +1322,8 @@ class AgentSessionStore: ObservableObject {
         }
     }
 
-    func sendMessage(_ text: String, images: [String]? = nil, recordHistory: Bool = true) {
+    func sendMessage(_ text: String, images: [String]? = nil, recordHistory: Bool = true,
+                     origin: TurnOrigin = .user) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !(images ?? []).isEmpty else { return }
         // slash 命令：本地动作不发给模型。首词非已知命令 → 原样放行
@@ -1325,9 +1336,10 @@ class AgentSessionStore: ObservableObject {
         // A second concurrent loop would interleave appends into `messages`
         // and corrupt tool-call/result pairing — queue instead.
         guard !isProcessing else {
-            queuedMessages.append(QueuedMessage(text: trimmed, images: images))
+            queuedMessages.append(QueuedMessage(text: trimmed, images: images, origin: origin))
             return
         }
+        currentTurnOrigin = origin
         messages.append(AgentMessage(role: .user, content: trimmed, images: images))
         if conversationId == nil {
             conversationTitle = String(trimmed.prefix(40)).trimmingCharacters(in: .whitespacesAndNewlines)
@@ -2131,7 +2143,16 @@ class AgentSessionStore: ObservableObject {
             archiveDroppedTurns(droppedTurns)
             finalDigest = await finalizeDigest(dropped: droppedTurns, mechanical: prepared.digest)
         }
-        return await assembleRequestMessages(from: prepared.messages, digest: finalDigest)
+        // **回合内护栏提醒**（v0.8.76 批 2）：只改请求副本，贴在模型刚读到的那条
+        // 工具结果后面（放进开头的 Session notes 离当前上下文太远）；不落盘。
+        var outgoing = prepared.messages
+        if let nudge = pendingTurnNudge {
+            pendingTurnNudge = nil
+            if let index = outgoing.lastIndex(where: { $0.role == .tool }) {
+                outgoing[index].content = (outgoing[index].content ?? "") + "\n\n" + nudge
+            }
+        }
+        return await assembleRequestMessages(from: outgoing, digest: finalDigest)
     }
 
     /// 从后台 prepared 消息拼装最终请求（system 分层注入——需要宿主依赖，
@@ -2433,6 +2454,7 @@ class AgentSessionStore: ObservableObject {
             if let handler = next.onTurnFinish {
                 turnFinishHandlers.append(handler)
             }
+            currentTurnOrigin = next.origin
             messages.append(AgentMessage(role: .user, content: next.text, images: next.images))
             saveCurrentConversation()
             streamingTokenCount = 0
@@ -2576,6 +2598,9 @@ class AgentSessionStore: ObservableObject {
         // 回合内的重试"，跨回合残留会把预算钉死在旧值。
         compactionBudgetOverride = nil
         toolProvider.rememberCallCount = 0
+        // 回合内护栏按回合计数：新回合从头数，上一回合没来得及注入的提醒作废。
+        turnGuard = TurnGuard.State()
+        pendingTurnNudge = nil
         if let window = resolvedWindowTokens, lastPromptTokens > 0,
            Double(lastPromptTokens) > Double(window) * 0.85 {
             Log.agent.info("pre-turn compaction: last prompt \(self.lastPromptTokens) tokens > 85% of \(window)-token window")
@@ -3175,6 +3200,13 @@ class AgentSessionStore: ObservableObject {
                 checkpointSave()
             }
             currentAction = nil
+            // **回合内护栏**（v0.8.76 批 2）：这一批工具都执行完了，看看是不是在
+            // 原地打转（同一查看工具第 4 次 / 连续 4 个纯查看请求）。只提醒不硬停。
+            if let nudge = TurnGuard.note(requestTools: tcs.map(\.function.name),
+                                          state: &turnGuard) {
+                pendingTurnNudge = nudge
+                Log.agent.info("turn guard: \(nudge, privacy: .public)")
+            }
             // Tools may have navigated the page — the context label must
             // describe the post-action state.
             refreshContextLabel()

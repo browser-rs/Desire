@@ -257,7 +257,7 @@ extension BrowserToolProvider {
             var reply = """
             Batch \(batch.id.uuidString.prefix(8)) started: \(downloading) video(s) into \(dest)\(leaf) (concurrency per the configured slots). \
             Failed items are retried automatically in the same batch/folder — do NOT fall back to downloadMedia for them. \
-            Do NOT wait or poll in a loop — listBatchDownloads reports progress, and the user is notified when the batch finishes.
+            \(LongTaskReceipt.nextStep(watch: "watchBackgroundTasks(kind: \"batch\")"))
             """
             if !skipped.isEmpty {
                 let names = skipped.prefix(8).map { "\($0.title) (\($0.summary ?? ""))" }.joined(separator: "; ")
@@ -313,7 +313,7 @@ extension BrowserToolProvider {
             (serialized, paced with the download slots so signed URLs never expire), the stream is captured and downloaded (concurrency per the configured slots). \
             Cloudflare checks pass automatically; an interactive one is clicked with real mouse events, and only falls back to waiting for the \
             user in a popup window if that fails. Failed items are retried automatically in the SAME batch/folder — do NOT fall back to \
-            downloadMedia for them. Do NOT wait or poll in a loop — listBatchDownloads reports progress, and the user is notified when the batch finishes.
+            downloadMedia for them. \(LongTaskReceipt.nextStep(watch: "watchBackgroundTasks(kind: \"batch\")"))
             """
             if !skipped.isEmpty {
                 let names = skipped.prefix(8).map { "\($0.title) (\($0.summary ?? ""))" }.joined(separator: "; ")
@@ -341,7 +341,8 @@ extension BrowserToolProvider {
                 return "Batch \(batch.folderName) has no failed items to retry."
             }
             BatchMediaExportStore.shared.retryFailed(batch.id)
-            return "Retrying \(failedCount) failed item(s) in batch \(batch.folderName) (same folder as before). listBatchDownloads reports progress."
+            return "Retrying \(failedCount) failed item(s) in batch \(batch.folderName) (same folder as before). "
+                + LongTaskReceipt.nextStep(watch: "watchBackgroundTasks(kind: \"batch\")")
 
         case "listBatchDownloads":
             let store = BatchMediaExportStore.shared
@@ -483,8 +484,8 @@ extension BrowserToolProvider {
             )
             return """
             Export started in the background (job \(jobID.uuidString.prefix(8))). It keeps running while \
-            you continue working — do NOT wait for it and do not retry it. The file lands in \
-            ~/Downloads; the user is notified when it finishes, and listMediaExports reports progress.
+            you continue working — do NOT wait for it and do not retry it. The file lands in ~/Downloads.
+            \(LongTaskReceipt.nextStep(watch: "watchBackgroundTasks(ids: [\"\(jobID.uuidString.prefix(8))\"])"))
             """
 
         case "findAdCandidates":
@@ -1081,7 +1082,8 @@ extension BrowserToolProvider {
         case "backgroundTaskStatus":
             return Self.backgroundTaskStatus(args)
         case "watchBackgroundTasks":
-            return Self.watchBackgroundTasks(args, conversationID: ownerSession?.conversationId)
+            return Self.watchBackgroundTasks(args, conversationID: ownerSession?.conversationId,
+                                             userInitiated: ownerSession?.currentTurnOrigin == .user)
         case "cancelBackgroundTask":
             return Self.cancelBackgroundTask(args)
         case "retryBackgroundTask":
@@ -3392,7 +3394,8 @@ extension BrowserToolProvider {
                     JobStore.shared.finish(jobID, state: .done,
                                            receipt: String(localized: "\(done)/\(files.count) file(s) summarized → .summary.md next to sources"))
                 }
-                return "Batch started: \(files.count) file(s) — Job \(jobID.uuidString.prefix(8)). Results land as .summary.md next to each source; poll via Jobs panel."
+                return "Batch started: \(files.count) file(s) — Job \(jobID.uuidString.prefix(8)). Results land as .summary.md next to each source. "
+                    + LongTaskReceipt.nextStep(watch: "watchBackgroundTasks(ids: [\"\(jobID.uuidString.prefix(8))\"])")
             }
 
         case "exportDocument":

@@ -92,14 +92,28 @@ extension BrowserToolProvider {
     }
 
     static func watchBackgroundTasks(_ args: [String: Any],
-                                     conversationID: UUID?) -> String {
-        let ids = (args["ids"] as? [String] ?? []).compactMap(UUID.init(uuidString:))
+                                     conversationID: UUID?,
+                                     userInitiated: Bool = false) -> String {
+        // id 解析（v0.8.76 批 2）：认完整 UUID，也认 ≥4 位十六进制的短前缀
+        // （批量下载回执给的是批次 UUID 的前 8 位，此前只认完整 UUID 必报错）。
         let rawIDs = args["ids"] as? [String] ?? []
-        if ids.count != rawIDs.count {
-            return fail("One or more job ids are invalid")
+        let ids: [UUID]
+        if rawIDs.isEmpty {
+            ids = []
+        } else if let resolved = JobWatchCore.resolveIDs(raw: rawIDs, jobs: JobStore.shared.allJobs) {
+            ids = resolved
+        } else {
+            return fail("One or more job ids are invalid — pass the full job id, or at least the first 4 hex digits of a batch/job id")
         }
         let kind = (args["kind"] as? String)?.lowercased()
-        let mode = (args["mode"] as? String)?.lowercased() == "resume" ? JobWatch.Mode.resume : .notify
+        // 未指定档位时的默认（v0.8.76 批 2）：用户当场发起的工作 → resume（失败时
+        // 自动开回报回合；成功只通知、不开回合）；系统触发的回合 → notify。
+        let mode: JobWatch.Mode
+        switch (args["mode"] as? String)?.lowercased() {
+        case "resume": mode = .resume
+        case "notify": mode = .notify
+        default: mode = userInitiated ? .resume : .notify
+        }
         if let error = JobWatchCore.validationError(ids: ids, kind: kind, mode: mode) {
             return fail(error)
         }
@@ -144,11 +158,12 @@ extension BrowserToolProvider {
             conversationID: conversationID, mode: mode,
             reason: args["reason"] as? String, condition: condition)
         let modeText = mode == .resume
-            ? String(localized: "I will report the result when the session is idle.")
-            : String(localized: "I will add a completion note and notification.")
+            ? "If anything fails you will be resumed in a fresh turn to report it; on success the user is just notified."
+            : "I will add a completion note and notification."
         let conditionText = JobWatchCore.conditionDescription(condition)
-        return String(localized: "Watching \(targets.count) task(s) (watcher \(watch.id.uuidString)) — \(conditionText). \(modeText)\n")
+        return "Watching \(targets.count) task(s) (watcher \(watch.id.uuidString)) — \(conditionText). \(modeText)\n"
             + targets.map { "- \($0.title) [\($0.id.uuidString)]" }.joined(separator: "\n")
+            + "\nEnd this turn now — do not poll for progress."
     }
 
     static func cancelBackgroundTask(_ args: [String: Any]) -> String {

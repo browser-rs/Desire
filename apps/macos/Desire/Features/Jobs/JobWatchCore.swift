@@ -19,6 +19,51 @@ nonisolated enum JobWatchCore {
 
     /// 快照要盯的任务：显式 ids 原样取；kind 取当前活动任务（注册后新出现的
     /// 不并入——否则“永远等不完”）。
+    /// **把模型给的 id 解析成作业 id**（v0.8.76 批 2）：完整 UUID 原样；短前缀
+    /// （≥ `minPrefix` 位十六进制）按"作业 id"与"外部 id 里嵌的 UUID"做唯一前缀
+    /// 匹配。
+    ///
+    /// 背景：批量下载的回执给模型的是**批次** UUID 的前 8 位，而作业 id 是适配器
+    /// 另派的——两者不是同一个 UUID。此前订阅工具只认完整 UUID，模型把回执里的
+    /// 短 id 传进去必报 "job ids are invalid"，于是只能退回去一遍遍查进度。
+    ///
+    /// 任意一个解析不出或有歧义 → 整体返回 nil（宁可报错，不订错对象）。
+    static func resolveIDs(raw: [String], jobs: [JobRecord],
+                           minPrefix: Int = 4) -> [UUID]? {
+        var out: [UUID] = []
+        for piece in raw {
+            var text = piece.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            for wrapper in ["[", "]", "#", "batch-"] where text.hasPrefix(wrapper) || text.hasSuffix(wrapper) {
+                text = text.replacingOccurrences(of: wrapper, with: "")
+            }
+            if let whole = UUID(uuidString: text) {
+                out.append(whole)
+                continue
+            }
+            guard text.count >= minPrefix, text.allSatisfy(\.isHexDigit) else { return nil }
+            var hits = Set<UUID>()
+            for job in jobs where uuidKeys(of: job).contains(where: { $0.hasPrefix(text) }) {
+                hits.insert(job.id)
+            }
+            guard hits.count == 1, let hit = hits.first else { return nil }
+            out.append(hit)
+        }
+        return out
+    }
+
+    /// 一条作业可被前缀匹配的键：作业 id 本身，以及外部 id（如 `batch-<uuid>`）
+    /// 里嵌的 UUID。正则每次现算，不缓存任何 range。
+    private static func uuidKeys(of job: JobRecord) -> [String] {
+        var keys = [job.id.uuidString.lowercased()]
+        if let external = job.externalID?.lowercased(),
+           let range = external.range(
+               of: "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+               options: .regularExpression) {
+            keys.append(String(external[range]))
+        }
+        return keys
+    }
+
     static func snapshot(ids: [UUID], kind: String?,
                          jobs: [JobRecord]) -> [JobRecord] {
         if !ids.isEmpty {

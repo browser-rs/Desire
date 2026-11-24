@@ -223,7 +223,8 @@ final class JobEventCenter {
         } else {
             prompt = String(localized: "Background tasks finished. Briefly report the outcome to me using the completion note above — include failures and output paths. Do not start new work unless I ask.")
         }
-        session.sendMessage(prompt, recordHistory: false)
+        // 系统发起（v0.8.76）：回报/处置回合里若再启动长任务，默认只通知。
+        session.sendMessage(prompt, recordHistory: false, origin: .system)
     }
 
     /// 解锁检测链：每 15s 查一次前台状态；恢复可用后按序重发挂起的处置回合。

@@ -183,6 +183,8 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/AgentTurnOwnership.swift
   apps/macos/Desire/Features/Agent/ToolRisk.swift
   apps/macos/Desire/Features/Agent/TurnProgress.swift
+  apps/macos/Desire/Features/Jobs/LongTaskReceipt.swift
+  apps/macos/Desire/Features/Agent/TurnGuard.swift
   apps/macos/Desire/Features/Agent/FileEdit.swift
   apps/macos/Desire/Features/Agent/PDFPageSpec.swift
   apps/macos/Desire/Features/Agent/SpreadsheetReader.swift

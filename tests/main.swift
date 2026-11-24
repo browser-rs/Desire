@@ -12283,6 +12283,9 @@ do {
 
 do {
     let phrase = "下载页面全部视频"
+    func samples(_ pairs: [(String, Int)]) -> [SkillTrigger.Sample] {
+        pairs.map { SkillTrigger.Sample(text: $0.0, count: $0.1) }
+    }
     check("直通：归一化后相等命中", SkillTrigger.matches(input: phrase, sample: phrase))
     check("直通：标点与空白差异不影响", SkillTrigger.matches(input: "下载 页面全部视频。", sample: phrase))
     check("直通：输入带上后缀（第二页）仍命中", SkillTrigger.matches(input: phrase + "，第二页", sample: phrase))
@@ -12292,64 +12295,72 @@ do {
     check("直通：过短样本不做包含匹配", !SkillTrigger.matches(input: "下载页面", sample: "下载"))
     check("直通：空输入不命中", !SkillTrigger.matches(input: "   ", sample: phrase))
 
-    let list = SkillTrigger.Candidate(skill: "video-list", samples: [phrase, phrase + "，第二页"])
-    let other = SkillTrigger.Candidate(skill: "other-skill", samples: ["帮我整理书签", "整理一下书签"])
-    let hit = SkillTrigger.resolve(input: phrase, candidates: [list, other])
-    check("直通：恰好一个技能命中", hit == SkillTrigger.Hit(skill: "video-list", sampleCount: 2, sample: phrase))
+    // 真实用法：同一句原话说了 8 遍 → 一条样本、计数 8。
+    var learned: [SkillTrigger.Sample] = []
+    for _ in 1...8 { learned = SkillTrigger.upsert(learned, adding: phrase) }
+    check("样本：同一句话反复说 → 一条样本、计数累加", learned == samples([(phrase, 8)]))
+    check("样本：只说过 1 次的话不触发",
+          SkillTrigger.resolve(input: phrase, candidates: [.init(skill: "s", samples: samples([(phrase, 1)]))]) == nil)
+    check("样本：说过 2 次即触发",
+          SkillTrigger.resolve(input: phrase, candidates: [.init(skill: "s", samples: samples([(phrase, 2)]))])
+              == SkillTrigger.Hit(skill: "s", sampleCount: 2, sample: phrase))
+    check("样本：sampleCount = 这句话之前说过几次",
+          SkillTrigger.resolve(input: phrase, candidates: [.init(skill: "s", samples: learned)])?.sampleCount == 8)
+
+    let list = SkillTrigger.Candidate(skill: "video-list", samples: samples([(phrase, 8), (phrase + "，第二页", 3)]))
+    let other = SkillTrigger.Candidate(skill: "other-skill", samples: samples([("帮我整理书签", 2), ("整理一下书签", 1)]))
+    check("直通：恰好一个技能命中",
+          SkillTrigger.resolve(input: phrase, candidates: [list, other]) == SkillTrigger.Hit(skill: "video-list", sampleCount: 8, sample: phrase))
     check("直通：无关指令不命中", SkillTrigger.resolve(input: "今天天气如何", candidates: [list, other]) == nil)
-    check("直通：样本只有 1 条的技能不参与（首版收窄）",
-          SkillTrigger.resolve(input: phrase, candidates: [
-              SkillTrigger.Candidate(skill: "solo", samples: [phrase])]) == nil)
     check("直通：两个技能都命中 → 不直通", SkillTrigger.resolve(
         input: phrase,
-        candidates: [list, SkillTrigger.Candidate(skill: "twin", samples: [phrase, phrase + " 第二页"])]) == nil)
-    check("直通：frontmatter 手写样本与学到的样本合并后计数",
-          SkillTrigger.resolve(input: phrase, candidates: [
-              SkillTrigger.Candidate(skill: "solo", samples: SkillTrigger.merge(learned: [phrase], backfilled: [phrase, "下载这一页的视频"]))])?
-              .sampleCount == 2)
+        candidates: [list, .init(skill: "twin", samples: samples([(phrase, 2), (phrase + " 第二页", 2)]))]) == nil)
 
-    // 样本并入：去重、最近在前、上限
+    // 手写样本：去重、空串不入、视为已满足门槛
+    check("手写：去重并视为已满足门槛",
+          SkillTrigger.merge(learned: nil, handwritten: [phrase, "  ", phrase]) == samples([(phrase, 2)]))
+
+    // 歧义：一句话被记给多个技能 → 谁都不用它
+    let shared = "帮我整理书签"
+    let twoSkills = [
+        SkillTrigger.Candidate(skill: "video-list", samples: samples([(phrase, 2), (shared, 2)])),
+        SkillTrigger.Candidate(skill: "bookmarks", samples: samples([(shared, 1)])),
+    ]
+    check("直通：被记给多个技能的话不给任何技能直通",
+          SkillTrigger.resolve(input: shared, candidates: twoSkills) == nil)
+    check("直通：其余干净样本照常工作",
+          SkillTrigger.resolve(input: phrase, candidates: twoSkills) == SkillTrigger.Hit(skill: "video-list", sampleCount: 2, sample: phrase))
+
+    // 样本并入：最近说的排最前、超出上限丢最久没说的
     var triggers = SkillTrigger.upsert(nil, adding: phrase)
+    triggers = SkillTrigger.upsert(triggers, adding: phrase + "，第二页")
     triggers = SkillTrigger.upsert(triggers, adding: "下载页面全部视频。")
-    check("样本：按归一化去重", triggers.count == 1)
-    triggers = SkillTrigger.upsert(triggers, adding: "第二页 " + phrase)
-    triggers = SkillTrigger.upsert(triggers, adding: phrase)
-    check("样本：最近说的排最前", triggers.first == phrase && triggers.count == 2)
-    var capped: [String] = []
+    check("样本：同一句话再次出现 → 计数加一并移到最前",
+          triggers == samples([(phrase, 2), (phrase + "，第二页", 1)]))
+    var capped: [SkillTrigger.Sample] = []
     for index in 0..<30 { capped = SkillTrigger.upsert(capped, adding: "指令 编号\(index) 的任务") }
-    check("样本：超出上限丢最旧", capped.count == SkillTrigger.sampleCap && capped.first == "指令 编号29 的任务")
+    check("样本：超出条数上限丢最久没说的",
+          capped.count == SkillTrigger.sampleCap && capped.first == SkillTrigger.Sample(text: "指令 编号29 的任务", count: 1))
     check("样本：slash 命令与过短文本不算样本",
           !SkillTrigger.isEligible("/compact") && !SkillTrigger.isEligible("好的")
               && !SkillTrigger.isEligible(String(repeating: "长", count: SkillTrigger.maxSampleLength + 1))
               && SkillTrigger.upsert(nil, adding: "/compact").isEmpty)
 
-    // 历史回填：最旧的先入 → 最近的排最前；同一回合加载多个技能各记一份
+    // 历史回填：逐回合累加；slash 与过短的消息不入样本
     let backfilled = SkillTrigger.backfill(turns: [
-        (phrase, ["video-list"]), ("整理书签", ["bookmarks", "video-list"]), (phrase + " 第二页", ["video-list"]),
-        ("/compact", ["video-list"]), ("好的", ["video-list"]),
+        (phrase, ["video-list"]), ("整理书签", ["bookmarks", "video-list"]), (phrase, ["video-list"]),
+        ("/compact", ["video-list"]), ("好的", ["video-list"]), (phrase + " 第二页", ["video-list"]),
     ])
-    check("回填：按技能聚合、最近的在前",
-          backfilled["video-list"] == [phrase + " 第二页", "整理书签", phrase]
-              && backfilled["bookmarks"] == ["整理书签"])
-    // 一个回合加载了两个技能 → 那句话成了两个技能的样本。样本不足的那个退出
-    // 判定后，若不处理，剩下的技能会把这句话当成自己的。
-    let shared = "帮我整理书签"
-    let twoSkills = [
-        SkillTrigger.Candidate(skill: "video-list", samples: [phrase, shared]),
-        SkillTrigger.Candidate(skill: "bookmarks", samples: [shared]),
-    ]
-    check("直通：被记给多个技能的话不给任何技能直通",
-          SkillTrigger.resolve(input: shared, candidates: twoSkills) == nil)
-    check("直通：剔除歧义样本后其余样本照常工作",
-          SkillTrigger.resolve(input: phrase, candidates: twoSkills)?.skill == nil)
-    let clean = [
-        SkillTrigger.Candidate(skill: "video-list", samples: [phrase, phrase + " 第二页", shared]),
-        SkillTrigger.Candidate(skill: "bookmarks", samples: [shared]),
-    ]
-    check("直通：歧义样本不计入样本数（2 条干净样本 → 仍直通）",
-          SkillTrigger.resolve(input: phrase, candidates: clean)
-              == SkillTrigger.Hit(skill: "video-list", sampleCount: 2, sample: phrase))
-    check("回填：slash 与过短的消息不入样本", backfilled["video-list"]?.contains("/compact") == false)
+    check("回填：同一句话两回合 → 计数 2，最近的在前",
+          backfilled["video-list"] == samples([(phrase + " 第二页", 1), (phrase, 2), ("整理书签", 1)])
+              && backfilled["bookmarks"] == samples([("整理书签", 1)]))
+    check("回填：slash 与过短的消息不入样本",
+          backfilled["video-list"]?.contains { $0.text == "/compact" } == false)
+
+    // 合并：已学的与回填的同一句话计数相加
+    check("合并：同一句话计数相加，新的补在后面",
+          SkillTrigger.merge(learned: samples([(phrase, 1)]), backfilled: samples([(phrase, 2), ("别的指令", 1)]))
+              == samples([(phrase, 3), ("别的指令", 1)]))
 
     // frontmatter 手写触发短语
     check("frontmatter：单行逗号分隔",
@@ -12375,10 +12386,27 @@ do {
     check("形状：配对检查不改动合成消息", repaired.count == 3
           && !(repaired.last?.content ?? "").contains("[interrupted]"))
     check("形状：不触发悬空调用清理", ContextCompaction.droppingDanglingToolCalls(pair).count == 3)
-    // 技能名解析与 SkillStore.skillName(in:) 同款逻辑（SkillStore 进不了 harness）。
-    let nameData = try? JSONSerialization.data(withJSONObject: ["name": "video-list"])
-    let nameObject = (nameData.flatMap { try? JSONSerialization.jsonObject(with: $0) }) as? [String: Any]
-    check("形状：技能名可从调用参数解析回", (nameObject?["name"] as? String) == "video-list")
+}
+
+// ---------- HermeticLaunchGuard 封闭启动守卫（v0.8.76） ----------
+
+do {
+    let env = ["HOME": "/Users/x", "PATH": "/usr/bin"]
+    check("守卫：正常启动不受影响", HermeticLaunchGuard.verdict(arguments: ["Desire"], environment: env) == .normalLaunch)
+    check("守卫：普通 --automation 不带 data-dir 也照常启动", HermeticLaunchGuard.verdict(
+        arguments: ["Desire", "--automation"], environment: env) == .normalLaunch)
+    check("守卫：带 data-dir 但没隔离偏好 → 拒绝", HermeticLaunchGuard.verdict(
+        arguments: ["Desire", "--automation", "--data-dir=/tmp/d"], environment: env) == .hermeticNotIsolated)
+    check("守卫：环境变量为空串也算没隔离", HermeticLaunchGuard.verdict(
+        arguments: ["Desire", "--data-dir=/tmp/d"], environment: ["CFFIXED_USER_HOME": "  "]) == .hermeticNotIsolated)
+    check("守卫：data-dir 与隔离环境都带 → 放行", HermeticLaunchGuard.verdict(
+        arguments: ["Desire", "--automation", "--data-dir=/tmp/d"],
+        environment: ["CFFIXED_USER_HOME": "/tmp/d/home"]) == .hermeticIsolated(fixedHome: "/tmp/d/home"))
+    // 封闭判据与存储根同源：只要存储根判定为封闭，守卫就必须要求隔离
+    let saved = CommandLine.arguments
+    _ = saved
+    check("守卫：--data-dir 出现在任意位置都算封闭", HermeticLaunchGuard.verdict(
+        arguments: ["--automation", "--data-dir=/tmp/d", "extra"], environment: env) == .hermeticNotIsolated)
 }
 
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块

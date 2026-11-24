@@ -257,16 +257,25 @@ Features/Bookmarks/
 - 截图两条路：`/screenshot` 只拍 **webview 内容**（SwiftUI 覆盖层如
   错误页/手柄/标尺不在其中）；要拍整窗用
   `screencapture -o -x -l <winid>`（winid 用 CGWindowList 取）。
-- 启动流程（顺序敏感，2026-11-24 修订）：
-  `pkill -9 -f "DerivedData/Desire-.*/Build/Products/Debug"; sleep 2;`
-  `open <app> --args --automation "--data-dir=/tmp/desire-e2e/data"; sleep 6`
-  然后必须 `curl /state` 验证桥活着再继续。两处都是踩出来的：
+- 启动流程（顺序敏感，2026-11-25 修订——**一律用脚本**）：
+  `tools/launch-hermetic.sh [dataDir]`（默认 `/tmp/desire-e2e/data`），然后
+  `curl /state` 验证桥活着再继续。脚本做三件事：按 DerivedData 路径结束旧的开发实例、
+  `open -g` 后台启动（不抢前台）、同时带 `--data-dir` 与 `CFFIXED_USER_HOME`。
+  三条都是踩出来的：
   ① **不要 `pkill -x Desire`**——按进程名会连 `/Applications` 的安装版一起杀
   （不可触碰清单）；按 DerivedData 路径只影响开发实例。
-  ② **一律带 `--data-dir`（v0.8.75 起）**——开发实例与安装版共用 bundle id 与
-  存储目录，不带的话启动时会恢复安装版保存的会话，并把停滞采样、系统诊断、
-  E2E 业务数据写进用户真实存储（套件也会因恢复出的真实标签页而失真）。
-  `/state` 的 `startup.dataDir` 可断言封闭性，套件的磁盘读写已跟随该字段。
+  ② **必须带 `--data-dir`**——否则启动时会恢复安装版保存的会话，并把停滞采样、
+  系统诊断、E2E 业务数据写进用户真实存储。
+  ③ **必须带 `CFFIXED_USER_HOME`**（2026-11-25 真事故）——`--data-dir` 不隔离
+  系统偏好：测试里"激活假档案"把用户的活动模型服务改掉，用户的安装版随后整晚
+  指向错误的模型服务。带上它之后偏好写入既不进真实域也不落盘（实测 macOS 27）。
+  应用有硬守卫：带 `--data-dir` 却没带它 → **启动即拒绝**（`DesireApp.init` 第一行，
+  早于任何状态装配；放在 `applicationWillFinishLaunching` 里太晚——那时 AppState
+  已构造完、偏好已被写）。**验证任何会启动进程的改动前后，都要核对
+  `defaults read me.siwi.Desire aiActiveProfileID` 与偏好文件的修改时间没变。**
+  隔离后测试实例的偏好是出厂默认值且不持久：依赖非默认设置的套件（访问等级、
+  通知策略等）要经桥在实例内设置。`/state` 的 `startup.dataDir` 可断言存储封闭性。
+  已知仍共享的：**Keychain**（假档案的 key 会写进用户登录钥匙串，事后删档案）。
 - **CI runner 上应用无法激活**（0.7.0 发版实测：`isActive` 恒 false，
   osascript activate 无效）——**浏览器端点（/navigate /new-tab /execute 等）
   在 CI 上全部挂起**（未激活进程里 WKWebView 创建阻塞）。浏览器依赖的

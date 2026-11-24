@@ -7,19 +7,28 @@ import Foundation
 /// 描述，要不要 `useSkill` 全凭模型自觉，跨会话又没有任何"这句话上次是怎么
 /// 做的"的记录。
 ///
-/// 做法：记下"每次加载某个技能时，用户说的是什么"（触发样本）；用户消息与
-/// 某个技能的样本相符且**恰好只有一个技能**相符时，开局直接把该技能正文装进
-/// 上下文，形状与模型自己调用 `useSkill` 完全一致。
+/// 做法：记下"每次加载某个技能时用户说的是什么"；用户消息与某个技能的触发
+/// 样本相符、且**恰好只有一个技能**相符时，开局直接把该技能正文装进上下文，
+/// 形状与模型自己调用 `useSkill` 完全一致。
 ///
 /// 匹配刻意保守：只认归一化后相等、或较长一方完整包含较短一方。**不做模糊
 /// 相似**——误加载一个用不上的技能会把整段正文塞进上下文，比不直通更糟。
 nonisolated enum SkillTrigger {
 
-    /// 首版收窄：同一指令配同一技能至少出现过这么多次才启用直通。
-    static let minSamples = 2
+    /// 一条触发样本：一句话，以及它触发过多少次。
+    ///
+    /// 计数按"这句话说过几遍"算，不是"有几条不同的话"——真实用法恰恰是同一句
+    /// 原话反复说（去重后只剩一条样本，按条数计永远到不了门槛）。
+    struct Sample: Codable, Equatable, Sendable {
+        var text: String
+        var count: Int
+    }
+
+    /// 首版收窄：这句话至少触发过这么多次才启用直通。
+    static let minCount = 2
     /// 太短的指令不做包含匹配（"打开"之类到处都是）。
     static let minPhrase = 4
-    /// 每个技能保留的触发样本上限（最近的在前）。
+    /// 每个技能保留的不同样本条数上限（最近的在前）。
     static let sampleCap = 20
     /// 样本最长字符数——过长的粘贴不是"一句可重复的指令"。
     static let maxSampleLength = 120
@@ -43,21 +52,20 @@ nonisolated enum SkillTrigger {
     struct Candidate: Equatable, Sendable {
         let skill: String
         /// 触发样本：使用中学到的 + frontmatter 里手写的。
-        let samples: [String]
+        let samples: [Sample]
     }
 
     struct Hit: Equatable, Sendable {
         let skill: String
-        /// 该技能的样本总数（展示"之前 N 次"用）。
+        /// 命中的那句话此前触发过多少次（展示"之前 N 次"用）。
         let sampleCount: Int
-        /// 命中的那条样本。
         let sample: String
     }
 
-    /// 从候选里选出应直通的技能。只看样本数达到 `minSamples` 的技能；必须
+    /// 从候选里选出应直通的技能。只看触发次数达到 `minCount` 的样本；必须
     /// **恰好一个**技能命中——没有命中、或多个技能都命中，都返回 nil（保持现状）。
     static func resolve(input: String, candidates: [Candidate],
-                        minSamples: Int = minSamples) -> Hit? {
+                        minCount: Int = minCount) -> Hit? {
         // **歧义样本不参与判定**：一个回合同时加载了多个技能时，那条用户消息
         // 会被记给每一个技能。若只按"恰好一个技能命中"把关，样本不足的技能会
         // 悄悄退出判定，剩下那个就把这句话当成自己的——说"整理书签"却被装上
@@ -65,23 +73,24 @@ nonisolated enum SkillTrigger {
         var owners: [String: Set<String>] = [:]
         for candidate in candidates {
             for sample in candidate.samples {
-                owners[normalize(sample), default: []].insert(candidate.skill)
+                owners[normalize(sample.text), default: []].insert(candidate.skill)
             }
         }
         let ambiguous = Set(owners.filter { $0.value.count > 1 }.map(\.key))
 
-        var hits: [(candidate: Candidate, sample: String)] = []
+        var hits: [(candidate: Candidate, sample: Sample)] = []
         for candidate in candidates {
-            let samples = candidate.samples.filter { !ambiguous.contains(normalize($0)) }
-            guard samples.count >= minSamples,
-                  let sample = samples.first(where: { matches(input: input, sample: $0) })
-            else { continue }
+            guard let sample = candidate.samples.first(where: {
+                $0.count >= minCount
+                    && !ambiguous.contains(normalize($0.text))
+                    && matches(input: input, sample: $0.text)
+            }) else { continue }
             hits.append((candidate, sample))
         }
         guard hits.count == 1, let only = hits.first else { return nil }
         return Hit(skill: only.candidate.skill,
-                   sampleCount: only.candidate.samples.filter { !ambiguous.contains(normalize($0)) }.count,
-                   sample: only.sample)
+                   sampleCount: only.sample.count,
+                   sample: only.sample.text)
     }
 
     /// 值不值得作为样本：空、过短、slash 命令、过长的粘贴都不算。
@@ -92,22 +101,28 @@ nonisolated enum SkillTrigger {
         return true
     }
 
-    /// 把一条新的触发样本并入：按归一化去重，最近的排最前，超出上限丢最旧。
-    static func upsert(_ triggers: [String]?, adding text: String,
-                       cap: Int = sampleCap) -> [String] {
+    /// 记一次触发：同一句话再来一次 → 计数加一并移到最前；新话 → 新样本。
+    /// 超出条数上限时丢最久没说的。
+    static func upsert(_ triggers: [Sample]?, adding text: String,
+                       cap: Int = sampleCap) -> [Sample] {
         guard isEligible(text) else { return triggers ?? [] }
         let incoming = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let key = normalize(incoming)
-        var kept = (triggers ?? []).filter { normalize($0) != key }
-        kept.insert(incoming, at: 0)
+        var kept = triggers ?? []
+        if let index = kept.firstIndex(where: { normalize($0.text) == key }) {
+            var again = kept.remove(at: index)
+            again.count += 1
+            kept.insert(again, at: 0)
+        } else {
+            kept.insert(Sample(text: incoming, count: 1), at: 0)
+        }
         return Array(kept.prefix(cap))
     }
 
     /// 历史回填：从"用户消息 → 该回合加载过的技能"的序列，聚合出每个技能的
-    /// 触发样本。序列按时间顺序给出；最旧的先入，最近的排在最前。
-    /// 让已有的使用记录立即可用——否则要等同一条指令再被说两次才开始直通。
-    static func backfill(turns: [(user: String, skills: [String])]) -> [String: [String]] {
-        var out: [String: [String]] = [:]
+    /// 触发样本。序列按时间顺序给出；逐条累加计数。
+    static func backfill(turns: [(user: String, skills: [String])]) -> [String: [Sample]] {
+        var out: [String: [Sample]] = [:]
         for turn in turns where isEligible(turn.user) {
             for skill in turn.skills {
                 out[skill] = upsert(out[skill], adding: turn.user)
@@ -116,18 +131,32 @@ nonisolated enum SkillTrigger {
         return out
     }
 
-    /// 两个样本集合合并（回填结果并入已学到的）：已学到的在前，补上回填里
-    /// 没有的，仍按归一化去重与上限截断。
-    static func merge(learned: [String]?, backfilled: [String]?,
-                      cap: Int = sampleCap) -> [String] {
-        var out: [String] = []
-        var seen = Set<String>()
-        for text in (learned ?? []) + (backfilled ?? []) {
-            let key = normalize(text)
-            guard !key.isEmpty, seen.insert(key).inserted else { continue }
-            out.append(text)
-            if out.count >= cap { break }
+    /// 使用中学到的样本 + frontmatter 手写的短语。手写是用户的明确声明，视为
+    /// 已满足触发次数门槛。
+    static func merge(learned: [Sample]?, handwritten: [String]?,
+                      cap: Int = sampleCap) -> [Sample] {
+        var out = learned ?? []
+        for phrase in handwritten ?? [] {
+            let key = normalize(phrase)
+            guard !key.isEmpty, !out.contains(where: { normalize($0.text) == key }) else { continue }
+            out.append(Sample(text: phrase, count: minCount))
         }
-        return out
+        return Array(out.prefix(cap))
+    }
+
+    /// 回填结果并入已学到的样本：同一句话计数相加，新的补在后面。
+    static func merge(learned: [Sample]?, backfilled: [Sample]?,
+                      cap: Int = sampleCap) -> [Sample] {
+        var out = learned ?? []
+        for sample in backfilled ?? [] {
+            let key = normalize(sample.text)
+            guard !key.isEmpty else { continue }
+            if let index = out.firstIndex(where: { normalize($0.text) == key }) {
+                out[index].count += sample.count
+            } else {
+                out.append(sample)
+            }
+        }
+        return Array(out.prefix(cap))
     }
 }

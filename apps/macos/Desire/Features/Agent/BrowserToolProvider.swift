@@ -32,6 +32,45 @@ class BrowserToolProvider {
 
     // MARK: - Helpers
 
+    /// 加载一个技能并构造交给模型的正文。`useSkill` 工具与"重复指令直通技能"
+    /// （v0.8.76 批 3）共用——两条路径给模型的正文、风险提示、附属文件清单
+    /// 完全一致。失败返回以 `Error: ` 开头的文本（失败约定）。
+    static func loadSkillText(name: String, inputs: [String: String]) -> String {
+        guard let skill = SkillStore.shared.skills.first(where: { $0.name == name }),
+              var body = SkillStore.shared.body(for: name) else {
+            return Self.fail("Skill not found: \(name). Available: \(SkillStore.shared.skills.map(\.name).joined(separator: ", "))")
+        }
+        // 参数槽位（v0.8.17）：inputs 填 {{name}}，缺省用 default；都没有 → 报缺失清单。
+        if !skill.vars.isEmpty {
+            let missing = SkillVars.missing(declared: skill.vars, values: inputs, body: body)
+            guard missing.isEmpty else {
+                return Self.fail("Skill '\(name)' declares vars (\(skill.vars.map(\.name).joined(separator: ", "))) — missing inputs: \(missing.joined(separator: ", "))")
+            }
+            var values = inputs
+            for variable in skill.vars {
+                if values[variable.name] == nil, let fallback = variable.defaultValue {
+                    values[variable.name] = fallback
+                }
+            }
+            body = SkillVars.render(body: body, values: values)
+        }
+        var output = "Skill '\(name)' loaded. Follow these instructions:\n\(body)"
+        // 技能安全扫描（Skill Scanner）：内容将驱动后续动作，提示模型注意其中
+        // 的高危形态（提示不拦截——拦截在审批链）。
+        if let risk = SkillScanner.summary(for: body) {
+            output += "\n\n⚠️ \(risk)：此技能包含危险命令形态，执行相关步骤时必须走审批流程，且逐条向用户复述将要运行的命令。"
+        }
+        // 多文件 skill：附属文件清单（readFile 按需读取）。
+        if let directory = skill.directory {
+            let companions = SkillStore.companionFiles(in: directory)
+            if !companions.isEmpty {
+                output += "\n\nCompanion files (read with readFile when needed):\n"
+                output += companions.map { "- \($0.absolute) (\($0.relative))" }.joined(separator: "\n")
+            }
+        }
+        return output
+    }
+
     func isNewTabPage(_ url: String) -> Bool {
         url.isEmpty || url == "about:blank" || url.hasPrefix("desire://newtab")
     }

@@ -113531,6 +113531,62 @@
           }
         }
       }
+    },
+    "Auto-Load Skills for Repeated Requests":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Auto-Load Skills for Repeated Requests"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重复指令自动加载技能"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重複指令自動載入技能"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"繰り返しの依頼でスキルを自動読み込み"
+          }
+        }
+      }
+    },
+    "When a request matches what you said in earlier runs that used a skill, that skill's instructions are loaded up front instead of rediscovering the workflow. Needs at least two earlier runs of the same request; an ambiguous match loads nothing.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"When a request matches what you said in earlier runs that used a skill, that skill's instructions are loaded up front instead of rediscovering the workflow. Needs at least two earlier runs of the same request; an ambiguous match loads nothing."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"当请求与你之前使用过某个技能的说法相符时，开局直接载入该技能的说明，不再重新摸索流程。需要同一请求至少出现过两次；有歧义的匹配不载入任何内容。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"當請求與你之前使用過某個技能的說法相符時，開局直接載入該技能的說明，不再重新摸索流程。需要同一請求至少出現過兩次；有歧義的匹配不載入任何內容。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"依頼が、以前スキルを使った際の言い回しと一致するとき、最初からそのスキルの説明を読み込み、手順を探し直しません。同じ依頼が過去 2 回以上必要です。曖昧な一致では何も読み込みません。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

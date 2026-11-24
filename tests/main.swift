@@ -12279,6 +12279,108 @@ do {
     check("回执：如实描述成功不开回合", text.contains("on success the user is notified"))
 }
 
+// ---------- SkillTrigger 重复指令直通技能（v0.8.76 批 3） ----------
+
+do {
+    let phrase = "下载页面全部视频"
+    check("直通：归一化后相等命中", SkillTrigger.matches(input: phrase, sample: phrase))
+    check("直通：标点与空白差异不影响", SkillTrigger.matches(input: "下载 页面全部视频。", sample: phrase))
+    check("直通：输入带上后缀（第二页）仍命中", SkillTrigger.matches(input: phrase + "，第二页", sample: phrase))
+    check("直通：样本更长时被样本包含也命中", SkillTrigger.matches(input: phrase, sample: "帮我把下载页面全部视频下载"))
+    check("直通：换了措辞不命中（不做模糊相似）",
+          !SkillTrigger.matches(input: "把这个页面的视频都下下来", sample: phrase))
+    check("直通：过短样本不做包含匹配", !SkillTrigger.matches(input: "下载页面", sample: "下载"))
+    check("直通：空输入不命中", !SkillTrigger.matches(input: "   ", sample: phrase))
+
+    let list = SkillTrigger.Candidate(skill: "video-list", samples: [phrase, phrase + "，第二页"])
+    let other = SkillTrigger.Candidate(skill: "other-skill", samples: ["帮我整理书签", "整理一下书签"])
+    let hit = SkillTrigger.resolve(input: phrase, candidates: [list, other])
+    check("直通：恰好一个技能命中", hit == SkillTrigger.Hit(skill: "video-list", sampleCount: 2, sample: phrase))
+    check("直通：无关指令不命中", SkillTrigger.resolve(input: "今天天气如何", candidates: [list, other]) == nil)
+    check("直通：样本只有 1 条的技能不参与（首版收窄）",
+          SkillTrigger.resolve(input: phrase, candidates: [
+              SkillTrigger.Candidate(skill: "solo", samples: [phrase])]) == nil)
+    check("直通：两个技能都命中 → 不直通", SkillTrigger.resolve(
+        input: phrase,
+        candidates: [list, SkillTrigger.Candidate(skill: "twin", samples: [phrase, phrase + " 第二页"])]) == nil)
+    check("直通：frontmatter 手写样本与学到的样本合并后计数",
+          SkillTrigger.resolve(input: phrase, candidates: [
+              SkillTrigger.Candidate(skill: "solo", samples: SkillTrigger.merge(learned: [phrase], backfilled: [phrase, "下载这一页的视频"]))])?
+              .sampleCount == 2)
+
+    // 样本并入：去重、最近在前、上限
+    var triggers = SkillTrigger.upsert(nil, adding: phrase)
+    triggers = SkillTrigger.upsert(triggers, adding: "下载页面全部视频。")
+    check("样本：按归一化去重", triggers.count == 1)
+    triggers = SkillTrigger.upsert(triggers, adding: "第二页 " + phrase)
+    triggers = SkillTrigger.upsert(triggers, adding: phrase)
+    check("样本：最近说的排最前", triggers.first == phrase && triggers.count == 2)
+    var capped: [String] = []
+    for index in 0..<30 { capped = SkillTrigger.upsert(capped, adding: "指令 编号\(index) 的任务") }
+    check("样本：超出上限丢最旧", capped.count == SkillTrigger.sampleCap && capped.first == "指令 编号29 的任务")
+    check("样本：slash 命令与过短文本不算样本",
+          !SkillTrigger.isEligible("/compact") && !SkillTrigger.isEligible("好的")
+              && !SkillTrigger.isEligible(String(repeating: "长", count: SkillTrigger.maxSampleLength + 1))
+              && SkillTrigger.upsert(nil, adding: "/compact").isEmpty)
+
+    // 历史回填：最旧的先入 → 最近的排最前；同一回合加载多个技能各记一份
+    let backfilled = SkillTrigger.backfill(turns: [
+        (phrase, ["video-list"]), ("整理书签", ["bookmarks", "video-list"]), (phrase + " 第二页", ["video-list"]),
+        ("/compact", ["video-list"]), ("好的", ["video-list"]),
+    ])
+    check("回填：按技能聚合、最近的在前",
+          backfilled["video-list"] == [phrase + " 第二页", "整理书签", phrase]
+              && backfilled["bookmarks"] == ["整理书签"])
+    // 一个回合加载了两个技能 → 那句话成了两个技能的样本。样本不足的那个退出
+    // 判定后，若不处理，剩下的技能会把这句话当成自己的。
+    let shared = "帮我整理书签"
+    let twoSkills = [
+        SkillTrigger.Candidate(skill: "video-list", samples: [phrase, shared]),
+        SkillTrigger.Candidate(skill: "bookmarks", samples: [shared]),
+    ]
+    check("直通：被记给多个技能的话不给任何技能直通",
+          SkillTrigger.resolve(input: shared, candidates: twoSkills) == nil)
+    check("直通：剔除歧义样本后其余样本照常工作",
+          SkillTrigger.resolve(input: phrase, candidates: twoSkills)?.skill == nil)
+    let clean = [
+        SkillTrigger.Candidate(skill: "video-list", samples: [phrase, phrase + " 第二页", shared]),
+        SkillTrigger.Candidate(skill: "bookmarks", samples: [shared]),
+    ]
+    check("直通：歧义样本不计入样本数（2 条干净样本 → 仍直通）",
+          SkillTrigger.resolve(input: phrase, candidates: clean)
+              == SkillTrigger.Hit(skill: "video-list", sampleCount: 2, sample: phrase))
+    check("回填：slash 与过短的消息不入样本", backfilled["video-list"]?.contains("/compact") == false)
+
+    // frontmatter 手写触发短语
+    check("frontmatter：单行逗号分隔",
+          SkillVars.triggerPhrases(frontmatter: "name: x\ntriggers: 下载页面全部视频, 下载这页视频、下载所有视频\nother: y")
+              == ["下载页面全部视频", "下载这页视频", "下载所有视频"])
+    check("frontmatter：列表写法",
+          SkillVars.triggerPhrases(frontmatter: "triggers:\n  - 下载页面全部视频\n  - 下载这页视频\nname: x")
+              == ["下载页面全部视频", "下载这页视频"])
+    check("frontmatter：没有 triggers 行", SkillVars.triggerPhrases(frontmatter: "name: x\ndescription: y").isEmpty)
+
+    // 合成的 useSkill 消息对必须与真实调用形状一致：请求组装的配对检查不会
+    // 把它当成中断的调用（补 "[interrupted]"）或悬空调用（被剥掉）。
+    let callID = "preload-abc"
+    let pair: [AgentMessage] = [
+        AgentMessage(role: .user, content: phrase),
+        AgentMessage(role: .assistant, content: nil, toolCalls: [
+            AgentToolCall(id: callID, type: "function",
+                          function: AgentToolFunction(name: "useSkill", arguments: "{\"name\":\"video-list\"}")),
+        ]),
+        AgentMessage(role: .tool, content: "[重复任务] …\n\nSkill 'video-list' loaded.", toolCallId: callID, toolName: "useSkill"),
+    ]
+    let repaired = ContextCompaction.repairUnpairedToolCalls(pair)
+    check("形状：配对检查不改动合成消息", repaired.count == 3
+          && !(repaired.last?.content ?? "").contains("[interrupted]"))
+    check("形状：不触发悬空调用清理", ContextCompaction.droppingDanglingToolCalls(pair).count == 3)
+    // 技能名解析与 SkillStore.skillName(in:) 同款逻辑（SkillStore 进不了 harness）。
+    let nameData = try? JSONSerialization.data(withJSONObject: ["name": "video-list"])
+    let nameObject = (nameData.flatMap { try? JSONSerialization.jsonObject(with: $0) }) as? [String: Any]
+    check("形状：技能名可从调用参数解析回", (nameObject?["name"] as? String) == "video-list")
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

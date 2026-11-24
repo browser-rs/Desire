@@ -78,6 +78,9 @@ final class SkillStore: ObservableObject {
         /// 最近一次使用的会话（v0.8.73 批 3）：连败技能"重新蒸馏"定位该
         /// 会话的运行记录；会话可能已清理（按钮据此置灰）。
         var lastUsedConversationId: UUID?
+        /// 触发样本（v0.8.76 批 3）：加载这个技能时用户说的话（最近的在前）。
+        /// 可选——旧记录没有这个键。
+        var triggers: [String]?
         /// 最近 ≤20 个回合的成功/失败（时间序）。空 = 无样本（"样本不足"）。
         var outcomes: [Bool] = []
         /// 成功率（无样本返回 nil——UI 标"样本不足"，绝不显示 0%）。
@@ -127,6 +130,91 @@ final class SkillStore: ObservableObject {
         }
         saveUsageMeta()
     }
+
+    // MARK: - 重复指令直通技能（v0.8.76 批 3）
+
+    /// 记一条触发样本：加载 `name` 这个技能时用户说的话。
+    func recordTrigger(name: String, userText: String) {
+        var entry = usage[name] ?? SkillUsage(count: 0)
+        entry.triggers = SkillTrigger.upsert(entry.triggers, adding: userText)
+        usage[name] = entry
+        saveUsageMeta()
+    }
+
+    /// 一条用户消息应直通的技能（判定见 `SkillTrigger.resolve`）。候选 = 每个
+    /// 技能"使用中学到的样本 + frontmatter 里手写的样本"；恰好一个技能命中才算。
+    func triggerMatch(for text: String) -> SkillTrigger.Hit? {
+        let candidates = skills.map { skill in
+            let handwritten = (body(for: skill.name).flatMap { SkillVars.frontmatterBlock($0) })
+                .map { SkillVars.triggerPhrases(frontmatter: $0) } ?? []
+            return SkillTrigger.Candidate(
+                skill: skill.name,
+                samples: SkillTrigger.merge(learned: usage[skill.name]?.triggers,
+                                             backfilled: handwritten))
+        }
+        return SkillTrigger.resolve(input: text, candidates: candidates)
+    }
+
+    /// 历史回填（每进程一次）：从已存盘会话里找出"用户说了什么 → 那一回合
+    /// 加载了哪个技能"，补成初始样本。不回填的话，要等同一条指令再被说两次
+    /// 才开始直通——而它过去已经被说过很多遍了。
+    func backfillTriggersIfNeeded(from conversations: [Conversation]) {
+        guard !Self.triggerBackfillDone else { return }
+        Self.triggerBackfillDone = true
+        var turns: [(user: String, skills: [String])] = []
+        for conversation in conversations {
+            var user: String?
+            var loaded: [String] = []
+            for message in conversation.messages {
+                switch message.role {
+                case .user:
+                    if let user { turns.append((user, loaded)) }
+                    user = message.content ?? ""
+                    loaded = []
+                case .assistant:
+                    for call in message.toolCalls ?? [] where call.function.name == "useSkill" {
+                        if let name = Self.skillName(in: call.function.arguments),
+                           !loaded.contains(name) {
+                            loaded.append(name)
+                        }
+                    }
+                default:
+                    break
+                }
+            }
+            if let user { turns.append((user, loaded)) }
+        }
+        var changed = false
+        for (name, samples) in SkillTrigger.backfill(turns: turns)
+        where skills.contains(where: { $0.name == name }) {
+            let merged = SkillTrigger.merge(learned: usage[name]?.triggers, backfilled: samples)
+            if merged != (usage[name]?.triggers ?? []) {
+                var entry = usage[name] ?? SkillUsage(count: 0)
+                entry.triggers = merged
+                usage[name] = entry
+                changed = true
+            }
+        }
+        if changed { saveUsageMeta() }
+    }
+
+    /// 启动后延迟回填一次（不占启动路径）。
+    func scheduleTriggerBackfill(delay: TimeInterval = 25) {
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(delay))
+            self?.backfillTriggersIfNeeded(from: ConversationStore().conversations)
+        }
+    }
+
+    /// 从 useSkill 的调用参数里取技能名（解析失败返回 nil）。
+    static func skillName(in arguments: String) -> String? {
+        guard let data = arguments.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let name = object["name"] as? String, !name.isEmpty else { return nil }
+        return name
+    }
+
+    private static var triggerBackfillDone = false
 
     static var directory: URL {
         let base = StorageRoot.directory

@@ -165,6 +165,11 @@ class AgentPreferenceStore: ObservableObject {
     @Published var memoryLearning: Bool {
         didSet { UserDefaults.standard.set(memoryLearning, forKey: "aiMemoryLearning") }
     }
+    /// **重复指令自动加载技能**（v0.8.76 批 3）：用户消息与某个技能的历史触发
+    /// 样本相符时，开局直接把技能正文装进上下文，不再靠模型自己想起 useSkill。
+    @Published var skillAutoLoad: Bool {
+        didSet { UserDefaults.standard.set(skillAutoLoad, forKey: "aiSkillAutoLoad") }
+    }
     /// **AI 动作复查**（guard pass，2026-10-09）：自动编辑档下副作用工具放行前，
     /// 先经旁路模型对照用户规则轻量判定一次；FLAG 转审批卡。超时/失败 fail-open，
     /// 不会阻塞回合。
@@ -605,6 +610,7 @@ class AgentPreferenceStore: ObservableObject {
         maxTokens = UserDefaults.standard.object(forKey: "aiMaxTokens") as? Int ?? 4096
         autoPageContext = UserDefaults.standard.object(forKey: "aiAutoPageContext") as? Bool ?? true
         memoryLearning = UserDefaults.standard.object(forKey: "aiMemoryLearning") as? Bool ?? true
+        skillAutoLoad = UserDefaults.standard.object(forKey: "aiSkillAutoLoad") as? Bool ?? true
         guardReview = UserDefaults.standard.object(forKey: "aiGuardReview") as? Bool ?? true
         outputRules = UserDefaults.standard.stringArray(forKey: "aiOutputRules") ?? []
         answerLength = AnswerLength(rawValue: UserDefaults.standard.string(forKey: "aiAnswerLength") ?? "") ?? .standard

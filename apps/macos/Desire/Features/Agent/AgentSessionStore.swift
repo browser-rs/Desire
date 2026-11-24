@@ -405,6 +405,8 @@ class AgentSessionStore: ObservableObject {
                 self?.updateContextFraction(force: true)
             }
         }
+        // 触发样本历史回填（v0.8.76 批 3）：进程内只跑一次，启动后延迟。
+        SkillStore.shared.scheduleTriggerBackfill()
 }
 
     /// Entry point for `AgentScheduler` firings: starts (or queues) a turn
@@ -493,6 +495,11 @@ class AgentSessionStore: ObservableObject {
     private var turnGuard = TurnGuard.State()
     /// 待注入下一个请求的护栏提醒（只进请求副本，不落盘）。
     private var pendingTurnNudge: String?
+    /// 本回合触发它的那条用户消息（v0.8.76 批 3）：回合内加载了技能时，把它记成
+    /// 该技能的触发样本。
+    private(set) var currentTurnUserText: String?
+    /// 本回合开局被直通预加载的技能（计入本回合的使用统计）。
+    private var preloadedSkillName: String?
     /// 实际生效的预算（覆盖值优先）——占用表与压缩都用它，口径永远一致。
     /// 生效字符预算（v0.8.60 token 真值化）：优先级 = compactionBudgetOverride
     /// （超限/空响应重试按真实窗口写下的校准）> TokenCalibration 换算
@@ -1341,6 +1348,7 @@ class AgentSessionStore: ObservableObject {
         }
         currentTurnOrigin = origin
         messages.append(AgentMessage(role: .user, content: trimmed, images: images))
+        if origin == .user { preloadSkillIfRepeated(for: trimmed) }
         if conversationId == nil {
             conversationTitle = String(trimmed.prefix(40)).trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -1671,6 +1679,71 @@ class AgentSessionStore: ObservableObject {
     /// 从外部往会话追加一条 system 备注（后台任务完成等）。**不触发**新一轮模型
     /// 调用：面板里不渲染 system 消息（`AgentMessageBubble` 的 `.system` 是
     /// EmptyView），但下一轮请求会带上它，模型因此知道下载/导出已经结束。
+    /// 回合内加载了技能 → 把"触发它的用户消息"记成该技能的触发样本。
+    /// 只记用户发起的回合：系统回报回合的提示（"后台任务已结束…"）不是
+    /// 一句可重复的指令，记进去只会污染样本。
+    func recordSkillTrigger(name: String) {
+        guard currentTurnOrigin == .user, let text = currentTurnUserText,
+              SkillTrigger.isEligible(text) else { return }
+        SkillStore.shared.recordTrigger(name: name, userText: text)
+    }
+
+    /// **重复指令直通技能**（v0.8.76 批 3）。判定在 `SkillTrigger.resolve`
+    /// （纯逻辑）：用户消息与某个技能的触发样本相符、且恰好一个技能相符。
+    /// 命中后合成一对与模型自己调用 `useSkill` 形状完全一致的消息——模型看到的
+    /// 是"我已经调用了 useSkill 并拿到了正文"，下一请求直接带着做法开始。
+    private func preloadSkillIfRepeated(for text: String) {
+        guard preference.skillAutoLoad, SkillTrigger.isEligible(text),
+              let hit = SkillStore.shared.triggerMatch(for: text) else { return }
+        // 声明了参数槽位的技能不直通：直通填不了参数，保持现状（模型自己加载并询问）。
+        guard let skill = SkillStore.shared.skills.first(where: { $0.name == hit.skill }),
+              skill.vars.isEmpty else { return }
+        let runs = (SkillStore.shared.usage[hit.skill]?.count ?? 0) + 1
+        let banner = "[重复任务 · 已自动加载技能「\(hit.skill)」（第 \(runs) 次执行）] "
+            + "这条指令与之前 \(hit.sampleCount) 次使用该技能的请求相符。"
+            + "按技能步骤执行，不要重新摸索流程；只有某一步确实失败时才偏离，并说明原因。"
+        if skillLoadedInConversation(hit.skill) {
+            // 正文已经在上下文里——不再塞一份，只提醒按它执行。
+            appendExternalNote(banner + "（技能正文已在上方加载，此处不重复。）")
+            Log.agent.info("skill direct-hit (already loaded): \(hit.skill, privacy: .public)")
+            return
+        }
+        let loaded = BrowserToolProvider.loadSkillText(name: hit.skill, inputs: [:])
+        guard !loaded.hasPrefix("Error:") else { return }
+        let callID = "preload-" + UUID().uuidString
+        let arguments: String
+        if let data = try? JSONSerialization.data(withJSONObject: ["name": hit.skill]),
+           let encoded = String(data: data, encoding: .utf8) {
+            arguments = encoded
+        } else {
+            return
+        }
+        messages.append(AgentMessage(role: .assistant, content: nil, toolCalls: [
+            AgentToolCall(id: callID, type: "function",
+                          function: AgentToolFunction(name: "useSkill", arguments: arguments)),
+        ]))
+        messages.append(AgentMessage(role: .tool, content: banner + "\n\n" + loaded,
+                                     toolCallId: callID, toolName: "useSkill"))
+        SkillStore.shared.recordUsage(name: hit.skill, conversationId: conversationId)
+        SkillStore.shared.recordTrigger(name: hit.skill, userText: text)
+        preloadedSkillName = hit.skill
+        Log.agent.info("skill direct-hit: \(hit.skill, privacy: .public) preloaded (run \(runs), \(hit.sampleCount) trigger samples)")
+    }
+
+    /// 该技能的正文是否还在本会话较近的上下文里（最近 60 条消息内加载过且未被
+    /// 压缩归档）。只看近处：被压缩归档的轮次已不在 `messages` 里，会判为未加载
+    /// 而重新装一份。
+    private func skillLoadedInConversation(_ name: String) -> Bool {
+        for message in messages.suffix(60).reversed() {
+            guard message.role == .assistant, let calls = message.toolCalls else { continue }
+            for call in calls where call.function.name == "useSkill"
+                && SkillStore.skillName(in: call.function.arguments) == name {
+                return true
+            }
+        }
+        return false
+    }
+
     func appendExternalNote(_ text: String) {
         messages.append(AgentMessage(role: .system, content: text))
         streamingVersion += 1
@@ -2417,7 +2490,9 @@ class AgentSessionStore: ObservableObject {
             // 回合级计数器清零（v0.8.72 批 2）：工具调用数（技能候选资格）
             // 与 useSkill 名单（结果回填）。rememberCallCount 在 runTurn 清。
             toolProvider.toolCallsThisTurn = 0
-            toolProvider.skillsUsedThisTurn = []
+            // 开局直通预加载的技能也算"本回合用过"（成功率的分母要含它）。
+            toolProvider.skillsUsedThisTurn = Set([preloadedSkillName].compactMap { $0 })
+            preloadedSkillName = nil
             await runTurn(turnID: turnID)
             guard isCurrentTurn(turnID) else { return }
             // 会话预算跃迁（v0.7.18）：用量跨入 80% 时发一次事件。
@@ -2456,6 +2531,7 @@ class AgentSessionStore: ObservableObject {
             }
             currentTurnOrigin = next.origin
             messages.append(AgentMessage(role: .user, content: next.text, images: next.images))
+            if next.origin == .user { preloadSkillIfRepeated(for: next.text) }
             saveCurrentConversation()
             streamingTokenCount = 0
             streamingTokensPerSecond = 0
@@ -2601,6 +2677,7 @@ class AgentSessionStore: ObservableObject {
         // 回合内护栏按回合计数：新回合从头数，上一回合没来得及注入的提醒作废。
         turnGuard = TurnGuard.State()
         pendingTurnNudge = nil
+        currentTurnUserText = messages.last(where: { $0.role == .user })?.content
         if let window = resolvedWindowTokens, lastPromptTokens > 0,
            Double(lastPromptTokens) > Double(window) * 0.85 {
             Log.agent.info("pre-turn compaction: last prompt \(self.lastPromptTokens) tokens > 85% of \(window)-token window")

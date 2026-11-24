@@ -54,6 +54,27 @@ nonisolated enum SkillVars {
         }
     }
 
+    /// 解析 frontmatter 的 `triggers:` 行（v0.8.76 批 3，重复指令直通技能）：
+    /// 逗号 / 顿号分隔的一行，或其后以 `- ` 开头的列表行。没有 → 空数组。
+    nonisolated static func triggerPhrases(frontmatter: String) -> [String] {
+        var out: [String] = []
+        var inList = false
+        for rawLine in frontmatter.components(separatedBy: .newlines) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            if line.hasPrefix("triggers:") {
+                inList = true
+                let rest = line.dropFirst("triggers:".count)
+                out += rest.split(whereSeparator: { ",，、".contains($0) })
+                    .map { $0.trimmingCharacters(in: .whitespaces) }
+            } else if inList, line.hasPrefix("- ") {
+                out.append(String(line.dropFirst(2)).trimmingCharacters(in: .whitespaces))
+            } else if !line.isEmpty {
+                inList = false
+            }
+        }
+        return out.filter { !$0.isEmpty }
+    }
+
     /// 从全文解析（frontmatterBlock + parse 组合）。
     nonisolated static func parse(_ text: String) -> [Var] {
         guard let block = frontmatterBlock(text) else { return [] }

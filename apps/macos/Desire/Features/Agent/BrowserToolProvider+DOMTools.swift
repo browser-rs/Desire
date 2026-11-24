@@ -1854,47 +1854,20 @@ extension BrowserToolProvider {
         case "useSkill":
             // Progressive disclosure: the name+description list rides in the
             // prompt; this loads the FULL instructions into the conversation.
+            // 加载与输出统一走 loadSkillText（"重复指令直通"共用同一份正文）。
+            let inputs = args["inputs"] as? [String: String] ?? [:]
             guard let name = args["name"] as? String, !name.isEmpty else {
                 return Self.fail("Missing skill name. Available: \(SkillStore.shared.skills.map(\.name).joined(separator: ", "))")
             }
-            guard let skill = SkillStore.shared.skills.first(where: { $0.name == name }),
-                  var body = SkillStore.shared.body(for: name) else {
-                return Self.fail("Skill not found: \(name). Available: \(SkillStore.shared.skills.map(\.name).joined(separator: ", "))")
-            }
-            // 参数槽位（v0.8.17）：inputs 填 {{name}}，缺省用 default；
-            // 都没有 → 按失败约定报缺失清单（模型可 askUser 或补参重试）。
-            if !skill.vars.isEmpty {
-                let inputs = args["inputs"] as? [String: String] ?? [:]
-                let missing = SkillVars.missing(declared: skill.vars, values: inputs, body: body)
-                guard missing.isEmpty else {
-                    return Self.fail("Skill '\(name)' declares vars (\(skill.vars.map(\.name).joined(separator: ", "))) — missing inputs: \(missing.joined(separator: ", "))")
-                }
-                var values = inputs
-                for var_ in skill.vars {
-                    if values[var_.name] == nil, let fallback = var_.defaultValue {
-                        values[var_.name] = fallback
-                    }
-                }
-                body = SkillVars.render(body: body, values: values)
-            }
+            let output = Self.loadSkillText(name: name, inputs: inputs)
+            guard !output.hasPrefix("Error:") else { return output }
             // 使用追踪（v0.8.72 批 2）：判定口径 = useSkill 成功加载（注入≠使用）。
             SkillStore.shared.recordUsage(name: name,
                                           conversationId: ownerSession?.conversationId)
             skillsUsedThisTurn.insert(name)
-            var output = "Skill '\(name)' loaded. Follow these instructions:\n\(body)"
-            // 技能安全扫描（Skill Scanner）：内容将驱动后续动作，提示模型
-            // 注意其中的高危形态（提示不拦截——拦截在审批链）。
-            if let risk = SkillScanner.summary(for: body) {
-                output += "\n\n⚠️ \(risk)：此技能包含危险命令形态，执行相关步骤时必须走审批流程，且逐条向用户复述将要运行的命令。"
-            }
-            // 多文件 skill：附属文件清单（readFile 按需读取）。
-            if let directory = skill.directory {
-                let companions = SkillStore.companionFiles(in: directory)
-                if !companions.isEmpty {
-                    output += "\n\nCompanion files (read with readFile when needed):\n"
-                    output += companions.map { "- \($0.absolute) (\($0.relative))" }.joined(separator: "\n")
-                }
-            }
+            // 触发样本（v0.8.76 批 3）：记下"加载这个技能时用户说了什么"——
+            // 同一句话下次再来，开局直接装好技能，不再从头摸索。
+            ownerSession?.recordSkillTrigger(name: name)
             return output
 
         case "recallConversation":

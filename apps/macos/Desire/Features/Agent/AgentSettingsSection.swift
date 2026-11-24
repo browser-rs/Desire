@@ -713,6 +713,13 @@ struct AgentSettingsSection: View {
                 )
                 SettingsRowDivider()
                 SettingsToggleRow(
+                    "Auto-Load Skills for Repeated Requests",
+                    subtitle: String(localized: "When a request matches what you said in earlier runs that used a skill, that skill's instructions are loaded up front instead of rediscovering the workflow. Needs at least two earlier runs of the same request; an ambiguous match loads nothing."),
+                    systemImage: "arrow.triangle.2.circlepath",
+                    isOn: $store.skillAutoLoad
+                )
+                SettingsRowDivider()
+                SettingsToggleRow(
                     "Cost-Aware Routing",
                     subtitle: String(localized: "When routing is on, simple short text-only turns run on the free on-device or Ollama model instead of the cloud — complex and tool-using turns still go to the cloud."),
                     systemImage: "scalemass",

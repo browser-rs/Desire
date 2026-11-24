@@ -63,9 +63,9 @@ nonisolated enum ToolResultSpill {
     /// 转存目录最近一次 GC 时间（Doctor 显示用）。
     static var lastGCAt: Date? {
         get {
-            UserDefaults.standard.object(forKey: lastGCKey) as? Date
+            AppPrefs.defaults.object(forKey: lastGCKey) as? Date
         }
-        set { UserDefaults.standard.set(newValue, forKey: lastGCKey) }
+        set { AppPrefs.defaults.set(newValue, forKey: lastGCKey) }
     }
 
     /// 转存目录清理：容量 1GB + 30 天双阈值（判定纯逻辑在 ArchiveGC），

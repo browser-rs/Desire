@@ -74,12 +74,12 @@ final class ProfileStore: ObservableObject {
         // Chrome 语义：删人物即删其数据。
         if let active = activeProfileID, active == id {
             activeProfileID = nil
-            UserDefaults.standard.removeObject(forKey: "desire.activeProfile")
+            AppPrefs.defaults.removeObject(forKey: "desire.activeProfile")
         }
         for key in Self.scopedBucketKeys(id: id) {
             DiskStore.remove(key: key)
         }
-        UserDefaults.standard.removeObject(forKey: "desire.webext.storage.\(id.uuidString)")
+        AppPrefs.defaults.removeObject(forKey: "desire.webext.storage.\(id.uuidString)")
     }
 
     /// 与各 store 的 scopedKey 规则保持一致（新增作用域 store 时同步）。

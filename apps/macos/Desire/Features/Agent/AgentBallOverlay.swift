@@ -24,15 +24,15 @@ struct AgentBallOverlay: View {
     @ObservedObject var state: AgentBallPanel
     @Environment(\.appAccent) private var appAccent: Color
 
-    @AppStorage(AgentBallPanel.sizeKey) private var ballSize: Double = 52
-    @AppStorage(AgentBallPanel.edgeKey) private var edge: String = "left"
-    @AppStorage(AgentBallPanel.offsetKey) private var offsetFraction: Double = 0.5
+    @AppStorage(AgentBallPanel.sizeKey, store: AppPrefs.defaults) private var ballSize: Double = 52
+    @AppStorage(AgentBallPanel.edgeKey, store: AppPrefs.defaults) private var edge: String = "left"
+    @AppStorage(AgentBallPanel.offsetKey, store: AppPrefs.defaults) private var offsetFraction: Double = 0.5
     // v6 个性化（悬浮球设置子页）。
-    @AppStorage(AgentBallPanel.opacityKey) private var ballOpacity: Double = 1.0
-    @AppStorage(AgentBallPanel.idleStyleKey) private var idleStyle: String = "ring"
-    @AppStorage(AgentBallPanel.hubScaleKey) private var hubScale: Double = 1.0
-    @AppStorage(AgentBallPanel.hubAnimationKey) private var hubAnimation: Bool = true
-    @AppStorage(AgentBallPanel.doubleClickVoiceKey) private var doubleClickVoice: Bool = true
+    @AppStorage(AgentBallPanel.opacityKey, store: AppPrefs.defaults) private var ballOpacity: Double = 1.0
+    @AppStorage(AgentBallPanel.idleStyleKey, store: AppPrefs.defaults) private var idleStyle: String = "ring"
+    @AppStorage(AgentBallPanel.hubScaleKey, store: AppPrefs.defaults) private var hubScale: Double = 1.0
+    @AppStorage(AgentBallPanel.hubAnimationKey, store: AppPrefs.defaults) private var hubAnimation: Bool = true
+    @AppStorage(AgentBallPanel.doubleClickVoiceKey, store: AppPrefs.defaults) private var doubleClickVoice: Bool = true
 
     /// 球心**不存储绝对坐标**：静止位置永远由持久化 (edge, offsetFraction)
     /// + 当前窗口尺寸推导。存绝对坐标会在窗口冷启动布局链（实测 geo 走

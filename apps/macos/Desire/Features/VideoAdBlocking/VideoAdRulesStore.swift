@@ -94,14 +94,14 @@ final class VideoAdRulesStore: ObservableObject {
     var remoteURL: URL? {
         // P1-13：source.txt 的同步读盘按代数缓存（此前每次导航都读盘）。
         if let cached = remoteSourceCache, cached.gen == generation {
-            return Self.parseURL(cached.source) ?? UserDefaults.standard.string(forKey: "videoAdRulesRemoteURL").flatMap(Self.parseURL) ?? Self.defaultRemoteURL
+            return Self.parseURL(cached.source) ?? AppPrefs.defaults.string(forKey: "videoAdRulesRemoteURL").flatMap(Self.parseURL) ?? Self.defaultRemoteURL
         }
         let text = (try? String(contentsOf: Self.remoteSourceFileURL, encoding: .utf8)) ?? ""
         remoteSourceCache = (generation, text)
         if let url = Self.parseURL(text) {
             return url
         }
-        if let raw = UserDefaults.standard.string(forKey: "videoAdRulesRemoteURL"),
+        if let raw = AppPrefs.defaults.string(forKey: "videoAdRulesRemoteURL"),
            let url = Self.parseURL(raw) {
             return url
         }
@@ -120,8 +120,8 @@ final class VideoAdRulesStore: ObservableObject {
     // MARK: - Lifecycle
 
     private init() {
-        remoteScriptsTrusted = UserDefaults.standard.bool(forKey: Self.trustKey)
-        remoteFetchedAt = UserDefaults.standard.object(forKey: Self.fetchedAtKey) as? Date
+        remoteScriptsTrusted = AppPrefs.defaults.bool(forKey: Self.trustKey)
+        remoteFetchedAt = AppPrefs.defaults.object(forKey: Self.fetchedAtKey) as? Date
         prepareDirectory()
         reloadLocalRules()
         loadRemoteCacheFromDisk()
@@ -328,7 +328,7 @@ final class VideoAdRulesStore: ObservableObject {
     func setRemoteScriptsTrusted(_ trusted: Bool) {
         guard trusted != remoteScriptsTrusted else { return }
         remoteScriptsTrusted = trusted
-        UserDefaults.standard.set(trusted, forKey: Self.trustKey)
+        AppPrefs.defaults.set(trusted, forKey: Self.trustKey)
         // P1-14：已开标签的冻结脚本写的是旧语义（未信任=内置 JS），gen 不变则
         // didFinish 补投被代数守卫挡回——远程 JS 永不生效。推进代数强制重投。
         generation += 1
@@ -383,7 +383,7 @@ final class VideoAdRulesStore: ObservableObject {
             generation += 1
             cssInstallScriptCache = nil
             remoteSourceCache = nil
-            UserDefaults.standard.set(remoteFetchedAt, forKey: Self.fetchedAtKey)
+            AppPrefs.defaults.set(remoteFetchedAt, forKey: Self.fetchedAtKey)
             lastError = nil
         } catch {
             lastError = (error as? Refusal)?.message ?? error.localizedDescription

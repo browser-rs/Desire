@@ -256,12 +256,12 @@ class HistoryStore: ObservableObject {
         // Migrated store: read from DiskStore first.
         if let decoded = DiskStore.load([HistoryEntry].self, key: storageKey) {
             entries = Self.normalize(decoded)
-        } else if let data = UserDefaults.standard.data(forKey: legacyKey),
+        } else if let data = AppPrefs.defaults.data(forKey: legacyKey),
                   let decoded = try? JSONDecoder().decode([HistoryEntry].self, from: data) {
             // One-time migration from legacy UserDefaults blob.
             entries = Self.normalize(decoded)
             DiskStore.save(entries, key: storageKey)
-            UserDefaults.standard.removeObject(forKey: legacyKey)
+            AppPrefs.defaults.removeObject(forKey: legacyKey)
         }
         pendingDeletions = DiskStore.load([UUID: Date].self, key: deletionsKey) ?? [:]
     }

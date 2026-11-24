@@ -12391,22 +12391,13 @@ do {
 // ---------- HermeticLaunchGuard 封闭启动守卫（v0.8.76） ----------
 
 do {
-    let env = ["HOME": "/Users/x", "PATH": "/usr/bin"]
-    check("守卫：正常启动不受影响", HermeticLaunchGuard.verdict(arguments: ["Desire"], environment: env) == .normalLaunch)
-    check("守卫：普通 --automation 不带 data-dir 也照常启动", HermeticLaunchGuard.verdict(
-        arguments: ["Desire", "--automation"], environment: env) == .normalLaunch)
-    check("守卫：带 data-dir 但没隔离偏好 → 拒绝", HermeticLaunchGuard.verdict(
-        arguments: ["Desire", "--automation", "--data-dir=/tmp/d"], environment: env) == .hermeticNotIsolated)
-    check("守卫：环境变量为空串也算没隔离", HermeticLaunchGuard.verdict(
-        arguments: ["Desire", "--data-dir=/tmp/d"], environment: ["CFFIXED_USER_HOME": "  "]) == .hermeticNotIsolated)
-    check("守卫：data-dir 与隔离环境都带 → 放行", HermeticLaunchGuard.verdict(
-        arguments: ["Desire", "--automation", "--data-dir=/tmp/d"],
-        environment: ["CFFIXED_USER_HOME": "/tmp/d/home"]) == .hermeticIsolated(fixedHome: "/tmp/d/home"))
-    // 封闭判据与存储根同源：只要存储根判定为封闭，守卫就必须要求隔离
-    let saved = CommandLine.arguments
-    _ = saved
-    check("守卫：--data-dir 出现在任意位置都算封闭", HermeticLaunchGuard.verdict(
-        arguments: ["--automation", "--data-dir=/tmp/d", "extra"], environment: env) == .hermeticNotIsolated)
+    check("守卫：正常启动不受影响", HermeticLaunchGuard.verdict(isOverridden: false, isolated: false) == .normalLaunch)
+    check("守卫：封闭启动且偏好入口是独立域 → 放行", HermeticLaunchGuard.verdict(isOverridden: true, isolated: true)
+          == .hermeticIsolated(suite: AppPrefs.automationSuiteName))
+    check("守卫：封闭启动但偏好入口仍是用户的 → 拒绝", HermeticLaunchGuard.verdict(isOverridden: true, isolated: false) == .hermeticNotIsolated)
+    check("守卫：独立域名固定（不随目录变，避免在偏好目录堆积）", AppPrefs.automationSuiteName == "me.siwi.Desire.automation")
+    // 进程内真实状态：这个测试进程没带 --data-dir → 入口就是 .standard
+    check("守卫：非封闭进程的偏好入口就是 .standard", !AppPrefs.isIsolated && AppPrefs.defaults === UserDefaults.standard)
 }
 
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块

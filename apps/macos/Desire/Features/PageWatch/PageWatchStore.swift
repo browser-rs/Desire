@@ -23,7 +23,7 @@ final class PageWatchStore: ObservableObject {
         didSet { defaults.set(digestHour, forKey: Self.digestHourKey) }
     }
 
-    private let defaults = UserDefaults.standard
+    private let defaults = AppPrefs.defaults
     private static let digestEnabledKey = "pageWatch.digest.enabled"
     private static let digestHourKey = "pageWatch.digest.hour"
     private static let lastDigestDayKey = "pageWatch.digest.lastDay"
@@ -35,8 +35,8 @@ final class PageWatchStore: ObservableObject {
     private static let maxTextLength = 20_000
 
     private init() {
-        digestEnabled = UserDefaults.standard.object(forKey: Self.digestEnabledKey) as? Bool ?? false
-        let storedHour = UserDefaults.standard.object(forKey: Self.digestHourKey) as? Int ?? 9
+        digestEnabled = AppPrefs.defaults.object(forKey: Self.digestEnabledKey) as? Bool ?? false
+        let storedHour = AppPrefs.defaults.object(forKey: Self.digestHourKey) as? Int ?? 9
         digestHour = min(23, max(0, storedHour))
         watches = DiskStore.load([PageWatch].self, key: Self.storageKey) ?? []
         startClock()

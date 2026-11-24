@@ -48,7 +48,7 @@ struct AgentSettingsSection: View {
     /// 周报（周期性确定性回顾；自持 store）。
     @ObservedObject var weeklyDigest = WeeklyDigestStore.shared
     /// 报告流水线：是否同时写备忘录（UserDefaults 持久化，调度器读同一键）。
-    @AppStorage("agent.weeklyReport.writeToNotes") private var weeklyBoardToNotes = false
+    @AppStorage("agent.weeklyReport.writeToNotes", store: AppPrefs.defaults) private var weeklyBoardToNotes = false
     /// 生命周期钩子（beforeToolCall / turnFinish 用户脚本）。
     @ObservedObject var hooks = AgentHooksStore.shared
 
@@ -326,7 +326,7 @@ struct AgentSettingsSection: View {
             ) {
                 SettingsRow("Enable", subtitle: String(localized: "Off by default — the agent can also toggle this with toggleAutoAdClean."), systemImage: "sparkles.rectangle.stack") {
                     Toggle("", isOn: Binding(
-                        get: { UserDefaults.standard.bool(forKey: "aiAutoAdClean") },
+                        get: { AppPrefs.defaults.bool(forKey: "aiAutoAdClean") },
                         set: { AutoAdClean.shared.setEnabled($0) }
                     ))
                     .labelsHidden()
@@ -2258,8 +2258,8 @@ private struct ScheduledTaskRow: View {
 /// 成本预算设置节（v0.8.19）：日/月预算（美元/0=关），回合收尾对账——
 /// ≥80% routine 提醒、≥100% urgent（每档每天至多一次）。
 private struct CostBudgetSection: View {
-    @AppStorage("costBudget.daily") private var daily = 0.0
-    @AppStorage("costBudget.monthly") private var monthly = 0.0
+    @AppStorage("costBudget.daily", store: AppPrefs.defaults) private var daily = 0.0
+    @AppStorage("costBudget.monthly", store: AppPrefs.defaults) private var monthly = 0.0
 
     var body: some View {
         SettingsSection(

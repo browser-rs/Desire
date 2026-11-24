@@ -103,14 +103,14 @@ struct CommandPalette: View {
     private static let recentsCap = 12
 
     static func recentCommandIDs() -> [String] {
-        UserDefaults.standard.stringArray(forKey: recentsKey) ?? []
+        AppPrefs.defaults.stringArray(forKey: recentsKey) ?? []
     }
 
     static func recordUse(_ id: String) {
         var list = recentCommandIDs()
         list.removeAll { $0 == id }
         list.insert(id, at: 0)
-        UserDefaults.standard.set(Array(list.prefix(recentsCap)), forKey: recentsKey)
+        AppPrefs.defaults.set(Array(list.prefix(recentsCap)), forKey: recentsKey)
     }
 
     /// 命令行的检索行：最近使用在前，其余保持目录顺序（显式 order 键，

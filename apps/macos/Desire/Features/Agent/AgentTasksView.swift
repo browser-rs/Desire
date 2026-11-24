@@ -114,7 +114,7 @@ struct AgentTasksView: View {
 
     private var crewReportTemplateSection: some View {
         Button {
-            reportTemplateDraft = UserDefaults.standard.string(forKey: "crew.reportTemplate") ?? ""
+            reportTemplateDraft = AppPrefs.defaults.string(forKey: "crew.reportTemplate") ?? ""
             showReportTemplateEditor = true
         } label: {
             HStack(spacing: 6) {
@@ -124,7 +124,7 @@ struct AgentTasksView: View {
                 Text("Crew Report Template…")
                     .font(.system(size: 11.5))
                 Spacer()
-                if UserDefaults.standard.string(forKey: "crew.reportTemplate")?.isEmpty == false {
+                if AppPrefs.defaults.string(forKey: "crew.reportTemplate")?.isEmpty == false {
                     Text(String(localized: "customized"))
                         .font(.system(size: 9.5))
                         .foregroundStyle(appAccent)
@@ -155,7 +155,7 @@ struct AgentTasksView: View {
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.25)))
             HStack {
                 Button(String(localized: "Reset to Built-in")) {
-                    UserDefaults.standard.removeObject(forKey: "crew.reportTemplate")
+                    AppPrefs.defaults.removeObject(forKey: "crew.reportTemplate")
                     reportTemplateDraft = ""
                 }
                 Spacer()
@@ -164,9 +164,9 @@ struct AgentTasksView: View {
                 Button(String(localized: "Save")) {
                     let trimmed = reportTemplateDraft.trimmingCharacters(in: .whitespacesAndNewlines)
                     if trimmed.isEmpty {
-                        UserDefaults.standard.removeObject(forKey: "crew.reportTemplate")
+                        AppPrefs.defaults.removeObject(forKey: "crew.reportTemplate")
                     } else {
-                        UserDefaults.standard.set(trimmed, forKey: "crew.reportTemplate")
+                        AppPrefs.defaults.set(trimmed, forKey: "crew.reportTemplate")
                     }
                     showReportTemplateEditor = false
                 }

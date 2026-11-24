@@ -6,12 +6,12 @@ struct AgentBallSettingsView: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject private var ball = AgentBallPanel.shared
-    @AppStorage(AgentBallPanel.sizeKey) private var ballSize: Double = 52
-    @AppStorage(AgentBallPanel.opacityKey) private var ballOpacity: Double = 1.0
-    @AppStorage(AgentBallPanel.idleStyleKey) private var idleStyle: String = "ring"
-    @AppStorage(AgentBallPanel.hubScaleKey) private var hubScale: Double = 1.0
-    @AppStorage(AgentBallPanel.hubAnimationKey) private var hubAnimation: Bool = true
-    @AppStorage(AgentBallPanel.doubleClickVoiceKey) private var doubleClickVoice: Bool = true
+    @AppStorage(AgentBallPanel.sizeKey, store: AppPrefs.defaults) private var ballSize: Double = 52
+    @AppStorage(AgentBallPanel.opacityKey, store: AppPrefs.defaults) private var ballOpacity: Double = 1.0
+    @AppStorage(AgentBallPanel.idleStyleKey, store: AppPrefs.defaults) private var idleStyle: String = "ring"
+    @AppStorage(AgentBallPanel.hubScaleKey, store: AppPrefs.defaults) private var hubScale: Double = 1.0
+    @AppStorage(AgentBallPanel.hubAnimationKey, store: AppPrefs.defaults) private var hubAnimation: Bool = true
+    @AppStorage(AgentBallPanel.doubleClickVoiceKey, store: AppPrefs.defaults) private var doubleClickVoice: Bool = true
     /// 重置操作的轻确认（按钮文字短暂变化，不弹窗）。
     @State private var slotsResetFlash = false
     @State private var positionResetFlash = false

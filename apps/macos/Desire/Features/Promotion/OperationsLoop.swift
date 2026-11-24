@@ -18,7 +18,7 @@ final class OperationsLoop: ObservableObject {
     private init() {}
 
     var lastRunAt: Date? {
-        UserDefaults.standard.object(forKey: Self.lastRunKey) as? Date
+        AppPrefs.defaults.object(forKey: Self.lastRunKey) as? Date
     }
 
     /// 手动触发（▶ 按钮）或定时到点。
@@ -47,7 +47,7 @@ final class OperationsLoop: ObservableObject {
             lastRunAt: lastRun)
 
         lastReport = report
-        UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Self.lastRunKey)
+        AppPrefs.defaults.set(Date().timeIntervalSince1970, forKey: Self.lastRunKey)
 
         // Jobs 账本：一条汇总 Job。
         let jobID = JobStore.shared.start(
@@ -107,8 +107,8 @@ final class OperationsLoop: ObservableObject {
             let summary = try await sync.fetchGrowthSummary(days: 7)
             let encoded = try JSONEncoder().encode(summary.totals)
             let key = "operations.loop.lastAttribution"
-            let previous = UserDefaults.standard.data(forKey: key)
-            UserDefaults.standard.set(encoded, forKey: key)
+            let previous = AppPrefs.defaults.data(forKey: key)
+            AppPrefs.defaults.set(encoded, forKey: key)
             guard let previous,
                   let oldTotals = try? JSONDecoder().decode(GrowthSummary.Totals.self, from: previous) else {
                 // 首次：不报变化。

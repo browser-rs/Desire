@@ -44,24 +44,24 @@ final class SystemCommandStore: ObservableObject {
 
     func setWorkingDirectory(_ url: URL) {
         workingDirectory = url
-        UserDefaults.standard.set(url.path, forKey: "agentWorkingDirectory")
+        AppPrefs.defaults.set(url.path, forKey: "agentWorkingDirectory")
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     }
 
     func resetWorkingDirectory() {
-        UserDefaults.standard.removeObject(forKey: "agentWorkingDirectory")
+        AppPrefs.defaults.removeObject(forKey: "agentWorkingDirectory")
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         setWorkingDirectory(documents.appendingPathComponent("DesireAgent", isDirectory: true))
     }
 
     private init() {
-        let stored = UserDefaults.standard.stringArray(forKey: Self.key) ?? []
+        let stored = AppPrefs.defaults.stringArray(forKey: Self.key) ?? []
         allowedBinaries = stored.isEmpty ? Self.defaultBinaries : Set(stored)
         // 封闭模式（--data-dir，v0.8.75 批 3）：runCommand 的工作目录重定向
         // 进 dataDir——用户的 stored 偏好不进测试视野。
         if StorageRoot.isOverridden {
             workingDirectory = StorageRoot.directory.appendingPathComponent("agent-workspace", isDirectory: true)
-        } else if let storedPath = UserDefaults.standard.string(forKey: "agentWorkingDirectory") {
+        } else if let storedPath = AppPrefs.defaults.string(forKey: "agentWorkingDirectory") {
             workingDirectory = URL(fileURLWithPath: storedPath)
         } else {
             let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -71,7 +71,7 @@ final class SystemCommandStore: ObservableObject {
     }
 
     private func save() {
-        UserDefaults.standard.set(Array(allowedBinaries).sorted(), forKey: Self.key)
+        AppPrefs.defaults.set(Array(allowedBinaries).sorted(), forKey: Self.key)
     }
 
     func allow(_ binary: String) {
@@ -126,7 +126,7 @@ final class SystemCommandStore: ObservableObject {
     func resolveAllowedBinary(_ tool: String) async -> Result<URL, CommandLaunchError> {
         let name = tool.trimmingCharacters(in: .whitespaces).lowercased()
         guard !name.isEmpty else { return .failure(CommandLaunchError("Missing tool")) }
-        if UserDefaults.standard.integer(forKey: "aiAccessLevel") == AgentSessionStore.AccessLevel.fullAccess.rawValue {
+        if AppPrefs.defaults.integer(forKey: "aiAccessLevel") == AgentSessionStore.AccessLevel.fullAccess.rawValue {
             Log.agent.info("full access: binary '\(tool, privacy: .public)' runs without allowlist negotiation")
         } else if !allowedBinaries.contains(name) {
             let question = String(

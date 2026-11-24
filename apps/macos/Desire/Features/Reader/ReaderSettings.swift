@@ -13,7 +13,7 @@ struct ReaderSettings {
     }
 
     static func load() -> ReaderSettings {
-        let d = UserDefaults.standard
+        let d = AppPrefs.defaults
         return ReaderSettings(
             fontSize: d.object(forKey: "reader.fontSize") as? Int ?? 18,
             theme: Theme(rawValue: d.string(forKey: "reader.theme") ?? "") ?? .auto,
@@ -26,7 +26,7 @@ struct ReaderSettings {
         var settings = load()
         guard let host, !host.isEmpty else { return settings }
         let prefix = "reader.site.\(host.lowercased())."
-        let d = UserDefaults.standard
+        let d = AppPrefs.defaults
         if let size = d.object(forKey: prefix + "fontSize") as? Int { settings.fontSize = size }
         if let raw = d.string(forKey: prefix + "theme"),
            let theme = Theme(rawValue: raw) { settings.theme = theme }
@@ -37,7 +37,7 @@ struct ReaderSettings {
     }
 
     func save() {
-        let d = UserDefaults.standard
+        let d = AppPrefs.defaults
         d.set(fontSize, forKey: "reader.fontSize")
         d.set(theme.rawValue, forKey: "reader.theme")
         d.set(lineSpacing, forKey: "reader.lineSpacing")
@@ -47,7 +47,7 @@ struct ReaderSettings {
     func saveForSite(_ host: String?) {
         guard let host, !host.isEmpty else { return }
         let prefix = "reader.site.\(host.lowercased())."
-        let d = UserDefaults.standard
+        let d = AppPrefs.defaults
         d.set(fontSize, forKey: prefix + "fontSize")
         d.set(theme.rawValue, forKey: prefix + "theme")
         d.set(lineSpacing, forKey: prefix + "lineSpacing")
@@ -56,7 +56,7 @@ struct ReaderSettings {
     static func clearSiteOverride(_ host: String?) {
         guard let host, !host.isEmpty else { return }
         let prefix = "reader.site.\(host.lowercased())."
-        let d = UserDefaults.standard
+        let d = AppPrefs.defaults
         d.removeObject(forKey: prefix + "fontSize")
         d.removeObject(forKey: prefix + "theme")
         d.removeObject(forKey: prefix + "lineSpacing")

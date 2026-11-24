@@ -528,7 +528,7 @@ final class AgentScheduler: ObservableObject {
         let taskName = record.taskName
         let runID = record.id
         let limit = {
-            let raw = UserDefaults.standard.integer(forKey: "scheduledTaskRetries")
+            let raw = AppPrefs.defaults.integer(forKey: "scheduledTaskRetries")
             return (1...3).contains(raw) ? raw : 1
         }()
         guard record.attempts < 1 + limit else { return }
@@ -650,7 +650,7 @@ final class AgentScheduler: ObservableObject {
         // 目标已关或未点名 → 回落"最新注册的活会话"（与历史行为一致）。
         // `agent.background.force`（自动化/自检用）：即使有活窗口也走后台
         // Runner——用于在不动用户标签页的前提下验证无头执行链路。
-        if UserDefaults.standard.bool(forKey: "agent.background.force") {
+        if AppPrefs.defaults.bool(forKey: "agent.background.force") {
             startBackground(task: task, runID: runID, attempts: attempts,
                             taskIndex: taskIndex)
             return
@@ -749,7 +749,7 @@ final class AgentScheduler: ObservableObject {
         switch builtin {
         case "weeklyReport":
             Task { @MainActor [weak self] in
-                let writeToNotes = UserDefaults.standard.bool(forKey: "agent.weeklyReport.writeToNotes")
+                let writeToNotes = AppPrefs.defaults.bool(forKey: "agent.weeklyReport.writeToNotes")
                 let outcome = await WeeklyReportPipeline.run(days: 7, writeToNotes: writeToNotes)
                 self?.updateRun(id: runID) {
                     $0.status = "success"

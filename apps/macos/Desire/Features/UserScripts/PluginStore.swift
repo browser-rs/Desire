@@ -28,7 +28,7 @@ class PluginStore: ObservableObject {
     /// 重新启用；默认开启保持现有用户预期。
     private func seedBuiltInAdGuardIfNeeded() {
         guard !plugins.contains(where: { $0.id == Self.builtInAdGuardID }) else { return }
-        let legacyEnabled = UserDefaults.standard.object(forKey: "videoAdBlockerEnabled") as? Bool ?? true
+        let legacyEnabled = AppPrefs.defaults.object(forKey: "videoAdBlockerEnabled") as? Bool ?? true
         plugins.append(Plugin(
             id: Self.builtInAdGuardID,
             name: String(localized: "Ad Blocker (built-in)"),
@@ -262,11 +262,11 @@ class PluginStore: ObservableObject {
             return
         }
         // One-time migration from the legacy UserDefaults blob.
-        if let data = UserDefaults.standard.data(forKey: saveKey),
+        if let data = AppPrefs.defaults.data(forKey: saveKey),
            let decoded = try? JSONDecoder().decode([Plugin].self, from: data) {
             plugins = decoded
             save()
-            UserDefaults.standard.removeObject(forKey: saveKey)
+            AppPrefs.defaults.removeObject(forKey: saveKey)
         }
     }
 

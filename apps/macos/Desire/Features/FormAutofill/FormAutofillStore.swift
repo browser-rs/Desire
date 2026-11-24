@@ -21,11 +21,11 @@ class FormAutofillStore: ObservableObject {
             return
         }
         // One-time migration from the legacy UserDefaults blob.
-        if let data = UserDefaults.standard.data(forKey: key),
+        if let data = AppPrefs.defaults.data(forKey: key),
            let decoded = try? JSONDecoder().decode(FormAutofillProfile.self, from: data) {
             self.profile = decoded
             DiskStore.save(decoded, key: key)
-            UserDefaults.standard.removeObject(forKey: key)
+            AppPrefs.defaults.removeObject(forKey: key)
             return
         }
         self.profile = empty

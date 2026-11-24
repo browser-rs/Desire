@@ -45,7 +45,7 @@ struct EbookReaderView: View {
         let id = UUID()
         let image: NSImage
     }
-    @AppStorage("ebook.translation.target") private var translationTargetCode = "system"
+    @AppStorage("ebook.translation.target", store: AppPrefs.defaults) private var translationTargetCode = "system"
     @FocusState private var searchFocused: Bool
 
     private enum TranslationJob {

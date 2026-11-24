@@ -39,8 +39,8 @@ struct MediaViewerView: View {
     /// 命中层引用（窗口按画面比例缩放时读 window 与实际播放面积）。
     @State private var surfaceView: PlayerSurfaceView?
     // 字幕样式（按应用记忆）。
-    @AppStorage("media.subtitleScale") private var subtitleScale = 1.0
-    @AppStorage("media.subtitlePosition") private var subtitlePosition = "bottom"
+    @AppStorage("media.subtitleScale", store: AppPrefs.defaults) private var subtitleScale = 1.0
+    @AppStorage("media.subtitlePosition", store: AppPrefs.defaults) private var subtitlePosition = "bottom"
 
     init(fileURL: URL, fileName: String, onBack: @escaping () -> Void,
          onEdit: (() -> Void)? = nil, onImmersiveChange: ((Bool) -> Void)? = nil,

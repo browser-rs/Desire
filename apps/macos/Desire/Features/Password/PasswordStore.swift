@@ -101,14 +101,14 @@ class PasswordStore: ObservableObject {
 
     /// Domains the user chose "Never for This Site" on.
     func isSuppressed(domain: String) -> Bool {
-        (UserDefaults.standard.stringArray(forKey: Self.suppressedKey) ?? []).contains(domain)
+        (AppPrefs.defaults.stringArray(forKey: Self.suppressedKey) ?? []).contains(domain)
     }
 
     func suppress(domain: String) {
-        var list = UserDefaults.standard.stringArray(forKey: Self.suppressedKey) ?? []
+        var list = AppPrefs.defaults.stringArray(forKey: Self.suppressedKey) ?? []
         if !list.contains(domain) {
             list.append(domain)
-            UserDefaults.standard.set(list, forKey: Self.suppressedKey)
+            AppPrefs.defaults.set(list, forKey: Self.suppressedKey)
         }
     }
 

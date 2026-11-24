@@ -40,7 +40,7 @@ struct SearchEverywherePanel: View {
 
     @State private var query = ""
     @State private var mode: SearchMode =
-        SearchMode(rawValue: UserDefaults.standard.string(forKey: "search.everywhere.mode") ?? "") ?? .smart
+        SearchMode(rawValue: AppPrefs.defaults.string(forKey: "search.everywhere.mode") ?? "") ?? .smart
     @State private var result = SearchEverywhere.Result()
     @State private var searchTask: Task<Void, Never>?
     /// 键盘导航：扁平化的可选中行（分组展平，与渲染顺序一致）。
@@ -296,7 +296,7 @@ struct SearchEverywherePanel: View {
         .padding(.horizontal, 12)
         .padding(.bottom, 8)
         .onChange(of: mode) { _, value in
-            UserDefaults.standard.set(value.rawValue, forKey: "search.everywhere.mode")
+            AppPrefs.defaults.set(value.rawValue, forKey: "search.everywhere.mode")
             // 档位变了先作废在飞请求，避免旧档结果覆盖新档。
             searchTask?.cancel()
             let q = query

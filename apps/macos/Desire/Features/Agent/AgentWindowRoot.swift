@@ -32,7 +32,7 @@ struct AgentWindowRoot: View {
     /// 侧栏展开/收起后回调（宿主借此调整窗口 minSize、放宽过窄的窗口）。
     var onSidebarVisibilityChanged: ((Bool) -> Void)? = nil
 
-    @State private var isSidebarExpanded = UserDefaults.standard.bool(forKey: AgentWindowRoot.sidebarKey)
+    @State private var isSidebarExpanded = AppPrefs.defaults.bool(forKey: AgentWindowRoot.sidebarKey)
     @State private var destination: AgentWindowDestination = .chat
 
     /// `bool(forKey:)` 对不存在的键返回 false = 默认折叠。
@@ -40,7 +40,7 @@ struct AgentWindowRoot: View {
 
     /// 与 isSidebarExpanded 双向映射（NavigationSplitView 的显隐枚举）。
     @State private var columnVisibility: NavigationSplitViewVisibility =
-        UserDefaults.standard.bool(forKey: AgentWindowRoot.sidebarKey) ? .all : .detailOnly
+        AppPrefs.defaults.bool(forKey: AgentWindowRoot.sidebarKey) ? .all : .detailOnly
 
     var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
@@ -153,7 +153,7 @@ struct AgentWindowRoot: View {
             // 此时 isSidebarExpanded 已同步、guard 直接返回——无递归。
             columnVisibility = expanded ? .all : .detailOnly
         }
-        UserDefaults.standard.set(expanded, forKey: Self.sidebarKey)
+        AppPrefs.defaults.set(expanded, forKey: Self.sidebarKey)
         onSidebarVisibilityChanged?(expanded)
     }
 }

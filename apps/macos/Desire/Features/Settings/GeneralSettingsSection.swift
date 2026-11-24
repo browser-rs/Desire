@@ -5,9 +5,9 @@ import UniformTypeIdentifiers
 
 struct GeneralSettingsSection: View {
     /// 自动备份调度（v0.8.19 替人干活 18）。
-    @AppStorage("backup.schedule") private var backupSchedule = "off"
-    @AppStorage("backup.keep") private var backupKeep = 5
-    @AppStorage("backup.scheduleHour") private var backupHour = 9
+    @AppStorage("backup.schedule", store: AppPrefs.defaults) private var backupSchedule = "off"
+    @AppStorage("backup.keep", store: AppPrefs.defaults) private var backupKeep = 5
+    @AppStorage("backup.scheduleHour", store: AppPrefs.defaults) private var backupHour = 9
     /// 归档规则编辑（v0.8.18 替人干活 14）。
     @State private var showArchiveRules = false
     @ObservedObject var settings: Settings
@@ -24,7 +24,7 @@ struct GeneralSettingsSection: View {
     /// 由系统决定，无法热切换。初值钳制到合法选项：残留的非法值会
     /// 让 Picker 无法匹配任何 tag（下拉无勾选、按钮无回显）。
     @State private var appLanguage: String = {
-        let raw = UserDefaults.standard
+        let raw = AppPrefs.defaults
             .stringArray(forKey: "AppleLanguages")?.first ?? "system"
         return ["system", "zh-Hans", "zh-Hant", "en"].contains(raw) ? raw : "system"
     }()
@@ -521,7 +521,7 @@ struct GeneralSettingsSection: View {
                         Text(String(localized: "Last scheduled run"))
                             .font(.system(size: 12.5))
                         Spacer()
-                        Text(UserDefaults.standard.string(forKey: "backup.lastRun") ?? "—")
+                        Text(AppPrefs.defaults.string(forKey: "backup.lastRun") ?? "—")
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(.tertiary)
                     }
@@ -665,9 +665,9 @@ struct GeneralSettingsSection: View {
         }
         .onChange(of: appLanguage) { _, code in
             if code == "system" {
-                UserDefaults.standard.removeObject(forKey: "AppleLanguages")
+                AppPrefs.defaults.removeObject(forKey: "AppleLanguages")
             } else {
-                UserDefaults.standard.set([code], forKey: "AppleLanguages")
+                AppPrefs.defaults.set([code], forKey: "AppleLanguages")
             }
         }
     }
@@ -703,8 +703,8 @@ struct GeneralSettingsSection: View {
     /// 无需发布链）。
     private var maxConcurrentDownloadsBinding: Binding<Int> {
         Binding(
-            get: { UserDefaults.standard.object(forKey: "maxConcurrentDownloads") as? Int ?? 0 },
-            set: { UserDefaults.standard.set($0, forKey: "maxConcurrentDownloads") }
+            get: { AppPrefs.defaults.object(forKey: "maxConcurrentDownloads") as? Int ?? 0 },
+            set: { AppPrefs.defaults.set($0, forKey: "maxConcurrentDownloads") }
         )
     }
 
@@ -1689,8 +1689,8 @@ private struct BrowserImportRow: View {
 
 /// 下载策略（v0.8.0）：低电量暂停 + 完成文件按类型归档。
 private struct DownloadPolicyRow: View {
-    @AppStorage("downloads.pauseOnLowPower") private var pauseOnLowPower = true
-    @AppStorage("downloads.organizeByType") private var organizeByType = false
+    @AppStorage("downloads.pauseOnLowPower", store: AppPrefs.defaults) private var pauseOnLowPower = true
+    @AppStorage("downloads.organizeByType", store: AppPrefs.defaults) private var organizeByType = false
 
     var body: some View {
         SettingsRow(
@@ -1749,7 +1749,7 @@ private struct MutedDownloadHostsRow: View {
     @State private var hosts: [String] = []
 
     private func reload() {
-        hosts = (UserDefaults.standard.stringArray(forKey: "downloadSuggest.disabledHosts") ?? []).sorted()
+        hosts = (AppPrefs.defaults.stringArray(forKey: "downloadSuggest.disabledHosts") ?? []).sorted()
     }
 
     var body: some View {
@@ -1771,7 +1771,7 @@ private struct MutedDownloadHostsRow: View {
             Spacer()
             if !hosts.isEmpty {
                 SettingsCapsuleButton("Unmute All") {
-                    UserDefaults.standard.removeObject(forKey: "downloadSuggest.disabledHosts")
+                    AppPrefs.defaults.removeObject(forKey: "downloadSuggest.disabledHosts")
                     reload()
                 }
             }

@@ -15,11 +15,11 @@ class SiteSettingsStore: ObservableObject {
             return
         }
         // One-time migration from the legacy UserDefaults blob.
-        if let data = UserDefaults.standard.data(forKey: key),
+        if let data = AppPrefs.defaults.data(forKey: key),
            let decoded = try? JSONDecoder().decode([String: SiteSettings].self, from: data) {
             settings = decoded
             save()
-            UserDefaults.standard.removeObject(forKey: key)
+            AppPrefs.defaults.removeObject(forKey: key)
         }
     }
 
@@ -27,7 +27,7 @@ class SiteSettingsStore: ObservableObject {
         // P1-9：无站点记录时兜底"默认页面缩放"设置——此前字面量 1.0，
         // didCommit 每次导航都用它覆盖，设置里的默认缩放形同虚设。
         settings[domain]?.zoom
-            ?? UserDefaults.standard.object(forKey: "defaultPageZoom") as? Double
+            ?? AppPrefs.defaults.object(forKey: "defaultPageZoom") as? Double
             ?? 1.0
     }
 
@@ -115,7 +115,7 @@ class SiteSettingsStore: ObservableObject {
 
     /// 全局默认（设置页两键的直读）。
     var defaultFont: SiteFont {
-        let defaults = UserDefaults.standard
+        let defaults = AppPrefs.defaults
         return SiteFont.resolve(
             siteMin: nil,
             siteFamily: nil,

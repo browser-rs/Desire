@@ -294,17 +294,17 @@ final class PromotionStore: ObservableObject {
 
     /// 默认监控关键词（分享/提及雷达共用；可改后持久化）。
     var mentionQuery: String {
-        let raw = UserDefaults.standard.string(forKey: Self.mentionQueryKey) ?? ""
+        let raw = AppPrefs.defaults.string(forKey: Self.mentionQueryKey) ?? ""
         return raw.isEmpty ? "Desire" : raw
     }
 
     func setMentionQuery(_ query: String) {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        UserDefaults.standard.set(trimmed, forKey: Self.mentionQueryKey)
+        AppPrefs.defaults.set(trimmed, forKey: Self.mentionQueryKey)
     }
 
     var lastMentionScanAt: Date? {
-        let raw = UserDefaults.standard.double(forKey: Self.lastMentionScanKey)
+        let raw = AppPrefs.defaults.double(forKey: Self.lastMentionScanKey)
         return raw > 0 ? Date(timeIntervalSince1970: raw) : nil
     }
 
@@ -341,7 +341,7 @@ final class PromotionStore: ObservableObject {
     }
 
     func markMentionScan(at date: Date = Date()) {
-        UserDefaults.standard.set(date.timeIntervalSince1970,
+        AppPrefs.defaults.set(date.timeIntervalSince1970,
                                   forKey: Self.lastMentionScanKey)
     }
 

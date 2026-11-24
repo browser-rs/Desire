@@ -17,7 +17,7 @@ final class ProactiveNotificationStore: ObservableObject {
         didSet {
             guard policy != oldValue else { return }
             if let data = try? JSONEncoder().encode(policy) {
-                UserDefaults.standard.set(data, forKey: "proactiveNotificationPolicy")
+                AppPrefs.defaults.set(data, forKey: "proactiveNotificationPolicy")
             }
         }
     }
@@ -37,7 +37,7 @@ final class ProactiveNotificationStore: ObservableObject {
     private var flushTimer: Timer?
 
     init() {
-        if let data = UserDefaults.standard.data(forKey: "proactiveNotificationPolicy"),
+        if let data = AppPrefs.defaults.data(forKey: "proactiveNotificationPolicy"),
            let decoded = try? JSONDecoder().decode(NotificationPolicy.self, from: data) {
             policy = decoded
         } else {
@@ -72,7 +72,7 @@ final class ProactiveNotificationStore: ObservableObject {
                 hold(title: title, body: body)
             } else {
                 routineDeliveredToday += 1
-                UserDefaults.standard.set(routineDeliveredToday, forKey: "notificationCountValue")
+                AppPrefs.defaults.set(routineDeliveredToday, forKey: "notificationCountValue")
                 deliverNow(title: title, body: body)
             }
         }
@@ -110,19 +110,19 @@ final class ProactiveNotificationStore: ObservableObject {
     func resetBudgetAndHeldForTesting() {
         heldLines.removeAll()
         routineDeliveredToday = 0
-        UserDefaults.standard.set(0, forKey: "notificationCountValue")
-        UserDefaults.standard.set(Self.dayKey(Date()), forKey: "notificationCountDay")
+        AppPrefs.defaults.set(0, forKey: "notificationCountValue")
+        AppPrefs.defaults.set(Self.dayKey(Date()), forKey: "notificationCountDay")
     }
 
     /// 跨天时清零当日预算计数（deliver 路径幂等调用）。
     private func rollDayIfNeeded() {
         let today = Self.dayKey(Date())
-        if UserDefaults.standard.string(forKey: "notificationCountDay") == today {
-            routineDeliveredToday = UserDefaults.standard.integer(forKey: "notificationCountValue")
+        if AppPrefs.defaults.string(forKey: "notificationCountDay") == today {
+            routineDeliveredToday = AppPrefs.defaults.integer(forKey: "notificationCountValue")
         } else {
             routineDeliveredToday = 0
-            UserDefaults.standard.set(today, forKey: "notificationCountDay")
-            UserDefaults.standard.set(0, forKey: "notificationCountValue")
+            AppPrefs.defaults.set(today, forKey: "notificationCountDay")
+            AppPrefs.defaults.set(0, forKey: "notificationCountValue")
         }
     }
 
@@ -191,7 +191,7 @@ final class ProactiveNotificationStore: ObservableObject {
                 hold(title: title, body: body)
             } else {
                 routineDeliveredToday += 1
-                UserDefaults.standard.set(routineDeliveredToday, forKey: "notificationCountValue")
+                AppPrefs.defaults.set(routineDeliveredToday, forKey: "notificationCountValue")
                 deliverJobNow(title: title, body: body, jobID: jobID, artifact: artifact)
             }
         }

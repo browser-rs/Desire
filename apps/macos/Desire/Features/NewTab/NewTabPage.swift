@@ -518,7 +518,7 @@ struct NewTabPage: View {
     /// 最近文件过滤（v0.8.17 基础件 5）：仅当文件多于 3 个才显示输入框。
     @State private var localFileFilter = ""
     /// 组件开关（v0.8.19 基础件 1）：隐藏的区块键集（UserDefaults 持久化）。
-    @AppStorage("newtab.hiddenSections") private var hiddenSectionsRaw = ""
+    @AppStorage("newtab.hiddenSections", store: AppPrefs.defaults) private var hiddenSectionsRaw = ""
 
     /// 后台任务（v0.8.39）：运行中最多 3 条，点开统一 Jobs 面板。
     private var backgroundSection: some View {

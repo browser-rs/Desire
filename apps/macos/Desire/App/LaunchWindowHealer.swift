@@ -30,7 +30,7 @@ enum LaunchWindowHealer {
                 try? await Task.sleep(for: .seconds(seconds - (lastCheck ?? 0)))
                 lastCheck = seconds
                 if hasUserWindow {
-                    UserDefaults.standard.removeObject(forKey: attemptsKey)
+                    AppPrefs.defaults.removeObject(forKey: attemptsKey)
                     return
                 }
                 LaunchAudit.mark("noWindow@\(Int(seconds))s")
@@ -59,7 +59,7 @@ enum LaunchWindowHealer {
             try? await Task.sleep(for: .seconds(4))
             if hasUserWindow {
                 Log.app.info("launch heal: recovered by ordering an existing window")
-                UserDefaults.standard.removeObject(forKey: attemptsKey)
+                AppPrefs.defaults.removeObject(forKey: attemptsKey)
                 return
             }
         }
@@ -77,17 +77,17 @@ enum LaunchWindowHealer {
         try? await Task.sleep(for: .seconds(4))
         if hasUserWindow {
             Log.app.info("launch heal: recovered by reopen")
-            UserDefaults.standard.removeObject(forKey: attemptsKey)
+            AppPrefs.defaults.removeObject(forKey: attemptsKey)
             return
         }
         // (2) 真的没有窗口：重启一次（保留参数）。
-        let attempts = UserDefaults.standard.integer(forKey: attemptsKey)
+        let attempts = AppPrefs.defaults.integer(forKey: attemptsKey)
         guard attempts < maxAttempts else {
             Log.app.fault("launch heal: still no window after relaunch — giving up (diagnose via LaunchAudit)")
             LaunchAudit.mark("heal.giveUp")
             return
         }
-        UserDefaults.standard.set(attempts + 1, forKey: attemptsKey)
+        AppPrefs.defaults.set(attempts + 1, forKey: attemptsKey)
         LaunchAudit.mark("heal.relaunch")
         relaunch()
     }

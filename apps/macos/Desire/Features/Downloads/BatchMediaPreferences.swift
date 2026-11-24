@@ -27,7 +27,7 @@ enum BatchMediaPreferences {
         set { defaults.set(max(1, min(newValue, 16)), forKey: "batch.maxConcurrent") }
     }
 
-    private static let defaults = UserDefaults.standard
+    private static let defaults = AppPrefs.defaults
     private static let namingKey = "batch.naming"
     private static let baseDirectoryKey = "batch.baseDirectory"
     private static let reserveKey = "batch.reserveGB"
@@ -92,9 +92,9 @@ enum BatchMediaPreferences {
     /// 长视频慢网络）；0 = 不限制。
     /// nonisolated：错误文案（非隔离上下文）也要读它；只碰 UserDefaults。
     nonisolated static var exportTimeoutMinutes: Int {
-        get { UserDefaults.standard.object(forKey: Self.exportTimeoutKey) as? Int ?? 120 }
+        get { AppPrefs.defaults.object(forKey: Self.exportTimeoutKey) as? Int ?? 120 }
         set {
-            UserDefaults.standard.set(max(0, min(newValue, 600)), forKey: Self.exportTimeoutKey)
+            AppPrefs.defaults.set(max(0, min(newValue, 600)), forKey: Self.exportTimeoutKey)
             let text = newValue > 0 ? "\(newValue) 分钟" : "不限制"
             Task { @MainActor in
                 BatchMediaPreferences.remember(

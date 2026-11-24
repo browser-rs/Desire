@@ -266,16 +266,24 @@ Features/Bookmarks/
   （不可触碰清单）；按 DerivedData 路径只影响开发实例。
   ② **必须带 `--data-dir`**——否则启动时会恢复安装版保存的会话，并把停滞采样、
   系统诊断、E2E 业务数据写进用户真实存储。
-  ③ **必须带 `CFFIXED_USER_HOME`**（2026-11-25 真事故）——`--data-dir` 不隔离
-  系统偏好：测试里"激活假档案"把用户的活动模型服务改掉，用户的安装版随后整晚
-  指向错误的模型服务。带上它之后偏好写入既不进真实域也不落盘（实测 macOS 27）。
-  应用有硬守卫：带 `--data-dir` 却没带它 → **启动即拒绝**（`DesireApp.init` 第一行，
-  早于任何状态装配；放在 `applicationWillFinishLaunching` 里太晚——那时 AppState
-  已构造完、偏好已被写）。**验证任何会启动进程的改动前后，都要核对
-  `defaults read me.siwi.Desire aiActiveProfileID` 与偏好文件的修改时间没变。**
-  隔离后测试实例的偏好是出厂默认值且不持久：依赖非默认设置的套件（访问等级、
-  通知策略等）要经桥在实例内设置。`/state` 的 `startup.dataDir` 可断言存储封闭性。
-  已知仍共享的：**Keychain**（假档案的 key 会写进用户登录钥匙串，事后删档案）。
+  ③ **系统偏好在应用内隔离**（2026-11-25 真事故）——`--data-dir` 只重定向文件存储，
+  偏好按应用标识存放、不随它走：测试里"激活假档案"把用户的活动模型服务改掉，
+  用户的安装版随后整晚指向错误的模型服务（同一晚发生了三次，其中两次是我
+  "验证修复"时造成的）。现状：全应用 560 处偏好读写都经 `AppPrefs.defaults`
+  （`UserDefaults.standard` 与不带 store 的 `@AppStorage` 全仓零残留），封闭模式下
+  它是独立域 `me.siwi.Desire.automation`，不进用户偏好；`HermeticLaunchGuard`
+  在 `DesireApp.init` 第一行自检这一点，不成立即拒绝启动（放在
+  `applicationWillFinishLaunching` 里太晚——那时 AppState 已构造完、偏好已被写）。
+  **别再试 `CFFIXED_USER_HOME`**：命令行小程序实验里看似有效，对真实应用包无效
+  ——守卫日志写着"已隔离"而偏好照样被写。
+  **验证任何会启动进程的改动前后，都要核对**
+  `defaults read me.siwi.Desire aiActiveProfileID` 与偏好文件的修改时间/指纹没变，
+  并等后台任务（25→8 秒的回填等）跑完后再核对一次。**
+  隔离后测试实例的偏好是全新的一份：依赖既有设置的套件（访问等级、通知策略等）
+  要经桥在实例内设置（`/agent/send "/access full"`）。`/state` 的 `startup.dataDir`
+  可断言存储封闭性。**仍然共享：Keychain**——假档案的 key 会写进用户登录钥匙串，
+  经桥删档案会连带删掉；清单用 `security dump-keychain` 按 `ai-key-profile-` 账号查。
+  清理隔离域：`defaults delete me.siwi.Desire.automation`。
 - **CI runner 上应用无法激活**（0.7.0 发版实测：`isActive` 恒 false，
   osascript activate 无效）——**浏览器端点（/navigate /new-tab /execute 等）
   在 CI 上全部挂起**（未激活进程里 WKWebView 创建阻塞）。浏览器依赖的

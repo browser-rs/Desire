@@ -20,8 +20,8 @@ enum CostBudgetMonitor {
 
     static func budget() -> Budget {
         Budget(
-            daily: UserDefaults.standard.double(forKey: "costBudget.daily"),
-            monthly: UserDefaults.standard.double(forKey: "costBudget.monthly"))
+            daily: AppPrefs.defaults.double(forKey: "costBudget.daily"),
+            monthly: AppPrefs.defaults.double(forKey: "costBudget.monthly"))
     }
 
     /// 当日/当月成本（从已存盘会话派生；与统计页同一来源——
@@ -73,8 +73,8 @@ enum CostBudgetMonitor {
                                        scope: String, title: String) {
         guard level != .none else { return }
         let key = "costAlert.\(scope).\(level == .full ? "full" : "80")"
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
-        UserDefaults.standard.set(true, forKey: key)
+        guard !AppPrefs.defaults.bool(forKey: key) else { return }
+        AppPrefs.defaults.set(true, forKey: key)
         let percent = Int((spent / budget * 100).rounded())
         ProactiveNotificationStore.shared.deliver(
             title: title,

@@ -92,13 +92,13 @@ final class ReaderHighlightStore: ObservableObject {
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: Self.key),
+        guard let data = AppPrefs.defaults.data(forKey: Self.key),
               let decoded = try? JSONDecoder().decode([ReaderHighlight].self, from: data) else { return }
         highlights = decoded
     }
 
     private func save() {
         guard let data = try? JSONEncoder().encode(highlights) else { return }
-        UserDefaults.standard.set(data, forKey: Self.key)
+        AppPrefs.defaults.set(data, forKey: Self.key)
     }
 }

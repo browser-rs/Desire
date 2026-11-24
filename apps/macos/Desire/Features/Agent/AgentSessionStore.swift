@@ -209,10 +209,10 @@ class AgentSessionStore: ObservableObject {
 
     @Published var accessLevel: AccessLevel {
         didSet {
-            UserDefaults.standard.set(accessLevel.rawValue, forKey: "aiAccessLevel")
-            UserDefaults.standard.set(true, forKey: "aiAccessLevelExists")
+            AppPrefs.defaults.set(accessLevel.rawValue, forKey: "aiAccessLevel")
+            AppPrefs.defaults.set(true, forKey: "aiAccessLevelExists")
             // 兼容旧读取方（Workspace/Remote 等）与旧键
-            UserDefaults.standard.set(accessLevel == .fullAccess, forKey: "aiFullAccess")
+            AppPrefs.defaults.set(accessLevel == .fullAccess, forKey: "aiFullAccess")
         }
     }
 
@@ -378,12 +378,12 @@ class AgentSessionStore: ObservableObject {
          registerAsWindow: Bool = true) {
         self.preference = preference
         self.conversationStore = conversationStore
-        if let raw = UserDefaults.standard.object(forKey: "aiAccessLevel") as? Int,
+        if let raw = AppPrefs.defaults.object(forKey: "aiAccessLevel") as? Int,
            let level = AccessLevel(rawValue: raw) {
             accessLevel = level
         } else {
             // 旧安装迁移：旧键 true = 完全访问；false = 变更前确认
-            accessLevel = UserDefaults.standard.bool(forKey: "aiFullAccess") ? .fullAccess : .confirmChanges
+            accessLevel = AppPrefs.defaults.bool(forKey: "aiFullAccess") ? .fullAccess : .confirmChanges
         }
         // 后台 Runner 的隐藏会话不抢投递目标、不注册成窗口（Jobs 面板是它的
         // 唯一可见面；注册会让它出现在 /agent/windows 与窗口选择器里）。
@@ -2384,17 +2384,17 @@ class AgentSessionStore: ObservableObject {
     var personaID: UUID? {
         get {
             guard let registryID else { return nil }
-            return UserDefaults.standard
+            return AppPrefs.defaults
                 .string(forKey: "agentPersonaBind.\(registryID.uuidString)")
                 .flatMap(UUID.init(uuidString:))
         }
         set {
             guard let registryID else { return }
             if let newValue {
-                UserDefaults.standard.set(newValue.uuidString,
+                AppPrefs.defaults.set(newValue.uuidString,
                                           forKey: "agentPersonaBind.\(registryID.uuidString)")
             } else {
-                UserDefaults.standard.removeObject(forKey: "agentPersonaBind.\(registryID.uuidString)")
+                AppPrefs.defaults.removeObject(forKey: "agentPersonaBind.\(registryID.uuidString)")
             }
         }
     }
@@ -2403,17 +2403,17 @@ class AgentSessionStore: ObservableObject {
     var modelProfileID: UUID? {
         get {
             guard let registryID else { return nil }
-            return UserDefaults.standard
+            return AppPrefs.defaults
                 .string(forKey: "agentModelBind.\(registryID.uuidString)")
                 .flatMap(UUID.init(uuidString:))
         }
         set {
             guard let registryID else { return }
             if let newValue {
-                UserDefaults.standard.set(newValue.uuidString,
+                AppPrefs.defaults.set(newValue.uuidString,
                                           forKey: "agentModelBind.\(registryID.uuidString)")
             } else {
-                UserDefaults.standard.removeObject(forKey: "agentModelBind.\(registryID.uuidString)")
+                AppPrefs.defaults.removeObject(forKey: "agentModelBind.\(registryID.uuidString)")
             }
         }
     }
@@ -2442,17 +2442,17 @@ class AgentSessionStore: ObservableObject {
     var modeBinding: AgentMode? {
         get {
             guard let registryID else { return nil }
-            let raw = UserDefaults.standard
+            let raw = AppPrefs.defaults
                 .string(forKey: "agentModeBind.\(registryID.uuidString)")
             return raw.flatMap(AgentMode.init(rawValue:))
         }
         set {
             guard let registryID else { return }
             if let newValue {
-                UserDefaults.standard.set(newValue.rawValue,
+                AppPrefs.defaults.set(newValue.rawValue,
                                           forKey: "agentModeBind.\(registryID.uuidString)")
             } else {
-                UserDefaults.standard.removeObject(forKey: "agentModeBind.\(registryID.uuidString)")
+                AppPrefs.defaults.removeObject(forKey: "agentModeBind.\(registryID.uuidString)")
             }
         }
     }

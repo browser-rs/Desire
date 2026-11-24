@@ -18,7 +18,7 @@ class AgentPreferenceStore: ObservableObject {
     @Published var activeProfileID: UUID? {
         didSet {
             guard !isDetachedView else { return }
-            UserDefaults.standard.set(activeProfileID?.uuidString, forKey: "aiActiveProfileID")
+            AppPrefs.defaults.set(activeProfileID?.uuidString, forKey: "aiActiveProfileID")
         }
     }
 
@@ -64,16 +64,16 @@ class AgentPreferenceStore: ObservableObject {
         change(&profiles[index])
     }
     @Published var systemPrompt: String {
-        didSet { UserDefaults.standard.set(systemPrompt, forKey: "aiSystemPrompt") }
+        didSet { AppPrefs.defaults.set(systemPrompt, forKey: "aiSystemPrompt") }
     }
     /// 独立评审档案：自评（reflect / 收尾自动自评）走这个服务时，评审者与被评审者
     /// **不是同一个模型**——自己评自己的盲点是看不到的。nil = 用当前档案（同模型自评）。
     @Published var criticProfileID: UUID? {
         didSet {
             if let criticProfileID {
-                UserDefaults.standard.set(criticProfileID.uuidString, forKey: "agentCriticProfile")
+                AppPrefs.defaults.set(criticProfileID.uuidString, forKey: "agentCriticProfile")
             } else {
-                UserDefaults.standard.removeObject(forKey: "agentCriticProfile")
+                AppPrefs.defaults.removeObject(forKey: "agentCriticProfile")
             }
         }
     }
@@ -84,9 +84,9 @@ class AgentPreferenceStore: ObservableObject {
     @Published var bypassProfileID: UUID? {
         didSet {
             if let bypassProfileID {
-                UserDefaults.standard.set(bypassProfileID.uuidString, forKey: "aiBypassProfile")
+                AppPrefs.defaults.set(bypassProfileID.uuidString, forKey: "aiBypassProfile")
             } else {
-                UserDefaults.standard.removeObject(forKey: "aiBypassProfile")
+                AppPrefs.defaults.removeObject(forKey: "aiBypassProfile")
             }
         }
     }
@@ -96,19 +96,19 @@ class AgentPreferenceStore: ObservableObject {
     @Published var fallbackProfileID: UUID? {
         didSet {
             if let fallbackProfileID {
-                UserDefaults.standard.set(fallbackProfileID.uuidString, forKey: "aiFallbackProfile")
+                AppPrefs.defaults.set(fallbackProfileID.uuidString, forKey: "aiFallbackProfile")
             } else {
-                UserDefaults.standard.removeObject(forKey: "aiFallbackProfile")
+                AppPrefs.defaults.removeObject(forKey: "aiFallbackProfile")
             }
         }
     }
 
     /// 回合结束后是否自动自评（只在"≥3 次工具调用或含高风险动作"的回合跑）。
     @Published var selfReviewEnabled: Bool {
-        didSet { UserDefaults.standard.set(selfReviewEnabled, forKey: "agentSelfReview") }
+        didSet { AppPrefs.defaults.set(selfReviewEnabled, forKey: "agentSelfReview") }
     }
     @Published var maxTokens: Int {
-        didSet { UserDefaults.standard.set(maxTokens, forKey: "aiMaxTokens") }
+        didSet { AppPrefs.defaults.set(maxTokens, forKey: "aiMaxTokens") }
     }
     /// Background memory learning: auto-extract durable user facts and
     /// per-conversation summaries after agent turns. User-inspectable and
@@ -133,79 +133,79 @@ class AgentPreferenceStore: ObservableObject {
     @Published var answerLength: AnswerLength {
         didSet {
             guard answerLength != oldValue else { return }
-            UserDefaults.standard.set(answerLength.rawValue, forKey: "aiAnswerLength")
+            AppPrefs.defaults.set(answerLength.rawValue, forKey: "aiAnswerLength")
         }
     }
 
     @Published var outputRules: [String] {
         didSet {
             if outputRules != oldValue {
-                UserDefaults.standard.set(outputRules, forKey: "aiOutputRules")
+                AppPrefs.defaults.set(outputRules, forKey: "aiOutputRules")
             }
         }
     }
     /// Agent 人设：名字（空 = 默认"Desire Agent"自称）与语气/风格描述。
     /// 进 <persona> 层（提示词最前）。随 agent_prefs 同步。
     @Published var agentName: String {
-        didSet { if agentName != oldValue { UserDefaults.standard.set(agentName, forKey: "aiAgentName") } }
+        didSet { if agentName != oldValue { AppPrefs.defaults.set(agentName, forKey: "aiAgentName") } }
     }
     @Published var agentPersona: String {
-        didSet { if agentPersona != oldValue { UserDefaults.standard.set(agentPersona, forKey: "aiAgentPersona") } }
+        didSet { if agentPersona != oldValue { AppPrefs.defaults.set(agentPersona, forKey: "aiAgentPersona") } }
     }
     /// 自定义快捷模板（面板快捷按钮行追加段）。
     @Published var customTemplates: [AgentQuickTemplate] {
         didSet {
             if customTemplates != oldValue {
                 if let data = try? JSONEncoder().encode(customTemplates) {
-                    UserDefaults.standard.set(data, forKey: "aiQuickTemplates")
+                    AppPrefs.defaults.set(data, forKey: "aiQuickTemplates")
                 }
             }
         }
     }
     @Published var memoryLearning: Bool {
-        didSet { UserDefaults.standard.set(memoryLearning, forKey: "aiMemoryLearning") }
+        didSet { AppPrefs.defaults.set(memoryLearning, forKey: "aiMemoryLearning") }
     }
     /// **重复指令自动加载技能**（v0.8.76 批 3）：用户消息与某个技能的历史触发
     /// 样本相符时，开局直接把技能正文装进上下文，不再靠模型自己想起 useSkill。
     @Published var skillAutoLoad: Bool {
-        didSet { UserDefaults.standard.set(skillAutoLoad, forKey: "aiSkillAutoLoad") }
+        didSet { AppPrefs.defaults.set(skillAutoLoad, forKey: "aiSkillAutoLoad") }
     }
     /// **AI 动作复查**（guard pass，2026-10-09）：自动编辑档下副作用工具放行前，
     /// 先经旁路模型对照用户规则轻量判定一次；FLAG 转审批卡。超时/失败 fail-open，
     /// 不会阻塞回合。
     @Published var guardReview: Bool {
-        didSet { UserDefaults.standard.set(guardReview, forKey: "aiGuardReview") }
+        didSet { AppPrefs.defaults.set(guardReview, forKey: "aiGuardReview") }
     }
     /// **成本感知路由**：开启后，路由器把"简单短文本"的纯文本回合（无工具、
     /// 上下文小）也交给免费的本地模型（Foundation Models / Ollama），云端留给
     /// 复杂回合——省钱但不牺牲复杂任务质量。关闭时只有关键词命中才走本地。
     @Published var costAwareRouting: Bool {
-        didSet { UserDefaults.standard.set(costAwareRouting, forKey: "aiCostAwareRouting") }
+        didSet { AppPrefs.defaults.set(costAwareRouting, forKey: "aiCostAwareRouting") }
     }
     /// 激进档（v0.8.53 批 3）：成本感知开启时**取消"短文本"长度限制**——
     /// 无工具流量的回合全部走本地（Foundation Models / Ollama）。默认关。
     @Published var aggressiveLocalRouting: Bool {
-        didSet { UserDefaults.standard.set(aggressiveLocalRouting, forKey: "aiAggressiveLocalRouting") }
+        didSet { AppPrefs.defaults.set(aggressiveLocalRouting, forKey: "aiAggressiveLocalRouting") }
     }
     /// Subtle chime when an agent turn completes successfully.
     @Published var completionSound: Bool {
-        didSet { UserDefaults.standard.set(completionSound, forKey: "aiCompletionSound") }
+        didSet { AppPrefs.defaults.set(completionSound, forKey: "aiCompletionSound") }
     }
     /// 会话 token 预算（v0.7.18，0 = 关）：一个对话的累计用量（AgentUsage
     /// 口径）到当前档位（1×、2×…）额度时，回合停在步骤边界并提示；80% 起
     /// 状态行出 chip。桥 POST /agent/budget 与 setTokenBudget 工具可配。
     @Published var tokenBudget: Int {
-        didSet { UserDefaults.standard.set(tokenBudget, forKey: "agentTokenBudget") }
+        didSet { AppPrefs.defaults.set(tokenBudget, forKey: "agentTokenBudget") }
     }
     /// When on, every model request carries an EPHEMERAL compact summary of
     /// the page the agent is working on (title + URL + text excerpt) — so
     /// "这是什么页面" needs no tool roundtrip and every agent step sees the
     /// freshest page state. Not persisted in the conversation.
     @Published var autoPageContext: Bool {
-        didSet { UserDefaults.standard.set(autoPageContext, forKey: "aiAutoPageContext") }
+        didSet { AppPrefs.defaults.set(autoPageContext, forKey: "aiAutoPageContext") }
     }
     @Published var temperature: Double {
-        didSet { UserDefaults.standard.set(temperature, forKey: "aiTemperature") }
+        didSet { AppPrefs.defaults.set(temperature, forKey: "aiTemperature") }
     }
     /// 思考等级（reasoning effort）：输入栏"🧠 等级"下拉。"off" = 不随请求发送
     /// 任何思考参数（部分服务对不认识的参数直接报 400，所以只有用户显式选了等级
@@ -213,7 +213,7 @@ class AgentPreferenceStore: ObservableObject {
     @Published var reasoningEffort: String {
         didSet {
             guard Self.reasoningEfforts.contains(reasoningEffort) else { reasoningEffort = "off"; return }
-            UserDefaults.standard.set(reasoningEffort, forKey: "aiReasoningEffort")
+            AppPrefs.defaults.set(reasoningEffort, forKey: "aiReasoningEffort")
         }
     }
     /// 合法档位（OpenAI `reasoning_effort` 词汇 + off）。UI 与请求侧都以它为准。
@@ -242,7 +242,7 @@ class AgentPreferenceStore: ObservableObject {
         didSet {
             let clamped = min(max(maxLoopIterations, 5), 200)
             if clamped != maxLoopIterations { maxLoopIterations = clamped }
-            UserDefaults.standard.set(maxLoopIterations, forKey: "aiMaxLoopIterations")
+            AppPrefs.defaults.set(maxLoopIterations, forKey: "aiMaxLoopIterations")
         }
     }
     /// **每个档案**是否已有 Key（PERF-4：设置页服务列表行此前在 body 里现读
@@ -334,7 +334,7 @@ class AgentPreferenceStore: ObservableObject {
     /// Which model backend the agent loop talks to. Persisted so the user's
     /// choice survives relaunch. See `ModelProviderKind` for the options.
     @Published var providerKind: ModelProviderKind {
-        didSet { UserDefaults.standard.set(providerKind.rawValue, forKey: "aiProviderKind") }
+        didSet { AppPrefs.defaults.set(providerKind.rawValue, forKey: "aiProviderKind") }
     }
 
     // MARK: - 服务档案增删改
@@ -453,13 +453,13 @@ class AgentPreferenceStore: ObservableObject {
 
     /// Ollama server base URL. Only used when `providerKind == .ollama`.
     @Published var ollamaHost: String {
-        didSet { UserDefaults.standard.set(ollamaHost, forKey: "aiOllamaHost") }
+        didSet { AppPrefs.defaults.set(ollamaHost, forKey: "aiOllamaHost") }
     }
 
     /// Ollama model name (e.g. `llama3.2`, `qwen2.5`). Only used when
     /// `providerKind == .ollama`.
     @Published var ollamaModel: String {
-        didSet { UserDefaults.standard.set(ollamaModel, forKey: "aiOllamaModel") }
+        didSet { AppPrefs.defaults.set(ollamaModel, forKey: "aiOllamaModel") }
     }
 
     /// Tools the user has whitelisted with "Always Allow". Persisted across
@@ -471,7 +471,7 @@ class AgentPreferenceStore: ObservableObject {
     ///   async overhead in the agent's risk-gating hot path.
     @Published var allowedTools: Set<String> {
         didSet {
-            UserDefaults.standard.set(Array(allowedTools), forKey: "aiAllowedTools")
+            AppPrefs.defaults.set(Array(allowedTools), forKey: "aiAllowedTools")
         }
     }
 
@@ -601,55 +601,55 @@ class AgentPreferenceStore: ObservableObject {
         // 先把所有存储属性初始化完，再调用 self 方法（迁移里要读 Keychain）。
         profiles = []
         activeProfileID = nil
-        if let stored = UserDefaults.standard.string(forKey: "aiSystemPrompt"),
+        if let stored = AppPrefs.defaults.string(forKey: "aiSystemPrompt"),
            !Self.isOutdatedBuiltInPrompt(stored) {
             systemPrompt = stored
         } else {
             systemPrompt = Self.defaultPrompt
         }
-        maxTokens = UserDefaults.standard.object(forKey: "aiMaxTokens") as? Int ?? 4096
-        autoPageContext = UserDefaults.standard.object(forKey: "aiAutoPageContext") as? Bool ?? true
-        memoryLearning = UserDefaults.standard.object(forKey: "aiMemoryLearning") as? Bool ?? true
-        skillAutoLoad = UserDefaults.standard.object(forKey: "aiSkillAutoLoad") as? Bool ?? true
-        guardReview = UserDefaults.standard.object(forKey: "aiGuardReview") as? Bool ?? true
-        outputRules = UserDefaults.standard.stringArray(forKey: "aiOutputRules") ?? []
-        answerLength = AnswerLength(rawValue: UserDefaults.standard.string(forKey: "aiAnswerLength") ?? "") ?? .standard
-        agentName = UserDefaults.standard.string(forKey: "aiAgentName") ?? ""
-        agentPersona = UserDefaults.standard.string(forKey: "aiAgentPersona") ?? ""
-        if let data = UserDefaults.standard.data(forKey: "aiQuickTemplates"),
+        maxTokens = AppPrefs.defaults.object(forKey: "aiMaxTokens") as? Int ?? 4096
+        autoPageContext = AppPrefs.defaults.object(forKey: "aiAutoPageContext") as? Bool ?? true
+        memoryLearning = AppPrefs.defaults.object(forKey: "aiMemoryLearning") as? Bool ?? true
+        skillAutoLoad = AppPrefs.defaults.object(forKey: "aiSkillAutoLoad") as? Bool ?? true
+        guardReview = AppPrefs.defaults.object(forKey: "aiGuardReview") as? Bool ?? true
+        outputRules = AppPrefs.defaults.stringArray(forKey: "aiOutputRules") ?? []
+        answerLength = AnswerLength(rawValue: AppPrefs.defaults.string(forKey: "aiAnswerLength") ?? "") ?? .standard
+        agentName = AppPrefs.defaults.string(forKey: "aiAgentName") ?? ""
+        agentPersona = AppPrefs.defaults.string(forKey: "aiAgentPersona") ?? ""
+        if let data = AppPrefs.defaults.data(forKey: "aiQuickTemplates"),
            let decoded = try? JSONDecoder().decode([AgentQuickTemplate].self, from: data) {
             customTemplates = decoded
         } else {
             customTemplates = []
         }
-        costAwareRouting = UserDefaults.standard.object(forKey: "aiCostAwareRouting") as? Bool ?? false
-        aggressiveLocalRouting = UserDefaults.standard.bool(forKey: "aiAggressiveLocalRouting")
-        completionSound = UserDefaults.standard.object(forKey: "aiCompletionSound") as? Bool ?? true
-        tokenBudget = UserDefaults.standard.object(forKey: "agentTokenBudget") as? Int ?? 0
-        temperature = UserDefaults.standard.object(forKey: "aiTemperature") as? Double ?? 0.7
-        reasoningEffort = UserDefaults.standard.string(forKey: "aiReasoningEffort") ?? "off"
-        maxLoopIterations = UserDefaults.standard.object(forKey: "aiMaxLoopIterations") as? Int ?? 50
-        selfReviewEnabled = UserDefaults.standard.object(forKey: "agentSelfReview") as? Bool ?? true
-        if let raw = UserDefaults.standard.string(forKey: "agentCriticProfile") {
+        costAwareRouting = AppPrefs.defaults.object(forKey: "aiCostAwareRouting") as? Bool ?? false
+        aggressiveLocalRouting = AppPrefs.defaults.bool(forKey: "aiAggressiveLocalRouting")
+        completionSound = AppPrefs.defaults.object(forKey: "aiCompletionSound") as? Bool ?? true
+        tokenBudget = AppPrefs.defaults.object(forKey: "agentTokenBudget") as? Int ?? 0
+        temperature = AppPrefs.defaults.object(forKey: "aiTemperature") as? Double ?? 0.7
+        reasoningEffort = AppPrefs.defaults.string(forKey: "aiReasoningEffort") ?? "off"
+        maxLoopIterations = AppPrefs.defaults.object(forKey: "aiMaxLoopIterations") as? Int ?? 50
+        selfReviewEnabled = AppPrefs.defaults.object(forKey: "agentSelfReview") as? Bool ?? true
+        if let raw = AppPrefs.defaults.string(forKey: "agentCriticProfile") {
             criticProfileID = UUID(uuidString: raw)
         }
-        if let raw = UserDefaults.standard.string(forKey: "aiBypassProfile") {
+        if let raw = AppPrefs.defaults.string(forKey: "aiBypassProfile") {
             bypassProfileID = UUID(uuidString: raw)
         }
-        if let raw = UserDefaults.standard.string(forKey: "aiFallbackProfile") {
+        if let raw = AppPrefs.defaults.string(forKey: "aiFallbackProfile") {
             fallbackProfileID = UUID(uuidString: raw)
         }
 
-        if let savedKind = UserDefaults.standard.string(forKey: "aiProviderKind"),
+        if let savedKind = AppPrefs.defaults.string(forKey: "aiProviderKind"),
            let kind = ModelProviderKind(rawValue: savedKind) {
             providerKind = kind
         } else {
             providerKind = .cloud
         }
-        ollamaHost = UserDefaults.standard.string(forKey: "aiOllamaHost") ?? "http://localhost:11434/v1"
-        ollamaModel = UserDefaults.standard.string(forKey: "aiOllamaModel") ?? "llama3.2"
-        ollamaModel = UserDefaults.standard.string(forKey: "aiOllamaModel") ?? "llama3.2"
-        allowedTools = Set(UserDefaults.standard.stringArray(forKey: "aiAllowedTools") ?? [])
+        ollamaHost = AppPrefs.defaults.string(forKey: "aiOllamaHost") ?? "http://localhost:11434/v1"
+        ollamaModel = AppPrefs.defaults.string(forKey: "aiOllamaModel") ?? "llama3.2"
+        ollamaModel = AppPrefs.defaults.string(forKey: "aiOllamaModel") ?? "llama3.2"
+        allowedTools = Set(AppPrefs.defaults.stringArray(forKey: "aiAllowedTools") ?? [])
         modelPrices = DiskStore.load([String: ModelPrice].self, key: "aiModelPrices") ?? [:]
         modelCalibration = DiskStore.load([String: TokenCalibration.Entry].self, key: "aiModelCalibration") ?? [:]
 
@@ -657,13 +657,13 @@ class AgentPreferenceStore: ObservableObject {
         let storedProfiles = DiskStore.load([AIProviderProfile].self, key: "aiProfiles") ?? []
         if storedProfiles.isEmpty {
             var built = AIProviderProfile.builtins(
-                endpointOverride: UserDefaults.standard.string(forKey: "aiEndpoint"),
-                modelOverride: UserDefaults.standard.string(forKey: "aiModel"),
-                providerID: UserDefaults.standard.string(forKey: "aiCloudProviderID") ?? "openai"
+                endpointOverride: AppPrefs.defaults.string(forKey: "aiEndpoint"),
+                modelOverride: AppPrefs.defaults.string(forKey: "aiModel"),
+                providerID: AppPrefs.defaults.string(forKey: "aiCloudProviderID") ?? "openai"
             )
             // 旧的"已保存配置"只有 name/url/model，共用当时那把 Key——迁移成
             // 各自独立的档案，并把 Key 带过去，升级后不用重新输入。
-            let legacyKey = keychainRead(account: "ai-key-" + (UserDefaults.standard.string(forKey: "aiCloudProviderID") ?? "openai"), interactive: false)
+            let legacyKey = keychainRead(account: "ai-key-" + (AppPrefs.defaults.string(forKey: "aiCloudProviderID") ?? "openai"), interactive: false)
             for saved in DiskStore.load([SavedAIEndpoint].self, key: "aiSavedEndpoints") ?? [] {
                 guard !saved.url.isEmpty,
                       !built.contains(where: { $0.endpoint == saved.url && $0.model == saved.model }) else { continue }
@@ -674,7 +674,7 @@ class AgentPreferenceStore: ObservableObject {
                 built.append(profile)
             }
             profiles = built
-            let legacyEndpoint = UserDefaults.standard.string(forKey: "aiEndpoint") ?? ""
+            let legacyEndpoint = AppPrefs.defaults.string(forKey: "aiEndpoint") ?? ""
             activeProfileID = built.first { $0.endpoint == legacyEndpoint }?.id ?? built.first?.id
             DiskStore.save(profiles, key: "aiProfiles")
             // 老的单键 `ai-api-key` → 内置 OpenAI 档案（若还没有它自己的 Key）。
@@ -686,7 +686,7 @@ class AgentPreferenceStore: ObservableObject {
             }
         } else {
             profiles = storedProfiles
-            activeProfileID = UserDefaults.standard.string(forKey: "aiActiveProfileID")
+            activeProfileID = AppPrefs.defaults.string(forKey: "aiActiveProfileID")
                 .flatMap { UUID(uuidString: $0) }
         }
 
@@ -696,20 +696,20 @@ class AgentPreferenceStore: ObservableObject {
         // 显式落盘——init 里的赋值**不触发 didSet**。
         if let id = activeProfileID, !profiles.contains(where: { $0.id == id }) {
             activeProfileID = profiles.first?.id
-            UserDefaults.standard.set(activeProfileID?.uuidString, forKey: "aiActiveProfileID")
+            AppPrefs.defaults.set(activeProfileID?.uuidString, forKey: "aiActiveProfileID")
             Log.agent.info("active profile pointer was dangling — repaired to the first profile")
         }
         if let id = bypassProfileID, !profiles.contains(where: { $0.id == id }) {
             bypassProfileID = nil
-            UserDefaults.standard.removeObject(forKey: "aiBypassProfile")
+            AppPrefs.defaults.removeObject(forKey: "aiBypassProfile")
         }
         if let id = criticProfileID, !profiles.contains(where: { $0.id == id }) {
             criticProfileID = nil
-            UserDefaults.standard.removeObject(forKey: "agentCriticProfile")
+            AppPrefs.defaults.removeObject(forKey: "agentCriticProfile")
         }
         if let id = fallbackProfileID, !profiles.contains(where: { $0.id == id }) {
             fallbackProfileID = nil
-            UserDefaults.standard.removeObject(forKey: "aiFallbackProfile")
+            AppPrefs.defaults.removeObject(forKey: "aiFallbackProfile")
         }
 
         // 全部初始化完成——可以调用 self 方法了。**非交互**：init 跑在

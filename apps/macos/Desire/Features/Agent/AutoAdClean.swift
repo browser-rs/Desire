@@ -19,20 +19,20 @@ final class AutoAdClean {
 
     static let enabledKey = "aiAutoAdClean"
     static var isEnabled: Bool {
-        UserDefaults.standard.bool(forKey: enabledKey)
+        AppPrefs.defaults.bool(forKey: enabledKey)
     }
 
     /// 自动拦截被用户豁免的 host（unblockElement 时记入）。
     private static let exemptKey = "aiAutoAdClean.exemptHosts"
     private var exemptHosts: Set<String> = Set(
-        UserDefaults.standard.stringArray(forKey: AutoAdClean.exemptKey) ?? [])
+        AppPrefs.defaults.stringArray(forKey: AutoAdClean.exemptKey) ?? [])
     /// 本会话已自动处理过的 URL（一次加载只扫一次）。
     private var handledURLs: Set<String> = []
 
     private init() {}
 
     func setEnabled(_ enabled: Bool) {
-        UserDefaults.standard.set(enabled, forKey: AutoAdClean.enabledKey)
+        AppPrefs.defaults.set(enabled, forKey: AutoAdClean.enabledKey)
         let state = enabled ? "enabled" : "disabled"
         Self.log.info("auto ad clean \(state, privacy: .public)")
     }
@@ -40,7 +40,7 @@ final class AutoAdClean {
     func exemptHost(_ host: String) {
         guard !host.isEmpty else { return }
         exemptHosts.insert(host.lowercased())
-        UserDefaults.standard.set(Array(exemptHosts), forKey: AutoAdClean.exemptKey)
+        AppPrefs.defaults.set(Array(exemptHosts), forKey: AutoAdClean.exemptKey)
     }
 
     func isExempt(_ host: String) -> Bool {

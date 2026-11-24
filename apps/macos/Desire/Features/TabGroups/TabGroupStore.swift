@@ -89,11 +89,11 @@ class TabGroupStore: ObservableObject {
             return
         }
         // One-time migration from the legacy UserDefaults blob.
-        if let data = UserDefaults.standard.data(forKey: storageKey),
+        if let data = AppPrefs.defaults.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode([TabGroup].self, from: data) {
             groups = decoded
             save()
-            UserDefaults.standard.removeObject(forKey: storageKey)
+            AppPrefs.defaults.removeObject(forKey: storageKey)
         }
     }
 }

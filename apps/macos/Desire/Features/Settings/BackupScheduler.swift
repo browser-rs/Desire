@@ -15,17 +15,17 @@ enum BackupScheduler {
     }
 
     static var schedule: Schedule {
-        Schedule(rawValue: UserDefaults.standard.string(forKey: "backup.schedule") ?? "") ?? .off
+        Schedule(rawValue: AppPrefs.defaults.string(forKey: "backup.schedule") ?? "") ?? .off
     }
 
     static func setSchedule(_ value: Schedule) {
-        UserDefaults.standard.set(value.rawValue, forKey: "backup.schedule")
-        UserDefaults.standard.set(dayStamp(Date()), forKey: "backup.lastCheck")
+        AppPrefs.defaults.set(value.rawValue, forKey: "backup.schedule")
+        AppPrefs.defaults.set(dayStamp(Date()), forKey: "backup.lastCheck")
         start()
     }
 
     static var keepCount: Int {
-        let raw = UserDefaults.standard.integer(forKey: "backup.keep")
+        let raw = AppPrefs.defaults.integer(forKey: "backup.keep")
         return (1...30).contains(raw) ? raw : 5
     }
 
@@ -46,14 +46,14 @@ enum BackupScheduler {
         guard schedule != .off else { return }
         let calendar = Calendar.current
         let hour = calendar.component(.hour, from: now)
-        let scheduleHour = UserDefaults.standard.object(forKey: "backup.scheduleHour")
+        let scheduleHour = AppPrefs.defaults.object(forKey: "backup.scheduleHour")
             as? Int ?? 9
         // catch-up：过了计划小时之后的任一 tick 都补跑（lastRun 防重复）。
         guard hour >= max(0, min(23, scheduleHour)) else { return }
         if schedule == .weekly, calendar.component(.weekday, from: now) != 2 { return }   // 周一
         let stamp = dayStamp(now)
-        guard UserDefaults.standard.string(forKey: "backup.lastRun") != stamp else { return }
-        UserDefaults.standard.set(stamp, forKey: "backup.lastRun")
+        guard AppPrefs.defaults.string(forKey: "backup.lastRun") != stamp else { return }
+        AppPrefs.defaults.set(stamp, forKey: "backup.lastRun")
         run()
     }
 

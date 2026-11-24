@@ -26,7 +26,7 @@ import os
 nonisolated enum AgentStreamWatchdog {
 
     static var stallSeconds: TimeInterval {
-        let raw = UserDefaults.standard.double(forKey: "agentStreamStallSeconds")
+        let raw = AppPrefs.defaults.double(forKey: "agentStreamStallSeconds")
         return raw >= 30 ? raw : 180
     }
 

@@ -10,11 +10,11 @@ nonisolated enum VimMode {
     static let enabledKey = "browser.vimMode"
 
     static var isEnabled: Bool {
-        UserDefaults.standard.bool(forKey: enabledKey)
+        AppPrefs.defaults.bool(forKey: enabledKey)
     }
 
     static func setEnabled(_ on: Bool) {
-        UserDefaults.standard.set(on, forKey: enabledKey)
+        AppPrefs.defaults.set(on, forKey: enabledKey)
     }
 
     /// 注入脚本：capture keydown，vim 键 → postMessage 给原生。

@@ -95,7 +95,7 @@ final class SkillStore: ObservableObject {
     private static let usageOutcomeCap = 20
 
     private func loadUsageMeta() {
-        guard let data = UserDefaults.standard.data(forKey: Self.usageMetaKey),
+        guard let data = AppPrefs.defaults.data(forKey: Self.usageMetaKey),
               let decoded = try? JSONDecoder().decode([String: SkillUsage].self, from: data)
         else { return }
         usage = decoded
@@ -103,7 +103,7 @@ final class SkillStore: ObservableObject {
 
     private func saveUsageMeta() {
         if let data = try? SyncJSON.makeEncoder().encode(usage) {
-            UserDefaults.standard.set(data, forKey: Self.usageMetaKey)
+            AppPrefs.defaults.set(data, forKey: Self.usageMetaKey)
         }
     }
 
@@ -155,12 +155,16 @@ final class SkillStore: ObservableObject {
         return SkillTrigger.resolve(input: text, candidates: candidates)
     }
 
-    /// 历史回填（每进程一次）：从已存盘会话里找出"用户说了什么 → 那一回合
-    /// 加载了哪个技能"，补成初始样本。不回填的话，要等同一条指令再被说两次
-    /// 才开始直通——而它过去已经被说过很多遍了。
+    /// 历史回填（**只做一次**，持久化标记）：从已存盘会话里找出"用户说了什么 →
+    /// 那一回合加载了哪个技能"，补成初始样本与使用次数。不回填的话，要等同一条
+    /// 指令再被说两次才开始直通——而它过去已经被说过很多遍了。
+    ///
+    /// 必须带"已回填"标记：合并是计数相加，若每次启动都回填一遍，历史计数会
+    /// 每启动一次翻一倍。标记之后的新使用由实时记录覆盖，不再需要回填。
     func backfillTriggersIfNeeded(from conversations: [Conversation]) {
-        guard !Self.triggerBackfillDone else { return }
-        Self.triggerBackfillDone = true
+        let marker = "desire.skills.triggersBackfilled"
+        guard !AppPrefs.defaults.bool(forKey: marker) else { return }
+        AppPrefs.defaults.set(true, forKey: marker)
         var turns: [(user: String, skills: [String])] = []
         for conversation in conversations {
             var user: String?
@@ -184,22 +188,20 @@ final class SkillStore: ObservableObject {
             }
             if let user { turns.append((user, loaded)) }
         }
-        var changed = false
         for (name, samples) in SkillTrigger.backfill(turns: turns)
         where skills.contains(where: { $0.name == name }) {
-            let merged = SkillTrigger.merge(learned: usage[name]?.triggers, backfilled: samples)
-            if merged != (usage[name]?.triggers ?? []) {
-                var entry = usage[name] ?? SkillUsage(count: 0)
-                entry.triggers = merged
-                usage[name] = entry
-                changed = true
-            }
+            var entry = usage[name] ?? SkillUsage(count: 0)
+            entry.triggers = SkillTrigger.merge(learned: entry.triggers, backfilled: samples)
+            // 使用次数同样补上：历史里加载过它的每个回合都算一次执行，否则
+            // 开局提示里"第 N 次执行"与"之前 M 次"两个数字口径不一。
+            entry.count += turns.filter { $0.skills.contains(name) }.count
+            usage[name] = entry
         }
-        if changed { saveUsageMeta() }
+        saveUsageMeta()
     }
 
     /// 启动后延迟回填一次（不占启动路径）。
-    func scheduleTriggerBackfill(delay: TimeInterval = 25) {
+    func scheduleTriggerBackfill(delay: TimeInterval = 8) {
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(delay))
             self?.backfillTriggersIfNeeded(from: ConversationStore().conversations)
@@ -213,8 +215,6 @@ final class SkillStore: ObservableObject {
               let name = object["name"] as? String, !name.isEmpty else { return nil }
         return name
     }
-
-    private static var triggerBackfillDone = false
 
     static var directory: URL {
         let base = StorageRoot.directory
@@ -232,13 +232,13 @@ final class SkillStore: ObservableObject {
     }
 
     private func loadSourceMeta() -> [String: SourceMeta] {
-        guard let data = UserDefaults.standard.data(forKey: Self.sourceMetaKey) else { return [:] }
+        guard let data = AppPrefs.defaults.data(forKey: Self.sourceMetaKey) else { return [:] }
         return (try? JSONDecoder().decode([String: SourceMeta].self, from: data)) ?? [:]
     }
 
     private func saveSourceMeta(_ meta: [String: SourceMeta]) {
         if let data = try? SyncJSON.makeEncoder().encode(meta) {
-            UserDefaults.standard.set(data, forKey: Self.sourceMetaKey)
+            AppPrefs.defaults.set(data, forKey: Self.sourceMetaKey)
         }
     }
 

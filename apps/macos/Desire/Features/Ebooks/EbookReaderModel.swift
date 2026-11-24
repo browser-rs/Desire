@@ -94,20 +94,20 @@ final class EbookReaderModel: ObservableObject {
     @Published var pageTurnRequest: EbookPageTurnRequest?
     @Published var layoutMode: LayoutMode {
         didSet {
-            UserDefaults.standard.set(layoutMode.rawValue, forKey: Self.layoutKey)
-            UserDefaults.standard.set(layoutMode.rawValue, forKey: settingsPrefix + "layout")
+            AppPrefs.defaults.set(layoutMode.rawValue, forKey: Self.layoutKey)
+            AppPrefs.defaults.set(layoutMode.rawValue, forKey: settingsPrefix + "layout")
         }
     }
     @Published var fontSize: Double {
         didSet {
-            UserDefaults.standard.set(fontSize, forKey: Self.fontSizeKey)
-            UserDefaults.standard.set(fontSize, forKey: settingsPrefix + "fontSize")
+            AppPrefs.defaults.set(fontSize, forKey: Self.fontSizeKey)
+            AppPrefs.defaults.set(fontSize, forKey: settingsPrefix + "fontSize")
         }
     }
     @Published var theme: Theme {
         didSet {
-            UserDefaults.standard.set(theme.rawValue, forKey: Self.themeKey)
-            UserDefaults.standard.set(theme.rawValue, forKey: settingsPrefix + "theme")
+            AppPrefs.defaults.set(theme.rawValue, forKey: Self.themeKey)
+            AppPrefs.defaults.set(theme.rawValue, forKey: settingsPrefix + "theme")
         }
     }
     @Published var showTOC = false
@@ -165,24 +165,24 @@ final class EbookReaderModel: ObservableObject {
         self.book = book
         self.bookRoot = EbookImporter.rootDirectory
             .appendingPathComponent(book.containerDirectory, isDirectory: true)
-        let storedSize = UserDefaults.standard.double(forKey: Self.fontSizeKey)
+        let storedSize = AppPrefs.defaults.double(forKey: Self.fontSizeKey)
         self.fontSize = storedSize >= 12 && storedSize <= 32 ? storedSize : 19
-        self.theme = Theme(rawValue: UserDefaults.standard.string(forKey: Self.themeKey) ?? "")
+        self.theme = Theme(rawValue: AppPrefs.defaults.string(forKey: Self.themeKey) ?? "")
             ?? .paper
         self.layoutMode = LayoutMode(
-            rawValue: UserDefaults.standard.string(forKey: Self.layoutKey) ?? "")
+            rawValue: AppPrefs.defaults.string(forKey: Self.layoutKey) ?? "")
             ?? .paged
         // 按书覆写（v0.8.35）：这本书上次用过的排版优先于全局默认。
         let prefix = "ebook.settings.\(book.id.uuidString)."
-        if let size = UserDefaults.standard.object(forKey: prefix + "fontSize") as? Double,
+        if let size = AppPrefs.defaults.object(forKey: prefix + "fontSize") as? Double,
            size >= 12, size <= 32 {
             self.fontSize = size
         }
-        if let raw = UserDefaults.standard.string(forKey: prefix + "theme"),
+        if let raw = AppPrefs.defaults.string(forKey: prefix + "theme"),
            let value = Theme(rawValue: raw) {
             self.theme = value
         }
-        if let raw = UserDefaults.standard.string(forKey: prefix + "layout"),
+        if let raw = AppPrefs.defaults.string(forKey: prefix + "layout"),
            let value = LayoutMode(rawValue: raw) {
             self.layoutMode = value
         }

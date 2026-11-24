@@ -34,7 +34,7 @@ class VideoAdBlocker: ObservableObject {
     @Published var blockedCount: Int = 0
 
     init() {
-        let defaults = UserDefaults.standard
+        let defaults = AppPrefs.defaults
         isEnabled = Self.resolvedEnabled
         if !defaults.bool(forKey: Self.userChoiceKey) {
             // No explicit choice on record → the legacy `false` (from the
@@ -49,7 +49,7 @@ class VideoAdBlocker: ObservableObject {
     /// in UserDefaults. Single source of truth for `init` and the bridge's
     /// `GET /settings`.
     static var resolvedEnabled: Bool {
-        let defaults = UserDefaults.standard
+        let defaults = AppPrefs.defaults
         guard defaults.bool(forKey: userChoiceKey) else { return true }
         return defaults.object(forKey: enabledKey) as? Bool ?? true
     }
@@ -61,7 +61,7 @@ class VideoAdBlocker: ObservableObject {
         MainActor.assumeIsolated {
             AppState.live?.pluginStore.setBuiltInAdGuardEnabled(enabled)
         }
-        let defaults = UserDefaults.standard
+        let defaults = AppPrefs.defaults
         guard enabled != isEnabled else { return }
         isEnabled = enabled
         defaults.set(enabled, forKey: Self.enabledKey)

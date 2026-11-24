@@ -70,7 +70,7 @@ struct OnboardingView: View {
     }
 
     private func finish() {
-        UserDefaults.standard.set(true, forKey: "desire.onboardingDone")
+        AppPrefs.defaults.set(true, forKey: "desire.onboardingDone")
         onFinish()
     }
 

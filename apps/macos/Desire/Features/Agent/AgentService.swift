@@ -286,9 +286,9 @@ struct CloudOpenAIProvider: ModelProvider {
                 // for sticky backend selection.
                 if urlStr.contains("opencode") {
                     let sessionKey = "aiOpencodeSessionID"
-                    let sessionID = UserDefaults.standard.string(forKey: sessionKey)
+                    let sessionID = AppPrefs.defaults.string(forKey: sessionKey)
                         ?? UUID().uuidString
-                    UserDefaults.standard.set(sessionID, forKey: sessionKey)
+                    AppPrefs.defaults.set(sessionID, forKey: sessionKey)
                     req.setValue(sessionID, forHTTPHeaderField: "x-opencode-session")
                 }
 

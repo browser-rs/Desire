@@ -9,7 +9,7 @@ struct PromotionGrowthSection: View {
     var onSendToAgent: ((String) -> Void)? = nil
     @ObservedObject private var store = PromotionStore.shared
     @Environment(\.appAccent) private var appAccent
-    @AppStorage("growth.telemetryEnabled") private var telemetryEnabled = true
+    @AppStorage("growth.telemetryEnabled", store: AppPrefs.defaults) private var telemetryEnabled = true
 
     @State private var summary: GrowthSummary?
     @State private var loading = false

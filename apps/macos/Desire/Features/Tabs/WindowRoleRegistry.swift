@@ -78,7 +78,7 @@ final class WindowRoleRegistry: ObservableObject {
     }
 
     func agentContainerID() -> UUID {
-        let defaults = UserDefaults.standard
+        let defaults = AppPrefs.defaults
         if let raw = defaults.string(forKey: Self.containerKey),
            let id = UUID(uuidString: raw),
            ContainerStore.shared.containers.contains(where: { $0.id == id }) {

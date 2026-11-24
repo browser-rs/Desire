@@ -448,7 +448,7 @@ class TabManager: ObservableObject {
     /// When a tab is suspended, its WKWebView content is unloaded but
     /// the view is kept so it can be restored quickly.
     private func suspendIdleTabs() {
-        let configured = UserDefaults.standard.double(forKey: "suspendAfterMinutes")
+        let configured = AppPrefs.defaults.double(forKey: "suspendAfterMinutes")
         guard configured >= 0 else { return }
         let actualThreshold = configured > 0 ? configured * 60 : 30 * 60
 
@@ -474,7 +474,7 @@ class TabManager: ObservableObject {
         // per-tab 内存 API，节点数是约定好的代理指标（page-perf.js 每 5s 上报；
         // 诚实口径已写进路线图）。豁免集与闲置分支一致；阈值 25_000 节点。
         // 设置「Large Page Guard」可关（默认开）。
-        guard UserDefaults.standard.object(forKey: "largePageGuard") as? Bool ?? true else { return }
+        guard AppPrefs.defaults.object(forKey: "largePageGuard") as? Bool ?? true else { return }
         let bloated = tabs.filter { tab in
             tab.id != selectedTab?.id && !tab.isPinned && !tab.isIncognito
                 && !tab.isPlayingAudio && !busyAgentTabIDs.contains(tab.id)
@@ -1112,7 +1112,7 @@ final class TabSessionCoordinator {
     /// 启动时哨兵已在 = 上次异常终止（含 kill -9 / 崩溃）。
     private static let runningSentinelKey = "session.running"
 
-    private(set) var launchedAfterCrash = UserDefaults.standard.bool(forKey: "session.running")
+    private(set) var launchedAfterCrash = AppPrefs.defaults.bool(forKey: "session.running")
 
     private init() {
         sanitizeWindowIndexes()
@@ -1184,7 +1184,7 @@ final class TabSessionCoordinator {
             managers.removeAll { $0.manager !== manager && $0.manager?.sessionKey == key }
         }
         managers.append(WeakManager(manager: manager))
-        UserDefaults.standard.set(true, forKey: Self.runningSentinelKey)
+        AppPrefs.defaults.set(true, forKey: Self.runningSentinelKey)
         startTimerIfNeeded()
     }
 
@@ -1300,7 +1300,7 @@ final class TabSessionCoordinator {
     /// flushes the DiskStore debounce queue synchronously.
     func prepareForTermination() {
         isTerminating = true
-        UserDefaults.standard.set(false, forKey: Self.runningSentinelKey)
+        AppPrefs.defaults.set(false, forKey: Self.runningSentinelKey)
         persistAll(force: true)
         var keys = managers.compactMap { $0.manager?.sessionKey }
         // 一扇窗都不剩（用户关了最后一扇窗）：仍把最后关闭的会话作为

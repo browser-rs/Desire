@@ -4180,7 +4180,7 @@ case ("GET", "/agent/messages"):
             guard let key = manager.sessionKey else { return false }
             return !WindowRoleRegistry.shared.isAgentSession(key)
         }
-        let defaults = UserDefaults.standard
+        let defaults = AppPrefs.defaults
         var visibleWindows = 0
         for window in NSApp.windows where window.isVisible && window.canBecomeMain {
             visibleWindows += 1
@@ -6735,7 +6735,7 @@ case ("GET", "/agent/messages"):
         case .signedOut: auth = "signedOut"
         case .signedIn(let username): auth = username
         }
-        let defaults = UserDefaults.standard
+        let defaults = AppPrefs.defaults
         let cursors: [String: String] = [
             "bookmarks": defaults.string(forKey: "sync.cursor.bookmarks") ?? "",
             "quickdials": defaults.string(forKey: "sync.cursor.quickdials") ?? "",
@@ -10081,7 +10081,7 @@ case ("GET", "/agent/messages"):
                 "alerts": summary.alerts,
                 "digestEnabled": store.digestEnabled,
                 "digestHour": store.digestHour,
-                "lastDigestDay": UserDefaults.standard.string(
+                "lastDigestDay": AppPrefs.defaults.string(
                     forKey: "pageWatch.digest.lastDay") ?? ""]
     }
 

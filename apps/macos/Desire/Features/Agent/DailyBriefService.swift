@@ -51,7 +51,7 @@ enum DailyBriefService {
             title: String(localized: "Daily brief ready"),
             body: String(summary.prefix(160)),
             tier: .routine)
-        let wantBoard = toBoard ?? UserDefaults.standard.bool(forKey: toBoardKey)
+        let wantBoard = toBoard ?? AppPrefs.defaults.bool(forKey: toBoardKey)
         if wantBoard {
             let formatter = DateFormatter()
             formatter.dateFormat = "yyyy-MM-dd"

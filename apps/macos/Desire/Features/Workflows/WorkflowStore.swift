@@ -186,13 +186,13 @@ final class WorkflowStore: ObservableObject {
     }
 
     private func load() {
-        guard let data = UserDefaults.standard.data(forKey: Self.key),
+        guard let data = AppPrefs.defaults.data(forKey: Self.key),
               let decoded = try? JSONDecoder().decode([Workflow].self, from: data) else { return }
         workflows = decoded
     }
 
     private func save() {
         guard let data = try? JSONEncoder().encode(workflows) else { return }
-        UserDefaults.standard.set(data, forKey: Self.key)
+        AppPrefs.defaults.set(data, forKey: Self.key)
     }
 }

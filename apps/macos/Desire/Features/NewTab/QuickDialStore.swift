@@ -80,13 +80,13 @@ class QuickDialStore: ObservableObject {
             return
         }
         // One-time migration from the legacy UserDefaults blob.
-        if let data = UserDefaults.standard.data(forKey: storageKey),
+        if let data = AppPrefs.defaults.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode([QuickDial].self, from: data),
            !decoded.isEmpty {
             dials = normalizeTimestamps(decoded)
             dedupeByURL()
             save()
-            UserDefaults.standard.removeObject(forKey: storageKey)
+            AppPrefs.defaults.removeObject(forKey: storageKey)
             return
         }
         dials = normalizeTimestamps(defaultDials)

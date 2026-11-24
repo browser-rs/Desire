@@ -25,7 +25,7 @@ final class WhatsNewStore: ObservableObject {
     }
 
     var hasUnseen: Bool {
-        UserDefaults.standard.string(forKey: lastSeenKey) != currentKey
+        AppPrefs.defaults.string(forKey: lastSeenKey) != currentKey
     }
 
     func presentIfNeeded() {
@@ -48,13 +48,13 @@ final class WhatsNewStore: ObservableObject {
     }
 
     func markSeen() {
-        UserDefaults.standard.set(currentKey, forKey: lastSeenKey)
+        AppPrefs.defaults.set(currentKey, forKey: lastSeenKey)
         claimed = true
     }
 
     /// 测试/重新展示：清掉已读标记。
     func resetForTesting() {
-        UserDefaults.standard.removeObject(forKey: lastSeenKey)
+        AppPrefs.defaults.removeObject(forKey: lastSeenKey)
         claimed = false
         isPresented = false
     }

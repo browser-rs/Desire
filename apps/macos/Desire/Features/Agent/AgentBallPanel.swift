@@ -21,7 +21,7 @@ final class AgentBallPanel: ObservableObject {
     }
     /// 「自定义提示词」槽位发送的文本（设置页可编辑）。
     @Published var customPrompt: String {
-        didSet { UserDefaults.standard.set(customPrompt, forKey: Self.customPromptKey) }
+        didSet { AppPrefs.defaults.set(customPrompt, forKey: Self.customPromptKey) }
     }
     @Published var isExpanded = false {
         didSet {
@@ -103,14 +103,14 @@ final class AgentBallPanel: ObservableObject {
     private var pollTimer: Timer?
 
     init() {
-        isEnabled = UserDefaults.standard.bool(forKey: Self.enabledKey)
-        if let raw = UserDefaults.standard.string(forKey: Self.customPromptKey),
+        isEnabled = AppPrefs.defaults.bool(forKey: Self.enabledKey)
+        if let raw = AppPrefs.defaults.string(forKey: Self.customPromptKey),
            !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             customPrompt = raw
         } else {
             customPrompt = "总结本页并给出三点建议"
         }
-        if let raw = UserDefaults.standard.stringArray(forKey: Self.slotsKey) {
+        if let raw = AppPrefs.defaults.stringArray(forKey: Self.slotsKey) {
             slots = BallCapability.decodeSlots(raw)
         }
         // 语音：开始录音 → 展开操作条显示实时转写；停止且非空 → 自动发给 Agent
@@ -173,7 +173,7 @@ final class AgentBallPanel: ObservableObject {
     /// 设置页/菜单的全局开关（各窗口的覆盖层直接观察 isEnabled）。
     func setEnabled(_ on: Bool) {
         isEnabled = on
-        UserDefaults.standard.set(on, forKey: Self.enabledKey)
+        AppPrefs.defaults.set(on, forKey: Self.enabledKey)
         if !on { isExpanded = false }
         NotificationCenter.default.post(name: Self.enabledChangedNotification, object: nil)
     }
@@ -204,7 +204,7 @@ extension AgentBallPanel {
     var encodedSlots: [String] { slots.map(\.rawValue) }
 
     private func persistSlots() {
-        UserDefaults.standard.set(encodedSlots, forKey: Self.slotsKey)
+        AppPrefs.defaults.set(encodedSlots, forKey: Self.slotsKey)
     }
 
     /// 设置页换槽：把槽位 i 换成新能力；若该能力已在其他槽位，两槽互换
@@ -227,8 +227,8 @@ extension AgentBallPanel {
     /// 设置页「重置位置」：回默认左缘中点。Overlay 用 @AppStorage 读这两键，
     /// 写入即触发吸附弹簧动画。
     func resetPosition() {
-        UserDefaults.standard.set("left", forKey: Self.edgeKey)
-        UserDefaults.standard.set(0.5, forKey: Self.offsetKey)
+        AppPrefs.defaults.set("left", forKey: Self.edgeKey)
+        AppPrefs.defaults.set(0.5, forKey: Self.offsetKey)
     }
 
     /// 槽位触发入口（触盘按钮 + 拖拽投递共用）。动作收口一处。

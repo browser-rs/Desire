@@ -11,7 +11,7 @@ final class UserPromptCenter: ObservableObject {
     /// 提问的兜底超时（秒）：定时/后台回合的提问在面板没开时用户**根本看不见**，
     /// 没有超时回合就无限挂起。默认 10 分钟；超过即以标记解除，回合继续走。
     static let answerTimeout: TimeInterval = {
-        let v = UserDefaults.standard.object(forKey: "agentAskUserTimeout") as? Double
+        let v = AppPrefs.defaults.object(forKey: "agentAskUserTimeout") as? Double
         return v ?? 600
     }()
 

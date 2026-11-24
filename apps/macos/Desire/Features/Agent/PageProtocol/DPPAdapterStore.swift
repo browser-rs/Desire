@@ -28,8 +28,8 @@ final class DPPAdapterStore: ObservableObject {
     }
 
     private init() {
-        disabled = Set(UserDefaults.standard.stringArray(forKey: Self.disabledKey) ?? [])
-        autoDisabled = Set(UserDefaults.standard.stringArray(forKey: Self.autoDisabledKey) ?? [])
+        disabled = Set(AppPrefs.defaults.stringArray(forKey: Self.disabledKey) ?? [])
+        autoDisabled = Set(AppPrefs.defaults.stringArray(forKey: Self.autoDisabledKey) ?? [])
         health = Self.loadHealth()
         reload()
     }
@@ -44,7 +44,7 @@ final class DPPAdapterStore: ObservableObject {
         } else {
             disabled.insert(name)
         }
-        UserDefaults.standard.set(Array(disabled).sorted(), forKey: Self.disabledKey)
+        AppPrefs.defaults.set(Array(disabled).sorted(), forKey: Self.disabledKey)
         objectWillChange.send()
     }
 
@@ -92,7 +92,7 @@ final class DPPAdapterStore: ObservableObject {
         failureCounts[adapterName, default: 0] += 1
         if failureCounts[adapterName] == hardThreshold {
             autoDisabled.insert(adapterName)
-            UserDefaults.standard.set(Array(autoDisabled), forKey: Self.autoDisabledKey)
+            AppPrefs.defaults.set(Array(autoDisabled), forKey: Self.autoDisabledKey)
             Log.agent.warning("adapter '\(adapterName, privacy: .public)' auto-disabled after \(self.hardThreshold) consecutive failures")
         }
     }
@@ -108,7 +108,7 @@ final class DPPAdapterStore: ObservableObject {
         failureCounts[adapterName] = 0
         if autoDisabled.contains(adapterName) {
             autoDisabled.remove(adapterName)
-            UserDefaults.standard.set(Array(autoDisabled), forKey: Self.autoDisabledKey)
+            AppPrefs.defaults.set(Array(autoDisabled), forKey: Self.autoDisabledKey)
         }
     }
 
@@ -124,11 +124,11 @@ final class DPPAdapterStore: ObservableObject {
 
     private func persistHealth() {
         guard let data = try? JSONEncoder().encode(health) else { return }
-        UserDefaults.standard.set(data, forKey: Self.healthKey)
+        AppPrefs.defaults.set(data, forKey: Self.healthKey)
     }
 
     private static func loadHealth() -> [String: Health] {
-        guard let data = UserDefaults.standard.data(forKey: healthKey),
+        guard let data = AppPrefs.defaults.data(forKey: healthKey),
               let decoded = try? JSONDecoder().decode([String: Health].self, from: data) else {
             return [:]
         }
@@ -225,7 +225,7 @@ final class DPPAdapterStore: ObservableObject {
         let target = Self.directory.appendingPathComponent("\(name).json")
         try data.write(to: target, options: .atomic)
         disabled.insert(name)
-        UserDefaults.standard.set(Array(disabled).sorted(), forKey: Self.disabledKey)
+        AppPrefs.defaults.set(Array(disabled).sorted(), forKey: Self.disabledKey)
         reload()
     }
 
@@ -234,7 +234,7 @@ final class DPPAdapterStore: ObservableObject {
             try? FileManager.default.removeItem(at: Self.directory.appendingPathComponent(file))
         }
         disabled.remove(name)
-        UserDefaults.standard.set(Array(disabled).sorted(), forKey: Self.disabledKey)
+        AppPrefs.defaults.set(Array(disabled).sorted(), forKey: Self.disabledKey)
         reload()
     }
 

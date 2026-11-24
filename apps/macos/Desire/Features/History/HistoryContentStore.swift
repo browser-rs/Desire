@@ -14,7 +14,7 @@ final class HistoryContentStore: ObservableObject {
         didSet { defaults.set(isEnabled, forKey: Self.enabledKey) }
     }
 
-    private let defaults = UserDefaults.standard
+    private let defaults = AppPrefs.defaults
     private static let enabledKey = "history.contentIndex.enabled"
     private let storageKey = "history.contentIndex"
     private let maxRecords = 800

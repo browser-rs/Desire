@@ -86,7 +86,7 @@ final class SyncStore: ObservableObject {
     private let excerptStore = ExcerptStore.shared
     private let clipboardStore = ClipboardHistoryStore.shared
     private var syncTimer: Timer?
-    private let defaults = UserDefaults.standard
+    private let defaults = AppPrefs.defaults
 
     // MARK: 变更驱动同步的状态
 
@@ -1970,7 +1970,7 @@ final class SyncStore: ObservableObject {
     /// agentPrefs 附加快照（名字/语气/模板）：快照主表只存 string 值，
     /// 这三个塞不进 SettingsSyncValue——单独放 UserDefaults（键 aiPrefsMeta）。
     private func loadPrefsSnapshotMeta() -> [String: String] {
-        if let data = UserDefaults.standard.data(forKey: "aiPrefsMeta"),
+        if let data = AppPrefs.defaults.data(forKey: "aiPrefsMeta"),
            let decoded = try? JSONDecoder().decode([String: String].self, from: data) {
             return decoded
         }
@@ -1979,7 +1979,7 @@ final class SyncStore: ObservableObject {
 
     private func savePrefsSnapshotMeta(_ meta: [String: String]) {
         if let data = try? JSONEncoder().encode(meta) {
-            UserDefaults.standard.set(data, forKey: "aiPrefsMeta")
+            AppPrefs.defaults.set(data, forKey: "aiPrefsMeta")
         }
     }
 

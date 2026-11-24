@@ -18,7 +18,7 @@ class PrivacyModeStore: ObservableObject {
 
     @Published var cookieAcceptPolicy: CookieAcceptPolicy {
         didSet {
-            UserDefaults.standard.set(cookieAcceptPolicy.rawValue, forKey: "cookieAcceptPolicy")
+            AppPrefs.defaults.set(cookieAcceptPolicy.rawValue, forKey: "cookieAcceptPolicy")
             applyCookiePolicy()
         }
     }
@@ -32,17 +32,17 @@ class PrivacyModeStore: ObservableObject {
         // Load saved state (DiskStore, with one-time legacy migration).
         if let savedState = DiskStore.load(PrivacyModeState.self, key: stateKey) {
             state = savedState
-        } else if let data = UserDefaults.standard.data(forKey: stateKey),
+        } else if let data = AppPrefs.defaults.data(forKey: stateKey),
                   let savedState = try? JSONDecoder().decode(PrivacyModeState.self, from: data) {
             state = savedState
             DiskStore.save(savedState, key: stateKey)
-            UserDefaults.standard.removeObject(forKey: stateKey)
+            AppPrefs.defaults.removeObject(forKey: stateKey)
         } else {
             state = PrivacyModeState()
         }
 
         // Load cookie policy (scalar — stays on UserDefaults).
-        if let policyRaw = UserDefaults.standard.string(forKey: "cookieAcceptPolicy"),
+        if let policyRaw = AppPrefs.defaults.string(forKey: "cookieAcceptPolicy"),
            let policy = CookieAcceptPolicy(rawValue: policyRaw) {
             cookieAcceptPolicy = policy
         } else {

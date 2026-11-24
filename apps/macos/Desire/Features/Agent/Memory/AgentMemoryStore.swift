@@ -33,7 +33,7 @@ final class AgentMemoryStore: ObservableObject {
         }
         archive = loaded
         pendingDeletions = DiskStore.load([String: Date].self, key: Self.deletionsKey) ?? [:]
-        if let data = UserDefaults.standard.data(forKey: Self.pendingConflictsKey),
+        if let data = AppPrefs.defaults.data(forKey: Self.pendingConflictsKey),
            let decoded = try? JSONDecoder().decode([PendingConflict].self, from: data) {
             pendingConflicts = decoded
         }
@@ -153,7 +153,7 @@ final class AgentMemoryStore: ObservableObject {
         archive.facts = result.kept
         save()
         lastCheckupAt = Date()
-        UserDefaults.standard.set(lastCheckupAt, forKey: Self.lastCheckupKey)
+        AppPrefs.defaults.set(lastCheckupAt, forKey: Self.lastCheckupKey)
         Log.agent.info("memory checkup: \(result.removed.count) removed (merged \(result.report.mergedRemoved), retired \(result.report.retired))")
         return result.report
     }
@@ -177,7 +177,7 @@ final class AgentMemoryStore: ObservableObject {
 
     private static let lessonEffectKey = "memory.lessonEffect"
     private(set) var lessonEffect: LessonEffect = {
-        if let data = UserDefaults.standard.data(forKey: "memory.lessonEffect"),
+        if let data = AppPrefs.defaults.data(forKey: "memory.lessonEffect"),
            let decoded = try? JSONDecoder().decode(LessonEffect.self, from: data) {
             return decoded
         }
@@ -198,14 +198,14 @@ final class AgentMemoryStore: ObservableObject {
             lessonEffect.repeatAfterInject += 1
         }
         if let data = try? JSONEncoder().encode(lessonEffect) {
-            UserDefaults.standard.set(data, forKey: Self.lessonEffectKey)
+            AppPrefs.defaults.set(data, forKey: Self.lessonEffectKey)
         }
     }
 
     /// 体检新鲜度（Doctor 增项②）：上次 runCheckup 的时间戳。
     private static let lastCheckupKey = "memory.lastCheckupAt"
     private(set) var lastCheckupAt: Date? = {
-        UserDefaults.standard.object(forKey: "memory.lastCheckupAt") as? Date
+        AppPrefs.defaults.object(forKey: "memory.lastCheckupAt") as? Date
     }()
 
     // MARK: - 记忆冲突复核（v0.7.22）
@@ -222,7 +222,7 @@ final class AgentMemoryStore: ObservableObject {
 
     func lessonThrottlePasses(conversationId: UUID?) -> Bool {
         if lessonOfferedAt.isEmpty, lessonConversationIDs.isEmpty,
-           let data = UserDefaults.standard.data(forKey: Self.lessonLedgerKey),
+           let data = AppPrefs.defaults.data(forKey: Self.lessonLedgerKey),
            let decoded = try? JSONDecoder().decode(LessonLedger.self, from: data) {
             lessonOfferedAt = decoded.offeredAt
             lessonConversationIDs = decoded.conversationIDs
@@ -235,7 +235,7 @@ final class AgentMemoryStore: ObservableObject {
 
     func recordLessonOffered(conversationId: UUID?) {
         if lessonOfferedAt.isEmpty, lessonConversationIDs.isEmpty,
-           let data = UserDefaults.standard.data(forKey: Self.lessonLedgerKey),
+           let data = AppPrefs.defaults.data(forKey: Self.lessonLedgerKey),
            let decoded = try? JSONDecoder().decode(LessonLedger.self, from: data) {
             lessonOfferedAt = decoded.offeredAt
             lessonConversationIDs = decoded.conversationIDs
@@ -244,7 +244,7 @@ final class AgentMemoryStore: ObservableObject {
         if let conversationId { lessonConversationIDs.append(conversationId) }
         if let data = try? JSONEncoder().encode(
             LessonLedger(offeredAt: lessonOfferedAt, conversationIDs: lessonConversationIDs)) {
-            UserDefaults.standard.set(data, forKey: Self.lessonLedgerKey)
+            AppPrefs.defaults.set(data, forKey: Self.lessonLedgerKey)
         }
     }
 
@@ -454,7 +454,7 @@ final class AgentMemoryStore: ObservableObject {
     }
 
     private func savePendingConflicts() {
-        UserDefaults.standard.set(try? JSONEncoder().encode(pendingConflicts),
+        AppPrefs.defaults.set(try? JSONEncoder().encode(pendingConflicts),
                                   forKey: Self.pendingConflictsKey)
     }
 

@@ -104,7 +104,7 @@ final class RemoteControlStore: ObservableObject {
     @Published private(set) var pairedDevices: [SyncAPIClient.RemotePairedDevice] = []
 
     private let syncStore: SyncStore
-    private let defaults = UserDefaults.standard
+    private let defaults = AppPrefs.defaults
     private let enabledKey = "remote.enabled"
     private let sessionKeyAccount = "remote.session-key"
     /// 服务端 base（与 Sync 同源）。
@@ -2435,7 +2435,7 @@ final class RemoteControlStore: ObservableObject {
 
     /// 会话 → 手机最后一次"看过"的时刻。陈旧键随会话增长无害（按 id 稀疏读）。
     private lazy var remoteSeenAt: [String: Date] = {
-        guard let data = UserDefaults.standard.data(forKey: Self.remoteSeenAtKey),
+        guard let data = AppPrefs.defaults.data(forKey: Self.remoteSeenAtKey),
               let decoded = try? JSONDecoder().decode([String: Date].self, from: data) else { return [:] }
         return decoded
     }()
@@ -2443,11 +2443,11 @@ final class RemoteControlStore: ObservableObject {
     /// 首次用到 sessions 帧时的"配对基线"：在此之前的历史一律视为已读
     /// （否则新配对的第一屏整个是未读）。惰性初始化并持久化。
     private var remoteSeenEpoch: Date {
-        if let stored = UserDefaults.standard.object(forKey: Self.remoteSeenEpochKey) as? Date {
+        if let stored = AppPrefs.defaults.object(forKey: Self.remoteSeenEpochKey) as? Date {
             return stored
         }
         let now = Date()
-        UserDefaults.standard.set(now, forKey: Self.remoteSeenEpochKey)
+        AppPrefs.defaults.set(now, forKey: Self.remoteSeenEpochKey)
         return now
     }
 
@@ -2459,7 +2459,7 @@ final class RemoteControlStore: ObservableObject {
         let now = Date()
         guard now.timeIntervalSince(lastRemoteSeenPersist) >= Self.remoteSeenPersistInterval else { return }
         lastRemoteSeenPersist = now
-        UserDefaults.standard.set(try? JSONEncoder().encode(remoteSeenAt),
+        AppPrefs.defaults.set(try? JSONEncoder().encode(remoteSeenAt),
                                   forKey: Self.remoteSeenAtKey)
     }
 

@@ -102,7 +102,7 @@ final class VideoEditorStore: ObservableObject {
     /// 导出预设跨会话记忆（v0.8.49 批 3）：高度/仅音频用户选过就记住。
     @Published var exportTargetHeight: Double? {
         didSet {
-            let defaults = UserDefaults.standard
+            let defaults = AppPrefs.defaults
             if let exportTargetHeight {
                 defaults.set(exportTargetHeight, forKey: "videopro.exportHeight")
             } else {
@@ -111,7 +111,7 @@ final class VideoEditorStore: ObservableObject {
         }
     }
     @Published var exportAudioOnly = false {
-        didSet { UserDefaults.standard.set(exportAudioOnly, forKey: "videopro.exportAudioOnly") }
+        didSet { AppPrefs.defaults.set(exportAudioOnly, forKey: "videopro.exportAudioOnly") }
     }
     @Published var pixelsPerSecond: Double = 60
     @Published private(set) var isPlaying = false
@@ -139,7 +139,7 @@ final class VideoEditorStore: ObservableObject {
         // 后台标签里的编辑器也要能被 session/file 定向到（注册在 init，
         // 不等 onAppear——切到后台后 active 会指向别人）。
         Self.registry.add(self)
-        let defaults = UserDefaults.standard
+        let defaults = AppPrefs.defaults
         exportTargetHeight = defaults.object(forKey: "videopro.exportHeight") as? Double
         exportAudioOnly = defaults.bool(forKey: "videopro.exportAudioOnly")
         timeObserver = player.addPeriodicTimeObserver(

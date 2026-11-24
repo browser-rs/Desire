@@ -22,11 +22,11 @@ enum SpotlightIndexer {
     private(set) static var lastError: String?
 
     static var isEnabled: Bool {
-        UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true
+        AppPrefs.defaults.object(forKey: enabledKey) as? Bool ?? true
     }
 
     static func setEnabled(_ enabled: Bool) {
-        UserDefaults.standard.set(enabled, forKey: enabledKey)
+        AppPrefs.defaults.set(enabled, forKey: enabledKey)
         if enabled {
             schedule(after: 1)
         } else {

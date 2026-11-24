@@ -29,7 +29,7 @@ final class HandoffRelay {
     /// （NSUserActivityTypeBrowsingWeb = "BrowsingWebPage"）。每次 update
     /// 现读——改 defaults 后下一页导航即生效。
     static var activityType: String {
-        let overridden = UserDefaults.standard.string(forKey: overrideKey)?
+        let overridden = AppPrefs.defaults.string(forKey: overrideKey)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         if let overridden, !overridden.isEmpty {
             return overridden

@@ -16,14 +16,14 @@ final class WeeklyDigestStore: ObservableObject {
     static let hourChoices = [8, 9, 10, 18, 20]
 
     @Published var isEnabled: Bool {
-        didSet { UserDefaults.standard.set(isEnabled, forKey: "weeklyDigestEnabled") }
+        didSet { AppPrefs.defaults.set(isEnabled, forKey: "weeklyDigestEnabled") }
     }
     /// 1 = 周日（Calendar 口径），2 = 周一 … 7 = 周六。默认周一。
     @Published var weekday: Int {
-        didSet { UserDefaults.standard.set(weekday, forKey: "weeklyDigestWeekday") }
+        didSet { AppPrefs.defaults.set(weekday, forKey: "weeklyDigestWeekday") }
     }
     @Published var hour: Int {
-        didSet { UserDefaults.standard.set(hour, forKey: "weeklyDigestHour") }
+        didSet { AppPrefs.defaults.set(hour, forKey: "weeklyDigestHour") }
     }
     @Published private(set) var lastDeliveredAt: Date?
     @Published private(set) var lastDigestText: String?
@@ -33,13 +33,13 @@ final class WeeklyDigestStore: ObservableObject {
     private static let lastTextKey = "weeklyDigestLastText"
 
     init() {
-        isEnabled = UserDefaults.standard.object(forKey: "weeklyDigestEnabled") as? Bool ?? false
-        let storedWeekday = UserDefaults.standard.object(forKey: "weeklyDigestWeekday") as? Int ?? 2
+        isEnabled = AppPrefs.defaults.object(forKey: "weeklyDigestEnabled") as? Bool ?? false
+        let storedWeekday = AppPrefs.defaults.object(forKey: "weeklyDigestWeekday") as? Int ?? 2
         weekday = (1...7).contains(storedWeekday) ? storedWeekday : 2
-        let storedHour = UserDefaults.standard.object(forKey: "weeklyDigestHour") as? Int ?? 9
+        let storedHour = AppPrefs.defaults.object(forKey: "weeklyDigestHour") as? Int ?? 9
         hour = Self.hourChoices.contains(storedHour) ? storedHour : 9
-        lastDeliveredAt = UserDefaults.standard.object(forKey: Self.lastDeliveredKey) as? Date
-        lastDigestText = UserDefaults.standard.string(forKey: Self.lastTextKey)
+        lastDeliveredAt = AppPrefs.defaults.object(forKey: Self.lastDeliveredKey) as? Date
+        lastDigestText = AppPrefs.defaults.string(forKey: Self.lastTextKey)
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.deliverIfDue()
@@ -83,8 +83,8 @@ final class WeeklyDigestStore: ObservableObject {
         let text = Self.buildText(days: days)
         lastDeliveredAt = Date()
         lastDigestText = text
-        UserDefaults.standard.set(lastDeliveredAt, forKey: Self.lastDeliveredKey)
-        UserDefaults.standard.set(text, forKey: Self.lastTextKey)
+        AppPrefs.defaults.set(lastDeliveredAt, forKey: Self.lastDeliveredKey)
+        AppPrefs.defaults.set(text, forKey: Self.lastTextKey)
         AgentScheduler.shared.deliveryTarget?.appendExternalNote(text)
         ProactiveNotificationStore.shared.deliver(
             title: String(localized: "Weekly review ready"),

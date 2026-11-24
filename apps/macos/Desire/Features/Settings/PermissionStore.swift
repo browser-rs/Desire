@@ -15,11 +15,11 @@ class PermissionStore: ObservableObject {
             return
         }
         // One-time migration from the legacy UserDefaults blob.
-        if let data = UserDefaults.standard.data(forKey: key),
+        if let data = AppPrefs.defaults.data(forKey: key),
            let decoded = try? JSONDecoder().decode([PermissionRule].self, from: data) {
             rules = decoded
             save()
-            UserDefaults.standard.removeObject(forKey: key)
+            AppPrefs.defaults.removeObject(forKey: key)
         }
     }
 

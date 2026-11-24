@@ -54,16 +54,16 @@ final class BackgroundAgentRunner: ObservableObject {
     // MARK: - 配置
 
     var isEnabled: Bool {
-        UserDefaults.standard.object(forKey: "agent.background.enabled") as? Bool ?? true
+        AppPrefs.defaults.object(forKey: "agent.background.enabled") as? Bool ?? true
     }
 
     var wallClockTimeout: TimeInterval {
-        let raw = UserDefaults.standard.double(forKey: "agent.background.timeoutSeconds")
+        let raw = AppPrefs.defaults.double(forKey: "agent.background.timeoutSeconds")
         return raw > 0 ? raw : 600
     }
 
     var approvalTimeout: TimeInterval {
-        let raw = UserDefaults.standard.double(forKey: "agent.background.approvalSeconds")
+        let raw = AppPrefs.defaults.double(forKey: "agent.background.approvalSeconds")
         return raw > 0 ? raw : 120
     }
 

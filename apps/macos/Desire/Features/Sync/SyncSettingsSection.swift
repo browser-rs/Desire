@@ -57,8 +57,8 @@ struct SyncSettingsSection: View {
         .onChange(of: store.authState, initial: true) {
             // 首次进入已登录态自动弹一次接入引导（此前的账号也补弹一次）。
             guard case .signedIn = store.authState,
-                  !UserDefaults.standard.bool(forKey: Self.onboardingShownKey) else { return }
-            UserDefaults.standard.set(true, forKey: Self.onboardingShownKey)
+                  !AppPrefs.defaults.bool(forKey: Self.onboardingShownKey) else { return }
+            AppPrefs.defaults.set(true, forKey: Self.onboardingShownKey)
             showsOnboarding = true
         }
         .onAppear {

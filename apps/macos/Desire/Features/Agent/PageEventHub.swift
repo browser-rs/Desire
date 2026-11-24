@@ -47,7 +47,7 @@ final class PageEventHub: ObservableObject {
     private static let firedEventsCap = 30
 
     private init() {
-        siteModes = UserDefaults.standard.dictionary(forKey: "dpp.eventModes") as? [String: String] ?? [:]
+        siteModes = AppPrefs.defaults.dictionary(forKey: "dpp.eventModes") as? [String: String] ?? [:]
     }
 
     // MARK: - 模式
@@ -59,13 +59,13 @@ final class PageEventHub: ObservableObject {
     func setMode(_ mode: String, for host: String) {
         let key = host.lowercased()
         siteModes[key] = mode
-        UserDefaults.standard.set(siteModes, forKey: "dpp.eventModes")
+        AppPrefs.defaults.set(siteModes, forKey: "dpp.eventModes")
     }
 
     /// 移除站点的显式配置（回落到 DPP 配置的默认档）。
     func removeMode(for host: String) {
         siteModes.removeValue(forKey: host.lowercased())
-        UserDefaults.standard.set(siteModes, forKey: "dpp.eventModes")
+        AppPrefs.defaults.set(siteModes, forKey: "dpp.eventModes")
     }
 
     func mode(for host: String) -> String {

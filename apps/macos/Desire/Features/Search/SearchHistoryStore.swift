@@ -44,11 +44,11 @@ class SearchHistoryStore: ObservableObject {
             return
         }
         // One-time migration from legacy UserDefaults blob.
-        if let data = UserDefaults.standard.data(forKey: legacyKey),
+        if let data = AppPrefs.defaults.data(forKey: legacyKey),
            let decoded = try? JSONDecoder().decode([SearchHistory].self, from: data) {
             entries = decoded
             DiskStore.save(decoded, key: storageKey)
-            UserDefaults.standard.removeObject(forKey: legacyKey)
+            AppPrefs.defaults.removeObject(forKey: legacyKey)
         }
     }
 

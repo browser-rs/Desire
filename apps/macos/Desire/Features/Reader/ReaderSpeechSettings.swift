@@ -9,7 +9,7 @@ struct ReaderSpeechSettings {
     static let defaultRate: Float = 0.5
 
     static func load() -> ReaderSpeechSettings {
-        let defaults = UserDefaults.standard
+        let defaults = AppPrefs.defaults
         let stored = defaults.object(forKey: "reader.speech.rate") as? Double
         let rate = Float(stored ?? Double(defaultRate))
         let voice = defaults.string(forKey: "reader.speech.voice")
@@ -19,7 +19,7 @@ struct ReaderSpeechSettings {
     }
 
     func save() {
-        let defaults = UserDefaults.standard
+        let defaults = AppPrefs.defaults
         defaults.set(Double(rate), forKey: "reader.speech.rate")
         if let voiceIdentifier, !voiceIdentifier.isEmpty {
             defaults.set(voiceIdentifier, forKey: "reader.speech.voice")

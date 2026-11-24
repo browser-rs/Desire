@@ -19,7 +19,7 @@ final class DPPConfigStore: ObservableObject {
     @Published private(set) var contextDisabledHosts: Set<String>
 
     private init() {
-        let d = UserDefaults.standard
+        let d = AppPrefs.defaults
         // enabled 缺省 true（协议解析是既有默认行为）；其余按保守缺省。
         enabled = d.object(forKey: "dpp.enabled") as? Bool ?? true
         promptHints = d.object(forKey: "dpp.promptHints") as? Bool ?? true
@@ -36,23 +36,23 @@ final class DPPConfigStore: ObservableObject {
     func setContextDisabled(_ disabled: Bool, for host: String) {
         let h = host.lowercased()
         if disabled { contextDisabledHosts.insert(h) } else { contextDisabledHosts.remove(h) }
-        UserDefaults.standard.set(Array(contextDisabledHosts).sorted(), forKey: "dpp.contextDisabledHosts")
+        AppPrefs.defaults.set(Array(contextDisabledHosts).sorted(), forKey: "dpp.contextDisabledHosts")
         objectWillChange.send()
     }
 
     func setEnabled(_ value: Bool) {
         enabled = value
-        UserDefaults.standard.set(value, forKey: "dpp.enabled")
+        AppPrefs.defaults.set(value, forKey: "dpp.enabled")
     }
 
     func setPromptHints(_ value: Bool) {
         promptHints = value
-        UserDefaults.standard.set(value, forKey: "dpp.promptHints")
+        AppPrefs.defaults.set(value, forKey: "dpp.promptHints")
     }
 
     func setDefaultEventMode(_ mode: String) {
         guard PageEventPolicy.isValidMode(mode) else { return }
         defaultEventMode = mode
-        UserDefaults.standard.set(mode, forKey: "dpp.defaultEventMode")
+        AppPrefs.defaults.set(mode, forKey: "dpp.defaultEventMode")
     }
 }

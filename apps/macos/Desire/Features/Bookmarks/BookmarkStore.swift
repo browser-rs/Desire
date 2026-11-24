@@ -261,13 +261,13 @@ class BookmarkStore: ObservableObject {
             return
         }
         // One-time migration from the legacy UserDefaults blob.
-        if let data = UserDefaults.standard.data(forKey: legacySaveKey),
+        if let data = AppPrefs.defaults.data(forKey: legacySaveKey),
            let decoded = try? JSONDecoder().decode([Bookmark].self, from: data) {
             bookmarks = normalizeTimestamps(decoded)
             pendingDeletions = [:]
             rebuildURLIndex()
             save()
-            UserDefaults.standard.removeObject(forKey: legacySaveKey)
+            AppPrefs.defaults.removeObject(forKey: legacySaveKey)
         }
     }
 

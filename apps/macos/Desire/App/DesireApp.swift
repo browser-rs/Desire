@@ -507,7 +507,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func noticeAbnormalPreviousExit() {
         let key = "app.cleanExit"
-        let defaults = UserDefaults.standard
+        let defaults = AppPrefs.defaults
         let previous = defaults.object(forKey: key) as? Bool
         defaults.set(false, forKey: key)
         guard previous == false else { return }  // 首次启动（无标志）不算异常
@@ -517,7 +517,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        UserDefaults.standard.set(true, forKey: "app.cleanExit")
+        AppPrefs.defaults.set(true, forKey: "app.cleanExit")
         // BUG-K diagnostics: the process occasionally hangs inside exit()
         // after termination is approved. Log everything still alive at the
         // moment we hand control back to AppKit, so a stuck run can be

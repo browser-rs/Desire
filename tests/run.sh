@@ -12,6 +12,7 @@ SOURCES=(
   apps/macos/Desire/Storage/StorageRoot.swift
   apps/macos/Desire/Storage/DiagnosticGC.swift
   apps/macos/Desire/Storage/HermeticLaunchGuard.swift
+  apps/macos/Desire/Storage/AppPrefs.swift
   apps/macos/Desire/Features/Agent/AgentMessage.swift
   apps/macos/Desire/Features/Agent/AgentBudget.swift
   apps/macos/Desire/Features/Settings/TabBehavior.swift

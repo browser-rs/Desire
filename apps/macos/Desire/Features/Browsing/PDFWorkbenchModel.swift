@@ -207,7 +207,7 @@ final class PDFWorkbenchModel: ObservableObject {
     }
 
     static func loadPosition(filePath: String) -> ReadingPosition? {
-        guard let data = UserDefaults.standard.data(forKey: positionKey(for: filePath)),
+        guard let data = AppPrefs.defaults.data(forKey: positionKey(for: filePath)),
               let pos = try? JSONDecoder().decode(ReadingPosition.self, from: data),
               pos.page >= 0 else { return nil }
         return pos
@@ -216,7 +216,7 @@ final class PDFWorkbenchModel: ObservableObject {
     func savePosition(filePath: String) {
         let pos = ReadingPosition(page: pageIndex, zoom: Double(zoomValue))
         if let data = try? JSONEncoder().encode(pos) {
-            UserDefaults.standard.set(data, forKey: Self.positionKey(for: filePath))
+            AppPrefs.defaults.set(data, forKey: Self.positionKey(for: filePath))
         }
     }
 

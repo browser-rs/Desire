@@ -25,7 +25,7 @@ final class MenuBarQuickEntryController: ObservableObject {
     private var defaultsObserver: NSObjectProtocol?
 
     private init() {
-        isVisible = (UserDefaults.standard.object(forKey: Self.defaultsKey) as? Bool) ?? true
+        isVisible = (AppPrefs.defaults.object(forKey: Self.defaultsKey) as? Bool) ?? true
     }
 
     /// 应用装配完成后调用（AppDelegate.applicationDidFinishLaunching）。
@@ -43,12 +43,12 @@ final class MenuBarQuickEntryController: ObservableObject {
     func setVisible(_ visible: Bool) {
         guard visible != isVisible else { return }
         isVisible = visible
-        UserDefaults.standard.set(visible, forKey: Self.defaultsKey)
+        AppPrefs.defaults.set(visible, forKey: Self.defaultsKey)
         updateStatusItem()
     }
 
     private func syncFromDefaults() {
-        let stored = (UserDefaults.standard.object(forKey: Self.defaultsKey) as? Bool) ?? true
+        let stored = (AppPrefs.defaults.object(forKey: Self.defaultsKey) as? Bool) ?? true
         guard stored != isVisible else { return }
         isVisible = stored
         updateStatusItem()

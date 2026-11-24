@@ -19,15 +19,15 @@ final class AppModeStore: ObservableObject {
     private static let guideKey = "app.mode.guideShown"
 
     private init() {
-        mode = AppUsageMode(rawValue: UserDefaults.standard.string(forKey: Self.key) ?? "") ?? .browser
-        agentSharesUserProfile = UserDefaults.standard.bool(forKey: Self.shareKey)
+        mode = AppUsageMode(rawValue: AppPrefs.defaults.string(forKey: Self.key) ?? "") ?? .browser
+        agentSharesUserProfile = AppPrefs.defaults.bool(forKey: Self.shareKey)
     }
 
     func setMode(_ newMode: AppUsageMode) {
         guard newMode != mode else { return }
         mode = newMode
-        UserDefaults.standard.set(newMode.rawValue, forKey: Self.key)
-        let defaults = UserDefaults.standard
+        AppPrefs.defaults.set(newMode.rawValue, forKey: Self.key)
+        let defaults = AppPrefs.defaults
         if newMode != .browser, !defaults.bool(forKey: Self.guideKey) {
             defaults.set(true, forKey: Self.guideKey)
             guideMode = newMode
@@ -42,7 +42,7 @@ final class AppModeStore: ObservableObject {
     func setAgentSharesUserProfile(_ shares: Bool) {
         guard shares != agentSharesUserProfile else { return }
         agentSharesUserProfile = shares
-        UserDefaults.standard.set(shares, forKey: Self.shareKey)
+        AppPrefs.defaults.set(shares, forKey: Self.shareKey)
         NotificationCenter.default.post(name: .appUsageModeChanged, object: nil)
     }
 

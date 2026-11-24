@@ -102,8 +102,8 @@ nonisolated enum AIConnectivity {
             req.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
         }
         if opencodeSessionHeader {
-            let sid = UserDefaults.standard.string(forKey: "aiOpencodeSessionID") ?? UUID().uuidString
-            UserDefaults.standard.set(sid, forKey: "aiOpencodeSessionID")
+            let sid = AppPrefs.defaults.string(forKey: "aiOpencodeSessionID") ?? UUID().uuidString
+            AppPrefs.defaults.set(sid, forKey: "aiOpencodeSessionID")
             req.setValue(sid, forHTTPHeaderField: "x-opencode-session")
         }
         // 档案自定义请求头，过滤规则与聊天路径一致：空名跳过，

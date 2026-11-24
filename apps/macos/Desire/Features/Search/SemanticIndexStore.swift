@@ -51,7 +51,7 @@ final class SemanticIndexStore: ObservableObject {
     /// 历史正文另外受 `history.contentIndex.enabled` 自己的开关约束。
     private static let defaultSources: [SemanticSource] = [.history, .bookmark, .excerpt, .highlight]
 
-    private let defaults = UserDefaults.standard
+    private let defaults = AppPrefs.defaults
     private var enabledSourceKeys: Set<String>
     private var cache: [String: SemanticIndexStorage.Shard] = [:]
     private var observers: [AnyCancellable] = []

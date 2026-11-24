@@ -42,9 +42,9 @@ enum ModelListFetcher {
         }
         // OpenCode Go session routing header.
         if base.contains("opencode") {
-            let sid = UserDefaults.standard.string(forKey: "aiOpencodeSessionID")
+            let sid = AppPrefs.defaults.string(forKey: "aiOpencodeSessionID")
                 ?? UUID().uuidString
-            UserDefaults.standard.set(sid, forKey: "aiOpencodeSessionID")
+            AppPrefs.defaults.set(sid, forKey: "aiOpencodeSessionID")
             request.setValue(sid, forHTTPHeaderField: "x-opencode-session")
         }
         let (data, response) = try await URLSession.shared.data(for: request)

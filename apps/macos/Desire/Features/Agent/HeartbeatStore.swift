@@ -19,27 +19,27 @@ final class HeartbeatStore: ObservableObject {
     static let intervalChoices = [15, 30, 60, 120, 240]
 
     @Published var isEnabled: Bool {
-        didSet { UserDefaults.standard.set(isEnabled, forKey: "agentHeartbeatEnabled") }
+        didSet { AppPrefs.defaults.set(isEnabled, forKey: "agentHeartbeatEnabled") }
     }
     @Published var intervalMinutes: Int {
         didSet {
             let clamped = Self.intervalChoices.contains(intervalMinutes) ? intervalMinutes : 60
             if clamped != intervalMinutes { intervalMinutes = clamped }
-            UserDefaults.standard.set(intervalMinutes, forKey: "agentHeartbeatMinutes")
+            AppPrefs.defaults.set(intervalMinutes, forKey: "agentHeartbeatMinutes")
         }
     }
     /// 巡检清单（HEARTBEAT.md 的对应物）：常驻指令，逐行自由文本。
     @Published var checklist: String {
         didSet {
             if checklist != oldValue {
-                UserDefaults.standard.set(checklist, forKey: "agentHeartbeatChecklist")
+                AppPrefs.defaults.set(checklist, forKey: "agentHeartbeatChecklist")
             }
         }
     }
     /// **发现即处理**：心跳说出某事后，自动派一个真实 agent 回合去核实/处理
     /// （走 deliverScheduled，忙时排队）。关 = 只提醒不动手。
     @Published var autoHandle: Bool {
-        didSet { UserDefaults.standard.set(autoHandle, forKey: "agentHeartbeatAutoHandle") }
+        didSet { AppPrefs.defaults.set(autoHandle, forKey: "agentHeartbeatAutoHandle") }
     }
     @Published private(set) var lastBeatAt: Date?
     /// 上一次心跳的结论：静默 / 说的话（截断展示用）。
@@ -50,12 +50,12 @@ final class HeartbeatStore: ObservableObject {
     private static let lastBeatKey = "agentHeartbeatLastBeat"
 
     init() {
-        isEnabled = UserDefaults.standard.object(forKey: "agentHeartbeatEnabled") as? Bool ?? false
-        let stored = UserDefaults.standard.object(forKey: "agentHeartbeatMinutes") as? Int ?? 60
+        isEnabled = AppPrefs.defaults.object(forKey: "agentHeartbeatEnabled") as? Bool ?? false
+        let stored = AppPrefs.defaults.object(forKey: "agentHeartbeatMinutes") as? Int ?? 60
         intervalMinutes = Self.intervalChoices.contains(stored) ? stored : 60
-        checklist = UserDefaults.standard.string(forKey: "agentHeartbeatChecklist") ?? ""
-        autoHandle = UserDefaults.standard.object(forKey: "agentHeartbeatAutoHandle") as? Bool ?? false
-        lastBeatAt = UserDefaults.standard.object(forKey: Self.lastBeatKey) as? Date
+        checklist = AppPrefs.defaults.string(forKey: "agentHeartbeatChecklist") ?? ""
+        autoHandle = AppPrefs.defaults.object(forKey: "agentHeartbeatAutoHandle") as? Bool ?? false
+        lastBeatAt = AppPrefs.defaults.object(forKey: Self.lastBeatKey) as? Date
         // 60s 粒度的 tick：到点才跑，忙时/免打扰自然推迟到下个 tick。
         timer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor [weak self] in
@@ -179,7 +179,7 @@ extension HeartbeatStore {
     private func recordBeat(result: String) {
         lastBeatAt = Date()
         lastResult = result
-        UserDefaults.standard.set(lastBeatAt, forKey: Self.lastBeatKey)
+        AppPrefs.defaults.set(lastBeatAt, forKey: Self.lastBeatKey)
     }
 
     fileprivate static func isQuietNow() -> Bool {

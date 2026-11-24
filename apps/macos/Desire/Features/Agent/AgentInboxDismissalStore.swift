@@ -21,8 +21,8 @@ final class AgentInboxDismissalStore: ObservableObject {
     private static let snoozedKey = "agentInbox.snoozed"
 
     init() {
-        ignored = Set(UserDefaults.standard.stringArray(forKey: Self.ignoredKey) ?? [])
-        if let data = UserDefaults.standard.data(forKey: Self.snoozedKey),
+        ignored = Set(AppPrefs.defaults.stringArray(forKey: Self.ignoredKey) ?? [])
+        if let data = AppPrefs.defaults.data(forKey: Self.snoozedKey),
            let decoded = try? JSONDecoder().decode([String: Date].self, from: data) {
             snoozed = decoded
         }
@@ -75,7 +75,7 @@ final class AgentInboxDismissalStore: ObservableObject {
     }
 
     private func save() {
-        UserDefaults.standard.set(Array(ignored), forKey: Self.ignoredKey)
-        UserDefaults.standard.set(try? JSONEncoder().encode(snoozed), forKey: Self.snoozedKey)
+        AppPrefs.defaults.set(Array(ignored), forKey: Self.ignoredKey)
+        AppPrefs.defaults.set(try? JSONEncoder().encode(snoozed), forKey: Self.snoozedKey)
     }
 }

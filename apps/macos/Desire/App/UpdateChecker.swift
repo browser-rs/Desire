@@ -51,7 +51,7 @@ final class UpdateChecker: NSObject, ObservableObject {
         // E2E 钩子（defaults write me.siwi.Desire update.allowAnyPath 1）：
         // 放行任意路径——自更新全链在隔离副本上可测（绝不动 /Applications
         // 的正式安装，见 AGENTS 禁令）。生产用户不会设置。
-        if UserDefaults.standard.bool(forKey: "update.allowAnyPath") { return true }
+        if AppPrefs.defaults.bool(forKey: "update.allowAnyPath") { return true }
         return Bundle.main.bundleURL.path.hasPrefix("/Applications/")
     }
 
@@ -212,7 +212,7 @@ final class UpdateChecker: NSObject, ObservableObject {
     /// E2E/调试：defaults write me.siwi.Desire update.apiURL <url> 覆盖
     /// （自动更新链路由此可离线验证；生产不设置 = GitHub 正式端点）。
     private static let apiURL = URL(
-        string: UserDefaults.standard.string(forKey: "update.apiURL")
+        string: AppPrefs.defaults.string(forKey: "update.apiURL")
             ?? "https://api.github.com/repos/browser-rs/Desire/releases/latest")!
 
     private static let log = Log.app
@@ -254,13 +254,13 @@ final class UpdateChecker: NSObject, ObservableObject {
             latestTag = tag
             releasePageURL = URL(string: htmlURL)
 
-            let seen = UserDefaults.standard.string(forKey: Self.seenTagKey)
+            let seen = AppPrefs.defaults.string(forKey: Self.seenTagKey)
             guard tag != seen else {
                 Self.log.info("update check: \(tag, privacy: .public) already seen")
                 lastCheckResult = .upToDate
                 return
             }
-            UserDefaults.standard.set(tag, forKey: Self.seenTagKey)
+            AppPrefs.defaults.set(tag, forKey: Self.seenTagKey)
             // First-run installs seed seenTag silently — a user who just
             // installed does not need a "new version" notification.
             if seen != nil {

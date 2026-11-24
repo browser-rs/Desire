@@ -137,7 +137,7 @@ final class AgentCrewStore: ObservableObject {
     }
 
     nonisolated static var presets: [Preset] {
-        guard let data = UserDefaults.standard.data(forKey: "crew.presets"),
+        guard let data = AppPrefs.defaults.data(forKey: "crew.presets"),
               let list = try? JSONDecoder().decode([Preset].self, from: data) else { return [] }
         return list
     }
@@ -150,7 +150,7 @@ final class AgentCrewStore: ObservableObject {
             list.append(preset)
         }
         if let data = try? JSONEncoder().encode(list) {
-            UserDefaults.standard.set(data, forKey: "crew.presets")
+            AppPrefs.defaults.set(data, forKey: "crew.presets")
         }
     }
 
@@ -158,14 +158,14 @@ final class AgentCrewStore: ObservableObject {
         var list = presets
         list.removeAll { $0.id == id }
         if let data = try? JSONEncoder().encode(list) {
-            UserDefaults.standard.set(data, forKey: "crew.presets")
+            AppPrefs.defaults.set(data, forKey: "crew.presets")
         }
     }
 
     /// crew 规模上限（v0.8.18 替人干活 15）：2-10 可配，默认 6
     /// （UserDefaults "crew.maxTasks"；越界回落默认）。
     static var maxTasks: Int {
-        let raw = UserDefaults.standard.integer(forKey: "crew.maxTasks")
+        let raw = AppPrefs.defaults.integer(forKey: "crew.maxTasks")
         return (2...10).contains(raw) ? raw : 6
     }
 
@@ -636,7 +636,7 @@ final class AgentCrewStore: ObservableObject {
     /// 占位符 {{objective}}/{{done}}/{{failed}}/{{duration}}/{{usage}}/{{tasks}}；
     /// 未设置 = 内置默认结构。{{tasks}} 展开为逐任务小节，其余为行内文本。
     private func renderReportBody(_ c: Crew, tasksSection: String) -> String {
-        let template = UserDefaults.standard.string(forKey: "crew.reportTemplate")
+        let template = AppPrefs.defaults.string(forKey: "crew.reportTemplate")
         guard var template, template.contains("{{") else {
             var md = "# Crew: \(c.objective)\n\n"
             md += "- \(c.completedCount)/\(c.tasks.count) done"

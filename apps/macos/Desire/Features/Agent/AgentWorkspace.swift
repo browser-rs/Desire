@@ -25,7 +25,7 @@ final class AgentWorkspace: ObservableObject {
         // 用户的 Documents/DesireAgent 与 stored 偏好都不进测试视野。
         if StorageRoot.isOverridden {
             directory = StorageRoot.directory.appendingPathComponent("agent-workspace", isDirectory: true)
-        } else if let stored = UserDefaults.standard.string(forKey: Self.key) {
+        } else if let stored = AppPrefs.defaults.string(forKey: Self.key) {
             directory = URL(fileURLWithPath: (stored as NSString).expandingTildeInPath)
         } else {
             let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
@@ -36,12 +36,12 @@ final class AgentWorkspace: ObservableObject {
 
     func set(_ url: URL) {
         directory = url
-        UserDefaults.standard.set(url.path, forKey: Self.key)
+        AppPrefs.defaults.set(url.path, forKey: Self.key)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
     }
 
     func resetToDefault() {
-        UserDefaults.standard.removeObject(forKey: Self.key)
+        AppPrefs.defaults.removeObject(forKey: Self.key)
         let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
         set(documents.appendingPathComponent("DesireAgent", isDirectory: true))
     }
@@ -60,10 +60,10 @@ final class AgentWorkspace: ObservableObject {
         // （此前按 "aiAccessLevelExists 未设" 判——任何一次显式改等级都会让
         // 完全访问的文件路径放行永久失效，与 gate() 的判定分叉。）
         let fullAccess: Bool
-        if let raw = UserDefaults.standard.object(forKey: "aiAccessLevel") as? Int {
+        if let raw = AppPrefs.defaults.object(forKey: "aiAccessLevel") as? Int {
             fullAccess = raw == AgentSessionStore.AccessLevel.fullAccess.rawValue
         } else {
-            fullAccess = UserDefaults.standard.bool(forKey: "aiFullAccess")
+            fullAccess = AppPrefs.defaults.bool(forKey: "aiFullAccess")
         }
         let hasScheme = rawPath.contains("://")
         let expanded = (rawPath as NSString).expandingTildeInPath

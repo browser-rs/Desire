@@ -53,7 +53,7 @@ enum WebExtensionStore {
     }
 
     private static func loadAll(ext: String?) -> [String: Any] {
-        guard let data = UserDefaults.standard.data(forKey: key(for: ext)),
+        guard let data = AppPrefs.defaults.data(forKey: key(for: ext)),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [:] }
         return obj
     }
@@ -80,7 +80,7 @@ enum WebExtensionStore {
 
     private static func saveAll(_ store: [String: Any], ext: String?) {
         guard let data = try? JSONSerialization.data(withJSONObject: store) else { return }
-        UserDefaults.standard.set(data, forKey: key(for: ext))
+        AppPrefs.defaults.set(data, forKey: key(for: ext))
     }
 
     /// `notifications.clear` — 移除已投递与待投递的通知。

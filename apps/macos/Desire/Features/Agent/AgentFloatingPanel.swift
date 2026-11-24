@@ -45,7 +45,7 @@ class AgentFloatingPanel {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
         // 两栏布局：侧栏展开态需要更宽的窗口下限（存档状态决定初始 minSize，
         // 必须在 frame 还原前设置——还原时按 minSize 钳制）。
-        let sidebarExpanded = UserDefaults.standard.bool(forKey: AgentWindowRoot.sidebarKey)
+        let sidebarExpanded = AppPrefs.defaults.bool(forKey: AgentWindowRoot.sidebarKey)
         panel.minSize = NSSize(width: sidebarExpanded ? 560 : 320, height: 480)
 
         // Capture only the stores, not self — the window holds the content

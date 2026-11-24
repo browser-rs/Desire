@@ -170,11 +170,11 @@ class ReadingListStore: ObservableObject {
             return
         }
         // One-time migration from the legacy UserDefaults blob.
-        if let data = UserDefaults.standard.data(forKey: storageKey),
+        if let data = AppPrefs.defaults.data(forKey: storageKey),
            let decoded = try? JSONDecoder().decode([ReadingListItem].self, from: data) {
             items = normalizeTimestamps(decoded)
             save()
-            UserDefaults.standard.removeObject(forKey: storageKey)
+            AppPrefs.defaults.removeObject(forKey: storageKey)
         }
     }
 

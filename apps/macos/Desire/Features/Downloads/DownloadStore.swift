@@ -60,7 +60,7 @@ class DownloadStore: ObservableObject {
     var failedCount: Int { downloads.filter { $0.state == .failed }.count }
 
     init() {
-        conflictPolicyRaw = UserDefaults.standard.string(forKey: "download.conflictPolicy")
+        conflictPolicyRaw = AppPrefs.defaults.string(forKey: "download.conflictPolicy")
             ?? ConflictPolicy.rename.rawValue
         downloadFolder = DownloadStore.defaultDownloadsURL()
         if let custom = DownloadStore.resolveBookmarkedFolder(bookmarkKey: bookmarkKey) {
@@ -95,7 +95,7 @@ class DownloadStore: ObservableObject {
         let low = ProcessInfo.processInfo.isLowPowerModeEnabled
         if !force && low == lastLowPower { return }
         lastLowPower = low
-        let pauseEnabled = UserDefaults.standard
+        let pauseEnabled = AppPrefs.defaults
             .object(forKey: "downloads.pauseOnLowPower") as? Bool ?? true
         guard pauseEnabled else { return }
         if low {
@@ -141,7 +141,7 @@ class DownloadStore: ObservableObject {
     }
 
     private static func resolveBookmarkedFolder(bookmarkKey: String) -> (url: URL, data: Data)? {
-        guard let data = UserDefaults.standard.data(forKey: bookmarkKey) else { return nil }
+        guard let data = AppPrefs.defaults.data(forKey: bookmarkKey) else { return nil }
         var stale = false
         guard let url = try? URL(
             resolvingBookmarkData: data,
@@ -151,7 +151,7 @@ class DownloadStore: ObservableObject {
         ) else { return nil }
         if stale {
             if let refreshed = try? url.bookmarkData(options: [.withSecurityScope]) {
-                UserDefaults.standard.set(refreshed, forKey: bookmarkKey)
+                AppPrefs.defaults.set(refreshed, forKey: bookmarkKey)
             }
         }
         return (url, data)
@@ -169,7 +169,7 @@ class DownloadStore: ObservableObject {
 
         if url.startAccessingSecurityScopedResource() {
             if let data = try? url.bookmarkData(options: [.withSecurityScope]) {
-                UserDefaults.standard.set(data, forKey: bookmarkKey)
+                AppPrefs.defaults.set(data, forKey: bookmarkKey)
             }
             accessedURL?.stopAccessingSecurityScopedResource()
             accessedURL = url
@@ -181,7 +181,7 @@ class DownloadStore: ObservableObject {
     func resetToDefaultFolder() {
         accessedURL?.stopAccessingSecurityScopedResource()
         accessedURL = nil
-        UserDefaults.standard.removeObject(forKey: bookmarkKey)
+        AppPrefs.defaults.removeObject(forKey: bookmarkKey)
         downloadFolder = DownloadStore.defaultDownloadsURL()
     }
 
@@ -193,7 +193,7 @@ class DownloadStore: ObservableObject {
     }
 
     @Published var conflictPolicyRaw: String {
-        didSet { UserDefaults.standard.set(conflictPolicyRaw, forKey: "download.conflictPolicy") }
+        didSet { AppPrefs.defaults.set(conflictPolicyRaw, forKey: "download.conflictPolicy") }
     }
 
     var conflictPolicy: ConflictPolicy {
@@ -475,7 +475,7 @@ class DownloadStore: ObservableObject {
     /// 并发是能真控的：超限的下载在 `decideDestinationUsing` 处被挂起
     /// （completionHandler 不回调 = WebKit 不开始传输），名额空出再放行。
     var maxConcurrentDownloads: Int {
-        UserDefaults.standard.object(forKey: "maxConcurrentDownloads") as? Int ?? 0
+        AppPrefs.defaults.object(forKey: "maxConcurrentDownloads") as? Int ?? 0
     }
 
     /// 正在传输的条数（inProgress 且非暂停/非排队）。
@@ -528,7 +528,7 @@ class DownloadStore: ObservableObject {
     /// 首条命中即把完成文件移入下载目录下的子目录（不越出下载根）。
     /// 移动结果写进条目 fileURL；失败静默留原地。
     private func autoArchiveIfMatched(index: Int) async {
-        guard let data = UserDefaults.standard.data(forKey: "downloadArchiveRules"),
+        guard let data = AppPrefs.defaults.data(forKey: "downloadArchiveRules"),
               let rules = try? JSONDecoder().decode([ArchiveRule].self, from: data),
               !rules.isEmpty else { return }
         let item = downloads[index]
@@ -564,7 +564,7 @@ class DownloadStore: ObservableObject {
 
     /// 磁盘空间卫士（v0.8.20 基础件 4）：默认 2GB，UserDefaults 可调。
     nonisolated static var minFreeBytes: Int64 {
-        let raw = UserDefaults.standard.integer(forKey: "download.minFreeGB")
+        let raw = AppPrefs.defaults.integer(forKey: "download.minFreeGB")
         return Int64((1...50).contains(raw) ? raw : 2) * 1_000_000_000
     }
 
@@ -575,7 +575,7 @@ class DownloadStore: ObservableObject {
 
     /// 规则表读写（UI 编辑器与桥端点共用；UserDefaults "downloadArchiveRules"）。
     static func loadArchiveRules() -> [ArchiveRule] {
-        guard let data = UserDefaults.standard.data(forKey: "downloadArchiveRules"),
+        guard let data = AppPrefs.defaults.data(forKey: "downloadArchiveRules"),
               let rules = try? JSONDecoder().decode([ArchiveRule].self, from: data) else { return [] }
         return rules
     }
@@ -583,10 +583,10 @@ class DownloadStore: ObservableObject {
     static func saveArchiveRules(_ rules: [ArchiveRule]) {
         guard !rules.isEmpty,
               let data = try? JSONEncoder().encode(rules) else {
-            UserDefaults.standard.removeObject(forKey: "downloadArchiveRules")
+            AppPrefs.defaults.removeObject(forKey: "downloadArchiveRules")
             return
         }
-        UserDefaults.standard.set(data, forKey: "downloadArchiveRules")
+        AppPrefs.defaults.set(data, forKey: "downloadArchiveRules")
     }
 
     /// 归档规则（扩展名或来源域 → 子目录；可选 convertTo 后处理动作）。
@@ -621,7 +621,7 @@ class DownloadStore: ObservableObject {
     }
 
     private func maybeAutoSummarize(_ item: DownloadItem) {
-        guard UserDefaults.standard.bool(forKey: "downloadAutoSummarize") else { return }
+        guard AppPrefs.defaults.bool(forKey: "downloadAutoSummarize") else { return }
         let ext = (item.filename as NSString).pathExtension.lowercased()
         guard let url = item.fileURL else { return }
         let filename = item.filename
@@ -792,13 +792,13 @@ class DownloadStore: ObservableObject {
             return
         }
         // One-time migration from the legacy UserDefaults blob.
-        if let data = UserDefaults.standard.data(forKey: historyKey),
+        if let data = AppPrefs.defaults.data(forKey: historyKey),
            let items = try? JSONDecoder().decode([HistoryItem].self, from: data) {
             downloads = items.map { $0.toDownloadItem() }
             // Re-save finished items to DiskStore and drop the legacy key.
             let finished = downloads.filter { $0.state != .inProgress }.map { HistoryItem($0) }
             DiskStore.save(finished, key: historyKey)
-            UserDefaults.standard.removeObject(forKey: historyKey)
+            AppPrefs.defaults.removeObject(forKey: historyKey)
         }
     }
 
@@ -978,7 +978,7 @@ class DownloadStore: ObservableObject {
         var userChoseDestination = false
         // 设置 ▸ Downloads ▸ Ask where to save each file：落盘前弹保存
         // 面板（此时已有完整文件名建议，比 Safari 在开始时猜名字更准）。
-        if UserDefaults.standard.object(forKey: "askWhereToSaveDownloads") as? Bool ?? false {
+        if AppPrefs.defaults.object(forKey: "askWhereToSaveDownloads") as? Bool ?? false {
             let panel = NSSavePanel()
             panel.nameFieldStringValue = downloads[i].filename
             panel.directoryURL = downloadFolder
@@ -999,7 +999,7 @@ class DownloadStore: ObservableObject {
         // 自动归档（v0.8.0，默认关）：只整理落在下载目录根部的文件；用户在
         // 保存面板里手选的目标绝不动。
         if !userChoseDestination,
-           UserDefaults.standard.bool(forKey: "downloads.organizeByType"),
+           AppPrefs.defaults.bool(forKey: "downloads.organizeByType"),
            destination.deletingLastPathComponent().standardizedFileURL == downloadFolder.standardizedFileURL {
             let organized = organizedDestination(for: destination,
                                                  type: downloads[i].fileType)
@@ -1119,7 +1119,7 @@ class DownloadStore: ObservableObject {
     private func notifyCompleted(count: Int, lastFilename: String, fileURL: URL?) {
         // 设置 ▸ General ▸ Downloads ▸ 通知开关。直读 UserDefaults（与
         // suspendAfterMinutes 同款模式）——改设置即时生效，无需重启。
-        guard UserDefaults.standard.object(forKey: "downloadNotifications") as? Bool ?? true else {
+        guard AppPrefs.defaults.object(forKey: "downloadNotifications") as? Bool ?? true else {
             return
         }
         NSApp.requestUserAttention(.informationalRequest)
@@ -1144,7 +1144,7 @@ class DownloadStore: ObservableObject {
 
     /// Mirror the active-download count on the Dock icon; clear when idle.
     private func syncDockBadge() {
-        guard UserDefaults.standard.object(forKey: "downloadDockBadge") as? Bool ?? true else {
+        guard AppPrefs.defaults.object(forKey: "downloadDockBadge") as? Bool ?? true else {
             NSApp.dockTile.badgeLabel = nil
             return
         }

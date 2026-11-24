@@ -26,7 +26,7 @@ final class AgentHooksStore: ObservableObject {
     }
 
     @Published var isEnabled: Bool {
-        didSet { UserDefaults.standard.set(isEnabled, forKey: "agentHooksEnabled") }
+        didSet { AppPrefs.defaults.set(isEnabled, forKey: "agentHooksEnabled") }
     }
     @Published private(set) var files: [HookFile] = []
 
@@ -40,7 +40,7 @@ final class AgentHooksStore: ObservableObject {
     private var contexts: [String: JSContext] = [:]
 
     init() {
-        isEnabled = UserDefaults.standard.object(forKey: "agentHooksEnabled") as? Bool ?? true
+        isEnabled = AppPrefs.defaults.object(forKey: "agentHooksEnabled") as? Bool ?? true
         load()
     }
 
@@ -53,19 +53,19 @@ final class AgentHooksStore: ObservableObject {
         let names = ((try? fm.contentsOfDirectory(atPath: Self.directory.path)) ?? [])
             .filter { $0.hasSuffix(".js") }
             .sorted()
-        let disabled = Set(UserDefaults.standard.stringArray(forKey: Self.disabledKey) ?? [])
+        let disabled = Set(AppPrefs.defaults.stringArray(forKey: Self.disabledKey) ?? [])
         files = names.map { HookFile(id: $0, isEnabled: !disabled.contains($0)) }
         rebuildContexts()
     }
 
     func setEnabled(_ enabled: Bool, for id: String) {
-        var disabled = Set(UserDefaults.standard.stringArray(forKey: Self.disabledKey) ?? [])
+        var disabled = Set(AppPrefs.defaults.stringArray(forKey: Self.disabledKey) ?? [])
         if enabled {
             disabled.remove(id)
         } else {
             disabled.insert(id)
         }
-        UserDefaults.standard.set(Array(disabled).sorted(), forKey: Self.disabledKey)
+        AppPrefs.defaults.set(Array(disabled).sorted(), forKey: Self.disabledKey)
         if let idx = files.firstIndex(where: { $0.id == id }) {
             files[idx].isEnabled = enabled
         }

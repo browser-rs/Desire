@@ -53,16 +53,16 @@ final class GrowthReporter {
     /// 默认开启；显式关掉后不再上报（产品页 beacon 有独立的 localStorage 关闭项）。
     var isEnabled: Bool {
         get {
-            guard UserDefaults.standard.object(forKey: Self.enabledKey) != nil else { return true }
-            return UserDefaults.standard.bool(forKey: Self.enabledKey)
+            guard AppPrefs.defaults.object(forKey: Self.enabledKey) != nil else { return true }
+            return AppPrefs.defaults.bool(forKey: Self.enabledKey)
         }
-        set { UserDefaults.standard.set(newValue, forKey: Self.enabledKey) }
+        set { AppPrefs.defaults.set(newValue, forKey: Self.enabledKey) }
     }
 
     func reportFirstLaunchIfNeeded() {
-        guard UserDefaults.standard.object(forKey: Self.reportedKey) == nil else { return }
+        guard AppPrefs.defaults.object(forKey: Self.reportedKey) == nil else { return }
         guard isEnabled else { return }
-        let base = UserDefaults.standard.string(forKey: "sync.serverBaseURL")
+        let base = AppPrefs.defaults.string(forKey: "sync.serverBaseURL")
             ?? SyncStore.defaultServerBaseURL
         let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? ""
         Task { @MainActor in
@@ -70,7 +70,7 @@ final class GrowthReporter {
             _ = await GrowthEventClient.send(
                 baseURL: base, event: "first_launch",
                 source: "app", campaign: "install", appVersion: version)
-            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: Self.reportedKey)
+            AppPrefs.defaults.set(Date().timeIntervalSince1970, forKey: Self.reportedKey)
         }
     }
 }

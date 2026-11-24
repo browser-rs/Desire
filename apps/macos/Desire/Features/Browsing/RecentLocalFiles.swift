@@ -41,7 +41,7 @@ nonisolated enum RecentLocalFiles {
     }
 
     static func load() -> [Entry] {
-        guard let data = UserDefaults.standard.data(forKey: key) else { return [] }
+        guard let data = AppPrefs.defaults.data(forKey: key) else { return [] }
         return (try? JSONDecoder().decode([Entry].self, from: data)) ?? []
     }
 
@@ -53,7 +53,7 @@ nonisolated enum RecentLocalFiles {
 
     private static func save(_ list: [Entry]) {
         if let data = try? JSONEncoder().encode(list) {
-            UserDefaults.standard.set(data, forKey: key)
+            AppPrefs.defaults.set(data, forKey: key)
         }
     }
 }

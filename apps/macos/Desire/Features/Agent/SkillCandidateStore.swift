@@ -28,7 +28,7 @@ final class SkillCandidateStore: ObservableObject {
             DiskStore.load([SkillCandidateCore.Candidate].self, key: Self.candidatesKey) ?? [],
             now: Date())
         DiskStore.save(candidates, key: Self.candidatesKey)
-        if let data = UserDefaults.standard.data(forKey: Self.ledgerKey),
+        if let data = AppPrefs.defaults.data(forKey: Self.ledgerKey),
            let decoded = try? JSONDecoder().decode(Ledger.self, from: data) {
             offeredAt = decoded.offeredAt
             conversationIDs = decoded.conversationIDs
@@ -38,7 +38,7 @@ final class SkillCandidateStore: ObservableObject {
     private func saveLedger() {
         if let data = try? JSONEncoder().encode(
             Ledger(offeredAt: offeredAt, conversationIDs: conversationIDs)) {
-            UserDefaults.standard.set(data, forKey: Self.ledgerKey)
+            AppPrefs.defaults.set(data, forKey: Self.ledgerKey)
         }
     }
 

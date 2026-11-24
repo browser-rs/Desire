@@ -9,7 +9,7 @@ class ContentBlockerStore: ObservableObject {
     @Published var isBlockingEnabled = false {
         didSet {
             guard oldValue != isBlockingEnabled else { return }
-            UserDefaults.standard.set(isBlockingEnabled, forKey: "contentBlockerEnabled")
+            AppPrefs.defaults.set(isBlockingEnabled, forKey: "contentBlockerEnabled")
             if isBlockingEnabled {
                 ensureCompiled(kind: .ads)
             }
@@ -20,7 +20,7 @@ class ContentBlockerStore: ObservableObject {
     @Published var isTrackingEnabled = false {
         didSet {
             guard oldValue != isTrackingEnabled else { return }
-            UserDefaults.standard.set(isTrackingEnabled, forKey: "trackingProtectionEnabled")
+            AppPrefs.defaults.set(isTrackingEnabled, forKey: "trackingProtectionEnabled")
             if isTrackingEnabled {
                 ensureCompiled(kind: .tracking)
             }
@@ -38,8 +38,8 @@ class ContentBlockerStore: ObservableObject {
 
     init() {
         Self.live = self
-        isBlockingEnabled = UserDefaults.standard.bool(forKey: "contentBlockerEnabled")
-        isTrackingEnabled = UserDefaults.standard.bool(forKey: "trackingProtectionEnabled")
+        isBlockingEnabled = AppPrefs.defaults.bool(forKey: "contentBlockerEnabled")
+        isTrackingEnabled = AppPrefs.defaults.bool(forKey: "trackingProtectionEnabled")
         videoAdRulesEnabled = VideoAdBlocker.resolvedEnabled
         if isBlockingEnabled || videoAdRulesEnabled { ensureCompiled(kind: .ads) }
         if isTrackingEnabled { ensureCompiled(kind: .tracking) }

@@ -46,7 +46,7 @@ struct VerticalTabBarView: View {
 
     @Environment(\.appAccent) private var appAccent
     /// 宽度持久化（分栏拖动手柄由外层 HSplitView 提供）。
-    @AppStorage("verticalTabBar.width") private var width: Double = 200
+    @AppStorage("verticalTabBar.width", store: AppPrefs.defaults) private var width: Double = 200
     @State private var compact = false
 
     private let compactThreshold: CGFloat = 120

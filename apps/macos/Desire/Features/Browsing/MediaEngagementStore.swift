@@ -24,7 +24,7 @@ final class MediaEngagementStore: ObservableObject {
     private var saveTask: Task<Void, Never>?
 
     init() {
-        if let data = UserDefaults.standard.data(forKey: defaultsKey),
+        if let data = AppPrefs.defaults.data(forKey: defaultsKey),
            let decoded = try? JSONDecoder().decode([String: MediaEngagementCore.Record].self, from: data) {
             hosts = decoded
         }
@@ -65,7 +65,7 @@ final class MediaEngagementStore: ObservableObject {
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled, let self else { return }
             if let data = try? JSONEncoder().encode(self.hosts) {
-                UserDefaults.standard.set(data, forKey: self.defaultsKey)
+                AppPrefs.defaults.set(data, forKey: self.defaultsKey)
             }
         }
     }

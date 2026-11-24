@@ -64,15 +64,15 @@ final class AgentRosterStore: ObservableObject {
     }
 
     func binding(for registryID: UUID) -> UUID? {
-        UserDefaults.standard.string(forKey: Self.bindKey(registryID))
+        AppPrefs.defaults.string(forKey: Self.bindKey(registryID))
             .flatMap(UUID.init(uuidString:))
     }
 
     func bind(personaID: UUID?, to registryID: UUID) {
         if let personaID {
-            UserDefaults.standard.set(personaID.uuidString, forKey: Self.bindKey(registryID))
+            AppPrefs.defaults.set(personaID.uuidString, forKey: Self.bindKey(registryID))
         } else {
-            UserDefaults.standard.removeObject(forKey: Self.bindKey(registryID))
+            AppPrefs.defaults.removeObject(forKey: Self.bindKey(registryID))
         }
     }
 

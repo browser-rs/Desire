@@ -3,20 +3,22 @@
 #
 # 用法：tools/launch-hermetic.sh [dataDir]        # 默认 /tmp/desire-e2e/data
 #
-#   --data-dir        重定向 Desire 主目录（会话/记忆/档案/技能/工作区）
-#   CFFIXED_USER_HOME 把系统偏好也隔离出去——写入既不进用户真实域也不落盘，
-#                     只在本进程内有效。应用在带 --data-dir 却没有它时会拒绝启动
-#                     （HermeticLaunchGuard）。
+#   --data-dir   重定向 Desire 主目录（会话/记忆/档案/技能/工作区）。
+#                应用内的全部偏好读写经 AppPrefs 走独立的命名域
+#                （~/Library/Preferences/me.siwi.Desire.automation.plist），
+#                不进用户自己的偏好。应用在封闭模式下会自检这一点，不成立即拒绝
+#                启动（HermeticLaunchGuard）。
 #
 # 后台启动（open -g），不抢前台。需要浏览器的用例由调用方自行激活；用户正在用
 # 机器时不要激活。
 #
-# 隔离后偏好是出厂默认值：依赖非默认设置的套件（如访问等级）要经桥在实例内设置。
+# 隔离后偏好是全新的一份：依赖既有设置的套件（访问等级、通知策略等）要经桥在
+# 实例内设置。仍然共享的只有 Keychain（假档案的 key 会写进登录钥匙串，事后删档案）。
+# 清理隔离域：defaults delete me.siwi.Desire.automation
 set -euo pipefail
 
 DATA="${1:-/tmp/desire-e2e/data}"
 case "$DATA" in /*) ;; *) DATA="$PWD/$DATA" ;; esac
-ISOLATED_HOME="$DATA/home"
 
 APP="$(ls -d "$HOME"/Library/Developer/Xcode/DerivedData/Desire-*/Build/Products/Debug/Desire.app 2>/dev/null | head -1 || true)"
 if [ -z "$APP" ] || [ ! -d "$APP" ]; then
@@ -24,14 +26,14 @@ if [ -z "$APP" ] || [ ! -d "$APP" ]; then
   exit 1
 fi
 
-mkdir -p "$DATA" "$ISOLATED_HOME"
+mkdir -p "$DATA"
 
 # 只结束开发实例（按 DerivedData 路径匹配）；/Applications 的安装版不受影响。
 pkill -9 -f "DerivedData/Desire-.*/Build/Products/Debug" 2>/dev/null || true
 sleep 1
 
-open -g "$APP" --env "CFFIXED_USER_HOME=$ISOLATED_HOME" --args --automation "--data-dir=$DATA"
+open -g "$APP" --args --automation "--data-dir=$DATA"
 
 echo "dataDir:       $DATA"
-echo "isolated home: $ISOLATED_HOME"
+echo "prefs domain:  me.siwi.Desire.automation"
 echo "app:           $APP"

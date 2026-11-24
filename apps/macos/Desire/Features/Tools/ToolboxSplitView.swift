@@ -9,7 +9,7 @@ enum ToolboxSidebarWidth {
     static let fallback: CGFloat = 232
 
     static func stored() -> CGFloat {
-        let value = CGFloat(UserDefaults.standard.double(forKey: key))
+        let value = CGFloat(AppPrefs.defaults.double(forKey: key))
         return value >= minimum && value <= maximum ? value : fallback
     }
 
@@ -18,7 +18,7 @@ enum ToolboxSidebarWidth {
     }
 
     static func save(_ width: CGFloat) {
-        UserDefaults.standard.set(Double(width), forKey: key)
+        AppPrefs.defaults.set(Double(width), forKey: key)
     }
 }
 

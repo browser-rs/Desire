@@ -145,7 +145,7 @@ class BrowserState: ObservableObject {
     @Published var lastError: Error?
     /// Default comes from 设置 ▸ Appearance ▸ Page Zoom (UserDefaults 直读,
     /// 对新建标签生效；已存在的标签不受影响)。
-    @Published var pageZoom: Double = UserDefaults.standard.object(forKey: "defaultPageZoom") as? Double ?? 1.0
+    @Published var pageZoom: Double = AppPrefs.defaults.object(forKey: "defaultPageZoom") as? Double ?? 1.0
     @Published var serverTrust: SecTrust?
     @Published var isPlayingAudio: Bool = false
     /// 超级拖拽（0.7.13）：链接 mousedown 上报（宿主在 mouseUp 判定拖动）。
@@ -2723,7 +2723,7 @@ try {
                 // 冻结自动化桥——密码保存条的同款教训）。确认后白名单
                 // 放行一次。
                 let responseURL = navigationResponse.response.url
-                if UserDefaults.standard.object(forKey: "warnDangerousDownloads") as? Bool ?? true,
+                if AppPrefs.defaults.object(forKey: "warnDangerousDownloads") as? Bool ?? true,
                    DownloadStore.isDangerousType(navigationResponse.response),
                    let responseURL,
                    !parent.state.dangerousDownloadAllowedURLs.contains(responseURL.absoluteString) {

@@ -640,18 +640,18 @@ enum ReaderScrollMemory {
 
     static func restore(for urlKey: String) -> Double? {
         guard !urlKey.isEmpty else { return nil }
-        let map = UserDefaults.standard.dictionary(forKey: key) as? [String: Double] ?? [:]
+        let map = AppPrefs.defaults.dictionary(forKey: key) as? [String: Double] ?? [:]
         return map[urlKey]
     }
 
     static func save(_ y: Double, for urlKey: String) {
         guard !urlKey.isEmpty else { return }
-        var map = UserDefaults.standard.dictionary(forKey: key) as? [String: Double] ?? [:]
+        var map = AppPrefs.defaults.dictionary(forKey: key) as? [String: Double] ?? [:]
         map[urlKey] = y
         if map.count > cap {
             for stale in map.keys.prefix(map.count - cap) { map.removeValue(forKey: stale) }
         }
-        UserDefaults.standard.set(map, forKey: key)
+        AppPrefs.defaults.set(map, forKey: key)
     }
 }
 

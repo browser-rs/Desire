@@ -598,7 +598,7 @@ struct SpreadsheetViewerView: View {
     }
 
     private func loadColumnWidths() {
-        guard let data = UserDefaults.standard.data(forKey: layoutDefaultsKey),
+        guard let data = AppPrefs.defaults.data(forKey: layoutDefaultsKey),
               let all = try? JSONDecoder().decode([String: [Double]].self, from: data),
               let widths = all[String(activeSheetIndex)] else {
             columnWidths = [:]
@@ -613,7 +613,7 @@ struct SpreadsheetViewerView: View {
 
     private func persistColumnWidths() {
         var all: [String: [Double]] = [:]
-        if let data = UserDefaults.standard.data(forKey: layoutDefaultsKey),
+        if let data = AppPrefs.defaults.data(forKey: layoutDefaultsKey),
            let decoded = try? JSONDecoder().decode([String: [Double]].self, from: data) {
             all = decoded
         }
@@ -623,7 +623,7 @@ struct SpreadsheetViewerView: View {
         for (index, width) in columnWidths { widths[index] = Double(width) }
         all[String(activeSheetIndex)] = widths
         if let data = try? JSONEncoder().encode(all) {
-            UserDefaults.standard.set(data, forKey: layoutDefaultsKey)
+            AppPrefs.defaults.set(data, forKey: layoutDefaultsKey)
         }
     }
 

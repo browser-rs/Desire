@@ -84,12 +84,12 @@ class KeyboardShortcutStore: ObservableObject {
             return
         }
         // One-time migration from the legacy UserDefaults blob.
-        if let data = UserDefaults.standard.data(forKey: saveKey),
+        if let data = AppPrefs.defaults.data(forKey: saveKey),
            let custom = try? JSONDecoder().decode([ShortcutMapping].self, from: data) {
             shortcuts = Self.mergeOverDefaults(custom)
             normalizeTimestamps()
             save()
-            UserDefaults.standard.removeObject(forKey: saveKey)
+            AppPrefs.defaults.removeObject(forKey: saveKey)
             return
         }
         shortcuts = ShortcutMapping.defaults

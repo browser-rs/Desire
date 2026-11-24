@@ -44,13 +44,13 @@ final class FeedFetcher {
     }
 
     var refreshIntervalMinutes: Double {
-        let stored = UserDefaults.standard.double(forKey: Self.refreshMinutesKey)
+        let stored = AppPrefs.defaults.double(forKey: Self.refreshMinutesKey)
         return stored >= 5 && stored <= 1_440 ? stored : 30
     }
     /// 面板改刷新间隔：落盘 + 立即重排定时器。
     func applyRefreshInterval(minutes: Double) {
         guard minutes >= 5, minutes <= 1_440 else { return }
-        UserDefaults.standard.set(minutes, forKey: Self.refreshMinutesKey)
+        AppPrefs.defaults.set(minutes, forKey: Self.refreshMinutesKey)
         scheduleTimer()
     }
 

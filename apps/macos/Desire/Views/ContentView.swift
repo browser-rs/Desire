@@ -279,7 +279,7 @@ struct ContentView: View {
     @State var findMatchCount = 0
     @State var findCurrentIndex = 0
     /// 查找大小写敏感（粘性偏好；@AppStorage 直接持久化）。
-    @AppStorage("findCaseSensitive") var findCaseSensitive = false
+    @AppStorage("findCaseSensitive", store: AppPrefs.defaults) var findCaseSensitive = false
     /// 首个命中的上下文片段（±40 字符；查找栏预览行）。
     @State var findSnippet = ""
     /// 原生窗口全屏（⌃⌘F）：只影响标签栏给红绿灯留的边距（全屏时红绿灯
@@ -378,8 +378,8 @@ struct ContentView: View {
                Date().timeIntervalSince(stall.startedAt) < 24 * 3600 {
                 let stampKey = "app.lastStallToastShownAt"
                 let stamp = stall.startedAt.timeIntervalSince1970
-                if UserDefaults.standard.double(forKey: stampKey) < stamp {
-                    UserDefaults.standard.set(stamp, forKey: stampKey)
+                if AppPrefs.defaults.double(forKey: stampKey) < stamp {
+                    AppPrefs.defaults.set(stamp, forKey: stampKey)
                     DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
                         actionToast = StatusBarToast(
                             icon: "waveform.path.ecg",

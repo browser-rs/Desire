@@ -53,15 +53,15 @@ final class BrowserDiagnostics: ObservableObject {
     }
 
     private func load() {
-        totalCrashes = UserDefaults.standard.integer(forKey: Self.totalKey)
-        if let data = UserDefaults.standard.data(forKey: Self.recentKey),
+        totalCrashes = AppPrefs.defaults.integer(forKey: Self.totalKey)
+        if let data = AppPrefs.defaults.data(forKey: Self.recentKey),
            let decoded = try? JSONDecoder().decode([CrashRecord].self, from: data) {
             recentCrashes = Array(decoded.prefix(Self.cap))
         }
     }
 
     private func save() {
-        UserDefaults.standard.set(totalCrashes, forKey: Self.totalKey)
-        UserDefaults.standard.set(try? JSONEncoder().encode(recentCrashes), forKey: Self.recentKey)
+        AppPrefs.defaults.set(totalCrashes, forKey: Self.totalKey)
+        AppPrefs.defaults.set(try? JSONEncoder().encode(recentCrashes), forKey: Self.recentKey)
     }
 }

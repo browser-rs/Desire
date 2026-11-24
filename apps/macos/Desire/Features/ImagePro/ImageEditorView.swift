@@ -12,8 +12,8 @@ struct ImageEditorView: View {
     @State private var inspector: Inspector?
     @State private var exportFormat = "png"
     /// 导出选项（v0.8.54 批 7）：质量与缩放，随导出面板调整。
-    @AppStorage("imagePro.exportQuality") private var exportQuality: Double = 0.92
-    @AppStorage("imagePro.exportScale") private var exportScale: Double = 1
+    @AppStorage("imagePro.exportQuality", store: AppPrefs.defaults) private var exportQuality: Double = 0.92
+    @AppStorage("imagePro.exportScale", store: AppPrefs.defaults) private var exportScale: Double = 1
     @State private var showExportSheet = false
     @State private var showAI = false
     @State private var showTextStyle = false

@@ -81,7 +81,7 @@ class AppState: ObservableObject {
         lap("background-jobs")
         // 恢复上次活跃人物的数据作用域（cookie 隔离由各窗口在
         // 创建标签时经 profileDataStore 各自恢复）。
-        let saved = UserDefaults.standard.string(forKey: "desire.activeProfile")
+        let saved = AppPrefs.defaults.string(forKey: "desire.activeProfile")
             .flatMap(UUID.init(uuidString:))
         if saved != nil, ProfileStore.shared.profile(for: saved) != nil {
             ProfileStore.shared.activeProfileID = saved
@@ -173,7 +173,7 @@ class AppState: ObservableObject {
     /// 在这里统一切桶。当前人物持久化，重启沿用。
     func applyProfile(_ id: UUID?) {
         ProfileStore.shared.activeProfileID = id
-        UserDefaults.standard.set(id?.uuidString, forKey: "desire.activeProfile")
+        AppPrefs.defaults.set(id?.uuidString, forKey: "desire.activeProfile")
         bookmarkStore.applyScope(profileID: id)
         historyStore.applyScope(profileID: id)
         quickDialStore.applyScope(profileID: id)

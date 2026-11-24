@@ -17,13 +17,13 @@ final class MediaPlaylistStore: ObservableObject {
     @Published private(set) var index: Int = 0
     /// 循环模式（跨文件记住——放歌的场景每次都要）。
     @Published var repeatMode: RepeatMode {
-        didSet { UserDefaults.standard.set(repeatMode.rawValue, forKey: "media.repeatMode") }
+        didSet { AppPrefs.defaults.set(repeatMode.rawValue, forKey: "media.repeatMode") }
     }
     /// 播完自动切到的下一首（视图消费后置回 nil）。
     @Published var autoAdvanceTo: URL?
 
     init() {
-        repeatMode = RepeatMode(rawValue: UserDefaults.standard.string(forKey: "media.repeatMode") ?? "") ?? .off
+        repeatMode = RepeatMode(rawValue: AppPrefs.defaults.string(forKey: "media.repeatMode") ?? "") ?? .off
     }
 
     var current: URL? {

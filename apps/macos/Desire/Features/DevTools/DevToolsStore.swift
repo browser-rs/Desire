@@ -560,8 +560,8 @@ class DevToolsStore: ObservableObject {
     @Published var applicationSection: ApplicationSection = .cookies
 
     /// 导航时是否清空控制台（默认否：保留日志便于对比前后两次加载）。
-    @Published var clearConsoleOnNavigate = UserDefaults.standard.bool(forKey: "devtoolsClearConsoleOnNavigate") {
-        didSet { UserDefaults.standard.set(clearConsoleOnNavigate, forKey: "devtoolsClearConsoleOnNavigate") }
+    @Published var clearConsoleOnNavigate = AppPrefs.defaults.bool(forKey: "devtoolsClearConsoleOnNavigate") {
+        didSet { AppPrefs.defaults.set(clearConsoleOnNavigate, forKey: "devtoolsClearConsoleOnNavigate") }
     }
 
     /// 改元素的内联样式（`value` 为 nil = 删除该属性）。改完立刻重新采集。

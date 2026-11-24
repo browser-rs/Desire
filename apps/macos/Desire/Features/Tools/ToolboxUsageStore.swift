@@ -14,8 +14,8 @@ final class ToolboxUsageStore: ObservableObject {
     private static let recentsLimit = 6
 
     private init() {
-        favorites = UserDefaults.standard.stringArray(forKey: Self.favoritesKey) ?? []
-        recents = UserDefaults.standard.stringArray(forKey: Self.recentsKey) ?? []
+        favorites = AppPrefs.defaults.stringArray(forKey: Self.favoritesKey) ?? []
+        recents = AppPrefs.defaults.stringArray(forKey: Self.recentsKey) ?? []
     }
 
     func isFavorite(_ id: String) -> Bool {
@@ -28,7 +28,7 @@ final class ToolboxUsageStore: ObservableObject {
         } else {
             favorites.append(id)
         }
-        UserDefaults.standard.set(favorites, forKey: Self.favoritesKey)
+        AppPrefs.defaults.set(favorites, forKey: Self.favoritesKey)
     }
 
     func record(_ id: String) {
@@ -37,6 +37,6 @@ final class ToolboxUsageStore: ObservableObject {
         if recents.count > Self.recentsLimit {
             recents = Array(recents.prefix(Self.recentsLimit))
         }
-        UserDefaults.standard.set(recents, forKey: Self.recentsKey)
+        AppPrefs.defaults.set(recents, forKey: Self.recentsKey)
     }
 }

@@ -170,7 +170,7 @@ struct AgentInputBar: View {
     /// （UserDefaults `downloadSuggest.disabledHosts`）。
     @State private var downloadSuggestDismissed = false
     private var disabledDownloadHosts: Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: "downloadSuggest.disabledHosts") ?? [])
+        Set(AppPrefs.defaults.stringArray(forKey: "downloadSuggest.disabledHosts") ?? [])
     }
 
     private var downloadSuggest: MediaURLDetector.Suggestion? {
@@ -251,7 +251,7 @@ struct AgentInputBar: View {
         }
         var set = disabledDownloadHosts
         set.formUnion(hosts)
-        UserDefaults.standard.set(Array(set), forKey: "downloadSuggest.disabledHosts")
+        AppPrefs.defaults.set(Array(set), forKey: "downloadSuggest.disabledHosts")
     }
 
     // MARK: - Context strip

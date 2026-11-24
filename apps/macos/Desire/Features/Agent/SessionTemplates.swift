@@ -59,13 +59,13 @@ nonisolated enum SessionTemplates {
     }
 
     static func custom() -> [Template] {
-        guard let data = UserDefaults.standard.data(forKey: customKey) else { return [] }
+        guard let data = AppPrefs.defaults.data(forKey: customKey) else { return [] }
         return (try? JSONDecoder().decode([Template].self, from: data)) ?? []
     }
 
     static func saveCustom(_ templates: [Template]) {
         if let data = try? JSONEncoder().encode(templates) {
-            UserDefaults.standard.set(data, forKey: customKey)
+            AppPrefs.defaults.set(data, forKey: customKey)
         }
     }
 

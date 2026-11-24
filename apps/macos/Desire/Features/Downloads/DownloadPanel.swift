@@ -21,7 +21,7 @@ struct DownloadPanel: View {
     @ObservedObject var store: DownloadStore
     /// 批量下载默认参数面板（齿轮）+ 首次进入视频任务栏的引导。
     @State private var showBatchSettings = false
-    @AppStorage("batch.onboardingDone") private var batchOnboardingDone = false
+    @AppStorage("batch.onboardingDone", store: AppPrefs.defaults) private var batchOnboardingDone = false
     @State private var showBatchOnboarding = false
     /// 预览 sheet 的文件（v0.7.19）。
     @State private var previewURL: URL?

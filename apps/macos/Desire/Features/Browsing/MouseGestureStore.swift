@@ -16,7 +16,7 @@ final class MouseGestureStore: ObservableObject {
     /// 鼠标手势开关（右键拖动）。
     @Published var gestureEnabled: Bool {
         didSet {
-            UserDefaults.standard.set(gestureEnabled, forKey: "mouseGesture.enabled")
+            AppPrefs.defaults.set(gestureEnabled, forKey: "mouseGesture.enabled")
             rebuildMonitors()
         }
     }
@@ -24,7 +24,7 @@ final class MouseGestureStore: ObservableObject {
     /// 超级拖拽开关（拖链接到页面空白 = 新后台标签）。
     @Published var superDragEnabled: Bool {
         didSet {
-            UserDefaults.standard.set(superDragEnabled, forKey: "superDrag.enabled")
+            AppPrefs.defaults.set(superDragEnabled, forKey: "superDrag.enabled")
             rebuildMonitors()
         }
     }
@@ -34,8 +34,8 @@ final class MouseGestureStore: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
 
     private init() {
-        gestureEnabled = UserDefaults.standard.object(forKey: "mouseGesture.enabled") as? Bool ?? false
-        superDragEnabled = UserDefaults.standard.object(forKey: "superDrag.enabled") as? Bool ?? false
+        gestureEnabled = AppPrefs.defaults.object(forKey: "mouseGesture.enabled") as? Bool ?? false
+        superDragEnabled = AppPrefs.defaults.object(forKey: "superDrag.enabled") as? Bool ?? false
         rebuildMonitors()
     }
 

@@ -291,12 +291,12 @@ final class MediaPlayerModel: ObservableObject {
     func savePosition() {
         lastSavedBucket = Int(currentTime / 5)
         let remaining = duration - currentTime
-        UserDefaults.standard.set(remaining < 5 ? 0 : currentTime,
+        AppPrefs.defaults.set(remaining < 5 ? 0 : currentTime,
                                   forKey: Self.resumeKey(for: fileURL))
     }
 
     private static func savedPosition(for url: URL) -> Double {
-        UserDefaults.standard.double(forKey: resumeKey(for: url))
+        AppPrefs.defaults.double(forKey: resumeKey(for: url))
     }
 
     private static func resumeKey(for url: URL) -> String {

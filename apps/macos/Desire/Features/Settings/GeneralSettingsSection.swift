@@ -1273,7 +1273,7 @@ private struct DiagnosticsRow: View {
                 // 运行健康（v0.8.61）：主线程 stall 历史 + 协作池水位。
                 // 0 停滞/无积压时不显示（确定性文案走 GET /diag/health）。
                 if let stall = RuntimeHealthMonitor.lastStall() {
-                    StatusPill(text: String(format: String(localized: "Stall %.1fs"), stall.seconds),
+                    StatusPill(text: String(format: String(localized: "Stall %.1fs"), stall.record.seconds),
                                kind: .warning)
                         .help(String(localized: "Last detected main-thread stall (see health/last-stall.json; samples may exist)"))
                 }

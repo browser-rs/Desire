@@ -7,6 +7,21 @@ import Foundation
 /// 启动参数 `--data-dir=/path` 重定向整个主目录：自动化/E2E 实例从此与用户
 /// 存储零接触——套件不再恢复用户浏览会话、不碰用户记忆/档案/技能，闸门在
 /// 任何环境下都封闭可跑。默认启动（无参数）的路径**逐字节不变**。
+/// **构建来源**（v0.8.76 批 1）：诊断数据分源。开发实例（带 `--data-dir`，或从
+/// Xcode 的 DerivedData 目录运行）与安装版共用 bundle id——系统交付的诊断不区分
+/// 来源，"安装版的真实表现"因此无法回答。带来源标记后，体检与诊断只统计与
+/// 当前实例同源的数据。
+nonisolated enum BuildSource: String {
+    case app
+    case dev
+
+    static var current: BuildSource {
+        if StorageRoot.isOverridden { return .dev }
+        if Bundle.main.bundlePath.contains("/DerivedData/") { return .dev }
+        return .app
+    }
+}
+
 nonisolated enum StorageRoot {
 
     /// `--data-dir=/path` 是否生效（封闭模式）。

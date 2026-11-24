@@ -91,6 +91,30 @@ enum AgentTrace {
             }
             _ = pendingCallID
 
+            // **推进度量**（v0.8.76 批 1）：每步按 查看/动作/中性 归类（分类在
+            // TurnProgress，与护栏同源）；"请求"按助手消息数——主回合里一条
+            // 助手消息就是一次模型调用。
+            let progressSteps: [TurnProgress.Step] = steps.compactMap { step in
+                guard let action = step["action"] as? String else { return nil }
+                return TurnProgress.Step(tool: action,
+                                         arguments: step["args"] as? String ?? "",
+                                         result: step["result"] as? String ?? "")
+            }
+            var modelRequests = 0
+            var observeRequests = 0
+            var observationStreak = 0
+            var longestObservationStreak = 0
+            for message in slice where message.role == .assistant {
+                let names = (message.toolCalls ?? []).map(\.function.name)
+                modelRequests += 1
+                if TurnProgress.isPureObservationRequest(tools: names) {
+                    observeRequests += 1
+                    observationStreak += 1
+                    longestObservationStreak = max(longestObservationStreak, observationStreak)
+                } else {
+                    observationStreak = 0
+                }
+            }
             var turn: [String: Any] = [
                 "conversation": conversation.id.uuidString,
                 "title": conversation.title,
@@ -100,6 +124,11 @@ enum AgentTrace {
                 "steps": steps,
                 "answer": String(answer.prefix(2000)),
                 "toolCalls": steps.count,
+                "modelRequests": modelRequests,
+                "observeRequests": observeRequests,
+                // 回合内最长"连续几个请求全是查看"——打转的直接形态。
+                "longestObservationStreak": longestObservationStreak,
+                "progress": TurnProgress.dictionary(TurnProgress.summarize(progressSteps)),
             ]
             // token 用量与成本：与面板状态行同一套 `AgentUsage`，口径一致。
             let usage = AgentUsage.of(Array(slice), price: price ?? { _ in nil })
@@ -169,8 +198,44 @@ enum AgentTrace {
         var ttftSamples: [Double] = []
         var modelLatencySum = 0.0
         var latencyTurns = 0
+        // 推进度量聚合（v0.8.76 批 1）——重复任务熟练度的验收尺。
+        var modelRequests = 0
+        var observeRequests = 0
+        var progressQueries = 0
+        var repeatedSameResult = 0
+        var repeatedChangedResult = 0
+        var observations = 0
+        var actions = 0
+        var exploreSum = 0
+        var exploreMax = 0
+        var exploreTurns = 0
+        var trailingObservationTurns = 0
+        var repeatToolObservations = 0
+        var spinningTurns = 0
 
         for turn in turns {
+            modelRequests += turn["modelRequests"] as? Int ?? 0
+            observeRequests += turn["observeRequests"] as? Int ?? 0
+            repeatToolObservations += (turn["progress"] as? [String: Any])?["repeatToolObservations"] as? Int ?? 0
+            // 打转回合：连续 ≥4 个纯查看请求，或同一查看工具 ≥4 次（护栏阈值同此）。
+            if (turn["longestObservationStreak"] as? Int ?? 0) >= 4
+                || ((turn["progress"] as? [String: Any])?["maxSameToolObservations"] as? Int ?? 0) >= 4 {
+                spinningTurns += 1
+            }
+            if let progress = turn["progress"] as? [String: Any] {
+                progressQueries += progress["progressQueries"] as? Int ?? 0
+                repeatedSameResult += progress["repeatedSameResult"] as? Int ?? 0
+                repeatedChangedResult += progress["repeatedChangedResult"] as? Int ?? 0
+                observations += progress["observations"] as? Int ?? 0
+                actions += progress["actions"] as? Int ?? 0
+                if let explore = progress["exploreBeforeFirstAction"] as? Int {
+                    exploreSum += explore
+                    exploreMax = max(exploreMax, explore)
+                    exploreTurns += 1
+                }
+                // 以 ≥3 步查看收尾的回合：看完没动手就结束。
+                if (progress["trailingObservations"] as? Int ?? 0) >= 3 { trailingObservationTurns += 1 }
+            }
             if let p50 = turn["ttftP50Ms"] as? Double { ttftSamples.append(p50) }
             if let sum = turn["modelLatencySumMs"] as? Double {
                 modelLatencySum += sum
@@ -230,6 +295,21 @@ enum AgentTrace {
             "toolCalls": toolCalls,
             "denied": denied,
             "threwError": threwError,
+            "modelRequests": modelRequests,
+            "observeRequests": observeRequests,
+            // 纯查看请求占比（0–100 的整数）：长任务里这部分就是在轮询进度。
+            "observeRequestRatio": modelRequests > 0
+                ? (Double(observeRequests) / Double(modelRequests) * 100).rounded() : 0,
+            "progressQueries": progressQueries,
+            "observations": observations,
+            "actions": actions,
+            "repeatToolObservations": repeatToolObservations,
+            "repeatedSameResult": repeatedSameResult,
+            "repeatedChangedResult": repeatedChangedResult,
+            "spinningTurns": spinningTurns,
+            "exploreBeforeFirstActionSum": exploreSum,
+            "exploreBeforeFirstActionMax": exploreMax,
+            "trailingObservationTurns": trailingObservationTurns,
             "ttftP50Ms": ttftSamples.isEmpty ? 0 : (ttftSamples.sorted()[ttftSamples.count / 2] * 10).rounded() / 10,
             "modelLatencySumMs": (modelLatencySum * 10).rounded() / 10,
             "latencyTurns": latencyTurns,

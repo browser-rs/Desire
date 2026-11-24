@@ -4197,9 +4197,10 @@ case ("GET", "/agent/messages"):
                 "healAttempts": defaults.integer(forKey: "app.launchWindowHealAttempts"),
                 "cleanExitFlag": defaults.object(forKey: "app.cleanExit") as? Bool ?? true,
                 "lastStallAt": RuntimeHealthMonitor.lastStall().map {
-                    ISO8601DateFormatter().string(from: $0.startedAt)
+                    ISO8601DateFormatter().string(from: $0.record.startedAt)
                 } ?? "",
-                "lastStallSeconds": RuntimeHealthMonitor.lastStall()?.seconds ?? 0]
+                "lastStallSeconds": RuntimeHealthMonitor.lastStall()?.record.seconds ?? 0,
+                "lastStallPreviousRun": RuntimeHealthMonitor.lastStall()?.isPreviousRun ?? false]
     }
 
     private static func error(_ message: String) -> String {

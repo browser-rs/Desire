@@ -10,6 +10,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/LessonCore.swift
   apps/macos/Desire/Features/Agent/MemoryCheckupCore.swift
   apps/macos/Desire/Storage/StorageRoot.swift
+  apps/macos/Desire/Storage/DiagnosticGC.swift
   apps/macos/Desire/Features/Agent/AgentMessage.swift
   apps/macos/Desire/Features/Agent/AgentBudget.swift
   apps/macos/Desire/Features/Settings/TabBehavior.swift
@@ -181,6 +182,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/AgentQuickTemplate.swift
   apps/macos/Desire/Features/Agent/AgentTurnOwnership.swift
   apps/macos/Desire/Features/Agent/ToolRisk.swift
+  apps/macos/Desire/Features/Agent/TurnProgress.swift
   apps/macos/Desire/Features/Agent/FileEdit.swift
   apps/macos/Desire/Features/Agent/PDFPageSpec.swift
   apps/macos/Desire/Features/Agent/SpreadsheetReader.swift

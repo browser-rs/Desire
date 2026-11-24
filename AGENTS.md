@@ -257,9 +257,16 @@ Features/Bookmarks/
 - 截图两条路：`/screenshot` 只拍 **webview 内容**（SwiftUI 覆盖层如
   错误页/手柄/标尺不在其中）；要拍整窗用
   `screencapture -o -x -l <winid>`（winid 用 CGWindowList 取）。
-- 启动流程（顺序敏感）：
-  `pkill -9 -x Desire; sleep 2; open <app> --args --automation; sleep 6`
-  然后必须 `curl /state` 验证桥活着再继续。
+- 启动流程（顺序敏感，2026-11-24 修订）：
+  `pkill -9 -f "DerivedData/Desire-.*/Build/Products/Debug"; sleep 2;`
+  `open <app> --args --automation "--data-dir=/tmp/desire-e2e/data"; sleep 6`
+  然后必须 `curl /state` 验证桥活着再继续。两处都是踩出来的：
+  ① **不要 `pkill -x Desire`**——按进程名会连 `/Applications` 的安装版一起杀
+  （不可触碰清单）；按 DerivedData 路径只影响开发实例。
+  ② **一律带 `--data-dir`（v0.8.75 起）**——开发实例与安装版共用 bundle id 与
+  存储目录，不带的话启动时会恢复安装版保存的会话，并把停滞采样、系统诊断、
+  E2E 业务数据写进用户真实存储（套件也会因恢复出的真实标签页而失真）。
+  `/state` 的 `startup.dataDir` 可断言封闭性，套件的磁盘读写已跟随该字段。
 - **CI runner 上应用无法激活**（0.7.0 发版实测：`isActive` 恒 false，
   osascript activate 无效）——**浏览器端点（/navigate /new-tab /execute 等）
   在 CI 上全部挂起**（未激活进程里 WKWebView 创建阻塞）。浏览器依赖的

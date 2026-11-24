@@ -372,7 +372,9 @@ struct ContentView: View {
             LaunchAudit.mark("first window")
             LaunchAudit.summarize()
             // 上次运行的主线程停滞 → 非阻塞提示（v0.8.49；同一 stall 只提示一次）。
-            if let stall = RuntimeHealthMonitor.lastStall(),
+            // 只认可信记录（v0.8.76）：此前心跳按墙钟计时，机器睡眠也会被记成
+            // 停滞——用户每天早上打开应用都会看到一条假警报。
+            if let stall = RuntimeHealthMonitor.lastStall()?.record,
                Date().timeIntervalSince(stall.startedAt) < 24 * 3600 {
                 let stampKey = "app.lastStallToastShownAt"
                 let stamp = stall.startedAt.timeIntervalSince1970

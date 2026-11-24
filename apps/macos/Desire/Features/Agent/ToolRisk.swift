@@ -8,7 +8,9 @@ import Foundation
 /// consent before anything that changes browser/page state.
 ///
 /// See `docs/ARCHITECTURE.md` (roadmap L3 stage 2 — AgentRuntime v2).
-enum ToolRisk: Int, Comparable {
+// nonisolated（v0.8.76 批 1）：分类只读三张常量表，回合推进度量与打转护栏在
+// 后台/纯逻辑路径上也要查它——不跨线程可读的话，只能另抄一份表，必然漂移。
+nonisolated enum ToolRisk: Int, Comparable {
     /// Read-only inspection. No observable change to the browser, page, or
     /// persisted data. Executed automatically without prompting the user.
     ///

@@ -21,6 +21,9 @@ final class MetricsManager: NSObject, MXMetricManagerSubscriber {
 
     private var subscribed = false
 
+    /// 诊断目录（供清理器使用；nonisolated——清理在后台队列跑）。
+    nonisolated static var diagnosticsDirectory: URL { DiagnosticsStore.directory }
+
     /// Idempotent — call once at app init.
     func start() {
         guard !subscribed else { return }
@@ -142,7 +145,7 @@ final class MetricsManager: NSObject, MXMetricManagerSubscriber {
     /// disk writes. Delivered at most once a day.
     nonisolated func didReceive(_ payloads: [MXMetricPayload]) {
         for payload in payloads {
-            DiagnosticsStore.write(payload.jsonRepresentation(),
+            DiagnosticsStore.write(DiagnosticsStore.taggedBuildSource(payload.jsonRepresentation()),
                                    kind: "metrics",
                                    stamp: payload.timeStampEnd)
         }
@@ -154,7 +157,7 @@ final class MetricsManager: NSObject, MXMetricManagerSubscriber {
     nonisolated func didReceive(_ payloads: [MXDiagnosticPayload]) {
         let log = Logger(subsystem: "me.siwi.Desire", category: "app")
         for payload in payloads {
-            DiagnosticsStore.write(payload.jsonRepresentation(),
+            DiagnosticsStore.write(DiagnosticsStore.taggedBuildSource(payload.jsonRepresentation()),
                                    kind: "diagnostics",
                                    stamp: payload.timeStampEnd)
             let crashes = payload.crashDiagnostics?.count ?? 0
@@ -177,6 +180,17 @@ private nonisolated enum DiagnosticsStore {
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         return dir
     }()
+
+    /// **构建来源标记**（v0.8.76 批 1）：MetricKit 按 bundle id 交付，安装版与从
+    /// DerivedData 运行的开发实例拿到的是同一份口径——不标记来源，"安装版的真实
+    /// CPU / 磁盘 / 卡顿"就无法回答。在系统给的 JSON 顶层加一个键；解析失败就
+    /// 原样落盘（宁可少一个键，不能丢诊断）。
+    static func taggedBuildSource(_ data: Data) -> Data {
+        guard var object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return data }
+        object["buildSource"] = BuildSource.current.rawValue
+        guard let reencoded = try? JSONSerialization.data(withJSONObject: object) else { return data }
+        return reencoded
+    }
 
     static func write(_ data: Data, kind: String, stamp: Date) {
         let formatter = DateFormatter()

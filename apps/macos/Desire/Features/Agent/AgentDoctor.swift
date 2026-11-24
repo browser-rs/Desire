@@ -138,14 +138,16 @@ enum AgentDoctor {
 
         // 9. 主线程健康（v0.8.49）：最近一次停滞记录（体检页与诊断包同源）
         if let stall = RuntimeHealthMonitor.lastStall() {
-            let minutes = Int(Date().timeIntervalSince(stall.startedAt) / 60)
+            let minutes = max(0, Int(Date().timeIntervalSince(stall.record.startedAt) / 60))
+            let when = stall.isPreviousRun
+                ? "上次运行" : (minutes < 1 ? "刚才" : "\(minutes) 分钟前")
             checks.append(Check(
                 name: "主线程健康",
                 ok: false,
-                detail: "上次运行出现 \(Int(stall.seconds)) 秒停滞（\(minutes) 分钟前）"
-                    + (stall.sampled ? "，已抓到栈（诊断包可见）" : "，未抓到栈（Hardened Runtime 限制）")))
+                detail: "\(when)出现 \(Int(stall.record.seconds)) 秒停滞（主线程无响应，不含系统睡眠时间）"
+                    + (stall.record.sampled ? "，已抓到栈（诊断包可见）" : "，未抓到栈（Hardened Runtime 限制）")))
         } else {
-            checks.append(Check(name: "主线程健康", ok: true, detail: "未记录到主线程停滞"))
+            checks.append(Check(name: "主线程健康", ok: true, detail: "未记录到主线程停滞（按不含系统睡眠的时钟计量）"))
         }
 
         // 10. 同步完整性（v0.8.65 批 1 的数据面，体检收口：快拨同址重复

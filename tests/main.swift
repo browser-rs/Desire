@@ -10307,14 +10307,18 @@ func testExcerptLocatorCodable() {
 // ---------- 主线程健康时钟（v0.8.49） ----------
 
 func testHealthClock() {
-    let clock = HealthClock()
-    let before = clock.lastAck()
-    check("健康时钟：初始新鲜", Date().timeIntervalSince1970 - before < 2)
+    // v0.8.76 起心跳年龄按不含睡眠的单调时钟算——用注入的读数测，不依赖真实时间。
+    let base = 500_000.0
+    func r(_ mono: Double) -> HealthClock.Reading { HealthClock.Reading(mono: base + mono, cont: base + mono) }
+    let clock = HealthClock(reading: r(0))
+    clock.ack(reading: r(0))
+    check("健康时钟：初始新鲜", clock.idleSeconds(reading: r(0)) < 2)
     check("健康时钟：停滞只记一次",
-          clock.claimStallRecord() == true && clock.claimStallRecord() == false)
-    clock.ack()
-    check("健康时钟：ack 后重新可记", clock.claimStallRecord() == true)
-    check("健康时钟：ack 推进时间", clock.lastAck() >= before)
+          clock.watchdogTick(reading: r(11)) == .stalled(seconds: 11, isNew: true)
+              && clock.watchdogTick(reading: r(12)) == .stalled(seconds: 12, isNew: false))
+    clock.ack(reading: r(12))
+    check("健康时钟：ack 后重新可记", clock.watchdogTick(reading: r(24)) == .stalled(seconds: 12, isNew: true))
+    check("健康时钟：ack 推进时间", clock.idleSeconds(reading: r(13)) == 1)
 }
 
 
@@ -12035,6 +12039,164 @@ do {
         parameters: AgentJSONSchema(type: "object", properties: [:])))
     check("瘦身：短描述原样", AgentToolSchemaSlimming.slimmed([short])[0].function.description == "短描述不需要动。")
 }
+// ---------- HealthClock 睡眠感知（v0.8.76 批 1） ----------
+
+do {
+    let base = 100_000.0
+    func reading(_ mono: Double, slept: Double = 0) -> HealthClock.Reading {
+        HealthClock.Reading(mono: base + mono, cont: base + mono + slept)
+    }
+    // 正常：心跳刚过，tick 说健康
+    let clock = HealthClock(reading: reading(0))
+    clock.ack(reading: reading(0))
+    check("停滞：心跳正常 → healthy", clock.watchdogTick(reading: reading(3)) == .healthy)
+    // 微小时钟漂移（两种时钟读取间隙）不算睡眠
+    check("停滞：微小漂移不判睡眠", clock.watchdogTick(reading: reading(6, slept: 0.4)) == .healthy)
+
+    // 真卡住：单调时钟照走
+    let stuck = clock.watchdogTick(reading: reading(11))
+    check("停滞：卡住 11s 首次发现（isNew）", stuck == .stalled(seconds: 11, isNew: true))
+    check("停滞：同一轮不重复取证", clock.watchdogTick(reading: reading(16)) == .stalled(seconds: 16, isNew: false))
+    clock.ack(reading: reading(17))
+    check("停滞：心跳恢复 → healthy", clock.watchdogTick(reading: reading(19)) == .healthy)
+
+    // 只是睡着：单调时钟不走、连续时钟走了一小时
+    let sleeper = HealthClock(reading: reading(0))
+    sleeper.ack(reading: reading(0))
+    check("睡眠：睡 1 小时 → wokeFromSleep（不报）", sleeper.watchdogTick(reading: reading(0, slept: 3600)) == .wokeFromSleep)
+    check("睡眠：唤醒后冷却期内不报", sleeper.watchdogTick(reading: reading(10, slept: 3600)) == .coolingDown)
+    // 唤醒后主线程活着：心跳每 2 秒一次照常跳（只跳一次然后停 19 秒，照报不误）
+    for t in stride(from: 12.0, through: 30.0, by: 2.0) { sleeper.ack(reading: reading(t, slept: 3600)) }
+    check("睡眠：冷却结束且心跳持续 → healthy", sleeper.watchdogTick(reading: reading(31, slept: 3600)) == .healthy)
+    check("睡眠：观测到的睡眠次数", sleeper.observedSleepCount == 1)
+
+    // 睡前已卡 8s（没过阈值）→ 旧口径会报 3608 秒；新口径不报
+    let almost = HealthClock(reading: reading(0))
+    almost.ack(reading: reading(0))
+    check("睡眠：睡前卡 8s 未过阈值", almost.watchdogTick(reading: reading(8)) == .healthy)
+    check("睡眠：睡一夜后不把睡眠算成卡顿", almost.watchdogTick(reading: reading(8, slept: 28_800)) == .wokeFromSleep)
+    check("睡眠：idleSeconds 不含睡眠时间", almost.idleSeconds(reading: reading(8, slept: 28_800)) == 0)
+
+    // 真卡死后机器睡了一觉：唤醒后心跳没恢复 → 冷却结束照报，且重新取证
+    let dead = HealthClock(reading: reading(0))
+    dead.ack(reading: reading(0))
+    _ = dead.watchdogTick(reading: reading(11))
+    check("睡眠：真卡死遇睡眠 → 先判睡眠", dead.watchdogTick(reading: reading(12, slept: 7200)) == .wokeFromSleep)
+    // 秒数从唤醒那一刻重新起算（43 − 12 = 31），不是从睡前累计
+    check("睡眠：真卡死冷却后照报并重新取证（秒数自唤醒起算）",
+          dead.watchdogTick(reading: reading(43, slept: 7200)) == .stalled(seconds: 31, isNew: true))
+
+    // DarkWake 连续唤醒：每次都重新冷却 → 睡眠期间永不误报
+    let napping = HealthClock(reading: reading(0))
+    napping.ack(reading: reading(0))
+    var napped = 0
+    for i in 1...12 {
+        let verdict = napping.watchdogTick(reading: reading(Double(i) * 10, slept: Double(i) * 300))
+        if case .stalled = verdict { check("睡眠：DarkWake 序列中不误报（第 \(i) 次）", false) }
+        if verdict == .wokeFromSleep { napped += 1 }
+    }
+    check("睡眠：12 次 DarkWake 全部识别为睡眠", napped == 12)
+    check("睡眠：真实读数两钟一致且非负", {
+        let now = HealthClock.Reading.now()
+        return now.mono > 0 && now.cont >= now.mono && now.cont - now.mono < 10_000_000
+    }())
+}
+
+// ---------- DiagnosticGC 诊断文件清理（v0.8.76 批 1） ----------
+
+do {
+    let now = Date()
+    let day: TimeInterval = 86_400
+    func entries(_ names: [String], ages: [TimeInterval]? = nil) -> [DiagnosticGC.Entry] {
+        names.enumerated().map { index, name in
+            DiagnosticGC.Entry(name: name, modifiedAt: now.addingTimeInterval(-(ages?[index] ?? 1)))
+        }
+    }
+    check("清理：只认四类带时间戳的文件名", {
+        let managed = ["stall-2026-11-22T22-58-48Z.txt", "diagnostics-2026-11-22_041903.json",
+                       "metrics-2026-11-22_000000.json", "oslog-20261121-204556.log"]
+        let unmanaged = ["last-stall.json", "previous-stall.json", "launch-audit.json",
+                         "browser-crashes.json", "runtime-health.json", "notes.txt", "stall-x.txt"]
+        return managed.allSatisfy { DiagnosticGC.group(forName: $0) != nil }
+            && unmanaged.allSatisfy { DiagnosticGC.group(forName: $0) == nil }
+    }())
+    // 30 天内、20 份以内：一份不删
+    let fresh = entries((1...20).map { "stall-2026-11-\($0 % 9 + 10)T01-00-0\($0 % 10)Z.txt" }, ages: Array(repeating: 5 * day, count: 20))
+    check("清理：年龄线内不删", DiagnosticGC.victims(fresh, now: now).isEmpty)
+    // 30 份全在 45 天前：保留最近 20 份，删最旧的 10 份
+    let old = entries((1...30).map { "stall-2026-10-\($0 % 9 + 10)T01-00-0\($0 % 10)Z.txt" },
+                      ages: (1...30).reversed().map { Double($0) * day + 45 * day })
+    let gone = DiagnosticGC.victims(old, now: now)
+    check("清理：超龄且超出份数 → 删最旧的 10 份", gone.count == 10 && gone.allSatisfy { $0.modifiedAt < now.addingTimeInterval(-60 * day) })
+    // 刚超出份数但在年龄线内：不删（两个条件同时满足才删）
+    let manyFresh = entries((1...40).map { "stall-2026-11-\($0 % 9 + 10)T01-00-0\($0 % 10)Z.txt" }, ages: Array(repeating: 3 * day, count: 40))
+    check("清理：超出份数但未超龄 → 不删", DiagnosticGC.victims(manyFresh, now: now).isEmpty)
+    // 各类别份数独立
+    let mixed = entries((1...6).map { "oslog-2026100\($0)-010101.log" }
+                        + (1...6).map { "diagnostics-2026-10-0\($0)_010101.json" },
+                        ages: Array(repeating: 90 * day, count: 12))
+    let mixedGone = DiagnosticGC.victims(mixed, now: now)
+    check("清理：系统日志留 3 份、诊断留 30 份（各自独立）",
+          mixedGone.filter { $0.name.hasPrefix("oslog-") }.count == 3
+              && mixedGone.filter { $0.name.hasPrefix("diagnostics-") }.count == 0)
+    // 不受管的文件混进来也不删
+    let withUnmanaged = old + entries(["last-stall.json", "launch-audit.json"], ages: [400 * day, 400 * day])
+    check("清理：不受管文件混入也不删",
+          DiagnosticGC.victims(withUnmanaged, now: now).count == 10)
+}
+
+// ---------- TurnProgress 回合推进度量（v0.8.76 批 1） ----------
+
+do {
+    func step(_ tool: String, _ args: String = "", result: String = "ok") -> TurnProgress.Step {
+        TurnProgress.Step(tool: tool, arguments: args, result: result)
+    }
+    check("推进：只读工具 = 查看", TurnProgress.kind(of: "getPageSnapshot") == .observe
+          && TurnProgress.kind(of: "listBatchDownloads") == .observe)
+    check("推进：改变状态的工具 = 动作", TurnProgress.kind(of: "downloadVideoList") == .act
+          && TurnProgress.kind(of: "watchBackgroundTasks") == .act
+          && TurnProgress.kind(of: "executeJS") == .act)
+    check("推进：加载技能/计划/提问/等待 = 中性", ["useSkill", "updatePlan", "askUser", "wait", "waitForDownload"]
+          .allSatisfy { TurnProgress.kind(of: $0) == .neutral })
+    check("推进：进度查询子类", TurnProgress.isPureObservationRequest(tools: ["listBatchDownloads"])
+          && !TurnProgress.isPureObservationRequest(tools: [])
+          && !TurnProgress.isPureObservationRequest(tools: ["listBatchDownloads", "downloadVideoList"])
+          && !TurnProgress.isPureObservationRequest(tools: ["updatePlan"]))
+
+    // 现状形态：先看三眼再动手，最后又查了两遍同样的进度
+    let messy = TurnProgress.summarize([
+        step("getPageSnapshot"), step("getPageLinks"), step("listPageVideos"),
+        step("useSkill", "name:x"),                       // 中性：不算探索
+        step("downloadVideoList", "urls:[1]"),           // 首个动作
+        step("listBatchDownloads", result: "0/10"),
+        step("listBatchDownloads", result: "0/10"),       // 同结果重复
+        step("listBatchDownloads", result: "5/10"),       // 结果变了 = 在轮询
+    ])
+    check("推进：首个动作前探索 3 步（中性不计）", messy.exploreBeforeFirstAction == 3)
+    check("推进：查看/动作/中性计数", messy.observations == 6 && messy.actions == 1 && messy.neutral == 1)
+    check("推进：进度查询 3 步", messy.progressQueries == 3)
+    check("推进：同结果重复 1、结果变化 1", messy.repeatedSameResult == 1 && messy.repeatedChangedResult == 1)
+    // 主指标（不看参数）：三个查看工具里 listBatchDownloads 被看了 3 遍 → 第 2、3 次计入
+    check("推进：同一查看工具再看（不看参数）2 次", messy.repeatToolObservations == 2)
+    check("推进：单个查看工具最多 3 次", messy.maxSameToolObservations == 3)
+    check("推进：各看一次不算重复", TurnProgress.summarize([
+        step("getPageSnapshot"), step("getPageLinks"), step("downloadVideoList", "u"),
+    ]).repeatToolObservations == 0)
+    check("推进：结尾连续查看 3 步", messy.trailingObservations == 3)
+
+    // 目标形态：技能已直通 → 开局即动作 → 等待不靠查看
+    let fluent = TurnProgress.summarize([
+        step("downloadVideoList", "urls:[all]"),
+        step("watchBackgroundTasks", "ids:[a]"),
+    ])
+    check("推进：直通后探索 0 步、观察 0", fluent.exploreBeforeFirstAction == 0 && fluent.observations == 0)
+    // 纯问答 / 全程没动作
+    check("推进：无动作回合 explore = nil", TurnProgress.summarize([step("getPageSnapshot")]).exploreBeforeFirstAction == nil)
+    check("推进：参数不同不算重复", TurnProgress.summarize([
+        step("getToolResult", "offset:0"), step("getToolResult", "offset:8000"),
+    ]).repeatedChangedResult == 0)
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

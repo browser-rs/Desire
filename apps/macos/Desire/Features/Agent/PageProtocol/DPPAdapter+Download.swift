@@ -12,49 +12,56 @@ import Foundation
 ///   列表页用哪个视图、排除什么；
 /// - **参数**：每路连接数、签名地址有效期——**每次任务都可能被改好一点**；
 /// - **打磨记录**：最近命中/失败、修订历史。
-extension DPPAdapter {
+///
+/// 规则段是**顶层**类型：嵌套在 `extension DPPAdapter` 里的类型会被推成主 actor 隔离
+/// （Equatable/Codable 一致性也随之隔离），而外层的 `DPPAdapter` 是 nonisolated——
+/// 在它里面存一个 `DownloadRules?` 就会报"隔离的一致性用在非隔离上下文"。
+nonisolated struct DPPDownloadRules: Codable, Equatable {
+    /// 详情页提取规则：
+    /// - `regex:<pattern>`（无前缀也是正则）：对页面的 HTML + 内联脚本文本求正则，
+    ///   第 1 个捕获组 = 媒体地址（没有捕获组 = 整个命中）；
+    /// - `selector:<css>@<attr>`：页内选择器 + 属性，可多个命中。
+    var detail: String?
+    /// 每页正片数：`one`（只取第一个命中）/ `many`（全部命中）。nil = 按命中数。
+    var perPage: String?
+    /// 列表页视图名（协议体 `views` 的键）：智能体用 `pageExtract(view, all: true)`
+    /// 一次取全详情页链接。
+    var listView: String?
+    /// 排除特征（正则，对媒体地址求值）。
+    var exclude: [String]?
+    /// 每路连接数（分片并发）；nil = 默认 8。
+    var connections: Int?
+    /// 签名地址有效期（分钟）；nil = 默认 50。中途过期会自动缩短。
+    var tokenMinutes: Int?
 
-    struct DownloadRules: Codable, Equatable {
-        /// 详情页提取规则：
-        /// - `regex:<pattern>`（无前缀也是正则）：对页面的 HTML + 内联脚本文本求正则，
-        ///   第 1 个捕获组 = 媒体地址（没有捕获组 = 整个命中）；
-        /// - `selector:<css>@<attr>`：页内选择器 + 属性，可多个命中。
-        var detail: String?
-        /// 每页正片数：`one`（只取第一个命中）/ `many`（全部命中）。nil = 按命中数。
-        var perPage: String?
-        /// 列表页视图名（协议体 `views` 的键）：智能体用 `pageExtract(view, all: true)`
-        /// 一次取全详情页链接。
-        var listView: String?
-        /// 排除特征（正则，对媒体地址求值）。
-        var exclude: [String]?
-        /// 每路连接数（分片并发）；nil = 默认 8。
-        var connections: Int?
-        /// 签名地址有效期（分钟）；nil = 默认 50。中途过期会自动缩短。
-        var tokenMinutes: Int?
+    // 打磨记录（引擎回写；用户在 Studio 里改规则时不必填）
+    var lastMatchAt: Date?
+    var lastFailureAt: Date?
+    var lastError: String?
+    var consecutiveFailures: Int?
+    /// 修订历史（最近在前，上限 20）。
+    var revisions: [Revision]?
 
-        // 打磨记录（引擎回写；用户在 Studio 里改规则时不必填）
-        var lastMatchAt: Date?
-        var lastFailureAt: Date?
-        var lastError: String?
-        var consecutiveFailures: Int?
-        /// 修订历史（最近在前，上限 20）。
-        var revisions: [Revision]?
-
-        struct Revision: Codable, Equatable {
-            var at: Date
-            var change: String
-        }
-
-        init() {}
+    struct Revision: Codable, Equatable {
+        var at: Date
+        var change: String
     }
 
-    enum DetailRule: Equatable {
-        case regex(String)
-        case selector(css: String, attribute: String)
-    }
+    init() {}
 }
 
-extension DPPAdapter.DownloadRules {
+/// `detail` 规则的两种形态。
+nonisolated enum DPPDetailRule: Equatable {
+    case regex(String)
+    case selector(css: String, attribute: String)
+}
+
+extension DPPAdapter {
+    typealias DownloadRules = DPPDownloadRules
+    typealias DetailRule = DPPDetailRule
+}
+
+extension DPPDownloadRules {
 
     enum PerPage: String, Equatable { case one, many }
 
@@ -72,7 +79,7 @@ extension DPPAdapter.DownloadRules {
     }
 
     /// `detail` 的解析；写得不完整（选择器缺属性等）= nil。
-    func detailRule() -> DPPAdapter.DetailRule? {
+    func detailRule() -> DPPDetailRule? {
         guard let raw = detail?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
         if raw.hasPrefix("selector:") {
             let body = raw.dropFirst("selector:".count).trimmingCharacters(in: .whitespaces)
@@ -160,7 +167,7 @@ extension DPPAdapter.DownloadRules {
     }
 
     /// 按一次任务的结果调整并留修订记录；`needsWrite` 为假时原样返回。
-    func adapting(to signal: AdaptationSignal, now: Date = Date()) -> DPPAdapter.DownloadRules {
+    func adapting(to signal: AdaptationSignal, now: Date = Date()) -> DPPDownloadRules {
         var out = self
         switch signal {
         case .signatureExpired:

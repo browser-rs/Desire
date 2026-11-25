@@ -3031,7 +3031,9 @@ case ("GET", "/state"):
                     url: Self.string(body, "url") ?? "",
                     referer: Self.string(body, "referer"),
                     fileNameHint: Self.string(body, "filename"),
-                    maxBandwidth: body["maxBandwidth"] as? Int
+                    maxBandwidth: body["maxBandwidth"] as? Int,
+                    directory: Self.string(body, "directory"),
+                    connections: body["connections"] as? Int
                 ))
             case ("POST", "/media/batch"):
                 return try Self.json(Self.startMediaBatch(body: body))
@@ -10051,18 +10053,24 @@ case ("GET", "/agent/messages"):
         return ["variants": variants]
     }
 
-    private static func downloadMedia(url: String, referer: String?, fileNameHint: String?, maxBandwidth: Int?) throws -> [String: Any] {
+    /// `directory` / `connections`（v0.8.77 批 3）：落点目录与每路分片并发——自动化
+    /// 把测试片下到隔离目录里，不写进用户真实的"下载"文件夹。
+    private static func downloadMedia(url: String, referer: String?, fileNameHint: String?, maxBandwidth: Int?,
+                                      directory: String? = nil, connections: Int? = nil) throws -> [String: Any] {
         guard !url.isEmpty, let sourceURL = URL(string: url) else {
             return ["error": "missing or invalid url"]
         }
         let refererURL = referer.flatMap { URL(string: $0) }
+        let trimmedDirectory = directory?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let baseDirectory = (trimmedDirectory?.isEmpty == false) ? trimmedDirectory : nil
         // 走 MediaExportStore（与 agent 工具同路径）：面板可见、/media/exports
         // 可查完成回执（verified 分辨率/音轨 + 源变体清单）。此前裸调
         // MediaExporter.download，回执只进日志、任务在任何列表里都不存在。
         let id = MainActor.assumeIsolated {
             MediaExportStore.shared.start(
                 url: sourceURL, referer: refererURL, userAgent: nil,
-                fileNameHint: fileNameHint, maxBandwidth: maxBandwidth, notify: false)
+                fileNameHint: fileNameHint, folderName: nil, baseDirectory: baseDirectory,
+                maxBandwidth: maxBandwidth, notify: false, connections: connections)
         }
         Log.agent.info("media download started: \(url, privacy: .public) job=\(id.uuidString, privacy: .public)")
         return ["ok": true, "started": url, "id": id.uuidString]

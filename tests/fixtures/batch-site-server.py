@@ -16,15 +16,24 @@ HLS 素材在启动时用 ffmpeg 现生成（12 秒测试图案、2 秒分片）
 """
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8895
 ROOT = tempfile.mkdtemp(prefix="desire-batch-site-")
 STREAMS = {"aaa": 6, "bbb-ep1": 6, "bbb-ep2": 6, "ccc": 6}   # id → 分片数（每片 2 秒）
+
+# 限速与过期两种故障形态（v0.8.77 批 3 的速度/续传验证）：
+# - `/slow/…`：同一个文件，但每个分片响应先睡 SLOW_DELAY 秒——模拟"单连接被限速"的 CDN；
+#   串行下 N 个分片至少 N × SLOW_DELAY 秒，并发 k 路约 N × SLOW_DELAY / k 秒。
+# - `/expire/…`：序号 ≥ EXPIRE_AFTER 的分片返回 403——模拟签名地址在下载中途过期。
+SLOW_DELAY = 0.5
+EXPIRE_AFTER = 3
 
 TYPES = {".m3u8": "application/vnd.apple.mpegurl", ".ts": "video/mp2t", ".mp4": "video/mp4",
          ".html": "text/html; charset=utf-8", ".js": "text/javascript"}
@@ -144,8 +153,40 @@ class Handler(SimpleHTTPRequestHandler):
         ext = os.path.splitext(path)[1].lower()
         return TYPES.get(ext) or super().guess_type(path)
 
+    def long_playlist(self):
+        """24 个分片的点播列表（6 个分片重复 4 轮，轮间 DISCONTINUITY）。"""
+        source = open(os.path.join(ROOT, "hls", "aaa", "index.m3u8"), encoding="utf-8").read()
+        rounds = []
+        for _ in range(4):
+            rounds.append("#EXT-X-DISCONTINUITY\n" + "\n".join(
+                line for line in source.splitlines() if not line.startswith(("#EXTM3U", "#EXT-X-"))))
+        return "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:2\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n" \
+            + "\n".join(rounds) + "\n#EXT-X-ENDLIST\n"
+
     def do_GET(self):
         path = self.path.split("?")[0]
+        if path.startswith("/slow/"):
+            if path.lower().endswith((".ts", ".m4s")):
+                time.sleep(SLOW_DELAY)
+            self.path = self.path[len("/slow"):]
+        elif path.startswith("/expire/"):
+            match = re.search(r"seg-(\d+)\.ts$", path)
+            if match and int(match.group(1)) >= EXPIRE_AFTER:
+                self.send_response(403)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self.path = self.path[len("/expire"):]
+        path = self.path.split("?")[0]
+        if path == "/hls/aaa/long.m3u8":
+            data = self.long_playlist().encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", TYPES[".m3u8"])
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
+            return
         pages = {
             "/videos/aaa-001/": ("text/html", SINGLE_PAGE),
             "/videos/bbb-002/": ("text/html", MULTI_PAGE),

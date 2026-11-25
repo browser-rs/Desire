@@ -25,6 +25,7 @@ import sys
 import tempfile
 import threading
 import time
+import uuid
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8895
@@ -43,6 +44,9 @@ STREAMS = {name: seconds // 2 for name, seconds in DURATIONS.items()}
 #   串行下 N 个分片至少 N × SLOW_DELAY 秒，并发 k 路约 N × SLOW_DELAY / k 秒。
 # - `/expire/…`：序号 ≥ EXPIRE_AFTER 的分片返回 403——模拟签名地址在下载中途过期。
 SLOW_DELAY = 0.5
+# 每次启动一个轮次号：限速流的地址随它变（/slow-<轮次号>/…）。下载器按地址给预取工作目录
+# 命名——地址固定的话，上一轮（或修复前的构建）留下的分片会被下一轮悄悄复用。
+RUN = uuid.uuid4().hex[:8]
 EXPIRE_AFTER = 3
 # `/expire/` 的语义（确定性，不数播放列表被请求过几次——解析阶段的时长探测也会取
 # 一次播放列表）：尾部分片（序号 ≥ EXPIRE_AFTER）一律 403，**直到出现过 403 之后**
@@ -90,6 +94,43 @@ def build_media():
         subprocess.run([ffmpeg, "-v", "error", "-y", "-allowed_extensions", "ALL", "-i", src, "-c", "copy", out], check=True)
     for stream in STREAMS:   # 每个流目录一个缩略图分片（真实站点有 thumb.ts 这类噪声）
         shutil.copy(os.path.join(ROOT, "hls", stream, "seg-000.ts"), os.path.join(ROOT, "hls", stream, "thumb.ts"))
+    # 三种特殊形态（v0.8.77 批 6，下载方式的研判用）：
+    # - /demux/master.m3u8    音轨分离（EXT-X-MEDIA 独立音轨）——master 必须整体交给 ffmpeg；
+    # - /variants/master.m3u8 两个变体（320x240 / 160x120）——码率上限挑档；
+    # - /sampleaes/index.m3u8 写着 SAMPLE-AES 的播放列表（分片是普通的，只用来探测，不用来下载）。
+    full = os.path.join(ROOT, "hls", "ccc", "index.m3u8")
+
+    def cut_hls(source, out_dir, *filters):
+        os.makedirs(out_dir, exist_ok=True)
+        subprocess.run([ffmpeg, "-v", "error", "-y", "-allowed_extensions", "ALL", "-i", source, *filters,
+                        "-f", "hls", "-hls_time", "2", "-hls_playlist_type", "vod",
+                        "-hls_segment_filename", os.path.join(out_dir, "seg-%03d.ts"),
+                        os.path.join(out_dir, "index.m3u8")], check=True)
+
+    cut_hls(full, os.path.join(ROOT, "demux", "video"), "-an", "-c", "copy")
+    cut_hls(full, os.path.join(ROOT, "demux", "audio"), "-vn", "-c", "copy")
+    cut_hls(full, os.path.join(ROOT, "variants", "hi"), "-c", "copy")
+    cut_hls(full, os.path.join(ROOT, "variants", "lo"),
+            "-vf", "scale=160:120", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "copy")
+    with open(os.path.join(ROOT, "demux", "master.m3u8"), "w", encoding="utf-8") as handle:
+        handle.write('#EXTM3U\n'
+                     '#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID="aud",NAME="audio",DEFAULT=YES,AUTOSELECT=YES,URI="audio/index.m3u8"\n'
+                     '#EXT-X-STREAM-INF:BANDWIDTH=500000,RESOLUTION=320x240,AUDIO="aud"\n'
+                     'video/index.m3u8\n')
+    with open(os.path.join(ROOT, "variants", "master.m3u8"), "w", encoding="utf-8") as handle:
+        handle.write('#EXTM3U\n'
+                     '#EXT-X-STREAM-INF:BANDWIDTH=600000,RESOLUTION=320x240\n'
+                     'hi/index.m3u8\n'
+                     '#EXT-X-STREAM-INF:BANDWIDTH=200000,RESOLUTION=160x120\n'
+                     'lo/index.m3u8\n')
+    sample_dir = os.path.join(ROOT, "sampleaes")
+    os.makedirs(sample_dir, exist_ok=True)
+    for name in os.listdir(os.path.join(ROOT, "hls", "aaa")):
+        shutil.copy(os.path.join(ROOT, "hls", "aaa", name), os.path.join(sample_dir, name))
+    playlist = open(os.path.join(ROOT, "hls", "aaa", "index.m3u8"), encoding="utf-8").read()
+    with open(os.path.join(sample_dir, "index.m3u8"), "w", encoding="utf-8") as handle:
+        handle.write(playlist.replace("#EXTINF", '#EXT-X-KEY:METHOD=SAMPLE-AES,URI="key.bin"\n#EXTINF', 1))
+
     os.makedirs(os.path.join(ROOT, "ads"))
     shutil.copy(os.path.join(ROOT, "clips", "ccc.mp4"), os.path.join(ROOT, "ads", "preroll.mp4"))
     shutil.copy(os.path.join(ROOT, "clips", "ccc.mp4"), os.path.join(ROOT, "ads", "300x250.medium.mp4"))
@@ -221,10 +262,11 @@ class Handler(SimpleHTTPRequestHandler):
             return
         with threading.Lock():
             STATE["hits"][path] = STATE["hits"].get(path, 0) + 1
-        if path.startswith("/slow/"):
+        slow = re.match(r"^/slow(?:-[0-9a-f]{8})?(/.*)$", path)
+        if slow:
             if path.lower().endswith((".ts", ".m4s")):
                 time.sleep(SLOW_DELAY)
-            self.path = self.path[len("/slow"):]
+            self.path = slow.group(1)
         elif path.startswith("/expire/"):
             match = re.search(r"seg-(\d+)\.ts$", path)
             with threading.Lock():
@@ -276,5 +318,5 @@ class Handler(SimpleHTTPRequestHandler):
 
 if __name__ == "__main__":
     build_media()
-    print(json.dumps({"root": ROOT, "port": PORT, "streams": STREAMS}), flush=True)
+    print(json.dumps({"root": ROOT, "port": PORT, "streams": STREAMS, "run": RUN}), flush=True)
     ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()

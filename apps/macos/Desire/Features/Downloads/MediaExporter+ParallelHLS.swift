@@ -44,6 +44,8 @@ extension MediaExporter {
         let skipped: [Int]
         /// 媒体播放列表原文（内置下载器回退路径要自己再解析一遍）。
         let mediaText: String
+        /// 开头分片的测速结果（单连接 vs 并发；连接数钉成 1 或续传时没有）。
+        var speedEvidence: ParallelTuning.Evidence? = nil
 
         func segmentFile(_ index: Int) -> URL {
             workDirectory.appendingPathComponent(MediaExporter.localSegmentName(playlist, index))
@@ -72,52 +74,84 @@ extension MediaExporter {
         return String(format: "%016llx", hash)
     }
 
-    /// 解析出媒体播放列表（master → 最高码率变体）。
-    static func resolveMediaPlaylist(
-        url: URL, playlistText: String?, referer: URL?, userAgent: String?
-    ) async throws -> (playlist: HLSMediaPlaylist, mediaURL: URL, text: String) {
+    /// 解析到媒体播放列表之后的全部事实：入口是不是 master、选中的是哪一档、媒体播放
+    /// 列表的原文与解析结果。研判（`HLSSourceProfile` / `DownloadRouting`）与预取都吃它，
+    /// 同一次下载只解析一遍。
+    struct ResolvedSource {
+        let masterText: String?
+        let masterURL: URL?
+        let mediaText: String
+        let mediaURL: URL
+        let playlist: HLSMediaPlaylist
+    }
+
+    /// 取回播放列表文本：入口是 master 就挑好变体、再取它的媒体播放列表。**不要求内置
+    /// 解析器能读**——读不了（加密不认）也是一种事实，由研判决定改走哪条路。
+    struct SourceTexts {
+        let masterText: String?
+        let masterURL: URL?
+        let mediaText: String?
+        let mediaURL: URL
+    }
+
+    static func resolveSourceTexts(
+        url: URL, playlistText: String?, referer: URL?, userAgent: String?,
+        maxBandwidth: Int? = nil
+    ) async throws -> SourceTexts {
         var text = playlistText
-        var mediaURL = url
         if text == nil {
             let (data, _) = try await fetch(url: url, referer: referer, userAgent: userAgent)
             text = String(data: data, encoding: .utf8)
         }
         guard let raw = text, raw.contains("#EXTM3U") else { throw ExportError.notAPlaylist }
-        if raw.contains("#EXT-X-STREAM-INF") {
-            let variants = parseVariants(raw, baseURL: url).sorted {
-                ($0["bandwidth"] as? Int ?? 0) > ($1["bandwidth"] as? Int ?? 0)
-            }
-            guard let chosen = variants.first,
-                  let chosenURL = URL(string: chosen["url"] as? String ?? "") else {
-                throw ExportError.notAPlaylist
-            }
-            let (data, _) = try await fetch(url: chosenURL, referer: referer, userAgent: userAgent)
-            guard let fetched = String(data: data, encoding: .utf8) else { throw ExportError.notAPlaylist }
-            text = fetched
-            mediaURL = chosenURL
+        guard raw.contains("#EXT-X-STREAM-INF") else {
+            return SourceTexts(masterText: nil, masterURL: nil, mediaText: raw, mediaURL: url)
         }
-        guard let mediaText = text,
-              let playlist = try? HLSMediaPlaylist.parse(mediaText, baseURL: mediaURL) else {
+        // master 里没有可用的变体 = 读不了；照 `notAPlaylist` 上报。
+        guard let chosen = HLSSourceProfile.choose(
+            from: HLSSourceProfile.variants(in: raw, baseURL: url), maxBandwidth: maxBandwidth) else {
             throw ExportError.notAPlaylist
         }
-        return (playlist, mediaURL, mediaText)
+        let (data, _) = try await fetch(url: chosen.url, referer: referer, userAgent: userAgent)
+        return SourceTexts(masterText: raw, masterURL: url, mediaText: String(data: data, encoding: .utf8),
+                           mediaURL: chosen.url)
+    }
+
+    /// 解析出媒体播放列表（master → 码率上限之内的最高档）。内置解析器读不了媒体播放
+    /// 列表 = `notAPlaylist`，由调用方改走别的引擎。
+    static func resolveMediaPlaylist(
+        url: URL, playlistText: String?, referer: URL?, userAgent: String?,
+        maxBandwidth: Int? = nil
+    ) async throws -> ResolvedSource {
+        let texts = try await resolveSourceTexts(
+            url: url, playlistText: playlistText, referer: referer, userAgent: userAgent, maxBandwidth: maxBandwidth)
+        guard let mediaText = texts.mediaText,
+              let playlist = try? HLSMediaPlaylist.parse(mediaText, baseURL: texts.mediaURL) else {
+            throw ExportError.notAPlaylist
+        }
+        return ResolvedSource(masterText: texts.masterText, masterURL: texts.masterURL, mediaText: mediaText,
+                              mediaURL: texts.mediaURL, playlist: playlist)
+    }
+
+    static func fileSize(_ url: URL) -> Int64? {
+        ((try? FileManager.default.attributesOfItem(atPath: url.path))?[.size] as? NSNumber)?.int64Value
     }
 
     /// 预取全部缺失的分片（含密钥与初始化段），写出本地播放列表。
     /// 抓不全的分片最多再试一轮；仍缺的少量分片从本地播放列表里去掉（与内置下载器
-    /// "失败的分片跳过"同一口径），缺得太多才算失败。
+    /// "失败的分片跳过"同一口径），缺得太多才算失败。`source` 由调用方先解析好——
+    /// 同一次下载里研判与预取共用一份解析结果。
     static func prefetchHLS(
         url: URL,
-        playlistText: String?,
+        source resolved: ResolvedSource,
         referer: URL?,
         userAgent: String?,
         connections: Int,
         resumeKey: String?,
         deadlineCheck: () throws -> Void,
+        onTuning: @MainActor (String) -> Void = { _ in },
         progress: @MainActor (Int, Int, ProgressUnit) -> Void
     ) async throws -> PrefetchedHLS {
-        let resolved = try await resolveMediaPlaylist(
-            url: url, playlistText: playlistText, referer: referer, userAgent: userAgent)
         let playlist = resolved.playlist
         let fm = FileManager.default
         let workDirectory = fm.temporaryDirectory.appendingPathComponent(
@@ -164,6 +198,21 @@ extension MediaExporter {
 
         var workers = max(1, connections)
         let connectionsUsed = workers
+        var speedEvidence: ParallelTuning.Evidence?
+        // **测速**（v0.8.77 批 6）：第一次开始、且调用方没把连接数钉成 1 时，把开头的分片
+        // 排个次序顺带量一下（见 `measureSegmentSpeed`）——据此定这一路实际用几个连接。
+        if initiallyPresent == 0, total >= 3, workers > 1,
+           let measured = try await measureSegmentSpeed(
+                playlist: playlist, workDirectory: workDirectory, connections: workers,
+                referer: referer, userAgent: userAgent, deadlineCheck: deadlineCheck,
+                onSegment: { done += 1; progress(done, total, .segments) }) {
+            let tuning = ParallelTuning.connections(requested: connections, evidence: measured.evidence,
+                                                    budget: connectionBudget)
+            speedEvidence = measured.evidence
+            workers = tuning.connections
+            onTuning(tuning.verdict)
+            Log.downloads.info("hls prefetch: \(tuning.verdict, privacy: .public)")
+        }
         // 第一轮：按 connections 并发；第二轮：对仍缺的再试一次（并发更低）。
         for round in 0..<2 {
             let missing = playlist.segments.filter { !isPresent($0) }
@@ -192,7 +241,50 @@ extension MediaExporter {
         ).write(to: localPlaylistURL, atomically: true, encoding: .utf8)
         return PrefetchedHLS(playlist: playlist, mediaURL: resolved.mediaURL, workDirectory: workDirectory,
                              localPlaylistURL: localPlaylistURL, fetched: done - initiallyPresent,
-                             connectionsUsed: connectionsUsed, skipped: skipped, mediaText: resolved.text)
+                             connectionsUsed: connectionsUsed, skipped: skipped, mediaText: resolved.mediaText,
+                             speedEvidence: speedEvidence)
+    }
+
+    /// **开头分片测速**（v0.8.77 批 6）：第 1 个分片单连接抓，随后 `connections` 个并发抓，
+    /// 各计一次时。这些分片本来就要抓，只是换了次序——量到的是"这个源单连接是否被限速、
+    /// 并发有没有增益"。调用方保证这些分片本地都还没有；每抓到一个调一次 `onSegment`。
+    /// 第 1 个分片没抓到 = nil（不猜，交给常规轮次重试）；签名地址过期照常上抛。
+    static func measureSegmentSpeed(
+        playlist: HLSMediaPlaylist,
+        workDirectory: URL,
+        connections: Int,
+        referer: URL?,
+        userAgent: String?,
+        deadlineCheck: () throws -> Void,
+        onSegment: @MainActor () -> Void
+    ) async throws -> (evidence: ParallelTuning.Evidence, averageSegmentBytes: Int64)? {
+        let first = playlist.segments[0]
+        let firstFile = workDirectory.appendingPathComponent(localSegmentName(playlist, first.index))
+        let singleStarted = Date()
+        guard await fetchSegment(first, to: firstFile, referer: referer, userAgent: userAgent) == .ok,
+              let firstBytes = fileSize(firstFile), firstBytes > 0 else {
+            return nil
+        }
+        onSegment()
+        let singleSeconds = max(Date().timeIntervalSince(singleStarted), 0.001)
+        let wave = Array(playlist.segments.dropFirst().prefix(connections))
+        let waveStarted = Date()
+        let (_, expired) = try await fetchSegments(
+            wave, playlist: playlist, workDirectory: workDirectory,
+            connections: connections, referer: referer, userAgent: userAgent,
+            deadlineCheck: deadlineCheck, onProgress: onSegment)
+        if expired >= expiredThreshold { throw ExportError.addressExpired(segments: expired) }
+        let fetchedBytes = wave.compactMap {
+            fileSize(workDirectory.appendingPathComponent(localSegmentName(playlist, $0.index)))
+        }
+        guard !fetchedBytes.isEmpty else { return nil }
+        let waveBytes = fetchedBytes.reduce(Int64(0), +)
+        let waveSeconds = max(Date().timeIntervalSince(waveStarted), 0.001)
+        return (ParallelTuning.Evidence(
+                    singleBytesPerSecond: Double(firstBytes) / singleSeconds,
+                    parallelBytesPerSecond: Double(waveBytes) / waveSeconds,
+                    connectionsTested: fetchedBytes.count),
+                (firstBytes + waveBytes) / Int64(fetchedBytes.count + 1))
     }
 
     /// 并发抓一批分片。返回（成功数，过期数）。连续失败会把这一轮的并发减半（下限 2）。
@@ -304,5 +396,72 @@ extension MediaExporter {
                 .contentModificationDate ?? now
             if now.timeIntervalSince(modified) > 2 * 86_400 { try? fm.removeItem(at: entry) }
         }
+    }
+
+    /// **探测**（v0.8.77 批 6，只读）：不下载，把研判的依据量给智能体看——流的形态、会走
+    /// 哪个引擎、开头分片的实测速度与预计耗时。智能体此前靠手写测速脚本才能得到这些，
+    /// "慢了怎么办"从此有据可依。探测抓过的分片落在临时目录里，量完即删。
+    static func probe(url: URL, referer: URL?, userAgent: String?,
+                      connections: Int = MediaExporter.defaultConnections) async -> DownloadProbeReport {
+        let ffmpegLabel: String? = FFmpegExporter.locate() != nil ? "available" : nil
+        var request = URLRequest(url: url)
+        if let referer { request.setValue(referer.absoluteString, forHTTPHeaderField: "Referer") }
+        if let userAgent { request.setValue(userAgent, forHTTPHeaderField: "User-Agent") }
+        request.httpMethod = "HEAD"
+        let http = (try? await session(for: url).data(for: request).1) as? HTTPURLResponse
+        let contentType = http?.value(forHTTPHeaderField: "Content-Type")?.lowercased() ?? ""
+        // 没有播放列表后缀也不直接下整段正文来探（直链视频动辄几个 GB）：先看 HEAD。
+        let looksLikePlaylist = url.pathExtension.lowercased() == "m3u8" || contentType.contains("mpegurl")
+        // 网页不是媒体地址（详情页该交给 resolveVideos）：直说，别把它报成"一个 text/html 的直链文件"。
+        if !looksLikePlaylist, contentType.contains("text/html") {
+            return .failed("the URL returns a web page, not a media stream — detail pages go to resolveVideos")
+        }
+        guard looksLikePlaylist else {
+            let bytes = http?.value(forHTTPHeaderField: "Content-Length")
+                .flatMap { Int64($0.trimmingCharacters(in: .whitespaces)) }
+            let resumable = http?.value(forHTTPHeaderField: "Accept-Ranges") == "bytes"
+            return DownloadProbeReport(
+                decision: DownloadRouting.directFile(ffmpegLabel: ffmpegLabel, contentType: contentType.isEmpty ? nil : contentType,
+                                                     resumable: resumable),
+                estimatedBytes: bytes,
+                directFile: DownloadProbeReport.DirectFileFacts(
+                    contentType: contentType.isEmpty ? nil : contentType, bytes: bytes, acceptsRanges: resumable))
+        }
+        guard let texts = try? await resolveSourceTexts(
+            url: url, playlistText: nil, referer: referer, userAgent: userAgent) else {
+            return .failed("the URL did not return an HLS playlist")
+        }
+        let profile = HLSSourceProfile.read(masterText: texts.masterText, masterURL: texts.masterURL,
+                                            mediaText: texts.mediaText, mediaURL: texts.mediaURL)
+        let decision = DownloadRouting.decide(profile, ffmpegLabel: ffmpegLabel, connections: connections)
+        var speed: ParallelTuning.Evidence?
+        var averageSegmentBytes: Int64?
+        var failure: String?
+        if case .parallelPrefetch = decision.engine, connections > 1, profile.segmentCount >= 3,
+           let mediaText = texts.mediaText,
+           let playlist = try? HLSMediaPlaylist.parse(mediaText, baseURL: texts.mediaURL) {
+            let directory = FileManager.default.temporaryDirectory
+                .appendingPathComponent("desire-probe-\(UUID().uuidString)", isDirectory: true)
+            do {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                if let measured = try await measureSegmentSpeed(
+                    playlist: playlist, workDirectory: directory,
+                    connections: max(1, min(connections, connectionBudget)),
+                    referer: referer, userAgent: userAgent, deadlineCheck: {}, onSegment: {}) {
+                    speed = measured.evidence
+                    averageSegmentBytes = measured.averageSegmentBytes
+                }
+            } catch is CancellationError {
+                return .failed("cancelled")
+            } catch let error as ExportError {
+                if case .addressExpired = error { failure = "the signed address expired while probing the first segments" }
+            } catch {
+                failure = "segments could not be fetched: \(error.localizedDescription)"
+            }
+            try? FileManager.default.removeItem(at: directory)
+        }
+        return DownloadProbeReport(decision: decision, speed: speed,
+                                   estimatedBytes: averageSegmentBytes.map { $0 * Int64(max(profile.segmentCount, 1)) },
+                                   segments: profile.segmentCount, failure: failure)
     }
 }

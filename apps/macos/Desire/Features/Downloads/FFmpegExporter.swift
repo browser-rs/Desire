@@ -60,6 +60,7 @@ enum FFmpegExporter {
     /// 不必重启 app。
     /// 纯文件系统探测，无隔离要求（probeSummary 的 nonisolated 路径也用）。
     nonisolated static func locate() -> URL? {
+        if ffmpegDisabledByArgument { return nil }
         for path in searchPaths where FileManager.default.isExecutableFile(atPath: path) {
             return URL(fileURLWithPath: path)
         }
@@ -67,6 +68,10 @@ enum FFmpegExporter {
     }
 
     static var isAvailable: Bool { locate() != nil }
+
+    /// 自动化测试开关（v0.8.77 批 6）：带 `--no-ffmpeg` 启动 = 模拟"本机没装 ffmpeg"。
+    /// "并发预取 + 内置解密拼接"这条路只有在没装 ffmpeg 的机器上才会走到，开发机验证不了。
+    private nonisolated static let ffmpegDisabledByArgument = CommandLine.arguments.contains("--no-ffmpeg")
 
     /// 下载完成后的产物探测结果。
     /// `summary` 是给人看的回执文本；`resolution` 供"下载档 vs 源上限"对比。

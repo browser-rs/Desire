@@ -1133,6 +1133,18 @@ final class BatchMediaExportStore: ObservableObject {
                 // 每路连接数（v0.8.77 批 3）：站点规则可给；批内所有下载合计不超过
                 // 连接预算——同时下 N 部时每路上限 = 预算 / N。
                 connections: connectionsPerStream(sourceURL: batches[bi].items[ii].sourceURL, batchID: batchID),
+                // 研判 / 测速（v0.8.77 批 6）：这一路为什么走这个引擎、实测连接数怎么定的，
+                // 原样写进批次日志——用户和智能体都看得到依据。
+                planHandler: { [weak self] line in
+                    guard let self else { return }
+                    let prefix = batches.first(where: { $0.id == batchID })?
+                        .items.first(where: { $0.id == itemID })?.numberPrefix ?? ""
+                    if line.hasPrefix("speed probe — ") {
+                        blog(batchID, "[\(prefix)] 测速：\(line.dropFirst("speed probe — ".count))")
+                    } else {
+                        blog(batchID, "[\(prefix)] 研判：\(line)")
+                    }
+                },
                 completion: { [weak self] outcome in
                     self?.downloadSettled(batchID: batchID, itemID: itemID, outcome: outcome)
                 },

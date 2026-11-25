@@ -13295,6 +13295,168 @@ do {
        placed(SyncedSkillPlacement.destination(in: dir2, skillName: "site-download", textAt: read2)), "site-download")
 }
 
+// ---------- 下载方式的研判 HLSSourceProfile / DownloadRouting / ParallelTuning（v0.8.77 批 6） ----------
+
+do {
+    let mediaURL = URL(string: "https://cdn.example/hls/tok/1/2/index.m3u8")!
+    let keyLine = "#EXT-X-KEY:METHOD=AES-128,URI=\"key.bin\"\n"
+    let vod = "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:4\n#EXT-X-MEDIA-SEQUENCE:0\n#EXT-X-PLAYLIST-TYPE:VOD\n"
+        + keyLine + "#EXTINF:4.0,\n0.ts\n#EXTINF:4.0,\n1.ts\n#EXTINF:4.0,\n2.ts\n#EXT-X-ENDLIST\n"
+    let clear = vod.replacingOccurrences(of: keyLine, with: "")
+    let live = clear.replacingOccurrences(of: "#EXT-X-ENDLIST\n", with: "")
+    let masterURL = URL(string: "https://cdn.example/hls/tok/1/master.m3u8")!
+    let master = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360\nlow/index.m3u8\n"
+        + "#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1920x1080\nhigh/index.m3u8\n"
+        + "#EXT-X-STREAM-INF:BANDWIDTH=1500000,RESOLUTION=1280x720\nmid/index.m3u8\n"
+    let demuxed = "#EXTM3U\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",NAME=\"en\",DEFAULT=YES,URI=\"audio/index.m3u8\"\n"
+        + "#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1920x1080,AUDIO=\"a\"\nhigh/index.m3u8\n"
+    typealias Route = DownloadRouting.Engine
+    func durationLabel(seconds: Int) -> String? {
+        HLSSourceProfile.read(mediaText: "#EXTM3U\n#EXTINF:\(Double(seconds) / 2),\n0.ts\n#EXTINF:\(Double(seconds) / 2),\n1.ts\n#EXT-X-ENDLIST\n",
+                              mediaURL: mediaURL).durationLabel
+    }
+
+    // 事实
+    let aes = HLSSourceProfile.read(mediaText: vod, mediaURL: mediaURL)
+    check("研判·事实：媒体播放列表 / 点播 / AES-128 / 3 片 12 秒",
+          !aes.isMaster && !aes.isLive && aes.encryption == .aes128 && aes.segmentCount == 3
+          && aes.durationSeconds == 12 && aes.parseFailure == nil && aes.durationLabel == "12s")
+    eq("研判·事实：时长写法", durationLabel(seconds: 2 * 3600 + 61), "2h 1m")
+    eq("研判·事实：时长写法（分钟）", durationLabel(seconds: 125), "2m 5s")
+    check("研判·事实：直播 = 无 ENDLIST", HLSSourceProfile.read(mediaText: live, mediaURL: mediaURL).isLive)
+    let sample = clear.replacingOccurrences(of: "#EXTINF:4.0,\n0.ts", with: "#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"k\"\n#EXTINF:4.0,\n0.ts")
+    let sampled = HLSSourceProfile.read(mediaText: sample, mediaURL: mediaURL)
+    check("研判·事实：SAMPLE-AES → 内置解析器读不了，理由点名加密",
+          sampled.encryption == .sampleAES && sampled.parseFailure == "SAMPLE-AES encryption")
+    let ranges = clear.replacingOccurrences(of: "#EXTINF:4.0,\n0.ts", with: "#EXT-X-BYTERANGE:100000@0\n#EXTINF:4.0,\n0.ts")
+    check("研判·事实：字节切片", HLSSourceProfile.read(mediaText: ranges, mediaURL: mediaURL).hasByteRanges)
+    let fmp4 = clear.replacingOccurrences(of: "#EXTINF:4.0,\n0.ts", with: "#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:4.0,\n0.ts")
+    check("研判·事实：fMP4（初始化段）", HLSSourceProfile.read(mediaText: fmp4, mediaURL: mediaURL).hasInitSegment)
+    eq("研判·事实：根本不是播放列表", HLSSourceProfile.read(mediaText: "<html></html>", mediaURL: mediaURL).parseFailure, "not a playlist")
+
+    let withMaster = HLSSourceProfile.read(masterText: master, masterURL: masterURL, mediaText: vod, mediaURL: mediaURL)
+    check("研判·事实：master 的变体按码率从高到低、地址按 master 解析",
+          withMaster.isMaster && withMaster.variants.map(\.resolution) == ["1920x1080", "1280x720", "640x360"]
+          && withMaster.variants.map(\.index) == [1, 2, 0]
+          && withMaster.variants.first?.url.absoluteString == "https://cdn.example/hls/tok/1/high/index.m3u8"
+          && withMaster.encryption == .aes128 && withMaster.segmentCount == 3)
+    eq("研判·事实：变体摘要", withMaster.variantSummary, "3 variants, best 1920x1080")
+    check("研判·事实：码率上限之内选最高档，全超取最低档",
+          HLSSourceProfile.choose(from: withMaster.variants, maxBandwidth: nil)?.resolution == "1920x1080"
+          && HLSSourceProfile.choose(from: withMaster.variants, maxBandwidth: 1_600_000)?.resolution == "1280x720"
+          && HLSSourceProfile.choose(from: withMaster.variants, maxBandwidth: 100_000)?.resolution == "640x360")
+    let demuxedProfile = HLSSourceProfile.read(masterText: demuxed, masterURL: masterURL, mediaText: clear, mediaURL: mediaURL)
+    check("研判·事实：带地址的独立音轨会被认出来", demuxedProfile.hasSeparateRenditions)
+    let ccOnly = "#EXTM3U\n#EXT-X-MEDIA:TYPE=CLOSED-CAPTIONS,GROUP-ID=\"c\",NAME=\"en\"\n#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1920x1080,CLOSED-CAPTIONS=\"c\"\nhigh/index.m3u8\n"
+    let subsOnly = "#EXTM3U\n#EXT-X-MEDIA:TYPE=SUBTITLES,GROUP-ID=\"s\",NAME=\"en\",URI=\"s/index.m3u8\"\n#EXT-X-STREAM-INF:BANDWIDTH=3000000,RESOLUTION=1920x1080,SUBTITLES=\"s\"\nhigh/index.m3u8\n"
+    check("研判·事实：字幕轨 / 不带地址的声明不算独立音视频轨",
+          !HLSSourceProfile.read(masterText: ccOnly, masterURL: masterURL, mediaText: clear, mediaURL: mediaURL).hasSeparateRenditions
+          && !HLSSourceProfile.read(masterText: subsOnly, masterURL: masterURL, mediaText: clear, mediaURL: mediaURL).hasSeparateRenditions)
+
+    // 规则（起因：此前"有 ffmpeg 就先走并发"，不看流的形态）
+    func route(_ profile: HLSSourceProfile, ffmpeg: Bool = true, connections: Int? = nil) -> DownloadRouting.Decision {
+        DownloadRouting.decide(profile, ffmpegLabel: ffmpeg ? "available" : nil, connections: connections)
+    }
+    let plain = HLSSourceProfile.read(mediaText: clear, mediaURL: mediaURL)
+    eq("研判·规则：普通点播 + 有 ffmpeg → 并发预取 + 本地 ffmpeg 合成",
+       route(plain, connections: 8).engine, Route.parallelPrefetch(remux: .ffmpeg))
+    let plainDecision = route(plain, connections: 8)
+    check("研判·规则：事实与规则分开留",
+          plainDecision.facts.contains("HLS VOD") && plainDecision.facts.contains("ffmpeg available")
+          && plainDecision.facts.contains("3 segments ≈ 12s") && plainDecision.facts.allSatisfy { !$0.contains("→") }
+          && plainDecision.rule.hasPrefix("plain VOD"))
+    eq("研判·规则：结论带连接数", plainDecision.summary,
+       "parallel segment prefetch (8 connections) + local ffmpeg decrypt/remux")
+    eq("研判·规则：日志一行 = 事实 → 引擎", plainDecision.line,
+       "HLS VOD · 3 segments ≈ 12s · ffmpeg available → parallel segment prefetch (8 connections) + local ffmpeg decrypt/remux")
+    eq("研判·规则：没装 ffmpeg 也并发（此前根本不并发）", route(plain, ffmpeg: false).engine,
+       Route.parallelPrefetch(remux: .builtin))
+    check("研判·规则：没装 ffmpeg 的事实写得出来", route(plain, ffmpeg: false).facts.contains("no ffmpeg"))
+    eq("研判·规则：直播不交给 ffmpeg", route(HLSSourceProfile.read(mediaText: live, mediaURL: mediaURL)).engine,
+       Route.parallelPrefetch(remux: .builtin))
+    eq("研判·规则：音轨分离 → master 整体交给 ffmpeg（并发只抓一个变体会丢声音）", route(demuxedProfile).engine,
+       Route.ffmpegDirect)
+    let demuxedNoFFmpeg = route(demuxedProfile, ffmpeg: false)
+    check("研判·规则：音轨分离且没 ffmpeg → 只能取视频变体，并写明会丢音轨",
+          demuxedNoFFmpeg.engine == Route.parallelPrefetch(remux: .builtin)
+          && demuxedNoFFmpeg.rule.contains("separate audio will be missing"))
+    eq("研判·规则：SAMPLE-AES → ffmpeg 直连", route(sampled).engine, Route.ffmpegDirect)
+    check("研判·规则：SAMPLE-AES 且没 ffmpeg → 明确说做不了",
+          route(sampled, ffmpeg: false).engine == Route.unsupported("encryption not supported without ffmpeg"))
+    eq("研判·规则：字节切片 → ffmpeg 直连", route(HLSSourceProfile.read(mediaText: ranges, mediaURL: mediaURL)).engine,
+       Route.ffmpegDirect)
+    eq("研判·规则：字节切片且没 ffmpeg → 内置串行", route(HLSSourceProfile.read(mediaText: ranges, mediaURL: mediaURL), ffmpeg: false).engine,
+       Route.builtinSerial)
+    let stillMaster = HLSSourceProfile.read(mediaText: master, mediaURL: masterURL)
+    check("研判·规则：解析器读不了的播放列表 → 有 ffmpeg 交给它，没有才走旧串行",
+          stillMaster.parseFailure == "not a media playlist"
+          && route(stillMaster).engine == Route.ffmpegDirect
+          && route(stillMaster, ffmpeg: false).engine == Route.builtinSerial)
+    check("研判·规则：fMP4 分片也是独立文件 → 并发",
+          route(HLSSourceProfile.read(mediaText: fmp4, mediaURL: mediaURL)).engine == Route.parallelPrefetch(remux: .ffmpeg))
+
+    // 连接数的实测依据
+    func evidence(_ single: Double, gain: Double, tested: Int = 8) -> ParallelTuning.Evidence {
+        ParallelTuning.Evidence(singleBytesPerSecond: single, parallelBytesPerSecond: single * gain, connectionsTested: tested)
+    }
+    eq("测速：并发有增益 → 维持请求的连接数", ParallelTuning.connections(requested: 8, evidence: evidence(160_000, gain: 6.9), budget: 32).connections, 8)
+    eq("测速：并发没有增益 → 退到 4", ParallelTuning.connections(requested: 8, evidence: evidence(2_000_000, gain: 1.3), budget: 32).connections, 4)
+    check("测速：本来就不超过 4 时不降", ParallelTuning.connections(requested: 3, evidence: evidence(1, gain: 1.1), budget: 32).connections == 3)
+    eq("测速：不超过批内连接预算", ParallelTuning.connections(requested: 40, evidence: nil, budget: 32).connections, 32)
+    eq("测速：速率写法", ParallelTuning.rate(160 * 1_024) + " / " + ParallelTuning.rate(1.1 * 1_048_576), "160 KB/s / 1.10 MB/s")
+    eq("测速：一句话结论", evidence(160 * 1_024, gain: 6.9).summary, "single connection 160 KB/s, 8 connections 1.08 MB/s (6.9×)")
+
+    // 给智能体看的探测回执
+    let fast = evidence(160 * 1_024, gain: 6.9)
+    let report = DownloadProbeReport(decision: plainDecision, speed: fast, estimatedBytes: 1_200_000_000, segments: 1815).text
+    check("回执：事实逐条、方法与原因、测速与预计耗时、下一步",
+          report.hasPrefix("Download assessment\n- HLS VOD\n- 3 segments ≈ 12s\n- ffmpeg available\n→ method: ")
+          && report.contains("\n  because: plain VOD") && report.contains("- speed: single connection 160 KB/s")
+          && report.contains("more connections help")
+          && report.contains("- estimate: ≈ 1.12 GB, ≈ 17 min at 8 connections (from the first 9 segments)")
+          && report.contains("do NOT write a downloader script") && report.contains("downloadMedia (connections: 8)"))
+    let slowGain = DownloadProbeReport(decision: plainDecision, speed: evidence(2_000_000, gain: 1.2),
+                                        estimatedBytes: nil, segments: 3).text
+    check("回执：并发没有增益时如实说", slowGain.contains("parallel gives little gain here")
+          && !slowGain.contains("- estimate:"))
+    let serial = DownloadProbeReport(decision: route(demuxedProfile)).text
+    check("回执：要走 ffmpeg 直连时说明是串行、慢",
+          serial.contains("→ method: ffmpeg direct (serial)") && serial.contains("because: prefetching a single variant")
+          && serial.contains("one connection — slow on long videos") && !serial.contains("- speed: not measured"))
+    let cannot = DownloadProbeReport(decision: route(sampled, ffmpeg: false)).text
+    check("回执：做不了就直说", cannot.contains("→ cannot download: encryption not supported without ffmpeg")
+          && !cannot.contains("Next:"))
+    let direct = DownloadProbeReport(
+        decision: DownloadRouting.directFile(ffmpegLabel: "available", contentType: "video/mp4", resumable: true),
+        estimatedBytes: 1_200_000_000,
+        directFile: DownloadProbeReport.DirectFileFacts(contentType: "video/mp4", bytes: 1_200_000_000, acceptsRanges: true)).text
+    check("回执：直链文件给类型 / 大小 / 可续传",
+          direct.contains("- direct file (video/mp4)") && direct.contains("- size: 1.12 GB")
+          && direct.contains("range requests supported → resumable") && direct.contains("→ method: direct file download")
+          && !direct.contains("- speed:"))
+    let unreadable = DownloadProbeReport.failed("the URL did not return an HLS playlist").text
+    check("回执：读不了源时只说原因与替代做法",
+          unreadable.contains("could not read the source: the URL did not return an HLS playlist")
+          && unreadable.contains("resolveVideos"))
+    let noSpeed = DownloadProbeReport(decision: plainDecision, segments: 3,
+                                      failure: "the signed address expired while probing the first segments").text
+    check("回执：研判在、只是没量到速度时说明原因",
+          noSpeed.contains("→ method: parallel segment prefetch") && noSpeed.contains("- speed: not measured (the signed address expired"))
+
+    // 自己写下载的识别（runCommand 只提醒、不拦）
+    let m3u8 = "https://cdn.example/hls/tok/x/index.m3u8"
+    check("识别：ffmpeg / curl / 脚本解释器 + .m3u8",
+          DownloadRouting.looksLikeHandWrittenDownload(tool: "/opt/homebrew/bin/ffmpeg", arguments: ["-i", m3u8, "out.mp4"])
+          && DownloadRouting.looksLikeHandWrittenDownload(tool: "curl", arguments: [m3u8])
+          && DownloadRouting.looksLikeHandWrittenDownload(tool: "python3", arguments: ["dl.py", m3u8, "out.mp4", "32"]))
+    check("识别：本地转封装、读普通网页、与媒体无关的命令都不误报",
+          !DownloadRouting.looksLikeHandWrittenDownload(tool: "ffmpeg", arguments: ["-i", "local.m3u8", "-c", "copy", "out.mp4"])
+          && !DownloadRouting.looksLikeHandWrittenDownload(tool: "curl", arguments: ["https://example.com/api/data"])
+          && !DownloadRouting.looksLikeHandWrittenDownload(tool: "python3", arguments: ["speedtest.py"])
+          && !DownloadRouting.looksLikeHandWrittenDownload(tool: "ls", arguments: ["-la", m3u8])
+          && !DownloadRouting.looksLikeHandWrittenDownload(tool: "ffmpeg", arguments: ["-i", "/tmp/x/index.m3u8", "out.mp4"]))
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

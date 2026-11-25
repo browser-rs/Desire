@@ -25,6 +25,8 @@ final class MediaExportStore: ObservableObject {
         var isSilent: Bool = false
         /// 成功产物（v0.8.39：统一 Job 视图显示输出）。
         var resultURL: URL? = nil
+        /// 这一次下载的研判与测速结论（v0.8.77 批 6）：为什么走这个引擎、连接数怎么定的。
+        var plan: [String] = []
 
         enum State: String {
             case running, finished, failed, cancelled
@@ -69,6 +71,7 @@ final class MediaExportStore: ObservableObject {
         notify: Bool = true,
         resumeKey: String? = nil,
         connections: Int? = nil,
+        planHandler: ((String) -> Void)? = nil,
         completion: ((JobOutcome) -> Void)? = nil,
         progressHandler: ((Int, Int, MediaExporter.ProgressUnit) -> Void)? = nil
     ) -> UUID {
@@ -91,7 +94,13 @@ final class MediaExportStore: ObservableObject {
                     folderName: folderName,
                     baseDirectory: baseDirectory,
                     resumeKey: resumeKey,
-                    connections: connections ?? MediaExporter.defaultConnections
+                    connections: connections ?? MediaExporter.defaultConnections,
+                    // 研判与测速的结论（v0.8.77 批 6）：记在任务上（回执里看得到），
+                    // 批量引擎再转进批次日志。
+                    onPlan: { [weak self] line in
+                        planHandler?(line)
+                        self?.notePlan(id: id, line: line)
+                    }
                 ) { [weak self] done, total, unit in
                     self?.progressHandlers[id]?(done, total, unit)
                 }
@@ -116,6 +125,12 @@ final class MediaExportStore: ObservableObject {
         let toRemove = Set(settled.prefix(jobs.count - 100).map(\.id))
         guard !toRemove.isEmpty else { return }
         jobs.removeAll { toRemove.contains($0.id) }
+    }
+
+    /// 研判 / 测速结论记到任务上（`jobs` 是发布属性，面板与回执随之更新）。
+    private func notePlan(id: UUID, line: String) {
+        guard let index = jobs.firstIndex(where: { $0.id == id }) else { return }
+        jobs[index].plan.append(line)
     }
 
     /// **仅合成**任务：.ts 已完整在盘（上次下载完成但合成失败/中断），重试

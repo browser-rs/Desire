@@ -262,6 +262,9 @@ def main():
         ok("批次日志：站点规则命中（aaa / ccc / eee）", log_text.count("站点规则「fixture-site」提取到") >= 3, log_text[-900:])
         ok("批次日志：规则落空时回退通用识别（ddd）", "提取不到，已回退通用识别" in log_text, log_text[-900:])
         ok("批次日志：地址中途过期后重新解析续传（eee）", "地址中途过期" in log_text, log_text[-900:])
+        # 研判与测速（v0.8.77 批 6）：每个任务一行"研判"（事实 → 引擎），做过测速的再一行"测速"。
+        ok("批次日志：每个下载写了研判", log_text.count("研判：") >= 7, log_text[-1200:])
+        ok("批次日志：并发下载写了测速结论", log_text.count("测速：") >= 4, log_text[-1200:])
 
         # ---- 打磨回写（规则"不停打磨"）----
         adapter_file = os.path.join(data_dir, "DPPAdapters", "fixture-site.json")
@@ -283,8 +286,10 @@ def main():
            hits.get("/expire/hls/aaa/seg-005.ts") == 2, json.dumps({k: v for k, v in hits.items() if "/expire/" in k}))
         ok("续传：播放列表在过期之后被重新取过（拿到新签名）", stats.get("expireRefreshes") == 1
            and hits.get("/expire/hls/aaa/index.m3u8", 0) >= 2, json.dumps({k: v for k, v in stats.items() if k != "hits"}))
-        ok("续传：尾部三个分片各 403 一次、补抓一次",
-           all(hits.get(f"/expire/hls/aaa/seg-00{n}.ts") == 2 for n in (3, 4, 5)),
+        # 开头的测速那一轮也会抓到尾部两个分片（提前吃到 403），所以次数是 2–4 次而不是严格的 2 次；
+        # 要断言的是"过期过、重新解析后补抓了、没有反复重试"。
+        ok("续传：尾部三个分片都补抓了、且没有反复重试",
+           all(2 <= hits.get(f"/expire/hls/aaa/seg-00{n}.ts", 0) <= 4 for n in (3, 4, 5)),
            json.dumps({k: v for k, v in hits.items() if "/expire/" in k}))
 
         # ---- 说明性技能随适配器同步；适配器删除后撤掉。原名被占 → 落在 -site 上 ----

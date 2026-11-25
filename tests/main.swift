@@ -12963,21 +12963,21 @@ do {
     var main = BatchMediaPlan.ContentCandidate(resource: media(master, .stream), durationSeconds: nil,
                                                evidence: BatchMediaPlan.evidence(for: media(master, .stream)))
     main.durationSeconds = 7260
-    let clip = BatchMediaPlan.ContentCandidate(resource: media("https://x/ad-clip-other.mp4", size: 9_000), durationSeconds: 18, evidence: [])
+    let clip = BatchMediaPlan.ContentCandidate(resource: media("https://x/clip-other.mp4", size: 9_000), durationSeconds: 18, evidence: [])
     let shortPage = BatchMediaPlan.ContentSelection(candidates: [main, clip])
-    let after = BatchMediaPlan.applyingDuration(shortPage, durations: [master: 7260.0, "https://x/ad-clip-other.mp4": 18.0])
-    eq("时长：有长片时过短的剔除", after.candidates.map(\.resource.url), [master])
-    check("时长：剔除理由写明秒数", after.rejected.contains { $0.reason.hasPrefix("too short (18s)") })
-    let allShort = BatchMediaPlan.ContentSelection(candidates: [clip])
-    eq("时长：候选全都过短 → 全部保留（短正片也成立）",
-       BatchMediaPlan.applyingDuration(allShort, durations: ["https://x/ad-clip-other.mp4": 18.0]).candidates.count, 1)
-    let unknown = BatchMediaPlan.ContentCandidate(resource: media("https://x/other-clip.mp4", size: 9_000), durationSeconds: nil, evidence: [])
-    check("时长：取不到时长的候选不据此剔除",
-          BatchMediaPlan.applyingDuration(BatchMediaPlan.ContentSelection(candidates: [main, unknown]), durations: [master: 7260.0]).candidates.count == 2)
+    let after = BatchMediaPlan.applyingDuration(shortPage, durations: [master: 7260.0, "https://x/clip-other.mp4": 18.0])
+    // 2026-11-26 用户定调：通用时长阈值不可靠（短片合集、长片里的短片都会被误判）——时长只作证据，
+    // 剔除交给站点规则（DPP download.exclude）与站点技能。
+    eq("时长：只补证据、不剔除（短的那个照常保留）", after.candidates.map(\.resource.url),
+       [master, "https://x/clip-other.mp4"])
+    check("时长：不再产生 too short 的排除理由", !after.rejected.contains { $0.reason.contains("too short") })
     check("时长：证据里写入时长", after.candidates.first?.evidence.contains("duration 7260s") == true)
     check("时长：取到播放列表正文后证据改成确定的媒体播放列表",
           after.candidates.first?.evidence.contains("HLS playlist") == true
           && !(after.candidates.first?.evidence.contains { $0.contains("may be a master") } ?? false))
+    let unknown = BatchMediaPlan.ContentCandidate(resource: media("https://x/other-clip.mp4", size: 9_000), durationSeconds: nil, evidence: [])
+    check("时长：取不到时长的候选照常保留",
+          BatchMediaPlan.applyingDuration(BatchMediaPlan.ContentSelection(candidates: [main, unknown]), durations: [master: 7260.0]).candidates.count == 2)
 
     // 被拒摘要
     let summary = BatchMediaPlan.rejectionSummary(a.rejected)

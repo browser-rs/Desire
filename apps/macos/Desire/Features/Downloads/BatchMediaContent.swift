@@ -39,8 +39,6 @@ extension BatchMediaPlan {
         var candidateURLs: Set<String> { Set(candidates.map(\.resource.url)) }
     }
 
-    /// 短于这个时长的候选在有别的候选时判为杂项（广告/预览片段）。
-    static let minContentSeconds: Double = 90
     /// 没嗅探到播放列表时，同目录至少这么多个连号分片才判定为分片。
     static let numberedSegmentQuorum = 3
 
@@ -313,11 +311,12 @@ extension BatchMediaPlan {
         return out
     }
 
-    /// 补上时长证据并做最终筛选：短于 `minContentSeconds` 的候选在有别的候选时剔除
-    /// （广告/预览片段）；页面上的候选全都这么短则全部保留（短正片也成立）。
+    /// 补上时长证据。**时长只作展示与证据，不据此剔除候选**（2026-11-26 用户定调：通用的
+    /// 时长阈值不可靠——短片合集、长片里的短片都会被误判成广告；杂项的排除交给站点规则
+    /// （DPP 适配器的 `download.exclude`）与站点技能，通用启发式只做"按名字/地址特征能认出来
+    /// 的"那部分）。
     static func applyingDuration(_ selection: ContentSelection,
-                                 durations: [String: Double],
-                                 minContentSeconds: Double = minContentSeconds) -> ContentSelection {
+                                 durations: [String: Double]) -> ContentSelection {
         var out = selection
         for index in out.candidates.indices {
             guard let seconds = durations[out.candidates[index].resource.url] else { continue }
@@ -327,17 +326,6 @@ extension BatchMediaPlan {
                 $0 == "HLS playlist (may be a master)" ? "HLS playlist" : $0
             }
             out.candidates[index].evidence.append("duration \(Int(seconds.rounded()))s")
-        }
-        let short = out.candidates.enumerated()
-            .filter { ($0.element.durationSeconds ?? .infinity) < minContentSeconds }
-            .map(\.offset)
-        guard !short.isEmpty, short.count < out.candidates.count else { return out }
-        for index in short.reversed() {
-            let candidate = out.candidates[index]
-            out.rejected.append(Rejected(
-                url: candidate.resource.url,
-                reason: "too short (\(Int((candidate.durationSeconds ?? 0).rounded()))s) — likely an ad or preview clip"))
-            out.candidates.remove(at: index)
         }
         return out
     }

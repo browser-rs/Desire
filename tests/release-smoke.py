@@ -408,6 +408,28 @@ def main():
         ok("预算：快照字段齐全",
            all(k in budget for k in ("budget", "used", "state", "stopLevel")))
 
+        # 6) v0.8.76：技能直通 / 纠正补丁 / 精简工具（只读探针；快照写盘仅封闭实例）
+        try:
+            scoped = br("GET", "/ai/scoped-tools")
+            ok("精简工具：开关端点可用", "enabled" in scoped)
+            skills = br("GET", "/skills").get("skills", [])
+            ok("技能：使用记录字段可读（触发样本/工具历史）",
+               all("triggerSamples" in (skill.get("usage") or {})
+                   and "maxTriggerCount" in (skill.get("usage") or {})
+                   for skill in skills))
+            cards = br("GET", "/skills/candidates").get("candidates", [])
+            ok("技能候选：卡片区分草稿与补丁",
+               all(card.get("kind") in ("draft", "patch") for card in cards))
+            probe = br("GET", "/skills/scoped-tools?name=__release_smoke_missing__")
+            ok("精简工具：未知技能如实报错", "error" in probe)
+            if (s.get("startup") or {}).get("secrets") == "file":
+                snap = br("GET", "/panel/snapshot?name=skillpatch&w=420&h=120")
+                ok("修正建议条：离屏快照可拍", "path" in snap)
+            else:
+                print("△ 修正建议条快照跳过（非封闭实例：快照会写进用户存储）")
+        except Exception as exc:
+            ok("v0.8.76 技能/工具探针", False, str(exc))
+
         # 启动诊断（0.8.49）：窗口/标签/异常退出标志可断言
         startup = br("GET", "/diag/startup")
         ok("启动诊断：可见窗口与标签",

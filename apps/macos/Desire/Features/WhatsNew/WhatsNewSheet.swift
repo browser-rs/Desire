@@ -17,15 +17,18 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "gauge.with.needle", title: String(localized: "The cockpit is live"),
-                  detail: String(localized: "Stats page shows per-model first-token latency and total duration, the trace grew TTFT chips, the context chip is now clickable for a full breakdown, and /prompt reveals the composed system prompt layer by layer — the 0.8.71-74 machinery is finally on instrument panels.")),
-            .init(icon: "memorychip", title: String(localized: "Lessons now have a scorecard"),
-                  detail: String(localized: "Correction-injected turns are counted by outcome (applied vs repeated failure) in the checkup report, and the doctor grew four sentinels: tool-schema size drift, checkup freshness, lesson ledger, and slow-gateway TTFT alerts.")),
-            .init(icon: "shippingbox.fill", title: String(localized: "Sealed testing foundation"),
-                  detail: String(localized: "A new --data-dir launch flag redirects the entire storage root, so automated test runs never touch user data — no restored browsing sessions, no shared state, and the full regression suite now passes sealed under any environment.")),
+            .init(icon: "bolt.badge.clock", title: String(localized: "The same request, remembered"),
+                  detail: String(localized: "Say the same thing again and the skill you used last time loads up front: no re-exploring the workflow, no re-learning it on every run. Matching is deliberately strict — it needs two earlier runs of the same request and one unambiguous skill.")),
+            .init(icon: "arrow.triangle.2.circlepath", title: String(localized: "Corrections fix the skill itself"),
+                  detail: String(localized: "When you correct the agent after it followed a skill, it drafts a targeted patch — which passage, what to change, and why — and shows it right in the chat. One tap applies it, the previous version is backed up, and nothing is rewritten without your confirmation.")),
+            .init(icon: "hourglass", title: String(localized: "Waiting no longer burns requests"),
+                  detail: String(localized: "Long downloads, exports and conversions now end the turn with a single subscription: you are notified when they finish, and a failed one comes back to the agent automatically. The turn spinner also notices when it has been looking at the same thing too long and says so.")),
+            .init(icon: "square.stack.3d.up", title: String(localized: "Tool definitions scaled to the task (experimental)"),
+                  detail: String(localized: "When a repeated request loads a skill, each model request can carry only the tool definitions that skill needs — measured on our fixture at 87% fewer characters — with a way to pull in anything else on demand and an automatic fallback to the full set. Off by default until real-gateway numbers are in.")),
+            .init(icon: "stethoscope", title: String(localized: "Diagnostics that tell the truth"),
+                  detail: String(localized: "Main-thread stall reports no longer fire when the machine was simply asleep (32 of 33 installed-build records were sleep wake-ups), old sampling files are pruned, and diagnostics now separate app builds from development runs — plus test launches are sealed off from your preferences, keychain and browsing data.")),
         ]
     }
-
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {

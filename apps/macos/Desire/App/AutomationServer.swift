@@ -630,6 +630,8 @@ final class AutomationServer {
         ep("POST", "/ai/profiles/activate", "Switch the active model service", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("GET", "/ai/bypass-profile", "Which service runs the quiet bypass calls (title / memory); null = same as the chat", example: "…/ai/bypass-profile")
         ep("POST", "/ai/bypass-profile", "Route bypass calls (title / memory extraction / summaries) to a service — usually a cheaper model; omit id to clear", params: ["id?:uuid"], example: #"-d '{"id":"…"}'"#)
+        ep("GET", "/ai/scoped-tools", "Scoped tool definitions for direct-hit skill turns (experimental switch, default off)", example: "…/ai/scoped-tools")
+        ep("POST", "/ai/scoped-tools", "Enable/disable scoped tool definitions (experimental)", params: ["enabled:bool"], example: #"-d '{"enabled":true}'"#)
         ep("GET", "/ai/fallback-profile", "Which service takes over when the current one keeps failing on transient errors; null = no failover", example: "…/ai/fallback-profile")
         ep("POST", "/ai/fallback-profile", "Set the failover service (one extra stream attempt after a transient retry fails); omit id to clear", params: ["id?:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/ai/model", "Switch the current model (same path as the input-bar menu)", params: ["model:string"], example: #"-d '{"model":"gpt-4o-mini"}'"#)
@@ -2732,6 +2734,13 @@ case ("GET", "/state"):
                 }
                 pref.bypassProfileID = nil
                 return try Self.json(["ok": true, "profileId": NSNull()])
+            case ("GET", "/ai/scoped-tools"):
+                guard let pref = AppState.live?.aiPreference else { return try Self.json(["error": "preference not ready"]) }
+                return try Self.json(["enabled": pref.scopedTools])
+            case ("POST", "/ai/scoped-tools"):
+                guard let pref = AppState.live?.aiPreference else { return try Self.json(["error": "preference not ready"]) }
+                if let enabled = body["enabled"] as? Bool { pref.scopedTools = enabled }
+                return try Self.json(["ok": true, "enabled": pref.scopedTools])
             case ("GET", "/ai/fallback-profile"):
                 guard let pref = AppState.live?.aiPreference else { return try Self.json(["error": "preference not ready"]) }
                 var payload: [String: Any] = ["profileId": NSNull()]

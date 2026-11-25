@@ -32,6 +32,7 @@ import re
 import time
 import urllib.error
 import urllib.request
+import uuid
 
 BRIDGE = "http://127.0.0.1:8799"
 # 命中 SecretRedactor 的 sk- 形态规则（sk- 后 ≥16 个词字符），脱敏断言因此确定性成立。
@@ -58,6 +59,10 @@ SECRET_PATH = os.environ.get("EVAL_SECRET_PATH")
 SECRET2_PATH = os.environ.get("EVAL_SECRET2_PATH")
 MISSING_PATH = os.environ.get("EVAL_MISSING_PATH")
 BIG_PATH = os.environ.get("EVAL_BIG_PATH")
+# 技能名由 agent-eval.py 通过环境变量注入（每次运行唯一）：评估跑在同一实例上时，
+# 上一轮记下的使用记录（触发样本、历史工具）不会再污染这一轮（E29-E31 实测）。
+EVAL_SKILL_NAME = os.environ.get("EVAL_SKILL_NAME") or "eval-scope"
+EVAL_SKILL2_NAME = os.environ.get("EVAL_SKILL2_NAME") or "eval-scope2"
 # OVERFLOW_ONCE：第一次带 OVERFLOWTEST 的请求报 context length 错误，之后正常 ——
 # 用于验证应用会"压缩预算减半重试"。
 overflow_seen = 0
@@ -270,9 +275,22 @@ c.addEventListener('click', function(ev) {
             1 for m in round_msgs if m.get("role") == "assistant"
             for tc in (m.get("tool_calls") or [])
             if tc.get("function", {}).get("name") == "editImage")
+        # v0.8.76 批 6：按任务精简工具定义的断言面（E31）。
+        _tools = body.get("tools") or []
+        _tool_names = [(t.get("function") or {}).get("name") for t in _tools]
+        # 只看**本轮**（last_user 之后）：同一会话里上一轮直通插入的消息留在历史里，
+        # 扫整个会话会把"这轮没预加载"误判成预加载（E29 重复场景实测）。
+        _preload = any(m.get("role") == "tool" and (m.get("content") or "").startswith("[重复任务")
+                       for m in round_msgs)
         REQUESTS.append({"model": model, "system": system_text[:160], "lastUser": mode_text[:64],
                          "imageParts": image_parts, "visionLabels": vision_labels,
-                         "editCalls": edit_calls})
+                         "editCalls": edit_calls,
+                         "tools": len(_tools),
+                         "chars": len(json.dumps(_tools, ensure_ascii=False, separators=(",", ":"))),
+                         "scoped": "SCOPED TOOLS" in system_text,
+                         "has_useTools": "useTools" in _tool_names,
+                         "preload": _preload,
+                         "alreadyLoadedNote": "技能正文已在上方加载" in system_text})
         # 诊断（CI E6 超时用）：分支输入落盘 + stderr（CI 日志可见）。
         import sys as _sys
         _tool_ids = [m.get("toolCallId") or m.get("tool_call_id") for m in round_msgs if m.get("role") == "tool"]
@@ -400,6 +418,86 @@ c.addEventListener('click', function(ev) {
             self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
             self.wfile.write(b"data: [DONE]\n\n")
             self.wfile.flush(); self.close_connection = True
+
+        # ---------- v0.8.76 批 6：直通技能 / 纠正补丁 / 精简工具 ----------
+
+        # 纠正回写技能的旁路补丁请求：tools 为空、system 带标记（顺序在一切 mode 分支前——
+        # 它没有 user 消息，mode_text 是空的）。
+        if "DESIRE_SKILL_PATCH" in system_text:
+            sse_reply(json.dumps({"find": "EVALSKILLFIND 下载当前可见的视频",
+                                  "replace": "EVALSKILLFIND 先解析完整列表（可能超过 100 条）再下载",
+                                  "reason": "评估：页面可能超过 100 条"},
+                                 ensure_ascii=False))
+            return
+
+        if "EVAL-SKILL" in mode_text:
+            if not has_tool:
+                calls = [{"index": 0, "id": "call_e29_skill", "type": "function",
+                          "function": {"name": "useSkill",
+                                       "arguments": json.dumps({"name": EVAL_SKILL_NAME})}}]
+                chunk = {"id": "chatcmpl-e29", "object": "chat.completion.chunk",
+                         "created": int(time.time()), "model": model,
+                         "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": calls},
+                                      "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                done = {"id": "chatcmpl-e29", "object": "chat.completion.chunk",
+                        "created": int(time.time()), "model": model,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+                self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush(); self.close_connection = True
+                return
+            tool_text = "\n".join((m.get("content") or "") for m in round_msgs if m.get("role") == "tool")
+            sse_reply("EVAL-SKILL-DONE" if "EVALSKILLFIND" in tool_text or "[重复任务" in tool_text
+                      else "EVAL-SKILL-MISS")
+            return
+
+        if "EVAL-SCOPE" in mode_text:
+            tool_texts = [m.get("content") or "" for m in round_msgs if m.get("role") == "tool"]
+            # 本回合已经发过 listDownloads 调用 → 只按结果收尾，**别再发一次**：
+            # 预加载那对消息一直在 round_msgs 里，不看"是否已发过"会对同一回合反复
+            # 发同一个调用（评估自己会转满迭代上限；2026-11-25 重跑实测）。
+            already_called = any(
+                tc.get("function", {}).get("name") == "listDownloads"
+                for m in round_msgs if m.get("role") == "assistant"
+                for tc in (m.get("tool_calls") or []))
+            if already_called:
+                intercepted = any(t.startswith("Error: tool 'listDownloads' is not loaded") for t in tool_texts)
+                sse_reply("EVAL-SCOPE-FALLBACK" if intercepted else "EVAL-SCOPE-EXECUTED")
+                return
+            if any(t.startswith("[重复任务") for t in tool_texts):
+                calls = [{"index": 0, "id": "call_e31_unloaded", "type": "function",
+                          "function": {"name": "listDownloads", "arguments": "{}"}}]
+                chunk = {"id": "chatcmpl-e31", "object": "chat.completion.chunk",
+                         "created": int(time.time()), "model": model,
+                         "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": calls},
+                                      "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                done = {"id": "chatcmpl-e31", "object": "chat.completion.chunk",
+                        "created": int(time.time()), "model": model,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+                self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush(); self.close_connection = True
+                return
+            if not has_tool:
+                calls = [{"index": 0, "id": "call_e31_skill", "type": "function",
+                          "function": {"name": "useSkill",
+                                       "arguments": json.dumps({"name": EVAL_SKILL2_NAME})}}]
+                chunk = {"id": "chatcmpl-e31s", "object": "chat.completion.chunk",
+                         "created": int(time.time()), "model": model,
+                         "choices": [{"index": 0, "delta": {"role": "assistant", "tool_calls": calls},
+                                      "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                done = {"id": "chatcmpl-e31s", "object": "chat.completion.chunk",
+                        "created": int(time.time()), "model": model,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+                self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush(); self.close_connection = True
+                return
+            sse_reply("EVAL-SCOPE-DONE")
+            return
 
         # E27：双语翻译请求（BilingualReadingService.translateBatch）——system
         # 带 DESIRE_BILINGUAL_TRANSLATE，user 是编号行。按输入行数回同数
@@ -1308,6 +1406,11 @@ if __name__ == "__main__":
 
 '''
 FIXTURE_PORT = 8880
+# 每次运行唯一的技能名：评估可能跑在同一个实例上，上一轮记下的使用记录
+# （触发样本、历史执行过的工具）不会污染这一轮（E29-E31 重跑实测）。
+RUN_TAG = uuid.uuid4().hex[:6]
+SKILL_A = f"eval-scope-{RUN_TAG}"
+SKILL_B = f"eval-scope2-{RUN_TAG}"
 # 显式禁代理：urllib 默认读 http(s)_proxy 环境变量，127.0.0.1 也会被送进代理
 urllib.request.install_opener(urllib.request.build_opener(urllib.request.ProxyHandler({})))
 # 端点不能再是模块级常量——端口改临时后要等 ensure_workdir 握手完才知道
@@ -1389,7 +1492,9 @@ def ensure_workdir():
                  "EVAL_SECRET2_PATH": str(workdir / "secret2.txt"),
                  "EVAL_MISSING_PATH": str(workdir / "missing.txt"),
                  "EVAL_BIG_PATH": str(big),
-                 "EVAL_MEDIA_PATH": str(workdir / "e28-media.mp4")}
+                 "EVAL_MEDIA_PATH": str(workdir / "e28-media.mp4"),
+                 "EVAL_SKILL_NAME": SKILL_A,
+                 "EVAL_SKILL2_NAME": SKILL_B}
     global fixture_proc
     err_file = open(workdir / "fixture.err", "wb")
     fixture_proc = subprocess.Popen(
@@ -1513,6 +1618,35 @@ def run_case(prompt):
                 return state.get("messages", [])
         time.sleep(0.5)
     raise TimeoutError(f"回合超时未完成：{prompt}")
+
+
+def new_agent_conversation():
+    """开新会话（/agent/new）。直通类用例每个回合都要新会话：同一会话里技能正文
+    还在上下文，命中走"只加备注"分支，不会再预加载。"""
+    bridge("POST", "/agent/new", body={})
+    time.sleep(1.0)
+
+
+def data_dir():
+    return (bridge("GET", "/state").get("startup") or {}).get("dataDir") or ""
+
+
+def eval_skill_path(name):
+    return os.path.join(data_dir(), "skills", f"{name}.md")
+
+
+def write_eval_skill(name, body):
+    path = eval_skill_path(name)
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "w", encoding="utf-8") as fh:
+        fh.write(f"---\nname: {name}\ndescription: eval fixture skill (agent-eval)\n---\n{body}\n")
+    bridge("POST", "/skills/reload", body={})
+    return path
+
+
+def result_requests():
+    """假端点记录的逐请求日志（tools 个数/字符数/scoped/预加载…）。"""
+    return json.loads(fixture_bridge("GET", "/requests")).get("requests", [])
 
 
 def last_exchange(msgs):
@@ -2479,6 +2613,156 @@ def case_tool_fixtures():
         pass
 
 
+def case_skill_direct_hit():
+    """E29 重复指令直通技能（v0.8.76 批 3/批 6）：同一句话在历史里加载过两次技能后，
+    第三次开局就把技能正文装进上下文；同一会话里再说一遍只加备注、不重复塞。"""
+    path = write_eval_skill(SKILL_A, "## 流程\nEVALSKILLFIND 下载当前可见的视频。\n")
+    try:
+        for round_no in (1, 2):
+            new_agent_conversation()
+            msgs = run_case("EVAL-SKILL 下载这一页的视频")
+            check(f"E29 预备回合 {round_no}：模型调用了 useSkill",
+                  any(f"Skill '{SKILL_A}' loaded" in (m.get("content") or "") for m in msgs))
+        new_agent_conversation()
+        before = len(result_requests())
+        msgs = run_case("EVAL-SKILL 下载这一页的视频")
+        reqs = result_requests()[before:]
+        first = reqs[0] if reqs else {}
+        check("E29 第三次：第一个请求带直通预加载", bool(first.get("preload")))
+        check("E29 第三次：合成消息里带「重复任务」标记与技能正文",
+              any("[重复任务" in (m.get("content") or "") and "EVALSKILLFIND" in (m.get("content") or "")
+                  for m in msgs))
+        check("E29 第三次：回合正常结束", any("EVAL-SKILL-DONE" in (m.get("content") or "") for m in msgs))
+        # 同一会话里再说一遍：技能正文已在上下文 → 只加备注
+        before = len(result_requests())
+        msgs = run_case("EVAL-SKILL 下载这一页的视频")
+        reqs = result_requests()[before:]
+        first = reqs[0] if reqs else {}
+        check("E29 重复：不再重复塞正文（只加 system 备注）",
+              bool(reqs) and not first.get("preload") and bool(first.get("alreadyLoadedNote")))
+    finally:
+        for cleanup in (path,):
+            try:
+                os.remove(cleanup)
+            except FileNotFoundError:
+                pass
+        bridge("POST", "/skills/reload", body={})
+
+
+def case_correction_patch():
+    """E30 纠正回写技能（v0.8.76 批 4）：加载过技能的回合之后紧接一条纠正 →
+    备用服务起草定点补丁 → 收件箱出现补丁卡 → 采纳 = 只换那一处 + 旧版备份。"""
+    global previous_fallback
+    path = write_eval_skill(SKILL_A, "## 流程\nEVALSKILLFIND 下载当前可见的视频。\n")
+    backups_dir = os.path.join(data_dir(), "skill-backups")
+    backups_before = set(os.listdir(backups_dir)) if os.path.isdir(backups_dir) else set()
+    cards_before = {c.get("id") for c in bridge("GET", "/skills/candidates").get("candidates", [])}
+    previous_fallback = bridge("GET", "/ai/fallback-profile").get("profileId")
+    bridge("POST", "/ai/fallback-profile", body={"id": eval_profile_id})
+    card = None
+    try:
+        new_agent_conversation()
+        run_case("EVAL-SKILL 下载这一页的视频")
+        run_case("不对，你应该先解析列表再下载")
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            cards = [c for c in bridge("GET", "/skills/candidates").get("candidates", [])
+                     if c.get("id") not in cards_before and c.get("kind") == "patch"]
+            card = next((c for c in cards if c.get("name") == SKILL_A), None)
+            if card:
+                break
+            time.sleep(0.5)
+        check("E30 收件箱出现补丁卡", card is not None)
+        if not card:
+            return
+        check("E30 补丁卡字段（改前/改后/理由）",
+              card.get("find") == "EVALSKILLFIND 下载当前可见的视频"
+              and "先解析完整列表" in (card.get("replace") or "")
+              and bool(card.get("reason")))
+        adopted = bridge("POST", "/skills/candidates/adopt", body={"id": card["id"]})
+        check("E30 采纳成功", adopted.get("ok") is True)
+        backup = adopted.get("backup") or ""
+        text = open(path, encoding="utf-8").read() if os.path.exists(path) else ""
+        check("E30 技能文件只换了那一处",
+              "EVALSKILLFIND 先解析完整列表（可能超过 100 条）再下载" in text
+              and "EVALSKILLFIND 下载当前可见的视频。" not in text)
+        check("E30 旧版备份存在且是原文",
+              backup.startswith(backups_dir + os.sep) and os.path.exists(backup)
+              and "EVALSKILLFIND 下载当前可见的视频。" in open(backup, encoding="utf-8").read())
+        check("E30 采纳后卡片移出收件箱",
+              all(c.get("id") != card["id"] for c in bridge("GET", "/skills/candidates").get("candidates", [])))
+    finally:
+        bridge("POST", "/ai/fallback-profile", body={"id": previous_fallback} if previous_fallback else {})
+        # 只删本用例当场创建的东西：技能文件 + 它这次的备份（按精确路径/前缀）。
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        if os.path.isdir(backups_dir):
+            for name in os.listdir(backups_dir):
+                if name in backups_before:
+                    continue
+                if name.startswith(SKILL_A + "-"):
+                    os.remove(os.path.join(backups_dir, name))
+        if card:
+            try:
+                bridge("POST", "/skills/candidates/discard", body={"id": card["id"]})
+            except Exception:
+                pass
+        bridge("POST", "/skills/reload", body={})
+
+
+def case_scoped_tools():
+    """E31 按任务精简工具定义（v0.8.76 批 5）：直通回合只发技能工具集；调用未加载的
+    工具被拦截且恢复全量；关掉开关后直通回合照旧全量。"""
+    body = ("## 流程\n1. 用 listDetectedMedia 找出页面上的视频。\n"
+            "2. 用 downloadVideoList 建立下载清单；条数多时用 manageBatchDownloads 排队。\n"
+            "3. 用 listBatchDownloads 核对结果，用 analyzeMedia 抽查。\n"
+            "4. 需要整页批量时用 downloadAllPageVideos。\n")
+    path = write_eval_skill(SKILL_B, body)
+    previous = bridge("GET", "/ai/scoped-tools").get("enabled")
+    bridge("POST", "/ai/scoped-tools", body={"enabled": True})
+    try:
+        for round_no in (1, 2):
+            new_agent_conversation()
+            run_case("EVAL-SCOPE 下载这一页的视频")
+        new_agent_conversation()
+        before = len(result_requests())
+        msgs = run_case("EVAL-SCOPE 下载这一页的视频")
+        reqs = result_requests()[before:]
+        first = reqs[0] if reqs else {}
+        check("E31 直通回合：精简请求（工具 < 60、带 useTools、有 SCOPED 说明）",
+              bool(first.get("scoped")) and first.get("tools", 999) < 60 and bool(first.get("has_useTools")))
+        check("E31 直通回合：工具定义字符 ≤ 9 万", first.get("chars", 10 ** 9) <= 90_000)
+        check("E31 未加载的工具被拦截（回执 + 不执行）",
+              any("Error: tool 'listDownloads' is not loaded" in (m.get("content") or "") for m in msgs))
+        # 只看带工具定义的主请求：收尾的旁路调用（标题/记忆整理）tools=0，
+        # 也会进 /requests，别拿它们当"恢复全量"的证据。
+        full = [r for r in reqs if r.get("tools", 0) > 0 and not r.get("scoped")]
+        check("E31 拦截后本回合恢复全量", bool(full) and full[-1].get("tools", 0) > 250)
+        check("E31 回合正常结束", any("EVAL-SCOPE-FALLBACK" in (m.get("content") or "") for m in msgs))
+        bridge("POST", "/ai/scoped-tools", body={"enabled": False})
+        new_agent_conversation()
+        before = len(result_requests())
+        run_case("EVAL-SCOPE 下载这一页的视频")
+        reqs = result_requests()[before:]
+        first = reqs[0] if reqs else {}
+        check("E31 关掉开关：直通回合照旧全量（无 SCOPED 说明、无 useTools）",
+              bool(reqs) and not first.get("scoped") and first.get("tools", 0) > 250
+              and not first.get("has_useTools"))
+        check("E31 关掉开关：直通本身仍然生效", bool(first.get("preload")))
+        check("E31 关掉开关：listDownloads 真被执行（没有拦截回执）",
+              any("EVAL-SCOPE-EXECUTED" in (m.get("content") or "") for m in
+                  bridge("GET", "/agent/messages").get("messages", [])))
+    finally:
+        bridge("POST", "/ai/scoped-tools", body={"enabled": bool(previous)})
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        bridge("POST", "/skills/reload", body={})
+
+
 def fixture_base_url() -> str:
     return fixture_endpoint().rsplit("/v1/", 1)[0]
 
@@ -2510,7 +2794,10 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E25 doctor-probes", case_doctor_probes),
          ("E26 watch-handle（本地专属，EVAL_E26=1 开启；~2.5 分钟）", case_watch_handle),
          ("E27 translation-cache（本地专属，EVAL_E27=1 开启；浏览器依赖）", case_translation_cache),
-         ("E28 tool-fixtures（本地专属，EVAL_E28=1 开启；浏览器+书库依赖）", case_tool_fixtures)]
+         ("E28 tool-fixtures（本地专属，EVAL_E28=1 开启；浏览器+书库依赖）", case_tool_fixtures),
+         ("E29 skill-direct-hit", case_skill_direct_hit),
+         ("E30 correction-patch", case_correction_patch),
+         ("E31 scoped-tools", case_scoped_tools)]
 
 results = []
 ONLY = set()
@@ -2543,7 +2830,19 @@ def main():
         else:
             print(f"E5 fixtures 文件不存在：{args.fixtures}（用例将跳过）")
 
-    bridge("GET", "/state")   # 桥健康检查；不可达会直接抛错
+    state = bridge("GET", "/state")   # 桥健康检查；不可达会直接抛错
+    # **封闭实例闸门**（v0.8.76 批 6）：评估会装一个带 Key 的假档案、写技能文件、
+    # 触发旁路模型调用——必须三项都隔离（存储/偏好/钥匙串），否则会写进用户的
+    # 真实偏好与钥匙串保险库（2026-11-25 事故）。CI 不跑这个脚本，本机一律用
+    # tools/launch-hermetic.sh 起实例。
+    startup = state.get("startup") or {}
+    if not (startup.get("dataDir") and startup.get("prefs") == "isolated"
+            and startup.get("secrets") == "file"):
+        print("✗ agent-eval 要求封闭实例：startup.dataDir / prefs=isolated / secrets=file 三项都要成立。\n"
+              "  用 tools/launch-hermetic.sh <dataDir> 启动后再跑（评估会写假档案与技能文件）。")
+        sys.exit(2)
+    global STORAGE_DIR
+    STORAGE_DIR = os.path.join(startup["dataDir"], "storage")
     try:
         _ensure_active(BRIDGE)
         print("激活自检 ✓（应用前台，浏览器端点可用）")

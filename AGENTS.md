@@ -979,7 +979,7 @@ Features/Bookmarks/
   重复 settle（settleIfDone 没有"已结算"闸），但备注只 append 一次、对账无重复；
   ③ 领队消化子任务报告的那一**轮**有自己的用量，正常计入。
 
-- **Agent 评估脚本：`tests/agent-eval.py`**（2026-09-23，P1）：固定 prompt 集 → 假端点 →
+- **Agent 评估脚本：`tests/agent-eval.py`**（2026-09-23，P1）——**v0.8.76 起自带封闭实例闸门**：`/state.startup` 的 dataDir / prefs=isolated / secrets=file 三项缺一即拒绝运行（评估会装带 Key 的假档案、写技能文件、触发旁路调用；CI 不跑它，本机一律 `tools/launch-hermetic.sh` 起实例）。用例里创建的技能名按每次运行唯一（`RUN_TAG`），否则上一轮留下的使用记录会污染下一轮（E31 实测：历史里记过的工具会被算进工具集，拦截不再发生）。：固定 prompt 集 → 假端点 →
   断言轨迹与消息（系统提示契约、失败约定、脱敏、超限重试），全部确定性、不需要真模型。
   前置：应用以 --automation 跑、桥可达；fixture 自动启停。**清理只删脚本自己记录的
   会话 id**（默认不删，`--cleanup` 才删）—— 别按标题/关键词搜出来就删（会误删用户会话，

@@ -113811,6 +113811,286 @@
           }
         }
       }
+    },
+    "The same request, remembered":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The same request, remembered"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"同一句话，不用再做一遍"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"同一句話，不用再做一遍"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"同じ依頼を、もう一度最初からやらない"
+          }
+        }
+      }
+    },
+    "Say the same thing again and the skill you used last time loads up front: no re-exploring the workflow, no re-learning it on every run. Matching is deliberately strict — it needs two earlier runs of the same request and one unambiguous skill.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Say the same thing again and the skill you used last time loads up front: no re-exploring the workflow, no re-learning it on every run. Matching is deliberately strict — it needs two earlier runs of the same request and one unambiguous skill."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"再说一遍同一件事时，上次用过的技能开局就装进上下文：不用重新摸索流程，也不用每次都从头学。匹配刻意收紧——需要同一请求历史执行过两次、且只有一个技能相符。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"再說一遍同一件事時，上次用過的技能開局就裝進上下文：不用重新摸索流程，也不用每次都從頭學。匹配刻意收緊——需要同一請求歷史執行過兩次、且只有一個技能相符。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"同じことをもう一度頼むと、前回使ったスキルが最初から読み込まれます。手順を一から探り直す必要も、毎回学び直す必要もありません。一致判定はあえて厳しめで、同じ依頼を過去に2回実行し、該当するスキルが1つだけのときだけ働きます。"
+          }
+        }
+      }
+    },
+    "Corrections fix the skill itself":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Corrections fix the skill itself"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"纠正会改到技能本体"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"糾正會改到技能本體"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"訂正はスキル本体に反映される"
+          }
+        }
+      }
+    },
+    "When you correct the agent after it followed a skill, it drafts a targeted patch — which passage, what to change, and why — and shows it right in the chat. One tap applies it, the previous version is backed up, and nothing is rewritten without your confirmation.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"When you correct the agent after it followed a skill, it drafts a targeted patch — which passage, what to change, and why — and shows it right in the chat. One tap applies it, the previous version is backed up, and nothing is rewritten without your confirmation."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"智能体照着技能做、被你纠正之后，它会起草一个定点补丁——改哪一段、改成什么、为什么——直接在聊天里给你看。点一下即可应用，旧版自动备份；没有你的确认，技能不会被改。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"智能體照著技能做、被你糾正之後，它會起草一個定點補丁——改哪一段、改成什麼、為什麼——直接在聊天裡給你看。點一下即可套用，舊版自動備份；沒有你的確認，技能不會被改。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"スキルに沿って動いたあとで訂正すると、どこをどう直すべきかのピンポイント修正案を作り、チャットにそのまま表示します。ワンタップで適用でき、以前の版は自動でバックアップされます。確認なしにスキルが書き換わることはありません。"
+          }
+        }
+      }
+    },
+    "Waiting no longer burns requests":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Waiting no longer burns requests"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"等待不再烧请求"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"等待不再燒請求"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"待ち時間でリクエストを消費しない"
+          }
+        }
+      }
+    },
+    "Long downloads, exports and conversions now end the turn with a single subscription: you are notified when they finish, and a failed one comes back to the agent automatically. The turn spinner also notices when it has been looking at the same thing too long and says so.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Long downloads, exports and conversions now end the turn with a single subscription: you are notified when they finish, and a failed one comes back to the agent automatically. The turn spinner also notices when it has been looking at the same thing too long and says so."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"下载、导出、转码这类长任务，现在订阅一次就结束回合：完成时通知你，失败的会自动回到智能体处理。回合里如果一直在看同一个东西，也会被提醒收敛——不再原地打转。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"下載、匯出、轉碼這類長任務，現在訂閱一次就結束回合：完成時通知你，失敗的會自動回到智能體處理。回合裡如果一直在看同一個東西，也會被提醒收斂——不再原地打轉。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"ダウンロードや書き出し、変換などの長い処理は、購読を1回してターンを終えるだけでよくなりました。完了時に通知し、失敗した処理は自動的にエージェントへ戻ります。同じものを眺め続けているターンには、切り上げるよう促します。"
+          }
+        }
+      }
+    },
+    "Tool definitions scaled to the task (experimental)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Tool definitions scaled to the task (experimental)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"工具定义按任务裁剪（实验）"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"工具定義按任務裁剪（實驗）"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"タスクに合わせたツール定義（実験）"
+          }
+        }
+      }
+    },
+    "When a repeated request loads a skill, each model request can carry only the tool definitions that skill needs — measured on our fixture at 87% fewer characters — with a way to pull in anything else on demand and an automatic fallback to the full set. Off by default until real-gateway numbers are in.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"When a repeated request loads a skill, each model request can carry only the tool definitions that skill needs — measured on our fixture at 87% fewer characters — with a way to pull in anything else on demand and an automatic fallback to the full set. Off by default until real-gateway numbers are in."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重复指令加载技能时，每次模型请求只带该技能用得上的工具定义——在本地夹具上实测字符数少了 87%——其余工具可按需加载，调用未加载的工具会自动恢复全量。默认关闭，等真实网关的数据再开。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重複指令載入技能時，每次模型請求只帶該技能用得上的工具定義——在本機夾具上實測字元數少了 87%——其餘工具可按需載入，呼叫未載入的工具會自動恢復全量。預設關閉，等真實閘道的數據再開。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"繰り返しの依頼でスキルを読み込んだとき、モデルへの各リクエストにはそのスキルに必要なツール定義だけを載せられます（ローカル検証で文字数 87% 減）。ほかのツールは必要に応じて読み込め、未読み込みのツールを呼ぶと自動で全量に戻ります。実環境のデータが揃うまで既定ではオフです。"
+          }
+        }
+      }
+    },
+    "Diagnostics that tell the truth":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Diagnostics that tell the truth"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"诊断不再误报"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"診斷不再誤報"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"誤報しない診断"
+          }
+        }
+      }
+    },
+    "Main-thread stall reports no longer fire when the machine was simply asleep (32 of 33 installed-build records were sleep wake-ups), old sampling files are pruned, and diagnostics now separate app builds from development runs — plus test launches are sealed off from your preferences, keychain and browsing data.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Main-thread stall reports no longer fire when the machine was simply asleep (32 of 33 installed-build records were sleep wake-ups), old sampling files are pruned, and diagnostics now separate app builds from development runs — plus test launches are sealed off from your preferences, keychain and browsing data."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"机器睡眠期间不会再报「主线程停滞」（安装版 34 条记录里 32 条其实是睡眠唤醒），陈旧的采样文件会自动清理，诊断数据区分安装版与开发构建；测试启动也与你的偏好、钥匙串和浏览数据完全隔开。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"機器睡眠期間不會再報「主執行緒停滯」（安裝版 34 條記錄裡 32 條其實是睡眠喚醒），陳舊的取樣檔會自動清理，診斷資料區分安裝版與開發組建；測試啟動也與你的偏好、鑰匙串和瀏覽資料完全隔開。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"スリープ中に「メインスレッド停止」を報告しなくなりました（インストール版の34件中32件はスリープ復帰でした）。古いサンプルは自動削除され、診断はアプリ版と開発ビルドを区別します。テスト起動は設定・キーチェーン・閲覧データから完全に切り離されています。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

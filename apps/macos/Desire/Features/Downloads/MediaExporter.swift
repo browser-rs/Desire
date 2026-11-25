@@ -243,7 +243,8 @@ enum MediaExporter {
             do {
                 let prefetched = try await prefetchHLS(
                     url: url, playlistText: playlistText, referer: referer, userAgent: userAgent,
-                    connections: max(minConnections, connections), resumeKey: resumeKey,
+                    // 显式给到 1 也照办（有的站点禁止并发；自动降速的下限另有 2）。
+                    connections: max(1, connections), resumeKey: resumeKey,
                     deadlineCheck: deadlineCheck, progress: progress)
                 if prefetched.playlist.hasEndList {
                     let destination = try destinationURL(for: url, hint: fileNameHint, isMP4: true, folderName: folderName, baseDirectory: baseDirectory)

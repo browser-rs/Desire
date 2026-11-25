@@ -113727,6 +113727,34 @@
           }
         }
       }
+    },
+    "Skill correction proposed for %@":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Skill correction proposed for %@"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已为技能「%@」起草修正"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已為技能「%@」起草修正"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"スキル「%@」の修正案を作成しました"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

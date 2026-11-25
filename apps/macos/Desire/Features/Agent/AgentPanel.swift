@@ -19,6 +19,8 @@ struct AgentPanel: View {
     @ObservedObject var store: AgentSessionStore
     @ObservedObject var conversationStore: ConversationStore
     @ObservedObject private var draftInbox = AgentDraftInbox.shared
+    /// 技能候选收件箱（v0.8.76 批 4）：本会话产生的技能修正建议在面板里当场提示。
+    @ObservedObject private var skillCandidates = SkillCandidateStore.shared
 
     @State private var inputText = ""
     /// `@` 引用的标签页（v0.8.22）：发送时读正文注入系统备注。
@@ -380,6 +382,22 @@ struct AgentPanel: View {
                 .background(RoundedRectangle(cornerRadius: 6).fill(Color.orange.opacity(0.12)))
                 .contentColumnWidth(contentMaxWidth)
                 .frame(maxWidth: .infinity)
+            }
+
+            // 技能修正建议条（v0.8.76 批 4）：用户刚纠正了按某技能执行的做法、旁路
+            // 起草出定点补丁 → 当场可见、当场可处理。只显示**当前会话**产生的；
+            // 回合进行中收起（补丁在回合收尾后才落卡，出现时正好不忙）。
+            if !store.isProcessing, !store.awaitingQuestion, store.conversationId != nil {
+                let patches = skillCandidates.candidates.filter {
+                    $0.patch != nil && $0.conversationId == store.conversationId
+                }
+                if !patches.isEmpty {
+                    AgentSkillPatchBanner(
+                        patches: patches,
+                        contentMaxWidth: contentMaxWidth,
+                        onAdopt: { _ = skillCandidates.adopt($0) },
+                        onDiscard: { skillCandidates.discard($0) })
+                }
             }
 
             if !store.messages.isEmpty && !store.awaitingQuestion && !store.isProcessing {

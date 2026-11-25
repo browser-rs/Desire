@@ -21,6 +21,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -34,6 +35,10 @@ STREAMS = {"aaa": 6, "bbb-ep1": 6, "bbb-ep2": 6, "ccc": 6}   # id → 分片数�
 # - `/expire/…`：序号 ≥ EXPIRE_AFTER 的分片返回 403——模拟签名地址在下载中途过期。
 SLOW_DELAY = 0.5
 EXPIRE_AFTER = 3
+# `/expire/` 的语义：播放列表**第一次**被请求时，后面的分片签名已过期（403）；
+# 第二次请求播放列表 = "页面被重新解析、拿到新签名"，之后全部正常。用来验证
+# "下载中途过期 → 批量引擎重新解析 → 从已抓到的分片续传"。
+STATE = {"expirePlaylistFetches": 0, "hits": {}}
 
 TYPES = {".m3u8": "application/vnd.apple.mpegurl", ".ts": "video/mp2t", ".mp4": "video/mp4",
          ".html": "text/html; charset=utf-8", ".js": "text/javascript"}
@@ -134,6 +139,19 @@ NOISY_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>CCC-003 
 <script>loadStream('/hls/ccc/', 6);</script>
 </body></html>"""
 
+# 规则提取不到的页面：有播放器，但没有站点规则要找的内联变量 → 规则落空、回退通用识别。
+RULE_MISS_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>DDD-004 测试正片 第四部</title></head>
+<body><h1>DDD-004 测试正片</h1>
+<video src="/clips/ccc-720p.mp4" controls muted width="640"></video>
+</body></html>"""
+
+# 流地址会"中途过期"的页面：规则能从内联变量取到地址，但分片先 403、重新解析后才正常。
+EXPIRING_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>EEE-005 测试正片 第五部</title>
+<script>var hlsUrl = '/expire/hls/aaa/index.m3u8';</script></head>
+<body><h1>EEE-005 测试正片</h1>
+<video src="/expire/hls/aaa/index.m3u8" controls muted width="640"></video>
+</body></html>"""
+
 LIST_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>测试合集列表</title></head>
 <body><h1>测试列表</h1>
 <a href="/videos/aaa-001/">AAA-001 第一部</a><br>
@@ -165,13 +183,28 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?")[0]
+        if path == "/stats":
+            body = json.dumps(STATE).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        with threading.Lock():
+            STATE["hits"][path] = STATE["hits"].get(path, 0) + 1
         if path.startswith("/slow/"):
             if path.lower().endswith((".ts", ".m4s")):
                 time.sleep(SLOW_DELAY)
             self.path = self.path[len("/slow"):]
         elif path.startswith("/expire/"):
+            if path.endswith(".m3u8"):
+                with threading.Lock():
+                    STATE["expirePlaylistFetches"] += 1
             match = re.search(r"seg-(\d+)\.ts$", path)
-            if match and int(match.group(1)) >= EXPIRE_AFTER:
+            expired = STATE["expirePlaylistFetches"] <= 1
+            if match and int(match.group(1)) >= EXPIRE_AFTER and expired:
                 self.send_response(403)
                 self.send_header("Content-Length", "0")
                 self.end_headers()
@@ -191,6 +224,8 @@ class Handler(SimpleHTTPRequestHandler):
             "/videos/aaa-001/": ("text/html", SINGLE_PAGE),
             "/videos/bbb-002/": ("text/html", MULTI_PAGE),
             "/videos/ccc-003/": ("text/html", NOISY_PAGE),
+            "/videos/ddd-004/": ("text/html", RULE_MISS_PAGE),
+            "/videos/eee-005/": ("text/html", EXPIRING_PAGE),
             "/models/actor/": ("text/html", LIST_PAGE),
             "/player.js": ("text/javascript", PLAYER_JS),
         }

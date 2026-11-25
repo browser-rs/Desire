@@ -177,35 +177,100 @@ def main():
             for needle in want["must_not"]:
                 ok(f"{want['title']}：正片里没有 {needle}", needle not in result.split("Excluded")[0], result[:400])
 
-        # downloadVideoList：三个详情页 → 任务表必须是 1 + 3 + 1 条正片
+        # ---- 站点规则（v0.8.77 批 2）：带 download 段的适配器只管它声明的路径 ----
+        adapter = {
+            "format": "desire/adapter-1",
+            "name": "fixture-site",
+            "hosts": ["127.0.0.1"],
+            "pathPrefixes": ["/videos/aaa-001/", "/videos/ccc-003/", "/videos/ddd-004/", "/videos/eee-005/"],
+            "notes": "e2e fixture",
+            "protocolBody": {"protocolVersion": "desire/1"},
+            "download": {"detail": "regex:var hlsUrl\\s*=\\s*'([^']+)'", "perPage": "one",
+                         "connections": 4, "tokenMinutes": 50},
+        }
+        adapter_path = os.path.join(data_dir, "fixture-adapter.json")
+        with open(adapter_path, "w", encoding="utf-8") as handle:
+            json.dump(adapter, handle, ensure_ascii=False, indent=2)
+        imported = br(base, "POST", "/dpp/adapters/import", {"path": adapter_path})
+        ok("适配器导入并启用", imported.get("enabled", imported.get("ok")) is True or "name" in imported,
+           json.dumps(imported, ensure_ascii=False)[:200])
+
+        # ---- 批量：五个详情页 ----
+        #   aaa：规则命中（1 条）· bbb：无规则 → 通用识别（3 条）· ccc：规则命中
+        #   ddd：规则落空 → 回退通用识别（1 条）· eee：规则命中，但分片先 403 →
+        #   重新解析 → 从已抓到的分片续传
         started = br(base, "POST", "/media/batch", {
             "mode": "list",
-            "urls": [site_base + p for p in expectations],
+            "urls": [site_base + p for p in
+                     ["/videos/aaa-001/", "/videos/bbb-002/", "/videos/ccc-003/", "/videos/ddd-004/", "/videos/eee-005/"]],
             "directory": os.path.join(data_dir, "batch-out")})
         ok("批量已启动", "batchId" in started, json.dumps(started, ensure_ascii=False))
         batch_id = started.get("batchId")
-        deadline = time.time() + 150
+        deadline = time.time() + 240
         snapshot = None
+        terminal = {"finished", "failed", "skipped"}
         while batch_id and time.time() < deadline:
             batches = br(base, "GET", f"/media/batch?id={batch_id}").get("batches", [])
             snapshot = batches[0] if batches else None
             items = (snapshot or {}).get("items", [])
-            resolved = [i for i in items if i.get("media")]
-            if len(resolved) >= 5 and not any(i.get("state") == "resolving" for i in items):
+            if len(items) >= 7 and all(i.get("state") in terminal for i in items):
                 break
             time.sleep(1)
         items = (snapshot or {}).get("items", [])
-        medias = sorted(i.get("media", "") for i in items)
-        ok("批量任务表 = 5 条正片（1 + 3 + 1）", len(items) == 5, json.dumps(items, ensure_ascii=False)[:600])
+        by_state = {}
+        for item in items:
+            by_state.setdefault(item.get("state"), []).append(item)
+        ok("批量任务表 = 7 条正片（1 + 3 + 1 + 1 + 1）", len(items) == 7,
+           json.dumps([(i.get("title"), i.get("state")) for i in items], ensure_ascii=False)[:700])
         expected = sorted(f"{site_base}{p}" for p in
                           ["/hls/aaa/index.m3u8", "/hls/bbb-ep1/index.m3u8", "/hls/bbb-ep2/index.m3u8",
-                           "/clips/ccc-1080p.mp4", "/hls/ccc/index.m3u8"])
+                           "/clips/ccc-1080p.mp4", "/hls/ccc/index.m3u8", "/clips/ccc-720p.mp4",
+                           "/expire/hls/aaa/index.m3u8"])
+        medias = sorted(i.get("media", "") for i in items)
         ok("每条任务指向正片（没有分片/预览/广告）", medias == expected, str(medias))
-        ok("多视频页展开成 02 / 02-2 / 02-3", any(t.startswith("02-2-") for t in [i.get("title", "") for i in items])
-           and any(t.startswith("02-3-") for t in [i.get("title", "") for i in items]), str([i.get("title") for i in items]))
+        titles = [i.get("title", "") for i in items]
+        ok("多视频页展开成 02 / 02-2 / 02-3",
+           any(t.startswith("02-2-") for t in titles) and any(t.startswith("02-3-") for t in titles), str(titles))
+        ok("七条全部下载完成（含中途过期后续传的那一条）",
+           len(by_state.get("finished", [])) == 7,
+           json.dumps({k: [(i.get("title"), i.get("summary")) for i in v] for k, v in by_state.items()}, ensure_ascii=False)[:900])
+
         log = br(base, "GET", f"/media/batch/log?id={batch_id}")
         log_text = json.dumps(log, ensure_ascii=False)
         ok("批次日志写明排除了什么", "已排除" in log_text and "条正片" in log_text, log_text[:300])
+        ok("批次日志：站点规则命中（aaa / ccc / eee）", log_text.count("站点规则「fixture-site」提取到") >= 3, log_text[-900:])
+        ok("批次日志：规则落空时回退通用识别（ddd）", "提取不到，已回退通用识别" in log_text, log_text[-900:])
+        ok("批次日志：地址中途过期后重新解析续传（eee）", "地址中途过期" in log_text, log_text[-900:])
+
+        # ---- 打磨回写（规则"不停打磨"）----
+        adapter_file = os.path.join(data_dir, "DPPAdapters", "fixture-site.json")
+        refined = json.load(open(adapter_file, encoding="utf-8")) if os.path.exists(adapter_file) else {}
+        download = refined.get("download") or {}
+        ok("过期一次后有效期自动缩短 50 → 30", download.get("tokenMinutes") == 30, json.dumps(download, ensure_ascii=False)[:300])
+        ok("修订记录留痕", bool(download.get("revisions")) and "tokenMinutes 50 → 30" in download["revisions"][0]["change"],
+           json.dumps(download.get("revisions"), ensure_ascii=False)[:200])
+        ok("覆盖前的旧版有备份",
+           any(f.startswith("fixture-site-") for f in os.listdir(os.path.join(data_dir, "dpp-adapter-backups")))
+           if os.path.isdir(os.path.join(data_dir, "dpp-adapter-backups")) else False)
+
+        # ---- 续传的证据：已抓到的分片没有重抓 ----
+        stats = br(site_base, "GET", "/stats", timeout=10)
+        hits = stats.get("hits", {})
+        ok("续传：过期前抓到的分片只请求过 1 次", hits.get("/expire/hls/aaa/seg-000.ts") == 1, json.dumps(
+            {k: v for k, v in hits.items() if "/expire/" in k}, ensure_ascii=False))
+        ok("续传：过期时 403 的分片在重新解析后补抓（403 一次 + 成功一次）",
+           hits.get("/expire/hls/aaa/seg-005.ts") == 2, json.dumps({k: v for k, v in hits.items() if "/expire/" in k}))
+        ok("续传：播放列表被重新解析过（两次请求）", stats.get("expirePlaylistFetches") == 2, str(stats.get("expirePlaylistFetches")))
+
+        # ---- 说明性技能随适配器同步；适配器删除后撤掉 ----
+        skill = os.path.join(data_dir, "skills", "127-0-0-1-download.md")
+        skill_text = open(skill, encoding="utf-8").read() if os.path.exists(skill) else ""
+        ok("技能同步：生成了该站点的说明性技能", "synced from DPP adapter download rules" in skill_text, skill_text[:200])
+        ok("技能同步：只说怎么做，不写提取细节",
+           "downloadVideoList" in skill_text and "var hlsUrl" not in skill_text, skill_text[:400])
+        br(base, "POST", "/dpp/adapters/remove", {"name": "fixture-site"})
+        time.sleep(1.5)
+        ok("技能同步：适配器删除后技能随之撤掉", not os.path.exists(skill))
     finally:
         if batch_id:
             try:

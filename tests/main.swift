@@ -13094,6 +13094,88 @@ do {
           && !adapter.matches(url: URL(string: "https://a.example/other/1/")!))
 }
 
+// ---------- HLS 媒体播放列表 HLSMediaPlaylist（v0.8.77 批 3） ----------
+
+do {
+    let base = URL(string: "https://cdn.example/hls/tok/62000/62780/62780.m3u8")!
+    let text = """
+    #EXTM3U
+    #EXT-X-VERSION:3
+    #EXT-X-TARGETDURATION:8
+    #EXT-X-MEDIA-SEQUENCE:0
+    #EXT-X-PLAYLIST-TYPE:VOD
+    #EXT-X-KEY:METHOD=AES-128,URI="key.bin",IV=0x6f3a0ee8f3a9300f651946ae63bf3197
+    #EXTINF:4.004000,
+    627800.ts
+    #EXTINF:7.574233,
+    ../other/627801.ts
+    #EXT-X-DISCONTINUITY
+    #EXTINF:2.5,@
+    https://cdn.example/abs/2.ts?tok=1
+    #EXT-X-ENDLIST
+    """
+    let playlist = try HLSMediaPlaylist.parse(text, baseURL: base)
+    eq("HLS：分片数", playlist.segments.count, 3)
+    eq("HLS：相对地址补全", playlist.segments.map(\.url.absoluteString),
+       ["https://cdn.example/hls/tok/62000/62780/627800.ts", "https://cdn.example/hls/tok/62000/other/627801.ts",
+        "https://cdn.example/abs/2.ts?tok=1"])
+    eq("HLS：分片序号从 0 起", playlist.segments.map(\.index), [0, 1, 2])
+    eq("HLS：密钥地址", playlist.keyURL?.absoluteString, "https://cdn.example/hls/tok/62000/62780/key.bin")
+    check("HLS：点播 / 无字节切片", playlist.hasEndList && !playlist.hasByteRanges)
+    eq("HLS：总时长（EXTINF 求和，容忍属性尾巴）", playlist.duration.map { ($0 * 1000).rounded() }, 14078.0)
+    eq("HLS：没有初始化段", playlist.initSegmentURL, Optional<URL>.none)
+
+    // fMP4：初始化段 + 按字节范围
+    let fmp4 = try HLSMediaPlaylist.parse(
+        "#EXTM3U\n#EXT-X-MAP:URI=\"init.mp4\"\n#EXTINF:6.0,\nseg-00001.m4s\n#EXT-X-BYTERANGE:200000@0\nseg-00001.m4s\n",
+        baseURL: base)
+    eq("HLS：初始化段地址", fmp4.initSegmentURL?.absoluteString, "https://cdn.example/hls/tok/62000/62780/init.mp4")
+    check("HLS：字节切片被标记（并发路径回退串行）", fmp4.hasByteRanges && fmp4.segments.count == 2)
+
+    // 不是媒体播放列表的几种情况
+    let master = "#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=2000000,RESOLUTION=1920x1080\n720p/index.m3u8\n"
+    check("HLS：master → 不是媒体播放列表",
+          (try? HLSMediaPlaylist.parse(master, baseURL: base)) == nil)
+    check("HLS：普通网页 → 不是播放列表",
+          (try? HLSMediaPlaylist.parse("<html></html>", baseURL: base)) == nil)
+    check("HLS：SAMPLE-AES → 不支持的加密",
+          (try? HLSMediaPlaylist.parse("#EXTM3U\n#EXT-X-KEY:METHOD=SAMPLE-AES,URI=\"k\"\n#EXTINF:4,\n0.ts\n",
+                                       baseURL: base)) == nil)
+    check("HLS：密钥 METHOD=NONE 不算加密",
+          (try? HLSMediaPlaylist.parse("#EXTM3U\n#EXT-X-KEY:METHOD=NONE\n#EXTINF:4,\n0.ts\n",
+                                       baseURL: base))?.keyURL == nil)
+
+    // 本地化：分片换成文件名，KEY/MAP 的 URI 换成本地文件，其余标签逐字保留
+    let local = playlist.localText(segmentFile: { "\($0).seg" }, keyFile: "key.bin", initFile: "init.mp4")
+    let expected = """
+    #EXTM3U
+    #EXT-X-VERSION:3
+    #EXT-X-TARGETDURATION:8
+    #EXT-X-MEDIA-SEQUENCE:0
+    #EXT-X-PLAYLIST-TYPE:VOD
+    #EXT-X-KEY:METHOD=AES-128,URI="key.bin",IV=0x6f3a0ee8f3a9300f651946ae63bf3197
+    #EXTINF:4.004000,
+    0.seg
+    #EXTINF:7.574233,
+    1.seg
+    #EXT-X-DISCONTINUITY
+    #EXTINF:2.5,@
+    2.seg
+    #EXT-X-ENDLIST
+    """
+    eq("HLS：本地播放列表逐行等价", local, expected)
+    let localInit = fmp4.localText(segmentFile: { "\($0).seg" }, keyFile: nil, initFile: "init.mp4")
+    check("HLS：初始化段 URI 改写、无密钥不改写",
+          localInit.contains("#EXT-X-MAP:URI=\"init.mp4\"") && localInit.contains("seg-00001.m4s") == false)
+
+    // 指纹：重新签名后地址全变，指纹不变（据此复用已抓到的分片）
+    let reSigned = text.replacingOccurrences(of: "/tok/", with: "/tok-NEW/")
+    let again = try HLSMediaPlaylist.parse(reSigned, baseURL: URL(string: "https://cdn.example/hls/tok-NEW/62000/62780/62780.m3u8")!)
+    eq("HLS：指纹与签名无关", again.fingerprint, playlist.fingerprint)
+    check("HLS：分片数变了指纹就变",
+          fmp4.fingerprint != playlist.fingerprint && playlist.fingerprint == "3|14")
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

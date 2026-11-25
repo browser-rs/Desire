@@ -83,6 +83,9 @@ enum MediaExporter {
         case tooManySegmentFailures
         case noSegmentsDownloaded
         case timedOut
+        /// 签名地址在下载中途过期（v0.8.77 批 3）：累计多个分片返回 401/403/410。
+        /// 批量引擎据此重新解析页面并从已抓到的分片续传；站点规则的地址有效期随之缩短。
+        case addressExpired(segments: Int)
         /// 手写下载器也失败时，把之前 ffmpeg 的失败原因一并带上——否则用户只看到
         /// 第二条错误，第一条（真正的原因）没了。
         case fallbackFailed(notes: [String], underlying: String)
@@ -94,6 +97,7 @@ enum MediaExporter {
             case .unsupportedEncryption(let method): "Playlist uses unsupported encryption: \(method)"
             case .tooManySegmentFailures: "Too many segments failed to download"
             case .noSegmentsDownloaded: "Every segment failed to download — nothing was saved"
+            case .addressExpired(let count): "The signed address expired mid-download (\(count) segment(s) returned 401/403/410) — the page will be resolved again and the download resumes from the segments already fetched"
             case .timedOut:
                 BatchMediaPreferences.exportTimeoutMinutes > 0
                     ? "Export exceeded the \(BatchMediaPreferences.exportTimeoutMinutes)-minute time limit"
@@ -152,6 +156,7 @@ enum MediaExporter {
         folderName: String? = nil,
         baseDirectory: String? = nil,
         resumeKey: String? = nil,
+        connections: Int = MediaExporter.defaultConnections,
         progress: @MainActor @escaping (Int, Int, ProgressUnit) -> Void
     ) async throws -> Result {
         // 断点续传键（批量任务传条目 id）：非 nil 时 .part 用确定性命名
@@ -226,6 +231,62 @@ enum MediaExporter {
         }
 
         var warnings: [String] = []
+        let deadlineCheck: () throws -> Void = { guard Date() < deadline else { throw ExportError.timedOut } }
+        // live 播放列表不让 ffmpeg 碰（它会一直等新分片）；并发预取到的分片交给内置下载器。
+        var prefetchedForFallback: PrefetchedHLS?
+
+        // ⓪ **分片并发**（v0.8.77 批 3）：先把分片并发抓到本地，再让 ffmpeg 读本地播放
+        // 列表解密合成——串行读远端时 CDN 对单连接限速，长片在默认超时内下不完。
+        // 签名地址中途过期直接上抛（调用方重新解析后从已有分片续传）；其它失败回退到
+        // 下面的既有路径。
+        if let ffmpeg = FFmpegExporter.locate() {
+            do {
+                let prefetched = try await prefetchHLS(
+                    url: url, playlistText: playlistText, referer: referer, userAgent: userAgent,
+                    connections: max(minConnections, connections), resumeKey: resumeKey,
+                    deadlineCheck: deadlineCheck, progress: progress)
+                if prefetched.playlist.hasEndList {
+                    let destination = try destinationURL(for: url, hint: fileNameHint, isMP4: true, folderName: folderName, baseDirectory: baseDirectory)
+                    progress(0, 1, .merging)
+                    let outcome = try await Self.writePartAndFinalizeAsync(destination, resumeKey: resumeKey) { part in
+                        try await FFmpegExporter.export(
+                            executable: ffmpeg,
+                            playlist: prefetched.localPlaylistURL,
+                            referer: nil,
+                            userAgent: nil,
+                            cookieHeader: nil,
+                            programIndex: nil,
+                            totalSeconds: prefetched.playlist.duration ?? 0,
+                            destination: part,
+                            deadline: deadline,
+                            progress: { done, total in progress(done, total, .merging) })
+                    }
+                    let probe = await Task.detached(priority: .utility) { FFmpegExporter.probe(fileURL: destination) }.value
+                    try? FileManager.default.removeItem(at: prefetched.workDirectory)
+                    var notes = warnings
+                    if !prefetched.skipped.isEmpty {
+                        notes.append("\(prefetched.skipped.count) segment(s) failed twice and were skipped")
+                    }
+                    let source = sourceSummary(for: playlistText, url: url)
+                    return Result(fileURL: destination,
+                                  segmentCount: prefetched.playlist.segments.count - prefetched.skipped.count,
+                                  bytes: outcome.bytes, warnings: notes,
+                                  verification: probe.summary, downloadedResolution: probe.resolution,
+                                  sourceSummary: source?.summary, sourceMaxResolution: source?.maxResolution,
+                                  bandwidthCapped: (maxBandwidth ?? 0) > 0)
+                }
+                prefetchedForFallback = prefetched
+            } catch is CancellationError {
+                throw CancellationError()
+            } catch let error as URLError where error.code == .cancelled {
+                throw CancellationError()
+            } catch let error as ExportError {
+                if case .addressExpired = error { throw error }
+                warnings.append("parallel HLS export failed, fell back to the serial path: \(error.localizedDescription)")
+            } catch {
+                warnings.append("parallel HLS export failed, fell back to the serial path: \(error.localizedDescription)")
+            }
+        }
 
         // ① ffmpeg 直连（仅 VOD：live 会让 ffmpeg 一直等新分片，见 FFmpegExporter 注释）。
         if let ffmpeg = FFmpegExporter.locate(),
@@ -295,14 +356,15 @@ enum MediaExporter {
                 }
             }
             let result = try await exportHLS(
-                url: playlistURL,
-                playlistText: playlistText,
+                url: prefetchedForFallback?.mediaURL ?? playlistURL,
+                playlistText: prefetchedForFallback?.mediaText ?? playlistText,
                 referer: referer,
                 userAgent: userAgent,
                 fileNameHint: fileNameHint,
                 folderName: folderName,
                 baseDirectory: baseDirectory,
-                deadlineCheck: { guard Date() < deadline else { throw ExportError.timedOut } },
+                deadlineCheck: deadlineCheck,
+                prefetched: prefetchedForFallback,
                 progress: progress
             )
             // 合成阶段单独上报进度（面板显示"合成中"），并给**独立短超时**：
@@ -411,6 +473,20 @@ enum MediaExporter {
     }
 
     // MARK: - ffmpeg 直连的可行性判定
+
+    /// 源清单回执（并发路径用）：播放列表是 master 时给出变体数与最高分辨率。
+    private static func sourceSummary(for playlistText: String?, url: URL) -> (summary: String, maxResolution: String?)? {
+        guard let text = playlistText, text.contains("#EXT-X-STREAM-INF") else { return nil }
+        let variants = parseVariants(text, baseURL: url).sorted {
+            ($0["bandwidth"] as? Int ?? 0) > ($1["bandwidth"] as? Int ?? 0)
+        }
+        guard !variants.isEmpty else { return nil }
+        let best = variants[0]
+        if let maxRes = best["resolution"] as? String, !maxRes.isEmpty {
+            return ("source: \(variants.count) variants, max \(maxRes)", maxRes)
+        }
+        return ("source: \(variants.count) variants, max \((best["bandwidth"] as? Int ?? 0) / 1000)kbps", nil)
+    }
 
     private struct FFmpegPlan {
         /// 喂给 ffmpeg 的播放列表 URL：原始是 master 就用原始 URL（**保住音频组**），
@@ -555,7 +631,7 @@ enum MediaExporter {
     ///
     /// `index` 是文件顺序下标，等于 ffmpeg 的 program 号——`-map 0:p:N` 用它，
     /// 所以排序之后也不能丢（`listVariants` 会按码率再排一次）。
-    private static func parseVariants(_ text: String, baseURL: URL) -> [[String: Any]] {
+    static func parseVariants(_ text: String, baseURL: URL) -> [[String: Any]] {
         let lines = text.components(separatedBy: .newlines)
         var variants: [[String: Any]] = []
         var pendingBandwidth = 0
@@ -616,6 +692,7 @@ enum MediaExporter {
         folderName: String? = nil,
         baseDirectory: String? = nil,
         deadlineCheck: () throws -> Void,
+        prefetched: PrefetchedHLS? = nil,
         progress: @MainActor (Int, Int, ProgressUnit) -> Void
     ) async throws -> Result {
         var warnings: [String] = []
@@ -740,7 +817,13 @@ enum MediaExporter {
             // count it as a segment failure).
             try Task.checkCancellation()
             var data: Data?
-            for attempt in 0..<2 {
+            if let prefetched {
+                // 并发预取过的分片读本地文件（没有 ffmpeg 时的回退路径）；被跳过的分片
+                // 本地没有文件，按失败跳过——不再回到网络串行重抓。
+                data = try? Data(contentsOf: prefetched.segmentFile(segment.index))
+                if data == nil { failures += 1 }
+            }
+            for attempt in 0..<2 where data == nil {
                 do {
                     let (fetched, _) = try await fetch(url: segment.url, referer: referer, userAgent: userAgent)
                     data = fetched
@@ -846,7 +929,7 @@ enum MediaExporter {
         }
     }
 
-    private static func fetch(url: URL, referer: URL?, userAgent: String?) async throws -> (Data, URLResponse) {
+    static func fetch(url: URL, referer: URL?, userAgent: String?) async throws -> (Data, URLResponse) {
         var request = URLRequest(url: url)
         if let userAgent { request.setValue(userAgent, forHTTPHeaderField: "User-Agent") }
         if let referer { request.setValue(referer.absoluteString, forHTTPHeaderField: "Referer") }

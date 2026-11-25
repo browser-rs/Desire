@@ -65,14 +65,15 @@ extension DPPDownloadRules {
 
     enum PerPage: String, Equatable { case one, many }
 
-    static let defaultTokenMinutes = 50
-    static let defaultConnections = 8
-    static let minTokenMinutes = 5
-    static let minConnections = 2
+    // 常量显式 nonisolated：下载引擎在非隔离上下文里也要读它们（默认参数、任务组）。
+    nonisolated static let defaultTokenMinutes = 50
+    nonisolated static let defaultConnections = 8
+    nonisolated static let minTokenMinutes = 5
+    nonisolated static let minConnections = 2
     /// 连续提取不到这么多次 → 规则待重学（页面多半改版了）。
-    static let staleAfterFailures = 3
-    static let revisionCap = 20
-    static let matchCap = 50
+    nonisolated static let staleAfterFailures = 3
+    nonisolated static let revisionCap = 20
+    nonisolated static let matchCap = 50
 
     var perPageRule: PerPage? {
         PerPage(rawValue: (perPage ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased())

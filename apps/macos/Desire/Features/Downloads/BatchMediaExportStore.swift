@@ -1116,6 +1116,9 @@ final class BatchMediaExportStore: ObservableObject {
                 baseDirectory: batches[bi].saveRoot ?? BatchMediaPreferences.baseDirectory,
                 notify: false,
                 resumeKey: itemID.uuidString,
+                // 每路连接数（v0.8.77 批 3）：站点规则可给；批内所有下载合计不超过
+                // 连接预算——同时下 N 部时每路上限 = 预算 / N。
+                connections: connectionsPerStream(sourceURL: batches[bi].items[ii].sourceURL),
                 completion: { [weak self] outcome in
                     self?.downloadSettled(batchID: batchID, itemID: itemID, outcome: outcome)
                 },
@@ -1404,6 +1407,15 @@ final class BatchMediaExportStore: ObservableObject {
 
     // MARK: - 结果回收与自动重试
 
+    /// 每路分片并发：站点规则给的值，受"批内连接预算 / 同时下载路数"封顶。
+    func connectionsPerStream(sourceURL: URL) -> Int {
+        let wanted = DPPAdapterStore.shared.downloadRules(for: sourceURL)?.rules.connections
+            ?? MediaExporter.defaultConnections
+        let share = max(MediaExporter.minConnections,
+                        MediaExporter.connectionBudget / max(1, maxConcurrentDownloads))
+        return max(MediaExporter.minConnections, min(wanted, share))
+    }
+
     private func downloadSettled(batchID: UUID, itemID: UUID, outcome: MediaExportStore.JobOutcome) {
         itemProgress[itemID] = nil
         lastProgressAt[itemID] = nil
@@ -1442,6 +1454,21 @@ final class BatchMediaExportStore: ObservableObject {
             batches[bi].items[ii].state = .failed
             batches[bi].items[ii].summary = error.localizedDescription
             blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 下载失败（第 \(batches[bi].items[ii].attempts) 次尝试）：\(error.localizedDescription)")
+            // 站点规则打磨（v0.8.77 批 2/3）：这次失败说明了站点的一个参数——地址在
+            // 下载中途过期就缩短有效期，被限流/连接被打爆就降并发。重试会重新解析
+            // 页面并从已抓到的分片续传（工作目录按条目 id 稳定命名）。
+            if let site = DPPAdapterStore.shared.downloadRules(for: batches[bi].items[ii].sourceURL) {
+                if let exportError = error as? MediaExporter.ExportError,
+                   case .addressExpired = exportError {
+                    if DPPAdapterStore.shared.refineDownloadRules(adapterName: site.adapter.name, signal: .signatureExpired) {
+                        blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 站点规则「\(site.adapter.name)」：地址中途过期，已缩短有效期，稍后重新解析续传")
+                    }
+                } else if Self.looksRateLimited(error) {
+                    if DPPAdapterStore.shared.refineDownloadRules(adapterName: site.adapter.name, signal: .rateLimited) {
+                        blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 站点规则「\(site.adapter.name)」：疑似被限流，已降低每路连接数")
+                    }
+                }
+            }
             Log.downloads.error("item failed: \(error.localizedDescription, privacy: .public)")
         case .cancelled:
             if isHalted(batchID) {
@@ -1462,6 +1489,18 @@ final class BatchMediaExportStore: ObservableObject {
         persistUnfinished()
         pumpDownloads(batchID)
         checkBatchSettled(batchID)
+    }
+
+    /// 失败文本像"被限流 / 连接被打爆"：HTTP 429、5xx，或连接层的错误。
+    static func looksRateLimited(_ error: Error) -> Bool {
+        if let exportError = error as? MediaExporter.ExportError, case .badStatus(let code) = exportError {
+            return code == 429 || (500...599).contains(code)
+        }
+        if let urlError = error as? URLError {
+            return [.cannotConnectToHost, .networkConnectionLost, .cannotFindHost, .timedOut, .secureConnectionFailed]
+                .contains(urlError.code)
+        }
+        return false
     }
 
     private func isSuspendedSummary(_ batchID: UUID) -> String {

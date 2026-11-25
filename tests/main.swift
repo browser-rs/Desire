@@ -12486,6 +12486,202 @@ do {
        StorageRoot.directory.appendingPathComponent("keychain", isDirectory: true).standardizedFileURL.path)
 }
 
+// ---------- 纠正回写技能 SkillCorrectionCore（v0.8.76 批 4） ----------
+
+do {
+    // 识别：真实纠正原话（不含站点信息）
+    let corrections = [
+        "失败太多次了 为啥不先好好分析一下", "不会总结的吗？", "之前刚跑完过一页的啊",
+        "你在自作主张 页面有可能超过100个视频的啊", "你自己写的技能 你自己修改对啊 你要修改对啊",
+        "我感觉你处理起来每一步都在犯错",
+        "为什么要反反复复看这个结果！！明明有重复的 你到底在干什么啊？",
+        "不对，先解析列表再下载", "这样对不对？不对",
+        "That's wrong, parse the list first", "Not what I asked for", "This is wrong",
+        "Why do you keep checking the same result?", "Stop polling, subscribe instead",
+    ]
+    for text in corrections {
+        check("纠正识别 ✓：\(text.prefix(18))", SkillCorrectionCore.isCorrection(text))
+    }
+    let notCorrections = [
+        "继续", "好的谢谢", "帮我把这个页面的视频都下载下来", "页面有重复的链接，去重后再下载",
+        "下载失败了，再试一次", "这样对不对？", "是不是这样处理？", "你可以用 ffmpeg 吗",
+        "what's wrong with the page?", "Use the batch downloader instead", "I need you to check the list first",
+        "", String(repeating: "请先看一遍说明。", count: 40) + "不对劲的地方记下来",
+    ]
+    for text in notCorrections {
+        check("纠正识别 ✗：\(text.prefix(18))", !SkillCorrectionCore.isCorrection(text))
+    }
+    eq("纠正识别：空消息 / 仅空白", SkillCorrectionCore.isCorrection("   \n"), false)
+    eq("纠正识别：长度上限恰好在界内", SkillCorrectionCore.isCorrection(
+        String(repeating: "好", count: SkillCorrectionCore.maxCorrectionLength - 2) + "不对"), true)
+
+    // 被纠正的技能与前后片段
+    func callMsg(_ id: String, _ name: String, _ args: String) -> AgentMessage {
+        var a = AgentMessage(role: .assistant, content: nil)
+        a.toolCalls = [AgentToolCall(id: id, type: "function",
+                                     function: .init(name: name, arguments: args))]
+        return a
+    }
+    let correction = "不对，你应该先解析列表再下载"
+    var convo: [AgentMessage] = [msg(.user, "把这一页的视频都下载下来")]
+    convo.append(callMsg("c1", "useSkill", #"{"name":"batch-download"}"#))
+    convo.append(msg(.tool, "Skill 'batch-download' loaded. Follow these instructions:\n…",
+                     toolCallId: "c1", toolName: "useSkill"))
+    convo.append(callMsg("c2", "runCommand", #"{"command":"ls"}"#))
+    convo.append(msg(.tool, "a.mp4\nb.mp4", toolCallId: "c2", toolName: "runCommand"))
+    convo.append(msg(.assistant, "下载完成"))
+    convo.append(msg(.user, correction))
+    convo.append(callMsg("c3", "executeJS", "{}"))
+    convo.append(msg(.tool, "120 links", toolCallId: "c3", toolName: "executeJS"))
+    convo.append(msg(.assistant, "共 120 条"))
+    let context = SkillCorrectionCore.context(in: convo, correction: correction)
+    eq("上下文：定位被纠正的技能", context?.skill, "batch-download")
+    eq("上下文：纠正之前的片段", context?.before.count, 4)
+    eq("上下文：从纠正开始到结尾", context?.after.count, 4)
+    check("上下文：纠正消息不在会话里 → nil",
+          SkillCorrectionCore.context(in: convo, correction: "别的消息") == nil)
+    check("上下文：本会话没加载过技能 → nil",
+          SkillCorrectionCore.context(in: [msg(.user, "下载"), msg(.assistant, "好"), msg(.user, correction)],
+                                      correction: correction) == nil)
+    check("上下文：技能加载得太早（超出窗口）→ nil",
+          SkillCorrectionCore.context(in: convo, correction: correction, window: 3) == nil)
+    check("上下文：首条就是纠正（前面没有可加载的技能）→ nil",
+          SkillCorrectionCore.context(in: [msg(.user, correction)], correction: correction) == nil)
+    // 两次加载：纠正针对最近的那一次
+    var twice = convo
+    twice.append(msg(.user, "继续"))
+    twice.append(callMsg("c4", "useSkill", #"{"name":"dedupe"}"#))
+    twice.append(msg(.tool, "Skill 'dedupe' loaded", toolCallId: "c4", toolName: "useSkill"))
+    twice.append(msg(.assistant, "去重完成"))
+    twice.append(msg(.user, "不对，顺序反了"))
+    eq("上下文：两次加载取最近的一次",
+       SkillCorrectionCore.context(in: twice, correction: "不对，顺序反了")?.skill, "dedupe")
+    eq("上下文：useSkill 参数解析失败不认", SkillCorrectionCore.skillName(inArguments: #"{"name":""}"#), Optional<String>.none)
+
+    // 摘要与输入
+    guard let context else { fatalError("context missing") }
+    let beforeDigest = SkillCorrectionCore.executionDigest(from: context.before)
+    let afterDigest = SkillCorrectionCore.executionDigest(from: context.after)
+    check("摘要：步骤 = 签名 → 结果", afterDigest.contains("executeJS {}") && afterDigest.contains("→ 120 links"))
+    check("摘要：助手正文带「答：」", afterDigest.contains("答：共 120 条"))
+    check("摘要：技能正文不重复带", !beforeDigest.contains("loaded") && beforeDigest.contains("runCommand"))
+    check("摘要：多行结果压成一行", beforeDigest.contains("a.mp4 b.mp4"))
+    let noisy = SkillCorrectionCore.executionDigest(
+        from: (0..<60).map { msg(.tool, String(repeating: "r", count: 200), toolCallId: "x\($0)", toolName: "readFile") })
+    check("摘要：超限截断并标注", noisy.count <= SkillCorrectionCore.executionCharLimit + 8 && noisy.hasSuffix("…（已截断）"))
+    let file = ["---", "name: batch-download", "description: 批量下载", "---", "## 流程",
+                "1. 打开列表页。", "2. 直接下载页面上找到的全部视频。", "3. 汇报结果。"].joined(separator: "\n")
+    let input = SkillCorrectionCore.promptInput(
+        skillText: file, correction: correction, before: context.before, after: context.after)
+    check("输入：四段齐全", ["【技能文件】", "【按该技能执行的过程（被纠正的那一段）】",
+                          "【用户的纠正（原话）】", "【纠正之后的过程】"].allSatisfy(input.contains))
+    check("输入：纠正原话逐字带上", input.contains(correction))
+    check("输入：技能文件超限截断", SkillCorrectionCore.promptInput(
+        skillText: String(repeating: "x", count: 10_000), correction: "不对",
+        before: [], after: []).count < SkillCorrectionCore.skillCharLimit + 120)
+
+    // 补丁解析
+    let fenced = "```json\n" + #"{"find":"直接下载页面上找到的全部视频","replace":"先解析出完整列表（可能超过 100 条），再逐一下载","reason":"页面可能超过 100 条，不能只下当前可见的"}"# + "\n```"
+    guard let patch = SkillCorrectionCore.parsePatch(fenced) else { fatalError("patch missing") }
+    eq("补丁解析：容忍代码围栏", patch.find, "直接下载页面上找到的全部视频")
+    eq("补丁解析：理由保留", patch.reason, "页面可能超过 100 条，不能只下当前可见的")
+    eq("补丁解析：前后引导语不影响", SkillCorrectionCore.parsePatch("补丁如下：\n" + fenced)?.replace, patch.replace)
+    check("补丁解析：find 为空 = 与技能无关 → nil",
+          SkillCorrectionCore.parsePatch(#"{"find":"","replace":"","reason":"not about the skill"}"#) == nil)
+    check("补丁解析：缺 reason → nil", SkillCorrectionCore.parsePatch(#"{"find":"打开列表页","replace":"x"}"#) == nil)
+    check("补丁解析：不是 JSON → nil", SkillCorrectionCore.parsePatch("I could not locate the passage.") == nil)
+    check("补丁解析：只有空白 → nil", SkillCorrectionCore.parsePatch("   ") == nil)
+    check("补丁解析：超长 find（等于重写全文）→ nil", SkillCorrectionCore.parsePatch(
+        #"{"find":"\#(String(repeating: "x", count: SkillCorrectionCore.maxNeedleLength + 1))","replace":"y","reason":"r"}"#) == nil)
+    eq("补丁解析：replace 的 CRLF 归一成 LF",
+       SkillCorrectionCore.parsePatch(#"{"find":"打开列表页","replace":"a\r\nb","reason":"r"}"#)?.replace, "a\nb")
+    eq("补丁解析：超长理由截断", SkillCorrectionCore.parsePatch(
+        #"{"find":"打开列表页","replace":"x","reason":"\#(String(repeating: "理", count: 400))"}"#)?.reason.count,
+       SkillCorrectionCore.maxReasonLength + 1)
+
+    // 校验与应用
+    func verdict(_ find: String, _ replace: String) -> SkillCorrectionCore.Verdict {
+        SkillCorrectionCore.validate(.init(find: find, replace: replace, reason: "r"), against: file)
+    }
+    eq("校验：唯一命中 → ok", verdict(patch.find, patch.replace), .ok)
+    eq("校验：找不到", verdict("根本不存在的一句话", "x"), .notFound)
+    eq("校验：多处命中拒绝", verdict("下载", "抓取"), .ambiguous(count: 2))
+    eq("校验：改了等于没改", verdict("打开列表页", "打开列表页"), .unchanged)
+    eq("校验：动 frontmatter 拒绝", verdict("批量下载", "批量抓取"), .frontmatter)
+    eq("校验：空 needle", verdict("   ", "x"), .emptyNeedle)
+    eq("校验：单字符看不出改的是哪处", verdict("流", "x"), .tooShort)
+    // 过半判定以全文为分母（frontmatter 也算）——这份文件里正文 43/90，不算重写。
+    eq("校验：正文接近一半但未过线 → 仍可用", verdict("## 流程\n1. 打开列表页。\n2. 直接下载页面上找到的全部视频。\n3. 汇报结果。", "x"), .ok)
+    eq("校验：过半全文 = 重写", SkillCorrectionCore.validate(
+        .init(find: "第一步 做事。\n第二步 收尾。", replace: "x", reason: "r"),
+        against: "第一步 做事。\n第二步 收尾。\n第三步 汇报。"), .oversized)
+    eq("校验：文件没有 frontmatter 时不设禁区",
+       SkillCorrectionCore.validate(.init(find: "第一行", replace: "改", reason: "r"), against: "第一行\n第二行"), .ok)
+
+    let reflowed = "第一步  准备：\n   先打开  列表页，再检查。"
+    eq("定位：空白差异不影响命中", SkillCorrectionCore.locate("先打开 列表页", in: reflowed).count, 1)
+    check("定位：命中的是原文区间", reflowed[SkillCorrectionCore.locate("先打开 列表页", in: reflowed)[0]] == "先打开  列表页")
+    eq("定位：非空白字符必须一致", SkillCorrectionCore.locate("先打开列表页", in: reflowed).count, 0)
+    eq("定位：重复文本数得出来", SkillCorrectionCore.locate("重复", in: "重复 重复 重复").count, 3)
+    eq("定位：needle 比全文还长", SkillCorrectionCore.locate("很长的针", in: "短").count, 0)
+
+    check("应用：只换那一处，其余逐字节不变", SkillCorrectionCore.apply(patch, to: file)
+          == file.replacingOccurrences(of: patch.find, with: patch.replace))
+    check("应用：校验不过 → nil", SkillCorrectionCore.apply(.init(find: "下载", replace: "x", reason: "r"), to: file) == nil)
+    check("应用：空白重排的补丁替换的是原文区间",
+          SkillCorrectionCore.apply(.init(find: "先打开 列表页", replace: "先解析", reason: "r"), to: reflowed)
+            == "第一步  准备：\n   先解析，再检查。")
+    check("应用：空 replace = 删掉这一段",
+          SkillCorrectionCore.apply(.init(find: "3. 汇报结果。", replace: "", reason: "r"), to: file)
+            == file.replacingOccurrences(of: "3. 汇报结果。", with: ""))
+    check("应用：改完再对改后的文件用同一补丁 → 定位不到",
+          SkillCorrectionCore.apply(patch, to: SkillCorrectionCore.apply(patch, to: file) ?? file) == nil)
+
+    // 节流与查重
+    let now = Date()
+    let conv = UUID()
+    let recent = SkillCorrectionCore.Attempt(skill: "batch-download", conversationId: conv,
+                                             at: now.addingTimeInterval(-300))
+    check("节流：同技能同会话 10 分钟内不再生成", !SkillCorrectionCore.patchBudgetPasses(
+        [recent], skill: "Batch-Download", conversationId: conv, now: now))
+    check("节流：别的会话不受影响", SkillCorrectionCore.patchBudgetPasses(
+        [recent], skill: "batch-download", conversationId: UUID(), now: now))
+    check("节流：冷却过了可以再来", SkillCorrectionCore.patchBudgetPasses(
+        [SkillCorrectionCore.Attempt(skill: "batch-download", conversationId: conv, at: now.addingTimeInterval(-700))],
+        skill: "batch-download", conversationId: conv, now: now))
+    check("节流：别的技能不受影响", SkillCorrectionCore.patchBudgetPasses(
+        [recent], skill: "dedupe", conversationId: conv, now: now))
+    let three = (0..<3).map {
+        SkillCorrectionCore.Attempt(skill: "s\($0)", conversationId: nil, at: now.addingTimeInterval(-Double($0) * 600))
+    }
+    check("节流：全局每天最多 3 次", !SkillCorrectionCore.patchBudgetPasses(
+        three, skill: "batch-download", conversationId: conv, now: now))
+    check("节流：24h 外的不计入", SkillCorrectionCore.patchBudgetPasses(
+        [SkillCorrectionCore.Attempt(skill: "batch-download", conversationId: conv, at: now.addingTimeInterval(-30 * 3_600))],
+        skill: "batch-download", conversationId: conv, now: now))
+    check("节流：没记过账 → 通过", SkillCorrectionCore.patchBudgetPasses(
+        [], skill: "batch-download", conversationId: nil, now: now))
+
+    let pending = [SkillCandidateCore.Candidate(name: "batch-download", description: patch.reason,
+                                                instructions: "", conversationId: nil, patch: patch)]
+    check("查重：同技能同处待确认 → 重复", SkillCorrectionCore.isRedundantPatch(
+        skill: "Batch-Download", find: patch.find, pending: pending))
+    check("查重：换了一处 → 不重复", !SkillCorrectionCore.isRedundantPatch(
+        skill: "batch-download", find: "打开列表页", pending: pending))
+    check("查重：草稿卡不算补丁", !SkillCorrectionCore.isRedundantPatch(
+        skill: "batch-download", find: patch.find,
+        pending: [SkillCandidateCore.Candidate(name: "batch-download", description: "d",
+                                               instructions: String(repeating: "i", count: 40), conversationId: nil)]))
+    check("查重：别的技能的补丁不算", !SkillCorrectionCore.isRedundantPatch(
+        skill: "dedupe", find: patch.find, pending: pending))
+    // 候选落盘格式：旧版（无 patch 字段）照常解码为草稿；补丁卡往返不丢
+    let legacy = #"{"id":"\#(UUID().uuidString.lowercased())","name":"n","description":"d","instructions":"i","createdAt":0}"#
+    check("候选：旧版 JSON（无 patch 字段）解码为草稿",
+          (try? JSONDecoder().decode(SkillCandidateCore.Candidate.self, from: Data(legacy.utf8)))?.patch == nil)
+    let encoded = try! JSONEncoder().encode(pending[0])
+    eq("候选：补丁卡往返", try! JSONDecoder().decode(SkillCandidateCore.Candidate.self, from: encoded), pending[0])
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

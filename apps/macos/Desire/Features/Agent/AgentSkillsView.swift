@@ -895,6 +895,9 @@ private struct SkillShareSheet: View {
 /// **技能候选收件箱卡组**（v0.8.72 批 2）：成功回合旁路蒸馏的技能草稿，
 /// 置顶浮出——采纳写正式技能库（与 saveSkill 同一写盘路径），忽略即弃。
 /// 候选永不自动入库（SkillCandidateCore 的原则在这里落地成 UI）。
+///
+/// v0.8.76 批 4 起另有**补丁卡**：用户纠正后给已有技能的定点修正（改前 → 改后），
+/// 采纳 = 原文件覆盖 + 旧版备份；卡片把两段原文都摆出来，让用户看得见再决定。
 private struct SkillCandidatesBand: View {
     let candidates: [SkillCandidateCore.Candidate]
     let onAdopt: (SkillCandidateCore.Candidate) -> Void
@@ -907,20 +910,11 @@ private struct SkillCandidatesBand: View {
                 .font(.system(size: 11.5, weight: .medium))
                 .foregroundStyle(.tint)
             ForEach(candidates) { candidate in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(candidate.name)
-                        .font(.system(size: 12.5, weight: .semibold))
-                    Text(candidate.description)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                    HStack(spacing: 8) {
-                        Button(String(localized: "Save as Skill")) { onAdopt(candidate) }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
-                        Button(String(localized: "Ignore")) { onDiscard(candidate) }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
+                Group {
+                    if let patch = candidate.patch {
+                        patchBody(candidate, patch: patch)
+                    } else {
+                        draftBody(candidate)
                     }
                 }
                 .padding(10)
@@ -928,6 +922,72 @@ private struct SkillCandidatesBand: View {
                 .background(RoundedRectangle(cornerRadius: 8)
                     .fill(Color.primary.opacity(0.05)))
             }
+        }
+    }
+
+    /// 新技能草稿卡。
+    private func draftBody(_ candidate: SkillCandidateCore.Candidate) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(candidate.name)
+                .font(.system(size: 12.5, weight: .semibold))
+            Text(candidate.description)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 8) {
+                Button(String(localized: "Save as Skill")) { onAdopt(candidate) }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                Button(String(localized: "Ignore")) { onDiscard(candidate) }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+        }
+    }
+
+    /// 补丁卡：技能名 + 理由 + 改前/改后两段原文。
+    private func patchBody(_ candidate: SkillCandidateCore.Candidate,
+                           patch: SkillCorrectionCore.Patch) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 6) {
+                Text(String(localized: "Skill correction"))
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundStyle(.tint)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Capsule().fill(.tint.opacity(0.14)))
+                Text(candidate.name)
+                    .font(.system(size: 12.5, weight: .semibold))
+            }
+            Text(patch.reason)
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            diffRow(label: String(localized: "Before"), text: patch.find, removed: true)
+            diffRow(label: String(localized: "After"), text: patch.replace, removed: false)
+            HStack(spacing: 8) {
+                Button(String(localized: "Apply to Skill")) { onAdopt(candidate) }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                Button(String(localized: "Ignore")) { onDiscard(candidate) }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+        }
+    }
+
+    /// 改前/改后一行。改后为空串 = 删掉这一段。
+    private func diffRow(label: String, text: String, removed: Bool) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+            Text(label)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(removed ? Color.secondary : Color.green)
+                .frame(width: 34, alignment: .leading)
+            Text(text.isEmpty ? String(localized: "(removed)") : text)
+                .font(.system(size: 11, design: .monospaced))
+                .textSelection(.enabled)
+                .lineLimit(6)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }

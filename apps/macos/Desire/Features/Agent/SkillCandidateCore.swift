@@ -16,15 +16,21 @@ nonisolated enum SkillCandidateCore {
         var instructions: String
         var createdAt: Date
         var conversationId: UUID?
+        /// **补丁类候选**（v0.8.76 批 4）：对已有技能 `name` 的定点修正；nil = 新技能
+        /// 草稿。补丁的 `description` = 理由，`instructions` 留空。可选字段加在末尾，
+        /// 旧版落盘的候选照常解码。
+        var patch: SkillCorrectionCore.Patch?
 
         init(name: String, description: String, instructions: String,
-             conversationId: UUID?, now: Date = Date()) {
+             conversationId: UUID?, now: Date = Date(),
+             patch: SkillCorrectionCore.Patch? = nil) {
             self.id = UUID()
             self.name = name
             self.description = description
             self.instructions = instructions
             self.createdAt = now
             self.conversationId = conversationId
+            self.patch = patch
         }
     }
 

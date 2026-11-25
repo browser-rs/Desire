@@ -189,6 +189,7 @@ SOURCES=(
   apps/macos/Desire/Features/Jobs/LongTaskReceipt.swift
   apps/macos/Desire/Features/Agent/TurnGuard.swift
   apps/macos/Desire/Features/Agent/SkillTrigger.swift
+  apps/macos/Desire/Features/Agent/SkillCorrectionCore.swift
   apps/macos/Desire/Features/Agent/FileEdit.swift
   apps/macos/Desire/Features/Agent/PDFPageSpec.swift
   apps/macos/Desire/Features/Agent/SpreadsheetReader.swift

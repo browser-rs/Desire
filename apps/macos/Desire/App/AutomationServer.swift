@@ -562,7 +562,9 @@ final class AutomationServer {
         ep("POST", "/memory/checkup", "Run a memory checkup now: merge near-duplicates (0.9 threshold), retire stale facts, report pending conflicts. Removed originals archived", example: "-d '{}'")
         ep("GET", "/memory/conflicts", "Pending memory-conflict reviews (approximate relatedness; queue from auto-extraction)", example: "…/memory/conflicts")
         ep("POST", "/memory/conflicts/resolve", "Resolve a conflict: resolution=keepNew|keepOld|keepBoth|merge; factID (review) or newText (manual)", params: ["factID?/newText?", "relatedIDs:[uuid]", "resolution", "mergedText?"], example: #"-d '{"newText":"…","relatedIDs":["…"],"resolution":"merge"}'"#)
-        ep("GET", "/skills/candidates", "Skill candidate inbox: drafts distilled from successful long runs, waiting for user adoption", example: "…/skills/candidates")
+        ep("GET", "/skills/candidates", "Skill candidate inbox: kind=draft (distilled from successful long runs) or kind=patch (targeted correction to an existing skill, with find/replace/reason); all waiting for user adoption", example: "…/skills/candidates")
+        ep("POST", "/skills/candidates/adopt", "Adopt one candidate by id: draft → written as a new skill; patch → applied in place to the named skill with the previous version backed up under skill-backups/", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
+        ep("POST", "/skills/candidates/discard", "Dismiss one candidate by id", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/skills/distill", "Distill a SKILL.md draft from the live conversation (one bypass model call); save=true writes it", params: ["save?:bool", "window?:string"], example: #"-d '{"save":true}'"#)
         ep("POST", "/skills/export", "Export a skill as a .skill package (zip) or single .md to a local path", params: ["name:string", "to:string"], example: #"-d '{"name":"my-skill","to":"/tmp/my.skill"}'"#)
         ep("GET", "/palette", "Command-palette mixed search (commands/tabs/bookmarks/history/conversations, grouped + per-source totals)", params: ["q:string"], example: "…/palette?q=book")
@@ -3874,6 +3876,12 @@ case ("GET", "/agent/messages"):
                 return try Self.json(Self.listSkills())
             case ("GET", "/skills/candidates"):
                 return try Self.json(Self.listSkillCandidates())
+            case ("POST", "/skills/candidates/adopt"):
+                return try Self.json(Self.adoptSkillCandidate(
+                    id: Self.string(body, "id") ?? ""))
+            case ("POST", "/skills/candidates/discard"):
+                return try Self.json(Self.discardSkillCandidate(
+                    id: Self.string(body, "id") ?? ""))
             case ("POST", "/skills/distill"):
                 return try await Self.json(Self.distillSkill(
                     window: Self.string(body, "window"),
@@ -4472,6 +4480,10 @@ case ("GET", "/agent/messages"):
             "startup": [
                 "firstWindowMs": StartupMetric.firstWindowMs.map { $0 as Any } ?? NSNull(),
                 "dataDir": StorageRoot.directory.path,
+                // 封闭性探针（v0.8.76）：偏好与密钥各走哪个入口——套件据此断言
+                // "这个实例碰不到用户的偏好与钥匙串"（dataDir 只是其一）。
+                "prefs": AppPrefs.isIsolated ? "isolated" : "standard",
+                "secrets": KeychainService.isIsolated ? "file" : "keychain",
                 "budgetMs": StartupMetric.budgetMs,
             ] as [String: Any],
             // Agent 的文件工具以这个目录为工作区——自动化/评估要把 fixture
@@ -4480,10 +4492,6 @@ case ("GET", "/agent/messages"):
             // 阅读模式状态（v0.7.28）：提取后的 baseURL/内容长度是探针能断言
             // "阅读模式真的拿到了这一页"的最小证据。
             "reader": readerState(tm?.selectedTab),
-                // 封闭性探针（v0.8.76）：偏好与密钥各走哪个入口——套件据此断言
-                // "这个实例碰不到用户的偏好与钥匙串"（dataDir 只是其一）。
-                "prefs": AppPrefs.isIsolated ? "isolated" : "standard",
-                "secrets": KeychainService.isIsolated ? "file" : "keychain",
         ]
     }
 
@@ -11030,14 +11038,47 @@ case ("GET", "/agent/messages"):
         }
     }
 
-    /// 技能候选收件箱（v0.8.72 批 2）：远程/自动化查看当前候选。
+    /// 技能候选收件箱（v0.8.72 批 2）：远程/自动化查看当前候选。补丁类
+    /// （v0.8.76 批 4）带 kind=patch 与 find/replace——调用方据此渲染改前/改后。
     private static func listSkillCandidates() throws -> [String: Any] {
         let candidates = SkillCandidateStore.shared.candidates.map { c -> [String: Any] in
-            ["id": c.id.uuidString, "name": c.name, "description": c.description,
-             "createdAt": ISO8601DateFormatter().string(from: c.createdAt),
-             "conversationId": c.conversationId?.uuidString ?? ""]
+            var item: [String: Any] = [
+                "id": c.id.uuidString, "name": c.name, "description": c.description,
+                "kind": c.patch == nil ? "draft" : "patch",
+                "createdAt": ISO8601DateFormatter().string(from: c.createdAt),
+                "conversationId": c.conversationId?.uuidString ?? "",
+            ]
+            if let patch = c.patch {
+                item["find"] = patch.find
+                item["replace"] = patch.replace
+                item["reason"] = patch.reason
+            }
+            return item
         }
         return ["candidates": candidates]
+    }
+
+    /// 采纳 / 忽略候选——与技能页按钮走同一个 Store 方法（草稿写新技能；补丁
+    /// 定点覆盖 + 旧版备份，返回备份路径）。
+    private static func adoptSkillCandidate(id: String) -> [String: Any] {
+        guard let uuid = UUID(uuidString: id),
+              let candidate = SkillCandidateStore.shared.candidates.first(where: { $0.id == uuid }) else {
+            return ["error": "no such candidate"]
+        }
+        let outcome = SkillCandidateStore.shared.adoptDetailed(candidate)
+        var payload: [String: Any] = ["ok": outcome.ok, "name": candidate.name]
+        if let error = outcome.error { payload["error"] = error }
+        if let backup = outcome.backupPath { payload["backup"] = backup }
+        return payload
+    }
+
+    private static func discardSkillCandidate(id: String) -> [String: Any] {
+        guard let uuid = UUID(uuidString: id),
+              let candidate = SkillCandidateStore.shared.candidates.first(where: { $0.id == uuid }) else {
+            return ["error": "no such candidate"]
+        }
+        SkillCandidateStore.shared.discard(candidate)
+        return ["ok": true]
     }
 
     private static func reloadSkills() throws -> [String: Any] {

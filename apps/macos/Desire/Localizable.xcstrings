@@ -113755,6 +113755,62 @@
           }
         }
       }
+    },
+    "Slim Tool Definitions to the Loaded Skill (Experimental)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Slim Tool Definitions to the Loaded Skill (Experimental)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"按任务精简工具定义（实验）"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"按任務精簡工具定義（實驗）"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"タスクごとにツール定義を絞り込む（実験）"
+          }
+        }
+      }
+    },
+    "When a repeated request loads a skill up front, each model request carries only the tool definitions that skill needs instead of all ~295. Other tools can be loaded on demand with useTools, and calling a tool that is not loaded restores the full set for the rest of the turn.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"When a repeated request loads a skill up front, each model request carries only the tool definitions that skill needs instead of all ~295. Other tools can be loaded on demand with useTools, and calling a tool that is not loaded restores the full set for the rest of the turn."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重复指令直通加载技能时，每次模型请求只带该技能用得上的工具定义，而不是全部约 295 个。其余工具可用 useTools 按需加载；调用未加载的工具会立刻恢复完整工具集。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重複指令直通載入技能時，每次模型請求只帶該技能用得上的工具定義，而不是全部約 295 個。其餘工具可用 useTools 按需載入；呼叫未載入的工具會立刻恢復完整工具集。"
+          }
+        },
+        "ja":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"繰り返しの依頼でスキルを先に読み込んだとき、モデルへの各リクエストにはそのスキルに必要なツール定義だけを送ります（約 295 個すべてではなく）。ほかのツールは useTools で必要なときに読み込めます。未読み込みのツールを呼ぶと、そのターンの残りは完全なツールセットに戻ります。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

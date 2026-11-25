@@ -170,6 +170,12 @@ class AgentPreferenceStore: ObservableObject {
     @Published var skillAutoLoad: Bool {
         didSet { AppPrefs.defaults.set(skillAutoLoad, forKey: "aiSkillAutoLoad") }
     }
+    /// **按任务精简工具定义**（v0.8.76 批 5，实验特性）：直通技能加载的回合里，
+    /// 请求只带该技能用得上的工具定义，其余靠 useTools 按需加载、调用未加载的工具
+    /// 即回退全量。默认关——真实网关的 token 对照与成功率门控还没过。
+    @Published var scopedTools: Bool {
+        didSet { AppPrefs.defaults.set(scopedTools, forKey: "aiScopedTools") }
+    }
     /// **AI 动作复查**（guard pass，2026-10-09）：自动编辑档下副作用工具放行前，
     /// 先经旁路模型对照用户规则轻量判定一次；FLAG 转审批卡。超时/失败 fail-open，
     /// 不会阻塞回合。
@@ -611,6 +617,7 @@ class AgentPreferenceStore: ObservableObject {
         autoPageContext = AppPrefs.defaults.object(forKey: "aiAutoPageContext") as? Bool ?? true
         memoryLearning = AppPrefs.defaults.object(forKey: "aiMemoryLearning") as? Bool ?? true
         skillAutoLoad = AppPrefs.defaults.object(forKey: "aiSkillAutoLoad") as? Bool ?? true
+        scopedTools = AppPrefs.defaults.object(forKey: "aiScopedTools") as? Bool ?? false
         guardReview = AppPrefs.defaults.object(forKey: "aiGuardReview") as? Bool ?? true
         outputRules = AppPrefs.defaults.stringArray(forKey: "aiOutputRules") ?? []
         answerLength = AnswerLength(rawValue: AppPrefs.defaults.string(forKey: "aiAnswerLength") ?? "") ?? .standard

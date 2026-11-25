@@ -500,6 +500,9 @@ class AgentSessionStore: ObservableObject {
     private(set) var currentTurnUserText: String?
     /// 本回合开局被直通预加载的技能（计入本回合的使用统计）。
     private var preloadedSkillName: String?
+    /// **按任务精简工具定义**（v0.8.76 批 5）：本回合的工具范围。nil = 本回合不精简；
+    /// 其中的 `active == nil` = 精简过、已回退全量。
+    private var turnToolScope: ToolScopeCore.Scope?
     /// 实际生效的预算（覆盖值优先）——占用表与压缩都用它，口径永远一致。
     /// 生效字符预算（v0.8.60 token 真值化）：优先级 = compactionBudgetOverride
     /// （超限/空响应重试按真实窗口写下的校准）> TokenCalibration 换算
@@ -1679,6 +1682,32 @@ class AgentSessionStore: ObservableObject {
     /// 从外部往会话追加一条 system 备注（后台任务完成等）。**不触发**新一轮模型
     /// 调用：面板里不渲染 system 消息（`AgentMessageBubble` 的 `.system` 是
     /// EmptyView），但下一轮请求会带上它，模型因此知道下载/导出已经结束。
+    /// **按任务精简工具定义**（v0.8.76 批 5）：直通技能加载的回合，请求只带该技能
+    /// 用得上的工具定义（工具集推断见 `ToolScopeCore.toolSet`）。只在设置打开、且
+    /// 推断得出足够的工具时生效；其余回合照旧全量。
+    private func beginToolScope(for skill: String?) {
+        turnToolScope = nil
+        guard let skill, preference.scopedTools,
+              let spec = SkillStore.shared.scopedToolSpec(for: skill) else { return }
+        // useTools 的定义不在工具表里（只随精简请求发送），显式并进可用集合——
+        // 工具集里就有它，拦截判定 `includes("useTools")` 也才成立。
+        var available = Set(availableToolNames())
+        available.insert("useTools")
+        guard let initial = ToolScopeCore.toolSet(for: spec, knownTools: available) else {
+            Log.agent.info("tool scope: not slimmed for \(skill, privacy: .public) — too few or too many inferred tools")
+            return
+        }
+        turnToolScope = ToolScopeCore.Scope(initial: initial, available: available)
+        Log.agent.info("tool scope: \(initial.count) of \(available.count) tools for \(skill, privacy: .public)")
+    }
+
+    /// 本回合可用的全部工具名（模式排除之后，含 MCP）。
+    private func availableToolNames() -> [String] {
+        let excluded = effectiveMode.excludedTools
+        return (BrowserToolProvider.toolDefs.filter { !excluded.contains($0.function.name) }
+                + MCPStore.shared.toolDefs).map(\.function.name)
+    }
+
     /// 回合内加载了技能 → 把"触发它的用户消息"记成该技能的触发样本。
     /// 只记用户发起的回合：系统回报回合的提示（"后台任务已结束…"）不是
     /// 一句可重复的指令，记进去只会污染样本。
@@ -2298,6 +2327,7 @@ class AgentSessionStore: ObservableObject {
             memoryBlock: statics.memoryBlock,
             skills: statics.skills,
             tools: statics.tools,
+            scopedTools: turnToolScope?.active.map { (loaded: $0.count, total: availableToolNames().count) },
             workspacePath: SystemCommandStore.shared.workingDirectory.path,
             downloadsPath: AgentPromptBuilder.downloadsPath,
             ffmpegAvailable: FFmpegExporter.isAvailable,
@@ -2490,11 +2520,20 @@ class AgentSessionStore: ObservableObject {
             // 回合级计数器清零（v0.8.72 批 2）：工具调用数（技能候选资格）
             // 与 useSkill 名单（结果回填）。rememberCallCount 在 runTurn 清。
             toolProvider.toolCallsThisTurn = 0
+            toolProvider.toolNamesThisTurn = []
             // 开局直通预加载的技能也算"本回合用过"（成功率的分母要含它）。
-            toolProvider.skillsUsedThisTurn = Set([preloadedSkillName].compactMap { $0 })
+            let preloaded = preloadedSkillName
+            toolProvider.skillsUsedThisTurn = Set([preloaded].compactMap { $0 })
             preloadedSkillName = nil
+            beginToolScope(for: preloaded)
             await runTurn(turnID: turnID)
             guard isCurrentTurn(turnID) else { return }
+            // 本回合实际用过的工具记到用过技能的历史上（精简工具定义的推断来源）。
+            SkillStore.shared.recordToolNames(
+                toolProvider.toolNamesThisTurn, for: Array(toolProvider.skillsUsedThisTurn))
+            if let scope = turnToolScope {
+                Log.agent.info("tool scope: turn ended useTools=\(scope.useToolsCalls) fallback=\(scope.fallbackReason ?? "-", privacy: .public)")
+            }
             // 会话预算跃迁（v0.7.18）：用量跨入 80% 时发一次事件。
             updateBudgetPublishedState()
             // Turn finished — hand the outcome to registered handlers
@@ -2805,9 +2844,15 @@ class AgentSessionStore: ObservableObject {
                 }
                 // 模式工具子集（Loop 工程）：被排除的工具根本不进工具索引。
                 let mode = effectiveMode
-                let streamTools = AgentToolSchemaSlimming.slimmed(BrowserToolProvider.toolDefs
+                var streamTools = AgentToolSchemaSlimming.slimmed(BrowserToolProvider.toolDefs
                     .filter { !mode.excludedTools.contains($0.function.name) }
                     + MCPStore.shared.toolDefs)
+                // **按任务精简工具定义**（v0.8.76 批 5）：精简中的回合只发技能工具集 +
+                // `useTools`（按需加载的逃生口）。回退之后 active 为 nil，照旧全量。
+                if let active = turnToolScope?.active {
+                    streamTools = streamTools.filter { active.contains($0.function.name) }
+                        + [BrowserToolProvider.useToolsDef]
+                }
                 // 分层计量补 schema 侧并落账（v0.8.74 批 1）：prompt 层来自
                 // 同请求的组装点；schema 用 JSON 序列化长度（与实发形态一致）。
                 var layers = pendingPromptLayers ?? RequestMetering.Layers()
@@ -3209,6 +3254,36 @@ class AgentSessionStore: ObservableObject {
                     continue
                 }
 
+                // **按需加载 / 未加载拦截**（v0.8.76 批 5）：都在审批闸之前。useTools
+                // 只改下一请求的工具集，不执行任何动作；未加载的工具**不执行**（动作
+                // 没有发生），回执以 `Error: ` 开头，并告知全量已恢复。
+                let head = tcs[ti]
+                if head.function.name == "useTools", turnToolScope != nil {
+                    ti += 1
+                    let names = ToolScopeCore.requestedNames(inArguments: head.function.arguments)
+                    let outcome = turnToolScope?.load(names) ?? .init(alreadyFull: true)
+                    messages.append(AgentMessage(
+                        role: .tool,
+                        content: ToolScopeCore.useToolsReceipt(outcome),
+                        toolCallId: head.id,
+                        toolName: "useTools"))
+                    Log.agent.info("tool scope: useTools \(names, privacy: .public) loaded=\(outcome.loaded, privacy: .public) fellBack=\(outcome.fellBack)")
+                    checkpointSave()
+                    continue
+                }
+                if let scope = turnToolScope, !scope.includes(head.function.name),
+                   !effectiveMode.excludedTools.contains(head.function.name) {
+                    ti += 1
+                    turnToolScope?.noteUnloadedCall(head.function.name)
+                    messages.append(AgentMessage(
+                        role: .tool,
+                        content: ToolScopeCore.unloadedReceipt(head.function.name),
+                        toolCallId: head.id,
+                        toolName: head.function.name))
+                    Log.agent.info("tool scope: unloaded call \(head.function.name, privacy: .public) — full tool set restored")
+                    checkpointSave()
+                    continue
+                }
                 let tc = tcs[ti]
                 ti += 1
                 // 模式工具闸：索引里没有的工具被模型幻觉调用时，执行前挡下。

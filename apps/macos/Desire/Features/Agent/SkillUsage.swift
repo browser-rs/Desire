@@ -14,6 +14,9 @@ nonisolated struct SkillUsageRecord: Codable, Equatable, Sendable {
     /// 触发样本（v0.8.76 批 3）：加载这个技能时用户说的话与次数（最近的在前）。
     /// 可选——旧记录没有这个键。
     var triggers: [SkillTrigger.Sample]?
+    /// 加载这个技能的回合里实际调用过的工具 → 次数（v0.8.76 批 5，按任务精简
+    /// 工具定义的推断来源之一）。可选——旧记录没有这个键。
+    var toolNames: [String: Int]?
     /// 最近 ≤20 个回合的成功/失败（时间序）。空 = 无样本（"样本不足"）。
     var outcomes: [Bool] = []
     /// 成功率（无样本返回 nil——UI 标"样本不足"，绝不显示 0%）。

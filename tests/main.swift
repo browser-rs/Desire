@@ -12682,6 +12682,139 @@ do {
     eq("候选：补丁卡往返", try! JSONDecoder().decode(SkillCandidateCore.Candidate.self, from: encoded), pending[0])
 }
 
+// ---------- 按任务精简工具定义 ToolScopeCore（v0.8.76 批 5） ----------
+
+do {
+    // frontmatter 列表键
+    eq("frontmatter 列表：逗号一行", ToolScopeCore.frontmatterList("tools", frontmatter: "name: a\ntools: listDetectedMedia, downloadMedia\n"),
+       ["listDetectedMedia", "downloadMedia"])
+    eq("frontmatter 列表：顿号分隔", ToolScopeCore.frontmatterList("tools", frontmatter: "tools: aCamel、bCamel"),
+       ["aCamel", "bCamel"])
+    eq("frontmatter 列表：- 列表行", ToolScopeCore.frontmatterList("triggers", frontmatter: "triggers:\n  - 把视频都下载下来\n  - 下载这一页\nother: x\n  - 不算"),
+       ["把视频都下载下来", "下载这一页"])
+    eq("frontmatter 列表：键不存在 → 空", ToolScopeCore.frontmatterList("tools", frontmatter: "name: a\ndescription: b"), [String]())
+    eq("frontmatter 列表：前缀相同的别的键不算", ToolScopeCore.frontmatterList("tools", frontmatter: "toolset: aCamel"), [String]())
+    eq("SkillVars.toolNames：没有 → nil（走推断）", SkillVars.toolNames(frontmatter: "name: a"), Optional<[String]>.none)
+    eq("SkillVars.toolNames：有 → 名单", SkillVars.toolNames(frontmatter: "tools: aCamel, bCamel"), ["aCamel", "bCamel"])
+    eq("SkillVars.declaredTools：从全文取",
+       SkillVars.declaredTools("---\nname: x\ntools: listDetectedMedia\n---\n正文"), ["listDetectedMedia"])
+    check("SkillVars.declaredTools：没有 frontmatter → nil", SkillVars.declaredTools("只有正文") == nil)
+
+    // 正文点名
+    let known: Set<String> = ["listDetectedMedia", "downloadMedia", "downloadVideoList", "analyzeMedia",
+                              "click", "fill", "scroll", "executeJS", "runCommand", "useSkill", "listSkills"]
+    let body = "先用 listDetectedMedia 找到视频，再用 downloadMedia 下载；必要时 executeJS。"
+    eq("正文点名：驼峰名整词匹配", ToolScopeCore.bodyMentions(body, knownTools: known),
+       ["listDetectedMedia", "downloadMedia", "executeJS"])
+    eq("正文点名：不算子串", ToolScopeCore.bodyMentions("mylistDetectedMedia 和 listDetectedMediaX 和 pre_downloadMedia", knownTools: known),
+       [] as Set<String>)
+    eq("正文点名：区分大小写", ToolScopeCore.bodyMentions("ListDetectedMedia DOWNLOADMEDIA", knownTools: known), [] as Set<String>)
+    check("正文点名：小写英文单词（click/fill/scroll）不推断——正文里到处都是",
+          ToolScopeCore.bodyMentions("click the button, fill the form, scroll down", knownTools: known).isEmpty)
+    check("推断资格：驼峰且 ≥5 字符", ToolScopeCore.isInferrable("executeJS") && ToolScopeCore.isInferrable("runCommand")
+          && !ToolScopeCore.isInferrable("click") && !ToolScopeCore.isInferrable("drag") && !ToolScopeCore.isInferrable("Ab"))
+    check("整词匹配：下划线与数字算标识符的一部分",
+          ToolScopeCore.containsToken("getToolResult", in: "x getToolResult y")
+          && !ToolScopeCore.containsToken("getToolResult", in: "_getToolResult")
+          && !ToolScopeCore.containsToken("getToolResult", in: "getToolResult2")
+          && !ToolScopeCore.containsToken("", in: "anything"))
+    check("整词匹配：正则元字符按字面处理",
+          ToolScopeCore.containsToken("a.b*c", in: "(a.b*c)") && !ToolScopeCore.containsToken("a.b*c", in: "aXbYc")
+          && !ToolScopeCore.containsToken("a.b*c", in: "xa.b*cy"))
+
+    // 历史
+    let history = ["downloadMedia": 3, "analyzeMedia": 3, "runCommand": 1, "unknownTool": 9, "click": 0]
+    eq("历史：按次数取前 N，同次数按名字", ToolScopeCore.topHistory(history, knownTools: known, limit: 2),
+       ["analyzeMedia", "downloadMedia"])
+    check("历史：不存在的工具与 0 次的不算",
+          ToolScopeCore.topHistory(history, knownTools: known) == ["downloadMedia", "analyzeMedia", "runCommand"])
+
+    // 工具集
+    let all = known.union(ToolScopeCore.residentTools).union(ToolScopeCore.browserBasics)
+    let expectedBase = ToolScopeCore.residentTools.union(ToolScopeCore.browserBasics)
+    eq("工具集：作者声明优先（正文点名再多也不加）",
+       ToolScopeCore.toolSet(for: .init(declared: ["downloadMedia", "analyzeMedia", "nopeTool"], body: body, history: [:]),
+                             knownTools: all),
+       expectedBase.union(["downloadMedia", "analyzeMedia"]))
+    check("工具集：声明的全都不存在 → 不精简",
+          ToolScopeCore.toolSet(for: .init(declared: ["nopeTool"], body: body, history: [:]), knownTools: all) == nil)
+    // 正文点名里 executeJS 属于基本功，不算"技能特有"——特有 = 2（正文）+ 3（历史）
+    let spec = ToolScopeCore.Spec(declared: nil, body: body,
+                                  history: ["downloadMedia": 2, "downloadVideoList": 1, "analyzeMedia": 1, "runCommand": 1])
+    eq("工具集：正文 ∪ 历史，重复只算一次",
+       ToolScopeCore.toolSet(for: spec, knownTools: all),
+       expectedBase.union(["listDetectedMedia", "downloadMedia", "downloadVideoList", "analyzeMedia", "runCommand"]))
+    check("工具集：基本功里的工具被点名也不算特有（不足 5 个 → 不精简）",
+          ToolScopeCore.toolSet(for: .init(declared: nil, body: body,
+                                           history: ["downloadVideoList": 1, "analyzeMedia": 1]),
+                                knownTools: all) == nil)
+    check("工具集：特有工具不足 5 个 → 不精简（面太宽，裁了也立刻回退）",
+          ToolScopeCore.toolSet(for: .init(declared: nil, body: body, history: ["downloadVideoList": 1]), knownTools: all) == nil)
+    check("工具集：超过上限 → 不精简",
+          ToolScopeCore.toolSet(for: .init(declared: (0..<60).map { "toolNumber\($0)Camel" }, body: "", history: [:]),
+                                knownTools: all.union((0..<60).map { "toolNumber\($0)Camel" })) == nil)
+    check("工具集：结果 ⊆ 可用工具（常驻/基本功里没有的会被剔掉）",
+          ToolScopeCore.toolSet(for: spec, knownTools: known.union(["downloadVideoList", "analyzeMedia", "runCommand"]))?
+              .isSubset(of: known.union(["downloadVideoList", "analyzeMedia", "runCommand"])) == true)
+    eq("工具集：特有工具 + 常驻 + 基本功",
+       ToolScopeCore.toolSet(for: spec, knownTools: all)?.count, expectedBase.count + 5)
+    eq("工具集：作者只写两个也算（最低个数只约束推断）",
+       ToolScopeCore.toolSet(for: .init(declared: ["downloadMedia", "analyzeMedia"], body: "", history: [:]),
+                             knownTools: all)?.count, expectedBase.count + 2)
+    check("工具集：useTools 一定在常驻集里（不然没法按需加载）", ToolScopeCore.residentTools.contains("useTools"))
+    check("工具集：常驻集与基本功没有交集（不然上限口径会重复算）",
+          ToolScopeCore.residentTools.isDisjoint(with: ToolScopeCore.browserBasics))
+
+    // 回合内状态机
+    let available: Set<String> = all.union(["getPageHTML", "screenshot"])
+    var full = ToolScopeCore.Scope(initial: nil, available: available)
+    check("范围：不精简的回合什么都算已加载", !full.isSlimmed && full.includes("screenshot"))
+    full.noteUnloadedCall("screenshot")
+    check("范围：不精简的回合不记回退", full.fallbackReason == nil)
+    eq("范围：useTools 在不精简的回合 → 已是全量", full.load(["screenshot"]).alreadyFull, true)
+
+    let slimmed = ToolScopeCore.toolSet(for: spec, knownTools: available) ?? []
+    var scope = ToolScopeCore.Scope(initial: slimmed, available: available)
+    check("范围：开局 = 工具集", scope.isSlimmed && scope.active == slimmed && scope.includes("downloadMedia") && !scope.includes("screenshot"))
+    eq("范围：开局工具集与可用工具取交",
+       ToolScopeCore.Scope(initial: ["aCamel", "downloadMedia"], available: available).active, ["downloadMedia"])
+    let first = scope.load(["screenshot", "getPageHTML", "nopeTool", "screenshot"])
+    check("范围：useTools 第一次 → 加入工具集、报出找不到的、去重保序",
+          first == .init(loaded: ["screenshot", "getPageHTML"], unknown: ["nopeTool"])
+          && scope.active?.contains("screenshot") == true && scope.active?.contains("getPageHTML") == true)
+    let second = scope.load(["screenshot"])
+    check("范围：useTools 第二次 → 回退全量（哪怕没加新工具）",
+          second == .init(loaded: [], fellBack: true) && !scope.isSlimmed
+          && scope.fallbackReason == "useTools ×2" && scope.includes("anythingAtAll"))
+    eq("范围：回退之后再 useTools → 已是全量", scope.load(["x"]).alreadyFull, true)
+
+    var scope2 = ToolScopeCore.Scope(initial: slimmed, available: available)
+    scope2.noteUnloadedCall("screenshot")
+    check("范围：调用未加载的工具 → 回退全量并记原因",
+          !scope2.isSlimmed && scope2.fallbackReason == "unloaded call: screenshot")
+    scope2.noteUnloadedCall("another")
+    eq("范围：第二次未加载调用不覆盖原因", scope2.fallbackReason, "unloaded call: screenshot")
+
+    // 回执
+    let receipt = ToolScopeCore.unloadedReceipt("screenshot")
+    check("回执：未加载以 Error: 开头（动作没有发生）并点名工具", receipt.hasPrefix("Error: ") && receipt.contains("'screenshot'"))
+    check("回执：useTools 各分支文案",
+          ToolScopeCore.useToolsReceipt(.init(alreadyFull: true)).contains("already loaded")
+          && ToolScopeCore.useToolsReceipt(.init(loaded: ["a"], unknown: ["b"], fellBack: true)).contains("Loaded full definitions for: a")
+          && ToolScopeCore.useToolsReceipt(.init(loaded: ["a"], unknown: ["b"], fellBack: true)).contains("Not found: b")
+          && ToolScopeCore.useToolsReceipt(.init(loaded: ["a"], unknown: ["b"], fellBack: true)).contains("full tool set")
+          && ToolScopeCore.useToolsReceipt(.init()).contains("already loaded"))
+    let note = ToolScopeCore.promptNote(loaded: 27, total: 296)
+    check("提示说明：写明已加载数与总数、指向 useTools", note.contains("27 of 296") && note.contains("useTools"))
+    eq("参数：names 数组", ToolScopeCore.requestedNames(inArguments: #"{"names":["screenshot","getPageHTML"]}"#), ["screenshot", "getPageHTML"])
+    eq("参数：单个字符串也认", ToolScopeCore.requestedNames(inArguments: #"{"names":"screenshot"}"#), ["screenshot"])
+    check("参数：解析失败 → 空", ToolScopeCore.requestedNames(inArguments: "not json") == [] && ToolScopeCore.requestedNames(inArguments: "{}") == [])
+
+    // 分类表：useTools 是只读、中性
+    check("风险：useTools 归只读（不弹审批）", ToolRisk.classify("useTools") == .readonly)
+    eq("推进度量：useTools 归中性（不算查看也不算动作）", TurnProgress.kind(of: "useTools"), .neutral)
+}
+
 // ---------- 技能使用记录的编解码 SkillUsageCodec（v0.8.76） ----------
 
 do {
@@ -12690,15 +12823,16 @@ do {
     usage["a"]?.lastUsedAt = Date(timeIntervalSince1970: 1_764_000_000.540859)
     usage["a"]?.lastUsedConversationId = UUID()
     usage["a"]?.triggers = [SkillTrigger.Sample(text: "把视频都下载下来", count: 2)]
+    usage["a"]?.toolNames = ["downloadMedia": 2]
     usage["a"]?.outcomes = [true, false, true]
     guard let data = SkillUsageCodec.encode(usage) else { fatalError("encode failed") }
-    eq("使用记录：带日期/触发样本的记录往返不丢", SkillUsageCodec.decode(data), usage)
+    eq("使用记录：带日期/触发样本/工具历史的记录往返不丢", SkillUsageCodec.decode(data), usage)
 
     // 盘上已有的格式：日期是字符串（SyncJSON 写入端一直这么写）
     let legacy = #"{"a":{"count":3,"lastUsedAt":"2026-11-25T06:22:37.540859","outcomes":[true]}}"#.data(using: .utf8)!
     let decoded = SkillUsageCodec.decode(legacy)
     check("使用记录：盘上已有的字符串日期格式读得回来", decoded?["a"]?.count == 3 && decoded?["a"]?.lastUsedAt != nil
-          && decoded?["a"]?.triggers == nil)
+          && decoded?["a"]?.triggers == nil && decoded?["a"]?.toolNames == nil)
 
     // 事故复现：旧的读取端（裸 JSONDecoder）读同一份数据 → 整份失败
     check("事故复现：裸 JSONDecoder 读不回带日期的记录（0.8.72 起每次启动清空的原因）",

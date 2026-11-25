@@ -2270,6 +2270,17 @@ extension BrowserToolProvider {
 
     /// 系统提示词里的工具索引：**每个工具一行**（名字 + 描述首句，过长截断）。
     ///
+    /// `useTools` 的定义（v0.8.76 批 5）。**不进 `toolDefs`**：只在按任务精简工具
+    /// 定义的回合里随请求发送——全量模式下所有工具都已加载，发它只会多占一个位置。
+    static let useToolsDef = AgentToolDef(type: "function", function: AgentToolFunctionDef(
+        name: "useTools",
+        description: "Load the full definitions of tools that the <tools> index lists but this request did not send. Call it when a step needs a tool you have not been given, then call that tool in your next response. After useTools has been called twice in a turn the full tool set is restored automatically.",
+        parameters: AgentJSONSchema(type: "object", properties: [
+            "names": AgentJSONSchemaValue(type: "array", description: "Exact tool names from the <tools> index",
+                                          items: JSONSchemaItemBox(value: AgentJSONSchemaValue(type: "string"))),
+        ], required: ["names"])
+    ))
+
     /// 以前这段索引是手写在默认提示词里的，只有 30 个、而实际有 106 个——
     /// 缺的里面还有 `executeJS` / `switchTab` / `goBack` / `readTab` / `getNetworkLog` /
     /// `crewDispatch` 这种高频能力（2026-09-23 对账发现）。改成从工具表**生成**，

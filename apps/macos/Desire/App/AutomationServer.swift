@@ -563,6 +563,7 @@ final class AutomationServer {
         ep("GET", "/memory/conflicts", "Pending memory-conflict reviews (approximate relatedness; queue from auto-extraction)", example: "…/memory/conflicts")
         ep("POST", "/memory/conflicts/resolve", "Resolve a conflict: resolution=keepNew|keepOld|keepBoth|merge; factID (review) or newText (manual)", params: ["factID?/newText?", "relatedIDs:[uuid]", "resolution", "mergedText?"], example: #"-d '{"newText":"…","relatedIDs":["…"],"resolution":"merge"}'"#)
         ep("GET", "/skills/candidates", "Skill candidate inbox: kind=draft (distilled from successful long runs) or kind=patch (targeted correction to an existing skill, with find/replace/reason); all waiting for user adoption", example: "…/skills/candidates")
+        ep("GET", "/skills/scoped-tools", "Which tool definitions a direct-hit turn of this skill would send: declared/mentioned/history sources, the resulting set, and whether slimming applies", params: ["name:string"], example: "…/skills/scoped-tools?name=my-skill")
         ep("POST", "/skills/candidates/adopt", "Adopt one candidate by id: draft → written as a new skill; patch → applied in place to the named skill with the previous version backed up under skill-backups/", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/skills/candidates/discard", "Dismiss one candidate by id", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/skills/distill", "Distill a SKILL.md draft from the live conversation (one bypass model call); save=true writes it", params: ["save?:bool", "window?:string"], example: #"-d '{"save":true}'"#)
@@ -3874,6 +3875,9 @@ case ("GET", "/agent/messages"):
                 return try await Self.json(Self.retrievalEval(body: body))
             case ("GET", "/skills"):
                 return try Self.json(Self.listSkills())
+            case ("GET", "/skills/scoped-tools"):
+                return try Self.json(Self.scopedToolsForSkill(
+                    name: Self.string(query, "name") ?? ""))
             case ("GET", "/skills/candidates"):
                 return try Self.json(Self.listSkillCandidates())
             case ("POST", "/skills/candidates/adopt"):
@@ -5925,10 +5929,6 @@ case ("GET", "/agent/messages"):
             // 这一页在**窄面板**下最容易挤坏，要能按 420/900 两种宽度各拍一张。
             return try await agentStatsSnapshot(width: width ?? 420, height: height ?? 900)
         }
-        if name == "syncchecklist" {
-            // 接入引导 checklist（v0.7.23）：数据全在 syncStore 里、init 即载，
-            // 离屏直拍（sheet 壳子要窗口，快照走不到——渲染的是内容层）。
-            guard let app = AppState.live else { return ["error": "app state not ready"] }
         if name == "skillpatch" {
             // 技能修正建议条（v0.8.76 批 4）：用收件箱里现成的补丁卡离屏直拍。
             // 成图写进存储根（封闭启动时即 data-dir）——不往用户主目录落文件。
@@ -5963,6 +5963,10 @@ case ("GET", "/agent/messages"):
             return ["path": path, "patches": pending.count,
                     "width": rep.pixelsWide, "height": rep.pixelsHigh]
         }
+        if name == "syncchecklist" {
+            // 接入引导 checklist（v0.7.23）：数据全在 syncStore 里、init 即载，
+            // 离屏直拍（sheet 壳子要窗口，快照走不到——渲染的是内容层）。
+            guard let app = AppState.live else { return ["error": "app state not ready"] }
             let size = NSSize(width: max(360, width ?? 560), height: max(320, height ?? 620))
             let rootView = AnyView(SettingsContainer { SyncOnboardingChecklist(store: app.syncStore) })
             let host = NSHostingView(
@@ -11059,7 +11063,8 @@ case ("GET", "/agent/messages"):
                                   "health": healthName(SkillHealth.assess(count: usage.count, outcomes: usage.outcomes)),
                                   // 触发样本与工具历史的规模（v0.8.76）："使用记录跨启动还在"要能直接断言。
                                   "triggerSamples": usage.triggers?.count ?? 0,
-                                  "maxTriggerCount": usage.triggers?.map(\.count).max() ?? 0]
+                                  "maxTriggerCount": usage.triggers?.map(\.count).max() ?? 0,
+                                  "toolNames": usage.toolNames ?? [:]]
             }
             return entry
         }
@@ -11116,6 +11121,26 @@ case ("GET", "/agent/messages"):
         }
         SkillCandidateStore.shared.discard(candidate)
         return ["ok": true]
+    }
+
+    /// 按任务精简工具定义（v0.8.76 批 5）：某个技能的工具集推断结果。评估与技能页用。
+    private static func scopedToolsForSkill(name: String) -> [String: Any] {
+        guard let spec = SkillStore.shared.scopedToolSpec(for: name) else {
+            return ["error": "no such skill"]
+        }
+        var available = Set((BrowserToolProvider.toolDefs + MCPStore.shared.toolDefs).map(\.function.name))
+        available.insert("useTools")   // 与 beginToolScope 同口径（见那里的注释）
+        let set = ToolScopeCore.toolSet(for: spec, knownTools: available)
+        var payload: [String: Any] = [
+            "skill": name,
+            "declared": spec.declared ?? [],
+            "mentioned": ToolScopeCore.bodyMentions(spec.body, knownTools: available).sorted(),
+            "history": ToolScopeCore.topHistory(spec.history, knownTools: available).sorted(),
+            "totalTools": available.count,
+            "slimmed": set != nil,
+        ]
+        if let set { payload["set"] = set.sorted() }
+        return payload
     }
 
     private static func reloadSkills() throws -> [String: Any] {

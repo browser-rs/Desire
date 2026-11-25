@@ -25,11 +25,12 @@ nonisolated enum TurnProgress {
     }
 
     /// 既不算查看也不算动作的工具。
-    /// - `useSkill` 在只读工具表里，但它是"把做法装进来"，不是探索页面；
+    /// - `useSkill` 在只读工具表里，但它是"把做法装进来"，不是探索页面；`useTools`
+    ///   （按需加载工具定义）同理；
     /// - `updatePlan` / `askUser` / `reflect` 是编排与沟通；
     /// - 等待类是"等"不是"看"——烧的是时间不是请求，单独归中性。
     static let neutralTools: Set<String> = [
-        "useSkill", "updatePlan", "askUser", "reflect",
+        "useSkill", "useTools", "updatePlan", "askUser", "reflect",
         "wait", "waitForText", "waitForSelector", "waitForElement", "waitForDownload",
     ]
 

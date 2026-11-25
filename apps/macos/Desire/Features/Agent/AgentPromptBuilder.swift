@@ -35,6 +35,9 @@ enum AgentPromptBuilder {
         /// 工具索引（由 `BrowserToolProvider.promptInventory` 生成，含 MCP 工具）。
         /// 手写索引会随工具增删漂移——实测漏了 76/106 个，所以改成生成。
         var tools: [(name: String, summary: String)] = []
+        /// 按任务精简工具定义的回合（v0.8.76 批 5）：本请求带完整定义的工具数与
+        /// 总数。nil = 全量（索引里"每个工具都可调用"照常成立）。
+        var scopedTools: (loaded: Int, total: Int)? = nil
         var workspacePath: String
         var downloadsPath: String?
         /// 装了 ffmpeg 就直连 HLS 出 MP4，没装则回退内置下载器（产物可能是 .ts）。
@@ -134,7 +137,10 @@ enum AgentPromptBuilder {
         """)
 
         if !input.tools.isEmpty {
-            sections.append(toolsSection(input.tools))
+            let scopedNote = input.scopedTools.map {
+                ToolScopeCore.promptNote(loaded: $0.loaded, total: $0.total)
+            }
+            sections.append(toolsSection(input.tools, scopedNote: scopedNote))
         }
 
         var environment = ["Working directory (file tools + runCommand cwd): \(input.workspacePath)"]
@@ -203,7 +209,9 @@ enum AgentPromptBuilder {
     /// 工具层（v0.8.51 抽出，供 `/diag/tools-section` 与真正拼装共用）：
     /// 超过 40 个工具走分组摘要（listTools 展开），否则逐行索引（小工具集/
     /// 子代理子集仍用逐行，信息更全）。
-    static func toolsSection(_ tools: [(name: String, summary: String)]) -> String {
+    /// `scopedNote`：按任务精简工具的回合里，"每个工具都可调用"不成立——插在段首。
+    static func toolsSection(_ tools: [(name: String, summary: String)],
+                             scopedNote: String? = nil) -> String {
         guard !tools.isEmpty else { return "" }
         // MCP 工具（调用方恒拼接在尾部）的描述是**第三方数据**——分组摘要里
         // 单独加一句声明；逐行索引时在首个 MCP 工具前插声明行（0.7.4 安全二轮）。
@@ -229,10 +237,12 @@ enum AgentPromptBuilder {
         let routingNote = grouped
             ? "This is a GROUPED index. Expand a group with listTools {group} or search names with listTools {query} before guessing parameters."
             : "Use this index for routing (the descriptions here are one-line summaries)."
+        // 非精简回合不留空行：全量模式的提示词逐字节不变。
+        let scopedLine = scopedNote.map { "\n" + $0 } ?? ""
         return """
         <tools>
         Every tool is callable; the request's `tools` parameter is \
-        authoritative for parameters and exact semantics. \(routingNote)
+        authoritative for parameters and exact semantics. \(routingNote)\(scopedLine)
         \(lines)
 
         Tool failures are returned as text starting with `Error:` — when a \

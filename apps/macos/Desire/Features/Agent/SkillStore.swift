@@ -37,11 +37,14 @@ final class SkillStore: ObservableObject {
         var contentHash: String?
         /// 参数槽位（v0.8.17）：frontmatter vars 声明，运行时填值。
         var vars: [SkillVars.Var] = []
+        /// frontmatter `tools:`（v0.8.76 批 5）：作者写明这个技能要用的工具；
+        /// nil = 没声明（按任务精简工具定义时走正文与历史的推断）。
+        var declaredTools: [String]?
         var id: String { name }
 
         init(name: String, description: String, url: URL, directory: URL? = nil,
              sourceURL: String? = nil, contentHash: String? = nil,
-             vars: [SkillVars.Var] = []) {
+             vars: [SkillVars.Var] = [], declaredTools: [String]? = nil) {
             self.name = name
             self.description = description
             self.url = url
@@ -49,6 +52,7 @@ final class SkillStore: ObservableObject {
             self.sourceURL = sourceURL
             self.contentHash = contentHash
             self.vars = vars
+            self.declaredTools = declaredTools
         }
     }
 
@@ -77,11 +81,11 @@ final class SkillStore: ObservableObject {
     private static let usageOutcomeCap = 20
 
     private func loadUsageMeta() {
+        // 解码器必须与写入端成对（见 SkillUsageCodec）：此前这里是裸 JSONDecoder，
+        // 带日期的记录读不回来——每次启动使用记录都被静默清空。
         guard let data = AppPrefs.defaults.data(forKey: Self.usageMetaKey),
               let decoded = SkillUsageCodec.decode(data) else { return }
         usage = decoded
-        // 解码器必须与写入端成对（见 SkillUsageCodec）：此前这里是裸 JSONDecoder，
-        // 带日期的记录读不回来——每次启动使用记录都被静默清空。
     }
 
     private func saveUsageMeta() {
@@ -110,6 +114,92 @@ final class SkillStore: ObservableObject {
                 u.outcomes.removeFirst(u.outcomes.count - Self.usageOutcomeCap)
             }
             usage[name] = u
+        }
+        saveUsageMeta()
+    }
+
+    // MARK: - 按任务精简工具定义（v0.8.76 批 5）
+
+    /// 单个技能最多记多少个工具名（按次数留前 N）。
+    private static let toolNameCap = 40
+
+    /// 回合收尾：加载过这些技能的回合里实际调用了哪些工具——"技能没写、但做这件事
+    /// 真的要用"的工具只有从这里才推断得出来。
+    func recordToolNames(_ toolNames: Set<String>, for skills: [String]) {
+        let counted = toolNames.subtracting(["useSkill", "listSkills", "useTools"])
+        guard !counted.isEmpty else { return }
+        for name in Set(skills) {
+            var entry = usage[name] ?? SkillUsage(count: 0)
+            var counts = entry.toolNames ?? [:]
+            for tool in counted { counts[tool, default: 0] += 1 }
+            entry.toolNames = Self.cappedToolCounts(counts)
+            usage[name] = entry
+        }
+        saveUsageMeta()
+    }
+
+    private static func cappedToolCounts(_ counts: [String: Int]) -> [String: Int] {
+        guard counts.count > toolNameCap else { return counts }
+        let kept = counts.sorted { lhs, rhs in
+            if lhs.value != rhs.value { return lhs.value > rhs.value }
+            return lhs.key < rhs.key
+        }.prefix(toolNameCap)
+        return Dictionary(kept.map { ($0.key, $0.value) }, uniquingKeysWith: { first, _ in first })
+    }
+
+    /// 某个技能的工具集推断输入（正文取盘上当前内容）。
+    func scopedToolSpec(for name: String) -> ToolScopeCore.Spec? {
+        guard let skill = skills.first(where: { $0.name == name }),
+              let text = body(for: name) else { return nil }
+        // frontmatterBlock 返回的是**新字符串**，下标映射不回原文——正文范围要在原文上算。
+        let body = SkillCorrectionCore.frontmatterEnd(text).map { String(text[$0...]) } ?? text
+        return ToolScopeCore.Spec(declared: skill.declaredTools,
+                                  body: body, history: usage[name]?.toolNames ?? [:])
+    }
+
+    /// 历史回填（**只做一次**，持久化标记）：从已存盘会话里找出"加载了某技能的
+    /// 回合里调用了哪些工具"。标记独立于触发样本的那次回填——那次早已跑过。
+    func backfillToolNamesIfNeeded(from conversations: [Conversation]) {
+        let marker = "desire.skills.toolNamesBackfilled"
+        guard !AppPrefs.defaults.bool(forKey: marker) else { return }
+        AppPrefs.defaults.set(true, forKey: marker)
+        for conversation in conversations {
+            var loaded: Set<String> = []
+            var used: Set<String> = []
+            var pending = false
+            func flush() {
+                guard pending else { return }
+                for name in loaded {
+                    var entry = usage[name] ?? SkillUsage(count: 0)
+                    var counts = entry.toolNames ?? [:]
+                    for tool in used.subtracting(["useSkill", "listSkills", "useTools"]) {
+                        counts[tool, default: 0] += 1
+                    }
+                    entry.toolNames = Self.cappedToolCounts(counts)
+                    usage[name] = entry
+                }
+                pending = false
+            }
+            for message in conversation.messages {
+                switch message.role {
+                case .user:
+                    flush()
+                    loaded = []
+                    used = []
+                case .assistant:
+                    for call in message.toolCalls ?? [] where call.function.name == "useSkill" {
+                        if let name = Self.skillName(in: call.function.arguments) {
+                            loaded.insert(name)
+                            pending = true
+                        }
+                    }
+                case .tool:
+                    if let tool = message.toolName { used.insert(tool) }
+                default:
+                    break
+                }
+            }
+            flush()
         }
         saveUsageMeta()
     }
@@ -187,7 +277,9 @@ final class SkillStore: ObservableObject {
     func scheduleTriggerBackfill(delay: TimeInterval = 8) {
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(delay))
-            self?.backfillTriggersIfNeeded(from: ConversationStore().conversations)
+            let conversations = ConversationStore().conversations
+            self?.backfillTriggersIfNeeded(from: conversations)
+            self?.backfillToolNamesIfNeeded(from: conversations)
         }
     }
 
@@ -254,7 +346,8 @@ final class SkillStore: ObservableObject {
             let skill = Skill(name: dir.lastPathComponent,
                               description: description,
                               url: skillFile,
-                              directory: dir)
+                              directory: dir,
+                              declaredTools: Self.parse(text, url: skillFile).declaredTools)
             loaded.removeAll { $0.name == skill.name }
             loaded.append(skill)
         }
@@ -471,6 +564,7 @@ final class SkillStore: ObservableObject {
         var name = url.deletingPathExtension().lastPathComponent
         var description = ""
         var vars: [SkillVars.Var] = []
+        var declaredTools: [String]?
 
         if text.hasPrefix("---"),
            let end = text.range(of: "\n---") {
@@ -483,10 +577,12 @@ final class SkillStore: ObservableObject {
                 }
             }
             vars = SkillVars.parse(frontmatter: String(frontmatter))
+            declaredTools = SkillVars.toolNames(frontmatter: String(frontmatter))
         } else {
             description = text.components(separatedBy: .newlines).first { !$0.isEmpty } ?? ""
         }
-        return Skill(name: name, description: description, url: url, vars: vars)
+        return Skill(name: name, description: description, url: url, vars: vars,
+                     declaredTools: declaredTools)
     }
 
     // MARK: - Seeded examples

@@ -719,6 +719,14 @@ struct AgentSettingsSection: View {
                     isOn: $store.skillAutoLoad
                 )
                 SettingsRowDivider()
+                SettingsRowDivider()
+                SettingsToggleRow(
+                    "Slim Tool Definitions to the Loaded Skill (Experimental)",
+                    subtitle: String(localized: "When a repeated request loads a skill up front, each model request carries only the tool definitions that skill needs instead of all ~295. Other tools can be loaded on demand with useTools, and calling a tool that is not loaded restores the full set for the rest of the turn."),
+                    systemImage: "square.stack.3d.up",
+                    isOn: $store.scopedTools
+                )
+                SettingsRowDivider()
                 SettingsToggleRow(
                     "Cost-Aware Routing",
                     subtitle: String(localized: "When routing is on, simple short text-only turns run on the free on-device or Ollama model instead of the cloud — complex and tool-using turns still go to the cloud."),

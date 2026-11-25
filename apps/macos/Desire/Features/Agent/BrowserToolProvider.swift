@@ -19,6 +19,9 @@ class BrowserToolProvider {
     /// **回合内工具调用计数**（v0.8.72 批 2）：技能自动候选的资格判定输入
     /// （步骤链 ≥6）。runTurn 开始清零，回合收尾读取。
     var toolCallsThisTurn = 0
+    /// 本回合实际调用过的工具名（v0.8.76 批 5）：回合收尾记到用过技能的历史上，
+    /// 是"按任务精简工具定义"的推断来源之一。AgentSessionStore 在回合开头清。
+    var toolNamesThisTurn: Set<String> = []
     /// **本回合 useSkill 成功加载过的技能名**（v0.8.72 批 2）：回合收尾按
     /// 回合结果回填 outcomes（recordOutcome）——B3 成功率评估的数据面。
     var skillsUsedThisTurn: Set<String> = []

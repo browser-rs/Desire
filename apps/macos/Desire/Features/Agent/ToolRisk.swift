@@ -108,6 +108,8 @@ nonisolated enum ToolRisk: Int, Comparable {
         "listWorkspaces",
         // Skills (read-only instruction loading)
         "useSkill", "listSkills",
+        // 按需加载工具定义（v0.8.76 批 5）：只改下一请求的工具集，不改任何外部状态
+        "useTools",
         // Scheduled task inspection (creation/cancel stays side-effect)
         "listScheduledTasks",
         // Workspace inspection (reads inside the sandboxed working directory)

@@ -57,22 +57,20 @@ nonisolated enum SkillVars {
     /// 解析 frontmatter 的 `triggers:` 行（v0.8.76 批 3，重复指令直通技能）：
     /// 逗号 / 顿号分隔的一行，或其后以 `- ` 开头的列表行。没有 → 空数组。
     nonisolated static func triggerPhrases(frontmatter: String) -> [String] {
-        var out: [String] = []
-        var inList = false
-        for rawLine in frontmatter.components(separatedBy: .newlines) {
-            let line = rawLine.trimmingCharacters(in: .whitespaces)
-            if line.hasPrefix("triggers:") {
-                inList = true
-                let rest = line.dropFirst("triggers:".count)
-                out += rest.split(whereSeparator: { ",，、".contains($0) })
-                    .map { $0.trimmingCharacters(in: .whitespaces) }
-            } else if inList, line.hasPrefix("- ") {
-                out.append(String(line.dropFirst(2)).trimmingCharacters(in: .whitespaces))
-            } else if !line.isEmpty {
-                inList = false
-            }
-        }
-        return out.filter { !$0.isEmpty }
+        ToolScopeCore.frontmatterList("triggers", frontmatter: frontmatter)
+    }
+
+    /// frontmatter 的 `tools:` 行（v0.8.76 批 5，按任务精简工具定义）：作者写明这个
+    /// 技能要用的工具；没有 → nil（走正文与历史的推断）。
+    nonisolated static func toolNames(frontmatter: String) -> [String]? {
+        let names = ToolScopeCore.frontmatterList("tools", frontmatter: frontmatter)
+        return names.isEmpty ? nil : names
+    }
+
+    /// 从 frontmatter 块里取 `tools:`。
+    nonisolated static func declaredTools(_ text: String) -> [String]? {
+        guard let block = frontmatterBlock(text) else { return nil }
+        return toolNames(frontmatter: block)
     }
 
     /// 从全文解析（frontmatterBlock + parse 组合）。

@@ -190,6 +190,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/TurnGuard.swift
   apps/macos/Desire/Features/Agent/SkillTrigger.swift
   apps/macos/Desire/Features/Agent/SkillCorrectionCore.swift
+  apps/macos/Desire/Features/Agent/ToolScopeCore.swift
   apps/macos/Desire/Features/Agent/SkillUsage.swift
   apps/macos/Desire/Features/Agent/FileEdit.swift
   apps/macos/Desire/Features/Agent/PDFPageSpec.swift

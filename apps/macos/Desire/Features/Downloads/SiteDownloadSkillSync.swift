@@ -74,10 +74,12 @@ enum SiteDownloadSkillSync {
         let withRules = adapters.filter { $0.download != nil }
         for adapter in withRules {
             let print = fingerprint(of: adapter.download)
-            guard prints[adapter.name] != print else { continue }
             let skillName = skillName(for: adapter)
             let path = SkillStore.directory.appendingPathComponent(
                 FilePathing.sanitizeFileName(skillName) + ".md")
+            // 规则内容的指纹变了，或者技能文件不在了（存储被清过 / 换了数据目录），才重写。
+            guard prints[adapter.name] != print
+                    || !FileManager.default.fileExists(atPath: path.path) else { continue }
             let text = """
             ---
             name: \(skillName)

@@ -895,9 +895,11 @@ final class BatchMediaExportStore: ObservableObject {
             // HLS 分片与预览/广告因此都成了下载任务（真实页面 24 页排出 33 个）。
             // 站点规则（v0.8.77 批 2）：该地址命中的适配器带着下载段时，排除特征一并生效；
             // 规则由解析器在页面里确定性执行，这里的通用识别只是兜底。
+            // 相对地址按页面地址补全（懒加载播放器常写 `video.src = '/hls/…'`；不补的话
+            // 下载时是不支持的地址，还会和同一个视频的绝对地址各算一条）。
             let siteHit = DPPAdapterStore.shared.downloadRules(for: sourceURL)
             var selection = BatchMediaPlan.contentCandidates(
-                resources, extraExclusions: siteHit?.rules.exclude ?? [])
+                resources, extraExclusions: siteHit?.rules.exclude ?? [], baseURL: sourceURL)
             // 规则的打磨记录：命中 → 记一次；提取不到 → 记失败，连续达到阈值即"待重学"。
             let numberPrefix = batches.first(where: { $0.id == batchID })?
                 .items.first(where: { $0.id == itemID })?.numberPrefix ?? ""
@@ -909,13 +911,16 @@ final class BatchMediaExportStore: ObservableObject {
                      + (stale ? "——规则待重学（页面结构可能变了）" : ""))
             } else if let rule = resolver.siteRule {
                 DPPAdapterStore.shared.refineDownloadRules(adapterName: rule.adapter, signal: .matched)
+                // 规则产出时**始终**留一行：批次日志要能看出这一页是按站点规则解的。
+                var line = "[\(numberPrefix)] 站点规则「\(rule.adapter)」提取到 \(rule.matched) 条"
                 if !rule.rejected.isEmpty {
                     var counts: [String: Int] = [:]
                     for entry in rule.rejected { counts[entry.reason, default: 0] += 1 }
                     let summary = counts.sorted { $0.key < $1.key }.map { "\($0.value) × \($0.key)" }
                         .joined(separator: "、")
-                    blog(batchID, "[\(numberPrefix)] 站点规则「\(rule.adapter)」提取到 \(rule.matched) 条；按规则排除：\(summary)")
+                    line += "；按规则排除：\(summary)"
                 }
+                blog(batchID, line)
             }
             if !selection.candidates.isEmpty {
                 let streams = selection.candidates.compactMap {
@@ -964,7 +969,11 @@ final class BatchMediaExportStore: ObservableObject {
                 batches[bi].items.insert(contentsOf: siblings, at: ii + 1)
             }
             var resolution = "[\(batches[bi].items[ii].numberPrefix)] 解析完成：\(1 + siblings.count) 条正片"
-            if let seconds = best.durationSeconds { resolution += "（主条目时长 \(Int(seconds) / 60) 分钟）" }
+            if let seconds = best.durationSeconds {
+                // 不足一分钟写秒（短片、测试片写成"0 分钟"没有信息量）。
+                let rounded = Int(seconds.rounded())
+                resolution += rounded < 60 ? "（主条目时长 \(rounded) 秒）" : "（主条目时长 \(rounded / 60) 分钟）"
+            }
             if !selection.rejected.isEmpty {
                 resolution += "；已排除 \(selection.rejected.count) 项（\(excludedNote)）"
             }

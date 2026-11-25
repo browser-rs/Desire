@@ -237,11 +237,13 @@ extension MediaExporter {
                 case .expired:
                     expired += 1
                     if expired >= expiredThreshold {
+                        // 只是不再补位——**不取消在途的请求**：它们抓完的分片续传时直接
+                        // 复用（取消掉就白抓了；过期的地址本来就是立刻返回 403，在途的
+                        // 不会拖很久）。
                         stopped = true
-                        group.cancelAll()
                     }
                 case .failed:
-                    // 过期停机之后的"失败"是取消造成的，不计。
+                    // 停机之后不再按失败降速（这一轮马上结束）。
                     if stopped || Task.isCancelled { break }
                     consecutiveFailures += 1
                     if consecutiveFailures >= 3, workers > minConnections {

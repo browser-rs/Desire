@@ -328,7 +328,7 @@ final class HeadlessMediaResolver: NSObject {
             // ⑤ **收集全部播放器**（v0.8.77 批 1）：首个正片候选出现后不立刻收工——
             //    进入稳定窗，期间分步滚动、逐个起播，等候选数不再变化再返回。
             //    候选里已经归并了分片、剔除了广告/预览，所以"数不变"指的是正片数。
-            let count = BatchMediaPlan.contentCandidates(captured).candidates.count
+            let count = BatchMediaPlan.contentCandidates(captured, baseURL: webView.url).candidates.count
             if count > 0 {
                 if !settleStarted {
                     settleStarted = true
@@ -357,7 +357,7 @@ final class HeadlessMediaResolver: NSObject {
         }
         if challengeActive { return .needsHuman }
         // 预算用尽：手上有正片候选就交出去（慢页面的稳定窗没走完），没有才算失败。
-        if BatchMediaPlan.contentCandidates(captured).candidates.isEmpty {
+        if BatchMediaPlan.contentCandidates(captured, baseURL: webView.url).candidates.isEmpty {
             return .failed("no downloadable media detected within \(Int(budget))s")
         }
         return .media(captured, pageTitle: webView.title ?? "")

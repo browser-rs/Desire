@@ -190,19 +190,55 @@ extension BatchMediaPlan {
 
     // MARK: - 候选表
 
+    /// 把采集到的地址补成绝对的：`//host/…` 补协议；没有协议的（`/path`、`path/x`）
+    /// 按页面地址解析。补不了（没有页面地址、或解析不出带协议的地址）= 原样返回。
+    static func absoluteURL(_ urlString: String, baseURL: URL?) -> String {
+        let normalized = normalizedURL(urlString)
+        if let url = URL(string: normalized), url.scheme != nil { return normalized }
+        guard let baseURL,
+              let resolved = URL(string: normalized, relativeTo: baseURL),
+              let absolute = URL(string: resolved.absoluteString), absolute.scheme != nil else {
+            return urlString
+        }
+        return absolute.absoluteString
+    }
+
     /// 一个页面采集到的资源 → 正片候选 + 被拒清单。`extraExclusions` = 站点规则里的
-    /// 排除特征（正则；v0.8.77 批 2 由适配器传入）。时长证据这一步还没有——流需要
-    /// 再取一次播放列表，见 `applyingDuration`。
+    /// 排除特征（正则；v0.8.77 批 2 由适配器传入）。`baseURL` = 页面地址：采集到的
+    /// 相对地址按它补全（懒加载播放器常写 `video.src = '/hls/…'`——不补的话下载时是
+    /// 不支持的地址，还会和同一个视频的绝对地址各算一条）。时长证据这一步还没有——
+    /// 流需要再取一次播放列表，见 `applyingDuration`。
     static func contentCandidates(_ resources: [MediaResource],
-                                  extraExclusions: [String] = []) -> ContentSelection {
+                                  extraExclusions: [String] = [],
+                                  baseURL: URL? = nil) -> ContentSelection {
         var selection = ContentSelection()
         func reject(_ resource: MediaResource, _ reason: String) {
             selection.rejected.append(Rejected(url: resource.url, reason: reason))
         }
 
+        // ⓪ 地址规范化 + 去重：同一个媒体的几种写法并成一条（保留已知的较大体积）。
+        var unique: [MediaResource] = []
+        var firstIndex: [String: Int] = [:]
+        for resource in resources {
+            let url = absoluteURL(resource.url, baseURL: baseURL)
+            if let at = firstIndex[url] {
+                let keptSoFar = unique[at]
+                if resource.sizeBytes > keptSoFar.sizeBytes {
+                    unique[at] = MediaResource(url: url, kind: keptSoFar.kind, mime: keptSoFar.mime,
+                                               sizeBytes: resource.sizeBytes, source: keptSoFar.source,
+                                               detectedAt: keptSoFar.detectedAt)
+                }
+                continue
+            }
+            firstIndex[url] = unique.count
+            unique.append(url == resource.url ? resource : MediaResource(
+                url: url, kind: resource.kind, mime: resource.mime, sizeBytes: resource.sizeBytes,
+                source: resource.source, detectedAt: resource.detectedAt))
+        }
+
         // ① 基本过滤（与 pickBestResource 同口径）+ 站点排除规则。
         var kept: [MediaResource] = []
-        for resource in resources {
+        for resource in unique {
             if resource.isBlob {
                 reject(resource, "blob: URL only works inside the page")
             } else if isDASH(urlString: resource.url, mime: resource.mime) {
@@ -264,7 +300,9 @@ extension BatchMediaPlan {
         let urlString = normalizedURL(resource.url)
         switch resource.kind {
         case .stream:
-            out.append(looksLikeMaster(urlString) ? "HLS master playlist" : "HLS playlist")
+            // 地址里没有画质记号 ≠ 一定是 master；取到播放列表正文（有时长）才谈得上确认，
+            // 那时 `applyingDuration` 会把这句换成确定的说法。
+            out.append(looksLikeMaster(urlString) ? "HLS playlist (may be a master)" : "HLS playlist")
         case .video:
             out.append("video file (\(pathExtension(of: urlString)))")
         case .audio:
@@ -284,6 +322,10 @@ extension BatchMediaPlan {
         for index in out.candidates.indices {
             guard let seconds = durations[out.candidates[index].resource.url] else { continue }
             out.candidates[index].durationSeconds = seconds
+            // 有 #EXTINF 之和 = 一定不是 master（master 没有分片时长）。
+            out.candidates[index].evidence = out.candidates[index].evidence.map {
+                $0 == "HLS playlist (may be a master)" ? "HLS playlist" : $0
+            }
             out.candidates[index].evidence.append("duration \(Int(seconds.rounded()))s")
         }
         let short = out.candidates.enumerated()

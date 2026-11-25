@@ -36,8 +36,24 @@
             if (window.__desireNetLog.length > 200) window.__desireNetLog.shift();
         } catch (e) {}
     }
+    // 上报前补成绝对地址（v0.8.77 实测）：懒加载播放器常写相对地址
+    // （`video.src = '/hls/x/index.m3u8'`、`fetch('api/…')`）——相对地址到了宿主
+    // 那边下载不了，还会和 DOM 扫描到的同一个视频的绝对地址各算一条（一个三部
+    // 合集被排成六个任务）。按文档基准地址解析（尊重 <base href>）。
+    function absolutize(url) {
+        if (url.indexOf("//") === 0) return (location.protocol || "https:") + url;
+        if (/^[a-z][a-z0-9+.\-]*:/i.test(url)) return url;
+        try {
+            var anchor = document.createElement("a");
+            anchor.href = url;
+            return anchor.href || url;
+        } catch (e) {
+            return url;
+        }
+    }
     function report(url, mime, size, source) {
         if (!url || typeof url !== "string") return;
+        url = absolutize(url);
         if (url.indexOf("data:") === 0 || url.indexOf("blob:") === 0) return;
         var k = classify(url, mime);
         if (!k) return;

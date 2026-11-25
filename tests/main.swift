@@ -12913,7 +12913,8 @@ do {
           && a.rejected.contains { $0.reason.hasPrefix("ad path segment") }
           && a.rejected.contains { $0.reason.hasPrefix("ad host label") }
           && a.rejected.contains { $0.reason.hasPrefix("blob") })
-    check("A：候选带证据", a.candidates.first?.evidence.contains("HLS master playlist") == true)
+    check("A：候选带证据（没有画质记号只说「可能是 master」，不当事实）",
+          a.candidates.first?.evidence.contains("HLS playlist (may be a master)") == true)
 
     // 场景 B：多视频详情页（三部，各带分片/画质对），外加一个预览
     let b = BatchMediaPlan.contentCandidates([
@@ -12959,7 +12960,8 @@ do {
     check("时长：EXTINF 求和（容忍属性尾巴）", abs((BatchMediaPlan.playlistDuration(playlist) ?? -1) - 14.078233) < 0.0001)
     check("时长：不是播放列表 → nil", BatchMediaPlan.playlistDuration("<html></html>") == nil && BatchMediaPlan.playlistDuration("#EXTM3U") == nil)
 
-    var main = BatchMediaPlan.ContentCandidate(resource: media(master, .stream), durationSeconds: nil, evidence: [])
+    var main = BatchMediaPlan.ContentCandidate(resource: media(master, .stream), durationSeconds: nil,
+                                               evidence: BatchMediaPlan.evidence(for: media(master, .stream)))
     main.durationSeconds = 7260
     let clip = BatchMediaPlan.ContentCandidate(resource: media("https://x/ad-clip-other.mp4", size: 9_000), durationSeconds: 18, evidence: [])
     let shortPage = BatchMediaPlan.ContentSelection(candidates: [main, clip])
@@ -12973,10 +12975,40 @@ do {
     check("时长：取不到时长的候选不据此剔除",
           BatchMediaPlan.applyingDuration(BatchMediaPlan.ContentSelection(candidates: [main, unknown]), durations: [master: 7260.0]).candidates.count == 2)
     check("时长：证据里写入时长", after.candidates.first?.evidence.contains("duration 7260s") == true)
+    check("时长：取到播放列表正文后证据改成确定的媒体播放列表",
+          after.candidates.first?.evidence.contains("HLS playlist") == true
+          && !(after.candidates.first?.evidence.contains { $0.contains("may be a master") } ?? false))
 
     // 被拒摘要
     let summary = BatchMediaPlan.rejectionSummary(a.rejected)
     check("摘要：按理由聚合计数", summary.contains("8 × HLS segment of 62780") && summary.contains("more kinds"))
+
+    // 相对地址与去重（v0.8.77 前台实测：懒加载播放器写相对 src，同一部视频出现相对、绝对两份）
+    let pageURL = URL(string: "http://site.example/videos/bbb-002/")!
+    eq("地址：//host 补协议", BatchMediaPlan.absoluteURL("//cdn.example/a/index.m3u8", baseURL: pageURL),
+       "https://cdn.example/a/index.m3u8")
+    eq("地址：根相对按页面地址补全", BatchMediaPlan.absoluteURL("/hls/bbb-ep1/index.m3u8", baseURL: pageURL),
+       "http://site.example/hls/bbb-ep1/index.m3u8")
+    eq("地址：目录相对按页面目录补全", BatchMediaPlan.absoluteURL("clips/a.mp4", baseURL: pageURL),
+       "http://site.example/videos/bbb-002/clips/a.mp4")
+    eq("地址：已经是绝对的 → 原样", BatchMediaPlan.absoluteURL("https://x/y/index.m3u8?tok=1#f", baseURL: pageURL),
+       "https://x/y/index.m3u8?tok=1#f")
+    eq("地址：blob: 原样", BatchMediaPlan.absoluteURL("blob:http://site.example/1234", baseURL: pageURL),
+       "blob:http://site.example/1234")
+    eq("地址：没有页面地址 → 原样", BatchMediaPlan.absoluteURL("/hls/a/index.m3u8", baseURL: nil), "/hls/a/index.m3u8")
+    let dupes = BatchMediaPlan.contentCandidates([
+        media("/hls/bbb-ep1/index.m3u8", .stream, source: "src-attr"),
+        media("http://site.example/hls/bbb-ep1/index.m3u8", .stream, size: 4096, source: "dom<video>"),
+        media("http://site.example/hls/bbb-ep2/index.m3u8", .stream),
+    ], baseURL: pageURL)
+    eq("去重：相对与绝对是同一个视频 → 一条，地址补成绝对的", dupes.candidates.map(\.resource.url),
+       ["http://site.example/hls/bbb-ep1/index.m3u8", "http://site.example/hls/bbb-ep2/index.m3u8"])
+    eq("去重：保留较大的已知体积", dupes.candidates.first?.resource.sizeBytes, 4096)
+    check("去重：同一媒体的重复不是杂项，不进被拒清单", dupes.rejected.isEmpty)
+    let noBase = BatchMediaPlan.contentCandidates([media("https://x/b.m3u8", .stream), media("https://x/b.m3u8", .stream, size: 900)])
+    eq("去重：没有页面地址时完全相同的地址也并成一条", noBase.candidates.map(\.resource.url), ["https://x/b.m3u8"])
+    eq("去重：没有页面地址时相对地址原样保留", BatchMediaPlan.contentCandidates([media("/hls/a/index.m3u8", .stream)]).candidates.map(\.resource.url),
+       ["/hls/a/index.m3u8"])
 }
 
 // ---------- 站点下载规则 DPPAdapter.DownloadRules（v0.8.77 批 2） ----------
@@ -13095,6 +13127,23 @@ do {
     check("绑定：别的站点的适配器不匹配本站地址", !other.matches(url: URL(string: "https://a.example/videos/1/")!))
     check("绑定：本站适配器按路径前缀匹配", adapter.matches(url: URL(string: "https://a.example/videos/1/")!)
           && !adapter.matches(url: URL(string: "https://a.example/other/1/")!))
+    // 前缀的尾斜杠（v0.8.77 实测）：系统 `URL.path` 不带路径末尾的 `/`，
+    // "路径恰好等于前缀"的地址此前永远匹配不上。
+    eq("绑定：URL.path 不带末尾斜杠", URL(string: "https://a.example/videos/")!.path, "/videos")
+    check("绑定：路径恰好等于带尾斜杠的前缀 → 匹配", adapter.matches(url: URL(string: "https://a.example/videos/")!))
+    let bare = DPPAdapter(name: "site-c", hosts: ["a.example"], pathPrefixes: ["/videos"])
+    check("绑定：前缀不带尾斜杠、地址带 → 匹配", bare.matches(url: URL(string: "https://a.example/videos/")!)
+          && bare.matches(url: URL(string: "https://a.example/videos/1/")!))
+    check("绑定：目录形式的前缀只在段边界生效（不放宽）",
+          !DPPAdapter.path("/videos-other/1", hasPrefix: "/videos/")
+          && DPPAdapter.path("/videos-other/1", hasPrefix: "/videos")
+          && DPPAdapter.path("/videos/1", hasPrefix: "/videos/")
+          && DPPAdapter.path("/videos/", hasPrefix: "/videos/")
+          && DPPAdapter.path("/videos", hasPrefix: "/videos/"))
+    check("绑定：根路径前缀匹配全站", DPPAdapter.path("/", hasPrefix: "/")
+          && DPPAdapter.path("/anything/x", hasPrefix: "/") && !DPPAdapter.path("/", hasPrefix: "/videos/"))
+    eq("绑定：根路径保留", DPPAdapter.droppingTrailingSlash("/"), "/")
+    eq("绑定：空路径不动", DPPAdapter.droppingTrailingSlash(""), "")
 }
 
 // ---------- HLS 媒体播放列表 HLSMediaPlaylist（v0.8.77 批 3） ----------

@@ -193,7 +193,7 @@ extension BrowserToolProvider {
                               kind: MediaResource.Kind(rawValue: candidate.kind) ?? .video,
                               mime: candidate.mime, sizeBytes: 0,
                               source: candidate.source, detectedAt: Date())
-            })
+            }, baseURL: webView.url)
             var selection = base
             let streams = base.candidates.compactMap {
                 $0.resource.kind == .stream ? URL(string: $0.resource.url) : nil
@@ -329,7 +329,8 @@ extension BrowserToolProvider {
                 case .media(let resources, let pageTitle):
                     var selection = BatchMediaPlan.contentCandidates(
                         resources,
-                        extraExclusions: DPPAdapterStore.shared.downloadRules(for: url)?.rules.exclude ?? [])
+                        extraExclusions: DPPAdapterStore.shared.downloadRules(for: url)?.rules.exclude ?? [],
+                        baseURL: url)
                     let streams = selection.candidates.compactMap {
                         $0.resource.kind == .stream ? URL(string: $0.resource.url) : nil
                     }
@@ -352,7 +353,7 @@ extension BrowserToolProvider {
                     lines.append("\(raw): not resolved — \(reason)")
                 }
             }
-            return "Signed addresses above expire quickly — start the download right away, or pass the detail pages to downloadVideoList and let it resolve them when each slot opens.\n"
+            return "Signed media addresses expire quickly — start the download right away, or pass the detail pages to downloadVideoList and let it resolve them when each slot opens.\n"
                 + lines.joined(separator: "\n")
 
         case "downloadVideoList":

@@ -116,10 +116,32 @@ nonisolated struct DPPAdapter: Codable, Equatable, Identifiable {
         return false
     }
 
-    /// 路径过滤：pathPrefixes 为空 = 全站；否则路径须以任一前缀开头。
+    /// 路径过滤：pathPrefixes 为空 = 全站；否则路径须落在任一前缀之下（见 `path(_:hasPrefix:)`）。
     func matchesPath(_ path: String) -> Bool {
         guard !pathPrefixes.isEmpty else { return true }
-        return pathPrefixes.contains { path.hasPrefix($0) }
+        return pathPrefixes.contains { Self.path(path, hasPrefix: $0) }
+    }
+
+    /// `path` 是否落在前缀 `prefix` 之下。
+    ///
+    /// 系统的 `URL.path` **不带**路径末尾的斜杠（`…/video/` → `…/video`），而适配包
+    /// 里按目录写的前缀是 `/video/`——"路径恰好等于前缀"的地址（栏目首页 `/video/`）
+    /// 用 `hasPrefix` 永远匹配不上（v0.8.77 实测：带下载规则的适配器对声明过的详情页
+    /// 不生效，根因在此）。所以相等单独判；其余仍是前缀匹配，且**写成目录形式（带尾
+    /// 斜杠）的前缀只在段边界上生效**：`/video/` 不匹配 `/video-other/`（与修正前一致）。
+    static func path(_ path: String, hasPrefix prefix: String) -> Bool {
+        if prefix == "/" { return true }
+        let bare = droppingTrailingSlash(prefix)
+        let target = droppingTrailingSlash(path)
+        guard target.hasPrefix(bare) else { return false }
+        if target == bare || !prefix.hasSuffix("/") { return true }
+        let after = target.index(target.startIndex, offsetBy: bare.count)
+        return after < target.endIndex && target[after] == "/"
+    }
+
+    /// 去掉末尾的 `/`（根路径 `/` 保留）。
+    static func droppingTrailingSlash(_ path: String) -> String {
+        path.count > 1 && path.hasSuffix("/") ? String(path.dropLast()) : path
     }
 
     func matches(url: URL) -> Bool {

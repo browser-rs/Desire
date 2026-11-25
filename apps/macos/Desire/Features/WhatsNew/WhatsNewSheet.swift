@@ -17,16 +17,16 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "bolt.badge.clock", title: String(localized: "The same request, remembered"),
-                  detail: String(localized: "Say the same thing again and the skill you used last time loads up front: no re-exploring the workflow, no re-learning it on every run. Matching is deliberately strict — it needs two earlier runs of the same request and one unambiguous skill.")),
-            .init(icon: "arrow.triangle.2.circlepath", title: String(localized: "Corrections fix the skill itself"),
-                  detail: String(localized: "When you correct the agent after it followed a skill, it drafts a targeted patch — which passage, what to change, and why — and shows it right in the chat. One tap applies it, the previous version is backed up, and nothing is rewritten without your confirmation.")),
-            .init(icon: "hourglass", title: String(localized: "Waiting no longer burns requests"),
-                  detail: String(localized: "Long downloads, exports and conversions now end the turn with a single subscription: you are notified when they finish, and a failed one comes back to the agent automatically. The turn spinner also notices when it has been looking at the same thing too long and says so.")),
-            .init(icon: "square.stack.3d.up", title: String(localized: "Tool definitions scaled to the task (experimental)"),
-                  detail: String(localized: "When a repeated request loads a skill, each model request can carry only the tool definitions that skill needs — measured on our fixture at 87% fewer characters — with a way to pull in anything else on demand and an automatic fallback to the full set. Off by default until real-gateway numbers are in.")),
-            .init(icon: "stethoscope", title: String(localized: "Diagnostics that tell the truth"),
-                  detail: String(localized: "Main-thread stall reports no longer fire when the machine was simply asleep (32 of 33 installed-build records were sleep wake-ups), old sampling files are pruned, and diagnostics now separate app builds from development runs — plus test launches are sealed off from your preferences, keychain and browsing data.")),
+            .init(icon: "film", title: String(localized: "Only the real videos get downloaded"),
+                  detail: String(localized: "Batch download now works out which media on a page is actual content. HLS segments fold into the playlist they belong to; ads, previews and thumbnails are set aside, with a reason for each. A page with one video gives one task and a page with three gives three — no fragments, no duplicates.")),
+            .init(icon: "rectangle.on.rectangle", title: String(localized: "Every video on the page, even the lazy ones"),
+                  detail: String(localized: "The page resolver no longer stops at the first player it sees. It scrolls, starts each player and waits for the list to settle, so videos that only load as they come into view are collected too. The tool that lists a page's videos shows the content and the excluded items side by side.")),
+            .init(icon: "globe", title: String(localized: "Site rules that stay on their own site and keep improving"),
+                  detail: String(localized: "How to find the videos on a detail page, how many there are and how fast to pull them is stored in that site's own DPP adapter and applies nowhere else. Every task sharpens it: an address that expires mid-download shortens the validity window, rate limiting lowers the connection count, and a rule that stops matching is flagged for relearning. Each change is recorded and the previous version is kept.")),
+            .init(icon: "speedometer", title: String(localized: "Long videos download in parallel and recover from an expired address"),
+                  detail: String(localized: "HLS segments are fetched concurrently instead of one after another — more than five times faster on a rate-limited source. A signed address that expires part-way is noticed at once: the page is resolved again and the download resumes from the segments already fetched.")),
+            .init(icon: "square.and.arrow.down", title: String(localized: "The agent hands downloads to the browser"),
+                  detail: String(localized: "Ask for a batch and the agent passes the detail pages to the browser, which resolves each one the moment its download slot opens — signed addresses never sit around going stale, and pages that need your login state work as they do in the window. It can also list what a set of pages would download before anything starts.")),
         ]
     }
 

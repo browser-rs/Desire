@@ -11,13 +11,15 @@
 - /videos/ccc-003/   单视频 + 预览噪声；
 - /models/actor/     列表页：指向上面三个详情页。
 
-HLS 素材在启动时用 ffmpeg 现生成（12 秒测试图案、2 秒分片），每个流一份独立目录
-——分片必须落在各自播放列表目录之下，才能验证"分片归并进所属播放列表"。
+HLS 素材在启动时用 ffmpeg 现生成（测试图案、2 秒分片；单视频页 12 秒、多视频页每部 100 秒），
+每个流一份独立目录——分片必须落在各自播放列表目录之下，才能验证"分片归并进所属播放列表"。
 """
+import atexit
 import json
 import os
 import re
 import shutil
+import signal
 import subprocess
 import sys
 import tempfile
@@ -27,7 +29,14 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8895
 ROOT = tempfile.mkdtemp(prefix="desire-batch-site-")
-STREAMS = {"aaa": 6, "bbb-ep1": 6, "bbb-ep2": 6, "ccc": 6}   # id → 分片数（每片 2 秒）
+# 进程退出（含 terminate() 发来的 SIGTERM）时清掉现生成的素材，不在临时目录里越积越多。
+atexit.register(shutil.rmtree, ROOT, ignore_errors=True)
+signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))
+# 每个流的时长（秒）→ 分片数（每片 2 秒）。多视频页的几部要长得像正片（≥ 90 秒）：
+# 批量引擎会把"短于 90 秒、而页面上还有别的候选"的流判为广告/预览——12 秒的测试流
+# 放在多视频页上会被这条规则剔掉（实测）。
+DURATIONS = {"aaa": 12, "bbb-ep1": 100, "bbb-ep2": 100, "ccc": 12}
+STREAMS = {name: seconds // 2 for name, seconds in DURATIONS.items()}
 
 # 限速与过期两种故障形态（v0.8.77 批 3 的速度/续传验证）：
 # - `/slow/…`：同一个文件，但每个分片响应先睡 SLOW_DELAY 秒——模拟"单连接被限速"的 CDN；
@@ -35,10 +44,11 @@ STREAMS = {"aaa": 6, "bbb-ep1": 6, "bbb-ep2": 6, "ccc": 6}   # id → 分片数�
 # - `/expire/…`：序号 ≥ EXPIRE_AFTER 的分片返回 403——模拟签名地址在下载中途过期。
 SLOW_DELAY = 0.5
 EXPIRE_AFTER = 3
-# `/expire/` 的语义：播放列表**第一次**被请求时，后面的分片签名已过期（403）；
-# 第二次请求播放列表 = "页面被重新解析、拿到新签名"，之后全部正常。用来验证
-# "下载中途过期 → 批量引擎重新解析 → 从已抓到的分片续传"。
-STATE = {"expirePlaylistFetches": 0, "hits": {}}
+# `/expire/` 的语义（确定性，不数播放列表被请求过几次——解析阶段的时长探测也会取
+# 一次播放列表）：尾部分片（序号 ≥ EXPIRE_AFTER）一律 403，**直到出现过 403 之后**
+# 播放列表又被请求过一次 = "页面被重新解析、拿到新签名"，此后全部正常。用来验证
+# "下载中途过期 → 批量引擎重新解析 → 从已抓到的分片续传"。`GET /_reset` 复位。
+STATE = {"expireSaw403": False, "expireRefreshed": False, "expireRefreshes": 0, "hits": {}}
 
 TYPES = {".m3u8": "application/vnd.apple.mpegurl", ".ts": "video/mp2t", ".mp4": "video/mp4",
          ".html": "text/html; charset=utf-8", ".js": "text/javascript"}
@@ -57,20 +67,22 @@ def build_media():
         os.makedirs(os.path.join(ROOT, "clips"))
         open(os.path.join(ROOT, "clips", "ccc.mp4"), "wb").write(b"\0" * 4096)
         return
-    first = True
+    # 每种时长只生成一份母带，各流目录整份拷过去（分片必须落在各自播放列表目录之下）。
+    masters = {}
     for stream in STREAMS:
         d = os.path.join(ROOT, "hls", stream)
         os.makedirs(d)
-        if first:
-            subprocess.run([ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc=duration=12:size=320x240:rate=15",
-                            "-f", "lavfi", "-i", "sine=frequency=440:duration=12", "-c:v", "libx264", "-preset", "ultrafast",
+        seconds = DURATIONS[stream]
+        if seconds not in masters:
+            masters[seconds] = os.path.join(ROOT, "masters", str(seconds))
+            os.makedirs(masters[seconds])
+            subprocess.run([ffmpeg, "-v", "error", "-y", "-f", "lavfi", "-i", f"testsrc=duration={seconds}:size=320x240:rate=15",
+                            "-f", "lavfi", "-i", f"sine=frequency=440:duration={seconds}", "-c:v", "libx264", "-preset", "ultrafast",
                             "-g", "30", "-c:a", "aac", "-f", "hls", "-hls_time", "2", "-hls_playlist_type", "vod",
-                            "-hls_segment_filename", os.path.join(d, "seg-%03d.ts"),
-                            os.path.join(d, "index.m3u8")], check=True)
-            first = False
-        else:
-            for name in os.listdir(os.path.join(ROOT, "hls", "aaa")):
-                shutil.copy(os.path.join(ROOT, "hls", "aaa", name), os.path.join(d, name))
+                            "-hls_segment_filename", os.path.join(masters[seconds], "seg-%03d.ts"),
+                            os.path.join(masters[seconds], "index.m3u8")], check=True)
+        for name in os.listdir(masters[seconds]):
+            shutil.copy(os.path.join(masters[seconds], name), os.path.join(d, name))
     os.makedirs(os.path.join(ROOT, "clips"))
     for name in ("ccc", "ccc-720p", "ccc-1080p", "zzz_preview"):
         src = os.path.join(ROOT, "hls", "ccc", "index.m3u8")
@@ -131,7 +143,8 @@ document.querySelectorAll('.ep').forEach(s => io.observe(s));
 fetch('/clips/zzz_preview.mp4');   // 悬停预览噪声
 </script></body></html>"""
 
-NOISY_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>CCC-003 测试正片 第三部</title></head>
+NOISY_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>CCC-003 测试正片 第三部</title>
+<script>var hlsUrl = '/hls/ccc/index.m3u8';</script></head>
 <body><h1>CCC-003 测试正片</h1>
 <video src="/hls/ccc/index.m3u8" controls muted width="640"></video>
 <video src="/clips/zzz_preview.mp4" muted loop autoplay playsinline width="120"></video>
@@ -146,10 +159,11 @@ RULE_MISS_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>DDD-
 </body></html>"""
 
 # 流地址会"中途过期"的页面：规则能从内联变量取到地址，但分片先 403、重新解析后才正常。
+# 播放器 preload="none"：页面自己不去取分片，"过期"只发生在批量引擎的下载里。
 EXPIRING_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>EEE-005 测试正片 第五部</title>
 <script>var hlsUrl = '/expire/hls/aaa/index.m3u8';</script></head>
 <body><h1>EEE-005 测试正片</h1>
-<video src="/expire/hls/aaa/index.m3u8" controls muted width="640"></video>
+<video src="/expire/hls/aaa/index.m3u8" preload="none" controls muted width="640"></video>
 </body></html>"""
 
 LIST_PAGE = """<!doctype html><html><head><meta charset="utf-8"><title>测试合集列表</title></head>
@@ -192,6 +206,19 @@ class Handler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if path == "/_reset":
+            # 复位过期状态与请求计数（同一夹具进程上重复跑时用）
+            with threading.Lock():
+                STATE.update({"expireSaw403": False, "expireRefreshed": False,
+                              "expireRefreshes": 0, "hits": {}})
+            body = b'{"ok": true}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
+            return
         with threading.Lock():
             STATE["hits"][path] = STATE["hits"].get(path, 0) + 1
         if path.startswith("/slow/"):
@@ -199,12 +226,17 @@ class Handler(SimpleHTTPRequestHandler):
                 time.sleep(SLOW_DELAY)
             self.path = self.path[len("/slow"):]
         elif path.startswith("/expire/"):
-            if path.endswith(".m3u8"):
-                with threading.Lock():
-                    STATE["expirePlaylistFetches"] += 1
             match = re.search(r"seg-(\d+)\.ts$", path)
-            expired = STATE["expirePlaylistFetches"] <= 1
-            if match and int(match.group(1)) >= EXPIRE_AFTER and expired:
+            with threading.Lock():
+                if path.endswith(".m3u8") and STATE["expireSaw403"] and not STATE["expireRefreshed"]:
+                    # 出现过 403 之后播放列表又被请求 = 重新解析拿到了新签名
+                    STATE["expireRefreshed"] = True
+                    STATE["expireRefreshes"] += 1
+                expired = (match is not None and int(match.group(1)) >= EXPIRE_AFTER
+                           and not STATE["expireRefreshed"])
+                if expired:
+                    STATE["expireSaw403"] = True
+            if expired:
                 self.send_response(403)
                 self.send_header("Content-Length", "0")
                 self.end_headers()

@@ -113,19 +113,29 @@ def main():
               "把测试实例切到前台再跑（本脚本不会自己抢焦点）。")
         return 3
     data_dir = startup["dataDir"]
+    site_base = f"http://127.0.0.1:{SITE_PORT}"
 
-    site = subprocess.Popen([sys.executable, os.path.join(HERE, "fixtures", "batch-site-server.py"), str(SITE_PORT)],
-                            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    # 端口上已经有本夹具在跑（手工起的、留着调试用）就复用；否则自己起一个、跑完收掉。
+    site = None
+    try:
+        br(site_base, "GET", "/stats", timeout=2)
+    except Exception:
+        site = subprocess.Popen([sys.executable, os.path.join(HERE, "fixtures", "batch-site-server.py"), str(SITE_PORT)],
+                                stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
     model = ThreadingHTTPServer(("127.0.0.1", MODEL_PORT), Model)
     import threading
     threading.Thread(target=model.serve_forever, daemon=True).start()
-    site_base = f"http://127.0.0.1:{SITE_PORT}"
     profile_id = None
     conversation_ids = set()
     batch_id = None
+    adapter_installed = False
     try:
-        info = json.loads(site.stdout.readline())
-        print(f"测试站点就绪：{site_base}（素材 {info['root']}）")
+        if site is not None:
+            info = json.loads(site.stdout.readline())
+            print(f"测试站点就绪：{site_base}（素材 {info['root']}）")
+        else:
+            print(f"测试站点复用：{site_base}")
+        br(site_base, "GET", "/_reset", timeout=10)   # 过期状态与请求计数从头算
 
         created = br(base, "POST", "/ai/profiles", {
             "name": "b77-fixture", "endpoint": f"http://127.0.0.1:{MODEL_PORT}/v1/chat/completions",
@@ -192,8 +202,11 @@ def main():
         with open(adapter_path, "w", encoding="utf-8") as handle:
             json.dump(adapter, handle, ensure_ascii=False, indent=2)
         imported = br(base, "POST", "/dpp/adapters/import", {"path": adapter_path})
-        ok("适配器导入并启用", imported.get("enabled", imported.get("ok")) is True or "name" in imported,
-           json.dumps(imported, ensure_ascii=False)[:200])
+        adapter_installed = True
+        entry = next((a for a in br(base, "GET", "/dpp/adapters").get("adapters", [])
+                      if a.get("name") == "fixture-site"), None)
+        ok("适配器导入并启用", bool(entry) and entry.get("enabled") is True,
+           json.dumps(imported, ensure_ascii=False)[:120] + " | " + json.dumps(entry, ensure_ascii=False)[:200])
 
         # ---- 批量：五个详情页 ----
         #   aaa：规则命中（1 条）· bbb：无规则 → 通用识别（3 条）· ccc：规则命中
@@ -208,12 +221,11 @@ def main():
         batch_id = started.get("batchId")
         deadline = time.time() + 240
         snapshot = None
-        terminal = {"finished", "failed", "skipped"}
+        # 等批次整体结束：单条的 failed 不算完——地址中途过期的那条会在十几秒后重新解析续传。
         while batch_id and time.time() < deadline:
             batches = br(base, "GET", f"/media/batch?id={batch_id}").get("batches", [])
             snapshot = batches[0] if batches else None
-            items = (snapshot or {}).get("items", [])
-            if len(items) >= 7 and all(i.get("state") in terminal for i in items):
+            if snapshot and snapshot.get("state") in ("finished", "cancelled"):
                 break
             time.sleep(1)
         items = (snapshot or {}).get("items", [])
@@ -260,7 +272,11 @@ def main():
             {k: v for k, v in hits.items() if "/expire/" in k}, ensure_ascii=False))
         ok("续传：过期时 403 的分片在重新解析后补抓（403 一次 + 成功一次）",
            hits.get("/expire/hls/aaa/seg-005.ts") == 2, json.dumps({k: v for k, v in hits.items() if "/expire/" in k}))
-        ok("续传：播放列表被重新解析过（两次请求）", stats.get("expirePlaylistFetches") == 2, str(stats.get("expirePlaylistFetches")))
+        ok("续传：播放列表在过期之后被重新取过（拿到新签名）", stats.get("expireRefreshes") == 1
+           and hits.get("/expire/hls/aaa/index.m3u8", 0) >= 2, json.dumps({k: v for k, v in stats.items() if k != "hits"}))
+        ok("续传：尾部三个分片各 403 一次、补抓一次",
+           all(hits.get(f"/expire/hls/aaa/seg-00{n}.ts") == 2 for n in (3, 4, 5)),
+           json.dumps({k: v for k, v in hits.items() if "/expire/" in k}))
 
         # ---- 说明性技能随适配器同步；适配器删除后撤掉 ----
         skill = os.path.join(data_dir, "skills", "127-0-0-1-download.md")
@@ -288,8 +304,14 @@ def main():
             except Exception:
                 pass
         model.shutdown()
-        site.terminate()
-        site.wait(timeout=10)
+        if adapter_installed:
+            try:
+                br(base, "POST", "/dpp/adapters/remove", {"name": "fixture-site"})
+            except Exception:
+                pass
+        if site is not None:
+            site.terminate()
+            site.wait(timeout=10)
 
     passed = sum(1 for _, c in checks if c)
     print(f"\n正片识别端到端：{passed}/{len(checks)} 通过")

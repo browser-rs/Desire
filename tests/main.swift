@@ -12976,6 +12976,124 @@ do {
     check("摘要：按理由聚合计数", summary.contains("8 × HLS segment of 62780") && summary.contains("more kinds"))
 }
 
+// ---------- 站点下载规则 DPPAdapter.DownloadRules（v0.8.77 批 2） ----------
+
+do {
+    typealias Rules = DPPAdapter.DownloadRules
+    let now = Date(timeIntervalSince1970: 1_764_000_000)
+
+    // detail 规则的两种写法
+    var rules = Rules()
+    eq("下载规则：无前缀 = 正则", rules.detailRule(), Optional<DPPAdapter.DetailRule>.none)
+    rules.detail = "var hlsUrl\\s*=\\s*'([^']+)'"
+    eq("下载规则：无前缀的正则", rules.detailRule(), .regex("var hlsUrl\\s*=\\s*'([^']+)'"))
+    rules.detail = "regex:  streamUrl\\s*=\\s*\"([^\"]+)\""
+    eq("下载规则：regex: 前缀去掉首尾空白", rules.detailRule(), .regex("streamUrl\\s*=\\s*\"([^\"]+)\""))
+    rules.detail = "selector: video.player@src"
+    eq("下载规则：选择器 + 属性", rules.detailRule(), .selector(css: "video.player", attribute: "src"))
+    rules.detail = "selector: video.player"
+    check("下载规则：选择器缺属性 = 不完整", rules.detailRule() == nil)
+    rules.detail = "   "
+    check("下载规则：空白 = 没有规则", rules.detailRule() == nil)
+
+    // 正则提取：对页面文本求值，第 1 个捕获组
+    let html = """
+    <html><head><title>t</title><script>var hlsUrl = '/hls/62000/62780/62780.m3u8';</script></head>
+    <body><script>var hlsUrl = '/hls/62000/62780/62780.m3u8';</script>
+    <script>var poster = '/thumb.jpg';</script></body></html>
+    """
+    rules.detail = "var hlsUrl\\s*=\\s*'([^']+)'"
+    eq("提取：命中并去重（同一地址出现两次算一个）", rules.extract(fromText: html), ["/hls/62000/62780/62780.m3u8"])
+    rules.detail = "regex:(?:src|href)=\"(/hls/[^\"]+\\.m3u8)\""
+    eq("提取：没有命中 = 空", rules.extract(fromText: html), [String]())
+    rules.detail = "selector: video@src"
+    eq("提取：选择器规则在纯文本上不求值（由解析器进页面执行）", rules.extract(fromText: html), [String]())
+    rules.detail = "var hlsUrl\\s*=\\s*'([^']+'"
+    eq("提取：非法正则 = 空（解析器据此回退通用识别）", rules.extract(fromText: html), [String]())
+    rules.detail = "/hls/62000/62780/62780\\.m3u8"
+    eq("提取：没有捕获组 = 整个命中", rules.extract(fromText: html), ["/hls/62000/62780/62780.m3u8"])
+    let many = "<a>" + (1...60).map { "/v/\($0).mp4" }.joined(separator: "</a><a>") + "</a>"
+    rules.detail = "regex:/v/(\\d+)\\.mp4"
+    eq("提取：上限 50 条", rules.extract(fromText: many).count, 50)
+
+    // 排除与每页正片数
+    var tight = Rules()
+    tight.exclude = ["_preview\\.mp4$", "["]          // 第二个是非法正则：忽略，不误杀
+    tight.perPage = "one"
+    let applied = tight.applying(to: ["/v/1.mp4", "/v/9_preview.mp4", "/v/2.mp4"])
+    eq("收口：排除命中 + 只取第一个", applied.kept, ["/v/1.mp4"])
+    check("收口：被拒的带理由",
+          applied.rejected.contains { $0.url == "/v/9_preview.mp4" && $0.reason == "site rule exclude pattern" }
+          && applied.rejected.contains { $0.url == "/v/2.mp4" && $0.reason == "site rule: one video per page" })
+    tight.perPage = "MANY"
+    eq("收口：many 保留全部（大小写不敏感）", tight.applying(to: ["/v/1.mp4", "/v/2.mp4"]).kept, ["/v/1.mp4", "/v/2.mp4"])
+    tight.perPage = nil
+    eq("收口：没写每页数 = 按命中数", tight.applying(to: ["/v/1.mp4", "/v/2.mp4"]).kept.count, 2)
+
+    // 打磨：地址中途过期 → 缩短有效期（有下限、留修订）
+    var live = Rules()
+    check("打磨：默认有效期在下限之上，需要回写", live.needsWrite(for: .signatureExpired))
+    live = live.adapting(to: .signatureExpired, now: now)
+    eq("打磨：50 → 30", live.tokenMinutes, 30)
+    eq("打磨：修订记录最近在前", live.revisions?.first?.change.hasPrefix("address expired mid-download — tokenMinutes 50 → 30"), true)
+    live = live.adapting(to: .signatureExpired, now: now).adapting(to: .signatureExpired, now: now)
+    eq("打磨：30 → 18 → 10", live.tokenMinutes, 10)
+    live = live.adapting(to: .signatureExpired, now: now).adapting(to: .signatureExpired, now: now)
+    eq("打磨：10 → 6 → 5 → 触底", live.tokenMinutes, 5)
+    check("打磨：触底后不再回写", !live.needsWrite(for: .signatureExpired)
+          && live.adapting(to: .signatureExpired, now: now) == live)
+    eq("打磨：修订记录条数（五次调整各一条）", live.revisions?.count, 5)
+
+    // 打磨：限流 → 降并发
+    var throttled = Rules()
+    throttled.connections = 12
+    check("打磨：限流需要回写", throttled.needsWrite(for: .rateLimited))
+    throttled = throttled.adapting(to: .rateLimited, now: now).adapting(to: .rateLimited, now: now)
+    eq("打磨：12 → 6 → 3", throttled.connections, 3)
+    throttled = throttled.adapting(to: .rateLimited, now: now).adapting(to: .rateLimited, now: now)
+    eq("打磨：3 → 2 → 触底", throttled.connections, 2)
+    check("打磨：并发触底后不再回写", !throttled.needsWrite(for: .rateLimited))
+    check("打磨：默认并发（8）不在下限上，限流会回写", Rules().needsWrite(for: .rateLimited))
+
+    // 打磨：提取不到 → 记失败，连续三次待重学；命中后复位
+    var flaky = Rules()
+    check("打磨：命中且从未失败时不回写（每次任务都写盘没有必要）", !flaky.needsWrite(for: .matched))
+    flaky = flaky.adapting(to: .ruleMatchedNothing, now: now)
+    eq("打磨：第一次失败计数", flaky.consecutiveFailures, 1)
+    check("打磨：一次失败不判待重学", !flaky.needsRelearn && flaky.lastError == "rule matched nothing on the page")
+    flaky = flaky.adapting(to: .ruleMatchedNothing, now: now).adapting(to: .ruleMatchedNothing, now: now)
+    check("打磨：连续三次待重学", flaky.needsRelearn && flaky.lastFailureAt == now)
+    check("打磨：失败后命中需要回写（复位）", flaky.needsWrite(for: .matched))
+    flaky = flaky.adapting(to: .matched, now: now)
+    check("打磨：命中后复位", flaky.consecutiveFailures == 0 && flaky.lastError == nil
+          && !flaky.needsRelearn && flaky.lastMatchAt == now)
+
+    // 编解码：新键可缺省；老包不受影响
+    let legacy = #"{"format":"desire/adapter-1","name":"old","hosts":["a.example"],"pathPrefixes":[],"protocolBody":{"protocolVersion":"desire/1"}}"#
+    check("编解码：老包没有 download 段 → nil", (try? JSONDecoder().decode(DPPAdapter.self, from: Data(legacy.utf8)))?.download == nil)
+    let adapter = DPPAdapter(name: "site-a", hosts: ["a.example"], pathPrefixes: ["/videos/"])
+        .withDownloadRules { rules in
+            rules.detail = "var hlsUrl\\s*=\\s*'([^']+)'"
+            rules.perPage = "one"
+            rules.connections = 6
+        }
+    let encoded = try! JSONEncoder().encode(adapter)
+    let decoded = try! JSONDecoder().decode(DPPAdapter.self, from: encoded)
+    eq("编解码：download 段往返", decoded.download, adapter.download)
+    let json = try! JSONSerialization.jsonObject(with: encoded) as! [String: Any]
+    check("编解码：顶层键名是 download", json["download"] != nil)
+    let partial = #"{"name":"p","hosts":["b.example"],"download":{"detail":"regex:x(.+)y"}}"#
+    let decodedPartial = try! JSONDecoder().decode(DPPAdapter.self, from: Data(partial.utf8))
+    eq("编解码：只写了 detail 的规则段", decodedPartial.download?.detail, "regex:x(.+)y")
+    check("编解码：其余字段缺省", decodedPartial.download?.tokenMinutes == nil && decodedPartial.download?.revisions == nil)
+
+    // 只对本站生效：规则跟着适配器的主机/路径匹配走
+    let other = DPPAdapter(name: "site-b", hosts: ["other.example"])
+    check("绑定：别的站点的适配器不匹配本站地址", !other.matches(url: URL(string: "https://a.example/videos/1/")!))
+    check("绑定：本站适配器按路径前缀匹配", adapter.matches(url: URL(string: "https://a.example/videos/1/")!)
+          && !adapter.matches(url: URL(string: "https://a.example/other/1/")!))
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

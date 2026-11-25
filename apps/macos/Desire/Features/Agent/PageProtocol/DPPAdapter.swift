@@ -37,6 +37,9 @@ nonisolated struct DPPAdapter: Codable, Equatable, Identifiable {
     /// 最近一次**真实页面核对/测试**的时间（运营包的健康展示基准；与
     /// installedAt 区分：安装/覆盖不等于核对过）。
     var verifiedAt: Date? = nil
+    /// **站点下载规则**（v0.8.77 批 2）：批量下载的隐藏解析器按它确定性提取正片；
+    /// nil = 这个适配器不管下载。字段见 `DPPAdapter+Download.swift`。
+    var download: DownloadRules? = nil
 
     var id: String { name }
 
@@ -46,7 +49,7 @@ nonisolated struct DPPAdapter: Codable, Equatable, Identifiable {
          protocolBody: DesireProtocol = DesireProtocol(), notes: String = "",
          sourceURL: String? = nil, installedAt: Date? = nil,
          opsVersion: Int? = nil, verifiedAt: Date? = nil,
-         loginURL: String? = nil) {
+         loginURL: String? = nil, download: DownloadRules? = nil) {
         self.format = "desire/adapter-1"
         self.name = name
         self.hosts = hosts
@@ -58,6 +61,7 @@ nonisolated struct DPPAdapter: Codable, Equatable, Identifiable {
         self.opsVersion = opsVersion
         self.loginURL = loginURL
         self.verifiedAt = verifiedAt
+        self.download = download
     }
 
     init(from decoder: Decoder) throws {
@@ -72,11 +76,12 @@ nonisolated struct DPPAdapter: Codable, Equatable, Identifiable {
         installedAt = (try? c.decodeIfPresent(Date.self, forKey: .installedAt)) ?? nil
         opsVersion = (try? c.decodeIfPresent(Int.self, forKey: .opsVersion)) ?? nil
         verifiedAt = (try? c.decodeIfPresent(Date.self, forKey: .verifiedAt)) ?? nil
+        download = (try? c.decodeIfPresent(DownloadRules.self, forKey: .download)) ?? nil
     }
 
     private enum CodingKeys: String, CodingKey {
         case format, name, hosts, pathPrefixes, protocolBody, notes, sourceURL, installedAt,
-             opsVersion, verifiedAt
+             opsVersion, verifiedAt, download
     }
 
     func encode(to encoder: Encoder) throws {
@@ -91,6 +96,7 @@ nonisolated struct DPPAdapter: Codable, Equatable, Identifiable {
         try c.encodeIfPresent(installedAt, forKey: .installedAt)
         try c.encodeIfPresent(opsVersion, forKey: .opsVersion)
         try c.encodeIfPresent(verifiedAt, forKey: .verifiedAt)
+        try c.encodeIfPresent(download, forKey: .download)
     }
 
     // MARK: - Matching

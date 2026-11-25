@@ -54,6 +54,11 @@ final class HeadlessMediaResolver: NSObject {
 
     private var scanTask: Task<Void, Never>?
 
+    /// 站点规则的命中情况（v0.8.77 批 2；引擎据此回写打磨记录）。nil = 页面没有命中规则。
+    private(set) var siteRule: (adapter: String, matched: Int, rejected: [(url: String, reason: String)])?
+    /// 命中了规则但页面上提取不到（已回退通用识别；规则待重学）。
+    private(set) var siteRuleMissed: String?
+
     init(dataStore: WKWebsiteDataStore? = nil) {
         let config = WKWebViewConfiguration()
         // 自动播放不要求手势：解析页里视频要"自己开始播"才会起流。
@@ -125,7 +130,63 @@ final class HeadlessMediaResolver: NSObject {
         } catch {
             return .failed("page failed to load: \(error.localizedDescription)")
         }
+        // 站点规则优先（v0.8.77 批 2）：地址命中了带下载规则的**已启用**适配器、且规则在
+        // 页面上提取得到 → 直接用它，不走通用采集——规则就是"这个站什么才是正片"。
+        // 挑战页上规则不会命中，照常进入等待/通用识别。
+        if let ruled = await applySiteRules(url: url), !ruled.isEmpty {
+            return .media(ruled, pageTitle: webView.title ?? "")
+        }
         return await awaitMedia(budget: Self.resolveBudgetSeconds, allowNeedsHuman: true)
+    }
+
+    /// 按站点规则提取正片：正则对 HTML + 内联脚本文本求值；选择器进页面取属性
+    /// （隔离世界里 `__desireQueryAll` 常驻，不往页面世界注入任何东西）。结果经规则的
+    /// 排除与每页正片数收口。提取不到 = nil（记下适配器名，引擎回退通用识别并记失败）。
+    private func applySiteRules(url: URL) async -> [MediaResource]? {
+        siteRule = nil
+        siteRuleMissed = nil
+        guard let hit = DPPAdapterStore.shared.downloadRules(for: url) else { return nil }
+        var urls: [String] = []
+        switch hit.rules.detailRule() {
+        case .regex:
+            let html = (try? await webView.callAsyncJavaScript(
+                "return document.documentElement ? document.documentElement.outerHTML : '';",
+                arguments: [:], in: nil, contentWorld: WebView.agentToolWorld)) as? String
+            urls = hit.rules.extract(fromText: html ?? "")
+        case .selector(let css, let attribute):
+            let body = """
+            const out = [];
+            try {
+                __desireQueryAll(\(JSString.literal(css))).forEach(el => {
+                    const v = el.getAttribute(\(JSString.literal(attribute)));
+                    if (v) out.push(v);
+                });
+            } catch (e) {}
+            return JSON.stringify(out);
+            """
+            if let raw = try? await webView.callAsyncJavaScript(
+                body, arguments: [:], in: nil, contentWorld: WebView.agentToolWorld) as? String,
+               let data = raw.data(using: .utf8),
+               let found = try? JSONSerialization.jsonObject(with: data) as? [String] {
+                urls = found
+            }
+        case nil:
+            return nil
+        }
+        let outcome = hit.rules.applying(to: urls)
+        let resources: [MediaResource] = outcome.kept.compactMap { raw in
+            guard let absolute = URL(string: raw, relativeTo: url)?.absoluteString,
+                  URL(string: absolute) != nil else { return nil }
+            let kind: MediaResource.Kind = absolute.lowercased().contains(".m3u8") ? .stream : .video
+            return MediaResource(url: absolute, kind: kind, mime: "", sizeBytes: 0,
+                                 source: "site-rule:\(hit.adapter.name)", detectedAt: Date())
+        }
+        guard !resources.isEmpty else {
+            siteRuleMissed = hit.adapter.name
+            return nil
+        }
+        siteRule = (hit.adapter.name, resources.count, outcome.rejected)
+        return resources
     }
 
     private func awaitPageLoad(url: URL) async throws {
@@ -414,6 +475,8 @@ final class HeadlessMediaResolver: NSObject {
         captured = []
         lastLoadError = nil
         challengeActive = false
+        siteRule = nil
+        siteRuleMissed = nil
         scanTask?.cancel()
         scanTask = nil
     }

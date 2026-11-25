@@ -2276,9 +2276,13 @@ extension BrowserToolProvider {
             }
             let pathPrefixes = args["pathPrefixes"] as? [String] ?? []
             let notes = (args["notes"] as? String) ?? ""
+            // download 段（v0.8.77 批 2）：站点下载规则。带它的适配器可以没有 views
+            // （"只管下载"的适配器是合法形态）。
+            let downloadRaw = args["download"] as? [String: Any]
             // views 是模型给的 JSON 对象——转成 DesireProtocol 的 ProtocolView
-            guard let viewsRaw = args["views"] as? [String: Any], !viewsRaw.isEmpty else {
-                return Self.fail("Missing views (at least one view with item + fields)")
+            let viewsRaw = args["views"] as? [String: Any] ?? [:]
+            guard !viewsRaw.isEmpty || downloadRaw != nil else {
+                return Self.fail("Missing views (at least one view with item + fields) — or a download section for a download-only adapter")
             }
             var views: [String: DesireProtocol.ProtocolView] = [:]
             for (vName, vRaw) in viewsRaw {
@@ -2351,6 +2355,42 @@ extension BrowserToolProvider {
             body.signals = signals
             body.actions = actions
 
+            // 下载规则：字段全部可选，detail 必须写得完整；正则在这里就校验——
+            // 写错的规则到了解析器那里只会静默回退，问题要留在保存这一刻。
+            var downloadRules: DPPDownloadRules?
+            if let raw = downloadRaw {
+                var rules = DPPDownloadRules()
+                if let detail = raw["detail"] as? String,
+                   !detail.trimmingCharacters(in: .whitespaces).isEmpty { rules.detail = detail }
+                if let perPage = raw["perPage"] as? String,
+                   !perPage.trimmingCharacters(in: .whitespaces).isEmpty { rules.perPage = perPage }
+                if let listView = raw["listView"] as? String,
+                   !listView.trimmingCharacters(in: .whitespaces).isEmpty { rules.listView = listView }
+                if let exclude = raw["exclude"] as? [String] {
+                    rules.exclude = exclude.filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                }
+                if let connections = raw["connections"] as? Int {
+                    rules.connections = max(DPPDownloadRules.minConnections, min(64, connections))
+                }
+                if let tokenMinutes = raw["tokenMinutes"] as? Int {
+                    rules.tokenMinutes = max(DPPDownloadRules.minTokenMinutes, min(24 * 60, tokenMinutes))
+                }
+                if let perPage = rules.perPage, DPPDownloadRules.PerPage(rawValue: perPage.lowercased()) == nil {
+                    return Self.fail("download.perPage must be \"one\" or \"many\"")
+                }
+                guard let detailRule = rules.detailRule() else {
+                    return Self.fail("download.detail is required — \"regex:<pattern>\" or \"selector:<css>@<attr>\"")
+                }
+                if case .regex(let pattern) = detailRule,
+                   (try? NSRegularExpression(pattern: pattern)) == nil {
+                    return Self.fail("download.detail regex is invalid: \\(pattern)")
+                }
+                for pattern in rules.exclude ?? [] where (try? NSRegularExpression(pattern: pattern)) == nil {
+                    return Self.fail("download.exclude has an invalid regex: \\(pattern)")
+                }
+                downloadRules = rules
+            }
+
             // 运营契约（v0.8.3）：声明了任何 ops* 名字就按 ops/1 校验——
             // 填表与提交分离、发布/回复必须走审批。错误拒收，警告随回执透出。
             let opsReport = DPPOpsContract.report(for: body)
@@ -2374,7 +2414,8 @@ extension BrowserToolProvider {
                 notes: notes, protocolBody: body,
                 opsVersion: opsReport.isOps ? DPPOpsContract.version : nil,
                 verifiedAt: opsReport.isOps ? Date() : nil,
-                loginURL: args["loginURL"] as? String) else {
+                loginURL: args["loginURL"] as? String,
+                download: downloadRules) else {
                 return Self.fail("Failed to render adapter JSON")
             }
             let fileName = FilePathing.sanitizeFileName(name) + ".json"
@@ -2406,7 +2447,10 @@ extension BrowserToolProvider {
             let stateNote = enabled
                 ? " Saved enabled."
                 : " Saved DISABLED — review it in Settings › AI › DPP Protocol › Third-Party Adapters and enable it."
-            return "DPP adapter \(existed ? "updated" : "saved"): \(name) (\(views.count) view(s), \(actions.count) action(s)) for \(hosts.joined(separator: ", ")).\(opsNote)\(stateNote)\(applyNote)\(riskNote)"
+            let downloadNote = downloadRules != nil
+                ? " download rules saved — once the adapter is enabled, downloadVideoList resolves this site's pages by them (never pre-fetch signed addresses or write a downloader script for this site); the resolver refines connections/tokenMinutes from each task."
+                : ""
+            return "DPP adapter \(existed ? "updated" : "saved"): \(name) (\(views.count) view(s), \(actions.count) action(s)) for \(hosts.joined(separator: ", ")).\(opsNote)\(stateNote)\(applyNote)\(riskNote)\(downloadNote)"
 
         case "remember":
             // 工作记忆工具（v0.8.72 批 1）：模型显式保存用户明确表达的

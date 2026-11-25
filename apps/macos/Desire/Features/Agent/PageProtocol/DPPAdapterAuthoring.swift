@@ -29,7 +29,8 @@ nonisolated enum DPPAdapterAuthoring {
     static func markdown(name: String, hosts: [String], pathPrefixes: [String],
                          notes: String, protocolBody: DesireProtocol,
                          opsVersion: Int? = nil, verifiedAt: Date? = nil,
-                         loginURL: String? = nil) -> Data? {
+                         loginURL: String? = nil,
+                         download: DPPDownloadRules? = nil) -> Data? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanHosts = hosts.map { $0.trimmingCharacters(in: .whitespaces).lowercased() }
                               .filter { !$0.isEmpty }
@@ -38,7 +39,8 @@ nonisolated enum DPPAdapterAuthoring {
                                  protocolBody: protocolBody,
                                  notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
                                  opsVersion: opsVersion, verifiedAt: verifiedAt,
-                                 loginURL: loginURL?.trimmingCharacters(in: .whitespaces).nilIfEmpty)
+                                 loginURL: loginURL?.trimmingCharacters(in: .whitespaces).nilIfEmpty,
+                                 download: download)
         adapter.protocolBody.warnings.append("adapter: \(trimmedName)")
         adapter.installedAt = Date()   // 创建/更新即视为已核对（陈旧提示的基准）
         let formatter = JSONEncoder()

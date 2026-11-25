@@ -163,6 +163,61 @@ final class DPPAdapterStore: ObservableObject {
         adapters = loaded.sorted { $0.name < $1.name }
         loadErrors = errors
         fileNames = filesByName
+        // 带下载段的适配器 → 同步一段说明性技能（指纹变了才写；v0.8.77 批 2）。
+        SiteDownloadSkillSync.reconcile(with: adapters)
+    }
+
+    // MARK: - 站点下载规则（v0.8.77 批 2）
+
+    /// 这个地址命中的、**已启用**适配器的下载规则；没命中 / 适配器不管下载 = nil。
+    func downloadRules(for url: URL) -> (adapter: DPPAdapter, rules: DPPDownloadRules)? {
+        guard let adapter = adapter(for: url), let rules = adapter.download else { return nil }
+        return (adapter, rules)
+    }
+
+    /// 回写前的旧版备份目录。放在适配器目录**之外**：适配器目录会被重扫，
+    /// 备份待在里面会被当成适配包。
+    static var downloadBackupDirectory: URL {
+        let dir = StorageRoot.directory.appendingPathComponent("dpp-adapter-backups", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+
+    /// 按一次下载任务的结果回写规则（"不停打磨"）。只动 download 段：
+    /// - **不走 `saveDraft`**——它会把适配器打回禁用草稿，参数微调不该要求用户重新启用；
+    /// - 覆盖前把旧文件备份一份；
+    /// - 规则没变（健康规则、参数已触底）不写盘。
+    /// 返回是否落盘。
+    @discardableResult
+    func refineDownloadRules(adapterName: String,
+                             signal: DPPDownloadRules.AdaptationSignal) -> Bool {
+        guard let adapter = adapters.first(where: { $0.name == adapterName }),
+              var rules = adapter.download, rules.needsWrite(for: signal) else { return false }
+        rules = rules.adapting(to: signal)
+        var updated = adapter
+        updated.download = rules
+        guard let file = fileNames[adapterName] else { return false }
+        let target = Self.directory.appendingPathComponent(file)
+        let fm = FileManager.default
+        let backup = Self.downloadBackupDirectory.appendingPathComponent(
+            "\(FilePathing.sanitizeFileName(adapterName))-\(Self.backupStamp()).json")
+        do {
+            try fm.createDirectory(at: Self.downloadBackupDirectory, withIntermediateDirectories: true)
+            if fm.fileExists(atPath: target.path) { try fm.copyItem(at: target, to: backup) }
+            try JSONEncoder().encode(updated).write(to: target, options: .atomic)
+        } catch {
+            Log.agent.error("download rule refinement failed for '\(adapterName, privacy: .public)': \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+        reload()
+        return true
+    }
+
+    private static func backupStamp() -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return formatter.string(from: Date())
     }
 
     // MARK: - 导入 / 删除

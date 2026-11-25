@@ -888,7 +888,30 @@ final class BatchMediaExportStore: ObservableObject {
             // 每个正片一个任务（多视频页不漏，不再限 4 个兄弟项）；被拒的每一项
             // 都带理由，写进批次日志。此前是"选一条主项 + 其余全部当兄弟项"，
             // HLS 分片与预览/广告因此都成了下载任务（真实页面 24 页排出 33 个）。
-            var selection = BatchMediaPlan.contentCandidates(resources)
+            // 站点规则（v0.8.77 批 2）：该地址命中的适配器带着下载段时，排除特征一并生效；
+            // 规则由解析器在页面里确定性执行，这里的通用识别只是兜底。
+            let siteHit = DPPAdapterStore.shared.downloadRules(for: sourceURL)
+            var selection = BatchMediaPlan.contentCandidates(
+                resources, extraExclusions: siteHit?.rules.exclude ?? [])
+            // 规则的打磨记录：命中 → 记一次；提取不到 → 记失败，连续达到阈值即"待重学"。
+            let numberPrefix = batches.first(where: { $0.id == batchID })?
+                .items.first(where: { $0.id == itemID })?.numberPrefix ?? ""
+            if let missed = resolver.siteRuleMissed {
+                DPPAdapterStore.shared.refineDownloadRules(adapterName: missed, signal: .ruleMatchedNothing)
+                let stale = DPPAdapterStore.shared.adapters.first(where: { $0.name == missed })?
+                    .download?.needsRelearn == true
+                blog(batchID, "[\(numberPrefix)] 站点规则「\(missed)」在页面上提取不到，已回退通用识别"
+                     + (stale ? "——规则待重学（页面结构可能变了）" : ""))
+            } else if let rule = resolver.siteRule {
+                DPPAdapterStore.shared.refineDownloadRules(adapterName: rule.adapter, signal: .matched)
+                if !rule.rejected.isEmpty {
+                    var counts: [String: Int] = [:]
+                    for entry in rule.rejected { counts[entry.reason, default: 0] += 1 }
+                    let summary = counts.sorted { $0.key < $1.key }.map { "\($0.value) × \($0.key)" }
+                        .joined(separator: "、")
+                    blog(batchID, "[\(numberPrefix)] 站点规则「\(rule.adapter)」提取到 \(rule.matched) 条；按规则排除：\(summary)")
+                }
+            }
             if !selection.candidates.isEmpty {
                 let streams = selection.candidates.compactMap {
                     $0.resource.kind == .stream ? URL(string: $0.resource.url) : nil

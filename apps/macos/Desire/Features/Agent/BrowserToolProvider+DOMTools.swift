@@ -184,30 +184,71 @@ extension BrowserToolProvider {
                                    args: ["maxItems": maxItems])
 
         case "listPageVideos":
-            // Merge two detection paths: the network sniffer (real CDN URLs
-            // behind blob: players, accumulated in the owning tab's
-            // BrowserState) and the on-demand DOM/meta scan.
+            // **正片识别**（v0.8.77 批 1）：合并网络嗅探与 DOM 扫描的候选后，不再
+            // 把采集到的每个资源都列出来——分片归并进所属播放列表、广告/预览剔除，
+            // 给模型的是"这一页的正片集合（可能一个也可能多个）"+ 被拒清单（带理由）。
             let candidates = await pageMediaCandidates(webView)
-            var lines: [String] = []
-            for entry in candidates {
-                var line = "[\(entry.kind)] \(entry.url)"
-                if entry.fromSniffer {
-                    var meta: [String] = []
-                    if !entry.mime.isEmpty { meta.append("type: \(entry.mime)") }
-                    if let size = entry.displaySize { meta.append(size) }
-                    if !meta.isEmpty { line += " (\(meta.joined(separator: ", ")))" }
-                } else if entry.isBlob {
-                    line += " (blob: only usable inside the page — look for the stream/mp4 entries instead)"
-                } else {
-                    line += " (via \(entry.source))"
-                }
-                lines.append(line)
+            let base = BatchMediaPlan.contentCandidates(candidates.map { candidate in
+                MediaResource(url: candidate.url,
+                              kind: MediaResource.Kind(rawValue: candidate.kind) ?? .video,
+                              mime: candidate.mime, sizeBytes: 0,
+                              source: candidate.source, detectedAt: Date())
+            })
+            var selection = base
+            let streams = base.candidates.compactMap {
+                $0.resource.kind == .stream ? URL(string: $0.resource.url) : nil
             }
+            let durations = await MediaExporter.streamDurations(
+                for: streams, referer: webView.url, userAgent: webView.customUserAgent)
+            selection = BatchMediaPlan.applyingDuration(selection, durations: durations)
 
-            if lines.isEmpty {
+            if selection.candidates.isEmpty && selection.rejected.isEmpty {
                 return "No video/audio resources detected on this page. Try playing the video first — the network sniffer records the stream as it loads."
             }
-            return "\(lines.count) media resource(s):\n" + lines.joined(separator: "\n")
+            var lines: [String] = []
+            if selection.candidates.isEmpty {
+                lines.append("No content video found yet — everything captured was excluded (see below)."
+                             + (selection.rejected.contains { $0.reason.hasPrefix("blob") }
+                                ? " The player uses blob: URLs; play the video so the sniffer records the real stream."
+                                : ""))
+            } else {
+                let noun = selection.candidates.count == 1 ? "content video" : "content videos"
+                lines.append("\(selection.candidates.count) \(noun) on this page (junk excluded):")
+                for (index, candidate) in selection.candidates.enumerated() {
+                    let evidence = candidate.evidence.joined(separator: ", ")
+                    lines.append("\(index + 1). [\(candidate.resource.kind.rawValue)] \(candidate.resource.url)"
+                                 + (evidence.isEmpty ? "" : "  (\(evidence))"))
+                }
+            }
+            if !selection.rejected.isEmpty {
+                var groups: [(reason: String, urls: [String])] = []
+                for entry in selection.rejected {
+                    if let index = groups.firstIndex(where: { $0.reason == entry.reason }) {
+                        groups[index].urls.append(entry.url)
+                    } else {
+                        groups.append((entry.reason, [entry.url]))
+                    }
+                }
+                lines.append("Excluded \(selection.rejected.count):")
+                for group in groups {
+                    let sample = group.urls.count == 1 ? group.urls[0] : "e.g. \(group.urls[0])"
+                    lines.append("  - \(group.urls.count) × \(group.reason): \(sample)")
+                }
+            }
+            for (owner, count) in selection.collapsedSegments.sorted(by: { $0.value > $1.value }) {
+                lines.append("\(count) segment(s) belong to \(owner.isEmpty ? "an uncaptured playlist" : owner) — downloading the playlist covers them.")
+            }
+            if let first = selection.candidates.first {
+                lines.append(first.resource.kind == .stream
+                             ? "downloadMedia(url: that playlist) downloads the whole stream (all segments)."
+                             : "downloadMedia(url: that file) downloads it; downloadAllPageVideos() queues every content video on the page.")
+            }
+            // 这个工具读的是**此刻已加载**的播放器：懒加载的多视频页要滚动才出现其余
+            // 播放器。逐页批量下载的隐藏解析器会自己滚动收集，不受此限。
+            if selection.candidates.count == 1 {
+                lines.append("Only players that have already started loading are visible here — if the page has more videos further down, scroll so they load, or pass the detail-page URLs to downloadVideoList (its resolver scrolls and plays every player).")
+            }
+            return lines.joined(separator: "\n")
 
         case "downloadAllPageVideos":
             // 喂食流批量（模式 A）：当前页嗅探到的媒体全部入队——去重/过滤

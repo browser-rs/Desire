@@ -94,6 +94,8 @@ final class BatchMediaExportStore: ObservableObject {
     /// 实测列表页 100+ 部被截断"不合理的啊"）：引擎有暂停/断点续传/磁盘
     /// 预留/看门狗兜底，大批次撑得住；面板明细已全量展示。
     static let maxItemsPerBatch = 500
+    /// 一个页面最多展开多少条正片（防病态页面灌爆队列；此前上限 4，多视频页会丢）。
+    static let maxVideosPerPage = 60
 
     private init() {}
 
@@ -882,9 +884,24 @@ final class BatchMediaExportStore: ObservableObject {
         if Task.isCancelled { return }
         switch outcome {
         case .media(let resources, let pageTitle):
-            guard let best = BatchMediaPlan.pickBestResource(resources),
-                  let mediaURL = URL(string: best.url) else {
-                setState(batchID, itemID, .failed, summary: "page loaded but no downloadable media found")
+            // **正片识别**（v0.8.77 批 1）：分片归并 → 杂项剔除 → 族聚类 → 时长证据。
+            // 每个正片一个任务（多视频页不漏，不再限 4 个兄弟项）；被拒的每一项
+            // 都带理由，写进批次日志。此前是"选一条主项 + 其余全部当兄弟项"，
+            // HLS 分片与预览/广告因此都成了下载任务（真实页面 24 页排出 33 个）。
+            var selection = BatchMediaPlan.contentCandidates(resources)
+            if !selection.candidates.isEmpty {
+                let streams = selection.candidates.compactMap {
+                    $0.resource.kind == .stream ? URL(string: $0.resource.url) : nil
+                }
+                let durations = await MediaExporter.streamDurations(
+                    for: streams, referer: sourceURL, userAgent: batchUserAgents[batchID])
+                selection = BatchMediaPlan.applyingDuration(selection, durations: durations)
+            }
+            let excludedNote = BatchMediaPlan.rejectionSummary(selection.rejected)
+            guard let best = selection.candidates.first,
+                  let mediaURL = URL(string: best.resource.url) else {
+                setState(batchID, itemID, .failed, summary: "page loaded but no downloadable media found"
+                         + (excludedNote.isEmpty ? "" : " — everything excluded: \(excludedNote)"))
                 return
             }
             guard let bi = batches.firstIndex(where: { $0.id == batchID }),
@@ -893,25 +910,17 @@ final class BatchMediaExportStore: ObservableObject {
             let base = BatchMediaPlan.displayName(pageTitle: pageTitle, mediaURL: mediaURL, style: BatchMediaPreferences.namingStyle)
             batches[bi].items[ii].mediaURL = mediaURL
             batches[bi].items[ii].referer = sourceURL
-            blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 解析完成 → \(mediaURL.absoluteString)" )
             // 以序号为底重建标题（重试时 title 已是上一轮的完整名字，直接
             // 叠加会翻倍——"01-Retry Episode-Retry Episode"，实测踩过）。
             batches[bi].items[ii].title = "\(batches[bi].items[ii].numberPrefix)-\(base)"
             batches[bi].items[ii].state = .pending
-            // **多视频详情页**（2026-11-15）：同一页族分组后还有别的视频
-            // （分集/上下部）→ 追加兄弟项继续下载，编号 "01-2/01-3…"。此前
-            // pickBestResource 只挑一条，其余视频静默丢失。只认 video/stream
-            // 族（详情页的独立音轨文件当正片下是垃圾）；上限 4 条防病态页
-            // 面灌爆队列。
+            // 其余正片 → 兄弟项，编号 "01-2/01-3…"（分集/上下部/多视频详情页）。
             // 排除主条目按 URL 判等——同 stem 不同目录（跨 uuid 的
             // playlist.m3u8）是独立簇，按 stem 排除会误杀第二部。
-            let extras = BatchMediaPlan.distinctMediaFamilies(resources)
-                .filter { ($0.kind == .stream || $0.kind == .video)
-                    && $0.url != best.url }
-                .prefix(4)
+            let extras = selection.candidates.dropFirst().prefix(Self.maxVideosPerPage)
             var siblings: [BatchMediaItem] = []
             for (n, extra) in extras.enumerated() {
-                guard let mURL = URL(string: extra.url) else { continue }
+                guard let mURL = URL(string: extra.resource.url) else { continue }
                 let name = BatchMediaPlan.displayName(pageTitle: pageTitle, mediaURL: mURL, style: BatchMediaPreferences.namingStyle)
                 siblings.append(BatchMediaItem(
                     id: UUID(),
@@ -925,8 +934,13 @@ final class BatchMediaExportStore: ObservableObject {
             }
             if !siblings.isEmpty {
                 batches[bi].items.insert(contentsOf: siblings, at: ii + 1)
-                blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 页面含 \(1 + siblings.count) 条视频 → 主条目 + \(siblings.count) 条兄弟项")
             }
+            var resolution = "[\(batches[bi].items[ii].numberPrefix)] 解析完成：\(1 + siblings.count) 条正片"
+            if let seconds = best.durationSeconds { resolution += "（主条目时长 \(Int(seconds) / 60) 分钟）" }
+            if !selection.rejected.isEmpty {
+                resolution += "；已排除 \(selection.rejected.count) 项（\(excludedNote)）"
+            }
+            blog(batchID, resolution)
             persistUnfinished()
             Log.downloads.info("resolved → \(mediaURL.absoluteString, privacy: .public)")
             pumpDownloads(batchID)

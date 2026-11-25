@@ -114,6 +114,25 @@ enum BatchMediaPlan {
             entries.append((url, candidate.kind, sanitizedFileName(from: url.lastPathComponent)))
         }
 
+        // **正片识别**（v0.8.77 批 1）：分片归并 + 杂项剔除——与逐页解析
+        // （contentCandidates）同一套判定，被拒的带理由进 skipped。
+        let selection = BatchMediaPlan.contentCandidates(entries.map {
+            MediaResource(url: $0.url.absoluteString,
+                          kind: MediaResource.Kind(rawValue: $0.kind) ?? .video,
+                          mime: "", sizeBytes: 0, source: "network", detectedAt: Date())
+        })
+        let contentURLs = selection.candidateURLs
+        var rejectionByURL: [String: String] = [:]
+        for entry in selection.rejected where rejectionByURL[entry.url] == nil {
+            rejectionByURL[entry.url] = entry.reason
+        }
+        for entry in entries where !contentURLs.contains(entry.url.absoluteString) {
+            skipped.append(SkippedEntry(
+                url: entry.url.absoluteString,
+                reason: rejectionByURL[entry.url.absoluteString] ?? "not a content video"))
+        }
+        entries = entries.filter { contentURLs.contains($0.url.absoluteString) }
+
         // 变体族去重：只对 stream 类候选（master/变体都是 m3u8）。
         let streamURLs = entries.filter { $0.kind == "stream" }.map(\.url)
         let (_, droppedStreams) = dedupeVariantFamilies(streamURLs)
@@ -161,6 +180,9 @@ enum BatchMediaPlan {
             let candidates = downloadable.filter { $0.kind.rawValue == kind }
             if kind == "stream", !candidates.isEmpty {
                 return bestStream(candidates)
+            }
+            if kind == "video", !candidates.isEmpty {
+                return bestVideo(candidates)
             }
             if let first = candidates.first {
                 return first
@@ -236,6 +258,17 @@ enum BatchMediaPlan {
             }
         }
         return clusters.compactMap { pickBestResource($0.items) }
+    }
+
+    /// video 候选排序（v0.8.77）：带画质标记的取最高——`video-720p.mp4` 与
+    /// `video-1080p.mp4` 同族时下高画质的那个（此前取先发现的，取决于嗅探顺序）；
+    /// 都没有标记按原顺序。
+    static func bestVideo(_ videos: [MediaResource]) -> MediaResource? {
+        let marked = videos.filter { qualityMarker(in: $0.url) != nil }
+        guard !marked.isEmpty else { return videos.first }
+        return marked.max { lhs, rhs in
+            (qualityMarker(in: lhs.url) ?? 0) < (qualityMarker(in: rhs.url) ?? 0)
+        } ?? videos.first
     }
 
     /// stream 候选排序：master 形态（无画质标记）> 画质标记最高 > 原顺序。

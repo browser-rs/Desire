@@ -37,6 +37,11 @@ final class HeadlessMediaResolver: NSObject {
     static let resolveBudgetSeconds: TimeInterval = 25
     /// 人工验证后继续等待媒体的预算。
     static let postVerifyBudgetSeconds: TimeInterval = 30
+    /// **稳定窗**（v0.8.77 批 1）：首个正片候选出现后，这么久没有新候选就收——
+    /// 多视频详情页的其余播放器要点击/滚动才加载，"见到第一个就返回"会把它们漏掉。
+    static let settleSeconds: TimeInterval = 6
+    /// 页面上只有一个播放器时的稳定窗（单视频页不明显变慢）。
+    static let singlePlayerSettleSeconds: TimeInterval = 2
 
     let webView: WKWebView
     private var captured: [MediaResource] = []
@@ -219,6 +224,12 @@ final class HeadlessMediaResolver: NSObject {
         var challengeTicks = 0
         var lastScanAt = Date.distantPast
         var lastClickAt = Date.distantPast
+        // 稳定窗状态（见 ⑤）。
+        var settleStarted = false
+        var lastChangeAt = Date.distantPast
+        var lastCandidateCount = 0
+        var lastNudgeAt = Date.distantPast
+        var singlePlayer = false
 
         while Date() < deadline {
             try? await Task.sleep(for: .milliseconds(500))
@@ -253,13 +264,42 @@ final class HeadlessMediaResolver: NSObject {
                 clickPlayButtons()
             }
 
-            // ⑤ 有可下载媒体即成功。
-            if BatchMediaPlan.pickBestResource(captured) != nil {
-                return .media(captured, pageTitle: webView.title ?? "")
+            // ⑤ **收集全部播放器**（v0.8.77 批 1）：首个正片候选出现后不立刻收工——
+            //    进入稳定窗，期间分步滚动、逐个起播，等候选数不再变化再返回。
+            //    候选里已经归并了分片、剔除了广告/预览，所以"数不变"指的是正片数。
+            let count = BatchMediaPlan.contentCandidates(captured).candidates.count
+            if count > 0 {
+                if !settleStarted {
+                    settleStarted = true
+                    lastChangeAt = Date()
+                    lastCandidateCount = count
+                    lastNudgeAt = Date()
+                    singlePlayer = await pageHasSingleVideoElement()
+                    nudgePlayers()
+                } else if count != lastCandidateCount {
+                    lastCandidateCount = count
+                    lastChangeAt = Date()
+                }
+                // 窗内每隔几秒再催一次（滚动后新出现的懒加载播放器）。
+                if Date().timeIntervalSince(lastChangeAt) >= 2,
+                   Date().timeIntervalSince(lastNudgeAt) >= 4 {
+                    lastNudgeAt = Date()
+                    if singlePlayer { singlePlayer = await pageHasSingleVideoElement() }
+                    nudgePlayers()
+                }
+                let quiet = Date().timeIntervalSince(lastChangeAt)
+                if quiet >= (singlePlayer ? Self.singlePlayerSettleSeconds : Self.settleSeconds) {
+                    return .media(captured, pageTitle: webView.title ?? "")
+                }
+                continue
             }
         }
         if challengeActive { return .needsHuman }
-        return .failed("no downloadable media detected within \(Int(budget))s")
+        // 预算用尽：手上有正片候选就交出去（慢页面的稳定窗没走完），没有才算失败。
+        if BatchMediaPlan.contentCandidates(captured).candidates.isEmpty {
+            return .failed("no downloadable media detected within \(Int(budget))s")
+        }
+        return .media(captured, pageTitle: webView.title ?? "")
     }
 
     // MARK: - 页面内操作
@@ -310,6 +350,44 @@ final class HeadlessMediaResolver: NSObject {
             for (const s of selectors) {
                 const el = document.querySelector(s);
                 if (el) { try { el.click(); n++; } catch (e) {} }
+            }
+            return n;
+        })()
+        """
+        webView.evaluateJavaScript(script, completionHandler: nil)
+    }
+
+    /// 页面上是否只有一个 `<video>` 元素（稳定窗能否缩短）。只在已经有正片
+    /// 候选之后调用——那时页面是真页面，不是挑战页。
+    private func pageHasSingleVideoElement() async -> Bool {
+        let count = (try? await webView.evaluateJavaScript(
+            "(() => document.querySelectorAll('video').length)()")) as? Int
+        return count == 1
+    }
+
+    /// 稳定窗内的"催播"：分步滚动到底再回顶（触发 IntersectionObserver 懒加载的
+    /// 播放器），然后让页面上**所有**视频静音起播、点所有常见播放按钮
+    /// （`clickPlayButtons` 只点每个选择器的第一个——单播放器时代够用）。
+    /// 滚动距离设上限：无限滚动的列表页不能把解析器拖进无底洞。
+    private func nudgePlayers() {
+        let script = """
+        (async () => {
+            const step = Math.max(600, Math.floor(window.innerHeight * 0.9));
+            const height = Math.max(document.documentElement.scrollHeight,
+                                    document.body ? document.body.scrollHeight : 0);
+            for (let y = 0; y < height + step && y < 20000; y += step) {
+                window.scrollTo(0, y);
+                await new Promise(r => setTimeout(r, 250));
+            }
+            window.scrollTo(0, 0);
+            let n = 0;
+            document.querySelectorAll('video').forEach(v => {
+                try { v.muted = true; const p = v.play(); if (p && p.catch) p.catch(() => {}); n++; } catch (e) {}
+            });
+            const selectors = ['.vjs-big-play-button', '.ytp-large-play-button', '[class*="play-btn"]',
+                               '[class*="playbutton"]', '[class*="play-button"]', 'button[aria-label*="play" i]'];
+            for (const s of selectors) {
+                document.querySelectorAll(s).forEach(el => { try { el.click(); n++; } catch (e) {} });
             }
             return n;
         })()

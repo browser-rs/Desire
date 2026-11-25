@@ -503,6 +503,54 @@ enum MediaExporter {
         }
     }
 
+    /// 播放列表的总时长（秒）——正片识别的时长证据（v0.8.77 批 1）。master 取
+    /// 最高码率变体的媒体播放列表再求和；取不到 = nil（调用方不据此剔除）。
+    static func playlistDuration(url: URL, referer: URL?, userAgent: String?) async -> Double? {
+        do {
+            let (data, _) = try await fetch(url: url, referer: referer, userAgent: userAgent)
+            guard let text = String(data: data, encoding: .utf8), text.contains("#EXTM3U") else { return nil }
+            guard text.contains("#EXT-X-STREAM-INF") else {
+                return BatchMediaPlan.playlistDuration(text)
+            }
+            let variants = parseVariants(text, baseURL: url).sorted {
+                ($0["bandwidth"] as? Int ?? 0) > ($1["bandwidth"] as? Int ?? 0)
+            }
+            guard let best = variants.first,
+                  let variantURL = (best["url"] as? String).flatMap(URL.init(string:)) else { return nil }
+            let (variantData, _) = try await fetch(url: variantURL, referer: referer, userAgent: userAgent)
+            guard let variantText = String(data: variantData, encoding: .utf8) else { return nil }
+            return BatchMediaPlan.playlistDuration(variantText)
+        } catch {
+            return nil
+        }
+    }
+
+    /// 给一组流候选补时长证据，整体限时（默认 8 秒）：解析是串行队列，慢 CDN 不能
+    /// 把它拖住；超时后返回已取到的部分。
+    static func streamDurations(for urls: [URL], referer: URL?, userAgent: String?,
+                                budget: TimeInterval = 8) async -> [String: Double] {
+        guard !urls.isEmpty else { return [:] }
+        let limited = Array(urls.prefix(8))
+        return await withTaskGroup(of: (String, Double?).self) { group in
+            for url in limited {
+                group.addTask {
+                    (url.absoluteString, await playlistDuration(url: url, referer: referer, userAgent: userAgent))
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(for: .seconds(budget))
+                return ("", nil)
+            }
+            var out: [String: Double] = [:]
+            for await (key, value) in group {
+                // 限时到：跳出即取消并等待其余子任务（URLSession 与 sleep 都响应取消）。
+                if key.isEmpty { break }
+                if let value { out[key] = value }
+            }
+            return out
+        }
+    }
+
     /// master 播放列表文本 → variant 记录（**文件顺序**，未排序）。
     ///
     /// `index` 是文件顺序下标，等于 ffmpeg 的 program 号——`-map 0:p:N` 用它，

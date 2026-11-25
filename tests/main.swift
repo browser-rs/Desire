@@ -12846,6 +12846,136 @@ do {
     eq("使用记录：无样本不算成功率", SkillUsageRecord().successRate, Optional<Double>.none)
 }
 
+// ---------- 正片识别 BatchMediaPlan.contentCandidates（v0.8.77 批 1） ----------
+
+do {
+    func media(_ url: String, _ kind: MediaResource.Kind = .video, mime: String = "", size: Int = 0,
+               source: String = "xhr") -> MediaResource {
+        MediaResource(url: url, kind: kind, mime: mime, sizeBytes: size, source: source, detectedAt: Date())
+    }
+
+    // URL 零件
+    eq("零件：扩展名（去查询串、小写）", BatchMediaPlan.pathExtension(of: "//cdn.example/hls/a.B.TS?tok=1#x"), "ts")
+    eq("零件：没有扩展名", BatchMediaPlan.pathExtension(of: "https://x/watch/12345"), "")
+    eq("零件：主干", BatchMediaPlan.fileStem(of: "https://x/hls/62780/Seg-0001.ts?x=1"), "seg-0001")
+    eq("零件：目录", BatchMediaPlan.directory(of: "https://x/hls/62780/a.ts?x=1"), "/hls/62780/")
+    check("连号：纯数字与 seg/segment + 编号", BatchMediaPlan.isSequentialStem("627800") && BatchMediaPlan.isSequentialStem("seg-0001")
+          && BatchMediaPlan.isSequentialStem("segment_07"))
+    check("连号：画质、代号、多部的名字都不算", !BatchMediaPlan.isSequentialStem("video-720p")
+          && !BatchMediaPlan.isSequentialStem("fns-270") && !BatchMediaPlan.isSequentialStem("ipzz-576")
+          && !BatchMediaPlan.isSequentialStem("master") && !BatchMediaPlan.isSequentialStem("part_12")
+          && !BatchMediaPlan.isSequentialStem("chunk5"))
+
+    // 杂项特征：不误伤
+    for url in ["https://cdn.example/download/video.mp4", "https://x/thread-header.mp4", "https://x/readme.mp4",
+                "https://x/gradient.mp4", "https://x/broadcast.mp4", "https://x/downloads/clip.mp4",
+                "https://x/vastu-views.mp4", "https://cdn.example/hls/62000/62780/62780.m3u8"] {
+        check("杂项特征 ✓ 不误伤：\(url.suffix(28))", BatchMediaPlan.junkReason(for: url) == nil)
+    }
+    // 杂项特征：该认的
+    check("杂项特征 ✗ 广告域名", (BatchMediaPlan.junkReason(for: "https://cdn.doubleclick.net/v.mp4") ?? "").hasPrefix("ad-serving host"))
+    check("杂项特征 ✗ 主机标签 ad/ads", (BatchMediaPlan.junkReason(for: "https://ad.example.net/v.mp4") ?? "").hasPrefix("ad host label")
+          && (BatchMediaPlan.junkReason(for: "https://ads.example.net/v.mp4") ?? "").hasPrefix("ad host label"))
+    check("杂项特征 ✗ 路径段 ads / vast", (BatchMediaPlan.junkReason(for: "https://cdn.example/ads/v.mp4") ?? "").hasPrefix("ad path segment")
+          && (BatchMediaPlan.junkReason(for: "https://cdn.example/vast/clip.mp4") ?? "").hasPrefix("ad path segment"))
+    check("杂项特征 ✗ 文件名记号 preroll / midroll", (BatchMediaPlan.junkReason(for: "https://x/v/preroll.mp4") ?? "").hasPrefix("ad token")
+          && (BatchMediaPlan.junkReason(for: "https://x/v/ep1_midroll_2.mp4") ?? "").hasPrefix("ad token"))
+    check("杂项特征 ✗ ad_15s / ad-clip", (BatchMediaPlan.junkReason(for: "https://x/v/ad_15s.mp4") ?? "").hasPrefix("ad ")
+          && (BatchMediaPlan.junkReason(for: "https://x/v/ad-clip.mp4") ?? "").hasPrefix("ad "))
+    check("杂项特征 ✗ 广告尺寸", (BatchMediaPlan.junkReason(for: "https://x/300x250.medium.mp4") ?? "") == "ad slot size in URL")
+    check("杂项特征 ✗ 预览/缩略图", (BatchMediaPlan.junkReason(for: "https://img.example/contents/43000/43465/43465_preview.mp4") ?? "").hasPrefix("preview/thumbnail")
+          && (BatchMediaPlan.junkReason(for: "https://x/v/clip-thumb.mp4") ?? "").hasPrefix("preview/thumbnail")
+          && (BatchMediaPlan.junkReason(for: "https://x/poster.jpg.mp4") ?? "").hasPrefix("preview/thumbnail"))
+
+    // 场景 A：单视频 + 一堆杂项（2026-11-25 真实页面的形态，中性化）
+    let base = "https://cdn.example/hls/tok/1795621238/62000/62780/"
+    let master = base + "62780.m3u8"
+    var page: [MediaResource] = [media(master, .stream)]
+    for n in 0..<7 { page.append(media(base + "62780\(n).ts", .video, mime: "video/mp2t", size: 800_000)) }
+    page += [
+        media(base + "thumb.ts", .video, mime: "video/mp2t", size: 2_000),
+        media("https://img.example/contents/videos_screenshots/43000/43465/43465_preview.mp4", .video, source: "dom<video>"),
+        media("https://cdn.example/ads/300x250.medium.mp4", .video, size: 90_000),
+        media("https://adserver.example/vast/preroll.mp4", .video, size: 120_000),
+        media("https://cdn.example/ads/break.mp4", .video, size: 70_000),
+        media("blob:https://x/4e09-video", .video, source: "dom<video>"),
+    ]
+    let a = BatchMediaPlan.contentCandidates(page)
+    eq("A：只剩 1 个正片（播放列表）", a.candidates.map(\.resource.url), [master])
+    eq("A：分片全部归并进播放列表（7 个分片 + 缩略图）", a.collapsedSegments[master], 8)
+    eq("A：被拒总数", a.rejected.count, 13)
+    check("A：分片的理由点名所属播放列表", a.rejected.filter { $0.reason == "HLS segment of 62780" }.count == 8)
+    check("A：杂项各带理由", a.rejected.contains { $0.reason.hasPrefix("preview/thumbnail") }
+          && a.rejected.contains { $0.reason == "ad slot size in URL" }
+          && a.rejected.contains { $0.reason.hasPrefix("ad path segment") }
+          && a.rejected.contains { $0.reason.hasPrefix("ad host label") }
+          && a.rejected.contains { $0.reason.hasPrefix("blob") })
+    check("A：候选带证据", a.candidates.first?.evidence.contains("HLS master playlist") == true)
+
+    // 场景 B：多视频详情页（三部，各带分片/画质对），外加一个预览
+    let b = BatchMediaPlan.contentCandidates([
+        media("https://x/a/ep1/master.m3u8", .stream),
+        media("https://x/a/ep1/seg-0001.ts"), media("https://x/a/ep1/seg-0002.ts"), media("https://x/a/ep1/seg-0003.ts"),
+        media("https://x/a/ep2/index.m3u8", .stream), media("https://x/a/ep2/index.m3u8", .stream),
+        media("https://x/a/ep2/000001.ts"), media("https://x/a/ep2/000002.ts"), media("https://x/a/ep2/000003.ts"),
+        media("https://x/a/ep3-1080p.mp4", .video, size: 900), media("https://x/a/ep3-720p.mp4", .video, size: 500),
+        media("https://x/a/ep3/trailer-preview.mp4", .video, size: 3_000),
+    ])
+    eq("B：三部正片各一个候选（分片、重复、预览都不算）",
+       b.candidates.map(\.resource.url),
+       ["https://x/a/ep1/master.m3u8", "https://x/a/ep2/index.m3u8", "https://x/a/ep3-1080p.mp4"])
+    check("B：被拒里没有正片", !b.rejected.contains { $0.url.hasSuffix("ep3-1080p.mp4") })
+
+    // 没嗅探到播放列表：连号分片仍是分片；孤立的 .ts 是正片；按代号命名的 .ts 不是分片
+    let c = BatchMediaPlan.contentCandidates((1...5).map { media("https://x/seg-0000\($0).ts") })
+    check("C：连号分片（无播放列表）全部拒绝并说明原因", c.candidates.isEmpty && c.rejected.count == 5
+          && c.rejected.allSatisfy { $0.reason == "HLS segment (numbered run, playlist not captured)" })
+    eq("C：孤立的 .ts 当正片", BatchMediaPlan.contentCandidates([media("https://x/full-video.ts")]).candidates.count, 1)
+    eq("C：按代号命名的 .ts 不被当成连号分片",
+       BatchMediaPlan.contentCandidates([media("https://x/z/fns-270.ts"), media("https://x/z/fns-257.ts"),
+                                         media("https://x/z/ipz-576.ts")]).candidates.count, 3)
+    check("C：fMP4 分片（.mp4 连号）在播放列表目录下归并；画质对不算分片",
+          BatchMediaPlan.contentCandidates([
+            media("https://x/m/index.m3u8", .stream), media("https://x/m/seg-00001.mp4"), media("https://x/m/seg-00002.mp4"),
+            media("https://x/other/v-720p.mp4"), media("https://x/other/v-1080p.mp4"),
+          ]).candidates.map(\.resource.url) == ["https://x/m/index.m3u8", "https://x/other/v-1080p.mp4"])
+
+    // 绝不清空页面：只有"疑似杂项"时保留一个
+    let d = BatchMediaPlan.contentCandidates([media("https://x/preview.mp4", size: 4_000), media("https://x/thumb.mp4", size: 900)])
+    eq("D：全是疑似杂项 → 保留最大的那个", d.candidates.map(\.resource.url), ["https://x/preview.mp4"])
+    check("D：保留的那个写明原因", d.candidates.first?.evidence.contains { $0.hasPrefix("kept despite junk pattern") } == true)
+
+    // 站点排除规则（批 2 由适配器传入）
+    let e = BatchMediaPlan.contentCandidates([media("https://x/a.m3u8", .stream), media("https://x/b.mp4")],
+                                             extraExclusions: ["/b\\.mp4$"])
+    eq("E：站点规则排除命中", e.candidates.map(\.resource.url), ["https://x/a.m3u8"])
+    check("E：排除理由点名规则", e.rejected.contains { $0.reason == "site rule excludes //b\\.mp4$/" })
+
+    // 时长证据
+    let playlist = "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:8\n#EXTINF:4.004000,\n0.ts\n#EXTINF:7.574233,\n1.ts\n#EXTINF:2.5,@\n2.ts\n#EXT-X-ENDLIST"
+    check("时长：EXTINF 求和（容忍属性尾巴）", abs((BatchMediaPlan.playlistDuration(playlist) ?? -1) - 14.078233) < 0.0001)
+    check("时长：不是播放列表 → nil", BatchMediaPlan.playlistDuration("<html></html>") == nil && BatchMediaPlan.playlistDuration("#EXTM3U") == nil)
+
+    var main = BatchMediaPlan.ContentCandidate(resource: media(master, .stream), durationSeconds: nil, evidence: [])
+    main.durationSeconds = 7260
+    let clip = BatchMediaPlan.ContentCandidate(resource: media("https://x/ad-clip-other.mp4", size: 9_000), durationSeconds: 18, evidence: [])
+    let shortPage = BatchMediaPlan.ContentSelection(candidates: [main, clip])
+    let after = BatchMediaPlan.applyingDuration(shortPage, durations: [master: 7260.0, "https://x/ad-clip-other.mp4": 18.0])
+    eq("时长：有长片时过短的剔除", after.candidates.map(\.resource.url), [master])
+    check("时长：剔除理由写明秒数", after.rejected.contains { $0.reason.hasPrefix("too short (18s)") })
+    let allShort = BatchMediaPlan.ContentSelection(candidates: [clip])
+    eq("时长：候选全都过短 → 全部保留（短正片也成立）",
+       BatchMediaPlan.applyingDuration(allShort, durations: ["https://x/ad-clip-other.mp4": 18.0]).candidates.count, 1)
+    let unknown = BatchMediaPlan.ContentCandidate(resource: media("https://x/other-clip.mp4", size: 9_000), durationSeconds: nil, evidence: [])
+    check("时长：取不到时长的候选不据此剔除",
+          BatchMediaPlan.applyingDuration(BatchMediaPlan.ContentSelection(candidates: [main, unknown]), durations: [master: 7260.0]).candidates.count == 2)
+    check("时长：证据里写入时长", after.candidates.first?.evidence.contains("duration 7260s") == true)
+
+    // 被拒摘要
+    let summary = BatchMediaPlan.rejectionSummary(a.rejected)
+    check("摘要：按理由聚合计数", summary.contains("8 × HLS segment of 62780") && summary.contains("more kinds"))
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

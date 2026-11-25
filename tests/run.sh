@@ -160,6 +160,7 @@ SOURCES=(
   apps/macos/Desire/Features/Bookmarks/BookmarkBatchEdit.swift
   apps/macos/Desire/Features/Browsing/MediaResource.swift
   apps/macos/Desire/Features/Downloads/BatchMedia.swift
+  apps/macos/Desire/Features/Downloads/BatchMediaContent.swift
   apps/macos/Desire/Features/Downloads/BatchLocationResolver.swift
   apps/macos/Desire/Features/Agent/ToolResultSpill.swift
   apps/macos/Desire/Features/Agent/ArchiveGC.swift

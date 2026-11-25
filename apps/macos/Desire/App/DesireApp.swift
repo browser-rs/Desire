@@ -57,7 +57,7 @@ struct DesireApp: App {
         // `@StateObject` 的 AppState（+17ms，模型档案的装配/迁移就在这里）→ … →
         // `applicationWillFinishLaunching`（+296ms）。守卫此前放在那个委托回调里，
         // 偏好早已被写——带 --data-dir 却没隔离偏好的实例反而照样污染了用户设置。
-        HermeticLaunchGuard.enforce()
+        HermeticLaunchGuard.enforce(keychainIsolated: KeychainService.isIsolated)
         Log.app.info("launch phase: app init +\(Int(Date().timeIntervalSince(DesireApp.launchStart) * 1000), privacy: .public)ms")
         LaunchAudit.mark("app init")
         StartupMetric.anchorLaunch()

@@ -280,10 +280,28 @@ Features/Bookmarks/
   `defaults read me.siwi.Desire aiActiveProfileID` 与偏好文件的修改时间/指纹没变，
   并等后台任务（25→8 秒的回填等）跑完后再核对一次。**
   隔离后测试实例的偏好是全新的一份：依赖既有设置的套件（访问等级、通知策略等）
-  要经桥在实例内设置（`/agent/send "/access full"`）。`/state` 的 `startup.dataDir`
-  可断言存储封闭性。**仍然共享：Keychain**——假档案的 key 会写进用户登录钥匙串，
-  经桥删档案会连带删掉；清单用 `security dump-keychain` 按 `ai-key-profile-` 账号查。
-  清理隔离域：`defaults delete me.siwi.Desire.automation`。
+  要经桥在实例内设置（`/agent/send "/access full"`）。封闭性断言看 `/state` 的
+  `startup` 三项：`dataDir`（存储）、`prefs == "isolated"`（偏好）、
+  `secrets == "file"`（密钥）。清理隔离域：`defaults delete me.siwi.Desire.automation`
+  （cfprefsd 可能在实例退出后再落一个空壳，重删即可）。
+  **钥匙串是第四类污染（2026-11-25 批 4 实测，当晚的事故）**：这里上一版写着
+  "仍然共享 Keychain——假档案的 key 会写进登录钥匙串，删档案即清"，事实严重得多。
+  v0.8.0 起全部 AI Key 与同步令牌合并存在**同一个** InternetPassword 条目里
+  （service `me.siwi.Desire` / account `app-secrets-v1`），读写都是整条读—改—写：
+  隔离实例启动即读出用户全部密钥（日志 `[me.siwi.Desire:keychain] read
+  account=app-secrets-v1 … status=0`），保存测试 Key 时把该条目整个重写——而
+  **写入 = 先删后加，重建条目的进程成为条目属主**。开发构建（Apple Development
+  签名、Team F8JZTX6J52）重建之后，本机自签、无 Team 的安装版不再在访问名单里，
+  下次读 Key 要重新授权。现状：带 `--data-dir` 时 `KeychainService` 的全部读写转到
+  `<data-dir>/keychain/` 文件库（`FileKeychain`，明文、只放假凭据），真实钥匙串
+  连读都不读；`HermeticLaunchGuard` 同时自检这一项，不成立即拒绝启动。
+  **跑任何会碰密钥的测试前先断言 `startup.secrets == "file"`**，跑完核对真实
+  钥匙串的条目数与 `app-secrets-v1` 的修改时间没变。查元数据用
+  `security dump-keychain`（不带 `-a`、不带 `-d`）：条目是 InternetPassword 类，
+  `find-generic-password` 与 `find-internet-password -s` 都查不到它；
+  `dump-keychain -a`（导访问名单）会挂住，别用。`"acct"<blob>="ai-key-profile-`
+  的 10 条是 v0.8.0 之前的旧版独立条目，不代表现在的存放位置——按它数会得出
+  "测试没写钥匙串"的假结论。
 - **CI runner 上应用无法激活**（0.7.0 发版实测：`isActive` 恒 false，
   osascript activate 无效）——**浏览器端点（/navigate /new-tab /execute 等）
   在 CI 上全部挂起**（未激活进程里 WKWebView 创建阻塞）。浏览器依赖的

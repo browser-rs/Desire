@@ -17,9 +17,18 @@ import Security
 /// 真正需要秘密时（用户点显示/复制、Agent 回合、显式同步）才 `read`，
 /// 一次只读一条。`interactive: false` 只屏蔽生物识别/密码框，**挡不住
 /// ACL 的"允许访问"授权窗**，别拿它当"不弹窗"的保证。
+/// **封闭启动不走系统钥匙串**（v0.8.76 批 4）：带 `--data-dir` 时本类型的全部读写
+/// 转到 `FileKeychain`（数据目录里的文件库），真实钥匙串连读都不读。
+/// 此前封闭实例与用户共用钥匙串——共用的是**单个** `app-secrets-v1` 条目（v0.8.0
+/// 起全部 AI Key 与同步令牌合并存放在里面，读—改—写整条），实测封闭实例启动即
+/// 读出用户全部密钥，随后保存测试 Key 时把整个条目重写了一遍。
 nonisolated enum KeychainService {
 
     private static let log = Logger(subsystem: "me.siwi.Desire", category: "keychain")
+
+    /// 封闭模式：读写走文件库。只看启动参数，不触发任何钥匙串调用——
+    /// `HermeticLaunchGuard` 在启动第一行就靠它自检。
+    static var isIsolated: Bool { StorageRoot.isOverridden }
 
     /// 本应用条目的默认 service 属性（loadAll 枚举按它圈范围——
     /// 不过滤会扫到其他应用的 Internet Password、连环弹授权）。
@@ -33,6 +42,10 @@ nonisolated enum KeychainService {
     static func read(account: String, service: String? = defaultService,
                      server: String? = nil, httpsOnly: Bool = false,
                      interactive: Bool = false) -> Data? {
+        if isIsolated {
+            return FileKeychain.shared.read(account: account, service: service,
+                                             server: server, httpsOnly: httpsOnly)
+        }
         var query = baseQuery(service: service, server: server)
         query[kSecAttrAccount as String] = account
         if httpsOnly { query[kSecAttrProtocol as String] = kSecAttrProtocolHTTPS }
@@ -57,6 +70,10 @@ nonisolated enum KeychainService {
     /// 只查存在性——**不取 data**，不会触发 Keychain 授权。启动路径专用。
     static func exists(account: String, service: String? = defaultService,
                        server: String? = nil, httpsOnly: Bool = false) -> Bool {
+        if isIsolated {
+            return FileKeychain.shared.exists(account: account, service: service,
+                                               server: server, httpsOnly: httpsOnly)
+        }
         var query = baseQuery(service: service, server: server)
         query[kSecAttrAccount as String] = account
         if httpsOnly { query[kSecAttrProtocol as String] = kSecAttrProtocolHTTPS }
@@ -73,6 +90,7 @@ nonisolated enum KeychainService {
     /// `httpsOnly` = 只要网站密码（AI Key/同步令牌没有 HTTPS protocol 属性）。
     static func listAttributes(service: String = defaultService,
                                httpsOnly: Bool = false) -> [(server: String, account: String)] {
+        if isIsolated { return FileKeychain.shared.listAttributes(service: service, httpsOnly: httpsOnly) }
         var query: [String: Any] = [
             kSecClass as String: kSecClassInternetPassword,
             kSecAttrService as String: service,
@@ -97,6 +115,7 @@ nonisolated enum KeychainService {
     /// **必须带 service 过滤**；启动路径 → 非交互。
     static func readAll(service: String = defaultService,
                         httpsOnly: Bool = false) -> [(server: String, account: String, data: Data)] {
+        if isIsolated { return FileKeychain.shared.readAll(service: service, httpsOnly: httpsOnly) }
         var query: [String: Any] = [
             kSecClass as String: kSecClassInternetPassword,
             kSecAttrService as String: service,
@@ -125,6 +144,11 @@ nonisolated enum KeychainService {
     @discardableResult
     static func write(_ data: Data, account: String, service: String = defaultService,
                       server: String? = nil, httpsProtocol: Bool = false) -> OSStatus {
+        if isIsolated {
+            return FileKeychain.shared.write(data, account: account, service: service,
+                                              server: server, httpsProtocol: httpsProtocol)
+                ? errSecSuccess : errSecIO
+        }
         delete(account: account, service: service, server: server)
         var query = baseQuery(service: service, server: server)
         query[kSecAttrAccount as String] = account
@@ -143,6 +167,7 @@ nonisolated enum KeychainService {
     @discardableResult
     static func delete(account: String, service: String? = defaultService,
                        server: String? = nil) -> OSStatus {
+        if isIsolated { return FileKeychain.shared.delete(account: account, service: service, server: server) ? errSecSuccess : errSecItemNotFound }
         var query = baseQuery(service: service, server: server)
         query[kSecAttrAccount as String] = account
         return SecItemDelete(query as CFDictionary)

@@ -4480,6 +4480,10 @@ case ("GET", "/agent/messages"):
             // 阅读模式状态（v0.7.28）：提取后的 baseURL/内容长度是探针能断言
             // "阅读模式真的拿到了这一页"的最小证据。
             "reader": readerState(tm?.selectedTab),
+                // 封闭性探针（v0.8.76）：偏好与密钥各走哪个入口——套件据此断言
+                // "这个实例碰不到用户的偏好与钥匙串"（dataDir 只是其一）。
+                "prefs": AppPrefs.isIsolated ? "isolated" : "standard",
+                "secrets": KeychainService.isIsolated ? "file" : "keychain",
         ]
     }
 

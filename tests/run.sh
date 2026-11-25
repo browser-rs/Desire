@@ -10,6 +10,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/LessonCore.swift
   apps/macos/Desire/Features/Agent/MemoryCheckupCore.swift
   apps/macos/Desire/Storage/StorageRoot.swift
+  apps/macos/Desire/Storage/FileKeychain.swift
   apps/macos/Desire/Storage/DiagnosticGC.swift
   apps/macos/Desire/Storage/HermeticLaunchGuard.swift
   apps/macos/Desire/Storage/AppPrefs.swift

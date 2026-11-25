@@ -12391,13 +12391,99 @@ do {
 // ---------- HermeticLaunchGuard 封闭启动守卫（v0.8.76） ----------
 
 do {
-    check("守卫：正常启动不受影响", HermeticLaunchGuard.verdict(isOverridden: false, isolated: false) == .normalLaunch)
-    check("守卫：封闭启动且偏好入口是独立域 → 放行", HermeticLaunchGuard.verdict(isOverridden: true, isolated: true)
+    check("守卫：正常启动不受影响", HermeticLaunchGuard.verdict(isOverridden: false, isolated: false, keychainIsolated: false) == .normalLaunch)
+    check("守卫：封闭启动且偏好、密钥入口都独立 → 放行",
+          HermeticLaunchGuard.verdict(isOverridden: true, isolated: true, keychainIsolated: true)
           == .hermeticIsolated(suite: AppPrefs.automationSuiteName))
-    check("守卫：封闭启动但偏好入口仍是用户的 → 拒绝", HermeticLaunchGuard.verdict(isOverridden: true, isolated: false) == .hermeticNotIsolated)
+    check("守卫：封闭启动但偏好入口仍是用户的 → 拒绝",
+          HermeticLaunchGuard.verdict(isOverridden: true, isolated: false, keychainIsolated: true) == .hermeticNotIsolated)
+    check("守卫：封闭启动但密钥入口仍是系统钥匙串 → 拒绝",
+          HermeticLaunchGuard.verdict(isOverridden: true, isolated: true, keychainIsolated: false) == .hermeticNotIsolated)
     check("守卫：独立域名固定（不随目录变，避免在偏好目录堆积）", AppPrefs.automationSuiteName == "me.siwi.Desire.automation")
     // 进程内真实状态：这个测试进程没带 --data-dir → 入口就是 .standard
     check("守卫：非封闭进程的偏好入口就是 .standard", !AppPrefs.isIsolated && AppPrefs.defaults === UserDefaults.standard)
+}
+
+// ---------- 封闭启动的钥匙串文件库 FileKeychain（v0.8.76 批 4） ----------
+
+do {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("filekeychain-\(UUID().uuidString)", isDirectory: true)
+    let store = FileKeychain(directory: dir)
+    let vault = FileKeychain(directory: dir)   // 同目录的第二个实例：文件是唯一真相
+
+    check("文件库：空库读不到、不存在", store.read(account: "app-secrets-v1", service: "me.siwi.Desire") == nil
+          && !store.exists(account: "app-secrets-v1", service: "me.siwi.Desire"))
+    check("文件库：写入后读回一致、存在性成立",
+          store.write(Data("{\"a\":1}".utf8), account: "app-secrets-v1", service: "me.siwi.Desire")
+          && store.read(account: "app-secrets-v1", service: "me.siwi.Desire") == Data("{\"a\":1}".utf8)
+          && store.exists(account: "app-secrets-v1", service: "me.siwi.Desire"))
+    check("文件库：另一个实例读得到（不靠内存）",
+          vault.read(account: "app-secrets-v1", service: "me.siwi.Desire") == Data("{\"a\":1}".utf8))
+    check("文件库：更新语义——同一三元组只留一条（先删后加的等价物）",
+          store.write(Data("{\"a\":2}".utf8), account: "app-secrets-v1", service: "me.siwi.Desire")
+          && store.read(account: "app-secrets-v1", service: "me.siwi.Desire") == Data("{\"a\":2}".utf8)
+          && (try? FileManager.default.contentsOfDirectory(atPath: dir.path).filter { $0.hasSuffix(".json") })?.count == 1)
+    check("文件库：service 过滤生效",
+          store.read(account: "app-secrets-v1", service: "other.service") == nil
+          && !store.exists(account: "app-secrets-v1", service: "other.service")
+          && store.read(account: "app-secrets-v1") == Data("{\"a\":2}".utf8))
+
+    // 网站密码条目：带 server 与 HTTPS 协议属性
+    store.write(Data("pw-a".utf8), account: "user@example.test", service: "me.siwi.Desire",
+                server: "example.test", httpsProtocol: true)
+    store.write(Data("pw-b".utf8), account: "user@other.test", service: "me.siwi.Desire",
+                server: "other.test", httpsProtocol: true)
+    store.write(Data("legacy".utf8), account: "legacy-no-https", service: "me.siwi.Desire",
+                server: "old.test", httpsProtocol: false)
+    eq("文件库：按 server+account 读",
+       store.read(account: "user@example.test", service: "me.siwi.Desire", server: "example.test"),
+       Data("pw-a".utf8))
+    eq("文件库：httpsOnly 过滤——带协议属性的才算",
+       store.listAttributes(service: "me.siwi.Desire", httpsOnly: true).count, 2)
+    check("文件库：没有 server 的条目（AI Key/令牌）不进密码清单",
+          !store.listAttributes(service: "me.siwi.Desire", httpsOnly: true).contains { $0.account == "app-secrets-v1" })
+    eq("文件库：readAll 带 data", store.readAll(service: "me.siwi.Desire", httpsOnly: true).map(\.data).count, 2)
+    check("文件库：readAll 的 data 与写入一致",
+          Set(store.readAll(service: "me.siwi.Desire", httpsOnly: true).map { String(decoding: $0.data, as: UTF8.self) })
+            == ["pw-a", "pw-b"])
+    check("文件库：httpsOnly 读得到带协议属性的、读不到不带的",
+          store.exists(account: "user@example.test", service: "me.siwi.Desire", server: "example.test", httpsOnly: true)
+          && !store.exists(account: "legacy-no-https", service: "me.siwi.Desire", server: "old.test", httpsOnly: true))
+
+    check("文件库：删除不看协议过滤", store.delete(account: "legacy-no-https", service: "me.siwi.Desire", server: "old.test")
+          && !store.exists(account: "legacy-no-https", service: "me.siwi.Desire", server: "old.test"))
+    check("文件库：删除后其他条目还在",
+          store.read(account: "app-secrets-v1", service: "me.siwi.Desire") == Data("{\"a\":2}".utf8)
+          && store.read(account: "user@example.test", service: "me.siwi.Desire", server: "example.test") == Data("pw-a".utf8))
+    check("文件库：删不存在的返回 false", !store.delete(account: "nobody", service: "me.siwi.Desire"))
+    store.write(Data("gone".utf8), account: "x", service: "s")
+    check("文件库：不带 service 的删除只命中该账号", store.delete(account: "x", service: "s")
+          && store.read(account: "x", service: "s") == nil
+          && store.read(account: "app-secrets-v1", service: "me.siwi.Desire") != nil)
+
+    // 文件名：任意账号/域名都安全且确定
+    let odd = "用户/../名字@" + String(repeating: "长", count: 400)
+    let name = FileKeychain.fileName(service: "me.siwi.Desire", server: "a.b/../c", account: odd)
+    check("文件名：超长账号被截到安全长度且确定", name.count < 200 && !name.contains("/")
+          && name == FileKeychain.fileName(service: "me.siwi.Desire", server: "a.b/../c", account: odd))
+    check("文件名：不同账号不同名",
+          FileKeychain.fileName(service: "s", server: nil, account: "a") != FileKeychain.fileName(service: "s", server: nil, account: "b"))
+    check("文件名：没有 server 与空 server 同名（nil 归一）",
+          FileKeychain.fileName(service: "s", server: nil, account: "a") == FileKeychain.fileName(service: "s", server: "", account: "a"))
+    store.write(Data("odd".utf8), account: odd, service: "me.siwi.Desire", server: "a.b/../c")
+    check("文件库：怪账号也能写读", store.read(account: odd, service: "me.siwi.Desire", server: "a.b/../c") == Data("odd".utf8))
+    let escaped = (try? FileManager.default.contentsOfDirectory(atPath: dir.path).contains { $0 == "名字@" }) ?? true
+    check("文件库：没有写出目录之外", !escaped)
+
+    store.removeAll()
+    check("文件库：清空后一条不剩", (try? FileManager.default.contentsOfDirectory(atPath: dir.path).filter { $0.hasSuffix(".json") })?.isEmpty ?? false
+          && !store.exists(account: "app-secrets-v1", service: "me.siwi.Desire"))
+    try? FileManager.default.removeItem(at: dir)
+
+    // 默认目录永远在数据根之下：封闭启动时数据根 = data-dir，于是密钥库也在里面
+    eq("文件库：默认目录 = <数据根>/keychain", FileKeychain.defaultDirectory.standardizedFileURL.path,
+       StorageRoot.directory.appendingPathComponent("keychain", isDirectory: true).standardizedFileURL.path)
 }
 
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块

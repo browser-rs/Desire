@@ -413,10 +413,11 @@ def main():
             scoped = br("GET", "/ai/scoped-tools")
             ok("精简工具：开关端点可用", "enabled" in scoped)
             skills = br("GET", "/skills").get("skills", [])
+            # 全新实例里还没有使用记录（usage 为空）——只对**有记录**的技能查字段。
+            recorded = [skill.get("usage") for skill in skills if skill.get("usage")]
             ok("技能：使用记录字段可读（触发样本/工具历史）",
-               all("triggerSamples" in (skill.get("usage") or {})
-                   and "maxTriggerCount" in (skill.get("usage") or {})
-                   for skill in skills))
+               all("triggerSamples" in usage and "maxTriggerCount" in usage
+                   for usage in recorded))
             cards = br("GET", "/skills/candidates").get("candidates", [])
             ok("技能候选：卡片区分草稿与补丁",
                all(card.get("kind") in ("draft", "patch") for card in cards))

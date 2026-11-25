@@ -10,7 +10,7 @@ import Foundation
 enum SiteDownloadSkillSync {
 
     /// 技能正文里的标记：据此只清理**本机制同步出来的**技能，不碰用户手写的。
-    static let marker = "<!-- synced from DPP adapter download rules -->"
+    static let marker = SyncedSkillPlacement.marker
 
     private static let fingerprintKey = "dpp.download.skillFingerprints"
     private static let nameKey = "dpp.download.syncedSkillNames"
@@ -54,7 +54,7 @@ enum SiteDownloadSkillSync {
     }
 
     /// 技能正文里的标记（紧跟 frontmatter 之后）：据此只清理**本机制同步出来的**技能。
-    static func isSynced(skillText: String) -> Bool { skillText.contains(marker) }
+    static func isSynced(skillText: String) -> Bool { SyncedSkillPlacement.isSynced(skillText) }
 
     /// 技能名 → 适配器名。只记录本机制同步过的技能。
     private static var syncedNames: [String: String] {
@@ -72,14 +72,21 @@ enum SiteDownloadSkillSync {
         var names = syncedNames
         var changed = false
         let withRules = adapters.filter { $0.download != nil }
+        func textAt(_ url: URL) -> String? { try? String(contentsOf: url, encoding: .utf8) }
+        func path(of skillName: String) -> URL {
+            SkillStore.directory.appendingPathComponent(SyncedSkillPlacement.fileName(for: skillName))
+        }
         for adapter in withRules {
             let print = fingerprint(of: adapter.download)
-            let skillName = skillName(for: adapter)
-            let path = SkillStore.directory.appendingPathComponent(
-                FilePathing.sanitizeFileName(skillName) + ".md")
-            // 规则内容的指纹变了，或者技能文件不在了（存储被清过 / 换了数据目录），才重写。
-            guard prints[adapter.name] != print
-                    || !FileManager.default.fileExists(atPath: path.path) else { continue }
+            // 落点：以前登记过、且位置上仍是本机制写的 → 沿用；否则现算。名字可能被一份
+            // **别的技能**占着（用户手写的、或智能体自己存的）——绝不覆盖，顺延落点。
+            let placement = SyncedSkillPlacement.destination(
+                in: SkillStore.directory, skillName: skillName(for: adapter),
+                registered: names.first { $0.value == adapter.name }?.key, textAt: textAt)
+            let skillName = placement.name
+            // 规则内容的指纹变了才重写。同步出来的技能被用户删了不补回——删掉就是不要，
+            // 等下次规则变了再说。
+            guard prints[adapter.name] != print else { continue }
             let text = """
             ---
             name: \(skillName)
@@ -89,7 +96,7 @@ enum SiteDownloadSkillSync {
             \(markdown(for: adapter))
             """
             do {
-                try text.write(to: path, atomically: true, encoding: .utf8)
+                try text.write(to: placement.path, atomically: true, encoding: .utf8)
                 prints[adapter.name] = print
                 names[skillName] = adapter.name
                 changed = true
@@ -100,9 +107,8 @@ enum SiteDownloadSkillSync {
         // 适配器已删 / 不再带下载段：撤掉当初同步出来的技能（只认带标记的文件）。
         let live = Set(withRules.map(\.name))
         for (skillName, adapterName) in names where !live.contains(adapterName) {
-            let path = SkillStore.directory.appendingPathComponent(
-                FilePathing.sanitizeFileName(skillName) + ".md")
-            if let text = try? String(contentsOf: path, encoding: .utf8), isSynced(skillText: text) {
+            let path = path(of: skillName)
+            if SyncedSkillPlacement.isSynced(textAt(path)) {
                 try? FileManager.default.removeItem(at: path)
                 changed = true
             }

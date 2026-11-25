@@ -201,6 +201,15 @@ def main():
         adapter_path = os.path.join(data_dir, "fixture-adapter.json")
         with open(adapter_path, "w", encoding="utf-8") as handle:
             json.dump(adapter, handle, ensure_ascii=False, indent=2)
+        # 原名位置上先放一份"别的技能"（实测形态：智能体在任务里自己存的同名站点技能，
+        # 写着"绝不要用批量下载"）——同步出来的说明性技能**绝不覆盖**它，另找落点。
+        skills_dir = os.path.join(data_dir, "skills")
+        os.makedirs(skills_dir, exist_ok=True)
+        foreign = os.path.join(skills_dir, "127-0-0-1-download.md")
+        foreign_text = ("---\nname: 127-0-0-1-download\ndescription: 别人写的站点技能\n---\n"
+                        "这个站点绝不要用批量下载，自己写脚本。\n")
+        with open(foreign, "w", encoding="utf-8") as handle:
+            handle.write(foreign_text)
         imported = br(base, "POST", "/dpp/adapters/import", {"path": adapter_path})
         adapter_installed = True
         entry = next((a for a in br(base, "GET", "/dpp/adapters").get("adapters", [])
@@ -278,15 +287,21 @@ def main():
            all(hits.get(f"/expire/hls/aaa/seg-00{n}.ts") == 2 for n in (3, 4, 5)),
            json.dumps({k: v for k, v in hits.items() if "/expire/" in k}))
 
-        # ---- 说明性技能随适配器同步；适配器删除后撤掉 ----
-        skill = os.path.join(data_dir, "skills", "127-0-0-1-download.md")
+        # ---- 说明性技能随适配器同步；适配器删除后撤掉。原名被占 → 落在 -site 上 ----
+        skill = os.path.join(data_dir, "skills", "127-0-0-1-download-site.md")
         skill_text = open(skill, encoding="utf-8").read() if os.path.exists(skill) else ""
         ok("技能同步：生成了该站点的说明性技能", "synced from DPP adapter download rules" in skill_text, skill_text[:200])
         ok("技能同步：只说怎么做，不写提取细节",
            "downloadVideoList" in skill_text and "var hlsUrl" not in skill_text, skill_text[:400])
+        ok("技能同步：落点名字与正文 name 一致",
+           "name: 127-0-0-1-download-site\n" in skill_text, skill_text[:120])
+        foreign_now = open(foreign, encoding="utf-8").read() if os.path.exists(foreign) else ""
+        ok("技能同步：同名位置上别的技能原样保留（不覆盖）", foreign_now == foreign_text, foreign_now[:200])
         br(base, "POST", "/dpp/adapters/remove", {"name": "fixture-site"})
         time.sleep(1.5)
         ok("技能同步：适配器删除后技能随之撤掉", not os.path.exists(skill))
+        foreign_after = open(foreign, encoding="utf-8").read() if os.path.exists(foreign) else ""
+        ok("技能同步：撤回只动自己写的那份", foreign_after == foreign_text, foreign_after[:200])
     finally:
         if batch_id:
             try:

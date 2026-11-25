@@ -13228,6 +13228,73 @@ do {
           fmp4.fingerprint != playlist.fingerprint && playlist.fingerprint == "3|14")
 }
 
+// ---------- 同步技能的落点 SyncedSkillPlacement（v0.8.77） ----------
+
+do {
+    let dir = FileManager.default.temporaryDirectory
+        .appendingPathComponent("desire-harness-skill-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir) }
+    func write(_ name: String, _ body: String) throws {
+        try body.write(to: dir.appendingPathComponent(name + ".md"), atomically: true, encoding: .utf8)
+    }
+    func read(_ url: URL) -> String? { try? String(contentsOf: url, encoding: .utf8) }
+    func placed(_ result: (name: String, path: URL)) -> String { result.name }
+
+    eq("落点：文件名 = 技能名 + .md", SyncedSkillPlacement.fileName(for: "site-download"), "site-download.md")
+    check("落点：标记判定（不是本机制写的 / 不存在 都算不是）",
+          SyncedSkillPlacement.isSynced("x\n" + SyncedSkillPlacement.marker + "\ny")
+          && !SyncedSkillPlacement.isSynced("---\nname: a\n---\n用户写的")
+          && !SyncedSkillPlacement.isSynced(nil))
+    eq("落点：名字没被占 → 原名",
+       placed(SyncedSkillPlacement.destination(in: dir, skillName: "site-download", textAt: read)), "site-download")
+
+    // 名字被一份**别的技能**占着（实测形态：智能体在任务里自己存的"绝不要用"技能同名）
+    let foreign = "---\nname: site-download\n---\n这个站点绝不要用批量下载，自己写脚本。\n"
+    try write("site-download", foreign)
+    let moved = SyncedSkillPlacement.destination(in: dir, skillName: "site-download", textAt: read)
+    eq("落点：原名被别的技能占着 → 顺延到 -site", placed(moved), "site-download-site")
+    check("落点：顺延后的路径在同名文件之外", moved.path.lastPathComponent == "site-download-site.md")
+    try write("site-download-site", foreign)
+    try write("site-download-site-2", foreign)
+    eq("落点：原名与 -site 都被占 → 再顺延",
+       placed(SyncedSkillPlacement.destination(in: dir, skillName: "site-download", textAt: read)), "site-download-site-3")
+    // 顺延位置上已经是本机制写的 → 就用它（不继续往后漂）
+    try write("site-download-site", "x\n" + SyncedSkillPlacement.marker + "\n")
+    eq("落点：顺延位置上已是同步文件 → 沿用",
+       placed(SyncedSkillPlacement.destination(in: dir, skillName: "site-download", textAt: read)), "site-download-site")
+
+    // 多次同步之间稳定：位置上已是本机制写的 → 沿用，不往后漂
+    let dir2 = FileManager.default.temporaryDirectory
+        .appendingPathComponent("desire-harness-skill-\(UUID().uuidString)", isDirectory: true)
+    try FileManager.default.createDirectory(at: dir2, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: dir2) }
+    func write2(_ name: String, _ body: String) throws {
+        try body.write(to: dir2.appendingPathComponent(name + ".md"), atomically: true, encoding: .utf8)
+    }
+    func read2(_ url: URL) -> String? { try? String(contentsOf: url, encoding: .utf8) }
+    try write2("site-download", foreign)
+    let first = SyncedSkillPlacement.destination(in: dir2, skillName: "site-download", textAt: read2)
+    try write2(first.name, "x\n" + SyncedSkillPlacement.marker + "\n")
+    let second = SyncedSkillPlacement.destination(in: dir2, skillName: "site-download", textAt: read2)
+    eq("落点：写完之后重算，落点不变", placed(second), placed(first))
+    eq("落点：登记过的落点还在自己手里 → 沿用登记的名字",
+       placed(SyncedSkillPlacement.destination(in: dir2, skillName: "site-download",
+                                               registered: first.name, textAt: read2)), first.name)
+    // 登记的位置上被换成了别人的技能 → 不认，另找落点（不覆盖）
+    try write2("site-download-site-9", foreign)
+    let elsewhere = SyncedSkillPlacement.destination(in: dir2, skillName: "site-download",
+                                                     registered: "site-download-site-9", textAt: read2)
+    eq("落点：登记的位置换成了别人的技能 → 回到自己那份",
+       placed(elsewhere), first.name)
+    check("落点：别人的文件原样保留", read2(dir2.appendingPathComponent("site-download.md")) == foreign
+          && read2(dir2.appendingPathComponent("site-download-site-9.md")) == foreign)
+    // 原名位置上的技能被删了：空出来的名字可以再用（给没登记过的新同步）
+    try FileManager.default.removeItem(at: dir2.appendingPathComponent("site-download.md"))
+    eq("落点：原名空出来了 → 新同步用原名",
+       placed(SyncedSkillPlacement.destination(in: dir2, skillName: "site-download", textAt: read2)), "site-download")
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

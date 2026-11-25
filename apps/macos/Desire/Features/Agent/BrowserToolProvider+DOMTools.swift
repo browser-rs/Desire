@@ -353,8 +353,22 @@ extension BrowserToolProvider {
                     lines.append("\(raw): not resolved — \(reason)")
                 }
             }
-            return "Signed media addresses expire quickly — start the download right away, or pass the detail pages to downloadVideoList and let it resolve them when each slot opens.\n"
+            return "Signed media addresses expire quickly — start the download right away, or pass the detail pages to downloadVideoList and let it resolve them when each slot opens. To know which download method a stream gets and how fast it goes, call probeDownload(url) — do not benchmark with your own scripts.\n"
                 + lines.joined(separator: "\n")
+
+        case "probeDownload":
+            // 下载方式探测（v0.8.77 批 6）：不下载，把研判依据交给模型——流的形态、会走哪个
+            // 引擎及原因、开头分片的实测速度与预计耗时。起因：真实使用里智能体因为"内置的
+            // 下载太慢"转而自己写并发脚本，它缺的正是这份依据。
+            guard let urlString = args["url"] as? String, let url = URL(string: urlString),
+                  url.scheme == "http" || url.scheme == "https" else {
+                return Self.fail("Invalid url (http/https only)")
+            }
+            let probeConnections = (args["connections"] as? Int).flatMap { (1...32).contains($0) ? $0 : nil }
+                ?? MediaExporter.defaultConnections
+            return await MediaExporter.probe(
+                url: url, referer: webView.url, userAgent: webView.customUserAgent,
+                connections: probeConnections).text
 
         case "downloadVideoList":
             // 列表批量（模式 B）：详情页地址逐个交给隐藏解析器。长任务立刻
@@ -574,11 +588,15 @@ extension BrowserToolProvider {
                 url: url,
                 referer: webView.url,
                 userAgent: webView.customUserAgent,
-                fileNameHint: args["fileName"] as? String
+                fileNameHint: args["fileName"] as? String,
+                connections: (args["connections"] as? Int).flatMap { (1...32).contains($0) ? $0 : nil }
             )
             return """
             Export started in the background (job \(jobID.uuidString.prefix(8))). It keeps running while \
             you continue working — do NOT wait for it and do not retry it. The file lands in ~/Downloads.
+            The download method follows the stream's shape (ordinary HLS: parallel segment connections). \
+            If it turns out slow, call probeDownload(url) for the measured speed and start again with a higher \
+            `connections` — never script a downloader of your own.
             \(LongTaskReceipt.nextStep(watch: "watchBackgroundTasks(ids: [\"\(jobID.uuidString.prefix(8))\"])"))
             """
 
@@ -688,6 +706,8 @@ extension BrowserToolProvider {
             return jobs.suffix(10).map { job -> String in
                 var line = "\(job.state.rawValue) \(job.title)"
                 if let summary = job.summary { line += " — \(summary)" }
+                // 研判与测速（v0.8.77 批 6）：让模型看到这一路为什么这么下、实际多快。
+                for note in job.plan { line += "\n  · \(note)" }
                 return line
             }.joined(separator: "\n")
 
@@ -1168,7 +1188,12 @@ extension BrowserToolProvider {
             // 非零退出 / 超时是最常见的一类工具失败，必须进统一约定：
             // 否则机械核验与模型都看不出这条命令没成功（grep 无匹配的 exit 1 也算）。
             let output = "runCommand \(result.summary)\n\(result.stdout)\(result.stderr == "" ? "" : "\n\(result.stderr)")"
-            return (result.exitCode == 0 && !result.timedOut) ? output : Self.fail(output)
+            // 自己写下载（v0.8.77 批 6）：把 HLS 地址交给 ffmpeg / curl / 脚本时附一句提示，不拦——
+            // 内置下载已经是分片并发，智能体多半只是不知道。
+            let downloadNote = DownloadRouting.looksLikeHandWrittenDownload(tool: tool, arguments: commandArgs)
+                ? "\nNote from Desire: this command hands an HLS stream to a hand-written downloader. The built-in download already fetches segments in parallel (downloadMedia / downloadVideoList, `connections` up to 32) and handles decryption, remux and expired addresses; probeDownload(url) reports the method and the measured speed. Use a script only if probeDownload says the stream is unsupported."
+                : ""
+            return (result.exitCode == 0 && !result.timedOut) ? output + downloadNote : Self.fail(output + downloadNote)
 
         // --- Background jobs (v0.8.39) ---
         case "listBackgroundTasks":

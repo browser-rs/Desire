@@ -112,6 +112,8 @@ nonisolated enum ToolRisk: Int, Comparable {
         "useTools",
         // 浏览器取地址（v0.8.77 批 4）：隐藏解析器加载页面并列出正片，不下载、不改状态
         "resolveVideos",
+        // 下载方式探测（v0.8.77 批 6）：读播放列表、量开头几个分片的速度，落在临时目录里量完即删
+        "probeDownload",
         // Scheduled task inspection (creation/cancel stays side-effect)
         "listScheduledTasks",
         // Workspace inspection (reads inside the sandboxed working directory)

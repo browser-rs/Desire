@@ -669,10 +669,11 @@ extension BrowserToolProvider {
                 ], required: [])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
-                name: "downloadMedia", description: "Start a BACKGROUND export of a media resource (direct mp4/webm/mp3/… or HLS) to Downloads. HLS uses installed ffmpeg when present (playlist → MP4, keeps split AUDIO renditions; ALWAYS the highest variant — no quality knob), else the built-in segment downloader (AES-128, MPEG-TS → remux MP4). Returns a job id immediately — do NOT wait; check listMediaExports for the VERIFIED receipt (duration/resolution/codecs + source variant list, ⚠️ if below source best). Pair with listPageVideos: extract, confirm with the user, then start.",
+                name: "downloadMedia", description: "Start a BACKGROUND download of one media resource (a direct file or an HLS playlist) to Downloads. The method is chosen from the stream's shape, not by guesswork: ordinary HLS (VOD, clear or AES-128) is fetched with PARALLEL segment connections (default 8 — it is no longer a slow serial read) and decrypted/remuxed locally when ffmpeg is installed; masters with separate audio renditions, byte-range segments or SAMPLE-AES go through ffmpeg directly (serial) so nothing is lost. The first segments are timed (single vs parallel) to set the connection count. Returns a job id immediately — do NOT wait; check listMediaExports for the VERIFIED receipt (duration/resolution/codecs + source variant list). Before assuming it will be slow, call probeDownload(url) — it reports the method, the measured speed and an ETA. Never write a downloader script or run ffmpeg/curl yourself for a stream the built-in download handles.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "url": AgentJSONSchemaValue(type: "string", description: "Media or m3u8 playlist URL (http/https)"),
                     "fileName": AgentJSONSchemaValue(type: "string", description: "Optional file name without extension"),
+                    "connections": AgentJSONSchemaValue(type: "number", description: "Connections per stream for HLS, 1-32 (default 8). Raise it when probeDownload shows the source throttling each connection and parallel scaling; use 1 for sites that reject parallel requests."),
                 ], required: ["url"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
@@ -707,6 +708,13 @@ extension BrowserToolProvider {
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "urls": AgentJSONSchemaValue(type: "array", description: "Detail-page URLs (http/https), at most 10"),
                 ], required: ["urls"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "probeDownload", description: "Assess ONE media/stream URL WITHOUT downloading it. Reports the facts (HLS VOD or live, direct file, master variants, encryption, segment count and length, whether ffmpeg is installed), the download method the built-in engine will use and WHY, the measured speed of the first segments (single connection vs parallel) and an ETA. Read-only apart from fetching the first few segments, which are deleted afterwards. Call it whenever a download seems slow or before choosing how to download, then act on the evidence: raise `connections` while parallel scales, or accept a serial method when the stream's shape requires it. Never hand-write a downloader script for a stream this reports as supported.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "url": AgentJSONSchemaValue(type: "string", description: "A stream or media address (http/https), not a detail page — use resolveVideos for pages"),
+                    "connections": AgentJSONSchemaValue(type: "number", description: "Connections to test in the parallel probe, 2-32 (default 8)"),
+                ], required: ["url"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "retryBatchDownloads",

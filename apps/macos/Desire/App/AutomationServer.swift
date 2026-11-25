@@ -682,7 +682,8 @@ final class AutomationServer {
         ep("POST", "/ads/block", "Hide elements on this host now and on future loads (+ optional request blocks)", params: ["selectors:[string]", "urlPattern?:string", "requests?:[string]", "index?:int"], example: #"-d '{"selectors":["[id=\"banner\"]"]}'"#)
         ep("GET", "/toolbox/catalog", "Programmatic Toolbox tools (name, summary, arguments)", example: "…/toolbox/catalog")
         ep("POST", "/toolbox/run", "Run a pure Toolbox utility (no file/network access)", params: ["tool:string", "args?:object"], example: #"-d '{"tool":"base64","args":{"text":"hi"}}'"#)
-        ep("GET", "/media/exports", "Background media exports (downloadMedia) with state", example: "…/media/exports")
+        ep("GET", "/media/exports", "Background media exports (downloadMedia) with state (each job carries its download plan: facts → method, plus the speed probe)", example: "…/media/exports")
+        ep("GET", "/media/probe", "Assess a media/stream URL without downloading (read-only): facts, the method the built-in engine will use and why, measured single- vs multi-connection speed of the first segments, ETA", params: ["url:string", "connections?:int (1-32)"], example: "…/media/probe?url=https%3A%2F%2Fexample.com%2Fa%2Findex.m3u8")
         ep("POST", "/media/exports/cancel", "Cancel a running media export", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/media/batch", "Batch video download: mode=page queues every stream sniffed on the tab; mode=list resolves each detail-page URL in a hidden browser (serialized, Cloudflare-aware)", params: ["mode:page|list", "urls?:[string] (mode=list)", "folderName?:string", "index?:int (mode=page)"], example: #"-d '{"mode":"list","urls":["https://…/v1","https://…/v2"],"folderName":"demo"}'"#)
         ep("POST", "/settings/section", "Select the settings window section (automation; also opens the settings window)", params: ["section:string (general|ai|sync|remote|privacy|autofill|keyboardShortcuts|batchDownloads)"], example: #"-d '{"section":"batchDownloads"}'"#)
@@ -3527,6 +3528,19 @@ case ("GET", "/agent/messages"):
                 return try Self.json(["tool": tool, "ok": output.ok, "text": output.text])
             case ("GET", "/media/exports"):
                 return try Self.json(Self.mediaExports())
+            case ("GET", "/media/probe"):
+                // 下载方式探测（只读）：流的形态 → 会走哪个引擎及原因；开头分片的实测速度与预计耗时。
+                guard let urlString = Self.string(query, "url"), let url = URL(string: urlString),
+                      url.scheme == "http" || url.scheme == "https" else {
+                    return try Self.json(["error": "missing or invalid url"])
+                }
+                let report = await MediaExporter.probe(
+                    url: url,
+                    referer: Self.string(query, "referer").flatMap { URL(string: $0) },
+                    userAgent: nil,
+                    connections: min(max(Int(Self.string(query, "connections") ?? "") ?? MediaExporter.defaultConnections, 1),
+                                      MediaExporter.connectionBudget))
+                return try Self.json(Self.mediaProbe(report))
             case ("POST", "/media/exports/cancel"):
                 return try Self.json(Self.mediaExportCancel(id: Self.string(body, "id") ?? ""))
             case ("POST", "/agent/directive"):
@@ -9563,9 +9577,30 @@ case ("GET", "/agent/messages"):
                 ]
                 if let summary = job.summary { row["summary"] = summary }
                 if let finished = job.finishedAt { row["finishedAt"] = ISO.string(from: finished) }
+                // 研判与测速（v0.8.77 批 6）：为什么走这个引擎、连接数怎么定的。
+                if !job.plan.isEmpty { row["plan"] = job.plan }
                 return row
             },
         ]
+    }
+
+    /// 下载方式探测（v0.8.77 批 6，只读）：与智能体工具 `probeDownload` 同一份回执。
+    private static func mediaProbe(_ report: DownloadProbeReport) -> [String: Any] {
+        var out: [String: Any] = [
+            "text": report.text,
+            "facts": report.decision.facts,
+            "rule": report.decision.rule,
+            "method": report.decision.summary,
+        ]
+        if let speed = report.speed {
+            out["speed"] = ["singleBytesPerSecond": speed.singleBytesPerSecond,
+                            "parallelBytesPerSecond": speed.parallelBytesPerSecond,
+                            "gain": speed.gain,
+                            "connectionsTested": speed.connectionsTested]
+        }
+        if let bytes = report.estimatedBytes { out["estimatedBytes"] = bytes }
+        if let note = report.failure { out["note"] = note }
+        return out
     }
 
     private static func mediaExportCancel(id: String) -> [String: Any] {

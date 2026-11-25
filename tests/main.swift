@@ -12682,6 +12682,36 @@ do {
     eq("候选：补丁卡往返", try! JSONDecoder().decode(SkillCandidateCore.Candidate.self, from: encoded), pending[0])
 }
 
+// ---------- 技能使用记录的编解码 SkillUsageCodec（v0.8.76） ----------
+
+do {
+    var usage: [String: SkillUsageRecord] = ["a": SkillUsageRecord()]
+    usage["a"]?.count = 3
+    usage["a"]?.lastUsedAt = Date(timeIntervalSince1970: 1_764_000_000.540859)
+    usage["a"]?.lastUsedConversationId = UUID()
+    usage["a"]?.triggers = [SkillTrigger.Sample(text: "把视频都下载下来", count: 2)]
+    usage["a"]?.outcomes = [true, false, true]
+    guard let data = SkillUsageCodec.encode(usage) else { fatalError("encode failed") }
+    eq("使用记录：带日期/触发样本的记录往返不丢", SkillUsageCodec.decode(data), usage)
+
+    // 盘上已有的格式：日期是字符串（SyncJSON 写入端一直这么写）
+    let legacy = #"{"a":{"count":3,"lastUsedAt":"2026-11-25T06:22:37.540859","outcomes":[true]}}"#.data(using: .utf8)!
+    let decoded = SkillUsageCodec.decode(legacy)
+    check("使用记录：盘上已有的字符串日期格式读得回来", decoded?["a"]?.count == 3 && decoded?["a"]?.lastUsedAt != nil
+          && decoded?["a"]?.triggers == nil)
+
+    // 事故复现：旧的读取端（裸 JSONDecoder）读同一份数据 → 整份失败
+    check("事故复现：裸 JSONDecoder 读不回带日期的记录（0.8.72 起每次启动清空的原因）",
+          (try? JSONDecoder().decode([String: SkillUsageRecord].self, from: data)) == nil)
+    // （count / outcomes 是非可选字段，Codable 要求键必须在——写入端总会写。）
+    check("事故复现：只有不带日期的记录才侥幸读得回",
+          (try? JSONDecoder().decode([String: SkillUsageRecord].self,
+                                     from: #"{"a":{"count":1,"outcomes":[]}}"#.data(using: .utf8)!))?["a"]?.count == 1)
+    check("使用记录：坏数据 → nil（调用方保持空，不写回）", SkillUsageCodec.decode(Data("not json".utf8)) == nil)
+    eq("使用记录：成功率", decoded?["a"]?.successRate, 1.0)
+    eq("使用记录：无样本不算成功率", SkillUsageRecord().successRate, Optional<Double>.none)
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

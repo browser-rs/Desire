@@ -815,6 +815,15 @@ Features/Bookmarks/
   **每轮测试开始前必须 curl http://127.0.0.1:8877/ 确认服务器活着**——
   服务器静默死亡会造成"导航失败/无事件/页面空白"的假象（已两次误判为
   app bug）
+- **落盘的 Codable 读写两端必须用同一个编解码器**（2026-11-25，批 5 重启实测才发现）：
+  技能使用记录写入用 `SyncJSON.makeEncoder()`（日期 → 字符串），读取却是裸
+  `JSONDecoder()`（日期 → 数字）。只要一条记录带日期，整份解码失败并在启动时
+  **静默清空**——0.8.72 起每次启动都如此：成功率归零、触发样本丢失，连带让
+  "重复指令自动加载技能"跨启动基本不命中。两条规矩：① 写入端用了
+  `SyncJSON.makeEncoder()` 的，读取端必须 `SyncJSON.makeDecoder()`（全仓已核，
+  其余同步/远程各处都是成对的）；② **持久化状态要有一条跨重启的断言**——
+  同一进程内读回的是内存值，永远测不出这类问题。纯逻辑类型（含编解码）抽成
+  Foundation-only 文件进 harness，见 `SkillUsage.swift`。
 - **executeJS 错误详情**：evaluateJavaScript 的错误对象不含真实异常
   文本；正确 key 是 `WKJavaScriptExceptionMessage`，经
   callAsyncJavaScript 重跑捕获（见 BrowserToolProvider+Execution）。

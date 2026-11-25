@@ -11056,7 +11056,10 @@ case ("GET", "/agent/messages"):
                 entry["usage"] = ["count": usage.count,
                                   "outcomes": usage.outcomes,
                                   "lastUsedAt": usage.lastUsedAt.map { ISO8601DateFormatter().string(from: $0) } ?? NSNull(),
-                                  "health": healthName(SkillHealth.assess(count: usage.count, outcomes: usage.outcomes))]
+                                  "health": healthName(SkillHealth.assess(count: usage.count, outcomes: usage.outcomes)),
+                                  // 触发样本与工具历史的规模（v0.8.76）："使用记录跨启动还在"要能直接断言。
+                                  "triggerSamples": usage.triggers?.count ?? 0,
+                                  "maxTriggerCount": usage.triggers?.map(\.count).max() ?? 0]
             }
             return entry
         }

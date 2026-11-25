@@ -68,27 +68,9 @@ final class SkillStore: ObservableObject {
 
     @Published private(set) var skills: [Skill] = []
 
-    /// **使用追踪**（v0.8.72 批 2）：skill 名 → (使用次数, 最近使用, 最近回合
-    /// 结果序列)。技能本体在盘上，元数据单独持久化（UserDefaults，同
-    /// sourceMeta 模式）。口径 = useSkill 调用（注入 ≠ 使用）；回合结果由
-    /// 会话收尾批量回填（recordOutcome）——B3 成功率评估的数据面。
-    struct SkillUsage: Codable, Equatable {
-        var count: Int = 0
-        var lastUsedAt: Date?
-        /// 最近一次使用的会话（v0.8.73 批 3）：连败技能"重新蒸馏"定位该
-        /// 会话的运行记录；会话可能已清理（按钮据此置灰）。
-        var lastUsedConversationId: UUID?
-        /// 触发样本（v0.8.76 批 3）：加载这个技能时用户说的话与次数（最近的在前）。
-        /// 可选——旧记录没有这个键。
-        var triggers: [SkillTrigger.Sample]?
-        /// 最近 ≤20 个回合的成功/失败（时间序）。空 = 无样本（"样本不足"）。
-        var outcomes: [Bool] = []
-        /// 成功率（无样本返回 nil——UI 标"样本不足"，绝不显示 0%）。
-        var successRate: Double? {
-            guard !outcomes.isEmpty else { return nil }
-            return Double(outcomes.filter { $0 }.count) / Double(outcomes.count)
-        }
-    }
+    /// **使用追踪**（v0.8.72 批 2）：skill 名 → 使用记录（次数、最近使用、触发样本、
+    /// 回合结果……）。类型与编解码在 `SkillUsage.swift`（Foundation-only，进 harness）。
+    typealias SkillUsage = SkillUsageRecord
 
     @Published private(set) var usage: [String: SkillUsage] = [:]
     private static let usageMetaKey = "desire.skills.usageMeta"
@@ -96,13 +78,14 @@ final class SkillStore: ObservableObject {
 
     private func loadUsageMeta() {
         guard let data = AppPrefs.defaults.data(forKey: Self.usageMetaKey),
-              let decoded = try? JSONDecoder().decode([String: SkillUsage].self, from: data)
-        else { return }
+              let decoded = SkillUsageCodec.decode(data) else { return }
         usage = decoded
+        // 解码器必须与写入端成对（见 SkillUsageCodec）：此前这里是裸 JSONDecoder，
+        // 带日期的记录读不回来——每次启动使用记录都被静默清空。
     }
 
     private func saveUsageMeta() {
-        if let data = try? SyncJSON.makeEncoder().encode(usage) {
+        if let data = SkillUsageCodec.encode(usage) {
             AppPrefs.defaults.set(data, forKey: Self.usageMetaKey)
         }
     }

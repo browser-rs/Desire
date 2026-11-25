@@ -25,8 +25,8 @@ struct WhatsNewSheet: View {
                   detail: String(localized: "How to find the videos on a detail page, how many there are and how fast to pull them is stored in that site's own DPP adapter and applies nowhere else. Every task sharpens it: an address that expires mid-download shortens the validity window, rate limiting lowers the connection count, and a rule that stops matching is flagged for relearning. Each change is recorded and the previous version is kept.")),
             .init(icon: "speedometer", title: String(localized: "Long videos download in parallel and recover from an expired address"),
                   detail: String(localized: "HLS segments are fetched concurrently instead of one after another — more than five times faster on a rate-limited source. A signed address that expires part-way is noticed at once: the page is resolved again and the download resumes from the segments already fetched.")),
-            .init(icon: "square.and.arrow.down", title: String(localized: "The agent hands downloads to the browser"),
-                  detail: String(localized: "Ask for a batch and the agent passes the detail pages to the browser, which resolves each one the moment its download slot opens — signed addresses never sit around going stale, and pages that need your login state work as they do in the window. It can also list what a set of pages would download before anything starts.")),
+            .init(icon: "square.and.arrow.down", title: String(localized: "Downloads choose their method with evidence"),
+                  detail: String(localized: "Before a download starts, the engine reads the stream — on-demand or live, quality variants, encryption, separate audio tracks — and decides how to fetch it, logging the reasons. The first segments are timed to set the connection count, and the agent can ask for the same assessment, with measured speed and an ETA, instead of guessing or writing its own downloader.")),
         ]
     }
 

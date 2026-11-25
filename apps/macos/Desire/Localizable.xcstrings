@@ -114036,58 +114036,58 @@
         }
       }
     },
-    "The agent hands downloads to the browser":{
+    "Downloads choose their method with evidence":{
       "localizations":{
         "en":{
           "stringUnit":{
             "state":"translated",
-            "value":"The agent hands downloads to the browser"
+            "value":"Downloads choose their method with evidence"
           }
         },
         "zh-Hans":{
           "stringUnit":{
             "state":"translated",
-            "value":"智能体把下载交给浏览器"
+            "value":"下载方式凭依据来选"
           }
         },
         "zh-Hant":{
           "stringUnit":{
             "state":"translated",
-            "value":"智能體把下載交給瀏覽器"
+            "value":"下載方式憑依據來選"
           }
         },
         "ja":{
           "stringUnit":{
             "state":"translated",
-            "value":"エージェントはダウンロードをブラウザに任せる"
+            "value":"ダウンロード方式は根拠をもって選ぶ"
           }
         }
       }
     },
-    "Ask for a batch and the agent passes the detail pages to the browser, which resolves each one the moment its download slot opens — signed addresses never sit around going stale, and pages that need your login state work as they do in the window. It can also list what a set of pages would download before anything starts.":{
+    "Before a download starts, the engine reads the stream — on-demand or live, quality variants, encryption, separate audio tracks — and decides how to fetch it, logging the reasons. The first segments are timed to set the connection count, and the agent can ask for the same assessment, with measured speed and an ETA, instead of guessing or writing its own downloader.":{
       "localizations":{
         "en":{
           "stringUnit":{
             "state":"translated",
-            "value":"Ask for a batch and the agent passes the detail pages to the browser, which resolves each one the moment its download slot opens — signed addresses never sit around going stale, and pages that need your login state work as they do in the window. It can also list what a set of pages would download before anything starts."
+            "value":"Before a download starts, the engine reads the stream — on-demand or live, quality variants, encryption, separate audio tracks — and decides how to fetch it, logging the reasons. The first segments are timed to set the connection count, and the agent can ask for the same assessment, with measured speed and an ETA, instead of guessing or writing its own downloader."
           }
         },
         "zh-Hans":{
           "stringUnit":{
             "state":"translated",
-            "value":"要批量下载时，智能体把详情页地址交给浏览器，轮到哪一页才解析哪一页——签名地址不会放到过期，需要登录态的页面照常可用。它也可以先把一批页面会下什么列出来，再开始下载。"
+            "value":"开始下载前，引擎先读一遍这个流——点播还是直播、有几档画质、怎么加密、有没有独立音轨——再决定怎么抓，并把理由写进日志。开头几个分片会顺带测速，用来定连接数；智能体也可以先要同一份研判（含实测速度和预计耗时），不用靠猜，也不用自己写下载脚本。"
           }
         },
         "zh-Hant":{
           "stringUnit":{
             "state":"translated",
-            "value":"要批量下載時，智能體把詳情頁位址交給瀏覽器，輪到哪一頁才解析哪一頁——簽名位址不會放到過期，需要登入狀態的頁面照常可用。它也可以先把一批頁面會下什麼列出來，再開始下載。"
+            "value":"開始下載前，引擎先讀一遍這個串流——隨選還是直播、有幾檔畫質、怎麼加密、有沒有獨立音軌——再決定怎麼抓，並把理由寫進日誌。開頭幾個分段會順帶測速，用來定連線數；智能體也可以先要同一份研判（含實測速度和預計耗時），不用靠猜，也不用自己寫下載腳本。"
           }
         },
         "ja":{
           "stringUnit":{
             "state":"translated",
-            "value":"一括ダウンロードを頼むと、エージェントは詳細ページのアドレスをブラウザに渡し、順番が来たページからその都度解析します。署名付きアドレスが古くなることはなく、ログイン状態が必要なページもそのまま使えます。ダウンロード前に、対象ページで何が保存されるかを一覧することもできます。"
+            "value":"ダウンロードが始まる前に、エンジンはストリームを読み取ります——オンデマンドかライブか、画質のバリエーション、暗号化、独立した音声トラックの有無——そして取得方法を決め、その理由をログに残します。冒頭のセグメントは速度測定を兼ね、接続数の決定に使います。エージェントも同じ判定（実測速度と所要時間の見積もり付き）を確認できるので、推測にも自作のダウンローダーにも頼りません。"
           }
         }
       }

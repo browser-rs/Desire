@@ -306,6 +306,55 @@ extension BrowserToolProvider {
             }
             return reply
 
+        case "resolveVideos":
+            // 浏览器取地址（v0.8.77 批 4，用户定调"Agent + Browser 是一体的"）：不下载，
+            // 只把每个详情页的正片清单（带证据）与被拒清单交给模型——"先看清楚这批会下
+            // 什么"，或用户问页面里有什么。与批量下载同一个解析器：站点规则照常生效。
+            guard let urls = args["urls"] as? [String], !urls.isEmpty else {
+                return Self.fail("Missing urls (array of detail-page URLs)")
+            }
+            guard urls.count <= 10 else {
+                return Self.fail("Too many urls (\(urls.count)); resolve at most 10 pages per call")
+            }
+            let resolver = HeadlessMediaResolver()
+            defer { resolver.teardown() }
+            var lines: [String] = []
+            for raw in urls {
+                guard let url = URL(string: raw), url.scheme == "http" || url.scheme == "https" else {
+                    lines.append("\(raw): invalid url")
+                    continue
+                }
+                let outcome = await resolver.load(url)
+                switch outcome {
+                case .media(let resources, let pageTitle):
+                    var selection = BatchMediaPlan.contentCandidates(
+                        resources,
+                        extraExclusions: DPPAdapterStore.shared.downloadRules(for: url)?.rules.exclude ?? [])
+                    let streams = selection.candidates.compactMap {
+                        $0.resource.kind == .stream ? URL(string: $0.resource.url) : nil
+                    }
+                    let durations = await MediaExporter.streamDurations(
+                        for: streams, referer: url, userAgent: webView.customUserAgent)
+                    selection = BatchMediaPlan.applyingDuration(selection, durations: durations)
+                    let ruleNote = resolver.siteRule.map { " (site rule \($0.adapter))" } ?? ""
+                    lines.append("\(pageTitle.isEmpty ? raw : pageTitle) → \(selection.candidates.count) content video(s)\(ruleNote)")
+                    for candidate in selection.candidates {
+                        let evidence = candidate.evidence.joined(separator: ", ")
+                        lines.append("  [\(candidate.resource.kind.rawValue)] \(candidate.resource.url)"
+                                     + (evidence.isEmpty ? "" : "  (\(evidence))"))
+                    }
+                    if !selection.rejected.isEmpty {
+                        lines.append("  excluded \(selection.rejected.count): \(BatchMediaPlan.rejectionSummary(selection.rejected))")
+                    }
+                case .needsHuman:
+                    lines.append("\(raw): waiting for a human verification — not resolved")
+                case .failed(let reason):
+                    lines.append("\(raw): not resolved — \(reason)")
+                }
+            }
+            return "Signed addresses above expire quickly — start the download right away, or pass the detail pages to downloadVideoList and let it resolve them when each slot opens.\n"
+                + lines.joined(separator: "\n")
+
         case "downloadVideoList":
             // 列表批量（模式 B）：详情页地址逐个交给隐藏解析器。长任务立刻
             // 返回批次 id——回合不能阻塞在几十页的解析上。
@@ -332,6 +381,8 @@ extension BrowserToolProvider {
             if let mc = args["maxConcurrent"] as? Int, (1...16).contains(mc) {
                 BatchMediaPreferences.maxConcurrent = mc
             }
+            // 每路分片并发（v0.8.77 批 3/4）：模型可显式给；不给就用站点规则的值。
+            let connectionsOverride = (args["connections"] as? Int).flatMap { (1...32).contains($0) ? $0 : nil }
             let batch = BatchMediaExportStore.shared.startListBatch(
                 pageURLs: urls,
                 userAgent: webView.customUserAgent,
@@ -343,7 +394,8 @@ extension BrowserToolProvider {
                 // 默认子夹（站点 host）交给落点解析器：路径恰好等于批根目录
                 // 时按默认链垫 host（工具层只在"没给 directory"时垫 folderName，
                 // ==根目录的场景要靠这个参数）。
-                defaultFolderName: URL(string: urls[0])?.host
+                defaultFolderName: URL(string: urls[0])?.host,
+                connections: connectionsOverride
             )
             let queued = batch.items.filter { $0.state == .pending }.count
             let skipped = batch.items.filter { $0.state == .skipped }

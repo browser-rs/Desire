@@ -30,7 +30,7 @@ nonisolated enum TurnProgress {
     /// - `updatePlan` / `askUser` / `reflect` 是编排与沟通；
     /// - 等待类是"等"不是"看"——烧的是时间不是请求，单独归中性。
     static let neutralTools: Set<String> = [
-        "useSkill", "useTools", "updatePlan", "askUser", "reflect",
+        "useSkill", "useTools", "resolveVideos", "updatePlan", "askUser", "reflect",
         "wait", "waitForText", "waitForSelector", "waitForElement", "waitForDownload",
     ]
 

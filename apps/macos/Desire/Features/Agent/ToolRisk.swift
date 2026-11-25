@@ -110,6 +110,8 @@ nonisolated enum ToolRisk: Int, Comparable {
         "useSkill", "listSkills",
         // 按需加载工具定义（v0.8.76 批 5）：只改下一请求的工具集，不改任何外部状态
         "useTools",
+        // 浏览器取地址（v0.8.77 批 4）：隐藏解析器加载页面并列出正片，不下载、不改状态
+        "resolveVideos",
         // Scheduled task inspection (creation/cancel stays side-effect)
         "listScheduledTasks",
         // Workspace inspection (reads inside the sandboxed working directory)

@@ -12813,6 +12813,9 @@ do {
     // 分类表：useTools 是只读、中性
     check("风险：useTools 归只读（不弹审批）", ToolRisk.classify("useTools") == .readonly)
     eq("推进度量：useTools 归中性（不算查看也不算动作）", TurnProgress.kind(of: "useTools"), .neutral)
+    // resolveVideos（v0.8.77 批 4）：隐藏解析器加载页面并列出正片——只读、中性。
+    check("风险：resolveVideos 归只读（不弹审批）", ToolRisk.classify("resolveVideos") == .readonly)
+    eq("推进度量：resolveVideos 归中性", TurnProgress.kind(of: "resolveVideos"), .neutral)
 }
 
 // ---------- 技能使用记录的编解码 SkillUsageCodec（v0.8.76） ----------

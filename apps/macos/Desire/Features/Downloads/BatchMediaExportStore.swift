@@ -153,7 +153,8 @@ final class BatchMediaExportStore: ObservableObject {
         force: Bool = false,
         directory: String? = nil,
         splitEvery: Int? = nil,
-        defaultFolderName: String? = nil
+        defaultFolderName: String? = nil,
+        connections: Int? = nil
     ) -> BatchMediaBatch {
         BatchMediaPreferences.applyExplicitNaming(naming)
         let plan = BatchMediaPlan.planListBatch(urls: pageURLs)
@@ -169,7 +170,7 @@ final class BatchMediaExportStore: ObservableObject {
                 numberPrefix: number
             )
         }
-        return enqueue(
+        let batch = enqueue(
             mode: .list,
             folderName: folderName,
             items: items,
@@ -180,6 +181,8 @@ final class BatchMediaExportStore: ObservableObject {
             splitEvery: splitEvery,
             defaultFolderName: defaultFolderName
         )
+        if let connections { connectionsOverride[batch.id] = max(1, min(32, connections)) }
+        return batch
     }
 
     /// 入队 + 起引擎。超量截断进 skipped；空批次立即终局（checkBatchSettled）。
@@ -258,6 +261,8 @@ final class BatchMediaExportStore: ObservableObject {
 
     /// `force: true` 的批次绕过已下载索引（强制重下）。
     private var forceDownloadBatches: Set<UUID> = []
+    /// 模型显式给的每路分片并发（v0.8.77 批 4）：按批次记，优先于站点规则的值。
+    private var connectionsOverride: [UUID: Int] = [:]
 
     private static func folderTimestamp() -> String {
         let formatter = DateFormatter()
@@ -1118,7 +1123,7 @@ final class BatchMediaExportStore: ObservableObject {
                 resumeKey: itemID.uuidString,
                 // 每路连接数（v0.8.77 批 3）：站点规则可给；批内所有下载合计不超过
                 // 连接预算——同时下 N 部时每路上限 = 预算 / N。
-                connections: connectionsPerStream(sourceURL: batches[bi].items[ii].sourceURL),
+                connections: connectionsPerStream(sourceURL: batches[bi].items[ii].sourceURL, batchID: batchID),
                 completion: { [weak self] outcome in
                     self?.downloadSettled(batchID: batchID, itemID: itemID, outcome: outcome)
                 },
@@ -1407,9 +1412,10 @@ final class BatchMediaExportStore: ObservableObject {
 
     // MARK: - 结果回收与自动重试
 
-    /// 每路分片并发：站点规则给的值，受"批内连接预算 / 同时下载路数"封顶。
-    func connectionsPerStream(sourceURL: URL) -> Int {
-        let wanted = DPPAdapterStore.shared.downloadRules(for: sourceURL)?.rules.connections
+    /// 每路分片并发：模型显式给的 > 站点规则的值 > 默认；受"批内连接预算 / 同时下载路数"封顶。
+    func connectionsPerStream(sourceURL: URL, batchID: UUID) -> Int {
+        let wanted = connectionsOverride[batchID]
+            ?? DPPAdapterStore.shared.downloadRules(for: sourceURL)?.rules.connections
             ?? MediaExporter.defaultConnections
         let share = max(MediaExporter.minConnections,
                         MediaExporter.connectionBudget / max(1, maxConcurrentDownloads))

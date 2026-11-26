@@ -52,7 +52,7 @@ EXPIRE_AFTER = 3
 # 一次播放列表）：尾部分片（序号 ≥ EXPIRE_AFTER）一律 403，**直到出现过 403 之后**
 # 播放列表又被请求过一次 = "页面被重新解析、拿到新签名"，此后全部正常。用来验证
 # "下载中途过期 → 批量引擎重新解析 → 从已抓到的分片续传"。`GET /_reset` 复位。
-STATE = {"expireSaw403": False, "expireRefreshed": False, "expireRefreshes": 0, "hits": {}}
+STATE = {"expireSaw403": False, "expireRefreshed": False, "expireRefreshes": 0, "liveSlideStart": 0, "hits": {}}
 
 TYPES = {".m3u8": "application/vnd.apple.mpegurl", ".ts": "video/mp2t", ".mp4": "video/mp4",
          ".html": "text/html; charset=utf-8", ".js": "text/javascript"}
@@ -117,6 +117,15 @@ def build_media():
     live_playlist = open(os.path.join(ROOT, "hls", "aaa", "index.m3u8"), encoding="utf-8").read()
     with open(os.path.join(live_dir, "index.m3u8"), "w", encoding="utf-8") as handle:
         handle.write(live_playlist.replace("#EXT-X-ENDLIST\n", "").replace("#EXT-X-ENDLIST", ""))
+
+    # 滑窗直播（v0.8.79 批 4）：没有 ENDLIST，播放列表只给"当前窗口"的 4 片；
+    # /live-slide/advance 把窗口往后挪 4 片（分片名在窗口间不重叠——能据此断言
+    # 第二次导出真的取了新窗口，而不是复用上一次的分片）。
+    slide_dir = os.path.join(ROOT, "live-slide")
+    os.makedirs(slide_dir, exist_ok=True)
+    for n in range(8):
+        source = os.path.join(ROOT, "hls", "aaa", f"seg-{n % 6:03d}.ts")
+        shutil.copy(source, os.path.join(slide_dir, f"seg-{n:03d}.ts"))
 
     # 字节切片（EXT-X-BYTERANGE）：一个整文件 + 按区间切的三片——内置下载器不认这种形态，
     # 有 ffmpeg 时必须走直连。
@@ -315,7 +324,7 @@ class Handler(SimpleHTTPRequestHandler):
             # 复位过期状态与请求计数（同一夹具进程上重复跑时用）
             with threading.Lock():
                 STATE.update({"expireSaw403": False, "expireRefreshed": False,
-                              "expireRefreshes": 0, "hits": {}})
+                              "expireRefreshes": 0, "liveSlideStart": 0, "hits": {}})
             body = b'{"ok": true}'
             self.send_response(200)
             self.send_header("Content-Type", "application/json")
@@ -357,6 +366,33 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "no-store")
             self.end_headers()
             self.wfile.write(data)
+            return
+        if path == "/live-slide/index.m3u8":
+            with threading.Lock():
+                start = STATE["liveSlideStart"]
+            lines = ["#EXTM3U", "#EXT-X-VERSION:3", "#EXT-X-TARGETDURATION:2",
+                     f"#EXT-X-MEDIA-SEQUENCE:{start}"]
+            for n in range(start, start + 4):
+                lines += ["#EXTINF:2.000000,", f"seg-{n % 8:03d}.ts"]
+            data = ("\n".join(lines) + "\n").encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", TYPES[".m3u8"])
+            self.send_header("Content-Length", str(len(data)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(data)
+            return
+        if path == "/live-slide/advance":
+            with threading.Lock():
+                STATE["liveSlideStart"] = (STATE["liveSlideStart"] + 4) % 8
+                start = STATE["liveSlideStart"]
+            body = json.dumps({"ok": True, "start": start}).encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+            self.wfile.write(body)
             return
         pages = {
             "/videos/aaa-001/": ("text/html", SINGLE_PAGE),

@@ -352,15 +352,19 @@ nonisolated struct DownloadProbeReport: Equatable {
     var segments: Int = 0
     /// 读不了源的时候的原因（有它就只有这一句）。
     var failure: String?
+    /// 本站已知历史（v0.8.79）：近期失败偏多时的一句提醒——只提示，不改变方法。
+    var siteHistory: String?
 
     init(decision: DownloadRouting.Decision, speed: ParallelTuning.Evidence? = nil,
-         estimatedBytes: Int64? = nil, directFile: DirectFileFacts? = nil, segments: Int = 0, failure: String? = nil) {
+         estimatedBytes: Int64? = nil, directFile: DirectFileFacts? = nil, segments: Int = 0,
+         failure: String? = nil, siteHistory: String? = nil) {
         self.decision = decision
         self.speed = speed
         self.estimatedBytes = estimatedBytes
         self.directFile = directFile
         self.segments = segments
         self.failure = failure
+        self.siteHistory = siteHistory
     }
 
     static func failed(_ reason: String) -> DownloadProbeReport {
@@ -374,6 +378,7 @@ nonisolated struct DownloadProbeReport: Equatable {
         }
         var lines = ["Download assessment"]
         for fact in decision.facts { lines.append("- " + fact) }
+        if let siteHistory { lines.append("- site history: " + siteHistory) }
         if let file = directFile {
             if let type = file.contentType { lines.append("- type: \(type)") }
             if let bytes = file.bytes { lines.append("- size: \(Self.sizeLabel(bytes))") }

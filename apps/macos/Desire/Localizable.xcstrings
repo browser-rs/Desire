@@ -114091,6 +114091,732 @@
           }
         }
       }
+    },
+    "Download rules for this site":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Download rules for this site"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"本站下载规则"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"本站下載規則"
+          }
+        }
+      }
+    },
+    "Edit as JSON":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Edit as JSON"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"按 JSON 编辑"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"以 JSON 編輯"
+          }
+        }
+      }
+    },
+    "Extract (regex or selector)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Extract (regex or selector)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"提取（正则或选择器）"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"提取（正規表示式或選擇器）"
+          }
+        }
+      }
+    },
+    "Per page":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Per page"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"每页正片"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"每頁正片"
+          }
+        }
+      }
+    },
+    "One":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"One"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一部"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一部"
+          }
+        }
+      }
+    },
+    "Many":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Many"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"多部"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"多部"
+          }
+        }
+      }
+    },
+    "Parallel":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Parallel"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"并发"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"並行"
+          }
+        }
+      }
+    },
+    "Connections":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Connections"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"连接数"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"連線數"
+          }
+        }
+      }
+    },
+    "Token minutes":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Token minutes"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"有效期（分钟）"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"有效期（分鐘）"
+          }
+        }
+      }
+    },
+    "Add exclude":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Add exclude"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"添加排除"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"新增排除"
+          }
+        }
+      }
+    },
+    "Export Adapter":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Export Adapter"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"导出适配器"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"匯出轉接器"
+          }
+        }
+      }
+    },
+    "Export this adapter (rules and protocol body only — measured speed and refinements stay local)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Export this adapter (rules and protocol body only — measured speed and refinements stay local)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"导出此适配器（仅规则与协议体——实测速度与打磨记录留在本机）"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"匯出此轉接器（僅規則與協議體——實測速度與打磨記錄留在本機）"
+          }
+        }
+      }
+    },
+    "Measured %@ MB/s single · %@ MB/s over %lld connections (%lld samples)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Measured %@ MB/s single · %@ MB/s over %lld connections (%lld samples)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"实测 %@ MB/s（单路）· %@ MB/s（%lld 路并发，%lld 样本）"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"實測 %@ MB/s（單路）· %@ MB/s（%lld 路並行，%lld 樣本）"
+          }
+        }
+      }
+    },
+    "Download History":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Download History"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"下载记录"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"下載記錄"
+          }
+        }
+      }
+    },
+    "Per-site results derived from the batches kept on disk (running + the most recent finished ones). Older batches live in their archived logs.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Per-site results derived from the batches kept on disk (running + the most recent finished ones). Older batches live in their archived logs."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"按站点聚合已保存批次的结果（运行中 + 最近完成的）；更早的批次在归档日志里。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"依站點彙總已保存批次的結果（執行中 + 最近完成的）；更早的批次在封存日誌裡。"
+          }
+        }
+      }
+    },
+    "Site":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Site"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"站点"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"站點"
+          }
+        }
+      }
+    },
+    "Bytes":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Bytes"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"体积"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"體積"
+          }
+        }
+      }
+    },
+    "Avg speed":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Avg speed"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"平均速度"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"平均速度"
+          }
+        }
+      }
+    },
+    "Avg time":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Avg time"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"平均耗时"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"平均耗時"
+          }
+        }
+      }
+    },
+    "No completed batch downloads yet.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"No completed batch downloads yet."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"还没有已完成的批量下载。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"還沒有已完成的批次下載。"
+          }
+        }
+      }
+    },
+    "Direct":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Direct"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"直连"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"直連"
+          }
+        }
+      }
+    },
+    "Reused":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Reused"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"复用"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重用"
+          }
+        }
+      }
+    },
+    "Sites remember how fast they are":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Sites remember how fast they are"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"站点会记住自己有多快"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"站點會記住自己有多快"
+          }
+        }
+      }
+    },
+    "After a couple of downloads, a site's measured speed is stored in its own adapter: later batches skip the probe and go straight to the connection count that worked. Every finished download updates the profile, and the measured value is visible on the adapter, in DPP Studio and in the site's skill.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"After a couple of downloads, a site's measured speed is stored in its own adapter: later batches skip the probe and go straight to the connection count that worked. Every finished download updates the profile, and the measured value is visible on the adapter, in DPP Studio and in the site's skill."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"下载几次之后，站点的实测速度会记进它自己的适配器：后续批次跳过测速，直接用验证过的连接数。每次完成的下载都会更新画像，实测值在适配器、DPP Studio 与站点技能里都看得见。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"下載幾次之後，站點的實測速度會記進它自己的轉接器：後續批次跳過測速，直接用驗證過的連線數。每次完成的下載都會更新畫像，實測值在轉接器、DPP Studio 與站點技能裡都看得見。"
+          }
+        }
+      }
+    },
+    "A download record per site":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"A download record per site"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"按站点看的下载记录"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"依站點看的下载記錄"
+          }
+        }
+      }
+    },
+    "Settings › Batch Downloads shows each site's finished, failed and skipped counts, total size, average speed and the engine that did the work. Failures keep their reason, and a site that keeps failing gets a hint instead of silent retries.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Settings › Batch Downloads shows each site's finished, failed and skipped counts, total size, average speed and the engine that did the work. Failures keep their reason, and a site that keeps failing gets a hint instead of silent retries."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"设置 ▸ 批量下载里按站点列出完成、失败、跳过的数量、总体积、平均速度与实际使用的引擎。失败会留下原因；总是失败的站点会得到提示，而不是默默重试。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"設定 ▸ 批次下載裡依站點列出完成、失敗、跳過的數量、總體積、平均速度與實際使用的引擎。失敗會留下原因；總是失敗的站點會得到提示，而不是默默重試。"
+          }
+        }
+      }
+    },
+    "Site download rules, no JSON required":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Site download rules, no JSON required"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"站点下载规则，不用写 JSON"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"站點下載規則，不用寫 JSON"
+          }
+        }
+      }
+    },
+    "DPP Studio has a form for the download section — extraction rule, videos per page, method, connections, token lifetime, exclusions — with the JSON editor one toggle away. Both go through the same validation the agent uses.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"DPP Studio has a form for the download section — extraction rule, videos per page, method, connections, token lifetime, exclusions — with the JSON editor one toggle away. Both go through the same validation the agent uses."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"DPP Studio 的下载段有了表单：提取规则、每页正片数、方式、连接数、地址有效期、排除列表；JSON 编辑只隔一个开关。两边走的是智能体保存适配器的同一套校验。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"DPP Studio 的下載段有了表單：提取規則、每頁正片數、方式、連線數、位址有效期、排除清單；JSON 編輯只隔一個開關。兩邊走的是智慧體儲存轉接器的同一套驗證。"
+          }
+        }
+      }
+    },
+    "Share an adapter, leave the telemetry behind":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Share an adapter, leave the telemetry behind"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"导出适配器，遥测留在本机"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"匯出轉接器，遙測留在本機"
+          }
+        }
+      }
+    },
+    "Export an adapter as JSON from Settings: the rules and protocol body travel, while measured speed, revision history and local install details stay on this machine. Import it elsewhere and the behavior is identical.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Export an adapter as JSON from Settings: the rules and protocol body travel, while measured speed, revision history and local install details stay on this machine. Import it elsewhere and the behavior is identical."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"从设置里把适配器导出成 JSON：规则与协议体随包走，实测速度、修订史与本地安装信息留在本机。换台机器导入后行为一致。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"從設定裡把轉接器匯出成 JSON：規則與協議體隨包走，實測速度、修訂史與本機安裝資訊留在本機。換台機器匯入後行為一致。"
+          }
+        }
+      }
+    },
+    "Resume across restarts; live streams say what they are":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Resume across restarts; live streams say what they are"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"跨重启续传；直播只说当前分片"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"跨重啟續傳；直播只說當前分片"
+          }
+        }
+      }
+    },
+    "An interrupted download continues from the segments already fetched after a relaunch — nothing on disk is fetched twice. Live playlists export only the segments available now, and re-running after the window slides fetches the new window.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"An interrupted download continues from the segments already fetched after a relaunch — nothing on disk is fetched twice. Live playlists export only the segments available now, and re-running after the window slides fetches the new window."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"中断的下载在重启后从已抓到的分片继续——不会把盘上已有的再下一遍。直播播放列表只导出当前可用的分片；窗口滑动后再导，取到的是新窗口。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"中斷的下載在重啟後從已抓到的分片繼續——不會把盤上已有的再下一遍。直播播放列表只匯出當前可用的分片；窗口滑動後再匯出，取到的是新窗口。"
+          }
+        }
+      }
+    },
+    "%lld skipped":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"%lld skipped"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"跳过 %lld"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"跳過 %lld"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

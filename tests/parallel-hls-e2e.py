@@ -261,6 +261,40 @@ def main():
             duration, kinds = streams_of(ffprobe, os.path.join(out_dir, live_file))
             ok(f"直播：只导出当前可用分片（{duration:.0f}s，音视频 {kinds}）",
                10 <= duration <= 14 and "video" in kinds and "audio" in kinds)
+        # ---- 滑窗直播（v0.8.79 批 4）：窗口滑动后再导，必须取到新窗口的分片 ----
+        # 停止语义 = 只导出**当前播放列表里的分片**（不轮询新分片、不当 DVR 录制）；
+        # 用户想要更多就再导一次——这里验证第二次导出真的取了滑动后的窗口。
+        br(site_base, "GET", "/_reset", timeout=10)
+        slide_url = site_base + "/live-slide/index.m3u8"
+        slide1, _ = run_download(base, slide_url, "b80-live-slide-1", out_dir, connections=8)
+        ok("滑窗直播：第一窗口下载完成", slide1 and slide1.get("state") == "finished",
+           json.dumps(slide1, ensure_ascii=False)[:300])
+        slide1_file = next((f for f in sorted(os.listdir(out_dir))
+                            if f.startswith("b80-live-slide-1") and f.endswith(".mp4")), None)
+        if slide1_file:
+            duration, kinds = streams_of(ffprobe, os.path.join(out_dir, slide1_file))
+            ok(f"滑窗直播：第一窗口只含当前 4 片（{duration:.0f}s，音视频 {kinds}）",
+               6 <= duration <= 10 and "video" in kinds and "audio" in kinds)
+        hits1 = (br(site_base, "GET", "/stats", timeout=10).get("hits") or {})
+        ok("滑窗直播：第一窗口请求的是 seg-000..003、没碰第二窗口",
+           all(hits1.get(f"/live-slide/seg-{n:03d}.ts", 0) >= 1 for n in range(4))
+           and all(hits1.get(f"/live-slide/seg-{n:03d}.ts", 0) == 0 for n in range(4, 8)),
+           json.dumps({k: v for k, v in hits1.items() if "live-slide/seg" in k}, ensure_ascii=False))
+        advanced = br(site_base, "GET", "/live-slide/advance", timeout=10)
+        ok("滑窗直播：窗口前进到第二段", advanced.get("start") == 4, str(advanced))
+        slide2, _ = run_download(base, slide_url, "b80-live-slide-2", out_dir, connections=8)
+        ok("滑窗直播：第二窗口下载完成", slide2 and slide2.get("state") == "finished",
+           json.dumps(slide2, ensure_ascii=False)[:300])
+        hits2 = (br(site_base, "GET", "/stats", timeout=10).get("hits") or {})
+        ok("滑窗直播：第二次导出取了新窗口的分片（seg-004..007）",
+           all(hits2.get(f"/live-slide/seg-{n:03d}.ts", 0) >= 1 for n in range(4, 8)),
+           json.dumps({k: v for k, v in hits2.items() if "live-slide/seg" in k}, ensure_ascii=False))
+        slide2_file = next((f for f in sorted(os.listdir(out_dir))
+                            if f.startswith("b80-live-slide-2") and f.endswith(".mp4")), None)
+        if slide2_file:
+            duration2, _ = streams_of(ffprobe, os.path.join(out_dir, slide2_file))
+            ok(f"滑窗直播：第二窗口产物是新的 4 片（{duration2:.0f}s）", 6 <= duration2 <= 10)
+
         br_report = probe(base, site_base + "/byterange/index.m3u8")
         ok("探测·字节切片：改走 ffmpeg 直连",
            "byte-range segments" in (br_report.get("facts") or [])

@@ -122,7 +122,7 @@ extension DPPDownloadRules {
     }
 
     /// 站点规则指定的下载方式；nil / auto = 交给研判。
-    var enginePreference: DownloadRouting.EnginePreference? {
+    nonisolated var enginePreference: DownloadRouting.EnginePreference? {
         guard let preference = DownloadRouting.EnginePreference.parse(engine), preference != .auto else { return nil }
         return preference
     }
@@ -141,12 +141,12 @@ extension DPPDownloadRules {
         return String(data: data, encoding: .utf8) ?? ""
     }
 
-    var perPageRule: PerPage? {
+    nonisolated var perPageRule: PerPage? {
         PerPage(rawValue: (perPage ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
     }
 
     /// `detail` 的解析；写得不完整（选择器缺属性等）= nil。
-    func detailRule() -> DPPDetailRule? {
+    nonisolated func detailRule() -> DPPDetailRule? {
         guard let raw = detail?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { return nil }
         if raw.hasPrefix("selector:") {
             let body = raw.dropFirst("selector:".count).trimmingCharacters(in: .whitespaces)

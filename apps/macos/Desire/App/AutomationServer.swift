@@ -407,10 +407,11 @@ final class AutomationServer {
         ep("GET", "/conversations", "Newest agent conversations (id/title/messages/firstMessage) — pair with /conversations/delete for cleanup", params: ["limit?:int (default 20)"], example: "…/conversations?limit=5")
         ep("GET", "/media/batch/log", "Full per-batch download log (create/resolve/download/merge/pause/fail, newest last)", params: ["id:string (batch uuid)", "tail?:int (default all)"], example: "…/media/batch/log?id=…")
         ep("POST", "/media/batch/manage", "Manage a batch directly (no agent round-trip): pause/resume/cancel/skip; batchId/itemId accept 8-char short ids", params: ["action:pause|resume|cancel|skip|remove", "batchId:string", "itemId?:string"], example: #"-d '{"action":"pause","batchId":"76a91071"}'"#)
-        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats|inbox|workspaces|whiteboard|syncchecklist|skillpatch|…)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
+        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats|inbox|workspaces|whiteboard|syncchecklist|skillpatch|dppstudio|downloadhistory|…)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
         ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/addSelectionToWhiteboard/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
         // Downloads
         ep("GET", "/downloads", "Rows: id/file/state/paused/bytes/total/private", example: "…/downloads")
+        ep("GET", "/downloads/history", "Per-site download history derived from persisted batches (success/failure, bytes, average speed, engines)", example: "…/downloads/history")
         ep("POST", "/downloads/remove", "Remove a row from the list (file on disk untouched)", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/downloads/pause", "Pause", params: ["id?:uuid"], example: "-d '{}'")
         ep("POST", "/downloads/resume", "Resume", params: ["id?:uuid"], example: "-d '{}'")
@@ -834,6 +835,7 @@ final class AutomationServer {
         ep("POST", "/dpp/adapters/install", "Install an adapter JSON from an http(s) URL (community distribution)", params: ["url:string"], example: #"-d '{"url":"https://…/juejin.json"}'"#)
         ep("POST", "/dpp/adapters/toggle", "Enable/disable an adapter by name", params: ["name:string", "enabled:bool"], example: #"-d '{"name":"juejin","enabled":false}'"#)
         ep("POST", "/dpp/adapters/remove", "Delete an adapter package", params: ["name:string"], example: #"-d '{"name":"juejin"}'"#)
+        ep("POST", "/dpp/adapters/export", "Export an adapter as shareable JSON (local provenance and telemetry stripped); path defaults to Downloads", params: ["name:string", "path?:string"], example: #"-d '{"name":"demo","path":"/tmp/demo.json"}'"#)
         ep("GET", "/agent/approvals", "Pending tool approval (the card waiting in the panel)", example: "…/agent/approvals")
         ep("POST", "/agent/approvals/resolve", "Resolve the pending approval from outside the panel (agent full-loop E2E without a human click)", params: ["decision:string(allowOnce|alwaysAllow|deny)"], example: #"-d '{"decision":"allowOnce"}'"#)
         ep("POST", "/mcp/add", "Add an MCP server (omit command for HTTP url; command = stdio argv, space-separated with quotes)", params: ["name:string", "url?:string", "command?:string"], example: #"-d '{"name":"local","command":"python3 /tmp/mcp.py"}'"#)
@@ -1990,6 +1992,22 @@ case ("GET", "/state"):
                 }
                 DPPAdapterStore.shared.remove(name)
                 return try Self.json(["ok": true, "name": name])
+            case ("POST", "/dpp/adapters/export"):
+                // 可分享的包（v0.8.79 批 3）：规则与协议体照旧，本地溯源与遥测
+                // （实测画像/修订史/最近命中失败）不随包走。path 省略 → 下载目录。
+                guard let name = Self.string(body, "name") else {
+                    return try Self.json(["error": "missing name"])
+                }
+                let destination = Self.string(body, "path").map {
+                    URL(fileURLWithPath: NSString(string: $0).expandingTildeInPath)
+                }
+                do {
+                    let url = try DPPAdapterStore.shared.exportPackage(named: name, to: destination)
+                    let bytes = (try? Data(contentsOf: url).count) ?? 0
+                    return try Self.json(["ok": true, "name": name, "path": url.path, "bytes": bytes])
+                } catch {
+                    return try Self.json(["error": error.localizedDescription])
+                }
             case ("POST", "/dpp/adapters/verify"):
                 // 存活度核对（设计评审 #8 补全）：对每个启用的适配包，找当前打开的
                 // 匹配标签页，跑一次真实抽取，报告各视图的元素命中数。
@@ -2909,6 +2927,8 @@ case ("GET", "/state"):
                 return try Self.json(["servers": servers, "tools": store.toolDefs.map(\.function.name), "prompts": store.allPrompts().count, "resources": store.allResources().count])
             case ("GET", "/downloads"):
                 return try Self.json(Self.downloads())
+            case ("GET", "/downloads/history"):
+                return try Self.json(Self.downloadHistoryReport())
             case ("GET", "/downloads/rules"):
                 // 自动归档规则表（v0.8.18 替人干活 16）。
                 return try Self.json(["rules": DownloadStore.loadArchiveRules().map { rule in
@@ -3037,7 +3057,8 @@ case ("GET", "/state"):
                     fileNameHint: Self.string(body, "filename"),
                     maxBandwidth: body["maxBandwidth"] as? Int,
                     directory: Self.string(body, "directory"),
-                    connections: body["connections"] as? Int
+                    connections: body["connections"] as? Int,
+                    method: Self.string(body, "method").flatMap { DownloadRouting.EnginePreference.parse($0) }
                 ))
             case ("POST", "/media/batch"):
                 return try Self.json(Self.startMediaBatch(body: body))
@@ -3537,12 +3558,17 @@ case ("GET", "/agent/messages"):
                       url.scheme == "http" || url.scheme == "https" else {
                     return try Self.json(["error": "missing or invalid url"])
                 }
+                let referer = Self.string(query, "referer").flatMap { URL(string: $0) }
+                let historyHost = (referer ?? url).host
+                let siteHistory = DownloadHistory.derive(from: BatchMediaExportStore.shared.batches)
+                    .sites.first { $0.host == historyHost }?.hint
                 let report = await MediaExporter.probe(
                     url: url,
-                    referer: Self.string(query, "referer").flatMap { URL(string: $0) },
+                    referer: referer,
                     userAgent: nil,
                     connections: min(max(Int(Self.string(query, "connections") ?? "") ?? MediaExporter.defaultConnections, 1),
-                                      MediaExporter.connectionBudget))
+                                      MediaExporter.connectionBudget),
+                    siteHistory: siteHistory)
                 return try Self.json(Self.mediaProbe(report))
             case ("POST", "/media/exports/cancel"):
                 return try Self.json(Self.mediaExportCancel(id: Self.string(body, "id") ?? ""))
@@ -5689,6 +5715,37 @@ case ("GET", "/agent/messages"):
         return ["ok": true, "command": name]
     }
 
+    /// 按站点聚合的下载记录（v0.8.79）：与设置页「下载记录」小节同源（`DownloadHistory`）。
+    private static func downloadHistoryReport() -> [String: Any] {
+        let history = DownloadHistory.derive(from: BatchMediaExportStore.shared.batches)
+        return [
+            "ok": true,
+            "totals": ["finished": history.finished, "failed": history.failed,
+                       "skipped": history.skipped, "bytes": history.bytes],
+            "sites": history.sites.map { site -> [String: Any] in
+                var row: [String: Any] = [
+                    "host": site.host, "batches": site.batches, "items": site.items,
+                    "finished": site.finished, "failed": site.failed, "skipped": site.skipped,
+                    "bytes": site.bytes, "engines": site.engines,
+                ]
+                if let average = site.averageSeconds { row["averageSeconds"] = average }
+                if let speed = site.averageBytesPerSecond { row["averageBytesPerSecond"] = speed }
+                if let connections = site.connections { row["connections"] = connections }
+                if let lastAt = site.lastAt { row["lastAt"] = lastAt.timeIntervalSince1970 }
+                if let failure = site.lastFailure { row["lastFailure"] = failure }
+                if let hint = site.hint { row["hint"] = hint }
+                return row
+            },
+            "batches": history.batches.map { batch -> [String: Any] in
+                ["id": batch.id.uuidString, "createdAt": batch.createdAt.timeIntervalSince1970,
+                 "state": batch.state, "folder": batch.folder, "items": batch.items,
+                 "finished": batch.finished, "failed": batch.failed, "skipped": batch.skipped,
+                 "bytes": batch.bytes, "engines": batch.engines]
+            },
+            "note": "Derived from persisted batches (running + the most recent finished). Older batches live in their archived logs. Size/speed/engine are recorded per item from v0.8.79 on; earlier items contribute counts only.",
+        ]
+    }
+
     private static func downloads() throws -> [String: Any] {
         guard let store = DownloadStore.live else { return ["error": "store not ready"] }
         let items = store.downloads.map { item -> [String: Any] in
@@ -5989,6 +6046,84 @@ case ("GET", "/agent/messages"):
             let path = StorageRoot.directory.appendingPathComponent("skillpatch-panel.png").path
             try png.write(to: URL(fileURLWithPath: path))
             return ["path": path, "patches": pending.count,
+                    "width": rep.pixelsWide, "height": rep.pixelsHigh]
+        }
+        if name == "downloadhistory" {
+            // 下载记录小节（v0.8.79）：数据从 store 派生（body 里算），离屏可拍。
+            let size = NSSize(width: max(420, width ?? 720), height: max(240, height ?? 600))
+            let host = NSHostingView(
+                rootView: AnyView(SettingsContainer { DownloadHistorySection() })
+                    .appAccent(AppAccent.current)
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .frame(width: size.width, height: size.height)
+            )
+            host.frame = NSRect(origin: .zero, size: size)
+            host.appearance = NSApp.windows.first { $0.isVisible && $0.frame.width > 800 }?.effectiveAppearance
+                ?? NSApp.effectiveAppearance
+            host.layoutSubtreeIfNeeded()
+            for _ in 0..<6 {
+                try? await Task.sleep(for: .milliseconds(70))
+                host.needsLayout = true
+                host.layoutSubtreeIfNeeded()
+            }
+            guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
+                return ["error": "bitmap alloc failed"]
+            }
+            host.cacheDisplay(in: host.bounds, to: rep)
+            guard let png = rep.representation(using: .png, properties: [:]) else {
+                return ["error": "encode failed"]
+            }
+            let path = StorageRoot.directory.appendingPathComponent("download-history-panel.png").path
+            try png.write(to: URL(fileURLWithPath: path))
+            let history = DownloadHistory.derive(from: BatchMediaExportStore.shared.batches)
+            return ["path": path, "sites": history.sites.count, "batches": history.batches.count,
+                    "finished": history.finished, "failed": history.failed,
+                    "width": rep.pixelsWide, "height": rep.pixelsHigh]
+        }
+        if name == "dppstudio" {
+            // DPP Studio 的下载规则表单（v0.8.79 批 3）：sheet 壳子要窗口，
+            // 快照渲染内容层——播种一份适配器（离屏不触发 onAppear）。
+            let sample: DPPAdapter
+            if let installed = DPPAdapterStore.shared.adapters.first(where: { $0.download != nil })
+                ?? DPPAdapterStore.shared.adapters.first {
+                sample = installed
+            } else {
+                var rules = DPPDownloadRules()
+                rules.detail = "regex:var hlsUrl\\s*=\\s*'([^']+)'"
+                rules.perPage = "many"
+                rules.engine = "parallel"
+                rules.connections = 8
+                rules.tokenMinutes = 50
+                rules.exclude = ["_preview\\.mp4$"]
+                sample = DPPAdapter(name: "demo-site", hosts: ["example.com"],
+                                    notes: "download rules demo", download: rules)
+            }
+            let size = NSSize(width: max(560, width ?? 660), height: max(560, height ?? 740))
+            let host = NSHostingView(
+                rootView: AnyView(DPPStudioSheet(previewAdapter: sample, initialHost: sample.hosts.first))
+                    .appAccent(AppAccent.current)
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .frame(width: size.width, height: size.height)
+            )
+            host.frame = NSRect(origin: .zero, size: size)
+            host.appearance = NSApp.windows.first { $0.isVisible && $0.frame.width > 800 }?.effectiveAppearance
+                ?? NSApp.effectiveAppearance
+            host.layoutSubtreeIfNeeded()
+            for _ in 0..<6 {
+                try? await Task.sleep(for: .milliseconds(70))
+                host.needsLayout = true
+                host.layoutSubtreeIfNeeded()
+            }
+            guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
+                return ["error": "bitmap alloc failed"]
+            }
+            host.cacheDisplay(in: host.bounds, to: rep)
+            guard let png = rep.representation(using: .png, properties: [:]) else {
+                return ["error": "encode failed"]
+            }
+            let path = StorageRoot.directory.appendingPathComponent("dppstudio-panel.png").path
+            try png.write(to: URL(fileURLWithPath: path))
+            return ["path": path, "adapter": sample.name, "download": sample.download != nil,
                     "width": rep.pixelsWide, "height": rep.pixelsHigh]
         }
         if name == "syncchecklist" {
@@ -10094,13 +10229,16 @@ case ("GET", "/agent/messages"):
     /// `directory` / `connections`（v0.8.77 批 3）：落点目录与每路分片并发——自动化
     /// 把测试片下到隔离目录里，不写进用户真实的"下载"文件夹。
     private static func downloadMedia(url: String, referer: String?, fileNameHint: String?, maxBandwidth: Int?,
-                                      directory: String? = nil, connections: Int? = nil) throws -> [String: Any] {
+                                      directory: String? = nil, connections: Int? = nil,
+                                      method: DownloadRouting.EnginePreference? = nil) throws -> [String: Any] {
         guard !url.isEmpty, let sourceURL = URL(string: url) else {
             return ["error": "missing or invalid url"]
         }
         let refererURL = referer.flatMap { URL(string: $0) }
         let trimmedDirectory = directory?.trimmingCharacters(in: .whitespacesAndNewlines)
         let baseDirectory = (trimmedDirectory?.isEmpty == false) ? trimmedDirectory : nil
+        // 站点规则（v0.8.79）：显式参数 > 适配器规则；实测画像跳过测速——与智能体工具同一套。
+        let site = DPPAdapterStore.shared.downloadRules(for: refererURL ?? sourceURL)
         // 走 MediaExportStore（与 agent 工具同路径）：面板可见、/media/exports
         // 可查完成回执（verified 分辨率/音轨 + 源变体清单）。此前裸调
         // MediaExporter.download，回执只进日志、任务在任何列表里都不存在。
@@ -10108,10 +10246,25 @@ case ("GET", "/agent/messages"):
             MediaExportStore.shared.start(
                 url: sourceURL, referer: refererURL, userAgent: nil,
                 fileNameHint: fileNameHint, folderName: nil, baseDirectory: baseDirectory,
-                maxBandwidth: maxBandwidth, notify: false, connections: connections)
+                maxBandwidth: maxBandwidth, notify: false,
+                connections: connections ?? site?.rules.connections,
+                cachedSpeed: site?.rules.cachedEvidence(),
+                method: method ?? site?.rules.enginePreference,
+                completion: { outcome in
+                    guard case .finished(let result) = outcome,
+                          let evidence = result.speedEvidence,
+                          let adapter = site?.adapter else { return }
+                    DPPAdapterStore.shared.recordMeasured(adapterName: adapter.name, evidence: evidence)
+                })
         }
         Log.agent.info("media download started: \(url, privacy: .public) job=\(id.uuidString, privacy: .public)")
-        return ["ok": true, "started": url, "id": id.uuidString]
+        var response: [String: Any] = ["ok": true, "started": url, "id": id.uuidString]
+        if let site {
+            response["siteRule"] = site.adapter.name
+            if let engine = site.rules.enginePreference { response["method"] = engine.rawValue }
+            if let measured = site.rules.measured { response["measuredSamples"] = measured.samples }
+        }
+        return response
     }
 
     private static func batchDownload(urls: [String]) throws -> [String: Any] {

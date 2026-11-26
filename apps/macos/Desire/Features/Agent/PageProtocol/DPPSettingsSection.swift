@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 import WebKit
@@ -12,6 +13,7 @@ struct DPPSettingsSection: View {
     @ObservedObject private var adapters = DPPAdapterStore.shared
     @Environment(\.appAccent) private var appAccent: Color
     @State private var importError: String?
+    @State private var exportError: String?
     @State private var showStudio = false
 
     var body: some View {
@@ -87,6 +89,17 @@ struct DPPSettingsSection: View {
             Button(String(localized: "OK")) { importError = nil }
         } message: {
             Text(importError ?? "")
+        }
+        .alert(
+            String(localized: "Export failed"),
+            isPresented: Binding(
+                get: { exportError != nil },
+                set: { if !$0 { exportError = nil } }
+            )
+        ) {
+            Button(String(localized: "OK")) { exportError = nil }
+        } message: {
+            Text(exportError ?? "")
         }
         .sheet(isPresented: $showStudio) {
             DPPStudioSheet(initialHost: TabSessionCoordinator.shared.activeTabManager?
@@ -235,6 +248,15 @@ struct DPPSettingsSection: View {
                 .toggleStyle(.switch)
                 .controlSize(.small)
                 Button {
+                    exportAdapter(adapter)
+                } label: {
+                    Image(systemName: "square.and.arrow.up")
+                        .font(.system(size: 12))
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help(String(localized: "Export this adapter (rules and protocol body only — measured speed and refinements stay local)"))
+                Button {
                     adapters.remove(adapter.name)
                 } label: {
                     Image(systemName: "minus.circle")
@@ -243,6 +265,25 @@ struct DPPSettingsSection: View {
                 }
                 .buttonStyle(.plain)
                 .help(String(localized: "Delete"))
+            }
+        }
+    }
+
+    /// 导出可分享的包（v0.8.79 批 3）：实测画像与修订史留在本机，包里只有
+    /// 规则与协议体——换台机器导入后行为一致，但速度证据要重新学。
+    private func exportAdapter(_ adapter: DPPAdapter) {
+        let panel = NSSavePanel()
+        panel.title = String(localized: "Export Adapter")
+        panel.nameFieldStringValue = FilePathing.sanitizeFileName(adapter.name) + ".json"
+        panel.allowedContentTypes = [.json]
+        panel.canCreateDirectories = true
+        panel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                _ = try adapters.exportPackage(named: adapter.name, to: url)
+            } catch {
+                exportError = error.localizedDescription
             }
         }
     }

@@ -2006,6 +2006,13 @@ func testDPPAdapter() {
     check("adapter：标准格式解码", a1 != nil && e1 == nil)
     check("adapter：协议体复用 views", a1?.protocolBody.views["article"] != nil)
     check("adapter：warnings 带来源戳", a1?.protocolBody.warnings.contains("adapter: juejin") == true)
+    // 来源戳幂等（v0.8.79 批 3，导出往返抓到）：每次加载都 decode，重复 append
+    // 会让 warnings 随加载次数增长，包越用越脏。
+    if let a1, let data = try? JSONEncoder().encode(a1),
+       let again = DPPAdapter.decode(data).adapter {
+        check("adapter：来源戳不随解码次数增长",
+              again.protocolBody.warnings.filter { $0 == "adapter: juejin" }.count == 1)
+    }
 
     // "protocol" 键名回退
     let (a2, e2) = DPPAdapter.decode(adapterJSON("""
@@ -13011,6 +13018,67 @@ do {
        ["/hls/a/index.m3u8"])
 }
 
+// ---------- 下载记录 DownloadHistory（v0.8.79 批 2） ----------
+
+do {
+    func item(_ url: String, _ state: BatchMediaItem.State,
+              bytes: Int64? = nil, seconds: Double? = nil,
+              engine: String? = nil, connections: Int? = nil,
+              reason: String? = nil) -> BatchMediaItem {
+        BatchMediaItem(id: UUID(), sourceURL: URL(string: url)!, title: "t", numberPrefix: "01",
+                       state: state, engine: engine, connections: connections,
+                       bytes: bytes, seconds: seconds, failureReason: reason)
+    }
+    func batch(_ at: TimeInterval, _ items: [BatchMediaItem]) -> BatchMediaBatch {
+        BatchMediaBatch(id: UUID(), mode: .list, folderName: "f", items: items,
+                        state: .finished, createdAt: Date(timeIntervalSince1970: at))
+    }
+
+    let older = batch(1_764_000_000, [
+        item("https://a.example/v/1", .finished, bytes: 10_000_000, seconds: 10, engine: "parallel", connections: 8),
+        item("https://a.example/v/2", .finished, bytes: 5_000_000, seconds: 5, engine: "parallel", connections: 8),
+        item("https://a.example/v/3", .skipped),
+        item("https://b.example/v/1", .failed, reason: "403 expired"),
+        item("https://c.example/v/1", .pending),
+    ])
+    let newer = batch(1_764_100_000, [
+        item("https://b.example/v/2", .failed, reason: "connection reset"),
+        item("https://b.example/v/3", .failed, reason: "too many segment failures"),
+    ])
+    let history = DownloadHistory.derive(from: [older, newer])
+    let siteA = history.sites.first { $0.host == "a.example" }
+    let siteB = history.sites.first { $0.host == "b.example" }
+
+    eq("下载记录：站点去重（a 两片同批只算 1 个批次）", siteA?.batches, 1)
+    eq("下载记录：成功数", siteA?.finished, 2)
+    eq("下载记录：成功体积", siteA?.bytes, 15_000_000)
+    eq("下载记录：平均耗时（只算有耗时的成功项）", siteA?.averageSeconds, 7.5)
+    eq("下载记录：平均速度 = 字节和 / 耗时和", siteA?.averageBytesPerSecond, 1_000_000)
+    eq("下载记录：引擎计数", siteA?.engines["parallel"], 2)
+    eq("下载记录：最近成功连接数", siteA?.connections, 8)
+    eq("下载记录：跳过不算失败", siteA?.skipped, 1)
+    eq("下载记录：未落定条目不计入分母", history.sites.first { $0.host == "c.example" }, nil)
+    eq("下载记录：失败站点失败数", siteB?.failed, 3)
+    eq("下载记录：失败站点成功数", siteB?.finished, 0)
+    eq("下载记录：最近失败原因来自最新批次", siteB?.lastFailure, "too many segment failures")
+    check("下载记录：失败偏多给提示（只提示，不改路）", siteB?.hint?.contains("3 failed") == true)
+    check("下载记录：成功多于失败不给提示",
+          DownloadHistory.derive(from: [batch(1_764_000_000, [
+            item("https://d.example/v/1", .failed, reason: "x"),
+            item("https://d.example/v/2", .failed, reason: "x"),
+            item("https://d.example/v/3", .finished),
+            item("https://d.example/v/4", .finished),
+            item("https://d.example/v/5", .finished),
+          ])]).sites.first?.hint == nil)
+    eq("下载记录：批次最近在前", history.batches.map(\.createdAt),
+       [Date(timeIntervalSince1970: 1_764_100_000), Date(timeIntervalSince1970: 1_764_000_000)])
+    eq("下载记录：总量·成功", history.finished, 2)
+    eq("下载记录：总量·失败", history.failed, 3)
+    eq("下载记录：总量·跳过", history.skipped, 1)
+    eq("下载记录：总量·体积", history.bytes, 15_000_000)
+    check("下载记录：空输入为空", DownloadHistory.derive(from: []).sites.isEmpty)
+}
+
 // ---------- 站点下载规则 DPPAdapter.DownloadRules（v0.8.77 批 2） ----------
 
 do {
@@ -13188,6 +13256,144 @@ do {
           telemetry.contentFingerprint == basePrint)
     telemetry.connections = 12
     check("画像：改了规则参数 → 指纹变化", telemetry.contentFingerprint != basePrint)
+}
+
+// ---------- 下载规则表单 / 导出（v0.8.79 批 3） ----------
+
+do {
+    typealias Rules = DPPAdapter.DownloadRules
+    let stamp = Date(timeIntervalSince1970: 1_764_000_000)
+    var rules = Rules()
+    rules.detail = "regex:var hlsUrl\\s*=\\s*'([^']+)'"
+    rules.perPage = "one"
+    rules.engine = "parallel"
+    rules.connections = 6
+    rules.tokenMinutes = 30
+    rules.exclude = ["_preview\\.mp4$", "/ads/"]
+    rules.measured = Rules.Measured(singleBytesPerSecond: 1_048_576,
+                                    parallelBytesPerSecond: 9 * 1_048_576,
+                                    connections: 8, samples: 3, lastMeasuredAt: stamp)
+    rules.lastMatchAt = stamp
+    rules.lastError = "older failure"
+    rules.consecutiveFailures = 2
+    rules.revisions = [Rules.Revision(at: stamp, change: "connections 8 → 6")]
+
+    // 表单投影：规则 → 表单 → 规则（字段一致；数字以字符串呈现）
+    let draft = DPPDownloadRulesEditing.draft(from: rules)
+    check("表单：字段投影", draft.detail == rules.detail && draft.perPage == "one"
+          && draft.engine == "parallel" && draft.connections == "6"
+          && draft.tokenMinutes == "30" && draft.exclude == rules.exclude)
+    let rebuilt = DPPDownloadRulesEditing.rules(from: draft)
+    check("表单：往返字段一致", rebuilt.errors.isEmpty
+          && rebuilt.rules.detail == rules.detail && rebuilt.rules.perPage == rules.perPage
+          && rebuilt.rules.engine == rules.engine && rebuilt.rules.connections == rules.connections
+          && rebuilt.rules.tokenMinutes == rules.tokenMinutes && rebuilt.rules.exclude == rules.exclude)
+    let preserved = DPPDownloadRulesEditing.rules(from: draft, preserving: rules).rules
+    check("表单：编辑保留实测画像与打磨记录（改一个连接数不该清掉它学到的速度）",
+          preserved.measured == rules.measured && preserved.revisions == rules.revisions
+          && preserved.lastError == rules.lastError && preserved.consecutiveFailures == rules.consecutiveFailures)
+    check("表单：空可选字段 = 用默认值", DPPDownloadRulesEditing.draft(from: nil) == DPPDownloadRulesDraft())
+
+    // 表单数字：非数字报错；越界按与 saveDPPAdapter 相同的区间收敛
+    var numeric = DPPDownloadRulesDraft()
+    numeric.detail = "regex:x(.+)y"
+    numeric.connections = "abc"
+    check("表单：非数字连接数报错",
+          DPPDownloadRulesEditing.rules(from: numeric).errors.contains { $0.contains("connections") })
+    numeric.connections = "1"
+    numeric.tokenMinutes = "1"
+    let clamped = DPPDownloadRulesEditing.rules(from: numeric)
+    check("表单：连接数/有效期有下限", clamped.errors.isEmpty
+          && clamped.rules.connections == Rules.minConnections
+          && clamped.rules.tokenMinutes == Rules.minTokenMinutes)
+    numeric.connections = "999"
+    numeric.tokenMinutes = "9999"
+    let ceiling = DPPDownloadRulesEditing.rules(from: numeric)
+    check("表单：连接数/有效期有上限", ceiling.rules.connections == 64 && ceiling.rules.tokenMinutes == 24 * 60)
+
+    // JSON 往返：JSON 是唯一真相
+    let encodedJSON = DPPDownloadRulesEditing.json(rules)
+    let parsedJSON = DPPDownloadRulesEditing.parse(json: encodedJSON)
+    eq("JSON 往返：规则相等", parsedJSON.rules, rules)
+    check("JSON 往返：没有错误", parsedJSON.error == nil)
+    let blankJSON = DPPDownloadRulesEditing.parse(json: "   ")
+    check("JSON：空文本 = 没有下载段（不算错误）", blankJSON.rules == nil && blankJSON.error == nil)
+    check("JSON：坏文档给可读错误", DPPDownloadRulesEditing.parse(json: "{\"detail\":1}").error != nil)
+
+    // 校验：三条入口（表单 / JSON / saveDPPAdapter）同一套结论
+    var bad = rules
+    bad.engine = "wget"
+    check("校验：引擎白名单", DPPDownloadRulesEditing.validate(bad).contains { $0.contains("download.engine") })
+    bad = rules
+    bad.perPage = "two"
+    check("校验：每页数 one/many", DPPDownloadRulesEditing.validate(bad).contains { $0.contains("download.perPage") })
+    bad = rules
+    bad.detail = "selector: video"
+    check("校验：detail 不完整",
+          DPPDownloadRulesEditing.validate(bad).contains { $0.contains("download.detail is required") })
+    bad = rules
+    bad.detail = "regex:(["
+    check("校验：非法 detail 正则",
+          DPPDownloadRulesEditing.validate(bad).contains { $0.contains("detail regex is invalid") })
+    bad = rules
+    bad.exclude = ["["]
+    check("校验：非法排除正则",
+          DPPDownloadRulesEditing.validate(bad).contains { $0.contains("exclude") })
+    check("校验：合法规则零问题", DPPDownloadRulesEditing.validate(rules).isEmpty)
+
+    // 导出：剥本地溯源与遥测，规则与协议体照旧
+    var adapter = DPPAdapter(name: "site-a", hosts: ["a.example"], pathPrefixes: ["/videos/"],
+                             protocolBody: DesireProtocol(), notes: "learned on site-a",
+                             sourceURL: "/tmp/imported/site-a.json", installedAt: stamp,
+                             opsVersion: nil, verifiedAt: stamp, download: rules)
+    adapter.protocolBody.views["detail"] = DesireProtocol.ProtocolView(
+        item: ".card", fields: ["title": DesireProtocol.FieldSpec(expression: ".t")])
+    let exported = adapter.exportedCopy()
+    check("导出：遥测与本地溯源剥离", exported.download?.measured == nil
+          && exported.download?.revisions == nil && exported.download?.lastMatchAt == nil
+          && exported.download?.lastFailureAt == nil && exported.download?.lastError == nil
+          && exported.download?.consecutiveFailures == nil
+          && exported.sourceURL == nil && exported.installedAt == nil && exported.verifiedAt == nil)
+    check("导出：规则本身保留", exported.download?.detail == rules.detail
+          && exported.download?.perPage == "one" && exported.download?.engine == "parallel"
+          && exported.download?.connections == 6 && exported.download?.tokenMinutes == 30
+          && exported.download?.exclude == rules.exclude)
+    check("导出：协议体/主机/路径/说明保留", exported.hosts == adapter.hosts
+          && exported.pathPrefixes == adapter.pathPrefixes && exported.notes == adapter.notes
+          && exported.protocolBody.views.keys.sorted() == ["detail"])
+    // 导出 → 编码 → 解码（= 重新导入）→ 规则与协议体相等
+    let exportData = try! JSONEncoder().encode(exported)
+    let reimported = try! JSONDecoder().decode(DPPAdapter.self, from: exportData)
+    eq("导出往返：下载规则相等", reimported.download, exported.download)
+    eq("导出往返：协议体相等", reimported.protocolBody, exported.protocolBody)
+    check("导出：协议体原样带走", reimported.protocolBody.views["detail"]?.item == ".card")
+    let exportRoot = (try? JSONSerialization.jsonObject(with: exportData)) as? [String: Any]
+    let exportDownload = exportRoot?["download"] as? [String: Any]
+    check("导出：包里确实没有 measured 键", exportDownload != nil && exportDownload?["measured"] == nil)
+
+    // 实测摘要（Studio 只读行）：样本不足不显示
+    check("画像摘要：样本不足不显示",
+          DPPDownloadRulesEditing.measuredSummary(Rules.Measured(singleBytesPerSecond: 1,
+                                                                 parallelBytesPerSecond: 2,
+                                                                 connections: 8, samples: 1,
+                                                                 lastMeasuredAt: stamp)) == nil)
+    let summary = DPPDownloadRulesEditing.measuredSummary(rules.measured)
+    check("画像摘要：单路/并发两个速度都带上", summary?.contains("1.00") == true && summary?.contains("9.00") == true)
+
+    // ProtocolView 的编码形态（v0.8.79 批 3 修）：解码端只认 selector/attr——
+    // 合成编码写 expression，存一次就丢全部字段表达式（导出往返测试当场抓到）。
+    let viewJSON = Data(#"{"views":{"v":{"item":".card","fields":{"t":".title","l":{"selector":"a","attr":"href","type":"url"}}}}}"#.utf8)
+    let originalBody = try! JSONDecoder().decode(DesireProtocol.self, from: viewJSON)
+    let bodyData = try! JSONEncoder().encode(originalBody)
+    let bodyRoot = try! JSONSerialization.jsonObject(with: bodyData) as! [String: Any]
+    let bodyFields = ((bodyRoot["views"] as! [String: Any])["v"] as! [String: Any])["fields"] as! [String: Any]
+    check("协议编码：简写字段仍是字符串", bodyFields["t"] as? String == ".title")
+    check("协议编码：带类型字段是 selector/attr 对象",
+          (bodyFields["l"] as? [String: Any])?["selector"] as? String == "a"
+          && (bodyFields["l"] as? [String: Any])?["attr"] as? String == "href"
+          && (bodyFields["l"] as? [String: Any])?["type"] as? String == "url")
+    eq("协议编码：解码→编码→解码 不变",
+       try! JSONDecoder().decode(DesireProtocol.self, from: bodyData), originalBody)
 }
 
 // ---------- HLS 媒体播放列表 HLSMediaPlaylist（v0.8.77 批 3） ----------
@@ -13504,6 +13710,11 @@ do {
                                       failure: "the signed address expired while probing the first segments").text
     check("回执：研判在、只是没量到速度时说明原因",
           noSpeed.contains("→ method: parallel segment prefetch") && noSpeed.contains("- speed: not measured (the signed address expired"))
+    let withHistory = DownloadProbeReport(decision: plainDecision, segments: 3,
+                                          siteHistory: "b.example: 2 failed vs 0 finished recently").text
+    check("回执：站点历史只作为一句提示出现（不改变方法）",
+          withHistory.contains("- site history: b.example: 2 failed")
+          && withHistory.contains("→ method: parallel segment prefetch"))
 
     // 自己写下载的识别（runCommand 只提醒、不拦）
     let m3u8 = "https://cdn.example/hls/tok/x/index.m3u8"

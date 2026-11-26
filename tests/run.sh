@@ -4,6 +4,8 @@
 # 运行：tests/run.sh（或 bash tests/run.sh）
 set -e
 cd "$(dirname "$0")/.."
+# 本地化格式串的参数顺序（v0.8.79 崩溃驱动）：顺序错 = String(format:) 把 Int 当对象发。
+python3 tests/check-localized-formats.py
 OUT="$(mktemp -d)/puretests"
 SOURCES=(
   apps/macos/Desire/Features/Agent/SkillCandidateCore.swift
@@ -46,6 +48,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/PageProtocol/DesireProtocol.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DPPAdapter.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DPPAdapter+Download.swift
+  apps/macos/Desire/Features/Agent/PageProtocol/DPPDownloadRulesEditing.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DPPAdapterAuthoring.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DPPOpsContract.swift
   apps/macos/Desire/Features/Agent/PageEventPolicy.swift
@@ -161,6 +164,7 @@ SOURCES=(
   apps/macos/Desire/Features/Bookmarks/BookmarkBatchEdit.swift
   apps/macos/Desire/Features/Browsing/MediaResource.swift
   apps/macos/Desire/Features/Downloads/BatchMedia.swift
+  apps/macos/Desire/Features/Downloads/DownloadHistory.swift
   apps/macos/Desire/Features/Downloads/BatchMediaContent.swift
   apps/macos/Desire/Features/Downloads/HLSPlaylist.swift
   apps/macos/Desire/Features/Downloads/SyncedSkillPlacement.swift

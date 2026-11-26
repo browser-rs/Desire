@@ -290,6 +290,22 @@ def main():
             try: br(base, "POST", "/media/batch/cancel", {"id": again_id})
             except Exception: pass
 
+        # ---- 下载记录（v0.8.79）：按站点聚合，与批次日志同源、随批次落盘 ----
+        history = br(base, "GET", "/downloads/history")
+        site_rows = [row for row in history.get("sites", []) if row.get("host") == "127.0.0.1"]
+        ok("下载记录：fixture 站点在列", bool(site_rows), json.dumps(history, ensure_ascii=False)[:400])
+        if site_rows:
+            row = max(site_rows, key=lambda item: item.get("finished", 0))
+            ok("下载记录：完成数/体积/引擎有值",
+               row.get("finished", 0) >= 1 and row.get("bytes", 0) > 0 and bool(row.get("engines")),
+               json.dumps(row, ensure_ascii=False)[:400])
+            ok("下载记录：平均速度与平均耗时（有耗时的成功项）",
+               "averageBytesPerSecond" in row and "averageSeconds" in row,
+               json.dumps(row, ensure_ascii=False)[:400])
+        ok("下载记录：批次列表来自已保存批次",
+           any(batch.get("finished", 0) >= 1 for batch in history.get("batches", [])),
+           json.dumps(history.get("batches", []), ensure_ascii=False)[:300])
+
         # ---- 站点画像（v0.8.79）：删掉产物再跑一批 → 用画像、不再逐次测速 ----
         for name in os.listdir(os.path.join(data_dir, "batch-out", "archived001")):
             try:

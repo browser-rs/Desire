@@ -37,6 +37,8 @@ final class BatchMediaExportStore: ObservableObject {
     static let shared = BatchMediaExportStore()
 
     @Published private(set) var batches: [BatchMediaBatch] = []
+    /// 已提示过"站点历史"的 (批次|主机)——每批每站只提醒一次。
+    private var historyHintedBatches: Set<String> = []
 
     private var engineTasks: [UUID: Task<Void, Never>] = [:]
     /// 槽位看门狗：单点卡死不该拖死整队（2026-09-30 用户实测）。
@@ -452,6 +454,12 @@ final class BatchMediaExportStore: ObservableObject {
         var attempts: Int
         var tsFileURL: String? = nil
         var sourceRank: Int? = nil
+        // 下载记录（v0.8.79）：旧文件没有这些键 → nil，解码兼容。
+        var engine: String? = nil
+        var connections: Int? = nil
+        var bytes: Int64? = nil
+        var seconds: Double? = nil
+        var failureReason: String? = nil
     }
 
     private struct PersistedBatch: Codable {
@@ -507,7 +515,10 @@ final class BatchMediaExportStore: ObservableObject {
                         mediaURL: item.mediaURL?.absoluteString, referer: item.referer?.absoluteString,
                         title: item.title, numberPrefix: item.numberPrefix,
                         state: item.state.rawValue, summary: item.summary, attempts: item.attempts,
-                        tsFileURL: item.tsFileURL, sourceRank: item.sourceRank
+                        tsFileURL: item.tsFileURL, sourceRank: item.sourceRank,
+                        engine: item.engine, connections: item.connections,
+                        bytes: item.bytes, seconds: item.seconds,
+                        failureReason: item.failureReason
                     )
                 },
                 state: batch.state.rawValue,
@@ -557,7 +568,12 @@ final class BatchMediaExportStore: ObservableObject {
                         summary: summary,
                         tsFileURL: item.tsFileURL,
                         attempts: item.attempts,
-                        sourceRank: item.sourceRank ?? 0
+                        sourceRank: item.sourceRank ?? 0,
+                        engine: item.engine,
+                        connections: item.connections,
+                        bytes: item.bytes,
+                        seconds: item.seconds,
+                        failureReason: item.failureReason
                     )
                 }
                 // 旧持久化没有 saveRoot/splitEvery（optional 解码 nil）。
@@ -1081,6 +1097,13 @@ final class BatchMediaExportStore: ObservableObject {
             let folderName = itemFolder.isEmpty ? nil : itemFolder
             let userAgent = batchUserAgents[batchID]
             blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 开始下载 → \(folderName.map { $0 + "/" } ?? "")\(batches[bi].items[ii].title)" )
+            // 站点历史只提示、不换路（v0.8.79）：同一站点近期失败偏多时先提醒一句，
+            // 本次仍按研判/规则执行（0.8.78 的原则：方式定下就不偷偷换）。
+            if let host = batches[bi].items[ii].sourceURL.host,
+               historyHintedBatches.insert("\(batchID.uuidString)|\(host)").inserted,
+               let hint = DownloadHistory.derive(from: batches).sites.first(where: { $0.host == host })?.hint {
+                blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 站点历史：\(hint)")
+            }
             // 已下载索引：重跑同一列表不重复占盘（force 批次绕过）。
             // **智能判断**：索引命中还要验证落盘文件仍在——用户手动删除/
             // 移动过的话照常重新下载并刷新索引，而不是永远跳过。
@@ -1487,6 +1510,8 @@ final class BatchMediaExportStore: ObservableObject {
     }
 
     private func downloadSettled(batchID: UUID, itemID: UUID, outcome: MediaExportStore.JobOutcome) {
+        // 先取耗时再清状态：`downloadStartedAt` 是下载记录的唯一时间来源。
+        let elapsed = downloadStartedAt[itemID].map { Date().timeIntervalSince($0) }
         itemProgress[itemID] = nil
         lastProgressAt[itemID] = nil
         downloadStartedAt[itemID] = nil
@@ -1503,6 +1528,12 @@ final class BatchMediaExportStore: ObservableObject {
             batches[bi].items[ii].state = .finished
             batches[bi].items[ii].summary = "\(result.fileURL.lastPathComponent), \(result.displayBytes)" +
                 (result.verification.map { ", ✓ \($0)" } ?? "")
+            // 下载记录（v0.8.79）：引擎/连接/体积/耗时留痕，`/downloads/history` 按站点聚合。
+            batches[bi].items[ii].engine = result.engine.isEmpty ? nil : result.engine
+            batches[bi].items[ii].connections = result.connections
+            batches[bi].items[ii].bytes = result.bytes
+            batches[bi].items[ii].seconds = elapsed
+            batches[bi].items[ii].failureReason = nil
             let verifyText = result.verification.map { "，验证 ✓ \($0)" } ?? ""
             blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 下载完成：\(result.displayBytes)\(verifyText)，落盘 \(result.fileURL.path)")
             // 站点画像回写（v0.8.79）：这次实测（或画像）并入该站适配器，下一次直接用。
@@ -1530,6 +1561,8 @@ final class BatchMediaExportStore: ObservableObject {
             batches[bi].items[ii].attempts += 1
             batches[bi].items[ii].state = .failed
             batches[bi].items[ii].summary = error.localizedDescription
+            batches[bi].items[ii].failureReason = error.localizedDescription
+            batches[bi].items[ii].seconds = elapsed
             blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 下载失败（第 \(batches[bi].items[ii].attempts) 次尝试）：\(error.localizedDescription)")
             // 站点规则打磨（v0.8.77 批 2/3）：这次失败说明了站点的一个参数——地址在
             // 下载中途过期就缩短有效期，被限流/连接被打爆就降并发。重试会重新解析

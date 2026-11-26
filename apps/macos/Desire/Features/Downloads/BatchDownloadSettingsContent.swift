@@ -293,13 +293,17 @@ struct BatchDownloadSettingsContent: View {
 struct BatchDownloadSettingsSection: View {
     var body: some View {
         SettingsContainer {
-            SettingsSection(
-                title: String(localized: "Batch Downloads"),
-                subtitle: String(localized: "Defaults for batch video downloads — the agent can override per batch in chat."),
-                icon: "square.stack.3d.up"
-            ) {
-                BatchDownloadSettingsContent()
-                    .padding(.vertical, 8)
+            VStack(spacing: 18) {
+                SettingsSection(
+                    title: String(localized: "Batch Downloads"),
+                    subtitle: String(localized: "Defaults for batch video downloads — the agent can override per batch in chat."),
+                    icon: "square.stack.3d.up"
+                ) {
+                    BatchDownloadSettingsContent()
+                        .padding(.vertical, 8)
+                }
+                // 下载记录（v0.8.79）：按站点聚合，只读派生。
+                DownloadHistorySection()
             }
         }
     }

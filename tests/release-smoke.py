@@ -431,6 +431,48 @@ def main():
         except Exception as exc:
             ok("v0.8.76 技能/工具探针", False, str(exc))
 
+        # 7) v0.8.79：适配器导出往返（只在封闭实例里写——适配器目录属于用户数据）
+        info = s.get("startup") or {}
+        if info.get("secrets") == "file" and info.get("dataDir"):
+            smoke_adapter = os.path.join(info["dataDir"], "..", "release-smoke-adapter.json")
+            smoke_export = os.path.join(info["dataDir"], "..", "release-smoke-export.json")
+            smoke_name = "release-smoke-demo"
+            try:
+                with open(smoke_adapter, "w", encoding="utf-8") as fh:
+                    json.dump({
+                        "name": smoke_name, "hosts": ["smoke.example"],
+                        "protocolBody": {"views": {"v": {"item": ".i", "fields": {"t": ".t"}}}},
+                        "download": {"detail": "regex:hlsUrl\\s*=\\s*'([^']+)'",
+                                     "engine": "parallel", "connections": 6,
+                                     "measured": {"singleBytesPerSecond": 1, "parallelBytesPerSecond": 2,
+                                                  "connections": 8, "samples": 3, "lastMeasuredAt": 0}},
+                    }, fh)
+                imported = br("POST", "/dpp/adapters/import", {"path": smoke_adapter})
+                exported = br("POST", "/dpp/adapters/export",
+                              {"name": smoke_name, "path": smoke_export})
+                with open(smoke_export, encoding="utf-8") as fh:
+                    package = json.load(fh)
+                ok("适配器导出：导入/导出可用且剥离遥测",
+                   imported.get("ok") is True and exported.get("ok") is True
+                   and (package.get("download") or {}).get("detail")
+                   and "measured" not in (package.get("download") or {}))
+                snapshot = br("GET", "/panel/snapshot?name=dppstudio")
+                ok("Studio：下载规则表单快照可拍", "path" in snapshot and snapshot.get("download") is True)
+            except Exception as exc:
+                ok("适配器导出：往返可用", False, str(exc))
+            finally:
+                try:
+                    br("POST", "/dpp/adapters/remove", {"name": smoke_name})
+                except Exception:
+                    pass
+                for path in (smoke_adapter, smoke_export):
+                    try:
+                        os.unlink(path)
+                    except OSError:
+                        pass
+        else:
+            print("△ 适配器导出探针跳过（非封闭实例：适配器目录属于用户数据）")
+
         # 启动诊断（0.8.49）：窗口/标签/异常退出标志可断言
         startup = br("GET", "/diag/startup")
         ok("启动诊断：可见窗口与标签",

@@ -50,7 +50,12 @@ enum MediaExporter {
         /// 这一次下载的研判：事实 → 规则 → 引擎（v0.8.77 批 6）。
         var engineNote: String? = nil
         /// 开头分片的测速结论（并发预取时才有）。
-        var speedNote: String? = nil
+        var speedNote: String?
+        /// 实际使用的引擎（direct / parallel / ffmpeg / builtin / reused）——
+        /// 下载记录按站点聚合用（v0.8.79 批 2 补：这不属于能从产物派生的字段）。
+        var engine: String = ""
+        /// 并发路径实际连接数（其余引擎 nil）。
+        var connections: Int? = nil
         /// 这一路用到的测速证据（现测或站点画像）——批量引擎据此回写站点画像。
         var speedEvidence: ParallelTuning.Evidence? = nil
 
@@ -218,7 +223,8 @@ enum MediaExporter {
                 let probe = await Task.detached(priority: .utility) { FFmpegExporter.probe(fileURL: fileURL) }.value
                 return Result(fileURL: fileURL, segmentCount: 1, bytes: result, warnings: [],
                               verification: probe.summary, downloadedResolution: probe.resolution,
-                              engineNote: "direct file → streaming download with resume")
+                              engineNote: "direct file → streaming download with resume",
+                              engine: "direct")
             }
 
             let (data, response) = try await fetch(url: url, referer: referer, userAgent: userAgent)
@@ -244,7 +250,8 @@ enum MediaExporter {
             onPlan("direct file → in-memory download")
             return Result(fileURL: fileURL, segmentCount: 1, bytes: Int64(directFile.data.count), warnings: [],
                           verification: probe.summary, downloadedResolution: probe.resolution,
-                          engineNote: "direct file → in-memory download")
+                          engineNote: "direct file → in-memory download",
+                          engine: "direct")
         }
 
         var warnings: [String] = []
@@ -327,6 +334,8 @@ enum MediaExporter {
                                       bandwidthCapped: (maxBandwidth ?? 0) > 0,
                                       engineNote: planNote,
                                       speedNote: prefetched.speedEvidence?.summary,
+                                      engine: "parallel",
+                                      connections: prefetched.connectionsUsed,
                                       speedEvidence: prefetched.speedEvidence)
                     }
                 } catch is CancellationError {
@@ -383,7 +392,8 @@ enum MediaExporter {
                               verification: probe.summary, downloadedResolution: probe.resolution,
                               sourceSummary: plan.sourceSummary, sourceMaxResolution: plan.sourceMaxResolution,
                               bandwidthCapped: (maxBandwidth ?? 0) > 0,
-                              engineNote: planNote)
+                              engineNote: planNote,
+                              engine: "ffmpeg")
             } catch is CancellationError {
                 throw CancellationError()
             } catch let error as URLError where error.code == .cancelled {
@@ -418,7 +428,8 @@ enum MediaExporter {
                    let attrs = try? FileManager.default.attributesOfItem(atPath: reuseURL.path),
                    (attrs[.size] as? Int64 ?? 0) > 100_000_000 {
                     Log.downloads.info("reusing complete .ts for remux: \(reuseURL.lastPathComponent, privacy: .public)")
-                    let reused = Result(fileURL: reuseURL, segmentCount: 0, bytes: attrs[.size] as? Int64 ?? 0, warnings: [], verification: nil)
+                    let reused = Result(fileURL: reuseURL, segmentCount: 0, bytes: attrs[.size] as? Int64 ?? 0,
+                                        warnings: [], verification: nil, engine: "reused")
                     let gb = max(1, Int(reused.bytes / 1_073_741_824))
                     let remuxDeadline = min(deadline, Date().addingTimeInterval(TimeInterval(15 * 60 + gb * 2 * 60)))
                     progress(0, 1, .merging)
@@ -506,7 +517,8 @@ enum MediaExporter {
                           downloadedResolution: result.downloadedResolution,
                           sourceSummary: result.sourceSummary,
                           sourceMaxResolution: result.sourceMaxResolution,
-                          bandwidthCapped: result.bandwidthCapped)
+                          bandwidthCapped: result.bandwidthCapped,
+                          engine: result.engine, connections: result.connections)
         }
         // **重试复用同名 .ts**：remux 失败（超时/中断）后重试整个任务时，此前
         // uniqueDestination 会绕开已存在的 .ts 重新下载整片（01 号 6.4GB 实测
@@ -541,7 +553,8 @@ enum MediaExporter {
                           downloadedResolution: probe.resolution,
                           sourceSummary: result.sourceSummary,
                           sourceMaxResolution: result.sourceMaxResolution,
-                          bandwidthCapped: result.bandwidthCapped)
+                          bandwidthCapped: result.bandwidthCapped,
+                          engine: result.engine, connections: result.connections)
         } catch is CancellationError {
             throw CancellationError()
         } catch {
@@ -551,7 +564,8 @@ enum MediaExporter {
                           downloadedResolution: nil,
                           sourceSummary: result.sourceSummary,
                           sourceMaxResolution: result.sourceMaxResolution,
-                          bandwidthCapped: result.bandwidthCapped)
+                          bandwidthCapped: result.bandwidthCapped,
+                          engine: result.engine, connections: result.connections)
         }
     }
 
@@ -860,6 +874,9 @@ enum MediaExporter {
         }
         guard !segments.isEmpty else { throw ExportError.notAPlaylist }
         if !hasEndList {
+            // **直播的停止条件**（v0.8.79 写明，避免"以为它在录 DVR"）：只导出**当前
+            // 播放列表里**的分片——不轮询新分片，也没有时长上限（分片数由列表本身界定）。
+            // 用户取消 = 停止；想要更多 = 窗口滑动后再导一次（会取到新窗口，见滑窗 E2E）。
             warnings.append("live stream (no ENDLIST) — exporting the segments available now")
         }
 
@@ -951,7 +968,8 @@ enum MediaExporter {
                 ? warnings + ["\(failures) segment(s) failed and were skipped"]
                 : warnings,
             sourceSummary: sourceSummary,
-            sourceMaxResolution: sourceMaxResolution
+            sourceMaxResolution: sourceMaxResolution,
+            engine: "builtin"
         )
     }
 

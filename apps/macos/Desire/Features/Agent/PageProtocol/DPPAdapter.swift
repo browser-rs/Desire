@@ -163,7 +163,12 @@ extension DPPAdapter {
             guard !a.hosts.isEmpty else { return (nil, "missing hosts") }
             var fixed = a
             fixed.name = name
-            fixed.protocolBody.warnings.append("adapter: \(name)")
+            // 来源戳**幂等**：每次加载都会 decode，重复 append 会让 warnings
+            // 随加载次数增长（导出/回写都带着它们），包越用越脏。
+            let tag = "adapter: \(name)"
+            if !fixed.protocolBody.warnings.contains(tag) {
+                fixed.protocolBody.warnings.append(tag)
+            }
             return (fixed, nil)
         }
         var raw = (try? JSONSerialization.jsonObject(with: data) as? [String: Any]) ?? [:]

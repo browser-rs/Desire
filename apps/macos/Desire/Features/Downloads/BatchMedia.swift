@@ -40,6 +40,13 @@ struct BatchMediaItem: Identifiable {
     /// 跨批次去重必须带上这个序号——只用来源页做键会把同页第二、三部当成"已下载过"
     /// （2026-11-26 实测：一页三部，第三部被跳过）。
     var sourceRank: Int = 0
+    /// 下载记录用的结构化结果（v0.8.79）：引擎 / 连接数 / 字节数 / 耗时 / 失败原因。
+    /// 这些字段从产物派生不出来，所以随结果留在条目上（原则同"耗时记在工具消息上"）。
+    var engine: String?
+    var connections: Int?
+    var bytes: Int64?
+    var seconds: Double?
+    var failureReason: String?
 
     enum State: String {
         case pending, resolving, needsHuman, downloading

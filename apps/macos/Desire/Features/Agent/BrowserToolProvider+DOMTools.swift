@@ -366,9 +366,12 @@ extension BrowserToolProvider {
             }
             let probeConnections = (args["connections"] as? Int).flatMap { (1...32).contains($0) ? $0 : nil }
                 ?? MediaExporter.defaultConnections
+            let historyHost = (webView.url ?? url).host
+            let siteHistory = DownloadHistory.derive(from: BatchMediaExportStore.shared.batches)
+                .sites.first { $0.host == historyHost }?.hint
             return await MediaExporter.probe(
                 url: url, referer: webView.url, userAgent: webView.customUserAgent,
-                connections: probeConnections).text
+                connections: probeConnections, siteHistory: siteHistory).text
 
         case "downloadVideoList":
             // 列表批量（模式 B）：详情页地址逐个交给隐藏解析器。长任务立刻
@@ -428,6 +431,12 @@ extension BrowserToolProvider {
             if !skipped.isEmpty {
                 let names = skipped.prefix(8).map { "\($0.title) (\($0.summary ?? ""))" }.joined(separator: "; ")
                 reply += "\nSkipped \(skipped.count): \(names)"
+            }
+            let ruledSites = Set(batch.items.compactMap {
+                DPPAdapterStore.shared.downloadRules(for: $0.sourceURL)?.adapter.name
+            }).sorted()
+            if !ruledSites.isEmpty {
+                reply += "\nSite rules applied: \(ruledSites.joined(separator: ", ")) — per-page count, exclusions, connections and method come from the rule; the measured profile skips the speed probe."
             }
             return reply
 
@@ -586,16 +595,29 @@ extension BrowserToolProvider {
                   url.scheme == "http" || url.scheme == "https" else {
                 return Self.fail("Invalid url (http/https only)")
             }
+            // 站点规则（v0.8.79）：和批量引擎同一套——方式/连接数/实测画像先看本站规则，
+            // 显式参数优先。单文件下载此前完全不读适配器，规则只对批量生效。
+            let site = DPPAdapterStore.shared.downloadRules(for: webView.url ?? url)
             let jobID = MediaExportStore.shared.start(
                 url: url,
                 referer: webView.url,
                 userAgent: webView.customUserAgent,
                 fileNameHint: args["fileName"] as? String,
-                connections: (args["connections"] as? Int).flatMap { (1...32).contains($0) ? $0 : nil },
-                method: (args["method"] as? String).flatMap { DownloadRouting.EnginePreference.parse($0) },
-                planHandler: nil
+                connections: (args["connections"] as? Int).flatMap { (1...32).contains($0) ? $0 : nil }
+                    ?? site?.rules.connections,
+                cachedSpeed: site?.rules.cachedEvidence(),
+                method: (args["method"] as? String).flatMap { DownloadRouting.EnginePreference.parse($0) }
+                    ?? site?.rules.enginePreference,
+                planHandler: nil,
+                completion: { outcome in
+                    // 单文件下载也回写站点画像（v0.8.79）：批量与单下共用同一份实测。
+                    guard case .finished(let result) = outcome,
+                          let evidence = result.speedEvidence,
+                          let adapter = site?.adapter else { return }
+                    DPPAdapterStore.shared.recordMeasured(adapterName: adapter.name, evidence: evidence)
+                }
             )
-            return """
+            var receipt = """
             Export started in the background (job \(jobID.uuidString.prefix(8))). It keeps running while \
             you continue working — do NOT wait for it and do not retry it. The file lands in ~/Downloads.
             The download method follows the stream's shape (ordinary HLS: parallel segment connections). \
@@ -603,6 +625,12 @@ extension BrowserToolProvider {
             `connections` — never script a downloader of your own.
             \(LongTaskReceipt.nextStep(watch: "watchBackgroundTasks(ids: [\"\(jobID.uuidString.prefix(8))\"])"))
             """
+            if let site {
+                receipt += "\nSite rule applied: \(site.adapter.name)"
+                    + (site.rules.enginePreference.map { " (method \($0.rawValue))" } ?? "")
+                    + (site.rules.cachedEvidence().map { " (measured profile: \($0.summary))" } ?? "")
+            }
+            return receipt
 
         case "findAdCandidates":
             // 广告候选：返回带理由的候选清单（**不删任何东西**），由模型挑。
@@ -2464,18 +2492,11 @@ extension BrowserToolProvider {
                     }
                     rules.engine = engine.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
                 }
-                if let perPage = rules.perPage, DPPDownloadRules.PerPage(rawValue: perPage.lowercased()) == nil {
-                    return Self.fail("download.perPage must be \"one\" or \"many\"")
-                }
-                guard let detailRule = rules.detailRule() else {
-                    return Self.fail("download.detail is required — \"regex:<pattern>\" or \"selector:<css>@<attr>\"")
-                }
-                if case .regex(let pattern) = detailRule,
-                   (try? NSRegularExpression(pattern: pattern)) == nil {
-                    return Self.fail("download.detail regex is invalid: \\(pattern)")
-                }
-                for pattern in rules.exclude ?? [] where (try? NSRegularExpression(pattern: pattern)) == nil {
-                    return Self.fail("download.exclude has an invalid regex: \\(pattern)")
+                // 校验收口在 DPPDownloadRulesEditing：Studio 表单、JSON 入口与这里
+                // 对同一份规则给出同一个结论（v0.8.79 批 3）。
+                let ruleIssues = DPPDownloadRulesEditing.validate(rules)
+                guard ruleIssues.isEmpty else {
+                    return Self.fail(ruleIssues.joined(separator: "; "))
                 }
                 downloadRules = rules
             }

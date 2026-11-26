@@ -409,7 +409,8 @@ extension MediaExporter {
     /// 哪个引擎、开头分片的实测速度与预计耗时。智能体此前靠手写测速脚本才能得到这些，
     /// "慢了怎么办"从此有据可依。探测抓过的分片落在临时目录里，量完即删。
     static func probe(url: URL, referer: URL?, userAgent: String?,
-                      connections: Int = MediaExporter.defaultConnections) async -> DownloadProbeReport {
+                      connections: Int = MediaExporter.defaultConnections,
+                      siteHistory: String? = nil) async -> DownloadProbeReport {
         let ffmpegLabel: String? = FFmpegExporter.locate() != nil ? "available" : nil
         var request = URLRequest(url: url)
         if let referer { request.setValue(referer.absoluteString, forHTTPHeaderField: "Referer") }
@@ -469,6 +470,7 @@ extension MediaExporter {
         }
         return DownloadProbeReport(decision: decision, speed: speed,
                                    estimatedBytes: averageSegmentBytes.map { $0 * Int64(max(profile.segmentCount, 1)) },
-                                   segments: profile.segmentCount, failure: failure)
+                                   segments: profile.segmentCount, failure: failure,
+                                   siteHistory: siteHistory)
     }
 }

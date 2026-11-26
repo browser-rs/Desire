@@ -1124,6 +1124,8 @@ Features/Bookmarks/
   - **发版冒烟必须从非 DerivedData 路径（如 /tmp）启动一次**：ACl 失配只在
     换路径启动时触发，常规 DerivedData 路径测不出来。
 
+- **本地化格式串的参数顺序必须与英文一致**（v0.8.79 冒烟当场逮到的崩溃）：`String(format: String(localized: "%@…%@…%lld…"))` 的译文把格式符顺序换了（实测摘要的中文把第二个 `%@` 写成 `%lld`）→ 运行时把 Int 当对象发给 objc_msgSend，主线程 SIGSEGV。翻译可以改措辞，不能改格式符的顺序/类型；`tests/check-localized-formats.py` 已接入 `tests/run.sh`（700 个键，顺序不一致即失败）。
+
 ## 发布流程（2026-10-21 定稿：CI 与本地同编译器，云端构建全绿才建 tag）
 
 **关键事实**：GitHub 的 `xcode-27` 镜像里装着 **Xcode 27.1 (27A9275)**，与本机

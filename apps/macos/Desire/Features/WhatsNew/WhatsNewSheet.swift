@@ -17,16 +17,16 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "film", title: String(localized: "Only the real videos get downloaded"),
-                  detail: String(localized: "Batch download now works out which media on a page is actual content. HLS segments fold into the playlist they belong to; ads, previews and thumbnails are set aside, with a reason for each. A page with one video gives one task and a page with three gives three — no fragments, no duplicates.")),
-            .init(icon: "rectangle.on.rectangle", title: String(localized: "Every video on the page, even the lazy ones"),
-                  detail: String(localized: "The page resolver no longer stops at the first player it sees. It scrolls, starts each player and waits for the list to settle, so videos that only load as they come into view are collected too. The tool that lists a page's videos shows the content and the excluded items side by side.")),
-            .init(icon: "globe", title: String(localized: "Site rules that stay on their own site and keep improving"),
-                  detail: String(localized: "How to find the videos on a detail page, how many there are and how fast to pull them is stored in that site's own DPP adapter and applies nowhere else. Every task sharpens it: an address that expires mid-download shortens the validity window, rate limiting lowers the connection count, and a rule that stops matching is flagged for relearning. Each change is recorded and the previous version is kept.")),
-            .init(icon: "speedometer", title: String(localized: "Long videos download in parallel and recover from an expired address"),
-                  detail: String(localized: "HLS segments are fetched concurrently instead of one after another — more than five times faster on a rate-limited source. A signed address that expires part-way is noticed at once: the page is resolved again and the download resumes from the segments already fetched.")),
-            .init(icon: "square.and.arrow.down", title: String(localized: "Downloads choose their method with evidence"),
-                  detail: String(localized: "Before a download starts, the engine reads the stream — on-demand or live, quality variants, encryption, separate audio tracks — and decides how to fetch it, logging the reasons. The first segments are timed to set the connection count, and the agent can ask for the same assessment, with measured speed and an ETA, instead of guessing or writing its own downloader.")),
+            .init(icon: "speedometer", title: String(localized: "Sites remember how fast they are"),
+                  detail: String(localized: "After a couple of downloads, a site's measured speed is stored in its own adapter: later batches skip the probe and go straight to the connection count that worked. Every finished download updates the profile, and the measured value is visible on the adapter, in DPP Studio and in the site's skill.")),
+            .init(icon: "clock.arrow.circlepath", title: String(localized: "A download record per site"),
+                  detail: String(localized: "Settings › Batch Downloads shows each site's finished, failed and skipped counts, total size, average speed and the engine that did the work. Failures keep their reason, and a site that keeps failing gets a hint instead of silent retries.")),
+            .init(icon: "slider.horizontal.3", title: String(localized: "Site download rules, no JSON required"),
+                  detail: String(localized: "DPP Studio has a form for the download section — extraction rule, videos per page, method, connections, token lifetime, exclusions — with the JSON editor one toggle away. Both go through the same validation the agent uses.")),
+            .init(icon: "square.and.arrow.up", title: String(localized: "Share an adapter, leave the telemetry behind"),
+                  detail: String(localized: "Export an adapter as JSON from Settings: the rules and protocol body travel, while measured speed, revision history and local install details stay on this machine. Import it elsewhere and the behavior is identical.")),
+            .init(icon: "arrow.triangle.2.circlepath", title: String(localized: "Resume across restarts; live streams say what they are"),
+                  detail: String(localized: "An interrupted download continues from the segments already fetched after a relaunch — nothing on disk is fetched twice. Live playlists export only the segments available now, and re-running after the window slides fetches the new window.")),
         ]
     }
 

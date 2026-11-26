@@ -3,6 +3,8 @@
 
 用法：应用先以 --automation 跑着（本机访问等级 fullAccess，无审批阻塞），然后
     python3 tests/execution-e2e.py
+    python3 tests/execution-e2e.py --section browser|agent|media|sync|ops
+    （分节：公共前置 + 该域的 MUSCLE 块；其余块整块注释掉再执行同一份源码）
 
 做法：起一个假 OpenAI 端点（SSE），**新建一个临时档案并激活**（不碰用户的档案），跑一个真实回合：
 navigate 到生成的 fixture 页 → waitForText → [右键/双击/拖拽/勾选/文件编辑/OCR/PDF
@@ -33,6 +35,7 @@ readURL（MUSCLE13：已开标签路径/离屏路径/坏 URL 口径，且不开�
 import contextlib
 import json
 import os
+import re
 import subprocess
 import threading
 import time
@@ -2506,5 +2509,52 @@ def main():
         api.shutdown()
 
 
+# ── 分节运行（v0.8.79 批 4）──
+# 套件是一条长流程（公共前置 + 33 个 MUSCLE 块），块之间共享 fixture 与临时档案。
+# 分节 = 把不在本节里的块**整块注释掉**再执行同一份源码（行号不变；公共前置与
+# finally 清理照常跑）。不重排、不改缩进——块里有多行字符串，重新缩进会改到内容。
+SECTION_MUSCLES = {
+    "browser": {2, 7, 8, 9, 10, 13, 15, 21, 24, 25},
+    "agent": {3, 4, 5, 6, 11, 12, 14, 16, 17, 20, 26, 28, 29, 30, 32, 33},
+    "media": {19, 23},
+    "sync": {22, 27},
+    "ops": {18, 31},
+}
+
+
+def section_filtered_source(source, section):
+    lines = source.splitlines(keepends=True)
+    blocks = []
+    for index, line in enumerate(lines):
+        match = re.match(r"^        # ── MUSCLE(\d+)", line)
+        if match:
+            blocks.append((index, int(match.group(1))))
+    if not blocks:
+        raise SystemExit("execution-e2e: no MUSCLE blocks found")
+    summary = next((index for index, line in enumerate(lines)
+                    if line.startswith("        failed = [(n, d)")), None)
+    if summary is None:
+        raise SystemExit("execution-e2e: block summary anchor not found")
+    keep = SECTION_MUSCLES[section]
+    for index, (start, muscle) in enumerate(blocks):
+        end = blocks[index + 1][0] if index + 1 < len(blocks) else summary
+        if muscle in keep:
+            continue
+        for line_index in range(start, end):
+            if lines[line_index].strip():
+                lines[line_index] = "#" + lines[line_index]
+    return "".join(lines)
+
+
 if __name__ == "__main__":
-    main()
+    if "--section" in sys.argv:
+        section = sys.argv[sys.argv.index("--section") + 1]
+        if section not in SECTION_MUSCLES:
+            print("unknown section %r — choose %s" % (section, "|".join(SECTION_MUSCLES)))
+            raise SystemExit(2)
+        namespace = {"__name__": "__execution_e2e_section__", "__file__": __file__}
+        exec(compile(section_filtered_source(Path(__file__).read_text(), section),
+                     __file__, "exec"), namespace)
+        raise SystemExit(namespace["main"]())
+    else:
+        main()

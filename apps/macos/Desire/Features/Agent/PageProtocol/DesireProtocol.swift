@@ -186,6 +186,46 @@ nonisolated struct DesireProtocol: Codable, Equatable {
                 }
             }
         }
+
+        /// 编码回**声明形态**（`selector`/`attr`/`type`，或字符串简写）——解码端只认
+        /// 这套键。合成编码会写 `expression`，再解码时字段表达式全部变空（v0.8.79
+        /// 批 3 的导出往返测试当场抓到：Studio 保存/导入重编码都会踩到）。
+        /// `sourceFrame` 是宿主盖戳的运行期信息，不写回声明。
+        func encode(to encoder: Encoder) throws {
+            var c = encoder.container(keyedBy: PVKeys.self)
+            try c.encode(item, forKey: .item)
+            var raw: [String: DPPValue] = [:]
+            for (name, spec) in fields {
+                if let type = spec.type, !type.isEmpty {
+                    let split = Self.splitFieldExpression(spec.expression)
+                    var obj: [String: DPPValue] = ["selector": .string(split.selector), "type": .string(type)]
+                    if let attr = split.attr { obj["attr"] = .string(attr) }
+                    raw[name] = .object(obj)
+                } else {
+                    raw[name] = .string(spec.expression)
+                }
+            }
+            try c.encode(raw, forKey: .fields)
+            try c.encodeIfPresent(pagination, forKey: .pagination)
+            try c.encodeIfPresent(empty, forKey: .empty)
+        }
+
+        /// `selector@attr` → 声明形态的 `(selector, attr)`；拆不干净就原样保留
+        /// （`@` 只在尾部像属性名时才认，避免把 CSS 里的 `@` 拆坏）。
+        static func splitFieldExpression(_ expression: String) -> (selector: String, attr: String?) {
+            if expression.hasPrefix("@") {
+                let attr = String(expression.dropFirst())
+                return attr.isEmpty ? ("", nil) : ("", attr)
+            }
+            guard let at = expression.lastIndex(of: "@"), at != expression.startIndex else {
+                return (expression, nil)
+            }
+            let attr = String(expression[expression.index(after: at)...])
+            guard attr.range(of: "^[A-Za-z_:][-A-Za-z0-9_:.]*$", options: .regularExpression) != nil else {
+                return (expression, nil)
+            }
+            return (String(expression[..<at]), attr)
+        }
     }
 
     /// 视图字段规格：取值表达式 + 可选类型提示。

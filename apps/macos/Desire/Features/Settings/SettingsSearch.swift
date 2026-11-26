@@ -145,6 +145,8 @@ nonisolated enum SettingsSearch {
               keywords: ["批量下载", "目录", "分卷", "folder"]),
         .init(id: "batch.reserve", section: "batchDownloads", title: "Disk Space Reserve",
               keywords: ["磁盘", "空间", "预留", "disk", "reserve"]),
+        .init(id: "batch.history", section: "batchDownloads", title: "Download History",
+              keywords: ["下载记录", "站点", "速度", "失败", "history", "per-site"]),
         // Usage mode (v0.8.23)
         .init(id: "mode.usage", section: "usageMode", title: "Usage Mode",
               subtitle: "Browser / Agent Workspace / Hybrid",

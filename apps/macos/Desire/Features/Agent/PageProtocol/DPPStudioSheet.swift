@@ -37,10 +37,37 @@ struct DPPStudioSheet: View {
     @State private var testOutput: String?
     @State private var saveNote: String?
     @State private var enableAfterSave = false
+    // 下载规则（v0.8.79 批 3）：JSON 是唯一真相，表单是受控字段的投影；
+    // 编辑前的规则另存一份——改一个连接数不该清掉站点学到的实测画像。
+    @State private var downloadEnabled = false
+    @State private var downloadDraft = DPPDownloadRulesDraft()
+    @State private var downloadEditingJSON = false
+    @State private var downloadJSON = "{}"
+    @State private var downloadMeasured: String?
+    @State private var loadedDownload: DPPDownloadRules?
+    @State private var downloadErrors: [String] = []
 
     init(initialHost: String? = nil, initialPlatform: String? = nil) {
         self.initialHost = initialHost
         self.initialPlatform = initialPlatform
+    }
+
+    /// 快照/预览入口（v0.8.79 批 3）：离屏 `NSHostingView` 不触发 `onAppear`，
+    /// prefill 不会跑——把一份适配器直接播种进表单，快照里才看得见下载规则区。
+    init(previewAdapter: DPPAdapter, initialHost: String? = nil) {
+        self.initialHost = initialHost
+        self.initialPlatform = nil
+        _name = State(initialValue: previewAdapter.name)
+        _hosts = State(initialValue: previewAdapter.hosts.joined(separator: ", "))
+        _pathPrefixes = State(initialValue: previewAdapter.pathPrefixes.joined(separator: ", "))
+        _notes = State(initialValue: previewAdapter.notes)
+        _bodyText = State(initialValue: Self.prettyJSON(previewAdapter.protocolBody))
+        _downloadEnabled = State(initialValue: previewAdapter.download != nil)
+        _downloadDraft = State(initialValue: DPPDownloadRulesEditing.draft(from: previewAdapter.download))
+        _downloadJSON = State(initialValue: previewAdapter.download.map(DPPDownloadRulesEditing.json) ?? "{}")
+        _downloadMeasured = State(initialValue: DPPDownloadRulesEditing.measuredSummary(previewAdapter.download?.measured))
+        _loadedDownload = State(initialValue: previewAdapter.download)
+        _testView = State(initialValue: previewAdapter.protocolBody.views.keys.sorted().first ?? "")
     }
 
     var body: some View {
@@ -65,17 +92,18 @@ struct DPPStudioSheet: View {
             }
             TextEditor(text: $bodyText)
                 .font(.system(size: 11, design: .monospaced))
-                .frame(minHeight: 260)
+                .frame(minHeight: 180)
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
                         .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 0.5)
                 )
             validationBlock
             testBlock
+            downloadBlock
             footer
         }
         .padding(16)
-        .frame(width: 660, height: 680)
+        .frame(width: 660, height: 740)
         .background(Color(nsColor: .windowBackgroundColor))
         .onAppear(perform: prefill)
     }
@@ -182,6 +210,144 @@ struct DPPStudioSheet: View {
         }
     }
 
+    /// 下载规则（v0.8.79 批 3）：字段表单与 JSON 两个入口，JSON 为唯一真相。
+    /// 只有"这个适配器管下载"时才展示；实测画像是只读的（引擎回写，不在这里改）。
+    @ViewBuilder
+    private var downloadBlock: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            HStack(spacing: 8) {
+                Toggle(String(localized: "Download rules for this site"), isOn: $downloadEnabled)
+                    .toggleStyle(.checkbox)
+                    .font(.system(size: 11, weight: .medium))
+                Spacer()
+                if downloadEnabled {
+                    Toggle(String(localized: "Edit as JSON"), isOn: downloadJSONModeBinding)
+                        .toggleStyle(.checkbox)
+                        .font(.system(size: 10.5))
+                }
+            }
+            if downloadEnabled {
+                if downloadEditingJSON {
+                    TextEditor(text: $downloadJSON)
+                        .font(.system(size: 10.5, design: .monospaced))
+                        .frame(height: 104)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color(nsColor: .separatorColor).opacity(0.5), lineWidth: 0.5)
+                        )
+                } else {
+                    downloadFields
+                }
+                if !downloadErrors.isEmpty {
+                    ForEach(downloadErrors, id: \.self) { error in
+                        Label(error, systemImage: "xmark.octagon")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.red)
+                    }
+                }
+                if let downloadMeasured {
+                    Text(downloadMeasured)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(8)
+        .background(Color(nsColor: .textBackgroundColor).opacity(0.35))
+        .clipShape(RoundedRectangle(cornerRadius: 6))
+    }
+
+    private var downloadFields: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 8) {
+                labeledField(String(localized: "Extract (regex or selector)"), text: $downloadDraft.detail, width: 360)
+                pickerField(String(localized: "Per page"), selection: $downloadDraft.perPage, width: 92, options: [
+                    ("", String(localized: "Automatic")),
+                    ("one", String(localized: "One")),
+                    ("many", String(localized: "Many")),
+                ])
+                pickerField(String(localized: "Method"), selection: $downloadDraft.engine, width: 110, options: [
+                    ("", String(localized: "Automatic")),
+                    ("parallel", String(localized: "Parallel")),
+                    ("ffmpeg", "FFmpeg"),
+                    ("builtin", String(localized: "Built-in")),
+                ])
+            }
+            HStack(spacing: 8) {
+                labeledField(String(localized: "Connections"), text: $downloadDraft.connections, width: 70)
+                labeledField(String(localized: "Token minutes"), text: $downloadDraft.tokenMinutes, width: 70)
+                Spacer()
+                Button(String(localized: "Add exclude")) { downloadDraft.exclude.append("") }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+            }
+            ForEach(Array(downloadDraft.exclude.enumerated()), id: \.offset) { index, _ in
+                HStack(spacing: 6) {
+                    TextField("", text: Binding(
+                        get: { index < downloadDraft.exclude.count ? downloadDraft.exclude[index] : "" },
+                        set: { if index < downloadDraft.exclude.count { downloadDraft.exclude[index] = $0 } }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(size: 10.5, design: .monospaced))
+                    Button {
+                        if index < downloadDraft.exclude.count { downloadDraft.exclude.remove(at: index) }
+                    } label: {
+                        Image(systemName: "minus.circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(.red.opacity(0.7))
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+    }
+
+    private func pickerField(_ title: String, selection: Binding<String>, width: CGFloat,
+                             options: [(String, String)]) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 9.5))
+                .foregroundStyle(.secondary)
+            Picker("", selection: selection) {
+                ForEach(options, id: \.0) { option in
+                    Text(option.1).tag(option.0)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: width)
+        }
+    }
+
+    /// JSON 模式切换：进 JSON 先由表单渲染（JSON 是它的序列化形态）；回表单要能
+    /// 解析——解析失败就留在 JSON 模式并把错误亮出来，不吞掉用户刚写的文本。
+    private var downloadJSONModeBinding: Binding<Bool> {
+        Binding(
+            get: { downloadEditingJSON },
+            set: { wantsJSON in
+                if wantsJSON {
+                    let built = DPPDownloadRulesEditing.rules(from: downloadDraft, preserving: loadedDownload)
+                    downloadErrors = built.errors
+                    downloadJSON = DPPDownloadRulesEditing.json(built.rules)
+                    downloadEditingJSON = true
+                } else {
+                    let parsed = DPPDownloadRulesEditing.parse(json: downloadJSON)
+                    if let rules = parsed.rules {
+                        downloadDraft = DPPDownloadRulesEditing.draft(from: rules)
+                        downloadErrors = DPPDownloadRulesEditing.validate(rules)
+                        downloadEditingJSON = false
+                    } else if let error = parsed.error {
+                        downloadErrors = [error]
+                    } else {
+                        downloadDraft = DPPDownloadRulesDraft()
+                        downloadErrors = []
+                        downloadEditingJSON = false
+                    }
+                }
+            }
+        )
+    }
+
     private var footer: some View {
         HStack(spacing: 10) {
             Toggle(String(localized: "Enable immediately"), isOn: $enableAfterSave)
@@ -227,7 +393,28 @@ struct DPPStudioSheet: View {
         pathPrefixes = adapter.pathPrefixes.joined(separator: ", ")
         notes = adapter.notes
         bodyText = prettyProtocol(adapter.protocolBody)
+        loadDownloadState(from: adapter)
         testView = viewNames.first ?? ""
+    }
+
+    private func loadDownloadState(from adapter: DPPAdapter) {
+        loadedDownload = adapter.download
+        downloadEnabled = adapter.download != nil
+        downloadDraft = DPPDownloadRulesEditing.draft(from: adapter.download)
+        downloadJSON = adapter.download.map(DPPDownloadRulesEditing.json) ?? "{}"
+        downloadMeasured = DPPDownloadRulesEditing.measuredSummary(adapter.download?.measured)
+        downloadEditingJSON = false
+        downloadErrors = []
+    }
+
+    private func resetDownloadState() {
+        loadedDownload = nil
+        downloadEnabled = false
+        downloadDraft = DPPDownloadRulesDraft()
+        downloadJSON = "{}"
+        downloadMeasured = nil
+        downloadEditingJSON = false
+        downloadErrors = []
     }
 
     private func loadTemplate() {
@@ -238,6 +425,7 @@ struct DPPStudioSheet: View {
         errors = []
         warnings = []
         testOutput = nil
+        resetDownloadState()
         testView = viewNames.first ?? ""
     }
 
@@ -259,13 +447,29 @@ struct DPPStudioSheet: View {
         guard let proto = tryDecode() else { return }
         let structural = DPPAdapterAuthoring.validate(name: name, hosts: hostList, pathPrefixes: pathList)
         let ops = DPPOpsContract.report(for: proto)
-        errors = structural + ops.errors
+        let download = resolveDownloadRules()
+        downloadErrors = download.errors
+        errors = structural + ops.errors + download.errors
         warnings = ops.warnings
+    }
+
+    /// 下载段：开关关 → nil；JSON 模式以 JSON 为真相；表单模式保留实测/修订/未暴露字段。
+    private func resolveDownloadRules() -> (rules: DPPDownloadRules?, errors: [String]) {
+        guard downloadEnabled else { return (nil, []) }
+        if downloadEditingJSON {
+            let parsed = DPPDownloadRulesEditing.parse(json: downloadJSON)
+            if let error = parsed.error { return (nil, [error]) }
+            let rules = parsed.rules ?? DPPDownloadRules()
+            return (rules, DPPDownloadRulesEditing.validate(rules))
+        }
+        let built = DPPDownloadRulesEditing.rules(from: downloadDraft, preserving: loadedDownload)
+        return (built.rules, built.errors)
     }
 
     private func saveDraft() {
         validateNow()
         guard errors.isEmpty, let proto = tryDecode() else { return }
+        let downloadRules = resolveDownloadRules().rules
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         var adapter = DPPAdapter(
             name: trimmedName,
@@ -274,10 +478,13 @@ struct DPPStudioSheet: View {
             protocolBody: proto,
             notes: notes.trimmingCharacters(in: .whitespacesAndNewlines),
             opsVersion: DPPOpsContract.report(for: proto).isOps ? DPPOpsContract.version : nil,
-            verifiedAt: Date())
+            verifiedAt: Date(),
+            download: downloadRules)
         adapter.protocolBody.warnings.append("adapter: \(trimmedName)")
         do {
             try adapters.saveDraft(adapter)
+            loadedDownload = downloadRules
+            downloadMeasured = DPPDownloadRulesEditing.measuredSummary(downloadRules?.measured)
             if enableAfterSave {
                 adapters.setEnabled(true, for: trimmedName)
                 saveNote = String(localized: "Saved and enabled: \(trimmedName)")
@@ -343,6 +550,10 @@ struct DPPStudioSheet: View {
     }
 
     private func prettyProtocol(_ proto: DesireProtocol) -> String {
+        Self.prettyJSON(proto)
+    }
+
+    private static func prettyJSON(_ proto: DesireProtocol) -> String {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
         guard let data = try? encoder.encode(proto),

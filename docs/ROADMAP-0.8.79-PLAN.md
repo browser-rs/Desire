@@ -113,3 +113,47 @@
 - 画像缓存可能让"变慢的站点"沿用旧参数：TTL（7 天）+ 样本门槛（≥2）+ 失败计数（≥2 提示）兜底。
 - Studio 表单与 JSON 双入口的一致性：以 JSON 为唯一真相，表单只做受控字段的读写与 round-trip 测试。
 - 直播语义边界（窗口滑动、停止条件）容易含糊：先写清口径再实现，E2E 以"只导出当前分片"为准。
+
+## 实施进展（2026-11-26）
+
+**批次 1（可证明性）** — `bdf40f19`：`docs/TEST-MATRIX.md`（19 行形态 → 断言）、滑窗直播夹具、
+跨重启续传 E2E（quit → 重启 → 只重取在途分片）。
+
+**批次 2（画像闭环）** — `9555081a` + 后续补齐：
+- DPP `download.measured`（EMA 5 样本、7 天 TTL、≥2 样本）→ 下载时跳过逐次测速、完成自动回写；
+  回执/适配器行/技能显示实测值。
+- **补齐**：单文件下载也采用站点规则（方式/连接数/缓存证据）；`probeDownload` 回执带站点历史；
+  批次日志在失败偏多时提示（只提示不换路）；`GET /downloads/history` + 设置页「下载记录」小节
+  （按站点聚合成功/失败/体积/平均速度/引擎；数据从已保存批次派生，条目上新增
+  `engine/connections/bytes/seconds/failureReason` 五个派生不出来的字段）。
+- 验收：`batch-content-e2e` **58/58**（全新封闭实例；含画像批 + 下载记录四项）；harness 3975。
+
+**批次 3（适配器完整化）**：
+- Studio 下载规则表单（提取/每页数/方式/连接数/有效期/排除增删 + JSON 双入口）；
+  与 `saveDPPAdapter` 共用同一套校验（`DPPDownloadRulesEditing`）。
+- 适配器导出（`POST /dpp/adapters/export` + 设置行按钮）：剥离实测/修订/最近命中失败与本地溯源；
+  导出→重新导入规则与协议体一致。
+- 顺带修：协议视图编码形态（此前写 `expression`，解码只认 `selector`/`attr`，重编码丢字段）；
+  来源戳随加载次数增长；`:download` 规则的错误文案插值（此前会打印字面 `\(pattern)`）。
+- 验收：`tests/dpp-adapter-e2e.py` 18/18；Studio/下载记录离屏快照。
+
+**批次 4（直播与里程碑）**：
+- 滑窗直播 E2E（`/live-slide` + `/advance`）：第二次导出取到新窗口分片、不复用旧窗口；
+  live 的停止语义 = 只导出当前播放列表里的分片（不轮询新分片、不当 DVR 录制）。
+- `execution-e2e --section browser|agent|media|sync|ops`：公共前置照跑、其余块整块注释掉执行
+  （行号不变；33 个 MUSCLE 块映射见脚本内 `SECTION_MUSCLES`）。
+- **190 全量 ALL PASS**（封闭实例，先 `/access full`；第一次跑因封闭实例默认访问等级卡审批，
+  记在脚本注释里）。报告归档 `docs/TEST-REPORTS/2026-11-26-v0.8.79-190.md`。
+- 后台套件 `parallel-hls-e2e` **44/44**（含滑窗直播）；发版冒烟 **34/34**（含适配器导出与
+  Studio 快照）；干净 Release 零警告。
+
+**冒烟逮到的崩溃（已修）**：Studio 快照渲染实测画像时 SIGSEGV——`String(format:)` 的中文格式串
+把 `%@/%lld` 的顺序换了（Int 被当成对象发给 objc_msgSend）。修译文，并新增
+`tests/check-localized-formats.py`：700 个带格式符的键，三种语言的格式符顺序/数量必须与英文一致，
+已接进 `tests/run.sh`（发版闸门必跑）。
+
+**分节抽检**：`--section media` **44/44**、`--section sync` **43/43**（均含公共前置；首次 sync 卡在
+预置回合，日志显示 WebContent 进程 bootstrap 失败——重启实例后通过，属环境瞬态）。浏览器/agent/ops
+三节未单独跑：它们的块都已被全量 190 覆盖，分节映射经编译校验。
+
+**遗留**：翻译 2.0 仍是下一版旗舰。

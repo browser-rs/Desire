@@ -329,11 +329,42 @@ final class DPPAdapterStore: ObservableObject {
         reload()
     }
 
+    // MARK: - 导出（v0.8.79 批 3）
+
+    /// 导出一个**可分享的包**：保留规则与协议体，剥离本地溯源与遥测
+    /// （`DPPAdapter.exportedCopy()`）。目标为空时落到下载目录；返回实际路径。
+    @discardableResult
+    func exportPackage(named name: String, to destination: URL? = nil) throws -> URL {
+        guard let adapter = adapters.first(where: { $0.name == name }) else {
+            throw ImportError.notFound(name)
+        }
+        let data = try Self.exportData(for: adapter)
+        let target = destination ?? Self.defaultExportURL(for: adapter)
+        try FileManager.default.createDirectory(at: target.deletingLastPathComponent(),
+                                                withIntermediateDirectories: true)
+        try data.write(to: target, options: .atomic)
+        return target
+    }
+
+    static func exportData(for adapter: DPPAdapter) throws -> Data {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        return try encoder.encode(adapter.exportedCopy())
+    }
+
+    static func defaultExportURL(for adapter: DPPAdapter) -> URL {
+        let base = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser
+        return base.appendingPathComponent(FilePathing.sanitizeFileName(adapter.name) + ".json")
+    }
+
     enum ImportError: LocalizedError {
         case invalid(String)
+        case notFound(String)
         var errorDescription: String? {
             switch self {
             case .invalid(let detail): "Invalid adapter package: \(detail)"
+            case .notFound(let name): "No adapter named \(name)."
             }
         }
     }

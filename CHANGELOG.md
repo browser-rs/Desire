@@ -6,6 +6,8 @@
 ### Added
 
 - 下载方式可由智能体或站点规则显式决定：`downloadMedia` / `downloadVideoList` 新增 `method`（auto / parallel / ffmpeg / builtin），DPP 适配器的 `download` 段新增 `engine`；研判回执里写明"按谁的选择"。方式一旦定下就按它执行，失败不偷偷换引擎。
+- DPP 适配器的下载段补齐了说明与可见性：协议规范新增 `download` 段（提取规则 / 每页正片数 / 排除 / 连接数 / 有效期 / 下载方式 / 打磨记录），设置页的适配器行直接显示"下载规则：每页 N 部 / 每路 X 连接 / 有效期 / 方式 / 排除条数 / 规则待重学"，Studio 里用"Load Installed Adapter"即可载入已有适配器编辑。
+
 
 ### Fixed
 

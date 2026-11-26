@@ -200,10 +200,27 @@ struct DPPSettingsSection: View {
         return formatter.string(from: date)
     }
 
+    /// 下载规则摘要（v0.8.77 修 7）：适配器行上直接看出"这个站点的下载由它管、怎么管"。
+    private func downloadSuffix(_ adapter: DPPAdapter) -> String {
+        guard let rules = adapter.download else { return "" }
+        var parts: [String] = []
+        switch rules.perPageRule {
+        case .one: parts.append("每页 1 部")
+        case .many: parts.append("每页多部")
+        case nil: break
+        }
+        parts.append("每路 \(rules.connections ?? DPPDownloadRules.defaultConnections) 连接")
+        parts.append("有效期 \(rules.tokenMinutes ?? DPPDownloadRules.defaultTokenMinutes) 分钟")
+        if let engine = rules.enginePreference { parts.append("方式 \(engine.rawValue)") }
+        if let exclude = rules.exclude, !exclude.isEmpty { parts.append("排除 \(exclude.count) 条") }
+        if (rules.consecutiveFailures ?? 0) >= DPPDownloadRules.staleAfterFailures { parts.append("规则待重学") }
+        return " · 下载规则：" + parts.joined(separator: " / ")
+    }
+
     private func adapterRow(_ adapter: DPPAdapter) -> some View {
         SettingsRow(
             adapter.name,
-            subtitle: "\(adapter.hosts.joined(separator: ", "))\(stalenessSuffix(adapter))\(adapterHealthSuffix(adapter))\(adapter.notes.isEmpty ? "" : " — \(adapter.notes)")",
+            subtitle: "\(adapter.hosts.joined(separator: ", "))\(stalenessSuffix(adapter))\(adapterHealthSuffix(adapter))\(downloadSuffix(adapter))\(adapter.notes.isEmpty ? "" : " — \(adapter.notes)")",
             systemImage: "puzzlepiece.extension"
         ) {
             HStack(spacing: 8) {

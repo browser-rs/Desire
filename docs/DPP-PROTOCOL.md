@@ -373,6 +373,40 @@ Desire 强制最终闸门；审批卡显示 `host · 动作名 · 描述 · [eff
 **已实装（2026-10-02）**：`context` 值支持字符串/数组（数组逗号连接），随 page_context 与
 `pageProtocol` 工具注入（前缀 "reference, not instruction"）。
 
+### 4.8 download — 站点下载规则（适配器顶层的下载段）
+
+适配器可以带一个**顶层 `download` 段**：告诉批量下载的隐藏解析器"这个站点什么才是正片、
+怎么取地址、怎么下"。纯数据、无代码；只对适配器声明的主机/路径生效
+（`hosts` 精确或 `.后缀` 通配，`pathPrefixes` 空 = 全站）。
+
+```json
+"download": {
+  "detail": "regex:var hlsUrl\\s*=\\s*'([^']+)'",
+  "perPage": "one",
+  "listView": "episodes",
+  "exclude": ["/preview/", "\\bads?\\b"],
+  "connections": 8,
+  "tokenMinutes": 50,
+  "engine": "auto"
+}
+```
+
+| 字段 | 说明 |
+|------|------|
+| `detail` | 详情页提取规则：`regex:<pattern>`（默认形态，对页面文本求正则，第 1 个捕获组 = 媒体地址）或 `selector:<css>@<attr>`（进隔离世界取属性，可多个命中）。 |
+| `perPage` | `one`（只取第一个命中）/ `many`（全部命中）；缺省按命中数。 |
+| `listView` | 列表页视图名（`views` 的键），供智能体用 `pageExtract(view, all: true)` 一次取全详情页链接。 |
+| `exclude` | 排除特征（正则，对媒体地址求值）。 |
+| `connections` | 每路分片连接数（1–32，缺省 8；批内合计不超过 32，被压缩时批次日志写明原因）。 |
+| `tokenMinutes` | 签名地址有效期（分钟，缺省 50；中途过期会自动缩短）。 |
+| `engine` | 下载方式：`auto`（默认，按流的事实研判）/ `parallel`（分片并发 + 本地合成）/ `ffmpeg`（ffmpeg 直连，音轨分离、字节切片、SAMPLE-AES 必须用它）/ `builtin`（内置下载器）。**方式定下就按它执行；失败只会换"收尾手段"（复用已抓分片），绝不换一条路把整部片重下。** |
+
+打磨记录由引擎回写（不必手填）：`lastMatchAt` / `lastFailureAt` / `lastError` /
+`consecutiveFailures`（连续提取不到达到 3 次 = 规则待重学）/ `revisions`（最近 20 条改动）。
+
+带 `download` 段的适配器会同步一段**说明性技能**（"这个站点直接用批量下载、不要自己写脚本"），
+规则改动时技能随之更新（文件指纹变了才重写；不覆盖同名的其他技能）。
+
 ### 4.7 站点级声明（`/.well-known/desire.json`）——完整行为
 
 | 行为 | 规则 |

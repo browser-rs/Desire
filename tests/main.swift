@@ -13144,6 +13144,50 @@ do {
           && DPPAdapter.path("/anything/x", hasPrefix: "/") && !DPPAdapter.path("/", hasPrefix: "/videos/"))
     eq("绑定：根路径保留", DPPAdapter.droppingTrailingSlash("/"), "/")
     eq("绑定：空路径不动", DPPAdapter.droppingTrailingSlash(""), "")
+
+    // 站点实测画像（v0.8.79）：同一个网站速度变化不大——新鲜且样本够才跳过逐次测速
+    let profileNow = Date(timeIntervalSince1970: 1_764_000_000)
+    var profiled = Rules()
+    check("画像：没有实测 → 无缓存证据", profiled.cachedEvidence(now: profileNow) == nil)
+    profiled = profiled.recording(ParallelTuning.Evidence(singleBytesPerSecond: 160_000,
+                                                          parallelBytesPerSecond: 1_100_000,
+                                                          connectionsTested: 8), now: profileNow)
+    check("画像：一次样本还不够（门槛 2）",
+          profiled.cachedEvidence(now: profileNow) == nil && profiled.measured?.samples == 1)
+    profiled = profiled.recording(ParallelTuning.Evidence(singleBytesPerSecond: 160_000,
+                                                          parallelBytesPerSecond: 1_300_000,
+                                                          connectionsTested: 8),
+                                  now: profileNow.addingTimeInterval(3_600))
+    let cached = profiled.cachedEvidence(now: profileNow.addingTimeInterval(3_600))
+    check("画像：两次样本 → 可用，值是 EMA", cached?.connectionsTested == 8
+          && abs((profiled.measured?.parallelBytesPerSecond ?? 0) - 1_200_000) < 1
+          && abs((cached?.parallelBytesPerSecond ?? 0) - 1_200_000) < 1)
+    check("画像：超过 7 天 → 失效重测",
+          profiled.cachedEvidence(now: profileNow.addingTimeInterval(3_600 + Rules.measuredTTL + 61)) == nil)
+    let switched = profiled.recording(ParallelTuning.Evidence(singleBytesPerSecond: 200_000,
+                                                              parallelBytesPerSecond: 2_000_000,
+                                                              connectionsTested: 16),
+                                      now: profileNow.addingTimeInterval(7_200))
+    check("画像：换连接数 → 重新起算（样本回到 1）",
+          switched.measured?.samples == 1 && switched.measured?.connections == 16)
+    var capped = profiled
+    for _ in 0..<10 {
+        capped = capped.recording(ParallelTuning.Evidence(singleBytesPerSecond: 160_000,
+                                                          parallelBytesPerSecond: 1_200_000,
+                                                          connectionsTested: 8), now: profileNow)
+    }
+    check("画像：样本封顶 5", capped.measured?.samples == Rules.measuredSampleCap)
+    var telemetry = Rules()
+    telemetry.detail = "regex:x"
+    let basePrint = telemetry.contentFingerprint
+    telemetry = telemetry.recording(ParallelTuning.Evidence(singleBytesPerSecond: 1, parallelBytesPerSecond: 2,
+                                                           connectionsTested: 8), now: profileNow)
+    telemetry.lastError = "boom"
+    telemetry.revisions = [Rules.Revision(at: profileNow, change: "x")]
+    check("画像：实测/打磨记录变化不改变规则内容指纹（技能不跟着重写）",
+          telemetry.contentFingerprint == basePrint)
+    telemetry.connections = 12
+    check("画像：改了规则参数 → 指纹变化", telemetry.contentFingerprint != basePrint)
 }
 
 // ---------- HLS 媒体播放列表 HLSMediaPlaylist（v0.8.77 批 3） ----------

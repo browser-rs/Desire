@@ -1148,6 +1148,9 @@ final class BatchMediaExportStore: ObservableObject {
                 // 每路连接数（v0.8.77 批 3）：站点规则可给；批内所有下载合计不超过
                 // 连接预算——同时下 N 部时每路上限 = 预算 / N。
                 connections: connectionsPerStream(sourceURL: batches[bi].items[ii].sourceURL, batchID: batchID),
+                // 站点画像（v0.8.79）：新鲜实测直接采用、跳过逐次测速。
+                cachedSpeed: DPPAdapterStore.shared.downloadRules(for: batches[bi].items[ii].sourceURL)?
+                    .rules.cachedEvidence(),
                 // 方式：智能体显式指定 > 站点规则（DPP download.engine）> 自动研判。
                 // 失败不换引擎重下——见 MediaExporter.download 的失败语义。
                 method: methodOverride[batchID]
@@ -1168,7 +1171,9 @@ final class BatchMediaExportStore: ObservableObject {
                             blog(batchID, "[\(prefix)] 连接数：请求 \(wanted)，批内下载合计不超过 32 → 每路 \(effective)")
                         }
                     }
-                    if line.hasPrefix("speed probe — ") {
+                    if line.hasPrefix("site profile — ") {
+                        blog(batchID, "[\(prefix)] 站点画像：\(line.dropFirst("site profile — ".count))")
+                    } else if line.hasPrefix("speed probe — ") {
                         blog(batchID, "[\(prefix)] 测速：\(line.dropFirst("speed probe — ".count))")
                     } else {
                         blog(batchID, "[\(prefix)] 研判：\(line)")
@@ -1212,8 +1217,12 @@ final class BatchMediaExportStore: ObservableObject {
 
     /// 磁盘剩余缓存（按卷根路径）：主线程不再同步 statfs——外部盘被 ffmpeg
     /// 写满时单次 statfs 可达数百 ms（合并中卡顿源之一）。后台刷新，主线程
-    /// 读缓存；首查未定返回 nil（调用方按"无门禁信息"放行）。
-    private var spaceCacheByRoot: [String: (free: Int64, at: Date)] = [:]
+    /// 读缓存；**未知（探测失败/首查未定）一律按"无门禁信息"放行**。
+    ///
+    /// 2026-11-26 修复：探测失败曾被缓存成 -1 字节——落点目录还没建时
+    /// `resourceValues` 会抛错，于是下一个闸门读到 -1，把整批"磁盘不足"挂起
+    ///（日志里是 −0.0 GB），任务随后报"分片全部失败"。
+    private var spaceCacheByRoot: [String: (free: Int64?, at: Date)] = [:]
 
     private func volumeFreeBytes(at url: URL) -> Int64? {
         let key = url.path
@@ -1223,10 +1232,15 @@ final class BatchMediaExportStore: ObservableObject {
         }
         spaceCacheByRoot[key] = nil
         Task.detached(priority: .utility) { [weak self] in
-            let values = try? url.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
+            // 闸门可能先于落点目录创建：剩余空间问的是**卷**，探测最近的已存在祖先。
+            var probe = url
+            while probe.path != "/", !FileManager.default.fileExists(atPath: probe.path) {
+                probe.deleteLastPathComponent()
+            }
+            let values = try? probe.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey])
             let free = values?.volumeAvailableCapacityForImportantUsage
             Task { @MainActor [weak self] in
-                self?.spaceCacheByRoot[key] = (free ?? -1, Date())
+                self?.spaceCacheByRoot[key] = (free, Date())
             }
         }
         return spaceCacheByRoot[key]?.free
@@ -1491,6 +1505,11 @@ final class BatchMediaExportStore: ObservableObject {
                 (result.verification.map { ", ✓ \($0)" } ?? "")
             let verifyText = result.verification.map { "，验证 ✓ \($0)" } ?? ""
             blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 下载完成：\(result.displayBytes)\(verifyText)，落盘 \(result.fileURL.path)")
+            // 站点画像回写（v0.8.79）：这次实测（或画像）并入该站适配器，下一次直接用。
+            if let evidence = result.speedEvidence,
+               let adapter = DPPAdapterStore.shared.downloadRules(for: batches[bi].items[ii].sourceURL)?.adapter {
+                DPPAdapterStore.shared.recordMeasured(adapterName: adapter.name, evidence: evidence)
+            }
             BatchDownloadedIndex.record(
                 urls: [batches[bi].items[ii].mediaURL?.absoluteString ?? "",
                        BatchDownloadedIndex.sourceKey(batches[bi].items[ii].sourceURL.absoluteString,

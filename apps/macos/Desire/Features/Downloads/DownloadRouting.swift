@@ -318,7 +318,7 @@ nonisolated enum DownloadRouting {
         }
         if profile.hasByteRanges {
             // 内置下载器不认 `#EXT-X-BYTERANGE`：它会把同一文件当成分片重复拼接。没有 ffmpeg
-            // 就诚实报"做不了"，不产出坏文件（0.8.80 形态矩阵核实）。
+            // 就诚实报"做不了"，不产出坏文件（0.8.79 形态矩阵核实）。
             return hasFFmpeg
                 ? make(.ffmpegDirect, "byte-range segments are not standalone files")
                 : make(.unsupported("byte-range streams need ffmpeg"),

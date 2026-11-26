@@ -37,6 +37,17 @@ nonisolated struct DPPDownloadRules: Codable, Equatable {
     /// 签名地址有效期（分钟）；nil = 默认 50。中途过期会自动缩短。
     var tokenMinutes: Int?
 
+    /// **站点实测画像**（v0.8.79）：同一个网站的速度变化不大——最近一次实测在 7 天内且
+    /// 样本 ≥2 就直接采用画像参数，不再逐次测速（用户定调："不是每个都要测速"）。
+    struct Measured: Codable, Equatable {
+        var singleBytesPerSecond: Double
+        var parallelBytesPerSecond: Double
+        var connections: Int
+        var samples: Int
+        var lastMeasuredAt: Date
+    }
+    var measured: Measured?
+
     // 打磨记录（引擎回写；用户在 Studio 里改规则时不必填）
     var lastMatchAt: Date?
     var lastFailureAt: Date?
@@ -77,11 +88,57 @@ extension DPPDownloadRules {
     nonisolated static let staleAfterFailures = 3
     nonisolated static let revisionCap = 20
     nonisolated static let matchCap = 50
+    /// 画像有效期与样本门槛（0.8.79）：过期或样本不足就重新测一次。
+    nonisolated static let measuredTTL: TimeInterval = 7 * 86_400
+    nonisolated static let measuredMinSamples = 2
+    nonisolated static let measuredSampleCap = 5
+
+    /// 可用的缓存证据（新鲜且样本够）；nil = 需要重新测。
+    func cachedEvidence(now: Date = Date()) -> ParallelTuning.Evidence? {
+        guard let measured, measured.samples >= Self.measuredMinSamples,
+              now.timeIntervalSince(measured.lastMeasuredAt) <= Self.measuredTTL,
+              measured.singleBytesPerSecond > 0, measured.parallelBytesPerSecond > 0 else { return nil }
+        return ParallelTuning.Evidence(singleBytesPerSecond: measured.singleBytesPerSecond,
+                                       parallelBytesPerSecond: measured.parallelBytesPerSecond,
+                                       connectionsTested: measured.connections)
+    }
+
+    /// 把一次实测并入画像（EMA，样本封顶 5；连接数变了就重新起算）。
+    func recording(_ evidence: ParallelTuning.Evidence, now: Date = Date()) -> DPPDownloadRules {
+        var out = self
+        if let current = measured, current.connections == evidence.connectionsTested {
+            let n = min(max(current.samples, 1), Self.measuredSampleCap)
+            out.measured = Measured(
+                singleBytesPerSecond: (current.singleBytesPerSecond * Double(n) + evidence.singleBytesPerSecond) / Double(n + 1),
+                parallelBytesPerSecond: (current.parallelBytesPerSecond * Double(n) + evidence.parallelBytesPerSecond) / Double(n + 1),
+                connections: current.connections, samples: min(n + 1, Self.measuredSampleCap),
+                lastMeasuredAt: now)
+        } else {
+            out.measured = Measured(singleBytesPerSecond: evidence.singleBytesPerSecond,
+                                    parallelBytesPerSecond: evidence.parallelBytesPerSecond,
+                                    connections: evidence.connectionsTested, samples: 1, lastMeasuredAt: now)
+        }
+        return out
+    }
 
     /// 站点规则指定的下载方式；nil / auto = 交给研判。
     var enginePreference: DownloadRouting.EnginePreference? {
         guard let preference = DownloadRouting.EnginePreference.parse(engine), preference != .auto else { return nil }
         return preference
+    }
+
+    /// 规则内容的指纹（**不含**实测画像与打磨记录）：说明性技能只随规则变化重写，
+    /// 每天的回写不该每下载一次就重写一次技能。
+    var contentFingerprint: String {
+        var copy = self
+        copy.measured = nil
+        copy.lastMatchAt = nil
+        copy.lastFailureAt = nil
+        copy.lastError = nil
+        copy.consecutiveFailures = nil
+        copy.revisions = nil
+        guard let data = try? JSONEncoder().encode(copy) else { return "" }
+        return String(data: data, encoding: .utf8) ?? ""
     }
 
     var perPageRule: PerPage? {

@@ -246,7 +246,7 @@ def main():
             ok(f"加密流：产物完整（{duration:.0f}s，音视频 {kinds}）",
                10 <= duration <= 14 and "video" in kinds and "audio" in kinds)
 
-        # ---- 直播（无 ENDLIST）与字节切片（v0.8.80 形态矩阵）----
+        # ---- 直播（无 ENDLIST）与字节切片（v0.8.79 形态矩阵）----
         live_report = probe(base, site_base + "/live/index.m3u8")
         ok("探测·直播：事实写明 live、方法为并发预取 + 内置拼接",
            "HLS live" in (live_report.get("facts") or [])

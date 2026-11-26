@@ -212,6 +212,9 @@ struct DPPSettingsSection: View {
         parts.append("每路 \(rules.connections ?? DPPDownloadRules.defaultConnections) 连接")
         parts.append("有效期 \(rules.tokenMinutes ?? DPPDownloadRules.defaultTokenMinutes) 分钟")
         if let engine = rules.enginePreference { parts.append("方式 \(engine.rawValue)") }
+        if let measured = rules.measured, measured.samples >= DPPDownloadRules.measuredMinSamples {
+            parts.append(String(format: "实测 %.2f MB/s", measured.parallelBytesPerSecond / 1_048_576))
+        }
         if let exclude = rules.exclude, !exclude.isEmpty { parts.append("排除 \(exclude.count) 条") }
         if (rules.consecutiveFailures ?? 0) >= DPPDownloadRules.staleAfterFailures { parts.append("规则待重学") }
         return " · 下载规则：" + parts.joined(separator: " / ")

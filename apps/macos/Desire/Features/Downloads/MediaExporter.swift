@@ -51,6 +51,8 @@ enum MediaExporter {
         var engineNote: String? = nil
         /// 开头分片的测速结论（并发预取时才有）。
         var speedNote: String? = nil
+        /// 这一路用到的测速证据（现测或站点画像）——批量引擎据此回写站点画像。
+        var speedEvidence: ParallelTuning.Evidence? = nil
 
         var displayBytes: String {
             let mb = Double(bytes) / 1_048_576
@@ -93,7 +95,7 @@ enum MediaExporter {
         /// 手写下载器也失败时，把之前 ffmpeg 的失败原因一并带上——否则用户只看到
         /// 第二条错误，第一条（真正的原因）没了。
         case fallbackFailed(notes: [String], underlying: String)
-        /// 内置路径处理不了的形态（v0.8.80）：如字节切片的流且本机没有 ffmpeg。
+        /// 内置路径处理不了的形态（v0.8.79）：如字节切片的流且本机没有 ffmpeg。
         case unsupportedFeature(String)
 
         var errorDescription: String? {
@@ -165,6 +167,7 @@ enum MediaExporter {
         resumeKey: String? = nil,
         workKey: String? = nil,
         connections: Int = MediaExporter.defaultConnections,
+        cachedSpeed: ParallelTuning.Evidence? = nil,
         preference: DownloadRouting.EnginePreference = .auto,
         onPlan: @MainActor (String) -> Void = { _ in },
         progress: @MainActor @escaping (Int, Int, ProgressUnit) -> Void
@@ -283,8 +286,12 @@ enum MediaExporter {
                         url: url, source: source, referer: referer, userAgent: userAgent,
                         // 显式给到 1 也照办（有的站点禁止并发；自动降速的下限另有 2）。
                         connections: max(1, connections), resumeKey: workKey ?? resumeKey,
+                        cachedEvidence: cachedSpeed,
                         deadlineCheck: deadlineCheck,
-                        onTuning: { onPlan("speed probe — " + $0) },
+                        onTuning: { line in
+                            // 站点画像（v0.8.79）自带前缀，原样透传；现测的加"speed probe —"。
+                            onPlan(line.hasPrefix("site profile — ") ? line : "speed probe — " + line)
+                        },
                         progress: progress)
                     // 先把预取结果保住：后面任何一步失败都由本地分片收尾，绝不重新拉远端。
                     prefetchedForFallback = prefetched
@@ -319,7 +326,8 @@ enum MediaExporter {
                                       sourceSummary: source?.summary, sourceMaxResolution: source?.maxResolution,
                                       bandwidthCapped: (maxBandwidth ?? 0) > 0,
                                       engineNote: planNote,
-                                      speedNote: prefetched.speedEvidence?.summary)
+                                      speedNote: prefetched.speedEvidence?.summary,
+                                      speedEvidence: prefetched.speedEvidence)
                     }
                 } catch is CancellationError {
                     throw CancellationError()
@@ -447,6 +455,7 @@ enum MediaExporter {
             final.bandwidthCapped = (maxBandwidth ?? 0) > 0
             final.engineNote = planNote
             final.speedNote = prefetchedForFallback?.speedEvidence?.summary
+            final.speedEvidence = prefetchedForFallback?.speedEvidence
             // 预取的工作目录只在**失败**时留给续传；成功后清掉——留着的话，同一地址两天内
             // 再下（重试、强制重下）会悄悄复用旧分片，内容变了的流就拿到旧内容（实测：没装
             // ffmpeg 时串行下完紧接着并发下同一地址，0 秒"完成"）。ffmpeg 本地合成那条路早已如此。

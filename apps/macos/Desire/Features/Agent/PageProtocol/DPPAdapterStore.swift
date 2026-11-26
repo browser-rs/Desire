@@ -221,6 +221,34 @@ final class DPPAdapterStore: ObservableObject {
         return true
     }
 
+    /// 把一次实测并入适配器的下载画像（v0.8.79）。**遥测字段**：不产修订、不备份
+    /// （否则每次下载都落一份备份）；变化不到 5%、样本没增加、连接数没变时跳过写盘。
+    func recordMeasured(adapterName: String, evidence: ParallelTuning.Evidence) {
+        guard let index = adapters.firstIndex(where: { $0.name == adapterName }),
+              let rules = adapters[index].download else { return }
+        let updatedRules = rules.recording(evidence)
+        guard let after = updatedRules.measured else { return }
+        if let before = rules.measured {
+            let delta = abs(after.parallelBytesPerSecond - before.parallelBytesPerSecond)
+                / max(before.parallelBytesPerSecond, 1)
+            // 只有**样本已封顶**时才允许按"变化小"跳过：否则样本数会被一起冻住，
+            // 永远到不了门槛（2），画像就永远不可用。
+            let atCap = before.samples >= DPPDownloadRules.measuredSampleCap
+            if delta < 0.05, atCap, after.connections == before.connections { return }
+        }
+        var updated = adapters[index]
+        updated.download = updatedRules
+        guard let file = fileNames[adapterName] else { return }
+        let target = Self.directory.appendingPathComponent(file)
+        do {
+            try JSONEncoder().encode(updated).write(to: target, options: .atomic)
+        } catch {
+            Log.agent.error("record measured speed failed for '\(adapterName, privacy: .public)': \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        reload()
+    }
+
     private static func backupStamp() -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")

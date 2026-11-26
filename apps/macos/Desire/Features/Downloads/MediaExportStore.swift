@@ -72,6 +72,7 @@ final class MediaExportStore: ObservableObject {
         resumeKey: String? = nil,
         workKey: String? = nil,
         connections: Int? = nil,
+        cachedSpeed: ParallelTuning.Evidence? = nil,
         method: DownloadRouting.EnginePreference? = nil,
         planHandler: ((String) -> Void)? = nil,
         completion: ((JobOutcome) -> Void)? = nil,
@@ -98,6 +99,7 @@ final class MediaExportStore: ObservableObject {
                     resumeKey: resumeKey,
                     workKey: workKey,
                     connections: connections ?? MediaExporter.defaultConnections,
+                    cachedSpeed: cachedSpeed,
                     preference: method ?? .auto,
                     // 研判与测速的结论（v0.8.77 批 6）：记在任务上（回执里看得到），
                     // 批量引擎再转进批次日志。

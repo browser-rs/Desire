@@ -290,6 +290,43 @@ def main():
             try: br(base, "POST", "/media/batch/cancel", {"id": again_id})
             except Exception: pass
 
+        # ---- 站点画像（v0.8.79）：删掉产物再跑一批 → 用画像、不再逐次测速 ----
+        for name in os.listdir(os.path.join(data_dir, "batch-out", "archived001")):
+            try:
+                os.remove(os.path.join(data_dir, "batch-out", "archived001", name))
+            except OSError:
+                pass
+        # 不含 eee（过期页）：那一页的请求计数要留给前面的续传断言
+        third = br(base, "POST", "/media/batch", {
+            "mode": "list",
+            "urls": [site_base + p for p in
+                     ["/videos/aaa-001/", "/videos/ccc-003/", "/videos/ddd-004/"]],
+            "directory": os.path.join(data_dir, "batch-out")})
+        third_id = third.get("batchId")
+        deadline3 = time.time() + 180
+        third_snapshot = None
+        while third_id and time.time() < deadline3:
+            batches3 = br(base, "GET", f"/media/batch?id={third_id}").get("batches", [])
+            third_snapshot = batches3[0] if batches3 else None
+            if third_snapshot and third_snapshot.get("state") in ("finished", "cancelled"):
+                break
+            time.sleep(1)
+        third_items = (third_snapshot or {}).get("items", [])
+        ok("站点画像：删除产物后重跑，任务重新下载且完成",
+           bool(third_items) and all(i.get("state") == "finished" for i in third_items),
+           json.dumps([(i.get("title"), i.get("state"), (i.get("summary") or "")[:40]) for i in third_items], ensure_ascii=False)[:500])
+        third_log = json.dumps(br(base, "GET", f"/media/batch/log?id={third_id}"), ensure_ascii=False) if third_id else ""
+        ok("站点画像：日志里用的是画像（有“站点画像”，且不再逐次测速）",
+           "站点画像：" in third_log and "测速：" not in third_log, third_log[-800:])
+        adapter_file2 = os.path.join(data_dir, "DPPAdapters", "fixture-site.json")
+        profiled = json.load(open(adapter_file2, encoding="utf-8")) if os.path.exists(adapter_file2) else {}
+        measured = (profiled.get("download") or {}).get("measured") or {}
+        ok("站点画像：实测结果已回写进适配器", int(measured.get("samples") or 0) >= 2
+           and float(measured.get("parallelBytesPerSecond") or 0) > 0, json.dumps(measured, ensure_ascii=False)[:200])
+        if third_id:
+            try: br(base, "POST", "/media/batch/cancel", {"id": third_id})
+            except Exception: pass
+
         # ---- 打磨回写（规则"不停打磨"）----
         adapter_file = os.path.join(data_dir, "DPPAdapters", "fixture-site.json")
         refined = json.load(open(adapter_file, encoding="utf-8")) if os.path.exists(adapter_file) else {}

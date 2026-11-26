@@ -148,6 +148,7 @@ extension MediaExporter {
         userAgent: String?,
         connections: Int,
         resumeKey: String?,
+        cachedEvidence: ParallelTuning.Evidence? = nil,
         deadlineCheck: () throws -> Void,
         onTuning: @MainActor (String) -> Void = { _ in },
         progress: @MainActor (Int, Int, ProgressUnit) -> Void
@@ -199,9 +200,15 @@ extension MediaExporter {
         var workers = max(1, connections)
         let connectionsUsed = workers
         var speedEvidence: ParallelTuning.Evidence?
-        // **测速**（v0.8.77 批 6）：第一次开始、且调用方没把连接数钉成 1 时，把开头的分片
-        // 排个次序顺带量一下（见 `measureSegmentSpeed`）——据此定这一路实际用几个连接。
-        if initiallyPresent == 0, total >= 3, workers > 1,
+        // **站点画像优先**（v0.8.79）：同一个网站速度变化不大——新鲜的实测证据直接采用，
+        // 跳过逐次测速（用户定调："不是每个都要测速"）。没有画像或过期才现测。
+        if let cachedEvidence, workers > 1 {
+            let tuning = ParallelTuning.connections(requested: connections, evidence: cachedEvidence,
+                                                    budget: connectionBudget)
+            speedEvidence = cachedEvidence
+            workers = tuning.connections
+            onTuning("site profile — " + tuning.verdict)
+        } else if initiallyPresent == 0, total >= 3, workers > 1,
            let measured = try await measureSegmentSpeed(
                 playlist: playlist, workDirectory: workDirectory, connections: workers,
                 referer: referer, userAgent: userAgent, deadlineCheck: deadlineCheck,

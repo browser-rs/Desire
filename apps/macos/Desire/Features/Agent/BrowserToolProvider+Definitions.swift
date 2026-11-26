@@ -674,6 +674,7 @@ extension BrowserToolProvider {
                     "url": AgentJSONSchemaValue(type: "string", description: "Media or m3u8 playlist URL (http/https)"),
                     "fileName": AgentJSONSchemaValue(type: "string", description: "Optional file name without extension"),
                     "connections": AgentJSONSchemaValue(type: "number", description: "Connections per stream for HLS, 1-32 (default 8). Raise it when probeDownload shows the source throttling each connection and parallel scaling; use 1 for sites that reject parallel requests."),
+                    "method": AgentJSONSchemaValue(type: "string", description: "How to download: auto (default — judged from the stream), parallel (segments in parallel, finish locally), ffmpeg (ffmpeg reads the playlist; needed for split audio / byte ranges / SAMPLE-AES), builtin (the built-in downloader). Pick one deliberately after probeDownload; the engine will not silently switch methods and re-download, so a wrong pick just fails and can be retried with another."),
                 ], required: ["url"])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
@@ -699,6 +700,7 @@ extension BrowserToolProvider {
                     "directory": AgentJSONSchemaValue(type: "string", description: "User-specified destination path (absolute path or a bare folder name) — pass exactly what the user actually named, verbatim; the app reconciles it with the batch base directory intelligently (equal to base → default flow; inside base → treated as a subfolder of it; outside → used as-is) and remembers it across restarts. If the user named no path, omit this."),
                     "maxConcurrent": AgentJSONSchemaValue(type: "number", description: "Max parallel downloads 1-16 (default 2)"),
                     "connections": AgentJSONSchemaValue(type: "number", description: "Connections per stream for HLS downloads, 1-32 (default: the site rule's value, else 8). The total across parallel downloads is capped at 32."),
+                    "method": AgentJSONSchemaValue(type: "string", description: "Download method for this batch: auto (default — site rule, then the stream's shape), parallel, ffmpeg, or builtin. Prefer auto; override only with a reason (a site skill or probeDownload says so)."),
                     "splitEvery": AgentJSONSchemaValue(type: "number", description: "Rolling archive: after every N files start a numbered subfolder (archived001, archived002…) under the destination — e.g. 120 when the user says 每120个文件新建一个文件夹"),
                 ], required: ["urls"])
             )),

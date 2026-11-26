@@ -43,7 +43,26 @@ enum BatchMediaLogStore {
     }
 
     static func remove(_ batchID: UUID) {
+        // **归档而不是删除**（2026-11-26 事故：从面板移除批次把日志一起删了，排障时证据没了）。
+        archive(batchID)
         cache[key(batchID)] = nil
         DiskStore.remove(key: key(batchID))
+    }
+
+    /// 把这一批的日志另存到 `storage/batch-log-archive/`（上限 100 份，按修改时间淘汰最旧）。
+    private static func archive(_ batchID: UUID) {
+        let entries = entries(batchID)
+        guard !entries.isEmpty, let data = try? JSONEncoder().encode(entries) else { return }
+        let fm = FileManager.default
+        let dir = StorageRoot.directory.appendingPathComponent("batch-log-archive", isDirectory: true)
+        try? fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? data.write(to: dir.appendingPathComponent("batch-log-\(batchID.uuidString).json"), options: .atomic)
+        let files = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey]))?
+            .sorted { lhs, rhs in
+                let l = (try? lhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                let r = (try? rhs.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                return l < r
+            } ?? []
+        for stale in files.dropLast(100) { try? fm.removeItem(at: stale) }
     }
 }

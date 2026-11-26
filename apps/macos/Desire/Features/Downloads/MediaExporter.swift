@@ -160,7 +160,9 @@ enum MediaExporter {
         folderName: String? = nil,
         baseDirectory: String? = nil,
         resumeKey: String? = nil,
+        workKey: String? = nil,
         connections: Int = MediaExporter.defaultConnections,
+        preference: DownloadRouting.EnginePreference = .auto,
         onPlan: @MainActor (String) -> Void = { _ in },
         progress: @MainActor @escaping (Int, Int, ProgressUnit) -> Void
     ) async throws -> Result {
@@ -254,13 +256,19 @@ enum MediaExporter {
             masterText: texts?.masterText, masterURL: texts?.masterURL,
             mediaText: texts?.mediaText, mediaURL: texts?.mediaURL ?? url)
         let decision = DownloadRouting.decide(
-            profile, ffmpegLabel: ffmpeg != nil ? "available" : nil, connections: connections)
+            profile, ffmpegLabel: ffmpeg != nil ? "available" : nil, connections: connections,
+            preference: preference)
         let planNote = decision.line
         Log.downloads.info("download plan — \(planNote, privacy: .public)")
         onPlan(planNote)
 
-        // 并发预取没成（媒体播放列表解析不了 / 预取中途出错）时，有 ffmpeg 就退到 ① 直连。
+        // 失败语义（2026-11-26 用户定调：手段服务于目的，选最优的，但**绝不能把已经下过的
+        // 东西再下一遍**）：
+        // - 预取本身失败 → 上抛（分片留在工作目录里，重试同一任务从断点续传）；
+        // - 预取完成、收尾（本地 ffmpeg 合成）失败 → 换内置解密拼接**读同一批本地分片**；
+        // - 任何情况下都不改走远端串行 / 直连重下整部片。
         var tryFFmpegDirect = false
+        var prefetchCompleted = false
         switch decision.engine {
         case .parallelPrefetch(let remux):
             if let texts, let mediaText = texts.mediaText,
@@ -271,10 +279,13 @@ enum MediaExporter {
                     let prefetched = try await prefetchHLS(
                         url: url, source: source, referer: referer, userAgent: userAgent,
                         // 显式给到 1 也照办（有的站点禁止并发；自动降速的下限另有 2）。
-                        connections: max(1, connections), resumeKey: resumeKey,
+                        connections: max(1, connections), resumeKey: workKey ?? resumeKey,
                         deadlineCheck: deadlineCheck,
                         onTuning: { onPlan("speed probe — " + $0) },
                         progress: progress)
+                    // 先把预取结果保住：后面任何一步失败都由本地分片收尾，绝不重新拉远端。
+                    prefetchedForFallback = prefetched
+                    prefetchCompleted = true
                     if prefetched.playlist.hasEndList, remux == .ffmpeg, let ffmpeg {
                         let destination = try destinationURL(for: url, hint: fileNameHint, isMP4: true, folderName: folderName, baseDirectory: baseDirectory)
                         progress(0, 1, .merging)
@@ -307,21 +318,25 @@ enum MediaExporter {
                                       engineNote: planNote,
                                       speedNote: prefetched.speedEvidence?.summary)
                     }
-                    prefetchedForFallback = prefetched
                 } catch is CancellationError {
                     throw CancellationError()
                 } catch let error as URLError where error.code == .cancelled {
                     throw CancellationError()
                 } catch let error as ExportError {
                     if case .addressExpired = error { throw error }
-                    warnings.append("parallel HLS export failed, fell back to the serial path: \(error.localizedDescription)")
+                    guard prefetchCompleted else { throw error }   // 预取没完成：上抛，重试从断点续传
+                    // 收尾失败：本地分片齐了，换内置解密拼接收尾（复用的还是同一批本地分片）。
+                    Log.downloads.error("local remux failed, finishing from the prefetched segments: \(error.localizedDescription, privacy: .public)")
+                    warnings.append("local remux via ffmpeg failed (\(error.localizedDescription)); finished from the prefetched segments with the built-in decrypt/concat")
                 } catch {
-                    warnings.append("parallel HLS export failed, fell back to the serial path: \(error.localizedDescription)")
+                    guard prefetchCompleted else { throw error }
+                    Log.downloads.error("local remux failed, finishing from the prefetched segments: \(error.localizedDescription, privacy: .public)")
+                    warnings.append("local remux via ffmpeg failed (\(error.localizedDescription)); finished from the prefetched segments with the built-in decrypt/concat")
                 }
             } else {
-                warnings.append("parallel HLS export skipped: the media playlist could not be parsed")
+                // 研判说这条路可走、到这里却解析不了 = 状态不一致；如实报错，不偷偷换路。
+                throw ExportError.notAPlaylist
             }
-            tryFFmpegDirect = ffmpeg != nil
         case .ffmpegDirect:
             tryFFmpegDirect = true
         case .unsupported(let reason):
@@ -363,7 +378,10 @@ enum MediaExporter {
             } catch let error as URLError where error.code == .cancelled {
                 throw CancellationError()
             } catch {
-                warnings.append("ffmpeg direct export failed, fell back to the built-in downloader: \(error.localizedDescription)")
+                // 同样是"研判定下的方式就是唯一方式"：选定 ffmpeg 直连的流（音轨分离 / 字节切片 /
+                // SAMPLE-AES）换内置串行只会得到残缺或错误的结果，如实报错。
+                Log.downloads.error("ffmpeg direct export failed: \(error.localizedDescription, privacy: .public)")
+                throw error
             }
         }
 

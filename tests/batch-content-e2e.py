@@ -266,6 +266,30 @@ def main():
         ok("批次日志：每个下载写了研判", log_text.count("研判：") >= 7, log_text[-1200:])
         ok("批次日志：并发下载写了测速结论", log_text.count("测速：") >= 4, log_text[-1200:])
 
+        # ---- 跨批次去重（v0.8.77 修 7）：同一批详情页再开一批，必须按来源页跳过 ----
+        again = br(base, "POST", "/media/batch", {
+            "mode": "list",
+            "urls": [site_base + p for p in
+                     ["/videos/aaa-001/", "/videos/bbb-002/", "/videos/ccc-003/", "/videos/ddd-004/", "/videos/eee-005/"]],
+            "directory": os.path.join(data_dir, "batch-out")})
+        again_id = again.get("batchId")
+        deadline2 = time.time() + 120
+        again_snapshot = None
+        while again_id and time.time() < deadline2:
+            batches2 = br(base, "GET", f"/media/batch?id={again_id}").get("batches", [])
+            again_snapshot = batches2[0] if batches2 else None
+            if again_snapshot and again_snapshot.get("state") in ("finished", "cancelled"):
+                break
+            time.sleep(1)
+        again_items = (again_snapshot or {}).get("items", [])
+        ok("跨批次去重：重开同一批页面全部按“已下载过”跳过（含多视频页的每一部）",
+           len(again_items) >= 5 and all(i.get("state") == "skipped" and "already downloaded" in (i.get("summary") or "")
+                                        for i in again_items),
+           json.dumps([(i.get("title"), i.get("state"), (i.get("summary") or "")[:40]) for i in again_items], ensure_ascii=False)[:500])
+        if again_id:
+            try: br(base, "POST", "/media/batch/cancel", {"id": again_id})
+            except Exception: pass
+
         # ---- 打磨回写（规则"不停打磨"）----
         adapter_file = os.path.join(data_dir, "DPPAdapters", "fixture-site.json")
         refined = json.load(open(adapter_file, encoding="utf-8")) if os.path.exists(adapter_file) else {}

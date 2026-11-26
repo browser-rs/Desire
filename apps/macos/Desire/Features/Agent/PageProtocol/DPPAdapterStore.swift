@@ -5,6 +5,11 @@ import os
 /// DPP 第三方适配包仓库（2026-10-10）：`Application Support/Desire/
 /// DPPAdapters/*.json`。每包一个文件，启停状态独立持久化（UserDefaults
 /// `dpp.adapter.disabled`——包文件本体保持"作者原样"，启停不污染文件）。
+/// 适配器清单变化的通知：打开中的页面据此重新解析协议（`WebView.Coordinator` 观察）。
+extension Notification.Name {
+    static let dppAdaptersChanged = Notification.Name("dppAdaptersChanged")
+}
+
 /// 解析接入点：`WebView.Coordinator.parsePageProtocol` 页面无原生声明时
 /// 按本 store 的索引查适配。
 @MainActor
@@ -165,6 +170,9 @@ final class DPPAdapterStore: ObservableObject {
         fileNames = filesByName
         // 带下载段的适配器 → 同步一段说明性技能（指纹变了才写；v0.8.77 批 2）。
         SiteDownloadSkillSync.reconcile(with: adapters)
+        // 清单变了（导入 / 删除 / 启用 / 编辑）：让**打开中的页面**重新解析——
+        // 否则"导入了没反应、刷新一下才有"（2026-11-26 实测就这么以为没打通）。
+        NotificationCenter.default.post(name: .dppAdaptersChanged, object: nil)
     }
 
     // MARK: - 站点下载规则（v0.8.77 批 2）

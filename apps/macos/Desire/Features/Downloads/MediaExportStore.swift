@@ -70,7 +70,9 @@ final class MediaExportStore: ObservableObject {
         maxBandwidth: Int? = nil,
         notify: Bool = true,
         resumeKey: String? = nil,
+        workKey: String? = nil,
         connections: Int? = nil,
+        method: DownloadRouting.EnginePreference? = nil,
         planHandler: ((String) -> Void)? = nil,
         completion: ((JobOutcome) -> Void)? = nil,
         progressHandler: ((Int, Int, MediaExporter.ProgressUnit) -> Void)? = nil
@@ -94,7 +96,9 @@ final class MediaExportStore: ObservableObject {
                     folderName: folderName,
                     baseDirectory: baseDirectory,
                     resumeKey: resumeKey,
+                    workKey: workKey,
                     connections: connections ?? MediaExporter.defaultConnections,
+                    preference: method ?? .auto,
                     // 研判与测速的结论（v0.8.77 批 6）：记在任务上（回执里看得到），
                     // 批量引擎再转进批次日志。
                     onPlan: { [weak self] line in

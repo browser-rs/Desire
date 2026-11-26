@@ -158,6 +158,18 @@ nonisolated struct HLSSourceProfile: Equatable {
 
 nonisolated enum DownloadRouting {
 
+    /// 下载方式的**显式**偏好：智能体按实际情况指定，或由站点规则（DPP 适配器的 `download.engine`）
+    /// 规定。`.auto` = 按流的事实研判出最优的一种。
+    enum EnginePreference: String, Equatable, CaseIterable {
+        case auto, parallel, ffmpeg, builtin
+
+        static func parse(_ raw: String?) -> EnginePreference? {
+            let value = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !value.isEmpty else { return nil }
+            return EnginePreference(rawValue: value)
+        }
+    }
+
     enum Remux: Equatable {
         /// 本地 ffmpeg 读本地播放列表：解密 + 转封装成 MP4。
         case ffmpeg
@@ -215,7 +227,8 @@ nonisolated enum DownloadRouting {
     /// - `ffmpegLabel`: nil = 本机没有 ffmpeg；非 nil = 有（值是一句简短说明）。
     /// - `connections`: 并发预取打算用的连接数（写进结论）。
     static func decide(_ profile: HLSSourceProfile, ffmpegLabel: String?,
-                       connections: Int? = nil) -> Decision {
+                       connections: Int? = nil,
+                       preference: EnginePreference = .auto) -> Decision {
         var facts: [String] = []
         if profile.isMaster {
             facts.append("master playlist" + (profile.variantSummary.map { " (\($0))" } ?? ""))
@@ -246,6 +259,34 @@ nonisolated enum DownloadRouting {
             return Decision(engine: engine, facts: facts + [ffmpegFact], rule: rule, summary: summary)
         }
 
+        // **显式选择优先**（2026-11-26 用户定调）：方式由智能体结合实际情况 / 站点规则决定，
+        // 定下来就只走那一种——失败如实上报，不偷偷换引擎重下。
+        switch preference {
+        case .ffmpeg:
+            return hasFFmpeg
+                ? make(.ffmpegDirect, "requested explicitly (agent or site rule) — ffmpeg reads the playlist serially")
+                : make(.unsupported("ffmpeg was requested but is not installed"),
+                       "requested ffmpeg, which is not installed")
+        case .builtin:
+            guard profile.parseFailure == nil else {
+                return make(.builtinSerial, "requested the built-in downloader (the built-in parser cannot read this playlist, so the legacy serial path)")
+            }
+            let rule = "requested the built-in downloader (agent or site rule) — segments in parallel, decrypted locally"
+            return profile.encryption == .sampleAES || profile.hasByteRanges || profile.isLive
+                ? make(.builtinSerial, rule + "; this shape keeps it serial")
+                : make(.parallelPrefetch(remux: .builtin), rule)
+        case .parallel:
+            guard profile.parseFailure == nil else {
+                return make(.unsupported("the parallel path cannot read this playlist"), "requested the parallel path, but the built-in parser cannot read this playlist")
+            }
+            if profile.hasSeparateRenditions {
+                facts.append("forced parallel: separate audio will be missing")
+            }
+            return make(.parallelPrefetch(remux: hasFFmpeg ? .ffmpeg : .builtin),
+                        "requested the parallel path (agent or site rule)")
+        case .auto:
+            break
+        }
         switch profile.encryption {
         case .sampleAES, .other:
             return hasFFmpeg

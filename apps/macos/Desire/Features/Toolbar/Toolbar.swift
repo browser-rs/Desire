@@ -721,6 +721,9 @@ struct Toolbar: View {
         @ObservedObject var state: BrowserState
         @ObservedObject private var hub = PageEventHub.shared
         @ObservedObject private var config = DPPConfigStore.shared
+        /// 适配器清单也是徽标的依据：只带下载规则、没有视图/动作的适配器（外挂适配最常见
+        /// 的形态）此前永远不显示——"网页适配了 DPP，按钮旁边却什么都没有"（2026-11-26 实测）。
+        @ObservedObject private var adapterStore = DPPAdapterStore.shared
         @State private var showsPopover = false
         let accent: Color
 
@@ -729,8 +732,14 @@ struct Toolbar: View {
             state.webView.url?.host?.lowercased() ?? ""
         }
 
+        /// 本站匹配的适配器（页面没有原生声明也算"适配了 DPP"）。
+        private var matchedAdapter: DPPAdapter? {
+            guard let url = state.webView.url else { return nil }
+            return adapterStore.adapter(for: url)
+        }
+
         var body: some View {
-            if state.effectiveProtocol != nil {
+            if state.effectiveProtocol != nil || matchedAdapter != nil {
                 Button {
                     showsPopover.toggle()
                 } label: {
@@ -752,11 +761,13 @@ struct Toolbar: View {
                     .fixedSize()
                 }
                 .buttonStyle(.plain)
-                .help("此页面声明了 Desire Page Protocol — 点击查看与配置")
+                .help(matchedAdapter.map { "本站有 DPP 适配器「\($0.name)」— 点击查看与配置" }
+                      ?? "此页面声明了 Desire Page Protocol — 点击查看与配置")
                 .popover(isPresented: $showsPopover, arrowEdge: .bottom) {
                     DPPBadgePopover(
                         host: host,
                         protocolView: state.effectiveProtocol,
+                        adapter: matchedAdapter,
                         hub: hub,
                         config: config,
                         accent: accent
@@ -771,12 +782,25 @@ struct Toolbar: View {
     private struct DPPBadgePopover: View {
         let host: String
         let protocolView: DesireProtocol?
+        /// 本站匹配的适配器（可能只带下载规则）。
+        let adapter: DPPAdapter?
         @ObservedObject var hub: PageEventHub
         @ObservedObject var config: DPPConfigStore
         let accent: Color
 
         var body: some View {
             VStack(alignment: .leading, spacing: 10) {
+                if let adapter {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("站点适配器：\(adapter.name)")
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(adapterSummary(adapter))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    Divider()
+                }
                 HStack(spacing: 6) {
                     Image(systemName: "doc.text.magnifyingglass")
                         .font(.system(size: 12, weight: .medium))
@@ -838,8 +862,28 @@ struct Toolbar: View {
             .frame(width: 280)
         }
 
+        /// 适配器摘要：绑定的站点/路径 + 下载规则（有的话）。
+        private func adapterSummary(_ adapter: DPPAdapter) -> String {
+            var parts = ["站点 \(adapter.hosts.joined(separator: ", "))"]
+            if !adapter.pathPrefixes.isEmpty { parts.append("路径 \(adapter.pathPrefixes.joined(separator: "、"))") }
+            if let rules = adapter.download {
+                var facts: [String] = []
+                switch rules.perPageRule {
+                case .one: facts.append("每页 1 部")
+                case .many: facts.append("每页多部")
+                case nil: break
+                }
+                facts.append("每路 \(rules.connections ?? DPPDownloadRules.defaultConnections) 连接")
+                if let engine = rules.enginePreference { facts.append("方式 \(engine.rawValue)") }
+                if !facts.isEmpty { parts.append("下载规则：" + facts.joined(separator: " · ")) }
+            }
+            return parts.joined(separator: "；")
+        }
+
         private var summaryLine: String {
-            guard let dpp = protocolView else { return "" }
+            guard let dpp = protocolView else {
+                return adapter != nil ? "本站有 DPP 适配器" : ""
+            }
             var parts: [String] = []
             if !dpp.views.isEmpty { parts.append("视图 \(dpp.views.count)") }
             if !dpp.actions.isEmpty { parts.append("动作 \(dpp.actions.count)") }

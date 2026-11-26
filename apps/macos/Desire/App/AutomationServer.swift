@@ -1543,8 +1543,10 @@ case ("GET", "/state"):
                 // active 窗口——E2E 实测错位）；缺省 = deliveryTarget 的 selected。
                 let inspectedTab = Self.shared.resolveIndex(Self.index(query))
                     ?? AgentScheduler.shared.deliveryTarget?.boundTabManager?.selectedTab
+                let matchedAdapter = inspectedTab?.browser.webView.url
+                    .flatMap { DPPAdapterStore.shared.adapter(for: $0) }
                 guard let dpp = inspectedTab?.browser.effectiveProtocol else {
-                    return try Self.json(["declared": false])
+                    return try Self.json(["declared": false, "adapter": matchedAdapter?.name ?? ""])
                 }
                 var views: [String: Any] = [:]
                 for (name, view) in dpp.views {
@@ -1557,6 +1559,7 @@ case ("GET", "/state"):
                 let dppHost = inspectedTab?.browser.webView.url?.host ?? ""
                 return try Self.json([
                     "declared": true, "version": dpp.protocolVersion,
+                    "adapter": matchedAdapter?.name ?? "",
                     "profile": dpp.profile ?? "",
                     "pages": dpp.pages.count,
                     "pageType": dpp.pageType ?? "", "contentMain": dpp.contentMain ?? "",

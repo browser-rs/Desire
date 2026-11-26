@@ -919,6 +919,8 @@ struct WebView: NSViewRepresentable {
         private var activeDownloads: [ObjectIdentifier: DownloadInfo] = [:]
         /// 并发上限（v0.7.19）：名额空出通知的观察句柄（一次安装）。
         private var slotObserver: NSObjectProtocol?
+        /// 适配器清单变化的观察（v0.8.77 修 7）：导入/编辑适配器后重解析当前页。
+        private var dppAdaptersObserver: NSObjectProtocol?
         /// Partial destination file for in-flight RESUMED downloads, keyed by
         /// the new WKDownload object (cleared once decideDestination runs).
         private var resumeDestinations: [ObjectIdentifier: URL] = [:]
@@ -2090,6 +2092,7 @@ try {
         /// 事件监听由页面内的 MutationObserver 负责（0→正 跳变上报）；
         /// 宿主侧不做轮询（曾经的 installEventPolling 无调用点，已删）。
         private func parsePageProtocol(webView: WKWebView) async {
+            installDPPAdapterObserverIfNeeded()
             // DPP 总开关（设置页/桥 /dpp/config）：关 = 完全不解析。
             // pageProtocolChecked 必须置位——工具层的"等解析落地"轮询靠它跳出。
             guard DPPConfigStore.shared.enabled else {
@@ -3165,6 +3168,21 @@ try {
             for item in parent.downloadStore.downloads where item.isQueued {
                 guard parent.downloadStore.beginTransferIfAllowed(excluding: item.id) else { break }
                 parent.downloadStore.resumeFromQueue(id: item.id)
+            }
+        }
+
+        /// 导入/删除/编辑适配器后，当前页要重新解析一次（不用刷新）。
+        private func installDPPAdapterObserverIfNeeded() {
+            guard dppAdaptersObserver == nil else { return }
+            dppAdaptersObserver = NotificationCenter.default.addObserver(
+                forName: .dppAdaptersChanged, object: nil, queue: .main
+            ) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    let webView = self.parent.state.webView
+                    guard webView.url != nil else { return }
+                    await self.parsePageProtocol(webView: webView)
+                }
             }
         }
 

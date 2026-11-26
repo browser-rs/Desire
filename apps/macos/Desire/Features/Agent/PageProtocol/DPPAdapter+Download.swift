@@ -31,6 +31,9 @@ nonisolated struct DPPDownloadRules: Codable, Equatable {
     var exclude: [String]?
     /// 每路连接数（分片并发）；nil = 默认 8。
     var connections: Int?
+    /// 下载方式（2026-11-26 用户定调：方式可以由站点规则决定）：auto / parallel / ffmpeg / builtin。
+    /// nil = auto（按流的事实研判最优的一种）。
+    var engine: String?
     /// 签名地址有效期（分钟）；nil = 默认 50。中途过期会自动缩短。
     var tokenMinutes: Int?
 
@@ -74,6 +77,12 @@ extension DPPDownloadRules {
     nonisolated static let staleAfterFailures = 3
     nonisolated static let revisionCap = 20
     nonisolated static let matchCap = 50
+
+    /// 站点规则指定的下载方式；nil / auto = 交给研判。
+    var enginePreference: DownloadRouting.EnginePreference? {
+        guard let preference = DownloadRouting.EnginePreference.parse(engine), preference != .auto else { return nil }
+        return preference
+    }
 
     var perPageRule: PerPage? {
         PerPage(rawValue: (perPage ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased())

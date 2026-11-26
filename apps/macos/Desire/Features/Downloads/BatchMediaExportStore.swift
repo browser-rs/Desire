@@ -154,7 +154,8 @@ final class BatchMediaExportStore: ObservableObject {
         directory: String? = nil,
         splitEvery: Int? = nil,
         defaultFolderName: String? = nil,
-        connections: Int? = nil
+        connections: Int? = nil,
+        method: String? = nil
     ) -> BatchMediaBatch {
         BatchMediaPreferences.applyExplicitNaming(naming)
         let plan = BatchMediaPlan.planListBatch(urls: pageURLs)
@@ -182,6 +183,9 @@ final class BatchMediaExportStore: ObservableObject {
             defaultFolderName: defaultFolderName
         )
         if let connections { connectionsOverride[batch.id] = max(1, min(32, connections)) }
+        if let method, let preference = DownloadRouting.EnginePreference.parse(method) {
+            methodOverride[batch.id] = preference
+        }
         return batch
     }
 
@@ -263,6 +267,8 @@ final class BatchMediaExportStore: ObservableObject {
     private var forceDownloadBatches: Set<UUID> = []
     /// 模型显式给的每路分片并发（v0.8.77 批 4）：按批次记，优先于站点规则的值。
     private var connectionsOverride: [UUID: Int] = [:]
+    /// 智能体为这一批指定的下载方式（v0.8.77 修 6）：优先于站点规则的 engine。
+    private var methodOverride: [UUID: DownloadRouting.EnginePreference] = [:]
 
     private static func folderTimestamp() -> String {
         let formatter = DateFormatter()
@@ -445,6 +451,7 @@ final class BatchMediaExportStore: ObservableObject {
         var summary: String?
         var attempts: Int
         var tsFileURL: String? = nil
+        var sourceRank: Int? = nil
     }
 
     private struct PersistedBatch: Codable {
@@ -500,7 +507,7 @@ final class BatchMediaExportStore: ObservableObject {
                         mediaURL: item.mediaURL?.absoluteString, referer: item.referer?.absoluteString,
                         title: item.title, numberPrefix: item.numberPrefix,
                         state: item.state.rawValue, summary: item.summary, attempts: item.attempts,
-                        tsFileURL: item.tsFileURL
+                        tsFileURL: item.tsFileURL, sourceRank: item.sourceRank
                     )
                 },
                 state: batch.state.rawValue,
@@ -549,7 +556,8 @@ final class BatchMediaExportStore: ObservableObject {
                         state: state,
                         summary: summary,
                         tsFileURL: item.tsFileURL,
-                        attempts: item.attempts
+                        attempts: item.attempts,
+                        sourceRank: item.sourceRank ?? 0
                     )
                 }
                 // 旧持久化没有 saveRoot/splitEvery（optional 解码 nil）。
@@ -962,7 +970,8 @@ final class BatchMediaExportStore: ObservableObject {
                     referer: sourceURL,
                     title: "\(batches[bi].items[ii].numberPrefix)-\(n + 2)-\(name)",
                     numberPrefix: "\(batches[bi].items[ii].numberPrefix)-\(n + 2)",
-                    state: .pending
+                    state: .pending,
+                    sourceRank: n + 1
                 ))
             }
             if !siblings.isEmpty {
@@ -1076,7 +1085,9 @@ final class BatchMediaExportStore: ObservableObject {
             // **智能判断**：索引命中还要验证落盘文件仍在——用户手动删除/
             // 移动过的话照常重新下载并刷新索引，而不是永远跳过。
             if !forceDownloadBatches.contains(batchID), BatchMediaPreferences.skipDownloaded,
-               let downloaded = BatchDownloadedIndex.file(for: mediaURL.absoluteString) {
+               let downloaded = BatchDownloadedIndex.file(for: mediaURL.absoluteString)
+                   ?? BatchDownloadedIndex.file(forSource: batches[bi].items[ii].sourceURL.absoluteString,
+                                                 rank: batches[bi].items[ii].sourceRank) {
                 if FileManager.default.fileExists(atPath: downloaded) {
                     batches[bi].items[ii].state = .skipped
                     batches[bi].items[ii].summary = "already downloaded: \(downloaded)"
@@ -1129,16 +1140,34 @@ final class BatchMediaExportStore: ObservableObject {
                 folderName: folderName,
                 baseDirectory: batches[bi].saveRoot ?? BatchMediaPreferences.baseDirectory,
                 notify: false,
+                // `.part` 续传键按条目（同一批内不变）；**预取工作目录按来源页稳定命名**——
+                // 新批次里同一部片能复用上一批已抓齐的分片，只做本地合成（真实事故：同一部片
+                // 被两个批次各下了一遍，因为旧键是条目 UUID，新批次永远是新目录）。
                 resumeKey: itemID.uuidString,
+                workKey: MediaExporter.workDirectoryKey(url: batches[bi].items[ii].sourceURL, resumeKey: nil),
                 // 每路连接数（v0.8.77 批 3）：站点规则可给；批内所有下载合计不超过
                 // 连接预算——同时下 N 部时每路上限 = 预算 / N。
                 connections: connectionsPerStream(sourceURL: batches[bi].items[ii].sourceURL, batchID: batchID),
+                // 方式：智能体显式指定 > 站点规则（DPP download.engine）> 自动研判。
+                // 失败不换引擎重下——见 MediaExporter.download 的失败语义。
+                method: methodOverride[batchID]
+                    ?? DPPAdapterStore.shared.downloadRules(for: batches[bi].items[ii].sourceURL)?.rules.enginePreference,
                 // 研判 / 测速（v0.8.77 批 6）：这一路为什么走这个引擎、实测连接数怎么定的，
                 // 原样写进批次日志——用户和智能体都看得到依据。
                 planHandler: { [weak self] line in
                     guard let self else { return }
                     let prefix = batches.first(where: { $0.id == batchID })?
                         .items.first(where: { $0.id == itemID })?.numberPrefix ?? ""
+                    // 连接数被批内预算压缩时说清楚（v0.8.77 修 6：智能体传 16、日志只写 8，
+                    // 看不出原因——批内所有下载合计不超过 32 个连接）。
+                    if let wanted = connectionsOverride[batchID] {
+                        let effective = connectionsPerStream(sourceURL: batches.first(where: { $0.id == batchID })?
+                            .items.first(where: { $0.id == itemID })?.sourceURL ?? URL(string: "https://invalid")!,
+                            batchID: batchID)
+                        if effective < wanted, !line.hasPrefix("speed probe") {
+                            blog(batchID, "[\(prefix)] 连接数：请求 \(wanted)，批内下载合计不超过 32 → 每路 \(effective)")
+                        }
+                    }
                     if line.hasPrefix("speed probe — ") {
                         blog(batchID, "[\(prefix)] 测速：\(line.dropFirst("speed probe — ".count))")
                     } else {
@@ -1463,7 +1492,9 @@ final class BatchMediaExportStore: ObservableObject {
             let verifyText = result.verification.map { "，验证 ✓ \($0)" } ?? ""
             blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 下载完成：\(result.displayBytes)\(verifyText)，落盘 \(result.fileURL.path)")
             BatchDownloadedIndex.record(
-                urls: [batches[bi].items[ii].sourceURL.absoluteString, batches[bi].items[ii].mediaURL?.absoluteString ?? ""],
+                urls: [batches[bi].items[ii].mediaURL?.absoluteString ?? "",
+                       BatchDownloadedIndex.sourceKey(batches[bi].items[ii].sourceURL.absoluteString,
+                                                      rank: batches[bi].items[ii].sourceRank)],
                 file: result.fileURL.path
             )
             Log.downloads.info("item finished: \(result.fileURL.lastPathComponent, privacy: .public) (\(result.displayBytes, privacy: .public))")

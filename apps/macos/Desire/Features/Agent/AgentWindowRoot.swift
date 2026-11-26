@@ -79,8 +79,6 @@ struct AgentWindowRoot: View {
                 conversationStore: conversationStore,
                 onToggleWhiteboard: onToggleWhiteboard,
                 onToggleBall: onToggleBall,
-                onToggleSidebar: { setSidebarExpanded(!isSidebarExpanded) },
-                isSidebarExpanded: isSidebarExpanded,
                 hidesHeaderNavigation: true,
                 promptCenter: store.promptCenter,
                 // 独立窗口放开限宽（v0.8.67 用户反馈）：窗口可拖到很宽，

@@ -118,6 +118,14 @@ def no_ffmpeg_round(base, out_dir, site_base, slow, ffprobe):
         _, kinds = streams_of(ffprobe, os.path.join(out_dir, target))
         ok(f"没装 ffmpeg · 产物与串行产物逐字节等长（{size} vs {serial_size}）、音视频齐全",
            size == serial_size and size > 500_000 and "video" in kinds and "audio" in kinds, str(kinds))
+    # 加密流在没 ffmpeg 时走"并发预取 + 内置解密拼接"：必须能出 .ts 且音视频齐全
+    enc, _ = run_download(base, site_base + "/enc/index.m3u8", "b77-noffmpeg-enc", out_dir, connections=8)
+    ok("没装 ffmpeg · 加密流：下载完成且没有回退", enc and enc.get("state") == "finished"
+       and "fell back" not in (enc.get("summary") or ""), json.dumps(enc, ensure_ascii=False)[:300])
+    enc_file = next((f for f in sorted(os.listdir(out_dir)) if f.startswith("b77-noffmpeg-enc")), None)
+    if enc_file:
+        _, kinds = streams_of(ffprobe, os.path.join(out_dir, enc_file))
+        ok(f"没装 ffmpeg · 加密流：产物音视频齐全（{kinds}）", "video" in kinds and "audio" in kinds, str(kinds))
 
 
 def main():
@@ -211,6 +219,23 @@ def main():
            "returns a web page, not a media stream" in (not_media.get("text") or "")
            and "resolveVideos" in (not_media.get("text") or ""),
            json.dumps(not_media, ensure_ascii=False)[:300])
+
+        # ---- 加密流（v0.8.77 修 7 回归）：密钥文件名 key.ts 触发过 ffmpeg 的扩展名检查，
+        #      本地合成必须成功、不得回退到远端重下。----
+        enc, enc_seconds = run_download(base, site_base + "/enc/index.m3u8", "b77-enc", out_dir, connections=8)
+        ok("加密流：下载完成", enc and enc.get("state") == "finished", json.dumps(enc, ensure_ascii=False)[:300])
+        enc_summary = (enc or {}).get("summary") or ""
+        ok("加密流：本地合成成功、没有回退重下", "fell back" not in enc_summary and "parallel HLS export failed" not in enc_summary,
+           enc_summary[:300])
+        ok("加密流：研判写的是并发预取", any("→ parallel segment prefetch" in line and "AES-128" in line
+                                            for line in plan_lines(enc)),
+           json.dumps(plan_lines(enc), ensure_ascii=False)[:300])
+        enc_file = next((f for f in sorted(os.listdir(out_dir)) if f.startswith("b77-enc") and f.endswith(".mp4")), None)
+        ok("加密流：产物落盘为 mp4", enc_file is not None, str(sorted(os.listdir(out_dir))))
+        if enc_file:
+            duration, kinds = streams_of(ffprobe, os.path.join(out_dir, enc_file))
+            ok(f"加密流：产物完整（{duration:.0f}s，音视频 {kinds}）",
+               10 <= duration <= 14 and "video" in kinds and "audio" in kinds)
 
         # ---- 下载本身按研判走 ----
         demuxed, _ = run_download(base, site_base + "/demux/master.m3u8", "b77-demuxed", out_dir, connections=8)

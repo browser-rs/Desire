@@ -199,7 +199,12 @@ enum FFmpegExporter {
                 "-f", "hls",
             ]
             if modernHLSFlags {
-                args += ["-allowed_segment_extensions", "ALL", "-extension_picky", "0"]
+                // 分片扩展名（-extension_picky / -allowed_segment_extensions）之外，**密钥文件**也
+                // 过扩展名安全检查：本地播放列表把密钥改写成 key.bin，ffmpeg 9 因此拒收整个输入
+                //（实测 "Filename extension of '…/key.bin' is not a common multimedia extension,
+                // blocked for security reasons" → 合成失败 → 旧逻辑回退远端重下整部片）。
+                args += ["-allowed_extensions", "ALL",
+                         "-allowed_segment_extensions", "ALL", "-extension_picky", "0"]
             }
             if let referer {
                 args += ["-referer", referer.absoluteString]

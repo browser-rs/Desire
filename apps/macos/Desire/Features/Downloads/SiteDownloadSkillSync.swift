@@ -43,6 +43,9 @@ enum SiteDownloadSkillSync {
         case nil: break
         }
         facts.append("每路 \(rules.connections ?? DPPDownloadRules.defaultConnections) 个连接")
+        if let engine = rules.enginePreference {
+            facts.append("下载方式由本站规则指定：\(engine.rawValue)")
+        }
         facts.append("地址有效期按 \(rules.tokenMinutes ?? DPPDownloadRules.defaultTokenMinutes) 分钟计")
         if let exclude = rules.exclude, !exclude.isEmpty { facts.append("排除命中 \(exclude.count) 条特征的地址") }
         lines.append("- 已知参数：\(facts.joined(separator: "；"))。")

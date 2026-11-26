@@ -36,6 +36,10 @@ struct BatchMediaItem: Identifiable {
     /// 达到上限才算终局失败——真实站点 12 部批量实测：403 过期
     /// 靠模型手动开重试批次，文件因此散落三个目录）。
     var attempts: Int = 0
+    /// 本页第几部正片（0 = 主条目，1、2… = 兄弟项）。多视频详情页的几部**共享来源页**，
+    /// 跨批次去重必须带上这个序号——只用来源页做键会把同页第二、三部当成"已下载过"
+    /// （2026-11-26 实测：一页三部，第三部被跳过）。
+    var sourceRank: Int = 0
 
     enum State: String {
         case pending, resolving, needsHuman, downloading

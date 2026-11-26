@@ -24,6 +24,18 @@ enum BatchDownloadedIndex {
         index[url]?.file
     }
 
+    /// 来源页 + 本页第几部（0 = 主条目）：签名地址每次都变，跨批次只能按来源页认；
+    /// 但一页可能有多部正片，必须带序号，否则同页第二、三部会被当成"已下载"
+    /// （2026-11-26 实测踩过）。
+    static func sourceKey(_ pageURL: String, rank: Int) -> String {
+        "src|\(pageURL)|#\(rank)"
+    }
+
+    static func file(forSource pageURL: String, rank: Int) -> String? {
+        guard !pageURL.isEmpty else { return nil }
+        return index[sourceKey(pageURL, rank: rank)]?.file
+    }
+
     /// 历史视图（桥只读）。
     static func snapshot() -> [String: Entry] {
         index

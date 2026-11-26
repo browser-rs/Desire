@@ -65,8 +65,6 @@ struct AgentPanel: View {
     var onToggleBall: (() -> Void)? = nil
     /// 两栏布局（独立 Agent 窗口）：侧栏开关回调与显隐状态。浏览器内嵌的
     /// 窄栏宿主不传（nil = 单栏，头部不出现开关）。
-    var onToggleSidebar: (() -> Void)? = nil
-    var isSidebarExpanded: Bool = false
     /// 独立窗口两栏模式：历史/能力/轨迹/统计/记忆的导航入口已上移到侧栏
     /// 的"智能体"区，头部不再重复这排按钮（白板/悬浮球/新对话/清空保留——
     /// 它们是动作不是导航）。浏览器内嵌面板不受影响（默认 false）。
@@ -205,8 +203,6 @@ struct AgentPanel: View {
                 onShowMemory: hidesHeaderNavigation ? nil : { showMemory = true },
                 onShowWhiteboard: onToggleWhiteboard,
                 onToggleBall: onToggleBall,
-                onToggleSidebar: onToggleSidebar,
-                isSidebarExpanded: isSidebarExpanded,
                 onNewChat: { store.clear() }
             )
 

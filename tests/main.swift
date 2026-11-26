@@ -13354,8 +13354,10 @@ do {
           && !HLSSourceProfile.read(masterText: subsOnly, masterURL: masterURL, mediaText: clear, mediaURL: mediaURL).hasSeparateRenditions)
 
     // 规则（起因：此前"有 ffmpeg 就先走并发"，不看流的形态）
-    func route(_ profile: HLSSourceProfile, ffmpeg: Bool = true, connections: Int? = nil) -> DownloadRouting.Decision {
-        DownloadRouting.decide(profile, ffmpegLabel: ffmpeg ? "available" : nil, connections: connections)
+    func route(_ profile: HLSSourceProfile, ffmpeg: Bool = true, connections: Int? = nil,
+               preference: DownloadRouting.EnginePreference = .auto) -> DownloadRouting.Decision {
+        DownloadRouting.decide(profile, ffmpegLabel: ffmpeg ? "available" : nil, connections: connections,
+                               preference: preference)
     }
     let plain = HLSSourceProfile.read(mediaText: clear, mediaURL: mediaURL)
     eq("研判·规则：普通点播 + 有 ffmpeg → 并发预取 + 本地 ffmpeg 合成",
@@ -13394,6 +13396,21 @@ do {
           && route(stillMaster, ffmpeg: false).engine == Route.builtinSerial)
     check("研判·规则：fMP4 分片也是独立文件 → 并发",
           route(HLSSourceProfile.read(mediaText: fmp4, mediaURL: mediaURL)).engine == Route.parallelPrefetch(remux: .ffmpeg))
+
+    // 显式选择（智能体 / 站点规则；2026-11-26 用户定调：方式可以由它们决定）
+    eq("研判·偏好：ffmpeg → 直连", route(plain, preference: .ffmpeg).engine, Route.ffmpegDirect)
+    eq("研判·偏好：指定 ffmpeg 但没装 → 做不了", route(plain, ffmpeg: false, preference: .ffmpeg).engine,
+       Route.unsupported("ffmpeg was requested but is not installed"))
+    eq("研判·偏好：parallel → 并发 + 本地 ffmpeg", route(plain, preference: .parallel).engine,
+       Route.parallelPrefetch(remux: .ffmpeg))
+    eq("研判·偏好：parallel + 没 ffmpeg → 并发 + 内置解密", route(plain, ffmpeg: false, preference: .parallel).engine,
+       Route.parallelPrefetch(remux: .builtin))
+    eq("研判·偏好：builtin → 内置解密拼接", route(plain, preference: .builtin).engine,
+       Route.parallelPrefetch(remux: .builtin))
+    check("研判·偏好：显式 parallel 遇音轨分离时写明会丢音轨",
+          route(demuxedProfile, preference: .parallel).facts.contains { $0.contains("separate audio will be missing") })
+    check("研判·偏好：显式选择写进依据（requested）",
+          route(plain, preference: .ffmpeg).rule.contains("requested explicitly"))
 
     // 连接数的实测依据
     func evidence(_ single: Double, gain: Double, tested: Int = 8) -> ParallelTuning.Evidence {

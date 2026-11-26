@@ -94,12 +94,29 @@ def build_media():
         subprocess.run([ffmpeg, "-v", "error", "-y", "-allowed_extensions", "ALL", "-i", src, "-c", "copy", out], check=True)
     for stream in STREAMS:   # 每个流目录一个缩略图分片（真实站点有 thumb.ts 这类噪声）
         shutil.copy(os.path.join(ROOT, "hls", stream, "seg-000.ts"), os.path.join(ROOT, "hls", stream, "thumb.ts"))
+    full = os.path.join(ROOT, "hls", "ccc", "index.m3u8")
+    # 加密流（v0.8.77 修 7 回归）：AES-128，密钥文件名故意用 `key.ts`——ffmpeg 9 的扩展名
+    # 安全检查会拒收非白名单扩展名的**密钥文件**（真实事故：本地合成因此失败，旧逻辑回退到
+    # 远端重下整部片）。并发路径必须能本地合成出带音视频的完整 mp4。
+    enc_dir = os.path.join(ROOT, "enc")
+    os.makedirs(enc_dir, exist_ok=True)
+    key_bytes = bytes([(i * 37 + 11) & 0xFF for i in range(16)])
+    with open(os.path.join(enc_dir, "key.ts"), "wb") as handle:
+        handle.write(key_bytes)
+    keyinfo = os.path.join(enc_dir, "keyinfo.txt")
+    with open(keyinfo, "w", encoding="utf-8") as handle:
+        handle.write("key.ts\n" + os.path.join(enc_dir, "key.ts") + "\n"
+                     + "000102030405060708090a0b0c0d0e0f\n")
+    subprocess.run([ffmpeg, "-v", "error", "-y", "-allowed_extensions", "ALL", "-i", full,
+                    "-c", "copy", "-f", "hls", "-hls_time", "2", "-hls_playlist_type", "vod",
+                    "-hls_key_info_file", keyinfo,
+                    "-hls_segment_filename", os.path.join(enc_dir, "seg-%03d.ts"),
+                    os.path.join(enc_dir, "index.m3u8")], check=True)
+
     # 三种特殊形态（v0.8.77 批 6，下载方式的研判用）：
     # - /demux/master.m3u8    音轨分离（EXT-X-MEDIA 独立音轨）——master 必须整体交给 ffmpeg；
     # - /variants/master.m3u8 两个变体（320x240 / 160x120）——码率上限挑档；
     # - /sampleaes/index.m3u8 写着 SAMPLE-AES 的播放列表（分片是普通的，只用来探测，不用来下载）。
-    full = os.path.join(ROOT, "hls", "ccc", "index.m3u8")
-
     def cut_hls(source, out_dir, *filters):
         os.makedirs(out_dir, exist_ok=True)
         subprocess.run([ffmpeg, "-v", "error", "-y", "-allowed_extensions", "ALL", "-i", source, *filters,

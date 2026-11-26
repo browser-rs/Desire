@@ -410,7 +410,9 @@ extension BrowserToolProvider {
                 // 时按默认链垫 host（工具层只在"没给 directory"时垫 folderName，
                 // ==根目录的场景要靠这个参数）。
                 defaultFolderName: URL(string: urls[0])?.host,
-                connections: connectionsOverride
+                connections: connectionsOverride,
+                // 方式（v0.8.77 修 6）：智能体结合实际情况显式指定；不给 = 站点规则 > 自动研判。
+                method: (args["method"] as? String).flatMap { DownloadRouting.EnginePreference.parse($0)?.rawValue }
             )
             let queued = batch.items.filter { $0.state == .pending }.count
             let skipped = batch.items.filter { $0.state == .skipped }
@@ -589,7 +591,9 @@ extension BrowserToolProvider {
                 referer: webView.url,
                 userAgent: webView.customUserAgent,
                 fileNameHint: args["fileName"] as? String,
-                connections: (args["connections"] as? Int).flatMap { (1...32).contains($0) ? $0 : nil }
+                connections: (args["connections"] as? Int).flatMap { (1...32).contains($0) ? $0 : nil },
+                method: (args["method"] as? String).flatMap { DownloadRouting.EnginePreference.parse($0) },
+                planHandler: nil
             )
             return """
             Export started in the background (job \(jobID.uuidString.prefix(8))). It keeps running while \
@@ -2452,6 +2456,13 @@ extension BrowserToolProvider {
                 }
                 if let tokenMinutes = raw["tokenMinutes"] as? Int {
                     rules.tokenMinutes = max(DPPDownloadRules.minTokenMinutes, min(24 * 60, tokenMinutes))
+                }
+                // 站点指定下载方式（2026-11-26 用户定调：方式可以结合实际情况由站点决定）。
+                if let engine = raw["engine"] as? String, !engine.trimmingCharacters(in: .whitespaces).isEmpty {
+                    guard DownloadRouting.EnginePreference.parse(engine) != nil else {
+                        return Self.fail("download.engine must be auto / parallel / ffmpeg / builtin")
+                    }
+                    rules.engine = engine.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
                 }
                 if let perPage = rules.perPage, DPPDownloadRules.PerPage(rawValue: perPage.lowercased()) == nil {
                     return Self.fail("download.perPage must be \"one\" or \"many\"")

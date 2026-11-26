@@ -93,12 +93,15 @@ enum MediaExporter {
         /// 手写下载器也失败时，把之前 ffmpeg 的失败原因一并带上——否则用户只看到
         /// 第二条错误，第一条（真正的原因）没了。
         case fallbackFailed(notes: [String], underlying: String)
+        /// 内置路径处理不了的形态（v0.8.80）：如字节切片的流且本机没有 ffmpeg。
+        case unsupportedFeature(String)
 
         var errorDescription: String? {
             switch self {
             case .notAPlaylist: "URL did not return an m3u8 playlist or a media file"
             case .badStatus(let code): "Server returned HTTP \(code) (the signed URL may have expired — re-extract the address and retry)"
             case .unsupportedEncryption(let method): "Playlist uses unsupported encryption: \(method)"
+            case .unsupportedFeature(let reason): reason
             case .tooManySegmentFailures: "Too many segments failed to download"
             case .noSegmentsDownloaded: "Every segment failed to download — nothing was saved"
             case .addressExpired(let count): "The signed address expired mid-download (\(count) segment(s) returned 401/403/410) — the page will be resolved again and the download resumes from the segments already fetched"
@@ -340,7 +343,7 @@ enum MediaExporter {
         case .ffmpegDirect:
             tryFFmpegDirect = true
         case .unsupported(let reason):
-            throw ExportError.unsupportedEncryption(reason)
+            throw ExportError.unsupportedFeature(reason)
         case .builtinSerial, .directFile:
             break
         }

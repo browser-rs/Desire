@@ -13387,8 +13387,9 @@ do {
           route(sampled, ffmpeg: false).engine == Route.unsupported("encryption not supported without ffmpeg"))
     eq("研判·规则：字节切片 → ffmpeg 直连", route(HLSSourceProfile.read(mediaText: ranges, mediaURL: mediaURL)).engine,
        Route.ffmpegDirect)
-    eq("研判·规则：字节切片且没 ffmpeg → 内置串行", route(HLSSourceProfile.read(mediaText: ranges, mediaURL: mediaURL), ffmpeg: false).engine,
-       Route.builtinSerial)
+    check("研判·规则：字节切片且没 ffmpeg → 诚实报做不了（内置会整文件重复拼接）",
+          route(HLSSourceProfile.read(mediaText: ranges, mediaURL: mediaURL), ffmpeg: false).engine
+              == Route.unsupported("byte-range streams need ffmpeg"))
     let stillMaster = HLSSourceProfile.read(mediaText: master, mediaURL: masterURL)
     check("研判·规则：解析器读不了的播放列表 → 有 ffmpeg 交给它，没有才走旧串行",
           stillMaster.parseFailure == "not a media playlist"

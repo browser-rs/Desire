@@ -317,9 +317,12 @@ nonisolated enum DownloadRouting {
                        "no ffmpeg: only the video variant can be fetched — the separate audio will be missing")
         }
         if profile.hasByteRanges {
+            // 内置下载器不认 `#EXT-X-BYTERANGE`：它会把同一文件当成分片重复拼接。没有 ffmpeg
+            // 就诚实报"做不了"，不产出坏文件（0.8.80 形态矩阵核实）。
             return hasFFmpeg
                 ? make(.ffmpegDirect, "byte-range segments are not standalone files")
-                : make(.builtinSerial, "byte-range segments, and no ffmpeg")
+                : make(.unsupported("byte-range streams need ffmpeg"),
+                       "byte-range segments need ffmpeg, which is not installed")
         }
         if profile.isLive {
             return make(.parallelPrefetch(remux: .builtin),

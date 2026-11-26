@@ -118,6 +118,15 @@ def no_ffmpeg_round(base, out_dir, site_base, slow, ffprobe):
         _, kinds = streams_of(ffprobe, os.path.join(out_dir, target))
         ok(f"没装 ffmpeg · 产物与串行产物逐字节等长（{size} vs {serial_size}）、音视频齐全",
            size == serial_size and size > 500_000 and "video" in kinds and "audio" in kinds, str(kinds))
+    # 字节切片：内置下载器不认 BYTERANGE，没 ffmpeg 必须诚实报"做不了"，不产出坏文件
+    br_report = probe(base, site_base + "/byterange/index.m3u8")
+    ok("没装 ffmpeg · 字节切片：诚实报做不了", br_report.get("method") == "unsupported"
+       and "need ffmpeg" in (br_report.get("rule") or ""), json.dumps(br_report, ensure_ascii=False)[:300])
+    br_failed, _ = run_download(base, site_base + "/byterange/index.m3u8", "b80-noffmpeg-br", out_dir, connections=8)
+    ok("没装 ffmpeg · 字节切片：任务失败且原因点名需要 ffmpeg",
+       br_failed and br_failed.get("state") == "failed" and "ffmpeg" in (br_failed.get("summary") or ""),
+       json.dumps(br_failed, ensure_ascii=False)[:300])
+
     # 加密流在没 ffmpeg 时走"并发预取 + 内置解密拼接"：必须能出 .ts 且音视频齐全
     enc, _ = run_download(base, site_base + "/enc/index.m3u8", "b77-noffmpeg-enc", out_dir, connections=8)
     ok("没装 ffmpeg · 加密流：下载完成且没有回退", enc and enc.get("state") == "finished"
@@ -235,6 +244,35 @@ def main():
         if enc_file:
             duration, kinds = streams_of(ffprobe, os.path.join(out_dir, enc_file))
             ok(f"加密流：产物完整（{duration:.0f}s，音视频 {kinds}）",
+               10 <= duration <= 14 and "video" in kinds and "audio" in kinds)
+
+        # ---- 直播（无 ENDLIST）与字节切片（v0.8.80 形态矩阵）----
+        live_report = probe(base, site_base + "/live/index.m3u8")
+        ok("探测·直播：事实写明 live、方法为并发预取 + 内置拼接",
+           "HLS live" in (live_report.get("facts") or [])
+           and "live stream" in (live_report.get("rule") or "")
+           and (live_report.get("method") or "").endswith("+ built-in decrypt/concat"),
+           json.dumps(live_report, ensure_ascii=False)[:300])
+        live, _ = run_download(base, site_base + "/live/index.m3u8", "b80-live", out_dir, connections=8)
+        ok("直播：下载完成、没有回退", live and live.get("state") == "finished"
+           and "fell back" not in (live.get("summary") or ""), json.dumps(live, ensure_ascii=False)[:300])
+        live_file = next((f for f in sorted(os.listdir(out_dir)) if f.startswith("b80-live") and f.endswith(".mp4")), None)
+        if live_file:
+            duration, kinds = streams_of(ffprobe, os.path.join(out_dir, live_file))
+            ok(f"直播：只导出当前可用分片（{duration:.0f}s，音视频 {kinds}）",
+               10 <= duration <= 14 and "video" in kinds and "audio" in kinds)
+        br_report = probe(base, site_base + "/byterange/index.m3u8")
+        ok("探测·字节切片：改走 ffmpeg 直连",
+           "byte-range segments" in (br_report.get("facts") or [])
+           and br_report.get("method") == "ffmpeg direct (serial)",
+           json.dumps(br_report, ensure_ascii=False)[:300])
+        branged, _ = run_download(base, site_base + "/byterange/index.m3u8", "b80-byterange", out_dir, connections=8)
+        ok("字节切片：下载完成", branged and branged.get("state") == "finished",
+           json.dumps(branged, ensure_ascii=False)[:300])
+        br_file = next((f for f in sorted(os.listdir(out_dir)) if f.startswith("b80-byterange") and f.endswith(".mp4")), None)
+        if br_file:
+            duration, kinds = streams_of(ffprobe, os.path.join(out_dir, br_file))
+            ok(f"字节切片：产物完整（{duration:.0f}s，音视频 {kinds}）",
                10 <= duration <= 14 and "video" in kinds and "audio" in kinds)
 
         # ---- 下载本身按研判走 ----

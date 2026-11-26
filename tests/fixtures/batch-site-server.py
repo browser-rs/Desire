@@ -95,6 +95,53 @@ def build_media():
     for stream in STREAMS:   # 每个流目录一个缩略图分片（真实站点有 thumb.ts 这类噪声）
         shutil.copy(os.path.join(ROOT, "hls", stream, "seg-000.ts"), os.path.join(ROOT, "hls", stream, "thumb.ts"))
     full = os.path.join(ROOT, "hls", "ccc", "index.m3u8")
+    # 24 个互不相同的分片（48 秒）：`long.m3u8` 是同一组重复 4 轮的合成列表（省空间），
+    # 但跨重启续传要按**分片地址**计数，重复地址会让计数失真——这里用真实形态。
+    uniq_dir = os.path.join(ROOT, "hls", "uniq")
+    os.makedirs(uniq_dir, exist_ok=True)
+    uniq_lines = ["#EXTM3U", "#EXT-X-VERSION:3", "#EXT-X-TARGETDURATION:6", "#EXT-X-PLAYLIST-TYPE:VOD"]
+    for n in range(24):
+        source = os.path.join(ROOT, "hls", "aaa", f"seg-{n % 6:03d}.ts")
+        shutil.copy(source, os.path.join(uniq_dir, f"seg-{n:03d}.ts"))
+        uniq_lines.append("#EXTINF:2.000000,")
+        uniq_lines.append(f"seg-{n:03d}.ts")
+    uniq_lines.append("#EXT-X-ENDLIST")
+    with open(os.path.join(uniq_dir, "index.m3u8"), "w", encoding="utf-8") as handle:
+        handle.write("\n".join(uniq_lines) + "\n")
+
+    # 直播（无 ENDLIST）：同一批分片，但播放列表不宣告结束——只导出当前可用分片。
+    live_dir = os.path.join(ROOT, "live")
+    os.makedirs(live_dir, exist_ok=True)
+    for name in os.listdir(os.path.join(ROOT, "hls", "aaa")):
+        shutil.copy(os.path.join(ROOT, "hls", "aaa", name), os.path.join(live_dir, name))
+    live_playlist = open(os.path.join(ROOT, "hls", "aaa", "index.m3u8"), encoding="utf-8").read()
+    with open(os.path.join(live_dir, "index.m3u8"), "w", encoding="utf-8") as handle:
+        handle.write(live_playlist.replace("#EXT-X-ENDLIST\n", "").replace("#EXT-X-ENDLIST", ""))
+
+    # 字节切片（EXT-X-BYTERANGE）：一个整文件 + 按区间切的三片——内置下载器不认这种形态，
+    # 有 ffmpeg 时必须走直连。
+    br_dir = os.path.join(ROOT, "byterange")
+    os.makedirs(br_dir, exist_ok=True)
+    source_playlist = open(os.path.join(ROOT, "hls", "aaa", "index.m3u8"), encoding="utf-8").read()
+    durations = [line[len("#EXTINF:"):].split(",")[0] for line in source_playlist.splitlines()
+                 if line.startswith("#EXTINF:")]
+    concat = b""
+    offsets = []
+    for n in range(6):
+        data = open(os.path.join(ROOT, "hls", "aaa", f"seg-{n:03d}.ts"), "rb").read()
+        offsets.append((len(concat), len(data)))
+        concat += data
+    with open(os.path.join(br_dir, "media.ts"), "wb") as handle:
+        handle.write(concat)
+    lines = ["#EXTM3U", "#EXT-X-VERSION:3", "#EXT-X-TARGETDURATION:6", "#EXT-X-PLAYLIST-TYPE:VOD"]
+    for n, (offset, length) in enumerate(offsets):
+        lines.append(f"#EXTINF:{durations[n] if n < len(durations) else '2.0'},")
+        lines.append(f"#EXT-X-BYTERANGE:{length}@{offset}")
+        lines.append("media.ts")
+    lines.append("#EXT-X-ENDLIST")
+    with open(os.path.join(br_dir, "index.m3u8"), "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+
     # 加密流（v0.8.77 修 7 回归）：AES-128，密钥文件名故意用 `key.ts`——ffmpeg 9 的扩展名
     # 安全检查会拒收非白名单扩展名的**密钥文件**（真实事故：本地合成因此失败，旧逻辑回退到
     # 远端重下整部片）。并发路径必须能本地合成出带音视频的完整 mp4。

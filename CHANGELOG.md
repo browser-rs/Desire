@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.78] - 2026-11-26
 ### Changed
 
 - 独立 Agent 窗口标题栏去掉了多余的侧栏开关（系统的 NavigationSplitView 已自带），让位给标题与状态。

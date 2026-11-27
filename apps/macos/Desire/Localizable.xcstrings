@@ -119741,6 +119741,226 @@
           }
         }
       }
+    },
+    "Passwords and cards, under your control":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Passwords and cards, under your control"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"密码与支付卡，由你掌控"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"密碼與支付卡，由你掌控"
+          }
+        }
+      }
+    },
+    "Export passwords as a password-protected archive, mark health findings handled or snooze them, and fill a saved payment card from the site menu. Card numbers stay in the keychain; the CVV is never stored.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Export passwords as a password-protected archive, mark health findings handled or snooze them, and fill a saved payment card from the site menu. Card numbers stay in the keychain; the CVV is never stored."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"密码可导出为口令保护的加密包；健康提示可标记已处理或稍后提醒；站点菜单可直接填充已保存的支付卡。卡号只存在钥匙串，CVV 永不存储。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"密碼可匯出為口令保護的加密包；健康提示可標記已處理或稍後提醒；站點選單可直接填充已儲存的支付卡。卡號只存在鑰匙串，CVV 永不儲存。"
+          }
+        }
+      }
+    },
+    "Tabs, at a glance":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Tabs, at a glance"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"标签，一眼看清"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"標籤，一眼看清"
+          }
+        }
+      }
+    },
+    "The tab overview now searches titles and URLs, filters by group, and can suspend or collapse a whole group without leaving the grid.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The tab overview now searches titles and URLs, filters by group, and can suspend or collapse a whole group without leaving the grid."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"标签概览支持按标题/网址搜索、按分组过滤，并可在网格里整组挂起或折叠。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"標籤概覽支援按標題/網址搜尋、按分組過濾，並可在網格裡整組掛起或摺疊。"
+          }
+        }
+      }
+    },
+    "A task board you can read":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"A task board you can read"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"看得懂的任务板"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"看得懂的任務板"
+          }
+        }
+      }
+    },
+    "See each task's next runs, open its recent run history, spot the failed step in a chain, and get a plain-language failure diagnosis with the action that makes sense.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"See each task's next runs, open its recent run history, spot the failed step in a chain, and get a plain-language failure diagnosis with the action that makes sense."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"查看每个任务的下一次运行、最近运行历史、链上失败步骤，以及用大白话写出的失败原因和下一步动作。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"查看每個任務的下一次執行、最近執行歷史、鏈上失敗步驟，以及用大白話寫出的失敗原因和下一步動作。"
+          }
+        }
+      }
+    },
+    "Phones and Macs agree":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Phones and Macs agree"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"手机和 Mac 对得上"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"手機和 Mac 對得上"
+          }
+        }
+      }
+    },
+    "Sync conflicts now show which entry lost and let you keep the local copy or the server copy for bookmarks, quick dials and reading list. The iPhone can make the same choice.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Sync conflicts now show which entry lost and let you keep the local copy or the server copy for bookmarks, quick dials and reading list. The iPhone can make the same choice."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"同步冲突会显示哪一条输给了服务端，并可对书签/快拨/阅读列表选择保留本地或服务端版本；iPhone 也能做同样的选择。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"同步衝突會顯示哪一條輸給了伺服器，並可對書籤/快撥/閱讀清單選擇保留本地或伺服器版本；iPhone 也能做同樣的選擇。"
+          }
+        }
+      }
+    },
+    "Fewer false alarms":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Fewer false alarms"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"少一点虚惊"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"少一點虛驚"
+          }
+        }
+      }
+    },
+    "Failed scheduled tasks offer Retry or Ignore right in the notification, batch and download time windows share one overview, and the release gate no longer treats a late token-usage update as a product failure.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Failed scheduled tasks offer Retry or Ignore right in the notification, batch and download time windows share one overview, and the release gate no longer treats a late token-usage update as a product failure."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"定时任务失败通知可直接 Retry/Ignore；批量与下载时段窗口在一个总览里；发版闸门不再把 token 用量的延迟落账当成产品失败。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"定時任務失敗通知可直接 Retry/Ignore；批量與下載時段視窗在一個總覽裡；發版閘門不再把 token 用量的延遲落帳當成產品失敗。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

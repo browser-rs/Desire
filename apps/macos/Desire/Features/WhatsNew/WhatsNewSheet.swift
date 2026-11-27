@@ -17,16 +17,16 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "magnifyingglass.circle", title: String(localized: "The everyday browser, finished"),
-                  detail: String(localized: "Find can match whole words; history can keep only the last N days; a tab group can be saved as a workspace; and the password health card opens the site that needs a new password.")),
-            .init(icon: "lock.shield", title: String(localized: "Accounts that can prove what happened"),
-                  detail: String(localized: "Signing out now revokes every refresh token on that device, password changes and revocations take effect immediately, recovery codes reset an account once, and an audit log records sign-ins, password changes and device revocations. Rate limits and sync quotas are shared across server instances.")),
-            .init(icon: "brain.head.profile", title: String(localized: "An agent you can see through"),
-                  detail: String(localized: "Missed weekly tasks catch up once on launch; prompt-cache prefix changes are explained in the trace; the approval card previews how many same-shape calls a batch will cover (max 8); revisions show a line diff and can be undone; spilled tool results have a searchable viewer.")),
-            .init(icon: "iphone.gen3", title: String(localized: "The phone can start the work too"),
-                  detail: String(localized: "Remote can open or duplicate tabs, filter and collapse groups, start a batch from a URL list with a time window, retry sync and clear conflict notes. Frame receipts now delete delivered rows instead of waiting for the next pull.")),
-            .init(icon: "arrow.triangle.branch", title: String(localized: "Chains and downloads that hand off"),
-                  detail: String(localized: "Task cards show the full chain, each step can set its own retry limit, and Continue reuses the previous step's successful output. A command template's finished output now feeds the next chained task. Ordinary downloads share the concurrency/time-window queue, and Settings search accepts pinyin initials.")),
+            .init(icon: "lock.keyhole", title: String(localized: "Passwords and cards, under your control"),
+                  detail: String(localized: "Export passwords as a password-protected archive, mark health findings handled or snooze them, and fill a saved payment card from the site menu. Card numbers stay in the keychain; the CVV is never stored.")),
+            .init(icon: "rectangle.stack", title: String(localized: "Tabs, at a glance"),
+                  detail: String(localized: "The tab overview now searches titles and URLs, filters by group, and can suspend or collapse a whole group without leaving the grid.")),
+            .init(icon: "calendar", title: String(localized: "A task board you can read"),
+                  detail: String(localized: "See each task's next runs, open its recent run history, spot the failed step in a chain, and get a plain-language failure diagnosis with the action that makes sense.")),
+            .init(icon: "arrow.triangle.2.circlepath", title: String(localized: "Phones and Macs agree"),
+                  detail: String(localized: "Sync conflicts now show which entry lost and let you keep the local copy or the server copy for bookmarks, quick dials and reading list. The iPhone can make the same choice.")),
+            .init(icon: "bell.badge", title: String(localized: "Fewer false alarms"),
+                  detail: String(localized: "Failed scheduled tasks offer Retry or Ignore right in the notification, batch and download time windows share one overview, and the release gate no longer treats a late token-usage update as a product failure.")),
         ]
     }
 

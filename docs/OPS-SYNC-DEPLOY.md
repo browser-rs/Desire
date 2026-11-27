@@ -63,3 +63,24 @@ curl -s https://api.mankong.icu/v9/metrics -H "Authorization: Bearer $DESIRE_API
 - excerpts 域：0.8.17+ 客户端（旧客户端不发该域，部署先后无影响）。
 - 多档案：0.8.18+ 客户端在**非默认档案**下才发 `@` 后缀域——默认档案用户
   完全不受部署影响（域键与存量一致）。
+
+## 本机容器验证记录（2026-11-28）
+
+前提：Apple `container` 的 `container-mysql`（127.0.0.1:3306）与 `container-redis`
+（127.0.0.1:6379）已运行；`desire` 库迁移前备份到
+`/tmp/desire-db-backup/desire-before-0021.sql`。
+
+1. **迁移 0019–0022**：`DATABASE_URL=… MIGRATIONS_DIR=crates/common/migrations ./scripts/migrate.sh`
+   → `migrations ok: db schema is up to date`；`_sqlx_migrations` 最高版本 22，
+   `audit_events`/`sync_user_storage`/`users.token_version`/`devices.token_version` 均存在。
+2. **API 镜像**：`./scripts/build-api.sh v0.8.82-verify arm64` 构建成功；
+   以容器内网地址（MySQL 192.168.64.4 / Redis 192.168.64.3）启动后
+   `/health` 返回 `db=true, redis=true`。
+3. **DB 级账号安全 E2E**：`python3 tests/api-db-e2e.py` → **15/15**（logout 吊销、
+   改密旧 access 401、当前设备 refresh 可续、恢复码一次性、全端吊销）。
+4. **镜像内 admin**：`container exec <api> /app/desire-admin user list` 正常输出。
+5. **migrate 镜像**：`./scripts/build-migrate.sh v0.8.82-verify arm64` 构建成功，
+   以同一 env 运行 → `migrations ok: db schema is up to date`。
+
+注意：本机验证使用 dev 库与 Apple container 网络；生产迁移仍需按本文顶部
+`desire-migrate` 单点执行，不能把本机结果当作生产部署已完成。

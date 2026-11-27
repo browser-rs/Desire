@@ -331,3 +331,9 @@ Mac/iOS 登出都通知服务端。配额与 TTL——push 在事务内 `FOR UPD
   history@ 表映射）；Mac/iOS Debug 构建零警告。**本机无 MySQL 服务**，迁移 0021 与 DB 级
   吊销/恢复/配额 E2E 未实跑——部署前在有库环境执行 `desire-migrate` 并跑一次登录→改密→
   refresh→恢复码流程。
+
+**收口（2026-11-27）**：WhatsNew 刷成本版亮点；i18n 新增键三语补齐（格式串校验 713 键全过）；
+AGENTS 补 API 会话/配额/可观测约定与 Debug/Release 分离纪律；`docker/Dockerfile.api` 把
+`desire-admin` 一并打进 `/app/desire-admin`；全量 `execution-e2e.py` 在**全新封闭数据目录**
+跑出 **ALL PASS（190 项）**；另做一次独立的 `-configuration Release clean build`（0 warning /
+0 error）。本机无 Docker daemon，镜像未实际构建；本机无 MySQL，DB 级迁移/吊销/配额 E2E 未实跑。

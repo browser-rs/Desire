@@ -1157,6 +1157,15 @@ Features/Bookmarks/
 构建，**零警告闸门** + 版本核对 + x86 架构校验。作用 = 每次 push 就发现编译/警告
 问题，而不是等到发版；失败会在 Actions 里附构建日志 artifact。
 
+**Debug / Release 的结论必须分开写（2026-11-27 用户当场要求）**：
+- E2E、桥探针、190 全量跑的是 **Debug** 构建；它们证明"应用行为"，不证明"发版构建"。
+- Release 只在发版闸门单独跑一次 `xcodebuild -configuration Release … clean build`；
+  Debug 零警告 **不等于** Release 零警告（`#if !DEBUG` 分支不编译）。
+- 全量 190 要用**全新 `--data-dir`**：同一实例连续跑会被上一次的站点缩放/标签/
+  阅读进度/审批等级污染基线（本版实测：重复跑出现 4 条假失败，换干净目录一次 ALL PASS）。
+- 本机没有 Docker/container daemon 时，`docker/Dockerfile.api` 的改动只能算"未构建验证"，
+  不能拿本地 Debug/Release 构建冒充镜像验证。
+
 **本地验证矩阵（2026-10-21 用户定调）**：每次发版 = `bash tests/run.sh`
 （40 秒）+ `python3 tests/release-smoke.py`（约 2 分钟，覆盖本版关键链路）
 + 按 CHANGELOG 验收项做桥/快照探针。**全量 `tests/execution-e2e.py` 只在改核心

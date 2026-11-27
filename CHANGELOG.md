@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- Docker：API 镜像内置 `/app/desire-admin`（原先只打 `desire-api`），运维可直接 `docker exec desire-api /app/desire-admin …`；部署文档补 0021 迁移与新命令。
+
 ### Security
 
 - API 账号安全：JWT 增加用户级/设备级 token 版本（改密、全设备吊销、登出、单设备吊销会立即让已签发的 access token 失效，不再等 2 小时）；改密吊销其它设备的 refresh token；新增一次性恢复码（`POST /auth/recovery-code` 生成、`POST /auth/recover` 重置）与账号安全审计（`GET /auth/audit`）；Mac/iOS 登出都会通知服务端吊销 refresh。迁移 `0021_session_versions_audit_quota.sql`。

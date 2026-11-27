@@ -34,6 +34,8 @@
 > - **文本缩放**：spike 结论为不做（无公开 API，CSS 注入只对部分页面生效）；
 >   记录 `docs/TEXT-ZOOM-SPIKE.md`。**iOS 改密**：决策为不做（缺 DEK 重包），
 >   记录 `docs/IOS-PASSWORD-DECISION.md`。
+> - **无障碍**：新控件标签已补（`docs/A11Y-AUDIT-0.8.82.md`）；逐视图 VoiceOver
+>   Inspector 走查仍未做。
 > - **部署验证（2026-11-28）**：本机 MySQL/Redis 容器上跑通 0019–0022 迁移、
 >   API/migrate 镜像构建、镜像内 `/app/desire-admin` 冒烟、`api-db-e2e` 15/15；
 >   记录见 `docs/OPS-SYNC-DEPLOY.md`。生产部署仍未做。E34–E38、无障碍仍未做。

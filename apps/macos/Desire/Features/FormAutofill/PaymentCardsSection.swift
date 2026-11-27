@@ -31,6 +31,7 @@ struct PaymentCardsSection: View {
                                 .foregroundStyle(.red)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel(String(localized: "Delete card"))
                         .help("Delete card")
                     }
                     SettingsRowDivider()
@@ -71,11 +72,14 @@ private struct AddPaymentCardSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
             TextField("Label (optional)", text: $label)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityLabel(String(localized: "Label (optional)"))
             TextField("Cardholder name", text: $holder)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityLabel(String(localized: "Cardholder name"))
             TextField("Card number", text: $number)
                 .textFieldStyle(.roundedBorder)
                 .font(.system(size: 12, design: .monospaced))
+                .accessibilityLabel(String(localized: "Card number"))
             HStack(spacing: 8) {
                 Stepper(value: $month, in: 1...12) {
                     Text(String(format: "Expiry month: %02d", month))

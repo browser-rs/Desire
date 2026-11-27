@@ -555,6 +555,7 @@ private struct AgentTaskCard: View {
                         .frame(width: 22, height: 22)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(String(localized: "Run history"))
                 .help(String(localized: "Run history"))
                 if let upstream = store.chainPredecessor(of: task.name) {
                     Button {

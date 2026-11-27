@@ -206,6 +206,7 @@ struct PasswordPanel: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(help)
         .help(help)
     }
 
@@ -407,9 +408,11 @@ private struct PasswordArchiveSheet: View {
                 .fixedSize(horizontal: false, vertical: true)
             SecureField(String(localized: "Archive password"), text: $password)
                 .textFieldStyle(.roundedBorder)
+                .accessibilityLabel(String(localized: "Archive password"))
             if prompt.isExport {
                 SecureField(String(localized: "Confirm password"), text: $confirmation)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel(String(localized: "Confirm password"))
             }
             if let errorText {
                 Text(errorText)

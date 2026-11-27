@@ -38,6 +38,17 @@ class ReadingListStore: ObservableObject {
         for id in ids { remove(id) }
     }
 
+    /// 冲突“采用本地”时恢复输掉的本地标题/URL（v0.8.83），同时盖新戳。
+    @discardableResult
+    func restoreForSync(id: UUID, title: String, url: String) -> Bool {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return false }
+        items[index].title = title
+        items[index].url = url
+        items[index].updatedAt = Date()
+        save()
+        return true
+    }
+
     /// 同步冲突“采用本地”（v0.8.82）：把该条目的 LWW 戳提到现在。
     @discardableResult
     func touchForSync(id: UUID) -> Bool {

@@ -766,6 +766,7 @@ struct SyncSettingsSection_Previews: PreviewProvider {
 private struct ConflictsSection: View {
     @ObservedObject var store: SyncStore
     @State private var shows = false
+    @State private var showsAudit = false
 
     var body: some View {
         SettingsSection(
@@ -784,9 +785,93 @@ private struct ConflictsSection: View {
                     SettingsCapsuleButton("Review", style: .secondary) { shows = true }
                 }
             }
+            SettingsRowDivider()
+            SettingsRow(
+                "Resolution History",
+                subtitle: store.conflictAudit.isEmpty
+                    ? String(localized: "No resolutions recorded yet.")
+                    : String(localized: "\(store.conflictAudit.count) resolution(s) recorded — newest first."),
+                systemImage: "clock.arrow.circlepath"
+            ) {
+                if !store.conflictAudit.isEmpty {
+                    SettingsCapsuleButton("Review", style: .secondary) { showsAudit = true }
+                }
+            }
         }
         .sheet(isPresented: $shows) {
             ConflictDetailsSheet(store: store) { shows = false }
+        }
+        .sheet(isPresented: $showsAudit) {
+            ConflictAuditSheet(store: store) { showsAudit = false }
+        }
+    }
+}
+
+/// 冲突解决审计（v0.8.83）：谁在什么时候把哪条冲突选了本地还是远端。
+private struct ConflictAuditSheet: View {
+    @ObservedObject var store: SyncStore
+    let onClose: () -> Void
+
+    private static let formatter: RelativeDateTimeFormatter = {
+        let formatter = RelativeDateTimeFormatter()
+        formatter.unitsStyle = .short
+        return formatter
+    }()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text(String(localized: "Resolution History"))
+                    .font(.headline)
+                Spacer()
+                Button(String(localized: "Clear")) {
+                    store.clearConflictAudit()
+                    onClose()
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                Button(String(localized: "Done")) { onClose() }
+                    .keyboardShortcut(.defaultAction)
+            }
+            Text("Every Use Local / Use Remote action, newest first. Entries record the item label only — never passwords or card numbers.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            List(store.conflictAudit) { entry in
+                HStack(spacing: 8) {
+                    Text(SyncDomain(rawValue: entry.domain)?.displayName ?? entry.domain)
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 72, alignment: .leading)
+                    Text(entry.label)
+                        .font(.system(size: 12.5))
+                        .lineLimit(1)
+                    Spacer(minLength: 6)
+                    Text(resolutionText(entry))
+                        .font(.caption2)
+                        .foregroundStyle(entry.result == "failed" ? .red : .secondary)
+                    Text(entry.deviceName)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                    Text(Self.formatter.localizedString(for: entry.at, relativeTo: Date()))
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .listStyle(.inset)
+        }
+        .padding(20)
+        .frame(width: 620, height: 420)
+    }
+
+    private func resolutionText(_ entry: SyncConflictAuditEntry) -> String {
+        switch entry.result {
+        case "failed":
+            return String(localized: "Use Local failed")
+        case "kept-remote":
+            return String(localized: "Kept remote")
+        default:
+            return String(localized: "Used local")
         }
     }
 }

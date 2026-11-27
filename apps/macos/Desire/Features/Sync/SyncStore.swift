@@ -212,6 +212,10 @@ final class SyncStore: ObservableObject {
            let decoded = try? JSONDecoder().decode([SyncConflictNote].self, from: data) {
             recentConflicts = decoded
         }
+        if let data = defaults.data(forKey: Self.conflictAuditKey),
+           let decoded = try? JSONDecoder().decode([SyncConflictAuditEntry].self, from: data) {
+            conflictAudit = decoded
+        }
         if let raw = defaults.data(forKey: Self.diagnosticsKey),
            let decoded = try? JSONDecoder().decode([String: SyncDomainDiag].self, from: raw) {
             diagnostics = Dictionary(uniqueKeysWithValues: decoded.compactMap { key, value in
@@ -927,6 +931,14 @@ final class SyncStore: ObservableObject {
     // MARK: - 冲突明细（v0.7.23）
 
     struct SyncConflictNote: Codable, Identifiable, Equatable {
+        /// 输掉 LWW 的**本地内容**快照（v0.8.83）：push 冲突时服务端胜者会
+        /// 立刻回写本机，若不先存一份，"采用本地"只会把胜者再推一遍。
+        struct LocalSnapshot: Codable, Equatable {
+            var title: String
+            var url: String?
+            var tags: [String]?
+        }
+
         var id: UUID
         var domain: String
         /// 解密后提取的可读标签；提取不出时退 client_id 短码。
@@ -934,6 +946,8 @@ final class SyncStore: ObservableObject {
         var at: Date
         /// 服务端 push 结果里的 client_id（v0.8.82）：用于回找本地条目。
         var clientID: String? = nil
+        /// 本地输掉的内容（旧记录没有；缺失时退回"只提戳"的旧行为）。
+        var local: LocalSnapshot? = nil
     }
 
     private static let conflictNotesKey = "sync.recentConflicts"
@@ -963,6 +977,25 @@ final class SyncStore: ObservableObject {
 
     /// 最近的本机 LWW 输掉的条目（新在前，上限 60，随 UserDefaults 持久化）。
     @Published private(set) var recentConflicts: [SyncConflictNote] = []
+    /// 冲突解决审计（v0.8.83）：最近 100 条动作，新在前。
+    @Published private(set) var conflictAudit: [SyncConflictAuditEntry] = []
+    private static let conflictAuditKey = "sync.conflictAudit"
+
+    func clearConflictAudit() {
+        conflictAudit = []
+        defaults.removeObject(forKey: Self.conflictAuditKey)
+    }
+
+    private func recordConflictAudit(_ note: SyncConflictNote, useLocal: Bool, result: String) {
+        conflictAudit.insert(
+            SyncConflictAuditEntry(
+                id: UUID(), at: Date(), domain: note.domain, label: note.label,
+                resolution: useLocal ? "local" : "remote", result: result,
+                deviceName: Host.current().localizedName ?? "Mac"),
+            at: 0)
+        conflictAudit = Array(conflictAudit.prefix(100))
+        defaults.set(try? JSONEncoder().encode(conflictAudit), forKey: Self.conflictAuditKey)
+    }
 
     func clearConflictNotes() {
         recentConflicts = []
@@ -980,6 +1013,20 @@ final class SyncStore: ObservableObject {
         supportsLocalResolution(note.domain) && note.clientID != nil
     }
 
+    /// E2E：清空各域拉取游标（下一次同步从头拉全量）。双设备测试在同一份
+    /// 隔离偏好上顺序启动，游标会互相继承；测试需要各自从头对账。
+    func resetCursorsForTesting() {
+        for domain in SyncDomain.allCases {
+            defaults.removeObject(forKey: "sync.cursor.\(domain.wireName(profileID: nil))")
+        }
+    }
+
+    /// E2E：模拟"启动首轮全脏"（离线设备的本地改动等待上推）。键链在封闭
+    /// 模式下异步就绪，自动首轮可能没跑到，测试需要显式把脏标记补齐。
+    func markAllDirtyForTesting() {
+        dirtyDomains = Set(SyncDomain.allCases)
+    }
+
     /// 冲突动作：useLocal = 把本地条目 LWW 戳提到现在并重推；false = 接受
     /// 服务端胜者（已在本机落地，只需移除记录）。返回 false = 无法定位本地条目。
     @discardableResult
@@ -994,7 +1041,32 @@ final class SyncStore: ObservableObject {
                   let clientID = note.clientID,
                   let master = masterKeyBase64,
                   let localID = localID(forClientID: clientID, domain: domain, master: master) else {
+                recordConflictAudit(note, useLocal: true, result: "failed")
                 return false
+            }
+            // 先恢复输掉的本地内容，再把 LWW 戳提到现在（只提戳会把服务端
+            // 胜者原样再推一遍——v0.8.83 修正）。
+            if let snapshot = note.local {
+                switch domain {
+                case .bookmarks:
+                    if var node = bookmarkStore.find(id: localID) {
+                        node.title = snapshot.title
+                        if let url = snapshot.url { node.url = url }
+                        node.tags = snapshot.tags
+                        bookmarkStore.update(node)
+                    }
+                case .quickDials:
+                    if let url = snapshot.url {
+                        quickDialStore.update(id: localID, title: snapshot.title, url: url)
+                    }
+                case .readingList:
+                    if let url = snapshot.url {
+                        readingListStore.restoreForSync(id: localID,
+                                                        title: snapshot.title, url: url)
+                    }
+                default:
+                    break
+                }
             }
             let touched: Bool
             switch domain {
@@ -1007,7 +1079,13 @@ final class SyncStore: ObservableObject {
             default:
                 touched = false
             }
-            guard touched else { return false }
+            guard touched else {
+                recordConflictAudit(note, useLocal: true, result: "failed")
+                return false
+            }
+            recordConflictAudit(note, useLocal: true, result: "applied")
+        } else {
+            recordConflictAudit(note, useLocal: false, result: "kept-remote")
         }
         recentConflicts.remove(at: index)
         defaults.set(try? JSONEncoder().encode(recentConflicts), forKey: Self.conflictNotesKey)
@@ -1036,10 +1114,40 @@ final class SyncStore: ObservableObject {
         }
     }
 
+    /// 冲突条目的本地内容快照（**必须在服务端胜者回写之前调用**）。
+    private func conflictLocalSnapshots(
+        domain: SyncDomain,
+        results: [SyncPushResult<SyncEncryptedPayload>],
+        master: String
+    ) -> [String: SyncConflictNote.LocalSnapshot] {
+        guard supportsLocalResolution(domain.rawValue) else { return [:] }
+        var snapshots: [String: SyncConflictNote.LocalSnapshot] = [:]
+        for result in results {
+            guard let localID = localID(forClientID: result.clientId,
+                                        domain: domain, master: master) else { continue }
+            switch domain {
+            case .bookmarks:
+                guard let node = bookmarkStore.find(id: localID) else { continue }
+                snapshots[result.clientId] = .init(title: node.title, url: node.url,
+                                                   tags: node.tags)
+            case .quickDials:
+                guard let dial = quickDialStore.dials.first(where: { $0.id == localID }) else { continue }
+                snapshots[result.clientId] = .init(title: dial.title, url: dial.url, tags: nil)
+            case .readingList:
+                guard let item = readingListStore.items.first(where: { $0.id == localID }) else { continue }
+                snapshots[result.clientId] = .init(title: item.title, url: item.url, tags: nil)
+            default:
+                break
+            }
+        }
+        return snapshots
+    }
+
     /// push conflict = 服务端胜者已落地：逐条解密胜者载荷提取可读标签。
     private func recordConflictNotes(domain: SyncDomain,
                                      results: [SyncPushResult<SyncEncryptedPayload>],
-                                     master: String) {
+                                     master: String,
+                                     localSnapshots: [String: SyncConflictNote.LocalSnapshot]) {
         var notes = recentConflicts
         for result in results {
             var label = String(result.clientId.suffix(8))
@@ -1051,7 +1159,8 @@ final class SyncStore: ObservableObject {
             }
             notes.insert(SyncConflictNote(id: UUID(), domain: domain.rawValue,
                                           label: label, at: Date(),
-                                          clientID: result.clientId), at: 0)
+                                          clientID: result.clientId,
+                                          local: localSnapshots[result.clientId]), at: 0)
         }
         recentConflicts = Array(notes.prefix(60))
         defaults.set(try? JSONEncoder().encode(recentConflicts), forKey: Self.conflictNotesKey)
@@ -1188,6 +1297,12 @@ final class SyncStore: ObservableObject {
                 }
                 adapter.commit()
                 let winners = pushResults.compactMap { $0.status == "conflict" ? $0.item : nil }
+                // **先拍本地快照再回写胜者**（v0.8.83）：胜者落地后本地内容就
+                // 变成服务端那份了，"采用本地"需要输掉的那一份才能重推。
+                let conflictedResults = pushResults.filter { $0.status == "conflict" }
+                let localSnapshots = conflictLocalSnapshots(domain: domain,
+                                                            results: conflictedResults,
+                                                            master: master)
                 applyRemotely {
                     if !winners.isEmpty { adapter.apply(winners, master) }
                     // applied 与 conflict 都代表"服务端已权威裁决"：applied 是本机赢了,
@@ -1195,9 +1310,9 @@ final class SyncStore: ObservableObject {
                     // 都该清掉——否则输掉 LWW 的删除会每周期重推一遍,永远 conflict。
                     adapter.clear(Set(pushResults.map(\.clientId)), master)
                 }
-                let conflictedResults = pushResults.filter { $0.status == "conflict" }
                 if !conflictedResults.isEmpty {
-                    recordConflictNotes(domain: domain, results: conflictedResults, master: master)
+                    recordConflictNotes(domain: domain, results: conflictedResults,
+                                        master: master, localSnapshots: localSnapshots)
                 }
                 // 诊断：pushed = 实发条数；conflict = LWW 输掉（服务端胜者回写）。
                 recordDiag(domain) { diag in

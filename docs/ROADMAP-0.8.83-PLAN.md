@@ -26,7 +26,10 @@
 > 续期、下载优先级 badge。批 2 全部落地——E34–E40（缓存前缀/审批预览/修订撤销/
 > 预算停机/补跑/通知动作/链失败恢复，61/61 全过）、通知动作与系统代理共用
 > `NotificationRouter.handleAction`、`launch-hermetic.sh --activate` 与
-> `tests/run-190.sh`（fresh+activate）。
+> `tests/run-190.sh`（fresh+activate）。批 3 主体落地——`sync-conflict-e2e.py`
+> 17/17（双 data-dir、Use Local/Remote、Remote 帧、审计收敛）、冲突审计与
+> `/sync/conflicts/audit`、冲突本地快照修复、服务端 MySQL 8.4 upsert 修复；
+> iOS 账号契约测试留待批 5。
 
 ## 存量收口（审计实锤，随批 1–5 修）
 

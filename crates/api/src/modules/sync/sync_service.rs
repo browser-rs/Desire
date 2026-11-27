@@ -541,8 +541,8 @@ async fn record_usage(
     "INSERT INTO sync_usage (user_id, day, domain, rows_written, bytes_written) \
      VALUES (?, CURDATE(), ?, ?, ?) AS new \
      ON DUPLICATE KEY UPDATE \
-       rows_written = rows_written + new.rows_written, \
-       bytes_written = bytes_written + new.bytes_written",
+       sync_usage.rows_written = sync_usage.rows_written + new.rows_written, \
+       sync_usage.bytes_written = sync_usage.bytes_written + new.bytes_written",
   )
   .bind(user_id)
   .bind(domain)

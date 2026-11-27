@@ -120369,6 +120369,167 @@
           }
         }
       }
+    },
+    "Resolution History": {
+      "comment": "Conflict audit section",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resolution History"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解决历史"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "解決歷史"
+          }
+        }
+      }
+    },
+    "No resolutions recorded yet.": {
+      "comment": "Conflict audit empty state",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No resolutions recorded yet."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "还没有解决记录。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "還沒有解決記錄。"
+          }
+        }
+      }
+    },
+    "%lld resolution(s) recorded — newest first.": {
+      "comment": "Conflict audit count",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld resolution(s) recorded — newest first."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已记录 %lld 条解决动作，最新在前。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "已記錄 %lld 條解決動作，最新在前。"
+          }
+        }
+      }
+    },
+    "Every Use Local / Use Remote action, newest first. Entries record the item label only — never passwords or card numbers.": {
+      "comment": "Conflict audit explainer",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Every Use Local / Use Remote action, newest first. Entries record the item label only — never passwords or card numbers."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次“采用本地/采用远端”动作，最新在前。记录只含条目标签，绝不含密码或卡号。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "每次「採用本機／採用遠端」動作，最新在前。記錄只含條目標籤，絕不含密碼或卡號。"
+          }
+        }
+      }
+    },
+    "Use Local failed": {
+      "comment": "Conflict audit result",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Local failed"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "采用本地失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "採用本機失敗"
+          }
+        }
+      }
+    },
+    "Kept remote": {
+      "comment": "Conflict audit result",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kept remote"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留远端"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保留遠端"
+          }
+        }
+      }
+    },
+    "Used local": {
+      "comment": "Conflict audit result",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Used local"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "采用本地"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "採用本機"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -1,9 +1,15 @@
 ## [Unreleased]
+### Fixed
+
+- 同步冲突修复（v0.8.83 批 3）：push 冲突时先保存“输掉的本地内容”快照再回写服务端胜者——“采用本地”此前只会把胜者原样再推一遍（书签/快拨/阅读列表均受影响）；服务端 `sync_usage` 的 upsert 在 MySQL 8.4 报 `Column 'rows_written' is ambiguous`（每次 push 500，本地 DB E2E 当场暴露），已给目标表列加限定。
+
 ### Added
 
 - 浏览器顺手四件（v0.8.83 批 1）：标签概览支持方向键/回车/空格/Esc 键盘导航与焦点环；支付卡支持编辑/续期（换卡号保留同一 id，原子重写 Keychain，CVV 仍不落盘）；下载行显示 High/Low 优先级标识（右键菜单原有）。
 - 工具栏可自定义（v0.8.83 批 1）：设置→工具栏可显示/隐藏主页、缩放、插件、同步状态与右侧一排按钮，右侧按钮还能上下排序；新增的书签/阅读列表/分享/标签概览/阅读器按钮默认隐藏，未改设置的用户布局与旧版一致。桥 `GET|POST /diag/toolbar` 读写布局供回归。
 - 评估与门禁闭环（v0.8.83 批 2）：`agent-eval.py` 新增 E34–E40——缓存前缀稳定、审批预览/批量上限、修订/撤销、预算停机、错过补跑、通知 Retry/Ignore 动作、任务链失败→Continue 恢复；全部固定假端点、桥级断言，`--only E34,…` 可单跑。通知动作与系统代理共用 `NotificationRouter.handleAction`，桥新增 `/notifications/simulate|action`。`tools/launch-hermetic.sh` 新增 `--activate`（启动即激活，首窗指标不再被后台启动污染），先 SIGTERM 开发实例再兜底强杀；`tests/run-190.sh` 统一 fresh+activate 入口。
+- 同步冲突可证明（v0.8.83 批 3）：新增 `tests/sync-conflict-e2e.py`（双 data-dir 顺序启动、同账号两台“设备”，需本机 API/DB，无环境明确 SKIP）覆盖 17 项——A 建书签→B 拉取改标题→A 重推触发两条冲突→手机 remote `syncConflict` 帧一条采用本地、一条采用远端→B 再拉收敛。冲突审计记录时间/域/标签/本地或远端/结果/设备名（保留 100 条），设置页可查看/清空，桥 `GET /sync/conflicts/audit`；桥新增 `/sync/cursors/reset`、`/sync/dirty/mark-all` 供双设备测试隔离继承的游标/脏标记。
+
 
 
 

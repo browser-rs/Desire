@@ -479,6 +479,7 @@ final class AutomationServer {
         ep("GET", "/bookmarks", "Bookmark leaves; ?tree=1 returns the folder tree with ids", example: "…/bookmarks?tree=1")
         ep("POST", "/bookmarks/add", "Add bookmark", params: ["title:string", "url:string"], example: #"-d '{"title":"X","url":"https://a.b"}'"#)
         ep("POST", "/bookmarks/remove", "Remove by URL or id (folder id removes its subtree)", params: ["url?:string", "id?:uuid"], example: "-d '{\"url\":\"https://a.b\"}'")
+        ep("POST", "/bookmarks/update", "Edit bookmark title/url/tags by id (stamps LWW for sync)", params: ["id:uuid", "title?:string", "url?:string", "tags?:[string]"], example: #"-d '{"id":"…","title":"New"}'"#)
         ep("POST", "/bookmarks/import", "Import Netscape-format bookmarks (html= or path=); duplicate plan + import; dryRun plans only, strategy=skipDuplicates|keepAll", params: ["html?/path?", "dryRun?", "strategy?"], example: #"-d '{"path":"/tmp/bm.html","dryRun":true}'"#)
         ep("GET", "/bookmarks/health", "Bookmark link check state (running/progress/dead/redirected)", example: "…/bookmarks/health")
         ep("POST", "/bookmarks/health/cleanup", "Remove bookmarked dead links after review (wizard equivalent; tombstones)", params: ["urls:[string]"], example: #"-d '{"urls":["https://dead.example"]}'"#)
@@ -525,9 +526,13 @@ final class AutomationServer {
         ep("GET", "/sync/conflicts", "Recent sync conflicts (entries where the server's LWW copy won; decrypted readable labels)", example: "…/sync/conflicts")
         ep("POST", "/sync/conflicts/resolve", "Resolve one conflict: useLocal=true pushes this Mac's copy again; false keeps the server winner", params: ["id:uuid", "useLocal:bool"], example: #"-d '{"id":"…","useLocal":true}"#)
         ep("POST", "/sync/conflicts/clear", "Clear the conflict-details ledger", example: "-d '{}'")
+        ep("GET", "/sync/conflicts/audit", "Conflict-resolution audit: time/domain/label/local-vs-remote/result/device (newest 100)", example: "…/sync/conflicts/audit")
+        ep("POST", "/sync/conflicts/audit/clear", "Clear the conflict-resolution audit", example: "-d '{}'")
         ep("GET", "/sync/status", "Cloud sync state (auth / syncing / lastSyncAt / lastError / per-domain cursors + pending tombstones)", example: "…/sync/status")
         ep("GET", "/sync/health", "Same-address duplicate detection for URL domains + per-domain local counts/tombstones/cursor presence (sync integrity, v0.8.65)", example: "…/sync/health")
         ep("POST", "/sync/now", "Run a full sync cycle (all domains), return resulting status", example: "-d '{}'")
+        ep("POST", "/sync/cursors/reset", "E2E: clear per-domain pull cursors so the next cycle fetches a full snapshot", example: "-d '{}'")
+        ep("POST", "/sync/dirty/mark-all", "E2E: mark every domain dirty (simulate the first sync after launch)", example: "-d '{}'")
         ep("POST", "/sync/login", "Sign in (then auto-sync at launch + every 5 min)", params: ["username:string", "password:string"], example: #"-d '{"username":"u","password":"p"}'"#)
         ep("POST", "/sync/register", "Create account + sign in", params: ["username:string", "password:string"], example: #"-d '{"username":"u","password":"p"}'"#)
         ep("POST", "/sync/logout", "Sign out on this device (server tokens revoked)", example: "-d '{}'")
@@ -2600,6 +2605,15 @@ case ("GET", "/state"):
                     return try Self.json(Self.removeBookmark(id: id))
                 }
                 return try Self.json(Self.removeBookmark(url: Self.string(body, "url") ?? ""))
+            case ("POST", "/bookmarks/update"):
+                guard let id = UUID(uuidString: Self.string(body, "id") ?? "") else {
+                    return try Self.json(["error": "missing/invalid id"])
+                }
+                return try Self.json(Self.updateBookmark(
+                    id: id,
+                    title: Self.string(body, "title"),
+                    url: Self.string(body, "url"),
+                    tags: body["tags"] as? [String]))
             case ("POST", "/bookmarks/import"):
                 return try Self.json(Self.importBookmarksBridge(
                     html: Self.string(body, "html"),
@@ -2835,10 +2849,21 @@ case ("GET", "/state"):
             case ("POST", "/sync/conflicts/clear"):
                 AppState.live?.syncStore.clearConflictNotes()
                 return try Self.json(Self.syncConflicts())
+            case ("GET", "/sync/conflicts/audit"):
+                return try Self.json(Self.syncConflictAudit())
+            case ("POST", "/sync/conflicts/audit/clear"):
+                AppState.live?.syncStore.clearConflictAudit()
+                return try Self.json(Self.syncConflictAudit())
             case ("GET", "/sync/status"):
                 return try Self.json(Self.syncStatus())
             case ("POST", "/sync/now"):
                 return try Self.json(await Self.syncNowBridge())
+            case ("POST", "/sync/cursors/reset"):
+                AppState.live?.syncStore.resetCursorsForTesting()
+                return try Self.json(["ok": true])
+            case ("POST", "/sync/dirty/mark-all"):
+                AppState.live?.syncStore.markAllDirtyForTesting()
+                return try Self.json(["ok": true])
             case ("POST", "/sync/login"):
                 return try Self.json(await Self.syncAuth(body, register: false))
             case ("POST", "/sync/register"):
@@ -8089,6 +8114,22 @@ case ("GET", "/agent/messages"):
         return ["ok": true, "count": app.bookmarkStore.leafEntries.count]
     }
 
+    /// 编辑书签（桥测试/自动化用）：只改传入的字段，store 负责盖 LWW 戳。
+    private static func updateBookmark(id: UUID, title: String?,
+                                       url: String?, tags: [String]?) -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard var node = app.bookmarkStore.find(id: id) else {
+            return ["error": "no such bookmark"]
+        }
+        if let title, !title.isEmpty { node.title = title }
+        if let url, !url.isEmpty { node.url = url }
+        if let tags { node.tags = tags }
+        app.bookmarkStore.update(node)
+        return ["ok": true, "id": id.uuidString,
+                "updatedAt": (app.bookmarkStore.find(id: id)?.updatedAt ?? Date())
+                    .timeIntervalSince1970]
+    }
+
     /// Removes a bookmark by URL (test cleanup). Live store — write-safe.
     private static func removeBookmark(id: UUID) throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
@@ -11939,9 +11980,21 @@ case ("GET", "/agent/messages"):
         let notes = store.recentConflicts.map { note in
             ["id": note.id.uuidString, "domain": note.domain,
              "label": note.label, "at": note.at.timeIntervalSince1970,
-             "canUseLocal": store.canResolveLocally(note)] as [String: Any]
+             "canUseLocal": store.canResolveLocally(note),
+             "hasLocal": note.local != nil] as [String: Any]
         }
         return ["ok": true, "count": notes.count, "conflicts": notes]
+    }
+
+    private static func syncConflictAudit() -> [String: Any] {
+        guard let store = AppState.live?.syncStore else { return ["error": "app state not ready"] }
+        let rows = store.conflictAudit.map { entry in
+            ["id": entry.id.uuidString, "at": entry.at.timeIntervalSince1970,
+             "domain": entry.domain, "label": entry.label,
+             "resolution": entry.resolution, "result": entry.result,
+             "deviceName": entry.deviceName] as [String: Any]
+        }
+        return ["ok": true, "count": rows.count, "audit": rows]
     }
 
     /// 周报状态（面板设置行的桥等价）。

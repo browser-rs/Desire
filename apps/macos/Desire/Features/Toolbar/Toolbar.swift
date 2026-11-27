@@ -61,6 +61,9 @@ struct Toolbar: View {
     }
 
     @ObservedObject var tab: Tab
+    /// 工具栏布局（v0.8.83）：显示/隐藏 + 右侧一排排序。私有且有默认值，
+    /// 不参与 memberwise init。
+    @ObservedObject private var toolbarLayout = ToolbarCustomizationStore.shared
     /// DPP 徽标用（自观察子视图 DPPBadge 消费；Toolbar 本体不观察它——
     /// pageProtocol 变化只影响徽标，不需要整个工具栏重绘）。
     let browserState: BrowserState
@@ -170,6 +173,8 @@ struct Toolbar: View {
     @State private var fontSheetHost = ""
     /// Cached bookmark-state for the current page, passed from the parent.
     let isBookmarked: Bool
+    /// 标签概览切换（v0.8.83 可选按钮；父视图传 ContentView 的 showTabOverview）。
+    var onToggleTabOverview: (() -> Void)? = nil
     /// Local editing buffer for the address field. Binding the field directly
     /// to `tab.urlString` (a `@Published` property observed by this view)
     /// created a feedback loop: each keystroke wrote `tab.urlString`, which
@@ -217,11 +222,13 @@ struct Toolbar: View {
         HStack(spacing: 12) {
             navGroup
             urlBarGroup
-            zoomButton
+            if toolbarLayout.isVisible(.zoom) { zoomButton }
             // Chrome 式扩展：固定的插件图标在拼图按钮左侧（缩放与 Agent 之间）。
             pinnedPluginsRow
-            extensionsButton
-            SyncStatusIndicator(store: syncStore)
+            if toolbarLayout.isVisible(.extensions) { extensionsButton }
+            if toolbarLayout.isVisible(.syncStatus) {
+                SyncStatusIndicator(store: syncStore)
+            }
             trailingButtons
         }
         .padding(.leading, 12)
@@ -328,7 +335,9 @@ struct Toolbar: View {
             CapsuleButton(systemName: tab.isLoading ? "xmark" : "arrow.clockwise", action: {
                 if tab.isLoading { tab.stopUserLoad() } else { actions.reload() }
             }, help: tab.isLoading ? "Stop" : "Reload")
-            CapsuleButton(systemName: "house", action: actions.loadHome, help: "Home")
+            if toolbarLayout.isVisible(.home) {
+                CapsuleButton(systemName: "house", action: actions.loadHome, help: "Home")
+            }
         }
         .padding(.horizontal, 10)
         .frame(height: 30)
@@ -924,9 +933,12 @@ struct Toolbar: View {
         }
     }
 
-    private var trailingButtons: some View {
-        HStack(spacing: 6) {
-            DPPBadge(state: browserState, accent: appAccent)
+    /// 右侧一排的可选按钮（v0.8.83）：顺序来自 `toolbarLayout`，默认值
+    /// 与旧布局一致（Agent → DevTools → Downloads）。
+    @ViewBuilder
+    private func optionalButton(_ item: ToolbarItem) -> some View {
+        switch item {
+        case .agent:
             Button { actions.toggleAgentFloatingPanel() } label: {
                 Image(systemName: "wand.and.stars")
                     .font(.system(size: 12))
@@ -937,6 +949,7 @@ struct Toolbar: View {
             .help("Agent (Floating Window)")
             .accessibilityLabel(Text("Agent (Floating Window)"))
 
+        case .devTools:
             Button { actions.toggleDevTools() } label: {
                 Image(systemName: "ladybug")
                     .font(.system(size: 12))
@@ -948,7 +961,57 @@ struct Toolbar: View {
             .help("Developer Tools")
             .accessibilityLabel(Text("Developer Tools"))
 
-            DownloadButton(store: downloadStore, showDownloads: $downloadsPresentation.isPresented)
+        case .downloads:
+            DownloadButton(store: downloadStore,
+                           showDownloads: $downloadsPresentation.isPresented)
+
+        case .bookmarks:
+            optionalIconButton("bookmark", label: "Bookmarks") { showBookmarks = true }
+
+        case .readingList:
+            optionalIconButton("text.book.closed", label: "Reading List") {
+                showReadingList = true
+            }
+
+        case .share:
+            optionalIconButton("square.and.arrow.up", label: "Share") {
+                shareCurrentPage()
+            }
+
+        case .reader:
+            optionalIconButton("book", label: "Reader") { actions.toggleReader() }
+
+        case .tabOverview:
+            if let onToggleTabOverview {
+                optionalIconButton("square.grid.2x2", label: "Tab Overview") {
+                    onToggleTabOverview()
+                }
+            }
+
+        case .home, .zoom, .extensions, .syncStatus:
+            EmptyView()
+        }
+    }
+
+    private func optionalIconButton(_ systemName: String, label: String,
+                                    action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 12))
+                .frame(width: 24, height: 24)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(Text(LocalizedStringKey(label)))
+        .accessibilityLabel(Text(LocalizedStringKey(label)))
+    }
+
+    private var trailingButtons: some View {
+        HStack(spacing: 6) {
+            DPPBadge(state: browserState, accent: appAccent)
+            ForEach(toolbarLayout.visibleOrder()) { item in
+                optionalButton(item)
+            }
 
             Button {
                 showMoreMenu = true

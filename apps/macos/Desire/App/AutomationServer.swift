@@ -436,6 +436,8 @@ final class AutomationServer {
         ep("POST", "/whatsnew/reset", "Forget the seen marker (testing/replay)", example: "-d '{}'")
         ep("GET", "/windows", "Visible app windows (title/size) — popup windows included; E2E for new-window rules", example: "…/windows")
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
+        ep("GET", "/diag/toolbar", "Toolbar layout: item order, hidden items and the effective right-side order", example: "…/diag/toolbar")
+        ep("POST", "/diag/toolbar", "E2E: set toolbar order/hidden items, or reset to defaults", params: ["order?:array", "hidden?:array", "reset?:bool"], example: #"-d '{"hidden":["agent"]}'"#)
         ep("GET", "/diag/browser", "Browser diagnostics: content-process crash count + recent crashes", example: "…/diag/browser")
         ep("POST", "/diag/screen-lock", "E2E: override the screen-lock flag (locked bool; omit to restore the system value)", params: ["locked?:bool"], example: #"-d '{"locked":true}'"#)
         ep("GET", "/diag/storage", "Storage health by domain (conversations/archives/sessions/translation caches/batch logs/spills/resume) with retention settings", example: "…/diag/storage")
@@ -719,7 +721,7 @@ final class AutomationServer {
         ep("GET", "/media/probe", "Assess a media/stream URL without downloading (read-only): facts, the method the built-in engine will use and why, measured single- vs multi-connection speed of the first segments, ETA", params: ["url:string", "connections?:int (1-32)"], example: "…/media/probe?url=https%3A%2F%2Fexample.com%2Fa%2Findex.m3u8")
         ep("POST", "/media/exports/cancel", "Cancel a running media export", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("POST", "/media/batch", "Batch video download: mode=page queues every stream sniffed on the tab; mode=list resolves each detail-page URL in a hidden browser (serialized, Cloudflare-aware)", params: ["mode:page|list", "urls?:[string] (mode=list)", "folderName?:string", "index?:int (mode=page)", "windowStart?:string(HH:mm)", "windowEnd?:string", "maxMinutes?:int", "maxConcurrent?:int"], example: #"-d '{"mode":"list","urls":["https://…/v1","https://…/v2"],"folderName":"demo"}'"#)
-        ep("POST", "/settings/section", "Select the settings window section (automation; also opens the settings window)", params: ["section:string (general|ai|sync|remote|privacy|autofill|keyboardShortcuts|batchDownloads)"], example: #"-d '{"section":"batchDownloads"}'"#)
+        ep("POST", "/settings/section", "Select the settings window section (automation; also opens the settings window)", params: ["section:string (general|ai|sync|remote|privacy|autofill|toolbar|keyboardShortcuts|batchDownloads)"], example: #"-d '{"section":"batchDownloads"}'"#)
         ep("GET", "/settings/search", "Search the settings catalog (section/title/subtitle/keywords); returns section raw values", params: ["q:string", "limit?:int"], example: "…/settings/search?q=sync")
         ep("GET", "/research", "Ranked local research sources (current page/open tabs/page-text index/history/reading list/bookmarks) with citation numbers", params: ["q:string", "limit?:int", "scope?:all|tabs|history"], example: "…/research?q=quantum%20cookware")
         ep("GET", "/documents/research", "Cited passages across documents in a folder (default: agent workspace); supports docx/pdf/xlsx/csv/txt/html", params: ["q:string", "folder?:string", "limit?:int"], example: "…/documents/research?q=budget")
@@ -1089,6 +1091,20 @@ case ("GET", "/state"):
                 return try Self.json(["ok": true, "windows": windows])
             case ("GET", "/diag/geometry"):
                 return try Self.json(Self.geometry(index: Self.index(query)))
+            case ("GET", "/diag/toolbar"):
+                return try Self.json(ToolbarCustomizationStore.shared.diagnostics())
+            case ("POST", "/diag/toolbar"):
+                let layoutStore = ToolbarCustomizationStore.shared
+                if body["reset"] as? Bool == true {
+                    layoutStore.reset()
+                }
+                if let rawOrder = body["order"] as? [String] {
+                    layoutStore.setOrder(rawOrder.compactMap(ToolbarItem.init(rawValue:)))
+                }
+                if let rawHidden = body["hidden"] as? [String] {
+                    layoutStore.setHidden(Set(rawHidden.compactMap(ToolbarItem.init(rawValue:))))
+                }
+                return try Self.json(layoutStore.diagnostics())
             case ("GET", "/diag/health"):
                 return try Self.json(RuntimeHealthMonitor.shared.healthSummary(preference: AppState.live?.aiPreference))
             case ("POST", "/diag/screen-lock"):

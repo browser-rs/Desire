@@ -217,7 +217,8 @@ extension ContentView {
             formAutofillStore: appState.formAutofillStore,
             globalAutoPlay: settings.autoPlayPolicy,
             blockedElementCount: host.map { elementBlockStore.matchingRules(for: $0).count },
-            isBookmarked: isBookmarked
+            isBookmarked: isBookmarked,
+            onToggleTabOverview: { showTabOverview.toggle() }
         )
     }
 }

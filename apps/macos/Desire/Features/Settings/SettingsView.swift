@@ -33,6 +33,7 @@ struct SettingsView: View {
         case remote
         case privacy
         case autofill
+        case toolbar
         case keyboardShortcuts
         case batchDownloads
         case search
@@ -55,6 +56,7 @@ struct SettingsView: View {
             case .remote: "iphone"
             case .privacy: "hand.raised"
             case .autofill: "doc.text.fill"
+            case .toolbar: "slider.horizontal.3"
             case .keyboardShortcuts: "keyboard"
             case .batchDownloads: "square.stack.3d.up"
             case .search: "text.magnifyingglass"
@@ -75,6 +77,7 @@ struct SettingsView: View {
             case .remote: "Remote"
             case .privacy: "Privacy"
             case .autofill: "Autofill"
+            case .toolbar: "Toolbar"
             case .keyboardShortcuts: "Keyboard Shortcuts"
             case .batchDownloads: "Batch Downloads"
             case .search: "Search & Index"
@@ -256,6 +259,8 @@ struct SettingsView: View {
             )
         case .autofill:
             FormAutofillSettingsView(store: formAutofillStore)
+        case .toolbar:
+            ToolbarSettingsSection()
         case .keyboardShortcuts:
             KeyboardShortcutsEditorView(store: shortcutStore)
         case .batchDownloads:

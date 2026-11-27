@@ -12,6 +12,17 @@ nonisolated enum TaskFailureClassify {
         case toolError    // 工具执行失败（看轨迹）
         case other
 
+        var title: String {
+            switch self {
+            case .network: return String(localized: "Network / timeout")
+            case .approval: return String(localized: "Waiting for approval")
+            case .model: return String(localized: "Model service")
+            case .context: return String(localized: "Context budget")
+            case .toolError: return String(localized: "Tool failure")
+            case .other: return String(localized: "Other failure")
+            }
+        }
+
         var hint: String {
             switch self {
             case .network: return String(localized: "Transient — the automatic retry may succeed")

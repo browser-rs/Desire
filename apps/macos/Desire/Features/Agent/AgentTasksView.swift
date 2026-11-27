@@ -469,6 +469,16 @@ private struct AgentTaskCard: View {
     let task: AgentScheduler.ScheduledTask
     @State private var showRuns = false
 
+    /// 最近一次失败（v0.8.82 批 4）：类别 + 指引，替代只有一行 lastResult。
+    private var lastFailure: (category: TaskFailureClassify.Category, message: String)? {
+        guard let run = store.runs.first(where: { $0.taskName == task.name }),
+              run.success == false || run.status == "failed" || run.status == "missed" else {
+            return nil
+        }
+        let message = run.error ?? task.lastResult ?? ""
+        return (TaskFailureClassify.classify(message), message)
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack(spacing: 8) {
@@ -571,6 +581,23 @@ private struct AgentTaskCard: View {
                     }
                 }
                 .help("Full chain from this step")
+            }
+
+            if let failure = lastFailure, !failure.message.isEmpty {
+                HStack(alignment: .top, spacing: 5) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.red)
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(failure.category.title)
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .foregroundStyle(.red)
+                        Text(failure.category.hint)
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(2)
+                    }
+                }
             }
 
             HStack(spacing: 6) {

@@ -42,7 +42,11 @@ for arg in "$@"; do
     --activate) ACTIVATE=1 ;;
     --fresh) DATA="$(mktemp -d /tmp/desire-e2e-XXXXXX)"; FRESH=1 ;;
     --data-dir) EXPECT_DATA=1 ;;
-    -*) ;;
+    -h|--help)
+      sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    -*) echo "unknown option: $arg" >&2; exit 2 ;;
     *) [ -z "$DATA" ] && DATA="$arg" ;;
   esac
 done

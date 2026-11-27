@@ -222,6 +222,9 @@ struct SettingsToggleRow: View {
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.small)
+                // 开关本身没有可见文字，VoiceOver 必须拿到行标题——否则整个
+                // 设置页的开关都读成“复选框”（2026-11-28 AX 树走查实锤）。
+                .accessibilityLabel(Text(localizedSettingText(title)))
         }
     }
 }

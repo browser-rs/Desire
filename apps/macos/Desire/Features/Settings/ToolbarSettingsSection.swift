@@ -31,7 +31,7 @@ struct ToolbarSettingsSection: View {
                                 }
                                 .buttonStyle(.plain)
                                 .disabled(store.order.first == item)
-                                .accessibilityLabel(Text("Move \(item.title) up"))
+                                .accessibilityLabel(Text(String(format: String(localized: "Move %@ up"), localizedSettingText(item.title))))
 
                                 Button {
                                     store.moveDown(item)
@@ -41,13 +41,13 @@ struct ToolbarSettingsSection: View {
                                 }
                                 .buttonStyle(.plain)
                                 .disabled(store.order.last == item)
-                                .accessibilityLabel(Text("Move \(item.title) down"))
+                                .accessibilityLabel(Text(String(format: String(localized: "Move %@ down"), localizedSettingText(item.title))))
 
                                 Toggle("", isOn: visibleBinding(for: item))
                                     .labelsHidden()
                                     .toggleStyle(.switch)
                                     .controlSize(.small)
-                                    .accessibilityLabel(Text(item.title))
+                                    .accessibilityLabel(Text(localizedSettingText(item.title)))
                             }
                         }
                         SettingsRowDivider()

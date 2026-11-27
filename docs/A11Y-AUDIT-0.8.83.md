@@ -8,13 +8,29 @@
 
 | 界面 | 静态标签 | VoiceOver 手动 |
 |------|----------|----------------|
-| 工具栏设置（显示/隐藏/排序） | 每行标题 + 上移/下移按钮 `Move … up/down`；开关有 `item.title` | 待走查 |
+| 工具栏设置（显示/隐藏/排序） | 每行标题 + 上移/下移按钮（本地化标题）；开关有 `item.title` | **AX 树已走查** |
 | 标签概览键盘焦点 | 焦点环 + 方向键/回车/空格/Esc；瓦片沿用标题 | 待走查 |
-| 支付卡编辑 Sheet | 每个字段有 `accessibilityLabel`；保存/取消沿用系统按钮 | 待走查 |
+| 支付卡编辑 Sheet | 每个字段有 `accessibilityLabel`；保存/取消沿用系统按钮 | **AX 树已走查** |
 | 同步冲突审计 Sheet | 列表行合并读出域/标签/选择/结果/设备/时间 | 待走查 |
-| 值守周视图 | 每个日卡合并为一个元素（星期/日期/条数/拥挤/重叠/前 5 项）；冲突行本身可读 | 待走查 |
+| 值守周视图 | 每个日卡合并为一个元素（星期/日期/条数/拥挤/重叠/前 5 项）；冲突行本身可读 | **AX 树已走查** |
 | 通知 Retry/Ignore | 系统通知动作自带标签（Retry/Ignore） | 系统级，待真机 |
-| 深链 `desire://settings/security` | 别名到隐私分区（权限中心） | 待走查 |
+| 深链 `desire://settings/security` | 别名到隐私分区（权限中心） | **E2E 已验证** |
+
+## 2026-11-28 AX 树实机走查（工具 `tools/axdump.swift`）
+
+逐窗口 dump AX 树（与 VoiceOver 读的是同一棵无障碍树）后抓到并修掉：
+
+1. **设置页所有 `SettingsToggleRow` 的开关都没有名字**（AX 只报“复选框”）——
+   在组件层统一加 `accessibilityLabel(row title)`，工具栏 4 个固定开关与全设置页的
+   开关同时获得可读名称。
+2. **工具栏排序按钮中英混杂**（“上移‘Developer Tools’”）：改用 `localizedSettingText(item.title)`，
+   现在读“上移‘开发者工具’”。
+3. **周视图日卡的 help 把每个条目重复读两遍**（`.help` 与合并元素叠加）：
+   删掉逐条 help，保留日卡合并 label（星期/日期/条数/前 5 项）。
+4. **任务卡启用开关没有名字**：补 `accessibilityLabel(task.name)`。
+5. 支付卡 Sheet 三个输入框/取消/保存都有名字；月份步进器用目录里的
+   “有效期月份：%02d”（代码改为走 `String(localized:)`）。
+6. 深链 `desire://settings/security` 实测打开设置 → 隐私分区（Cookie/权限内容可见）。
 
 ## 已做的静态修正
 

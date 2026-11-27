@@ -320,6 +320,9 @@ Features/Bookmarks/
   按钮零反应；9 月的success案例都在 OS 升级前），键盘注入未复测别依赖。替代：
   **AXUIElement 直按**（`tools/axpress.swift <pid> <按钮名>`，走无障碍树
   AXPress，不需要坐标、不碰光标、授权用终端已有的辅助功能权限即可）；
+  要看一棵窗口的完整无障碍树（VoiceOver 读什么就查什么）用
+  `tools/axdump.swift <pid> <窗口标题子串|#index> [maxDepth]`——2026-11-28 用它
+  抓到设置页开关全部无名、工具栏排序中英混杂、周视图 help 重复两遍；
   胶囊实际矩形可从 `log stream --predicate
   'subsystem == "me.siwi.Desire" AND category == "tabs"' --level info`
   的 middle-click 日志里读到。`/downloads/pause|resume` 端点可直接

@@ -110,7 +110,7 @@ private struct PaymentCardEditorSheet: View {
                 .accessibilityLabel(String(localized: "Card number"))
             HStack(spacing: 8) {
                 Stepper(value: $month, in: 1...12) {
-                    Text(String(format: "Expiry month: %02d", month))
+                    Text(String(format: String(localized: "Expiry month: %02d"), month))
                 }
                 Stepper(value: $year,
                         in: Calendar.current.component(.year, from: Date())...(Calendar.current.component(.year, from: Date()) + 20)) {

@@ -138,7 +138,6 @@ struct AgentTasksView: View {
                                 .foregroundStyle(.tertiary)
                         }
                     }
-                    .help("\(entry.label) · \(Self.clockFormatter.string(from: entry.start))–\(Self.clockFormatter.string(from: entry.end))")
                 }
                 if day.entries.count > 5 {
                     Text(String(localized: "+\(day.entries.count - 5) more"))
@@ -660,6 +659,7 @@ private struct AgentTaskCard: View {
                 ))
                 .labelsHidden()
                 .scaleEffect(0.8, anchor: .leading)
+                .accessibilityLabel(Text(task.name))
                 Text(task.name)
                     .font(.system(size: 12.5, weight: .semibold))
                     .lineLimit(1)

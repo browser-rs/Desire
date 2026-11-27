@@ -6,6 +6,8 @@
 ### Fixed
 
 - 同步冲突修复（v0.8.83 批 3）：push 冲突时先保存“输掉的本地内容”快照再回写服务端胜者——“采用本地”此前只会把胜者原样再推一遍（书签/快拨/阅读列表均受影响）；服务端 `sync_usage` 的 upsert 在 MySQL 8.4 报 `Column 'rows_written' is ambiguous`（每次 push 500，本地 DB E2E 当场暴露），已给目标表列加限定。
+- 无障碍 AX 走查（v0.8.83 批 5）：用新增 `tools/axdump.swift` 逐窗口 dump 无障碍树，修掉设置页所有开关无名（VoiceOver 只读“复选框”）、工具栏排序按钮中英混杂、周视图日卡每项重复读两遍、任务卡启用开关无名；支付卡月份步进器改走本地化；`desire://settings/security` 实测打开隐私分区。
+
 
 ### Added
 

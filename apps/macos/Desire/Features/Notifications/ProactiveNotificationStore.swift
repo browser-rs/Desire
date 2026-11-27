@@ -175,8 +175,16 @@ final class ProactiveNotificationStore: ObservableObject {
         let jobCategory = UNNotificationCategory(
             identifier: "JOB_COMPLETE", actions: [openResult, showJobs],
             intentIdentifiers: [], options: [])
+        // 定时任务失败（v0.8.82）：重试 / 忽略。
+        let retry = UNNotificationAction(identifier: "RETRY_TASK", title: "Retry",
+                                         options: [.foreground])
+        let ignore = UNNotificationAction(identifier: "IGNORE_TASK", title: "Ignore",
+                                          options: [])
+        let taskCategory = UNNotificationCategory(
+            identifier: "SCHEDULED_TASK_FAILED", actions: [retry, ignore],
+            intentIdentifiers: [], options: [])
         UNUserNotificationCenter.current().setNotificationCategories(
-            [downloadCategory, jobCategory])
+            [downloadCategory, jobCategory, taskCategory])
     }
 
     /// 后台任务完成通知（v0.8.39）：沿用 routine 的免打扰/预算闸，失败 urgent。
@@ -259,6 +267,40 @@ final class ProactiveNotificationStore: ObservableObject {
         content.userInfo = ["deepLink": "downloads", "filePath": filePath]
         center.add(UNNotificationRequest(
             identifier: "desire.download.\(UUID().uuidString)", content: content, trigger: nil))
+    }
+
+    /// 定时任务失败通知（v0.8.82）：带 Retry/Ignore 动作；urgent 档，
+    /// 锁屏时仍进摘要（与 deliver 同口径）。
+    func deliverTaskFailure(title: String, body: String, taskName: String) {
+        if SessionGuard.isScreenLocked() {
+            hold(title: title, body: body)
+            return
+        }
+        Self.registerCategoriesIfNeeded()
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .authorized, .provisional:
+                Self.postTask(title: title, body: body, taskName: taskName)
+            case .notDetermined:
+                UNUserNotificationCenter.current().requestAuthorization(options: [.alert]) { granted, _ in
+                    guard granted else { return }
+                    Self.postTask(title: title, body: body, taskName: taskName)
+                }
+            default:
+                break
+            }
+        }
+    }
+
+    private nonisolated static func postTask(title: String, body: String, taskName: String) {
+        let content = UNMutableNotificationContent()
+        content.title = title
+        content.body = body
+        content.sound = .default
+        content.categoryIdentifier = "SCHEDULED_TASK_FAILED"
+        content.userInfo = ["deepLink": "agent", "taskName": taskName]
+        UNUserNotificationCenter.current().add(UNNotificationRequest(
+            identifier: "desire.task.\(UUID().uuidString)", content: content, trigger: nil))
     }
 
     private static func minutesNow() -> Int {

@@ -34,6 +34,8 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         let isAgent = identifier.hasPrefix("desire.agent.")
         let isDownload = identifier.hasPrefix("desire.download.")
         let isJob = identifier.hasPrefix("desire.job.")
+        let isTask = identifier.hasPrefix("desire.task.")
+        let taskName = userInfo["taskName"] as? String
         let url = userInfo["url"] as? String
         let filePath = userInfo["filePath"] as? String ?? ""
         let artifact = userInfo["artifact"] as? String ?? ""
@@ -52,6 +54,12 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
                 } else {
                     // 普通点击已在 activate(ignoringOtherApps:) 激活应用——
                     // 用户可从工具栏打开下载面板。
+                }
+            } else if isTask {
+                if actionID == "RETRY_TASK", let taskName, !taskName.isEmpty {
+                    _ = AgentScheduler.shared.fireNow(named: taskName)
+                } else {
+                    Self.ensureAgentPanel()
                 }
             } else if isJob {
                 if actionID == "OPEN_JOB_RESULT", !artifact.isEmpty {

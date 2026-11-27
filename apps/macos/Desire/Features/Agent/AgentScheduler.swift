@@ -561,10 +561,10 @@ final class AgentScheduler: ObservableObject {
     private func notifyRunFailure(_ record: RunRecord) {
         // 诊断卡（v0.8.19 替人干活 11）：错误分类 + 指引一行进通知。
         let diagnosis = TaskFailureClassify.diagnosisLine(record.error)
-        ProactiveNotificationStore.shared.deliver(
+        ProactiveNotificationStore.shared.deliverTaskFailure(
             title: String(localized: "Scheduled task failed"),
             body: "\(record.taskName): \(record.error ?? "unknown error")\n\(diagnosis)",
-            tier: .urgent)
+            taskName: record.taskName)
         BridgeEventBus.shared.publish("scheduledTaskFailed", [
             "task": record.taskName,
             "error": record.error ?? "",

@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.80] - 2026-11-27
 ### Changed
 
 - Docker：API 镜像内置 `/app/desire-admin`（原先只打 `desire-api`），运维可直接 `docker exec desire-api /app/desire-admin …`；部署文档补 0021 迁移与新命令。

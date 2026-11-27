@@ -1126,6 +1126,27 @@ Features/Bookmarks/
 
 - **本地化格式串的参数顺序必须与英文一致**（v0.8.79 冒烟当场逮到的崩溃）：`String(format: String(localized: "%@…%@…%lld…"))` 的译文把格式符顺序换了（实测摘要的中文把第二个 `%@` 写成 `%lld`）→ 运行时把 Int 当对象发给 objc_msgSend，主线程 SIGSEGV。翻译可以改措辞，不能改格式符的顺序/类型；`tests/check-localized-formats.py` 已接入 `tests/run.sh`（700 个键，顺序不一致即失败）。
 
+## API 会话/配额/可观测（v0.8.80）
+
+- **token 版本是会话失效的唯一真相**：`users.token_version`（改密/全设备吊销）与
+  `devices.token_version`（登出/单设备吊销）都进 JWT（`ver` / `dev` / `dver`），
+  `jwt_auth` 每个请求核对；不要再用"等 access token 2 小时自然过期"解释吊销延迟。
+  改密只保留当前设备的 refresh token，其它设备全部吊销；旧 token（无版本字段）
+  按 0 处理，迁移后仍可用到过期。
+- **恢复码**：`POST /auth/recovery-code` 登录态生成（只返回一次，库里只存 bcrypt），
+  `POST /auth/recover` 公开重置；成功后 token 版本 +1、全部 refresh 吊销、恢复码作废。
+- **审计**：`audit_events` 记录 register/login/logout/password_changed/device_revoked/
+  recover/recovered 等；`GET /auth/audit` 给自己看，`desire-admin user audit` 给运维看。
+- **配额原子化**：push 在同一事务里 `INSERT IGNORE sync_quota_daily` → `SELECT … FOR UPDATE`
+  → 预留/更新，再写业务行与 `sync_usage`；不要再加"先查后写"的配额检查。
+- **S8**：`table_for` 把 `history@<profile>` 也映射到 `sync_history_items`（0021 已把该表
+  domain 加宽到 64 并搬迁旧行）；通用 GC 还会扫 `sync_items` 里出现的档案后缀域。
+- **迁移 0021**：部署前必须跑 `desire-migrate`（新增 token_version/recovery_hash、审计表、
+  配额表、历史表加宽与搬迁）。本机没有 MySQL 时只能 `cargo test`，不要宣称 DB E2E 已过。
+- **可观测**：`/metrics` 有延迟直方图（`desire_api_request_duration_ms_bucket/_sum/_count`）
+  与 `desire_api_ws_connections`；WS 每用户 8 条上限、60s 重验证。访问日志在 `jwt_auth`
+  里补 `user_id`（`request_context` 在外层拿不到 claims）。
+
 ## 发布流程（2026-10-21 定稿：CI 与本地同编译器，云端构建全绿才建 tag）
 
 **关键事实**：GitHub 的 `xcode-27` 镜像里装着 **Xcode 27.1 (27A9275)**，与本机

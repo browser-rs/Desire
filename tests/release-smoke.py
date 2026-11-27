@@ -473,6 +473,34 @@ def main():
         else:
             print("△ 适配器导出探针跳过（非封闭实例：适配器目录属于用户数据）")
 
+        # 8) v0.8.80：权限中心/存储/预算/Doctor/Remote 控制帧
+        try:
+            perms = br("GET", "/permissions")
+            ok("权限中心：规则矩阵可读", isinstance(perms.get("rules"), list)
+               or isinstance(perms.get("hosts"), list) or "camera" in str(perms)[:2000])
+            storage = br("GET", "/diag/storage")
+            ids = {d.get("id") for d in storage.get("domains", [])}
+            ok("存储健康：按域报表", {"conversations", "translations", "toolResults"}.issubset(ids))
+            doctor = br("GET", "/agent/doctor")
+            doctor_ids = [c.get("id") for c in doctor.get("checks", [])]
+            ok("Doctor：稳定 id + 可修复项",
+               bool(doctor_ids) and len(doctor_ids) == len(set(doctor_ids))
+               and any(c.get("fix") for c in doctor.get("checks", [])))
+            tabs = br("POST", "/remote/dispatch", {"json": "{\"t\":\"tabs\"}"})
+            frame = next((f for f in tabs.get("frames", []) if f.get("t") == "tabs"), None)
+            ok("Remote 控制帧：标签帧可派发", frame is not None and isinstance(frame.get("tabs"), list))
+            if info.get("secrets") == "file":
+                before = br("GET", "/ai/context-budget")
+                br("POST", "/ai/context-budget", {"chars": 120000, "triggerPercent": 0.9})
+                after = br("GET", "/ai/context-budget")
+                br("POST", "/ai/context-budget", {"chars": None, "triggerPercent": before.get("triggerPercent", 0.85)})
+                ok("上下文预算：按档案写入/读回/清除",
+                   after.get("chars") == 120000 and abs((after.get("triggerPercent") or 0) - 0.9) < 0.001)
+            else:
+                print("△ 上下文预算写入跳过（非封闭实例）")
+        except Exception as exc:
+            ok("v0.8.80 探针", False, str(exc))
+
         # 启动诊断（0.8.49）：窗口/标签/异常退出标志可断言
         startup = br("GET", "/diag/startup")
         ok("启动诊断：可见窗口与标签",

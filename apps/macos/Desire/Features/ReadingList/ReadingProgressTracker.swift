@@ -18,8 +18,11 @@ final class ReadingProgressTracker {
 
     private var timer: Timer?
     private weak var trackedTab: Tab?
-    /// 只恢复到"这条"导航一次（didFinish 可能多次触发）。
-    private var restoredURLs: Set<String> = []
+    /// 上次恢复过的 (URL → 比例)：同一比例的重入 didFinish 只恢复一次；
+    /// 比例被更新后（用户在别处读到新位置/桥写入）允许再次恢复。
+    /// 此前用 Set<String> 等于"每次运行每 URL 只恢复一次"——同一运行里关掉
+    /// 再打开同一篇永远不会回到新位置（v0.8.80 全量回归实测）。
+    private var restoredRatios: [String: Double] = [:]
 
     private init() {}
 
@@ -78,10 +81,10 @@ final class ReadingProgressTracker {
     func restoreIfNeeded(webView: WKWebView, url: String?) {
         guard let url, !url.isEmpty,
               let store = AppState.live?.readingListStore,
-              let ratio = store.progress(for: url), ratio > 0.02,
-              !restoredURLs.contains(url) else { return }
-        restoredURLs.insert(url)
-        if restoredURLs.count > 64 { restoredURLs.removeAll() }
+              let ratio = store.progress(for: url), ratio > 0.02 else { return }
+        if let previous = restoredRatios[url], abs(previous - ratio) < 0.01 { return }
+        restoredRatios[url] = ratio
+        if restoredRatios.count > 64 { restoredRatios.removeAll() }
         webView.evaluateJavaScript(WebView.restoreScrollJS(ratio: ratio), completionHandler: nil)
         Log.app.debug("reading progress: restored \(Int(ratio * 100), privacy: .public)% for \(url, privacy: .public)")
     }

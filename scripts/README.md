@@ -25,6 +25,9 @@ DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- user disable <
 DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- user enable <用户名>
 DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- registration status|on|off
 DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- stats
+# 或直接进 API 容器（v0.8.80 起镜像内含 /app/desire-admin）：
+#   docker exec desire-api /app/desire-admin stats
+#   docker exec desire-api /app/desire-admin user create <用户名> <密码>
 ```
 
 - `reset-password` / `disable` 会吊销该用户全部刷新令牌（已登录设备 access 过期后需重新登录）。

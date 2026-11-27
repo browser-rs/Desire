@@ -315,6 +315,9 @@ def main():
                 br(base, "POST", "/ai/profiles/activate", {"id": previous_active})
             for profile_id in created:
                 br(base, "POST", "/ai/profiles/delete", {"id": profile_id})
+            # 本用例把访问等级改成 confirm 测审批；收尾恢复 full，避免下一次
+            # 全量 190 的 MUSCLE 工具停在审批卡上超时。
+            br(base, "POST", "/agent/send", {"text": "/access full"})
         except Exception:
             pass
         approval_server.shutdown()

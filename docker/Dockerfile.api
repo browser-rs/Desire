@@ -19,7 +19,8 @@ RUN --mount=type=cache,id=release-target-${TARGETARCH},target=/build/target,shar
     cargo build --release -p desire-api \
     --locked \
     && mkdir -p /out \
-    && cp target/release/desire-api /out/app
+    && cp target/release/desire-api /out/app \
+     && cp target/release/desire-admin /out/desire-admin
 
 # ---------- runner ----------
 FROM ${REGISTRY}/debian:trixie
@@ -31,6 +32,8 @@ RUN groupadd --gid 10001 desire \
 
 WORKDIR /app
 COPY --from=builder /out/app /app/app
+# 运维 CLI（v0.8.80）：镜像内可直接 docker exec 调用，不必在宿主机装 Rust。
+COPY --from=builder /out/desire-admin /app/desire-admin
 
 USER desire
 EXPOSE 18090

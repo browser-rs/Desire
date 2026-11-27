@@ -116976,6 +116976,236 @@
           }
         }
       }
+    },
+    "Every site's permissions in one place":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Every site's permissions in one place"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"每个站点的权限集中在一处"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"每個網站的權限集中在一處"
+          }
+        }
+      }
+    },
+    "The lock popover can now change location, camera, microphone, popups and clipboard reads for this site, clear its data (with a time range) and switch on HTTPS-only with an explicit way back when a site cannot upgrade.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The lock popover can now change location, camera, microphone, popups and clipboard reads for this site, clear its data (with a time range) and switch on HTTPS-only with an explicit way back when a site cannot upgrade."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"锁图标弹层现在可以改本站的位置/摄像头/麦克风/弹窗/剪贴板读取，按时间范围清除本站数据，并开启严格 HTTPS——站点无法升级时给出显式回退入口。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"鎖圖示彈層現在可以改本站的位置/相機/麥克風/彈窗/剪貼簿讀取，按時間範圍清除本站資料，並開啟嚴格 HTTPS——網站無法升級時給出顯式回退入口。"
+          }
+        }
+      }
+    },
+    "Passwords that tell you when to change them":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Passwords that tell you when to change them"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"密码会提醒你该换了"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"密碼會提醒你該換了"
+          }
+        }
+      }
+    },
+    "Add or edit passwords, see a health card for weak, reused and stale entries, and run a breach check that only sends the first five characters of a SHA-1 hash. Autofill now supports named profiles and only fills empty fields.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Add or edit passwords, see a health card for weak, reused and stale entries, and run a breach check that only sends the first five characters of a SHA-1 hash. Autofill now supports named profiles and only fills empty fields."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"可手动添加/编辑密码，健康卡列出弱口令、重复与长期未改，泄露检查只发送 SHA-1 前 5 位。自动填充支持命名档案，且只填空白字段。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"可手動新增/編輯密碼，健康卡列出弱口令、重複與長期未改，洩露檢查只送出 SHA-1 前 5 位。自動填入支援命名檔案，且只填空白欄位。"
+          }
+        }
+      }
+    },
+    "Your Mac, from your phone":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Your Mac, from your phone"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"在手机上掌控你的 Mac"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"在手機上掌控你的 Mac"
+          }
+        }
+      }
+    },
+    "Remote now lists live tabs (switch, close, move to another window), controls batch downloads item by item with the log tail, shows doctor and sync health, and switches between paired Macs. Artifacts finally load over the control channel.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Remote now lists live tabs (switch, close, move to another window), controls batch downloads item by item with the log tail, shows doctor and sync health, and switches between paired Macs. Artifacts finally load over the control channel."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Remote 现在能看实时标签（切换/关闭/移到另一窗口），逐项控制批量下载并看日志尾，展示体检与同步健康，还能在多台已配对的 Mac 间切换。产物终于走控制帧通道了。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Remote 現在能看即時標籤（切換/關閉/移到另一視窗），逐項控制批次下載並看日誌尾，展示體檢與同步健康，還能在多台已配對的 Mac 間切換。產物終於走控制幀通道了。"
+          }
+        }
+      }
+    },
+    "An agent that saves money and asks less":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"An agent that saves money and asks less"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"更省钱、更少打断的智能体"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"更省錢、更少打斷的智能體"
+          }
+        }
+      }
+    },
+    "Prompt caching is measured across providers and breakpoints are set for Anthropic; a routing card suggests cheaper or faster models without switching by itself. Approve once to cover the rest of a turn's same calls, and a failed self-review gets one bounded revision.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Prompt caching is measured across providers and breakpoints are set for Anthropic; a routing card suggests cheaper or faster models without switching by itself. Approve once to cover the rest of a turn's same calls, and a failed self-review gets one bounded revision."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"提示词缓存覆盖三家服务并给 Anthropic 设了断点；路由卡会建议更便宜/更快的模型但不会自行切换。批一次即可覆盖本回合同类调用，自评发现问题只做一次有界修订。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"提示詞快取涵蓋三家服務並給 Anthropic 設了斷點；路由卡會建議更便宜/更快的模型但不會自行切換。批一次即可涵蓋本回合同類呼叫，自評發現問題只做一次有界修訂。"
+          }
+        }
+      }
+    },
+    "Know where the disk went":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Know where the disk went"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"知道磁盘都花在哪"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"知道磁碟都花在哪"
+          }
+        }
+      }
+    },
+    "Settings › Storage reports every data type, clears caches on request and only deletes conversations when you set a retention period. Scheduled tasks can chain with the previous output, batch downloads can run in a time window, and the real screen-lock flag now pauses work until you are back.":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Settings › Storage reports every data type, clears caches on request and only deletes conversations when you set a retention period. Scheduled tasks can chain with the previous output, batch downloads can run in a time window, and the real screen-lock flag now pauses work until you are back."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"设置 › 存储按类型报告体量，缓存可随时清理，会话只在你设置保留期后删除。定时任务链可引用上一轮输出，批量下载可限时段运行，真锁屏标志会让工作暂停到你回来。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"設定 › 儲存按類型報告體量，快取可隨時清理，會話只在你設定保留期後刪除。定時任務鏈可引用上一輪輸出，批次下載可限時段執行，真鎖屏標誌會讓工作暫停到你回來。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

@@ -13,14 +13,15 @@
 | ebooks 第十五同步域（v0.8.37） | 无迁移 | `DOMAINS` 白名单加行；未部署时客户端只有 ebooks 域失败，其他域照常 |
 | 同步日配额 + API 2.0（v0.8.38） | **0019** sync_usage | 按用户/日/域记账；`/sync/usage`、`/meta/capabilities`、`/health` 细分、`/metrics`、`x-request-id`、remote ack/stats/cleanup |
 | 查询索引审计（v0.8.38） | **0020** query_indexes | 同步拉取复合游标索引、remote inbox device/id 与 created_at 索引 |
+| API 账号安全与运营面（v0.8.80） | **0021** session_versions_audit_quota | users/devices token_version、恢复码列、audit_events、sync_quota_daily；`sync_history_items.domain` 加宽到 64 并把误落 `sync_items` 的 `history@<uuid>` 搬进历史表 |
 
 ## 部署机步骤
 
 ```bash
 cd <repo> && git pull
 ./scripts/build-migrate.sh          # 迁移执行器镜像
-./scripts/migrate.sh                # 跑迁移（0019→0020，幂等可重放）
-./scripts/build-api.sh              # API 镜像（双架构）
+./scripts/migrate.sh                # 跑迁移（0019→0021，幂等可重放）
+./scripts/build-api.sh              # API 镜像（双架构；内含 /app/desire-admin）
 ./scripts/run.sh api                # 滚动重启 API
 ```
 
@@ -36,8 +37,13 @@ curl -s "https://api.mankong.icu/v9/sync/bookmarks@00000000-0000-0000-0000-00000
 curl -s https://api.mankong.icu/v9/sync/ebooks -H "Authorization: Bearer <token>"
 # v0.8.38：能力声明 / 配额 / 可观测（健康应 200 且 db=true；metrics 需 token）：
 curl -s https://api.mankong.icu/v9/meta/capabilities
+# v0.8.80 运维 CLI 已在 API 镜像里：
+docker exec desire-api /app/desire-admin user list
 curl -s https://api.mankong.icu/v9/health
 curl -s https://api.mankong.icu/v9/sync/usage -H "Authorization: Bearer <token>"
+# v0.8.80：能力声明应含 tokenVersioning/accountRecovery/auditLog/atomicSyncQuota；
+# 登出后旧 access token 立即 401（不再等 2h），恢复码/审计流程见 docs/ROADMAP-0.8.80-PLAN.md
+curl -s https://api.mankong.icu/v9/meta/capabilities
 curl -s https://api.mankong.icu/v9/metrics -H "Authorization: Bearer $DESIRE_API_METRICS_TOKEN"
 # 任一响应头应带 x-request-id
 ```

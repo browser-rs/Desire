@@ -884,6 +884,10 @@ def main():
     except RuntimeError as exc:
         print("✗", exc)
         return 2
+    # 访问等级：套件按"完全访问"设计（历史用户设置）；封闭实例默认是"变更前确认"，
+    # 不显式设置时 MUSCLE1 的 notify/executeJS 会停在审批卡上直到超时。
+    bridge("POST", "/agent/send", {"text": "/access full"})
+    time.sleep(0.5)
     state = bridge_retry("GET", "/state")
     workspace = state.get("agentWorkspace")
     assert workspace, "拿不到 agentWorkspace"
@@ -1420,7 +1424,10 @@ def main():
         ok("listTabGroups 显示新名", "E2E 组（改名）" in groups_list and "E2E 组 (" not in groups_list)
         ok("deleteHistory 按域名删除（≥1 条）",
            hist_delete.startswith("Removed ") and "domain 127.0.0.1" in hist_delete and removed_n >= 1)
-        ok("删除后 getHistory 不再含该域名", "127.0.0.1" not in history_out)
+        # 只拒**精确 host**（//127.0.0.1:port / /path）；`127.0.0.1.nip.io`
+        # 是别的用例留下的不同域名，子串匹配会误报（2026-11-27 全量实测）。
+        ok("删除后 getHistory 不再含该域名",
+           not re.search(r"//127\.0\.0\.1[:/]", history_out))
 
         # ── MUSCLE10：分屏 + 标签组折叠（fixture 标签为左栏；右栏用 user tab 0，
         #    只是显示、可逆，随后解除）──
@@ -1546,7 +1553,17 @@ def main():
         ok("桥：归档列表含手造条目（2 标签）",
            arch_row.get("tabs") == 2
            and any("/archive-marker" in u for u in arch_row.get("urls", [])))
-        # 回合 A：开测试窗口（用户窗口里跑）；回合 B：在测试窗口里恢复归档
+        # 回合 A：开测试窗口（用户窗口里跑）；回合 B：在测试窗口里恢复归档。
+        # 当前 newest 在**本块内**取（--section agent 不执行 MUSCLE8，不能依赖
+        # 那边的 old_session_id）。
+        def wins12():
+            data = bridge("GET", "/agent/windows")
+            rows = data.get("windows", []) if isinstance(data, dict) else data
+            return [w for w in rows if w.get("windowVisible")]
+
+        prior_newest12 = next((w["id"] for w in bridge("GET", "/agent/windows").get("windows", [])
+                               if w.get("isNewest")), None)
+        wins_before12 = len(wins12())
         bridge("POST", "/agent/new", {})
         bridge("POST", "/agent/send", {"text": "MUSCLE12A 开窗"})
         deadlineA12 = time.time() + 60
@@ -1556,12 +1573,20 @@ def main():
                                              for m in stA12.get("messages", [])):
                 break
             time.sleep(1)
-        time.sleep(2)
+        # 新窗口由 SwiftUI openWindow 异步创建（机器负载高时可 >2s），轮询等到
+        # 出现且不是旧窗口——固定 sleep 会偶发假失败（2026-11-27 全量实测）。
         # 不按 windowVisible 筛：不带 URL 的新窗口展示原生新标签页（无 webview），
         # 活性信号对它天然为 false——用 isNewest（工具会 makeKey）判定新窗。
-        all12 = bridge("GET", "/agent/windows").get("windows", [])
-        new12 = next((w["id"] for w in all12 if w.get("isNewest")), None)
-        assert new12 and new12 != old_session_id, "MUSCLE12A 没有开出新窗口（中止避免误伤）"
+        new12 = None
+        deadlineNew12 = time.time() + 12
+        while time.time() < deadlineNew12:
+            all12 = bridge("GET", "/agent/windows").get("windows", [])
+            new12 = next((w["id"] for w in all12
+                          if w.get("isNewest") and w.get("id") != prior_newest12), None)
+            if new12:
+                break
+            time.sleep(0.5)
+        assert new12 and new12 != prior_newest12, "MUSCLE12A 没有开出新窗口（中止避免误伤）"
         bridge("POST", "/agent/new", {})
         bridge("POST", "/agent/send", {"text": "MUSCLE12 归档恢复"})
         deadline12 = time.time() + 120
@@ -1586,9 +1611,9 @@ def main():
         ok("恢复后的标签含归档标记 URL", "/archive-marker" in tabs12)
         # 窗口收尾（closeWindow 留住 finally 的兜底）
         win_deadline12 = time.time() + 8
-        while time.time() < win_deadline12 and len(windows_live()) > wins_before:
+        while time.time() < win_deadline12 and len(wins12()) > wins_before12:
             time.sleep(0.5)
-        ok("MUSCLE12 测试窗口已关闭", len(windows_live()) <= wins_before)
+        ok("MUSCLE12 测试窗口已关闭", len(wins12()) <= wins_before12)
         # ── MUSCLE13：readURL 离屏取正文（不开标签）──
         st13 = bridge_retry("GET", "/state")
         tabs13_before = len(st13.get("tabs", []))

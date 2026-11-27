@@ -17,16 +17,16 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "speedometer", title: String(localized: "Sites remember how fast they are"),
-                  detail: String(localized: "After a couple of downloads, a site's measured speed is stored in its own adapter: later batches skip the probe and go straight to the connection count that worked. Every finished download updates the profile, and the measured value is visible on the adapter, in DPP Studio and in the site's skill.")),
-            .init(icon: "clock.arrow.circlepath", title: String(localized: "A download record per site"),
-                  detail: String(localized: "Settings › Batch Downloads shows each site's finished, failed and skipped counts, total size, average speed and the engine that did the work. Failures keep their reason, and a site that keeps failing gets a hint instead of silent retries.")),
-            .init(icon: "slider.horizontal.3", title: String(localized: "Site download rules, no JSON required"),
-                  detail: String(localized: "DPP Studio has a form for the download section — extraction rule, videos per page, method, connections, token lifetime, exclusions — with the JSON editor one toggle away. Both go through the same validation the agent uses.")),
-            .init(icon: "square.and.arrow.up", title: String(localized: "Share an adapter, leave the telemetry behind"),
-                  detail: String(localized: "Export an adapter as JSON from Settings: the rules and protocol body travel, while measured speed, revision history and local install details stay on this machine. Import it elsewhere and the behavior is identical.")),
-            .init(icon: "arrow.triangle.2.circlepath", title: String(localized: "Resume across restarts; live streams say what they are"),
-                  detail: String(localized: "An interrupted download continues from the segments already fetched after a relaunch — nothing on disk is fetched twice. Live playlists export only the segments available now, and re-running after the window slides fetches the new window.")),
+            .init(icon: "lock.shield", title: String(localized: "Every site's permissions in one place"),
+                  detail: String(localized: "The lock popover can now change location, camera, microphone, popups and clipboard reads for this site, clear its data (with a time range) and switch on HTTPS-only with an explicit way back when a site cannot upgrade.")),
+            .init(icon: "key.horizontal", title: String(localized: "Passwords that tell you when to change them"),
+                  detail: String(localized: "Add or edit passwords, see a health card for weak, reused and stale entries, and run a breach check that only sends the first five characters of a SHA-1 hash. Autofill now supports named profiles and only fills empty fields.")),
+            .init(icon: "iphone.gen3", title: String(localized: "Your Mac, from your phone"),
+                  detail: String(localized: "Remote now lists live tabs (switch, close, move to another window), controls batch downloads item by item with the log tail, shows doctor and sync health, and switches between paired Macs. Artifacts finally load over the control channel.")),
+            .init(icon: "banknote", title: String(localized: "An agent that saves money and asks less"),
+                  detail: String(localized: "Prompt caching is measured across providers and breakpoints are set for Anthropic; a routing card suggests cheaper or faster models without switching by itself. Approve once to cover the rest of a turn's same calls, and a failed self-review gets one bounded revision.")),
+            .init(icon: "internaldrive", title: String(localized: "Know where the disk went"),
+                  detail: String(localized: "Settings › Storage reports every data type, clears caches on request and only deletes conversations when you set a retention period. Scheduled tasks can chain with the previous output, batch downloads can run in a time window, and the real screen-lock flag now pauses work until you are back.")),
         ]
     }
 

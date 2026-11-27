@@ -258,10 +258,12 @@ Features/Bookmarks/
   错误页/手柄/标尺不在其中）；要拍整窗用
   `screencapture -o -x -l <winid>`（winid 用 CGWindowList 取）。
 - 启动流程（顺序敏感，2026-11-25 修订——**一律用脚本**）：
-  `tools/launch-hermetic.sh [dataDir|--fresh]`（默认 `/tmp/desire-e2e/data`；
-  `--fresh` 每次 mktemp 唯一目录并打印路径，套件连续跑用它避免脏基线），然后
-  `curl /state` 验证桥活着再继续。脚本做三件事：按 DerivedData 路径结束旧的开发实例、
-  `open -g` 后台启动（不抢前台）、同时带 `--data-dir` 与 `CFFIXED_USER_HOME`。
+  `tools/launch-hermetic.sh [dataDir|--fresh] [--activate]`（默认 `/tmp/desire-e2e/data`；
+  `--fresh` 每次 mktemp 唯一目录并打印路径，**并清空隔离偏好域**，套件连续跑用它
+  避免脏基线——固定偏好域会跨实例继承，2026-11-28 实测上一个测试设的下载时段窗口
+  把 190 的下载用例卡在窗口外；`--activate` 启动后立即激活，启动指标/190 用它），
+  然后 `curl /state` 验证桥活着再继续。脚本做三件事：按 DerivedData 路径结束旧的
+  开发实例（先 SIGTERM 再兜底 -9）、`open -g` 后台启动（不抢前台）、带 `--data-dir`。
   三条都是踩出来的：
   ① **不要 `pkill -x Desire`**——按进程名会连 `/Applications` 的安装版一起杀
   （不可触碰清单）；按 DerivedData 路径只影响开发实例。

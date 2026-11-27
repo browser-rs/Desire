@@ -33,7 +33,10 @@
 > + 任务页 7 天网格 + `/panel/snapshot?name=agenttasks` 宽/窄快照）。批 5 部分：
 > 周视图 VoiceOver 合并标签、`desire://settings/security|permissions|passwords|payment`
 > 深链别名、`docs/A11Y-AUDIT-0.8.83.md` 静态清单；**VoiceOver 手动走查与生产迁移
-> 未执行**（前者需人在场，后者需明确授权）。
+> 未执行**（前者需人在场，后者需明确授权）。验证：harness 4088/4088、E34–E40
+> 61/61、sync-conflict 17/17、190 全量 188/190（仅下载 2 项被旧下载时段窗口
+> 偏好污染；`--fresh` 已改为清偏好，browser section 重跑 88/88）、Release clean
+> build 0 warning。iOS 账号契约测试与手动 VoiceOver 仍待做。
 
 ## 存量收口（审计实锤，随批 1–5 修）
 

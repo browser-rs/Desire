@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Changed
+
+- 测试隔离（v0.8.83）：`tools/launch-hermetic.sh --fresh` 现在清空隔离偏好域——固定域会跨实例继承，实测前一天设的下载时段窗口让 190 的下载用例卡在窗口外（2 项假失败）；清偏好后 browser section 88/88、下载真实落盘（全量 190 当时 188/190，两项都是这个污染）。启动器同时改为先 SIGTERM 开发实例（走会话 flush）再兜底强杀，并新增 `--activate`。
+
 ### Fixed
 
 - 同步冲突修复（v0.8.83 批 3）：push 冲突时先保存“输掉的本地内容”快照再回写服务端胜者——“采用本地”此前只会把胜者原样再推一遍（书签/快拨/阅读列表均受影响）；服务端 `sync_usage` 的 upsert 在 MySQL 8.4 报 `Column 'rows_written' is ambiguous`（每次 push 500，本地 DB E2E 当场暴露），已给目标表列加限定。

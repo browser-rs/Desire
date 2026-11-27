@@ -6,6 +6,7 @@
 #
 #   --fresh      每次新建唯一 data-dir（/tmp/desire-e2e-XXXXXX）并把路径打出来；
 #                连续跑套件时用它能避免上一次的缩放/标签/阅读进度污染基线。
+#                同时清空隔离偏好域（固定域会跨实例继承，例如下载时段窗口）。
 #   --activate   启动后立即激活并等 /state.isActive=true（启动指标/190 用）。
 #                后台 open -g 会让 firstWindowMs 记成 ~20s（等有人点窗口），
 #                这是**测试口径**问题，不是启动回归。
@@ -29,6 +30,7 @@ set -euo pipefail
 
 DATA=""
 ACTIVATE=0
+FRESH=0
 EXPECT_DATA=0
 for arg in "$@"; do
   if [ "$EXPECT_DATA" = "1" ]; then
@@ -38,7 +40,7 @@ for arg in "$@"; do
   fi
   case "$arg" in
     --activate) ACTIVATE=1 ;;
-    --fresh) DATA="$(mktemp -d /tmp/desire-e2e-XXXXXX)" ;;
+    --fresh) DATA="$(mktemp -d /tmp/desire-e2e-XXXXXX)"; FRESH=1 ;;
     --data-dir) EXPECT_DATA=1 ;;
     -*) ;;
     *) [ -z "$DATA" ] && DATA="$arg" ;;
@@ -65,6 +67,12 @@ for _ in $(seq 1 20); do
 done
 pkill -9 -f "DerivedData/Desire-.*/Build/Products/Debug" 2>/dev/null || true
 sleep 0.5
+
+# --fresh 也清掉隔离偏好域：固定域会跨实例继承（观察到的真实事故：上一个
+# 测试设的下载时段窗口把 190 的下载测试卡在窗口外）。旧实例已结束，清安全。
+if [ "$FRESH" = "1" ]; then
+  defaults delete me.siwi.Desire.automation 2>/dev/null || true
+fi
 
 open -g "$APP" --args --automation "--data-dir=$DATA"
 

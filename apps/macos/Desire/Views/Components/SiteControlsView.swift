@@ -16,12 +16,21 @@ struct SiteControlsView: View {
         let clearOverrides: () -> Void
         /// 站点动作栏（v0.8.1）：读文章 / 盯这一页 / 录制工作流。
         let toggleReader: () -> Void
+        /// 地址自动填充（v0.8.80 多档案）：传入选中的档案 id。
+        let fillAddress: (UUID) -> Void
         let watchPage: () -> Void
         let recordWorkflow: () -> Void
     }
 
     let host: String
     @ObservedObject var store: SiteSettingsStore
+    /// 站点权限（v0.8.80）：位置 / 摄像头 / 麦克风 / 弹窗 / 剪贴板读取——与隐私
+    /// 面板矩阵同源。面板例外：直接观察 store。
+    @ObservedObject var permissionStore: PermissionStore
+    /// 地址自动填充档案（v0.8.80）：站点动作栏的"填充地址"菜单。
+    @ObservedObject var autofillStore: FormAutofillStore
+    /// "清除本站数据"的两步确认（删除 cookies/站点存储不可撤销）。
+    @State private var confirmingClearData = false
     /// 站点动作栏的状态观察：已盯页面 + 是否正在录制。
     @ObservedObject private var pageWatches = PageWatchStore.shared
     @ObservedObject private var workflows = WorkflowStore.shared
@@ -104,6 +113,59 @@ struct SiteControlsView: View {
                     .labelsHidden()
                     .toggleStyle(.switch)
                     .controlSize(.mini)
+            }
+
+            // 站点权限（v0.8.80）：三态（询问/允许/拦截）用菜单，两类只能拦截的
+            // （弹窗/剪贴板读取）用开关。通知在 WKWebView 里没有系统提示
+            // （requestPermission 恒返回 denied），如实标注"不支持"，不做假开关。
+            Divider()
+            Text("Permissions")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+            permissionMenu(.geolocation)
+            permissionMenu(.camera)
+            permissionMenu(.microphone)
+            permissionBlockToggle(.popups,
+                                  help: "Block windows this site opens with window.open or target=_blank")
+            permissionBlockToggle(.clipboardRead,
+                                  help: "Stop this site from reading your clipboard (WebKit already requires a user gesture)")
+            HStack(spacing: 8) {
+                Image(systemName: "bell.slash")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+                    .frame(width: 16)
+                Text("Notifications")
+                    .font(.system(size: 12.5))
+                Spacer()
+                Text("Not Supported")
+                    .font(.system(size: 11.5))
+                    .foregroundStyle(.tertiary)
+            }
+            .help("WebKit gives web pages no notification permission prompt, so there is nothing to allow or block here.")
+
+            // 地址自动填充（v0.8.80）：多档案时选择用哪一份；单档案时就是"填一下"。
+            if !autofillStore.fillableProfiles.isEmpty {
+                Menu {
+                    ForEach(autofillStore.fillableProfiles) { profile in
+                        Button(profile.displayName) { actions.fillAddress(profile.id) }
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "person.text.rectangle")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 16)
+                        Text("Fill Address")
+                            .font(.system(size: 12.5))
+                        Spacer()
+                        Text("\(autofillStore.fillableProfiles.count)")
+                            .font(.system(size: 11.5, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
             }
 
             // 站点动作栏（v0.8.1）：阅读 / 盯页 / 录制——把“针对本站做一件事”
@@ -219,7 +281,84 @@ struct SiteControlsView: View {
                 .font(.system(size: 12))
                 .buttonStyle(.plain)
                 .foregroundStyle(appAccent)
+
+            // 清除本站数据（v0.8.80）：cookies / localStorage / IndexedDB / 缓存——
+            // 会退出登录，两步确认。只动本站（含子域）的记录。
+            if confirmingClearData {
+                HStack(spacing: 8) {
+                    Text("Delete cookies and site data for this site?")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Button("Cancel") { confirmingClearData = false }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11))
+                    Button("Delete") {
+                        confirmingClearData = false
+                        Task { _ = await SiteDataManager.removeAll(forHost: host) }
+                    }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.red)
+                }
+            } else {
+                Button("Clear Site Data") { confirmingClearData = true }
+                    .font(.system(size: 12))
+                    .buttonStyle(.plain)
+                    .foregroundStyle(appAccent)
+            }
         }
+    }
+
+    /// 三态权限菜单：询问（未设置）/ 允许 / 拦截。摄像头、麦克风两行会同步联合权限
+    /// （WebKit 对同时申请音视频的页面问的是 cameraAndMicrophone）。
+    private func permissionMenu(_ type: PermissionType) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: type.systemImage)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text(type.displayName)
+                .font(.system(size: 12.5))
+            Spacer()
+            Picker("", selection: Binding(
+                get: { permissionStore.decision(for: host, type: type)?.rawValue ?? "ask" },
+                set: { raw in
+                    let decision = PermissionDecision(rawValue: raw)
+                    switch type {
+                    case .camera: permissionStore.setCamera(decision, host: host)
+                    case .microphone: permissionStore.setMicrophone(decision, host: host)
+                    default: permissionStore.set(decision, host: host, type: type)
+                    }
+                })) {
+                Text("Ask").tag("ask")
+                Text("Allow").tag("allow")
+                Text("Block").tag("deny")
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .frame(width: 96)
+        }
+    }
+
+    /// 只能"拦截"的权限（弹窗 / 剪贴板读取）：开 = deny，关 = 删除规则。
+    private func permissionBlockToggle(_ type: PermissionType, help: String) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: type.systemImage)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+                .frame(width: 16)
+            Text("Block \(type.displayName)")
+                .font(.system(size: 12.5))
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { permissionStore.decision(for: host, type: type) == .deny },
+                set: { permissionStore.set($0 ? .deny : nil, host: host, type: type) }))
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.mini)
+        }
+        .help(help)
     }
 
     private func agentToggle(_ icon: String, _ title: String, help: String,

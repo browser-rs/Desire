@@ -143,6 +143,9 @@ class BrowserState: ObservableObject {
     /// 导航开始时清空。
     @Published var pendingOTPHint: String?
     @Published var lastError: Error?
+    /// 严格 HTTPS-only 下升级失败的 HTTP 原地址（v0.8.80）：非 nil = 错误页显示
+    /// "继续访问 HTTP 版本"按钮；点击后加载并清空。成功导航 / 重载时清空。
+    @Published var insecureFallbackURL: URL?
     /// Default comes from 设置 ▸ Appearance ▸ Page Zoom (UserDefaults 直读,
     /// 对新建标签生效；已存在的标签不受影响)。
     @Published var pageZoom: Double = AppPrefs.defaults.object(forKey: "defaultPageZoom") as? Double ?? 1.0
@@ -709,6 +712,9 @@ struct WebView: NSViewRepresentable {
     @Binding var canGoBack: Bool
     @Binding var canGoForward: Bool
     var httpsUpgradeEnabled: Bool = true
+    /// 严格 HTTPS-only（v0.8.80）：升级失败**不**自动回退 http——停在错误页，
+    /// 由用户决定是否继续访问不安全的 HTTP 版本（ErrorPageView 的"继续访问"按钮）。
+    var httpsOnlyMode: Bool = false
     /// YouTube 赞助商片段跳过开关（didFinish 注入 sponsorblock.js）。
     var sponsorBlockEnabled: Bool = false
     /// 启用的 SponsorBlock 类别（随开关注入页面）。
@@ -1905,6 +1911,15 @@ try {
         }
 
         func webView(_ webView: WKWebView, didCommit navigation: WKNavigation!) {
+            // 剪贴板读取拦截（v0.8.80）：站点规则 deny 时在页面世界覆盖
+            // navigator.clipboard.readText/read（WebKit 没有这项权限 API）。
+            // **必须在 didCommit 注入**：didFinish 里 isLoading 已先置 false，测试/页面
+            // 可能在注入之前就调用 readText——无手势读取会等系统粘贴授权，把
+            // WebContent 卡住（随后 evaluateJavaScript 一起挂，实测）。
+            if let host = webView.url?.host, parent.permissionStore.clipboardReadBlocked(for: host) {
+                Log.privacy.info("clipboard read guard injected for \(host, privacy: .public)")
+                webView.evaluateJavaScript(Self.clipboardReadGuardJS, completionHandler: nil)
+            }
             parent.state.contentProcessCrashed = false
             parent.state.crashAutoReloadSuppressed = false
             // 新文档：清掉上一页的工作流提示（是否再提示由 didFinish 决定）。
@@ -2184,6 +2199,7 @@ try {
             parent.canGoBack = webView.canGoBack
             parent.canGoForward = webView.canGoForward
             parent.state.lastError = nil
+            parent.state.insecureFallbackURL = nil
             if let url = webView.url {
                 // 查看器挂载中（表格/图片/zip/文档）：webview 的迟到回调不得
                 // 改写地址栏（会显示旧页 URL，误导用户当前在看什么）。
@@ -2325,7 +2341,7 @@ try {
             if parent.formAutofillStore.isConfigured {
                 // 隔离世界求值（__desireFillProfile 是 dom-tools 的隔离世界成员；
                 // 页面世界已不再注入 dom-tools）
-                webView.evaluateJavaScript(parent.formAutofillStore.fillScript, in: nil,
+                webView.evaluateJavaScript(parent.formAutofillStore.fillScript(), in: nil,
                                            in: WebView.agentToolWorld, completionHandler: nil)
             }
             // 页面批注恢复（0.3.7）：按 URL 文本锚定重新包裹高亮。
@@ -2546,13 +2562,22 @@ try {
                navigationAction.navigationType == .formSubmitted ||
                navigationAction.navigationType == .other {
                 runBeforeUnloadGuard(webView: webView) { [weak self] allowed in
+                    guard allowed, let self else {
+                        decisionHandler(allowed ? .allow : .cancel)
+                        return
+                    }
                     // P1-1：这条 early-return 曾把底部的 armLoadTimeout 闷死
                     // （仅剩 formResubmitted 可达）——挂起的 TCP 永久白页。
                     // 放行时补 arm。
-                    if allowed, let self {
-                        self.armLoadTimeout(for: url)
+                    self.armLoadTimeout(for: url)
+                    // HTTPS 升级（v0.8.80 修正）：此前升级代码在 beforeunload
+                    // 守卫**之后**，而主框架的 link/form/address-bar 导航都被守卫
+                    // early-return 掉了——升级与"严格 HTTPS-only"从未执行过。
+                    if self.performHTTPSUpgradeIfNeeded(url: url, webView: webView) {
+                        decisionHandler(.cancel)
+                        return
                     }
-                    decisionHandler(allowed ? .allow : .cancel)
+                    decisionHandler(.allow)
                 }
                 return
             }
@@ -2598,32 +2623,6 @@ try {
                 Log.app.info("iframe breakout blocked: \(targetHost, privacy: .public)")
                 decisionHandler(.cancel)
                 return
-            }
-
-            // HTTPS 升级
-            // Only upgrade when the user navigated to the URL by clicking a
-            // link / typing into the address bar (`.linkActivated`,
-            // `.other`, `.formSubmitted`). Skip for back/forward, reload, and
-            // history restorations so the back button doesn't loop
-            // http→https→http→https on sites that already do their own
-            // scheme handling (Bilibili does this for /video/BV* redirects).
-            if parent.httpsUpgradeEnabled,
-               url.scheme == "http",
-               navigationAction.targetFrame?.isMainFrame == true,
-               // Loopback has no TLS server — upgrading hangs forever.
-               !["127.0.0.1", "localhost", "::1"].contains(url.host ?? ""),
-               !fallbackInProgress.contains(url.absoluteString),
-               navigationAction.navigationType == .other ||
-               navigationAction.navigationType == .linkActivated ||
-               navigationAction.navigationType == .formSubmitted {
-                var comps = URLComponents(url: url, resolvingAgainstBaseURL: false)
-                comps?.scheme = "https"
-                if let https = comps?.url {
-                    pendingUpgrades[https.absoluteString] = url
-                    webView.load(URLRequest(url: https))
-                    decisionHandler(.cancel)
-                    return
-                }
             }
 
             if navigationAction.targetFrame?.isMainFrame == true {
@@ -2805,8 +2804,20 @@ try {
                  .networkConnectionLost,
                  .notConnectedToInternet,
                  .dnsLookupFailed:
-                fallbackInProgress.insert(httpURL.absoluteString)
-                webView.load(URLRequest(url: httpURL))
+                if parent.httpsOnlyMode {
+                    // 严格模式（v0.8.80）：不回退——错误已经落在 lastError 上（错误页
+                    // 在展示），把 HTTP 原地址交给错误页的"继续访问"按钮，由用户决定。
+                    // 离线 / 解析失败时 HTTP 同样到不了，不给这个按钮。
+                    switch urlError.code {
+                    case .notConnectedToInternet, .networkConnectionLost, .dnsLookupFailed:
+                        break
+                    default:
+                        parent.state.insecureFallbackURL = httpURL
+                    }
+                } else {
+                    fallbackInProgress.insert(httpURL.absoluteString)
+                    webView.load(URLRequest(url: httpURL))
+                }
             case .cancelled:
                 break
             default:
@@ -2822,6 +2833,16 @@ try {
                 // window.open("tg://…") and friends: launch the app instead
                 // of leaving a blank new tab behind.
                 confirmAndOpenExternalURL(url, from: webView)
+                return nil
+            }
+            // 站点弹窗权限（v0.8.80）：规则挂在**发起方**站点上（sourceFrame 的 host；
+            // 没有来源帧时退回目标地址的 host）。deny = 拦截，返回 nil 即不开窗。
+            // sourceFrame 在本 SDK 里非可选，securityOrigin.host 恒有值。
+            let popupSourceHost = navigationAction.sourceFrame.securityOrigin.host
+            if !popupSourceHost.isEmpty,
+               !parent.permissionStore.popupsAllowed(for: popupSourceHost) {
+                parent.permissionStore.notePopupBlocked()
+                Log.privacy.info("popup blocked by site rule: \(popupSourceHost, privacy: .public)")
                 return nil
             }
             // OAuth/SSO 弹窗（v0.7.25 修复）：脚本文档开的窗口必须给**真弹窗**——
@@ -2856,6 +2877,23 @@ try {
         /// page's own listeners manually. `allowed` is false only when the
         /// page objects AND the user (or the automation bridge) chose to
         /// stay.
+        /// 主框架 http 导航的 HTTPS 升级尝试；true = 已发起升级，调用方必须
+        /// 直接 return（不再走 .allow）。只在 beforeunload 守卫放行之后调用。
+        private func performHTTPSUpgradeIfNeeded(url: URL, webView: WKWebView) -> Bool {
+            guard parent.httpsUpgradeEnabled,
+                  url.scheme == "http",
+                  !["127.0.0.1", "localhost", "::1"].contains(url.host ?? ""),
+                  !fallbackInProgress.contains(url.absoluteString),
+                  // 严格模式下用户点"继续访问 HTTP"：这一次 http 导航不再升级。
+                  parent.state.insecureFallbackURL?.absoluteString != url.absoluteString,
+                  var comps = URLComponents(url: url, resolvingAgainstBaseURL: false) else { return false }
+            comps.scheme = "https"
+            guard let https = comps.url else { return false }
+            pendingUpgrades[https.absoluteString] = url
+            webView.load(URLRequest(url: https))
+            return true
+        }
+
         private func runBeforeUnloadGuard(webView: WKWebView, completion: @escaping (Bool) -> Void) {
             webView.evaluateJavaScript(Self.beforeUnloadProbeJS) { [weak self] result, _ in
                 let payload = (result as? String).flatMap {
@@ -2872,6 +2910,22 @@ try {
                 }
             }
         }
+
+        /// 剪贴板读取拦截（v0.8.80）：站点规则 deny 时在**页面世界**把
+        /// `navigator.clipboard.readText/read` 换成拒绝。只动实例上的属性
+        /// （可配置），不碰原型；页面刷新后由 didFinish 重新注入。
+        static let clipboardReadGuardJS = """
+        (function(){
+          if (!navigator.clipboard) return;
+          function blocked(){
+            return Promise.reject(new DOMException('Clipboard read is blocked for this site', 'NotAllowedError'));
+          }
+          try {
+            Object.defineProperty(navigator.clipboard, 'readText', {value: blocked, configurable: true});
+            Object.defineProperty(navigator.clipboard, 'read', {value: blocked, configurable: true});
+          } catch (e) {}
+        })();
+        """
 
         /// Probe JS: runs the page's beforeunload listeners synchronously
         /// (property handler + addEventListener via dispatchEvent) and

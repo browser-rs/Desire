@@ -25,6 +25,10 @@ class Settings: ObservableObject {
     @Published var httpsUpgradeEnabled: Bool {
         didSet { AppPrefs.defaults.set(httpsUpgradeEnabled, forKey: "httpsUpgradeEnabled") }
     }
+    /// 严格 HTTPS-only（v0.8.80）：升级失败不再自动回退 HTTP，停在错误页由用户决定。
+    @Published var httpsOnlyMode: Bool {
+        didSet { AppPrefs.defaults.set(httpsOnlyMode, forKey: "httpsOnlyMode") }
+    }
     @Published var showLinkPreview: Bool {
         didSet { AppPrefs.defaults.set(showLinkPreview, forKey: "showLinkPreview") }
     }
@@ -168,6 +172,7 @@ class Settings: ObservableObject {
         isJavaScriptEnabled = AppPrefs.defaults.object(forKey: "isJavaScriptEnabled") as? Bool ?? true
         showSearchSuggestions = AppPrefs.defaults.object(forKey: "showSearchSuggestions") as? Bool ?? false
         httpsUpgradeEnabled = AppPrefs.defaults.object(forKey: "httpsUpgradeEnabled") as? Bool ?? true
+        httpsOnlyMode = AppPrefs.defaults.object(forKey: "httpsOnlyMode") as? Bool ?? false
         showLinkPreview = AppPrefs.defaults.object(forKey: "showLinkPreview") as? Bool ?? false
         appearanceTheme = AppearanceTheme(rawValue: AppPrefs.defaults.string(forKey: "appearanceTheme") ?? "") ?? .system
         accentColor = AccentColor(rawValue: AppPrefs.defaults.string(forKey: "accentColor") ?? "") ?? .blue

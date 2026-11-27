@@ -157,6 +157,10 @@ struct Toolbar: View {
     /// 站点设置（字体弹层 + 控制中心共用；非观察引用：Toolbar 只把它交给
     /// 弹层构造，不读它的状态——同 downloadStore/passwordStore 的传递方式）。
     let siteSettingsStore: SiteSettingsStore
+    /// 站点权限（v0.8.80）：锁弹层的权限编辑与矩阵同源（非观察引用，交给弹层）。
+    let permissionStore: PermissionStore
+    /// 地址自动填充（v0.8.80 多档案）：站点弹层的"填充地址"菜单。
+    let formAutofillStore: FormAutofillStore
     /// 全局自动播放档（父视图传入）：站点控制中心据此解析"生效值"——
     /// 视频平台在"需要用户手势"档下默认豁免，开关不能只看站点覆写。
     let globalAutoPlay: AutoPlayPolicy
@@ -366,6 +370,8 @@ struct Toolbar: View {
                         SiteControlsView(
                             host: host,
                             store: siteSettingsStore,
+                            permissionStore: permissionStore,
+                            autofillStore: formAutofillStore,
                             globalAutoPlay: globalAutoPlay,
                             pageZoom: tab.browser.pageZoom,
                             blockedCount: blockedElementCount ?? 0,
@@ -387,6 +393,13 @@ struct Toolbar: View {
                                 },
                                 clearOverrides: actions.siteControls.clearOverrides,
                                 toggleReader: actions.toggleReader,
+                                fillAddress: { id in
+                                    let script = formAutofillStore.fillScript(for: id)
+                                    // dom-tools（__desireFillProfile）在 agent 隔离世界，页面世界没有。
+                                    tab.browser.webView.evaluateJavaScript(
+                                        script, in: nil, in: WebView.agentToolWorld,
+                                        completionHandler: nil)
+                                },
                                 watchPage: actions.siteControls.watchPage,
                                 recordWorkflow: actions.siteControls.recordWorkflow))
                     }

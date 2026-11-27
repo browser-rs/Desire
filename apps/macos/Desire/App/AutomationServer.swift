@@ -407,7 +407,7 @@ final class AutomationServer {
         ep("GET", "/conversations", "Newest agent conversations (id/title/messages/firstMessage) — pair with /conversations/delete for cleanup", params: ["limit?:int (default 20)"], example: "…/conversations?limit=5")
         ep("GET", "/media/batch/log", "Full per-batch download log (create/resolve/download/merge/pause/fail, newest last)", params: ["id:string (batch uuid)", "tail?:int (default all)"], example: "…/media/batch/log?id=…")
         ep("POST", "/media/batch/manage", "Manage a batch directly (no agent round-trip): pause/resume/cancel/skip; batchId/itemId accept 8-char short ids", params: ["action:pause|resume|cancel|skip|remove", "batchId:string", "itemId?:string"], example: #"-d '{"action":"pause","batchId":"76a91071"}'"#)
-        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats|inbox|workspaces|whiteboard|syncchecklist|skillpatch|dppstudio|downloadhistory|…)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
+        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats|inbox|workspaces|whiteboard|syncchecklist|skillpatch|dppstudio|downloadhistory|sitecontrols|…)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
         ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/addSelectionToWhiteboard/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
         // Downloads
         ep("GET", "/downloads", "Rows: id/file/state/paused/bytes/total/private", example: "…/downloads")
@@ -434,6 +434,7 @@ final class AutomationServer {
         ep("POST", "/whatsnew/show", "Show the What's New sheet (automation; normal launches auto-show once)", example: "-d '{}'")
         ep("POST", "/whatsnew/dismiss", "Mark What's New as seen for this build", example: "-d '{}'")
         ep("POST", "/whatsnew/reset", "Forget the seen marker (testing/replay)", example: "-d '{}'")
+        ep("GET", "/windows", "Visible app windows (title/size) — popup windows included; E2E for new-window rules", example: "…/windows")
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
         ep("GET", "/diag/browser", "Browser diagnostics: content-process crash count + recent crashes", example: "…/diag/browser")
         ep("GET", "/diag/health", "Runtime health: main-thread stall history + cooperative-pool scheduling latency (p50/p95 over a 12-min sliding window)", example: "…/diag/health")
@@ -608,6 +609,16 @@ final class AutomationServer {
         ep("POST", "/passwords/import", "Import CSV (Chrome format) into the store", params: ["csv:string"], example: "-d '{\"csv\":\"name,url,username,password\\n…\"}'")
         ep("POST", "/passwords/resolve", "Resolve save/update-password prompt", params: ["save:bool"], example: "-d '{\"save\":true}'")
         ep("POST", "/passwords/delete", "Delete credentials for a domain (optional username = one account)", params: ["domain:string", "username?:string"], example: "-d '{\"domain\":\"example.com\",\"username\":\"u\"}'")
+        ep("POST", "/passwords/update", "Edit a stored credential in place (domain/username/password)", params: ["domain:string", "username:string", "newDomain?:string", "newUsername?:string", "newPassword?:string"], example: "-d '{\"domain\":\"a.com\",\"username\":\"u\",\"newPassword\":\"x\"}'")
+        ep("POST", "/passwords/health", "Local weak/reused/stale report (reads the keychain once — explicit action)", example: "-d '{}'")
+        ep("GET", "/autofill/profiles", "Address profiles: the working copy plus saved ones (id/label/summary)", example: "…/autofill/profiles")
+        ep("POST", "/autofill/save-current", "Save the working address profile into the library (upsert by id)", example: "-d '{}'")
+        ep("POST", "/autofill/new", "Start a blank working profile (save it to add to the library)", example: "-d '{}'")
+        ep("POST", "/autofill/load", "Load a saved profile into the working copy", params: ["id:uuid"], example: "-d '{\"id\":\"…\"}'")
+        ep("POST", "/autofill/delete", "Delete a saved profile", params: ["id:uuid"], example: "-d '{\"id\":\"…\"}'")
+        ep("POST", "/autofill/fill", "Fill the page form with a profile (defaults to the working copy; only empty fields)", params: ["index?:int", "profileID?:uuid"], example: "-d '{}'")
+        ep("POST", "/autofill/update", "Update fields of the working address profile (any subset)", params: ["label?/givenName?/familyName?/email?/phone?/organization?/streetAddress?/city?/state?/zipCode?/country?"], example: "-d '{\"givenName\":\"Ada\",\"email\":\"a@example.com\"}'")
+        ep("POST", "/passwords/breach-check", "HIBP k-anonymous breach check: only 5-char SHA-1 prefixes leave the Mac. endpoint is for tests", params: ["endpoint?:string"], example: "-d '{}'")
         ep("GET", "/import/browsers", "Detected Chrome/Edge/Brave/Arc/Safari profiles with bookmarks/history paths", example: "…/import/browsers")
         ep("POST", "/import/preview", "Preview a browser profile (path = profile folder or data file): bookmark/history counts, settings, warnings", params: ["path:string"], example: "-d '{\"path\":\"/Users/me/Library/Application Support/Google/Chrome/Default\"}'")
         ep("POST", "/import/run", "Import from a browser profile (bookmarks/history/settings booleans, default all). Password import stays CSV-only.", params: ["path:string", "bookmarks?:bool", "history?:bool", "settings?:bool"], example: "-d '{\"path\":\"…/Default\",\"bookmarks\":true,\"history\":true}'")
@@ -750,7 +761,13 @@ final class AutomationServer {
         ep("GET", "/console", "Console messages", params: ["count?:int"], example: "…/console?count=20")
         // Misc
         ep("GET", "/settings", "A couple of global settings", example: "…/settings")
-        ep("GET", "/permissions", "Per-site permission rules (camera/mic/location) for the privacy dashboard", example: "…/permissions")
+        ep("GET", "/permissions", "Per-site permission rules (camera/mic/location/popups/clipboardRead) for the privacy dashboard", example: "…/permissions")
+        ep("POST", "/permissions", "Set a per-site permission rule; decision allow|deny|ask (ask = remove the rule). Omit decision to cycle ask→allow→deny→ask", params: ["host:string", "type:string (camera|microphone|geolocation|popups|clipboardRead)", "decision?:string"], example: #"-d '{"host":"example.com","type":"popups","decision":"deny"}'"#)
+        ep("POST", "/page/continue-insecure", "Equivalent of the error page's 'Continue to the HTTP address' button (HTTPS-only mode)", params: ["index?:int"], example: #"-d '{}'"#)
+        ep("POST", "/privacy/clear-site", "Delete all website data for one host (cookies, storage, cache; subdomains included)", params: ["host:string"], example: #"-d '{"host":"example.com"}'"#)
+        ep("POST", "/privacy/clear", "Clear browsing data in a time range (range: pastHour|pastDay|pastWeek|allTime); each type defaults to true", params: ["range?:string", "cookies?:bool", "cache?:bool", "storage?:bool", "history?:bool"], example: #"-d '{"range":"pastDay","history":true}'"#)
+        ep("POST", "/settings/https-only", "Toggle strict HTTPS-only mode (failed upgrades no longer fall back to HTTP); applies to new webviews", params: ["enabled:bool"], example: #"-d '{"enabled":true}'"#)
+        ep("GET", "/privacy/site-data", "Website data records with their data types", example: "…/privacy/site-data")
         ep("GET", "/mcp", "MCP server configs + tools", example: "…/mcp")
         ep("POST", "/mcp/remove", "Remove an MCP server by name", params: ["name:string"], example: #"-d '{"name":"local"}'"#)
         ep("GET", "/protocol/inspect", "Inspect the DPP protocol of the current page (views/signals/actions/context/warnings)", params: [], example: "…/protocol/inspect")
@@ -1036,6 +1053,13 @@ case ("GET", "/state"):
                     return try Self.json(Self.historyGrouped())
                 }
                 return try Self.json(Self.history(count: Int(query["count"] ?? "10") ?? 10))
+            case ("GET", "/windows"):
+                let windows = NSApp.windows.filter(\.isVisible).map { window -> [String: Any] in
+                    ["title": window.title, "width": window.frame.width, "height": window.frame.height,
+                     "isPopup": String(describing: type(of: window)).contains("Popup"),
+                     "isSheet": window.isSheet]
+                }
+                return try Self.json(["ok": true, "windows": windows])
             case ("GET", "/diag/geometry"):
                 return try Self.json(Self.geometry(index: Self.index(query)))
             case ("GET", "/diag/health"):
@@ -2158,6 +2182,68 @@ case ("GET", "/state"):
                 return try Self.json(Self.deletePasswords(
                     domain: Self.string(body, "domain") ?? "",
                     username: Self.string(body, "username")))
+            case ("POST", "/passwords/update"):
+                return try Self.json(Self.updatePassword(
+                    domain: Self.string(body, "domain") ?? "",
+                    username: Self.string(body, "username") ?? "",
+                    newDomain: Self.string(body, "newDomain"),
+                    newUsername: Self.string(body, "newUsername"),
+                    newPassword: Self.string(body, "newPassword")))
+            case ("GET", "/autofill/profiles"):
+                return try Self.json(Self.autofillProfiles())
+            case ("POST", "/autofill/new"):
+                guard let app = AppState.live else { return try Self.json(["error": "app state not ready"]) }
+                app.formAutofillStore.newProfile()
+                return try Self.json(Self.autofillProfiles())
+            case ("POST", "/autofill/save-current"):
+                guard let app = AppState.live else { return try Self.json(["error": "app state not ready"]) }
+                app.formAutofillStore.saveCurrentToLibrary()
+                return try Self.json(Self.autofillProfiles())
+            case ("POST", "/autofill/load"):
+                guard let app = AppState.live,
+                      let id = Self.string(body, "id").flatMap(UUID.init(uuidString:)) else {
+                    return try Self.json(["error": "missing or invalid id"])
+                }
+                app.formAutofillStore.load(id)
+                return try Self.json(Self.autofillProfiles())
+            case ("POST", "/autofill/delete"):
+                guard let app = AppState.live,
+                      let id = Self.string(body, "id").flatMap(UUID.init(uuidString:)) else {
+                    return try Self.json(["error": "missing or invalid id"])
+                }
+                app.formAutofillStore.delete(id)
+                return try Self.json(Self.autofillProfiles())
+            case ("POST", "/autofill/update"):
+                guard let app = AppState.live else { return try Self.json(["error": "app state not ready"]) }
+                func text(_ key: String) -> String? { Self.string(body, key) }
+                app.formAutofillStore.profile.label = text("label") ?? app.formAutofillStore.profile.label
+                app.formAutofillStore.profile.givenName = text("givenName") ?? app.formAutofillStore.profile.givenName
+                app.formAutofillStore.profile.familyName = text("familyName") ?? app.formAutofillStore.profile.familyName
+                app.formAutofillStore.profile.email = text("email") ?? app.formAutofillStore.profile.email
+                app.formAutofillStore.profile.phone = text("phone") ?? app.formAutofillStore.profile.phone
+                app.formAutofillStore.profile.organization = text("organization") ?? app.formAutofillStore.profile.organization
+                app.formAutofillStore.profile.streetAddress = text("streetAddress") ?? app.formAutofillStore.profile.streetAddress
+                app.formAutofillStore.profile.city = text("city") ?? app.formAutofillStore.profile.city
+                app.formAutofillStore.profile.state = text("state") ?? app.formAutofillStore.profile.state
+                app.formAutofillStore.profile.zipCode = text("zipCode") ?? app.formAutofillStore.profile.zipCode
+                app.formAutofillStore.profile.country = text("country") ?? app.formAutofillStore.profile.country
+                return try Self.json(Self.autofillProfiles())
+            case ("POST", "/autofill/fill"):
+                guard let app = AppState.live,
+                      let tab = Self.shared.resolveIndex(Self.index(body)) else {
+                    return try Self.json(["error": "no such tab"])
+                }
+                let profileID = Self.string(body, "profileID").flatMap(UUID.init(uuidString:))
+                tab.browser.webView.evaluateJavaScript(app.formAutofillStore.fillScript(for: profileID),
+                                                       in: nil, in: WebView.agentToolWorld,
+                                                       completionHandler: nil)
+                return try Self.json(["ok": true])
+            case ("POST", "/passwords/health"):
+                return try Self.json(Self.passwordHealth())
+            case ("POST", "/passwords/breach-check"):
+                let endpoint = Self.string(body, "endpoint").flatMap { URL(string: $0) }
+                let report = await Self.passwordBreachCheck(endpoint: endpoint)
+                return try Self.json(report)
             case ("GET", "/import/browsers"):
                 return try Self.json(Self.importBrowsers())
             case ("POST", "/import/preview"):
@@ -2888,11 +2974,97 @@ case ("GET", "/state"):
                 return try Self.json(Self.videoAdRules())
             case ("GET", "/permissions"):
                 return try Self.json(Self.permissionRules())
+            case ("POST", "/permissions"):
+                guard let host = Self.string(body, "host"), !host.isEmpty,
+                      let typeRaw = Self.string(body, "type"),
+                      let type = PermissionType(rawValue: typeRaw) else {
+                    return try Self.json(["error": "host and a valid type are required"])
+                }
+                let permissionStore = AppState.live?.privacy.permissionStore ?? PermissionStore()
+                if let decisionRaw = Self.string(body, "decision") {
+                    let decision: PermissionDecision?
+                    switch decisionRaw {
+                    case "ask": decision = nil
+                    case "allow": decision = .allow
+                    case "deny": decision = .deny
+                    default: return try Self.json(["error": "decision must be allow / deny / ask"])
+                    }
+                    // camera/microphone 走专用入口：联合权限（cameraAndMicrophone）跟着重算，
+                    // 回到"询问"也要重算（此前 ask 直接 remove，联合规则残留 deny——实测）。
+                    switch type {
+                    case .camera: permissionStore.setCamera(decision, host: host)
+                    case .microphone: permissionStore.setMicrophone(decision, host: host)
+                    default: permissionStore.set(decision, host: host, type: type)
+                    }
+                } else {
+                    permissionStore.cycle(host: host, type: type)
+                }
+                return try Self.json(Self.permissionRules())
+            case ("POST", "/page/continue-insecure"):
+                // 错误页"继续访问 HTTP 地址"按钮的桥等价（v0.8.80 严格 HTTPS-only 的 E2E）。
+                guard let tab = Self.shared.resolveIndex(Self.index(body)),
+                      let url = tab.browser.insecureFallbackURL else {
+                    return try Self.json(["error": "no insecure fallback pending on this tab"])
+                }
+                tab.browser.lastError = nil
+                tab.browser.webView.load(URLRequest(url: url))
+                return try Self.json(["ok": true, "url": url.absoluteString])
+            case ("POST", "/privacy/clear-site"):
+                guard let host = Self.string(body, "host"), !host.isEmpty else {
+                    return try Self.json(["error": "missing host"])
+                }
+                let removed = await SiteDataManager.removeAll(forHost: host)
+                return try Self.json(["ok": true, "host": host, "removed": removed])
+            case ("POST", "/privacy/clear"):
+                let range = Self.string(body, "range").flatMap(PermissionMatrix.ClearRange.init(rawValue:)) ?? .allTime
+                let since = range.since() ?? Date.distantPast
+                var types = Set<String>()
+                if body["cookies"] as? Bool ?? true { types.insert(WKWebsiteDataTypeCookies) }
+                if body["cache"] as? Bool ?? true {
+                    types.insert(WKWebsiteDataTypeDiskCache)
+                    types.insert(WKWebsiteDataTypeMemoryCache)
+                }
+                if body["storage"] as? Bool ?? true {
+                    types.insert(WKWebsiteDataTypeLocalStorage)
+                    types.insert(WKWebsiteDataTypeSessionStorage)
+                    types.insert(WKWebsiteDataTypeIndexedDBDatabases)
+                    types.insert(WKWebsiteDataTypeWebSQLDatabases)
+                }
+                if !types.isEmpty {
+                    await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+                        WKWebsiteDataStore.default().removeData(ofTypes: types, modifiedSince: since) {
+                            continuation.resume()
+                        }
+                    }
+                }
+                var historyRemoved = 0
+                if body["history"] as? Bool ?? true, let history = AppState.live?.historyStore {
+                    let before = history.entries.count
+                    if let since = range.since() { history.removeAll(after: since) } else { history.clearAll() }
+                    historyRemoved = before - history.entries.count
+                }
+                return try Self.json(["ok": true, "range": range.rawValue,
+                                      "types": types.sorted(), "historyRemoved": historyRemoved])
+            case ("POST", "/settings/https-only"):
+                guard let enabled = body["enabled"] as? Bool else {
+                    return try Self.json(["error": "missing enabled"])
+                }
+                // 共享实例（不是新建一个 Settings）：开着的窗口/新标签从它派生
+                // httpsOnlyMode，新建实例只写盘、正在运行的 UI 看不到。
+                let updated = AppState.live?.settings ?? Settings()
+                updated.httpsOnlyMode = enabled
+                return try Self.json(["ok": true, "httpsOnlyMode": updated.httpsOnlyMode])
+            case ("GET", "/privacy/site-data"):
+                let records = await SiteDataManager.records()
+                return try Self.json(["ok": true, "records": records.map {
+                    ["displayName": $0.displayName, "types": $0.types]
+                }])
             case ("GET", "/settings"):
                 let st = Settings()
                 return try Self.json([
                     "searchEngine": st.searchEngine.rawValue,
                     "httpsUpgradeEnabled": st.httpsUpgradeEnabled,
+                    "httpsOnlyMode": st.httpsOnlyMode,
                     // 生效值（而非落盘的原始键）：旧安装里的 false 来自
                     // 2026-09-16 前的首次启动 bug，未显式选择过时按默认 ON。
                     "videoAdBlockerEnabled": VideoAdBlocker.resolvedEnabled,
@@ -4937,6 +5109,7 @@ case ("GET", "/agent/messages"):
             "isLoading": tab.isLoading,
             "zoom": tab.browser.pageZoom,
             "error": tab.browser.lastError?.localizedDescription ?? NSNull(),
+            "insecureFallback": tab.browser.insecureFallbackURL?.absoluteString ?? "",
             "mixedContent": tab.browser.mixedContentTotal,
             "mixedContentScripts": tab.browser.mixedContentScripts,
         ]
@@ -6048,6 +6221,47 @@ case ("GET", "/agent/messages"):
             return ["path": path, "patches": pending.count,
                     "width": rep.pixelsWide, "height": rep.pixelsHigh]
         }
+        if name == "sitecontrols" {
+            // 锁图标弹层（站点控制中心）的离屏快照（v0.8.80 权限编辑区）：数据在单例里，
+            // 动作全部 no-op——只看布局。
+            guard let app = AppState.live else { return ["error": "app state not ready"] }
+            let host = "example.com"
+            let actions = SiteControlsView.Actions(
+                zoomIn: {}, zoomOut: {}, zoomReset: {}, toggleDarkMode: {}, toggleAutoPlay: {},
+                editFont: {}, manageBlocked: {}, clearOverrides: {},
+                toggleReader: {}, fillAddress: { _ in }, watchPage: {}, recordWorkflow: {})
+            let size = NSSize(width: max(300, width ?? 340), height: max(400, height ?? 900))
+            let hostView = NSHostingView(
+                rootView: AnyView(SiteControlsView(
+                    host: host, store: app.siteSettingsStore, permissionStore: app.permissionStore,
+                    autofillStore: app.formAutofillStore,
+                    globalAutoPlay: .requireUserAction, pageZoom: 1.0, blockedCount: 0,
+                    currentURL: "https://\(host)/", isReaderActive: false, actions: actions))
+                    .appAccent(AppAccent.current)
+                    .background(Color(nsColor: .windowBackgroundColor))
+                    .frame(width: size.width, height: size.height)
+            )
+            hostView.frame = NSRect(origin: .zero, size: size)
+            hostView.appearance = NSApp.windows.first { $0.isVisible && $0.frame.width > 800 }?.effectiveAppearance
+                ?? NSApp.effectiveAppearance
+            hostView.layoutSubtreeIfNeeded()
+            for _ in 0..<6 {
+                try? await Task.sleep(for: .milliseconds(70))
+                hostView.needsLayout = true
+                hostView.layoutSubtreeIfNeeded()
+            }
+            guard let rep = hostView.bitmapImageRepForCachingDisplay(in: hostView.bounds) else {
+                return ["error": "bitmap alloc failed"]
+            }
+            hostView.cacheDisplay(in: hostView.bounds, to: rep)
+            guard let png = rep.representation(using: .png, properties: [:]) else {
+                return ["error": "encode failed"]
+            }
+            let path = StorageRoot.directory.appendingPathComponent("sitecontrols-panel.png").path
+            try png.write(to: URL(fileURLWithPath: path))
+            return ["path": path, "host": host,
+                    "width": rep.pixelsWide, "height": rep.pixelsHigh]
+        }
         if name == "downloadhistory" {
             // 下载记录小节（v0.8.79）：数据从 store 派生（body 里算），离屏可拍。
             let size = NSSize(width: max(420, width ?? 720), height: max(240, height ?? 600))
@@ -6613,8 +6827,85 @@ case ("GET", "/agent/messages"):
         guard !domain.isEmpty, !username.isEmpty, !password.isEmpty else {
             return ["error": "missing domain/username/password"]
         }
+        let before = app.passwordStore.entries.count
         app.passwordStore.save(domain: domain, username: username, password: password)
-        return ["ok": true]
+        // 同站点同账号原地更新（v0.8.80）——列表里不会多出"幽灵条目"。
+        return ["ok": true, "updated": app.passwordStore.entries.count == before]
+    }
+
+    /// 编辑已有凭据（v0.8.80）：按 (domain, username) 定位；三项都可改。
+    private static func updatePassword(domain: String, username: String,
+                                       newDomain: String?, newUsername: String?,
+                                       newPassword: String?) throws -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        guard let entry = app.passwordStore.find(domain: domain, loadSecrets: false)
+            .first(where: { $0.username == username }) else {
+            return ["error": "no saved credential for \(domain) / \(username)"]
+        }
+        let targetDomain = (newDomain?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                            ? newDomain! : entry.domain)
+        let targetUsername = (newUsername?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+                              ? newUsername! : entry.username)
+        let targetPassword = newPassword.flatMap { $0.isEmpty ? nil : $0 } ?? entry.password
+        if targetPassword.isEmpty {
+            // 钥匙串项按 (server, account, data) 重写；只改域名/用户名也必须带密码，
+            // 否则要先读一次旧密码（会弹授权）——桥要求显式提供。
+            return ["error": "newPassword is required when the keychain item must be rewritten"]
+        }
+        app.passwordStore.update(entry, domain: targetDomain, username: targetUsername,
+                                 password: targetPassword)
+        return ["ok": true, "domain": targetDomain, "username": targetUsername]
+    }
+
+    /// 地址档案清单（不含任何密码类数据）。
+    private static func autofillProfiles() -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let store = app.formAutofillStore
+        func row(_ profile: FormAutofillProfile) -> [String: Any] {
+            ["id": profile.id.uuidString, "label": profile.label,
+             "name": profile.fullName, "summary": profile.summary,
+             "isWorking": profile.id == store.profile.id]
+        }
+        return ["ok": true,
+                "working": row(store.profile),
+                "saved": store.savedProfiles.map(row),
+                "fillable": store.fillableProfiles.map(row)]
+    }
+
+    /// 本地健康判定（读一次 Keychain；显式动作）。
+    private static func passwordHealth() -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        app.passwordStore.loadAllSecrets()
+        let report = PasswordHealth.assess(entries: app.passwordStore.entries)
+        return [
+            "ok": true,
+            "total": report.totalEntries,
+            "findings": report.findings.map {
+                ["domain": $0.domain, "username": $0.username,
+                 "issues": $0.issues.map(\.rawValue), "detail": $0.detail]
+            },
+            "weak": report.weakCount, "duplicate": report.duplicateCount, "old": report.oldCount,
+        ]
+    }
+
+    /// 泄露检查（HIBP k-匿名）：只发 SHA-1 前 5 位；返回 domain/username + 次数，
+    /// 不回传任何密码或完整哈希。endpoint 仅供 E2E 注入。
+    private static func passwordBreachCheck(endpoint: URL?) async -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        app.passwordStore.loadAllSecrets()
+        let items = app.passwordStore.entries.compactMap { entry -> (PasswordEntry, PasswordBreachService.Item)? in
+            guard !entry.password.isEmpty else { return nil }
+            return (entry, .init(id: entry.id, password: entry.password))
+        }
+        let outcome = await PasswordBreachService.check(items.map(\.1),
+                                                        endpoint: endpoint ?? PasswordBreach.defaultBase)
+        let byID = Dictionary(uniqueKeysWithValues: items.map { ($0.1.id, $0.0) })
+        let rows = outcome.counts.compactMap { id, count -> [String: Any]? in
+            guard let entry = byID[id] else { return nil }
+            return ["domain": entry.domain, "username": entry.username, "count": count]
+        }
+        return ["ok": true, "leaked": rows, "failedGroups": outcome.failedGroups,
+                "checked": items.count]
     }
 
     /// Imports a Chrome-format CSV. Reports counts only — the store never
@@ -7365,7 +7656,9 @@ case ("GET", "/agent/messages"):
     /// 隐私面板权限规则的只读快照（v0.8.6）：读写分离惯例——查询用新实例
     /// 读盘即可；矩阵写路径走 UI。
     private static func permissionRules() -> [String: Any] {
-        let store = PermissionStore()
+        // 共享实例（v0.8.80）：此前每次现建一个 PermissionStore——DiskStore 是防抖
+        // 异步写，刚改的规则在桥里读不到（500ms 内为旧值）。与锁弹层/矩阵同源。
+        let store = AppState.live?.privacy.permissionStore ?? PermissionStore()
         let rules = store.rules.map { rule -> [String: Any] in
             ["host": rule.host, "type": rule.type.rawValue,
              "decision": rule.decision.rawValue]
@@ -7374,7 +7667,7 @@ case ("GET", "/agent/messages"):
             ["host": row.host,
              "decisions": Dictionary(uniqueKeysWithValues: row.decisions.map { ($0.key.rawValue, $0.value.rawValue) })]
         }
-        return ["rules": rules, "matrix": matrix]
+        return ["rules": rules, "matrix": matrix, "popupBlocks": store.popupBlocks]
     }
 
     private static func suggest(query: String) throws -> [String: Any] {

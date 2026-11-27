@@ -22,6 +22,7 @@ enum SettingsSync {
         flag("isJavaScriptEnabled", { $0.isJavaScriptEnabled }, { s, v in s.isJavaScriptEnabled = v }),
         flag("showSearchSuggestions", { $0.showSearchSuggestions }, { s, v in s.showSearchSuggestions = v }),
         flag("httpsUpgradeEnabled", { $0.httpsUpgradeEnabled }, { s, v in s.httpsUpgradeEnabled = v }),
+        flag("httpsOnlyMode", { $0.httpsOnlyMode }, { s, v in s.httpsOnlyMode = v }),
         flag("showLinkPreview", { $0.showLinkPreview }, { s, v in s.showLinkPreview = v }),
         rawEnum("appearanceTheme", { $0.appearanceTheme }, { s, v in s.appearanceTheme = v }),
         rawEnum("accentColor", { $0.accentColor }, { s, v in s.accentColor = v }),

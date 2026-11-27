@@ -121,6 +121,12 @@ class PasswordStore: ObservableObject {
     }
 
     func save(domain: String, username: String, password: String) {
+        // 同站点同账号已经存在 → 原地更新（v0.8.80）。此前会再插一条元数据：
+        // 钥匙串按键（server+account）覆盖成一条，列表里却多出一行"幽灵条目"。
+        if let existing = entries.first(where: { $0.domain == domain && $0.username == username }) {
+            update(existing, domain: domain, username: username, password: password)
+            return
+        }
         let entry = PasswordEntry(id: UUID(), domain: domain, username: username, password: password, createdAt: Date())
         addToKeychain(domain: domain, username: username, password: password)
         entries.insert(entry, at: 0)
@@ -133,6 +139,20 @@ class PasswordStore: ObservableObject {
         guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return }
         entries[index].password = newPassword
         addToKeychain(domain: entry.domain, username: entry.username, password: newPassword)
+    }
+
+    /// 编辑已有条目（v0.8.80 密码面板）：域名 / 用户名 / 密码都可能改。钥匙串的
+    /// 身份键是 (server, account)——任一变了就先删旧项再按新值写；条目 id 与
+    /// createdAt 保持不变（行不跳位）。
+    func update(_ entry: PasswordEntry, domain: String, username: String, password: String) {
+        guard let index = entries.firstIndex(where: { $0.id == entry.id }) else { return }
+        if entry.domain != domain || entry.username != username {
+            deleteFromKeychain(domain: entry.domain, username: entry.username)
+        }
+        addToKeychain(domain: domain, username: username, password: password)
+        entries[index].domain = domain
+        entries[index].username = username
+        entries[index].password = password
     }
 
     /// 某域名下的存档凭据。

@@ -3506,6 +3506,45 @@ func testPasswordHealth() {
 }
 testPasswordHealth()
 
+// ---------- 泄露检查 PasswordBreach（v0.8.80 批 1-②） ----------
+
+do {
+    // 已知向量：SHA-1("password")
+    eq("泄露：SHA-1 向量", PasswordBreach.sha1Hex("password"),
+       "5BAA61E4C9B93F3F0682250B6CF8331B7EE68FD8")
+    eq("泄露：前缀 5 位大写", PasswordBreach.prefix(of: "password"), "5BAA6")
+    eq("泄露：后缀 35 位", PasswordBreach.suffix(of: "password"),
+       "1E4C9B93F3F0682250B6CF8331B7EE68FD8")
+
+    // 典型 range 响应：命中（大小写不敏感）+ 未命中 + 坏行
+    let range = """
+    0018A45C4D1DEF81644B54AB7F969B88D65:1
+    1E4C9B93F3F0682250B6CF8331B7EE68FD8:3303003
+    BADLINE
+    00D4F6E8FA6EECAD2A3AA415EEC418D38EC:2
+    """
+    eq("泄露：命中返回次数", PasswordBreach.breachCount(for: "password", rangeResponse: range), 3_303_003)
+    check("泄露：未命中 = nil", PasswordBreach.breachCount(for: "not-in-list", rangeResponse: range) == nil)
+    check("泄露：坏行被忽略", PasswordBreach.breachCount(for: "x", rangeResponse: "BADLINE\n:3\nZZZ:abc") == nil)
+    let lower = "1e4c9b93f3f0682250b6cf8331b7ee68fd8:7\n"
+    eq("泄露：响应大小写不敏感", PasswordBreach.breachCount(for: "password", rangeResponse: lower), 7)
+
+    // 请求地址：只有 5 位前缀进 URL
+    let url = PasswordBreach.rangeURL(for: "password")
+    eq("泄露：请求只带前缀", url.path, "/range/5BAA6")
+    check("泄露：URL 里没有完整哈希", !url.absoluteString.contains("1E4C9B93"))
+
+    // 分组：同前缀只发一次
+    let grouped = PasswordBreach.grouped(["password", "password", "hunter2"])
+    eq("泄露：按前缀分组", grouped["5BAA6"]?.count, 2)
+    eq("泄露：不同前缀各一组", grouped.count, 2)
+
+    // 域名归一（密码编辑表单）
+    eq("录入：整条网址取主机", PasswordBreach.normalizedDomain(" https://www.Example.com/login?x=1 "), "example.com")
+    eq("录入：裸域名原样", PasswordBreach.normalizedDomain("example.com"), "example.com")
+    eq("录入：空输入", PasswordBreach.normalizedDomain("   "), "")
+}
+
 // ---------- 文件整理计划（v0.8.4） ----------
 
 func testFileOrganizerPlan() {
@@ -4216,7 +4255,28 @@ func testPermissionMatrix() {
     check("循环：未设置→允许", PermissionMatrix.cycled(nil) == .allow)
     check("循环：允许→拒绝", PermissionMatrix.cycled(.allow) == .deny)
     check("循环：拒绝→未设置", PermissionMatrix.cycled(.deny) == nil)
-    check("循环：列清单", PermissionMatrix.columns.count == 4)
+    // v0.8.80：新增弹窗 / 剪贴板读取两列（通知在 WKWebView 无提示 API，不进矩阵）。
+    eq("循环：列清单（含弹窗/剪贴板）", PermissionMatrix.columns.count, 6)
+    check("循环：列顺序保持既有四列在前",
+          Array(PermissionMatrix.columns.prefix(4)) == [.camera, .microphone, .cameraAndMicrophone, .geolocation])
+
+    // 联合权限跟随（v0.8.80）：两者都允许才允许，任一拒绝即拒绝
+    check("联合：都允许", PermissionMatrix.combinedDecision(camera: .allow, microphone: .allow) == .allow)
+    check("联合：任一拒绝", PermissionMatrix.combinedDecision(camera: .deny, microphone: .allow) == .deny
+          && PermissionMatrix.combinedDecision(camera: .allow, microphone: .deny) == .deny)
+    check("联合：有未设置 → 未设置", PermissionMatrix.combinedDecision(camera: .allow, microphone: nil) == nil
+          && PermissionMatrix.combinedDecision(camera: nil, microphone: nil) == nil)
+
+    // 清除范围（v0.8.80）：起点 = now - 窗口；allTime = nil
+    let now = Date(timeIntervalSince1970: 1_764_000_000)
+    eq("清除范围：过去 1 小时", PermissionMatrix.ClearRange.pastHour.since(now: now),
+       now.addingTimeInterval(-3_600))
+    eq("清除范围：过去 24 小时", PermissionMatrix.ClearRange.pastDay.since(now: now),
+       now.addingTimeInterval(-86_400))
+    eq("清除范围：过去 7 天", PermissionMatrix.ClearRange.pastWeek.since(now: now),
+       now.addingTimeInterval(-7 * 86_400))
+    eq("清除范围：全部时间 = nil", PermissionMatrix.ClearRange.allTime.since(now: now), Optional<Date>.none)
+    eq("清除范围：原始值可解析", PermissionMatrix.ClearRange(rawValue: "pastDay"), .pastDay)
 }
 
 testPermissionMatrix()

@@ -99,6 +99,7 @@ SOURCES=(
   apps/macos/Desire/Features/Promotion/OperationsLoopPlan.swift
   apps/macos/Desire/Features/Password/PasswordEntry.swift
   apps/macos/Desire/Features/Password/PasswordHealth.swift
+  apps/macos/Desire/Features/Password/PasswordBreach.swift
   apps/macos/Desire/Features/Agent/FileOrganizerPlan.swift
   apps/macos/Desire/Features/Promotion/CampaignAssetPlan.swift
   apps/macos/Desire/Features/Agent/FormFillPlan.swift

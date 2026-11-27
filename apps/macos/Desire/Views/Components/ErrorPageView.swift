@@ -121,9 +121,25 @@ struct ErrorPageView: View {
                 .frame(maxWidth: 480)
                 .padding(.horizontal, 24)
 
+            // 严格 HTTPS-only（v0.8.80）：升级失败没有自动回退——明说原因，
+            // 并给一个显式的"继续访问"按钮（不替用户做降级决定）。
+            if let insecure = tab.browser.insecureFallbackURL {
+                Text(String(localized: "HTTPS-Only mode blocked the fallback to the insecure HTTP address."))
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                Button(String(localized: "Continue to the HTTP address")) {
+                    tab.browser.lastError = nil
+                    // 不清 insecureFallbackURL：导航策略靠它识别"这一次不升级"，
+                    // 页面加载成功后由 didFinish 清空。
+                    tab.browser.webView.load(URLRequest(url: insecure))
+                }
+                .buttonStyle(.borderedProminent)
+            }
+
             HStack(spacing: 12) {
                 Button("Reload") {
                     tab.browser.lastError = nil
+                    tab.browser.insecureFallbackURL = nil
                     if let url = URL(string: tab.urlString) {
                         tab.browser.webView.load(URLRequest(url: url))
                     }

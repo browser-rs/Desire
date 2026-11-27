@@ -5,6 +5,49 @@ struct FormAutofillSettingsView: View {
 
     var body: some View {
         SettingsContainer {
+            // 多档案（v0.8.80）：命名当前档案、存入库、从库中载入/删除。
+            SettingsSection(
+                title: "Profiles",
+                subtitle: "Keep more than one address and pick which one to fill from the site controls or the bridge.",
+                icon: "person.2"
+            ) {
+                VStack(spacing: 0) {
+                    SettingsRow("Profile Name", subtitle: "Shown in the fill menu (empty = full name).", systemImage: "tag") {
+                        SettingsTextField(placeholder: "Home", text: $store.profile.label, width: 160)
+                    }
+                    SettingsRowDivider()
+                    HStack {
+                        Button("Save Current Profile") { store.saveCurrentToLibrary() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        Button("New Profile") { store.newProfile() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    ForEach(store.savedProfiles) { saved in
+                        SettingsRowDivider()
+                        SettingsRow(saved.displayName, subtitle: saved.summary, systemImage: "person.crop.rectangle") {
+                            HStack(spacing: 8) {
+                                Button("Load") { store.load(saved.id) }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                Button {
+                                    store.delete(saved.id)
+                                } label: {
+                                    Image(systemName: "trash")
+                                        .font(.system(size: 11))
+                                        .foregroundStyle(.red.opacity(0.8))
+                                }
+                                .buttonStyle(.plain)
+                            }
+                        }
+                    }
+                }
+            }
+
             SettingsSection(
                 title: "Name",
                 subtitle: "Used to fill your first and last name into forms.",

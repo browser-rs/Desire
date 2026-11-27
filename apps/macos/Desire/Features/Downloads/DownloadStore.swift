@@ -30,6 +30,16 @@ class DownloadStore: ObservableObject {
     private var accessedURL: URL?
     private let bookmarkKey = "desire.downloadFolder.bookmark"
     private let historyKey = "desire.downloadHistory"
+    /// 跨重启续传的 resumeData 落盘目录（v0.8.80）：只存 URLSession 的
+    /// resumeData（几 KB 的占位信息，引用系统临时文件），不是文件本体。
+    private static var resumeDirectory: URL {
+        let dir = StorageRoot.directory.appendingPathComponent("download-resume", isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir
+    }
+    private static func resumeFile(_ id: UUID) -> URL {
+        resumeDirectory.appendingPathComponent("\(id.uuidString).resume")
+    }
     /// Active URLSession download tasks keyed by DownloadItem.id, so
     /// pause/resume can actually suspend/resume the network transfer.
     private var activeTasks: [UUID: URLSessionDownloadTask] = [:]
@@ -315,6 +325,12 @@ class DownloadStore: ObservableObject {
             }
             return
         }
+        // URLSession 行（v0.8.80）：暂停时已把 resumeData 落盘——重启后也能续传。
+        if downloads[i].portableResume, let data = downloads[i].resumeData,
+           let sourceURL = downloads[i].sourceURL {
+            attachURLSessionTask(itemID: id, sourceURL: sourceURL, resumeData: data)
+            return
+        }
         // Rows restored from disk have no live transfer behind them —
         // resume means restarting from the source URL.
         if downloads[i].resumeAction == nil, activeTasks[id] == nil {
@@ -333,6 +349,35 @@ class DownloadStore: ObservableObject {
         } else {
             activeTasks[id]?.resume()
         }
+        saveHistory()
+    }
+
+    /// 用 resumeData 在**同一行**上新建 URLSession 任务（v0.8.80：跨重启续传/
+    /// 进程内取消后续传共用）。
+    private func attachURLSessionTask(itemID: UUID, sourceURL: URL, resumeData: Data?) {
+        let task: URLSessionDownloadTask = if let resumeData {
+            storeSession.downloadTask(withResumeData: resumeData)
+        } else {
+            storeSession.downloadTask(with: sourceURL)
+        }
+        task.taskDescription = itemID.uuidString
+        activeTasks[itemID] = task
+        if let index = downloads.firstIndex(where: { $0.id == itemID }) {
+            downloads[index].state = .inProgress
+            downloads[index].isPaused = false
+            downloads[index].resumeData = nil
+            downloads[index].resumeUnavailable = false
+            downloads[index].error = nil
+            downloads[index].lastUpdateTime = Date()
+            downloads[index].pauseAction = { [weak self, weak task] in
+                task?.cancel(byProducingResumeData: { data in
+                    Task { @MainActor in self?.storeResumeData(data, for: itemID, portable: true) }
+                })
+            }
+        }
+        // resumeData 已被新任务消费；盘上那份删掉，避免下次启动拿旧偏移再试。
+        try? FileManager.default.removeItem(at: Self.resumeFile(itemID))
+        task.resume()
         saveHistory()
     }
 
@@ -763,6 +808,7 @@ class DownloadStore: ObservableObject {
 
     func remove(id: UUID) {
         pendingResumeIDs.remove(id)
+        try? FileManager.default.removeItem(at: Self.resumeFile(id))
         if let item = downloads.first(where: { $0.id == id }), item.state == .inProgress {
             item.cancel?()
         }
@@ -772,6 +818,9 @@ class DownloadStore: ObservableObject {
     }
 
     func clearFinished() {
+        for item in downloads where item.state != .inProgress {
+            try? FileManager.default.removeItem(at: Self.resumeFile(item.id))
+        }
         downloads.removeAll { $0.state != .inProgress }
         saveHistory()
     }
@@ -789,16 +838,41 @@ class DownloadStore: ObservableObject {
     private func loadHistory() {
         if let items = DiskStore.load([HistoryItem].self, key: historyKey) {
             downloads = items.map { $0.toDownloadItem() }
+            hydratePortableResume()
             return
         }
         // One-time migration from the legacy UserDefaults blob.
         if let data = AppPrefs.defaults.data(forKey: historyKey),
            let items = try? JSONDecoder().decode([HistoryItem].self, from: data) {
             downloads = items.map { $0.toDownloadItem() }
+            hydratePortableResume()
             // Re-save finished items to DiskStore and drop the legacy key.
             let finished = downloads.filter { $0.state != .inProgress }.map { HistoryItem($0) }
             DiskStore.save(finished, key: historyKey)
             AppPrefs.defaults.removeObject(forKey: historyKey)
+        }
+    }
+
+    /// 启动时把盘上的 resumeData 挂回暂停行（只有 URLSession 行有 portableResume），
+    /// 并清掉孤儿文件（行已不存在 / 已完成）。
+    private func hydratePortableResume() {
+        let fm = FileManager.default
+        for index in downloads.indices where downloads[index].portableResume && downloads[index].isPaused {
+            let file = Self.resumeFile(downloads[index].id)
+            if let data = try? Data(contentsOf: file), !data.isEmpty {
+                downloads[index].resumeData = data
+            }
+        }
+        guard let files = try? fm.contentsOfDirectory(at: Self.resumeDirectory, includingPropertiesForKeys: nil) else { return }
+        for file in files where file.pathExtension == "resume" {
+            guard let id = UUID(uuidString: file.deletingPathExtension().lastPathComponent) else {
+                try? fm.removeItem(at: file)
+                continue
+            }
+            let keep = downloads.contains { $0.id == id && $0.state == .inProgress && $0.isPaused && $0.portableResume }
+            if !keep {
+                try? fm.removeItem(at: file)
+            }
         }
     }
 
@@ -946,8 +1020,14 @@ class DownloadStore: ObservableObject {
             sourceURL: sourceURL
         )
         item.isPrivate = isPrivate
-        item.pauseAction = { [weak task] in task?.suspend() }
-        item.resumeAction = { [weak task] (_: Data?) in task?.resume() }
+        item.portableResume = true
+        // 暂停 = cancel(byProducingResumeData:)：resumeData 落盘后重启还能续传
+        // （suspend 的任务随进程消失，进度全丢——v0.8.80）。
+        item.pauseAction = { [weak self, weak task] in
+            task?.cancel(byProducingResumeData: { data in
+                Task { @MainActor in self?.storeResumeData(data, for: itemId, portable: true) }
+            })
+        }
         _ = add(item: item)
         task.resume()
         return true
@@ -959,7 +1039,16 @@ class DownloadStore: ObservableObject {
         activeTasks[id] = nil
         if let error {
             let resumeData = (error as NSError).userInfo[NSURLSessionDownloadTaskResumeData] as? Data
-            storeResumeData(resumeData, for: id)
+            // 暂停 = cancel(byProducingResumeData:)，取消也会以 -999 走到这里。
+            // 行要保持"暂停"：不能用 nil 覆盖 pauseAction 刚写下的 resumeData，
+            // 更不能把行判成失败（v0.8.80 实测）。
+            if downloads.first(where: { $0.id == id })?.isPaused == true {
+                if let resumeData, !resumeData.isEmpty {
+                    storeResumeData(resumeData, for: id, portable: true)
+                }
+                return
+            }
+            storeResumeData(resumeData, for: id, portable: true)
             fail(id: id, message: DownloadFailure.describe(error))
             return
         }
@@ -988,6 +1077,7 @@ class DownloadStore: ObservableObject {
                 userChoseDestination = true
             }
         }
+        try? FileManager.default.removeItem(at: Self.resumeFile(id))
         do {
             try FileManager.default.moveItem(at: tempURL, to: destination)
         } catch {
@@ -1035,9 +1125,16 @@ class DownloadStore: ObservableObject {
     /// Stashes resume data on the item (in-memory) so pause/retry can
     /// continue the partial transfer, and fires any resume request that was
     /// parked while the checkpoint was in flight.
-    func storeResumeData(_ data: Data?, for id: UUID) {
+    func storeResumeData(_ data: Data?, for id: UUID, portable: Bool = false) {
+        Log.downloads.info("resume checkpoint item=\(id.uuidString, privacy: .public) bytes=\(data?.count ?? -1, privacy: .public) portable=\(portable, privacy: .public)")
         guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
         downloads[i].resumeData = data
+        // 只有 URLSession 的 resumeData 跨重启可用（v0.8.80）。
+        if portable, let data, !data.isEmpty {
+            try? data.write(to: Self.resumeFile(id), options: .atomic)
+        } else if data == nil || data?.isEmpty == true {
+            try? FileManager.default.removeItem(at: Self.resumeFile(id))
+        }
         if let data, !data.isEmpty {
             if pendingResumeIDs.remove(id) != nil {
                 performResume(id: id)
@@ -1213,6 +1310,8 @@ private struct HistoryItem: Codable {
     /// Restored rows must come back PAUSED (with no live transfer behind
     /// them); without this they loaded as fake-active zombie rows.
     var isPaused: Bool = false
+    /// URLSession 的 resumeData 可跨重启（v0.8.80）；旧的存档没有这个键 = false。
+    var portableResume: Bool = false
 
     init(_ item: DownloadItem) {
         id = item.id
@@ -1226,6 +1325,7 @@ private struct HistoryItem: Codable {
         priority = item.priority.rawValue
         startTime = item.startTime
         isPaused = item.isPaused
+        portableResume = item.portableResume
     }
 
     init(from decoder: Decoder) throws {
@@ -1242,6 +1342,7 @@ private struct HistoryItem: Codable {
         startTime = try container.decode(Date.self, forKey: .startTime)
         // Pre-2026-09 blobs have no isPaused key.
         isPaused = try container.decodeIfPresent(Bool.self, forKey: .isPaused) ?? false
+        portableResume = try container.decodeIfPresent(Bool.self, forKey: .portableResume) ?? false
     }
 
     func toDownloadItem() -> DownloadItem {
@@ -1254,6 +1355,7 @@ private struct HistoryItem: Codable {
             startTime: startTime
         )
         item.isPaused = isPaused && state == DownloadItem.State.inProgress.rawValue
+        item.portableResume = portableResume
         return item
     }
 }

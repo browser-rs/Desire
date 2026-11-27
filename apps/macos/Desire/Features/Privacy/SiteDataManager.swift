@@ -55,6 +55,30 @@ enum SiteDataManager {
         return toRemove.count
     }
 
+    /// 清除某个 host（含子域与父域）的**全部**站点数据（v0.8.80 锁弹层的
+    /// "Clear Site Data"）。返回清掉的站点记录数（0 = 没找到）。
+    static func removeAll(forHost host: String) async -> Int {
+        let store = WKWebsiteDataStore.default()
+        let all = WKWebsiteDataStore.allWebsiteDataTypes()
+        let raw = await withCheckedContinuation { continuation in
+            store.fetchDataRecords(ofTypes: all) { records in
+                continuation.resume(returning: records)
+            }
+        }
+        let target = host.lowercased()
+        let matches = raw.filter { record in
+            let name = record.displayName.lowercased()
+            return name == target || name.hasSuffix("." + target) || target.hasSuffix("." + name)
+        }
+        guard !matches.isEmpty else { return 0 }
+        await withCheckedContinuation { continuation in
+            store.removeData(ofTypes: all, for: matches) {
+                continuation.resume()
+            }
+        }
+        return matches.count
+    }
+
     // MARK: - 类型短名
 
     static func shortName(_ type: String) -> String {

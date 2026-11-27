@@ -13,10 +13,22 @@ struct PasswordPanel: View {
     @State private var generatorLength = 16
     @State private var generatorSymbols = true
     @State private var importResult: String?
+    /// 新增 / 编辑表单（v0.8.80）。
+    @State private var showEditor = false
+    @State private var editingEntry: PasswordEntry?
+    /// 健康与泄露（v0.8.80）：只在用户点击时计算（读 Keychain + 联网）。
+    @State private var healthReport: PasswordHealth.Report?
+    @State private var breaches: [UUID: Int] = [:]
+    @State private var healthNote: String?
+    @State private var isCheckingHealth = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
+            if let healthReport, !healthReport.isClean || healthNote != nil {
+                healthStrip(healthReport)
+                Divider().opacity(0.5)
+            }
             // 内嵌搜索行（替代 .searchable）：sheet 场景下 searchable 会把搜索框
             // 挂到窗体右上角，孤零零一个带粗焦点环的输入框，和内容脱节（用户实测
             // "布局不合理"）。自绘搜索行与书签面板同一套语言。
@@ -39,7 +51,13 @@ struct PasswordPanel: View {
                         ForEach(Array(filtered.enumerated()), id: \.element.id) { idx, entry in
                             PasswordRow(
                                 entry: entry,
+                                issues: healthReport?.findings.first { $0.entryID == entry.id }?.issues ?? [],
+                                breachCount: breaches[entry.id],
                                 onDelete: { passwordStore.delete(entry) },
+                                onEdit: {
+                                    editingEntry = entry
+                                    showEditor = true
+                                },
                                 loadPassword: { passwordStore.password(for: entry) }
                             )
                             if idx < filtered.count - 1 {
@@ -52,6 +70,9 @@ struct PasswordPanel: View {
             }
         }
         .frame(width: 420, height: 500)
+        .sheet(isPresented: $showEditor) {
+            PasswordEditorSheet(store: passwordStore, entry: editingEntry)
+        }
         .sheet(isPresented: $showGenerator) {
             PasswordGeneratorSheet(
                 generatedPassword: $generatedPassword,
@@ -102,6 +123,15 @@ struct PasswordPanel: View {
 
             Spacer(minLength: 8)
 
+            headerAction("plus", help: String(localized: "Add Password")) {
+                editingEntry = nil
+                showEditor = true
+            }
+            headerAction(isCheckingHealth ? "hourglass" : "shield.lefthalf.filled",
+                         help: String(localized: "Check Health and Breaches")) {
+                guard !isCheckingHealth else { return }
+                checkHealth()
+            }
             headerAction("wand.and.stars", help: String(localized: "Generate")) {
                 showGenerator = true
             }
@@ -183,6 +213,55 @@ struct PasswordPanel: View {
         .padding(.bottom, 10)
     }
 
+    // MARK: - Health & breaches
+
+    private func healthStrip(_ report: PasswordHealth.Report) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: report.isClean ? "checkmark.shield" : "exclamationmark.shield")
+                .font(.system(size: 11))
+                .foregroundStyle(report.isClean ? .green : .orange)
+            Text(report.isClean
+                 ? String(localized: "No weak, reused or stale passwords.")
+                 : String(format: String(localized: "%lld need attention: %lld weak · %lld reused · %lld old"),
+                          report.findings.count, report.weakCount,
+                          report.duplicateCount, report.oldCount))
+                .font(.system(size: 11))
+                .lineLimit(2)
+            Spacer(minLength: 4)
+            if let healthNote {
+                Text(healthNote)
+                    .font(.system(size: 9.5))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 6)
+    }
+
+    /// 显式动作（v0.8.80）：读全部密码 → 本地健康判定 → HIBP k-匿名泄露检查。
+    /// **只在用户点按钮时发生**；整条密码不出本机（只发 SHA-1 前 5 位）。
+    private func checkHealth() {
+        isCheckingHealth = true
+        healthNote = nil
+        passwordStore.loadAllSecrets()
+        let report = PasswordHealth.assess(entries: passwordStore.entries)
+        healthReport = report
+        let items = passwordStore.entries.compactMap { entry -> PasswordBreachService.Item? in
+            guard !entry.password.isEmpty else { return nil }
+            return .init(id: entry.id, password: entry.password)
+        }
+        Task {
+            let outcome = await PasswordBreachService.check(items)
+            breaches = outcome.counts
+            isCheckingHealth = false
+            healthNote = outcome.failedGroups > 0
+                ? String(format: String(localized: "%lld prefix group(s) could not be checked — those passwords are unverified."), outcome.failedGroups)
+                : String(localized: "Breach check: only 5-character hash prefixes left this Mac.")
+        }
+    }
+
     // MARK: - Data
 
     /// 展示序 = 最新在前（纯视图排序，不改存储顺序）。
@@ -228,7 +307,11 @@ private struct PasswordRow: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     let entry: PasswordEntry
+    /// 健康与泄露标记（v0.8.80；未检查时为空）。
+    let issues: [PasswordHealth.Issue]
+    let breachCount: Int?
     let onDelete: () -> Void
+    let onEdit: () -> Void
     /// 密码懒加载：列表只取元数据（读 data 会弹钥匙串授权），
     /// 显示/复制这一条时才读，一次一条。
     let loadPassword: () -> String?
@@ -254,6 +337,26 @@ private struct PasswordRow: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
+                if !issues.isEmpty || (breachCount ?? 0) > 0 {
+                    HStack(spacing: 4) {
+                        ForEach(issues, id: \.rawValue) { issue in
+                            Text(issue.label)
+                                .font(.system(size: 9))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(Color.orange.opacity(0.14)))
+                                .foregroundStyle(.orange)
+                        }
+                        if let breachCount, breachCount > 0 {
+                            Text(String(format: String(localized: "Leaked %lld times"), breachCount))
+                                .font(.system(size: 9))
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Capsule().fill(Color.red.opacity(0.14)))
+                                .foregroundStyle(.red)
+                        }
+                    }
+                }
             }
 
             Spacer(minLength: 8)
@@ -295,6 +398,11 @@ private struct PasswordRow: View {
                         copy(secret, field: .password)
                     },
                     help: String(localized: "Copy Password")
+                )
+                HoverIcon(
+                    systemName: "pencil",
+                    action: onEdit,
+                    help: String(localized: "Edit")
                 )
                 HoverIcon(
                     systemName: "trash",

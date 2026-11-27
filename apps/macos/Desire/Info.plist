@@ -10,6 +10,14 @@
 	<string>AppIcon</string>
 	<key>CFBundleIconName</key>
 	<string>AppIcon</string>
+	<!-- 浏览器必须能打开任意 http 站点：ATS 只对 URLSession 生效、不拦网页内容。
+	     没有这个键时 WKWebView 会把非 localhost 的 http 页面按 ATS 拒掉
+	     （v0.8.80 实测：http://127.0.0.1.nip.io 报 "App Transport Security…"）。 -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsArbitraryLoadsInWebContent</key>
+		<true/>
+	</dict>
 	<key>NSUserActivityTypes</key>
 	<array>
 		<!-- 与 HandoffRelay.activityType 同源：默认 Safari 同款 + 自定义兜底

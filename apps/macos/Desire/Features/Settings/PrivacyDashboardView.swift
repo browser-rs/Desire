@@ -338,21 +338,11 @@ struct PrivacyDashboardView: View {
     }
 
     private static func columnIcon(_ type: PermissionType) -> String {
-        switch type {
-        case .camera: "video"
-        case .microphone: "mic"
-        case .cameraAndMicrophone: "video.badge.ellipsis"
-        case .geolocation: "location"
-        }
+        type.systemImage
     }
 
     private static func columnName(_ type: PermissionType) -> String {
-        switch type {
-        case .camera: String(localized: "Camera")
-        case .microphone: String(localized: "Microphone")
-        case .cameraAndMicrophone: String(localized: "Camera & Microphone")
-        case .geolocation: String(localized: "Location")
-        }
+        type.displayName
     }
 
     // MARK: - 通用段容器

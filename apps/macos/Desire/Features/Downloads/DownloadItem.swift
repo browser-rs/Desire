@@ -29,6 +29,9 @@ struct DownloadItem: Identifiable {
     /// Partial-transfer data for pause/retry. In-memory only — resume data
     /// is meaningless after a relaunch, so `HistoryItem` never persists it.
     var resumeData: Data? = nil
+    /// URLSession 的 resumeData 可以跨重启续传（引用系统临时文件）；WebKit 的
+    /// 不行（没有用 resumeData 新建 WKDownload 的 API）。只有前者落盘（v0.8.80）。
+    var portableResume: Bool = false
     /// WebKit reported this transfer cannot produce usable resume data
     /// (e.g. the server ignores Range requests) — resume restarts from the
     /// source URL instead of checkpointing. In-memory only.

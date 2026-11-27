@@ -14,6 +14,8 @@ struct PrivacySettingsStoreSection: View {
     @State private var clearCache = true
     @State private var clearStorage = true
     @State private var clearHistory = true
+    /// 清除范围（v0.8.80）：默认全部时间（与旧行为一致）。
+    @State private var clearRange: PermissionMatrix.ClearRange = .allTime
 
     var body: some View {
         SettingsContainer {
@@ -79,6 +81,23 @@ struct PrivacySettingsStoreSection: View {
                         systemImage: "lock.shield",
                         isOn: $settings.httpsUpgradeEnabled
                     )
+                    SettingsRowDivider()
+
+                    // 严格 HTTPS-only（v0.8.80）：升级失败不再自动回退 HTTP。
+                    SettingsToggleRow(
+                        "HTTPS-Only Mode",
+                        subtitle: "Never fall back to HTTP when the secure connection fails. The error page offers an explicit continue button.",
+                        systemImage: "lock.trianglebadge.exclamationmark",
+                        isOn: $settings.httpsOnlyMode
+                    )
+                    SettingsRowDivider()
+
+                    // 站点通知权限的边界如实说明（WKWebView 无通知提示 API）。
+                    SettingsRow(
+                        "Website Notifications",
+                        subtitle: "Web pages inside Desire cannot ask for notification permission; the system always denies it.",
+                        systemImage: "bell.slash"
+                    ) { EmptyView() }
                 }
             }
 
@@ -155,6 +174,23 @@ struct PrivacySettingsStoreSection: View {
                 icon: "trash"
             ) {
                 VStack(spacing: 0) {
+                    // 时间范围（v0.8.80）：过去 1 小时 / 24 小时 / 7 天 / 全部。
+                    HStack(spacing: 8) {
+                        Image(systemName: "clock")
+                            .foregroundStyle(.secondary)
+                        Text("Time Range")
+                        Spacer()
+                        Picker("", selection: $clearRange) {
+                            Text("Past Hour").tag(PermissionMatrix.ClearRange.pastHour)
+                            Text("Past 24 Hours").tag(PermissionMatrix.ClearRange.pastDay)
+                            Text("Past 7 Days").tag(PermissionMatrix.ClearRange.pastWeek)
+                            Text("All Time").tag(PermissionMatrix.ClearRange.allTime)
+                        }
+                        .labelsHidden()
+                        .frame(width: 150)
+                    }
+                    SettingsRowDivider()
+
                     SettingsToggleRow(
                         "Cookies",
                         subtitle: "Sign-out state for every site.",
@@ -230,11 +266,16 @@ struct PrivacySettingsStoreSection: View {
             types.insert(WKWebsiteDataTypeIndexedDBDatabases)
             types.insert(WKWebsiteDataTypeWebSQLDatabases)
         }
+        let since = clearRange.since() ?? .distantPast
         if !types.isEmpty {
-            WKWebsiteDataStore.default().removeData(ofTypes: types, modifiedSince: .distantPast) { }
+            WKWebsiteDataStore.default().removeData(ofTypes: types, modifiedSince: since) { }
         }
         if clearHistory {
-            historyStore.clearAll()
+            if let since = clearRange.since() {
+                historyStore.removeAll(after: since)
+            } else {
+                historyStore.clearAll()
+            }
         }
     }
 }

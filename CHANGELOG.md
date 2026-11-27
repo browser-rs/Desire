@@ -1,3 +1,18 @@
+## [Unreleased]
+### Fixed
+
+- HTTPS 升级与严格模式此前**从未真正执行**：升级代码放在 beforeunload 守卫之后，而主框架的链接/表单/地址栏导航都会被守卫提前 return。现在升级在守卫放行后执行；严格模式下 TLS 失败停在错误页并保留 HTTP 原地址（实测：直连普通 HTTP 端口触发 TLS 错误 → 继续访问恢复）。
+- 浏览器此前会按 ATS 拒掉非 localhost 的 http 页面（"App Transport Security policy requires…"）：Info.plist 增加 `NSAllowsArbitraryLoadsInWebContent`（只放行网页内容，应用自身的 URLSession 请求仍受 ATS 保护）。
+- 桥 `GET /permissions` 此前每次现建一个 PermissionStore（DiskStore 防抖 500ms 内读不到刚改的规则）；改走共享实例，与锁弹层/隐私矩阵同源。
+
+### Added
+
+- 站点权限与隐私中心（v0.8.80 批 1）：锁图标弹层里可以直接改本站权限——位置/摄像头/麦克风三态（询问/允许/拦截），弹窗与剪贴板读取可单独拦截；"清除本站数据"两步确认（含子域）；设置页的清除浏览数据新增时间范围（过去 1 小时/24 小时/7 天/全部）与严格 HTTPS-only 模式（升级失败不再自动降级，错误页给显式的"继续访问 HTTP 地址"）。弹窗拦截次数可在桥 `/permissions` 的 `popupBlocks` 里核对。
+- 密码面板补全：手动添加/编辑/删除、密码健康卡（弱/重复/长期未改）、泄露检查（HIBP k-匿名，只发 SHA-1 前 5 位，明文不出本机）；同站点同账号再次保存改为原地更新，不再产生"幽灵条目"。
+- 地址自动填充支持多档案：命名当前档案、存入库、从库中载入/新建，站点弹层里按档案选择填充；填充只写空字段。
+- 普通下载（URLSession 链接）支持跨重启续传：暂停时把 resumeData 落盘，重启后暂停行可直接续传（服务器需支持 Range 且返回 ETag/Last-Modified）。
+
+
 ## [v0.8.79] - 2026-11-27
 ### Added
 

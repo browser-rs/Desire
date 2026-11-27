@@ -213,6 +213,8 @@ extension ContentView {
                 set: { appState.showWorkspacesPanel = $0 }
             ),
             siteSettingsStore: siteSettingsStore,
+            permissionStore: appState.permissionStore,
+            formAutofillStore: appState.formAutofillStore,
             globalAutoPlay: settings.autoPlayPolicy,
             blockedElementCount: host.map { elementBlockStore.matchingRules(for: $0).count },
             isBookmarked: isBookmarked

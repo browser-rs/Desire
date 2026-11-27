@@ -711,6 +711,7 @@ extension BrowsingActions {
             canGoBack: Binding(get: { tab.canGoBack }, set: { tab.canGoBack = $0 }),
             canGoForward: Binding(get: { tab.canGoForward }, set: { tab.canGoForward = $0 }),
             httpsUpgradeEnabled: settings.httpsUpgradeEnabled,
+            httpsOnlyMode: settings.httpsOnlyMode,
             onOpenLinkInNewTab: { [weak self] url in
                 self?.tabManager.addTab(url: url.absoluteString,
                                         javaScriptEnabled: settings.isJavaScriptEnabled,

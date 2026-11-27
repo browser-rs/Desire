@@ -59,8 +59,10 @@
 **3. 自动填充升级**
 - **现状依据**：只有地址、单档案、页面加载即填、无卡、无聚焦选择器
   （`FormAutofillStore.swift:6`；`WebView.swift:2325-2330`）。
-- **增量**：多档案、支付卡（本地加密存储）、聚焦时选择器、提交后询问保存。
-- **验收**：本地 fixture 表单 E2E（选择器出现 / 填充值 / 保存提示落库）。
+- **增量**：多档案（已落地：命名/存库/载入/新建 + 站点弹层按档案填充）、聚焦时选择器、
+  提交后询问保存；**支付卡暂缓**——需要独立的加密存储设计（不能落明文 DiskStore，
+  也不宜塞进现有 AI 密钥保险库），留到单独一批。
+- **验收**：本地 fixture 表单 E2E（填充值 / 已有值不覆盖）已过；卡片与保存提示随后续批。
 
 **4. 标签与阅读小件**
 - **现状依据**：标签组不能重色、不能把标签拖进组（`TabGroupStore.swift:12-76`；
@@ -242,3 +244,20 @@ passkey / WebAuthn（等 Apple 审批，见 `docs/PASSKEYS-APPLE-REQUEST.md`）�
 - **自动修订成本**：一次上限 + 成本上限，用户可见。
 - **Remote 真机联调依赖用户在场**；API 变更需要部署迁移（服务端部署由用户执行）。
 - **浏览器权限 / Remote 通道 / Agent 回合循环属核心路径**：本版发版前跑一次 190 全量。
+
+## 批 1 进展（2026-11-27）
+
+- **权限与隐私中心**：权限类型扩展（弹窗 / 剪贴板读取）、锁弹层三态编辑、清除本站数据、
+  清除数据时间范围、严格 HTTPS-only。探针结论：WKWebView 的 `Notification.requestPermission()`
+  恒返回 denied（无系统提示 API）→ 面板如实标"不支持"；剪贴板无权限 API，只能按站点注入脚本
+  拦截（didCommit 注入，晚于页面首屏会被无手势 readText 卡住 WebContent）。
+- **顺带修掉两个真缺陷**：① HTTPS 升级代码被 beforeunload 守卫的 early-return 挡成不可达
+  （升级与严格模式从未执行）；② 浏览器缺 `NSAllowsArbitraryLoadsInWebContent`，非 localhost
+  的 http 页面被 ATS 拒掉。
+- **密码面板**：手动增改删、健康卡、HIBP k-匿名泄露检查（假端点断言只收到 5 位前缀）、
+  同键去重。
+- **自动填充**：多档案（新建/存库/载入 + 弹层菜单）。支付卡/提交时保存暂缓（见上）。
+- **下载续传**：URLSession resumeData 落盘（`<dataDir>/download-resume/`），重启后可续；
+  服务器需 Range + ETag/Last-Modified。暂停时的取消错误不再把行判失败。
+- **验收**：`permissions-e2e` 21/21、`password-autofill-e2e` 16/16、`download-resume-e2e` 12/12；
+  harness 3998；Debug 零警告。

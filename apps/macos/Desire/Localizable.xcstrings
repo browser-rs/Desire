@@ -36352,7 +36352,6 @@
       }
     },
     "Export":{
-      "comment":"Bookmark export help",
       "localizations":{
         "en":{
           "stringUnit":{
@@ -45862,7 +45861,6 @@
       }
     },
     "Import":{
-      "comment":"Bookmark import help",
       "localizations":{
         "en":{
           "stringUnit":{
@@ -67659,7 +67657,6 @@
       }
     },
     "Passwords do not match.":{
-      "extractionState":"stale",
       "localizations":{
         "en":{
           "stringUnit":{
@@ -67670,13 +67667,13 @@
         "zh-Hans":{
           "stringUnit":{
             "state":"translated",
-            "value":"两次输入的密码不一致。"
+            "value":"两次口令不一致。"
           }
         },
         "zh-Hant":{
           "stringUnit":{
             "state":"translated",
-            "value":"兩次輸入的密碼不一致。"
+            "value":"兩次口令不一致。"
           }
         }
       }
@@ -118531,6 +118528,534 @@
           "stringUnit":{
             "state":"translated",
             "value":"重試上限"
+          }
+        }
+      }
+    },
+    "Mark as handled":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Mark as handled"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"标记为已处理"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"標記為已處理"
+          }
+        }
+      }
+    },
+    "Snooze 30 days":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Snooze 30 days"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"30 天后再提醒"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"30 天後再提醒"
+          }
+        }
+      }
+    },
+    "Snooze 90 days":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Snooze 90 days"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"90 天后再提醒"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"90 天後再提醒"
+          }
+        }
+      }
+    },
+    "%lld handled":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"%lld handled"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已处理 %lld 条"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已處理 %lld 條"
+          }
+        }
+      }
+    },
+    "Import Passwords":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Import Passwords"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"导入密码"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"匯入密碼"
+          }
+        }
+      }
+    },
+    "Export Encrypted Archive":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Export Encrypted Archive"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"导出加密密码包"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"匯出加密密碼包"
+          }
+        }
+      }
+    },
+    "Export Plain CSV (not recommended)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Export Plain CSV (not recommended)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"导出明文 CSV（不推荐）"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"匯出明文 CSV（不推薦）"
+          }
+        }
+      }
+    },
+    "Password Archive":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Password Archive"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"密码包"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"密碼包"
+          }
+        }
+      }
+    },
+    "Encrypt password export":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Encrypt password export"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"加密导出密码"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"加密匯出密碼"
+          }
+        }
+      }
+    },
+    "Import encrypted passwords":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Import encrypted passwords"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"导入加密密码"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"匯入加密密碼"
+          }
+        }
+      }
+    },
+    "The archive is protected by this password. There is no recovery if you forget it.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The archive is protected by this password. There is no recovery if you forget it."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"密码包由这个口令保护；忘记口令将无法恢复。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"密碼包由這個口令保護；忘記口令將無法恢復。"
+          }
+        }
+      }
+    },
+    "Existing entries with the same site and username are kept; only new entries are added.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Existing entries with the same site and username are kept; only new entries are added."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"同站点同用户名的现有条目会保留，只补新条目。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"同站點同用戶名的現有條目會保留，只補新條目。"
+          }
+        }
+      }
+    },
+    "Archive password":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Archive password"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"密码包口令"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"密碼包口令"
+          }
+        }
+      }
+    },
+    "Confirm password":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Confirm password"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"确认口令"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"確認口令"
+          }
+        }
+      }
+    },
+    "Encrypted export saved to %@":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Encrypted export saved to %@"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"加密包已保存到 %@"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"加密包已儲存到 %@"
+          }
+        }
+      }
+    },
+    "Imported %lld, skipped %lld existing":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Imported %lld, skipped %lld existing"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"导入 %lld 条，跳过 %lld 条已存在"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"匯入 %lld 條，跳過 %lld 條已存在"
+          }
+        }
+      }
+    },
+    "Enter a password for the archive.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Enter a password for the archive."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"请输入密码包口令。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"請輸入密碼包口令。"
+          }
+        }
+      }
+    },
+    "Archive password must be at least 8 characters.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Archive password must be at least 8 characters."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"密码包口令至少 8 位。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"密碼包口令至少 8 位。"
+          }
+        }
+      }
+    },
+    "Wrong password, or the archive is damaged.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Wrong password, or the archive is damaged."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"口令错误，或密码包已损坏。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"口令錯誤，或密碼包已損壞。"
+          }
+        }
+      }
+    },
+    "This is not a Desire password archive.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"This is not a Desire password archive."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"这不是 Desire 密码包。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"這不是 Desire 密碼包。"
+          }
+        }
+      }
+    },
+    "Some saved passwords could not be read from the keychain; export was cancelled.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Some saved passwords could not be read from the keychain; export was cancelled."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"部分已保存密码无法从钥匙串读取，导出已取消。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"部分已儲存密碼無法從鑰匙串讀取，匯出已取消。"
+          }
+        }
+      }
+    },
+    "Search tabs":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Search tabs"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"搜索标签页"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"搜尋標籤頁"
+          }
+        }
+      }
+    },
+    "No tabs in this group":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"No tabs in this group"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"这个分组里没有标签"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"這個分組裡沒有標籤"
+          }
+        }
+      }
+    },
+    "No matching tabs":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"No matching tabs"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"没有匹配的标签"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"沒有符合的標籤"
           }
         }
       }

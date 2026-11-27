@@ -21,12 +21,15 @@ struct PasswordPanel: View {
     @State private var breaches: [UUID: Int] = [:]
     @State private var healthNote: String?
     @State private var isCheckingHealth = false
+    /// 加密密码包导出/导入（v0.8.82）。
+    @State private var archivePrompt: PasswordArchivePrompt?
+    @State private var archiveResult: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             header
-            if let healthReport, !healthReport.isClean || healthNote != nil {
-                healthStrip(healthReport)
+            if let visibleHealthReport, !visibleHealthReport.isClean || healthNote != nil {
+                healthStrip(visibleHealthReport)
                 Divider().opacity(0.5)
             }
             // 内嵌搜索行（替代 .searchable）：sheet 场景下 searchable 会把搜索框
@@ -51,7 +54,7 @@ struct PasswordPanel: View {
                         ForEach(Array(filtered.enumerated()), id: \.element.id) { idx, entry in
                             PasswordRow(
                                 entry: entry,
-                                issues: healthReport?.findings.first { $0.entryID == entry.id }?.issues ?? [],
+                                issues: visibleHealthReport?.findings.first { $0.entryID == entry.id }?.issues ?? [],
                                 breachCount: breaches[entry.id],
                                 onDelete: { passwordStore.delete(entry) },
                                 onEdit: {
@@ -65,7 +68,11 @@ struct PasswordPanel: View {
                                         TabSessionCoordinator.shared.activeTabManager?
                                             .addTab(url: url.absoluteString)
                                     }
-                                }
+                                },
+                                onMuteHealth: { days in
+                                    passwordStore.muteHealth(entryID: entry.id, days: days)
+                                },
+                                isHealthMuted: passwordStore.mutedHealthIDs().contains(entry.id)
                             )
                             if idx < filtered.count - 1 {
                                 Divider().opacity(0.5)
@@ -79,6 +86,19 @@ struct PasswordPanel: View {
         .frame(width: 420, height: 500)
         .sheet(isPresented: $showEditor) {
             PasswordEditorSheet(store: passwordStore, entry: editingEntry)
+        }
+        .sheet(item: $archivePrompt) { prompt in
+            PasswordArchiveSheet(prompt: prompt, store: passwordStore) { message in
+                archiveResult = message
+            }
+        }
+        .alert("Password Archive", isPresented: Binding(
+            get: { archiveResult != nil },
+            set: { if !$0 { archiveResult = nil } }
+        )) {
+            Button("OK") { archiveResult = nil }
+        } message: {
+            Text(archiveResult ?? "")
         }
         .sheet(isPresented: $showGenerator) {
             PasswordGeneratorSheet(
@@ -142,10 +162,13 @@ struct PasswordPanel: View {
             headerAction("wand.and.stars", help: String(localized: "Generate")) {
                 showGenerator = true
             }
-            headerAction("square.and.arrow.down", help: String(localized: "Import CSV")) {
+            headerAction("square.and.arrow.down", help: String(localized: "Import Passwords")) {
                 doImport()
             }
-            headerAction("square.and.arrow.up", help: String(localized: "Export CSV")) {
+            headerAction("square.and.arrow.up", help: String(localized: "Export Encrypted Archive")) {
+                doExportEncrypted()
+            }
+            headerAction("doc.plaintext", help: String(localized: "Export Plain CSV (not recommended)")) {
                 doExport()
             }
             Divider().frame(height: 16)
@@ -222,6 +245,18 @@ struct PasswordPanel: View {
 
     // MARK: - Health & breaches
 
+    /// 健康发现过滤掉“已处理/稍后提醒”的条目（v0.8.82）。
+    private var visibleHealthReport: PasswordHealth.Report? {
+        healthReport.map {
+            PasswordHealth.filter($0, muted: passwordStore.mutedHealthIDs())
+        }
+    }
+
+    private var handledHealthCount: Int {
+        guard let healthReport, let visibleHealthReport else { return 0 }
+        return max(0, healthReport.findings.count - visibleHealthReport.findings.count)
+    }
+
     private func healthStrip(_ report: PasswordHealth.Report) -> some View {
         HStack(spacing: 6) {
             Image(systemName: report.isClean ? "checkmark.shield" : "exclamationmark.shield")
@@ -234,6 +269,11 @@ struct PasswordPanel: View {
                           report.duplicateCount, report.oldCount))
                 .font(.system(size: 11))
                 .lineLimit(2)
+            if handledHealthCount > 0 {
+                Text(String(format: String(localized: "%lld handled"), handledHealthCount))
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundStyle(.tertiary)
+            }
             Spacer(minLength: 4)
             if let healthNote {
                 Text(healthNote)
@@ -283,14 +323,28 @@ struct PasswordPanel: View {
 
     private func doImport() {
         let panel = NSOpenPanel()
-        panel.allowedContentTypes = [.commaSeparatedText]
+        let archiveType = UTType(filenameExtension: "dpass") ?? .data
+        panel.allowedContentTypes = [archiveType, .commaSeparatedText]
         panel.canChooseFiles = true
-        guard panel.runModal() == .OK, let url = panel.url,
-              let csv = try? String(contentsOf: url, encoding: .utf8) else { return }
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        if url.pathExtension.lowercased() == "dpass" {
+            archivePrompt = .importFile(url)
+            return
+        }
+        guard let csv = try? String(contentsOf: url, encoding: .utf8) else { return }
         let count = passwordStore.importCSV(csv)
         importResult = count > 0
             ? String(format: String(localized: "Imported %lld passwords"), count)
             : String(localized: "No passwords imported")
+    }
+
+    private func doExportEncrypted() {
+        let panel = NSSavePanel()
+        let archiveType = UTType(filenameExtension: "dpass") ?? .data
+        panel.allowedContentTypes = [archiveType]
+        panel.nameFieldStringValue = "desire-passwords.dpass"
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        archivePrompt = .export(url)
     }
 
     private func doExport() {
@@ -304,6 +358,112 @@ struct PasswordPanel: View {
         } catch {
             // 失败仍报成功会误导用户以为密码已导出（BUG-5）。
             importResult = String(format: String(localized: "Export failed: %@"), error.localizedDescription)
+        }
+    }
+}
+
+
+// MARK: - Encrypted archive (v0.8.82)
+
+private enum PasswordArchivePrompt: Identifiable {
+    case export(URL)
+    case importFile(URL)
+
+    var id: String {
+        switch self {
+        case .export(let url): "export-\(url.path)"
+        case .importFile(let url): "import-\(url.path)"
+        }
+    }
+
+    var isExport: Bool {
+        if case .export = self { return true }
+        return false
+    }
+}
+
+/// 口令输入 → 加密导出/导入。导出必须先读齐 Keychain（显式动作），导入只补新条目。
+private struct PasswordArchiveSheet: View {
+    let prompt: PasswordArchivePrompt
+    @ObservedObject var store: PasswordStore
+    let onDone: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
+    @State private var password = ""
+    @State private var confirmation = ""
+    @State private var errorText: String?
+    @State private var busy = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(prompt.isExport
+                 ? String(localized: "Encrypt password export")
+                 : String(localized: "Import encrypted passwords"))
+                .font(.system(size: 14, weight: .semibold))
+            Text(prompt.isExport
+                 ? String(localized: "The archive is protected by this password. There is no recovery if you forget it.")
+                 : String(localized: "Existing entries with the same site and username are kept; only new entries are added."))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            SecureField(String(localized: "Archive password"), text: $password)
+                .textFieldStyle(.roundedBorder)
+            if prompt.isExport {
+                SecureField(String(localized: "Confirm password"), text: $confirmation)
+                    .textFieldStyle(.roundedBorder)
+            }
+            if let errorText {
+                Text(errorText)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            HStack {
+                if busy { ProgressView().controlSize(.small) }
+                Spacer()
+                Button(String(localized: "Cancel")) { dismiss() }
+                Button(prompt.isExport ? String(localized: "Export") : String(localized: "Import")) {
+                    run()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(busy || password.isEmpty)
+            }
+        }
+        .padding(18)
+        .frame(width: 380)
+    }
+
+    private func run() {
+        if prompt.isExport {
+            guard password == confirmation else {
+                errorText = String(localized: "Passwords do not match.")
+                return
+            }
+            guard case .export(let url) = prompt else { return }
+            busy = true
+            errorText = nil
+            do {
+                let data = try store.exportArchive(password: password)
+                try data.write(to: url, options: .atomic)
+                onDone(String(format: String(localized: "Encrypted export saved to %@"), url.lastPathComponent))
+                dismiss()
+            } catch {
+                errorText = error.localizedDescription
+            }
+            busy = false
+        } else {
+            guard case .importFile(let url) = prompt else { return }
+            busy = true
+            errorText = nil
+            do {
+                let data = try Data(contentsOf: url)
+                let result = try store.importArchive(data, password: password)
+                onDone(String(format: String(localized: "Imported %lld, skipped %lld existing"),
+                              result.imported, result.skipped))
+                dismiss()
+            } catch {
+                errorText = error.localizedDescription
+            }
+            busy = false
         }
     }
 }
@@ -324,6 +484,9 @@ private struct PasswordRow: View {
     let loadPassword: () -> String?
     /// 打开该站点（健康/泄露提示后的"去改密"动作，v0.8.81 批 2）。
     var onOpenSite: (() -> Void)? = nil
+    /// 健康提示处理（v0.8.82）：nil = 永久"已处理"，30/90 = 稍后提醒。
+    var onMuteHealth: ((Int?) -> Void)? = nil
+    var isHealthMuted: Bool = false
     @State private var showPassword = false
     @State private var revealedPassword: String?
     /// 复制成功的短暂反馈：对应字段图标换成对勾，1.2s 后还原。
@@ -425,6 +588,13 @@ private struct PasswordRow: View {
                     action: onDelete,
                     help: String(localized: "Delete")
                 )
+            }
+        }
+        .contextMenu {
+            if !issues.isEmpty || (breachCount ?? 0) > 0 {
+                Button(String(localized: "Mark as handled")) { onMuteHealth?(nil) }
+                Button(String(localized: "Snooze 30 days")) { onMuteHealth?(30) }
+                Button(String(localized: "Snooze 90 days")) { onMuteHealth?(90) }
             }
         }
         .padding(.horizontal, 14)

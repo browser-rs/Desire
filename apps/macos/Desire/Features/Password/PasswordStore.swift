@@ -37,6 +37,8 @@ final class PendingPasswordSave {
 @MainActor
 class PasswordStore: ObservableObject {
     @Published var entries: [PasswordEntry] = []
+    /// 健康提示静音/已处理（v0.8.82）。随 DiskStore 持久化，过期项在读取时 prune。
+    @Published private(set) var healthMutes: [PasswordHealth.Mute] = []
     /// A save-password sheet awaiting the user's (or the automation bridge's)
     /// decision. nil when nothing is pending.
     @Published var pendingSave: PendingPasswordSave?
@@ -48,6 +50,7 @@ class PasswordStore: ObservableObject {
 
     private let serviceName = "me.siwi.Desire"
     private static let suppressedKey = "passwordSaveSuppressedDomains"
+    private static let healthMutesKey = "passwordHealthMutes"
 
     /// 页面加载时调用：只查内存里的域名/用户名元数据，**绝不读密码**。
     /// 同一域名/条目重复调用不重复发布（passwordDetect 会多次触发）。
@@ -118,6 +121,8 @@ class PasswordStore: ObservableObject {
         // 同步令牌/网站密码）全读一遍，用户看到"每条不同的 key 各弹一次"。
         // 密码在显示/复制/填入/导出时按需读（一次一条）。
         loadMetadata()
+        healthMutes = PasswordHealth.prune(
+            DiskStore.load([PasswordHealth.Mute].self, key: Self.healthMutesKey) ?? [])
     }
 
     func save(domain: String, username: String, password: String) {
@@ -236,6 +241,74 @@ class PasswordStore: ObservableObject {
             }
         }
         return result
+    }
+
+    // MARK: - Health mute (v0.8.82)
+
+    func mutedHealthIDs(now: Date = Date()) -> Set<UUID> {
+        PasswordHealth.activeMutes(healthMutes, now: now)
+    }
+
+    func muteHealth(entryID: UUID, days: Int?) {
+        healthMutes.removeAll { $0.entryID == entryID }
+        let mute: PasswordHealth.Mute
+        if let days {
+            mute = .init(entryID: entryID, handled: false,
+                         until: Date().addingTimeInterval(Double(max(1, days)) * 86_400))
+        } else {
+            mute = .init(entryID: entryID, handled: true, until: nil)
+        }
+        healthMutes.append(mute)
+        saveHealthMutes()
+    }
+
+    func unmuteHealth(entryID: UUID) {
+        guard healthMutes.contains(where: { $0.entryID == entryID }) else { return }
+        healthMutes.removeAll { $0.entryID == entryID }
+        saveHealthMutes()
+    }
+
+    private func saveHealthMutes() {
+        healthMutes = PasswordHealth.prune(healthMutes)
+        DiskStore.save(healthMutes, key: Self.healthMutesKey)
+    }
+
+    // MARK: - Encrypted archive (v0.8.82)
+
+    /// 显式导出：先按需读齐全部密码，再加密。读不到任何一条就取消整个导出，
+    /// 不生成“缺条目”的包。
+    func exportArchive(password: String) throws -> Data {
+        loadAllSecrets()
+        guard entries.allSatisfy({ !$0.password.isEmpty }) else {
+            throw PasswordArchive.ArchiveError.missingSecret
+        }
+        let items = entries.map {
+            PasswordArchive.Entry(domain: $0.domain, username: $0.username,
+                                  password: $0.password, createdAt: $0.createdAt)
+        }
+        return try PasswordArchive.encrypt(entries: items, password: password)
+    }
+
+    /// 导入加密包：只补新条目，同域名+用户名已存在的不覆盖（避免旧备份盖掉新密码）。
+    func importArchive(_ data: Data, password: String) throws -> (imported: Int, skipped: Int) {
+        let items = try PasswordArchive.decrypt(data: data, password: password)
+        var imported = 0
+        var skipped = 0
+        for item in items {
+            let domain = item.domain.trimmingCharacters(in: .whitespacesAndNewlines)
+            let username = item.username.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !domain.isEmpty, !username.isEmpty, !item.password.isEmpty else {
+                skipped += 1
+                continue
+            }
+            if entries.contains(where: { $0.domain == domain && $0.username == username }) {
+                skipped += 1
+                continue
+            }
+            save(domain: domain, username: username, password: item.password)
+            imported += 1
+        }
+        return (imported, skipped)
     }
 
     /// Exports all entries as CSV (Chrome-compatible column order).

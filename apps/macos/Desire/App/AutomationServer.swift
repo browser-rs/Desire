@@ -620,6 +620,9 @@ final class AutomationServer {
         ep("POST", "/passwords/delete", "Delete credentials for a domain (optional username = one account)", params: ["domain:string", "username?:string"], example: "-d '{\"domain\":\"example.com\",\"username\":\"u\"}'")
         ep("POST", "/passwords/update", "Edit a stored credential in place (domain/username/password)", params: ["domain:string", "username:string", "newDomain?:string", "newUsername?:string", "newPassword?:string"], example: "-d '{\"domain\":\"a.com\",\"username\":\"u\",\"newPassword\":\"x\"}'")
         ep("POST", "/passwords/health", "Local weak/reused/stale report (reads the keychain once — explicit action)", example: "-d '{}'")
+        ep("POST", "/passwords/health/mute", "Mark a health finding handled (forever) or snooze it; clear=true restores it", params: ["id:uuid", "days?:int", "clear?:bool"], example: #"-d '{"id":"…","days":30}'"#)
+        ep("POST", "/passwords/archive/export", "Encrypted password archive (base64) — explicit export, reads all secrets", params: ["password:string"], example: #"-d '{"password":"archive-pass"}'"#)
+        ep("POST", "/passwords/archive/import", "Import an encrypted password archive (base64); existing site+username entries are kept", params: ["data:string", "password:string"], example: #"-d '{"data":"…","password":"archive-pass"}'"#)
         ep("GET", "/autofill/profiles", "Address profiles: the working copy plus saved ones (id/label/summary)", example: "…/autofill/profiles")
         ep("POST", "/autofill/save-current", "Save the working address profile into the library (upsert by id)", example: "-d '{}'")
         ep("POST", "/autofill/new", "Start a blank working profile (save it to add to the library)", example: "-d '{}'")
@@ -2324,6 +2327,44 @@ case ("GET", "/state"):
                 return try Self.json(["ok": true])
             case ("POST", "/passwords/health"):
                 return try Self.json(Self.passwordHealth())
+            case ("POST", "/passwords/health/mute"):
+                guard let app = AppState.live,
+                      let id = Self.string(body, "id").flatMap(UUID.init(uuidString:)) else {
+                    return try Self.json(["error": "missing/invalid id"])
+                }
+                if body["clear"] as? Bool == true {
+                    app.passwordStore.unmuteHealth(entryID: id)
+                } else {
+                    let days = body["days"] as? Int
+                    app.passwordStore.muteHealth(entryID: id, days: days)
+                }
+                return try Self.json(["ok": true,
+                                      "muted": app.passwordStore.mutedHealthIDs().contains(id)])
+            case ("POST", "/passwords/archive/export"):
+                guard let app = AppState.live,
+                      let password = Self.string(body, "password"), !password.isEmpty else {
+                    return try Self.json(["error": "missing password"])
+                }
+                do {
+                    let data = try app.passwordStore.exportArchive(password: password)
+                    return try Self.json(["ok": true, "data": data.base64EncodedString()])
+                } catch {
+                    return try Self.json(["error": error.localizedDescription])
+                }
+            case ("POST", "/passwords/archive/import"):
+                guard let app = AppState.live,
+                      let raw = Self.string(body, "data"),
+                      let data = Data(base64Encoded: raw),
+                      let password = Self.string(body, "password"), !password.isEmpty else {
+                    return try Self.json(["error": "missing data/password"])
+                }
+                do {
+                    let result = try app.passwordStore.importArchive(data, password: password)
+                    return try Self.json(["ok": true, "imported": result.imported,
+                                          "skipped": result.skipped])
+                } catch {
+                    return try Self.json(["error": error.localizedDescription])
+                }
             case ("POST", "/passwords/breach-check"):
                 let endpoint = Self.string(body, "endpoint").flatMap { URL(string: $0) }
                 let report = await Self.passwordBreachCheck(endpoint: endpoint)
@@ -7080,11 +7121,15 @@ case ("GET", "/agent/messages"):
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         app.passwordStore.loadAllSecrets()
         let report = PasswordHealth.assess(entries: app.passwordStore.entries)
+        let muted = app.passwordStore.mutedHealthIDs()
         return [
             "ok": true,
             "total": report.totalEntries,
+            "muted": muted.map(\.uuidString),
+            "activeFindings": report.findings.filter { !muted.contains($0.entryID) }.count,
             "findings": report.findings.map {
-                ["domain": $0.domain, "username": $0.username,
+                ["id": $0.entryID.uuidString,
+                 "domain": $0.domain, "username": $0.username,
                  "issues": $0.issues.map(\.rawValue), "detail": $0.detail]
             },
             "weak": report.weakCount, "duplicate": report.duplicateCount, "old": report.oldCount,

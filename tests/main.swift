@@ -3503,8 +3503,47 @@ func testPasswordHealth() {
     check("health：isWeak 纯数字", PasswordHealth.isWeak("12345678"))
     check("health：isWeak 纯字母", PasswordHealth.isWeak("abcdefghij"))
     check("health：isWeak 强密码", !PasswordHealth.isWeak("X9#kP2$mQvL5"))
+
+    // 已处理/稍后提醒（v0.8.82）
+    let weakID = entries.first { $0.domain == "weak.com" }!.id
+    let handled = PasswordHealth.Mute(entryID: weakID, handled: true, until: nil)
+    let snoozed = PasswordHealth.Mute(entryID: entries.first { $0.domain == "old.com" }!.id,
+                                      handled: false, until: now.addingTimeInterval(30 * 86_400))
+    let expired = PasswordHealth.Mute(entryID: entries.first { $0.domain == "short.com" }!.id,
+                                      handled: false, until: now.addingTimeInterval(-1))
+    let active = PasswordHealth.activeMutes([handled, snoozed, expired], now: now)
+    check("health：已处理/未到期静音生效，过期不生效",
+          active.contains(handled.entryID) && active.contains(snoozed.entryID)
+          && !active.contains(expired.entryID))
+    check("health：prune 丢掉过期项", PasswordHealth.prune([handled, snoozed, expired], now: now).count == 2)
+    let filtered = PasswordHealth.filter(report, muted: [weakID])
+    check("health：过滤后计数下降", filtered.findings.count == report.findings.count - 1
+          && !filtered.findings.contains { $0.entryID == weakID })
 }
 testPasswordHealth()
+
+// ---------- 加密密码包（v0.8.82） ----------
+do {
+    let now = Date()
+    let entries = [
+        PasswordArchive.Entry(domain: "example.com", username: "alice",
+                              password: "X9#kP2$mQvL5", createdAt: now),
+        PasswordArchive.Entry(domain: "example.org", username: "bob",
+                              password: "另一个密码9", createdAt: now),
+    ]
+    let data = try! PasswordArchive.encrypt(entries: entries, password: "archive-pass-123",
+                                            iterations: 1_000)
+    let decoded = try! PasswordArchive.decrypt(data: data, password: "archive-pass-123")
+    check("密码包：round-trip 条目与秘密一致", decoded == entries)
+    var wrongRejected = false
+    do { _ = try PasswordArchive.decrypt(data: data, password: "wrong-pass-123") }
+    catch { wrongRejected = true }
+    check("密码包：错口令拒绝", wrongRejected)
+    var shortRejected = false
+    do { _ = try PasswordArchive.encrypt(entries: entries, password: "short", iterations: 1_000) }
+    catch { shortRejected = true }
+    check("密码包：弱口令拒绝", shortRejected)
+}
 
 // ---------- 泄露检查 PasswordBreach（v0.8.80 批 1-②） ----------
 

@@ -8,6 +8,8 @@ import WebKit
 /// 见 SelectedTabContent 的占位分支）。
 struct TabOverviewView: View {
     @ObservedObject var tabManager: TabManager
+    /// 分组过滤/整组挂起（v0.8.82）：组状态由 AppState 的共享 store 提供。
+    @ObservedObject var tabGroupStore: TabGroupStore
     /// 占位瓦片的渐变要用颜色值（`LinearGradient` 只吃 `Color`，没有
     /// ShapeStyle 版本），所以由调用方把设置里的强调色传进来——不用
     /// `Color.accentColor`，那是系统强调色，不跟随应用设置。
@@ -21,10 +23,29 @@ struct TabOverviewView: View {
     /// 挂起管理（v0.8.19）：默认直连 tabManager（概览已持有）。
     var onSuspendTab: ((Int) -> Void)? = nil
     var onResumeTab: ((Int) -> Void)? = nil
+    @State private var searchText = ""
+    @State private var selectedGroupID: UUID?
 
     /// 瓦片内 webview 的基准布局尺寸（页面按此宽度渲染，再整体缩小）。
     private static let baseSize = CGSize(width: 1280, height: 800)
     private static let columns = 3
+
+    private var filteredTabs: [(index: Int, tab: Tab)] {
+        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        var selectedIDs: Set<UUID>?
+        if let selectedGroupID,
+           let group = tabGroupStore.groups.first(where: { $0.id == selectedGroupID }) {
+            selectedIDs = group.tabIds
+        }
+        return tabManager.tabs.enumerated().compactMap { index, tab in
+            if let selectedIDs, !selectedIDs.contains(tab.id) { return nil }
+            if !query.isEmpty {
+                let haystack = (tab.displayTitle + " " + tab.urlString).lowercased()
+                guard haystack.contains(query) else { return nil }
+            }
+            return (index, tab)
+        }
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -32,26 +53,132 @@ struct TabOverviewView: View {
             let scale = cellW / Self.baseSize.width
             let cellH = Self.baseSize.height * scale
 
-            ScrollView {
-                // 分级渲染（0.3.4）：LazyVGrid 只挂载可见行的活 webview；
-                // 滚出屏幕的瓦片自动摘除（WKWebView 对象由 Tab 持有，
-                // 摘除不销毁页面，滚回时重新挂载）。50 标签概览的常驻
-                // 活视图从 50 → 一屏 ≤9。
-                LazyVGrid(columns: Array(repeating: GridItem(.fixed(cellW), spacing: 40), count: Self.columns),
-                          spacing: 44) {
-                    ForEach(Array(tabManager.tabs.enumerated()), id: \.element.id) { index, tab in
-                        overviewCard(index: index, tab: tab,
-                                     width: cellW, height: cellH, scale: scale)
+            VStack(spacing: 0) {
+                filterBar
+                if filteredTabs.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: "rectangle.stack")
+                            .font(.system(size: 24))
+                            .foregroundStyle(.secondary)
+                        Text(searchText.isEmpty
+                             ? String(localized: "No tabs in this group")
+                             : String(localized: "No matching tabs"))
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
                     }
-                    newTabTile(width: cellW, height: cellH)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else {
+                    ScrollView {
+                        // 分级渲染（0.3.4）：LazyVGrid 只挂载可见行的活 webview；
+                        // 滚出屏幕的瓦片自动摘除（WKWebView 对象由 Tab 持有，
+                        // 摘除不销毁页面，滚回时重新挂载）。50 标签概览的常驻
+                        // 活视图从 50 → 一屏 ≤9。
+                        LazyVGrid(columns: Array(repeating: GridItem(.fixed(cellW), spacing: 40), count: Self.columns),
+                                  spacing: 44) {
+                            ForEach(Array(filteredTabs.enumerated()), id: \.offset) { _, entry in
+                                overviewCard(index: entry.index, tab: entry.tab,
+                                             width: cellW, height: cellH, scale: scale)
+                            }
+                            newTabTile(width: cellW, height: cellH)
+                        }
+                        .padding(.horizontal, 56)
+                        .padding(.vertical, 36)
+                        .frame(maxWidth: .infinity)
+                    }
                 }
-                .padding(.horizontal, 56)
-                .padding(.vertical, 48)
-                .frame(maxWidth: .infinity)
             }
         }
         .background(Color(red: 0.13, green: 0.16, blue: 0.21).onTapGesture { onClose() })
         .onExitCommand { onClose() } // Esc
+    }
+
+    /// 顶部过滤条：搜索 + 分组胶囊。分组菜单可整组挂起（跳过当前选中标签）。
+    private var filterBar: some View {
+        HStack(spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                TextField(String(localized: "Search tabs"), text: $searchText)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 12))
+                    .accessibilityLabel(String(localized: "Search tabs"))
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 7)
+                    .fill(Color.white.opacity(0.08))
+            )
+            .frame(maxWidth: 260)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    groupChip(title: String(localized: "All"), id: nil)
+                    ForEach(tabGroupStore.groups) { group in
+                        groupChip(title: group.name, id: group.id, group: group)
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 56)
+        .padding(.vertical, 12)
+        .background(.ultraThinMaterial)
+    }
+
+    private func groupChip(title: String, id: UUID?, group: TabGroup? = nil) -> some View {
+        let selected = selectedGroupID == id
+        return Button {
+            selectedGroupID = selected ? nil : id
+        } label: {
+            HStack(spacing: 4) {
+                if let group {
+                    Circle()
+                        .fill(groupColor(group.colorIndex))
+                        .frame(width: 6, height: 6)
+                }
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+                if let group {
+                    Text(verbatim: "\(group.tabIds.count)")
+                        .font(.system(size: 9).monospacedDigit())
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Capsule().fill(selected ? Color.white.opacity(0.22) : Color.white.opacity(0.08)))
+            .foregroundStyle(selected ? Color.white : Color.secondary)
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            if let group {
+                Button {
+                    let selectedID = tabManager.selectedTab?.id
+                    tabGroupStore.suspendGroup(group.id) { tabID in
+                        guard tabID != selectedID,
+                              let tab = tabManager.tabs.first(where: { $0.id == tabID }) else { return }
+                        tabManager.suspend(tab)
+                    }
+                } label: {
+                    Label(String(localized: "Suspend Group"), systemImage: "moon.zzz")
+                }
+                Button {
+                    tabGroupStore.toggleCollapsed(group.id)
+                } label: {
+                    Label(group.isCollapsed
+                          ? String(localized: "Expand Group")
+                          : String(localized: "Collapse Group"),
+                          systemImage: group.isCollapsed ? "chevron.down" : "chevron.right")
+                }
+            }
+        }
+    }
+
+    private func groupColor(_ index: Int) -> Color {
+        let colors: [Color] = [.blue, .purple, .orange, .green, .pink, .teal, .indigo, .red]
+        return colors[abs(index) % colors.count]
     }
 
     private func resolve(_ action: ((Int) -> Void)?, fallback: (TabManager, Int) -> Void, index: Int) {

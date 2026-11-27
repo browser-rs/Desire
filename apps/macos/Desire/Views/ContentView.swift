@@ -327,28 +327,7 @@ struct ContentView: View {
                         AgentPanelVisibilityStore.shared.record(key: tabManager.sessionKey, shown: true)
                     }
                 )
-                .overlay {
-                    // 标签概览（0.2.19）：盖住内容区，工具栏保持可见。
-                    if showTabOverview {
-                        TabOverviewView(
-                            tabManager: tabManager,
-                            accentColor: settings.accentColor.color,
-                            content: self,
-                            onSelectTab: { index in
-                                isUrlFocused = false
-                                tabManager.selectTab(at: index)
-                            },
-                            onCloseTab: { index in
-                                tabManager.closeTab(at: index)
-                            },
-                            onAddTab: {
-                                tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: settings.autoPlayPolicy, newTabPosition: settings.newTabPosition)
-                            },
-                            onClose: { showTabOverview = false }
-                        )
-                        .transition(.opacity)
-                    }
-                }
+                .overlay { tabOverviewOverlay }
                 .animation(.layoutSpring, value: showTabOverview)
             }
         }
@@ -701,6 +680,36 @@ struct ContentView: View {
             }
         }
         .overlay(alignment: .bottom) { translateBarOverlay }
+    }
+
+    /// 标签概览（0.2.19）：盖住内容区，工具栏保持可见。独立成属性是为了
+    /// 把 body 的泛型表达式拆小——整块内联时 Swift 编译器会 type-check 超时。
+    @ViewBuilder
+    private var tabOverviewOverlay: some View {
+        if showTabOverview {
+            TabOverviewView(
+                tabManager: tabManager,
+                tabGroupStore: tabGroupStore,
+                accentColor: settings.accentColor.color,
+                content: self,
+                onSelectTab: { index in
+                    isUrlFocused = false
+                    tabManager.selectTab(at: index)
+                },
+                onCloseTab: { index in
+                    tabManager.closeTab(at: index)
+                },
+                onAddTab: {
+                    tabManager.addTab(javaScriptEnabled: settings.isJavaScriptEnabled,
+                                      contentBlocker: contentBlocker,
+                                      videoAdBlocker: videoAdBlocker,
+                                      autoPlayPolicy: settings.autoPlayPolicy,
+                                      newTabPosition: settings.newTabPosition)
+                },
+                onClose: { showTabOverview = false }
+            )
+            .transition(.opacity)
+        }
     }
 
     /// body 壳（0.6.3）：垂直标签栏开启且非站点整屏时，侧栏与主列并排

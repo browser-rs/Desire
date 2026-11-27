@@ -29,6 +29,14 @@ nonisolated enum PasswordHealth {
         var detail: String
     }
 
+    /// 健康提示的处理状态（v0.8.82）：`handled` = 永久隐藏；否则在 `until`
+    /// 之前不提示。随 PasswordStore 持久化，纯逻辑可单测。
+    struct Mute: Codable, Equatable {
+        var entryID: UUID
+        var handled: Bool
+        var until: Date?
+    }
+
     struct Report: Equatable {
         var findings: [Finding]
         var totalEntries: Int
@@ -48,6 +56,24 @@ nonisolated enum PasswordHealth {
         "password", "123456", "qwerty", "letmein", "welcome",
         "admin", "login", "abc123", "monkey", "dragon",
     ]
+
+    /// 当前仍有效的静音条目（过期项由调用方 prune）。
+    static func activeMutes(_ mutes: [Mute], now: Date = Date()) -> Set<UUID> {
+        Set(mutes.filter { mute in
+            mute.handled || (mute.until.map { $0 > now } ?? false)
+        }.map(\.entryID))
+    }
+
+    static func prune(_ mutes: [Mute], now: Date = Date()) -> [Mute] {
+        mutes.filter { $0.handled || ($0.until.map { $0 > now } ?? false) }
+    }
+
+    static func filter(_ report: Report, muted: Set<UUID>) -> Report {
+        guard !muted.isEmpty else { return report }
+        var copy = report
+        copy.findings = report.findings.filter { !muted.contains($0.entryID) }
+        return copy
+    }
 
     static func assess(entries: [PasswordEntry], now: Date = Date()) -> Report {
         // 重复检测：密码值相同（跨域名）。

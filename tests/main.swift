@@ -14104,6 +14104,144 @@ do {
           && StorageRetention.lruTargets(entries, maxBytes: 100).isEmpty)
 }
 
+// 定时任务补跑（v0.8.81 批 3）：间隔/每日/每周的应跑时刻与补跑判定。
+do {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+    func date(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 11, day: day,
+                                           hour: hour, minute: minute))!
+    }
+    let friday = date(27, 12)
+    check("补跑：2026-11-23 是周一（周判定口径 1=周日）",
+          calendar.component(.weekday, from: date(23, 9)) == 2)
+
+    // 间隔任务：错过多个周期只跑一次；宽限内不算补跑。
+    let interval = ScheduleDue.evaluate(
+        rule: .everyMinutes(30), createdAt: date(20, 8), lastFiredAt: date(27, 9),
+        now: date(27, 11), calendar: calendar)
+    check("补跑：间隔任务超期 → 一次补跑 + 错过次数",
+          interval.isDue && interval.isCatchUp && interval.missedCount == 4)
+    let intervalFresh = ScheduleDue.evaluate(
+        rule: .everyMinutes(30), createdAt: date(20, 8), lastFiredAt: date(27, 11, 50),
+        now: friday, calendar: calendar)
+    check("补跑：间隔任务未到点 → 不跑",
+          !intervalFresh.isDue && !intervalFresh.isCatchUp)
+
+    // 每日任务：当天到点后、超过宽限 = 补跑；关掉开关就不补。
+    let daily = ScheduleDue.evaluate(
+        rule: .daily(hour: 9, minute: 0), createdAt: date(20, 8),
+        lastFiredAt: date(26, 9), now: date(27, 10), calendar: calendar)
+    let dailyOnTime = ScheduleDue.evaluate(
+        rule: .daily(hour: 9, minute: 0), createdAt: date(20, 8),
+        lastFiredAt: date(26, 9), now: date(27, 9, 2), calendar: calendar)
+    let dailyOff = ScheduleDue.evaluate(
+        rule: .daily(hour: 9, minute: 0), createdAt: date(20, 8),
+        lastFiredAt: date(26, 9), now: date(27, 10), calendar: calendar,
+        catchUpEnabled: false)
+    check("补跑：每日超宽限 → 补跑；准点 → 正常；开关关 → 不跑",
+          daily.isDue && daily.isCatchUp
+          && dailyOnTime.isDue && !dailyOnTime.isCatchUp
+          && !dailyOff.isDue)
+    let dailyDone = ScheduleDue.evaluate(
+        rule: .daily(hour: 9, minute: 0), createdAt: date(20, 8),
+        lastFiredAt: date(27, 9, 30), now: date(27, 11), calendar: calendar)
+    check("补跑：今天已经跑过 → 不重复", !dailyDone.isDue)
+
+    // 每周任务：整周关机后补最近一次；下一次很近时让下一次正常跑。
+    let weekly = ScheduleDue.evaluate(
+        rule: .weekly(weekday: 2, hour: 9, minute: 0), createdAt: date(9, 8),
+        lastFiredAt: date(16, 9), now: date(25, 12), calendar: calendar)
+    let weeklyDone = ScheduleDue.evaluate(
+        rule: .weekly(weekday: 2, hour: 9, minute: 0), createdAt: date(9, 8),
+        lastFiredAt: date(23, 9), now: date(25, 12), calendar: calendar)
+    let weeklyEarlyMonday = ScheduleDue.evaluate(
+        rule: .weekly(weekday: 2, hour: 9, minute: 0), createdAt: date(9, 8),
+        lastFiredAt: date(16, 9), now: date(23, 8), calendar: calendar)
+    let weeklyOff = ScheduleDue.evaluate(
+        rule: .weekly(weekday: 2, hour: 9, minute: 0), createdAt: date(9, 8),
+        lastFiredAt: date(16, 9), now: date(25, 12), calendar: calendar,
+        catchUpEnabled: false)
+    check("补跑：每周整周错过 → 补一次（已跑过/开关关/下一次很近则否）",
+          weekly.isDue && weekly.isCatchUp
+          && !weeklyDone.isDue
+          && !weeklyEarlyMonday.isDue
+          && !weeklyOff.isDue)
+}
+
+// 提示词缓存前缀（v0.8.81 批 3）：稳定段哈希 + 变化来源。
+do {
+    let base = """
+    <identity>you are Desire</identity>
+
+    <user_memory>- likes tea</user_memory>
+
+    <skills>- reader: read pages</skills>
+
+    <tools>- click — click</tools>
+
+    <environment>Current time: 12:00</environment>
+
+    <page_context>page A</page_context>
+    """
+    let first = PromptCacheAudit.evaluate(system: base, previousSectionHashes: nil)
+    let same = PromptCacheAudit.evaluate(system: base, previousSectionHashes: first.sectionHashes)
+    check("缓存前缀：首次标记 first；动态段变化不算前缀变化",
+          first.changedReason == "first" && same.changedReason == nil
+          && same.prefixHash == first.prefixHash)
+    let memoryChanged = base.replacingOccurrences(of: "likes tea", with: "likes coffee")
+    let memoryAudit = PromptCacheAudit.evaluate(system: memoryChanged,
+                                                previousSectionHashes: first.sectionHashes)
+    check("缓存前缀：记忆变化 → user_memory",
+          memoryAudit.changedReason == "user_memory"
+          && memoryAudit.prefixHash != first.prefixHash)
+    let scopedTail = base + "\n\n<turn_scope>loaded 12/106</turn_scope>"
+    let tailAudit = PromptCacheAudit.evaluate(system: scopedTail,
+                                              previousSectionHashes: first.sectionHashes)
+    check("缓存前缀：system 末尾的回合工具注记不打断稳定前缀",
+          tailAudit.changedReason == nil && tailAudit.prefixHash == first.prefixHash)
+    check("缓存前缀：FNV 稳定值", PromptCacheAudit.fnv1a("desire") == PromptCacheAudit.fnv1a("desire")
+          && PromptCacheAudit.fnv1a("desire") != PromptCacheAudit.fnv1a("Desire"))
+}
+
+// 修订 diff（v0.8.81 批 3）：行级增删与超长保护。
+do {
+    let diff = AnswerDiff.diff(before: "a\nb\nc", after: "a\nB\nc")
+    check("修订 diff：一行改动 = 一删一增",
+          diff.hasChanges && diff.added == 1 && diff.removed == 1
+          && diff.rows.contains(.init(kind: .removed, text: "b"))
+          && diff.rows.contains(.init(kind: .added, text: "B"))
+          && diff.rows.first == .init(kind: .same, text: "a"))
+    let unchanged = AnswerDiff.diff(before: "same\ntext", after: "same\ntext")
+    check("修订 diff：完全相同 = 无变化",
+          !unchanged.hasChanges && unchanged.rows.allSatisfy { $0.kind == .same })
+    let hugeBefore = (0..<500).map { "old \($0)" }.joined(separator: "\n")
+    let hugeAfter = (0..<500).map { "new \($0)" }.joined(separator: "\n")
+    let huge = AnswerDiff.diff(before: hugeBefore, after: hugeAfter)
+    check("修订 diff：超大答案走截断视图但仍如实计数",
+          huge.hasChanges && huge.rows.count <= AnswerDiff.maxDisplayLines
+          && huge.rows.contains(where: { $0.kind == .omitted }))
+}
+
+// 审批批量匹配（v0.8.81 批 3）：参数形状 + 单批上限。
+do {
+    let pattern = ApprovalBatchPattern(tool: "addBookmark",
+                                       siteHost: "Example.COM",
+                                       argumentsJSON: #"{"url":"https://a","title":"A"}"#)
+    check("审批批量：同键不同值匹配；站点归一化",
+          pattern.matches(tool: "addBookmark", siteHost: "example.com",
+                          argumentsJSON: #"{"title":"B","url":"https://b"}"#)
+          && pattern.siteHost == "example.com")
+    check("审批批量：换参数形状/换工具/换站点不匹配",
+          !pattern.matches(tool: "addBookmark", siteHost: "example.com",
+                           argumentsJSON: #"{"url":"https://b"}"#)
+          && !pattern.matches(tool: "navigate", siteHost: "example.com",
+                              argumentsJSON: #"{"url":"https://b","title":"B"}"#)
+          && !pattern.matches(tool: "addBookmark", siteHost: "other.com",
+                              argumentsJSON: #"{"url":"https://b","title":"B"}"#))
+    check("审批批量：单批上限固定 8", ApprovalBatchPattern.maxBatch == 8)
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

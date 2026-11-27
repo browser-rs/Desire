@@ -739,6 +739,30 @@ struct AgentStatsView: View {
                     }
                 }
             }
+            // 缓存前缀变化（v0.8.81 批 3）：命中率低时先看这里——工具目录/
+            // 记忆/会话指令变化都会让缓存前缀整体失效一次。
+            if !stats.promptPrefixChanges.isEmpty {
+                Divider().opacity(0.4)
+                HStack(alignment: .top, spacing: 7) {
+                    Image(systemName: "bolt.horizontal.circle")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.tertiary)
+                        .frame(width: 8)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(String(localized: "Prompt prefix changed"))
+                            .font(.system(size: 10.5))
+                            .foregroundStyle(.secondary)
+                        Text(stats.promptPrefixChanges
+                            .sorted { $0.value > $1.value }
+                            .map { "\(PromptCacheAudit.displayName(for: $0.key)) ×\($0.value)" }
+                            .joined(separator: " · "))
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 10)
+                }
+            }
         }
     }
 

@@ -324,6 +324,7 @@ private struct ToolCallChip: View {
 private struct SpillResultBadge: View {
     @Environment(\.appAccent) private var appAccent: Color
     let path: String
+    @State private var showViewer = false
 
     var body: some View {
         HStack(spacing: 6) {
@@ -335,6 +336,10 @@ private struct SpillResultBadge: View {
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.middle)
+            Button(String(localized: "Show Full Result")) { showViewer = true }
+                .buttonStyle(.plain)
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(appAccent)
             Button(String(localized: "Show in Finder")) {
                 NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
             }
@@ -343,6 +348,9 @@ private struct SpillResultBadge: View {
             .foregroundStyle(appAccent)
         }
         .help(path)
+        .sheet(isPresented: $showViewer) {
+            ToolResultSpillViewer(path: path)
+        }
     }
 
     private var sizeText: String {

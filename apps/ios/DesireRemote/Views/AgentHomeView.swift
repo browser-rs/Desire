@@ -88,6 +88,12 @@ struct AgentHomeView: View {
             DesireValueRow(
                 title: "上下文占用", value: "\(client.contextPercent)%",
                 valueColor: contextColor, mono: true)
+            if client.contextBudget > 0 {
+                DesireValueRow(
+                    title: "压缩预算",
+                    value: "\(client.contextBudget / 1000)k · \(client.contextTriggerPercent)%",
+                    mono: true)
+            }
             DesireValueRow(
                 title: "本对话 Token",
                 value: client.tokens.map(DesireUI.formatTokens) ?? "—", mono: true)

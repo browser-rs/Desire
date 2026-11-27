@@ -764,13 +764,14 @@ final class AutomationServer {
         ep("GET", "/agent/crew", "Tab Crew status (per-subtask progress + reports)", example: "…/agent/crew")
         ep("POST", "/agent/crew/cancel", "Cancel the whole crew (or one subtask)", params: ["index?:int"], example: "-d '{}'")
         ep("POST", "/agent/crew-dispatch", "Dispatch a crew (objective + subtasks); MCP crewDispatch maps here", params: ["objective:string", "tasks:array", "isolated?:bool (ephemeral container, wiped on settle)"], example: "-d '{\"objective\":\"compare\",\"tasks\":[{\"url\":\"https://a\",\"instruction\":\"price of X\"}]}'")
-        ep("POST", "/agent/tasks/create", "Create task", params: ["name:string", "prompt?:string", "minutes?:int | hour+minute", "window?:uuid (target a specific window; default = newest)", "builtin?:string (weeklyReport = built-in report pipeline; prompt unused)"], example: #"-d '{"name":"t","prompt":"p","minutes":30}'"#)
+        ep("POST", "/agent/tasks/create", "Create task", params: ["name:string", "prompt?:string", "minutes?:int | hour+minute(+weekday 1=Sun…7=Sat)", "lastFiredAt?:ISO-8601 (E2E: backdate for catch-up)", "window?:uuid (target a specific window; default = newest)", "builtin?:string (weeklyReport = built-in report pipeline; prompt unused)"], example: #"-d '{"name":"t","prompt":"p","minutes":30}'"#)
         ep("POST", "/agent/tasks/remove", "Remove by name", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
         ep("POST", "/agent/tasks/fire", "Deliver prompt now (E2E)", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
         ep("POST", "/agent/tasks/chain", "Set/clear the completion chain (A → B; B's prompt may use {{prev.output}}, {{prev.output:N}}, {{prev.task}}, {{prev.artifacts}})", params: ["name:string", "chainTo?:string (empty clears)"], example: #"-d '{"name":"collect","chainTo":"report"}'"#)
         ep("GET", "/approvals", "Pending tool approval", example: "…/approvals")
         ep("POST", "/approvals/resolve", "Resolve approval", params: ["decision:string"], example: #"-d '{"decision":"allow_once"}'"#)
-        ep("POST", "/approvals/simulate", "Arm a REAL pending approval (no model turn)", example: "-d '{}'")
+        ep("POST", "/approvals/simulate", "Arm a REAL pending approval (no model turn)", params: ["tool?:string", "arguments?:json-string", "risk?:readonly|sideEffect|dangerous", "batchCandidates?:int (E2E preview count)"], example: "-d '{}'")
+        ep("POST", "/agent/revision/undo", "Undo an auto-revision (restore the original answer)", params: ["message:uuid", "window?:uuid"], example: #"-d '{"message":"…"}'"#)
         ep("GET", "/beforeunload", "beforeunload guard state", params: ["index?:int"], example: "…/beforeunload")
         ep("POST", "/beforeunload/resolve", "Resolve guard (leave=true navigates)", params: ["leave:bool", "index?:int"], example: "-d '{\"leave\":false}'")
         ep("GET", "/reader", "Reader-mode extraction state", params: ["index?:int"], example: "…/reader")
@@ -2853,6 +2854,12 @@ case ("GET", "/state"):
                     siteGrant: body["siteGrant"] as? Bool ?? false,
                     batch: body["batch"] as? Bool ?? false
                 ))
+            case ("POST", "/agent/revision/undo"):
+                guard let session = Self.resolveSession(Self.string(body, "window")),
+                      let id = UUID(uuidString: Self.string(body, "message") ?? "") else {
+                    return try Self.json(["error": "no session or invalid message id"])
+                }
+                return try Self.json(["ok": session.undoRevision(for: id)])
             case ("POST", "/devtools/eval"):
                 return try await Self.json(Self.devToolsEval(js: Self.string(body, "js") ?? "", index: Self.index(body)))
             case ("POST", "/devtools/inspect"):
@@ -4210,6 +4217,8 @@ case ("GET", "/agent/messages"):
                     minutes: body["minutes"] as? Int,
                     hour: body["hour"] as? Int,
                     minute: body["minute"] as? Int,
+                    weekday: body["weekday"] as? Int,
+                    lastFiredAt: Self.string(body, "lastFiredAt"),
                     window: Self.string(body, "window"),
                     builtin: Self.string(body, "builtin")
                 ))
@@ -4341,7 +4350,7 @@ case ("GET", "/agent/messages"):
             case ("GET", "/approvals/history"):
                 return try Self.json(Self.approvalHistory(count: Int(query["count"] ?? "20") ?? 20))
             case ("POST", "/approvals/simulate"):
-                return try Self.json(Self.simulateApproval())
+                return try Self.json(Self.simulateApproval(body))
             case ("GET", "/books"):
                 return try Self.json(Self.booksList())
             case ("POST", "/books/import-web"):
@@ -6755,6 +6764,10 @@ case ("GET", "/agent/messages"):
             "tool": approval.toolCall.function.name,
             "arguments": approval.argumentsSummary,
             "risk": approval.risk.displayName,
+            "siteHost": approval.siteHost ?? "",
+            "batchCandidateCount": approval.batchCandidateCount,
+            "batchArgumentKeys": approval.batchArgumentKeys,
+            "batchLimit": ApprovalBatchPattern.maxBatch,
         ]
     }
 
@@ -8784,6 +8797,11 @@ case ("GET", "/agent/messages"):
             if let route = message.routeReason { item["routeReason"] = route }
             if let prompt = message.promptTokens { item["promptTokens"] = prompt }
             if let completion = message.completionTokens { item["completionTokens"] = completion }
+            if let cached = message.cachedPromptTokens { item["cachedPromptTokens"] = cached }
+            if let prefix = message.promptPrefixHash { item["promptPrefixHash"] = prefix }
+            if let reason = message.promptPrefixChanged { item["promptPrefixChanged"] = reason }
+            if let revised = message.wasRevised { item["wasRevised"] = revised }
+            if let original = message.originalAnswer { item["originalAnswerLength"] = original.count }
             return item
         }
         return [
@@ -10734,17 +10752,42 @@ case ("GET", "/agent/messages"):
             row["builtin"] = t.builtin ?? NSNull()
             return row
         }
-        return ["tasks": tasks]
+        let format = ISO8601DateFormatter()
+        let runs: [[String: Any]] = AgentScheduler.shared.runs.prefix(20).map { run in
+            var row: [String: Any] = [
+                "task": run.taskName,
+                "firedAt": format.string(from: run.firedAt),
+                "status": run.status,
+                "attempts": run.attempts,
+                "catchUp": run.catchUp == true,
+            ]
+            if let scheduled = run.scheduledFor { row["scheduledFor"] = format.string(from: scheduled) }
+            return row
+        }
+        return ["tasks": tasks, "runs": runs]
     }
 
-    private static func createAgentTask(name: String, prompt: String, minutes: Int?, hour: Int?, minute: Int?, window: String?, builtin: String? = nil) throws -> [String: Any] {
+    private static func createAgentTask(name: String, prompt: String, minutes: Int?, hour: Int?, minute: Int?, weekday: Int?, lastFiredAt: String?, window: String?, builtin: String? = nil) throws -> [String: Any] {
         let recurrence: AgentScheduler.ScheduledTask.Recurrence
         if let minutes {
             recurrence = .everyMinutes(minutes)
+        } else if let hour, let minute, let weekday {
+            recurrence = .weekly(weekday: weekday, hour: hour, minute: minute)
         } else if let hour, let minute {
             recurrence = .daily(hour: hour, minute: minute)
         } else {
-            return ["error": "need minutes, or hour+minute"]
+            return ["error": "need minutes, or hour+minute (weekly adds weekday)"]
+        }
+        // E2E 回填：把 lastFiredAt 锚到过去，验证补跑判定（正常调用不传）。
+        var seededLastFired: Date?
+        if let lastFiredAt, !lastFiredAt.isEmpty {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            seededLastFired = formatter.date(from: lastFiredAt)
+                ?? ISO8601DateFormatter().date(from: lastFiredAt)
+            guard seededLastFired != nil else {
+                return ["error": "lastFiredAt must be ISO-8601"]
+            }
         }
         if let builtin {
             // 内置流水线任务（v0.7.24 起；v0.7.25 泛化）：weeklyReport | dailyBrief。
@@ -10766,7 +10809,7 @@ case ("GET", "/agent/messages"):
         let targetID = resolveSession(window)?.registryID
         guard AgentScheduler.shared.add(
             name: name, prompt: prompt, recurrence: recurrence,
-            targetSessionID: targetID) != nil else {
+            targetSessionID: targetID, lastFiredAt: seededLastFired) != nil else {
             return ["error": "invalid name or prompt"]
         }
         var payload: [String: Any] = ["ok": true, "name": name]
@@ -12071,11 +12114,22 @@ case ("GET", "/agent/messages"):
 
     /// Arms a real pending approval on the live session (plumbing E2E
     /// without a model turn); resolve it via POST /approvals/resolve.
-    private static func simulateApproval() throws -> [String: Any] {
+    private static func simulateApproval(_ body: [String: Any]) throws -> [String: Any] {
         guard let session = AgentScheduler.shared.deliveryTarget else {
             return ["error": "no live agent session"]
         }
-        session.simulateApprovalForTesting()
+        let risk: ToolRisk
+        switch (Self.string(body, "risk") ?? "dangerous").lowercased() {
+        case "readonly": risk = .readonly
+        case "sideeffect", "side_effect", "side-effect": risk = .sideEffect
+        default: risk = .dangerous
+        }
+        session.simulateApprovalForTesting(
+            tool: Self.string(body, "tool") ?? "readClipboard",
+            arguments: Self.string(body, "arguments") ?? "{}",
+            risk: risk,
+            batchCandidates: body["batchCandidates"] as? Int ?? 0
+        )
         return ["ok": true]
     }
 }

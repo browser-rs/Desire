@@ -43,6 +43,8 @@ struct UsageStats {
     var completionTokens = 0
     /// 命中提示词缓存的输入 token（v0.8.80）。
     var cachedPromptTokens = 0
+    /// 稳定前缀变化来源计数（v0.8.81 批 3）：tools/memory/skills/… 各触发几次。
+    var promptPrefixChanges: [String: Int] = [:]
     /// 其中旁路调用（标题/记忆整理/自评）的部分——上面是**含旁路的总量**，
     /// 主回合 = 总量 − 旁路。旧会话没有旁路明细，旁路为 0。
     var bypassTokens = 0
@@ -113,6 +115,9 @@ struct UsageStats {
                     perfSamples[model, default: []].append((ttft, latency))
                 }
                 let completion = message.completionTokens ?? 0
+                if let reason = message.promptPrefixChanged, reason != "first" {
+                    stats.promptPrefixChanges[reason, default: 0] += 1
+                }
                 guard prompt > 0 || completion > 0 else { continue }
                 let tokens = prompt + completion
                 stats.totalTokens += tokens

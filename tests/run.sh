@@ -38,6 +38,9 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/AgentToolSchema.swift
   apps/macos/Desire/Features/Agent/RequestMetering.swift
   apps/macos/Desire/Features/Agent/PromptCacheAccounting.swift
+  apps/macos/Desire/Features/Agent/PromptCacheAudit.swift
+  apps/macos/Desire/Features/Agent/ScheduleDue.swift
+  apps/macos/Desire/Features/Agent/AnswerDiff.swift
   apps/macos/Desire/Features/Agent/AgentToolCatalog.swift
   apps/macos/Desire/Features/Agent/ToolChainCore.swift
   apps/macos/Desire/Features/Agent/ToolResultBudget.swift

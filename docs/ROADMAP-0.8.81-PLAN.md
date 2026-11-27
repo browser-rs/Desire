@@ -33,7 +33,7 @@
 | S6 | **Remote 只能控制已有批次，不能从手机发起/追加/设窗口** | `RemoteBatchDownloadsView.swift:16-80`（仅 pause/resume/skip/retry/cancel） | 批量下载的"远程启动"仍是空档 |
 | S7 | **同步冲突只展示不处理**：`recentConflicts` 只有列表，没有"采用本地/远端"动作 | `SyncStore.swift:963-987`；`RemoteDoctorView.swift:99-105` | 冲突靠用户自己猜，下一步不可操作 |
 | S8 | **Remote ack 未接线**：`/remote/ack` 存在但两端都不调用；express 帧 id 被丢弃 | `remote_controller.rs:206-228`；`RemoteControlStore.handleExpressEnvelope` 只取 payload；iOS `RemoteClient` 无 ack | 同一帧可能被 WS + pull 各处理一次（靠 processedIDs 兜底），信箱行滞留 |
-| S9 | **定时任务错过不补偿**：启动/唤醒只记录 missed，没有补跑队列 | `AgentScheduler.swift:713-729`（missed 只写 lastResult/run）；无 catch-up | 夜间关机错过的任务永远不跑 |
+| S9 | **定时任务补跑不完整（审计修正）**：每日/间隔任务**已有**启动补跑；但每周任务只在"当天正好是设定星期"时判定，整周关机后错过的一次只能等下周 | `AgentScheduler.swift:1026-1033`（旧 isDue）；无 weekly catch-up | 每周任务可能整周不跑 |
 | S10 | **提示词缓存前缀未审计**：scoped tools 会在回合中改变 `<tools>` 段，缓存前缀被打断 | `AgentPromptBuilder.swift:141-145, 215-245`；`AgentSessionStore.swift:2915-2918` | 缓存命中率不稳定，成本节省打折 |
 | S11 | **批量审批只按顶层参数键匹配，没有"将放行几条"预览** | `ApprovalBatchPattern.swift:10-31`；`AgentSessionStore.swift:4631-4645` | 用户不知道"批准本轮剩余"会放行多少/哪些 |
 | S12 | **自评修订只标 `wasRevised`，没有前后对照** | `AgentSessionStore.swift:4183`；`AgentMessage.swift` 仅 `wasRevised` | 用户看不到改了什么，无法判断修订是否可信 |
@@ -91,14 +91,15 @@
 ### ② Agent 基础（旗舰：新能力的边界与可见性）
 
 **6. 定时任务错过补偿**
-- **现状依据**：启动/唤醒只记 missed（S9），没有补跑；`RunRecord.status = missed`
-  只用于统计。
-- **增量**：每任务记 `lastDueAt`；启动/唤醒时若"上次应跑时间"错过且超过宽限
-  （默认 5 分钟），生成**一条**补跑（不重复追多轮；可配置"只补最近一次"）；
-  补跑在面板任务卡可见（"补跑 09:00"），用户可关闭"错过补跑"；锁屏时按锁屏
-  守卫挂起。
-- **验收**：harness（错过判定/只补一次）+ 桥 E2E（把系统时间锚点伪造到过去 →
-  启动 → 恰好补跑一次；关闭开关不补）。
+- **现状依据（已修正）**：每日/间隔任务**本来就有**启动补跑（`lastFiredAt` 旧值 +
+  当天到点判定），S9 原文"只记 missed、没有 catch-up"不成立；真实缺口是**每周**
+  任务——旧判定要求今天正好是设定星期，整周关机后错过的一次永远不补。
+- **已落地（v0.8.81 批 3）**：判定抽成 `ScheduleDue`（Foundation-only）；每日/每周
+  超过 5 分钟宽限标为补跑，每周按"最近一次应跑时刻"判定（下一次 ≤2 小时则让正常
+  时刻跑）；`RunRecord.catchUp/scheduledFor` + 任务行"已补跑"；设置页开关
+  `agent.catchUpMissedRuns`；锁屏/免打扰沿用既有守卫。
+- **验收**：harness 5 组（间隔/每日/每周/开关/今天已跑）+ 桥 E2E（回填
+  `lastFiredAt` → 下一个 tick 补一次、下一 tick 不重复）已过。
 
 **7. 提示词缓存前缀稳定**
 - **现状依据**：`<tools>` 段按当前可用工具生成，scoped tools 在回合中会变（S10）；

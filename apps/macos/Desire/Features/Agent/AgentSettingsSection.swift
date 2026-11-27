@@ -2207,6 +2207,7 @@ private struct RosterSection: View {
 
 struct ScheduledTasksSection: View {
     @ObservedObject private var store = AgentScheduler.shared
+    @AppStorage("agent.catchUpMissedRuns", store: AppPrefs.defaults) private var catchUpMissedRuns = true
 
     var body: some View {
         SettingsSection(
@@ -2214,6 +2215,16 @@ struct ScheduledTasksSection: View {
             subtitle: String(localized: "Prompts that re-run automatically while the app is open. Ask the agent to create one, e.g. 「每天 9 点总结我的待办」."),
             icon: "clock.badge.checkmark"
         ) {
+            SettingsRow(
+                String(localized: "Catch up missed runs"),
+                subtitle: String(localized: "After the Mac was asleep or closed, run a missed daily/weekly task once on launch. The task row marks it as caught up."),
+                systemImage: "clock.arrow.circlepath"
+            ) {
+                Toggle("", isOn: $catchUpMissedRuns)
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+            }
             VStack(spacing: 0) {
                 if store.tasks.isEmpty {
                     Text(String(localized: "No scheduled tasks yet."))
@@ -2223,8 +2234,8 @@ struct ScheduledTasksSection: View {
                         .padding(.vertical, 4)
                 }
                 ForEach(store.tasks) { task in
-                    ScheduledTaskRow(task: task)
                     SettingsRowDivider()
+                    ScheduledTaskRow(task: task)
                 }
             }
         }

@@ -80,6 +80,9 @@ struct SnapshotFrame: Codable {
     /// Agent 状态行
     var model: String?
     var contextPercent: Int?
+    /// 压缩预算（字符）与触发阈值%（v0.8.81 批 3）
+    var contextBudget: Int?
+    var contextTriggerPercent: Int?
     var queueCount: Int?
     var elapsed: Int?
 

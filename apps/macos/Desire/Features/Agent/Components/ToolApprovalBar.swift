@@ -56,6 +56,10 @@ struct ToolApprovalBar: View {
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
+                // 批量放行预览（v0.8.81 批 3）：批之前先看到会放行几条/什么形状。
+                if onAllowRestOfTurn != nil, approval.risk != .dangerous {
+                    batchPreview
+                }
                 HStack(spacing: 8) {
                     Button("Allow Once", action: onAllowOnce)
                         .buttonStyle(.borderedProminent)
@@ -121,6 +125,37 @@ struct ToolApprovalBar: View {
         )
         .padding(.horizontal)
         .padding(.bottom, 8)
+    }
+
+    // MARK: - Batch preview
+
+    /// "批准本轮剩余"会放行什么：当前批次里同工具 + 同站点 + 同参数键的后续
+    /// 调用数；单次上限固定，超出部分会重新逐条问。
+    private var batchPreview: some View {
+        let count = approval.batchCandidateCount
+        let limit = ApprovalBatchPattern.maxBatch
+        let willApprove = min(count, limit)
+        let keys = approval.batchArgumentKeys.isEmpty
+            ? String(localized: "no arguments")
+            : approval.batchArgumentKeys.joined(separator: ", ")
+        return HStack(alignment: .firstTextBaseline, spacing: 5) {
+            Image(systemName: count > 0 ? "square.stack.3d.up.fill" : "info.circle")
+                .font(.system(size: 9))
+            if count > 0 {
+                Text(verbatim: "\(willApprove)/\(count)")
+                    .font(.system(size: 9.5, weight: .semibold, design: .monospaced))
+                Text(String(localized: count > limit
+                            ? "same-shape calls queued; this approval covers up to the batch limit, the rest will ask again."
+                            : "same-shape calls queued for rest-of-turn approval."))
+            } else {
+                Text(String(localized: "No other same-shape calls are queued; later matches this turn still apply."))
+            }
+            Text(verbatim: "· \(keys)")
+                .foregroundStyle(.tertiary)
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .lineLimit(2)
     }
 
     // MARK: - Risk visual

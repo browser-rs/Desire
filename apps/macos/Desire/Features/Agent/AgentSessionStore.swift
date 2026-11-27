@@ -113,6 +113,11 @@ class AgentSessionStore: ObservableObject {
     private var activeApprovalSnapshot: PendingApprovalSnapshot?
     /// "批准本轮剩余同类调用"的匹配模式——每次回合开始清空（不跨回合）。
     private var turnApprovalPatterns: [ApprovalBatchPattern] = []
+    /// 每个批量授权还能自动放行几条（单次上限 `ApprovalBatchPattern.maxBatch`；
+    /// 用完后回到逐条审批，v0.8.81 批 3）。
+    private var turnApprovalRemaining: [ApprovalBatchPattern: Int] = [:]
+    /// E2E 用：模拟审批时伪造的"本轮同形状调用数"（消费一次即清）。
+    private var simulatedBatchCandidateOverride: Int?
     /// 恢复待批后的**一次性决定**（allow/deny + 模式）：续跑回合里第一次遇到
     /// 匹配调用时消费；不跨回合。
     private var recoveredApprovalGrant: (allow: Bool, pattern: ApprovalBatchPattern)?
@@ -160,6 +165,28 @@ class AgentSessionStore: ObservableObject {
         // 文件/作业族：无站点归属——审批记忆走全局桶。
         guard !Self.nonSiteTools.contains(toolCall.function.name) else { return nil }
         return ApprovalPolicy.normalizeHost(activePageHost)
+    }
+
+    /// 审批卡上的"将放行几条"预估（v0.8.81 批 3）：从**当前 assistant 批次**
+    /// 里排在本次之后、形状相同的调用数得出（工具 + 站点 + 顶层参数键）。
+    /// 只做展示——真正放行仍由 `turnApprovalGrants` 在闸口逐条计数。
+    private func batchCandidates(after toolCall: AgentToolCall,
+                                 siteHost: String?) -> (count: Int, keys: [String]) {
+        let pattern = ApprovalBatchPattern(tool: toolCall.function.name,
+                                           siteHost: siteHost,
+                                           argumentsJSON: toolCall.function.arguments)
+        guard let message = messages.last(where: { message in
+            (message.toolCalls ?? []).contains(where: { $0.id == toolCall.id })
+        }), let calls = message.toolCalls,
+              let position = calls.firstIndex(where: { $0.id == toolCall.id }) else {
+            return (0, pattern.argumentKeys)
+        }
+        let count = calls[(position + 1)...].filter { call in
+            pattern.matches(tool: call.function.name,
+                            siteHost: approvalHost(for: call),
+                            argumentsJSON: call.function.arguments)
+        }.count
+        return (count, pattern.argumentKeys)
     }
 
     /// 跨源标注（0.7.2）：pageAction 审批时，动作声明若来自**跨源子框架**
@@ -309,6 +336,7 @@ class AgentSessionStore: ObservableObject {
     private func beginTurn() -> UUID {
         // 批量审批只在本回合内有效（恢复授权单独存，不受这里影响）。
         turnApprovalPatterns.removeAll()
+        turnApprovalRemaining.removeAll()
         return turnOwnership.begin()
     }
 
@@ -482,6 +510,8 @@ class AgentSessionStore: ObservableObject {
     private(set) var requestLayersCumulative: RequestMetering.Layers = RequestMetering.Layers()
     /// 组装点 → 流式点的层间传递（同一请求）。
     private var pendingPromptLayers: RequestMetering.Layers? = nil
+    /// 组装点算出的缓存前缀审计，流式点盖到本条助手消息上（v0.8.81 批 3）。
+    private var pendingPromptAudit: PromptCacheAudit.Result? = nil
     /// 模型切换广播接收（v0.8.71）：占用%按新模型立即重算（窗口 per-模型）。
     private var modelSwitchObserver: NSObjectProtocol?
     /// /compact 的保留指令（v0.8.71）：非 nil 时语义摘要提示词并入——
@@ -1016,6 +1046,13 @@ class AgentSessionStore: ObservableObject {
             .reduce(0) { $0 + ($1.content?.count ?? 0) }
         var lines: [String] = []
         lines.append(String(localized: "Window") + ": " + windowText)
+        // 预算/触发阈值（v0.8.81 批 3）：设置页之外的可见入口——用户点开
+        // 占用 chip 就能看到"按多少字符预算、到什么比例自动压缩"。
+        let manualBudget = streamPreference.compactionBudget(forProfile: streamPreference.activeProfile?.id) != nil
+        lines.append(String(localized: "Budget") + ": \(effectiveContextBudget) chars（"
+            + (manualBudget ? String(localized: "manual") : String(localized: "auto"))
+            + "） · " + String(localized: "Automatic compaction at") + " "
+            + "\(Int((streamPreference.compactionTriggerPercent * 100).rounded()))%")
         // **真值优先**（批 B）：与服务端自报 usage 同口径——占用% = prompt_tokens ÷
         // 窗口（芯片同源）；没报 usage 或窗口未知才回退字符估算行。
         if let resolved = resolvedWindowTokens, lastPromptTokens > 0 {
@@ -2109,6 +2146,10 @@ class AgentSessionStore: ObservableObject {
             if let lastUserIdx, index > lastUserIdx, msg.role == .assistant,
                let text = copy.content, !text.isEmpty {
                 copy.content = SecretRedactor.redact(text, knownKeys: preference.secretsForRedaction())
+                if let original = copy.originalAnswer, !original.isEmpty {
+                    copy.originalAnswer = SecretRedactor.redact(original,
+                                                                knownKeys: preference.secretsForRedaction())
+                }
             }
             return copy
         }
@@ -2436,6 +2477,14 @@ class AgentSessionStore: ObservableObject {
             ("notes", layers.notes, preview(notes.joined(separator: " | "))),
             ("digest", layers.digest, preview(digest)),
         ]
+        // 缓存前缀审计（v0.8.81 批 3）：与同一会话上一条带审计的助手消息比。
+        // 比较的是 **system 稳定段**（environment/page_context 之前），所以
+        // 当前时间/页面变化不会被误报成"前缀变了"。
+        let previousPrefix = messages.last(where: {
+            $0.role == .assistant && $0.promptSectionHashes != nil
+        })?.promptSectionHashes
+        pendingPromptAudit = PromptCacheAudit.evaluate(system: composed,
+                                                       previousSectionHashes: previousPrefix)
         request.insert(AgentMessage(role: .system, content: composed + notesBlock + digestBlock), at: 0)
         return request
     }
@@ -2899,6 +2948,9 @@ class AgentSessionStore: ObservableObject {
                 requestedModel = prefs.model
                 reportedModel = nil
                 let request = await buildRequestMessages()
+                // 本请求的缓存前缀审计（组装点算好；流式点盖到助手消息上）。
+                let promptAudit = pendingPromptAudit
+                pendingPromptAudit = nil
                 // **校准采样**（v0.8.60）：请求字符数与随后服务端自报的
                 // promptTokens 配对 → 每模型 EMA 字符/令牌比。字符统计与
                 // compactWithDigest 的 size 同口径（content + toolCalls 参数）。
@@ -2958,6 +3010,12 @@ class AgentSessionStore: ObservableObject {
                     // lastProviderUsed（via Cloud/On-device…）；逐次 flush 盖章，
                     // 工具链中路由变化也如实反映最后一次决策。
                     assistantMsg?.routeReason = lastProviderUsed.map { "via \($0)" }
+                    // 缓存前缀审计（v0.8.81 批 3）：稳定段哈希 + 变化来源。
+                    if let promptAudit {
+                        assistantMsg?.promptPrefixHash = promptAudit.prefixHash
+                        assistantMsg?.promptPrefixChanged = promptAudit.changedReason
+                        assistantMsg?.promptSectionHashes = promptAudit.sectionHashes
+                    }
                     // 按 **id** 找回尾部消息，不用 append 时记下的下标：流式中途
                     // 会话被清空/切换时，那个下标会指向别的消息（把 token 写进
                     // 无关消息），数组变短后还可能越界。
@@ -3962,6 +4020,25 @@ class AgentSessionStore: ObservableObject {
         return true
     }
 
+    /// 撤销自评修订（v0.8.81 批 3）：恢复原文、清修订标记，并留一条审计日志。
+    /// 不自动重跑自评——用户已经做了最终判断。
+    @discardableResult
+    func undoRevision(for messageID: UUID) -> Bool {
+        guard let index = messages.firstIndex(where: { $0.id == messageID }),
+              let original = messages[index].originalAnswer else { return false }
+        messages[index].content = original
+        messages[index].originalAnswer = nil
+        messages[index].wasRevised = false
+        streamingVersion += 1
+        saveCurrentConversation()
+        Log.agent.notice("revision undone for message \(messageID.uuidString, privacy: .public)")
+        BridgeEventBus.shared.publish("answerRevisionUndone", [
+            "conversation": conversationId?.uuidString ?? "",
+            "message": messageID.uuidString,
+        ])
+        return true
+    }
+
     /// 回合收尾的**机械核验**：0 次模型调用，只看客观事实——专门抓"连自评都可能漏掉"
     /// 的情况。当前两条：
     /// ① 本轮**所有**工具调用都失败/被拒，却给出了最终回答（结论背后没有验证）；
@@ -4180,6 +4257,7 @@ class AgentSessionStore: ObservableObject {
             messages.lastIndex { $0.id == id && $0.role == .assistant }
         }) else { return }
         messages[index].content = revised
+        messages[index].originalAnswer = answer
         messages[index].wasRevised = true
         streamingVersion += 1
         saveCurrentConversation()
@@ -4628,23 +4706,34 @@ class AgentSessionStore: ObservableObject {
                 ApprovalPolicyStore.shared.recordHistory(
                     toolName: toolCall.function.name,
                     decision: "allowed (recovered approval)", source: "recovered", host: siteHost)
-                turnApprovalPatterns.append(grant.pattern)
+                // 恢复授权只对第一次匹配调用生效——不写进本轮批量模式（否则
+                // 会意外放开同名后续调用，v0.8.81 批 3 收紧）。
                 return .allowedOnce
             }
         }
 
         // "批准本轮剩余同类调用"（v0.8.80 批 3）：工具 + 站点 + 参数模式。
         // 站点"逐次确认"压过批量；危险级永不进批（resolve 侧也不记录）。
+        // 单次批量有上限（v0.8.81 批 3）：用完自动回到逐条审批。
         if !forceConfirm, risk != .dangerous,
-           turnApprovalPatterns.contains(where: {
+           let grantIndex = turnApprovalPatterns.firstIndex(where: {
                $0.matches(tool: toolCall.function.name,
                           siteHost: siteHost,
                           argumentsJSON: toolCall.function.arguments)
            }) {
-            ApprovalPolicyStore.shared.recordHistory(
-                toolName: toolCall.function.name,
-                decision: "allowed (rest of turn)", source: "batch", host: siteHost)
-            return .allowedOnce
+            let grant = turnApprovalPatterns[grantIndex]
+            let remaining = turnApprovalRemaining[grant] ?? ApprovalBatchPattern.maxBatch
+            if remaining > 0 {
+                turnApprovalRemaining[grant] = remaining - 1
+                ApprovalPolicyStore.shared.recordHistory(
+                    toolName: toolCall.function.name,
+                    decision: "allowed (rest of turn \(ApprovalBatchPattern.maxBatch - remaining + 1)/\(ApprovalBatchPattern.maxBatch))",
+                    source: "batch", host: siteHost)
+                return .allowedOnce
+            }
+            // 额度用尽：撤掉这条批量授权，下面照常弹审批。
+            turnApprovalPatterns.remove(at: grantIndex)
+            turnApprovalRemaining[grant] = nil
         }
 
         // DPP 逐动作放行（0.6.7）：用户在审批卡上对「本站 × 此动作」的点名
@@ -4779,11 +4868,17 @@ class AgentSessionStore: ObservableObject {
             if let guardReason {
                 summary = String(localized: "AI review flagged: \(guardReason)") + "\n" + summary
             }
+            let host = approvalHost(for: toolCall)
+            let estimate = batchCandidates(after: toolCall, siteHost: host)
+            let candidateCount = simulatedBatchCandidateOverride ?? estimate.count
+            simulatedBatchCandidateOverride = nil
             let approval = PendingToolApproval(
                 toolCall: toolCall,
                 risk: risk,
                 argumentsSummary: summary,
-                siteHost: approvalHost(for: toolCall),
+                siteHost: host,
+                batchCandidateCount: candidateCount,
+                batchArgumentKeys: estimate.keys,
                 continuation: continuation
             )
             pendingApproval = approval
@@ -4887,11 +4982,19 @@ class AgentSessionStore: ObservableObject {
 
         // 批量放行（v0.8.80 批 3）：只批同类、危险级不进批；审计行写明范围。
         if batch, decision != .deny, approval.risk != .dangerous {
-            turnApprovalPatterns.append(ApprovalBatchPattern(
+            let pattern = ApprovalBatchPattern(
                 tool: tool,
                 siteHost: approval.siteHost,
-                argumentsJSON: approval.toolCall.function.arguments))
-            historyDecision = "allowed (rest of turn)"
+                argumentsJSON: approval.toolCall.function.arguments)
+            if !turnApprovalPatterns.contains(pattern) {
+                turnApprovalPatterns.append(pattern)
+            }
+            // 单次"批准本轮剩余"最多自动放行 maxBatch 条后续同类调用。
+            turnApprovalRemaining[pattern] = ApprovalBatchPattern.maxBatch
+            let keys = pattern.argumentKeys.isEmpty
+                ? "no arguments"
+                : pattern.argumentKeys.joined(separator: ",")
+            historyDecision = "allowed (rest of turn; up to \(ApprovalBatchPattern.maxBatch) similar \(tool) calls; keys: \(keys))"
         }
 
         ApprovalPolicyStore.shared.recordHistory(
@@ -4969,16 +5072,22 @@ class AgentSessionStore: ObservableObject {
     /// under `--automation`. Lets external drivers exercise the approve/deny
     /// plumbing — sheet state, decision routing, continuation resumption —
     /// deterministically.
-    func simulateApprovalForTesting() {
+    /// `batchCandidates` 只用于 E2E：伪造"本轮还有 N 条同形状调用"，验证审批卡
+    /// 预览数与上限，不执行任何工具。
+    func simulateApprovalForTesting(tool: String = "readClipboard",
+                                    arguments: String = "{}",
+                                    risk: ToolRisk = .dangerous,
+                                    batchCandidates: Int = 0) {
         let toolCall = AgentToolCall(
             id: "simulate-\(UUID().uuidString.prefix(8))",
             type: "function",
-            function: AgentToolFunction(name: "readClipboard", arguments: "{}")
+            function: AgentToolFunction(name: tool, arguments: arguments)
         )
+        simulatedBatchCandidateOverride = batchCandidates
         Task { [weak self] in
             guard let self else { return }
             Log.agent.info("simulate: gate entered, isCancelled=\(self.isCancelled)")
-            let outcome = await self.gate(toolCall: toolCall, risk: .dangerous)
+            let outcome = await self.gate(toolCall: toolCall, risk: risk)
             Log.agent.info("simulate: gate returned \(String(describing: outcome), privacy: .public)")
             Log.agent.info("simulated approval resolved with \(String(describing: outcome), privacy: .public)")
         }
@@ -5071,15 +5180,24 @@ final class PendingToolApproval: Identifiable {
     /// 本次审批归属的页面 host（0.8.1）。在弹出审批卡那一刻定格——等待期间
     /// 用户切标签页不会把「本网站」授权写到别的站点上。
     let siteHost: String?
+    /// 当前 assistant 批次里排在本次之后、会被"批准本轮剩余"一并放行的同类
+    /// 调用数（v0.8.81 批 3）。0 = 没有可预估的后续同类调用。
+    let batchCandidateCount: Int
+    /// 同类匹配所用的顶层参数键（审批卡展示"放行的是哪种形状"）。
+    let batchArgumentKeys: [String]
     private var continuation: CheckedContinuation<ApprovalOutcome, Never>?
 
     init(toolCall: AgentToolCall, risk: ToolRisk, argumentsSummary: String,
          siteHost: String? = nil,
+         batchCandidateCount: Int = 0,
+         batchArgumentKeys: [String] = [],
          continuation: CheckedContinuation<ApprovalOutcome, Never>) {
         self.toolCall = toolCall
         self.risk = risk
         self.argumentsSummary = argumentsSummary
         self.siteHost = siteHost
+        self.batchCandidateCount = batchCandidateCount
+        self.batchArgumentKeys = batchArgumentKeys
         self.continuation = continuation
     }
 

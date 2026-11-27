@@ -102,6 +102,8 @@ final class RemoteClient: ObservableObject {
     /// Agent 状态行（快照携带）：模型 / 上下文占用% / 排队数 / 回合已用时秒
     @Published private(set) var agentModel = ""
     @Published private(set) var contextPercent = 0
+    @Published private(set) var contextBudget = 0
+    @Published private(set) var contextTriggerPercent = 0
     @Published private(set) var queueCount = 0
     @Published private(set) var elapsedSeconds: Int?
     /// Agent 记忆（nil = 未加载；看板打开时拉取）
@@ -1213,6 +1215,10 @@ final class RemoteClient: ObservableObject {
         if agentModel != newModel { agentModel = newModel }
         let newContext = frame.contextPercent ?? 0
         if contextPercent != newContext { contextPercent = newContext }
+        let newBudget = frame.contextBudget ?? 0
+        if contextBudget != newBudget { contextBudget = newBudget }
+        let newTrigger = frame.contextTriggerPercent ?? 0
+        if contextTriggerPercent != newTrigger { contextTriggerPercent = newTrigger }
         let newQueue = frame.queueCount ?? 0
         if queueCount != newQueue { queueCount = newQueue }
         if elapsedSeconds != frame.elapsed { elapsedSeconds = frame.elapsed }

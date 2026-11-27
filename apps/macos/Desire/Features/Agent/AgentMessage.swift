@@ -32,6 +32,8 @@ nonisolated struct AgentMessage: Identifiable, Codable, Sendable {
     var critique: String?
     /// 这条回答是否在自评后自动修订过（v0.8.80 批 3；有客观失败证据才发生一次）。
     var wasRevised: Bool?
+    /// 修订前的原文（v0.8.81 批 3）：只随会话保存，绝不回传模型；用于 diff 与撤销。
+    var originalAnswer: String?
     /// 工具执行的墙钟耗时（毫秒）。轨迹里唯一**无法从消息派生**的一项，所以记在工具消息上、
     /// 随会话落盘——这样历史回合导出的轨迹也带耗时。
     var toolDurationMs: Double?
@@ -41,6 +43,12 @@ nonisolated struct AgentMessage: Identifiable, Codable, Sendable {
     var completionTokens: Int?
     /// 这次调用里**命中提示词缓存**的输入 token 数（v0.8.80；服务端上报才有）。
     var cachedPromptTokens: Int?
+    /// 本请求 system 稳定段的前缀哈希 + 变化来源（v0.8.81 批 3）。随会话落盘：
+    /// 轨迹/统计页能回答"缓存为什么没命中"，而不是只看命中率。
+    var promptPrefixHash: String?
+    var promptPrefixChanged: String?
+    /// 稳定段各层的哈希（不含 environment/page_context），用于下次请求定位变化来源。
+    var promptSectionHashes: [String: String]?
     /// **性能真值**（v0.8.74 批 3）：本次调用的首 token 延迟与总时长（毫秒）。
     /// 派生不出来就落盘的老规矩——轨迹/统计页按模型看"网关快不快"。
     var modelTTFTMs: Double?

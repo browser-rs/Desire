@@ -139,10 +139,10 @@ enum AgentPromptBuilder {
         """)
 
         if !input.tools.isEmpty {
-            let scopedNote = input.scopedTools.map {
-                ToolScopeCore.promptNote(loaded: $0.loaded, total: $0.total)
-            }
-            sections.append(toolsSection(input.tools, scopedNote: scopedNote))
+            // 工具目录本身是稳定前缀；**按回合变化的精简说明放到 system 末尾**
+            // （见下方 <turn_scope>）——放在这里会让 memory/skills/tools 全部
+            // 失去提示词缓存（v0.8.81 批 3）。
+            sections.append(toolsSection(input.tools))
         }
 
         var environment = ["Working directory (file tools + runCommand cwd): \(input.workspacePath)"]
@@ -205,15 +205,26 @@ enum AgentPromptBuilder {
             """)
         }
 
+        // 本轮工具子集说明（v0.8.76 按任务精简工具）：**必须排在 system 末尾**。
+        // 它每个回合都可能变，放在工具目录开头会让之前的 memory/skills/tools
+        // 全部失去缓存前缀（v0.8.81 批 3）。放在这里只影响它自己之后的内容。
+        if let scoped = input.scopedTools {
+            sections.append("""
+            <turn_scope>
+            \(ToolScopeCore.promptNote(loaded: scoped.loaded, total: scoped.total))
+            </turn_scope>
+            """)
+        }
+
         return sections.joined(separator: "\n\n")
     }
 
     /// 工具层（v0.8.51 抽出，供 `/diag/tools-section` 与真正拼装共用）：
     /// 超过 40 个工具走分组摘要（listTools 展开），否则逐行索引（小工具集/
     /// 子代理子集仍用逐行，信息更全）。
-    /// `scopedNote`：按任务精简工具的回合里，"每个工具都可调用"不成立——插在段首。
-    static func toolsSection(_ tools: [(name: String, summary: String)],
-                             scopedNote: String? = nil) -> String {
+    /// **不要**把按回合变化的说明塞进这一段——它属于稳定缓存前缀，动态内容
+    /// 由 compose 末尾的 `<turn_scope>` 承担（v0.8.81 批 3）。
+    static func toolsSection(_ tools: [(name: String, summary: String)]) -> String {
         guard !tools.isEmpty else { return "" }
         // MCP 工具（调用方恒拼接在尾部）的描述是**第三方数据**——分组摘要里
         // 单独加一句声明；逐行索引时在首个 MCP 工具前插声明行（0.7.4 安全二轮）。
@@ -239,12 +250,10 @@ enum AgentPromptBuilder {
         let routingNote = grouped
             ? "This is a GROUPED index. Expand a group with listTools {group} or search names with listTools {query} before guessing parameters."
             : "Use this index for routing (the descriptions here are one-line summaries)."
-        // 非精简回合不留空行：全量模式的提示词逐字节不变。
-        let scopedLine = scopedNote.map { "\n" + $0 } ?? ""
         return """
         <tools>
         Every tool is callable; the request's `tools` parameter is \
-        authoritative for parameters and exact semantics. \(routingNote)\(scopedLine)
+        authoritative for parameters and exact semantics. \(routingNote)
         \(lines)
 
         Tool failures are returned as text starting with `Error:` — when a \

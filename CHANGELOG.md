@@ -7,6 +7,11 @@
 
 - API 可信来源与存储上限（v0.8.81 批 1）：新增 `client_ip` 中间件——默认只认 TCP 对端，`DESIRE_API_TRUST_PROXY=true` 才解析 `x-forwarded-for`；每用户同步存储上限（`sync_user_storage`，默认 256MB，push 事务内锁行/超限 413）；GC 增加每用户游标行上限（200）与审计 180 天保留；admin `prune` 覆盖 demo 演示数据；新增 `tests/api-db-e2e.py`（需库/dev 验证码，无库明确跳过）。
 - 浏览器日常（v0.8.81 批 2）：查找栏新增整词模式（CSS Custom Highlight 自绘、主框架、上限 2000 命中；系统不支持时自动回退普通查找）；历史支持"保留 N 天"自动清理（设置页即时应用 + 每日 GC，0 = 永久）；标签组右键可"存为工作区"（只序列化组内标签）。
+- Agent 定时任务补跑（v0.8.81 批 3）：判定抽成 Foundation-only 的 `ScheduleDue`——间隔任务错过多个周期只补一次，每日/每周超过 5 分钟宽限在启动/唤醒后补跑一次；每周任务整周关机后也能补最近一次（下一次应跑 ≤2 小时则让正常时刻跑，避免连跑）。`RunRecord` 记录 `catchUp`/`scheduledFor`，任务行标注“已补跑”，设置页可关“Catch up missed runs”；桥 `/agent/tasks` 返回最近运行与补跑标记，`tasks/create` 支持 `weekday` 与回填 `lastFiredAt`（E2E）。
+- Agent 提示词缓存前缀稳定（v0.8.81 批 3）：按回合变化的“工具子集”说明从 `<tools>` 开头移到 system 末尾的 `<turn_scope>`，稳定段（identity/memory/skills/tools）不再因精简工具抖动；每请求记录稳定段哈希与变化来源（tools/memory/skills/指令…）到助手消息，轨迹 `cache.prefixChanges` 与统计页“Prompt prefix changed”可见。
+- Agent 审批批处理安全升级（v0.8.81 批 3）：审批卡显示“本轮还会放行几条同形状调用”和参数键；单次批量最多自动放行 8 条，超过后回到逐条确认；放行审计写明工具/站点/参数键/上限。桥 `/approvals` 透出预览数、参数键与上限。
+- Agent 修订可见性与转存查看（v0.8.81 批 3）：自评修订保存原文，消息卡可展开行级 diff（新增/删除计数，超长中间省略）并“撤销修订”（恢复原文、清标记、留审计日志）；桥 `POST /agent/revision/undo`。大工具结果新增只读查看器（字符偏移切片、关键字 grep、Finder 定位）；上下文 chip 的概览显示预算/手动或自动/压缩阈值，Remote 快照新增 `contextBudget`/`contextTriggerPercent` 并在 iOS 状态卡显示。
+
 
 
 ### Security

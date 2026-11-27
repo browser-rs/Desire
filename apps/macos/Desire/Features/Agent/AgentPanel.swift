@@ -856,6 +856,7 @@ struct AgentPanel: View {
                         forkNote = String(localized: "Forked — find the branch in the conversation list")
                     }
                 },
+                onUndoRevision: { mid in _ = store.undoRevision(for: mid) },
                 isLatestBoardCard: msg.id == latestBoardCardID
             )
             .id(msg.id)

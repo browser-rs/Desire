@@ -1597,6 +1597,9 @@ final class RemoteControlStore: ObservableObject {
         var model: String? = nil
         /// 上下文占用%（与面板状态行同口径 contextFraction）
         var contextPercent: Int? = nil
+        /// 当前生效的压缩预算（字符）与自动压缩阈值（v0.8.81 批 3）
+        var contextBudget: Int? = nil
+        var contextTriggerPercent: Int? = nil
         /// 排队消息条数
         var queueCount: Int? = nil
         /// busy 时当前回合已用时（秒）
@@ -1790,6 +1793,10 @@ final class RemoteControlStore: ObservableObject {
             session: session?.conversationId?.uuidString ?? remoteConversationID,
             model: AppState.live?.aiPreference.model,
             contextPercent: session.map { Int(($0.contextFraction * 100).rounded()) },
+            contextBudget: session?.effectiveContextBudget,
+            contextTriggerPercent: session.map {
+                Int(($0.streamPreference.compactionTriggerPercent * 100).rounded())
+            },
             queueCount: session.map { $0.queuedMessages.count },
             elapsed: (session?.isProcessing ?? false) ? elapsedSeconds : nil,
             approval: Self.approvalPayload(session?.pendingApproval),

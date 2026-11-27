@@ -189,7 +189,8 @@ final class AgentScheduler: ObservableObject {
 
     @discardableResult
     func add(name: String, prompt: String, recurrence: ScheduledTask.Recurrence,
-             targetSessionID: UUID? = nil) -> ScheduledTask? {
+             targetSessionID: UUID? = nil,
+             lastFiredAt: Date? = nil) -> ScheduledTask? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty, !trimmedPrompt.isEmpty else { return nil }
@@ -200,7 +201,7 @@ final class AgentScheduler: ObservableObject {
             recurrence: recurrence,
             isEnabled: true,
             createdAt: Date(),
-            lastFiredAt: Date(),
+            lastFiredAt: lastFiredAt ?? Date(),
             lastResult: nil,
             targetSessionID: targetSessionID
         )
@@ -448,6 +449,11 @@ final class AgentScheduler: ObservableObject {
         var prompt: String? = nil
         /// 本回合最终回答（链交接与任务卡回看；v0.8.80 批 5）。
         var output: String? = nil
+        /// 这次触发是对已错过应跑时刻的补偿（v0.8.81 批 3；面板/轨迹可辨）。
+        /// **Optional**：旧 run 文件没有这个键，非可选 Bool 会让整份历史解码失败。
+        var catchUp: Bool? = nil
+        /// 触发对应的应跑时刻（补跑时与 firedAt 会差一段）。
+        var scheduledFor: Date? = nil
     }
 
     @Published private(set) var runs: [RunRecord] = []
@@ -534,7 +540,8 @@ final class AgentScheduler: ObservableObject {
 
     /// 锁屏期间挂起，解锁后（15s 内）重投；任务被删/禁用就放弃。
     private func deferForScreenLock(task: ScheduledTask, runID: UUID, attempts: Int,
-                                    promptOverride: String?) {
+                                    promptOverride: String?,
+                                    catchUp: Bool = false, scheduledFor: Date? = nil) {
         lockDeferredTasks[task.name]?.cancel()
         lockDeferredTasks[task.name] = Task { @MainActor [weak self] in
             while !Task.isCancelled {
@@ -544,7 +551,8 @@ final class AgentScheduler: ObservableObject {
                 guard self.tasks.contains(where: { $0.id == task.id && $0.isEnabled }) else { return }
                 self.lockDeferredTasks[task.name] = nil
                 self.deliver(task: task, runID: runID, attempts: attempts,
-                             promptOverride: promptOverride)
+                             promptOverride: promptOverride,
+                             catchUp: catchUp, scheduledFor: scheduledFor)
                 return
             }
         }
@@ -615,14 +623,16 @@ final class AgentScheduler: ObservableObject {
     private var lockDeferredTasks: [String: Task<Void, Never>] = [:]
 
     private func deliver(task: ScheduledTask, runID: UUID = UUID(), attempts: Int = 1,
-                         promptOverride: String? = nil) {
+                         promptOverride: String? = nil,
+                         catchUp: Bool = false, scheduledFor: Date? = nil) {
         let taskIndex = tasks.firstIndex(where: { $0.id == task.id })
         let effectivePrompt = promptOverride ?? task.prompt
         // 锁屏守卫（v0.8.80 批 6）：锁屏期间不启动任何定时任务（浏览器类动作
         // 在锁屏下静默失效、也避免半夜弹窗），解锁后重放。
         if SessionGuard.isScreenLocked() {
             deferForScreenLock(task: task, runID: runID, attempts: attempts,
-                               promptOverride: effectivePrompt)
+                               promptOverride: effectivePrompt,
+                               catchUp: catchUp, scheduledFor: scheduledFor)
             if let i = taskIndex { tasks[i].lastResult = String(localized: "deferred (screen locked)") }
             Self.log.info("task '\(task.name, privacy: .public)' deferred: screen locked")
             return
@@ -642,7 +652,8 @@ final class AgentScheduler: ObservableObject {
                 try? await Task.sleep(nanoseconds: UInt64(wait) * 1_000_000_000)
                 guard let self, !Task.isCancelled else { return }
                 guard self.tasks.contains(where: { $0.id == task.id && $0.isEnabled }) else { return }
-                self.deliver(task: task, runID: runID, attempts: attempts)
+                self.deliver(task: task, runID: runID, attempts: attempts,
+                             catchUp: catchUp, scheduledFor: scheduledFor)
             }
             if let i = taskIndex { tasks[i].lastResult = String(localized: "deferred to quiet-hours end") }
             return
@@ -655,14 +666,16 @@ final class AgentScheduler: ObservableObject {
                 recordRun(RunRecord(
                     id: runID, taskName: task.name, firedAt: Date(),
                     finishedAt: Date(), status: "failed", success: false,
-                    error: message, attempts: attempts))
+                    error: message, attempts: attempts,
+                    catchUp: catchUp, scheduledFor: scheduledFor))
                 if let i = taskIndex { tasks[i].lastResult = message }
                 return
             }
             recordRun(RunRecord(
                 id: runID, taskName: task.name, firedAt: Date(),
                 finishedAt: Date(), status: "delivered", success: nil,
-                error: nil, attempts: attempts))
+                error: nil, attempts: attempts,
+                catchUp: catchUp, scheduledFor: scheduledFor))
             if let i = taskIndex {
                 tasks[i].lastResult = "delivered (template: \(templateName))"
             }
@@ -689,7 +702,8 @@ final class AgentScheduler: ObservableObject {
             recordRun(RunRecord(
                 id: runID, taskName: task.name, firedAt: Date(),
                 finishedAt: nil, status: "delivered", success: nil,
-                error: nil, attempts: attempts))
+                error: nil, attempts: attempts,
+                catchUp: catchUp, scheduledFor: scheduledFor))
             if let i = taskIndex { tasks[i].lastResult = "delivered (workflow)" }
             deliverBuiltin(builtin, task: task, runID: runID)
             return
@@ -701,7 +715,8 @@ final class AgentScheduler: ObservableObject {
         // Runner——用于在不动用户标签页的前提下验证无头执行链路。
         if AppPrefs.defaults.bool(forKey: "agent.background.force") {
             startBackground(task: task, runID: runID, attempts: attempts,
-                            taskIndex: taskIndex, prompt: effectivePrompt)
+                            taskIndex: taskIndex, prompt: effectivePrompt,
+                            catchUp: catchUp, scheduledFor: scheduledFor)
             return
         }
         let resolvedTarget = task.targetSessionID.flatMap { session(withID: $0) }
@@ -713,7 +728,8 @@ final class AgentScheduler: ObservableObject {
             // 工具循环，不再直接记 missed（关闭开关后回到旧行为）。
             if BackgroundAgentRunner.shared.isEnabled {
                 startBackground(task: task, runID: runID, attempts: attempts,
-                                taskIndex: taskIndex, prompt: effectivePrompt)
+                                taskIndex: taskIndex, prompt: effectivePrompt,
+                                catchUp: catchUp, scheduledFor: scheduledFor)
                 return
             }
             if let i = taskIndex { tasks[i].lastResult = String(localized: "missed — no agent session was open") }
@@ -726,7 +742,8 @@ final class AgentScheduler: ObservableObject {
             } else {
                 recordRun(RunRecord(
                     id: runID, taskName: task.name, firedAt: Date(), finishedAt: Date(),
-                    status: "missed", success: nil, error: "no agent session was open", attempts: attempts
+                    status: "missed", success: nil, error: "no agent session was open",
+                    attempts: attempts, catchUp: catchUp, scheduledFor: scheduledFor
                 ))
             }
             Self.log.info("Scheduled task '\(task.name, privacy: .public)' had no delivery target")
@@ -741,7 +758,8 @@ final class AgentScheduler: ObservableObject {
         } else {
             recordRun(RunRecord(
                 id: runID, taskName: task.name, firedAt: Date(),
-                finishedAt: nil, status: "delivered", success: nil, error: nil, attempts: attempts
+                finishedAt: nil, status: "delivered", success: nil, error: nil, attempts: attempts,
+                catchUp: catchUp, scheduledFor: scheduledFor
             ))
         }
         // 内置流水线（v0.7.24）：不投递 prompt，跑确定性管线并按结果收尾 run。
@@ -765,7 +783,8 @@ final class AgentScheduler: ObservableObject {
 
     /// 无活窗口时的后台投递：无头标签 + 隐藏会话；结果回写 run 记录。
     private func startBackground(task: ScheduledTask, runID: UUID, attempts: Int,
-                                 taskIndex: Int?, prompt: String? = nil) {
+                                 taskIndex: Int?, prompt: String? = nil,
+                                 catchUp: Bool = false, scheduledFor: Date? = nil) {
         let effectivePrompt = prompt ?? task.prompt
         if runs.firstIndex(where: { $0.id == runID }) != nil {
             updateRun(id: runID) {
@@ -777,7 +796,8 @@ final class AgentScheduler: ObservableObject {
             recordRun(RunRecord(
                 id: runID, taskName: task.name, firedAt: Date(),
                 finishedAt: nil, status: "delivered (background)",
-                success: nil, error: nil, attempts: attempts))
+                success: nil, error: nil, attempts: attempts,
+                catchUp: catchUp, scheduledFor: scheduledFor))
         }
         if let i = taskIndex { tasks[i].lastResult = "delivered (background)" }
         Self.log.info("Scheduled task '\(task.name, privacy: .public)' running in the background runner")
@@ -981,38 +1001,45 @@ final class AgentScheduler: ObservableObject {
     /// Fires every due, enabled task. Runs on a 20s wall clock. Persisting
     /// happens only when something actually fired — an idle tick must not
     /// rewrite the task file every 20 seconds.
+    ///
+    /// 补跑（v0.8.81 批 3）：判定在 `ScheduleDue`（Foundation-only，可单测）。
+    /// 每周任务整周关机后下次启动仍会补跑一次；每日/每周超过宽限的触发在
+    /// `RunRecord.catchUp` 上标注，任务行显示"补跑"。
     func evaluate(now: Date = Date()) {
         var firedAny = false
+        let catchUpEnabled = AppPrefs.defaults.object(forKey: "agent.catchUpMissedRuns") as? Bool ?? true
         for idx in tasks.indices where tasks[idx].isEnabled {
-            guard isDue(tasks[idx], now: now) else { continue }
             let task = tasks[idx]
+            let decision = ScheduleDue.evaluate(
+                rule: Self.scheduleRule(for: task.recurrence),
+                createdAt: task.createdAt,
+                lastFiredAt: task.lastFiredAt,
+                now: now,
+                catchUpEnabled: catchUpEnabled)
+            guard decision.isDue else { continue }
             tasks[idx].lastFiredAt = now
-            deliver(task: task)
+            deliver(task: task, catchUp: decision.isCatchUp,
+                    scheduledFor: decision.scheduledAt)
+            if decision.isCatchUp {
+                let at = decision.scheduledAt.map {
+                    DateFormatter.localizedString(from: $0, dateStyle: .none, timeStyle: .short)
+                }
+                var prefix = String(localized: "caught up — missed schedule")
+                if let at { prefix += " (\(at))" }
+                let outcome = tasks[idx].lastResult
+                tasks[idx].lastResult = outcome.map { "\(prefix) · \($0)" } ?? prefix
+            }
             firedAny = true
         }
         if firedAny { save() }
     }
 
-    private func isDue(_ task: ScheduledTask, now: Date) -> Bool {
-        let last = task.lastFiredAt ?? task.createdAt
-        switch task.recurrence {
-        case .everyMinutes(let minutes):
-            return now.timeIntervalSince(last) >= Double(max(5, minutes)) * 60
-        case .daily(let hour, let minute):
-            let calendar = Calendar.current
-            let day = calendar.dateComponents([.year, .month, .day], from: now)
-            guard let todayAt = calendar.date(from: DateComponents(
-                year: day.year, month: day.month, day: day.day, hour: hour, minute: minute
-            )) else { return false }
-            return now >= todayAt && !calendar.isDate(last, inSameDayAs: now)
+    nonisolated private static func scheduleRule(for recurrence: ScheduledTask.Recurrence) -> ScheduleDue.Rule {
+        switch recurrence {
+        case .everyMinutes(let minutes): .everyMinutes(minutes)
+        case .daily(let hour, let minute): .daily(hour: hour, minute: minute)
         case .weekly(let weekday, let hour, let minute):
-            let calendar = Calendar.current
-            guard calendar.component(.weekday, from: now) == weekday else { return false }
-            let day = calendar.dateComponents([.year, .month, .day], from: now)
-            guard let todayAt = calendar.date(from: DateComponents(
-                year: day.year, month: day.month, day: day.day, hour: hour, minute: minute
-            )) else { return false }
-            return now >= todayAt && !calendar.isDate(last, inSameDayAs: now)
+            .weekly(weekday: weekday, hour: hour, minute: minute)
         }
     }
 }

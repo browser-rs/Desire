@@ -937,6 +937,23 @@ Features/Bookmarks/
   索引行数（零差异）、对话里 system 只有 1 条且在第 0 位、六个分层段落齐全、`<environment>`
   带出工作目录/下载目录/ffmpeg 状态。注意一次发送会来 **3 个请求**（正文、标题生成、收尾），
   按体积挑最大的那个。
+- **缓存前缀：按回合变化的内容只能放 system 末尾**（2026-11-27，v0.8.81 批 3）：
+  `AgentPromptBuilder.compose` 的稳定段 = `<identity>` 到 `</tools>`；`<environment>`
+  起含当前时间/页面内容，本来就动态。按任务精简工具的说明曾插在 `<tools>` 开头，
+  一开精简就把 memory/skills/tools 的缓存全打断——现在放 system 末尾的
+  `<turn_scope>`。`PromptCacheAudit` 只哈希稳定段（`\n\n<environment>` 之前），
+  哈希/变化来源（tools/memory/skills/…）随助手消息落盘，轨迹 `cache.prefixChanges`
+  与统计页"Prompt prefix changed"同源。**新增 system 层时先问：它每回合会变吗？**
+- **定时任务的"补跑"语义**（2026-11-27）：判定在 Foundation-only 的 `ScheduleDue`
+  （harness 有 5 组用例）。每日/间隔任务本来就有启动补跑；每周任务按"最近一次
+  应跑时刻"判定，下一次 ≤2 小时则让正常时刻跑（避免补完立刻又跑）。`RunRecord`
+  的 `catchUp`/`scheduledFor` 是审计字段，任务行"已补跑"来自 `lastResult` 前缀。
+  改这里别只看"今天是不是设定星期"——那正是整周关机漏跑的旧根因。
+- **审批批量上限是硬约束**（2026-11-27）：一次"批准本轮剩余"最多自动放行
+  `ApprovalBatchPattern.maxBatch`（8）条后续同类调用，用完回到逐条问；恢复授权
+  只对第一次匹配调用生效，不写进本轮批量模式。审批卡预览数来自当前 assistant
+  批次的后续同形状调用（工具+站点+顶层参数键），不要宣称"全部剩余"。
+
 - **CHANGELOG 规范（2026-09-29 立，三次事故后）**：加条目**只用**
   `python3 scripts/changelog.py add <Fixed|Added|Changed|Deprecated|Removed|Security>`
   （条目从 stdin 读，heredoc 传入）——它会自动确保 `## [Unreleased]` 头存在、

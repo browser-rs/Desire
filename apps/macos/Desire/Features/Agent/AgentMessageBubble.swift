@@ -47,6 +47,8 @@ struct AgentMessageBubble: View {
     var conversationID: String? = nil
     /// 会话分支（v0.8.20）：从这条消息 fork——仅 assistant 气泡挂菜单。
     var onFork: ((UUID) -> Void)? = nil
+    /// 撤销自评修订（v0.8.81 批 3）：恢复 originalAnswer 并清标记。
+    var onUndoRevision: ((UUID) -> Void)? = nil
     /// 是否为会话里最新一张白板卡：最新卡默认展开实时预览，旧卡折叠成一行
     /// （每张卡各挂一个 WKWebView，全展开既重复显示同一块板又费内存）。
     var isLatestBoardCard: Bool = true
@@ -69,6 +71,7 @@ struct AgentMessageBubble: View {
                 toolDurations: toolDurations,
                 citationSources: Self.citationSources(for: message, toolResults: toolResults),
                 onFork: onFork,
+                onUndoRevision: onUndoRevision,
                 conversationID: conversationID
             )
         case .tool:
@@ -303,6 +306,8 @@ private struct AssistantBubble: View {
     var citationSources: [String] = []
     /// 会话分支（v0.8.20）：从这条消息 fork 新会话。
     var onFork: ((UUID) -> Void)? = nil
+    /// 撤销自评修订（v0.8.81 批 3）。
+    var onUndoRevision: ((UUID) -> Void)? = nil
     /// 工具结果分发到白板时用的会话键（v0.8.51）。
     var conversationID: String? = nil
     @State private var isHovering = false
@@ -356,7 +361,13 @@ private struct AssistantBubble: View {
                     }
 
                     if let critique = message.critique, !critique.isEmpty {
-                        CritiqueBlock(text: critique, wasRevised: message.wasRevised == true)
+                        CritiqueBlock(text: critique,
+                                      wasRevised: message.wasRevised == true,
+                                      originalAnswer: message.originalAnswer,
+                                      currentAnswer: message.content,
+                                      onUndo: onUndoRevision.map { undo in
+                                          { undo(message.id) }
+                                      })
                     }
 
                     // 引用来源条（v0.8.13 基础件 6）：本回合工具结果里的
@@ -658,7 +669,12 @@ private struct CritiqueBlock: View {
     let text: String
     /// 自评后自动修订过（v0.8.80 批 3）：头行加一个小标记，用户知道正文已改。
     var wasRevised: Bool = false
+    /// 修订前原文（v0.8.81 批 3）：有它才显示 diff / 撤销。
+    var originalAnswer: String? = nil
+    var currentAnswer: String? = nil
+    var onUndo: (() -> Void)? = nil
     @State private var expanded = false
+    @State private var showDiff = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
@@ -705,7 +721,108 @@ private struct CritiqueBlock: View {
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
                             .fill(Color.secondary.opacity(0.07))
                     )
+
+                // 修订对照（v0.8.81 批 3）：只对修订过的回答出现；原文随会话
+                // 保存、不回传模型；撤销后控件消失。
+                if wasRevised, let originalAnswer, let currentAnswer {
+                    HStack(spacing: 8) {
+                        Button {
+                            withAnimation(.hoverFast) { showDiff.toggle() }
+                        } label: {
+                            Label(showDiff ? String(localized: "Hide changes") : String(localized: "View changes"),
+                                  systemImage: "arrow.left.arrow.right")
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        if let onUndo {
+                            Button(String(localized: "Undo revision"), action: onUndo)
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                        }
+                        Text(String(localized: "The original stays in this conversation only."))
+                            .font(.system(size: 9.5))
+                            .foregroundStyle(.tertiary)
+                    }
+                    if showDiff {
+                        AnswerDiffView(before: originalAnswer, after: currentAnswer)
+                    }
+                }
             }
+        }
+    }
+}
+
+/// 修订前后行级对照：删除红、新增绿、未变灰；超长答案中间省略（AnswerDiff 定）。
+private struct AnswerDiffView: View {
+    let before: String
+    let after: String
+    @State private var diff: AnswerDiff.Result?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            if let diff {
+                HStack(spacing: 10) {
+                    HStack(spacing: 3) {
+                        Image(systemName: "plus")
+                        Text(verbatim: "\(diff.added)")
+                    }
+                    .foregroundStyle(.green)
+                    HStack(spacing: 3) {
+                        Image(systemName: "minus")
+                        Text(verbatim: "\(diff.removed)")
+                    }
+                    .foregroundStyle(.red)
+                    Spacer(minLength: 0)
+                }
+                .font(.system(size: 9.5, weight: .medium))
+                ScrollView(.vertical) {
+                    VStack(alignment: .leading, spacing: 1) {
+                        ForEach(Array(diff.rows.enumerated()), id: \.offset) { _, row in
+                            HStack(alignment: .top, spacing: 6) {
+                                Text(prefix(for: row.kind))
+                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(color(for: row.kind))
+                                    .frame(width: 10, alignment: .trailing)
+                                Text(row.kind == .omitted ? String(localized: "… (middle omitted)") : row.text)
+                                    .font(.system(size: 10.5, design: .monospaced))
+                                    .foregroundStyle(color(for: row.kind))
+                                    .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                            }
+                            .background(color(for: row.kind).opacity(row.kind == .same ? 0 : 0.07))
+                        }
+                    }
+                    .padding(6)
+                }
+                .frame(maxHeight: 240)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(Color.secondary.opacity(0.05))
+                )
+            } else {
+                ProgressView().controlSize(.small)
+            }
+        }
+        .task(id: "\(before.hashValue)-\(after.hashValue)") {
+            diff = AnswerDiff.diff(before: before, after: after)
+        }
+    }
+
+    private func prefix(for kind: AnswerDiff.Kind) -> String {
+        switch kind {
+        case .same: " "
+        case .removed: "−"
+        case .added: "+"
+        case .omitted: "…"
+        }
+    }
+
+    private func color(for kind: AnswerDiff.Kind) -> Color {
+        switch kind {
+        case .same: .secondary
+        case .removed: .red
+        case .added: .green
+        case .omitted: .secondary
         }
     }
 }

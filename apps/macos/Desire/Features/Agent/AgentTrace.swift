@@ -33,6 +33,8 @@ enum AgentTrace {
             var critique: String?
             var verification: String?
             var feedback: String?
+            var cachedPromptTokens = 0
+            var promptPrefixChanges: [String] = []
 
             for message in slice {
                 switch message.role {
@@ -59,6 +61,10 @@ enum AgentTrace {
                     critique = message.critique ?? critique
                     verification = message.verificationNote ?? verification
                     feedback = message.feedback ?? feedback
+                    cachedPromptTokens += message.cachedPromptTokens ?? 0
+                    if let reason = message.promptPrefixChanged, reason != "first" {
+                        promptPrefixChanges.append(reason)
+                    }
                 case .tool:
                     let text = message.content ?? ""
                     let observation: [String: Any] = [
@@ -138,6 +144,15 @@ enum AgentTrace {
                                   "total": usage.totalTokens]
                 if let usd = usage.usd { turn["cost"] = (usd * 1_000_000).rounded() / 1_000_000 }
                 if usage.hasUnpriced { turn["costIncomplete"] = true }
+                // 缓存读数（v0.8.81 批 3）：命中量/命中率 + 本回合前缀变化来源。
+                var cache: [String: Any] = ["cached": cachedPromptTokens,
+                                            "hitRate": usage.promptTokens > 0
+                                                ? (Double(cachedPromptTokens) / Double(usage.promptTokens) * 10000).rounded() / 10000
+                                                : 0]
+                if !promptPrefixChanges.isEmpty {
+                    cache["prefixChanges"] = Array(Set(promptPrefixChanges)).sorted()
+                }
+                turn["cache"] = cache
             }
             // 成本拆分（v0.7.27）：主回合/子代理/旁路逐组（复用 CostBreakdown，
             // 与面板成本弹层同一口径）；最多 8 组，避免轨迹膨胀。

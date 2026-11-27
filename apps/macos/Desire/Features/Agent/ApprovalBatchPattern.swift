@@ -7,7 +7,11 @@ import Foundation
 ///
 /// 纯逻辑（Foundation-only），供 harness 单测与审批闸共用；危险级工具永远不
 /// 进批（由调用方把关）。
-nonisolated struct ApprovalBatchPattern: Equatable, Codable {
+nonisolated struct ApprovalBatchPattern: Equatable, Hashable, Codable {
+    /// 一次"批准本轮剩余"最多自动放行多少条后续同类调用；超过后重新逐条问
+    /// （v0.8.81 批 3——审批卡会写明"最多 8 条"）。
+    static let maxBatch = 8
+
     let tool: String
     /// 审批时的页面 host（归一化为小写；nil 表示无站点上下文）。
     let siteHost: String?

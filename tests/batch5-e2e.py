@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""v0.8.80 批 5 端到端：
+"""v0.8.80 批 5 / v0.8.81 批 6 端到端：
 
 1) 定时任务链：A 成功 → B 自动投递，B 的提示词用 `{{prev.output}}` / `{{prev.artifacts}}`
-   拿到 A 的最终回答与产物路径；A→B→A 成环被拒。
+   拿到 A 的最终回答与产物路径；A→B→A 成环被拒；B 可用 "continue" 复用 A 的输出
+   再跑一次；任务级重试上限经桥写入/读回。
 2) 批量下载时段窗口：创建批次时带关闭窗口 → 立即暂停；清窗口恢复；开窗口可跑。
 3) 翻译收口：替换式占位符不再泄漏 ⟦N⟧（页面内 JS 直接验证）；站点自动双语
    经桥设置后，页面加载自动开始翻译（假端点）。
@@ -192,6 +193,7 @@ def main():
             "name": task_b,
             "prompt": "CHAIN-SECOND PREV:{{prev.output}} ART:{{prev.artifacts}}",
             "minutes": 120,
+            "retries": 2,
         })
         chained = br(base, "POST", "/agent/tasks/chain", {"name": task_a, "chainTo": task_b})
         ok("任务链：A → B 设置成功", chained.get("ok") is True, str(chained)[:200])
@@ -199,7 +201,12 @@ def main():
         ok("任务链：成环被拒", "error" in cycle and "loop" in cycle.get("error", ""), str(cycle)[:200])
         tasks = br(base, "GET", "/agent/tasks").get("tasks", [])
         row_a = next((t for t in tasks if t.get("name") == task_a), {})
-        ok("任务链：任务卡带 chainTo", row_a.get("chainTo") == task_b, json.dumps(row_a, ensure_ascii=False)[:200])
+        row_b = next((t for t in tasks if t.get("name") == task_b), {})
+        ok("任务链：任务卡带 chainTo / 完整路径 / 任务级重试",
+           row_a.get("chainTo") == task_b
+           and row_a.get("chainPath") == [task_a, task_b]
+           and row_b.get("retries") == 2,
+           json.dumps({"a": row_a.get("chainPath"), "b": row_b.get("retries")}, ensure_ascii=False)[:240])
 
         br(base, "POST", "/agent/tasks/fire", {"name": task_a})
         deadline = time.time() + 60
@@ -210,6 +217,17 @@ def main():
            "FIRST-OUTPUT" in second, second[:300])
         ok("任务链：占位符已渲染（不残留 {{prev.*}}）",
            "{{prev." not in second and "/tmp/chain-artifact-b5.md" in second, second[:300])
+        # v0.8.81 批 6：从 B 继续——复用 A 最近一次成功输出，不重跑 A。
+        before = len(state["chain_prompts"])
+        continued = br(base, "POST", "/agent/tasks/continue", {"name": task_b})
+        deadline = time.time() + 60
+        while time.time() < deadline and len(state["chain_prompts"]) <= before:
+            time.sleep(0.4)
+        third = state["chain_prompts"][-1] if len(state["chain_prompts"]) > before else ""
+        ok("任务链：从 B 继续复用 A 的成功输出",
+           continued.get("ok") is True and len(state["chain_prompts"]) == before + 1
+           and "FIRST-OUTPUT" in third,
+           f"count={len(state['chain_prompts'])} prompt={third[:240]}")
         br(base, "POST", "/agent/tasks/remove", {"name": task_a})
         br(base, "POST", "/agent/tasks/remove", {"name": task_b})
 
@@ -348,7 +366,7 @@ def main():
         page_server.shutdown()
 
     passed = sum(1 for _, cond in checks if cond)
-    print("\nv0.8.80 批 5：%d/%d 通过" % (passed, len(checks)))
+    print("\nv0.8.80 批 5 + v0.8.81 链运维：%d/%d 通过" % (passed, len(checks)))
     return 0 if passed == len(checks) else 1
 
 

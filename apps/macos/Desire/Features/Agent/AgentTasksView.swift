@@ -439,6 +439,26 @@ private struct AgentTaskCard: View {
                         .help(String(localized: "Runs deferred to quiet-hours end"))
                 }
                 Spacer(minLength: 8)
+                if let upstream = store.chainPredecessor(of: task.name) {
+                    Button {
+                        _ = store.continueChain(from: task.name)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.uturn.forward")
+                                .font(.system(size: 9, weight: .bold))
+                            Text("Continue")
+                                .font(.system(size: 10.5, weight: .medium))
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                        .foregroundStyle(.primary)
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(!task.isEnabled || store.latestSuccessfulOutput(for: upstream) == nil)
+                    .opacity(task.isEnabled ? 1 : 0.4)
+                    .help("Run this step with \(upstream)'s latest successful output")
+                }
                 Button {
                     _ = store.fireNow(named: task.name)
                 } label: {
@@ -475,6 +495,15 @@ private struct AgentTaskCard: View {
                 .lineLimit(2)
                 .truncationMode(.tail)
 
+            if store.chainPath(startingAt: task.name).count > 1 {
+                Text(verbatim: store.chainPath(startingAt: task.name).joined(separator: " → "))
+                    .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .help("Full chain from this step")
+            }
+
             HStack(spacing: 6) {
                 Label(task.recurrenceText, systemImage: "repeat")
                     .font(.system(size: 10, weight: .medium))
@@ -483,6 +512,7 @@ private struct AgentTaskCard: View {
                     .padding(.vertical, 3)
                     .background(Capsule().fill(Color.secondary.opacity(0.10)))
                 targetMenu
+                retryMenu
                 if let chain = task.chainTo {
                     Label(chain, systemImage: "arrow.right.circle")
                         .font(.system(size: 10, weight: .medium))
@@ -505,6 +535,39 @@ private struct AgentTaskCard: View {
             RoundedRectangle(cornerRadius: 8, style: .continuous)
                 .fill(Color(nsColor: .controlBackgroundColor).opacity(0.5))
         )
+    }
+
+    /// 任务级重试覆盖（v0.8.81 批 6）：nil = 跟随设置页的全局次数。
+    private var retryMenu: some View {
+        Menu {
+            Button(String(localized: "Follow global setting")) {
+                store.setRetryLimit(nil, for: task.id)
+            }
+            .disabled(task.retryLimit == nil)
+            Divider()
+            ForEach(0...TaskRetryPolicy.maxRetries, id: \.self) { count in
+                Button(count == 0
+                       ? String(localized: "No retries")
+                       : String(format: String(localized: "%lld retries"), count)) {
+                    store.setRetryLimit(count, for: task.id)
+                }
+                .disabled(task.retryLimit == count)
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: "arrow.clockwise")
+                    .font(.system(size: 9, weight: .medium))
+                Text(task.retryLimit.map { "\($0)" } ?? String(localized: "auto"))
+                    .font(.system(size: 9.5, weight: .medium).monospacedDigit())
+            }
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(Color.secondary.opacity(0.10)))
+            .foregroundStyle(.secondary)
+        }
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(String(localized: "Per-task retry limit (global setting is used when auto)"))
     }
 
     /// 目标选择器（与设置页 ScheduledTaskRow 同语义）：胶囊 chip 显示当前

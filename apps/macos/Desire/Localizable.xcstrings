@@ -118160,6 +118160,116 @@
           }
         }
       }
+    },
+    "Full chain from this step":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Full chain from this step"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"从这一步开始的完整链"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"從這一步開始的完整鏈"
+          }
+        }
+      }
+    },
+    "Follow global setting":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Follow global setting"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"跟随全局设置"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"跟隨全域設定"
+          }
+        }
+      }
+    },
+    "No retries":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"No retries"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"不重试"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"不重試"
+          }
+        }
+      }
+    },
+    "Per-task retry limit (global setting is used when auto)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Per-task retry limit (global setting is used when auto)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"任务级重试上限（auto = 使用全局设置）"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"任務級重試上限（auto = 使用全域設定）"
+          }
+        }
+      }
+    },
+    "Run this step with %@'s latest successful output":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Run this step with %@'s latest successful output"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"用 %@ 最近一次成功的输出运行这一步"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"用 %@ 最近一次成功的輸出執行這一步"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

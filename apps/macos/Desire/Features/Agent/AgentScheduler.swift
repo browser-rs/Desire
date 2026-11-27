@@ -49,6 +49,9 @@ final class AgentScheduler: ObservableObject {
         var targetSessionID: UUID?
         /// 命令模板（v0.8.40）：非 nil 时到点跑后台命令模板而不是投 prompt。
         var jobTemplate: String? = nil
+        /// 本任务失败重试次数覆盖（v0.8.81 批 6）：nil = 跟随全局设置；
+        /// 0 = 不重试。Optional：旧任务文件没有这个键。
+        var retryLimit: Int? = nil
 
         var recurrenceText: String {
             switch recurrence {
@@ -190,7 +193,8 @@ final class AgentScheduler: ObservableObject {
     @discardableResult
     func add(name: String, prompt: String, recurrence: ScheduledTask.Recurrence,
              targetSessionID: UUID? = nil,
-             lastFiredAt: Date? = nil) -> ScheduledTask? {
+             lastFiredAt: Date? = nil,
+             retryLimit: Int? = nil) -> ScheduledTask? {
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedName.isEmpty, !trimmedPrompt.isEmpty else { return nil }
@@ -203,7 +207,8 @@ final class AgentScheduler: ObservableObject {
             createdAt: Date(),
             lastFiredAt: lastFiredAt ?? Date(),
             lastResult: nil,
-            targetSessionID: targetSessionID
+            targetSessionID: targetSessionID,
+            retryLimit: retryLimit.map { TaskRetryPolicy.resolvedLimit(taskValue: $0, global: 0) }
         )
         tasks.append(task)
         save()
@@ -432,6 +437,53 @@ final class AgentScheduler: ObservableObject {
         return true
     }
 
+    // MARK: - Chain inspection / continue (v0.8.81 批 6)
+
+    /// 从某任务往后的完整链（含自身），用于面板全链预览与桥。
+    func chainPath(startingAt name: String) -> [String] {
+        TaskChainGraph.path(startingAt: name, nodes: chainNodes)
+    }
+
+    func chainPredecessor(of name: String) -> String? {
+        TaskChainGraph.predecessor(of: name, nodes: chainNodes)
+    }
+
+    /// 上游任务最近一次**成功**运行的最终回答；没有就 nil。
+    func latestSuccessfulOutput(for taskName: String) -> String? {
+        runs.first(where: {
+            $0.taskName == taskName && $0.status == "success" && !($0.output ?? "").isEmpty
+        })?.output
+    }
+
+    /// "从这一步继续"：用上游最近一次成功输出渲染本步提示词/模板参数后立即投递。
+    /// 不自动重放后续链——继续是显式操作，后续步骤仍按各自的成功回调推进。
+    @discardableResult
+    func continueChain(from name: String) -> Bool {
+        guard let idx = tasks.firstIndex(where: { $0.name == name }),
+              let upstream = chainPredecessor(of: name),
+              let output = latestSuccessfulOutput(for: upstream) else { return false }
+        let task = tasks[idx]
+        let rendered = TaskChainTemplate.render(prompt: task.prompt,
+                                                previousTask: upstream,
+                                                previousOutput: output)
+        tasks[idx].lastFiredAt = Date()
+        deliver(task: task, promptOverride: rendered,
+                chainPreviousTask: upstream, chainPreviousOutput: output)
+        save()
+        return true
+    }
+
+    /// 任务级重试覆盖；传 nil = 跟随全局。
+    func setRetryLimit(_ limit: Int?, for id: UUID) {
+        guard let idx = tasks.firstIndex(where: { $0.id == id }) else { return }
+        tasks[idx].retryLimit = limit.map { TaskRetryPolicy.resolvedLimit(taskValue: $0, global: 0) }
+        save()
+    }
+
+    private var chainNodes: [TaskChainGraph.Node] {
+        tasks.map { .init(name: $0.name, chainTo: $0.chainTo) }
+    }
+
     // MARK: - Run history (无人值守作业)
 
     /// One firing of a task: delivery outcome, turn result, retries.
@@ -576,12 +628,14 @@ final class AgentScheduler: ObservableObject {
     private func scheduleRetry(_ record: RunRecord) {
         let taskName = record.taskName
         let runID = record.id
-        let limit = {
+        let global = {
             let raw = AppPrefs.defaults.integer(forKey: "scheduledTaskRetries")
-            return (1...3).contains(raw) ? raw : 1
+            return (0...TaskRetryPolicy.maxRetries).contains(raw) ? raw : TaskRetryPolicy.defaultRetries
         }()
+        let taskValue = tasks.first(where: { $0.name == taskName })?.retryLimit
+        let limit = TaskRetryPolicy.resolvedLimit(taskValue: taskValue, global: global)
         guard record.attempts < 1 + limit else { return }
-        let delay = UInt64(30 * (1 << (record.attempts - 1)))
+        let delay = TaskRetryPolicy.delaySeconds(afterAttempt: record.attempts)
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: delay * 1_000_000_000)
             guard let self, !Task.isCancelled else { return }

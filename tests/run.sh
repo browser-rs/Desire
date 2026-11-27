@@ -145,6 +145,8 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/RoutingAdvice.swift
   apps/macos/Desire/Features/Agent/TaskChainTemplate.swift
   apps/macos/Desire/Features/Agent/ApprovalBatchPattern.swift
+  apps/macos/Desire/Features/Agent/TaskRetryPolicy.swift
+  apps/macos/Desire/Features/Agent/TaskChainGraph.swift
   apps/macos/Desire/Features/Agent/AnswerRevision.swift
   apps/macos/Desire/Features/Agent/CostBreakdown.swift
   apps/macos/Desire/Features/Agent/ModelPriceTable.swift

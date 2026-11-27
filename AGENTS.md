@@ -954,6 +954,12 @@ Features/Bookmarks/
   `ApprovalBatchPattern.maxBatch`（8）条后续同类调用，用完回到逐条问；恢复授权
   只对第一次匹配调用生效，不写进本轮批量模式。审批卡预览数来自当前 assistant
   批次的后续同形状调用（工具+站点+顶层参数键），不要宣称"全部剩余"。
+- **任务链运维的边界**（2026-11-27，v0.8.81 批 6）：`TaskChainGraph` 只做只读
+  拓扑（路径/上游/环），写入防环仍在 `setChain`；`continueChain(from:)` 用上游
+  **最近一次成功**运行的回答重新渲染本步，不重跑上游、也不改变后续链的自动推进。
+  任务级 `retryLimit`（0…3，nil = 全局）经 `TaskRetryPolicy` 解析，退避 30/60/120s。
+  **未打通**：命令模板作业完成后把作业输出回流给下一任务（`BackgroundCommandStore`
+  没有回调调度器），别在文档里写"模板链已全会交接"。
 
 - **CHANGELOG 规范（2026-09-29 立，三次事故后）**：加条目**只用**
   `python3 scripts/changelog.py add <Fixed|Added|Changed|Deprecated|Removed|Security>`

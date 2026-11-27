@@ -527,6 +527,32 @@ final class RemoteClient: ObservableObject {
         defaults.string(forKey: "remote.username") ?? ""
     }
 
+    // MARK: - 账号安全（只读/吊销；改密必须留在 Mac，见 AGENTS）
+
+    func fetchAuthAudit() async throws -> [RemoteAuditEvent] {
+        let token = try await currentToken()
+        return try await API.send("GET", baseURL, "/auth/audit", token: token)
+    }
+
+    func fetchAuthDevices() async throws -> [RemoteAuthDevice] {
+        let token = try await currentToken()
+        return try await API.send("GET", baseURL, "/auth/devices", token: token)
+    }
+
+    func generateRecoveryCode() async throws -> String {
+        let token = try await currentToken()
+        let resp: RecoveryCodeResponse = try await API.send(
+            "POST", baseURL, "/auth/recovery-code", token: token)
+        return resp.recoveryCode
+    }
+
+    func revokeAuthDevice(_ deviceID: String) async throws {
+        let token = try await currentToken()
+        let body = try JSONEncoder().encode(["device_id": deviceID])
+        let _: API.Empty = try await API.send(
+            "POST", baseURL, "/auth/devices/revoke", body: body, token: token)
+    }
+
     func logout() {
         // 服务端注销（v0.8.80 批 7）：吊销 refresh 并让本机 access 立即失效
         //（设备级 token 版本 +1）；失败不阻塞本地登出。

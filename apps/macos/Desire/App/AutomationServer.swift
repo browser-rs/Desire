@@ -764,9 +764,10 @@ final class AutomationServer {
         ep("GET", "/agent/crew", "Tab Crew status (per-subtask progress + reports)", example: "…/agent/crew")
         ep("POST", "/agent/crew/cancel", "Cancel the whole crew (or one subtask)", params: ["index?:int"], example: "-d '{}'")
         ep("POST", "/agent/crew-dispatch", "Dispatch a crew (objective + subtasks); MCP crewDispatch maps here", params: ["objective:string", "tasks:array", "isolated?:bool (ephemeral container, wiped on settle)"], example: "-d '{\"objective\":\"compare\",\"tasks\":[{\"url\":\"https://a\",\"instruction\":\"price of X\"}]}'")
-        ep("POST", "/agent/tasks/create", "Create task", params: ["name:string", "prompt?:string", "minutes?:int | hour+minute(+weekday 1=Sun…7=Sat)", "lastFiredAt?:ISO-8601 (E2E: backdate for catch-up)", "window?:uuid (target a specific window; default = newest)", "builtin?:string (weeklyReport = built-in report pipeline; prompt unused)"], example: #"-d '{"name":"t","prompt":"p","minutes":30}'"#)
+        ep("POST", "/agent/tasks/create", "Create task", params: ["name:string", "prompt?:string", "minutes?:int | hour+minute(+weekday 1=Sun…7=Sat)", "lastFiredAt?:ISO-8601 (E2E: backdate for catch-up)", "retries?:int (0-3; per-task override)", "window?:uuid (target a specific window; default = newest)", "builtin?:string (weeklyReport = built-in report pipeline; prompt unused)"], example: #"-d '{"name":"t","prompt":"p","minutes":30}'"#)
         ep("POST", "/agent/tasks/remove", "Remove by name", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
         ep("POST", "/agent/tasks/fire", "Deliver prompt now (E2E)", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
+        ep("POST", "/agent/tasks/continue", "Continue a chain step using its upstream's latest successful output", params: ["name:string"], example: #"-d '{"name":"report"}'"#)
         ep("POST", "/agent/tasks/chain", "Set/clear the completion chain (A → B; B's prompt may use {{prev.output}}, {{prev.output:N}}, {{prev.task}}, {{prev.artifacts}})", params: ["name:string", "chainTo?:string (empty clears)"], example: #"-d '{"name":"collect","chainTo":"report"}'"#)
         ep("GET", "/approvals", "Pending tool approval", example: "…/approvals")
         ep("POST", "/approvals/resolve", "Resolve approval", params: ["decision:string"], example: #"-d '{"decision":"allow_once"}'"#)
@@ -4219,6 +4220,7 @@ case ("GET", "/agent/messages"):
                     minute: body["minute"] as? Int,
                     weekday: body["weekday"] as? Int,
                     lastFiredAt: Self.string(body, "lastFiredAt"),
+                    retries: body["retries"] as? Int,
                     window: Self.string(body, "window"),
                     builtin: Self.string(body, "builtin")
                 ))
@@ -4226,6 +4228,9 @@ case ("GET", "/agent/messages"):
                 return try Self.json(Self.removeAgentTask(name: Self.string(body, "name") ?? ""))
             case ("POST", "/agent/tasks/fire"):
                 return try Self.json(Self.fireAgentTask(name: Self.string(body, "name") ?? ""))
+            case ("POST", "/agent/tasks/continue"):
+                let name = Self.string(body, "name") ?? ""
+                return try Self.json(["ok": AgentScheduler.shared.continueChain(from: name)])
             case ("POST", "/agent/tasks/chain"):
                 let target = Self.string(body, "chainTo")
                 let result = AgentScheduler.shared.setChain(
@@ -10753,6 +10758,8 @@ case ("GET", "/agent/messages"):
                                       "recurrence": t.recurrenceText,
                                       "lastResult": t.lastResult ?? ""]
             row["chainTo"] = t.chainTo ?? NSNull()
+            row["chainPath"] = AgentScheduler.shared.chainPath(startingAt: t.name)
+            row["retries"] = t.retryLimit ?? NSNull()
             row["builtin"] = t.builtin ?? NSNull()
             return row
         }
@@ -10771,7 +10778,7 @@ case ("GET", "/agent/messages"):
         return ["tasks": tasks, "runs": runs]
     }
 
-    private static func createAgentTask(name: String, prompt: String, minutes: Int?, hour: Int?, minute: Int?, weekday: Int?, lastFiredAt: String?, window: String?, builtin: String? = nil) throws -> [String: Any] {
+    private static func createAgentTask(name: String, prompt: String, minutes: Int?, hour: Int?, minute: Int?, weekday: Int?, lastFiredAt: String?, retries: Int?, window: String?, builtin: String? = nil) throws -> [String: Any] {
         let recurrence: AgentScheduler.ScheduledTask.Recurrence
         if let minutes {
             recurrence = .everyMinutes(minutes)
@@ -10813,7 +10820,8 @@ case ("GET", "/agent/messages"):
         let targetID = resolveSession(window)?.registryID
         guard AgentScheduler.shared.add(
             name: name, prompt: prompt, recurrence: recurrence,
-            targetSessionID: targetID, lastFiredAt: seededLastFired) != nil else {
+            targetSessionID: targetID, lastFiredAt: seededLastFired,
+            retryLimit: retries) != nil else {
             return ["error": "invalid name or prompt"]
         }
         var payload: [String: Any] = ["ok": true, "name": name]

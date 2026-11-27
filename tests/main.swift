@@ -14242,6 +14242,47 @@ do {
     check("审批批量：单批上限固定 8", ApprovalBatchPattern.maxBatch == 8)
 }
 
+// 任务重试策略（v0.8.81 批 6）：任务级覆盖 + 退避。
+do {
+    check("重试：任务级覆盖优先、非法值钳到 0…3",
+          TaskRetryPolicy.resolvedLimit(taskValue: 0, global: 2) == 0
+          && TaskRetryPolicy.resolvedLimit(taskValue: 2, global: 0) == 2
+          && TaskRetryPolicy.resolvedLimit(taskValue: nil, global: 3) == 3
+          && TaskRetryPolicy.resolvedLimit(taskValue: nil, global: 99) == 3
+          && TaskRetryPolicy.resolvedLimit(taskValue: -5, global: 1) == 0)
+    check("重试：退避 30/60/120 秒",
+          TaskRetryPolicy.delaySeconds(afterAttempt: 1) == 30
+          && TaskRetryPolicy.delaySeconds(afterAttempt: 2) == 60
+          && TaskRetryPolicy.delaySeconds(afterAttempt: 3) == 120
+          && TaskRetryPolicy.delaySeconds(afterAttempt: 0) == 30)
+}
+
+// 任务链拓扑（v0.8.81 批 6）：路径 / 上游 / 环。
+do {
+    let nodes = [
+        TaskChainGraph.Node(name: "collect", chainTo: "report"),
+        TaskChainGraph.Node(name: "report", chainTo: "send"),
+        TaskChainGraph.Node(name: "send", chainTo: nil),
+        TaskChainGraph.Node(name: "orphan", chainTo: nil),
+    ]
+    check("任务链：完整路径与直接上游",
+          TaskChainGraph.path(startingAt: "collect", nodes: nodes) == ["collect", "report", "send"]
+          && TaskChainGraph.path(startingAt: "orphan", nodes: nodes) == ["orphan"]
+          && TaskChainGraph.predecessor(of: "report", nodes: nodes) == "collect"
+          && TaskChainGraph.predecessor(of: "collect", nodes: nodes) == nil)
+    let loop = [
+        TaskChainGraph.Node(name: "a", chainTo: "b"),
+        TaskChainGraph.Node(name: "b", chainTo: "a"),
+    ]
+    let selfLoop = [TaskChainGraph.Node(name: "x", chainTo: "x")]
+    check("任务链：环检测（互指/自指/无环）",
+          TaskChainGraph.hasCycle(nodes: loop)
+          && TaskChainGraph.hasCycle(nodes: selfLoop)
+          && !TaskChainGraph.hasCycle(nodes: nodes))
+    check("任务链：环路径不重复追加节点",
+          TaskChainGraph.path(startingAt: "a", nodes: loop) == ["a", "b"])
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

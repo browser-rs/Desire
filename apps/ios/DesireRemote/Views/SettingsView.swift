@@ -143,11 +143,17 @@ struct SettingsView: View {
 
             Section {
                 DesireValueRow(title: "用户名", value: client.savedUsername.isEmpty ? "—" : client.savedUsername)
+                NavigationLink {
+                    AccountSecurityView()
+                } label: {
+                    Label("账号安全", systemImage: "lock.shield")
+                        .font(.system(size: 14, weight: .medium))
+                }
                 Button("退出登录", role: .destructive) {
                     confirmLogout = true
                 }
             } header: {
-                DesireSectionHeader(title: "账号")
+                DesireSectionHeader(title: "账号", subtitle: "恢复码 / 审计 / 设备；改密请在 Mac 上做")
             }
 
             Section {

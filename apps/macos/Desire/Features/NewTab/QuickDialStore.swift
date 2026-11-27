@@ -38,6 +38,15 @@ class QuickDialStore: ObservableObject {
         save()
     }
 
+    /// 同步冲突“采用本地”（v0.8.82）：只更新 LWW 戳，不改内容。
+    @discardableResult
+    func touchForSync(id: UUID) -> Bool {
+        guard let index = dials.firstIndex(where: { $0.id == id }) else { return false }
+        dials[index].updatedAt = Date()
+        save()
+        return true
+    }
+
     func update(id: UUID, title: String, url: String) {
         guard let index = dials.firstIndex(where: { $0.id == id }) else { return }
         dials[index].title = title

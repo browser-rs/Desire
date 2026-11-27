@@ -901,7 +901,9 @@ struct RemoteSyncHealthFrame: Codable {
         let domain: String
         let label: String
         let at: Double
-        var id: String { domain + label + String(at) }
+        var conflictID: String?
+        var canUseLocal: Bool?
+        var id: String { conflictID ?? (domain + label + String(at)) }
     }
     struct Device: Codable, Identifiable, Equatable {
         let id: String

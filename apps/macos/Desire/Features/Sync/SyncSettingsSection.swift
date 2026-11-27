@@ -816,7 +816,7 @@ private struct ConflictDetailsSheet: View {
                 Button(String(localized: "Done")) { onClose() }
                     .keyboardShortcut(.defaultAction)
             }
-            Text("These local changes lost LWW against another device's newer copy — the newer copy is now on this device too.")
+            Text("These local changes lost LWW against another device's newer copy. Use Local pushes this Mac's version again; Use Remote keeps the server version. Only reversible categories offer Use Local.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -829,10 +829,22 @@ private struct ConflictDetailsSheet: View {
                     Text(note.label)
                         .font(.system(size: 12.5))
                         .lineLimit(1)
-                    Spacer()
+                    Spacer(minLength: 6)
                     Text(Self.formatter.localizedString(for: note.at, relativeTo: Date()))
                         .font(.caption2)
                         .foregroundStyle(.tertiary)
+                    if store.canResolveLocally(note) {
+                        Button(String(localized: "Use Local")) {
+                            _ = store.resolveConflict(noteID: note.id, useLocal: true)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
+                    Button(String(localized: "Use Remote")) {
+                        _ = store.resolveConflict(noteID: note.id, useLocal: false)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.mini)
                 }
             }
             .listStyle(.inset)

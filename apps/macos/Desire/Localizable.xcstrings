@@ -119653,6 +119653,72 @@
           }
         }
       }
+    },
+    "Use Local":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Use Local"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"采用本地"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"採用本地"
+          }
+        }
+      }
+    },
+    "Use Remote":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Use Remote"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"采用远端"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"採用遠端"
+          }
+        }
+      }
+    },
+    "These local changes lost LWW against another device's newer copy. Use Local pushes this Mac's version again; Use Remote keeps the server version. Only reversible categories offer Use Local.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"These local changes lost LWW against another device's newer copy. Use Local pushes this Mac's version again; Use Remote keeps the server version. Only reversible categories offer Use Local."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"这些本地改动在 LWW 中输给了另一台设备的新版本。采用本地会把本机版本重新推上去；采用远端保留服务端版本。只有可逆类目提供“采用本地”。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"這些本地改動在 LWW 中輸給了另一台裝置的新版本。採用本地會把本機版本重新推上去；採用遠端保留伺服器版本。只有可逆類目提供「採用本地」。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

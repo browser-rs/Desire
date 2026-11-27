@@ -192,6 +192,14 @@ extension RemoteControlStore {
         }
     }
 
+    /// 手机处理同步冲突（v0.8.82）：只接受可逆域的“采用本地/远端”。
+    func handleSyncConflict(_ inner: RemoteInnerFrame) {
+        guard let store = AppState.live?.syncStore,
+              let raw = inner.id, let id = UUID(uuidString: raw) else { return }
+        _ = store.resolveConflict(noteID: id, useLocal: inner.flag == true)
+        sendSyncHealthFrame()
+    }
+
     func sendSyncHealthFrame() {
         guard let store = AppState.live?.syncStore else {
             sendInner(["t": "syncHealth", "signedIn": false])
@@ -217,8 +225,9 @@ extension RemoteControlStore {
             }
         }
         let conflicts: [[String: Any]] = store.recentConflicts.prefix(20).map { note in
-            ["domain": note.domain, "label": note.label,
-             "at": note.at.timeIntervalSince1970]
+            ["id": note.id.uuidString, "domain": note.domain, "label": note.label,
+             "at": note.at.timeIntervalSince1970,
+             "canUseLocal": store.canResolveLocally(note)]
         }
         let devices: [[String: Any]] = store.devices.map { device in
             var row: [String: Any] = [

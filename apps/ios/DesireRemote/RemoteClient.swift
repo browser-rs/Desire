@@ -1599,6 +1599,11 @@ final class RemoteClient: ObservableObject {
     func syncAction(_ action: String) {
         pushFrame(["t": "syncAction", "text": action], replace: false)
     }
+
+    /// 处理一条同步冲突（v0.8.82）：useLocal=true 让 Mac 把本地版本再推一次。
+    func resolveSyncConflict(id: String, useLocal: Bool) {
+        pushFrame(["t": "syncConflict", "id": id, "flag": useLocal], replace: false)
+    }
     func requestDoctor() { pushFrame(["t": "doctor"], replace: false) }
     func requestSyncHealth() { pushFrame(["t": "syncHealth"], replace: false) }
     func requestAdapters() { pushFrame(["t": "adapters"], replace: false) }

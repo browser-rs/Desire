@@ -719,6 +719,8 @@ final class RemoteControlStore: ObservableObject {
             sendSyncHealthFrame()
         case "syncAction":
             handleSyncAction(inner)
+        case "syncConflict":
+            handleSyncConflict(inner)
         case "adapters":
             sendAdaptersFrame()
         case "toggleAdapter":

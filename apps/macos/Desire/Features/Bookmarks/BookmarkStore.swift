@@ -117,6 +117,14 @@ class BookmarkStore: ObservableObject {
         return seen.sorted()
     }
 
+    /// 同步冲突“采用本地”（v0.8.82）：把该条目的 LWW 戳提到现在，下一次 push 胜出。
+    @discardableResult
+    func touchForSync(id: UUID) -> Bool {
+        guard let node = find(id: id) else { return false }
+        update(node)
+        return true
+    }
+
     func update(_ bookmark: Bookmark) {
         _ = bookmarks.update(id: bookmark.id) {
             $0 = bookmark

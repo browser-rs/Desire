@@ -932,6 +932,8 @@ final class SyncStore: ObservableObject {
         /// 解密后提取的可读标签；提取不出时退 client_id 短码。
         var label: String
         var at: Date
+        /// 服务端 push 结果里的 client_id（v0.8.82）：用于回找本地条目。
+        var clientID: String? = nil
     }
 
     private static let conflictNotesKey = "sync.recentConflicts"
@@ -967,6 +969,73 @@ final class SyncStore: ObservableObject {
         defaults.removeObject(forKey: Self.conflictNotesKey)
     }
 
+    /// 可“采用本地”的域（v0.8.82）：条目有明确 UUID 与可提升的 LWW 戳。
+    /// 设置/记忆/历史等不做破坏性覆盖。
+    func supportsLocalResolution(_ domain: String) -> Bool {
+        guard let domain = SyncDomain(rawValue: domain) else { return false }
+        return [.bookmarks, .quickDials, .readingList].contains(domain)
+    }
+
+    func canResolveLocally(_ note: SyncConflictNote) -> Bool {
+        supportsLocalResolution(note.domain) && note.clientID != nil
+    }
+
+    /// 冲突动作：useLocal = 把本地条目 LWW 戳提到现在并重推；false = 接受
+    /// 服务端胜者（已在本机落地，只需移除记录）。返回 false = 无法定位本地条目。
+    @discardableResult
+    func resolveConflict(noteID: UUID, useLocal: Bool) -> Bool {
+        guard let index = recentConflicts.firstIndex(where: { $0.id == noteID }),
+              let domain = SyncDomain(rawValue: recentConflicts[index].domain) else {
+            return false
+        }
+        let note = recentConflicts[index]
+        if useLocal {
+            guard supportsLocalResolution(note.domain),
+                  let clientID = note.clientID,
+                  let master = masterKeyBase64,
+                  let localID = localID(forClientID: clientID, domain: domain, master: master) else {
+                return false
+            }
+            let touched: Bool
+            switch domain {
+            case .bookmarks:
+                touched = bookmarkStore.touchForSync(id: localID)
+            case .quickDials:
+                touched = quickDialStore.touchForSync(id: localID)
+            case .readingList:
+                touched = readingListStore.touchForSync(id: localID)
+            default:
+                touched = false
+            }
+            guard touched else { return false }
+        }
+        recentConflicts.remove(at: index)
+        defaults.set(try? JSONEncoder().encode(recentConflicts), forKey: Self.conflictNotesKey)
+        if useLocal {
+            Task { await syncNow() }
+        }
+        return true
+    }
+
+    private func localID(forClientID clientID: String, domain: SyncDomain,
+                         master: String) -> UUID? {
+        func match(_ id: UUID) -> Bool {
+            (try? SyncCrypto.hmacClientID(id.uuidString, domain: domain,
+                                          masterKeyBase64: master)) == clientID
+        }
+        switch domain {
+        case .bookmarks:
+            return bookmarkStore.bookmarks.flatMap { $0.flattened() }
+                .map(\.0.id).first(where: match)
+        case .quickDials:
+            return quickDialStore.dials.map(\.id).first(where: match)
+        case .readingList:
+            return readingListStore.items.map(\.id).first(where: match)
+        default:
+            return nil
+        }
+    }
+
     /// push conflict = 服务端胜者已落地：逐条解密胜者载荷提取可读标签。
     private func recordConflictNotes(domain: SyncDomain,
                                      results: [SyncPushResult<SyncEncryptedPayload>],
@@ -981,7 +1050,8 @@ final class SyncStore: ObservableObject {
                 label = extracted
             }
             notes.insert(SyncConflictNote(id: UUID(), domain: domain.rawValue,
-                                          label: label, at: Date()), at: 0)
+                                          label: label, at: Date(),
+                                          clientID: result.clientId), at: 0)
         }
         recentConflicts = Array(notes.prefix(60))
         defaults.set(try? JSONEncoder().encode(recentConflicts), forKey: Self.conflictNotesKey)

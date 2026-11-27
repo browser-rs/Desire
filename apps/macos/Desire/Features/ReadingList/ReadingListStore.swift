@@ -38,6 +38,15 @@ class ReadingListStore: ObservableObject {
         for id in ids { remove(id) }
     }
 
+    /// 同步冲突“采用本地”（v0.8.82）：把该条目的 LWW 戳提到现在。
+    @discardableResult
+    func touchForSync(id: UUID) -> Bool {
+        guard let index = items.firstIndex(where: { $0.id == id }) else { return false }
+        items[index].updatedAt = Date()
+        save()
+        return true
+    }
+
     func toggleRead(_ id: UUID) {
         guard let index = items.firstIndex(where: { $0.id == id }) else { return }
         items[index].isRead.toggle()

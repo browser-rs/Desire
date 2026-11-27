@@ -99,12 +99,28 @@ struct RemoteDoctorView: View {
                     }
                 }
                 ForEach(sync.conflicts ?? []) { conflict in
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text("冲突 · \(conflict.domain)")
                             .font(.caption.weight(.medium))
                         Text(conflict.label)
                             .font(.caption2)
                             .foregroundStyle(.secondary)
+                        HStack(spacing: 8) {
+                            if conflict.canUseLocal == true, let id = conflict.conflictID {
+                                Button("采用本地") {
+                                    client.resolveSyncConflict(id: id, useLocal: true)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.mini)
+                            }
+                            if let id = conflict.conflictID {
+                                Button("采用远端") {
+                                    client.resolveSyncConflict(id: id, useLocal: false)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.mini)
+                            }
+                        }
                     }
                 }
                 HStack(spacing: 10) {

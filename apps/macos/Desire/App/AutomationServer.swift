@@ -521,6 +521,7 @@ final class AutomationServer {
         ep("POST", "/agent/budget", "Set the conversation token budget (0 = off; resets the tier)", params: ["tokens:int"], example: #"-d '{"tokens":50000}'"#)
         ep("GET", "/sync/devices", "Account devices + per-device pull cursors (live fetch from the sync server)", example: "…/sync/devices")
         ep("GET", "/sync/conflicts", "Recent sync conflicts (entries where the server's LWW copy won; decrypted readable labels)", example: "…/sync/conflicts")
+        ep("POST", "/sync/conflicts/resolve", "Resolve one conflict: useLocal=true pushes this Mac's copy again; false keeps the server winner", params: ["id:uuid", "useLocal:bool"], example: #"-d '{"id":"…","useLocal":true}"#)
         ep("POST", "/sync/conflicts/clear", "Clear the conflict-details ledger", example: "-d '{}'")
         ep("GET", "/sync/status", "Cloud sync state (auth / syncing / lastSyncAt / lastError / per-domain cursors + pending tombstones)", example: "…/sync/status")
         ep("GET", "/sync/health", "Same-address duplicate detection for URL domains + per-domain local counts/tombstones/cursor presence (sync integrity, v0.8.65)", example: "…/sync/health")
@@ -2785,6 +2786,14 @@ case ("GET", "/state"):
                                       }])
             case ("GET", "/sync/conflicts"):
                 return try Self.json(Self.syncConflicts())
+            case ("POST", "/sync/conflicts/resolve"):
+                guard let store = AppState.live?.syncStore,
+                      let id = Self.string(body, "id").flatMap(UUID.init(uuidString:)) else {
+                    return try Self.json(["error": "missing/invalid id"])
+                }
+                let ok = store.resolveConflict(noteID: id,
+                                               useLocal: body["useLocal"] as? Bool ?? false)
+                return try Self.json(ok ? ["ok": true] : ["error": "cannot resolve this conflict locally"])
             case ("POST", "/sync/conflicts/clear"):
                 AppState.live?.syncStore.clearConflictNotes()
                 return try Self.json(Self.syncConflicts())
@@ -11867,7 +11876,8 @@ case ("GET", "/agent/messages"):
         guard let store = AppState.live?.syncStore else { return ["error": "app state not ready"] }
         let notes = store.recentConflicts.map { note in
             ["id": note.id.uuidString, "domain": note.domain,
-             "label": note.label, "at": note.at.timeIntervalSince1970] as [String: Any]
+             "label": note.label, "at": note.at.timeIntervalSince1970,
+             "canUseLocal": store.canResolveLocally(note)] as [String: Any]
         }
         return ["ok": true, "count": notes.count, "conflicts": notes]
     }

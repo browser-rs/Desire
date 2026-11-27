@@ -14,6 +14,9 @@ struct TranslateBar: View {
     /// 自研翻译管道（v0.8.8 默认引擎：替换式/对照式，走用户自配模型，
     /// 页面内容不出第三方）。
     @ObservedObject private var bilingual = BilingualReadingService.shared
+    /// 翻译缓存体量（v0.8.80 批 5）：条上可见 + 可清。
+    @State private var cachePages = 0
+    @State private var cacheChars = 0
 
     var body: some View {
         HStack(spacing: 8) {
@@ -41,6 +44,12 @@ struct TranslateBar: View {
                     .frame(width: 16, height: 16)
                 Text(String(localized: "Translating (\(bilingual.doneCount)/\(bilingual.totalCount))"))
                     .font(.caption)
+                if let usage = usageLabel {
+                    Text(usage)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
             } else if bilingual.isOn(tabID: tabID) || bilingual.isReplaceOn(tabID: tabID) {
                 Image(systemName: "checkmark.circle.fill")
                     .foregroundStyle(.green)
@@ -49,6 +58,12 @@ struct TranslateBar: View {
                      ? String(localized: "AI translation on (replaced)")
                      : String(localized: "AI translation on (bilingual)"))
                     .font(.caption)
+                if let usage = usageLabel {
+                    Text(usage)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
                 if bilingual.isReplaceOn(tabID: tabID) == false {
                     // 双语导出（v0.8.62 批 3）：Markdown 对照落下载目录。
                     Button {
@@ -105,6 +120,30 @@ struct TranslateBar: View {
                     .foregroundStyle(appAccent)
                     .help(bookConfirmation ?? String(localized: "Save the bilingual pairs as a book in the library"))
                     .disabled(savingBook)
+                }
+                if bilingual.lastError != nil {
+                    Button(String(localized: "Retry Failed Blocks")) {
+                        bilingual.translate(webView: webView, tabID: tabID,
+                                            preference: AppState.live?.aiPreference)
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption)
+                    .foregroundStyle(appAccent)
+                }
+                if cachePages > 0 {
+                    Menu {
+                        Text(String(localized: "Translation cache: \(cachePages) page(s), \(cacheChars) chars"))
+                        Button(String(localized: "Clear Translation Cache"), role: .destructive) {
+                            BilingualReadingService.clearCache()
+                            refreshCacheStats()
+                        }
+                    } label: {
+                        Image(systemName: "externaldrive")
+                            .font(.caption)
+                    }
+                    .menuStyle(.borderlessButton)
+                    .fixedSize()
+                    .help(String(localized: "Translation cache: \(cachePages) page(s), \(cacheChars) chars"))
                 }
                 Button(String(localized: "Show Original")) {
                     bilingual.stop(webView: webView, tabID: tabID)
@@ -179,6 +218,36 @@ struct TranslateBar: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
         .background(.bar)
+        .onAppear { refreshCacheStats() }
+        .onChange(of: bilingual.doneCount) { _, _ in refreshCacheStats() }
+    }
+
+    private func refreshCacheStats() {
+        let summary = BilingualReadingService.cacheSummary()
+        cachePages = summary.pages
+        cacheChars = summary.chars
+    }
+
+    /// 本轮翻译的可见账：缓存命中 / token / 按单价表折算的费用。
+    private var usageLabel: String? {
+        var parts: [String] = []
+        if let name = bilingual.lastProfileName, !name.isEmpty {
+            parts.append(name)
+        }
+        if bilingual.lastCacheHits > 0 {
+            parts.append(String(localized: "\(bilingual.lastCacheHits) cached"))
+        }
+        let tokens = bilingual.lastPromptTokens + bilingual.lastCompletionTokens
+        if tokens > 0 {
+            parts.append("\(tokens) tok")
+            if let model = bilingual.lastModel,
+               let price = AppState.live?.aiPreference.usagePrice(for: model),
+               let cost = price.cost(promptTokens: bilingual.lastPromptTokens,
+                                     completionTokens: bilingual.lastCompletionTokens) {
+                parts.append(cost < 0.0001 ? "< $0.0001" : String(format: "$%.4f", cost))
+            }
+        }
+        return parts.isEmpty ? nil : parts.joined(separator: " · ")
     }
 
     private func displayName(for language: Locale.Language) -> String {

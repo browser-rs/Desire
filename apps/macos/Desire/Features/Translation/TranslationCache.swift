@@ -92,6 +92,24 @@ nonisolated enum TranslationCache {
         return model
     }
 
+    /// 写路径统一收口（v0.8.80 批 5，S2）：合并后**立即**按预算淘汰，返回的
+    /// 模型就是要落盘的那份——此前 `evictionTargets` 只有 harness 调用，
+    /// 缓存只增不减。
+    static func pruned(_ model: CacheModel, maxTotalChars: Int = maxTotalChars) -> CacheModel {
+        let targets = Set(evictionTargets(Array(model.values), maxTotalChars: maxTotalChars))
+        guard !targets.isEmpty else { return model }
+        var model = model
+        for key in targets { model.removeValue(forKey: key) }
+        return model
+    }
+
+    /// 缓存体量（设置页/翻译条展示）：页数、块数、译文字符数。
+    static func summary(of model: CacheModel) -> (pages: Int, blocks: Int, chars: Int) {
+        (model.count,
+         model.values.reduce(0) { $0 + $1.blocks.count },
+         model.values.reduce(0) { $0 + $1.blocks.reduce(0) { $0 + $1.translation.count } })
+    }
+
     /// LRU 淘汰目标：按 lastUsed 从旧到新删页面，直到总字符数（译文长度
     /// 之和）回到预算内。返回待删 urlKey 列表（判定纯逻辑，IO 由调用方做）。
     static func evictionTargets(_ pages: [CachedPage],

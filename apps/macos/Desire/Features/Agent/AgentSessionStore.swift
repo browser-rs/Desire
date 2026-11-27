@@ -379,6 +379,8 @@ class AgentSessionStore: ObservableObject {
     struct TurnOutcome {
         let success: Bool
         let error: String?
+        /// 本回合最终助手正文（定时任务链交接用；v0.8.80 批 5）。
+        var answer: String? = nil
     }
     private var turnFinishHandlers: [(TurnOutcome) -> Void] = []
     func addTurnFinishHandler(_ handler: @escaping (TurnOutcome) -> Void) {
@@ -2589,7 +2591,8 @@ class AgentSessionStore: ObservableObject {
             // (scheduler run records for scheduled prompts). 用户中途取消
             // （turnFailed 未置）也不算 success（C-5）。
             let outcome = TurnOutcome(success: !turnFailed && !isCancelled,
-                                      error: isCancelled ? "cancelled by user" : lastTurnErrorText)
+                                      error: isCancelled ? "cancelled by user" : lastTurnErrorText,
+                                      answer: messages.last(where: { $0.role == .assistant })?.content)
             lastTurnSucceeded = outcome.success
             // 技能使用结果回填（v0.8.72 批 2）：本回合 useSkill 过的技能按
             // 回合结果记成败（B3 成功率评估的数据面；空名单零开销）。

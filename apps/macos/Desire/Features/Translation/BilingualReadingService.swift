@@ -38,6 +38,14 @@ final class BilingualReadingService: ObservableObject {
     @Published private(set) var doneCount = 0
     @Published private(set) var totalCount = 0
     @Published private(set) var lastError: String?
+    // 翻译条的状态（v0.8.80 批 5）：本轮的缓存命中、模型与 token——用户能看到
+    // "这次省了多少、花了多少"，而不是只看到一个进度数字。
+    @Published private(set) var lastCacheHits = 0
+    @Published private(set) var lastModel: String?
+    @Published private(set) var lastPromptTokens = 0
+    @Published private(set) var lastCompletionTokens = 0
+    /// 本轮实际用的档案名（旁路档案或主档案；v0.8.80 批 5）。
+    @Published private(set) var lastProfileName: String?
 
     /// 全收集预算（v0.8.62 批 1）：一次收集页面全部可读块（此前 60 块/15k
     /// 只翻长文首段），宿主侧再按"块数 + 字符数"双闸切小批（TranslationBatching）。
@@ -188,6 +196,11 @@ final class BilingualReadingService: ObservableObject {
         lastError = nil
         doneCount = 0
         totalCount = 0
+        lastCacheHits = 0
+        lastModel = nil
+        lastPromptTokens = 0
+        lastCompletionTokens = 0
+        lastProfileName = preference.activeProfile?.name
         // 术语表双源（v0.8.64 批 1）：**专用术语表**（设置页结构化维护，
         // "term → 译法"）在前 + v0.8.8 的记忆通道（category=translation 的
         // 记忆事实，自由文本"这个站把 X 译成 Y"）在后——两条维护入口都有效。
@@ -268,6 +281,7 @@ final class BilingualReadingService: ObservableObject {
                 apply(batch: hitBlocks, translations: hitTranslations, webView: webView)
                 doneCount += hitBlocks.count
             }
+            lastCacheHits = hitBlocks.count
             Log.agent.info("bilingual: cache hits \(hitBlocks.count)/\(blocks.count) — \(pending.count) to translate")
         }
         guard !pending.isEmpty else {
@@ -290,7 +304,9 @@ final class BilingualReadingService: ObservableObject {
             }
             let attempt = await Self.translateBatch(batch, preference: preference,
                                                     glossary: glossary)
-            if let translations = attempt, translations.count == batch.count {
+            if let result = attempt, result.translations.count == batch.count {
+                let translations = result.translations
+                recordUsage(result)
                 apply(batch: batch, translations: translations, webView: webView)
                 doneCount += batch.count
                 // 翻译成功 → 逐块写缓存（DiskStore 防抖异步落盘）。
@@ -299,15 +315,18 @@ final class BilingualReadingService: ObservableObject {
                         guard let index = Int(block.id) else { return nil }
                         return (index, block.text, translation)
                     }
-                    cacheModel = TranslationCache.merged(model: cacheModel, urlKey: urlKey,
-                                                        results: results)
+                    cacheModel = TranslationCache.pruned(
+                        TranslationCache.merged(model: cacheModel, urlKey: urlKey,
+                                                results: results))
                     DiskStore.save(cacheModel, key: TranslationCache.storeKey)
                     Log.agent.info("bilingual: cache saved batch (\(results.count) blocks, total pages \(cacheModel.count))")
                 }
-            } else if let translations = await Self.translateBatch(batch, preference: preference,
-                                                                   glossary: glossary),
-                      translations.count == batch.count {
+            } else if let result = await Self.translateBatch(batch, preference: preference,
+                                                             glossary: glossary),
+                      result.translations.count == batch.count {
                 // 失败批次重试一次（网络抖动不再让长页翻译半途而废）。
+                let translations = result.translations
+                recordUsage(result)
                 apply(batch: batch, translations: translations, webView: webView)
                 doneCount += batch.count
                 if let urlKey {
@@ -315,8 +334,9 @@ final class BilingualReadingService: ObservableObject {
                         guard let index = Int(block.id) else { return nil }
                         return (index, block.text, translation)
                     }
-                    cacheModel = TranslationCache.merged(model: cacheModel, urlKey: urlKey,
-                                                        results: results)
+                    cacheModel = TranslationCache.pruned(
+                        TranslationCache.merged(model: cacheModel, urlKey: urlKey,
+                                                results: results))
                     DiskStore.save(cacheModel, key: TranslationCache.storeKey)
                     Log.agent.info("bilingual: cache saved batch (\(results.count) blocks, total pages \(cacheModel.count))")
                 }
@@ -348,17 +368,41 @@ final class BilingualReadingService: ObservableObject {
         }
     }
 
+    /// 翻译缓存体量 / 清空（v0.8.80 批 5，S2：设置入口与翻译条共用）。
+    static func cacheSummary() -> (pages: Int, blocks: Int, chars: Int) {
+        let model = DiskStore.load(TranslationCache.CacheModel.self,
+                                   key: TranslationCache.storeKey) ?? [:]
+        return TranslationCache.summary(of: model)
+    }
+
+    static func clearCache() {
+        DiskStore.remove(key: TranslationCache.storeKey)
+    }
+
+    private func recordUsage(_ result: BatchResult) {
+        if let model = result.model, !model.isEmpty { lastModel = model }
+        lastPromptTokens += result.promptTokens
+        lastCompletionTokens += result.completionTokens
+    }
+
     private func finish(token: Int, error: String?) {
         guard runToken == token else { return }
         isRunning = false
         lastError = error
     }
 
+    private struct BatchResult {
+        let translations: [String]
+        let model: String?
+        let promptTokens: Int
+        let completionTokens: Int
+    }
+
     /// 一批的翻译调用：编号行输入，模型按同序回 JSON 数组。目标语言 = 系统
     /// 首选语言（中文系统 → 简体中文）。
     private static func translateBatch(_ batch: [Block],
                                        preference: AgentPreferenceStore,
-                                       glossary: [String] = []) async -> [String]? {
+                                       glossary: [String] = []) async -> BatchResult? {
         let numbered = batch.enumerated()
             .map { "\($0.offset + 1). \($0.element.text)" }
             .joined(separator: "\n")
@@ -372,13 +416,19 @@ final class BilingualReadingService: ObservableObject {
         translation per input paragraph, in the same order, with the same count. Never merge or \
         split paragraphs. Keep numbers, code and proper nouns intact.\(glossarySection) (DESIRE_BILINGUAL_TRANSLATE)
         """
+        var usage = (prompt: 0, completion: 0, model: String?.none)
         let output = await MemoryExtractor.collectText(
             preference: preference, system: system, user: numbered,
             onUsage: { p, c, m in
+                usage = (p, c, m)
                 AgentSessionStore.recordBypassUsage(kind: "bilingual", prompt: p,
                                                     completion: c, model: m)
             })
-        return BilingualParsing.parseTranslations(output, expected: batch.count)
+        guard let translations = BilingualParsing.parseTranslations(output, expected: batch.count) else {
+            return nil
+        }
+        return BatchResult(translations: translations, model: usage.model,
+                           promptTokens: usage.prompt, completionTokens: usage.completion)
     }
 
     private static func targetLanguageName() -> String {

@@ -20,6 +20,8 @@ struct SiteControlsView: View {
         let fillAddress: (UUID) -> Void
         /// 站点级静音（v0.8.80）：进入本站自动静音。
         let setSiteMuted: (Bool) -> Void
+        /// 站点自动双语（v0.8.80 批 5）：进入本站自动开启 AI 对照翻译。
+        let setSiteAutoBilingual: (Bool) -> Void
         let watchPage: () -> Void
         let recordWorkflow: () -> Void
     }
@@ -162,6 +164,23 @@ struct SiteControlsView: View {
                     .controlSize(.mini)
             }
             .help("Automatically mute pages on this site when they load")
+
+            HStack(spacing: 8) {
+                Image(systemName: "character.book.closed")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                Text("Auto Translate This Site")
+                    .font(.system(size: 12.5))
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { store.autoBilingual(for: host) },
+                    set: { actions.setSiteAutoBilingual($0) }))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+            }
+            .help("Open AI bilingual translation automatically when this site loads")
 
             // 地址自动填充（v0.8.80）：多档案时选择用哪一份；单档案时就是"填一下"。
             if !autofillStore.fillableProfiles.isEmpty {

@@ -14009,6 +14009,85 @@ do {
           && history.batches.count == 1 && history.totals.bytes == 100)
 }
 
+// 任务链输出交接（v0.8.80 批 5）：占位符 + 产物识别。
+do {
+    let output = """
+    已完成检索，报告写到 /Users/me/Downloads/report-01.md，截图在 /tmp/shot.png。
+    接口是 /api/v1/search，不含扩展名不算产物。
+    """
+    check("任务链：占位符替换任务名/输出/产物路径",
+          TaskChainTemplate.render(prompt: "接上一步 {{prev.task}}：{{prev.output}}；产物：{{prev.artifacts}}",
+                                   previousTask: "采集", previousOutput: output)
+          .contains("接上一步 采集：已完成检索")
+          && TaskChainTemplate.artifacts(in: output) == ["/Users/me/Downloads/report-01.md", "/tmp/shot.png"]
+          && TaskChainTemplate.render(prompt: "{{prev.artifacts}}", previousTask: "x", previousOutput: output)
+            .contains("/Users/me/Downloads/report-01.md"))
+    check("任务链：{{prev.output:N}} 截断（且不吞正文）",
+          TaskChainTemplate.render(prompt: "前情：{{prev.output:4}}", previousTask: "t",
+                                   previousOutput: "abcdefg") == "前情：abcd")
+    check("任务链：没有占位符时原样投递（旧链语义不变）",
+          TaskChainTemplate.render(prompt: "固定提示词", previousTask: "t", previousOutput: "abc") == "固定提示词")
+    check("任务链：空产物写 (none)",
+          TaskChainTemplate.render(prompt: "{{prev.artifacts}}", previousTask: "t", previousOutput: "纯文本")
+          == "(none)")
+}
+
+// 翻译缓存写路径淘汰（v0.8.80 批 5，S2）：pruned 返回的就是落盘那份。
+do {
+    let now = Date()
+    let pages = [
+        TranslationCache.CachedPage(urlKey: "old", lastUsed: now.addingTimeInterval(-300),
+                                    blocks: [TranslationCache.CachedBlock(index: 0, hash: "h1", translation: String(repeating: "a", count: 80))]),
+        TranslationCache.CachedPage(urlKey: "mid", lastUsed: now.addingTimeInterval(-200),
+                                    blocks: [TranslationCache.CachedBlock(index: 0, hash: "h2", translation: String(repeating: "b", count: 80))]),
+        TranslationCache.CachedPage(urlKey: "new", lastUsed: now,
+                                    blocks: [TranslationCache.CachedBlock(index: 0, hash: "h3", translation: String(repeating: "c", count: 80))]),
+    ]
+    let model = Dictionary(uniqueKeysWithValues: pages.map { ($0.urlKey, $0) })
+    let pruned = TranslationCache.pruned(model, maxTotalChars: 100)
+    check("翻译缓存：写路径按 LRU 淘汰到预算内",
+          pruned.count == 1 && pruned["new"] != nil
+          && TranslationCache.summary(of: pruned).chars <= 100)
+    check("翻译缓存：未超预算时原样返回",
+          TranslationCache.pruned(model, maxTotalChars: 10_000).count == 3)
+}
+
+// 批量下载时段窗口（v0.8.80 批 5）：跨午夜、总时长、下个开窗。
+do {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+    func at(_ hour: Int, _ minute: Int) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 11, day: 27,
+                                           hour: hour, minute: minute))!
+    }
+    let night = BatchDownloadWindow(start: "22:00", end: "06:00",
+                                    maxDurationMinutes: 360, maxConcurrent: 4)
+    check("批窗口：跨午夜判定（22:00–06:00）",
+          night != nil
+          && !night!.isOpen(at: at(12, 0), calendar: calendar)
+          && night!.isOpen(at: at(23, 30), calendar: calendar)
+          && night!.isOpen(at: at(5, 59), calendar: calendar)
+          && !night!.isOpen(at: at(6, 0), calendar: calendar))
+    check("批窗口：下个开窗分钟数",
+          night!.minutesUntilOpen(from: at(12, 0), calendar: calendar) == 600
+          && night!.minutesUntilOpen(from: at(23, 0), calendar: calendar) == 0)
+    check("批窗口：总时长上限从进入窗口起算",
+          night!.durationExceeded(startedAt: at(22, 0),
+                                  now: calendar.date(byAdding: .hour, value: 6, to: at(22, 0))!)
+          && !night!.durationExceeded(startedAt: at(23, 0), now: at(23, 30))
+          && !BatchDownloadWindow(start: "00:00", end: "00:00")!.durationExceeded(
+              startedAt: at(0, 0), now: at(23, 0)))
+    check("批窗口：白天窗口 + 全天（start==end）",
+          BatchDownloadWindow(start: "02:00", end: "08:00")!.isOpen(at: at(3, 0), calendar: calendar)
+          && !BatchDownloadWindow(start: "02:00", end: "08:00")!.isOpen(at: at(9, 0), calendar: calendar)
+          && BatchDownloadWindow(start: "00:00", end: "00:00")!.isOpen(at: at(15, 0), calendar: calendar))
+    check("批窗口：非法时间解析为 nil；摘要可读",
+          BatchDownloadWindow(start: "25:00", end: "08:00") == nil
+          && BatchDownloadWindow(start: "2:00", end: "8:00") != nil
+          && night!.summary.contains("22:00–06:00") && night!.summary.contains("6h")
+          && night!.summary.contains("4 concurrent"))
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

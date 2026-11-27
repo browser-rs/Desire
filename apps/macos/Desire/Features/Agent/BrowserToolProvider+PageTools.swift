@@ -711,6 +711,21 @@ extension BrowserToolProvider {
             zoomTab.applyPageZoom(Double(clamped) / 100.0, rememberIn: surface.siteSettingsStore)
             return "Zoom set to \(clamped)%"
 
+        case "setSiteAutoBilingual":
+            guard let tab = surface.tabManager?.selectedTab,
+                  let host = tab.browser.webView.url?.host, !host.isEmpty else {
+                return Self.fail("No active page")
+            }
+            guard let enabled = args["enabled"] as? Bool else {
+                return Self.fail("Missing enabled")
+            }
+            surface.siteSettingsStore.setAutoBilingual(enabled, for: host)
+            if enabled, !BilingualReadingService.shared.isOn(tabID: tab.id) {
+                BilingualReadingService.shared.toggleInterlinear(
+                    webView: tab.browser.webView, tabID: tab.id,
+                    preference: AppState.live?.aiPreference)
+            }
+            return "Auto bilingual for \(host): \(enabled ? "on" : "off")"
         case "setSiteFont":
             guard let tab = surface.tabManager?.selectedTab,
                   let host = tab.browser.webView.url?.host, !host.isEmpty else {

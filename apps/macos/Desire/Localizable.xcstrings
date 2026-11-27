@@ -116148,6 +116148,121 @@
           }
         }
       }
+    },
+    "Auto Translate This Site":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Auto Translate This Site"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"本站自动翻译"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"本站自動翻譯"
+          }
+        }
+      }
+    },
+    "Translation cache: %lld page(s), %lld chars":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Translation cache: %lld page(s), %lld chars"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"翻译缓存：%lld 页 / %lld 字符"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"翻譯快取：%lld 頁 / %lld 字元"
+          }
+        }
+      }
+    },
+    "Clear Translation Cache":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Clear Translation Cache"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"清空翻译缓存"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"清空翻譯快取"
+          }
+        }
+      }
+    },
+    "Retry Failed Blocks":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Retry Failed Blocks"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重试失败段落"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"重試失敗段落"
+          }
+        }
+      }
+    },
+    "%lld cached":{
+      "extractionState":"manual",
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"%lld cached"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已缓存 %lld 块"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"已快取 %lld 塊"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

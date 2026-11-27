@@ -444,6 +444,10 @@ final class AgentScheduler: ObservableObject {
         var success: Bool?
         var error: String?
         var attempts: Int = 1
+        /// 实际投递用的提示词（链渲染后；重试沿用它，不会退回未渲染占位符）。
+        var prompt: String? = nil
+        /// 本回合最终回答（链交接与任务卡回看；v0.8.80 批 5）。
+        var output: String? = nil
     }
 
     @Published private(set) var runs: [RunRecord] = []
@@ -488,15 +492,19 @@ final class AgentScheduler: ObservableObject {
         ])
     }
 
-    /// 完成链（v0.8.17 替人干活 14）：任务成功后投递 chainTo 指向的任务
-    /// （存在且启用；目标正忙/不存在则静默跳过——链是便利语义不是契约）。
-    private func deliverChainedTask(after name: String) {
+    /// 完成链（v0.8.17 替人干活 14；v0.8.80 批 5 输出交接）：任务成功后投递
+    /// chainTo 指向的任务（存在且启用；目标正忙/不存在则静默跳过——链是便利
+    /// 语义不是契约）。链上提示词可用 `{{prev.*}}` 引用上一轮输出/产物。
+    private func deliverChainedTask(after name: String, output: String) {
         guard let task = tasks.first(where: { $0.name == name }),
               let chainedName = task.chainTo,
               let chained = tasks.first(where: { $0.name == chainedName }),
               chained.isEnabled else { return }
-        Log.agent.info("task chain: '\(name, privacy: .public)' → '\(chainedName, privacy: .public)'")
-        deliver(task: chained)
+        let rendered = TaskChainTemplate.render(prompt: chained.prompt,
+                                                previousTask: name,
+                                                previousOutput: output)
+        Log.agent.info("task chain: '\(name, privacy: .public)' → '\(chainedName, privacy: .public)' (output \(output.count, privacy: .public) chars)")
+        deliver(task: chained, promptOverride: rendered)
     }
 
     /// 设置完成链（工具/桥入口；A→B 直链，深度链由 B→C 续）。
@@ -507,6 +515,14 @@ final class AgentScheduler: ObservableObject {
         if let chainedName {
             guard tasks.contains(where: { $0.name == chainedName }) else {
                 return "Error: no task named \(chainedName)"
+            }
+            // 防环：沿既有链走一遍，走回自己就拒（A→B→A 会无限自动投递）。
+            var visited = Set<String>()
+            var cursor: String? = chainedName
+            while let current = cursor, !visited.contains(current) {
+                visited.insert(current)
+                if current == name { return "Error: chain would form a loop through \(name)" }
+                cursor = tasks.first(where: { $0.name == current })?.chainTo
             }
         }
         guard let idx = tasks.firstIndex(where: { $0.name == name }) else { return "Error: gone" }
@@ -539,7 +555,8 @@ final class AgentScheduler: ObservableObject {
             guard let task = self.tasks.first(where: { $0.name == taskName }),
                   task.isEnabled else { return }
             Log.agent.info("retrying scheduled task '\(taskName, privacy: .public)' (attempt \(record.attempts + 1)/\(1 + limit))")
-            self.deliver(task: task, runID: runID, attempts: record.attempts + 1)
+            self.deliver(task: task, runID: runID, attempts: record.attempts + 1,
+                         promptOverride: record.prompt)
         }
     }
 
@@ -555,11 +572,12 @@ final class AgentScheduler: ObservableObject {
             $0.success = outcome.success
             $0.status = outcome.success ? "success" : "failed"
             $0.error = outcome.error
+            $0.output = outcome.answer
         }
         guard let record = runs.first(where: { $0.id == id }) else { return }
         if outcome.success {
             BridgeEventBus.shared.publish("scheduledTaskSucceeded", ["task": record.taskName])
-            deliverChainedTask(after: record.taskName)
+            deliverChainedTask(after: record.taskName, output: outcome.answer ?? "")
         } else {
             notifyRunFailure(record)
             scheduleRetry(record)   // 内部判次数上限（1+可配 N）与退避
@@ -576,8 +594,10 @@ final class AgentScheduler: ObservableObject {
     /// attached BEFORE delivery updates the record when the agent turn ends
     /// (success, or failure with error → notification + one retry). A retry
     /// passes the SAME runID so the record accumulates attempts.
-    private func deliver(task: ScheduledTask, runID: UUID = UUID(), attempts: Int = 1) {
+    private func deliver(task: ScheduledTask, runID: UUID = UUID(), attempts: Int = 1,
+                         promptOverride: String? = nil) {
         let taskIndex = tasks.firstIndex(where: { $0.id == task.id })
+        let effectivePrompt = promptOverride ?? task.prompt
 
         // 夜间窗口（v0.8.19 替人干活 20）：任务开了"免打扰顺延"且当前在
         // quiet hours → 延到窗口结束再投（一次性 Timer，不占启动路径）。
@@ -652,7 +672,7 @@ final class AgentScheduler: ObservableObject {
         // Runner——用于在不动用户标签页的前提下验证无头执行链路。
         if AppPrefs.defaults.bool(forKey: "agent.background.force") {
             startBackground(task: task, runID: runID, attempts: attempts,
-                            taskIndex: taskIndex)
+                            taskIndex: taskIndex, prompt: effectivePrompt)
             return
         }
         let resolvedTarget = task.targetSessionID.flatMap { session(withID: $0) }
@@ -664,7 +684,7 @@ final class AgentScheduler: ObservableObject {
             // 工具循环，不再直接记 missed（关闭开关后回到旧行为）。
             if BackgroundAgentRunner.shared.isEnabled {
                 startBackground(task: task, runID: runID, attempts: attempts,
-                                taskIndex: taskIndex)
+                                taskIndex: taskIndex, prompt: effectivePrompt)
                 return
             }
             if let i = taskIndex { tasks[i].lastResult = String(localized: "missed — no agent session was open") }
@@ -706,7 +726,8 @@ final class AgentScheduler: ObservableObject {
         // prompt gets queued behind a running turn, the hook rides with the
         // queue entry and binds to its own turn — never to whichever turn
         // ends first.
-        target.deliverScheduled(task.prompt, from: task.name) { [weak self] outcome in
+        updateRun(id: runID) { $0.prompt = effectivePrompt }
+        target.deliverScheduled(effectivePrompt, from: task.name) { [weak self] outcome in
             self?.finishRun(id: runID, outcome: outcome)
         }
         if let i = taskIndex { tasks[i].lastResult = "delivered" }
@@ -715,7 +736,8 @@ final class AgentScheduler: ObservableObject {
 
     /// 无活窗口时的后台投递：无头标签 + 隐藏会话；结果回写 run 记录。
     private func startBackground(task: ScheduledTask, runID: UUID, attempts: Int,
-                                 taskIndex: Int?) {
+                                 taskIndex: Int?, prompt: String? = nil) {
+        let effectivePrompt = prompt ?? task.prompt
         if runs.firstIndex(where: { $0.id == runID }) != nil {
             updateRun(id: runID) {
                 $0.attempts = attempts
@@ -730,9 +752,10 @@ final class AgentScheduler: ObservableObject {
         }
         if let i = taskIndex { tasks[i].lastResult = "delivered (background)" }
         Self.log.info("Scheduled task '\(task.name, privacy: .public)' running in the background runner")
+        updateRun(id: runID) { $0.prompt = effectivePrompt }
         Task { @MainActor [weak self] in
             let outcome = await BackgroundAgentRunner.shared.run(
-                prompt: task.prompt, taskName: task.name)
+                prompt: effectivePrompt, taskName: task.name)
             self?.finishRun(id: runID, outcome: AgentSessionStore.TurnOutcome(
                 success: outcome.ok, error: outcome.error))
         }

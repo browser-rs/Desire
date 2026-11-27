@@ -298,3 +298,13 @@ ArtifactIndex + readArtifact 白名单，iOS 端请求/回帧按 path 对号）�
   Mac clean Debug 与 iOS 模拟器构建零警告。
 - **环境限制**：本机没有 iOS 模拟器 runtime（`simctl list runtimes` 为空），iOS 只做到
   编译 + 帧契约验证；模拟器/真机界面联调待用户参与。
+
+**批 5 进展（2026-11-27）**：定时任务链输出交接（`TaskChainTemplate` 占位符 + 产物识别，
+`RunRecord.prompt/output` 持久化、重试沿用渲染稿、成环拒绝、Mac/iOS 任务卡显示链路）；
+批量下载时段窗口（`BatchDownloadWindow` 跨午夜/总时长/并发，30s 监视器自动起停，
+手动暂停不被自动恢复，桥与远程帧、创建时带窗口）；翻译收口——替换式还原 inline code
+占位符且原文用 innerHTML 恢复；翻译缓存写路径接 LRU、翻译条显示档案/命中/token/费用 +
+缓存体量/清空 + 失败重试；站点自动双语入口（站点弹层 + 桥 + `setSiteAutoBilingual` 工具）。
+- **验收**：`batch5-e2e` 18/18（A→B 链拿到输出与产物、成环拒绝；关闭窗口立即暂停/清窗恢复；
+  替换式无 ⟦N⟧、还原保留 `<code>`；站点自动双语命中缓存出译文）；harness 4043；
+  Mac/iOS Debug 构建零警告。

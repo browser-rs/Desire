@@ -480,6 +480,8 @@ struct RemoteTask: Codable, Identifiable, Equatable {
     var recurrence: String
     var lastResult: String?
     var builtin: Bool
+    /// 成功后自动投递的下一任务（v0.8.80 批 5；旧 Mac 无此字段）。
+    var chainTo: String?
 }
 
 struct RemoteTasksFrame: Codable {
@@ -914,6 +916,14 @@ struct RemoteBatchDownloadsFrame: Codable {
         let summary: String?
         let failureReason: String?
     }
+    struct Window: Codable, Equatable {
+        let start: String
+        let end: String
+        let maxMinutes: Int
+        let maxConcurrent: Int
+        let summary: String
+        let open: Bool
+    }
     struct Batch: Codable, Identifiable, Equatable {
         let id: String
         let mode: String
@@ -927,6 +937,8 @@ struct RemoteBatchDownloadsFrame: Codable {
         let total: Int
         let items: [Item]
         let logTail: [String]
+        /// 时段窗口（v0.8.80 批 5；旧 Mac 无此字段）。
+        let window: Window?
     }
     let t: String
     let batches: [Batch]

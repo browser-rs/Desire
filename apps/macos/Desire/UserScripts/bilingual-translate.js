@@ -147,8 +147,25 @@
             var it = items[i];
             var el = document.querySelector('[data-desire-bi="' + it.id + '"]');
             if (!el) continue;
-            if (el.__desireOrig === undefined) el.__desireOrig = el.textContent;
-            el.textContent = it.text;
+            // 原文保存 innerHTML（还原时连 <code>/<a>/<b> 一起回来；
+            // 只存 textContent 会把行内代码等格式永久抹掉）。
+            if (el.__desireOrig === undefined) el.__desireOrig = el.innerHTML;
+            // inline code 占位还原（v0.8.80 批 5，S1）：替换式此前直接
+            // textContent = it.text，页面正文出现 ⟦N⟧ 乱码。与对照式同一套：
+            // 先整段 HTML 转义，再把 ⟦N⟧ 换回 collect 时的原始 code HTML。
+            var codes = codeMap[it.id];
+            if (codes && codes.length && it.text.indexOf('\u27E6') >= 0) {
+                var safe = it.text
+                    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;').replace(/'/g, '&#39;')
+                    .replace(/\u27E6(\d+)\u27E7/g, function (_, n) {
+                        var idx = parseInt(n, 10);
+                        return (idx >= 0 && idx < codes.length) ? codes[idx] : '';
+                    });
+                el.innerHTML = safe;
+            } else {
+                el.textContent = it.text;
+            }
             el.setAttribute('data-desire-bi-replaced', '1');
             applied++;
         }
@@ -160,7 +177,7 @@
         var nodes = document.querySelectorAll('[data-desire-bi-replaced]');
         for (var i = 0; i < nodes.length; i++) {
             var el = nodes[i];
-            if (el.__desireOrig !== undefined) el.textContent = el.__desireOrig;
+            if (el.__desireOrig !== undefined) el.innerHTML = el.__desireOrig;
             el.removeAttribute('data-desire-bi-replaced');
         }
         return nodes.length;

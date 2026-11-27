@@ -71,6 +71,10 @@ struct BatchMediaBatch: Identifiable {
     var items: [BatchMediaItem]
     var state: BatchState = .running
     let createdAt: Date
+    /// 时段窗口（v0.8.80 批 5）：nil = 立即跑；到点自动开始/暂停。
+    var window: BatchDownloadWindow?
+    /// 本次进入窗口的时刻（总时长上限的起算点；离开窗口后清空）。
+    var windowStartedAt: Date?
 
     var finishedCount: Int { items.filter { $0.state == .finished }.count }
     var settledCount: Int {

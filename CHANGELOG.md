@@ -5,6 +5,8 @@
 - 浏览器此前会按 ATS 拒掉非 localhost 的 http 页面（"App Transport Security policy requires…"）：Info.plist 增加 `NSAllowsArbitraryLoadsInWebContent`（只放行网页内容，应用自身的 URLSession 请求仍受 ATS 保护）。
 - 桥 `GET /permissions` 此前每次现建一个 PermissionStore（DiskStore 防抖 500ms 内读不到刚改的规则）；改走共享实例，与锁弹层/隐私矩阵同源。
 - Remote（iOS）：产物列表与内容预览改走控制帧通道（此前直连中继 `/artifacts`、`/artifacts/read`——服务端没有这两个路由，真机上产物屏不工作）；Mac 的 `ok` 确认帧不再被丢弃（成功有回执），错误改用独立横幅、不再覆盖连接状态。
+- 翻译收口：替换式翻译不再把 inline code 占位符 `⟦N⟧` 漏到正文（还原成原始 `<code>`，还原原文改用 innerHTML 保住行内格式）；翻译缓存写路径接入 LRU 淘汰（此前只增不减），翻译条显示档案/命中/token/费用并提供缓存体量与清空、失败段落重试；站点"自动双语"补上站点弹层开关、桥 `/site-settings/auto-bilingual` 与智能体工具 `setSiteAutoBilingual`。
+
 
 
 ### Added
@@ -23,6 +25,10 @@
 - Agent：自评后有客观失败证据（机械核验结论或失败/被拒的工具调用）时自动做**一次**有界答案修订，面板显示"修订中"、消息标注已修订；修订用量按 revision 旁路入账。
 - Remote（iOS）：实时标签页（当前窗口标签/分组/窗口清单，切换 / 关闭 / 搜索 / 移到另一个窗口）、体检与同步健康（Agent 体检逐项、同步逐域/冲突/设备、DPP 适配器启停）、批量下载逐项控制（暂停/恢复/跳过/重试/取消 + 日志尾）与按站点的下载记录。
 - Remote（iOS）：访问等级对齐 Mac 三档（变更前确认 / 自动编辑 / 完全访问，完全访问仍二次确认）；已配对的 Mac 支持切换与「解除当前 Mac」——每台的会话密钥独立保存，不重新扫码。
+- 定时任务链支持**输出交接**：链上下一任务的提示词可引用 `{{prev.output}}` / `{{prev.output:N}}` / `{{prev.task}}` / `{{prev.artifacts}}`（上一轮最终回答、截断版与识别出的产物路径）；任务卡显示链路，成环（A→B→A）在设置时拒绝；重试沿用渲染后的提示词。桥新增 `POST /agent/tasks/chain`。
+- 批量下载支持**时段窗口**：可设 HH:mm–HH:mm（支持跨午夜）、总时长上限与批内并发上限；到点自动暂停/继续（手动暂停不会被自动恢复），窗口与下次开窗状态在远程批量下载页可见。桥新增 `POST /media/batch/window`，创建批次时也可直接带窗口参数。
+
+
 
 
 

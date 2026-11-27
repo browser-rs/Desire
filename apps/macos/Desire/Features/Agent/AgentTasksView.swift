@@ -483,6 +483,13 @@ private struct AgentTaskCard: View {
                     .padding(.vertical, 3)
                     .background(Capsule().fill(Color.secondary.opacity(0.10)))
                 targetMenu
+                if let chain = task.chainTo {
+                    Label(chain, systemImage: "arrow.right.circle")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundStyle(.secondary)
+                        .help("After a successful run, fire \(chain) — its prompt can use {{prev.output}}")
+                        .lineLimit(1)
+                }
                 if let result = task.lastResult {
                     Text(result)
                         .font(.system(size: 10, weight: .medium))

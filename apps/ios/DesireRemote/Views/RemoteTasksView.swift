@@ -77,6 +77,11 @@ struct RemoteTasksView: View {
                     Text(task.recurrence)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                    if let chain = task.chainTo, !chain.isEmpty {
+                        Label("链 → \(chain)", systemImage: "arrow.right.circle")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                     if let last = task.lastResult, !last.isEmpty {
                         Text(last)
                             .font(.caption2)

@@ -86,8 +86,17 @@ final class BatchMediaExportStore: ObservableObject {
     /// 看门狗已发 cancel 的时刻；再过 60s 仍未收到完成回调就本机强制失败。
     private var watchdogCancelledAt: [UUID: Date] = [:]
 
-    /// 同批下载并发上限（用户可在 config 里调 1-4）。
-    private var maxConcurrentDownloads: Int { BatchMediaPreferences.maxConcurrent }
+    /// 批内并发覆盖（v0.8.80 批 5：时段窗口可单独设并发；0/缺省 = 全局）。
+    private var concurrentOverrides: [UUID: Int] = [:]
+    /// 到点自动暂停的批次（手动暂停不在此集合——监视器不会替你恢复手动暂停）。
+    private var windowPausedBatches: Set<UUID> = []
+    private var windowMonitorTask: Task<Void, Never>?
+
+    /// 同批下载并发上限：批覆盖 > 全局（用户可在 config 里调 1-4）。
+    private func maxConcurrentDownloads(for batchID: UUID) -> Int {
+        let override = concurrentOverrides[batchID] ?? 0
+        return override > 0 ? override : BatchMediaPreferences.maxConcurrent
+    }
     /// 单项总尝试次数（1 次原始 + 2 次自动重试，每次重试都换新解析地址）。
     static let maxItemAttempts = 3
     /// 自动重试前的冷却（签名地址按需签 + 冷却，避免立刻再撞墙）。
@@ -99,7 +108,16 @@ final class BatchMediaExportStore: ObservableObject {
     /// 一个页面最多展开多少条正片（防病态页面灌爆队列；此前上限 4，多视频页会丢）。
     static let maxVideosPerPage = 60
 
-    private init() {}
+    private init() {
+        // 时段窗口监视（v0.8.80 批 5）：30s 一拍，到点自动开始/暂停。
+        windowMonitorTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(30))
+                guard !Task.isCancelled else { return }
+                self?.evaluateWindows()
+            }
+        }
+    }
 
     // MARK: - 入口
 
@@ -247,7 +265,9 @@ final class BatchMediaExportStore: ObservableObject {
             folderName: folder,
             items: batchItems + skippedItems,
             state: .running,
-            createdAt: Date()
+            createdAt: Date(),
+            window: nil,
+            windowStartedAt: nil
         )
         batches.insert(batch, at: 0)
         batchUserAgents[batch.id] = userAgent
@@ -438,6 +458,7 @@ final class BatchMediaExportStore: ObservableObject {
               batches[bi].state == .running,
               !pausedBatches.contains(batchID) else { return }
         pausedBatches.insert(batchID)
+        windowPausedBatches.remove(batchID)
         engineTasks[batchID]?.cancel()
         watchdogTasks[batchID]?.cancel()
         pullBackInFlightItems(batchID, summary: "paused")
@@ -448,6 +469,7 @@ final class BatchMediaExportStore: ObservableObject {
     /// 恢复（手动暂停或挂起后）。
     func resume(batchID: UUID) {
         pausedBatches.remove(batchID)
+        windowPausedBatches.remove(batchID)
         guard let bi = batches.firstIndex(where: { $0.id == batchID }),
               batches[bi].state == .running else { return }
         Log.downloads.info("batch resumed (batch \(batchID.uuidString.prefix(8), privacy: .public))")
@@ -500,6 +522,9 @@ final class BatchMediaExportStore: ObservableObject {
         // saveRoot，恢复后整批回落默认 Downloads（用户实测）。
         var saveRoot: String? = nil
         var splitEvery: Int? = nil
+        /// 时段窗口（v0.8.80 批 5；旧文件缺键 = 立即跑）。
+        var window: BatchDownloadWindow? = nil
+        var windowStartedAt: Date? = nil
     }
 
     private static let persistenceKey = "batch-media-unfinished"
@@ -543,7 +568,8 @@ final class BatchMediaExportStore: ObservableObject {
                     )
                 },
                 state: batch.state.rawValue,
-                saveRoot: batch.saveRoot, splitEvery: batch.splitEvery
+                saveRoot: batch.saveRoot, splitEvery: batch.splitEvery,
+                window: batch.window, windowStartedAt: batch.windowStartedAt
             )
         }
         if pending.isEmpty {
@@ -608,9 +634,14 @@ final class BatchMediaExportStore: ObservableObject {
                     id: persistedBatch.id, mode: mode,
                     saveRoot: persistedBatch.saveRoot, splitEvery: persistedBatch.splitEvery,
                     folderName: folder,
-                    items: items, state: restoredState, createdAt: persistedBatch.createdAt
+                    items: items, state: restoredState, createdAt: persistedBatch.createdAt,
+                    window: persistedBatch.window,
+                    windowStartedAt: persistedBatch.windowStartedAt
                 )
                 batches.append(batch)
+                if let window = persistedBatch.window, window.maxConcurrent > 0 {
+                    concurrentOverrides[batch.id] = window.maxConcurrent
+                }
                 for item in items {
                     Log.downloads.info("RESTORE-DEBUG item \(item.numberPrefix, privacy: .public) mediaURL=\(item.mediaURL?.absoluteString ?? "nil", privacy: .public) state=\(item.state.rawValue, privacy: .public)")
                 }
@@ -635,6 +666,77 @@ final class BatchMediaExportStore: ObservableObject {
     }
 
     private var didRestore = false
+
+    // MARK: - 时段窗口（v0.8.80 批 5）
+
+    /// 设置/清除批次窗口（nil = 立即跑）。设成当前关闭的时段会立即暂停；
+    /// 设成当前开放的时段会立即恢复（只恢复"被窗口暂停"的批次）。
+    func setWindow(batchID: UUID, window: BatchDownloadWindow?) {
+        guard let idx = batches.firstIndex(where: { $0.id == batchID }) else { return }
+        batches[idx].window = window
+        batches[idx].windowStartedAt = nil
+        concurrentOverrides[batchID] = window?.maxConcurrent ?? 0
+        if let window {
+            blog(batchID, "时段窗口：\(window.summary)")
+            if window.isOpen(at: Date()) {
+                if windowPausedBatches.contains(batchID) {
+                    batches[idx].windowStartedAt = Date()
+                    resume(batchID: batchID)
+                }
+            } else {
+                pauseForWindow(batchID, reason: "outside window (\(window.startText)–\(window.endText))")
+            }
+        } else {
+            blog(batchID, "时段窗口已清除（立即执行）")
+            if windowPausedBatches.remove(batchID) != nil, batches[idx].state == .running {
+                // 清窗口 = 回到"立即跑"：窗口暂停不再成立，恢复引擎。
+                resume(batchID: batchID)
+            }
+        }
+        persistUnfinished()
+    }
+
+    /// 30s 监视：进入/离开窗口、到达总时长上限。
+    private func evaluateWindows() {
+        let now = Date()
+        for batch in batches where batch.state == .running {
+            guard let window = batch.window else { continue }
+            let id = batch.id
+            let open = window.isOpen(at: now)
+            if open {
+                if windowPausedBatches.contains(id) {
+                    if window.durationExceeded(startedAt: batch.windowStartedAt, now: now) {
+                        continue
+                    }
+                    if let idx = batches.firstIndex(where: { $0.id == id }) {
+                        batches[idx].windowStartedAt = batches[idx].windowStartedAt ?? now
+                    }
+                    blog(id, "时段窗口开放，自动继续")
+                    resume(batchID: id)
+                } else if !pausedBatches.contains(id),
+                          window.durationExceeded(startedAt: batch.windowStartedAt, now: now) {
+                    pauseForWindow(id, reason: "max duration reached (\(window.maxDurationMinutes) min)")
+                }
+            } else if !pausedBatches.contains(id) {
+                pauseForWindow(id, reason: "outside window (\(window.startText)–\(window.endText))")
+            }
+        }
+    }
+
+    private func pauseForWindow(_ batchID: UUID, reason: String) {
+        guard let idx = batches.firstIndex(where: { $0.id == batchID }),
+              batches[idx].state == .running else { return }
+        windowPausedBatches.insert(batchID)
+        if let window = batches[idx].window, window.isOpen(at: Date()) {
+            // 开窗中的暂停只会是时长上限；保留 startedAt 供下次窗口重置。
+        } else {
+            batches[idx].windowStartedAt = nil
+        }
+        blog(batchID, "时段窗口暂停：\(reason)")
+        pause(batchID: batchID)
+        // pause() 会移除 windowPaused（手动语义），这里重新认领为窗口暂停。
+        windowPausedBatches.insert(batchID)
+    }
 
     /// 取消整批：终止引擎、取消在跑的下载、收起验证窗。
     /// 更新批次的分卷规则（桥 manage add 的参数同步：追加任务的最新
@@ -854,7 +956,7 @@ final class BatchMediaExportStore: ObservableObject {
             // 所以槽满 = running == cap。
             while !Task.isCancelled, !isHalted(batchID),
                   batches.first(where: { $0.id == batchID })?
-                      .items.filter({ $0.state == .downloading }).count ?? 0 >= maxConcurrentDownloads {
+                      .items.filter({ $0.state == .downloading }).count ?? 0 >= maxConcurrentDownloads(for: batchID) {
                 try? await Task.sleep(for: .seconds(1))
             }
             guard !Task.isCancelled, !isHalted(batchID) else { return }
@@ -1073,7 +1175,7 @@ final class BatchMediaExportStore: ObservableObject {
         }
         var running = batches[bi].items.filter { $0.state == .downloading }.count
         for ii in batches[bi].items.indices {
-            guard running < maxConcurrentDownloads else { break }
+            guard running < maxConcurrentDownloads(for: batchID) else { break }
             guard batches[bi].items[ii].state == .pending,
                   let mediaURL = batches[bi].items[ii].mediaURL else { continue }
             let itemID = batches[bi].items[ii].id
@@ -1526,7 +1628,7 @@ final class BatchMediaExportStore: ObservableObject {
             ?? DPPAdapterStore.shared.downloadRules(for: sourceURL)?.rules.connections
             ?? MediaExporter.defaultConnections
         let share = max(MediaExporter.minConnections,
-                        MediaExporter.connectionBudget / max(1, maxConcurrentDownloads))
+                        MediaExporter.connectionBudget / max(1, maxConcurrentDownloads(for: batchID)))
         return max(MediaExporter.minConnections, min(wanted, share))
     }
 

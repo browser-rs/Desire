@@ -404,6 +404,15 @@ struct Toolbar: View {
                                     siteSettingsStore.setMuted(muted, for: host)
                                     tab.audioMuted = muted
                                 },
+                                setSiteAutoBilingual: { enabled in
+                                    siteSettingsStore.setAutoBilingual(enabled, for: host)
+                                    if enabled,
+                                       !BilingualReadingService.shared.isOn(tabID: tab.id) {
+                                        BilingualReadingService.shared.toggleInterlinear(
+                                            webView: tab.browser.webView, tabID: tab.id,
+                                            preference: AppState.live?.aiPreference)
+                                    }
+                                },
                                 watchPage: actions.siteControls.watchPage,
                                 recordWorkflow: actions.siteControls.recordWorkflow))
                     }

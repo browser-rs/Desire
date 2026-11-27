@@ -140,6 +140,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/AgentApproval.swift
   apps/macos/Desire/Features/Agent/ModelPrice.swift
   apps/macos/Desire/Features/Agent/RoutingAdvice.swift
+  apps/macos/Desire/Features/Agent/TaskChainTemplate.swift
   apps/macos/Desire/Features/Agent/ApprovalBatchPattern.swift
   apps/macos/Desire/Features/Agent/AnswerRevision.swift
   apps/macos/Desire/Features/Agent/CostBreakdown.swift
@@ -172,6 +173,7 @@ SOURCES=(
   apps/macos/Desire/Features/Browsing/MediaResource.swift
   apps/macos/Desire/Features/Downloads/BatchMedia.swift
   apps/macos/Desire/Features/Downloads/DownloadHistory.swift
+  apps/macos/Desire/Features/Downloads/BatchDownloadWindow.swift
   apps/macos/Desire/Features/Downloads/BatchMediaContent.swift
   apps/macos/Desire/Features/Downloads/HLSPlaylist.swift
   apps/macos/Desire/Features/Downloads/SyncedSkillPlacement.swift

@@ -262,6 +262,13 @@ extension RemoteControlStore {
             ]
             row["suspendedReason"] = store.suspensionReason(batch.id) ?? NSNull()
             row["saveRoot"] = batch.saveRoot ?? NSNull()
+            if let window = batch.window {
+                row["window"] = ["start": window.startText, "end": window.endText,
+                                 "maxMinutes": window.maxDurationMinutes,
+                                 "maxConcurrent": window.maxConcurrent,
+                                 "summary": window.summary,
+                                 "open": window.isOpen(at: Date())]
+            }
             return row
         }
         sendInner(["t": "batchDownloads", "batches": rows])

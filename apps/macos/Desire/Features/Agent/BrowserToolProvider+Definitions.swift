@@ -958,6 +958,13 @@ extension BrowserToolProvider {
                 ])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "setSiteAutoBilingual",
+                description: "Remember whether the current site should automatically open bilingual (AI) translation whenever one of its pages loads. Turning it on also starts bilingual reading on the current page. Per-site setting, persisted.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "enabled": AgentJSONSchemaValue(type: "boolean", description: "true = auto bilingual on this site; false = off"),
+                ], required: ["enabled"])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "bilingualTranslate", description: "Turn the current tab's bilingual reading mode on or off: paragraphs are translated (in batches, using the current AI profile) and each translation is inserted right below the original paragraph for side-by-side reading. Re-running on a new page reapplies automatically while on. Off removes all inserted translations.",
                 parameters: AgentJSONSchema(type: "object", properties: [
                     "on": AgentJSONSchemaValue(type: "boolean", description: "true = enable bilingual reading, false = disable"),

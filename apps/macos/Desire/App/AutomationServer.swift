@@ -549,7 +549,8 @@ final class AutomationServer {
         ep("GET", "/quickdial", "New-tab quick dial", example: "…/quickdial")
         ep("POST", "/quickdial/add", "Add dial", params: ["title:string", "url:string"], example: #"-d '{"title":"X","url":"https://a.b"}'"#)
         ep("POST", "/quickdial/delete", "Delete by URL", params: ["url:string"], example: #"-d '{"url":"https://a.b"}'"#)
-        ep("GET", "/site-settings", "Per-host zoom/darkMode/blockedSelectors", params: ["host:string"], example: "…/site-settings?host=example.com")
+        ep("GET", "/site-settings", "Per-host zoom/darkMode/blockedSelectors/mute/autoBilingual", params: ["host:string"], example: "…/site-settings?host=example.com")
+        ep("POST", "/site-settings/auto-bilingual", "Toggle automatic AI bilingual translation for a site", params: ["host:string", "enabled:bool"], example: #"-d '{"host":"example.com","enabled":true}'"#)
         ep("POST", "/site-settings/darkmode", "Set per-host dark mode", params: ["host:string", "enabled:bool"], example: #"-d '{"host":"example.com","enabled":true}'"#)
         ep("POST", "/site-settings/zoom", "Set per-host zoom", params: ["host:string", "zoom:double"], example: #"-d '{"host":"example.com","zoom":1.5}'"#)
         ep("POST", "/site-settings/font", "Per-site fonts: minFontSize (0=off)/fontFamily (''=off)/null=follow default; re-injects immediately", params: ["host", "minFontSize?", "fontFamily?"], example: #"-d '{"host":"a.b","minFontSize":16}'"#)
@@ -703,7 +704,7 @@ final class AutomationServer {
         ep("GET", "/media/exports", "Background media exports (downloadMedia) with state (each job carries its download plan: facts → method, plus the speed probe)", example: "…/media/exports")
         ep("GET", "/media/probe", "Assess a media/stream URL without downloading (read-only): facts, the method the built-in engine will use and why, measured single- vs multi-connection speed of the first segments, ETA", params: ["url:string", "connections?:int (1-32)"], example: "…/media/probe?url=https%3A%2F%2Fexample.com%2Fa%2Findex.m3u8")
         ep("POST", "/media/exports/cancel", "Cancel a running media export", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
-        ep("POST", "/media/batch", "Batch video download: mode=page queues every stream sniffed on the tab; mode=list resolves each detail-page URL in a hidden browser (serialized, Cloudflare-aware)", params: ["mode:page|list", "urls?:[string] (mode=list)", "folderName?:string", "index?:int (mode=page)"], example: #"-d '{"mode":"list","urls":["https://…/v1","https://…/v2"],"folderName":"demo"}'"#)
+        ep("POST", "/media/batch", "Batch video download: mode=page queues every stream sniffed on the tab; mode=list resolves each detail-page URL in a hidden browser (serialized, Cloudflare-aware)", params: ["mode:page|list", "urls?:[string] (mode=list)", "folderName?:string", "index?:int (mode=page)", "windowStart?:string(HH:mm)", "windowEnd?:string", "maxMinutes?:int", "maxConcurrent?:int"], example: #"-d '{"mode":"list","urls":["https://…/v1","https://…/v2"],"folderName":"demo"}'"#)
         ep("POST", "/settings/section", "Select the settings window section (automation; also opens the settings window)", params: ["section:string (general|ai|sync|remote|privacy|autofill|keyboardShortcuts|batchDownloads)"], example: #"-d '{"section":"batchDownloads"}'"#)
         ep("GET", "/settings/search", "Search the settings catalog (section/title/subtitle/keywords); returns section raw values", params: ["q:string", "limit?:int"], example: "…/settings/search?q=sync")
         ep("GET", "/research", "Ranked local research sources (current page/open tabs/page-text index/history/reading list/bookmarks) with citation numbers", params: ["q:string", "limit?:int", "scope?:all|tabs|history"], example: "…/research?q=quantum%20cookware")
@@ -720,6 +721,7 @@ final class AutomationServer {
         ep("POST", "/media/batch/retry", "Re-run a finished batch's failed items (list mode re-resolves for fresh signed URLs)", params: ["id:uuid"], example: "-d '{\"id\":\"…\"}'")
         ep("POST", "/media/batch/pause", "Pause a running batch (in-flight items return to pending)", params: ["id:uuid"], example: "-d '{\"id\":\"…\"}'")
         ep("POST", "/media/batch/resume", "Resume a paused batch", params: ["id:uuid"], example: "-d '{\"id\":\"…\"}'")
+        ep("POST", "/media/batch/window", "Set/clear a batch time window (auto start/pause, optional duration and per-batch concurrency); start/end use HH:mm, equal = all day", params: ["id:uuid", "start?:string", "end?:string", "maxMinutes?:int", "maxConcurrent?:int"], example: #"-d '{"id":"…","start":"02:00","end":"08:00","maxMinutes":360,"maxConcurrent":4}'"#)
         ep("POST", "/media/batch/add", "Append tasks to an existing batch (deduped; numbering continues)", params: ["id:uuid", "urls:[string]", "kind?:list|media", "referer?:string"], example: #"-d '{"id":"…","urls":["https://…/v13"]}'"#)
         ep("GET", "/media/batch/config", "Batch download preferences (disk reserve GB / naming / save root)", example: "…/media/batch/config")
         ep("POST", "/media/batch/config", "Set batch preferences; free space below reserveGB suspends the batch until it recovers", params: ["reserveGB?:int (default 5)", "naming?:clean|code|title", "baseDirectory?:string|null"], example: #"-d '{"reserveGB":5}'"#)
@@ -758,6 +760,7 @@ final class AutomationServer {
         ep("POST", "/agent/tasks/create", "Create task", params: ["name:string", "prompt?:string", "minutes?:int | hour+minute", "window?:uuid (target a specific window; default = newest)", "builtin?:string (weeklyReport = built-in report pipeline; prompt unused)"], example: #"-d '{"name":"t","prompt":"p","minutes":30}'"#)
         ep("POST", "/agent/tasks/remove", "Remove by name", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
         ep("POST", "/agent/tasks/fire", "Deliver prompt now (E2E)", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
+        ep("POST", "/agent/tasks/chain", "Set/clear the completion chain (A → B; B's prompt may use {{prev.output}}, {{prev.output:N}}, {{prev.task}}, {{prev.artifacts}})", params: ["name:string", "chainTo?:string (empty clears)"], example: #"-d '{"name":"collect","chainTo":"report"}'"#)
         ep("GET", "/approvals", "Pending tool approval", example: "…/approvals")
         ep("POST", "/approvals/resolve", "Resolve approval", params: ["decision:string"], example: #"-d '{"decision":"allow_once"}'"#)
         ep("POST", "/approvals/simulate", "Arm a REAL pending approval (no model turn)", example: "-d '{}'")
@@ -2319,6 +2322,13 @@ case ("GET", "/state"):
                 ))
             case ("POST", "/site-settings/font"):
                 return try Self.json(Self.setSiteFont(body: body))
+            case ("POST", "/site-settings/auto-bilingual"):
+                guard let host = Self.string(body, "host"), !host.isEmpty,
+                      let enabled = body["enabled"] as? Bool else {
+                    return try Self.json(["error": "host and enabled required"])
+                }
+                AppState.live?.siteSettingsStore.setAutoBilingual(enabled, for: host)
+                return try Self.json(["ok": true, "host": host, "autoBilingual": enabled])
             case ("POST", "/site-settings/mute"):
                 guard let host = Self.string(body, "host"), !host.isEmpty,
                       let enabled = body["enabled"] as? Bool else {
@@ -3330,6 +3340,8 @@ case ("GET", "/state"):
                 return try Self.json(Self.batchMediaPause(id: Self.string(body, "id") ?? "", paused: true))
             case ("POST", "/media/batch/resume"):
                 return try Self.json(Self.batchMediaPause(id: Self.string(body, "id") ?? "", paused: false))
+            case ("POST", "/media/batch/window"):
+                return try Self.json(Self.batchMediaWindow(body: body))
             case ("POST", "/media/batch/add"):
                 return try Self.json(Self.batchMediaAdd(
                     id: Self.string(body, "id") ?? "",
@@ -4131,6 +4143,15 @@ case ("GET", "/agent/messages"):
                 return try Self.json(Self.removeAgentTask(name: Self.string(body, "name") ?? ""))
             case ("POST", "/agent/tasks/fire"):
                 return try Self.json(Self.fireAgentTask(name: Self.string(body, "name") ?? ""))
+            case ("POST", "/agent/tasks/chain"):
+                let target = Self.string(body, "chainTo")
+                let result = AgentScheduler.shared.setChain(
+                    from: Self.string(body, "name") ?? "",
+                    to: (target?.isEmpty ?? true) ? nil : target)
+                if result.hasPrefix("Error:") {
+                    return try Self.json(["error": String(result.dropFirst("Error: ".count))])
+                }
+                return try Self.json(["ok": true, "result": result])
             case ("POST", "/memory/search"):
                 return try Self.json(Self.searchMemory(query: Self.string(body, "query") ?? ""))
             case ("POST", "/memory/export"):
@@ -6316,6 +6337,7 @@ case ("GET", "/agent/messages"):
                 zoomIn: {}, zoomOut: {}, zoomReset: {}, toggleDarkMode: {}, toggleAutoPlay: {},
                 editFont: {}, manageBlocked: {}, clearOverrides: {},
                 toggleReader: {}, fillAddress: { _ in }, setSiteMuted: { _ in },
+                setSiteAutoBilingual: { _ in },
                 watchPage: {}, recordWorkflow: {})
             let size = NSSize(width: max(300, width ?? 340), height: max(400, height ?? 900))
             let hostView = NSHostingView(
@@ -7221,6 +7243,8 @@ case ("GET", "/agent/messages"):
         return ["host": host,
                 "zoom": store.zoom(for: host),
                 "darkMode": store.darkModeEnabled(for: host),
+                "autoBilingual": store.autoBilingual(for: host),
+                "muted": store.isMuted(for: host),
                 "blockedSelectors": store.blockedSelectors(for: host),
                 // 生效值（站点覆盖或全局默认解析后）+ 站点显式值（null = 跟随默认）。
                 "minFontSize": font.minFontSize,
@@ -10193,6 +10217,7 @@ case ("GET", "/agent/messages"):
                 directory: directory,
                 splitEvery: (body["splitEvery"] as? Int)
             )
+            Self.applyBatchWindow(body: body, batchID: batch.id)
             return ["ok": true, "batchId": batch.id.uuidString, "folder": batch.folderName,
                     "queued": batch.items.filter { $0.state == .pending }.count,
                     "skipped": batch.items.filter { $0.state == .skipped }.count]
@@ -10218,6 +10243,7 @@ case ("GET", "/agent/messages"):
                 directory: directory,
                 splitEvery: (body["splitEvery"] as? Int)
             )
+            Self.applyBatchWindow(body: body, batchID: batch.id)
             return ["ok": true, "batchId": batch.id.uuidString, "folder": batch.folderName,
                     "queued": batch.items.filter { $0.state == .pending }.count,
                     "skipped": batch.items.filter { $0.state == .skipped }.count]
@@ -10371,6 +10397,13 @@ case ("GET", "/agent/messages"):
                 "paused": store.isPaused(batch.id),
             ]
             if let split = batch.splitEvery, split > 0 { row["splitEvery"] = split }
+            if let window = batch.window {
+                row["window"] = ["start": window.startText, "end": window.endText,
+                                 "maxMinutes": window.maxDurationMinutes,
+                                 "maxConcurrent": window.maxConcurrent,
+                                 "summary": window.summary,
+                                 "open": window.isOpen(at: Date())]
+            }
             if let reason = store.suspensionReason(batch.id) { row["suspended"] = reason }
             row["items"] = batch.items.map { item -> [String: Any] in
                 var itemRow: [String: Any] = [
@@ -10404,6 +10437,43 @@ case ("GET", "/agent/messages"):
             BatchMediaExportStore.shared.resume(batchID: uuid)
         }
         return ["ok": true]
+    }
+
+    /// 创建批次时顺带设置窗口（v0.8.80 批 5；body 带 windowStart/windowEnd）。
+    private static func applyBatchWindow(body: [String: Any], batchID: UUID) {
+        let start = (Self.string(body, "windowStart") ?? "").trimmingCharacters(in: .whitespaces)
+        let end = (Self.string(body, "windowEnd") ?? "").trimmingCharacters(in: .whitespaces)
+        guard !start.isEmpty, !end.isEmpty,
+              let window = BatchDownloadWindow(
+                  start: start, end: end,
+                  maxDurationMinutes: body["maxMinutes"] as? Int ?? 0,
+                  maxConcurrent: body["maxConcurrent"] as? Int ?? 0) else { return }
+        BatchMediaExportStore.shared.setWindow(batchID: batchID, window: window)
+    }
+
+    /// 时段窗口（v0.8.80 批 5）：start/end 为空 = 清除。
+    private static func batchMediaWindow(body: [String: Any]) -> [String: Any] {
+        guard let id = Self.string(body, "id"), let uuid = UUID(uuidString: id) else {
+            return ["error": "bad id"]
+        }
+        let start = (Self.string(body, "start") ?? "").trimmingCharacters(in: .whitespaces)
+        let end = (Self.string(body, "end") ?? "").trimmingCharacters(in: .whitespaces)
+        if start.isEmpty || end.isEmpty {
+            BatchMediaExportStore.shared.setWindow(batchID: uuid, window: nil)
+            return ["ok": true, "window": NSNull()]
+        }
+        guard let window = BatchDownloadWindow(
+            start: start, end: end,
+            maxDurationMinutes: body["maxMinutes"] as? Int ?? 0,
+            maxConcurrent: body["maxConcurrent"] as? Int ?? 0) else {
+            return ["error": "start/end must be HH:mm"]
+        }
+        BatchMediaExportStore.shared.setWindow(batchID: uuid, window: window)
+        return ["ok": true, "window": ["start": window.startText, "end": window.endText,
+                                       "maxMinutes": window.maxDurationMinutes,
+                                       "maxConcurrent": window.maxConcurrent,
+                                       "summary": window.summary,
+                                       "open": window.isOpen(at: Date())]]
     }
 
     /// 向既有批次追加任务。kind=list（默认）→ urls 是详情页；kind=media →
@@ -10567,8 +10637,12 @@ case ("GET", "/agent/messages"):
 
     private static func agentTasks() throws -> [String: Any] {
         let tasks = AgentScheduler.shared.tasks.map { t -> [String: Any] in
-            ["name": t.name, "prompt": t.prompt, "enabled": t.isEnabled,
-             "recurrence": t.recurrenceText, "lastResult": t.lastResult ?? ""]
+            var row: [String: Any] = ["name": t.name, "prompt": t.prompt, "enabled": t.isEnabled,
+                                      "recurrence": t.recurrenceText,
+                                      "lastResult": t.lastResult ?? ""]
+            row["chainTo"] = t.chainTo ?? NSNull()
+            row["builtin"] = t.builtin ?? NSNull()
+            return row
         }
         return ["tasks": tasks]
     }

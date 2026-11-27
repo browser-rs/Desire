@@ -39,6 +39,20 @@ struct RemoteBatchDownloadsView: View {
                     .font(.caption2.weight(.medium))
                     .foregroundStyle(batch.paused ? .orange : .secondary)
             }
+            if let window = batch.window {
+                HStack(spacing: 5) {
+                    Image(systemName: window.open ? "clock.badge.checkmark" : "clock.badge.xmark")
+                        .font(.caption2)
+                    Text("窗口 \(window.summary)")
+                        .font(.caption2)
+                    if !window.open {
+                        Text("下次开窗自动继续")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .foregroundStyle(window.open ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.orange))
+            }
             if let reason = batch.suspendedReason, !reason.isEmpty {
                 Text(reason).font(.caption2).foregroundStyle(.orange)
             }

@@ -119961,6 +119961,138 @@
           }
         }
       }
+    },
+    "Edit card":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Edit card"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"编辑卡"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"編輯卡"
+          }
+        }
+      }
+    },
+    "Edit Payment Card":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Edit Payment Card"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"编辑支付卡"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"編輯支付卡"
+          }
+        }
+      }
+    },
+    "Card number (leave blank to keep)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Card number (leave blank to keep)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"卡号（留空保持不变）"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"卡號（留空保持不變）"
+          }
+        }
+      }
+    },
+    "Leave the card number blank to keep the current number. CVV is never stored.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Leave the card number blank to keep the current number. CVV is never stored."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"卡号留空即保留原卡号；CVV 永不存储。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"卡號留空即保留原卡號；CVV 永不儲存。"
+          }
+        }
+      }
+    },
+    "This card no longer exists.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"This card no longer exists."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"这张卡已不存在。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"這張卡已不存在。"
+          }
+        }
+      }
+    },
+    "Download priority":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Download priority"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"下载优先级"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"下載優先級"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

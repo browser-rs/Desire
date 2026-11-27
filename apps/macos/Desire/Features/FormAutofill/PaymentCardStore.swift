@@ -53,6 +53,37 @@ final class PaymentCardStore: ObservableObject {
         save()
     }
 
+    /// 编辑/续期（v0.8.83）：保留卡片 id 与 createdAt；`number` 为 nil 表示
+    /// 只改元数据。换卡号时先写新值，失败则不改任何元数据（原子语义）。
+    @discardableResult
+    func update(_ card: PaymentCard, label: String, cardholder: String,
+                number: String?, expiryMonth: Int, expiryYear: Int) throws -> PaymentCard {
+        guard let index = cards.firstIndex(where: { $0.id == card.id }) else {
+            throw CardError.missingCard
+        }
+        let holder = cardholder.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !holder.isEmpty else { throw CardError.missingName }
+        guard PaymentCardNumber.expiryValid(month: expiryMonth, year: expiryYear) else {
+            throw CardError.invalidExpiry
+        }
+        var updated = cards[index]
+        updated.label = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        updated.cardholder = holder
+        updated.expiryMonth = expiryMonth
+        updated.expiryYear = expiryYear < 100 ? 2000 + expiryYear : expiryYear
+        if let number, !number.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let raw = PaymentCardNumber.digits(number)
+            guard PaymentCardNumber.luhnValid(raw) else { throw CardError.invalidNumber }
+            let status = KeychainService.write(raw, account: account(card.id), service: service)
+            guard status == errSecSuccess else { throw CardError.keychain(status) }
+            updated.brand = PaymentCardNumber.brand(raw)
+            updated.last4 = PaymentCardNumber.last4(raw)
+        }
+        cards[index] = updated
+        save()
+        return updated
+    }
+
     /// 显式填充动作才读卡号（一次一条）。
     func number(for card: PaymentCard, interactive: Bool = true) -> String? {
         KeychainService.readString(account: account(card.id), service: service,
@@ -87,6 +118,7 @@ final class PaymentCardStore: ObservableObject {
         case invalidNumber
         case missingName
         case invalidExpiry
+        case missingCard
         case keychain(OSStatus)
 
         var errorDescription: String? {
@@ -94,6 +126,7 @@ final class PaymentCardStore: ObservableObject {
             case .invalidNumber: String(localized: "Card number is invalid.")
             case .missingName: String(localized: "Cardholder name is required.")
             case .invalidExpiry: String(localized: "Expiry date is invalid or already past.")
+            case .missingCard: String(localized: "This card no longer exists.")
             case .keychain: String(localized: "Could not save the card number to the keychain.")
             }
         }

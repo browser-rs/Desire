@@ -626,6 +626,7 @@ final class AutomationServer {
         ep("POST", "/passwords/archive/import", "Import an encrypted password archive (base64); existing site+username entries are kept", params: ["data:string", "password:string"], example: #"-d '{"data":"…","password":"archive-pass"}'"#)
         ep("GET", "/payment-cards", "Payment card metadata (brand/last4/expiry; never the number)", example: "…/payment-cards")
         ep("POST", "/payment-cards/add", "Add a payment card (number goes to the keychain; CVV is never accepted)", params: ["label?:string", "holder:string", "number:string", "month:int", "year:int"], example: #"-d '{"holder":"A","number":"4242424242424242","month":12,"year":2030}'"#)
+        ep("POST", "/payment-cards/update", "Edit a card (number omitted/empty keeps the current number)", params: ["id:uuid", "label?:string", "holder?:string", "number?:string", "month?:int", "year?:int"], example: #"-d '{"id":"…","label":"Travel"}'"#)
         ep("POST", "/payment-cards/delete", "Delete a payment card by id", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("GET", "/autofill/profiles", "Address profiles: the working copy plus saved ones (id/label/summary)", example: "…/autofill/profiles")
         ep("POST", "/autofill/save-current", "Save the working address profile into the library (upsert by id)", example: "-d '{}'")
@@ -2380,6 +2381,25 @@ case ("GET", "/state"):
                     }
                     return try Self.json(["ok": true, "id": card.id.uuidString,
                                           "brand": card.brand, "last4": card.last4])
+                } catch {
+                    return try Self.json(["error": error.localizedDescription])
+                }
+            case ("POST", "/payment-cards/update"):
+                guard let id = Self.string(body, "id").flatMap(UUID.init(uuidString:)),
+                      let card = PaymentCardStore.shared.cards.first(where: { $0.id == id }) else {
+                    return try Self.json(["error": "no such card"])
+                }
+                do {
+                    let updated = try PaymentCardStore.shared.update(
+                        card,
+                        label: Self.string(body, "label") ?? card.label,
+                        cardholder: Self.string(body, "holder") ?? card.cardholder,
+                        number: Self.string(body, "number"),
+                        expiryMonth: body["month"] as? Int ?? card.expiryMonth,
+                        expiryYear: body["year"] as? Int ?? card.expiryYear)
+                    return try Self.json(["ok": true, "id": updated.id.uuidString,
+                                          "brand": updated.brand, "last4": updated.last4,
+                                          "month": updated.expiryMonth, "year": updated.expiryYear])
                 } catch {
                     return try Self.json(["error": error.localizedDescription])
                 }

@@ -25,6 +25,8 @@ struct TabOverviewView: View {
     var onResumeTab: ((Int) -> Void)? = nil
     @State private var searchText = ""
     @State private var selectedGroupID: UUID?
+    /// 键盘导航（v0.8.83）：焦点落在瓦片上，方向键移动、回车切换、空格关闭。
+    @FocusState private var focusedTabID: UUID?
 
     /// 瓦片内 webview 的基准布局尺寸（页面按此宽度渲染，再整体缩小）。
     private static let baseSize = CGSize(width: 1280, height: 800)
@@ -90,6 +92,25 @@ struct TabOverviewView: View {
         }
         .background(Color(red: 0.13, green: 0.16, blue: 0.21).onTapGesture { onClose() })
         .onExitCommand { onClose() } // Esc
+        .onAppear { focusPreferredTab() }
+        .onChange(of: searchText) { _, _ in focusPreferredTab() }
+        .onChange(of: selectedGroupID) { _, _ in focusPreferredTab() }
+    }
+
+    private func focusPreferredTab() {
+        if let selected = tabManager.selectedTab?.id,
+           filteredTabs.contains(where: { $0.tab.id == selected }) {
+            focusedTabID = selected
+        } else {
+            focusedTabID = filteredTabs.first?.tab.id
+        }
+    }
+
+    private func moveFocus(_ delta: Int) {
+        let tabs = filteredTabs
+        guard !tabs.isEmpty else { focusedTabID = nil; return }
+        let current = tabs.firstIndex(where: { $0.tab.id == focusedTabID }) ?? 0
+        focusedTabID = tabs[min(max(current + delta, 0), tabs.count - 1)].tab.id
     }
 
     /// 顶部过滤条：搜索 + 分组胶囊。分组菜单可整组挂起（跳过当前选中标签）。
@@ -260,6 +281,29 @@ struct TabOverviewView: View {
             }
             .onHover { hovering in hoverStates[tab.id] = hovering }
         }
+        .focusable()
+        .focused($focusedTabID, equals: tab.id)
+        .onKeyPress(.leftArrow) { moveFocus(-1); return .handled }
+        .onKeyPress(.rightArrow) { moveFocus(1); return .handled }
+        .onKeyPress(.upArrow) { moveFocus(-Self.columns); return .handled }
+        .onKeyPress(.downArrow) { moveFocus(Self.columns); return .handled }
+        .onKeyPress(.return) {
+            onSelectTab(index)
+            onClose()
+            return .handled
+        }
+        .onKeyPress(.space) {
+            onCloseTab(index)
+            return .handled
+        }
+        .onKeyPress(.escape) {
+            onClose()
+            return .handled
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(AnyShapeStyle(.tint), lineWidth: focusedTabID == tab.id ? 2 : 0)
+        )
     }
 
     /// 挂起管理（v0.8.19 基础件 6）：瓦片右键挂起/唤醒/关闭；

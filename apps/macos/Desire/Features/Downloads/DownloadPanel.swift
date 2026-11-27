@@ -847,6 +847,14 @@ private struct DownloadRow: View {
                     .background(Circle().fill(Color.purple))
                     .help("Incognito download — not saved to history")
             }
+            if item.priority != .normal {
+                Label(item.priority == .high ? String(localized: "High") : String(localized: "Low"),
+                      systemImage: item.priority == .high ? "arrow.up.circle.fill" : "arrow.down.circle")
+                    .font(.system(size: 8.5, weight: .semibold))
+                    .foregroundStyle(item.priority == .high ? appAccent : .secondary)
+                    .labelStyle(.titleAndIcon)
+                    .help(String(localized: "Download priority"))
+            }
         }
     }
 

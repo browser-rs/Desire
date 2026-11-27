@@ -30,7 +30,7 @@ struct AgentTasksView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 8) {
-                        windowTimeline
+                        weekCalendarSection
                         nextRunsSection
                         runTimeline
                         ForEach(store.tasks) { task in
@@ -48,50 +48,159 @@ struct AgentTasksView: View {
         }
     }
 
-    /// 值守窗口（v0.8.82 批 4）：批量下载/普通下载的时段窗口统一展示。
-    private var windowTimeline: some View {
-        let now = Date()
-        let batches = batchStore.batches.compactMap { batch -> (String, BatchDownloadWindow, Bool)? in
-            guard let window = batch.window else { return nil }
-            return ("Batch · \(batch.folderName)", window, window.isOpen(at: now))
-        }
-        let download = DownloadStore.live?.downloadWindow.map {
-            ("Downloads", $0, $0.isOpen(at: now))
-        }
-        let rows = batches + (download.map { [$0] } ?? [])
-        return Group {
-            if !rows.isEmpty {
-                VStack(alignment: .leading, spacing: 5) {
-                    HStack(spacing: 5) {
-                        Image(systemName: "clock.badge.checkmark")
-                            .font(.system(size: 10))
-                            .foregroundStyle(appAccent)
-                        Text(String(localized: "Time windows"))
-                            .font(.system(size: 10.5, weight: .semibold))
-                            .foregroundStyle(.secondary)
-                        Spacer()
+    /// 值守周视图（v0.8.83 批 4）：7 天网格里同时看任务运行点与批量/下载
+    /// 时段窗口；拥挤日与真实重叠（建议错峰）都标出来，只读不改调度。
+    private var weekCalendarSection: some View {
+        let week = SurveillanceWeek.build(
+            from: Date(),
+            days: 7,
+            tasks: store.tasks.filter(\.isEnabled).map {
+                SurveillanceWeek.TaskInput(name: $0.name,
+                                           rule: Self.scheduleRule($0.recurrence))
+            },
+            windows: weekWindowInputs)
+        return VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 5) {
+                Image(systemName: "calendar.badge.clock")
+                    .font(.system(size: 10))
+                    .foregroundStyle(appAccent)
+                Text(String(localized: "Next 7 days"))
+                    .font(.system(size: 10.5, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                if !week.conflicts.isEmpty {
+                    Text(String(localized: "\(week.conflicts.count) overlap(s)"))
+                        .font(.system(size: 9.5, weight: .medium))
+                        .foregroundStyle(.orange)
+                }
+            }
+            ScrollView(.horizontal, showsIndicators: true) {
+                HStack(alignment: .top, spacing: 6) {
+                    ForEach(week.days) { day in
+                        weekDayCard(day)
                     }
-                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
-                        HStack(spacing: 6) {
-                            Image(systemName: row.2 ? "play.circle.fill" : "pause.circle")
-                                .font(.system(size: 9))
-                                .foregroundStyle(row.2 ? .green : .orange)
-                            Text(row.0)
-                                .font(.system(size: 10.5))
-                                .lineLimit(1)
-                            Spacer()
-                            Text(row.1.summary)
-                                .font(.system(size: 9.5, design: .monospaced))
-                                .foregroundStyle(.tertiary)
+                }
+            }
+            if !week.conflicts.isEmpty {
+                VStack(alignment: .leading, spacing: 3) {
+                    ForEach(week.conflicts.prefix(5)) { conflict in
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .font(.system(size: 8))
+                                .foregroundStyle(.orange)
+                            Text(String(localized: "\(Self.weekdayFormatter.string(from: conflict.day)) · \(conflict.first) × \(conflict.second) · \(conflict.overlapMinutes) min — consider staggering"))
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                 }
-                .padding(10)
-                .background(RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.6)))
             }
         }
+        .padding(10)
+        .background(RoundedRectangle(cornerRadius: 8)
+            .fill(Color(nsColor: .controlBackgroundColor).opacity(0.6)))
     }
+
+    private func weekDayCard(_ day: SurveillanceWeek.Day) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(spacing: 4) {
+                Text(Self.weekdayFormatter.string(from: day.date))
+                    .font(.system(size: 9.5, weight: .semibold))
+                Text(Self.dayFormatter.string(from: day.date))
+                    .font(.system(size: 9.5, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
+                if day.isCrowded {
+                    Image(systemName: "person.3.fill")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.orange)
+                        .help(String(localized: "Crowded day — many runs and windows overlap"))
+                }
+            }
+            if day.entries.isEmpty {
+                Text(verbatim: "—")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
+            } else {
+                ForEach(day.entries.prefix(5)) { entry in
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(weekTint(entry.kind))
+                            .frame(width: 4, height: 4)
+                        Text(entry.label)
+                            .font(.system(size: 8.5))
+                            .lineLimit(1)
+                        Spacer(minLength: 2)
+                        if entry.kind == .task {
+                            Text(Self.clockFormatter.string(from: entry.start))
+                                .font(.system(size: 8, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                    .help("\(entry.label) · \(Self.clockFormatter.string(from: entry.start))–\(Self.clockFormatter.string(from: entry.end))")
+                }
+                if day.entries.count > 5 {
+                    Text(String(localized: "+\(day.entries.count - 5) more"))
+                        .font(.system(size: 8.5))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+        }
+        .frame(width: 96, alignment: .leading)
+        .padding(6)
+        .background(RoundedRectangle(cornerRadius: 6)
+            .fill(day.hasConflict
+                  ? AnyShapeStyle(Color.orange.opacity(0.08))
+                  : AnyShapeStyle(Color(nsColor: .windowBackgroundColor).opacity(0.5))))
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(day.hasConflict ? Color.orange.opacity(0.35) : Color.secondary.opacity(0.12),
+                        lineWidth: 0.5))
+    }
+
+    private func weekTint(_ kind: SurveillanceWeek.Kind) -> Color {
+        switch kind {
+        case .task: appAccent
+        case .batch: .orange
+        case .downloads: .blue
+        }
+    }
+
+    private var weekWindowInputs: [SurveillanceWeek.WindowInput] {
+        var inputs = batchStore.batches.compactMap { batch -> SurveillanceWeek.WindowInput? in
+            guard let window = batch.window else { return nil }
+            return .init(label: "Batch · \(batch.folderName)", kind: .batch, window: window)
+        }
+        if let download = DownloadStore.live?.downloadWindow {
+            inputs.append(.init(label: String(localized: "Downloads"),
+                                kind: .downloads, window: download))
+        }
+        return inputs
+    }
+
+    private static func scheduleRule(
+        _ recurrence: AgentScheduler.ScheduledTask.Recurrence
+    ) -> ScheduleDue.Rule {
+        switch recurrence {
+        case .everyMinutes(let minutes): .everyMinutes(minutes)
+        case .daily(let hour, let minute): .daily(hour: hour, minute: minute)
+        case .weekly(let weekday, let hour, let minute):
+            .weekly(weekday: weekday, hour: hour, minute: minute)
+        }
+    }
+
+    private static let clockFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "HH:mm"
+        return formatter
+    }()
+
+    private static let dayFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "d"
+        return formatter
+    }()
 
     /// 下一次运行（v0.8.82 批 2）：任务日历的紧凑版——最近 3 次。
     private var nextRunsSection: some View {

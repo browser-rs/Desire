@@ -407,7 +407,7 @@ final class AutomationServer {
         ep("GET", "/conversations", "Newest agent conversations (id/title/messages/firstMessage) — pair with /conversations/delete for cleanup", params: ["limit?:int (default 20)"], example: "…/conversations?limit=5")
         ep("GET", "/media/batch/log", "Full per-batch download log (create/resolve/download/merge/pause/fail, newest last)", params: ["id:string (batch uuid)", "tail?:int (default all)"], example: "…/media/batch/log?id=…")
         ep("POST", "/media/batch/manage", "Manage a batch directly (no agent round-trip): pause/resume/cancel/skip; batchId/itemId accept 8-char short ids", params: ["action:pause|resume|cancel|skip|remove", "batchId:string", "itemId?:string"], example: #"-d '{"action":"pause","batchId":"76a91071"}'"#)
-        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats|inbox|workspaces|whiteboard|syncchecklist|skillpatch|dppstudio|downloadhistory|sitecontrols|…)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
+        ep("GET", "/panel/snapshot", "In-process PNG of an open panel (capture-shield safe)", params: ["name:string (downloads|devtools|agentstats|agenttasks|inbox|workspaces|whiteboard|syncchecklist|skillpatch|dppstudio|downloadhistory|sitecontrols|…)", "tab?:string (devtools)", "w?/h?:number"], example: "…/panel/snapshot?name=devtools&tab=network")
         ep("POST", "/command", "Drive any BrowserCommand (menu actions)", params: ["name:string (zoomIn/newTab/bookmarkPage/toggleReader/addSelectionToWhiteboard/…)", "index?:int (selectTab)"], example: #"-d '{"name":"newTab"}'"#)
         // Downloads
         ep("GET", "/downloads", "Rows: id/file/state/paused/bytes/total/private", example: "…/downloads")
@@ -6563,6 +6563,10 @@ case ("GET", "/agent/messages"):
             // 这一页在**窄面板**下最容易挤坏，要能按 420/900 两种宽度各拍一张。
             return try await agentStatsSnapshot(width: width ?? 420, height: height ?? 900)
         }
+        if name == "agenttasks" {
+            // 值守周视图（v0.8.83 批 4）：宽/窄两档各拍一张，确认 7 天网格不挤坏。
+            return try await agentTasksSnapshot(width: width ?? 420, height: height ?? 900)
+        }
         if name == "skillpatch" {
             // 技能修正建议条（v0.8.76 批 4）：用收件箱里现成的补丁卡离屏直拍。
             // 成图写进存储根（封闭启动时即 data-dir）——不往用户主目录落文件。
@@ -6848,6 +6852,34 @@ case ("GET", "/agent/messages"):
             return ["error": "encode failed"]
         }
         let path = NSHomeDirectory() + "/desire_workspaces.png"
+        try png.write(to: URL(fileURLWithPath: path))
+        return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
+    }
+
+    /// 值守周视图快照（v0.8.83 批 4）：离屏宿主直拍，宽/窄两档验收 7 天网格。
+    private static func agentTasksSnapshot(width: CGFloat, height: CGFloat) async throws -> [String: Any] {
+        guard AppState.live != nil else { return ["error": "app state not ready"] }
+        let size = NSSize(width: max(320, width), height: max(400, height))
+        let host = NSHostingView(
+            rootView: AgentTasksView(onBack: {})
+                .appAccent(AppAccent.current)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .frame(width: size.width, height: size.height)
+        )
+        host.frame = NSRect(origin: .zero, size: size)
+        host.appearance = NSApp.windows.first { $0.isVisible && $0.frame.width > 800 }?.effectiveAppearance
+            ?? NSApp.effectiveAppearance
+        host.layoutSubtreeIfNeeded()
+        try? await Task.sleep(for: .milliseconds(220))
+        host.layoutSubtreeIfNeeded()
+        guard let rep = host.bitmapImageRepForCachingDisplay(in: host.bounds) else {
+            return ["error": "bitmap alloc failed"]
+        }
+        host.cacheDisplay(in: host.bounds, to: rep)
+        guard let png = rep.representation(using: .png, properties: [:]) else {
+            return ["error": "encode failed"]
+        }
+        let path = StorageRoot.directory.appendingPathComponent("agenttasks-panel.png").path
         try png.write(to: URL(fileURLWithPath: path))
         return ["path": path, "width": rep.pixelsWide, "height": rep.pixelsHigh]
     }

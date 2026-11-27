@@ -120530,6 +120530,98 @@
           }
         }
       }
+    },
+    "Next 7 days": {
+      "comment": "Surveillance week header",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Next 7 days"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未来 7 天"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未來 7 天"
+          }
+        }
+      }
+    },
+    "%lld overlap(s)": {
+      "comment": "Surveillance week conflict count",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld overlap(s)"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 处重叠"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 處重疊"
+          }
+        }
+      }
+    },
+    "Crowded day — many runs and windows overlap": {
+      "comment": "Surveillance week crowded badge",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Crowded day — many runs and windows overlap"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拥挤日：多个运行与窗口重叠。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "擁擠日：多個執行與視窗重疊。"
+          }
+        }
+      }
+    },
+    "%@ · %@ × %@ · %lld min — consider staggering": {
+      "comment": "Surveillance week conflict row (day · first × second · minutes)",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %@ × %@ · %lld min — consider staggering"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %@ × %@ · 重叠 %lld 分钟，建议错峰。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%@ · %@ × %@ · 重疊 %lld 分鐘，建議錯峰。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

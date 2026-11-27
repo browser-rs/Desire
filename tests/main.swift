@@ -14357,6 +14357,48 @@ do {
           interval[1].timeIntervalSince(interval[0]) == 1_800)
 }
 
+// 值守周视图（v0.8.83 批 4）：任务点/时段窗口归并、拥挤日与真实重叠。
+do {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "UTC")!
+    func day(_ day: Int, _ hour: Int = 0, _ minute: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 11, day: day,
+                                           hour: hour, minute: minute))!
+    }
+    let task = SurveillanceWeek.TaskInput(name: "晨报", rule: .daily(hour: 9, minute: 0))
+    let window = SurveillanceWeek.WindowInput(
+        label: "Downloads", kind: .downloads,
+        window: BatchDownloadWindow(startMinute: 8 * 60, endMinute: 10 * 60))
+    let week = SurveillanceWeek.build(from: day(27), days: 1, calendar: calendar,
+                                      tasks: [task], windows: [window])
+    check("周视图：任务与窗口都进当天",
+          week.days.count == 1 && week.days[0].entries.count == 2)
+    check("周视图：09:00 落在 08–10 窗口 → 重叠 5 分钟（任务点时长）",
+          week.days[0].hasConflict
+          && week.conflicts.count == 1
+          && week.conflicts[0].overlapMinutes == 5)
+
+    let cross = SurveillanceWeek.WindowInput(
+        label: "Batch", kind: .batch,
+        window: BatchDownloadWindow(startMinute: 22 * 60, endMinute: 6 * 60))
+    let crossWeek = SurveillanceWeek.build(from: day(27), days: 1, calendar: calendar,
+                                           tasks: [], windows: [cross])
+    check("周视图：跨午夜窗口拆两段且不自相冲突",
+          crossWeek.days[0].entries.count == 2 && crossWeek.conflicts.isEmpty)
+
+    let many = (1...5).map { SurveillanceWeek.TaskInput(
+        name: "任务\($0)", rule: .daily(hour: 9, minute: 0)) }
+    let crowded = SurveillanceWeek.build(from: day(27), days: 1, calendar: calendar,
+                                         tasks: many, windows: [],
+                                         crowdedThreshold: 4)
+    check("周视图：超过阈值标拥挤", crowded.days[0].isCrowded)
+
+    let empty = SurveillanceWeek.build(from: day(27), days: 7, calendar: calendar,
+                                       tasks: [], windows: [])
+    check("周视图：空输入 7 天 0 事件", empty.days.count == 7
+          && empty.days.allSatisfy { $0.entries.isEmpty })
+}
+
 // 支付卡校验（v0.8.82 批 3）：Luhn / 品牌 / 有效期。
 do {
     check("支付卡：Luhn 正确与错误",

@@ -13909,6 +13909,106 @@ do {
           && !AnswerRevision.accepts(revised: "   ", original: "答案"))
 }
 
+// Remote 控制帧契约（v0.8.80 批 4）：Mac 发出的字段与 iOS 线路模型逐一对齐。
+do {
+    let decoder = JSONDecoder()
+    let tabs = try decoder.decode(RemoteTabsFrame.self, from: Data(#"""
+    {"t":"tabs","activeWindow":"1234abcd","windows":[{"id":"1234abcd","title":"Desire","tabs":2,"active":true}],
+     "groups":[{"name":"Work","colorIndex":5,"collapsed":true,"count":1}],
+     "tabs":[{"id":"11111111-1111-1111-1111-111111111111","title":"A","url":"https://a.example/",
+              "group":"Work","groupColor":5,"groupCollapsed":true,"selected":true,"loading":false,
+              "muted":false,"playing":true,"incognito":false,"suspended":false},
+             {"id":"22222222-2222-2222-2222-222222222222","title":"B","url":"https://b.example/",
+              "selected":false,"loading":true,"muted":true,"playing":false,
+              "incognito":false,"suspended":false}]}
+    """#.utf8))
+    check("Remote 帧：标签页（分组/窗口/播放/静音）",
+          tabs.tabs.count == 2 && tabs.groups.first?.name == "Work"
+          && tabs.tabs[0].group == "Work" && tabs.tabs[0].playing
+          && tabs.tabs[1].muted && tabs.windows.first?.active == true)
+
+    let artifacts = try decoder.decode(ArtifactsResponse.self, from: Data(#"""
+    {"t":"artifacts","ok":true,"count":1,"artifacts":[{"path":"/tmp/out.md","kind":"data",
+      "jobId":"33333333-3333-3333-3333-333333333333","jobTitle":"export",
+      "conversationId":"","at":"2026-11-27T10:00:00Z","sizeBytes":12}]}
+    """#.utf8))
+    check("Remote 帧：产物列表（ISO 时间 + 可选尺寸）",
+          artifacts.artifacts.first?.path == "/tmp/out.md"
+          && artifacts.artifacts.first?.sizeBytes == 12
+          && artifacts.artifacts.first?.displayName == "out.md")
+
+    let content = try decoder.decode(ArtifactContentFrame.self, from: Data(#"""
+    {"t":"artifactContent","path":"/tmp/out.md","ok":true,"mime":"text/plain",
+     "sizeBytes":12,"content":"hello world\n"}
+    """#.utf8))
+    check("Remote 帧：产物内容（按 path 对号）",
+          content.path == "/tmp/out.md" && content.ok == true && content.content == "hello world\n")
+
+    let doctor = try decoder.decode(RemoteDoctorFrame.self, from: Data(#"""
+    {"t":"doctor","ok":false,"passed":1,"total":2,
+     "checks":[{"name":"模型服务","ok":true,"detail":"ok"},
+               {"name":"端点可达","ok":false,"detail":"timeout"}]}
+    """#.utf8))
+    check("Remote 帧：体检（通过数/逐项）",
+          doctor.passed == 1 && doctor.total == doctor.checks.count && !doctor.checks[1].ok)
+
+    let sync = try decoder.decode(RemoteSyncHealthFrame.self, from: Data(#"""
+    {"t":"syncHealth","signedIn":true,"username":"me","syncing":false,
+     "lastSyncAt":1700000000,"lastError":null,"server":"https://api.example/v9",
+     "domains":[{"domain":"bookmarks","ok":true,"at":1700000000},
+                {"domain":"history","ok":false,"error":"timeout"}],
+     "conflicts":[{"domain":"bookmarks","label":"entry 42","at":1700000001}],
+     "devices":[{"id":"d1","name":"MacBook","platform":"macos","revoked":false,"lastSeenAt":1700000000}]}
+    """#.utf8))
+    check("Remote 帧：同步健康（逐域/冲突/设备）",
+          sync.signedIn && sync.domains?.count == 2 && sync.domains?[1].ok == false
+          && sync.conflicts?.first?.label == "entry 42" && sync.devices?.first?.name == "MacBook")
+
+    let adapters = try decoder.decode(RemoteAdaptersFrame.self, from: Data(#"""
+    {"t":"adapters","adapters":[{"name":"demo","hosts":["a.example","*.a.example"],
+      "enabled":false,"autoDisabled":true,"notes":null,"lastError":"selector missing",
+      "lastSuccessAt":null,"lastFailureAt":1700000000,"successCount":2,"failureCount":9}],
+     "loadErrors":{"broken.json":"bad format"}}
+    """#.utf8))
+    check("Remote 帧：适配器（启用/自动禁用/健康）",
+          adapters.adapters.first?.enabled == false
+          && adapters.adapters.first?.autoDisabled == true
+          && adapters.adapters.first?.failureCount == 9
+          && adapters.loadErrors?["broken.json"] == "bad format")
+
+    let batch = try decoder.decode(RemoteBatchDownloadsFrame.self, from: Data(#"""
+    {"t":"batchDownloads","batches":[{"id":"44444444-4444-4444-4444-444444444444",
+      "mode":"page","state":"running","folder":"demo","createdAt":1700000000,
+      "paused":true,"suspendedReason":null,"saveRoot":null,"finished":1,"total":2,
+      "items":[{"id":"55555555-5555-5555-5555-555555555555","title":"01-a","state":"downloading",
+                "attempts":0,"progress":0.5,"progressDone":5,"progressTotal":10,"unit":"segments",
+                "rate":2.5,"bytes":null,"seconds":null,"summary":null,"failureReason":null},
+               {"id":"66666666-6666-6666-6666-666666666666","title":"02-b","state":"failed",
+                "attempts":3,"progress":null,"progressDone":null,"progressTotal":null,"unit":null,
+                "rate":null,"bytes":123,"seconds":4.5,"summary":null,"failureReason":"403"}],
+      "logTail":["10:00:00 start","10:00:01 fail"]}]}
+    """#.utf8))
+    check("Remote 帧：批量下载（逐项进度/日志尾）",
+          batch.batches.first?.paused == true && batch.batches.first?.total == 2
+          && batch.batches.first?.items[0].progress == 0.5
+          && batch.batches.first?.items[1].failureReason == "403"
+          && batch.batches.first?.logTail.count == 2)
+
+    let history = try decoder.decode(RemoteDownloadHistoryFrame.self, from: Data(#"""
+    {"t":"downloadHistory",
+     "sites":[{"host":"a.example","batches":1,"items":2,"finished":1,"failed":1,"skipped":0,
+               "bytes":100,"engines":{"hls":1},"averageBytesPerSecond":25.0,
+               "averageSeconds":4.0,"connections":8,"lastAt":1700000000,"hint":"check rules"}],
+     "batches":[{"id":"44444444-4444-4444-4444-444444444444","createdAt":1700000000,
+                 "state":"finished","folder":"demo","items":2,"finished":1,"failed":1,
+                 "skipped":0,"bytes":100}],
+     "totals":{"finished":1,"failed":1,"skipped":0,"bytes":100}}
+    """#.utf8))
+    check("Remote 帧：下载记录（按站点/批次/总计）",
+          history.sites.first?.hint == "check rules" && history.sites.first?.connections == 8
+          && history.batches.count == 1 && history.totals.bytes == 100)
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

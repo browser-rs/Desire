@@ -648,6 +648,35 @@ final class RemoteControlStore: ObservableObject {
             if let frame = Self.notificationPolicyFrame() { sendInnerRaw(frame) }
         case "downloads":
             if let frame = Self.downloadsFrame() { sendInnerRaw(frame) }
+        // ── 控制帧通道扩展（v0.8.80 批 4）──
+        case "artifacts":
+            sendArtifactsFrame()
+        case "artifactRead":
+            sendArtifactContent(path: (inner.text ?? inner.id ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines))
+        case "tabs":
+            sendTabsFrame()
+        case "tabAction":
+            handleTabAction(inner)
+        case "doctor":
+            Task { @MainActor [weak self] in
+                await self?.sendDoctorFrame()
+            }
+        case "syncHealth":
+            sendSyncHealthFrame()
+        case "adapters":
+            sendAdaptersFrame()
+        case "toggleAdapter":
+            if let name = inner.text, let enabled = inner.flag {
+                DPPAdapterStore.shared.setEnabled(enabled, for: name)
+            }
+            sendAdaptersFrame()
+        case "batchDownloads":
+            sendBatchDownloadsFrame()
+        case "batchAction":
+            handleBatchAction(inner)
+        case "downloadHistory":
+            sendDownloadHistoryFrame()
         case "recentFiles":
             if let frame = Self.recentFilesFrame() { sendInnerRaw(frame) }
         case "excerpts":
@@ -1467,16 +1496,42 @@ final class RemoteControlStore: ObservableObject {
         }
     }
 
-    private func sendInnerRaw(_ json: String) {
+    func sendInnerRaw(_ json: String) {
+        if let debugFrameSink,
+           let object = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any] {
+            debugFrameSink(object)
+            return
+        }
         guard let payload = Self.encrypt(data: Data(json.utf8), sessionKeyB64: sessionKeyB64) else { return }
         pushPayload(payload, lane: "", replace: false)
     }
 
-    private func sendInner(_ dict: [String: Any]) {
+    func sendInner(_ dict: [String: Any]) {
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               let json = String(data: data, encoding: .utf8) else { return }
         sendInnerRaw(json)
     }
+
+    /// 桥用测试钩子（v0.8.80 批 4）：以"手机发来的内层帧"身份跑一遍分发，
+    /// 把本该推到中继的回帧收集起来（不触网、不用配对）。仅用于本机 E2E；
+    /// 副作用仍走真实 store（与手机操作同一语义）。
+    func debugDispatch(innerJSON: String) async -> [[String: Any]] {
+        var frames: [[String: Any]] = []
+        let previous = debugFrameSink
+        debugFrameSink = { frames.append($0) }
+        defer { debugFrameSink = previous }
+        // doctor 是异步自检：直接 await，测试才能在同一调用里拿到回帧。
+        if let data = innerJSON.data(using: .utf8),
+           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           object["t"] as? String == "doctor" {
+            await sendDoctorFrame()
+        } else {
+            handleInnerFrame(innerJSON)
+        }
+        return frames
+    }
+
+    private var debugFrameSink: (([String: Any]) -> Void)?
 
     /// 主动发送到手机（v0.8.38）：只发用户明确选中的页面/链接/选区/书摘。
     @discardableResult
@@ -1564,6 +1619,8 @@ final class RemoteControlStore: ObservableObject {
         /// FULL ACCESS：所有工具免审批（手机据此解释"为何不弹审批"）
         var fullAccess: Bool? = nil
         var accessLevelName: String? = nil
+        /// 三档访问等级原始值（0 确认 / 1 自动编辑 / 2 完全访问；v0.8.80 批 4）
+        var accessLevel: Int? = nil
         /// 上一轮已结束且末条是 assistant → 可重新生成
         var canRegenerate: Bool? = nil
         /// 快捷动作（Mac 为唯一文案来源，避免两端硬编码漂移）
@@ -1664,7 +1721,7 @@ final class RemoteControlStore: ObservableObject {
         }
     }
 
-    private func pushSnapshot(force: Bool) {
+    func pushSnapshot(force: Bool) {
         // 手机正停在对话页 = 看过（未读接力：快照推送即"浏览中"的回执）。
         markRemoteSeen(remoteConversationID)
         guard isEnabled, case .signedIn = syncStore.authState else { return }
@@ -1743,6 +1800,7 @@ final class RemoteControlStore: ObservableObject {
             context: session?.contextLabel,
             fullAccess: session?.fullAccess,
             accessLevelName: session.map { $0.accessLevel.displayName },
+            accessLevel: session?.accessLevel.rawValue,
             canRegenerate: Self.remoteCanRegenerate(session),
             quickActions: Self.quickActionPayloads(),
             paused: session?.isPaused ?? false,
@@ -2553,6 +2611,10 @@ nonisolated struct RemoteInnerFrame: Codable {
     /// 记忆条目 id（"fact:<uuid>" / "summary:<uuid>"，deleteMemory 用）；
     /// 亦作 approve / answer / removeQueued 的目标 id（approval / question / queued 行 id）
     var id: String?
+    /// 批量子项 id（v0.8.80 批 4：batchAction 的 skip/retry 用）
+    var itemID: String?
+    /// 目标窗口标识（v0.8.80 批 4：标签移动用）
+    var window: String?
     /// 审批决定（approve 用）：allowOnce | alwaysAllow | deny
     var decision: String?
     /// 快捷动作 key（quickAction 用，见 AgentQuickAction.wire）

@@ -28,6 +28,15 @@ final class RemoteClient: ObservableObject {
         case main
     }
 
+    /// 已配对的 Mac（v0.8.80 批 4）：服务端允许同一账号 4 台桌面；手机保留
+    /// 每台的会话密钥，切换时只换链路，不重新扫码。
+    struct PairedDesktop: Identifiable, Codable, Equatable {
+        var deviceID: String
+        var name: String
+        var sessionKeyB64: String
+        var id: String { deviceID }
+    }
+
     struct RemoteSessionInfo: Identifiable, Codable, Equatable {
         var id: String
         var label: String
@@ -114,6 +123,8 @@ final class RemoteClient: ObservableObject {
     @Published private(set) var contextLabel: String?
     /// FULL ACCESS：所有工具免审批（据此解释"为何不弹审批"）
     @Published private(set) var fullAccess = false
+    /// 访问等级三档原始值（0 确认 / 1 自动编辑 / 2 完全访问；v0.8.80 批 4）
+    @Published private(set) var accessLevel = 0
     /// 上一轮已结束 → 可重新生成
     @Published private(set) var canRegenerate = false
     /// 快捷动作（Mac 为唯一文案来源）
@@ -149,6 +160,27 @@ final class RemoteClient: ObservableObject {
     @Published private(set) var notificationPolicy: RemoteNotificationPolicy?
     /// 下载监控（v0.8.11）：状态/进度 + 单条暂停恢复。
     @Published private(set) var downloads: [RemoteDownload] = []
+    /// 批量下载（v0.8.80 批 4）：批次 + 逐项状态 + 日志尾 + 暂停/恢复/跳过/重试。
+    @Published private(set) var batchDownloads: [RemoteBatchDownloadsFrame.Batch] = []
+    /// 下载记录（v0.8.80 批 4）：按站点的成败 / 吞吐（Mac 端从批次派生）。
+    @Published private(set) var downloadHistory: RemoteDownloadHistoryFrame?
+    /// 实时标签页（v0.8.80 批 4）。
+    @Published private(set) var tabsFrame: RemoteTabsFrame?
+    /// Agent 体检（v0.8.80 批 4）。
+    @Published private(set) var doctor: RemoteDoctorFrame?
+    /// 同步健康 + 设备（v0.8.80 批 4）。
+    @Published private(set) var syncHealth: RemoteSyncHealthFrame?
+    /// DPP 适配器（v0.8.80 批 4）。
+    @Published private(set) var adapters: RemoteAdaptersFrame?
+    /// 产物帧（v0.8.80 批 4：改走控制帧；旧变量名保留给页面）。
+    @Published private(set) var artifacts: [RemoteArtifact] = []
+    /// 产物内容（按 path 匹配请求）。
+    @Published private(set) var artifactContent: RemoteArtifactContent?
+    /// 一次性动作回执（ok 帧；自动消失）。
+    @Published var actionNotice: String?
+    /// 错误横幅（独立于连接状态，不覆盖"已连接/重连中"）。
+    @Published var errorBanner: String?
+    private var noticeTask: Task<Void, Never>?
 
     /// 最近本地文件（v0.8.12）：Mac 端最近打开清单 + 远端打开。
     @Published private(set) var recentFiles: [RemoteRecentFile] = []
@@ -183,6 +215,9 @@ final class RemoteClient: ObservableObject {
 
     /// 已保存的配对（重新打开 App 直接进控制台）。
     @Published private(set) var hasSavedPairing = false
+    /// 已配对的 Mac 列表与当前活跃设备（v0.8.80 批 4）。
+    @Published private(set) var pairedDesktops: [PairedDesktop] = []
+    @Published private(set) var activeDesktopID: String?
 
     // MARK: - 主题
 
@@ -214,6 +249,10 @@ final class RemoteClient: ObservableObject {
     private var pullFailures = 0
     /// 已处理过的信箱帧 id（WS express 先到时，兜底 pull 的同 id 行跳过）
     private var processedIDs: Set<Int64> = []
+    /// 产物请求/回帧配对（v0.8.80 批 4）。
+    private var artifactRequestPath: String?
+    private var artifactsGeneration = 0
+    private var artifactContentGeneration = 0
     /// 刚请求新建会话：下一帧快照的 session 字段即新会话 id，据此锁定选中
     private var pendingNewSession = false
     /// 会话列表延迟刷新（写操作后等 Mac 回包，1.8s 兜底；多次触发合并）
@@ -245,6 +284,8 @@ final class RemoteClient: ObservableObject {
             sessionKeyB64 = key
             desktopDeviceID = desktop
             hasSavedPairing = true
+            activeDesktopID = desktop
+            loadPairedDesktops()
             phase = .main
             username = KeychainStore.get("remote.username")
                 ?? defaults.string(forKey: "remote.username") ?? ""
@@ -534,6 +575,10 @@ final class RemoteClient: ObservableObject {
         defaults.set(resp.desktopName, forKey: "remote.desktopName")
         KeychainStore.set(info.sessionKeyB64, account: "remote.sessionKey")
         KeychainStore.set(resp.desktopDeviceId, account: "remote.desktopID")
+        activeDesktopID = resp.desktopDeviceId
+        rememberPairedDesktop(deviceID: resp.desktopDeviceId,
+                              name: resp.desktopName,
+                              key: info.sessionKeyB64)
         hasSavedPairing = true
         messages = []
         earlierMessages = []
@@ -543,6 +588,109 @@ final class RemoteClient: ObservableObject {
         connectWS()
         startPullLoop()
         requestSessions()
+    }
+
+    // MARK: - 多 Mac（v0.8.80 批 4）
+
+    private func loadPairedDesktops() {
+        if let raw = KeychainStore.get("remote.pairedDesktops"),
+           let data = raw.data(using: .utf8),
+           let list = try? JSONDecoder().decode([PairedDesktop].self, from: data) {
+            pairedDesktops = list
+        }
+        if pairedDesktops.isEmpty, let id = desktopDeviceID, let key = sessionKeyB64 {
+            pairedDesktops = [PairedDesktop(deviceID: id,
+                                            name: desktopName ?? "Mac",
+                                            sessionKeyB64: key)]
+            savePairedDesktops()
+        }
+        if activeDesktopID == nil { activeDesktopID = desktopDeviceID }
+    }
+
+    private func savePairedDesktops() {
+        guard let data = try? JSONEncoder().encode(pairedDesktops),
+              let raw = String(data: data, encoding: .utf8) else { return }
+        KeychainStore.set(raw, account: "remote.pairedDesktops")
+    }
+
+    private func rememberPairedDesktop(deviceID: String, name: String, key: String) {
+        if let index = pairedDesktops.firstIndex(where: { $0.deviceID == deviceID }) {
+            pairedDesktops[index].name = name
+            pairedDesktops[index].sessionKeyB64 = key
+        } else {
+            pairedDesktops.append(PairedDesktop(deviceID: deviceID, name: name,
+                                                sessionKeyB64: key))
+        }
+        savePairedDesktops()
+    }
+
+    /// 切换到另一台已配对的 Mac（会话密钥各自独立，不重新扫码）。
+    func switchDesktop(to deviceID: String) {
+        guard deviceID != activeDesktopID,
+              let target = pairedDesktops.first(where: { $0.deviceID == deviceID }) else { return }
+        stopAllTransports()
+        desktopDeviceID = target.deviceID
+        sessionKeyB64 = target.sessionKeyB64
+        desktopName = target.name
+        activeDesktopID = target.deviceID
+        KeychainStore.set(target.sessionKeyB64, account: "remote.sessionKey")
+        KeychainStore.set(target.deviceID, account: "remote.desktopID")
+        defaults.set(target.name, forKey: "remote.desktopName")
+        // 列表与对话属于上一台 Mac——清空后重新拉取。
+        messages = []
+        earlierMessages = []
+        hasMoreEarlier = false
+        sessions = []
+        selectedSessionID = nil
+        memory = nil
+        tabsFrame = nil
+        doctor = nil
+        syncHealth = nil
+        adapters = nil
+        batchDownloads = []
+        downloadHistory = nil
+        artifacts = []
+        artifactContent = nil
+        backgroundJobs = []
+        approval = nil
+        question = nil
+        plan = []
+        queued = []
+        busy = false
+        desktopOnline = true
+        connectionState = "连接中…"
+        hasSavedPairing = true
+        phase = .main
+        connectWS()
+        startPullLoop()
+        requestSessions()
+        requestSync()
+    }
+
+    /// 解除**当前**这台 Mac（还有别的配对时使用）：吊销当前配对、切到下一台。
+    func unpairCurrentDesktop() {
+        let token = accessToken
+        let desktopID = desktopDeviceID
+        stopAllTransports()
+        if let desktopID {
+            pairedDesktops.removeAll { $0.deviceID == desktopID }
+            savePairedDesktops()
+        }
+        if let token, let desktopID {
+            Task {
+                let _: RevokeResp? = try? await API.send(
+                    "POST", baseURL, "/remote/pairing/revoke",
+                    body: try JSONEncoder().encode(
+                        RevokeBody(desktop_device_id: desktopID, controller_name: controllerName)),
+                    token: token)
+            }
+        }
+        activeDesktopID = nil
+        if let next = pairedDesktops.first {
+            switchDesktop(to: next.deviceID)
+        } else {
+            unpair()
+        }
     }
 
     /// 回到前台：重连续 transports 并补快照。
@@ -611,6 +759,9 @@ final class RemoteClient: ObservableObject {
         connectionState = "未连接"
         hasSavedPairing = false
         phase = .main
+        pairedDesktops = []
+        savePairedDesktops()
+        activeDesktopID = nil
         guard let token, let desktopID else { return }
         Task {
             let _: RevokeResp? = try? await API.send(
@@ -867,6 +1018,49 @@ final class RemoteClient: ObservableObject {
                     downloads = frame.downloads
                     cache(downloads, key: "remote.cache.downloads")
                 }
+            // ── v0.8.80 批 4：控制帧通道扩展 ──
+            case "batchDownloads":
+                if let frame = try? JSONDecoder().decode(RemoteBatchDownloadsFrame.self, from: data) {
+                    batchDownloads = frame.batches
+                }
+            case "downloadHistory":
+                if let frame = try? JSONDecoder().decode(RemoteDownloadHistoryFrame.self, from: data) {
+                    downloadHistory = frame
+                }
+            case "tabs":
+                if let frame = try? JSONDecoder().decode(RemoteTabsFrame.self, from: data) {
+                    tabsFrame = frame
+                }
+            case "doctor":
+                if let frame = try? JSONDecoder().decode(RemoteDoctorFrame.self, from: data) {
+                    doctor = frame
+                }
+            case "syncHealth":
+                if let frame = try? JSONDecoder().decode(RemoteSyncHealthFrame.self, from: data) {
+                    syncHealth = frame
+                }
+            case "adapters":
+                if let frame = try? JSONDecoder().decode(RemoteAdaptersFrame.self, from: data) {
+                    adapters = frame
+                }
+            case "artifacts":
+                if let frame = try? JSONDecoder().decode(ArtifactsResponse.self, from: data) {
+                    artifacts = frame.artifacts
+                    artifactsGeneration += 1
+                }
+            case "artifactContent":
+                if let frame = try? JSONDecoder().decode(ArtifactContentFrame.self, from: data),
+                   frame.path == artifactRequestPath {
+                    artifactContent = RemoteArtifactContent(
+                        ok: frame.ok, mime: frame.mime, sizeBytes: frame.sizeBytes,
+                        content: frame.content, dataURI: frame.dataURI, error: frame.error)
+                    artifactContentGeneration += 1
+                }
+            case "ok":
+                // Mac 确认帧（v0.8.80 批 4）：成功回执与连接状态分开。
+                if let message = root["message"] as? String, !message.isEmpty {
+                    showNotice(message)
+                }
 
             case "recentFiles":
                 if let frame = try? JSONDecoder().decode(RemoteRecentFilesFrame.self, from: data) {
@@ -987,9 +1181,9 @@ final class RemoteClient: ObservableObject {
                 RemoteNotifications.postTurnDone(title: title, body: body,
                                                  session: selectedSessionID)
             case "error":
-                // Mac 端反馈（例如"没有活跃的 Agent 会话"）：显示成连接状态旁白。
+                // Mac 端反馈（例如"没有活跃的 Agent 会话"）：独立横幅，不覆盖连接状态。
                 if let message = root["message"] as? String, !message.isEmpty {
-                    connectionState = message
+                    errorBanner = message
                 }
             default:
                 break
@@ -1024,6 +1218,9 @@ final class RemoteClient: ObservableObject {
         if contextLabel != frame.context { contextLabel = frame.context }
         let newFullAccess = frame.fullAccess ?? false
         if fullAccess != newFullAccess { fullAccess = newFullAccess }
+        // 三档访问等级（v0.8.80 批 4）：快照优先；旧 Mac 没有该字段时由 fullAccess 推导。
+        let newAccessLevel = frame.accessLevel ?? (newFullAccess ? 2 : 0)
+        if accessLevel != newAccessLevel { accessLevel = newAccessLevel }
         let newCanRegenerate = frame.canRegenerate ?? false
         if canRegenerate != newCanRegenerate { canRegenerate = newCanRegenerate }
         let newQuickActions = frame.quickActions ?? []
@@ -1056,6 +1253,17 @@ final class RemoteClient: ObservableObject {
 
     // MARK: - 上行（一律 REST push）
 
+    /// 成功回执：顶部小横幅，2.5s 自动消失（v0.8.80 批 4）。
+    func showNotice(_ message: String) {
+        actionNotice = message
+        noticeTask?.cancel()
+        noticeTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2.5))
+            guard !Task.isCancelled else { return }
+            self?.actionNotice = nil
+        }
+    }
+
     private func pushFrame(_ dict: [String: Any], replace: Bool) {
         guard let sessionKeyB64, let desktopDeviceID,
               let payload = RemoteCrypto.innerFrame(dict, sessionKeyB64: sessionKeyB64) else { return }
@@ -1070,17 +1278,32 @@ final class RemoteClient: ObservableObject {
 
     // MARK: - 对外动作
 
-    /// 产物列表（v0.8.63 批 2）：桌面 `/artifacts`（按时间倒序返回）。
+    /// 产物列表（v0.8.80 批 4）：**改走控制帧通道**。此前直连中继 `/artifacts`
+    /// ——服务端没有该路由、信封也不同，产物屏在真机上根本不工作（S4）。
     func fetchArtifacts() async throws -> [RemoteArtifact] {
-        let response: ArtifactsResponse = try await authedSend("GET", "/artifacts")
-        return response.artifacts
+        let before = artifactsGeneration
+        pushFrame(["t": "artifacts"], replace: false)
+        for _ in 0..<50 {
+            if artifactsGeneration != before { return artifacts }
+            try await Task.sleep(for: .milliseconds(150))
+        }
+        throw RemoteRequestTimeout()
     }
 
-    /// 产物内容预览（v0.8.64 批 4）：文本 ≤256KB / 图片 ≤5MB 直接回内容，
-    /// 其余 error = "在 Mac 上打开"（桌面端做安全白名单过滤）。
+    /// 产物内容预览（v0.8.80 批 4）：同样走控制帧；文本 ≤256KB / 图片 ≤5MB
+    /// 直接回内容，其余 error = "在 Mac 上打开"（Mac 端做安全白名单过滤）。
     func readArtifact(path: String) async throws -> RemoteArtifactContent {
-        let body = try JSONEncoder().encode(["path": path])
-        return try await authedSend("POST", "/artifacts/read", body: body)
+        artifactRequestPath = path
+        artifactContent = nil
+        let before = artifactContentGeneration
+        pushFrame(["t": "artifactRead", "text": path], replace: false)
+        for _ in 0..<60 {
+            if let content = artifactContent, artifactContentGeneration != before {
+                return content
+            }
+            try await Task.sleep(for: .milliseconds(150))
+        }
+        throw RemoteRequestTimeout()
     }
 
     // MARK: - 手机发图（v0.8.69 批 2）
@@ -1254,6 +1477,15 @@ final class RemoteClient: ObservableObject {
     func setFullAccess(_ on: Bool) {
         pushFrame(["t": "setFullAccess", "flag": on], replace: false)
         fullAccess = on
+        accessLevel = on ? 2 : 0
+    }
+
+    /// 三档访问等级（v0.8.80 批 4）：0 确认 / 1 自动编辑 / 2 完全访问。
+    func setAccessLevel(_ level: Int) {
+        let clamped = min(max(level, 0), 2)
+        pushFrame(["t": "setAccessLevel", "text": String(clamped)], replace: false)
+        accessLevel = clamped
+        fullAccess = clamped == 2
     }
 
     // MARK: - 只读信息（按需拉取；页面进入时请求一次 + 下拉刷新）
@@ -1265,6 +1497,32 @@ final class RemoteClient: ObservableObject {
     func requestTasks() { pushFrame(["t": "tasks"], replace: false) }
     func requestNotificationPolicy() { pushFrame(["t": "notificationPolicy"], replace: false) }
     func requestDownloads() { pushFrame(["t": "downloads"], replace: false) }
+    func requestBatchDownloads() { pushFrame(["t": "batchDownloads"], replace: false) }
+    func requestDownloadHistory() { pushFrame(["t": "downloadHistory"], replace: false) }
+    func requestTabs() { pushFrame(["t": "tabs"], replace: false) }
+    func requestDoctor() { pushFrame(["t": "doctor"], replace: false) }
+    func requestSyncHealth() { pushFrame(["t": "syncHealth"], replace: false) }
+    func requestAdapters() { pushFrame(["t": "adapters"], replace: false) }
+
+    /// 标签动作：select / close / move（move 需要目标窗口 id）。
+    func tabAction(_ action: String, id: String, window: String? = nil) {
+        var frame: [String: Any] = ["t": "tabAction", "action": action, "id": id]
+        if let window { frame["window"] = window }
+        pushFrame(frame, replace: false)
+    }
+
+    /// 批量下载动作：pause / resume / retryFailed / cancel（批次）；
+    /// skip / retry（需要 itemID）。
+    func batchAction(_ action: String, batchID: String, itemID: String? = nil) {
+        var frame: [String: Any] = ["t": "batchAction", "action": action, "id": batchID]
+        if let itemID { frame["itemID"] = itemID }
+        pushFrame(frame, replace: false)
+    }
+
+    /// 适配器启停。
+    func toggleAdapter(name: String, enabled: Bool) {
+        pushFrame(["t": "toggleAdapter", "text": name, "flag": enabled], replace: false)
+    }
     func downloadAction(id: String, action: String) { pushFrame(["t": "downloadAction", "id": id, "action": action], replace: false) }
     func requestRecentFiles() { pushFrame(["t": "recentFiles"], replace: false) }
     func openRecentFile(_ urlString: String) { pushFrame(["t": "openRecentFile", "id": urlString], replace: false) }
@@ -1480,4 +1738,9 @@ final class RemoteClient: ObservableObject {
         }
         pushFrame(["t": "deleteMemory", "id": rid], replace: false)
     }
+}
+
+/// 控制帧请求超时（Mac 离线/未回帧时给页面一个可展示的错误）。
+struct RemoteRequestTimeout: LocalizedError {
+    var errorDescription: String? { "Mac 没有回应——确认 Mac 端 Desire 在线后重试" }
 }

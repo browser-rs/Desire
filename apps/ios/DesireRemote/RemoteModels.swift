@@ -99,6 +99,8 @@ struct SnapshotFrame: Codable {
     var context: String?
     /// FULL ACCESS：所有工具免审批
     var fullAccess: Bool?
+    /// 三档访问等级（0 确认 / 1 自动编辑 / 2 完全访问；v0.8.80 批 4）
+    var accessLevel: Int?
     /// 上一轮已结束且末条是 assistant → 可重新生成
     var canRegenerate: Bool?
     /// 快捷动作（Mac 为唯一文案来源）
@@ -783,4 +785,200 @@ struct ArtifactsResponse: Codable {
     let ok: Bool
     let count: Int
     let artifacts: [RemoteArtifact]
+}
+
+// MARK: - 实时标签页（v0.8.80 批 4）
+
+struct RemoteTabsFrame: Codable {
+    let t: String
+    let activeWindow: String?
+    let windows: [RemoteWindowInfo]
+    let groups: [RemoteTabGroupInfo]
+    let tabs: [RemoteTabItem]
+}
+
+struct RemoteWindowInfo: Codable, Identifiable, Equatable {
+    let id: String
+    let title: String
+    let tabs: Int
+    let active: Bool
+}
+
+struct RemoteTabGroupInfo: Codable, Identifiable, Equatable {
+    let name: String
+    let colorIndex: Int
+    let collapsed: Bool
+    let count: Int
+    var id: String { name }
+}
+
+struct RemoteTabItem: Codable, Identifiable, Equatable {
+    let id: String
+    let title: String
+    let url: String
+    let group: String?
+    let groupColor: Int?
+    let groupCollapsed: Bool?
+    let selected: Bool
+    let loading: Bool
+    let muted: Bool
+    let playing: Bool
+    let incognito: Bool
+    let suspended: Bool
+}
+
+// MARK: - 体检 / 同步 / 适配器（v0.8.80 批 4）
+
+struct RemoteDoctorFrame: Codable {
+    struct Check: Codable, Identifiable, Equatable {
+        let name: String
+        let ok: Bool
+        let detail: String
+        var id: String { name }
+    }
+    let t: String
+    let ok: Bool
+    let passed: Int
+    let total: Int
+    let checks: [Check]
+}
+
+struct RemoteSyncHealthFrame: Codable {
+    struct DomainRow: Codable, Identifiable, Equatable {
+        let domain: String
+        let ok: Bool
+        let at: Double?
+        let error: String?
+        var id: String { domain }
+    }
+    struct Conflict: Codable, Identifiable, Equatable {
+        let domain: String
+        let label: String
+        let at: Double
+        var id: String { domain + label + String(at) }
+    }
+    struct Device: Codable, Identifiable, Equatable {
+        let id: String
+        let name: String
+        let platform: String
+        let revoked: Bool
+        let lastSeenAt: Double?
+    }
+    let t: String
+    let signedIn: Bool
+    let username: String?
+    let syncing: Bool
+    let lastSyncAt: Double?
+    let lastError: String?
+    let server: String?
+    let domains: [DomainRow]?
+    let conflicts: [Conflict]?
+    let devices: [Device]?
+    let devicesError: String?
+}
+
+struct RemoteAdaptersFrame: Codable {
+    struct Adapter: Codable, Identifiable, Equatable {
+        let name: String
+        let hosts: [String]
+        let enabled: Bool
+        let autoDisabled: Bool
+        let notes: String?
+        let lastError: String?
+        let lastSuccessAt: Double?
+        let lastFailureAt: Double?
+        let successCount: Int
+        let failureCount: Int
+        var id: String { name }
+    }
+    let t: String
+    let adapters: [Adapter]
+    let loadErrors: [String: String]?
+}
+
+// MARK: - 批量下载 / 下载记录（v0.8.80 批 4）
+
+struct RemoteBatchDownloadsFrame: Codable {
+    struct Item: Codable, Identifiable, Equatable {
+        let id: String
+        let title: String
+        let state: String
+        let attempts: Int
+        let progress: Double?
+        let progressDone: Int?
+        let progressTotal: Int?
+        let unit: String?
+        let rate: Double?
+        let bytes: Int64?
+        let seconds: Double?
+        let summary: String?
+        let failureReason: String?
+    }
+    struct Batch: Codable, Identifiable, Equatable {
+        let id: String
+        let mode: String
+        let state: String
+        let folder: String
+        let createdAt: Double
+        let paused: Bool
+        let suspendedReason: String?
+        let saveRoot: String?
+        let finished: Int
+        let total: Int
+        let items: [Item]
+        let logTail: [String]
+    }
+    let t: String
+    let batches: [Batch]
+}
+
+struct RemoteDownloadHistoryFrame: Codable {
+    struct Site: Codable, Identifiable, Equatable {
+        let host: String
+        let batches: Int
+        let items: Int
+        let finished: Int
+        let failed: Int
+        let skipped: Int
+        let bytes: Int64
+        let engines: [String: Int]
+        let averageBytesPerSecond: Double?
+        let averageSeconds: Double?
+        let connections: Int?
+        let lastAt: Double?
+        let hint: String?
+        var id: String { host }
+    }
+    struct Batch: Codable, Identifiable, Equatable {
+        let id: String
+        let createdAt: Double
+        let state: String
+        let folder: String
+        let items: Int
+        let finished: Int
+        let failed: Int
+        let skipped: Int
+        let bytes: Int64
+    }
+    struct Totals: Codable, Equatable {
+        let finished: Int
+        let failed: Int
+        let skipped: Int
+        let bytes: Int64
+    }
+    let t: String
+    let sites: [Site]
+    let batches: [Batch]
+    let totals: Totals
+}
+
+/// 产物内容回帧（v0.8.80 批 4）：带 path 便于与请求对号（防串台）。
+struct ArtifactContentFrame: Codable {
+    let path: String
+    let ok: Bool?
+    let mime: String?
+    let sizeBytes: Int?
+    let content: String?
+    let dataURI: String?
+    let error: String?
 }

@@ -61,6 +61,12 @@ struct MainView: View {
                     .padding(.horizontal, 12)
                     .padding(.top, 8)
                 }
+                if let message = client.errorBanner {
+                    messageBanner(message, color: .red) { client.errorBanner = nil }
+                }
+                if let message = client.actionNotice {
+                    messageBanner(message, color: .green, dismiss: nil)
+                }
                 if !client.desktopOnline || client.connectionState.contains("重连") {
                     connectionBanner
                 }
@@ -105,6 +111,34 @@ struct MainView: View {
                     }
             }
         }
+    }
+
+    /// Mac 回执 / 错误（v0.8.80 批 4）：成功与失败各自成条，不覆盖连接状态。
+    private func messageBanner(_ message: String, color: Color,
+                               dismiss: (() -> Void)?) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: color == .red ? "exclamationmark.triangle.fill" : "checkmark.circle.fill")
+                .font(.system(size: 12, weight: .semibold))
+            Text(message)
+                .font(.system(size: 12, weight: .medium))
+                .lineLimit(2)
+            Spacer(minLength: 8)
+            if let dismiss {
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .foregroundStyle(color)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(color.opacity(0.1)))
+        .padding(.horizontal, 12)
+        .padding(.top, 6)
     }
 
     /// 断线/离线状态条（v0.8.38 批三）：此前只有聊天页状态行里一行小字，

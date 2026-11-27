@@ -144,18 +144,38 @@ struct AgentHomeView: View {
             HStack(spacing: 10) {
                 DesireIconBadge(
                     icon: "bolt.shield.fill",
-                    tint: client.fullAccess ? .orange : .secondary)
+                    tint: client.accessLevel == 2 ? .orange : .secondary)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("FULL ACCESS")
+                    Text(accessLevelTitle)
                         .font(.system(size: 15, weight: .medium))
-                    Text(client.fullAccess ? "所有工具免审批（含执行代码）" : "工具调用前会请你确认")
+                    Text(accessLevelSubtitle)
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 8)
-                Toggle("", isOn: fullAccessBinding)
-                    .labelsHidden()
-                    .tint(.orange)
+                Menu {
+                    Button {
+                        client.setAccessLevel(0)
+                    } label: {
+                        Label("变更前确认", systemImage: client.accessLevel == 0 ? "checkmark" : "hand.raised")
+                    }
+                    Button {
+                        client.setAccessLevel(1)
+                    } label: {
+                        Label("自动编辑", systemImage: client.accessLevel == 1 ? "checkmark" : "checkmark.shield")
+                    }
+                    Button {
+                        confirmFullAccess = true
+                    } label: {
+                        Label("完全访问", systemImage: client.accessLevel == 2 ? "checkmark" : "exclamationmark.shield")
+                    }
+                } label: {
+                    Text(accessLevelTitle)
+                        .font(.caption.weight(.medium))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Capsule().fill(Color.secondary.opacity(0.12)))
+                }
             }
         } header: {
             NavigationLink {
@@ -175,17 +195,21 @@ struct AgentHomeView: View {
         }
     }
 
-    /// 开启要二次确认（不可逆的风险方向），关闭直接生效。
-    private var fullAccessBinding: Binding<Bool> {
-        Binding(
-            get: { client.fullAccess },
-            set: { newValue in
-                if newValue {
-                    confirmFullAccess = true
-                } else {
-                    client.setFullAccess(false)
-                }
-            })
+    /// 三档访问等级展示（v0.8.80 批 4）。
+    private var accessLevelTitle: String {
+        switch client.accessLevel {
+        case 1: "自动编辑"
+        case 2: "完全访问"
+        default: "变更前确认"
+        }
+    }
+
+    private var accessLevelSubtitle: String {
+        switch client.accessLevel {
+        case 1: "页面编辑自动通过；系统命令仍会确认"
+        case 2: "所有工具免审批（含执行代码）"
+        default: "工具调用前会请你确认"
+        }
     }
 
     private func controlButton(
@@ -223,12 +247,30 @@ struct AgentHomeView: View {
                     showsChevron: false)
             }
             NavigationLink {
+                RemoteTabsView()
+            } label: {
+                DesireNavRow(
+                    icon: "rectangle.stack.fill",
+                    title: "标签页",
+                    subtitle: "Mac 当前窗口的标签与分组：切换 / 关闭 / 移动",
+                    showsChevron: false)
+            }
+            NavigationLink {
                 ArtifactsView()
             } label: {
                 DesireNavRow(
                     icon: "shippingbox.fill",
                     title: "产物",
                     subtitle: "Agent 在 Mac 上产出的文件与文件夹",
+                    showsChevron: false)
+            }
+            NavigationLink {
+                RemoteDoctorView()
+            } label: {
+                DesireNavRow(
+                    icon: "stethoscope",
+                    title: "体检与同步",
+                    subtitle: "Agent 体检、同步状态/冲突、DPP 适配器",
                     showsChevron: false)
             }
             NavigationLink {
@@ -294,6 +336,24 @@ struct AgentHomeView: View {
                     icon: "arrow.down.circle",
                     title: "下载监控",
                     subtitle: "查看进度、远端暂停/恢复",
+                    showsChevron: false)
+            }
+            NavigationLink {
+                RemoteBatchDownloadsView()
+            } label: {
+                DesireNavRow(
+                    icon: "square.stack.3d.down.right",
+                    title: "批量下载",
+                    subtitle: "逐项进度 / 暂停 / 跳过 / 重试 / 日志",
+                    showsChevron: false)
+            }
+            NavigationLink {
+                RemoteDownloadHistoryView()
+            } label: {
+                DesireNavRow(
+                    icon: "clock.arrow.circlepath",
+                    title: "下载记录",
+                    subtitle: "按站点的成败与吞吐",
                     showsChevron: false)
             }
 
@@ -379,6 +439,24 @@ struct AgentHomeView: View {
 
     private var deviceSection: some View {
         Section {
+            if client.pairedDesktops.count > 1 {
+                ForEach(client.pairedDesktops) { desktop in
+                    Button {
+                        client.switchDesktop(to: desktop.deviceID)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Image(systemName: desktop.deviceID == client.activeDesktopID
+                                  ? "checkmark.circle.fill" : "circle")
+                                .font(.system(size: 12))
+                                .foregroundStyle(desktop.deviceID == client.activeDesktopID
+                                                 ? DesireUI.brand : Color.secondary.opacity(0.5))
+                            Text(desktop.name).font(.system(size: 14))
+                            Spacer()
+                        }
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
             DesireValueRow(title: "Mac", value: client.desktopName ?? "—")
             DesireValueRow(
                 title: "账号",

@@ -530,6 +530,7 @@ final class AutomationServer {
         ep("POST", "/remote/pair", "E2E/automation: start a pairing code on the Mac side", example: "-d '{}'")
         ep("GET", "/remote/sessions-frame", "The remote sessions frame (same builder as the phone's frame; includes per-session unread)", example: "…/remote/sessions-frame")
         ep("POST", "/remote/mark-seen", "Mark a conversation as seen by the phone (same path as the phone's select receipt)", params: ["conversationId:string"], example: #"-d '{"conversationId":"…"}'"#)
+        ep("POST", "/remote/dispatch", "E2E: run one decrypted remote inner frame through the dispatcher and return the frames it would push (no relay/network)", params: ["json:string"], example: #"-d '{"json":"{\"t\":\"tabs\"}"}'"#)
         ep("GET", "/remote/board-payload", "The snapshot board payload for a conversation (same builder the remote frame uses)", params: ["conversationId?:string"], example: "…/remote/board-payload")
         ep("POST", "/share-card", "Generate a page share card (first-screen snapshot + title/domain + optional side-model summary) and save it to Downloads", params: ["index?:int (tab; default selected)", "summarize?:bool (default true)"], example: #"-d '{"summarize":false}'"#)
         ep("GET", "/history/archive-search", "Search the full archived browsing history (client-side: pulls the encrypted history domain and decrypts locally; requires sync sign-in)", params: ["q:string", "limit?:int (default 50)"], example: "…/history/archive-search?q=rust")
@@ -2683,6 +2684,16 @@ case ("GET", "/state"):
             case ("POST", "/remote/mark-seen"):
                 AppState.live?.remoteControlStore.markRemoteSeen(Self.string(body, "conversationId"))
                 return try Self.json(["ok": true])
+            case ("POST", "/remote/dispatch"):
+                guard let store = AppState.live?.remoteControlStore else {
+                    return try Self.json(["error": "app state not ready"])
+                }
+                let raw = Self.string(body, "json") ?? ""
+                guard !raw.isEmpty else {
+                    return try Self.json(["error": "missing json"])
+                }
+                return try Self.json(["ok": true,
+                                      "frames": await store.debugDispatch(innerJSON: raw)])
             case ("GET", "/history/archive-search"):
                 // 归档历史检索（v0.7.25）：服务端存密文——客户端全量拉取+本地解密。
                 return try Self.json(await Self.historyArchiveSearch(
@@ -7132,7 +7143,7 @@ case ("GET", "/agent/messages"):
     /// 客户端任意路径——防穿越/任意读）；② 目录产物直接拒；③ 大小闸 =
     /// 文本 ≤256KB、图片 ≤5MB；④ 文本判定 = 无 0 字节且 UTF-8 可解码
     /// （.docx 这类 zip 容器天然带 0 字节，会被正确拒掉）。
-    private static func readArtifact(path: String) -> [String: Any] {
+    static func readArtifact(path: String) -> [String: Any] {
         guard !path.isEmpty else { return ["error": "missing path"] }
         let items = ArtifactIndex.derive(from: JobStore.shared.allJobs)
         guard let item = items.first(where: { $0.path == path }) else {

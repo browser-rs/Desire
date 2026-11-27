@@ -136,6 +136,7 @@ SOURCES=(
   apps/macos/Desire/Features/Promotion/PromotionPreflight.swift
   apps/macos/Desire/Features/Agent/RoutingDecision.swift
   apps/macos/Desire/Features/Agent/Conversation.swift
+  apps/ios/DesireRemote/RemoteModels.swift
   apps/macos/Desire/Features/Agent/AgentApproval.swift
   apps/macos/Desire/Features/Agent/ModelPrice.swift
   apps/macos/Desire/Features/Agent/RoutingAdvice.swift

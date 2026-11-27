@@ -297,6 +297,27 @@ final class BatchMediaExportStore: ObservableObject {
         startEngine(batchID)
     }
 
+    /// 单条重试（v0.8.80 批 4 遥控）：失败项回到 pending 并重启引擎。
+    /// 与批量重试不同，**不要求批次已结束**（跑着的批次里也能补一条）。
+    func retryItem(batchID: UUID, itemID: UUID) {
+        guard let bi = batches.firstIndex(where: { $0.id == batchID }),
+              let ii = batches[bi].items.firstIndex(where: { $0.id == itemID }),
+              batches[bi].items[ii].state == .failed,
+              batches[bi].state != .cancelled else { return }
+        batches[bi].items[ii].state = .pending
+        batches[bi].items[ii].summary = nil
+        batches[bi].items[ii].attempts = 0
+        if batches[bi].mode == .list {
+            batches[bi].items[ii].mediaURL = nil
+        }
+        if batches[bi].state == .finished {
+            batches[bi].state = .running
+        }
+        blog(batchID, "[\(batches[bi].items[ii].numberPrefix)] 手动重试")
+        persistUnfinished()
+        startEngine(batchID)
+    }
+
     /// **向既有批次追加任务**（排队中/已完成均可）：list 模式追加详情页、
     /// page 模式追加媒体地址。序号接着已有项往下编；追加的项自动入队。
     /// 去重按 sourceURL（重复追加的地址会被跳过）。

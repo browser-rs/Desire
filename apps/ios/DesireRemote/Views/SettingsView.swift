@@ -190,7 +190,14 @@ struct SettingsView: View {
             }
         }
         .alert("解除配对？", isPresented: $confirmUnpair) {
-            Button("解除配对", role: .destructive) { client.unpair() }
+            Button(client.pairedDesktops.count > 1 ? "解除当前 Mac 配对" : "解除配对",
+                   role: .destructive) {
+                if client.pairedDesktops.count > 1 {
+                    client.unpairCurrentDesktop()
+                } else {
+                    client.unpair()
+                }
+            }
             Button("取消", role: .cancel) {}
         } message: {
             Text("将吊销 Mac 上对本机的授权，并清除本地配对密钥。需要重新扫码才能恢复。")

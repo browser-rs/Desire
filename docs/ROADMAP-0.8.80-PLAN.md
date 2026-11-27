@@ -285,3 +285,16 @@ DeepSeek `prompt_cache_hit_tokens` / Anthropic `cache_read_input_tokens`）随�
   `agent-batch3-e2e` 12/12（建议不改模型、批量批准只弹一次卡、自评→修订终答）、
   `approval-recovery-e2e` 12/12（quit → 重启 → recovered → 续跑）；harness 4024；
   Debug 零警告。
+
+**批 4 进展（2026-11-27）**：Remote 传输 P0——产物列表/读取改走控制帧通道（Mac 端复用
+ArtifactIndex + readArtifact 白名单，iOS 端请求/回帧按 path 对号），`ok` 帧显示成功回执、
+错误改独立横幅；访问等级对齐三档。新增实时标签帧（标签/分组/窗口 + select/close/move）、
+体检/同步/适配器帧（复用 AgentDoctor、SyncStore、DPPAdapterStore）、批量下载控制帧
+（逐项进度/日志尾 + pause/resume/skip/retry/cancel，单条重试新增 `retryItem`）、
+下载记录帧（DownloadHistory）、多 Mac 配对列表（Keychain `remote.pairedDesktops`，
+切换只换链路、解除当前不清账号）。
+- **验收**：`remote-batch4-e2e` 16/16（`POST /remote/dispatch` 走真实分发器 + `/state` 对账）；
+  harness 4032（iOS `RemoteModels` 加入纯逻辑编译，8 个新帧逐字段解码契约）；
+  Mac clean Debug 与 iOS 模拟器构建零警告。
+- **环境限制**：本机没有 iOS 模拟器 runtime（`simctl list runtimes` 为空），iOS 只做到
+  编译 + 帧契约验证；模拟器/真机界面联调待用户参与。

@@ -57,14 +57,32 @@ enum AnthropicSSE {
             .filter { $0.role == .system }
             .compactMap { $0.content }
             .joined(separator: "\n\n")
+        // 提示词缓存（v0.8.80）：system 与工具定义占用最大且最稳定，标成
+        // ephemeral 断点。Anthropic 只接受支持的模型的 cache_control（3.5 v2+ / 3.7 / 4+）。
+        let caching = PromptCacheAccounting.supportsPromptCaching(model: model)
         if !systemText.isEmpty {
-            body["system"] = systemText
+            if caching {
+                body["system"] = [[
+                    "type": "text",
+                    "text": systemText,
+                    "cache_control": ["type": "ephemeral"],
+                ]]
+            } else {
+                body["system"] = systemText
+            }
         }
 
         body["messages"] = encodeMessages(messages.filter { $0.role != .system })
 
         if !tools.isEmpty {
-            body["tools"] = tools.map(encodeTool)
+            body["tools"] = tools.enumerated().map { index, tool in
+                var encoded = encodeTool(tool)
+                // 断点放在最后一个工具上：缓存覆盖 tools 整段前缀。
+                if caching, index == tools.count - 1 {
+                    encoded["cache_control"] = ["type": "ephemeral"]
+                }
+                return encoded
+            }
         }
         return try? JSONSerialization.data(withJSONObject: body)
     }
@@ -233,6 +251,10 @@ enum AnthropicSSE {
                                 }
                                 if let usage = message["usage"] as? [String: Any] {
                                     inputTokens = usage["input_tokens"] as? Int ?? 0
+                                    let cached = PromptCacheAccounting.cachedTokens(anthropicUsage: usage)
+                                    if cached > 0 {
+                                        continuation.yield(.cacheUsage(cachedPromptTokens: cached))
+                                    }
                                 }
                             }
 
@@ -283,6 +305,10 @@ enum AnthropicSSE {
                         case "message_delta":
                             if let usage = json["usage"] as? [String: Any] {
                                 outputTokens = usage["output_tokens"] as? Int ?? 0
+                                let cached = PromptCacheAccounting.cachedTokens(anthropicUsage: usage)
+                                if cached > 0 {
+                                    continuation.yield(.cacheUsage(cachedPromptTokens: cached))
+                                }
                             }
 
                         case "error":

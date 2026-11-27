@@ -356,7 +356,7 @@ private struct AssistantBubble: View {
                     }
 
                     if let critique = message.critique, !critique.isEmpty {
-                        CritiqueBlock(text: critique)
+                        CritiqueBlock(text: critique, wasRevised: message.wasRevised == true)
                     }
 
                     // 引用来源条（v0.8.13 基础件 6）：本回合工具结果里的
@@ -656,6 +656,8 @@ private struct FeedbackChips: View {
 private struct CritiqueBlock: View {
     @Environment(\.appAccent) private var appAccent: Color
     let text: String
+    /// 自评后自动修订过（v0.8.80 批 3）：头行加一个小标记，用户知道正文已改。
+    var wasRevised: Bool = false
     @State private var expanded = false
 
     var body: some View {
@@ -669,6 +671,12 @@ private struct CritiqueBlock: View {
                         .foregroundStyle(AnyShapeStyle(appAccent))
                     Text("Self-review")
                         .font(.system(size: 11, weight: .medium))
+                    if wasRevised {
+                        Label("Revised", systemImage: "arrow.triangle.2.circlepath")
+                            .font(.system(size: 9.5, weight: .semibold))
+                            .labelStyle(.titleAndIcon)
+                            .foregroundStyle(appAccent)
+                    }
                     Text("\(text.count)")
                         .font(.system(size: 10))
                         .monospacedDigit()

@@ -380,6 +380,20 @@ struct AgentPanel: View {
                 .frame(maxWidth: .infinity)
             }
 
+            // 自评后自动修订（v0.8.80 批 3）：一次有界调用，明确告诉用户在改什么。
+            if store.isRevisingAnswer {
+                HStack(spacing: 7) {
+                    ProgressView()
+                        .controlSize(.mini)
+                    Text("Revising the answer after self-review…")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                }
+                .contentColumnWidth(contentMaxWidth)
+                .frame(maxWidth: .infinity)
+            }
+
             // 技能修正建议条（v0.8.76 批 4）：用户刚纠正了按某技能执行的做法、旁路
             // 起草出定点补丁 → 当场可见、当场可处理。只显示**当前会话**产生的；
             // 回合进行中收起（补丁在回合收尾后才落卡，出现时正好不忙）。
@@ -1176,6 +1190,8 @@ struct AgentPanel: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(RoundedRectangle(cornerRadius: 8).fill(appAccent.opacity(0.07)))
+        } else if let recovered = store.recoveredApproval, !store.isProcessing {
+            recoveredApprovalBar(recovered)
         } else if let approval = store.pendingApproval {
             ToolApprovalBar(
                 approval: approval,
@@ -1195,9 +1211,53 @@ struct AgentPanel: View {
                 onShowLivePage: {
                     PeekCenter.shared.showForApproval(
                         reason: String(localized: "Review the page before approving"))
-                }
+                },
+                onAllowRestOfTurn: { store.resolveApproval(.allowOnce, batch: true) }
             )
         }
+    }
+
+    /// 重启后恢复的待批操作（v0.8.80 批 3）：允许/拒绝后继续被打断的回合。
+    private func recoveredApprovalBar(_ record: PendingApprovalSnapshot) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: "clock.arrow.circlepath")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(appAccent)
+            VStack(alignment: .leading, spacing: 4) {
+                Text("A tool call from the interrupted turn was waiting for approval")
+                    .font(.system(size: 12, weight: .semibold))
+                Text(verbatim: record.toolName + " · " + record.risk)
+                    .font(.system(size: 11, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                if !record.summary.isEmpty {
+                    Text(record.summary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                HStack(spacing: 8) {
+                    Button(String(localized: "Allow and Resume")) {
+                        store.resolveRecoveredApproval(allow: true)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    Button(String(localized: "Deny and Resume")) {
+                        store.resolveRecoveredApproval(allow: false)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    Button(String(localized: "Dismiss")) {
+                        store.discardRecoveredApproval()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(RoundedRectangle(cornerRadius: 8).fill(appAccent.opacity(0.07)))
+        .contentColumnWidth(contentMaxWidth)
     }
 
     private func scrollToBottom(_ proxy: ScrollViewProxy, force: Bool = false) {

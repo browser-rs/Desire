@@ -106,6 +106,16 @@ class AgentSessionStore: ObservableObject {
     /// (or deny) a tool call. The UI renders `ToolApprovalBar` from this.
     /// See `docs/ARCHITECTURE.md` (AgentRuntime v2, roadmap L3 stage 2).
     @Published var pendingApproval: PendingToolApproval?
+    /// 重启后恢复的**待批快照**（v0.8.80 批 3）：原 continuation 已随进程结束，
+    /// 面板据此重新给允许/拒绝，再续跑被打断的回合。
+    @Published private(set) var recoveredApproval: PendingApprovalSnapshot?
+    /// 退出时落盘的待批快照（随会话文件走；正常解决后清空）。
+    private var activeApprovalSnapshot: PendingApprovalSnapshot?
+    /// "批准本轮剩余同类调用"的匹配模式——每次回合开始清空（不跨回合）。
+    private var turnApprovalPatterns: [ApprovalBatchPattern] = []
+    /// 恢复待批后的**一次性决定**（allow/deny + 模式）：续跑回合里第一次遇到
+    /// 匹配调用时消费；不跨回合。
+    private var recoveredApprovalGrant: (allow: Bool, pattern: ApprovalBatchPattern)?
     /// 审批卡展示用：本次审批归属的页面 host。
     /// pageAction 优先用 DPP 声明的站点 host（逐动作授权锚点）；其余工具取
     /// 当前标签页 host。**dangerous 工具不提供站点长期放行**（ToolRisk 承诺
@@ -236,6 +246,8 @@ class AgentSessionStore: ObservableObject {
 
     /// Token-delivery progress during streaming. Reset on `sendMessage`.
     @Published var streamingTokenCount = 0
+    /// 自评后正在自动修订答案（v0.8.80 批 3）：面板状态行据此显示"修订中"。
+    @Published private(set) var isRevisingAnswer = false
     /// Wall-clock start of the current processing run (drives the elapsed
     /// timer in the panel status line).
     @Published var processingStartedAt: Date?
@@ -295,7 +307,9 @@ class AgentSessionStore: ObservableObject {
     private var contextFractionLastComputeAt: Date = .distantPast
 
     private func beginTurn() -> UUID {
-        turnOwnership.begin()
+        // 批量审批只在本回合内有效（恢复授权单独存，不受这里影响）。
+        turnApprovalPatterns.removeAll()
+        return turnOwnership.begin()
     }
 
     /// 当前回合所有权快照（请求准备的后台转换用它做陈旧守卫）。
@@ -604,6 +618,16 @@ class AgentSessionStore: ObservableObject {
     3) 有没有更简单或更可靠的做法？
     4) 有没有漏掉用户明确提出的要求？
     最多 4 行，一行一条；确实没问题就只回一句"未发现问题"。
+    """
+
+    /// 自评发现客观问题后的**一次**有界修订提示（v0.8.80 批 3）：只改答案，
+    /// 不执行工具、不新增动作；不可验证的地方必须明说。
+    static let revisionPrompt = """
+    你在自评之后修订自己的最终答案。规则：
+    - 只使用执行轨迹里已经发生过的事实与工具结果，绝不编造新动作或新结果；
+    - 自评指出的问题要逐条处理：未验证的结论要么补上"未验证"的说明，要么删掉；
+    - 保持原答案的语言与结构，不要重写与问题无关的部分；
+    - 只输出修订后的最终答案本身，不要加"修订说明"之类的标题或前言。
     """
     /// Message count already digested by background memory extraction —
     /// gates the next extraction until enough NEW turns accumulate.
@@ -1349,6 +1373,12 @@ class AgentSessionStore: ObservableObject {
             queuedMessages.append(QueuedMessage(text: trimmed, images: images, origin: origin))
             return
         }
+        // 用户直接发了新消息 = 不再处理旧回合的待批快照（v0.8.80 批 3）。
+        if recoveredApproval != nil {
+            recoveredApproval = nil
+            activeApprovalSnapshot = nil
+        }
+        recoveredApprovalGrant = nil
         currentTurnOrigin = origin
         messages.append(AgentMessage(role: .user, content: trimmed, images: images))
         if origin == .user { preloadSkillIfRepeated(for: trimmed) }
@@ -1493,6 +1523,10 @@ class AgentSessionStore: ObservableObject {
         guard hasInterruptedTurn else { return }
         hasInterruptedTurn = false
         turnCheckpointActive = false
+        // 放弃被打断的回合 = 待批快照也一并作废（v0.8.80 批 3）。
+        recoveredApproval = nil
+        recoveredApprovalGrant = nil
+        activeApprovalSnapshot = nil
         saveCurrentConversation()
         // 成本预算哨兵（v0.8.19）：回合落盘后对账（0 = 关；派生走统计页同源）。
         CostBudgetMonitor.checkAfterTurn()
@@ -1589,6 +1623,7 @@ class AgentSessionStore: ObservableObject {
         if let approval = pendingApproval {
             approval.resume(with: .denied)
             pendingApproval = nil
+            activeApprovalSnapshot = nil
         }
         // Same for an in-flight askUser: without this the cancelled loop
         // task stays suspended on its continuation forever (leak + the UI
@@ -1794,7 +1829,11 @@ class AgentSessionStore: ObservableObject {
         if let approval = pendingApproval {
             approval.resume(with: .denied)
             pendingApproval = nil
+            activeApprovalSnapshot = nil
         }
+        recoveredApproval = nil
+        recoveredApprovalGrant = nil
+        turnApprovalPatterns.removeAll()
         // The conversation is about to disappear — capture its L2 summary
         // first so "新对话" doesn't erase what happened.
         if summarizeMemory, preference.memoryLearning, messages.count >= 8, let cid = conversationId {
@@ -1901,7 +1940,11 @@ class AgentSessionStore: ObservableObject {
         if let approval = pendingApproval {
             approval.resume(with: .denied)
             pendingApproval = nil
+            activeApprovalSnapshot = nil
         }
+        recoveredApproval = nil
+        recoveredApprovalGrant = nil
+        turnApprovalPatterns.removeAll()
         guard let conv = conversationStore.conversation(for: id) else { return }
         messages = conv.messages
         conversationId = conv.id
@@ -1911,6 +1954,11 @@ class AgentSessionStore: ObservableObject {
         AgentPlanStore.shared.restore(conversationID: conv.id.uuidString, conv.planSteps)
         // 检查点：上次回合没走到收尾（标志残留）→ 面板提示继续/放弃。
         hasInterruptedTurn = conv.turnActive == true
+        // 待批快照只在"回合确实被打断"时有意义（v0.8.80 批 3）。
+        // activeApprovalSnapshot 同步接住：后续任何保存都要把它继续带上，
+        // 否则下一次常规落盘会把记录抹掉。
+        recoveredApproval = hasInterruptedTurn ? conv.pendingApproval : nil
+        activeApprovalSnapshot = recoveredApproval
         turnCheckpointActive = false   // 内存态复位；继续时由 resume 重新置位落盘
         // 会话预算：档位随会话恢复；跃迁基线静默对齐（不复报已越过的阈值）。
         budgetStopLevel = max(1, conv.budgetStopLevel ?? 1)
@@ -1966,6 +2014,7 @@ class AgentSessionStore: ObservableObject {
                 approval.toolCall.function.name)
             pendingApproval?.resume(with: .denied)
             pendingApproval = nil
+            clearStoredApprovalSnapshot(save: false)
         } else {
             approvalNote = nil
         }
@@ -2052,7 +2101,7 @@ class AgentSessionStore: ObservableObject {
         // 计划**保存时现读**计划 store（updatePlan 改完无需专门触发，
         // 回合收尾的常规保存自然带上）；无会话（conversationId=nil）读不到。
         let planSteps = AgentPlanStore.shared.steps(for: id.uuidString)
-        let conv = Conversation(id: id, title: title, createdAt: createdAt, updatedAt: Date(), messages: persistedMessages, inputHistory: inputHistory, planSteps: planSteps.isEmpty ? nil : planSteps, turnActive: turnCheckpointActive, budgetStopLevel: budgetStopLevel)
+        let conv = Conversation(id: id, title: title, createdAt: createdAt, updatedAt: Date(), messages: persistedMessages, inputHistory: inputHistory, planSteps: planSteps.isEmpty ? nil : planSteps, turnActive: turnCheckpointActive, budgetStopLevel: budgetStopLevel, pendingApproval: activeApprovalSnapshot)
         conversationStore.save(conv)
     }
 
@@ -2934,6 +2983,7 @@ class AgentSessionStore: ObservableObject {
                             if pendingStreamUsage.totalTokens > 0 {
                                 fresh.promptTokens = pendingStreamUsage.promptTokens
                                 fresh.completionTokens = pendingStreamUsage.completionTokens
+                                fresh.cachedPromptTokens = pendingStreamUsage.cachedPromptTokens
                                 pendingStreamUsage = AgentUsage()
                             }
                             assistantMsg = fresh
@@ -2960,6 +3010,7 @@ class AgentSessionStore: ObservableObject {
                             if pendingStreamUsage.totalTokens > 0 {
                                 fresh.promptTokens = pendingStreamUsage.promptTokens
                                 fresh.completionTokens = pendingStreamUsage.completionTokens
+                                fresh.cachedPromptTokens = pendingStreamUsage.cachedPromptTokens
                                 pendingStreamUsage = AgentUsage()
                             }
                             assistantMsg = fresh
@@ -2983,6 +3034,7 @@ class AgentSessionStore: ObservableObject {
                             if pendingStreamUsage.totalTokens > 0 {
                                 fresh.promptTokens = pendingStreamUsage.promptTokens
                                 fresh.completionTokens = pendingStreamUsage.completionTokens
+                                fresh.cachedPromptTokens = pendingStreamUsage.cachedPromptTokens
                                 pendingStreamUsage = AgentUsage()
                             }
                             assistantMsg = fresh
@@ -3016,6 +3068,14 @@ class AgentSessionStore: ObservableObject {
                         } else {
                             pendingStreamUsage.promptTokens += prompt
                             pendingStreamUsage.completionTokens += completion
+                        }
+                    case .cacheUsage(let cached):
+                        // 提示词缓存命中（v0.8.80）：记在本条助手消息上（随会话落盘，
+                        // 历史会话也能算命中率）。
+                        if let current = assistantMsg {
+                            assistantMsg!.cachedPromptTokens = (current.cachedPromptTokens ?? 0) + cached
+                        } else {
+                            pendingStreamUsage.cachedPromptTokens += cached
                         }
                     case .model(let name):
                         reportedModel = name
@@ -3650,6 +3710,8 @@ class AgentSessionStore: ObservableObject {
                             subagentUsage.promptTokens += prompt
                             subagentUsage.completionTokens += completion
                             if prompt > 0 { lastPromptTokens = prompt }
+                        case .cacheUsage(let cached):
+                            subagentUsage.cachedPromptTokens += cached
                         case .model(let name):
                             assistant.model = name
                         }
@@ -3742,14 +3804,16 @@ class AgentSessionStore: ObservableObject {
 
     /// 把"最近一轮"（最后一条 user 消息之后）整理成自评用的紧凑轨迹。
     /// 从已有消息派生，不在热路径上额外记账。
-    private func currentTurnTrace() -> (goal: String, trace: String, toolCount: Int, dangerous: Bool) {
+    private func currentTurnTrace() -> (goal: String, trace: String, toolCount: Int,
+                                       dangerous: Bool, failedCalls: Int) {
         guard let start = messages.lastIndex(where: { $0.role == .user }) else {
-            return ("", "", 0, false)
+            return ("", "", 0, false, 0)
         }
         let goal = messages[start].content ?? ""
         var lines: [String] = []
         var toolCount = 0
         var dangerous = false
+        var failedCalls = 0
         for message in messages[start...] {
             switch message.role {
             case .assistant:
@@ -3762,12 +3826,16 @@ class AgentSessionStore: ObservableObject {
                     lines.append("答: \(text.prefix(400))")
                 }
             case .tool:
+                let text = (message.content ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                if text.hasPrefix("Error:") || text.hasPrefix("[User denied") {
+                    failedCalls += 1
+                }
                 lines.append("◀ \(message.toolName ?? "result"): \((message.content ?? "").prefix(240))")
             default:
                 break
             }
         }
-        return (goal, lines.joined(separator: "\n"), toolCount, dangerous)
+        return (goal, lines.joined(separator: "\n"), toolCount, dangerous, failedCalls)
     }
 
     /// 一次自评调用：**同一个模型、不带工具、只看轨迹**。失败或取消返回 nil
@@ -4075,6 +4143,88 @@ class AgentSessionStore: ObservableObject {
         messages[index].critique = critique
         streamingVersion += 1
         saveCurrentConversation()
+
+        // 自评后有**客观失败证据** → 一次有界修订（v0.8.80 批 3）。只跑一次：
+        // 不重跑工具、不循环审自己；修订稿失控变长直接丢弃（见 AnswerRevision）。
+        let answer = messages[index].content ?? ""
+        guard !isCancelled,
+              AnswerRevision.shouldRevise(critique: critique,
+                                          verificationNote: messages[index].verificationNote,
+                                          failedCalls: turn.failedCalls,
+                                          answer: answer) else { return }
+        isRevisingAnswer = true
+        defer { isRevisingAnswer = false }
+        guard let revised = await reviseAnswer(goal: turn.goal,
+                                               trace: turn.trace,
+                                               critique: critique,
+                                               answer: answer,
+                                               onUsage: { [weak self] p, c, m in
+                                                   self?.attributeBypassUsage("revision", p, c, model: m, to: tailAssistantID)
+                                               }) else { return }
+        guard let index = tailAssistantID.flatMap({ id in
+            messages.lastIndex { $0.id == id && $0.role == .assistant }
+        }) else { return }
+        messages[index].content = revised
+        messages[index].wasRevised = true
+        streamingVersion += 1
+        saveCurrentConversation()
+    }
+
+    /// 一次有界的答案修订：不带工具、单次调用，输入超出预算直接放弃。
+    /// 失败/取消返回 nil（修订永远不能把一轮正常回合变成失败）。
+    private func reviseAnswer(goal: String, trace: String, critique: String, answer: String,
+                              onUsage: ((Int, Int, String?) -> Void)? = nil) async -> String? {
+        let budget = AnswerRevision.maxContextChars
+        guard goal.count + trace.count + critique.count + answer.count <= budget else { return nil }
+        let prefs = preference
+        let request: [AgentMessage] = [
+            AgentMessage(role: .system, content: Self.revisionPrompt),
+            AgentMessage(role: .user, content: """
+            目标：
+            \(goal)
+
+            执行轨迹：
+            \(trace.prefix(6_000))
+
+            自评指出的问题：
+            \(critique.prefix(2_000))
+
+            当前答案：
+            \(answer.prefix(12_000))
+            """),
+        ]
+        var text = ""
+        var usagePrompt = 0
+        var usageCompletion = 0
+        var reportedModel: String?
+        do {
+            for try await event in AgentStreamWatchdog.wrap(prefs.provider.stream(messages: request,
+                                                                                 tools: [],
+                                                                                 prefs: prefs)) {
+                if isCancelled || Task.isCancelled { return nil }
+                switch event {
+                case .text(let delta): text += delta
+                case .usage(let prompt, let completion):
+                    usagePrompt = prompt
+                    usageCompletion = completion
+                case .model(let name): reportedModel = name
+                default: break
+                }
+            }
+        } catch {
+            Log.agent.info("revision call failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+        if usagePrompt > 0 || usageCompletion > 0 {
+            onUsage?(usagePrompt, usageCompletion,
+                     reportedModel ?? (prefs.model.isEmpty ? nil : prefs.model))
+        }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard AnswerRevision.accepts(revised: trimmed, original: answer) else {
+            Log.agent.info("revision discarded: empty or grew beyond the cap")
+            return nil
+        }
+        return trimmed
     }
 
     // MARK: - 旁路调用成本记账
@@ -4446,6 +4596,42 @@ class AgentSessionStore: ObservableObject {
             return .denied
         }
 
+        // 跨重启恢复的待批决定（v0.8.80 批 3）：续跑回合里第一次遇到匹配调用
+        // 时消费。站点"逐次确认"与危险级不被恢复授权绕过（拒绝仍然生效）。
+        if let grant = recoveredApprovalGrant,
+           grant.pattern.matches(tool: toolCall.function.name,
+                                 siteHost: siteHost,
+                                 argumentsJSON: toolCall.function.arguments) {
+            recoveredApprovalGrant = nil
+            if !grant.allow {
+                ApprovalPolicyStore.shared.recordHistory(
+                    toolName: toolCall.function.name,
+                    decision: "denied (recovered approval)", source: "recovered", host: siteHost)
+                return .denied
+            }
+            if !forceConfirm, risk != .dangerous {
+                ApprovalPolicyStore.shared.recordHistory(
+                    toolName: toolCall.function.name,
+                    decision: "allowed (recovered approval)", source: "recovered", host: siteHost)
+                turnApprovalPatterns.append(grant.pattern)
+                return .allowedOnce
+            }
+        }
+
+        // "批准本轮剩余同类调用"（v0.8.80 批 3）：工具 + 站点 + 参数模式。
+        // 站点"逐次确认"压过批量；危险级永不进批（resolve 侧也不记录）。
+        if !forceConfirm, risk != .dangerous,
+           turnApprovalPatterns.contains(where: {
+               $0.matches(tool: toolCall.function.name,
+                          siteHost: siteHost,
+                          argumentsJSON: toolCall.function.arguments)
+           }) {
+            ApprovalPolicyStore.shared.recordHistory(
+                toolName: toolCall.function.name,
+                decision: "allowed (rest of turn)", source: "batch", host: siteHost)
+            return .allowedOnce
+        }
+
         // DPP 逐动作放行（0.6.7）：用户在审批卡上对「本站 × 此动作」的点名
         // 授权——优先于访问等级与 danger/outbound 升级（deny 仍前置）。
         // 例外：含 mcp 步骤的动作不参与本表（页面请求宿主侧能力不静默执行）。
@@ -4586,6 +4772,15 @@ class AgentSessionStore: ObservableObject {
                 continuation: continuation
             )
             pendingApproval = approval
+            // 快照落盘（v0.8.80 批 3）：进程活不过 continuation，但"在等什么"
+            // 要活下来——重启后面板据此重新给允许/拒绝。
+            activeApprovalSnapshot = PendingApprovalSnapshot(
+                toolName: toolCall.function.name,
+                argumentsJSON: toolCall.function.arguments,
+                risk: risk.displayName,
+                summary: summary,
+                siteHost: approval.siteHost)
+            saveCurrentConversation()
             BridgeEventBus.shared.publish("approvalPending", [
                 "tool": toolCall.function.name,
                 "risk": risk.displayName,
@@ -4598,6 +4793,7 @@ class AgentSessionStore: ObservableObject {
                 guard let self, let pending = self.pendingApproval, pending.id == approval.id else { return }
                 // 以 id 比对防陈旧：迟到的前一个超时不会误杀新审批。
                 self.pendingApproval = nil
+                self.clearStoredApprovalSnapshot(save: true)
                 pending.resume(with: .denied)   // 幂等，与 resolve/cancel 竞态安全
                 Log.agent.info("approval timed out after \(Int(UserPromptCenter.answerTimeout))s: \(toolCall.function.name, privacy: .public)")
             }
@@ -4628,16 +4824,19 @@ class AgentSessionStore: ObservableObject {
 
     /// Called by the UI (`ToolApprovalBar`) when the user decides.
     /// `siteGrant`：把本次审批落成站点级规则（0.8.1）。
+    /// `batch`：批准**本轮剩余同类调用**（同工具 + 同站点 + 同参数键集合；
+    /// 危险级不进批）——v0.8.80 批 3。
     /// - `.alwaysAllow` + DPP pageAction → 既有「站点 × 动作」点名授权（0.6.7）；
     /// - `.alwaysAllow` + 其他工具 → `ApprovalPolicy` 的 host 规则（allow）；
     /// - `.deny` → `ApprovalPolicy` 的 host 规则（deny）。
     /// dangerous 普通工具不提供站点长期放行（`pendingApprovalSiteHost` 已隐藏
     /// 入口）；桥若强传 siteGrant，也只对 DPP 动作生效。
-    func resolveApproval(_ decision: ApprovalDecision, siteGrant: Bool = false) {
+    func resolveApproval(_ decision: ApprovalDecision, siteGrant: Bool = false, batch: Bool = false) {
         approvalTimeoutTask?.cancel()
         approvalTimeoutTask = nil
         guard let approval = pendingApproval else { return }
         pendingApproval = nil
+        clearStoredApprovalSnapshot(save: true)
 
         let tool = approval.toolCall.function.name
         let site = ApprovalPolicy.normalizeHost(approval.siteHost)
@@ -4671,6 +4870,15 @@ class AgentSessionStore: ObservableObject {
             }
         }
 
+        // 批量放行（v0.8.80 批 3）：只批同类、危险级不进批；审计行写明范围。
+        if batch, decision != .deny, approval.risk != .dangerous {
+            turnApprovalPatterns.append(ApprovalBatchPattern(
+                tool: tool,
+                siteHost: approval.siteHost,
+                argumentsJSON: approval.toolCall.function.arguments))
+            historyDecision = "allowed (rest of turn)"
+        }
+
         ApprovalPolicyStore.shared.recordHistory(
             toolName: tool, decision: historyDecision, source: "ui", host: site)
 
@@ -4701,6 +4909,43 @@ class AgentSessionStore: ObservableObject {
             outcome = .denied
         }
         approval.resume(with: outcome)
+    }
+
+    /// 清掉随会话落盘的待批快照（`save: true` 时立即写盘；切换/清空会话的
+    /// 路径用 false，避免把旧会话又写回去）。
+    private func clearStoredApprovalSnapshot(save: Bool) {
+        guard activeApprovalSnapshot != nil else { return }
+        activeApprovalSnapshot = nil
+        if save { saveCurrentConversation() }
+    }
+
+    /// 重启后处理待批快照（v0.8.80 批 3）：允许/拒绝后**续跑被打断的回合**——
+    /// 快照决定只对第一次匹配的同工具调用生效（危险级不绕过）。副作用调用
+    /// 不会静默重放：模型看到 "[interrupted]" 后自行决定是否重试。
+    func resolveRecoveredApproval(allow: Bool) {
+        guard let record = recoveredApproval else { return }
+        recoveredApproval = nil
+        activeApprovalSnapshot = nil
+        recoveredApprovalGrant = (allow, ApprovalBatchPattern(
+            tool: record.toolName,
+            siteHost: record.siteHost,
+            argumentsJSON: record.argumentsJSON))
+        ApprovalPolicyStore.shared.recordHistory(
+            toolName: record.toolName,
+            decision: allow ? "allowed (recovered approval)" : "denied (recovered approval)",
+            source: "recovered", host: record.siteHost)
+        saveCurrentConversation()
+        if hasInterruptedTurn {
+            _ = resumeInterruptedTurn()
+        }
+    }
+
+    /// 丢弃恢复的待批快照（不续跑）——只清记录。
+    func discardRecoveredApproval() {
+        guard recoveredApproval != nil else { return }
+        recoveredApproval = nil
+        activeApprovalSnapshot = nil
+        saveCurrentConversation()
     }
 
     /// Automation-bridge hook: arms a REAL pending approval (a live

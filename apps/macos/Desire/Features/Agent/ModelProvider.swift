@@ -45,6 +45,9 @@ enum AgentStreamEvent {
     /// OpenAI-compatible backends send it in the final chunk; Foundation
     /// Models reports nothing).
     case usage(promptTokens: Int, completionTokens: Int)
+    /// 其中**命中提示词缓存**的输入 token 数（v0.8.80）。单独一个事件是为了
+    /// 不破坏既有 `.usage` 消费方；只有服务端真的上报了才发（不估算）。
+    case cacheUsage(cachedPromptTokens: Int)
     /// 服务端自报的模型 id（响应里的 `model`）。**实际跑的**模型可能与请求里选的
     /// 不同（网关会路由/改写：选了 `main-model` 实际跑某个上游模型），成本得按真跑的
     /// 那个算；服务端不给就由调用方退回"请求时选的模型"。

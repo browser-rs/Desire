@@ -8,6 +8,8 @@ import Foundation
 nonisolated struct AgentUsage: Equatable {
     var promptTokens: Int = 0
     var completionTokens: Int = 0
+    /// 其中命中提示词缓存的输入 token（v0.8.80；服务端上报才有）。
+    var cachedPromptTokens: Int = 0
     /// 其中旁路调用（标题/记忆整理/自评）的部分——`promptTokens`/`completionTokens`
     /// 是**含旁路的总量**，主回合 = 总量 − 旁路。旧会话没有旁路明细，旁路为 0。
     var bypassTokens: Int = 0
@@ -17,6 +19,11 @@ nonisolated struct AgentUsage: Equatable {
     var hasUnpriced = false
 
     var totalTokens: Int { promptTokens + completionTokens }
+
+    /// 缓存命中率（0…1）。没有输入 token 或没有上报 → 0（不估算）。
+    var cacheHitRate: Double {
+        PromptCacheAccounting.hitRate(cached: cachedPromptTokens, prompt: promptTokens)
+    }
     var isEmpty: Bool { totalTokens == 0 }
 
     /// 从消息里汇总。**按每段用量自己记下的模型**查价——routing/中途换模型的
@@ -37,6 +44,7 @@ nonisolated struct AgentUsage: Equatable {
             }
         }
         for message in messages {
+            usage.cachedPromptTokens += message.cachedPromptTokens ?? 0
             let bypass = message.bypassUsage ?? []
             let bypassPrompt = bypass.reduce(0) { $0 + $1.promptTokens }
             let bypassCompletion = bypass.reduce(0) { $0 + $1.completionTokens }

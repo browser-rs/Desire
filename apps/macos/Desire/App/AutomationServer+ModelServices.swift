@@ -177,4 +177,61 @@ extension AutomationServer {
                     "known": price.isKnown]
         }
     }
+
+    /// 成本 / 延迟**建议**（v0.8.80 批 3）：只读，绝不切换模型。
+    /// 价格来自用户填的单价表（未知不比较），延迟来自历史会话的 TTFT p50。
+    @MainActor
+    static func routingAdvice(chars: Int?, promptTokens: Int?, completionTokens: Int?) -> [String: Any] {
+        guard let app = AppState.live else { return ["error": "app state not ready"] }
+        let store = app.aiPreference
+        let prompt = max(1, promptTokens ?? max(1, (chars ?? 8_000) / 4))
+        let completion = max(1, completionTokens ?? 800)
+        let stats = UsageStats.derive(from: app.conversationStore.conversations,
+                                      price: { store.usagePrice(for: $0) })
+
+        // 候选 = 全部档案里声明的模型（当前档案优先，同模型只留第一条）。
+        let activeID = store.activeProfile?.id
+        let ordered = store.profiles.sorted { lhs, _ in lhs.id == activeID }
+        var candidates: [RoutingAdviceCandidate] = []
+        for profile in ordered {
+            var seen = Set<String>()
+            for model in [profile.model] + profile.modelList
+            where !model.isEmpty && seen.insert(model).inserted {
+                let perf = stats.modelPerf[model]
+                candidates.append(RoutingAdviceCandidate(
+                    model: model,
+                    profileID: profile.id.uuidString,
+                    price: store.price(forModel: model),
+                    ttftP50: perf?.ttftP50,
+                    latencyP50: perf?.latencyP50,
+                    samples: perf?.samples ?? 0))
+            }
+        }
+        let currentModel = store.model
+        let advice = RoutingAdviceEngine.advise(currentModel: currentModel,
+                                                promptTokens: prompt,
+                                                completionTokens: completion,
+                                                candidates: candidates)
+        return [
+            "current": ["model": currentModel,
+                        "profileID": activeID?.uuidString ?? ""],
+            "promptTokens": prompt,
+            "completionTokens": completion,
+            "advisoryOnly": true,
+            "advice": advice.map { item -> [String: Any] in
+                var row: [String: Any] = [
+                    "model": item.model,
+                    "kind": item.kind.rawValue,
+                    "samples": item.samples,
+                ]
+                row["profileID"] = item.profileID ?? NSNull()
+                row["estimatedCost"] = item.estimatedCost ?? NSNull()
+                row["currentEstimatedCost"] = item.currentEstimatedCost ?? NSNull()
+                row["savingFraction"] = item.savingFraction ?? NSNull()
+                row["ttftP50"] = item.ttftP50 ?? NSNull()
+                row["latencyP50"] = item.latencyP50 ?? NSNull()
+                return row
+            },
+        ]
+    }
 }

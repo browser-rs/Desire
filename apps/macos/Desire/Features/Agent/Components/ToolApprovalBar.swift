@@ -27,6 +27,8 @@ struct ToolApprovalBar: View {
     var sourceFrameHost: String? = nil
     /// 看现场（v0.8.23）：专注模式展开 Agent 的浏览面板再决定是否放行。
     var onShowLivePage: (() -> Void)? = nil
+    /// 批准本轮剩余同类调用（v0.8.80 批 3）：同工具 + 同站点 + 同参数键集合。
+    var onAllowRestOfTurn: (() -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 10) {
@@ -62,6 +64,13 @@ struct ToolApprovalBar: View {
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                         .disabled(approval.risk == .dangerous)
+                    if let onAllowRestOfTurn {
+                        Button(String(localized: "Allow Rest of Turn"), action: onAllowRestOfTurn)
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(approval.risk == .dangerous)
+                            .help("Approve the same tool with the same argument shape for the rest of this turn")
+                    }
                     if let onAlwaysAllowOnSite {
                         Button("Always on \(siteHost ?? "this site")", action: { onAlwaysAllowOnSite(siteHost ?? "") })
                             .buttonStyle(.bordered)

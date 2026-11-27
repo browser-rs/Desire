@@ -15,6 +15,14 @@
 - 站点级静音：站点设置弹层新增"Mute This Site"，进入该站点的页面自动静音（离开不强制取消，尊重手动静音）；桥新增 `/site-settings/mute`，`/state` 的标签行带 `muted` / `playingAudio`。
 - 媒体菜单：新增 Media 菜单（全部标签静音 / 取消全部静音 / 跳到正在播放的标签）。
 - 截图 OCR 结果可翻译：旁路档案流式翻译，结果显示在识别文字下方；另新增 `POST /translate/text` 供自动化和其它界面复用（不写会话、不计对话成本）。
+- Agent：提示词缓存计量（OpenAI cached_tokens / DeepSeek prompt_cache_hit_tokens / Anthropic cache_read_input_tokens）随消息落盘，统计页显示缓存命中率；Anthropic 请求在 system 与工具末尾加 cache_control 断点（支持缓存的模型）。
+- Agent：成本 / 延迟感知路由**建议**——统计页与 `GET /ai/routing/advice` 按已填单价 × 预估 token 与实测 TTFT p50 给"更便宜/更快"建议（只建议，不偷偷换模型；点 Use/显式切换才生效）。
+- Agent：审批批处理——审批卡新增「本轮剩余同类都允许」（同工具 + 同站点 + 同参数键集合；危险级不进批，审计行写明范围）；待批快照随会话落盘，重启后恢复为待批卡（允许/拒绝后继续被打断的回合）。
+- Agent：自评后有客观失败证据（机械核验结论或失败/被拒的工具调用）时自动做**一次**有界答案修订，面板显示"修订中"、消息标注已修订；修订用量按 revision 旁路入账。
+
+
+
+
 
 
 

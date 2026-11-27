@@ -37,6 +37,7 @@ SOURCES=(
   apps/macos/Desire/Features/Notifications/NotificationPolicy.swift
   apps/macos/Desire/Features/Agent/AgentToolSchema.swift
   apps/macos/Desire/Features/Agent/RequestMetering.swift
+  apps/macos/Desire/Features/Agent/PromptCacheAccounting.swift
   apps/macos/Desire/Features/Agent/AgentToolCatalog.swift
   apps/macos/Desire/Features/Agent/ToolChainCore.swift
   apps/macos/Desire/Features/Agent/ToolResultBudget.swift
@@ -135,7 +136,11 @@ SOURCES=(
   apps/macos/Desire/Features/Promotion/PromotionPreflight.swift
   apps/macos/Desire/Features/Agent/RoutingDecision.swift
   apps/macos/Desire/Features/Agent/Conversation.swift
+  apps/macos/Desire/Features/Agent/AgentApproval.swift
   apps/macos/Desire/Features/Agent/ModelPrice.swift
+  apps/macos/Desire/Features/Agent/RoutingAdvice.swift
+  apps/macos/Desire/Features/Agent/ApprovalBatchPattern.swift
+  apps/macos/Desire/Features/Agent/AnswerRevision.swift
   apps/macos/Desire/Features/Agent/CostBreakdown.swift
   apps/macos/Desire/Features/Agent/ModelPriceTable.swift
   apps/macos/Desire/Features/Agent/AgentUsage.swift

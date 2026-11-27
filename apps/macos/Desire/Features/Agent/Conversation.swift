@@ -22,4 +22,7 @@ struct Conversation: Identifiable, Codable {
     /// 会话预算档位（v0.7.18）：超当前档停机后前进到下一档，随会话落盘
     /// （切回/重启后仍按"已经付过的档"继续，而不是一重启又拦）。
     var budgetStopLevel: Int?
+    /// 退出时还在等审批的操作快照（v0.8.80 批 3）：continuation 不跨进程，
+    /// 重启后由面板重新给允许/拒绝，再续跑被打断的回合。
+    var pendingApproval: PendingApprovalSnapshot?
 }

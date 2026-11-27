@@ -269,3 +269,19 @@ passkey / WebAuthn（等 Apple 审批，见 `docs/PASSKEYS-APPLE-REQUEST.md`）�
 截图 OCR 翻译（旁路档案流式 + `POST /translate/text`）。验收：`browser-batch2-e2e` 14/14。
 **暂缓**：整词查找（WebKit find 无该模式，自绘高亮需改 DOM）、纯文本缩放（无公开 API）、
 支付卡/提交时保存（需要独立加密存储）。
+
+**批 3 进展（2026-11-27）**：提示词缓存三家计量（OpenAI `prompt_tokens_details.cached_tokens` /
+DeepSeek `prompt_cache_hit_tokens` / Anthropic `cache_read_input_tokens`）随消息落盘、统计页
+与 `/agent/stats` 给命中率；Anthropic 在 system 与最后一个工具上加 `cache_control`
+断点（按模型白名单）。成本/延迟**建议式**路由：`RoutingAdviceEngine`（纯逻辑）+ 统计页
+"Routing advice" 卡 + `GET /ai/routing/advice`，价格未知不比较、样本 <3 不谈延迟，只建议
+不切换。审批批处理：`ApprovalBatchPattern`（工具 + 站点 + 顶层参数键集合）驱动
+"本轮剩余同类都允许"，危险级不进批；待批快照随会话落盘（`Conversation.pendingApproval`），
+重启后 `POST /agent/open` → recovered 卡 → 允许/拒绝并续跑被打断的回合（同形状调用自动放行）。
+自评后修订：`AnswerRevision` 只在"机械核验结论或失败/被拒调用"存在且评语未说"未发现问题"时
+跑一次无工具修订，答案失控变长则丢弃；面板显示"修订中"、消息标 `wasRevised`、用量
+`kind=revision`。
+- **验收**：`prompt-cache-e2e` 8/8（假 OpenAI + 假 Anthropic 请求体断点与用量落盘）、
+  `agent-batch3-e2e` 12/12（建议不改模型、批量批准只弹一次卡、自评→修订终答）、
+  `approval-recovery-e2e` 12/12（quit → 重启 → recovered → 续跑）；harness 4024；
+  Debug 零警告。

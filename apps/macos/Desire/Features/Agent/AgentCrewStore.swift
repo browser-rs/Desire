@@ -498,6 +498,9 @@ final class AgentCrewStore: ObservableObject {
                         worker.promptTokens += prompt
                         worker.completionTokens += completion
                         publishProgress()
+                    case .cacheUsage:
+                        // 提示词缓存命中（v0.8.80）：crew 的报告不单列缓存，忽略即可。
+                        break
                     case .model(let name):
                         if usage.model == nil { usage.model = name }
                         if worker.model == nil { worker.model = name }

@@ -30,6 +30,8 @@ nonisolated struct AgentMessage: Identifiable, Codable, Sendable {
     var reasoning: String?
     /// 回合收尾时模型对自己的**自评**（可选）：只挂在有工具动作的回合上，面板里折叠展示。
     var critique: String?
+    /// 这条回答是否在自评后自动修订过（v0.8.80 批 3；有客观失败证据才发生一次）。
+    var wasRevised: Bool?
     /// 工具执行的墙钟耗时（毫秒）。轨迹里唯一**无法从消息派生**的一项，所以记在工具消息上、
     /// 随会话落盘——这样历史回合导出的轨迹也带耗时。
     var toolDurationMs: Double?
@@ -37,6 +39,8 @@ nonisolated struct AgentMessage: Identifiable, Codable, Sendable {
     /// 同样记在消息上、随会话落盘——成本要从**历史**会话里算出来，而它派不出来。
     var promptTokens: Int?
     var completionTokens: Int?
+    /// 这次调用里**命中提示词缓存**的输入 token 数（v0.8.80；服务端上报才有）。
+    var cachedPromptTokens: Int?
     /// **性能真值**（v0.8.74 批 3）：本次调用的首 token 延迟与总时长（毫秒）。
     /// 派生不出来就落盘的老规矩——轨迹/统计页按模型看"网关快不快"。
     var modelTTFTMs: Double?
@@ -77,6 +81,7 @@ nonisolated struct AgentMessage: Identifiable, Codable, Sendable {
         self.toolDurationMs = toolDurationMs
         self.promptTokens = promptTokens
         self.completionTokens = completionTokens
+        self.cachedPromptTokens = nil
         self.model = model
         self.createdAt = Date()
     }

@@ -76,6 +76,11 @@ enum OpenAICompatSSE {
                             let completion = usage["completion_tokens"] as? Int ?? 0
                             if prompt > 0 || completion > 0 {
                                 continuation.yield(.usage(promptTokens: prompt, completionTokens: completion))
+                                // 提示词缓存命中（v0.8.80）：OpenAI details / DeepSeek hit 字段。
+                                let cached = PromptCacheAccounting.cachedTokens(openAIUsage: usage)
+                                if cached > 0 {
+                                    continuation.yield(.cacheUsage(cachedPromptTokens: cached))
+                                }
                             }
                         }
 

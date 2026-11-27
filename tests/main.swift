@@ -13139,6 +13139,42 @@ do {
     check("下载记录：空输入为空", DownloadHistory.derive(from: []).sites.isEmpty)
 }
 
+// ---------- 提示词缓存 PromptCacheAccounting（v0.8.80 批 3） ----------
+
+do {
+    // OpenAI：details.cached_tokens 优先
+    eq("缓存：OpenAI details",
+       PromptCacheAccounting.cachedTokens(openAIUsage: [
+        "prompt_tokens": 1000,
+        "prompt_tokens_details": ["cached_tokens": 640],
+       ]), 640)
+    // DeepSeek：prompt_cache_hit_tokens
+    eq("缓存：DeepSeek 命中字段",
+       PromptCacheAccounting.cachedTokens(openAIUsage: [
+        "prompt_tokens": 1000, "prompt_cache_hit_tokens": 800,
+       ]), 800)
+    // 网关顶层 cached_tokens
+    eq("缓存：顶层 cached_tokens",
+       PromptCacheAccounting.cachedTokens(openAIUsage: ["cached_tokens": 128]), 128)
+    eq("缓存：没上报 = 0（不估算）",
+       PromptCacheAccounting.cachedTokens(openAIUsage: ["prompt_tokens": 999]), 0)
+    // Anthropic
+    eq("缓存：Anthropic cache_read_input_tokens",
+       PromptCacheAccounting.cachedTokens(anthropicUsage: [
+        "input_tokens": 900, "cache_read_input_tokens": 700,
+       ]), 700)
+    eq("缓存：Anthropic 没有命中字段 = 0",
+       PromptCacheAccounting.cachedTokens(anthropicUsage: ["input_tokens": 900]), 0)
+    // 命中率
+    eq("缓存：命中率", PromptCacheAccounting.hitRate(cached: 640, prompt: 1000), 0.64)
+    eq("缓存：没有输入 token → 0", PromptCacheAccounting.hitRate(cached: 10, prompt: 0), 0)
+    check("缓存：命中数不超过输入总数", PromptCacheAccounting.hitRate(cached: 2000, prompt: 1000) == 1)
+
+    // Anthropic cache_control 断点：只对支持的模型加
+    check("缓存：claude-sonnet-4 支持", PromptCacheAccounting.supportsPromptCaching(model: "claude-sonnet-4-20250514"))
+    check("缓存：claude-3-5-haiku 不支持", !PromptCacheAccounting.supportsPromptCaching(model: "claude-3-5-haiku-20241022"))
+}
+
 // ---------- 站点下载规则 DPPAdapter.DownloadRules（v0.8.77 批 2） ----------
 
 do {
@@ -13788,6 +13824,89 @@ do {
           && !DownloadRouting.looksLikeHandWrittenDownload(tool: "python3", arguments: ["speedtest.py"])
           && !DownloadRouting.looksLikeHandWrittenDownload(tool: "ls", arguments: ["-la", m3u8])
           && !DownloadRouting.looksLikeHandWrittenDownload(tool: "ffmpeg", arguments: ["-i", "/tmp/x/index.m3u8", "out.mp4"]))
+}
+
+// 成本/延迟路由建议（v0.8.80 批 3）：只给建议、不偷偷换模型。
+do {
+    let cheapest = ModelPrice(inputPerMTok: 0.15, outputPerMTok: 0.6)
+    let expensive = ModelPrice(inputPerMTok: 2.5, outputPerMTok: 10)
+    let current = RoutingAdviceCandidate(model: "big", profileID: "p1", price: expensive,
+                                         ttftP50: 900, latencyP50: 4_000, samples: 12)
+    let small = RoutingAdviceCandidate(model: "small", profileID: "p1", price: cheapest,
+                                       ttftP50: 1_100, latencyP50: 3_000, samples: 8)
+    let fast = RoutingAdviceCandidate(model: "fast", profileID: "p2", price: nil,
+                                      ttftP50: 400, latencyP50: 2_000, samples: 6)
+    let advice = RoutingAdviceEngine.advise(currentModel: "big", promptTokens: 4_000,
+                                            completionTokens: 800,
+                                            candidates: [current, small, fast])
+    check("路由建议：价格明确更低 → 建议更便宜，并给出省下的比例",
+          advice.count == 2
+          && advice[0].model == "small"
+          && advice[0].kind == .cheaper
+          && (advice[0].savingFraction ?? 0) > 0.9)
+    check("路由建议：无价格的候选只按延迟参与，不编造成本",
+          advice[1].model == "fast" && advice[1].kind == .faster
+          && advice[1].estimatedCost == nil && advice[1].savingFraction == nil)
+    check("路由建议：同样的价格不触发建议（宁可不提）",
+          RoutingAdviceEngine.advise(currentModel: "big", promptTokens: 4_000, completionTokens: 800,
+                                     candidates: [current,
+                                                  RoutingAdviceCandidate(model: "same", price: expensive,
+                                                                         ttftP50: 900, latencyP50: 4_000, samples: 20)]).isEmpty)
+    check("路由建议：样本 <3 的延迟不进建议",
+          RoutingAdviceEngine.advise(currentModel: "big", promptTokens: 1, completionTokens: 1,
+                                     candidates: [RoutingAdviceCandidate(model: "big", price: nil, ttftP50: 9_000, samples: 5),
+                                                  RoutingAdviceCandidate(model: "fresh", price: nil, ttftP50: 100, samples: 1)]).isEmpty)
+    check("路由建议：当前模型不在候选里时不做成本对比（缺少当前价格）",
+          RoutingAdviceEngine.advise(currentModel: "missing", promptTokens: 1_000, completionTokens: 100,
+                                     candidates: [RoutingAdviceCandidate(model: "small", price: cheapest, samples: 0)]).isEmpty)
+    check("路由建议：同模型多服务只保留一条",
+          RoutingAdviceEngine.advise(currentModel: "big", promptTokens: 4_000, completionTokens: 800,
+                                     candidates: [current, small,
+                                                  RoutingAdviceCandidate(model: "small", profileID: "p9", price: cheapest, samples: 0)])
+            .filter { $0.model == "small" }.count == 1)
+}
+
+// 审批批处理（v0.8.80 批 3）：工具 + 站点 + 参数模式。
+do {
+    let pattern = ApprovalBatchPattern(tool: "addBookmark", siteHost: "Example.COM ",
+                                       argumentsJSON: #"{"url":"https://a.example","title":"A"}"#)
+    check("审批批处理：同工具同站点、键集合相同 → 命中（值不同也算同类）",
+          pattern.matches(tool: "addBookmark", siteHost: "example.com",
+                          argumentsJSON: #"{"title":"B","url":"https://b.example"}"#))
+    check("审批批处理：站点归一化（大小写/空白）与空站点",
+          ApprovalBatchPattern(tool: "click", siteHost: nil, argumentsJSON: "{}")
+            .matches(tool: "click", siteHost: "  ", argumentsJSON: "{}"))
+    check("审批批处理：换工具、换站点、换参数形状都不命中",
+          !pattern.matches(tool: "fill", siteHost: "example.com",
+                           argumentsJSON: #"{"title":"B","url":"https://b.example"}"#)
+          && !pattern.matches(tool: "addBookmark", siteHost: "other.example",
+                              argumentsJSON: #"{"title":"B","url":"https://b.example"}"#)
+          && !pattern.matches(tool: "addBookmark", siteHost: "example.com",
+                              argumentsJSON: #"{"title":"B","url":"https://b.example","folder":"x"}"#))
+    check("审批批处理：非法 JSON 退化为无参数模式（不批量放行有内容的调用）",
+          ApprovalBatchPattern(tool: "click", siteHost: nil, argumentsJSON: "not json")
+            .matches(tool: "click", siteHost: nil, argumentsJSON: "{broken")
+          && !ApprovalBatchPattern(tool: "click", siteHost: nil, argumentsJSON: "not json")
+            .matches(tool: "click", siteHost: nil, argumentsJSON: ##"{"selector":"#go"}"##))
+}
+
+// 自评后的有界修订（v0.8.80 批 3）：只有客观失败证据 + 评语指了问题才动手。
+do {
+    check("自动修订：评语说未发现问题 → 不修订",
+          !AnswerRevision.shouldRevise(critique: "未发现问题", verificationNote: "工具失败 1 次", failedCalls: 1, answer: "答")
+          && !AnswerRevision.shouldRevise(critique: "No issues found.", verificationNote: nil, failedCalls: 2, answer: "答案"))
+    check("自动修订：有评语但没有客观证据 → 不修订（不凭感觉重写）",
+          !AnswerRevision.shouldRevise(critique: "第 2 步看起来不完整", verificationNote: nil, failedCalls: 0, answer: "答案"))
+    check("自动修订：客观证据（机械核验或失败调用）+ 评语 → 修订一次",
+          AnswerRevision.shouldRevise(critique: "结论未验证", verificationNote: "Every tool call failed.", failedCalls: 0, answer: "答案")
+          && AnswerRevision.shouldRevise(critique: "结论未验证", verificationNote: nil, failedCalls: 1, answer: "答案"))
+    check("自动修订：空答案永不修订",
+          !AnswerRevision.shouldRevise(critique: "有问题", verificationNote: "失败", failedCalls: 1, answer: "  "))
+    check("自动修订：修订稿失控变长就不采纳",
+          AnswerRevision.accepts(revised: "更正的答案", original: "答案")
+          && AnswerRevision.accepts(revised: String(repeating: "长", count: 1_500), original: "短")
+          && !AnswerRevision.accepts(revised: String(repeating: "长", count: 5_000), original: "短")
+          && !AnswerRevision.accepts(revised: "   ", original: "答案"))
 }
 
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块

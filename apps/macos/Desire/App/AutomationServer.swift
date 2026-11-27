@@ -659,6 +659,7 @@ final class AutomationServer {
         ep("POST", "/ai/output-rules/remove", "Remove one output rule by exact text", params: ["text:string"], example: #"-d '{"text":"…"}'"#)
         ep("GET", "/ai/prices", "Model price table (USD per Mtok) used to turn token usage into cost", example: "…/ai/prices")
         ep("POST", "/ai/prices", "Set/clear model prices; 0 or omitted = unknown (that model shows no money)", params: ["models?:{model:{input,output}}", "remove?:[model]"], example: #"-d '{"models":{"gpt-4o":{"input":2.5,"output":10}}}'"#)
+        ep("GET", "/ai/routing/advice", "Cost/latency routing **advice** (advisory only — nothing is switched). Uses filled prices + observed TTFT p50", params: ["chars?:int", "promptTokens?:int", "completionTokens?:int"], example: "…/ai/routing/advice?promptTokens=4000&completionTokens=800")
         ep("GET", "/agent/tool-catalog", "Tool catalog stats: total count, groups, flat vs grouped prompt index sizes", example: "…/agent/tool-catalog")
         ep("GET", "/agent/tool-stats", "Per-tool usage from saved conversations (calls/failures/avg ms) — same source as the stats page", params: ["sinceDays?:int"], example: "…/agent/tool-stats?sinceDays=7")
         ep("POST", "/diag/tool-timeout-probe", "DEBUG-only: exercise the tool timeout race (seconds vs workSeconds)", params: ["seconds?:number", "workSeconds?:number"], example: #"-d '{"seconds":1,"workSeconds":2}'"#)
@@ -857,8 +858,8 @@ final class AutomationServer {
         ep("POST", "/dpp/adapters/toggle", "Enable/disable an adapter by name", params: ["name:string", "enabled:bool"], example: #"-d '{"name":"juejin","enabled":false}'"#)
         ep("POST", "/dpp/adapters/remove", "Delete an adapter package", params: ["name:string"], example: #"-d '{"name":"juejin"}'"#)
         ep("POST", "/dpp/adapters/export", "Export an adapter as shareable JSON (local provenance and telemetry stripped); path defaults to Downloads", params: ["name:string", "path?:string"], example: #"-d '{"name":"demo","path":"/tmp/demo.json"}'"#)
-        ep("GET", "/agent/approvals", "Pending tool approval (the card waiting in the panel)", example: "…/agent/approvals")
-        ep("POST", "/agent/approvals/resolve", "Resolve the pending approval from outside the panel (agent full-loop E2E without a human click)", params: ["decision:string(allowOnce|alwaysAllow|deny)"], example: #"-d '{"decision":"allowOnce"}'"#)
+        ep("GET", "/agent/approvals", "Pending tool approval (the card waiting in the panel) or a snapshot recovered after a restart", example: "…/agent/approvals")
+        ep("POST", "/agent/approvals/resolve", "Resolve the pending approval from outside the panel (agent full-loop E2E without a human click); allowTurn batches the same tool + site + argument shape for the rest of this turn", params: ["decision:string(allowOnce|allowTurn|alwaysAllow|deny|recoveredAllow|recoveredDeny)"], example: #"-d '{"decision":"allowTurn"}'"#)
         ep("POST", "/mcp/add", "Add an MCP server (omit command for HTTP url; command = stdio argv, space-separated with quotes)", params: ["name:string", "url?:string", "command?:string"], example: #"-d '{"name":"local","command":"python3 /tmp/mcp.py"}'"#)
         ep("POST", "/responsive", "Toggle responsive design mode", params: ["enabled?:bool", "preset?:string", "index?:int", "pixelRatio?:number"], example: "-d '{\"enabled\":true,\"pixelRatio\":3}'")
         ep("GET", "/spawn-test", "Probe: spawn system binaries", example: "…/spawn-test")
@@ -2107,7 +2108,21 @@ case ("GET", "/state"):
                 let result = await provider.execute(call, in: toolWebView)
                 return try Self.json(["action": name, "result": result])
             case ("GET", "/agent/approvals"):
-                guard let pending = AgentScheduler.shared.deliveryTarget?.pendingApproval else {
+                guard let session = AgentScheduler.shared.deliveryTarget else {
+                    return try Self.json(["pending": false])
+                }
+                // 跨重启恢复的待批快照（v0.8.80 批 3）：与活审批分开报。
+                if let recovered = session.recoveredApproval {
+                    return try Self.json([
+                        "pending": false,
+                        "recovered": true,
+                        "tool": recovered.toolName,
+                        "arguments": recovered.summary,
+                        "risk": recovered.risk,
+                        "siteHost": recovered.siteHost ?? "",
+                    ])
+                }
+                guard let pending = session.pendingApproval else {
                     return try Self.json(["pending": false])
                 }
                 return try Self.json([
@@ -2121,13 +2136,22 @@ case ("GET", "/state"):
                 guard let decision = Self.string(body, "decision") else {
                     return try Self.json(["error": "missing decision"])
                 }
+                // 恢复的待批快照：allow / deny 后继续被打断的回合。
+                if decision == "recoveredAllow" || decision == "recoveredDeny" {
+                    guard let session = AgentScheduler.shared.deliveryTarget,
+                          session.recoveredApproval != nil else {
+                        return try Self.json(["error": "no recovered approval"])
+                    }
+                    session.resolveRecoveredApproval(allow: decision == "recoveredAllow")
+                    return try Self.json(["ok": true, "decision": decision, "recovered": true])
+                }
                 let outcome: ApprovalDecision
                 switch decision {
-                case "allowOnce": outcome = .allowOnce
+                case "allowOnce", "allowTurn": outcome = .allowOnce
                 case "alwaysAllow": outcome = .alwaysAllow
                 case "deny": outcome = .deny
                 default:
-                    return try Self.json(["error": "decision must be allowOnce|alwaysAllow|deny"])
+                    return try Self.json(["error": "decision must be allowOnce|allowTurn|alwaysAllow|deny"])
                 }
                 guard let pending = AgentScheduler.shared.deliveryTarget?.pendingApproval else {
                     return try Self.json(["error": "no pending approval"])
@@ -2135,9 +2159,10 @@ case ("GET", "/state"):
                 // siteGrant=true 时把决定落成「工具 × 审批站点」规则（0.8.1）；
                 // DPP pageAction 仍是「站点 × 动作」授权。
                 let siteGrant = body["siteGrant"] as? Bool ?? false
-                AgentScheduler.shared.deliveryTarget?.resolveApproval(outcome, siteGrant: siteGrant)
+                let batch = decision == "allowTurn" || (body["batch"] as? Bool ?? false)
+                AgentScheduler.shared.deliveryTarget?.resolveApproval(outcome, siteGrant: siteGrant, batch: batch)
                 return try Self.json(["ok": true, "tool": pending.toolCall.function.name,
-                                      "decision": decision, "siteGrant": siteGrant])
+                                      "decision": decision, "siteGrant": siteGrant, "batch": batch])
             case ("GET", "/dpp/action-approvals"):
                 // DPP 逐动作放行清单（0.6.7）：host × action 的用户授权。
                 return try Self.json([
@@ -2770,7 +2795,8 @@ case ("GET", "/state"):
                 return try Self.json(Self.resolvePendingApproval(
                     Self.string(body, "decision") ?? "",
                     window: Self.string(body, "window"),
-                    siteGrant: body["siteGrant"] as? Bool ?? false
+                    siteGrant: body["siteGrant"] as? Bool ?? false,
+                    batch: body["batch"] as? Bool ?? false
                 ))
             case ("POST", "/devtools/eval"):
                 return try await Self.json(Self.devToolsEval(js: Self.string(body, "js") ?? "", index: Self.index(body)))
@@ -2929,6 +2955,12 @@ case ("GET", "/state"):
                 return try Self.json(Self.outputRulesRemove(text: Self.string(body, "text") ?? ""))
             case ("GET", "/ai/prices"):
                 return try Self.json(Self.aiPriceList())
+            case ("GET", "/ai/routing/advice"):
+                // 建议式路由（v0.8.80 批 3）：只读，不切换模型。
+                return try Self.json(Self.routingAdvice(
+                    chars: Self.string(query, "chars").flatMap(Int.init),
+                    promptTokens: Self.string(query, "promptTokens").flatMap(Int.init),
+                    completionTokens: Self.string(query, "completionTokens").flatMap(Int.init)))
             case ("POST", "/ai/prices"):
                 return try Self.json(Self.aiPrices(
                     models: body["models"] as? [String: [String: Double]],
@@ -7668,6 +7700,8 @@ case ("GET", "/agent/messages"):
             "totalTokens": stats.totalTokens,
             "promptTokens": stats.promptTokens,
             "completionTokens": stats.completionTokens,
+            "cachedPromptTokens": stats.cachedPromptTokens,
+            "cacheHitRate": stats.cacheHitRate,
             "bypassTokens": stats.bypassTokens,
             "turns": stats.turns,
             "conversations": stats.conversations,
@@ -7681,6 +7715,8 @@ case ("GET", "/agent/messages"):
                  "tokens": model.tokens,
                  "promptTokens": model.promptTokens,
                  "completionTokens": model.completionTokens,
+                 "cachedTokens": model.cachedTokens,
+                 "cacheHitRate": model.cacheHitRate,
                  "cost": model.cost as Any]
             },
         ]
@@ -8480,11 +8516,22 @@ case ("GET", "/agent/messages"):
         return ["error": "conflict", "conflicts": store.findConflicts(mapping: mapping).map(\.id)]
     }
 
-    /// Resolves a pending approval: decision ∈ allow_once | always_allow | deny.
+    /// Resolves a pending approval: decision ∈ allow_once | allow_turn |
+    /// always_allow | deny (+ recovered_allow | recovered_deny for a snapshot
+    /// restored after a restart).
     /// Lets external test drivers exercise the dangerous-tool path end to
     /// end without a human click.
-    private static func resolvePendingApproval(_ decision: String, window: String? = nil, siteGrant: Bool = false) throws -> [String: Any] {
-        guard let session = resolveSession(window), session.pendingApproval != nil else {
+    private static func resolvePendingApproval(_ decision: String, window: String? = nil,
+                                               siteGrant: Bool = false, batch: Bool = false) throws -> [String: Any] {
+        guard let session = resolveSession(window) else {
+            return ["error": "no pending approval"]
+        }
+        if decision == "recovered_allow" || decision == "recovered_deny" {
+            guard session.recoveredApproval != nil else { return ["error": "no recovered approval"] }
+            session.resolveRecoveredApproval(allow: decision == "recovered_allow")
+            return ["ok": true, "resolved": decision, "recovered": true]
+        }
+        guard session.pendingApproval != nil else {
             return ["error": "no pending approval"]
         }
         guard let pending = session.pendingApproval else {
@@ -8492,10 +8539,10 @@ case ("GET", "/agent/messages"):
         }
         let outcome: ApprovalDecision
         switch decision {
-        case "allow_once": outcome = .allowOnce
+        case "allow_once", "allow_turn": outcome = .allowOnce
         case "always_allow": outcome = .alwaysAllow
         case "deny": outcome = .deny
-        default: return ["error": "decision must be allow_once | always_allow | deny"]
+        default: return ["error": "decision must be allow_once | allow_turn | always_allow | deny"]
         }
         ApprovalPolicyStore.shared.recordHistory(
             toolName: pending.toolCall.function.name,
@@ -8503,8 +8550,9 @@ case ("GET", "/agent/messages"):
         // siteGrant 必须**传下去**：站点级「始终允许/拒绝」由 store 的
         // resolveApproval(siteGrant:) 落成规则——此前这里收了参数却没转发，
         // 桥的显式站点授权静默退化成普通放行（2026-10-17 修，gate_e2e D 轮照出）。
-        session.resolveApproval(outcome, siteGrant: siteGrant)
-        return ["ok": true, "resolved": decision,
+        session.resolveApproval(outcome, siteGrant: siteGrant,
+                                batch: batch || decision == "allow_turn")
+        return ["ok": true, "resolved": decision, "batch": batch || decision == "allow_turn",
                 "host": pending.siteHost ?? ""]
     }
 

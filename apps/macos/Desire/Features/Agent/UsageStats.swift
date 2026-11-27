@@ -21,6 +21,9 @@ struct UsageModelStat: Identifiable {
     let tokens: Int
     let promptTokens: Int
     let completionTokens: Int
+    /// 命中提示词缓存的输入 token 与命中率（v0.8.80；服务端上报才有）。
+    var cachedTokens: Int = 0
+    var cacheHitRate: Double = 0
     /// 只有这个模型的每一次调用都填了单价才有金额（否则 nil：不显示 $"0"）。
     let cost: Double?
 }
@@ -38,6 +41,8 @@ struct UsageStats {
     var totalTokens = 0
     var promptTokens = 0
     var completionTokens = 0
+    /// 命中提示词缓存的输入 token（v0.8.80）。
+    var cachedPromptTokens = 0
     /// 其中旁路调用（标题/记忆整理/自评）的部分——上面是**含旁路的总量**，
     /// 主回合 = 总量 − 旁路。旧会话没有旁路明细，旁路为 0。
     var bypassTokens = 0
@@ -71,6 +76,10 @@ struct UsageStats {
 
     var isEmpty: Bool { totalTokens == 0 }
 
+    var cacheHitRate: Double {
+        PromptCacheAccounting.hitRate(cached: cachedPromptTokens, prompt: promptTokens)
+    }
+
     /// `conversations` 用**已存盘的全部会话**；`price` 查单价（没配单价就只有 token）。
     static func derive(from conversations: [Conversation],
                        price: (String?) -> ModelPrice?) -> UsageStats {
@@ -81,7 +90,7 @@ struct UsageStats {
         // date → 累加器
         struct DayBucket { var tokens = 0; var turns = 0; var byModel: [String: Int] = [:]; var cost = 0.0; var unpriced = false }
         var buckets: [Date: DayBucket] = [:]
-        struct ModelBucket { var tokens = 0; var prompt = 0; var completion = 0; var cost = 0.0; var unpriced = false }
+        struct ModelBucket { var tokens = 0; var prompt = 0; var completion = 0; var cached = 0; var cost = 0.0; var unpriced = false }
         var modelBuckets: [String: ModelBucket] = [:]
         var perfSamples: [String: [(Double, Double)]] = [:]
 
@@ -109,6 +118,11 @@ struct UsageStats {
                 stats.totalTokens += tokens
                 stats.promptTokens += prompt
                 stats.completionTokens += completion
+                let cached = min(prompt, message.cachedPromptTokens ?? 0)
+                if cached > 0 {
+                    stats.cachedPromptTokens += cached
+                    modelBuckets[message.model.flatMap { $0.isEmpty ? nil : $0 } ?? subagentModelKey, default: ModelBucket()].cached += cached
+                }
 
                 // 旁路明细拆出后按各笔自己的模型归账；主回合 = 总量 − 旁路。
                 let bypass = message.bypassUsage ?? []
@@ -162,6 +176,8 @@ struct UsageStats {
         stats.models = modelBuckets.map { key, bucket in
             UsageModelStat(id: key, tokens: bucket.tokens,
                            promptTokens: bucket.prompt, completionTokens: bucket.completion,
+                           cachedTokens: bucket.cached,
+                           cacheHitRate: PromptCacheAccounting.hitRate(cached: bucket.cached, prompt: bucket.prompt),
                            cost: bucket.unpriced ? nil : bucket.cost)
         }.sorted { $0.tokens > $1.tokens }
 

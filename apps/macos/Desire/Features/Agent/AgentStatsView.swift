@@ -92,6 +92,7 @@ struct AgentStatsView: View {
                         activityCard
                         trendCard
                         modelsCard
+                        routingCard
                         toolsCard
                     }
                     footnote
@@ -561,6 +562,103 @@ struct AgentStatsView: View {
         }
     }
 
+    private var routingCard: some View {
+        let advice = routingAdvice
+        return Group {
+            if !advice.isEmpty {
+                card {
+                    cardHeader("Routing advice", systemImage: "arrow.triangle.branch")
+                    Text("Advisory only — based on your filled prices and observed TTFT. Nothing switches until you choose.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 6)
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(advice, id: \.model) { item in
+                            HStack(alignment: .center, spacing: 8) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    HStack(spacing: 6) {
+                                        Text(displayName(for: item.model))
+                                            .font(.system(size: 11.5, weight: .medium))
+                                            .lineLimit(1)
+                                        Text(kindLabel(item.kind))
+                                            .font(.system(size: 9.5, weight: .semibold))
+                                            .padding(.horizontal, 5)
+                                            .padding(.vertical, 1.5)
+                                            .background(appAccent.opacity(0.12), in: Capsule())
+                                            .foregroundStyle(appAccent)
+                                    }
+                                    Text(verbatim: adviceDetail(item))
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                        .monospacedDigit()
+                                }
+                                Spacer(minLength: 10)
+                                Button("Use") { adopt(item) }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                            }
+                        }
+                    }
+                    .padding(.top, 10)
+                }
+            }
+        }
+    }
+
+    /// 建议只在"有可证明的改进"时出现（价格未知不比较、样本 <3 不谈延迟）。
+    private var routingAdvice: [RoutingAdvice] {
+        let prompt = max(1, stats.promptTokens / max(1, stats.turns))
+        let completion = max(1, stats.completionTokens / max(1, stats.turns))
+        let activeID = preference.activeProfile?.id
+        var candidates: [RoutingAdviceCandidate] = []
+        for profile in preference.profiles.sorted(by: { lhs, _ in lhs.id == activeID }) {
+            var seen = Set<String>()
+            for model in [profile.model] + profile.modelList
+            where !model.isEmpty && seen.insert(model).inserted {
+                let perf = stats.modelPerf[model]
+                candidates.append(RoutingAdviceCandidate(
+                    model: model,
+                    profileID: profile.id.uuidString,
+                    price: preference.price(forModel: model),
+                    ttftP50: perf?.ttftP50,
+                    latencyP50: perf?.latencyP50,
+                    samples: perf?.samples ?? 0))
+            }
+        }
+        return RoutingAdviceEngine.advise(currentModel: preference.model,
+                                          promptTokens: prompt,
+                                          completionTokens: completion,
+                                          candidates: candidates)
+    }
+
+    private func kindLabel(_ kind: RoutingAdvice.Kind) -> String {
+        switch kind {
+        case .cheaper: String(localized: "Cheaper")
+        case .faster: String(localized: "Faster")
+        case .cheaperAndFaster: String(localized: "Cheaper + faster")
+        }
+    }
+
+    private func adviceDetail(_ item: RoutingAdvice) -> String {
+        var parts: [String] = []
+        if let saving = item.savingFraction, saving > 0 {
+            parts.append("−\(Int((saving * 100).rounded()))%")
+        }
+        if let cost = item.estimatedCost {
+            parts.append(String(format: "$%.4f", cost))
+        }
+        if let ttft = item.ttftP50 {
+            parts.append("TTFT " + msText(ttft))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    private func adopt(_ item: RoutingAdvice) {
+        guard let raw = item.profileID, let id = UUID(uuidString: raw) else { return }
+        preference.select(profileID: id, model: item.model)
+    }
+
     private var donut: some View {
         Chart {
             ForEach(stats.models) { model in
@@ -652,6 +750,9 @@ struct AgentStatsView: View {
 
     private func tokenDetail(_ model: UsageModelStat) -> String {
         var text = String(format: "%@ tokens", AgentUsage.formatTokens(model.tokens))
+        if model.cachedTokens > 0 {
+            text += String(format: " · cache %.0f%%", model.cacheHitRate * 100)
+        }
         if let cost = model.cost { text += String(format: " · %@", AgentUsage.formatUSD(cost)) }
         return text
     }

@@ -24,7 +24,10 @@ DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- user delete <�
 DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- user disable <用户名>
 DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- user enable <用户名>
 DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- registration status|on|off
+DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- user usage <用户名>
+DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- user audit <用户名>
 DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- stats
+DATABASE_URL=... cargo run -q -p desire-api --bin desire-admin -- prune [--days N] [--apply]
 # 或直接进 API 容器（v0.8.80 起镜像内含 /app/desire-admin）：
 #   docker exec desire-api /app/desire-admin stats
 #   docker exec desire-api /app/desire-admin user create <用户名> <密码>

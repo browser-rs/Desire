@@ -136,6 +136,8 @@ pub async fn push(
   // 配额与写入在同一事务里（v0.8.80 批 7）：FOR UPDATE 预留额度，push 失败
   // 整体回滚、额度不白扣；并发 push 不再能绕过 check-then-write 竞态。
   reserve_daily_quota(&mut tx, state, user_id, items.len() as i64, requested_bytes).await?;
+  // 每用户存储上限（v0.8.81 批 1）：锁住该用户计数行，同一用户的并发 push 串行。
+  let storage_bytes = lock_user_storage(&mut tx, user_id).await?;
 
   // 先做全部条目的参数校验（此前与逐条查询交错；校验失败整个事务回滚，
   // 语义不变）。同时收集 client_id 供批量取现存行。
@@ -177,6 +179,16 @@ pub async fn push(
     .into_iter()
     .map(|row| (row.client_id.clone(), row))
     .collect();
+
+  let storage_delta = storage_delta(&items, &existing_map, now)?;
+  let max_storage = state.config.sync_user_storage_bytes;
+  if max_storage > 0 && storage_bytes.saturating_add(storage_delta) > max_storage {
+    return Err(AppError::PayloadTooLarge(format!(
+      "用户同步存储已达上限（{} / {} 字节），请清理旧数据后重试",
+      storage_bytes.saturating_add(storage_delta).max(0),
+      max_storage
+    )));
+  }
 
   for item in items {
     let client_id = item.client_id.trim();
@@ -252,6 +264,13 @@ pub async fn push(
     requested_bytes,
   )
   .await?;
+  if storage_delta != 0 {
+    sqlx::query("UPDATE sync_user_storage SET bytes = GREATEST(0, bytes + ?) WHERE user_id = ?")
+      .bind(storage_delta)
+      .bind(user_id)
+      .execute(&mut *tx)
+      .await?;
+  }
   tx.commit().await?;
   cleanup_history_ttl(state, user_id, domain).await;
   Ok(SyncPushResp {
@@ -409,6 +428,63 @@ pub async fn usage_today(state: &AppState, user_id: i64) -> Result<(i64, i64), A
   Ok(row)
 }
 
+async fn lock_user_storage(
+  tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
+  user_id: i64,
+) -> Result<i64, AppError> {
+  sqlx::query("INSERT IGNORE INTO sync_user_storage (user_id, bytes) VALUES (?, 0)")
+    .bind(user_id)
+    .execute(&mut **tx)
+    .await?;
+  let bytes: i64 =
+    sqlx::query_scalar("SELECT bytes FROM sync_user_storage WHERE user_id = ? FOR UPDATE")
+      .bind(user_id)
+      .fetch_one(&mut **tx)
+      .await?;
+  Ok(bytes)
+}
+
+/// 本次 push 对用户存储字节数的增量（只算真正 applied 的行；删除/墓碑
+/// 减去旧 payload，插入/覆盖加上新 payload）。
+fn storage_delta(
+  items: &[SyncPushItem],
+  existing: &HashMap<String, SyncRowRaw>,
+  now: NaiveDateTime,
+) -> Result<i64, AppError> {
+  let mut delta: i64 = 0;
+  for item in items {
+    let client_id = item.client_id.trim();
+    let client_at = clamp_client_stamp(item.client_updated_at, now);
+    let new_size = if item.deleted {
+      0
+    } else {
+      item
+        .payload
+        .as_ref()
+        .map(|payload| {
+          serde_json::to_vec(payload)
+            .map(|bytes| bytes.len() as i64)
+            .map_err(|e| AppError::Internal(format!("payload 序列化失败: {e}")))
+        })
+        .transpose()?
+        .unwrap_or(0)
+    };
+    match existing.get(client_id) {
+      None => delta += new_size,
+      Some(row) if client_at > row.client_updated_at => {
+        let old_size = row
+          .payload_str
+          .as_ref()
+          .map(|text| text.len() as i64)
+          .unwrap_or(0);
+        delta += new_size - old_size;
+      }
+      _ => {}
+    }
+  }
+  Ok(delta)
+}
+
 async fn reserve_daily_quota(
   tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
   state: &AppState,
@@ -489,11 +565,21 @@ pub async fn usage(state: &AppState, user_id: i64) -> Result<serde_json::Value, 
   .bind(user_id)
   .fetch_all(&state.pool)
   .await?;
+  let storage_bytes: i64 =
+    sqlx::query_scalar("SELECT bytes FROM sync_user_storage WHERE user_id = ?")
+      .bind(user_id)
+      .fetch_optional(&state.pool)
+      .await?
+      .unwrap_or(0);
   Ok(serde_json::json!({
     "today": {"rows": used_rows, "bytes": used_bytes},
     "quota": {
       "rows": state.config.sync_daily_rows,
       "bytes": state.config.sync_daily_bytes,
+    },
+    "storage": {
+      "bytes": storage_bytes,
+      "limit": state.config.sync_user_storage_bytes,
     },
     "days": days.into_iter().map(|(day, rows, bytes)| {
       serde_json::json!({"day": day, "rows": rows, "bytes": bytes})
@@ -503,9 +589,11 @@ pub async fn usage(state: &AppState, user_id: i64) -> Result<serde_json::Value, 
 
 #[cfg(test)]
 mod tests {
-  use super::{clamp_client_stamp, first_writer_wins, parse_since, parse_since_id};
+  use super::{clamp_client_stamp, first_writer_wins, parse_since, parse_since_id, storage_delta};
   use crate::errors::AppError;
+  use crate::modules::sync::sync_model::{SyncPushItem, SyncRowRaw};
   use chrono::NaiveDateTime;
+  use std::collections::HashMap;
 
   fn ts(s: &str) -> NaiveDateTime {
     NaiveDateTime::parse_from_str(s, "%Y-%m-%dT%H:%M:%S").unwrap()
@@ -516,6 +604,48 @@ mod tests {
     assert!(first_writer_wins(None, "abc"));
     assert!(first_writer_wins(Some("abc"), "abc"));
     assert!(!first_writer_wins(Some("old"), "new"));
+  }
+
+  #[test]
+  fn storage_delta_tracks_only_applied_rows() {
+    let now = ts("2026-11-27T12:00:00");
+    let old = ts("2026-11-27T11:00:00");
+    let mut existing = HashMap::new();
+    existing.insert(
+      "old".to_string(),
+      SyncRowRaw {
+        id: 1,
+        client_id: "old".into(),
+        client_updated_at: old,
+        deleted_at: None,
+        payload_str: Some("12345".into()),
+        updated_at: old,
+      },
+    );
+    let items = vec![
+      // 新增 4 字节
+      SyncPushItem {
+        client_id: "new".into(),
+        client_updated_at: now,
+        deleted: false,
+        payload: Some(serde_json::json!(1234)),
+      },
+      // 覆盖：旧 5 字节 → 新 4 字节，净 -1
+      SyncPushItem {
+        client_id: "old".into(),
+        client_updated_at: now,
+        deleted: false,
+        payload: Some(serde_json::json!(1234)),
+      },
+      // 更旧的冲突：不计
+      SyncPushItem {
+        client_id: "old".into(),
+        client_updated_at: old,
+        deleted: false,
+        payload: Some(serde_json::json!("ignored")),
+      },
+    ];
+    assert_eq!(storage_delta(&items, &existing, now).unwrap(), 3);
   }
 
   #[test]

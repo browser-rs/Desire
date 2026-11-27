@@ -1141,8 +1141,13 @@ Features/Bookmarks/
   → 预留/更新，再写业务行与 `sync_usage`；不要再加"先查后写"的配额检查。
 - **S8**：`table_for` 把 `history@<profile>` 也映射到 `sync_history_items`（0021 已把该表
   domain 加宽到 64 并搬迁旧行）；通用 GC 还会扫 `sync_items` 里出现的档案后缀域。
-- **迁移 0021**：部署前必须跑 `desire-migrate`（新增 token_version/recovery_hash、审计表、
-  配额表、历史表加宽与搬迁）。本机没有 MySQL 时只能 `cargo test`，不要宣称 DB E2E 已过。
+- **迁移 0021 / 0022**：部署前必须跑 `desire-migrate`（0021：token_version/recovery_hash/
+  审计表/配额表/历史表加宽与搬迁；0022：`sync_user_storage` 回填 + 每用户存储上限）。
+  本机没有 MySQL 时只能 `cargo test`，不要宣称 DB E2E 已过；DB 级脚本是
+  `tests/api-db-e2e.py`（需要 dev 明验证码与已迁移的库，无库时退出码 2）。
+- **可信来源**：`ip()` 只读 `x-desire-client-ip`（`middleware::client_ip` 写）；只有
+  `DESIRE_API_TRUST_PROXY=true` 才解析 XFF。不要在业务里直接读 `x-forwarded-for`。
+- **每用户存储上限**在 push 事务内锁 `sync_user_storage` 行后按 delta 判定；0 = 不限。
 - **可观测**：`/metrics` 有延迟直方图（`desire_api_request_duration_ms_bucket/_sum/_count`）
   与 `desire_api_ws_connections`；WS 每用户 8 条上限、60s 重验证。访问日志在 `jwt_auth`
   里补 `user_id`（`request_context` 在外层拿不到 claims）。

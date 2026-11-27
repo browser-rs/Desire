@@ -1,3 +1,13 @@
+## [Unreleased]
+### Added
+
+- API 可信来源与存储上限（v0.8.81 批 1）：新增 `client_ip` 中间件——默认只认 TCP 对端，`DESIRE_API_TRUST_PROXY=true` 才解析 `x-forwarded-for`；每用户同步存储上限（`sync_user_storage`，默认 256MB，push 事务内锁行/超限 413）；GC 增加每用户游标行上限（200）与审计 180 天保留；admin `prune` 覆盖 demo 演示数据；新增 `tests/api-db-e2e.py`（需库/dev 验证码，无库明确跳过）。
+
+### Security
+
+- API 账号安全补口（v0.8.81 批 1）：logout 现在吊销同设备全部 refresh token（此前只吊销 presented token，同设备另一会话仍可续期）；恢复码重置检查账号状态并按 IP+用户名双限流；登录/注册/恢复/验证码限流在配置 Redis 时走共享计数器（多实例一致），Redis 故障回退进程内。
+
+
 ## [v0.8.80] - 2026-11-27
 ### Changed
 

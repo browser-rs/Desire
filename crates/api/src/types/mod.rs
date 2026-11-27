@@ -15,6 +15,34 @@ pub struct AppState {
   pub rate_limiter: Arc<RateLimiter>,
 }
 
+impl AppState {
+  /// 认证类限流（v0.8.81 批 1）：配置了 Redis 就用共享计数器（多实例
+  /// 一致），否则回退进程内滑动窗口。Redis 出错也回退，绝不因限流层挂业务。
+  pub async fn allow_rate(&self, key: &str, limit: usize, window_secs: u64) -> bool {
+    if let Some(conn) = &self.redis {
+      let mut conn = conn.clone();
+      let redis_key = format!("desire:rl:{key}");
+      let script = "local c=redis.call('INCR',KEYS[1]);                     if c==1 then redis.call('EXPIRE',KEYS[1],ARGV[1]) end;                     return c";
+      match redis::cmd("EVAL")
+        .arg(script)
+        .arg(1)
+        .arg(&redis_key)
+        .arg(window_secs)
+        .query_async::<i64>(&mut conn)
+        .await
+      {
+        Ok(count) => return count.max(0) as usize <= limit,
+        Err(error) => {
+          tracing::warn!("redis rate limit failed, falling back: {error}");
+        }
+      }
+    }
+    self
+      .rate_limiter
+      .allow(key, limit, std::time::Duration::from_secs(window_secs))
+  }
+}
+
 #[derive(Debug, Serialize)]
 pub struct ApiResponse<T> {
   pub code: i32,

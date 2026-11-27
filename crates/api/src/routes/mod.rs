@@ -185,5 +185,9 @@ pub fn build_router(state: AppState) -> Router {
   };
   root
     .layer(middleware::from_fn(request_context))
+    .layer(middleware::from_fn_with_state(
+      state.clone(),
+      crate::middleware::client_ip::client_ip,
+    ))
     .with_state(state)
 }

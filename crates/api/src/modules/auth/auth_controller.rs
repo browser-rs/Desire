@@ -61,15 +61,11 @@ pub async fn qr_create(
   headers: axum::http::HeaderMap,
   Json(req): Json<QrCreateReq>,
 ) -> ApiResult<QrCreateResp> {
-  let client_ip = headers
-    .get("x-forwarded-for")
-    .and_then(|v| v.to_str().ok())
-    .unwrap_or("");
-  if !state.rate_limiter.allow(
-    &format!("qr-create-ip:{client_ip}"),
-    20,
-    std::time::Duration::from_secs(600),
-  ) {
+  let client_ip = crate::middleware::client_ip::trusted_client_ip(&headers);
+  if !state
+    .allow_rate(&format!("qr-create-ip:{client_ip}"), 20, 600)
+    .await
+  {
     return Err(AppError::Validation("创建过于频繁".into()));
   }
   let (ticket, expires_at) = auth_service::qr_create(

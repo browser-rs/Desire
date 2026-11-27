@@ -32,9 +32,14 @@ pub struct Config {
   /// 0 = 关闭配额（只保留分钟级限流）。
   pub sync_daily_rows: i64,
   pub sync_daily_bytes: i64,
+  /// 每用户同步存储上限（payload 字节总和；0 = 不限）。
+  pub sync_user_storage_bytes: i64,
   /// Prometheus /metrics 的 Bearer token（v0.8.38 C6）。
   /// 空 = 仅 dev 环境可访问，prod 返回 404。
   pub metrics_token: String,
+  /// 是否信任反向代理传来的 `x-forwarded-for`（v0.8.81 批 1）。
+  /// 默认 false：只用 TCP 对端地址；只有确认前面是自己的反代才打开。
+  pub trust_proxy: bool,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -73,7 +78,11 @@ impl Config {
       sync_daily_bytes: env_or("DESIRE_API_SYNC_DAILY_BYTES", "67108864")
         .parse()
         .unwrap_or(64 * 1024 * 1024),
+      sync_user_storage_bytes: env_or("DESIRE_API_USER_STORAGE_BYTES", "268435456")
+        .parse()
+        .unwrap_or(256 * 1024 * 1024),
       metrics_token: env_or("DESIRE_API_METRICS_TOKEN", ""),
+      trust_proxy: env_or("DESIRE_API_TRUST_PROXY", "false") == "true",
     })
   }
 }

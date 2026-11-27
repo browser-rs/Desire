@@ -63,13 +63,7 @@ fn ua(headers: &HeaderMap) -> String {
 }
 
 fn ip(headers: &HeaderMap) -> String {
-  headers
-    .get("x-forwarded-for")
-    .and_then(|v| v.to_str().ok())
-    .unwrap_or("")
-    .chars()
-    .take(45)
-    .collect()
+  crate::middleware::client_ip::trusted_client_ip(headers)
 }
 
 /// 登录/注册时登记设备:同一 (user, device_id) 视为同一台设备,
@@ -247,11 +241,10 @@ fn render_captcha() -> Result<(String, Vec<u8>), AppError> {
 }
 
 pub async fn new_captcha(state: &AppState, headers: &HeaderMap) -> Result<CaptchaResp, AppError> {
-  if !state.rate_limiter.allow(
-    &format!("captcha:ip:{}", ip(headers)),
-    30,
-    Duration::from_secs(60),
-  ) {
+  if !state
+    .allow_rate(&format!("captcha:ip:{}", ip(headers)), 30, 60)
+    .await
+  {
     return Err(AppError::RateLimited("请求过于频繁，请稍后再试".into()));
   }
   let (code, png) = render_captcha()?;
@@ -330,12 +323,11 @@ pub async fn register(
       "registration is disabled on this server".into(),
     ));
   }
-  // 按来源 IP 限流(防注册滥用);经反代时依赖 x-forwarded-for
-  if !state.rate_limiter.allow(
-    &format!("register:ip:{}", ip(headers)),
-    10,
-    Duration::from_secs(3600),
-  ) {
+  // 按来源 IP 限流(防注册滥用);可信地址由 client_ip 中间件决定。
+  if !state
+    .allow_rate(&format!("register:ip:{}", ip(headers)), 10, 3600)
+    .await
+  {
     return Err(AppError::RateLimited("注册过于频繁，请稍后再试".into()));
   }
   let username = req.username.trim();
@@ -580,18 +572,13 @@ pub async fn login(
   }
   // 双重限流:按 IP(防分布式爆破太贵,单实例先挡住单源)与按用户名(防定点爆破)。
   // 失败尝试同样计数。
-  if !state.rate_limiter.allow(
-    &format!("login:ip:{}", ip(headers)),
-    20,
-    Duration::from_secs(60),
-  ) {
-    return Err(AppError::RateLimited("尝试过于频繁，请稍后再试".into()));
-  }
-  if !state.rate_limiter.allow(
-    &format!("login:user:{username}"),
-    10,
-    Duration::from_secs(60),
-  ) {
+  if !state
+    .allow_rate(&format!("login:ip:{}", ip(headers)), 20, 60)
+    .await
+    || !state
+      .allow_rate(&format!("login:user:{username}"), 10, 60)
+      .await
+  {
     return Err(AppError::RateLimited("尝试过于频繁，请稍后再试".into()));
   }
   let row: Option<(i64, String, i8)> =
@@ -727,10 +714,33 @@ pub async fn logout(state: &AppState, token: &str) -> Result<(), AppError> {
   if res.rows_affected() == 0 {
     return Err(AppError::Unauthorized("invalid refresh token".into()));
   }
-  // 设备级版本 +1：该设备已签发的 access token 立即失效（不等 TTL）。
+  // 设备级版本 +1 + 吊销该设备**全部** refresh token（同一 device_id 可能
+  // 有多个登录会话；只吊销 presented token 会留下一条能换新 access 的活口，
+  // v0.8.81 批 1 修）。
   if let Some(id) = device_id {
+    sqlx::query(
+      "UPDATE user_refresh_tokens SET revoked_at = ? \
+       WHERE device_id = ? AND revoked_at IS NULL",
+    )
+    .bind(now)
+    .bind(id)
+    .execute(&state.pool)
+    .await?;
     sqlx::query("UPDATE devices SET token_version = token_version + 1 WHERE id = ?")
       .bind(id)
+      .execute(&state.pool)
+      .await?;
+  } else {
+    // 无设备绑定的老 token：没有设备可锚定，只能按用户吊销（并升用户版本）。
+    sqlx::query(
+      "UPDATE user_refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+    )
+    .bind(now)
+    .bind(user_id)
+    .execute(&state.pool)
+    .await?;
+    sqlx::query("UPDATE users SET token_version = token_version + 1 WHERE id = ?")
+      .bind(user_id)
       .execute(&state.pool)
       .await?;
   }

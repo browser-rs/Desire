@@ -298,3 +298,15 @@ per-task 带宽 API 则只做并发/时段、支付卡若加密存储设计未�
 - **锁屏/错过补偿**：补跑不能与用户刚发起的回合抢同一会话；串行队列 + 可见
   "补跑"标记。
 - **测试**：fresh data-dir 会增加磁盘占用；每次跑完清理，报告保留摘要。
+
+## 批 1 进展（2026-11-27，部分完成）
+
+- **已完成（代码）**：logout 吊销同设备全部 refresh + 设备版本 +1；恢复码检查账号状态、
+  IP+用户名双限流；`client_ip` 中间件（默认 TCP 对端，`DESIRE_API_TRUST_PROXY` 才读 XFF；
+  `ip()`/growth/QR 全部改走可信头）；登录/注册/恢复/验证码限流在 Redis 配置时用共享
+  计数器（Lua INCR+EXPIRE，失败回退进程内）；每用户同步存储上限（迁移 0022 +
+  `sync_user_storage` 锁行/delta/413）、GC 每用户游标上限 200 + 审计 180 天保留；
+  admin `prune` 覆盖 demo 数据；`tests/api-db-e2e.py`（无库/非 dev 明确跳过）。
+- **未完成（环境）**：本机无 MySQL/Docker daemon，0021/0022 迁移、API 镜像构建、
+  DB E2E 实跑都未做——部署机按 `docs/OPS-SYNC-DEPLOY.md` 执行；不得把这批写成
+  "DB 已验证"。

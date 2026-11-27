@@ -40,6 +40,10 @@ pub const CURSOR_ACTIVE_DAYS: i64 = 90;
 pub const GC_GRACE_DAYS: i64 = 30;
 /// 无任何活跃游标时的兜底保留期(天);也是过期设备游标的清理窗口。
 pub const GC_FALLBACK_DAYS: i64 = 180;
+/// 每用户保留的游标行上限（设备 × 域；v0.8.81 批 1）。
+pub const MAX_PULL_CURSORS_PER_USER: i64 = 200;
+/// 审计事件保留期（天）。
+pub const AUDIT_TTL_DAYS: i64 = 180;
 
 /// GC 结果(运维/测试断言用)。
 #[derive(Debug, Serialize, ToSchema)]
@@ -53,6 +57,10 @@ pub struct GcReport {
   pub stale_cursors: u64,
   /// 历史表按 90 天 TTL 顺带清掉的行数（含 history@<profile>）。
   pub history_ttl: u64,
+  /// 超出每用户上限被裁掉的游标行（v0.8.81 批 1）。
+  pub capped_cursors: u64,
+  /// 超过保留期清掉的审计事件（v0.8.81 批 1）。
+  pub audit_pruned: u64,
 }
 
 /// 拉取后上报设备游标(`since` 缺省 = 全量,不上报——全量拉完的游标要等
@@ -122,6 +130,8 @@ pub async fn gc_tombstones(
     basis: BTreeMap::new(),
     stale_cursors: 0,
     history_ttl: 0,
+    capped_cursors: 0,
+    audit_pruned: 0,
   };
   // 通用域 + 数据库里实际出现的档案后缀域（bookmarks@<uuid> 等同样要收墓碑）。
   let mut domains: Vec<String> = DOMAINS.iter().map(|d| (*d).to_string()).collect();
@@ -177,6 +187,35 @@ pub async fn gc_tombstones(
     .execute(pool)
     .await?;
     report.history_ttl = purged.rows_affected();
+  }
+  // 每用户游标行上限（v0.8.81 批 1）：设备×域可能无限增长；只留最近
+  // `MAX_PULL_CURSORS_PER_USER` 行（按 seen_at 新→旧）。
+  if !dry_run {
+    let capped = sqlx::query(
+      "DELETE FROM sync_pull_cursors WHERE user_id = ? AND id NOT IN (\
+         SELECT id FROM (\
+           SELECT id FROM sync_pull_cursors WHERE user_id = ? \
+           ORDER BY seen_at DESC, id DESC LIMIT ?\
+         ) keep\
+       )",
+    )
+    .bind(user_id)
+    .bind(user_id)
+    .bind(MAX_PULL_CURSORS_PER_USER)
+    .execute(pool)
+    .await?;
+    report.capped_cursors = capped.rows_affected();
+  }
+  // 审计保留期（180 天）：按用户 GC 时顺带修剪，避免无限增长。
+  if !dry_run {
+    let pruned = sqlx::query(
+      "DELETE FROM audit_events WHERE user_id = ? AND created_at < NOW() - INTERVAL ? DAY",
+    )
+    .bind(user_id)
+    .bind(AUDIT_TTL_DAYS)
+    .execute(pool)
+    .await?;
+    report.audit_pruned = pruned.rows_affected();
   }
   // 过期设备游标(180 天没拉过)顺带清理——它们不再参与判定,留着只是垃圾。
   if !dry_run {

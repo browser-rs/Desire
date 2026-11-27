@@ -12,13 +12,7 @@ use super::growth_model::{GrowthEventReq, GrowthSummary};
 use super::growth_service;
 
 fn client_ip(headers: &HeaderMap) -> String {
-  headers
-    .get("x-forwarded-for")
-    .and_then(|v| v.to_str().ok())
-    .unwrap_or("")
-    .chars()
-    .take(45)
-    .collect()
+  crate::middleware::client_ip::trusted_client_ip(headers)
 }
 
 /// POST /growth/event —— 公开、匿名、限流。产品页 beacon 与 App 首启都打这里。

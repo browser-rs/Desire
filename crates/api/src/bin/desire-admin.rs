@@ -192,6 +192,13 @@ async fn prune(pool: &MySqlPool, days: i64, apply: bool) -> anyhow::Result<()> {
     ("growth_events", "created_at"),
     ("sync_usage", "day"),
     ("audit_events", "created_at"),
+    ("demo_orders", "created_at"),
+    ("demo_im_messages", "created_at"),
+    ("demo_wizard_applications", "created_at"),
+    ("demo_bookings", "created_at"),
+    ("demo_forum_posts", "created_at"),
+    ("demo_forum_comments", "created_at"),
+    ("demo_forum_likes", "created_at"),
   ];
   for (table, time_column) in targets {
     let sql = format!("DELETE FROM {table} WHERE {time_column} < NOW() - INTERVAL ? DAY");

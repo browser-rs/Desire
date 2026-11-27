@@ -35,7 +35,9 @@ pub const DOMAINS: &[&str] = &[
 /// 域 → 存储表。history 独立成表(0007):写入频繁、体量大、有独立 TTL,
 /// 与关键小域分开治理,通用引擎的 SQL 除表名外完全一致。
 pub fn table_for(domain: &str) -> &'static str {
-  if domain == "history" {
+  // 带档案后缀的 history@<uuid> 同样落历史表（v0.8.80 批 7 修 S8：此前只认裸
+  // history，history@uuid 被当作通用 sync_items，逃过 90 天 TTL 与 GC）。
+  if domain == "history" || domain.starts_with("history@") {
     "sync_history_items"
   } else {
     "sync_items"
@@ -184,7 +186,7 @@ pub struct KeyCheckBody {
 
 #[cfg(test)]
 mod tests {
-  use super::is_valid_domain;
+  use super::{is_valid_domain, table_for};
 
   #[test]
   fn base_domains_valid() {
@@ -206,5 +208,12 @@ mod tests {
     assert!(!is_valid_domain("bookmarks@a b"));
     assert!(!is_valid_domain("bookmarks@../x"));
     assert!(!is_valid_domain(&format!("bookmarks@{}", "a".repeat(65))));
+  }
+
+  #[test]
+  fn history_suffix_uses_history_table() {
+    assert_eq!(table_for("history"), "sync_history_items");
+    assert_eq!(table_for("history@work"), "sync_history_items");
+    assert_eq!(table_for("bookmarks@work"), "sync_items");
   }
 }

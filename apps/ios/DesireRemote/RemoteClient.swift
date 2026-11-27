@@ -519,6 +519,16 @@ final class RemoteClient: ObservableObject {
     }
 
     func logout() {
+        // 服务端注销（v0.8.80 批 7）：吊销 refresh 并让本机 access 立即失效
+        //（设备级 token 版本 +1）；失败不阻塞本地登出。
+        if let token = accessToken, let refresh = KeychainStore.get("remote.refresh") {
+            Task {
+                let _: PushOK? = try? await API.send(
+                    "POST", baseURL, "/auth/logout",
+                    body: try? JSONEncoder().encode(["refresh_token": refresh]),
+                    token: token)
+            }
+        }
         KeychainStore.set(nil, account: "remote.access")
         KeychainStore.set(nil, account: "remote.refresh")
         stopAllTransports()

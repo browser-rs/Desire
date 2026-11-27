@@ -129,11 +129,13 @@ pub async fn push(
         .len() as i64;
     }
   }
-  enforce_daily_quota(state, user_id, items.len() as i64, requested_bytes).await?;
   let table = table_for(domain);
   let mut results = Vec::with_capacity(items.len());
   let now = Utc::now().naive_utc();
   let mut tx = state.pool.begin().await?;
+  // 配额与写入在同一事务里（v0.8.80 批 7）：FOR UPDATE 预留额度，push 失败
+  // 整体回滚、额度不白扣；并发 push 不再能绕过 check-then-write 竞态。
+  reserve_daily_quota(&mut tx, state, user_id, items.len() as i64, requested_bytes).await?;
 
   // 先做全部条目的参数校验（此前与逐条查询交错；校验失败整个事务回滚，
   // 语义不变）。同时收集 client_id 供批量取现存行。
@@ -242,19 +244,15 @@ pub async fn push(
     };
     results.push(result);
   }
-  tx.commit().await?;
-  if let Err(error) = record_usage(
-    state,
+  record_usage(
+    &mut tx,
     user_id,
     domain,
     results.len() as i64,
     requested_bytes,
   )
-  .await
-  {
-    // 用量记账失败不能让已经成功的同步报错
-    warn!("sync usage record failed: {error}");
-  }
+  .await?;
+  tx.commit().await?;
   cleanup_history_ttl(state, user_id, domain).await;
   Ok(SyncPushResp {
     results,
@@ -411,7 +409,8 @@ pub async fn usage_today(state: &AppState, user_id: i64) -> Result<(i64, i64), A
   Ok(row)
 }
 
-async fn enforce_daily_quota(
+async fn reserve_daily_quota(
+  tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
   state: &AppState,
   user_id: i64,
   requested_rows: i64,
@@ -422,7 +421,18 @@ async fn enforce_daily_quota(
   if max_rows <= 0 && max_bytes <= 0 {
     return Ok(());
   }
-  let (used_rows, used_bytes) = usage_today(state, user_id).await?;
+  sqlx::query(
+    "INSERT IGNORE INTO sync_quota_daily (user_id, day, rows_written, bytes_written)      VALUES (?, CURDATE(), 0, 0)",
+  )
+  .bind(user_id)
+  .execute(&mut **tx)
+  .await?;
+  let (used_rows, used_bytes): (i64, i64) = sqlx::query_as(
+    "SELECT rows_written, bytes_written FROM sync_quota_daily      WHERE user_id = ? AND day = CURDATE() FOR UPDATE",
+  )
+  .bind(user_id)
+  .fetch_one(&mut **tx)
+  .await?;
   if max_rows > 0 && used_rows + requested_rows > max_rows {
     return Err(AppError::RateLimited(format!(
       "今日同步行数额度已用尽（{used_rows}/{max_rows}），请稍后再试"
@@ -433,11 +443,19 @@ async fn enforce_daily_quota(
       "今日同步流量额度已用尽（{used_bytes}/{max_bytes} 字节），请稍后再试"
     )));
   }
+  sqlx::query(
+    "UPDATE sync_quota_daily SET rows_written = rows_written + ?,      bytes_written = bytes_written + ? WHERE user_id = ? AND day = CURDATE()",
+  )
+  .bind(requested_rows)
+  .bind(requested_bytes)
+  .bind(user_id)
+  .execute(&mut **tx)
+  .await?;
   Ok(())
 }
 
 async fn record_usage(
-  state: &AppState,
+  tx: &mut sqlx::Transaction<'_, sqlx::MySql>,
   user_id: i64,
   domain: &str,
   rows: i64,
@@ -454,7 +472,7 @@ async fn record_usage(
   .bind(domain)
   .bind(rows)
   .bind(bytes)
-  .execute(&state.pool)
+  .execute(&mut **tx)
   .await?;
   Ok(())
 }

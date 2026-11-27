@@ -7,9 +7,10 @@ use crate::types::{ApiResponse, ApiResult, AppState};
 use crate::utils::jwt::Claims;
 
 use super::auth_model::{
-  CaptchaResp, ConfirmPasswordReq, DeviceDto, KeyEscrowBody, KeyEscrowResp, LoginReq, LogoutReq,
-  MeDto, QrConfirmReq, QrCreateReq, QrCreateResp, QrScanReq, QrStatusResp, RefreshReq, RegisterReq,
-  RevokeDeviceReq, SetPasswordReq, TokenPair, UpdateProfileReq,
+  AuditEventDto, CaptchaResp, ConfirmPasswordReq, DeviceDto, KeyEscrowBody, KeyEscrowResp,
+  LoginReq, LogoutReq, MeDto, QrConfirmReq, QrCreateReq, QrCreateResp, QrScanReq, QrStatusResp,
+  RecoverReq, RecoveryCodeResp, RefreshReq, RegisterReq, RevokeDeviceReq, SetPasswordReq,
+  TokenPair, UpdateProfileReq,
 };
 use super::auth_service;
 
@@ -188,8 +189,51 @@ pub async fn set_password(
   Extension(claims): Extension<Claims>,
   Json(req): Json<SetPasswordReq>,
 ) -> Result<Json<ApiResponse<()>>, AppError> {
-  auth_service::set_password(&state, claims.sub, req).await?;
+  auth_service::set_password(&state, claims.sub, claims.dev, req).await?;
   Ok(Json(ApiResponse::<()>::empty()))
+}
+
+/// 忘记密码（公开）：用户名 + 一次性恢复码。
+#[utoipa::path(
+  post, path = "/auth/recover", tag = "auth",
+  request_body = RecoverReq,
+  responses((status = 200))
+)]
+pub async fn recover(
+  State(state): State<AppState>,
+  headers: axum::http::HeaderMap,
+  Json(req): Json<RecoverReq>,
+) -> Result<Json<ApiResponse<()>>, AppError> {
+  auth_service::recover(&state, &headers, req).await?;
+  Ok(Json(ApiResponse::<()>::empty()))
+}
+
+/// 生成/轮换恢复码（登录态；明文只返回这一次）。
+#[utoipa::path(
+  post, path = "/auth/recovery-code", tag = "auth",
+  responses((status = 200, body = RecoveryCodeResp))
+)]
+pub async fn recovery_code(
+  State(state): State<AppState>,
+  Extension(claims): Extension<Claims>,
+) -> ApiResult<RecoveryCodeResp> {
+  let code = auth_service::issue_recovery_code(&state, claims.sub).await?;
+  api_ok!(RecoveryCodeResp {
+    recovery_code: code
+  })
+}
+
+/// 账号安全审计（最近 50 条，仅自己的）。
+#[utoipa::path(
+  get, path = "/auth/audit", tag = "auth",
+  responses((status = 200, body = Vec<AuditEventDto>))
+)]
+pub async fn audit_log(
+  State(state): State<AppState>,
+  Extension(claims): Extension<Claims>,
+) -> ApiResult<Vec<AuditEventDto>> {
+  let events = auth_service::audit_events(&state, claims.sub, 50).await?;
+  api_ok!(events)
 }
 
 /// E2E 密钥托管：读取（GET）或上报（PUT）盐+包裹 DEK+指纹。

@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Security
+
+- API 账号安全：JWT 增加用户级/设备级 token 版本（改密、全设备吊销、登出、单设备吊销会立即让已签发的 access token 失效，不再等 2 小时）；改密吊销其它设备的 refresh token；新增一次性恢复码（`POST /auth/recovery-code` 生成、`POST /auth/recover` 重置）与账号安全审计（`GET /auth/audit`）；Mac/iOS 登出都会通知服务端吊销 refresh。迁移 `0021_session_versions_audit_quota.sql`。
+
 ### Fixed
 
 - HTTPS 升级与严格模式此前**从未真正执行**：升级代码放在 beforeunload 守卫之后，而主框架的链接/表单/地址栏导航都会被守卫提前 return。现在升级在守卫放行后执行；严格模式下 TLS 失败停在错误页并保留 HTTP 原地址（实测：直连普通 HTTP 端口触发 TLS 错误 → 继续访问恢复）。
@@ -6,6 +10,8 @@
 - 桥 `GET /permissions` 此前每次现建一个 PermissionStore（DiskStore 防抖 500ms 内读不到刚改的规则）；改走共享实例，与锁弹层/隐私矩阵同源。
 - Remote（iOS）：产物列表与内容预览改走控制帧通道（此前直连中继 `/artifacts`、`/artifacts/read`——服务端没有这两个路由，真机上产物屏不工作）；Mac 的 `ok` 确认帧不再被丢弃（成功有回执），错误改用独立横幅、不再覆盖连接状态。
 - 翻译收口：替换式翻译不再把 inline code 占位符 `⟦N⟧` 漏到正文（还原成原始 `<code>`，还原原文改用 innerHTML 保住行内格式）；翻译缓存写路径接入 LRU 淘汰（此前只增不减），翻译条显示档案/命中/token/费用并提供缓存体量与清空、失败段落重试；站点"自动双语"补上站点弹层开关、桥 `/site-settings/auto-bilingual` 与智能体工具 `setSiteAutoBilingual`。
+- 同步 TTL/GC：`history@<profile>` 域此前落 `sync_items`，逃过历史 90 天 TTL（迁移会把旧行搬进历史表并把该表的 domain 列加宽到 64）；通用墓碑 GC 现在也处理数据库里出现的档案后缀域，不再只认固定域清单。
+
 
 
 
@@ -30,6 +36,8 @@
 - 存储健康页与统一 GC：设置新增"存储"（会话/归档/会话快照/翻译缓存/批次日志/转存/续传按域体量，缓存可清理；会话与归档仅在设置保留天数后删除，当前打开的会话永不自动删）；启动 10 秒后与每日各跑一次（翻译缓存 50MB LRU、转存目录、批次日志归档、可选会话保留）。桥新增 `GET /diag/storage`、`POST /diag/storage/clean`、`POST /diag/storage/retention`。
 - 锁屏守卫：用 `CGSessionCopyCurrentDictionary` 真检测锁屏（不再用前台应用代理）；定时任务锁屏期间挂起、解锁 15 秒内自动重放，心跳跳过，通知转摘要；`/diag/health` 增加 `screenLocked`，Doctor 增加锁屏检查，桥 `POST /diag/screen-lock` 可模拟。排队消息随会话落盘，重启/解锁后不丢。
 - 上下文预算控件：设置页可按档案设置字符预算（或回到自动校准）与压缩触发阈值（60–95%），经桥 `GET|POST /ai/context-budget` 读写；转存结果在工具行显示"全文已转存（大小）"徽标并可直达访达。Doctor 检查项改用稳定 id 并支持安全修复（清转存/清翻译缓存/重校准/打开通知或存储），轨迹页新增全量 JSONL 导出；校准表的模型窗口改为按模型键跨档案查找（修复非当前模型恒显示 unknown）。
+- API 运营面：同步日配额改为同一事务内 `FOR UPDATE` 原子预留（并发 push 不再绕过额度）；`/metrics` 增加延迟直方图与 WS 连接 gauge；WS 每用户连接上限 + 60 秒会话重验证（改密/吊销后立即断开）；`desire-admin` 新增 `user create` / `user audit` / `user usage` / `prune`，设备撤销与重置密码同步 bump token 版本；`/meta/capabilities` 声明 tokenVersioning/accountRecovery/auditLog/atomicSyncQuota/wsRevalidation。
+
 
 
 

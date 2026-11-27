@@ -48,6 +48,28 @@ pub struct LogoutReq {
 }
 
 #[derive(Debug, Deserialize, ToSchema)]
+pub struct RecoverReq {
+  pub username: String,
+  pub recovery_code: String,
+  pub new_password: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct RecoveryCodeResp {
+  /// 只显示一次；丢失后需在登录态重新生成（旧码作废）。
+  pub recovery_code: String,
+}
+
+#[derive(Debug, Serialize, ToSchema)]
+pub struct AuditEventDto {
+  pub id: i64,
+  pub event: String,
+  pub detail: String,
+  pub ip: String,
+  pub created_at: chrono::NaiveDateTime,
+}
+
+#[derive(Debug, Deserialize, ToSchema)]
 pub struct RevokeDeviceReq {
   /// 客户端侧稳定设备 ID(非 devices.id)
   pub device_id: String,

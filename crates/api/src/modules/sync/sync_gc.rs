@@ -32,7 +32,7 @@ use sqlx::MySqlPool;
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-use super::sync_model::DOMAINS;
+use super::sync_model::{DOMAINS, HISTORY_TTL_DAYS};
 
 /// 活跃设备判定窗口(天):超过就不再用它的游标挡 GC。
 pub const CURSOR_ACTIVE_DAYS: i64 = 90;
@@ -51,6 +51,8 @@ pub struct GcReport {
   pub basis: BTreeMap<String, String>,
   /// 顺带清理的过期设备游标行数。
   pub stale_cursors: u64,
+  /// 历史表按 90 天 TTL 顺带清掉的行数（含 history@<profile>）。
+  pub history_ttl: u64,
 }
 
 /// 拉取后上报设备游标(`since` 缺省 = 全量,不上报——全量拉完的游标要等
@@ -119,17 +121,31 @@ pub async fn gc_tombstones(
     deleted: BTreeMap::new(),
     basis: BTreeMap::new(),
     stale_cursors: 0,
+    history_ttl: 0,
   };
-  for domain in DOMAINS {
-    // history 有独立 TTL(0007),不走通用墓碑回收。
-    if *domain == "history" {
+  // 通用域 + 数据库里实际出现的档案后缀域（bookmarks@<uuid> 等同样要收墓碑）。
+  let mut domains: Vec<String> = DOMAINS.iter().map(|d| (*d).to_string()).collect();
+  let suffixes: Vec<(String,)> =
+    sqlx::query_as("SELECT DISTINCT domain FROM sync_items WHERE user_id = ?")
+      .bind(user_id)
+      .fetch_all(pool)
+      .await?;
+  for (domain,) in suffixes {
+    if !domains.contains(&domain) {
+      domains.push(domain);
+    }
+  }
+  for domain in &domains {
+    let domain = domain.as_str();
+    // history 有独立 TTL(0007),不走通用墓碑回收（含 history@<profile>）。
+    if domain == "history" || domain.starts_with("history@") {
       continue;
     }
     let affected = match min_active_cursor(pool, user_id, domain).await? {
       Some((ts, id)) => {
         report
           .basis
-          .insert((*domain).to_string(), "cursor".to_string());
+          .insert(domain.to_string(), "cursor".to_string());
         if dry_run {
           count_cursor_cutoff(pool, user_id, domain, ts, id).await?
         } else {
@@ -139,7 +155,7 @@ pub async fn gc_tombstones(
       None => {
         report
           .basis
-          .insert((*domain).to_string(), "fallback".to_string());
+          .insert(domain.to_string(), "fallback".to_string());
         if dry_run {
           count_fallback(pool, user_id, domain).await?
         } else {
@@ -148,8 +164,19 @@ pub async fn gc_tombstones(
       }
     };
     if affected > 0 {
-      report.deleted.insert((*domain).to_string(), affected);
+      report.deleted.insert(domain.to_string(), affected);
     }
+  }
+  // 历史表 TTL（含 history@<profile>）：按行龄，不依赖该域再被 push。
+  if !dry_run {
+    let purged = sqlx::query(
+      "DELETE FROM sync_history_items WHERE user_id = ?        AND updated_at < NOW() - INTERVAL ? DAY",
+    )
+    .bind(user_id)
+    .bind(HISTORY_TTL_DAYS as i64)
+    .execute(pool)
+    .await?;
+    report.history_ttl = purged.rows_affected();
   }
   // 过期设备游标(180 天没拉过)顺带清理——它们不再参与判定,留着只是垃圾。
   if !dry_run {

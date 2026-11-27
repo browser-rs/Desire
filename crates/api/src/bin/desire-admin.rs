@@ -26,6 +26,12 @@ async fn main() -> anyhow::Result<()> {
     ["user", "reset-password", username, password] => {
       user_reset_password(&pool, username, password).await?
     }
+    ["user", "create", username, password] => user_create(&pool, username, password, None).await?,
+    ["user", "create", username, password, nickname] => {
+      user_create(&pool, username, password, Some(nickname)).await?
+    }
+    ["user", "audit", username] => user_audit(&pool, username).await?,
+    ["user", "usage", username] => user_usage(&pool, username).await?,
     ["user", "delete", username] => user_delete(&pool, username).await?,
     ["user", "disable", username] => user_set_status(&pool, username, 0).await?,
     ["user", "enable", username] => user_set_status(&pool, username, 1).await?,
@@ -53,6 +59,20 @@ async fn main() -> anyhow::Result<()> {
     ["registration", "status"] => registration_status(&pool).await?,
     ["registration", "on"] => registration_set(&pool, true).await?,
     ["registration", "off"] => registration_set(&pool, false).await?,
+    ["prune"] => prune(&pool, 90, false).await?,
+    ["prune", "--days", days] => {
+      let n: i64 = days
+        .parse()
+        .map_err(|_| anyhow::anyhow!("--days 需要数字"))?;
+      prune(&pool, n, false).await?
+    }
+    ["prune", "--apply"] => prune(&pool, 90, true).await?,
+    ["prune", "--days", days, "--apply"] => {
+      let n: i64 = days
+        .parse()
+        .map_err(|_| anyhow::anyhow!("--days 需要数字"))?;
+      prune(&pool, n, true).await?
+    }
     ["stats"] => stats(&pool).await?,
     _ => {
       eprint!("{}", USAGE);
@@ -68,6 +88,9 @@ static USAGE: &str = "\
 
 命令:
   user list
+  user create <username> <password> [nickname]     # 管理员开号(绕过注册验证码)
+  user audit <username>                            # 最近 50 条账号安全审计
+  user usage <username>                            # 同步用量(今日/最近 7 天)
   user reset-password <username> <new-password>   # 重置并吊销全部刷新令牌
   user delete <username>                          # 级联删除账号及全部同步数据
   user disable <username>                         # 禁止登录,已有令牌全部失效
@@ -79,8 +102,117 @@ static USAGE: &str = "\
   remote cleanup <username> [--days N] [--apply]  # 清已投递信箱与过期配对(默认30天,dry-run)
   device list <username>                          # 该用户全部设备(含撤销态)
   device revoke <username> <device_id>            # 撤销设备(联动吊销其刷新令牌)
+  prune [--days N] [--apply]                      # 修剪 growth_events/sync_usage/审计(默认90天,dry-run)
   stats                                           # 用户数 / 各域同步行数
 ";
+
+async fn user_create(
+  pool: &MySqlPool,
+  username: &str,
+  password: &str,
+  nickname: Option<&str>,
+) -> anyhow::Result<()> {
+  let username = username.trim();
+  if !desire_api::modules::auth::auth_service::is_valid_username(username) {
+    bail!("invalid username (3-32 chars, letter first)");
+  }
+  if password.len() < 8 || password.len() > 72 {
+    bail!("password must be 8-72 bytes");
+  }
+  if !password.chars().any(|c| c.is_ascii_alphabetic())
+    || !password.chars().any(|c| c.is_ascii_digit())
+  {
+    bail!("password must contain letters and digits");
+  }
+  let hash = bcrypt::hash(password, 10)?;
+  let nickname = nickname
+    .unwrap_or(username)
+    .chars()
+    .take(64)
+    .collect::<String>();
+  let result = sqlx::query(
+    "INSERT INTO users (username, password_hash, nickname, status) VALUES (?, ?, ?, 1)",
+  )
+  .bind(username)
+  .bind(hash)
+  .bind(nickname)
+  .execute(pool)
+  .await;
+  match result {
+    Ok(res) => println!("created user {username} (id {})", res.last_insert_id()),
+    Err(error) if error.to_string().contains("Duplicate") => bail!("username already exists"),
+    Err(error) => return Err(error.into()),
+  }
+  Ok(())
+}
+
+async fn user_audit(pool: &MySqlPool, username: &str) -> anyhow::Result<()> {
+  let id = require_user(pool, username).await?;
+  let rows: Vec<(i64, String, String, String, chrono::NaiveDateTime)> = sqlx::query_as(
+    "SELECT id, event, detail, ip, created_at FROM audit_events      WHERE user_id = ? ORDER BY id DESC LIMIT 50",
+  )
+  .bind(id)
+  .fetch_all(pool)
+  .await?;
+  if rows.is_empty() {
+    println!("no audit events for {username}");
+    return Ok(());
+  }
+  for (id, event, detail, ip, at) in rows {
+    println!("{at}  #{id}  {event}  {detail}  {ip}");
+  }
+  Ok(())
+}
+
+async fn user_usage(pool: &MySqlPool, username: &str) -> anyhow::Result<()> {
+  let id = require_user(pool, username).await?;
+  let today: (i64, i64) = sqlx::query_as(
+    "SELECT CAST(COALESCE(SUM(rows_written),0) AS SIGNED),             CAST(COALESCE(SUM(bytes_written),0) AS SIGNED)        FROM sync_usage WHERE user_id = ? AND day = CURDATE()",
+  )
+  .bind(id)
+  .fetch_one(pool)
+  .await?;
+  println!("{username} today: {} rows / {} bytes", today.0, today.1);
+  let days: Vec<(String, i64, i64)> = sqlx::query_as(
+    "SELECT DATE_FORMAT(day, '%Y-%m-%d'), CAST(SUM(rows_written) AS SIGNED),             CAST(SUM(bytes_written) AS SIGNED)        FROM sync_usage WHERE user_id = ? AND day >= DATE_SUB(CURDATE(), INTERVAL 7 DAY)       GROUP BY day ORDER BY day DESC",
+  )
+  .bind(id)
+  .fetch_all(pool)
+  .await?;
+  for (day, rows, bytes) in days {
+    println!("  {day}: {rows} rows / {bytes} bytes");
+  }
+  Ok(())
+}
+
+async fn prune(pool: &MySqlPool, days: i64, apply: bool) -> anyhow::Result<()> {
+  let days = days.clamp(1, 3650);
+  // 各表时间列不同：sync_usage 只有 day/updated_at（无 created_at）。
+  let targets = [
+    ("growth_events", "created_at"),
+    ("sync_usage", "day"),
+    ("audit_events", "created_at"),
+  ];
+  for (table, time_column) in targets {
+    let sql = format!("DELETE FROM {table} WHERE {time_column} < NOW() - INTERVAL ? DAY");
+    if apply {
+      let result = sqlx::query(sqlx::AssertSqlSafe(sql))
+        .bind(days)
+        .execute(pool)
+        .await?;
+      println!("{table}: removed {} row(s)", result.rows_affected());
+    } else {
+      let count: i64 = sqlx::query_scalar(sqlx::AssertSqlSafe(format!(
+        "SELECT COUNT(*) FROM {table} WHERE {time_column} < NOW() - INTERVAL ? DAY"
+      )))
+      .bind(days)
+      .fetch_one(pool)
+      .await?;
+      println!("{table}: {count} row(s) older than {days} days (dry-run)");
+    }
+  }
+  Ok(())
+}
 
 async fn sync_gc_cmd(pool: &MySqlPool, dry_run: bool) -> anyhow::Result<()> {
   let reports = desire_api::modules::sync::sync_gc::gc_all_users(pool, dry_run).await?;
@@ -191,8 +323,15 @@ async fn device_revoke(pool: &MySqlPool, username: &str, device_id: &str) -> any
   .bind(device_id)
   .execute(pool)
   .await?;
+  sqlx::query(
+    "UPDATE devices SET token_version = token_version + 1 WHERE user_id = ? AND device_id = ?",
+  )
+  .bind(user_id)
+  .bind(device_id)
+  .execute(pool)
+  .await?;
   println!(
-    "已撤销设备 {device_id}（联动吊销 {} 个刷新令牌）",
+    "已撤销设备 {device_id}（联动吊销 {} 个刷新令牌，access token 立即失效）",
     tokens.rows_affected()
   );
   Ok(())
@@ -455,7 +594,9 @@ async fn user_reset_password(
   let hash = bcrypt::hash(password, 10).context("bcrypt hash failed")?;
   let now = chrono::Utc::now().naive_utc();
   let mut tx = pool.begin().await?;
-  sqlx::query("UPDATE users SET password_hash = ?, updated_at = ? WHERE id = ?")
+  sqlx::query(
+    "UPDATE users SET password_hash = ?, updated_at = ?, token_version = token_version + 1 WHERE id = ?",
+  )
     .bind(&hash)
     .bind(now)
     .bind(user_id)
@@ -494,12 +635,14 @@ async fn user_set_status(pool: &MySqlPool, username: &str, status: i8) -> anyhow
   let Some(user_id) = user_exists(pool, username).await? else {
     bail!("用户不存在: {username}");
   };
-  sqlx::query("UPDATE users SET status = ?, updated_at = ? WHERE id = ?")
-    .bind(status)
-    .bind(chrono::Utc::now().naive_utc())
-    .bind(user_id)
-    .execute(pool)
-    .await?;
+  sqlx::query(
+    "UPDATE users SET status = ?, updated_at = ?, token_version = token_version + 1 WHERE id = ?",
+  )
+  .bind(status)
+  .bind(chrono::Utc::now().naive_utc())
+  .bind(user_id)
+  .execute(pool)
+  .await?;
   if status == 0 {
     // 禁用即踢下线
     let now = chrono::Utc::now().naive_utc();

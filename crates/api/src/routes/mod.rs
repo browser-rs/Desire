@@ -77,7 +77,13 @@ async fn capabilities() -> Json<serde_json::Value> {
         "remoteStats": true,
         "syncUsage": true,
         "metrics": true,
-        "requestId": true
+        "requestId": true,
+        "tokenVersioning": true,
+        "accountRecovery": true,
+        "auditLog": true,
+        "atomicSyncQuota": true,
+        "wsRevalidation": true,
+        "latencyHistogram": true
       },
       "serverTime": chrono::Utc::now().to_rfc3339(),
     }

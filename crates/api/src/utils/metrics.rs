@@ -5,7 +5,7 @@
 //! 这是有意的——引入完整 metrics 栈的复杂度与收益在单机部署阶段不成比例。
 
 use std::collections::BTreeMap;
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicI64, AtomicU64, Ordering};
 use std::sync::{Mutex, OnceLock};
 
 #[derive(Default)]
@@ -15,7 +15,13 @@ struct Metrics {
   duration_ms_sum: AtomicU64,
   by_route: Mutex<BTreeMap<String, u64>>,
   by_status: Mutex<BTreeMap<u16, u64>>,
+  /// 延迟直方图（v0.8.80 批 7）：Prometheus 规范桶，不含 route 标签控制基数。
+  by_bucket: Mutex<BTreeMap<u64, u64>>,
+  ws_connections: AtomicI64,
 }
+
+/// 延迟桶上界（毫秒）；最后一个是 +Inf。
+const LATENCY_BUCKETS_MS: [u64; 10] = [10, 25, 50, 100, 250, 500, 1_000, 2_500, 5_000, u64::MAX];
 
 static METRICS: OnceLock<Metrics> = OnceLock::new();
 
@@ -38,6 +44,23 @@ pub fn record(route: &str, status: u16, duration_ms: u64) {
   if let Ok(mut map) = m.by_status.lock() {
     *map.entry(status).or_insert(0) += 1;
   }
+  let bucket = LATENCY_BUCKETS_MS
+    .iter()
+    .copied()
+    .find(|limit| duration_ms <= *limit)
+    .unwrap_or(u64::MAX);
+  if let Ok(mut map) = m.by_bucket.lock() {
+    *map.entry(bucket).or_insert(0) += 1;
+  }
+}
+
+/// WebSocket 连接 gauge（v0.8.80 批 7）：进出各一次，断线务必 -1。
+pub fn ws_connected() {
+  metrics().ws_connections.fetch_add(1, Ordering::Relaxed);
+}
+
+pub fn ws_disconnected() {
+  metrics().ws_connections.fetch_sub(1, Ordering::Relaxed);
 }
 
 /// Prometheus 文本格式（counter 无类型声明也合法，但写明更利于消费）。
@@ -55,11 +78,6 @@ pub fn render() -> String {
     "desire_api_errors_total {}\n",
     m.errors.load(Ordering::Relaxed)
   ));
-  out.push_str("# TYPE desire_api_request_duration_ms_sum counter\n");
-  out.push_str(&format!(
-    "desire_api_request_duration_ms_sum {}\n",
-    m.duration_ms_sum.load(Ordering::Relaxed)
-  ));
   if let Ok(map) = m.by_route.lock() {
     for (route, count) in map.iter() {
       out.push_str(&format!(
@@ -69,6 +87,36 @@ pub fn render() -> String {
       ));
     }
   }
+  out.push_str("# TYPE desire_api_request_duration_ms histogram\n");
+  if let Ok(map) = m.by_bucket.lock() {
+    for limit in LATENCY_BUCKETS_MS {
+      let count: u64 = map
+        .iter()
+        .filter(|(upper, _)| **upper <= limit)
+        .map(|(_, count)| *count)
+        .sum();
+      let label = if limit == u64::MAX {
+        "+Inf".to_string()
+      } else {
+        limit.to_string()
+      };
+      out.push_str(&format!(
+        "desire_api_request_duration_ms_bucket{{le=\"{label}\"}} {count}\n"
+      ));
+    }
+  }
+  out.push_str(&format!(
+    "desire_api_request_duration_ms_sum {}\n",
+    m.duration_ms_sum.load(Ordering::Relaxed)
+  ));
+  out.push_str(&format!(
+    "desire_api_request_duration_ms_count {}\n",
+    m.requests.load(Ordering::Relaxed)
+  ));
+  out.push_str(&format!(
+    "desire_api_ws_connections {}\n",
+    m.ws_connections.load(Ordering::Relaxed)
+  ));
   if let Ok(map) = m.by_status.lock() {
     for (status, count) in map.iter() {
       out.push_str(&format!(
@@ -96,5 +144,7 @@ mod tests {
     assert!(text.contains("route=\"/test/{id}\""));
     assert!(text.contains("status=\"500\""));
     assert!(text.contains("desire_api_errors_total"));
+    assert!(text.contains("desire_api_request_duration_ms_bucket"));
+    assert!(text.contains("desire_api_ws_connections"));
   }
 }

@@ -9,9 +9,11 @@ use crate::types::AppState;
 use crate::utils::jwt;
 use crate::utils::refresh_token;
 
+use super::audit;
+
 use super::auth_model::{
-  CaptchaResp, DeviceDto, DeviceInfoReq, DeviceRow, KeyEscrowResp, LoginReq, MeDto,
-  RefreshTokenRow, RegisterReq, SetPasswordReq, TokenPair, UpdateProfileReq, UserRow,
+  AuditEventDto, CaptchaResp, DeviceDto, DeviceInfoReq, DeviceRow, KeyEscrowResp, LoginReq, MeDto,
+  RecoverReq, RefreshTokenRow, RegisterReq, SetPasswordReq, TokenPair, UpdateProfileReq, UserRow,
 };
 
 /// 注册验证码有效期(分钟)
@@ -113,8 +115,23 @@ async fn issue_tokens(
     Some(d) => Some(upsert_device(&state.pool, user_id, d, headers).await?),
     None => None,
   };
+  let (user_version,): (i64,) = sqlx::query_as("SELECT token_version FROM users WHERE id = ?")
+    .bind(user_id)
+    .fetch_one(&state.pool)
+    .await?;
+  let device_version = match device_row_id {
+    Some(id) => sqlx::query_scalar("SELECT token_version FROM devices WHERE id = ?")
+      .bind(id)
+      .fetch_optional(&state.pool)
+      .await?
+      .unwrap_or(0),
+    None => 0,
+  };
   let access_token = jwt::create_token(
     user_id,
+    user_version,
+    device_row_id,
+    device_version,
     state.config.access_token_ttl,
     &state.config.jwt_secret,
   )?;
@@ -365,6 +382,8 @@ pub async fn register(
     .bind(user_id)
     .execute(&state.pool)
     .await?;
+  let register_ip = ip(headers);
+  audit::record(&state.pool, Some(user_id), "register", "", &register_ip).await;
   issue_tokens(state, user_id, req.device.as_ref(), headers).await
 }
 
@@ -595,6 +614,8 @@ pub async fn login(
     .bind(user_id)
     .execute(&state.pool)
     .await?;
+  let login_ip = ip(headers);
+  audit::record(&state.pool, Some(user_id), "login", "", &login_ip).await;
   issue_tokens(state, user_id, req.device.as_ref(), headers).await
 }
 
@@ -642,8 +663,23 @@ pub async fn refresh(
       .execute(&mut *tx)
       .await?;
   }
+  let (user_version,): (i64,) = sqlx::query_as("SELECT token_version FROM users WHERE id = ?")
+    .bind(row.user_id)
+    .fetch_one(&mut *tx)
+    .await?;
+  let device_version = match row.device_id {
+    Some(id) => sqlx::query_scalar("SELECT token_version FROM devices WHERE id = ?")
+      .bind(id)
+      .fetch_optional(&mut *tx)
+      .await?
+      .unwrap_or(0),
+    None => 0,
+  };
   let new_access = jwt::create_token(
     row.user_id,
+    user_version,
+    row.device_id,
+    device_version,
     state.config.access_token_ttl,
     &state.config.jwt_secret,
   )?;
@@ -673,6 +709,14 @@ pub async fn refresh(
 pub async fn logout(state: &AppState, token: &str) -> Result<(), AppError> {
   let token_hash = refresh_token::hash_token(token);
   let now = Utc::now().naive_utc();
+  let row: Option<(i64, Option<i64>)> =
+    sqlx::query_as("SELECT user_id, device_id FROM user_refresh_tokens WHERE token_hash = ?")
+      .bind(&token_hash)
+      .fetch_optional(&state.pool)
+      .await?;
+  let Some((user_id, device_id)) = row else {
+    return Err(AppError::Unauthorized("invalid refresh token".into()));
+  };
   let res = sqlx::query(
     "UPDATE user_refresh_tokens SET revoked_at = ? WHERE token_hash = ? AND revoked_at IS NULL",
   )
@@ -683,6 +727,14 @@ pub async fn logout(state: &AppState, token: &str) -> Result<(), AppError> {
   if res.rows_affected() == 0 {
     return Err(AppError::Unauthorized("invalid refresh token".into()));
   }
+  // 设备级版本 +1：该设备已签发的 access token 立即失效（不等 TTL）。
+  if let Some(id) = device_id {
+    sqlx::query("UPDATE devices SET token_version = token_version + 1 WHERE id = ?")
+      .bind(id)
+      .execute(&state.pool)
+      .await?;
+  }
+  audit::record(&state.pool, Some(user_id), "logout", "", "").await;
   Ok(())
 }
 
@@ -741,10 +793,103 @@ pub async fn update_profile(
   me(state, user_id).await
 }
 
+/// 生成/轮换恢复码（登录态；只返回一次，库内只存 bcrypt 哈希）。
+pub async fn issue_recovery_code(state: &AppState, user_id: i64) -> Result<String, AppError> {
+  let code = format!("{}{}", Uuid::new_v4().simple(), Uuid::new_v4().simple());
+  let code = code[..20].to_uppercase();
+  let hash = bcrypt::hash(&code, 10)
+    .map_err(|e| AppError::Internal(format!("recovery hash failed: {e}")))?;
+  sqlx::query("UPDATE users SET recovery_hash = ? WHERE id = ?")
+    .bind(hash)
+    .bind(user_id)
+    .execute(&state.pool)
+    .await?;
+  audit::record(&state.pool, Some(user_id), "recovery_code_issued", "", "").await;
+  Ok(code)
+}
+
+/// 忘记密码：用户名 + 恢复码（一次性）。成功即改密、全端 access token 失效、
+/// refresh token 全部吊销、恢复码作废。
+pub async fn recover(
+  state: &AppState,
+  headers: &HeaderMap,
+  req: RecoverReq,
+) -> Result<(), AppError> {
+  validate_password(&req.new_password)?;
+  let username = req.username.trim();
+  if username.is_empty() || req.recovery_code.trim().is_empty() {
+    return Err(AppError::Unauthorized("用户名或恢复码错误".into()));
+  }
+  if !state.rate_limiter.allow(
+    &format!("recover:ip:{}", ip(headers)),
+    10,
+    Duration::from_secs(300),
+  ) {
+    return Err(AppError::RateLimited("尝试过于频繁，请稍后再试".into()));
+  }
+  let recover_ip = ip(headers);
+  let row: Option<(i64, Option<String>)> =
+    sqlx::query_as("SELECT id, recovery_hash FROM users WHERE username = ?")
+      .bind(username)
+      .fetch_optional(&state.pool)
+      .await?;
+  let Some((user_id, recovery_hash)) = row else {
+    return Err(AppError::Unauthorized("用户名或恢复码错误".into()));
+  };
+  let Some(hash) = recovery_hash else {
+    return Err(AppError::Unauthorized("用户名或恢复码错误".into()));
+  };
+  if !bcrypt::verify(req.recovery_code.trim(), &hash).unwrap_or(false) {
+    let failed_ip = ip(headers);
+    audit::record(&state.pool, Some(user_id), "recover_failed", "", &failed_ip).await;
+    return Err(AppError::Unauthorized("用户名或恢复码错误".into()));
+  }
+  let new_hash = bcrypt::hash(req.new_password.trim(), 10)
+    .map_err(|e| AppError::Internal(format!("password hash failed: {e}")))?;
+  let now = Utc::now().naive_utc();
+  sqlx::query(
+    "UPDATE users SET password_hash = ?, recovery_hash = NULL, token_version = token_version + 1 WHERE id = ?",
+  )
+  .bind(new_hash)
+  .bind(user_id)
+  .execute(&state.pool)
+  .await?;
+  sqlx::query(
+    "UPDATE user_refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+  )
+  .bind(now)
+  .bind(user_id)
+  .execute(&state.pool)
+  .await?;
+  audit::record(&state.pool, Some(user_id), "recovered", "", &recover_ip).await;
+  Ok(())
+}
+
+pub async fn audit_events(
+  state: &AppState,
+  user_id: i64,
+  limit: i64,
+) -> Result<Vec<AuditEventDto>, AppError> {
+  let rows = audit::recent(&state.pool, user_id, limit).await?;
+  Ok(
+    rows
+      .into_iter()
+      .map(|(id, event, detail, ip, created_at)| AuditEventDto {
+        id,
+        event,
+        detail,
+        ip,
+        created_at,
+      })
+      .collect(),
+  )
+}
+
 /// 修改密码: Desire 的账号注册即有密码,old_password 恒必填且须匹配。
 pub async fn set_password(
   state: &AppState,
   user_id: i64,
+  current_device: Option<i64>,
   req: SetPasswordReq,
 ) -> Result<(), AppError> {
   validate_password(&req.new_password)?;
@@ -764,20 +909,47 @@ pub async fn set_password(
     .map_err(|e| AppError::Internal(format!("password hash failed: {e}")))?;
   // E2E 换包:客户端随改密提交新盐+新包裹体(同 DEK 重包裹),既有密文保持可解
   if let (Some(salt), Some(wrapped)) = (&req.new_kdf_salt, &req.new_wrapped_dek) {
-    sqlx::query("UPDATE users SET password_hash = ?, kdf_salt = ?, wrapped_dek = ? WHERE id = ?")
+    sqlx::query("UPDATE users SET password_hash = ?, kdf_salt = ?, wrapped_dek = ?, token_version = token_version + 1 WHERE id = ?")
       .bind(new_hash)
       .bind(salt)
       .bind(wrapped)
       .bind(user_id)
       .execute(&state.pool)
       .await?;
-    return Ok(());
-  }
-  sqlx::query("UPDATE users SET password_hash = ? WHERE id = ?")
+  } else {
+    sqlx::query(
+      "UPDATE users SET password_hash = ?, token_version = token_version + 1 WHERE id = ?",
+    )
     .bind(new_hash)
     .bind(user_id)
     .execute(&state.pool)
     .await?;
+  }
+  // 改密 = 其它会话全部下线（当前设备保留 refresh token，靠 401 自动换新 access）。
+  // 旧 token 的 access 因用户级版本 +1 立即失效。
+  let now = Utc::now().naive_utc();
+  match current_device {
+    Some(keep) => {
+      sqlx::query(
+        "UPDATE user_refresh_tokens SET revoked_at = ?          WHERE user_id = ? AND revoked_at IS NULL AND (device_id IS NULL OR device_id <> ?)",
+      )
+      .bind(now)
+      .bind(user_id)
+      .bind(keep)
+      .execute(&state.pool)
+      .await?;
+    }
+    None => {
+      sqlx::query(
+        "UPDATE user_refresh_tokens SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
+      )
+      .bind(now)
+      .bind(user_id)
+      .execute(&state.pool)
+      .await?;
+    }
+  }
+  audit::record(&state.pool, Some(user_id), "password_changed", "", "").await;
   Ok(())
 }
 
@@ -822,6 +994,11 @@ pub async fn revoke_device(
   .bind(id)
   .execute(&state.pool)
   .await?;
+  sqlx::query("UPDATE devices SET token_version = token_version + 1 WHERE id = ?")
+    .bind(id)
+    .execute(&state.pool)
+    .await?;
+  audit::record(&state.pool, Some(user_id), "device_revoked", device_id, "").await;
   Ok(())
 }
 
@@ -886,6 +1063,15 @@ pub async fn revoke_all_devices(
   .bind(user_id)
   .execute(&state.pool)
   .await?;
+  sqlx::query("UPDATE users SET token_version = token_version + 1 WHERE id = ?")
+    .bind(user_id)
+    .execute(&state.pool)
+    .await?;
+  sqlx::query("UPDATE devices SET token_version = token_version + 1 WHERE user_id = ?")
+    .bind(user_id)
+    .execute(&state.pool)
+    .await?;
+  audit::record(&state.pool, Some(user_id), "devices_revoked_all", "", "").await;
   Ok(devices)
 }
 

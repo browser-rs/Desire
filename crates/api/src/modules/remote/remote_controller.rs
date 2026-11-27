@@ -326,16 +326,80 @@ pub async fn ws(
       return (StatusCode::FORBIDDEN, "not paired").into_response();
     }
   }
-  ws.on_upgrade(move |socket| handle_socket(socket, state, claims.sub, mailbox, device_id))
+  ws.on_upgrade(move |socket| {
+    handle_socket(
+      socket,
+      state,
+      claims.sub,
+      claims.ver,
+      claims.dev,
+      claims.dver,
+      mailbox,
+      device_id,
+    )
+  })
 }
+
+/// 每用户最多 WS 连接数（v0.8.80 批 7）：手机+多桌面共享，8 条足够；
+/// 超出直接拒绝升级，防止单账号把连接池打满。
+const MAX_WS_PER_USER: usize = 8;
+
+struct WsSlot {
+  user_id: i64,
+}
+
+impl Drop for WsSlot {
+  fn drop(&mut self) {
+    let map = WS_SLOTS.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+    if let Ok(mut guard) = map.lock()
+      && let Some(count) = guard.get_mut(&self.user_id)
+    {
+      *count = count.saturating_sub(1);
+      if *count == 0 {
+        guard.remove(&self.user_id);
+      }
+    }
+    crate::utils::metrics::ws_disconnected();
+  }
+}
+
+static WS_SLOTS: std::sync::OnceLock<std::sync::Mutex<std::collections::HashMap<i64, usize>>> =
+  std::sync::OnceLock::new();
 
 async fn handle_socket(
   mut socket: WebSocket,
   state: AppState,
   user_id: i64,
+  user_version: i64,
+  device_row_id: Option<i64>,
+  device_version: i64,
   mailbox: Mailbox,
   device_id: String,
 ) {
+  let rejected = {
+    let map = WS_SLOTS.get_or_init(|| std::sync::Mutex::new(std::collections::HashMap::new()));
+    let Ok(mut guard) = map.lock() else {
+      return;
+    };
+    let count = guard.entry(user_id).or_insert(0);
+    if *count >= MAX_WS_PER_USER {
+      true
+    } else {
+      *count += 1;
+      false
+    }
+  };
+  if rejected {
+    let _ = socket
+      .send(Message::Close(Some(axum::extract::ws::CloseFrame {
+        code: 1013,
+        reason: "too many connections".into(),
+      })))
+      .await;
+    return;
+  }
+  let _slot = WsSlot { user_id };
+  crate::utils::metrics::ws_connected();
   let channel = mailbox.channel(user_id, &device_id);
   let (tx, mut rx) = mpsc::channel::<String>(64);
 
@@ -374,6 +438,8 @@ async fn handle_socket(
   // 单任务 select:频道下行 + 20s Ping 保活 + 入站 Ping 显式回 Pong
   // (URLSession 客户端协议层回 pong 与否不可控,重复 Pong 对端忽略,合法)
   let mut ping = tokio::time::interval(Duration::from_secs(20));
+  // 会话重验证（v0.8.80 批 7）：改密/吊销设备后，已建立的 WS 不再继续推送。
+  let mut revalidate = tokio::time::interval(Duration::from_secs(60));
   ping.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
   tracing::info!(user = user_id, mailbox = %mailbox.as_str(), device = %device_id, "remote ws connected");
   loop {
@@ -381,6 +447,40 @@ async fn handle_socket(
       outbound = rx.recv() => {
         let Some(text) = outbound else { break };
         if socket.send(Message::Text(text.into())).await.is_err() {
+          break;
+        }
+      }
+      _ = revalidate.tick() => {
+        let row: Option<(i8, i64)> = sqlx::query_as(
+          "SELECT status, token_version FROM users WHERE id = ?",
+        )
+        .bind(user_id)
+        .fetch_optional(&state.pool)
+        .await
+        .ok()
+        .flatten();
+        let Some((status, current_version)) = row else { break };
+        if status == 0 || current_version != user_version {
+          break;
+        }
+        if let Some(device_row_id) = device_row_id {
+          let device: Option<(i64, Option<chrono::NaiveDateTime>)> = sqlx::query_as(
+            "SELECT token_version, revoked_at FROM devices WHERE id = ? AND user_id = ?",
+          )
+          .bind(device_row_id)
+          .bind(user_id)
+          .fetch_optional(&state.pool)
+          .await
+          .ok()
+          .flatten();
+          let Some((version, revoked_at)) = device else { break };
+          if version != device_version || revoked_at.is_some() {
+            break;
+          }
+        }
+        if mailbox == Mailbox::Controller
+          && !remote_service::pairing_exists(&state, user_id, &device_id).await
+        {
           break;
         }
       }

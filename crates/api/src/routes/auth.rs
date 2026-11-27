@@ -11,6 +11,7 @@ pub fn public() -> Router<AppState> {
     .route("/auth/login", post(auth_controller::login))
     .route("/auth/refresh", post(auth_controller::refresh))
     .route("/auth/logout", post(auth_controller::logout))
+    .route("/auth/recover", post(auth_controller::recover))
     .route("/auth/qr/create", post(auth_controller::qr_create))
     .route("/auth/qr/status", get(auth_controller::qr_status))
 }
@@ -23,6 +24,8 @@ pub fn protected() -> Router<AppState> {
       get(auth_controller::key_escrow).put(auth_controller::set_key_escrow),
     )
     .route("/auth/me", get(auth_controller::me))
+    .route("/auth/recovery-code", post(auth_controller::recovery_code))
+    .route("/auth/audit", get(auth_controller::audit_log))
     .route("/auth/me", axum::routing::put(auth_controller::update_me))
     .route(
       "/auth/password",

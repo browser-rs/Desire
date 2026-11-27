@@ -640,10 +640,9 @@ final class SyncStore: ObservableObject {
     }
 
     func logout() {
-        // 只为"通知服务端注销"取 refresh：单条目在内存里才取，**不在这里加载**
-        // （登出不该触发一次授权）。
-        if let refresh = AppSecretsVault.shared.isLoaded
-            ? AppSecretsVault.shared.sync.refresh : nil {
+        // 通知服务端注销（v0.8.80 批 7）：keychain 非交互读，不再依赖 vault 是否
+        // 已加载——此前冷启动直接登出会漏掉服务端吊销，refresh token 活满 14 天。
+        if let refresh = keychainReadString(refreshAccount), !refresh.isEmpty {
             let base = serverBaseURL
             Task.detached {
                 _ = try? await SyncAPIClient.logout(baseURL: base, refreshToken: refresh)

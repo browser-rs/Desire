@@ -318,3 +318,16 @@ ArtifactIndex + readArtifact 白名单，iOS 端请求/回帧按 path 对号）�
 Doctor 稳定 id + 一键修复、轨迹 JSONL 导出、校准窗口按模型键跨档案查找（S6）。
 - **验收**：`batch6-e2e` 14/14（存储报表/清理、预算写入读回、Doctor id 唯一/修复、锁屏挂起→解锁重放）；
   harness 4045；Mac clean Debug 零警告。
+
+**批 7 进展（2026-11-27）**：API 账号安全——JWT 用户/设备 token 版本（改密、全设备/单设备
+吊销、登出即时失效 access）、改密保留当前设备 refresh 其余吊销、一次性恢复码
+（生成/重置）、审计事件（登录/注册/登出/改密/吊销/恢复）与 `GET /auth/audit`；
+Mac/iOS 登出都通知服务端。配额与 TTL——push 在事务内 `FOR UPDATE` 原子预留日配额
+（含 `sync_quota_daily` 表）、`history@<profile>` 落到历史表并随 TTL/GC 清理（迁移搬旧行 +
+加宽列）、通用 GC 处理档案后缀域。可观测/运维——延迟直方图 + WS 连接 gauge、WS 每用户
+8 连接上限 + 60s 重验证、访问日志补 user id、`desire-admin user create/audit/usage` 与
+`prune`、capabilities 声明新能力。
+- **验收**：`cargo fmt --check` + `cargo test --workspace`（25 项，含 token 版本判定与
+  history@ 表映射）；Mac/iOS Debug 构建零警告。**本机无 MySQL 服务**，迁移 0021 与 DB 级
+  吊销/恢复/配额 E2E 未实跑——部署前在有库环境执行 `desire-migrate` 并跑一次登录→改密→
+  refresh→恢复码流程。

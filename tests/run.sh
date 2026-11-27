@@ -40,6 +40,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/PromptCacheAccounting.swift
   apps/macos/Desire/Features/Agent/PromptCacheAudit.swift
   apps/macos/Desire/Features/Agent/ScheduleDue.swift
+  apps/macos/Desire/Features/Agent/TaskCalendar.swift
   apps/macos/Desire/Features/Agent/AnswerDiff.swift
   apps/macos/Desire/Features/Agent/AgentToolCatalog.swift
   apps/macos/Desire/Features/Agent/ToolChainCore.swift

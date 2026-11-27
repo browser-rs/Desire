@@ -29,6 +29,7 @@ struct AgentTasksView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 8) {
+                        nextRunsSection
                         runTimeline
                         ForEach(store.tasks) { task in
                             AgentTaskCard(task: task)
@@ -44,6 +45,54 @@ struct AgentTasksView: View {
             AgentTaskEditorSheet()
         }
     }
+
+    /// 下一次运行（v0.8.82 批 2）：任务日历的紧凑版——最近 3 次。
+    private var nextRunsSection: some View {
+        let rows = store.tasks
+            .filter(\.isEnabled)
+            .map { ($0, store.upcomingRuns(for: $0, count: 3)) }
+            .filter { !$0.1.isEmpty }
+            .sorted { ($0.1.first ?? .distantFuture) < ($1.1.first ?? .distantFuture) }
+        return Group {
+            if !rows.isEmpty {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 10))
+                            .foregroundStyle(appAccent)
+                        Text(String(localized: "Next runs"))
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    ForEach(Array(rows.prefix(5).enumerated()), id: \.offset) { _, row in
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
+                            Text(row.0.name)
+                                .font(.system(size: 11, weight: .medium))
+                                .lineLimit(1)
+                            Spacer(minLength: 6)
+                            VStack(alignment: .trailing, spacing: 1) {
+                                ForEach(Array(row.1.enumerated()), id: \.offset) { _, date in
+                                    Text(Self.nextRunFormatter.string(from: date))
+                                        .font(.system(size: 9.5, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.6)))
+            }
+        }
+    }
+
+    private static let nextRunFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "E HH:mm"
+        return f
+    }()
 
     // MARK: - 运行时间线（v0.8.18 基础件 8）+ crew 报告模板（基础件 6）
 
@@ -418,6 +467,7 @@ private struct AgentTaskCard: View {
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject private var store = AgentScheduler.shared
     let task: AgentScheduler.ScheduledTask
+    @State private var showRuns = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 7) {
@@ -439,6 +489,16 @@ private struct AgentTaskCard: View {
                         .help(String(localized: "Runs deferred to quiet-hours end"))
                 }
                 Spacer(minLength: 8)
+                Button {
+                    showRuns = true
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 22, height: 22)
+                }
+                .buttonStyle(.plain)
+                .help(String(localized: "Run history"))
                 if let upstream = store.chainPredecessor(of: task.name) {
                     Button {
                         _ = store.continueChain(from: task.name)
@@ -495,13 +555,22 @@ private struct AgentTaskCard: View {
                 .lineLimit(2)
                 .truncationMode(.tail)
 
-            if store.chainPath(startingAt: task.name).count > 1 {
-                Text(verbatim: store.chainPath(startingAt: task.name).joined(separator: " → "))
-                    .font(.system(size: 9.5, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.tertiary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .help("Full chain from this step")
+            let chain = store.chainStatus(startingAt: task.name)
+            if chain.path.count > 1 {
+                HStack(spacing: 5) {
+                    Text(verbatim: chain.path.joined(separator: " → "))
+                        .font(.system(size: 9.5, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    if let failed = chain.failedStep {
+                        Label(String(format: String(localized: "failed at %@"), failed),
+                              systemImage: "exclamationmark.triangle.fill")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.red)
+                    }
+                }
+                .help("Full chain from this step")
             }
 
             HStack(spacing: 6) {
@@ -609,4 +678,106 @@ private struct AgentTaskCard: View {
         }
         return String(localized: "Newest Window")
     }
+}
+
+
+/// 单任务运行历史（v0.8.82 批 2）：RunRecord 已含 prompt/output/catchUp。
+private struct AgentTaskRunsSheet: View {
+    @ObservedObject private var store = AgentScheduler.shared
+    let task: AgentScheduler.ScheduledTask
+    @Environment(\.dismiss) private var dismiss
+
+    private var runs: [AgentScheduler.RunRecord] {
+        store.runs.filter { $0.taskName == task.name }.prefix(20).map { $0 }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text(String(localized: "Run history · \(task.name)"))
+                    .font(.system(size: 14, weight: .semibold))
+                Spacer()
+                Button(String(localized: "Done")) { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+            if runs.isEmpty {
+                Text(String(localized: "No runs yet."))
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(runs) { run in
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: icon(run))
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(color(run))
+                                    Text(run.status)
+                                        .font(.system(size: 10.5, weight: .semibold))
+                                    if run.catchUp == true {
+                                        Text(String(localized: "caught up"))
+                                            .font(.system(size: 9))
+                                            .foregroundStyle(.orange)
+                                    }
+                                    Spacer()
+                                    Text(Self.format(run.firedAt))
+                                        .font(.system(size: 9.5, design: .monospaced))
+                                        .foregroundStyle(.tertiary)
+                                }
+                                if let error = run.error, !error.isEmpty {
+                                    Text(error)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.red)
+                                        .lineLimit(3)
+                                }
+                                if let output = run.output, !output.isEmpty {
+                                    Text(output)
+                                        .font(.system(size: 10, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(6)
+                                        .textSelection(.enabled)
+                                }
+                                if run.attempts > 1 {
+                                    Text(String(format: String(localized: "%lld attempts"), run.attempts))
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.tertiary)
+                                }
+                            }
+                            .padding(8)
+                            .background(RoundedRectangle(cornerRadius: 7)
+                                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.6)))
+                        }
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .frame(width: 520, height: 460)
+    }
+
+    private func icon(_ run: AgentScheduler.RunRecord) -> String {
+        if run.success == true { return "checkmark.circle.fill" }
+        if run.success == false || run.status == "failed" || run.status == "missed" {
+            return "xmark.circle.fill"
+        }
+        return "clock"
+    }
+
+    private func color(_ run: AgentScheduler.RunRecord) -> Color {
+        if run.success == true { return .green }
+        if run.success == false || run.status == "failed" || run.status == "missed" {
+            return .red
+        }
+        return .secondary
+    }
+
+    private static let formatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "MM-dd HH:mm"
+        return f
+    }()
+
+    private static func format(_ date: Date) -> String { formatter.string(from: date) }
 }

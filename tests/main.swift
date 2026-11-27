@@ -14328,6 +14328,35 @@ do {
           TaskChainGraph.path(startingAt: "a", nodes: loop) == ["a", "b"])
 }
 
+// 任务日历下一次运行（v0.8.82 批 2）。
+do {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "Asia/Shanghai")!
+    func date(_ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 11, day: day,
+                                           hour: hour, minute: minute))!
+    }
+    let daily = TaskCalendar.upcoming(rule: .daily(hour: 9, minute: 0),
+                                      after: date(27, 10), count: 2, calendar: calendar)
+    check("任务日历：每日从明天继续",
+          daily.count == 2
+          && calendar.component(.day, from: daily[0]) == 28
+          && calendar.component(.day, from: daily[1]) == 29)
+    let sameDay = TaskCalendar.upcoming(rule: .daily(hour: 9, minute: 0),
+                                        after: date(27, 8), count: 1, calendar: calendar)
+    check("任务日历：当天未到点取当天", calendar.component(.day, from: sameDay[0]) == 27)
+    let weekly = TaskCalendar.upcoming(rule: .weekly(weekday: 2, hour: 9, minute: 0),
+                                       after: date(27, 10), count: 2, calendar: calendar)
+    check("任务日历：每周跳到下一个周一",
+          weekly.count == 2
+          && calendar.component(.weekday, from: weekly[0]) == 2
+          && calendar.component(.day, from: weekly[0]) == 30)
+    let interval = TaskCalendar.upcoming(rule: .everyMinutes(30),
+                                         after: date(27, 10), count: 2, calendar: calendar)
+    check("任务日历：间隔任务按分钟推进",
+          interval[1].timeIntervalSince(interval[0]) == 1_800)
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

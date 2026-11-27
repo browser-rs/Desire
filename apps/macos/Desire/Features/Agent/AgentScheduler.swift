@@ -448,6 +448,28 @@ final class AgentScheduler: ObservableObject {
         TaskChainGraph.predecessor(of: name, nodes: chainNodes)
     }
 
+    struct ChainRunStatus {
+        let path: [String]
+        let failedStep: String?
+        let latestAt: Date?
+    }
+
+    /// 链级状态（v0.8.82 批 2）：沿完整路径找最近一次失败/错过的步骤。
+    func chainStatus(startingAt name: String) -> ChainRunStatus {
+        let path = chainPath(startingAt: name)
+        var failed: String?
+        var latest: Date?
+        for step in path {
+            guard let run = runs.first(where: { $0.taskName == step }) else { continue }
+            if latest == nil || run.firedAt > (latest ?? .distantPast) { latest = run.firedAt }
+            if failed == nil,
+               run.success == false || run.status == "failed" || run.status == "missed" {
+                failed = step
+            }
+        }
+        return ChainRunStatus(path: path, failedStep: failed, latestAt: latest)
+    }
+
     /// 上游任务最近一次**成功**运行的最终回答；没有就 nil。
     func latestSuccessfulOutput(for taskName: String) -> String? {
         runs.first(where: {
@@ -1164,6 +1186,13 @@ final class AgentScheduler: ObservableObject {
             firedAny = true
         }
         if firedAny { save() }
+    }
+
+    /// 面板日历/桥用：从 `after` 起该任务的下一次运行（不含补跑语义）。
+    func upcomingRuns(for task: ScheduledTask, after: Date = Date(),
+                      count: Int = 5) -> [Date] {
+        TaskCalendar.upcoming(rule: Self.scheduleRule(for: task.recurrence),
+                              after: after, count: count)
     }
 
     nonisolated private static func scheduleRule(for recurrence: ScheduledTask.Recurrence) -> ScheduleDue.Rule {

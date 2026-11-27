@@ -1773,7 +1773,13 @@ def main():
                                             for m in st17.get("messages", [])):
                 break
             time.sleep(1)
-        b17 = bridge("GET", "/agent/budget")
+        # usage 落账可能晚于回合完成——轮询到 460/warning（v0.8.82 修时序）。
+        b17 = {}
+        for _ in range(20):
+            b17 = bridge("GET", "/agent/budget")
+            if b17.get("state") == "warning" and b17.get("used", 0) >= 460:
+                break
+            time.sleep(0.25)
         ok("预算：首轮用满 460/500 → state=warning",
            b17.get("state") == "warning" and b17.get("used", 0) >= 460 and b17.get("percent", 0) >= 92)
         bridge("POST", "/agent/send", {"text": "MUSCLE17B 续跑"})
@@ -1794,7 +1800,12 @@ def main():
         ok("预算：第二次迭代被拦住（没有 B-DONE）",
            not any("MUSCLE17B-DONE" in (m.get("content") or "") for m in msgs17))
         ok("预算：停机前只执行了一次工具（listTabs）", len(tools17) == 1)
-        b17b = bridge("GET", "/agent/budget")
+        b17b = {}
+        for _ in range(20):
+            b17b = bridge("GET", "/agent/budget")
+            if b17b.get("stopLevel") == 2 and b17b.get("used", 0) >= 920:
+                break
+            time.sleep(0.25)
         ok("预算：档位阶梯前进（stopLevel=2，下一档 1000）",
            b17b.get("stopLevel") == 2 and b17b.get("used", 0) >= 920)
         # ── MUSCLE18：热点选题（readURL 读热榜 → 提炼 → 选题库 + 一键安排每日采集）──

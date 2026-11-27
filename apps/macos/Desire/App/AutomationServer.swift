@@ -763,6 +763,7 @@ final class AutomationServer {
         ep("POST", "/agent/send", "Prompt the live agent session", params: ["text:string", "recordHistory?:bool (default false)"], example: #"-d '{"text":"summarize this page"}'"#)
         ep("POST", "/agent/resume", "Checkpoint resume: continue a turn that was interrupted by a crash/force-quit (action=resume) or clear the marker (action=discard)", params: ["action:resume|discard", "window?:string"], example: #"-d '{"action":"resume"}'"#)
         ep("GET", "/agent/tasks", "Scheduled agent tasks", example: "…/agent/tasks")
+        ep("GET", "/agent/tasks/calendar", "Upcoming scheduled runs per task (from/to ISO-8601, default now..+7d)", params: ["from?:ISO-8601", "to?:ISO-8601", "count?:int (max 20)"], example: "…/agent/tasks/calendar")
         ep("POST", "/agent/handoff", "Hand the current delivery session's conversation to another window (target takes over; source returns to a fresh conversation)", params: ["window:string (live session id from GET /agent/windows)"], example: #"-d '{"window":"…"}'"#)
         ep("GET", "/agent/crew", "Tab Crew status (per-subtask progress + reports)", example: "…/agent/crew")
         ep("POST", "/agent/crew/cancel", "Cancel the whole crew (or one subtask)", params: ["index?:int"], example: "-d '{}'")
@@ -4252,6 +4253,11 @@ case ("GET", "/agent/messages"):
                 return try Self.json(["ok": true])
             case ("GET", "/agent/tasks"):
                 return try Self.json(Self.agentTasks())
+            case ("GET", "/agent/tasks/calendar"):
+                return try Self.json(Self.agentTasksCalendar(
+                    from: Self.string(query, "from"),
+                    to: Self.string(query, "to"),
+                    count: Int(query["count"] ?? "") ?? 5))
             case ("POST", "/agent/tasks/create"):
                 return try Self.json(Self.createAgentTask(
                     name: Self.string(body, "name") ?? "",
@@ -10797,6 +10803,30 @@ case ("GET", "/agent/messages"):
     }
 
     // MARK: Scheduled agent tasks
+
+    private static func agentTasksCalendar(from: String?, to: String?, count: Int) -> [String: Any] {
+        let iso = ISO8601DateFormatter()
+        let start = from.flatMap { iso.date(from: $0) } ?? Date()
+        let end = to.flatMap { iso.date(from: $0) }
+            ?? Calendar.current.date(byAdding: .day, value: 7, to: start)
+            ?? start
+        let limit = max(1, min(count, 20))
+        let rows: [[String: Any]] = AgentScheduler.shared.tasks.filter(\.isEnabled).map { task in
+            let next = AgentScheduler.shared.upcomingRuns(for: task, after: start, count: limit)
+                .filter { $0 <= end }
+            let status = AgentScheduler.shared.chainStatus(startingAt: task.name)
+            var row: [String: Any] = [
+                "name": task.name,
+                "recurrence": task.recurrenceText,
+                "next": next.map { iso.string(from: $0) },
+                "chainPath": status.path,
+            ]
+            if let failed = status.failedStep { row["failedStep"] = failed }
+            return row
+        }
+        return ["from": iso.string(from: start), "to": iso.string(from: end),
+                "tasks": rows]
+    }
 
     private static func agentTasks() throws -> [String: Any] {
         let tasks = AgentScheduler.shared.tasks.map { t -> [String: Any] in

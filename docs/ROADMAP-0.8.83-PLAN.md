@@ -36,7 +36,8 @@
 > 未执行**（前者需人在场，后者需明确授权）。验证：harness 4088/4088、E34–E40
 > 61/61、sync-conflict 17/17、190 全量 188/190（仅下载 2 项被旧下载时段窗口
 > 偏好污染；`--fresh` 已改为清偏好，browser section 重跑 88/88）、Release clean
-> build 0 warning。iOS 账号契约测试与手动 VoiceOver 仍待做。
+> build 0 warning。iOS 账号契约已完成（Foundation-only 模型 + `tests/ios-account-contract.py`
+> 本地 API 11/11，模拟器构建通过）；仅剩手动 VoiceOver 走查与生产迁移（需授权）。
 
 ## 存量收口（审计实锤，随批 1–5 修）
 

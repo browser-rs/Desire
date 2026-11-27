@@ -438,44 +438,6 @@ enum APIError: LocalizedError {
     }
 }
 
-struct RecoveryCodeResponse: Codable {
-    var recoveryCode: String
-
-    enum CodingKeys: String, CodingKey {
-        case recoveryCode = "recovery_code"
-    }
-}
-
-struct RemoteAuditEvent: Codable, Identifiable, Equatable {
-    let id: Int
-    let event: String
-    let detail: String
-    let ip: String
-    let createdAt: String
-
-    enum CodingKeys: String, CodingKey {
-        case id, event, detail, ip
-        case createdAt = "created_at"
-    }
-}
-
-struct RemoteAuthDevice: Codable, Identifiable, Equatable {
-    let id: Int
-    let deviceID: String
-    let name: String
-    let platform: String
-    let revoked: Bool
-    let lastSeenAt: String
-    let createdAt: String
-
-    enum CodingKeys: String, CodingKey {
-        case id, name, platform, revoked
-        case deviceID = "device_id"
-        case lastSeenAt = "last_seen_at"
-        case createdAt = "created_at"
-    }
-}
-
 /// 无状态 HTTP 客户端（信封 {code,message,data}）。
 enum API {
     static func send<Response: Codable>(

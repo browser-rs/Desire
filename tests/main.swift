@@ -14420,6 +14420,39 @@ do {
           && !PaymentCardNumber.expiryValid(month: 13, year: year, now: now))
 }
 
+// iOS 账号安全契约（v0.8.83 批 5）：用服务端形状的 JSON 直接解码 iOS 模型，
+// 防止字段改名/类型漂移（改密入口按决策不出现，不在解码模型里）。
+do {
+    let decoder = JSONDecoder()
+    let recovery = try! decoder.decode(
+        RecoveryCodeResponse.self,
+        from: Data(#"{"recovery_code":"ABCD-EFGH-IJKL"}"#.utf8))
+    check("iOS 契约：恢复码字段 recovery_code 解码",
+          recovery.recoveryCode == "ABCD-EFGH-IJKL")
+
+    let auditJSON = #"""
+    [{"id":7,"event":"register","detail":"desktop","ip":"127.0.0.1",
+      "created_at":"2026-11-28T00:00:00"}]
+    """#
+    let events = try! decoder.decode([RemoteAuditEvent].self, from: Data(auditJSON.utf8))
+    check("iOS 契约：审计事件五字段解码",
+          events.count == 1 && events[0].id == 7 && events[0].event == "register"
+          && events[0].detail == "desktop" && events[0].ip == "127.0.0.1"
+          && events[0].createdAt == "2026-11-28T00:00:00")
+
+    let deviceJSON = #"""
+    [{"id":3,"device_id":"dev-abc","name":"Mac","platform":"macOS",
+      "revoked":false,"last_seen_at":"2026-11-28T01:02:03",
+      "created_at":"2026-11-27T00:00:00"}]
+    """#
+    let devices = try! decoder.decode([RemoteAuthDevice].self, from: Data(deviceJSON.utf8))
+    check("iOS 契约：设备 snake_case 映射与吊销态",
+          devices.count == 1 && devices[0].deviceID == "dev-abc"
+          && devices[0].name == "Mac" && devices[0].platform == "macOS"
+          && devices[0].revoked == false
+          && devices[0].lastSeenAt == "2026-11-28T01:02:03")
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

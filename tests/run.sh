@@ -367,6 +367,7 @@ SOURCES=(
   apps/macos/Desire/Features/Ebooks/ReadingStats.swift
   apps/macos/Desire/Features/AddressBar/URLBatch.swift
   apps/macos/Desire/Features/Agent/ToolCallGrouper.swift
+  apps/ios/DesireRemote/RemoteAccountModels.swift
   apps/macos/Desire/Features/Browsing/MediaEngagementCore.swift
   apps/macos/Desire/Features/ImagePro/ImageEditPipelineCore.swift
   apps/macos/Desire/Features/ImagePro/ImageCanvasGeometry.swift

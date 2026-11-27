@@ -15,6 +15,7 @@ struct AgentTasksView: View {
     /// 应用强调色（见 AppAccent.swift：Color.accentColor 不可用）。
     @Environment(\.appAccent) private var appAccent: Color
     @ObservedObject private var store = AgentScheduler.shared
+    @ObservedObject private var batchStore = BatchMediaExportStore.shared
     var onBack: () -> Void
 
     @State private var isCreating = false
@@ -29,6 +30,7 @@ struct AgentTasksView: View {
             } else {
                 ScrollView {
                     VStack(spacing: 8) {
+                        windowTimeline
                         nextRunsSection
                         runTimeline
                         ForEach(store.tasks) { task in
@@ -43,6 +45,51 @@ struct AgentTasksView: View {
         .background(Color(nsColor: .windowBackgroundColor))
         .sheet(isPresented: $isCreating) {
             AgentTaskEditorSheet()
+        }
+    }
+
+    /// 值守窗口（v0.8.82 批 4）：批量下载/普通下载的时段窗口统一展示。
+    private var windowTimeline: some View {
+        let now = Date()
+        let batches = batchStore.batches.compactMap { batch -> (String, BatchDownloadWindow, Bool)? in
+            guard let window = batch.window else { return nil }
+            return ("Batch · \(batch.folderName)", window, window.isOpen(at: now))
+        }
+        let download = DownloadStore.live?.downloadWindow.map {
+            ("Downloads", $0, $0.isOpen(at: now))
+        }
+        let rows = batches + (download.map { [$0] } ?? [])
+        return Group {
+            if !rows.isEmpty {
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 5) {
+                        Image(systemName: "clock.badge.checkmark")
+                            .font(.system(size: 10))
+                            .foregroundStyle(appAccent)
+                        Text(String(localized: "Time windows"))
+                            .font(.system(size: 10.5, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
+                        HStack(spacing: 6) {
+                            Image(systemName: row.2 ? "play.circle.fill" : "pause.circle")
+                                .font(.system(size: 9))
+                                .foregroundStyle(row.2 ? .green : .orange)
+                            Text(row.0)
+                                .font(.system(size: 10.5))
+                                .lineLimit(1)
+                            Spacer()
+                            Text(row.1.summary)
+                                .font(.system(size: 9.5, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                        }
+                    }
+                }
+                .padding(10)
+                .background(RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.6)))
+            }
         }
     }
 

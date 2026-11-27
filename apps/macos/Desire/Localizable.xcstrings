@@ -119719,6 +119719,28 @@
           }
         }
       }
+    },
+    "Time windows":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Time windows"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"时段窗口"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"時段視窗"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

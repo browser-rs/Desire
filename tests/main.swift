@@ -14357,6 +14357,27 @@ do {
           interval[1].timeIntervalSince(interval[0]) == 1_800)
 }
 
+// 支付卡校验（v0.8.82 批 3）：Luhn / 品牌 / 有效期。
+do {
+    check("支付卡：Luhn 正确与错误",
+          PaymentCardNumber.luhnValid("4242 4242 4242 4242")
+          && !PaymentCardNumber.luhnValid("4242 4242 4242 4241"))
+    check("支付卡：品牌识别",
+          PaymentCardNumber.brand("4242424242424242") == "Visa"
+          && PaymentCardNumber.brand("378282246310005") == "Amex"
+          && PaymentCardNumber.brand("5555555555554444") == "Mastercard")
+    check("支付卡：末四位/去空格",
+          PaymentCardNumber.last4("4242-4242-4242-4242") == "4242"
+          && PaymentCardNumber.digits("4242 4242") == "42424242")
+    let now = Date()
+    let year = Calendar.current.component(.year, from: now)
+    let month = Calendar.current.component(.month, from: now)
+    check("支付卡：有效期判定",
+          PaymentCardNumber.expiryValid(month: month, year: year, now: now)
+          && !PaymentCardNumber.expiryValid(month: 1, year: year - 1, now: now)
+          && !PaymentCardNumber.expiryValid(month: 13, year: year, now: now))
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

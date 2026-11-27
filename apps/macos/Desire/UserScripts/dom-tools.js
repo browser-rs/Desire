@@ -1230,6 +1230,45 @@ async function __desireFillProfile(profile) {
 }
 
 
+// 支付卡填充（v0.8.82）：只在用户从站点弹层点“Fill Card”时调用。
+// 不填写 CVV（宿主根本不保存 CVV）；只填空字段，不提交表单。
+async function __desireFillCard(card) {
+    if (!card || !card.number) return "No card";
+    var rules = [
+        [/cc-number|card.?number|cardnumber|ccnum|pan/i, "number"],
+        [/cc-name|card.?holder|cardholder|name.?on.?card/i, "holder"],
+        [/cc-exp-month|exp.?month|expiry.?month/i, "month"],
+        [/cc-exp-year|exp.?year|expiry.?year/i, "year"],
+        [/cc-exp|expiry|expiration|exp.?date/i, "exp"],
+    ];
+    function keyOf(el) {
+        var ac = (el.getAttribute("autocomplete") || "").toLowerCase();
+        var hint = ((el.name || "") + " " + (el.id || "") + " " + (el.placeholder || ""));
+        for (var i = 0; i < rules.length; i++) {
+            if (ac.indexOf(rules[i][0].source.split("|")[0]) >= 0 || rules[i][0].test(hint)) {
+                return rules[i][1];
+            }
+        }
+        return null;
+    }
+    var filled = 0;
+    var fields = __desireDeepQSA("input:not([type=hidden]):not([type=submit]):not([type=button]):not([type=checkbox]):not([type=radio])");
+    for (var i = 0; i < fields.length; i++) {
+        var el = fields[i];
+        if (el.value || el.disabled || el.readOnly) continue;
+        var key = keyOf(el);
+        if (!key || !card[key]) continue;
+        el.focus();
+        el.value = card[key];
+        el.dispatchEvent(new Event("input", { bubbles: true }));
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+        el.blur();
+        filled++;
+    }
+    return "Filled " + filled + " card field(s)";
+}
+
+
 // --- 0.3.7 页面批注 ---
 
 var HL_COLORS = ["#ffe066", "#b2f2bb", "#a5d8ff", "#fcc2d7"];

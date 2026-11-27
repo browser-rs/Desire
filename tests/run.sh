@@ -106,6 +106,7 @@ SOURCES=(
   apps/macos/Desire/Features/Password/PasswordHealth.swift
   apps/macos/Desire/Features/Password/PasswordBreach.swift
   apps/macos/Desire/Features/Password/PasswordArchive.swift
+  apps/macos/Desire/Features/FormAutofill/PaymentCard.swift
   apps/macos/Desire/Features/Agent/FileOrganizerPlan.swift
   apps/macos/Desire/Features/Promotion/CampaignAssetPlan.swift
   apps/macos/Desire/Features/Agent/FormFillPlan.swift

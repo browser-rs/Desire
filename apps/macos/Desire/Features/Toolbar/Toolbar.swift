@@ -400,6 +400,12 @@ struct Toolbar: View {
                                         script, in: nil, in: WebView.agentToolWorld,
                                         completionHandler: nil)
                                 },
+                                fillCard: { id in
+                                    guard let script = PaymentCardStore.shared.fillScript(for: id) else { return }
+                                    tab.browser.webView.evaluateJavaScript(
+                                        script, in: nil, in: WebView.agentToolWorld,
+                                        completionHandler: nil)
+                                },
                                 setSiteMuted: { muted in
                                     siteSettingsStore.setMuted(muted, for: host)
                                     tab.audioMuted = muted

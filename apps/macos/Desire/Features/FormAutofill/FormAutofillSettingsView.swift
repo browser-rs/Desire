@@ -109,6 +109,8 @@ struct FormAutofillSettingsView: View {
                     )
                 }
             }
+
+            PaymentCardsSection()
         }
     }
 

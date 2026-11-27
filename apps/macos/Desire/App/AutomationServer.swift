@@ -623,6 +623,9 @@ final class AutomationServer {
         ep("POST", "/passwords/health/mute", "Mark a health finding handled (forever) or snooze it; clear=true restores it", params: ["id:uuid", "days?:int", "clear?:bool"], example: #"-d '{"id":"…","days":30}'"#)
         ep("POST", "/passwords/archive/export", "Encrypted password archive (base64) — explicit export, reads all secrets", params: ["password:string"], example: #"-d '{"password":"archive-pass"}'"#)
         ep("POST", "/passwords/archive/import", "Import an encrypted password archive (base64); existing site+username entries are kept", params: ["data:string", "password:string"], example: #"-d '{"data":"…","password":"archive-pass"}'"#)
+        ep("GET", "/payment-cards", "Payment card metadata (brand/last4/expiry; never the number)", example: "…/payment-cards")
+        ep("POST", "/payment-cards/add", "Add a payment card (number goes to the keychain; CVV is never accepted)", params: ["label?:string", "holder:string", "number:string", "month:int", "year:int"], example: #"-d '{"holder":"A","number":"4242424242424242","month":12,"year":2030}'"#)
+        ep("POST", "/payment-cards/delete", "Delete a payment card by id", params: ["id:uuid"], example: #"-d '{"id":"…"}'"#)
         ep("GET", "/autofill/profiles", "Address profiles: the working copy plus saved ones (id/label/summary)", example: "…/autofill/profiles")
         ep("POST", "/autofill/save-current", "Save the working address profile into the library (upsert by id)", example: "-d '{}'")
         ep("POST", "/autofill/new", "Start a blank working profile (save it to add to the library)", example: "-d '{}'")
@@ -2352,6 +2355,40 @@ case ("GET", "/state"):
                 } catch {
                     return try Self.json(["error": error.localizedDescription])
                 }
+            case ("GET", "/payment-cards"):
+                return try Self.json(["ok": true,
+                                      "cards": PaymentCardStore.shared.cards.map {
+                                        ["id": $0.id.uuidString, "label": $0.label,
+                                         "holder": $0.cardholder, "brand": $0.brand,
+                                         "last4": $0.last4, "month": $0.expiryMonth,
+                                         "year": $0.expiryYear]
+                                      }])
+            case ("POST", "/payment-cards/add"):
+                guard let holder = Self.string(body, "holder"),
+                      let number = Self.string(body, "number"),
+                      let month = body["month"] as? Int,
+                      let year = body["year"] as? Int else {
+                    return try Self.json(["error": "missing holder/number/month/year"])
+                }
+                do {
+                    let card = try await MainActor.run {
+                        try PaymentCardStore.shared.add(
+                            label: Self.string(body, "label") ?? "",
+                            cardholder: holder, number: number,
+                            expiryMonth: month, expiryYear: year)
+                    }
+                    return try Self.json(["ok": true, "id": card.id.uuidString,
+                                          "brand": card.brand, "last4": card.last4])
+                } catch {
+                    return try Self.json(["error": error.localizedDescription])
+                }
+            case ("POST", "/payment-cards/delete"):
+                guard let id = Self.string(body, "id").flatMap(UUID.init(uuidString:)),
+                      let card = PaymentCardStore.shared.cards.first(where: { $0.id == id }) else {
+                    return try Self.json(["error": "no such card"])
+                }
+                PaymentCardStore.shared.delete(card)
+                return try Self.json(["ok": true])
             case ("POST", "/passwords/archive/import"):
                 guard let app = AppState.live,
                       let raw = Self.string(body, "data"),
@@ -6473,7 +6510,7 @@ case ("GET", "/agent/messages"):
             let actions = SiteControlsView.Actions(
                 zoomIn: {}, zoomOut: {}, zoomReset: {}, toggleDarkMode: {}, toggleAutoPlay: {},
                 editFont: {}, manageBlocked: {}, clearOverrides: {},
-                toggleReader: {}, fillAddress: { _ in }, setSiteMuted: { _ in },
+                toggleReader: {}, fillAddress: { _ in }, fillCard: { _ in }, setSiteMuted: { _ in },
                 setSiteAutoBilingual: { _ in },
                 watchPage: {}, recordWorkflow: {})
             let size = NSSize(width: max(300, width ?? 340), height: max(400, height ?? 900))

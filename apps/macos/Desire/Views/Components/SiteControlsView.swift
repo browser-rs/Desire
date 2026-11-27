@@ -18,6 +18,8 @@ struct SiteControlsView: View {
         let toggleReader: () -> Void
         /// 地址自动填充（v0.8.80 多档案）：传入选中的档案 id。
         let fillAddress: (UUID) -> Void
+        /// 支付卡填充（v0.8.82）：传入选中的卡 id；宿主只读卡号，不碰 CVV。
+        let fillCard: (UUID) -> Void
         /// 站点级静音（v0.8.80）：进入本站自动静音。
         let setSiteMuted: (Bool) -> Void
         /// 站点自动双语（v0.8.80 批 5）：进入本站自动开启 AI 对照翻译。
@@ -33,6 +35,7 @@ struct SiteControlsView: View {
     @ObservedObject var permissionStore: PermissionStore
     /// 地址自动填充档案（v0.8.80）：站点动作栏的"填充地址"菜单。
     @ObservedObject var autofillStore: FormAutofillStore
+    @ObservedObject private var cardStore = PaymentCardStore.shared
     /// "清除本站数据"的两步确认（删除 cookies/站点存储不可撤销）。
     @State private var confirmingClearData = false
     /// 站点动作栏的状态观察：已盯页面 + 是否正在录制。
@@ -198,6 +201,29 @@ struct SiteControlsView: View {
                             .font(.system(size: 12.5))
                         Spacer()
                         Text("\(autofillStore.fillableProfiles.count)")
+                            .font(.system(size: 11.5, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+            }
+            if !cardStore.cards.isEmpty {
+                Menu {
+                    ForEach(cardStore.cards) { card in
+                        Button(card.summary) { actions.fillCard(card.id) }
+                    }
+                } label: {
+                    HStack(spacing: 8) {
+                        Image(systemName: "creditcard")
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 16)
+                        Text("Fill Card")
+                            .font(.system(size: 12.5))
+                        Spacer()
+                        Text("\(cardStore.cards.count)")
                             .font(.system(size: 11.5, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }

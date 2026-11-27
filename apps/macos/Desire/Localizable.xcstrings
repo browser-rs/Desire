@@ -119323,6 +119323,336 @@
           }
         }
       }
+    },
+    "Payment Cards":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Payment Cards"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"支付卡"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"支付卡"
+          }
+        }
+      }
+    },
+    "Stored on this Mac only. The card number lives in the keychain; the CVV is never stored or requested.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Stored on this Mac only. The card number lives in the keychain; the CVV is never stored or requested."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"只保存在本机；卡号在钥匙串里，CVV 永不存储、也不会被索取。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"只保存在本機；卡號在鑰匙串裡，CVV 永不儲存、也不會被索取。"
+          }
+        }
+      }
+    },
+    "No cards saved.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"No cards saved."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"还没有保存的卡。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"還沒有儲存的卡。"
+          }
+        }
+      }
+    },
+    "Add Card":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Add Card"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"添加卡"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"新增卡"
+          }
+        }
+      }
+    },
+    "Add Payment Card":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Add Payment Card"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"添加支付卡"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"新增支付卡"
+          }
+        }
+      }
+    },
+    "The number is saved in the keychain. CVV is never stored — you will enter it on the site if asked.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The number is saved in the keychain. CVV is never stored — you will enter it on the site if asked."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"卡号保存在钥匙串；CVV 不存储——站点索要时由你手输。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"卡號保存在鑰匙串；CVV 不儲存——站點索取時由你手輸。"
+          }
+        }
+      }
+    },
+    "Label (optional)":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Label (optional)"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"名称（可选）"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"名稱（可選）"
+          }
+        }
+      }
+    },
+    "Cardholder name":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Cardholder name"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"持卡人姓名"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"持卡人姓名"
+          }
+        }
+      }
+    },
+    "Expiry month: %02d":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Expiry month: %02d"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"有效期月份：%02d"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"有效期限月份：%02d"
+          }
+        }
+      }
+    },
+    "Delete card":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Delete card"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"删除卡"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"刪除卡"
+          }
+        }
+      }
+    },
+    "Fill Card":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Fill Card"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"填充卡"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"填充卡"
+          }
+        }
+      }
+    },
+    "Card number is invalid.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Card number is invalid."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"卡号无效。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"卡號無效。"
+          }
+        }
+      }
+    },
+    "Cardholder name is required.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Cardholder name is required."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"请填写持卡人姓名。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"請填寫持卡人姓名。"
+          }
+        }
+      }
+    },
+    "Expiry date is invalid or already past.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Expiry date is invalid or already past."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"有效期无效或已过期。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"有效期限無效或已過期。"
+          }
+        }
+      }
+    },
+    "Could not save the card number to the keychain.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Could not save the card number to the keychain."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"无法把卡号写入钥匙串。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"無法把卡號寫入鑰匙串。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

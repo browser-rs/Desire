@@ -66,6 +66,10 @@ nonisolated enum SettingsSearch {
               keywords: ["透传", "审批", "手机", "remote", "approval", "iphone"]),
         .init(id: "general.vim", section: "general", title: "Vim Mode",
               keywords: ["Vim", "键盘", "滚动", "快捷键", "keyboard", "j/k"]),
+        // Storage（v0.8.81 批 6：独立分区 + desire://settings/storage 深链）
+        .init(id: "storage.overview", section: "storage", title: "Storage",
+              subtitle: "Disk use by type, cache cleanup and retention",
+              keywords: ["存储", "磁盘", "缓存", "会话保留", "归档", "转存", "storage", "disk", "cache", "retention"]),
         // Agent
         .init(id: "ai.profiles", section: "ai", title: "Service Profiles",
               subtitle: "Endpoint, model and API key per service", keywords: ["服务", "档案", "端点", "API", "profiles", "endpoint"]),
@@ -184,7 +188,11 @@ nonisolated enum SettingsSearch {
             let subtitle = normalize(entry.subtitle ?? "")
             let section = normalize(entry.section)
             let keywords = normalize(entry.keywords.joined(separator: " "))
-            let haystack = "\(title) \(subtitle) \(section) \(keywords)"
+            // 拼音首字母（v0.8.81 批 6）：输入 "fwda" 能命中"服务档案"，
+            // 不必切中文输入法。英文标题也会得到首字母（如 "Service Profiles" → sp），
+            // 作为低权重附加信号。
+            let initials = pinyinInitials("\(entry.title) \(entry.keywords.joined(separator: " "))")
+            let haystack = "\(title) \(subtitle) \(section) \(keywords) \(initials)"
             guard tokens.allSatisfy({ haystack.contains($0) }) else { continue }
             var score = 1
             if title == q { score += 100 }
@@ -192,6 +200,7 @@ nonisolated enum SettingsSearch {
             else if title.contains(q) { score += 30 }
             if subtitle.contains(q) { score += 10 }
             if keywords.contains(q) { score += 5 }
+            if initials == q { score += 20 }
             hits.append(SettingsSearchHit(entry: entry, score: score))
         }
         hits.sort {
@@ -199,5 +208,19 @@ nonisolated enum SettingsSearch {
             return $0.entry.title < $1.entry.title
         }
         return hits
+    }
+
+    /// 汉字 → 拼音首字母（"服务档案" → "fwda"）。CFStringTransform 只在
+    /// macOS/Foundation 可用，纯字符串处理，不联网。
+    static func pinyinInitials(_ text: String) -> String {
+        let mutable = NSMutableString(string: text)
+        CFStringTransform(mutable, nil, kCFStringTransformMandarinLatin, false)
+        CFStringTransform(mutable, nil, kCFStringTransformStripDiacritics, false)
+        return String(mutable)
+            .split(whereSeparator: { !$0.isLetter })
+            .compactMap { $0.first }
+            .map(String.init)
+            .joined()
+            .lowercased()
     }
 }

@@ -38,6 +38,7 @@ struct SettingsView: View {
         case search
         case autoplayDiagnostics
         case translation
+        case storage
 
         var id: String { rawValue }
 
@@ -59,6 +60,7 @@ struct SettingsView: View {
             case .search: "text.magnifyingglass"
             case .autoplayDiagnostics: "waveform.path.ecg"
             case .translation: "character.book.closed"
+            case .storage: "internaldrive"
             }
         }
 
@@ -78,6 +80,7 @@ struct SettingsView: View {
             case .search: "Search & Index"
             case .autoplayDiagnostics: "Autoplay Diagnostics"
             case .translation: "Translation"
+            case .storage: "Storage"
             }
         }
     }
@@ -262,6 +265,7 @@ struct SettingsView: View {
             AutoplayDiagnosticsSection()
         case .translation:
             TranslationSettingsSection()
+        case .storage:
             StorageSettingsSection()
         }
     }

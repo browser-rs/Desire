@@ -6246,6 +6246,12 @@ func testSettingsSearch() {
     check("设置检索：无结果", SettingsSearch.search("zzzz-not-a-setting").isEmpty)
     check("设置检索：标题精确优先",
           SettingsSearch.search("Sync Account").first?.entry.id == "sync.account")
+    check("设置检索：拼音首字母命中服务档案",
+          SettingsSearch.search("fwda").contains { $0.entry.id == "ai.profiles" })
+    check("设置检索：拼音首字母命中同步",
+          SettingsSearch.search("tb").contains { $0.entry.section == "sync" })
+    check("设置检索：存储独立分区可检索",
+          SettingsSearch.search("存储").contains { $0.entry.section == "storage" })
 }
 testSettingsSearch()
 

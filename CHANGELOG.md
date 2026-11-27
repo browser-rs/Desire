@@ -20,6 +20,8 @@
 - 任务链运维（v0.8.81 批 6）：任务卡显示从该步起的完整链路径；每任务可设 0–3 次重试覆盖（auto = 跟随全局，退避 30/60/120s）；链上后续步骤可用“Continue”复用上游最近一次成功输出立即重跑，不等上游重来。桥新增 `POST /agent/tasks/continue`，`tasks/create` 支持 `retries`，`tasks` 返回 `chainPath`/`retries`；拓扑与重试策略抽成 Foundation-only（harness 用例）。
 - iOS 账号安全只读入口（v0.8.81 批 6）：设置→账号安全可生成一次性恢复码（复制、只显示一次）、查看最近 50 条登录/改密/吊销/恢复审计、列出账号设备并吊销单个设备。**不提供改密**：iOS 没有同步主密钥，无法重包 `wrapped_dek`，改密会破坏其它设备同步；入口明确指向 Mac。
 - 命令模板完成 → 任务链下一任务（v0.8.81 批 7）：`BackgroundCommandStore` 增加一次性终态回调；定时命令模板成功后把作业日志尾部（12k）与 `artifactURL` 作为上一轮输出交给 `finishRun`，链上下一任务即可用 `{{prev.output}}`/`{{prev.artifacts}}` 拿到命令产物。作业级重试与通知仍由 BackgroundCommandStore/JobWatch 负责，调度器不重复重试或双通知；启动失败/排队取消/依赖失败也会回调失败终态。
+- 设置可发现性（v0.8.81 批 6）：设置搜索支持拼音首字母（如 `fwda` → 服务档案、`tb` → 同步）；存储从“翻译”子页拆成独立“Storage”分区，可搜“存储”并支持 `desire://settings/storage` 深链直达。
+
 
 
 

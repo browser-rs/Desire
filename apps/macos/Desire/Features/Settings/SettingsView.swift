@@ -121,6 +121,7 @@ struct SettingsView: View {
             TextField("Search settings…", text: $searchQuery)
                 .textFieldStyle(.plain)
                 .font(.system(size: 12))
+                .accessibilityLabel(String(localized: "Search settings"))
             if !searchQuery.isEmpty {
                 Button {
                     searchQuery = ""

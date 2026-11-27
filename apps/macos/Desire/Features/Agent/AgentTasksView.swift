@@ -567,6 +567,7 @@ private struct AgentTaskCard: View {
         }
         .menuIndicator(.hidden)
         .fixedSize()
+        .accessibilityLabel(String(localized: "Retry limit"))
         .help(String(localized: "Per-task retry limit (global setting is used when auto)"))
     }
 

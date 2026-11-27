@@ -26,6 +26,7 @@ struct ToolResultSpillViewer: View {
                     .foregroundStyle(.secondary)
                 TextField(String(localized: "Search this result"), text: $query)
                     .textFieldStyle(.roundedBorder)
+                    .accessibilityLabel(String(localized: "Search this result"))
                     .font(.system(size: 11, design: .monospaced))
                     .onSubmit { isSearching = !query.trimmingCharacters(in: .whitespaces).isEmpty }
                 Toggle(String(localized: "Grep"), isOn: $isSearching)

@@ -81,6 +81,7 @@ struct RemoteTabsView: View {
                     }
                 } label: {
                     Image(systemName: "plus")
+                        .accessibilityLabel("新建标签页")
                 }
             }
         }

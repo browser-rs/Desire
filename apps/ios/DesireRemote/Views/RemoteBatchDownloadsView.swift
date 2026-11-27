@@ -32,6 +32,7 @@ struct RemoteBatchDownloadsView: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Button { showStart = true } label: {
                     Image(systemName: "plus")
+                        .accessibilityLabel("新建批量下载")
                 }
             }
         }

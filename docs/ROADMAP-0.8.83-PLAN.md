@@ -37,7 +37,8 @@
 > 61/61、sync-conflict 17/17、190 全量 188/190（仅下载 2 项被旧下载时段窗口
 > 偏好污染；`--fresh` 已改为清偏好，browser section 重跑 88/88）、Release clean
 > build 0 warning。iOS 账号契约已完成（Foundation-only 模型 + `tests/ios-account-contract.py`
-> 本地 API 11/11，模拟器构建通过）；仅剩手动 VoiceOver 走查与生产迁移（需授权）。
+> 本地 API 11/11，模拟器构建通过）；AX 树实机走查修复设置开关无名/周卡重复 help 等 4 处，
+> 隐私/存储/远程首次引导已加；仅剩实际 VoiceOver 语音听读与生产迁移（需授权）。
 
 ## 存量收口（审计实锤，随批 1–5 修）
 

@@ -196,6 +196,39 @@ struct SettingsRow<Trailing: View>: View {
     }
 }
 
+/// 首次进入某个设置分区的一句引导（v0.8.83）：可关闭，只出现一次；
+/// 由调用方用 `@AppStorage` 管 seen 标志，本视图只负责渲染。
+struct SettingsHintBanner: View {
+    let icon: String
+    let text: String
+    let onDismiss: () -> Void
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .medium))
+                .foregroundStyle(.secondary)
+                .frame(width: 16, height: 16)
+            Text(localizedSettingText(text))
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 4)
+            Button(action: onDismiss) {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(Text("Dismiss"))
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .background(RoundedRectangle(cornerRadius: 8)
+            .fill(Color.secondary.opacity(0.06)))
+    }
+}
+
 // MARK: - Toggle Row
 
 struct SettingsToggleRow: View {

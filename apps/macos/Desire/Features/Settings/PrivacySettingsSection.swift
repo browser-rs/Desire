@@ -18,9 +18,17 @@ struct PrivacySettingsStoreSection: View {
     @State private var clearRange: PermissionMatrix.ClearRange = .allTime
     /// 历史自动保留天数（v0.8.81 批 2；0 = 永久）。
     @AppStorage("historyRetentionDays", store: AppPrefs.defaults) private var historyRetentionDays = 0
+    /// 首次进入隐私分区的一句引导（v0.8.83）。
+    @AppStorage("hint.privacy.seen", store: AppPrefs.defaults) private var privacyHintSeen = false
 
     var body: some View {
         SettingsContainer {
+            if !privacyHintSeen {
+                SettingsHintBanner(
+                    icon: "hand.raised",
+                    text: "Permissions are per-site. Open a site's lock menu to review camera, microphone, location and notifications; changes apply immediately.",
+                    onDismiss: { privacyHintSeen = true })
+            }
             // MARK: - History retention（v0.8.81 批 2）
 
             SettingsSection(

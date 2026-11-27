@@ -120898,6 +120898,75 @@
           }
         }
       }
+    },
+    "Permissions are per-site. Open a site's lock menu to review camera, microphone, location and notifications; changes apply immediately.": {
+      "comment": "First-visit hint: privacy",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Permissions are per-site. Open a site's lock menu to review camera, microphone, location and notifications; changes apply immediately."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "权限按站点管理。打开站点地址栏的锁菜单即可查看摄像头、麦克风、位置与通知权限，改动立即生效。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "權限依站點管理。打開站點網址列的鎖定選單即可檢視相機、麥克風、位置與通知權限，變更立即生效。"
+          }
+        }
+      }
+    },
+    "Caches are safe to clear. Conversations and archives are only deleted when you set a retention period; the open conversation is never touched.": {
+      "comment": "First-visit hint: storage",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Caches are safe to clear. Conversations and archives are only deleted when you set a retention period; the open conversation is never touched."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "缓存可以放心清理。会话与归档只有在设置保留天数后才会删除；当前打开的会话永远不动。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "快取可以放心清理。會話與歸檔只有在設定保留天數後才會刪除；目前開啟的會話永遠不動。"
+          }
+        }
+      }
+    },
+    "Pair with your iPhone here. Approval cards can be answered on either device — the first response wins.": {
+      "comment": "First-visit hint: remote",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pair with your iPhone here. Approval cards can be answered on either device — the first response wins."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在这里与 iPhone 配对。审批卡可以在任一设备上回答——先答的那一边生效。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在這裡與 iPhone 配對。審批卡可以在任一裝置上回答——先答的那一邊生效。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

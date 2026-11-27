@@ -6,9 +6,17 @@ import SwiftUI
 struct RemoteSettingsSection: View {
     @ObservedObject var store: RemoteControlStore
     @ObservedObject var syncStore: SyncStore
+    /// 首次进入远程分区的一句引导（v0.8.83）。
+    @AppStorage("hint.remote.seen", store: AppPrefs.defaults) private var remoteHintSeen = false
 
     var body: some View {
         SettingsContainer {
+            if !remoteHintSeen {
+                SettingsHintBanner(
+                    icon: "iphone",
+                    text: "Pair with your iPhone here. Approval cards can be answered on either device — the first response wins.",
+                    onDismiss: { remoteHintSeen = true })
+            }
             statusSection
             pairingSection
             devicesSection

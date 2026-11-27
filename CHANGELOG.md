@@ -18,6 +18,8 @@
 - 值守周视图（v0.8.83 批 4）：任务页新增未来 7 天网格，定时任务运行点与批量/普通下载时段窗口同屏；超过阈值标“拥挤”，真实时间重叠列出“建议错峰”（只读，不改调度）。归并与冲突检测抽成 Foundation-only `SurveillanceWeek`（harness 覆盖任务/窗口归并、跨午夜拆分、拥挤阈值），新增 `/panel/snapshot?name=agenttasks` 宽/窄离屏快照。
 - 无障碍与深链（v0.8.83 批 5 部分）：值守周视图日卡合并为一个可读元素（星期/日期/条数/拥挤/重叠/前 5 项）；`desire://settings/security|permissions` 指向隐私分区、`passwords|payment` 指向自动填充（不再一律落到 General）；新增 `docs/A11Y-AUDIT-0.8.83.md` 静态清单，VoiceOver 手动逐视图走查仍待人工执行。
 - iOS 账号契约（v0.8.83 批 5）：账号安全模型抽成 Foundation-only `RemoteAccountModels.swift`（哭声线：服务端 JSON 直接解码断言），新增 `tests/ios-account-contract.py` 对本地 API **11/11**——恢复码、审计、设备列表、双设备登录、吊销后 revoked=true、旧 refresh 401、删除测试账号；iOS 模拟器构建通过，改密入口按既有决策仍不在手机上出现。
+- 首次引导（v0.8.83 批 5）：隐私、存储、远程三个设置分区首次进入各显示一句可关闭的说明（权限按站点/缓存可清而会话只在设保留期后删/审批卡两端先答生效），各自只出现一次；AX 树验证出现与关闭后不再出现。
+
 
 
 

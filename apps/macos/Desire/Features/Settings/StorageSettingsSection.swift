@@ -8,6 +8,8 @@ struct StorageSettingsSection: View {
     @State private var archiveDays = 0
     @State private var pendingClear: StorageMaintenance.DomainInfo?
     @State private var pendingDeleteOld: StorageMaintenance.DomainInfo?
+    /// 首次进入存储分区的一句引导（v0.8.83）。
+    @AppStorage("hint.storage.seen", store: AppPrefs.defaults) private var storageHintSeen = false
 
     private var total: Int { domains.reduce(0) { $0 + $1.bytes } }
 
@@ -17,6 +19,13 @@ struct StorageSettingsSection: View {
             subtitle: String(localized: "Disk use by data type. Caches can be cleared safely; conversations are only deleted when you set a retention period."),
             icon: "internaldrive"
         ) {
+            if !storageHintSeen {
+                SettingsHintBanner(
+                    icon: "internaldrive",
+                    text: "Caches are safe to clear. Conversations and archives are only deleted when you set a retention period; the open conversation is never touched.",
+                    onDismiss: { storageHintSeen = true })
+                SettingsRowDivider()
+            }
             SettingsRow(
                 String(localized: "Total"),
                 subtitle: ByteCountFormatter.string(fromByteCount: Int64(total), countStyle: .file),

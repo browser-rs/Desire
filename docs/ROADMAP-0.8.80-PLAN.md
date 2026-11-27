@@ -337,3 +337,7 @@ AGENTS 补 API 会话/配额/可观测约定与 Debug/Release 分离纪律；`do
 `desire-admin` 一并打进 `/app/desire-admin`；全量 `execution-e2e.py` 在**全新封闭数据目录**
 跑出 **ALL PASS（190 项）**；另做一次独立的 `-configuration Release clean build`（0 warning /
 0 error）。本机无 Docker daemon，镜像未实际构建；本机无 MySQL，DB 级迁移/吊销/配额 E2E 未实跑。
+
+**发版（2026-11-27）**：`scripts/release.sh 0.8.80` → `172f9bad`（构建号 620），
+Release run 45978721645；tag 由云端双架构零警告构建 + 单测通过后创建。服务端部署仍需
+单独跑 0021 迁移与重建 API 镜像（镜像内含 `/app/desire-admin`）。

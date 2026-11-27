@@ -30,7 +30,10 @@
 > 17/17（双 data-dir、Use Local/Remote、Remote 帧、审计收敛）、冲突审计与
 > `/sync/conflicts/audit`、冲突本地快照修复、服务端 MySQL 8.4 upsert 修复；
 > iOS 账号契约测试留待批 5。批 4 落地值守周视图与窗口冲突检测（`SurveillanceWeek`
-> + 任务页 7 天网格 + `/panel/snapshot?name=agenttasks` 宽/窄快照）。
+> + 任务页 7 天网格 + `/panel/snapshot?name=agenttasks` 宽/窄快照）。批 5 部分：
+> 周视图 VoiceOver 合并标签、`desire://settings/security|permissions|passwords|payment`
+> 深链别名、`docs/A11Y-AUDIT-0.8.83.md` 静态清单；**VoiceOver 手动走查与生产迁移
+> 未执行**（前者需人在场，后者需明确授权）。
 
 ## 存量收口（审计实锤，随批 1–5 修）
 

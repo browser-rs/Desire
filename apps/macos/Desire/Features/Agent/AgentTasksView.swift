@@ -157,6 +157,22 @@ struct AgentTasksView: View {
             RoundedRectangle(cornerRadius: 6)
                 .stroke(day.hasConflict ? Color.orange.opacity(0.35) : Color.secondary.opacity(0.12),
                         lineWidth: 0.5))
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(Text(dayAccessibilityLabel(day)))
+    }
+
+    private func dayAccessibilityLabel(_ day: SurveillanceWeek.Day) -> String {
+        var parts = [
+            Self.weekdayFormatter.string(from: day.date),
+            Self.dayFormatter.string(from: day.date),
+            String(localized: "\(day.entries.count) item(s)")
+        ]
+        if day.isCrowded { parts.append(String(localized: "crowded")) }
+        if day.hasConflict { parts.append(String(localized: "overlapping windows")) }
+        for entry in day.entries.prefix(5) {
+            parts.append("\(entry.label) \(Self.clockFormatter.string(from: entry.start))")
+        }
+        return parts.joined(separator: " · ")
     }
 
     private func weekTint(_ kind: SurveillanceWeek.Kind) -> Color {

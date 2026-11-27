@@ -120622,6 +120622,52 @@
           }
         }
       }
+    },
+    "crowded": {
+      "comment": "Surveillance week accessibility",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "crowded"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拥挤"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "擁擠"
+          }
+        }
+      }
+    },
+    "overlapping windows": {
+      "comment": "Surveillance week accessibility",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "overlapping windows"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有重叠窗口"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "有重疊視窗"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

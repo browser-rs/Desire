@@ -157,8 +157,21 @@ enum InternalPages {
         case .settings, .sync:
             var section = SettingsView.Section.sync
             if destination.page == .settings {
-                if let param = destination.param, let match = SettingsView.Section(rawValue: param) {
+                // 深链别名（v0.8.83）：`desire://settings/security` 这类入口
+                // 指向具体分区，不再落到 General。直接 rawValue 优先。
+                let aliases: [String: SettingsView.Section] = [
+                    "security": .privacy,
+                    "permissions": .privacy,
+                    "passwords": .autofill,
+                    "payment": .autofill,
+                    "toolbar": .toolbar,
+                ]
+                if let param = destination.param,
+                   let match = SettingsView.Section(rawValue: param) {
                     section = match
+                } else if let param = destination.param?.lowercased(),
+                          let alias = aliases[param] {
+                    section = alias
                 } else {
                     section = .general
                 }

@@ -10,6 +10,8 @@
 - 评估与门禁闭环（v0.8.83 批 2）：`agent-eval.py` 新增 E34–E40——缓存前缀稳定、审批预览/批量上限、修订/撤销、预算停机、错过补跑、通知 Retry/Ignore 动作、任务链失败→Continue 恢复；全部固定假端点、桥级断言，`--only E34,…` 可单跑。通知动作与系统代理共用 `NotificationRouter.handleAction`，桥新增 `/notifications/simulate|action`。`tools/launch-hermetic.sh` 新增 `--activate`（启动即激活，首窗指标不再被后台启动污染），先 SIGTERM 开发实例再兜底强杀；`tests/run-190.sh` 统一 fresh+activate 入口。
 - 同步冲突可证明（v0.8.83 批 3）：新增 `tests/sync-conflict-e2e.py`（双 data-dir 顺序启动、同账号两台“设备”，需本机 API/DB，无环境明确 SKIP）覆盖 17 项——A 建书签→B 拉取改标题→A 重推触发两条冲突→手机 remote `syncConflict` 帧一条采用本地、一条采用远端→B 再拉收敛。冲突审计记录时间/域/标签/本地或远端/结果/设备名（保留 100 条），设置页可查看/清空，桥 `GET /sync/conflicts/audit`；桥新增 `/sync/cursors/reset`、`/sync/dirty/mark-all` 供双设备测试隔离继承的游标/脏标记。
 - 值守周视图（v0.8.83 批 4）：任务页新增未来 7 天网格，定时任务运行点与批量/普通下载时段窗口同屏；超过阈值标“拥挤”，真实时间重叠列出“建议错峰”（只读，不改调度）。归并与冲突检测抽成 Foundation-only `SurveillanceWeek`（harness 覆盖任务/窗口归并、跨午夜拆分、拥挤阈值），新增 `/panel/snapshot?name=agenttasks` 宽/窄离屏快照。
+- 无障碍与深链（v0.8.83 批 5 部分）：值守周视图日卡合并为一个可读元素（星期/日期/条数/拥挤/重叠/前 5 项）；`desire://settings/security|permissions` 指向隐私分区、`passwords|payment` 指向自动填充（不再一律落到 General）；新增 `docs/A11Y-AUDIT-0.8.83.md` 静态清单，VoiceOver 手动逐视图走查仍待人工执行。
+
 
 
 

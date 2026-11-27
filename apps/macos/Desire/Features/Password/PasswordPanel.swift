@@ -58,7 +58,14 @@ struct PasswordPanel: View {
                                     editingEntry = entry
                                     showEditor = true
                                 },
-                                loadPassword: { passwordStore.password(for: entry) }
+                                loadPassword: { passwordStore.password(for: entry) },
+                                onOpenSite: {
+                                    // 健康卡发现问题后的下一步：打开站点去改密。
+                                    if let url = URL(string: "https://\(entry.domain)") {
+                                        TabSessionCoordinator.shared.activeTabManager?
+                                            .addTab(url: url.absoluteString)
+                                    }
+                                }
                             )
                             if idx < filtered.count - 1 {
                                 Divider().opacity(0.5)
@@ -315,6 +322,8 @@ private struct PasswordRow: View {
     /// 密码懒加载：列表只取元数据（读 data 会弹钥匙串授权），
     /// 显示/复制这一条时才读，一次一条。
     let loadPassword: () -> String?
+    /// 打开该站点（健康/泄露提示后的"去改密"动作，v0.8.81 批 2）。
+    var onOpenSite: (() -> Void)? = nil
     @State private var showPassword = false
     @State private var revealedPassword: String?
     /// 复制成功的短暂反馈：对应字段图标换成对勾，1.2s 后还原。
@@ -378,6 +387,13 @@ private struct PasswordRow: View {
             // 藏起来等于没有；HoverIcon 自带 hover 底色提供反馈，也天然避开了
             // "hover 区域不含按钮导致点不到"那一类坑（Agent 气泡实测过）。
             HStack(spacing: 2) {
+                if !issues.isEmpty || (breachCount ?? 0) > 0, let onOpenSite {
+                    HoverIcon(
+                        systemName: "safari",
+                        action: onOpenSite,
+                        help: String(localized: "Open site to change password")
+                    )
+                }
                 HoverIcon(
                     systemName: showPassword ? "eye.slash" : "eye",
                     action: { toggleReveal() },

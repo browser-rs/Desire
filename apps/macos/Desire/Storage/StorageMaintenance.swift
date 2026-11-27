@@ -218,6 +218,11 @@ enum StorageMaintenance {
         for domain in ["conversations", "archives"] where retentionDays(for: domain) > 0 {
             _ = clean(domain: domain, olderThanDays: retentionDays(for: domain))
         }
+        // 历史保留（v0.8.81 批 2）：设置页与每日 GC 共用同一键。
+        let historyDays = max(0, AppPrefs.defaults.integer(forKey: "historyRetentionDays"))
+        if historyDays > 0, let history = AppState.live?.historyStore {
+            history.removeAll(before: Date().addingTimeInterval(-Double(historyDays) * 86_400))
+        }
         Log.storage.info("storage GC: total \(totalBytes(), privacy: .public) bytes")
     }
 

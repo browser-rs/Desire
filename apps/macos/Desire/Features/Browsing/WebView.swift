@@ -780,6 +780,85 @@ struct WebView: NSViewRepresentable {
     /// Used by the find-in-page UI. NOTE: TreeWalker.nextNode() only returns
     /// a boolean — the text lives on `walk.currentNode.nodeValue` (using
     /// `walk.nodeValue` throws, which used to zero the match count).
+    /// 整词查找（v0.8.81 批 2）：WKFindConfiguration 没有整词模式，用
+    /// CSS Custom Highlight + TreeWalker 在主框架自绘。返回 {count,index,snippet}
+    /// 或 {unsupported:true}；找不到 CSS.highlights 的旧系统由宿主回退普通查找。
+    static func wholeWordFindJS(query: String, caseSensitive: Bool, index: Int) -> String {
+        let payload: [String: Any] = ["query": query, "caseSensitive": caseSensitive, "index": index]
+        let json = (try? JSONSerialization.data(withJSONObject: payload))
+            .flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+        return """
+        (function(opts){
+          var styleId = 'desire-whole-word-style';
+          var style = document.getElementById(styleId);
+          if (!style) {
+            style = document.createElement('style'); style.id = styleId;
+            style.textContent = '::highlight(desire-whole-word){background:rgba(255,214,10,.45);}' +
+              '::highlight(desire-whole-word-current){background:rgba(255,140,0,.7);color:inherit;}';
+            (document.head || document.documentElement).appendChild(style);
+          }
+          function clearHighlights(){
+            if (window.CSS && CSS.highlights) {
+              CSS.highlights.delete('desire-whole-word');
+              CSS.highlights.delete('desire-whole-word-current');
+            }
+          }
+          if (!opts.query) { clearHighlights(); window.__desireWW = null; return {count:0,index:-1,snippet:''}; }
+          if (!window.CSS || !CSS.highlights || typeof Highlight === 'undefined') {
+            clearHighlights(); return {unsupported:true,count:0,index:-1};
+          }
+          var escaped = opts.query.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&');
+          var re;
+          try {
+            re = new RegExp('(?<![\\p{L}\\p{N}_])' + escaped + '(?![\\p{L}\\p{N}_])',
+                            opts.caseSensitive ? 'gu' : 'giu');
+          } catch (e) { return {error:String(e),count:0,index:-1}; }
+          var ranges = [];
+          var walker = document.createTreeWalker(document.body || document.documentElement,
+            NodeFilter.SHOW_TEXT, {acceptNode:function(n){
+              var p = n.parentElement; if (!p) return NodeFilter.FILTER_REJECT;
+              if (/^(SCRIPT|STYLE|NOSCRIPT|TEXTAREA|INPUT|SELECT)$/.test(p.tagName)) return NodeFilter.FILTER_REJECT;
+              return NodeFilter.FILTER_ACCEPT;
+            }});
+          var node;
+          while ((node = walker.nextNode()) && ranges.length < 2000) {
+            var text = node.nodeValue || '';
+            if (!text.trim()) continue;
+            re.lastIndex = 0;
+            var m;
+            while ((m = re.exec(text)) && ranges.length < 2000) {
+              var r = document.createRange();
+              r.setStart(node, m.index); r.setEnd(node, m.index + m[0].length);
+              ranges.push(r);
+              if (m[0].length === 0) re.lastIndex++;
+            }
+          }
+          var count = ranges.length;
+          if (!count) { clearHighlights(); window.__desireWW = null; return {count:0,index:-1,snippet:''}; }
+          var idx = ((opts.index || 0) % count + count) % count;
+          var all = new Highlight(); ranges.forEach(function(r){ all.add(r); });
+          CSS.highlights.set('desire-whole-word', all);
+          var current = new Highlight(); current.add(ranges[idx]);
+          CSS.highlights.set('desire-whole-word-current', current);
+          var rect = ranges[idx].getBoundingClientRect();
+          if (rect.top < 0 || rect.bottom > window.innerHeight) {
+            window.scrollBy(0, rect.top - window.innerHeight / 2);
+          }
+          var tn = ranges[idx].startContainer;
+          var full = tn.nodeValue || '';
+          var s = Math.max(0, ranges[idx].startOffset - 40);
+          var e = Math.min(full.length, ranges[idx].endOffset + 40);
+          var snippet = (s > 0 ? '…' : '') + full.slice(s, e) + (e < full.length ? '…' : '');
+          window.__desireWW = {count: count, index: idx, query: opts.query};
+          return {count: count, index: idx, snippet: snippet};
+        })(\(json))
+        """
+    }
+
+    static func wholeWordClearJS() -> String {
+        "(function(){if(window.CSS&&CSS.highlights){CSS.highlights.delete('desire-whole-word');CSS.highlights.delete('desire-whole-word-current');}var s=document.getElementById('desire-whole-word-style');if(s)s.remove();window.__desireWW=null;})()"
+    }
+
     static func findCountJS(query: String, caseSensitive: Bool = false) -> String {
         return """
         (function() {

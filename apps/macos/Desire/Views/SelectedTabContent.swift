@@ -132,6 +132,7 @@ struct SelectedTabContent: View {
                             findMatchCount: content.findMatchCount,
                             findCurrentIndex: content.findCurrentIndex,
                             caseSensitive: content.$findCaseSensitive,
+                            wholeWord: content.$findWholeWord,
                             snippet: content.findSnippet,
                             isFindFocused: content.$isFindFocused,
                             onFindNext: { content.performFindNext() },

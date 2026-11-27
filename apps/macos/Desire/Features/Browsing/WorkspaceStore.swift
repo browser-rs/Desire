@@ -42,9 +42,9 @@ final class WorkspaceStore: ObservableObject {
 
     /// 保存当前窗口（TabManager）为命名工作区。同名覆盖（=更新）。
     @discardableResult
-    func save(name: String, tabManager: TabManager) -> Workspace {
+    func save(name: String, tabManager: TabManager, tabIDs: Set<UUID>? = nil) -> Workspace {
         var savedTabs: [SavedTab] = []
-        tabManager.appendSessionTabs(into: &savedTabs, force: true)
+        tabManager.appendSessionTabs(into: &savedTabs, force: true, only: tabIDs)
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedName = trimmedName.isEmpty ? Self.fallbackName : trimmedName
         let windowFrame = WindowSurfaceRegistry.shared.window(for: tabManager.sessionKey)
@@ -55,7 +55,8 @@ final class WorkspaceStore: ObservableObject {
         let workspace = Workspace(
             id: UUID(),
             name: resolvedName,
-            session: SavedSession(tabs: savedTabs, selectedIndex: tabManager.selectedIndex,
+            session: SavedSession(tabs: savedTabs,
+                                  selectedIndex: tabIDs == nil ? tabManager.selectedIndex : 0,
                                   profileID: tabManager.profileID),
             savedAt: Date(),
             frame: windowFrame)

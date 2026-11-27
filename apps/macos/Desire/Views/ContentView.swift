@@ -280,6 +280,8 @@ struct ContentView: View {
     @State var findCurrentIndex = 0
     /// 查找大小写敏感（粘性偏好；@AppStorage 直接持久化）。
     @AppStorage("findCaseSensitive", store: AppPrefs.defaults) var findCaseSensitive = false
+    /// 整词查找（v0.8.81 批 2）：自绘高亮，主框架；不支持时回退普通查找。
+    @AppStorage("findWholeWord", store: AppPrefs.defaults) var findWholeWord = false
     /// 首个命中的上下文片段（±40 字符；查找栏预览行）。
     @State var findSnippet = ""
     /// 原生窗口全屏（⌃⌘F）：只影响标签栏给红绿灯留的边距（全屏时红绿灯
@@ -1114,7 +1116,38 @@ struct ContentView: View {
         findHasMatch = false
         findMatchCount = 0
         findCurrentIndex = 0
+        if let tab = tabManager.selectedTab {
+            tab.browser.webView.evaluateJavaScript(WebView.wholeWordClearJS(), completionHandler: nil)
+        }
         NSApp.mainWindow?.makeFirstResponder(nil)
+    }
+
+    /// 整词查找的统一入口（index = 目标序号；负数/越界按环形处理）。
+    private func runWholeWordFind(index: Int) {
+        guard let tab = tabManager.selectedTab, !findString.isEmpty else { return }
+        let js = WebView.wholeWordFindJS(query: findString,
+                                         caseSensitive: findCaseSensitive,
+                                         index: index)
+        tab.browser.webView.evaluateJavaScript(js) { value, _ in
+            guard let result = value as? [String: Any] else { return }
+            if result["unsupported"] as? Bool == true {
+                DispatchQueue.main.async {
+                    // 系统不支持 CSS Highlight：撤掉开关，走 WebKit 普通查找。
+                    findWholeWord = false
+                    performFindAll()
+                }
+                return
+            }
+            let count = (result["count"] as? NSNumber)?.intValue ?? 0
+            let current = (result["index"] as? NSNumber)?.intValue ?? 0
+            let snippet = (result["snippet"] as? String) ?? ""
+            DispatchQueue.main.async {
+                findMatchCount = count
+                findHasMatch = count > 0
+                findCurrentIndex = current >= 0 ? current : 0
+                findSnippet = snippet
+            }
+        }
     }
 
     func performFindAll() {
@@ -1123,6 +1156,10 @@ struct ContentView: View {
             findMatchCount = 0
             findCurrentIndex = 0
             findSnippet = ""
+            return
+        }
+        if findWholeWord {
+            runWholeWordFind(index: 0)
             return
         }
         let config = WKFindConfiguration()
@@ -1152,6 +1189,10 @@ struct ContentView: View {
 
     func performFindNext() {
         guard let tab = tabManager.selectedTab, !findString.isEmpty else { return }
+        if findWholeWord {
+            runWholeWordFind(index: findCurrentIndex + 1)
+            return
+        }
         let config = WKFindConfiguration()
         config.wraps = true
         config.caseSensitive = findCaseSensitive
@@ -1165,6 +1206,10 @@ struct ContentView: View {
 
     func performFindPrevious() {
         guard let tab = tabManager.selectedTab, !findString.isEmpty else { return }
+        if findWholeWord {
+            runWholeWordFind(index: findCurrentIndex - 1)
+            return
+        }
         let config = WKFindConfiguration()
         config.backwards = true
         config.wraps = true

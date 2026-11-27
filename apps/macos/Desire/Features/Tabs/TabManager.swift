@@ -905,8 +905,10 @@ class TabManager: ObservableObject {
     /// Appends this window's non-incognito tabs to the merged session blob.
     /// Called by the coordinator for every registered window. `fileprivate`
     /// because `SavedTab` is a private type co-located with the coordinator.
-    func appendSessionTabs(into savedTabs: inout [SavedTab], force: Bool) {
+    func appendSessionTabs(into savedTabs: inout [SavedTab], force: Bool,
+                           only: Set<UUID>? = nil) {
         for tab in tabs where !tab.isIncognito {
+            if let only, !only.contains(tab.id) { continue }
             // For a suspended tab the live webview has been blanked, so use
             // the snapshot captured at suspend time. Otherwise `webView.url`
             // is nil and `interactionState` encodes an empty page, which

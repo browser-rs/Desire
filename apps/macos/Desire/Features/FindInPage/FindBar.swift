@@ -8,6 +8,8 @@ struct FindBar: View {
     let findCurrentIndex: Int
     /// 大小写敏感（粘性偏好；切换即重查——宿主 onFindAll 读同一状态）。
     @Binding var caseSensitive: Bool
+    /// 整词（v0.8.81 批 2）：自绘 CSS Highlight；主框架，不支持时宿主回退普通查找。
+    @Binding var wholeWord: Bool
     /// 首个命中的上下文片段（±40 字符；空 = 不显示）。
     let snippet: String
     var isFindFocused: FocusState<Bool>.Binding
@@ -47,6 +49,17 @@ struct FindBar: View {
                         }
                         return .ignored
                     }
+
+                Button {
+                    wholeWord.toggle()
+                    onFindAll()
+                } label: {
+                    Text("W")
+                        .font(.system(size: 11, weight: wholeWord ? .bold : .regular))
+                        .foregroundStyle(wholeWord ? AnyShapeStyle(appAccent) : AnyShapeStyle(.secondary))
+                }
+                .buttonStyle(.plain)
+                .help("Whole word (main frame)")
 
                 Button {
                     caseSensitive.toggle()
@@ -159,6 +172,7 @@ struct FindBar: View {
         findMatchCount: 0,
         findCurrentIndex: 0,
         caseSensitive: .constant(false),
+        wholeWord: .constant(false),
         snippet: "",
         isFindFocused: FocusState<Bool>().projectedValue,
         onFindNext: {}, onFindPrevious: {}, onHide: {}, onFindAll: {}

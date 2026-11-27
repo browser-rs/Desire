@@ -55,6 +55,8 @@ struct TabBar: View {
     let onRenameGroup: (UUID, String) -> Void
     /// 改组色（v0.8.80）；默认空实现，次要入口（独立窗口标签栏）不必接线。
     var onSetGroupColor: (UUID, Int) -> Void = { _, _ in }
+    /// 组存为工作区（v0.8.81 批 2）；默认空实现。
+    var onSaveGroupAsWorkspace: ((TabGroup) -> Void)? = nil
     /// 标签组 store（v0.7.18 观察修复）：此前收 `tabGroups: [TabGroup]` 值
     /// 参数、数据又经 `appState.tabGroupStore` 计算属性取——store 变化不会
     /// 触发 ContentView 重绘，值参数永远还是旧快照：**折叠一个组，胶囊不出现**
@@ -161,6 +163,11 @@ struct TabBar: View {
                                                 .foregroundStyle(color)
                                         }
                                     }
+                                }
+                            }
+                            if let onSaveGroupAsWorkspace {
+                                Button("Save Group as Workspace") {
+                                    onSaveGroupAsWorkspace(group)
                                 }
                             }
                             Button("Delete Group") { onDeleteGroup(group.id) }

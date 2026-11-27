@@ -204,6 +204,10 @@ extension ContentView {
             onDeleteGroup: { tabGroupStore.delete($0) },
             onRenameGroup: { id, name in tabGroupStore.rename(id, to: name) },
             onSetGroupColor: { id, colorIndex in tabGroupStore.setColor(id, colorIndex: colorIndex) },
+            onSaveGroupAsWorkspace: { group in
+                _ = WorkspaceStore.shared.save(name: group.name, tabManager: tabManager,
+                                               tabIDs: group.tabIds)
+            },
             groupStore: tabGroupStore,
             onRemoveFromGroup: { tabGroupStore.removeTabFromAll($0) },
             onAddToGroup: { tabId, groupId in tabGroupStore.addTab(tabId, to: groupId) },

@@ -1,7 +1,13 @@
 ## [Unreleased]
+### Changed
+
+- 密码健康卡：弱/重复/泄露条目可直接打开对应站点去改密（只打开页面，不自动改密）。
+
 ### Added
 
 - API 可信来源与存储上限（v0.8.81 批 1）：新增 `client_ip` 中间件——默认只认 TCP 对端，`DESIRE_API_TRUST_PROXY=true` 才解析 `x-forwarded-for`；每用户同步存储上限（`sync_user_storage`，默认 256MB，push 事务内锁行/超限 413）；GC 增加每用户游标行上限（200）与审计 180 天保留；admin `prune` 覆盖 demo 演示数据；新增 `tests/api-db-e2e.py`（需库/dev 验证码，无库明确跳过）。
+- 浏览器日常（v0.8.81 批 2）：查找栏新增整词模式（CSS Custom Highlight 自绘、主框架、上限 2000 命中；系统不支持时自动回退普通查找）；历史支持"保留 N 天"自动清理（设置页即时应用 + 每日 GC，0 = 永久）；标签组右键可"存为工作区"（只序列化组内标签）。
+
 
 ### Security
 

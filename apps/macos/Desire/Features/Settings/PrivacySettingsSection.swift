@@ -16,9 +16,42 @@ struct PrivacySettingsStoreSection: View {
     @State private var clearHistory = true
     /// 清除范围（v0.8.80）：默认全部时间（与旧行为一致）。
     @State private var clearRange: PermissionMatrix.ClearRange = .allTime
+    /// 历史自动保留天数（v0.8.81 批 2；0 = 永久）。
+    @AppStorage("historyRetentionDays", store: AppPrefs.defaults) private var historyRetentionDays = 0
 
     var body: some View {
         SettingsContainer {
+            // MARK: - History retention（v0.8.81 批 2）
+
+            SettingsSection(
+                title: String(localized: "History Retention"),
+                subtitle: String(localized: "Automatically delete browsing history older than this period. 0 keeps everything."),
+                icon: "clock.arrow.circlepath"
+            ) {
+                SettingsRow(
+                    String(localized: "Keep history"),
+                    subtitle: historyRetentionDays == 0
+                        ? String(localized: "Forever")
+                        : String(format: String(localized: "%lld days"), historyRetentionDays),
+                    systemImage: "calendar"
+                ) {
+                    HStack(spacing: 8) {
+                        Stepper(value: $historyRetentionDays, in: 0...3650, step: 30) {
+                            EmptyView()
+                        }
+                        .labelsHidden()
+                        if historyRetentionDays > 0 {
+                            Button(String(localized: "Apply now")) {
+                                historyStore.removeAll(before: Date().addingTimeInterval(
+                                    -Double(historyRetentionDays) * 86_400))
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                    }
+                }
+            }
+
             // MARK: - Web Content
 
             FilterListsSection()

@@ -25,7 +25,7 @@ CHAIN_PORT = 8911
 TRANSLATE_PORT = 8912
 PAGE_PORT = 8913
 checks = []
-state = {"chain_prompts": [], "translate_requests": 0}
+state = {"chain_prompts": [], "template_prompts": [], "translate_requests": 0}
 
 
 def ok(label, cond, detail=""):
@@ -79,6 +79,10 @@ class ChainFake(http.server.BaseHTTPRequestHandler):
         if tools and "CHAIN-SECOND" in user_text:
             state["chain_prompts"].append(user_text)
             sse(self, "SECOND-DONE", model)
+            return
+        if tools and "TEMPLATE-CHAIN" in user_text:
+            state["template_prompts"].append(user_text)
+            sse(self, "TEMPLATE-B-DONE", model)
             return
         if tools and "CHAIN-FIRST" in user_text:
             sse(self, "FIRST-OUTPUT /tmp/chain-artifact-b5.md", model)
@@ -230,6 +234,49 @@ def main():
            f"count={len(state['chain_prompts'])} prompt={third[:240]}")
         br(base, "POST", "/agent/tasks/remove", {"name": task_a})
         br(base, "POST", "/agent/tasks/remove", {"name": task_b})
+
+        # ---------- 1b. 命令模板完成 → 下一任务（v0.8.81 批 7） ----------
+        template_name = f"b5-tpl-{int(time.time()) % 100000}"
+        template_a = task_a + "-tpl"
+        template_b = task_b + "-tpl"
+        made = br(base, "POST", "/jobs/templates", {
+            "name": template_name,
+            "tool": "python3",
+            "args": ["-c",
+                     "print('TEMPLATE-OUTPUT /tmp/chain-template-artifact.md')"],
+            "timeoutMinutes": 1,
+        })
+        ok("模板链：命令模板创建", made.get("ok") is True, str(made)[:200])
+        br(base, "POST", "/agent/tasks/create", {
+            "name": template_a, "jobTemplate": template_name, "minutes": 120,
+        })
+        br(base, "POST", "/agent/tasks/create", {
+            "name": template_b, "minutes": 120,
+            "prompt": "TEMPLATE-CHAIN PREV:{{prev.output}} ART:{{prev.artifacts}}",
+        })
+        br(base, "POST", "/agent/tasks/chain",
+           {"name": template_a, "chainTo": template_b})
+        br(base, "POST", "/agent/tasks/fire", {"name": template_a})
+        deadline = time.time() + 90
+        while time.time() < deadline and not state["template_prompts"]:
+            time.sleep(0.4)
+        tpl_prompt = state["template_prompts"][-1] if state["template_prompts"] else ""
+        ok("模板链：命令作业完成后自动投递下一任务并带上日志输出/产物",
+           "TEMPLATE-OUTPUT" in tpl_prompt
+           and "/tmp/chain-template-artifact.md" in tpl_prompt
+           and "{{prev." not in tpl_prompt,
+           tpl_prompt[:320])
+        tpl_runs = br(base, "GET", "/agent/tasks").get("runs", [])
+        tpl_run = next((r for r in tpl_runs
+                        if r.get("task") == template_a and r.get("status") == "success"), {})
+        ok("模板链：模板任务的 run 记录带作业输出",
+           "TEMPLATE-OUTPUT" in (tpl_run.get("prompt") or "")
+           or "TEMPLATE-OUTPUT" in (tpl_run.get("output") or ""),
+           json.dumps(tpl_run, ensure_ascii=False)[:300])
+        br(base, "POST", "/agent/tasks/remove", {"name": template_a})
+        br(base, "POST", "/agent/tasks/remove", {"name": template_b})
+        br(base, "POST", "/jobs/templates",
+           {"action": "delete", "name": template_name})
 
         # ---------- 2. 批量下载时段窗口 ----------
         now = datetime.now()

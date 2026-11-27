@@ -764,7 +764,7 @@ final class AutomationServer {
         ep("GET", "/agent/crew", "Tab Crew status (per-subtask progress + reports)", example: "…/agent/crew")
         ep("POST", "/agent/crew/cancel", "Cancel the whole crew (or one subtask)", params: ["index?:int"], example: "-d '{}'")
         ep("POST", "/agent/crew-dispatch", "Dispatch a crew (objective + subtasks); MCP crewDispatch maps here", params: ["objective:string", "tasks:array", "isolated?:bool (ephemeral container, wiped on settle)"], example: "-d '{\"objective\":\"compare\",\"tasks\":[{\"url\":\"https://a\",\"instruction\":\"price of X\"}]}'")
-        ep("POST", "/agent/tasks/create", "Create task", params: ["name:string", "prompt?:string", "minutes?:int | hour+minute(+weekday 1=Sun…7=Sat)", "lastFiredAt?:ISO-8601 (E2E: backdate for catch-up)", "retries?:int (0-3; per-task override)", "window?:uuid (target a specific window; default = newest)", "builtin?:string (weeklyReport = built-in report pipeline; prompt unused)"], example: #"-d '{"name":"t","prompt":"p","minutes":30}'"#)
+        ep("POST", "/agent/tasks/create", "Create task", params: ["name:string", "prompt?:string", "minutes?:int | hour+minute(+weekday 1=Sun…7=Sat)", "lastFiredAt?:ISO-8601 (E2E: backdate for catch-up)", "retries?:int (0-3; per-task override)", "jobTemplate?:string (run a command template; prompt unused)", "window?:uuid (target a specific window; default = newest)", "builtin?:string (weeklyReport = built-in report pipeline; prompt unused)"], example: #"-d '{"name":"t","prompt":"p","minutes":30}'"#)
         ep("POST", "/agent/tasks/remove", "Remove by name", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
         ep("POST", "/agent/tasks/fire", "Deliver prompt now (E2E)", params: ["name:string"], example: "-d '{\"name\":\"t\"}'")
         ep("POST", "/agent/tasks/continue", "Continue a chain step using its upstream's latest successful output", params: ["name:string"], example: #"-d '{"name":"report"}'"#)
@@ -4222,6 +4222,7 @@ case ("GET", "/agent/messages"):
                     lastFiredAt: Self.string(body, "lastFiredAt"),
                     retries: body["retries"] as? Int,
                     window: Self.string(body, "window"),
+                    jobTemplate: Self.string(body, "jobTemplate"),
                     builtin: Self.string(body, "builtin")
                 ))
             case ("POST", "/agent/tasks/remove"):
@@ -10773,12 +10774,14 @@ case ("GET", "/agent/messages"):
                 "catchUp": run.catchUp == true,
             ]
             if let scheduled = run.scheduledFor { row["scheduledFor"] = format.string(from: scheduled) }
+            if let prompt = run.prompt { row["prompt"] = String(prompt.prefix(600)) }
+            if let output = run.output { row["output"] = String(output.prefix(1200)) }
             return row
         }
         return ["tasks": tasks, "runs": runs]
     }
 
-    private static func createAgentTask(name: String, prompt: String, minutes: Int?, hour: Int?, minute: Int?, weekday: Int?, lastFiredAt: String?, retries: Int?, window: String?, builtin: String? = nil) throws -> [String: Any] {
+    private static func createAgentTask(name: String, prompt: String, minutes: Int?, hour: Int?, minute: Int?, weekday: Int?, lastFiredAt: String?, retries: Int?, window: String?, jobTemplate: String? = nil, builtin: String? = nil) throws -> [String: Any] {
         let recurrence: AgentScheduler.ScheduledTask.Recurrence
         if let minutes {
             recurrence = .everyMinutes(minutes)
@@ -10799,6 +10802,22 @@ case ("GET", "/agent/messages"):
             guard seededLastFired != nil else {
                 return ["error": "lastFiredAt must be ISO-8601"]
             }
+        }
+        if let jobTemplate {
+            guard JobTemplateStore.shared.template(named: jobTemplate) != nil else {
+                return ["error": "unknown jobTemplate: \(jobTemplate)"]
+            }
+            let targetID = resolveSession(window)?.registryID
+            guard let task = AgentScheduler.shared.addTemplate(
+                name: name, templateName: jobTemplate, recurrence: recurrence) else {
+                return ["error": "invalid name"]
+            }
+            if let targetID { AgentScheduler.shared.setTarget(targetID, for: task.id) }
+            if let retries { AgentScheduler.shared.setRetryLimit(retries, for: task.id) }
+            var payload: [String: Any] = ["ok": true, "name": name,
+                                          "jobTemplate": jobTemplate]
+            if let targetID { payload["target"] = targetID.uuidString }
+            return payload
         }
         if let builtin {
             // 内置流水线任务（v0.7.24 起；v0.7.25 泛化）：weeklyReport | dailyBrief。

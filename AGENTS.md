@@ -958,8 +958,11 @@ Features/Bookmarks/
   拓扑（路径/上游/环），写入防环仍在 `setChain`；`continueChain(from:)` 用上游
   **最近一次成功**运行的回答重新渲染本步，不重跑上游、也不改变后续链的自动推进。
   任务级 `retryLimit`（0…3，nil = 全局）经 `TaskRetryPolicy` 解析，退避 30/60/120s。
-  **未打通**：命令模板作业完成后把作业输出回流给下一任务（`BackgroundCommandStore`
-  没有回调调度器），别在文档里写"模板链已全会交接"。
+  **模板作业已完成 → 下一任务的交接**（v0.8.81 批 7）：`BackgroundCommandStore.start`
+  接受一次性 `completion(jobID,state)`，终态（含启动失败/排队取消/依赖失败）回调；
+  调度器用日志尾部 12k + `artifactURL` 作为上一轮输出走 `finishRun` 链交接。作业
+  自身重试/通知仍归 BackgroundCommandStore/JobWatch——调度器侧
+  `scheduleRetryOnFailure:false`、`notifyOnFailure:false`，别造成双重重试/通知。
 
 - **CHANGELOG 规范（2026-09-29 立，三次事故后）**：加条目**只用**
   `python3 scripts/changelog.py add <Fixed|Added|Changed|Deprecated|Removed|Security>`

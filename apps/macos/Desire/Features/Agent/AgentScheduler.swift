@@ -653,7 +653,9 @@ final class AgentScheduler: ObservableObject {
         saveRuns()
     }
 
-    private func finishRun(id: UUID, outcome: AgentSessionStore.TurnOutcome) {
+    private func finishRun(id: UUID, outcome: AgentSessionStore.TurnOutcome,
+                           scheduleRetryOnFailure: Bool = true,
+                           notifyOnFailure: Bool = true) {
         updateRun(id: id) {
             $0.finishedAt = Date()
             $0.success = outcome.success
@@ -666,9 +668,54 @@ final class AgentScheduler: ObservableObject {
             BridgeEventBus.shared.publish("scheduledTaskSucceeded", ["task": record.taskName])
             deliverChainedTask(after: record.taskName, output: outcome.answer ?? "")
         } else {
-            notifyRunFailure(record)
-            scheduleRetry(record)   // 内部判次数上限（1+可配 N）与退避
+            if notifyOnFailure { notifyRunFailure(record) }
+            if scheduleRetryOnFailure { scheduleRetry(record) }
         }
+    }
+
+    /// 命令模板作业终态 → 任务 run 收尾（v0.8.81 批 7）：把日志尾部当"输出"，
+    /// 成功时走 `finishRun` 的链交接（模板 → 报告任务）。重试由
+    /// `BackgroundCommandStore` 的 maxAttempts 负责，这里不再触发任务级重试；
+    /// 失败通知也由 JobWatch 负责，避免双通知。
+    private func finishTemplateRun(runID: UUID, task: ScheduledTask,
+                                   jobID: UUID, state: JobRecord.State) {
+        let job = JobStore.shared.job(id: jobID)
+        let output = jobOutput(jobID: jobID, artifactURL: job?.artifactURL)
+        let success = state == .done
+        if let index = tasks.firstIndex(where: { $0.id == task.id }) {
+            tasks[index].lastResult = success
+                ? "template finished"
+                : (job?.error ?? "template \(state.rawValue)")
+            save()
+        }
+        finishRun(id: runID,
+                  outcome: AgentSessionStore.TurnOutcome(
+                    success: success,
+                    error: success ? nil : (job?.error ?? "job \(state.rawValue)"),
+                    answer: output),
+                  scheduleRetryOnFailure: false,
+                  notifyOnFailure: false)
+    }
+
+    /// 作业输出 = 日志尾部（最多 12k 字符）+ 账本里的 artifactURL。
+    private func jobOutput(jobID: UUID, artifactURL: String?) -> String {
+        var text = ""
+        if let path = JobStore.shared.job(id: jobID)?.logFile {
+            let url = URL(fileURLWithPath: path)
+            if let handle = try? FileHandle(forReadingFrom: url) {
+                defer { try? handle.close() }
+                let size = (try? handle.seekToEnd()) ?? 0
+                let start = size > 12_000 ? size - 12_000 : 0
+                try? handle.seek(toOffset: start)
+                if let data = try? handle.readToEnd() {
+                    text = String(decoding: data, as: UTF8.self)
+                }
+            }
+        }
+        if let artifactURL, !artifactURL.isEmpty, !text.contains(artifactURL) {
+            text += "\nArtifact: \(artifactURL)"
+        }
+        return text
     }
 
     private func loadRuns() {
@@ -765,7 +812,13 @@ final class AgentScheduler: ObservableObject {
                     timeoutMinutes: template.timeoutMinutes,
                     conversationID: nil, report: .notify,
                     maxAttempts: template.maxAttempts,
-                    retryOn: template.retryOn, priority: template.priority)
+                    retryOn: template.retryOn, priority: template.priority,
+                    completion: { jobID, state in
+                        Task { @MainActor in
+                            self.finishTemplateRun(runID: runID, task: task,
+                                                   jobID: jobID, state: state)
+                        }
+                    })
                 if case .failure(let error) = result,
                    let index = self.tasks.firstIndex(where: { $0.id == task.id }) {
                     self.tasks[index].lastResult = error.message

@@ -44,6 +44,9 @@ final class BackgroundCommandStore: ObservableObject {
     private var running: [UUID: Running] = [:]
     private var specs: [UUID: CommandSpec] = [:]
     private var retryTasks: [UUID: Task<Void, Never>] = [:]
+    /// 一次性终态回调（v0.8.81：定时命令模板完成 → 任务链交接）。不持久化：
+    /// app 退出后作业会标 interrupted，链不会自动续跑。
+    private var completionHandlers: [UUID: (UUID, JobRecord.State) -> Void] = [:]
 
     private static let specsKey = "jobs.commandSpecs"
     private static let maxConcurrent = 3
@@ -73,7 +76,8 @@ final class BackgroundCommandStore: ObservableObject {
                retryOf: UUID? = nil, after: [UUID] = [],
                maxAttempts: Int = 1, retryOn: String = "nonZero",
                priority: String = "normal", attempt: Int = 1,
-               retryRoot: UUID? = nil) async -> Result<UUID, CommandLaunchError> {
+               retryRoot: UUID? = nil,
+               completion: ((UUID, JobRecord.State) -> Void)? = nil) async -> Result<UUID, CommandLaunchError> {
         let name = tool.trimmingCharacters(in: .whitespaces).lowercased()
         guard !name.isEmpty else { return .failure(CommandLaunchError("Missing tool")) }
         let resolution = await SystemCommandStore.shared.resolveAllowedBinary(name)
@@ -115,6 +119,7 @@ final class BackgroundCommandStore: ObservableObject {
             retryRoot: (retryRoot ?? retryOf)?.uuidString,
             reportMode: report?.rawValue)
         specs[jobID] = spec
+        if completion != nil { completionHandlers[jobID] = completion }
         persistSpecs()
         if running.count < Self.maxConcurrent && dependenciesSatisfied(spec) {
             JobStore.shared.update(jobID, detail: String(localized: "Starting…"))
@@ -134,6 +139,7 @@ final class BackgroundCommandStore: ObservableObject {
                 detail: String(localized: "\(spec.tool) is not installed"),
                 error: String(localized: "\(spec.tool) is not installed"))
             JobEventCenter.shared.recordTerminal(jobID: jobID)
+            invokeCompletion(jobID: jobID, state: .failed)
             return
         }
         let logURL = logDirectory.appendingPathComponent("\(jobID.uuidString).log")
@@ -174,6 +180,7 @@ final class BackgroundCommandStore: ObservableObject {
                 detail: String(localized: "Failed to launch \(spec.tool)"),
                 error: String(localized: "Failed to launch \(spec.tool): \(error.localizedDescription)"))
             JobEventCenter.shared.recordTerminal(jobID: jobID)
+            invokeCompletion(jobID: jobID, state: .failed)
             return
         }
         var entry = Running(process: process, spec: spec, sink: sink,
@@ -268,6 +275,7 @@ final class BackgroundCommandStore: ObservableObject {
                         detail: String(localized: "Dependency failed"),
                         error: String(localized: "A dependency failed, so this command was not started."))
                     JobEventCenter.shared.recordTerminal(jobID: id)
+                    invokeCompletion(jobID: id, state: .cancelled)
                     launchedOne = true
                     break
                 }
@@ -290,6 +298,7 @@ final class BackgroundCommandStore: ObservableObject {
                 detail: String(localized: "Cancelled before the scheduled retry"),
                 error: nil)
             JobEventCenter.shared.recordTerminal(jobID: id)
+            invokeCompletion(jobID: id, state: .cancelled)
             drainQueue()
             return
         }
@@ -299,6 +308,7 @@ final class BackgroundCommandStore: ObservableObject {
                 id, state: .cancelled,
                 detail: String(localized: "Cancelled while queued"))
             JobEventCenter.shared.recordTerminal(jobID: id)
+            invokeCompletion(jobID: id, state: .cancelled)
             drainQueue()
             return
         }
@@ -416,7 +426,13 @@ final class BackgroundCommandStore: ObservableObject {
             error: state == .failed ? detail : nil,
             exitCode: exit)
         JobEventCenter.shared.recordTerminal(jobID: jobID)
+        invokeCompletion(jobID: jobID, state: state)
         drainQueue()
+    }
+
+    private func invokeCompletion(jobID: UUID, state: JobRecord.State) {
+        guard let handler = completionHandlers.removeValue(forKey: jobID) else { return }
+        handler(jobID, state)
     }
 
     private func resolveWorkingDirectory(_ raw: String?) -> URL {

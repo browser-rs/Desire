@@ -149,6 +149,20 @@ class SiteSettingsStore: ObservableObject {
         objectWillChange.send()
     }
 
+    /// 站点级静音（v0.8.80）。
+    func isMuted(for domain: String) -> Bool {
+        settings[domain]?.muted ?? false
+    }
+
+    func setMuted(_ muted: Bool, for domain: String) {
+        guard var s = settings[domain] ?? (muted ? SiteSettings(zoom: 1.0) : nil) else { return }
+        s.muted = muted
+        settings[domain] = s
+        cleanEmpty(domain)
+        save()
+        objectWillChange.send()
+    }
+
     func setAutoPlay(_ mode: SiteSettings.AutoPlay?, for domain: String) {
         // mode == nil 且站点本来就没记录 → 无事可做（别凭空造一条空记录）。
         guard var s = settings[domain] ?? (mode == nil ? nil : SiteSettings(zoom: 1.0)) else { return }
@@ -198,7 +212,8 @@ class SiteSettingsStore: ObservableObject {
 
     private func cleanEmpty(_ domain: String) {
         if let s = settings[domain], s.zoom == 1.0, !s.darkMode, s.blockedSelectors.isEmpty,
-           s.autoPlay == nil, s.minFontSize == nil, s.fontFamily == nil {
+           s.autoPlay == nil, s.minFontSize == nil, s.fontFamily == nil,
+           !s.muted, !s.autoBilingual {
             settings.removeValue(forKey: domain)
         }
     }

@@ -18,6 +18,8 @@ struct SiteControlsView: View {
         let toggleReader: () -> Void
         /// 地址自动填充（v0.8.80 多档案）：传入选中的档案 id。
         let fillAddress: (UUID) -> Void
+        /// 站点级静音（v0.8.80）：进入本站自动静音。
+        let setSiteMuted: (Bool) -> Void
         let watchPage: () -> Void
         let recordWorkflow: () -> Void
     }
@@ -142,6 +144,24 @@ struct SiteControlsView: View {
                     .foregroundStyle(.tertiary)
             }
             .help("WebKit gives web pages no notification permission prompt, so there is nothing to allow or block here.")
+
+            // 站点级静音（v0.8.80）：进入本站的页面自动静音（TabAudioControl 劫持式）。
+            HStack(spacing: 8) {
+                Image(systemName: "speaker.slash")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 16)
+                Text("Mute This Site")
+                    .font(.system(size: 12.5))
+                Spacer()
+                Toggle("", isOn: Binding(
+                    get: { store.isMuted(for: host) },
+                    set: { actions.setSiteMuted($0) }))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+            }
+            .help("Automatically mute pages on this site when they load")
 
             // 地址自动填充（v0.8.80）：多档案时选择用哪一份；单档案时就是"填一下"。
             if !autofillStore.fillableProfiles.isEmpty {

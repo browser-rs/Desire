@@ -26,6 +26,13 @@ class TabGroupStore: ObservableObject {
         save()
     }
 
+    /// 改色（v0.8.80）：创建之后也能换——此前只有创建面板能选色。
+    func setColor(_ id: UUID, colorIndex: Int) {
+        guard let idx = groups.firstIndex(where: { $0.id == id }) else { return }
+        groups[idx].colorIndex = colorIndex
+        save()
+    }
+
     func addTab(_ tabId: UUID, to groupId: UUID) {
         guard let idx = groups.firstIndex(where: { $0.id == groupId }) else { return }
         for i in groups.indices { groups[i].tabIds.remove(tabId) }

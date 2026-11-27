@@ -2200,6 +2200,12 @@ try {
             parent.canGoForward = webView.canGoForward
             parent.state.lastError = nil
             parent.state.insecureFallbackURL = nil
+            // 站点级静音（v0.8.80）：进入设了静音的站点自动静音（只加不减——
+            // 用户手动静音的标签离开该站后保持静音）。
+            if let host = webView.url?.host, AppState.live?.siteSettingsStore.isMuted(for: host) == true {
+                parent.state.isMuted = true
+                Task { await TabAudioControl.apply(true, to: webView) }
+            }
             if let url = webView.url {
                 // 查看器挂载中（表格/图片/zip/文档）：webview 的迟到回调不得
                 // 改写地址栏（会显示旧页 URL，误导用户当前在看什么）。

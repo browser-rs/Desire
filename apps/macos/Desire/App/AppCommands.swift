@@ -246,6 +246,15 @@ struct AppCommands: Commands {
             }
         }
 
+        // MARK: - Media
+
+        CommandMenu("Media") {
+            Button("Mute All Tabs") { postCommand(.muteAllTabs) }
+            Button("Unmute All Tabs") { postCommand(.unmuteAllTabs) }
+            Divider()
+            Button("Go to Playing Tab") { postCommand(.goToPlayingTab) }
+        }
+
         // MARK: - Tools
 
         CommandMenu("Tools") {

@@ -53,6 +53,8 @@ struct TabBar: View {
     let onDeleteGroup: (UUID) -> Void
     /// 重命名组（v0.7.18 UI 收口）：名字由 TabGroupRenamePrompt 收集后回传。
     let onRenameGroup: (UUID, String) -> Void
+    /// 改组色（v0.8.80）；默认空实现，次要入口（独立窗口标签栏）不必接线。
+    var onSetGroupColor: (UUID, Int) -> Void = { _, _ in }
     /// 标签组 store（v0.7.18 观察修复）：此前收 `tabGroups: [TabGroup]` 值
     /// 参数、数据又经 `appState.tabGroupStore` 计算属性取——store 变化不会
     /// 触发 ContentView 重绘，值参数永远还是旧快照：**折叠一个组，胶囊不出现**
@@ -125,6 +127,18 @@ struct TabBar: View {
                                 )
                             )
                             .contentShape(Capsule())
+                            .onDrop(of: [.text], isTargeted: nil) { providers in
+                                // 拖标签到折叠组上 = 加入该组（v0.8.80）。载荷格式与
+                                // TabDropDelegate 一致：session|tabID|index。
+                                guard let provider = providers.first else { return false }
+                                _ = provider.loadObject(ofClass: NSString.self) { object, _ in
+                                    guard let text = object as? String else { return }
+                                    let parts = text.split(separator: "|")
+                                    guard parts.count >= 2, let tabID = UUID(uuidString: String(parts[1])) else { return }
+                                    Task { @MainActor in onAddToGroup(tabID, group.id) }
+                                }
+                                return true
+                            }
                         }
                         .buttonStyle(.plain)
                         .help("Open Group")
@@ -133,6 +147,20 @@ struct TabBar: View {
                             Button("Rename Group…") {
                                 TabGroupPrompts.presentRename(group: group) { newName in
                                     onRenameGroup(group.id, newName)
+                                }
+                            }
+                            Menu("Color") {
+                                ForEach(Array(TabGroupPalette.colors.enumerated()), id: \.offset) { index, color in
+                                    Button {
+                                        onSetGroupColor(group.id, index)
+                                    } label: {
+                                        Label {
+                                            Text(TabGroupPalette.names[index])
+                                        } icon: {
+                                            Image(systemName: group.colorIndex == index ? "checkmark.circle.fill" : "circle.fill")
+                                                .foregroundStyle(color)
+                                        }
+                                    }
                                 }
                             }
                             Button("Delete Group") { onDeleteGroup(group.id) }
@@ -176,6 +204,7 @@ struct TabBar: View {
                                 onToggleGroupCollapse: onToggleGroupCollapse,
                                 onDeleteGroup: onDeleteGroup,
                                 onRenameGroup: onRenameGroup,
+                                onSetGroupColor: onSetGroupColor,
                                 tabGroups: groupStore.groups,
                                 onRemoveFromGroup: onRemoveFromGroup,
                                 onAddToGroup: onAddToGroup,
@@ -252,6 +281,7 @@ struct TabBar: View {
                                 onToggleGroupCollapse: onToggleGroupCollapse,
                                 onDeleteGroup: onDeleteGroup,
                                 onRenameGroup: onRenameGroup,
+                                onSetGroupColor: onSetGroupColor,
                                 tabGroups: groupStore.groups,
                                 onRemoveFromGroup: onRemoveFromGroup,
                                 onAddToGroup: onAddToGroup,
@@ -425,6 +455,8 @@ private struct TabPillView: View {
     let onDeleteGroup: (UUID) -> Void
     /// 重命名组（v0.7.18 UI 收口；名字由 TabGroupRenamePrompt 收集）。
     let onRenameGroup: (UUID, String) -> Void
+    /// 改组色（v0.8.80）。
+    let onSetGroupColor: (UUID, Int) -> Void
     /// Available tab groups for the context menu.
     let tabGroups: [TabGroup]
     let onRemoveFromGroup: (UUID) -> Void
@@ -657,6 +689,20 @@ private struct TabPillView: View {
                 Button("Rename Group…") {
                     TabGroupPrompts.presentRename(group: group) { newName in
                         onRenameGroup(group.id, newName)
+                    }
+                }
+                Menu("Color") {
+                    ForEach(Array(TabGroupPalette.colors.enumerated()), id: \.offset) { index, color in
+                        Button {
+                            onSetGroupColor(group.id, index)
+                        } label: {
+                            Label {
+                                Text(TabGroupPalette.names[index])
+                            } icon: {
+                                Image(systemName: group.colorIndex == index ? "checkmark.circle.fill" : "circle.fill")
+                                    .foregroundStyle(color)
+                            }
+                        }
                     }
                 }
                 Button("Delete Group") { onDeleteGroup(group.id) }

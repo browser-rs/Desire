@@ -400,6 +400,10 @@ struct Toolbar: View {
                                         script, in: nil, in: WebView.agentToolWorld,
                                         completionHandler: nil)
                                 },
+                                setSiteMuted: { muted in
+                                    siteSettingsStore.setMuted(muted, for: host)
+                                    tab.audioMuted = muted
+                                },
                                 watchPage: actions.siteControls.watchPage,
                                 recordWorkflow: actions.siteControls.recordWorkflow))
                     }

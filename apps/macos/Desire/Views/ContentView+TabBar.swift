@@ -203,6 +203,7 @@ extension ContentView {
             onToggleGroupCollapse: { tabGroupStore.toggleCollapsed($0) },
             onDeleteGroup: { tabGroupStore.delete($0) },
             onRenameGroup: { id, name in tabGroupStore.rename(id, to: name) },
+            onSetGroupColor: { id, colorIndex in tabGroupStore.setColor(id, colorIndex: colorIndex) },
             groupStore: tabGroupStore,
             onRemoveFromGroup: { tabGroupStore.removeTabFromAll($0) },
             onAddToGroup: { tabId, groupId in tabGroupStore.addTab(tabId, to: groupId) },

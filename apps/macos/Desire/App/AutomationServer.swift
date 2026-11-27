@@ -553,6 +553,7 @@ final class AutomationServer {
         ep("POST", "/site-settings/zoom", "Set per-host zoom", params: ["host:string", "zoom:double"], example: #"-d '{"host":"example.com","zoom":1.5}'"#)
         ep("POST", "/site-settings/font", "Per-site fonts: minFontSize (0=off)/fontFamily (''=off)/null=follow default; re-injects immediately", params: ["host", "minFontSize?", "fontFamily?"], example: #"-d '{"host":"a.b","minFontSize":16}'"#)
         ep("POST", "/site-settings/autoplay", "Per-site auto-play override: mode allow|block|follow (follow = global / video-site default). Takes effect on the next webview (new tab).", params: ["host:string", "mode:string"], example: #"-d '{"host":"www.youtube.com","mode":"block"}'"#)
+        ep("POST", "/site-settings/mute", "Per-site mute: pages on this host load muted (and the active tab is muted now)", params: ["host:string", "enabled:bool"], example: #"-d '{"host":"a.b","enabled":true}'"#)
         ep("GET", "/site-agent-prefs", "Per-site agent stance: autoOperate / requireConfirmation / alwaysIsolate", example: "…/site-agent-prefs")
         ep("POST", "/site-agent-prefs", "Update one host's agent stance (omitted flags unchanged; turning everything off deletes the record)", params: ["host:string", "autoOperate?:bool", "requireConfirmation?:bool", "alwaysIsolate?:bool"], example: #"-d '{"host":"a.b","autoOperate":true}'"#)
         ep("POST", "/site-agent-prefs/remove", "Forget one host's agent stance", params: ["host:string"], example: #"-d '{"host":"a.b"}'"#)
@@ -587,6 +588,8 @@ final class AutomationServer {
         ep("GET", "/tabgroups", "Tab groups", example: "…/tabgroups")
         ep("POST", "/tabgroups/create", "Create group (optionally absorb tab)", params: ["name:string", "index?:int"], example: #"-d '{"name":"Work","index":1}'"#)
         ep("POST", "/tabgroups/collapse", "Collapse/expand", params: ["name:string", "collapsed?:bool"], example: "-d '{\"name\":\"Work\"}'")
+        ep("POST", "/tabgroups/color", "Recolor a tab group (0-based palette index)", params: ["name:string", "colorIndex:int"], example: "-d '{\"name\":\"Work\",\"colorIndex\":3}'")
+        ep("POST", "/tabgroups/add", "Add a tab (by index) to a group", params: ["name:string", "index:int"], example: "-d '{\"name\":\"Work\",\"index\":1}'")
         ep("POST", "/tabgroups/delete", "Delete group (tabs survive)", params: ["name:string"], example: "-d '{\"name\":\"Work\"}'")
         ep("POST", "/tabgroups/organize", "Group ungrouped tabs of the active window by site (>=3 tabs/site)", example: "-d '{}'")
         ep("POST", "/tabgroups/undo", "Undo the last organize", example: "-d '{}'")
@@ -616,6 +619,7 @@ final class AutomationServer {
         ep("POST", "/autofill/new", "Start a blank working profile (save it to add to the library)", example: "-d '{}'")
         ep("POST", "/autofill/load", "Load a saved profile into the working copy", params: ["id:uuid"], example: "-d '{\"id\":\"…\"}'")
         ep("POST", "/autofill/delete", "Delete a saved profile", params: ["id:uuid"], example: "-d '{\"id\":\"…\"}'")
+        ep("POST", "/translate/text", "One-shot text translation through the bypass profile (streams internally; nothing is written to the chat)", params: ["text:string"], example: #"-d '{"text":"hello world"}'"#)
         ep("POST", "/autofill/fill", "Fill the page form with a profile (defaults to the working copy; only empty fields)", params: ["index?:int", "profileID?:uuid"], example: "-d '{}'")
         ep("POST", "/autofill/update", "Update fields of the working address profile (any subset)", params: ["label?/givenName?/familyName?/email?/phone?/organization?/streetAddress?/city?/state?/zipCode?/country?"], example: "-d '{\"givenName\":\"Ada\",\"email\":\"a@example.com\"}'")
         ep("POST", "/passwords/breach-check", "HIBP k-anonymous breach check: only 5-char SHA-1 prefixes leave the Mac. endpoint is for tests", params: ["endpoint?:string"], example: "-d '{}'")
@@ -2213,6 +2217,21 @@ case ("GET", "/state"):
                 }
                 app.formAutofillStore.delete(id)
                 return try Self.json(Self.autofillProfiles())
+            case ("POST", "/translate/text"):
+                guard let text = Self.string(body, "text"),
+                      !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    return try Self.json(["error": "missing text"])
+                }
+                do {
+                    let translated = try await SelectionAssistService.stream(
+                        text: text,
+                        systemPrompt: "You are a precise translator. Translate the user's text into the language they are most likely reading (Chinese if the text is not Chinese, English otherwise). Keep names, numbers, code and formatting. Output only the translation.",
+                        userPrompt: text,
+                        onDelta: { _ in })
+                    return try Self.json(["ok": true, "translation": translated])
+                } catch {
+                    return try Self.json(["error": error.localizedDescription])
+                }
             case ("POST", "/autofill/update"):
                 guard let app = AppState.live else { return try Self.json(["error": "app state not ready"]) }
                 func text(_ key: String) -> String? { Self.string(body, key) }
@@ -2274,6 +2293,17 @@ case ("GET", "/state"):
                 ))
             case ("POST", "/site-settings/font"):
                 return try Self.json(Self.setSiteFont(body: body))
+            case ("POST", "/site-settings/mute"):
+                guard let host = Self.string(body, "host"), !host.isEmpty,
+                      let enabled = body["enabled"] as? Bool else {
+                    return try Self.json(["error": "host and enabled required"])
+                }
+                AppState.live?.siteSettingsStore.setMuted(enabled, for: host)
+                if let tab = Self.shared.resolveIndex(Self.index(body)),
+                   tab.browser.webView.url?.host == host {
+                    tab.audioMuted = enabled
+                }
+                return try Self.json(["ok": true, "host": host, "muted": enabled])
             case ("POST", "/site-settings/autoplay"):
                 return try Self.json(Self.setSiteAutoPlay(body: body))
             case ("GET", "/site-agent-prefs"):
@@ -2682,6 +2712,14 @@ case ("GET", "/state"):
                     name: Self.string(body, "name") ?? "",
                     tabIndex: Self.index(body)
                 ))
+            case ("POST", "/tabgroups/color"):
+                return try Self.json(Self.setTabGroupColor(
+                    name: Self.string(body, "name") ?? "",
+                    colorIndex: (body["colorIndex"] as? Int) ?? 0))
+            case ("POST", "/tabgroups/add"):
+                return try Self.json(Self.addTabToGroup(
+                    name: Self.string(body, "name") ?? "",
+                    index: Self.index(body)))
             case ("POST", "/tabgroups/collapse"):
                 return try Self.json(Self.collapseTabGroup(
                     name: Self.string(body, "name") ?? "",
@@ -4679,6 +4717,8 @@ case ("GET", "/agent/messages"):
                 "selected": tm?.selectedIndex == i,
                 "suspended": tab.isSuspended,
                 "loading": tab.isLoading,
+                "muted": tab.browser.isMuted,
+                "playingAudio": tab.browser.isPlayingAudio,
                 "domNodes": tab.browser.lastDomNodeCount,
                 "autoplayPolicy": tab.browser.createdAutoPlayPolicy.rawValue,
                 "toolsPage": tab.isOnToolsPage,
@@ -5845,6 +5885,9 @@ case ("GET", "/agent/messages"):
             command = .selectTab(index)
         case "previousTab": command = .previousTab
         case "nextTab": command = .nextTab
+        case "muteAllTabs": command = .muteAllTabs
+        case "unmuteAllTabs": command = .unmuteAllTabs
+        case "goToPlayingTab": command = .goToPlayingTab
         case "showHistory": command = .showHistory
         case "showBookmarks": command = .showBookmarks
         case "showDownloads": command = .showDownloads
@@ -6229,7 +6272,8 @@ case ("GET", "/agent/messages"):
             let actions = SiteControlsView.Actions(
                 zoomIn: {}, zoomOut: {}, zoomReset: {}, toggleDarkMode: {}, toggleAutoPlay: {},
                 editFont: {}, manageBlocked: {}, clearOverrides: {},
-                toggleReader: {}, fillAddress: { _ in }, watchPage: {}, recordWorkflow: {})
+                toggleReader: {}, fillAddress: { _ in }, setSiteMuted: { _ in },
+                watchPage: {}, recordWorkflow: {})
             let size = NSSize(width: max(300, width ?? 340), height: max(400, height ?? 900))
             let hostView = NSHostingView(
                 rootView: AnyView(SiteControlsView(
@@ -8217,6 +8261,27 @@ case ("GET", "/agent/messages"):
         return ["ok": true, "groups": items]
     }
 
+    private static func setTabGroupColor(name: String, colorIndex: Int) -> [String: Any] {
+        guard !name.isEmpty else { return ["ok": false, "error": "missing name"] }
+        guard let store = AppState.live?.tabGroupStore,
+              let group = store.groups.first(where: { $0.name == name }) else {
+            return ["ok": false, "error": "no such group"]
+        }
+        store.setColor(group.id, colorIndex: colorIndex)
+        return ["ok": true, "name": name, "colorIndex": colorIndex]
+    }
+
+    private static func addTabToGroup(name: String, index: Int?) -> [String: Any] {
+        guard !name.isEmpty else { return ["ok": false, "error": "missing name"] }
+        guard let store = AppState.live?.tabGroupStore,
+              let group = store.groups.first(where: { $0.name == name }) else {
+            return ["ok": false, "error": "no such group"]
+        }
+        guard let tab = Self.shared.resolveIndex(index) else { return ["ok": false, "error": "no such tab"] }
+        store.addTab(tab.id, to: group.id)
+        return ["ok": true, "name": name, "tabCount": store.groups.first(where: { $0.id == group.id })?.tabIds.count ?? 0]
+    }
+
     private static func tabGroupDelete(name: String) -> [String: Any] {
         guard !name.isEmpty else { return ["ok": false, "error": "missing name"] }
         guard let store = AppState.live?.tabGroupStore else { return ["ok": false, "error": "app state not ready"] }
@@ -8303,7 +8368,8 @@ case ("GET", "/agent/messages"):
     private static func tabGroups() throws -> [String: Any] {
         guard let app = AppState.live else { return ["error": "app state not ready"] }
         return ["groups": app.tabGroupStore.groups.map { g -> [String: Any] in
-            ["name": g.name, "tabs": g.tabIds.count, "collapsed": g.isCollapsed]
+            ["name": g.name, "tabs": g.tabIds.count, "collapsed": g.isCollapsed,
+             "colorIndex": g.colorIndex]
         }]
     }
 

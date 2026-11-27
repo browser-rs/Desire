@@ -279,6 +279,8 @@ struct ScreenshotToolbar: View {
 @MainActor
 struct ScreenshotOCRPanel: View {
     @Environment(\.appAccent) private var appAccent: Color
+    /// 识别结果翻译（v0.8.80）：旁路档案，流式进下方只读区。
+    @StateObject private var translationModel = OCRTranslationModel()
     let text: String
     /// 识别出规则表格时的 Markdown 重建（v0.7.24）；nil = 无表格入口。
     var tableMarkdown: String? = nil
@@ -310,6 +312,22 @@ struct ScreenshotOCRPanel: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
             .frame(maxHeight: .infinity)
+            if translationModel.isTranslating || !translationModel.translation.isEmpty
+                || translationModel.errorText != nil {
+                Divider()
+                ScrollView {
+                    Text(translationModel.errorText.map {
+                        String(format: String(localized: "Translation failed: %@"), $0)
+                    } ?? (translationModel.translation.isEmpty
+                          ? String(localized: "Translating…")
+                          : translationModel.translation))
+                        .font(.system(size: 12))
+                        .textSelection(.enabled)
+                        .foregroundStyle(translationModel.errorText != nil ? AnyShapeStyle(.red) : AnyShapeStyle(.primary))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .frame(height: 96)
+            }
             HStack(spacing: 6) {
                 Button("复制") { onCopy() }
                     .buttonStyle(.bordered)
@@ -319,6 +337,16 @@ struct ScreenshotOCRPanel: View {
                         .buttonStyle(.bordered)
                         .controlSize(.small)
                 }
+                Button(translationModel.isTranslating ? "翻译中…" : "翻译") {
+                    if translationModel.isTranslating {
+                        translationModel.cancel()
+                    } else {
+                        translationModel.translate(text)
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 Button("进白板") { onToWhiteboard() }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.small)

@@ -205,6 +205,8 @@ enum BrowserCommand {
     case toggleDevTools, toggleSplitView, showReadingList, fullPageScreenshot
     case toggleWhiteboard
     case toggleAgentBall
+    /// 媒体控制（v0.8.80）：全部静音 / 取消全部静音 / 跳到正在播放的标签。
+    case muteAllTabs, unmuteAllTabs, goToPlayingTab
     case addSelectionToWhiteboard
     // 菜单补全二批（0.2.14）：文件/查找/导航/阅读列表/Agent。
     case openLocation, openFile, closeWindow

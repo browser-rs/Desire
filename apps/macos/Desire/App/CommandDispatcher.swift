@@ -185,6 +185,18 @@ struct CommandDispatcher {
         case .toggleSidebar:
             bindings.showSidebar.wrappedValue.toggle()
 
+        case .muteAllTabs:
+            for tab in tabManager.tabs { tab.audioMuted = true }
+
+        case .unmuteAllTabs:
+            for tab in tabManager.tabs { tab.audioMuted = false }
+
+        case .goToPlayingTab:
+            if let index = tabManager.tabs.firstIndex(where: { $0.browser.isPlayingAudio }) {
+                actions.clearUrlFocus()
+                tabManager.selectTab(at: index)
+            }
+
         case .toggleResponsiveMode:
             if let tab = tabManager.selectedTab {
                 tab.responsiveConfig.isEnabled.toggle()

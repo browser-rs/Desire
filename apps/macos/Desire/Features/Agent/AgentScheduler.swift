@@ -510,7 +510,10 @@ final class AgentScheduler: ObservableObject {
                                                 previousTask: name,
                                                 previousOutput: output)
         Log.agent.info("task chain: '\(name, privacy: .public)' → '\(chainedName, privacy: .public)' (output \(output.count, privacy: .public) chars)")
-        deliver(task: chained, promptOverride: rendered)
+        // 命令模板任务没有 prompt 可渲染：把链上下文交给 deliver，让模板参数
+        // 也走同一套占位符（v0.8.81 批 5）。
+        deliver(task: chained, promptOverride: rendered,
+                chainPreviousTask: name, chainPreviousOutput: output)
     }
 
     /// 设置完成链（工具/桥入口；A→B 直链，深度链由 B→C 续）。
@@ -541,6 +544,8 @@ final class AgentScheduler: ObservableObject {
     /// 锁屏期间挂起，解锁后（15s 内）重投；任务被删/禁用就放弃。
     private func deferForScreenLock(task: ScheduledTask, runID: UUID, attempts: Int,
                                     promptOverride: String?,
+                                    chainPreviousTask: String? = nil,
+                                    chainPreviousOutput: String? = nil,
                                     catchUp: Bool = false, scheduledFor: Date? = nil) {
         lockDeferredTasks[task.name]?.cancel()
         lockDeferredTasks[task.name] = Task { @MainActor [weak self] in
@@ -552,6 +557,8 @@ final class AgentScheduler: ObservableObject {
                 self.lockDeferredTasks[task.name] = nil
                 self.deliver(task: task, runID: runID, attempts: attempts,
                              promptOverride: promptOverride,
+                             chainPreviousTask: chainPreviousTask,
+                             chainPreviousOutput: chainPreviousOutput,
                              catchUp: catchUp, scheduledFor: scheduledFor)
                 return
             }
@@ -624,6 +631,8 @@ final class AgentScheduler: ObservableObject {
 
     private func deliver(task: ScheduledTask, runID: UUID = UUID(), attempts: Int = 1,
                          promptOverride: String? = nil,
+                         chainPreviousTask: String? = nil,
+                         chainPreviousOutput: String? = nil,
                          catchUp: Bool = false, scheduledFor: Date? = nil) {
         let taskIndex = tasks.firstIndex(where: { $0.id == task.id })
         let effectivePrompt = promptOverride ?? task.prompt
@@ -632,6 +641,8 @@ final class AgentScheduler: ObservableObject {
         if SessionGuard.isScreenLocked() {
             deferForScreenLock(task: task, runID: runID, attempts: attempts,
                                promptOverride: effectivePrompt,
+                               chainPreviousTask: chainPreviousTask,
+                               chainPreviousOutput: chainPreviousOutput,
                                catchUp: catchUp, scheduledFor: scheduledFor)
             if let i = taskIndex { tasks[i].lastResult = String(localized: "deferred (screen locked)") }
             Self.log.info("task '\(task.name, privacy: .public)' deferred: screen locked")
@@ -653,6 +664,7 @@ final class AgentScheduler: ObservableObject {
                 guard let self, !Task.isCancelled else { return }
                 guard self.tasks.contains(where: { $0.id == task.id && $0.isEnabled }) else { return }
                 self.deliver(task: task, runID: runID, attempts: attempts,
+                             chainPreviousTask: chainPreviousTask, chainPreviousOutput: chainPreviousOutput,
                              catchUp: catchUp, scheduledFor: scheduledFor)
             }
             if let i = taskIndex { tasks[i].lastResult = String(localized: "deferred to quiet-hours end") }
@@ -671,17 +683,30 @@ final class AgentScheduler: ObservableObject {
                 if let i = taskIndex { tasks[i].lastResult = message }
                 return
             }
+            // 链上下文（v0.8.81 批 5）：命令模板的参数也支持 {{prev.*}}；
+            // 没有链上下文时逐字节保持原参数。
+            let renderedArgs = template.args.map { arg in
+                guard let chainPreviousTask, let chainPreviousOutput else { return arg }
+                return TaskChainTemplate.render(prompt: arg,
+                                                previousTask: chainPreviousTask,
+                                                previousOutput: chainPreviousOutput)
+            }
+            let renderedCommand = ([template.tool] + renderedArgs)
+                .joined(separator: " ")
             recordRun(RunRecord(
                 id: runID, taskName: task.name, firedAt: Date(),
                 finishedAt: Date(), status: "delivered", success: nil,
                 error: nil, attempts: attempts,
+                prompt: SecretRedactor.redact(renderedCommand,
+                                              knownKeys: AppState.live?.aiPreference
+                                                .secretsForRedaction() ?? []),
                 catchUp: catchUp, scheduledFor: scheduledFor))
             if let i = taskIndex {
                 tasks[i].lastResult = "delivered (template: \(templateName))"
             }
             Task { @MainActor in
                 let result = await BackgroundCommandStore.shared.start(
-                    tool: template.tool, args: template.args,
+                    tool: template.tool, args: renderedArgs,
                     title: template.name, cwd: template.cwd,
                     timeoutMinutes: template.timeoutMinutes,
                     conversationID: nil, report: .notify,

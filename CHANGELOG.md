@@ -2,6 +2,8 @@
 ### Changed
 
 - 密码健康卡：弱/重复/泄露条目可直接打开对应站点去改密（只打开页面，不自动改密）。
+- 测试启动器新增 `tools/launch-hermetic.sh --fresh`：每次 mktemp 唯一 data-dir 并打印路径，连续跑 190/套件不再继承上一次的缩放、标签、阅读进度与访问等级（v0.8.81 批 6 的测试纪律项）。
+
 
 ### Added
 
@@ -11,6 +13,11 @@
 - Agent 提示词缓存前缀稳定（v0.8.81 批 3）：按回合变化的“工具子集”说明从 `<tools>` 开头移到 system 末尾的 `<turn_scope>`，稳定段（identity/memory/skills/tools）不再因精简工具抖动；每请求记录稳定段哈希与变化来源（tools/memory/skills/指令…）到助手消息，轨迹 `cache.prefixChanges` 与统计页“Prompt prefix changed”可见。
 - Agent 审批批处理安全升级（v0.8.81 批 3）：审批卡显示“本轮还会放行几条同形状调用”和参数键；单次批量最多自动放行 8 条，超过后回到逐条确认；放行审计写明工具/站点/参数键/上限。桥 `/approvals` 透出预览数、参数键与上限。
 - Agent 修订可见性与转存查看（v0.8.81 批 3）：自评修订保存原文，消息卡可展开行级 diff（新增/删除计数，超长中间省略）并“撤销修订”（恢复原文、清标记、留审计日志）；桥 `POST /agent/revision/undo`。大工具结果新增只读查看器（字符偏移切片、关键字 grep、Finder 定位）；上下文 chip 的概览显示预算/手动或自动/压缩阈值，Remote 快照新增 `contextBudget`/`contextTriggerPercent` 并在 iOS 状态卡显示。
+- Remote 控制帧补全（v0.8.81 批 4）：手机可新建/复制标签、按组过滤标签、折叠/展开分组（`tabAction new|duplicate|toggleGroup`）；可从手机直接发起批量下载（URL 列表 + 文件夹 + 并发 + 时段窗口，`batchAction start`，窗口未开立即暂停）；同步健康页新增“重试同步”和“清空冲突记录”（清记录不改同步数据，破坏性动作二次确认）。`/remote/status` 暴露 `ackedFrames`/`pendingAck`/`lastAckAt`。
+- Remote 帧回执（v0.8.81 批 4）：Mac 与 iOS 处理完 WS express 帧后按 200 条/批、500ms 合并 ack，服务器信箱行及时删除；ack 失败不阻塞业务、不重排队（1s pull 兜底仍会清行），避免旧服务端 404 重试风暴。
+- 普通下载时段窗口与排队原因（v0.8.81 批 5）：设置→下载新增本地时段窗口（支持跨午夜）；URLSession 普通下载此前完全绕过并发上限，现在与 WebKit 下载共用“名额/窗口”排队，行内分别显示“等下载时段”或“等下载名额”；窗口一开或名额释放自动续传。限速仍不做假开关（WebKit/URLSession 均无可靠的 per-task 带宽 API）。
+- 命令模板参数支持任务链占位符（v0.8.81 批 5）：`jobTemplate` 的参数数组可用 `{{prev.output}}`/`{{prev.output:N}}`/`{{prev.task}}`/`{{prev.artifacts}}`，运行记录保存脱敏后的实际命令行；无链上下文时参数逐字节不变。
+
 
 
 

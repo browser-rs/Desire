@@ -434,6 +434,7 @@ final class RemoteControlStore: ObservableObject {
             guard !processedInboxIDs.contains(item.id) else { continue }
             processedInboxIDs.insert(item.id)
             processedInboxOrder.append(item.id)
+            queueAck(id: item.id)
             if processedInboxOrder.count > 500 {
                 let evict = processedInboxOrder.prefix(100)
                 processedInboxOrder.removeFirst(100)
@@ -442,6 +443,58 @@ final class RemoteControlStore: ObservableObject {
             if let inner = Self.decrypt(payloadB64: item.payload, sessionKeyB64: sessionKeyB64) {
                 Self.remoteDebug("inner ← \(String(inner.prefix(100)))")
                 handleInnerFrame(inner)
+            }
+        }
+    }
+
+    /// 帧回执（v0.8.81 批 4）：500ms 合并一次，最多 200 条/批；失败就把
+    /// id 放回队首等下次——绝不让 ack 影响业务处理。
+    private func queueAck(id: Int64) {
+        guard !pendingAckIDs.contains(id) else { return }
+        pendingAckIDs.append(id)
+        guard ackTask == nil else { return }
+        ackTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .milliseconds(500))
+            guard let self, !Task.isCancelled else { return }
+            self.ackTask = nil
+            self.flushAcks()
+        }
+    }
+
+    private func flushAcks() {
+        guard !ackInFlight, !pendingAckIDs.isEmpty else { return }
+        guard isEnabled, case .signedIn = syncStore.authState else { return }
+        let batch = Array(pendingAckIDs.prefix(200))
+        pendingAckIDs.removeFirst(batch.count)
+        ackInFlight = true
+        let deviceID = syncStore.deviceID
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.ackInFlight = false }
+            guard let token = try? await self.syncStore.remoteAuthToken() else {
+                self.pendingAckIDs.insert(contentsOf: batch, at: 0)
+                return
+            }
+            do {
+                let deleted = try await SyncAPIClient.remoteAck(
+                    baseURL: self.baseURL, accessToken: token,
+                    deviceID: deviceID, ids: batch)
+                self.lastAckAt = Date()
+                self.ackedFrames += batch.count
+                Self.remoteDebug("ack \(batch.count) ids, deleted \(deleted)")
+            } catch {
+                // 旧服务端没有 /remote/ack 或网络抖动：**不重排队**——1s 的
+                // pull 兜底会取走这些行；重排会在 404 上形成重试风暴。
+                self.pendingAckIDs.removeAll()
+                Self.remoteDebug("ack failed (pull fallback will clear): \(error.localizedDescription)")
+            }
+            // defer 里才清 ackInFlight；这里直接递归会被闸门挡回。等一拍再续
+            // （失败时 pending 已清空，不会形成 404 重试风暴）。
+            if !self.pendingAckIDs.isEmpty {
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(for: .milliseconds(50))
+                    self?.flushAcks()
+                }
             }
         }
     }
@@ -664,6 +717,8 @@ final class RemoteControlStore: ObservableObject {
             }
         case "syncHealth":
             sendSyncHealthFrame()
+        case "syncAction":
+            handleSyncAction(inner)
         case "adapters":
             sendAdaptersFrame()
         case "toggleAdapter":
@@ -1600,6 +1655,8 @@ final class RemoteControlStore: ObservableObject {
         /// 当前生效的压缩预算（字符）与自动压缩阈值（v0.8.81 批 3）
         var contextBudget: Int? = nil
         var contextTriggerPercent: Int? = nil
+        /// Mac 处理完远端帧的回执时间（v0.8.81 批 4；手机可显示链路健康）
+        var lastAckAt: String? = nil
         /// 排队消息条数
         var queueCount: Int? = nil
         /// busy 时当前回合已用时（秒）
@@ -1797,6 +1854,7 @@ final class RemoteControlStore: ObservableObject {
             contextTriggerPercent: session.map {
                 Int(($0.streamPreference.compactionTriggerPercent * 100).rounded())
             },
+            lastAckAt: lastAckAt.map { ISO8601DateFormatter().string(from: $0) },
             queueCount: session.map { $0.queuedMessages.count },
             elapsed: (session?.isProcessing ?? false) ? elapsedSeconds : nil,
             approval: Self.approvalPayload(session?.pendingApproval),
@@ -2181,6 +2239,15 @@ final class RemoteControlStore: ObservableObject {
     private var processedInboxIDs: Set<Int64> = []
     /// 去重集的插入序（淘汰最旧用；Set 无序）。
     private var processedInboxOrder: [Int64] = []
+    /// 待回执帧（v0.8.81 批 4）：WS express 行不会像 pull 那样被取走，
+    /// 处理完要 ack 才会从服务器信箱删除。按 200 条/批、500ms 合并发送。
+    private var pendingAckIDs: [Int64] = []
+    private var ackTask: Task<Void, Never>?
+    private var ackInFlight = false
+    @Published private(set) var lastAckAt: Date?
+    @Published private(set) var ackedFrames = 0
+    /// 诊断/桥用：还没回执的帧数（不出现在 UI 热路径）。
+    var pendingAckCountForBridge: Int { pendingAckIDs.count }
     private func pollInbox() {
         guard isEnabled, case .signedIn = syncStore.authState, !pollInFlight else { return }
         pollInFlight = true

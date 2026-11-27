@@ -4,13 +4,22 @@ import SwiftUI
 /// 日志尾；数据来自 Mac 的 BatchMediaExportStore（与桌面面板同源）。
 struct RemoteBatchDownloadsView: View {
     @EnvironmentObject var client: RemoteClient
+    @State private var showStart = false
+    @State private var urlsText = ""
+    @State private var folder = ""
+    @State private var connections = 0
+    @State private var windowEnabled = false
+    @State private var windowStart = "22:00"
+    @State private var windowEnd = "06:00"
+    @State private var maxMinutes = 480
+    @State private var maxConcurrent = 4
 
     var body: some View {
         List {
             if client.batchDownloads.isEmpty {
                 DesireEmptyState(icon: "square.stack.3d.down.right",
                                  title: "没有批量下载",
-                                 message: "在 Mac 上开始批量下载后，这里能看到逐项进度与日志。")
+                                 message: "在 Mac 上开始批量下载，或用右上角 + 从手机提交 URL 列表。")
                     .listRowBackground(Color.clear)
             }
             ForEach(client.batchDownloads) { batch in
@@ -19,8 +28,83 @@ struct RemoteBatchDownloadsView: View {
         }
         .listStyle(.insetGrouped)
         .navigationTitle("批量下载")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { showStart = true } label: {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $showStart) { startSheet }
         .onAppear { client.requestBatchDownloads() }
         .refreshable { client.requestBatchDownloads() }
+    }
+
+    private var startSheet: some View {
+        NavigationStack {
+            Form {
+                Section("详情页 URL") {
+                    TextEditor(text: $urlsText)
+                        .font(.system(size: 12, design: .monospaced))
+                        .frame(minHeight: 120)
+                    Text("每行一个详情页；Mac 会逐页解析并选择下载方式。")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+                Section("落点与并发") {
+                    TextField("文件夹（可选，默认站点名）", text: $folder)
+                    Stepper(value: $connections, in: 0...16) {
+                        Text(connections == 0 ? "并发：自动" : "并发：\(connections)")
+                    }
+                }
+                Section("时段窗口") {
+                    Toggle("只在指定时段下载", isOn: $windowEnabled)
+                    if windowEnabled {
+                        HStack {
+                            TextField("开始 HH:mm", text: $windowStart)
+                            TextField("结束 HH:mm", text: $windowEnd)
+                        }
+                        Stepper(value: $maxMinutes, in: 0...1440, step: 30) {
+                            Text(maxMinutes == 0 ? "总时长：不限" : "总时长：\(maxMinutes / 60) 小时")
+                        }
+                        Stepper(value: $maxConcurrent, in: 0...16) {
+                            Text(maxConcurrent == 0 ? "批内并发：跟随全局" : "批内并发：\(maxConcurrent)")
+                        }
+                    }
+                }
+            }
+            .navigationTitle("新建批量下载")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { showStart = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("开始") {
+                        let urls = urlsText
+                            .split(separator: "\n")
+                            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                            .filter { $0.contains("://") }
+                        guard !urls.isEmpty else { return }
+                        client.startBatch(
+                            urls: urls,
+                            folder: folder.isEmpty ? nil : folder,
+                            connections: connections == 0 ? nil : connections,
+                            windowStart: windowEnabled ? windowStart : nil,
+                            windowEnd: windowEnabled ? windowEnd : nil,
+                            maxMinutes: windowEnabled ? maxMinutes : 0,
+                            maxConcurrent: windowEnabled ? maxConcurrent : 0)
+                        showStart = false
+                        Task {
+                            try? await Task.sleep(nanoseconds: 1_000_000_000)
+                            client.requestBatchDownloads()
+                        }
+                    }
+                    .disabled(urlsText.split(separator: "\n").allSatisfy {
+                        !$0.contains("://")
+                    })
+                }
+            }
+        }
     }
 
     private func batchSection(_ batch: RemoteBatchDownloadsFrame.Batch) -> some View {

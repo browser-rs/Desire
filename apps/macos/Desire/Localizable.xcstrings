@@ -118072,6 +118072,94 @@
           }
         }
       }
+    },
+    "Waiting for the download window…":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Waiting for the download window…"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"正在等待下载时段…"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"正在等待下載時段…"
+          }
+        }
+      }
+    },
+    "Download window":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Download window"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"下载时段窗口"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"下載時段視窗"
+          }
+        }
+      }
+    },
+    "Only transfer downloads inside this local-time window. Queued rows say why they are waiting; a cross-midnight window is fine.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Only transfer downloads inside this local-time window. Queued rows say why they are waiting; a cross-midnight window is fine."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"只在本地时间窗口内传输下载；排队的行会说明在等时段还是等并发名额，支持跨午夜。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"只在本地時間視窗內傳輸下載；排隊的列會說明在等時段還是等並發名額，支援跨午夜。"
+          }
+        }
+      }
+    },
+    "HH:mm–HH:mm":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"HH:mm–HH:mm"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"HH:mm–HH:mm"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"HH:mm–HH:mm"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

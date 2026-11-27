@@ -258,7 +258,8 @@ Features/Bookmarks/
   错误页/手柄/标尺不在其中）；要拍整窗用
   `screencapture -o -x -l <winid>`（winid 用 CGWindowList 取）。
 - 启动流程（顺序敏感，2026-11-25 修订——**一律用脚本**）：
-  `tools/launch-hermetic.sh [dataDir]`（默认 `/tmp/desire-e2e/data`），然后
+  `tools/launch-hermetic.sh [dataDir|--fresh]`（默认 `/tmp/desire-e2e/data`；
+  `--fresh` 每次 mktemp 唯一目录并打印路径，套件连续跑用它避免脏基线），然后
   `curl /state` 验证桥活着再继续。脚本做三件事：按 DerivedData 路径结束旧的开发实例、
   `open -g` 后台启动（不抢前台）、同时带 `--data-dir` 与 `CFFIXED_USER_HOME`。
   三条都是踩出来的：
@@ -1152,6 +1153,10 @@ Features/Bookmarks/
   按 0 处理，迁移后仍可用到过期。
 - **恢复码**：`POST /auth/recovery-code` 登录态生成（只返回一次，库里只存 bcrypt），
   `POST /auth/recover` 公开重置；成功后 token 版本 +1、全部 refresh 吊销、恢复码作废。
+- **改密必须同时重包同步密钥**：`PUT /auth/password` 的 `new_kdf_salt` +
+  `new_wrapped_dek` 是把其它设备的同步 DEK 用新口令重新包裹；**iOS 端没有同步
+  主密钥/DEK**，所以不要在手机上提供改密（改了会让其它设备的同步数据永久解不开）。
+  手机端账号安全只做只读/吊销类动作；改密留在 Mac（它持有密钥材料）。
 - **审计**：`audit_events` 记录 register/login/logout/password_changed/device_revoked/
   recover/recovered 等；`GET /auth/audit` 给自己看，`desire-admin user audit` 给运维看。
 - **配额原子化**：push 在同一事务里 `INSERT IGNORE sync_quota_daily` → `SELECT … FOR UPDATE`
@@ -1465,8 +1470,13 @@ CI/release 会在"pinned Xcode missing"一步明确失败；此时退回**本地
     专用 lane）；**快照 `replace=true` 只清同 lane**——曾与回包共 lane，快照
     后到把先落地的 sessions 回包删掉，手机"新建会话"永远刷不出列表（pull 时
     controller 角色一次取两条 lane，按 id 排序）。取走即删（SELECT+DELETE
-    同事务，**at-most-once、不重复派活优先**，无 ack 机制）。控制器两条 lane
+    同事务，**at-most-once、不重复派活优先**）。控制器两条 lane
     = 该桌面全部控制器共享（v1 语义；快照是全量幂等的所以安全）。
+  - **ack（2026-11-27，v0.8.81 批 4）**：pull 取走即删，但 **WS express 不删行**
+    ——Mac/iOS 处理完 express 后按 200 条/批、500ms 合并 `POST /remote/ack`；
+    失败**不重排队**（1s pull 兜底会清行），否则旧服务端 404 会形成重试风暴。
+    回执不影响业务：重复帧仍由两端 `processedIDs` 去重。诊断字段在
+    `GET /remote/status` 的 `ackedFrames`/`pendingAck`/`lastAckAt`。
   - **role 参数方向相反**：push 的 role = 发送方（for_sender 映射到对端信箱），
     pull 的 role = 收件方自己——写反过一次（pull 空结果）。
   - **在线判定**：桌面 pull 时服务器盖 `desktop_last_seen_at`，15s 窗口；

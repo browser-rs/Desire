@@ -22,6 +22,9 @@ struct DownloadItem: Identifiable {
     /// 并发上限排队中（v0.7.19）：有意**不动 State 枚举**——排队不是新生命周期
     /// 态（不进 HistoryItem/同步面），只是一个等待标记；传输名额空出即开始。
     var isQueued: Bool = false
+    /// 排队原因：true = 在等下载时段窗口（v0.8.81 批 5），false/nil = 等并发名额。
+    /// Optional：旧持久化行没有这个键，非可选 Bool 会让整份历史解码失败。
+    var isWaitingForWindow: Bool? = nil
     /// Download originated in an incognito tab — never persisted to the
     /// shared download history (in-memory only, like resumeData).
     var isPrivate: Bool = false

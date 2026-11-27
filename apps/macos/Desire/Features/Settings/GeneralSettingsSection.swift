@@ -614,6 +614,8 @@ struct GeneralSettingsSection: View {
                         label: { value in value == 0 ? String(localized: "Unlimited") : "\(value)" }
                     )
                     SettingsRowDivider()
+                    DownloadWindowRow()
+                    SettingsRowDivider()
                     FolderPathRow(
                         title: "Screenshot Save Location",
                         subtitle: "Where captured screenshots are written.",
@@ -1780,5 +1782,61 @@ private struct MutedDownloadHostsRow: View {
         .padding(.vertical, 8)
         .frame(minHeight: 44)
         .onAppear(perform: reload)
+    }
+}
+
+/// 普通下载时段窗口（v0.8.81 批 5）：与批量下载同一套 `BatchDownloadWindow`
+/// 判定；关掉 = 清空键（不限时段）。下载每 60s 检查一次，窗口一开就放行排队项。
+private struct DownloadWindowRow: View {
+    @AppStorage("downloadWindowStart", store: AppPrefs.defaults) private var start = ""
+    @AppStorage("downloadWindowEnd", store: AppPrefs.defaults) private var end = ""
+    @AppStorage("downloadWindowMaxMinutes", store: AppPrefs.defaults) private var maxMinutes = 0
+
+    private var enabled: Binding<Bool> {
+        Binding(
+            get: { !start.isEmpty && !end.isEmpty },
+            set: { on in
+                if on {
+                    if start.isEmpty { start = "22:00" }
+                    if end.isEmpty { end = "06:00" }
+                } else {
+                    start = ""
+                    end = ""
+                    maxMinutes = 0
+                }
+            }
+        )
+    }
+
+    var body: some View {
+        SettingsRow(
+            String(localized: "Download window"),
+            subtitle: String(localized: "Only transfer downloads inside this local-time window. Queued rows say why they are waiting; a cross-midnight window is fine."),
+            systemImage: "clock.badge.checkmark"
+        ) {
+            Toggle("", isOn: enabled)
+                .labelsHidden()
+                .toggleStyle(.switch)
+                .controlSize(.small)
+        }
+        if !start.isEmpty, !end.isEmpty {
+            SettingsRow(
+                String(localized: "Window"),
+                subtitle: String(localized: "HH:mm–HH:mm"),
+                systemImage: "clock"
+            ) {
+                HStack(spacing: 6) {
+                    TextField("22:00", text: $start)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 54)
+                        .font(.system(size: 11, design: .monospaced))
+                    Text("–").foregroundStyle(.secondary)
+                    TextField("06:00", text: $end)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 54)
+                        .font(.system(size: 11, design: .monospaced))
+                }
+            }
+        }
     }
 }

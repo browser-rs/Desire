@@ -56,6 +56,8 @@ class DownloadStore: ObservableObject {
     private var pendingResumeIDs: Set<UUID> = []
     /// Low Power：只恢复"因低电量被我们暂停"的行，不碰用户手动暂停的。
     private var powerObserver: NSObjectProtocol?
+    /// 并发名额释放通知（URLSession 行没有 WebView 的 observer，这里统一回泵）。
+    private var slotObserver: NSObjectProtocol?
     private var lowPowerPaused: Set<UUID> = []
     private var lastLowPower = ProcessInfo.processInfo.isLowPowerModeEnabled
 
@@ -81,6 +83,20 @@ class DownloadStore: ObservableObject {
         }
         loadHistory()
         installPowerPolicy()
+        // 下载时段窗口（v0.8.81 批 5）：窗口一开就放行排队项；没有窗口时
+        // resumeQueuedIfPossible 立刻返回（不产生额外网络/状态写）。
+        Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(60))
+                guard let self, !Task.isCancelled else { return }
+                self.resumeQueuedIfPossible()
+            }
+        }
+        slotObserver = NotificationCenter.default.addObserver(
+            forName: .downloadSlotFreed, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in self?.resumeQueuedIfPossible() }
+        }
         DownloadStore.live = self
     }
 
@@ -523,6 +539,36 @@ class DownloadStore: ObservableObject {
         AppPrefs.defaults.object(forKey: "maxConcurrentDownloads") as? Int ?? 0
     }
 
+    /// 普通下载的时段窗口（v0.8.81 批 5）：与批量下载共用
+    /// `BatchDownloadWindow` 的判定（支持跨午夜，0 时长 = 不限）。
+    var downloadWindow: BatchDownloadWindow? {
+        let defaults = AppPrefs.defaults
+        let start = defaults.string(forKey: "downloadWindowStart") ?? ""
+        let end = defaults.string(forKey: "downloadWindowEnd") ?? ""
+        guard !start.isEmpty, !end.isEmpty else { return nil }
+        return BatchDownloadWindow(
+            start: start, end: end,
+            maxDurationMinutes: defaults.integer(forKey: "downloadWindowMaxMinutes"))
+    }
+
+    var isDownloadWindowOpen: Bool {
+        guard let window = downloadWindow else { return true }
+        return window.isOpen(at: Date())
+    }
+
+    /// 窗口打开时按并发上限放行排队项（60s 一拍；窗口变化时也会立即调）。
+    func resumeQueuedIfPossible() {
+        guard isDownloadWindowOpen else { return }
+        let limit = maxConcurrentDownloads
+        var active = activeTransferCount
+        for item in downloads where item.isQueued {
+            if limit > 0, active >= limit { break }
+            guard item.state == .inProgress else { continue }
+            resumeFromQueue(id: item.id)
+            active += 1
+        }
+    }
+
     /// 正在传输的条数（inProgress 且非暂停/非排队）。
     var activeTransferCount: Int {
         downloads.filter { $0.state == .inProgress && !$0.isPaused && !$0.isQueued }.count
@@ -532,6 +578,7 @@ class DownloadStore: ObservableObject {
     /// 新下载的 item 已在 downloads 里（inProgress）——不排除它会把自己算进
     /// 进行中计数，上限=1 时第一条就自锁（实测踩过）。
     func beginTransferIfAllowed(excluding id: UUID? = nil) -> Bool {
+        guard isDownloadWindowOpen else { return false }
         let limit = maxConcurrentDownloads
         guard limit > 0 else { return true }
         let active = downloads.filter {
@@ -544,7 +591,7 @@ class DownloadStore: ObservableObject {
     /// decideDestination 的版本实测会把 parked 下载判失败（WebKit 的等待
     /// 窗口/连接语义不可赌），而 pause/resume 是本应用已充分验证的一条路。
     func pauseForQueue(id: UUID) {
-        markQueued(id: id)
+        markQueued(id: id, waitingForWindow: !isDownloadWindowOpen)
         pause(id: id)
     }
 
@@ -555,14 +602,16 @@ class DownloadStore: ObservableObject {
         resume(id: id)
     }
 
-    func markQueued(id: UUID) {
+    func markQueued(id: UUID, waitingForWindow: Bool = false) {
         guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
         downloads[i].isQueued = true
+        downloads[i].isWaitingForWindow = waitingForWindow
     }
 
     func markUnqueued(id: UUID) {
         guard let i = downloads.firstIndex(where: { $0.id == id }) else { return }
         downloads[i].isQueued = false
+        downloads[i].isWaitingForWindow = nil
     }
 
     /// 下载完成自动分析（v0.8.15 替人干活 18，opt-in 默认关）：文档类下载
@@ -999,6 +1048,27 @@ class DownloadStore: ObservableObject {
                 Log.downloads.info("duplicate download skipped: \(sourceURL.absoluteString, privacy: .public)")
                 return false
             }
+        }
+        // 时段窗口/并发上限（v0.8.81 批 5）：URLSession 路径此前完全没有
+        // 排队——窗口关闭时也立刻开始。这里先落一行"排队中"（不建 task），
+        // 窗口/名额一开由 resumeQueuedIfPossible / 完成回泵重新起。
+        if !beginTransferIfAllowed() {
+            let queuedID = UUID()
+            var queued = DownloadItem(
+                id: queuedID, filename: filename, fileURL: nil,
+                totalBytes: 0, downloadedBytes: 0,
+                state: .inProgress, error: nil,
+                cancel: nil,
+                sourceURL: sourceURL)
+            queued.isPrivate = isPrivate
+            queued.portableResume = false
+            queued.isPaused = true
+            queued.isQueued = true
+            queued.isWaitingForWindow = !isDownloadWindowOpen
+            _ = add(item: queued)
+            saveHistory()
+            Log.downloads.info("download queued: window=\(self.isDownloadWindowOpen, privacy: .public) \(sourceURL.absoluteString, privacy: .public)")
+            return true
         }
         let itemId = UUID()
         let task: URLSessionDownloadTask

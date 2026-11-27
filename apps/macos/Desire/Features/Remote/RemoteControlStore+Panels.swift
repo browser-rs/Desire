@@ -84,6 +84,7 @@ extension RemoteControlStore {
             ]
             if let group = groupByTab[tab.id] {
                 row["group"] = group.name
+                row["groupID"] = group.id.uuidString
                 row["groupColor"] = group.colorIndex
                 row["groupCollapsed"] = group.isCollapsed
             }
@@ -95,7 +96,8 @@ extension RemoteControlStore {
             "activeWindow": active.map { TabWindowMove.identifier($0) } ?? "",
             "windows": windows,
             "groups": groups.map { group -> [String: Any] in
-                ["name": group.name, "colorIndex": group.colorIndex,
+                ["id": group.id.uuidString,
+                 "name": group.name, "colorIndex": group.colorIndex,
                  "collapsed": group.isCollapsed, "count": group.tabIds.count]
             },
             "tabs": tabs,
@@ -103,8 +105,39 @@ extension RemoteControlStore {
     }
 
     func handleTabAction(_ inner: RemoteInnerFrame) {
-        guard let manager = TabSessionCoordinator.shared.activeTabManager,
-              let raw = inner.id, let tabID = UUID(uuidString: raw),
+        guard let manager = TabSessionCoordinator.shared.activeTabManager else {
+            sendTabsFrame()
+            return
+        }
+        // 新建/复制标签与组折叠不带标签 id（v0.8.81 批 4）。
+        switch inner.action {
+        case "new":
+            let raw = (inner.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            manager.addTab(url: raw.isEmpty ? nil : raw)
+            sendTabsFrame()
+            pushSnapshot(force: true)
+            return
+        case "duplicate":
+            let url = manager.tabs.indices.contains(manager.selectedIndex)
+                ? manager.tabs[manager.selectedIndex].urlString : ""
+            manager.addTab(url: url.isEmpty ? nil : url)
+            sendTabsFrame()
+            pushSnapshot(force: true)
+            return
+        case "toggleGroup":
+            let raw = (inner.text ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !raw.isEmpty, let store = AppState.live?.tabGroupStore else { break }
+            if let id = UUID(uuidString: raw) {
+                store.toggleCollapsed(id)
+            } else if let group = store.groups.first(where: { $0.name == raw }) {
+                store.toggleCollapsed(group.id)
+            }
+            sendTabsFrame()
+            return
+        default:
+            break
+        }
+        guard let raw = inner.id, let tabID = UUID(uuidString: raw),
               let index = manager.tabs.firstIndex(where: { $0.id == tabID }) else {
             sendTabsFrame()
             return
@@ -138,6 +171,25 @@ extension RemoteControlStore {
                 ["name": check.name, "ok": check.ok, "detail": check.detail]
             },
         ])
+    }
+
+    /// 同步安全动作（v0.8.81 批 4）：只做"重试"与"清冲突记录"——
+    /// 逐条采用本地/远端需要冲突条目的完整载荷与域级写回，当前记录里没有，
+    /// 不做看起来能点但语义不成立的开关。
+    func handleSyncAction(_ inner: RemoteInnerFrame) {
+        guard let store = AppState.live?.syncStore else { return }
+        switch inner.text {
+        case "retry":
+            Task { @MainActor [weak self] in
+                await store.syncNow()
+                self?.sendSyncHealthFrame()
+            }
+        case "clearConflicts":
+            store.clearConflictNotes()
+            sendSyncHealthFrame()
+        default:
+            break
+        }
     }
 
     func sendSyncHealthFrame() {
@@ -276,6 +328,12 @@ extension RemoteControlStore {
 
     func handleBatchAction(_ inner: RemoteInnerFrame) {
         let store = BatchMediaExportStore.shared
+        // 手机发起新批次（v0.8.81 批 4）：body 是 JSON（urls/folder/
+        // connections/windowStart/windowEnd/maxMinutes/maxConcurrent）。
+        if inner.action == "start" {
+            startBatchFromRemote(inner.body)
+            return
+        }
         guard let raw = inner.id, let batchID = UUID(uuidString: raw) else {
             sendBatchDownloadsFrame()
             return
@@ -297,10 +355,54 @@ extension RemoteControlStore {
             if let itemRaw = inner.itemID, let itemID = UUID(uuidString: itemRaw) {
                 store.retryItem(batchID: batchID, itemID: itemID)
             }
+        case "window":
+            applyRemoteWindow(body: inner.body, batchID: batchID)
         default:
             break
         }
         sendBatchDownloadsFrame()
+    }
+
+    /// 手机提交 URL 列表 → 本机起 list 批次；窗口/并发与 Mac 端同一套判定。
+    private func startBatchFromRemote(_ body: String?) {
+        guard let body, let data = body.data(using: .utf8),
+              let spec = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            sendInner(["t": "error", "message": "batch start: invalid body"])
+            return
+        }
+        let urls = (spec["urls"] as? [String] ?? [])
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        guard !urls.isEmpty else {
+            sendInner(["t": "error", "message": "batch start: missing urls"])
+            return
+        }
+        guard urls.count <= BatchMediaExportStore.maxItemsPerBatch else {
+            sendInner(["t": "error",
+                       "message": "batch start: too many urls (cap \(BatchMediaExportStore.maxItemsPerBatch))"])
+            return
+        }
+        let folder = (spec["folder"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let batch = BatchMediaExportStore.shared.startListBatch(
+            pageURLs: urls,
+            userAgent: nil,
+            folderName: folder?.isEmpty == false ? folder : URL(string: urls[0])?.host,
+            connections: spec["connections"] as? Int)
+        applyRemoteWindow(body: body, batchID: batch.id)
+        sendBatchDownloadsFrame()
+        pushSnapshot(force: true)
+    }
+
+    private func applyRemoteWindow(body: String?, batchID: UUID) {
+        guard let body, let data = body.data(using: .utf8),
+              let spec = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let start = spec["windowStart"] as? String,
+              let end = spec["windowEnd"] as? String,
+              let window = BatchDownloadWindow(
+                start: start, end: end,
+                maxDurationMinutes: spec["maxMinutes"] as? Int ?? 0,
+                maxConcurrent: spec["maxConcurrent"] as? Int ?? 0) else { return }
+        BatchMediaExportStore.shared.setWindow(batchID: batchID, window: window)
     }
 
     func sendDownloadHistoryFrame() {

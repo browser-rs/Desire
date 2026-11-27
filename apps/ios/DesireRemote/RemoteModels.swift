@@ -814,7 +814,9 @@ struct RemoteTabGroupInfo: Codable, Identifiable, Equatable {
     let colorIndex: Int
     let collapsed: Bool
     let count: Int
-    var id: String { name }
+    /// 组 id（v0.8.81 批 4；旧 Mac 不填 → 用组名兜底）
+    var groupID: String?
+    var id: String { groupID ?? name }
 }
 
 struct RemoteTabItem: Codable, Identifiable, Equatable {
@@ -822,6 +824,7 @@ struct RemoteTabItem: Codable, Identifiable, Equatable {
     let title: String
     let url: String
     let group: String?
+    var groupID: String?
     let groupColor: Int?
     let groupCollapsed: Bool?
     let selected: Bool

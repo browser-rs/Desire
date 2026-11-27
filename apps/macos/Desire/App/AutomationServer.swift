@@ -6119,6 +6119,7 @@ case ("GET", "/agent/messages"):
                 "paused": item.isPaused,
                 // 并发上限排队中（v0.7.19）。
                 "queued": item.isQueued,
+                "waitingForWindow": item.isWaitingForWindow == true,
                 "path": item.fileURL?.path ?? "",
                 "source": item.sourceURL?.absoluteString ?? "",
                 "bytes": item.downloadedBytes,
@@ -7560,6 +7561,9 @@ case ("GET", "/agent/messages"):
             "enabled": store.isEnabled,
             "connection": store.connectionForBridge,
             "pairing": pairing,
+            "lastAckAt": store.lastAckAt.map { ISO8601DateFormatter().string(from: $0) } ?? NSNull(),
+            "ackedFrames": store.ackedFrames,
+            "pendingAck": store.pendingAckCountForBridge,
             "devices": store.pairedDevices.map {
                 ["desktopDeviceId": $0.desktopDeviceId,
                  "desktopName": $0.desktopName,

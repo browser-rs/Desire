@@ -5,15 +5,17 @@ import SwiftUI
 struct RemoteTabsView: View {
     @EnvironmentObject var client: RemoteClient
     @State private var query = ""
+    @State private var selectedGroupKey: String?
 
     private var frame: RemoteTabsFrame? { client.tabsFrame }
 
     private var filtered: [RemoteTabItem] {
         guard let tabs = frame?.tabs else { return [] }
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        guard !trimmed.isEmpty else { return tabs }
-        return tabs.filter {
-            $0.title.lowercased().contains(trimmed) || $0.url.lowercased().contains(trimmed)
+        return tabs.filter { tab in
+            if let selectedGroupKey, groupKey(tab) != selectedGroupKey { return false }
+            guard !trimmed.isEmpty else { return true }
+            return tab.title.lowercased().contains(trimmed) || tab.url.lowercased().contains(trimmed)
         }
     }
 
@@ -22,45 +24,123 @@ struct RemoteTabsView: View {
     }
 
     var body: some View {
-        List {
-            if let frame, !frame.windows.isEmpty {
-                Section {
-                    ForEach(frame.windows) { window in
-                        HStack(spacing: 8) {
-                            Image(systemName: window.active ? "macwindow" : "macwindow.on.rectangle")
-                                .foregroundStyle(window.active ? DesireUI.brand : .secondary)
-                            Text(window.title)
-                                .lineLimit(1)
-                            Spacer()
-                            Text("\(window.tabs) 个标签")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+        VStack(spacing: 0) {
+            if let groups = frame?.groups, !groups.isEmpty {
+                groupBar(groups)
+            }
+            List {
+                if let frame, !frame.windows.isEmpty {
+                    Section {
+                        ForEach(frame.windows) { window in
+                            HStack(spacing: 8) {
+                                Image(systemName: window.active ? "macwindow" : "macwindow.on.rectangle")
+                                    .foregroundStyle(window.active ? DesireUI.brand : .secondary)
+                                Text(window.title)
+                                    .lineLimit(1)
+                                Spacer()
+                                Text("\(window.tabs) 个标签")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
+                    } header: {
+                        DesireSectionHeader(title: "窗口", subtitle: "点标签可切换；长按/右滑可关闭或移动")
                     }
-                } header: {
-                    DesireSectionHeader(title: "窗口", subtitle: "点标签可切换；长按/右滑可关闭或移动")
+                }
+
+                if filtered.isEmpty {
+                    DesireEmptyState(icon: "rectangle.stack", title: "没有标签",
+                                     message: query.isEmpty ? "Mac 的当前窗口没有标签。" : "没有匹配的标签。")
+                        .listRowBackground(Color.clear)
+                } else {
+                    Section {
+                        ForEach(filtered) { tab in
+                            row(tab)
+                        }
+                    } header: {
+                        DesireSectionHeader(title: "标签 · \(filtered.count)")
+                    }
                 }
             }
-
-            if filtered.isEmpty {
-                DesireEmptyState(icon: "rectangle.stack", title: "没有标签",
-                                 message: query.isEmpty ? "Mac 的当前窗口没有标签。" : "没有匹配的标签。")
-                    .listRowBackground(Color.clear)
-            } else {
-                Section {
-                    ForEach(filtered) { tab in
-                        row(tab)
+            .listStyle(.insetGrouped)
+        }
+        .navigationTitle("标签页")
+        .searchable(text: $query, prompt: "搜索标题或网址")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Menu {
+                    Button {
+                        client.tabAction("new", text: "")
+                    } label: {
+                        Label("新标签页", systemImage: "plus")
                     }
-                } header: {
-                    DesireSectionHeader(title: "标签 · \(filtered.count)")
+                    Button {
+                        client.tabAction("duplicate", text: "")
+                    } label: {
+                        Label("复制当前标签", systemImage: "plus.square.on.square")
+                    }
+                } label: {
+                    Image(systemName: "plus")
                 }
             }
         }
-        .listStyle(.insetGrouped)
-        .navigationTitle("标签页")
-        .searchable(text: $query, prompt: "搜索标题或网址")
         .onAppear { client.requestTabs() }
         .refreshable { client.requestTabs() }
+    }
+
+    /// 组过滤条：点胶囊过滤标签；长按可折叠/展开该组（Mac 端即时生效）。
+    private func groupBar(_ groups: [RemoteTabGroupInfo]) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 7) {
+                groupChip(title: "全部", key: nil, collapsed: false, count: frame?.tabs.count ?? 0)
+                ForEach(groups) { group in
+                    groupChip(title: group.name, key: group.id,
+                              collapsed: group.collapsed, count: group.count,
+                              group: group)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 8)
+        }
+        .background(.bar)
+    }
+
+    private func groupChip(title: String, key: String?, collapsed: Bool, count: Int,
+                           group: RemoteTabGroupInfo? = nil) -> some View {
+        let selected = selectedGroupKey == key
+        return Button {
+            selectedGroupKey = selected ? nil : key
+        } label: {
+            HStack(spacing: 4) {
+                if collapsed {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .bold))
+                }
+                Text(title).font(.caption.weight(.medium))
+                Text("\(count)")
+                    .font(.system(size: 9, weight: .semibold).monospacedDigit())
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, 5)
+            .background(Capsule().fill(selected ? DesireUI.brand.opacity(0.18) : Color.secondary.opacity(0.10)))
+            .foregroundStyle(selected ? DesireUI.brand : Color.primary)
+        }
+        .buttonStyle(.plain)
+        .contextMenu {
+            if let group {
+                Button {
+                    client.tabAction("toggleGroup", text: group.id)
+                } label: {
+                    Label(group.collapsed ? "展开分组" : "折叠分组",
+                          systemImage: group.collapsed ? "chevron.down" : "chevron.right")
+                }
+            }
+        }
+    }
+
+    private func groupKey(_ tab: RemoteTabItem) -> String? {
+        tab.groupID ?? tab.group
     }
 
     private func row(_ tab: RemoteTabItem) -> some View {

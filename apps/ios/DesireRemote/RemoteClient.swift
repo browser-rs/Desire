@@ -251,6 +251,13 @@ final class RemoteClient: ObservableObject {
     private var pullFailures = 0
     /// 已处理过的信箱帧 id（WS express 先到时，兜底 pull 的同 id 行跳过）
     private var processedIDs: Set<Int64> = []
+    /// 待回执帧（v0.8.81 批 4）：WS 收到的行不会像 pull 那样被取走，
+    /// 处理完要 ack；500ms 合并、最多 200 条/批。
+    private var pendingAckIDs: [Int64] = []
+    private var ackTask: Task<Void, Never>?
+    private var ackInFlight = false
+    @Published private(set) var lastAckAt: Date?
+    @Published private(set) var ackedFrames = 0
     /// 产物请求/回帧配对（v0.8.80 批 4）。
     private var artifactRequestPath: String?
     private var artifactsGeneration = 0
@@ -957,12 +964,58 @@ final class RemoteClient: ObservableObject {
         for item in items {
             guard !processedIDs.contains(item.id) else { continue }
             processedIDs.insert(item.id)
+            queueAck(id: item.id)
             if processedIDs.count > 500 { processedIDs.removeAll() }
             guard let sessionKeyB64,
                   let inner = RemoteCrypto.decrypt(payloadB64: item.payload, sessionKeyB64: sessionKeyB64)
             else { continue }
             handleInner(inner)
         }
+    }
+
+    /// 帧回执（v0.8.81 批 4）：不阻塞业务；失败就丢（1s pull 兜底会清行）。
+    private func queueAck(id: Int64) {
+        guard !pendingAckIDs.contains(id) else { return }
+        pendingAckIDs.append(id)
+        guard ackTask == nil else { return }
+        ackTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            guard let self, !Task.isCancelled else { return }
+            self.ackTask = nil
+            self.flushAcks()
+        }
+    }
+
+    private func flushAcks() {
+        guard !ackInFlight, !pendingAckIDs.isEmpty, let device = desktopDeviceID else { return }
+        let batch = Array(pendingAckIDs.prefix(200))
+        pendingAckIDs.removeFirst(batch.count)
+        ackInFlight = true
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { self.ackInFlight = false }
+            do {
+                let body = try JSONEncoder().encode(["ids": batch])
+                let _: AckResult = try await authedSend(
+                    "POST", "/remote/ack?device=\(device)", body: body)
+                self.lastAckAt = Date()
+                self.ackedFrames += batch.count
+            } catch {
+                // 旧服务端/网络失败：不重排队（pull 1s 兜底），避免 404 重试风暴。
+                self.pendingAckIDs.removeAll()
+                print("remote ack failed: \(error.localizedDescription)")
+            }
+            if !self.pendingAckIDs.isEmpty {
+                Task { @MainActor [weak self] in
+                    try? await Task.sleep(nanoseconds: 50_000_000)
+                    self?.flushAcks()
+                }
+            }
+        }
+    }
+
+    private struct AckResult: Codable {
+        var deleted: Int
     }
 
     /// 链路有活动：重连退避归零，界面回到连接态文案。
@@ -1516,6 +1569,10 @@ final class RemoteClient: ObservableObject {
     func requestBatchDownloads() { pushFrame(["t": "batchDownloads"], replace: false) }
     func requestDownloadHistory() { pushFrame(["t": "downloadHistory"], replace: false) }
     func requestTabs() { pushFrame(["t": "tabs"], replace: false) }
+    /// 同步安全动作（v0.8.81 批 4）：retry / clearConflicts。
+    func syncAction(_ action: String) {
+        pushFrame(["t": "syncAction", "text": action], replace: false)
+    }
     func requestDoctor() { pushFrame(["t": "doctor"], replace: false) }
     func requestSyncHealth() { pushFrame(["t": "syncHealth"], replace: false) }
     func requestAdapters() { pushFrame(["t": "adapters"], replace: false) }
@@ -1527,12 +1584,38 @@ final class RemoteClient: ObservableObject {
         pushFrame(frame, replace: false)
     }
 
+    /// 不带标签 id 的标签动作（v0.8.81 批 4）：new / duplicate / toggleGroup。
+    /// `text` = 新标签 URL 或组 id/组名。
+    func tabAction(_ action: String, text: String) {
+        pushFrame(["t": "tabAction", "action": action, "text": text], replace: false)
+    }
+
     /// 批量下载动作：pause / resume / retryFailed / cancel（批次）；
     /// skip / retry（需要 itemID）。
     func batchAction(_ action: String, batchID: String, itemID: String? = nil) {
         var frame: [String: Any] = ["t": "batchAction", "action": action, "id": batchID]
         if let itemID { frame["itemID"] = itemID }
         pushFrame(frame, replace: false)
+    }
+
+    /// 手机发起批量下载（v0.8.81 批 4）：URL 列表 + 文件夹/并发/时段窗口。
+    func startBatch(urls: [String], folder: String?, connections: Int?,
+                    windowStart: String?, windowEnd: String?,
+                    maxMinutes: Int, maxConcurrent: Int) {
+        var spec: [String: Any] = [
+            "urls": urls,
+            "connections": connections ?? 0,
+            "maxMinutes": maxMinutes,
+            "maxConcurrent": maxConcurrent,
+        ]
+        if let folder, !folder.isEmpty { spec["folder"] = folder }
+        if let windowStart, let windowEnd, !windowStart.isEmpty, !windowEnd.isEmpty {
+            spec["windowStart"] = windowStart
+            spec["windowEnd"] = windowEnd
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: spec),
+              let body = String(data: data, encoding: .utf8) else { return }
+        pushFrame(["t": "batchAction", "action": "start", "body": body], replace: false)
     }
 
     /// 适配器启停。

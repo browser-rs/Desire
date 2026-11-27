@@ -894,7 +894,9 @@ private struct DownloadRow: View {
     private var statusLine: some View {
         switch item.state {
         case .inProgress where item.isQueued:
-            Text("Waiting for a download slot…")
+            Text(item.isWaitingForWindow == true
+                 ? String(localized: "Waiting for the download window…")
+                 : String(localized: "Waiting for a download slot…"))
                 .font(.system(size: 11))
                 .foregroundStyle(.secondary)
         case .inProgress where item.isPaused:

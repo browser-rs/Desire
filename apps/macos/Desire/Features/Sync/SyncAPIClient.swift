@@ -238,6 +238,28 @@ nonisolated enum SyncAPIClient {
             token: accessToken)
     }
 
+    struct RemoteAckBody: Codable {
+        var ids: [Int64]
+    }
+
+    struct RemoteAckResult: Codable {
+        var deleted: Int
+    }
+
+    /// 已处理帧的回执（v0.8.81 批 4）：服务器只删自己信箱里的这些行；
+    /// 客户端按 200 条/批，失败不影响业务（pull 仍兜底）。
+    @discardableResult
+    static func remoteAck(
+        baseURL: String, accessToken: String, deviceID: String, ids: [Int64]
+    ) async throws -> Int {
+        guard !ids.isEmpty else { return 0 }
+        let result: RemoteAckResult = try await send(
+            "POST", baseURL, "/remote/ack?device=\(deviceID)",
+            body: encode(RemoteAckBody(ids: Array(ids.prefix(200)))),
+            token: accessToken)
+        return result.deleted
+    }
+
     static func remotePairingRevoke(
         baseURL: String, accessToken: String, deviceID: String, controllerName: String?
     ) async throws {

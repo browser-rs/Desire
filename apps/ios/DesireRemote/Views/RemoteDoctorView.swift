@@ -1,9 +1,11 @@
 import SwiftUI
 
-/// 体检与同步健康（v0.8.80 批 4）：Mac 的 Agent 体检、同步状态/冲突/设备、
-/// DPP 适配器启停。全部只读或显式开关，修复动作仍在 Mac 上做。
+/// 体检与同步健康（v0.8.80 批 4；v0.8.81 批 4 补安全动作）：Mac 的 Agent 体检、
+/// 同步状态/冲突/设备、DPP 适配器启停；同步可"重试"与"清冲突记录"，
+/// 其余修复动作仍在 Mac 上做。
 struct RemoteDoctorView: View {
     @EnvironmentObject var client: RemoteClient
+    @State private var confirmClearConflicts = false
 
     var body: some View {
         List {
@@ -104,6 +106,27 @@ struct RemoteDoctorView: View {
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
+                }
+                HStack(spacing: 10) {
+                    Button("重试同步") { client.syncAction("retry") }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    if !(sync.conflicts ?? []).isEmpty {
+                        Button("清冲突记录", role: .destructive) {
+                            confirmClearConflicts = true
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.mini)
+                    }
+                }
+                .confirmationDialog("清空冲突记录？", isPresented: $confirmClearConflicts,
+                                    titleVisibility: .visible) {
+                    Button("清空记录", role: .destructive) {
+                        client.syncAction("clearConflicts")
+                    }
+                    Button("取消", role: .cancel) {}
+                } message: {
+                    Text("只清空 Mac 上的冲突明细，不改动任何同步数据。")
                 }
                 if let devices = sync.devices, !devices.isEmpty {
                     ForEach(devices) { device in

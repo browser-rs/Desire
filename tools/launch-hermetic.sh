@@ -1,7 +1,10 @@
 #!/bin/bash
 # 封闭启动开发实例（v0.8.76）：文件存储与系统偏好一起隔离，不碰用户的任何数据。
 #
-# 用法：tools/launch-hermetic.sh [dataDir]        # 默认 /tmp/desire-e2e/data
+# 用法：tools/launch-hermetic.sh [dataDir|--fresh]   # 默认 /tmp/desire-e2e/data
+#
+#   --fresh      每次新建唯一 data-dir（/tmp/desire-e2e-XXXXXX）并把路径打出来；
+#                连续跑套件时用它能避免上一次的缩放/标签/阅读进度污染基线。
 #
 #   --data-dir   重定向 Desire 主目录（会话/记忆/档案/技能/工作区）。
 #                应用内的全部偏好读写经 AppPrefs 走独立的命名域
@@ -21,6 +24,11 @@
 set -euo pipefail
 
 DATA="${1:-/tmp/desire-e2e/data}"
+if [ "$DATA" = "--fresh" ]; then
+  DATA="$(mktemp -d /tmp/desire-e2e-XXXXXX)"
+elif [ "$DATA" = "--data-dir" ] && [ -n "${2:-}" ]; then
+  DATA="$2"
+fi
 case "$DATA" in /*) ;; *) DATA="$PWD/$DATA" ;; esac
 
 APP="$(ls -d "$HOME"/Library/Developer/Xcode/DerivedData/Desire-*/Build/Products/Debug/Desire.app 2>/dev/null | head -1 || true)"

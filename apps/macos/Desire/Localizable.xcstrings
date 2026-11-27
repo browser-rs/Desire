@@ -118270,6 +118270,226 @@
           }
         }
       }
+    },
+    "The everyday browser, finished":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The everyday browser, finished"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"日常浏览，补齐了"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"日常瀏覽，補齊了"
+          }
+        }
+      }
+    },
+    "Find can match whole words; history can keep only the last N days; a tab group can be saved as a workspace; and the password health card opens the site that needs a new password.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Find can match whole words; history can keep only the last N days; a tab group can be saved as a workspace; and the password health card opens the site that needs a new password."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"查找支持整词匹配；历史可以只保留最近 N 天；标签组可存为工作区；密码健康卡能直接打开需要改密的站点。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"查找支援整詞匹配；歷史可以只保留最近 N 天；標籤組可存為工作區；密碼健康卡能直接開啟需要改密的站點。"
+          }
+        }
+      }
+    },
+    "Accounts that can prove what happened":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Accounts that can prove what happened"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"账号能说清发生过什么"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"帳號能說清發生過什麼"
+          }
+        }
+      }
+    },
+    "Signing out now revokes every refresh token on that device, password changes and revocations take effect immediately, recovery codes reset an account once, and an audit log records sign-ins, password changes and device revocations. Rate limits and sync quotas are shared across server instances.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Signing out now revokes every refresh token on that device, password changes and revocations take effect immediately, recovery codes reset an account once, and an audit log records sign-ins, password changes and device revocations. Rate limits and sync quotas are shared across server instances."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"退出登录会吊销该设备全部刷新令牌；改密与吊销立即生效；恢复码可一次性重置账号；审计日志记录登录、改密与设备吊销。限流与同步配额在多台服务端实例间共享。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"登出會撤銷該裝置全部刷新權杖；改密與撤銷立即生效；恢復碼可一次性重設帳號；審計日誌記錄登入、改密與裝置撤銷。限流與同步配額在多台伺服器實例間共享。"
+          }
+        }
+      }
+    },
+    "An agent you can see through":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"An agent you can see through"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一个看得透的智能体"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"一個看得透的智能體"
+          }
+        }
+      }
+    },
+    "Missed weekly tasks catch up once on launch; prompt-cache prefix changes are explained in the trace; the approval card previews how many same-shape calls a batch will cover (max 8); revisions show a line diff and can be undone; spilled tool results have a searchable viewer.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Missed weekly tasks catch up once on launch; prompt-cache prefix changes are explained in the trace; the approval card previews how many same-shape calls a batch will cover (max 8); revisions show a line diff and can be undone; spilled tool results have a searchable viewer."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"错过的每周任务会在启动后补跑一次；提示词缓存前缀变化会在轨迹里说明；审批卡会预告本轮批量放行多少条同形状调用（最多 8 条）；修订可看行级 diff 并撤销；转存的大结果有可搜索的查看器。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"錯過的每週任務會在啟動後補跑一次；提示詞快取前綴變化會在軌跡裡說明；審批卡會預告本輪批量放行多少條同形狀調用（最多 8 條）；修訂可看行級 diff 並撤銷；轉存的大結果有可搜尋的檢視器。"
+          }
+        }
+      }
+    },
+    "The phone can start the work too":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"The phone can start the work too"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"手机也能发起任务"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"手機也能發起任務"
+          }
+        }
+      }
+    },
+    "Remote can open or duplicate tabs, filter and collapse groups, start a batch from a URL list with a time window, retry sync and clear conflict notes. Frame receipts now delete delivered rows instead of waiting for the next pull.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Remote can open or duplicate tabs, filter and collapse groups, start a batch from a URL list with a time window, retry sync and clear conflict notes. Frame receipts now delete delivered rows instead of waiting for the next pull."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Remote 可新建/复制标签、按组过滤与折叠分组、用 URL 列表和时段窗口直接发起批量下载、重试同步与清冲突记录。帧回执会及时删除已送达的行，不必等下一次拉取。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Remote 可新建/複製標籤、按組過濾與摺疊分組、用 URL 列表和時段視窗直接發起批量下載、重試同步與清衝突記錄。幀回執會及時刪除已送達的列，不必等下一次拉取。"
+          }
+        }
+      }
+    },
+    "Chains and downloads that hand off":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Chains and downloads that hand off"
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"任务链与下载能交接"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"任務鏈與下載能交接"
+          }
+        }
+      }
+    },
+    "Task cards show the full chain, each step can set its own retry limit, and Continue reuses the previous step's successful output. A command template's finished output now feeds the next chained task. Ordinary downloads share the concurrency/time-window queue, and Settings search accepts pinyin initials.":{
+      "localizations":{
+        "en":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"Task cards show the full chain, each step can set its own retry limit, and Continue reuses the previous step's successful output. A command template's finished output now feeds the next chained task. Ordinary downloads share the concurrency/time-window queue, and Settings search accepts pinyin initials."
+          }
+        },
+        "zh-Hans":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"任务卡显示完整链；每步可单独设重试上限；Continue 复用上一步成功输出。命令模板跑完后，输出会交给链上下一个任务。普通下载与批量下载共用并发/时段排队；设置搜索支持拼音首字母。"
+          }
+        },
+        "zh-Hant":{
+          "stringUnit":{
+            "state":"translated",
+            "value":"任務卡顯示完整鏈；每步可單獨設重試上限；Continue 復用上一步成功輸出。命令模板跑完後，輸出會交給鏈上下一個任務。普通下載與批量下載共用並發/時段排隊；設定搜尋支援拼音首字母。"
+          }
+        }
+      }
     }
   },
   "version":"1.0"

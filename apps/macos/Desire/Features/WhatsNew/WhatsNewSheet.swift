@@ -17,16 +17,16 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "lock.shield", title: String(localized: "Every site's permissions in one place"),
-                  detail: String(localized: "The lock popover can now change location, camera, microphone, popups and clipboard reads for this site, clear its data (with a time range) and switch on HTTPS-only with an explicit way back when a site cannot upgrade.")),
-            .init(icon: "key.horizontal", title: String(localized: "Passwords that tell you when to change them"),
-                  detail: String(localized: "Add or edit passwords, see a health card for weak, reused and stale entries, and run a breach check that only sends the first five characters of a SHA-1 hash. Autofill now supports named profiles and only fills empty fields.")),
-            .init(icon: "iphone.gen3", title: String(localized: "Your Mac, from your phone"),
-                  detail: String(localized: "Remote now lists live tabs (switch, close, move to another window), controls batch downloads item by item with the log tail, shows doctor and sync health, and switches between paired Macs. Artifacts finally load over the control channel.")),
-            .init(icon: "banknote", title: String(localized: "An agent that saves money and asks less"),
-                  detail: String(localized: "Prompt caching is measured across providers and breakpoints are set for Anthropic; a routing card suggests cheaper or faster models without switching by itself. Approve once to cover the rest of a turn's same calls, and a failed self-review gets one bounded revision.")),
-            .init(icon: "internaldrive", title: String(localized: "Know where the disk went"),
-                  detail: String(localized: "Settings › Storage reports every data type, clears caches on request and only deletes conversations when you set a retention period. Scheduled tasks can chain with the previous output, batch downloads can run in a time window, and the real screen-lock flag now pauses work until you are back.")),
+            .init(icon: "magnifyingglass.circle", title: String(localized: "The everyday browser, finished"),
+                  detail: String(localized: "Find can match whole words; history can keep only the last N days; a tab group can be saved as a workspace; and the password health card opens the site that needs a new password.")),
+            .init(icon: "lock.shield", title: String(localized: "Accounts that can prove what happened"),
+                  detail: String(localized: "Signing out now revokes every refresh token on that device, password changes and revocations take effect immediately, recovery codes reset an account once, and an audit log records sign-ins, password changes and device revocations. Rate limits and sync quotas are shared across server instances.")),
+            .init(icon: "brain.head.profile", title: String(localized: "An agent you can see through"),
+                  detail: String(localized: "Missed weekly tasks catch up once on launch; prompt-cache prefix changes are explained in the trace; the approval card previews how many same-shape calls a batch will cover (max 8); revisions show a line diff and can be undone; spilled tool results have a searchable viewer.")),
+            .init(icon: "iphone.gen3", title: String(localized: "The phone can start the work too"),
+                  detail: String(localized: "Remote can open or duplicate tabs, filter and collapse groups, start a batch from a URL list with a time window, retry sync and clear conflict notes. Frame receipts now delete delivered rows instead of waiting for the next pull.")),
+            .init(icon: "arrow.triangle.branch", title: String(localized: "Chains and downloads that hand off"),
+                  detail: String(localized: "Task cards show the full chain, each step can set its own retry limit, and Continue reuses the previous step's successful output. A command template's finished output now feeds the next chained task. Ordinary downloads share the concurrency/time-window queue, and Settings search accepts pinyin initials.")),
         ]
     }
 

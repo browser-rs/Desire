@@ -3,6 +3,8 @@
 
 - 浏览器顺手四件（v0.8.83 批 1）：标签概览支持方向键/回车/空格/Esc 键盘导航与焦点环；支付卡支持编辑/续期（换卡号保留同一 id，原子重写 Keychain，CVV 仍不落盘）；下载行显示 High/Low 优先级标识（右键菜单原有）。
 - 工具栏可自定义（v0.8.83 批 1）：设置→工具栏可显示/隐藏主页、缩放、插件、同步状态与右侧一排按钮，右侧按钮还能上下排序；新增的书签/阅读列表/分享/标签概览/阅读器按钮默认隐藏，未改设置的用户布局与旧版一致。桥 `GET|POST /diag/toolbar` 读写布局供回归。
+- 评估与门禁闭环（v0.8.83 批 2）：`agent-eval.py` 新增 E34–E40——缓存前缀稳定、审批预览/批量上限、修订/撤销、预算停机、错过补跑、通知 Retry/Ignore 动作、任务链失败→Continue 恢复；全部固定假端点、桥级断言，`--only E34,…` 可单跑。通知动作与系统代理共用 `NotificationRouter.handleAction`，桥新增 `/notifications/simulate|action`。`tools/launch-hermetic.sh` 新增 `--activate`（启动即激活，首窗指标不再被后台启动污染），先 SIGTERM 开发实例再兜底强杀；`tests/run-190.sh` 统一 fresh+activate 入口。
+
 
 
 

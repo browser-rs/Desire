@@ -5086,6 +5086,9 @@ class AgentSessionStore: ObservableObject {
         simulatedBatchCandidateOverride = batchCandidates
         Task { [weak self] in
             guard let self else { return }
+            // `/agent/new` 等路径会把 isCancelled 留为 true（等下一次真实发送
+            // 才重置）；模拟审批不在回合里，门槛应该照常进入而不是直接 denied。
+            self.isCancelled = false
             Log.agent.info("simulate: gate entered, isCancelled=\(self.isCancelled)")
             let outcome = await self.gate(toolCall: toolCall, risk: risk)
             Log.agent.info("simulate: gate returned \(String(describing: outcome), privacy: .public)")

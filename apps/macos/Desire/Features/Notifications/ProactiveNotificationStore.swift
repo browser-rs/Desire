@@ -292,13 +292,21 @@ final class ProactiveNotificationStore: ObservableObject {
         }
     }
 
+    /// 任务失败通知的 category/userInfo（模拟端点与真实投递共用，避免测试
+    /// 断言一份只在测试里构造的载荷）。
+    nonisolated static func taskNotificationPayload(taskName: String)
+        -> (category: String, userInfo: [String: Any]) {
+        ("SCHEDULED_TASK_FAILED", ["deepLink": "agent", "taskName": taskName])
+    }
+
     private nonisolated static func postTask(title: String, body: String, taskName: String) {
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
         content.sound = .default
-        content.categoryIdentifier = "SCHEDULED_TASK_FAILED"
-        content.userInfo = ["deepLink": "agent", "taskName": taskName]
+        let payload = Self.taskNotificationPayload(taskName: taskName)
+        content.categoryIdentifier = payload.category
+        content.userInfo = payload.userInfo
         UNUserNotificationCenter.current().add(UNNotificationRequest(
             identifier: "desire.task.\(UUID().uuidString)", content: content, trigger: nil))
     }

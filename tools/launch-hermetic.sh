@@ -1,10 +1,14 @@
 #!/bin/bash
 # 封闭启动开发实例（v0.8.76）：文件存储与系统偏好一起隔离，不碰用户的任何数据。
 #
-# 用法：tools/launch-hermetic.sh [dataDir|--fresh]   # 默认 /tmp/desire-e2e/data
+# 用法：tools/launch-hermetic.sh [dataDir|--fresh] [--activate]
+#       默认 /tmp/desire-e2e/data
 #
 #   --fresh      每次新建唯一 data-dir（/tmp/desire-e2e-XXXXXX）并把路径打出来；
 #                连续跑套件时用它能避免上一次的缩放/标签/阅读进度污染基线。
+#   --activate   启动后立即激活并等 /state.isActive=true（启动指标/190 用）。
+#                后台 open -g 会让 firstWindowMs 记成 ~20s（等有人点窗口），
+#                这是**测试口径**问题，不是启动回归。
 #
 #   --data-dir   重定向 Desire 主目录（会话/记忆/档案/技能/工作区）。
 #                应用内的全部偏好读写经 AppPrefs 走独立的命名域
@@ -23,12 +27,24 @@
 # 清理隔离域：defaults delete me.siwi.Desire.automation
 set -euo pipefail
 
-DATA="${1:-/tmp/desire-e2e/data}"
-if [ "$DATA" = "--fresh" ]; then
-  DATA="$(mktemp -d /tmp/desire-e2e-XXXXXX)"
-elif [ "$DATA" = "--data-dir" ] && [ -n "${2:-}" ]; then
-  DATA="$2"
-fi
+DATA=""
+ACTIVATE=0
+EXPECT_DATA=0
+for arg in "$@"; do
+  if [ "$EXPECT_DATA" = "1" ]; then
+    DATA="$arg"
+    EXPECT_DATA=0
+    continue
+  fi
+  case "$arg" in
+    --activate) ACTIVATE=1 ;;
+    --fresh) DATA="$(mktemp -d /tmp/desire-e2e-XXXXXX)" ;;
+    --data-dir) EXPECT_DATA=1 ;;
+    -*) ;;
+    *) [ -z "$DATA" ] && DATA="$arg" ;;
+  esac
+done
+DATA="${DATA:-/tmp/desire-e2e/data}"
 case "$DATA" in /*) ;; *) DATA="$PWD/$DATA" ;; esac
 
 APP="$(ls -d "$HOME"/Library/Developer/Xcode/DerivedData/Desire-*/Build/Products/Debug/Desire.app 2>/dev/null | head -1 || true)"
@@ -40,11 +56,29 @@ fi
 mkdir -p "$DATA"
 
 # 只结束开发实例（按 DerivedData 路径匹配）；/Applications 的安装版不受影响。
+# 先 SIGTERM（应用会走 NSApp.terminate → 会话 flush）；强杀会跳过退出路径，
+# 下一次启动可能没有主窗（2026-10-20 实测）。等不到再 -9 兜底。
+pkill -TERM -f "DerivedData/Desire-.*/Build/Products/Debug" 2>/dev/null || true
+for _ in $(seq 1 20); do
+  pgrep -f "DerivedData/Desire-.*/Build/Products/Debug" >/dev/null 2>&1 || break
+  sleep 0.25
+done
 pkill -9 -f "DerivedData/Desire-.*/Build/Products/Debug" 2>/dev/null || true
-sleep 1
+sleep 0.5
 
 open -g "$APP" --args --automation "--data-dir=$DATA"
+
+if [ "$ACTIVATE" = "1" ]; then
+  for _ in $(seq 1 20); do
+    osascript -e 'tell application "Desire" to activate' >/dev/null 2>&1 || true
+    if curl -s --max-time 1 http://127.0.0.1:8799/state 2>/dev/null | grep -q '"isActive":true'; then
+      break
+    fi
+    sleep 0.4
+  done
+fi
 
 echo "dataDir:       $DATA"
 echo "prefs domain:  me.siwi.Desire.automation"
 echo "app:           $APP"
+echo "activated:     $ACTIVATE"

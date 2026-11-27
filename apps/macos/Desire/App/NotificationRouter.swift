@@ -29,50 +29,57 @@ final class NotificationRouter: NSObject, UNUserNotificationCenterDelegate {
         withCompletionHandler completionHandler: @escaping () -> Void
     ) {
         let identifier = response.notification.request.identifier
-        let userInfo = response.notification.request.content.userInfo
-        let isUpdate = identifier.hasPrefix("desire.update.")
-        let isAgent = identifier.hasPrefix("desire.agent.")
-        let isDownload = identifier.hasPrefix("desire.download.")
-        let isJob = identifier.hasPrefix("desire.job.")
-        let isTask = identifier.hasPrefix("desire.task.")
-        let taskName = userInfo["taskName"] as? String
-        let url = userInfo["url"] as? String
-        let filePath = userInfo["filePath"] as? String ?? ""
-        let artifact = userInfo["artifact"] as? String ?? ""
+        // UNNotificationContent.userInfo 是 [AnyHashable: Any]；路由层固定用
+        // [String: Any]（桥端也是 JSON 字典），这里收口一次。
+        var userInfo: [String: Any] = [:]
+        for (key, value) in response.notification.request.content.userInfo {
+            if let key = key as? String { userInfo[key] = value }
+        }
+        let category = response.notification.request.content.categoryIdentifier
         let actionID = response.actionIdentifier
+        let notificationUserInfo = userInfo
         Task { @MainActor in
-            NSApp.activate(ignoringOtherApps: true)
-            if isUpdate {
-                UpdateChecker.handleTap(userInfo: ["url": url ?? ""])
-            } else if isAgent {
-                Self.ensureAgentPanel()
-            } else if isDownload {
-                if actionID == "OPEN_DOWNLOAD", FileManager.default.fileExists(atPath: filePath) {
-                    NSWorkspace.shared.open(URL(fileURLWithPath: filePath))
-                } else if actionID == "SHOW_IN_FINDER", FileManager.default.fileExists(atPath: filePath) {
-                    NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: filePath)])
-                } else {
-                    // 普通点击已在 activate(ignoringOtherApps:) 激活应用——
-                    // 用户可从工具栏打开下载面板。
-                }
-            } else if isTask {
-                if actionID == "RETRY_TASK", let taskName, !taskName.isEmpty {
-                    _ = AgentScheduler.shared.fireNow(named: taskName)
-                } else {
-                    Self.ensureAgentPanel()
-                }
-            } else if isJob {
-                if actionID == "OPEN_JOB_RESULT", !artifact.isEmpty {
-                    if artifact.hasPrefix("http://") || artifact.hasPrefix("https://") {
-                        TabSessionCoordinator.shared.activeTabManager?.addTab(url: artifact)
-                    } else {
-                        NSWorkspace.shared.open(URL(fileURLWithPath: artifact))
-                    }
-                } else {
-                    NotificationCenter.default.post(name: .openJobsPanel, object: nil)
-                }
-            }
+            self.handleAction(category: category, identifier: identifier,
+                              userInfo: notificationUserInfo, actionID: actionID)
             completionHandler()
+        }
+    }
+
+    /// 动作路由的单一实现：系统代理与自动化桥（`POST /notifications/action`）
+    /// 走同一条路径——测试不会测到一份"只存在于测试里"的分支。
+    @MainActor
+    func handleAction(category: String, identifier: String,
+                      userInfo: [String: Any], actionID: String) {
+        NSApp.activate(ignoringOtherApps: true)
+        if identifier.hasPrefix("desire.update.") || category == "UPDATE_AVAILABLE" {
+            UpdateChecker.handleTap(userInfo: ["url": (userInfo["url"] as? String) ?? ""])
+        } else if identifier.hasPrefix("desire.agent.") || category == "AGENT" {
+            Self.ensureAgentPanel()
+        } else if identifier.hasPrefix("desire.download.") || category == "DOWNLOAD_COMPLETE" {
+            let filePath = userInfo["filePath"] as? String ?? ""
+            if actionID == "OPEN_DOWNLOAD", FileManager.default.fileExists(atPath: filePath) {
+                NSWorkspace.shared.open(URL(fileURLWithPath: filePath))
+            } else if actionID == "SHOW_IN_FINDER", FileManager.default.fileExists(atPath: filePath) {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: filePath)])
+            }
+        } else if identifier.hasPrefix("desire.task.") || category == "SCHEDULED_TASK_FAILED" {
+            let taskName = userInfo["taskName"] as? String
+            if actionID == "RETRY_TASK", let taskName, !taskName.isEmpty {
+                _ = AgentScheduler.shared.fireNow(named: taskName)
+            } else {
+                Self.ensureAgentPanel()
+            }
+        } else if identifier.hasPrefix("desire.job.") || category == "JOB_COMPLETE" {
+            let artifact = userInfo["artifact"] as? String ?? ""
+            if actionID == "OPEN_JOB_RESULT", !artifact.isEmpty {
+                if artifact.hasPrefix("http://") || artifact.hasPrefix("https://") {
+                    TabSessionCoordinator.shared.activeTabManager?.addTab(url: artifact)
+                } else {
+                    NSWorkspace.shared.open(URL(fileURLWithPath: artifact))
+                }
+            } else {
+                NotificationCenter.default.post(name: .openJobsPanel, object: nil)
+            }
         }
     }
 

@@ -30,6 +30,7 @@ import sys
 import tempfile
 import re
 import time
+from datetime import datetime, timedelta, timezone
 import urllib.error
 import urllib.request
 import uuid
@@ -66,6 +67,8 @@ EVAL_SKILL2_NAME = os.environ.get("EVAL_SKILL2_NAME") or "eval-scope2"
 # OVERFLOW_ONCE：第一次带 OVERFLOWTEST 的请求报 context length 错误，之后正常 ——
 # 用于验证应用会"压缩预算减半重试"。
 overflow_seen = 0
+# E40：链第二步第一次失败、第二次成功（Continue 复用上游输出后应跑通）。
+chain_fail_seen = 0
 # E27：双语翻译请求计数（第二遍缓存命中后应保持 0——"零模型调用"的硬证据）。
 bilingual_request_count = 0
 # E7：逐请求记录（model/system 首段/末条 user）——断言旁路路由后的请求模型。
@@ -97,7 +100,7 @@ class Handler(BaseHTTPRequestHandler):
         return "".join(blocks)
 
     def do_GET(self):
-        global overflow_seen, bilingual_request_count
+        global overflow_seen, bilingual_request_count, chain_fail_seen
         # /requests：dump 已记录的请求（E7 断言旁路路由后的 model 字段）。
         if self.path.startswith("/requests"):
             body = json.dumps({"requests": REQUESTS}).encode()
@@ -153,6 +156,7 @@ class Handler(BaseHTTPRequestHandler):
         if self.path.startswith("/reset"):
             overflow_seen = 0
             bilingual_request_count = 0
+            chain_fail_seen = 0
             self.send_response(200); self.send_header("Content-Length", "2"); self.end_headers()
             self.wfile.write(b"ok"); return
         # /e20：canvas 按钮 fixture（E20 视觉点击——按钮只在 canvas 里画出来，
@@ -421,6 +425,15 @@ c.addEventListener('click', function(ev) {
 
         # ---------- v0.8.76 批 6：直通技能 / 纠正补丁 / 精简工具 ----------
 
+        # E36（v0.8.83）：自评/修订是**旁路调用**，system 带固定开头；必须在
+        # mode 分支之前判——它们的 user 内容也带着 E36REV。
+        if "你是这次任务的自评者" in system_text:
+            sse_reply("未验证：第三个文件读取失败，但回答仍宣称完成。")
+            return
+        if "你在自评之后修订自己的最终答案" in system_text:
+            sse_reply("E36-REVISED 修订后的答案：第三个文件读取失败，因此无法确认全部内容。")
+            return
+
         # 纠正回写技能的旁路补丁请求：tools 为空、system 带标记（顺序在一切 mode 分支前——
         # 它没有 user 消息，mode_text 是空的）。
         if "DESIRE_SKILL_PATCH" in system_text:
@@ -497,6 +510,75 @@ c.addEventListener('click', function(ev) {
                 self.wfile.flush(); self.close_connection = True
                 return
             sse_reply("EVAL-SCOPE-DONE")
+            return
+
+        # E36（v0.8.83）：修订链的确定性素材——3 次 readFile（一个失败）
+        # 触发机械证据，再给一个"宣称完成"的原答案；自评/修订请求由上面的
+        # system 分支回答。
+        if "E36REV" in mode_text:
+            if not has_tool:
+                calls = []
+                for i, path in enumerate([MISSING_PATH, MISSING_PATH + ".b", MISSING_PATH + ".c"]):
+                    calls.append({"index": i, "id": f"call_e36_{i}", "type": "function",
+                                  "function": {"name": "readFile",
+                                               "arguments": json.dumps({"path": path})}})
+                chunk = {"id": "chatcmpl-e36", "object": "chat.completion.chunk",
+                         "created": int(time.time()), "model": model,
+                         "choices": [{"index": 0,
+                                      "delta": {"role": "assistant", "tool_calls": calls},
+                                      "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                done = {"id": "chatcmpl-e36", "object": "chat.completion.chunk",
+                        "created": int(time.time()), "model": model,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}]}
+                self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush(); self.close_connection = True
+                return
+            sse_reply("E36-ORIGINAL 已完成。")
+            return
+
+        # E37（v0.8.83）：预算停在步骤边界——第一次请求发一个只读调用（带上
+        # usage），工具结果之后不应再有第二次模型请求。
+        if "E37BUDGET" in mode_text:
+            if not has_tool:
+                calls = [{"index": 0, "id": "call_e37", "type": "function",
+                          "function": {"name": "readFile",
+                                       "arguments": json.dumps({"path": SECRET_PATH})}}]
+                chunk = {"id": "chatcmpl-e37", "object": "chat.completion.chunk",
+                         "created": int(time.time()), "model": model,
+                         "choices": [{"index": 0,
+                                      "delta": {"role": "assistant", "tool_calls": calls},
+                                      "finish_reason": None}]}
+                self.wfile.write(f"data: {json.dumps(chunk)}\n\n".encode())
+                done = {"id": "chatcmpl-e37", "object": "chat.completion.chunk",
+                        "created": int(time.time()), "model": model,
+                        "choices": [{"index": 0, "delta": {}, "finish_reason": "tool_calls"}],
+                        "usage": {"prompt_tokens": 12000, "completion_tokens": 800,
+                                  "total_tokens": 12800}}
+                self.wfile.write(f"data: {json.dumps(done)}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush(); self.close_connection = True
+                return
+            sse_reply("E37-DONE")
+            return
+
+        # E40（v0.8.83）：链第二步第一次报错（流内 error），Continue 后的第二次
+        # 成功。先判 CHAINFAIL——B 的提示词里也带着 A 的输出（含 CHAINOK）。
+        if "CHAINFAIL" in mode_text:
+            global chain_fail_seen
+            if chain_fail_seen == 0:
+                chain_fail_seen = 1
+                payload = {"error": {"message": "E40 simulated chain failure",
+                                     "type": "server_error"}}
+                self.wfile.write(f"data: {json.dumps(payload)}\n\n".encode())
+                self.wfile.write(b"data: [DONE]\n\n")
+                self.wfile.flush(); self.close_connection = True
+                return
+            sse_reply("CHAINFAIL-ANSWER 第二步完成")
+            return
+        if "CHAINOK" in mode_text:
+            sse_reply("CHAINOK-ANSWER 第一步完成")
             return
 
         # E27：双语翻译请求（BilingualReadingService.translateBatch）——system
@@ -2763,6 +2845,274 @@ def case_scoped_tools():
         bridge("POST", "/skills/reload", body={})
 
 
+def case_cache_prefix_stable():
+    """E34 缓存前缀稳定（v0.8.83）：同一会话两回合的稳定段哈希一致，
+    第二回合不再报告前缀变化。"""
+    new_agent_conversation()
+    first_msgs = run_case("EVAL-CACHE 第一回合")
+    _, first_assistant, _ = last_exchange(first_msgs)
+    first_hash = first_assistant.get("promptPrefixHash")
+    first_reason = first_assistant.get("promptPrefixChanged")
+    check("E34 第一回合记录了前缀哈希", bool(first_hash))
+    check("E34 第一回合标记为 first", first_reason == "first")
+
+    second_msgs = run_case("EVAL-CACHE 第二回合")
+    _, second_assistant, _ = last_exchange(second_msgs)
+    second_hash = second_assistant.get("promptPrefixHash")
+    second_reason = second_assistant.get("promptPrefixChanged")
+    check("E34 两回合稳定段哈希一致", bool(first_hash) and first_hash == second_hash)
+    check("E34 第二回合未报告前缀变化", not second_reason)
+
+
+def case_approval_preview():
+    """E35 审批预览/批量上限（v0.8.83）：模拟一条待批调用，断言预览字段
+    （参数摘要/候选数/批量上限），再拒绝收尾。"""
+    names = {0: "confirm", 1: "auto", 2: "full"}
+
+    def set_access(level):
+        if level not in names:
+            return
+        bridge("POST", "/agent/send", body={"text": "/access " + names[level]})
+        deadline = time.time() + 3
+        while time.time() < deadline:
+            if bridge("GET", "/agent/messages").get("accessLevel") == level:
+                return
+            time.sleep(0.1)
+
+    bridge("POST", "/agent/new", body={})
+    time.sleep(0.5)
+    previous = bridge("GET", "/agent/messages").get("accessLevel", 0)
+    # 完全访问档会直接放行模拟调用（没有待批卡）——临时降到"确认"档，
+    # 结束后按原值恢复（评估实例共享偏好，别把档位留在测试值）。
+    try:
+        if previous != 0:
+            set_access(0)
+        simulated = bridge("POST", "/approvals/simulate", body={
+            "tool": "readClipboard",
+            "risk": "dangerous",
+            "batchCandidates": 12,
+            "arguments": json.dumps({"path": "/tmp/e35", "mode": "fast"}),
+        })
+        check("E35 模拟审批被接受", simulated.get("ok") is True)
+
+        pending = {}
+        deadline = time.time() + 5
+        while time.time() < deadline:
+            pending = bridge("GET", "/approvals")
+            if pending.get("pending"):
+                break
+            time.sleep(0.2)
+        check("E35 待批卡出现", pending.get("pending") is True)
+        check("E35 工具名/风险对得上",
+              pending.get("tool") == "readClipboard" and bool(pending.get("risk")))
+        check("E35 参数摘要带出 path", "/tmp/e35" in (pending.get("arguments") or ""))
+        check("E35 候选参数键齐全",
+              set(pending.get("batchArgumentKeys") or []) == {"mode", "path"})
+        check("E35 候选数透传", pending.get("batchCandidateCount") == 12)
+        check("E35 批量上限为 8", pending.get("batchLimit") == 8)
+
+        resolved = bridge("POST", "/approvals/resolve", body={"decision": "deny"})
+        check("E35 拒绝收尾成功", resolved.get("ok") is True)
+        deadline = time.time() + 3
+        while time.time() < deadline:
+            if not bridge("GET", "/approvals").get("pending"):
+                break
+            time.sleep(0.2)
+        check("E35 拒绝后不再挂起", not bridge("GET", "/approvals").get("pending"))
+    finally:
+        if previous != 0:
+            set_access(previous)
+
+
+def case_revision_roundtrip():
+    """E36 修订/撤销（v0.8.83）：3 次失败工具调用 → 自评指出未验证 →
+    自动修订替换正文（保留原答案）→ 桥撤销恢复原文。"""
+    new_agent_conversation()
+    run_case("E36REV 读取三个文件并汇报结果")
+
+    target = None
+    deadline = time.time() + 30
+    while time.time() < deadline:
+        msgs = bridge("GET", "/agent/messages").get("messages", [])
+        candidates = [m for m in msgs if m.get("role") == "assistant"
+                      and ("E36-REVISED" in (m.get("content") or "")
+                           or "E36-ORIGINAL" in (m.get("content") or ""))]
+        if candidates and candidates[-1].get("wasRevised"):
+            target = candidates[-1]
+            break
+        time.sleep(0.5)
+
+    check("E36 自动修订完成", target is not None and target.get("wasRevised") is True)
+    if target:
+        check("E36 修订稿替换正文", "E36-REVISED" in (target.get("content") or ""))
+        check("E36 原答案已保留", (target.get("originalAnswerLength") or 0) > 0)
+        check("E36 自评指出具体问题", "未验证" in (target.get("critique") or ""))
+        undone = bridge("POST", "/agent/revision/undo", body={"message": target["id"]})
+        check("E36 撤销调用成功", undone.get("ok") is True)
+        after = next((m for m in bridge("GET", "/agent/messages").get("messages", [])
+                      if m.get("id") == target["id"]), {})
+        check("E36 撤销恢复原答案",
+              "E36-ORIGINAL" in (after.get("content") or "")
+              and not after.get("wasRevised"))
+
+
+def case_budget_stop():
+    """E37 预算停机（v0.8.83）：低预算 + 一次工具调用，回合在步骤边界停下，
+    不再发第二次模型请求，预算状态/档位与可见说明都到位。"""
+    new_agent_conversation()
+    set_result = bridge("POST", "/agent/budget", body={"tokens": 500})
+    check("E37 预算设置生效", set_result.get("budget") == 500)
+    try:
+        msgs = run_case("E37BUDGET 读一个文件")
+        budget = bridge("GET", "/agent/budget")
+        print(f"    [E37 budget] {budget}")
+        check("E37 预算状态为 stopped", budget.get("state") == "stopped")
+        check("E37 停机档位已推进", (budget.get("stopLevel") or 1) >= 2)
+        check("E37 有可见停机说明",
+              any("会话预算已用尽" in (m.get("content") or "") for m in msgs))
+        check("E37 停机后没有第二次模型请求",
+              not any("E37-DONE" in (m.get("content") or "") for m in msgs))
+    finally:
+        bridge("POST", "/agent/budget", body={"tokens": 0})
+
+
+def case_schedule_catchup():
+    """E38 错过补跑（v0.8.83）：间隔任务回填 15 分钟前的 lastFiredAt，
+    调度器应在下一轮巡检补跑一次并标 catchUp。"""
+    name = f"eval-catchup-{RUN_TAG}"
+    last = (datetime.now(timezone.utc) - timedelta(minutes=15)).isoformat().replace("+00:00", "Z")
+    created = bridge("POST", "/agent/tasks/create", body={
+        "name": name,
+        "prompt": "E38CATCHUP 补跑检查",
+        "minutes": 5,
+        "lastFiredAt": last,
+    })
+    check("E38 任务创建成功", created.get("ok") is not False and not created.get("error"))
+    try:
+        run = None
+        deadline = time.time() + 45
+        while time.time() < deadline:
+            data = bridge("GET", "/agent/tasks")
+            run = next((r for r in data.get("runs", []) if r.get("task") == name), None)
+            if run:
+                break
+            time.sleep(2)
+        check("E38 补跑已触发", run is not None)
+        if run:
+            check("E38 运行记录标记 catchUp", run.get("catchUp") is True)
+            check("E38 补跑回到成功/已投递",
+                  run.get("status") in ("success", "delivered", "running"))
+    finally:
+        bridge("POST", "/agent/tasks/remove", body={"name": name})
+
+
+def case_notification_actions():
+    """E39 通知动作（v0.8.83）：任务失败通知的 category/userInfo 由生产代码
+    构造；Retry 走与系统代理相同的路由重投任务，Ignore 只激活不重投。"""
+    retry_name = f"eval-notify-retry-{RUN_TAG}"
+    ignore_name = f"eval-notify-ignore-{RUN_TAG}"
+    for name in (retry_name, ignore_name):
+        bridge("POST", "/agent/tasks/create", body={
+            "name": name, "prompt": "E39 通知动作检查", "minutes": 10080,
+        })
+    try:
+        payload = bridge("POST", "/notifications/simulate", body={"taskName": retry_name})
+        check("E39 通知 category 正确", payload.get("category") == "SCHEDULED_TASK_FAILED")
+        check("E39 userInfo 带任务名",
+              (payload.get("userInfo") or {}).get("taskName") == retry_name)
+        check("E39 动作清单为 Retry/Ignore",
+              set(payload.get("actions") or []) == {"RETRY_TASK", "IGNORE_TASK"})
+
+        bridge("POST", "/notifications/action", body={
+            "category": payload.get("category"),
+            "action": "RETRY_TASK",
+            "identifier": "desire.task.e2e",
+            "userInfo": payload.get("userInfo") or {},
+        })
+        run = None
+        deadline = time.time() + 15
+        while time.time() < deadline:
+            data = bridge("GET", "/agent/tasks")
+            run = next((r for r in data.get("runs", []) if r.get("task") == retry_name), None)
+            if run:
+                break
+            time.sleep(1)
+        check("E39 Retry 真的重投了任务", run is not None)
+
+        ignore_payload = bridge("POST", "/notifications/simulate",
+                                body={"taskName": ignore_name})
+        bridge("POST", "/notifications/action", body={
+            "category": ignore_payload.get("category"),
+            "action": "IGNORE_TASK",
+            "identifier": "desire.task.e2e",
+            "userInfo": ignore_payload.get("userInfo") or {},
+        })
+        time.sleep(2)
+        runs = bridge("GET", "/agent/tasks").get("runs", [])
+        check("E39 Ignore 不重投任务",
+              not any(r.get("task") == ignore_name for r in runs))
+    finally:
+        for name in (retry_name, ignore_name):
+            bridge("POST", "/agent/tasks/remove", body={"name": name})
+
+
+def case_chain_failure():
+    """E40 链失败恢复（v0.8.83）：A 成功 → B 失败（B 的提示词带上 A 输出）；
+    Continue 复用 A 的最近成功输出重跑 B，第二次成功。"""
+    fixture_bridge("GET", "/reset")
+    first = f"eval-chain-a-{RUN_TAG}"
+    second = f"eval-chain-b-{RUN_TAG}"
+    for name, prompt in ((first, "CHAINOK 第一步"),
+                         (second, "CHAINFAIL 第二步 {{prev.output}}")):
+        bridge("POST", "/agent/tasks/create", body={
+            "name": name, "prompt": prompt, "minutes": 10080, "retries": 0,
+        })
+    try:
+        chained = bridge("POST", "/agent/tasks/chain",
+                         body={"name": first, "chainTo": second})
+        check("E40 链设置成功", chained.get("ok") is True)
+        fired = bridge("POST", "/agent/tasks/fire", body={"name": first})
+        check("E40 第一步已投递", fired.get("ok") is True)
+
+        first_run = None
+        second_run = None
+        deadline = time.time() + 40
+        while time.time() < deadline:
+            data = bridge("GET", "/agent/tasks")
+            first_run = next((r for r in data.get("runs", []) if r.get("task") == first), None)
+            second_run = next((r for r in data.get("runs", []) if r.get("task") == second), None)
+            if (first_run and first_run.get("status") == "success"
+                    and second_run and second_run.get("status") in ("success", "failed")):
+                break
+            time.sleep(1)
+
+        check("E40 第一步成功", first_run is not None and first_run.get("status") == "success")
+        check("E40 第二步失败", second_run is not None and second_run.get("status") == "failed")
+        check("E40 第二步拿到上游输出",
+              first_run is not None
+              and "CHAINOK-ANSWER" in (second_run.get("prompt") or "")
+              and "{{prev.output}}" not in (second_run.get("prompt") or ""))
+
+        continued = bridge("POST", "/agent/tasks/continue", body={"name": second})
+        check("E40 Continue 被接受", continued.get("ok") is True)
+
+        retried = None
+        deadline = time.time() + 30
+        while time.time() < deadline:
+            data = bridge("GET", "/agent/tasks")
+            retried = next((r for r in data.get("runs", [])
+                            if r.get("task") == second and r.get("status") == "success"), None)
+            if retried:
+                break
+            time.sleep(1)
+        check("E40 Continue 后第二步成功", retried is not None)
+        if retried:
+            check("E40 重跑仍带上游输出", "CHAINOK-ANSWER" in (retried.get("prompt") or ""))
+    finally:
+        for name in (first, second):
+            bridge("POST", "/agent/tasks/remove", body={"name": name})
+
+
 def fixture_base_url() -> str:
     return fixture_endpoint().rsplit("/v1/", 1)[0]
 
@@ -2797,7 +3147,14 @@ CASES = [("E1 plain-echo", case_plain_echo),
          ("E28 tool-fixtures（本地专属，EVAL_E28=1 开启；浏览器+书库依赖）", case_tool_fixtures),
          ("E29 skill-direct-hit", case_skill_direct_hit),
          ("E30 correction-patch", case_correction_patch),
-         ("E31 scoped-tools", case_scoped_tools)]
+         ("E31 scoped-tools", case_scoped_tools),
+         ("E34 cache-prefix-stable", case_cache_prefix_stable),
+         ("E35 approval-preview", case_approval_preview),
+         ("E36 revision-roundtrip", case_revision_roundtrip),
+         ("E37 budget-stop", case_budget_stop),
+         ("E38 schedule-catchup", case_schedule_catchup),
+         ("E39 notification-actions", case_notification_actions),
+         ("E40 chain-failure-recovery", case_chain_failure)]
 
 results = []
 ONLY = set()

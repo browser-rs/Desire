@@ -729,6 +729,8 @@ final class AutomationServer {
         ep("POST", "/notifications/policy", "Update the notification policy (omit fields to keep)", params: ["quietHoursEnabled?:bool", "quietStart?:HH:mm", "quietEnd?:HH:mm", "dailyRoutineLimit?:int (0 = unlimited)"], example: #"-d '{"quietHoursEnabled":true,"quietStart":"23:00","quietEnd":"08:00"}'"#)
         ep("POST", "/notifications/test", "Push a test notification through the tiering gate (E2E): reports held vs delivered", params: ["tier:routine|urgent", "title?:string", "body?:string"], example: #"-d '{"tier":"routine","title":"T"}'"#)
         ep("POST", "/notifications/flush", "Deliver the held digest now (ignores quiet hours)", example: "-d '{}'")
+        ep("POST", "/notifications/simulate", "E2E: build a scheduled-task-failure notification payload (category/userInfo/actions) without posting it", params: ["taskName:string"], example: #"-d '{"taskName":"eval"}'"#)
+        ep("POST", "/notifications/action", "E2E: dispatch a notification action through the same router the system delegate uses", params: ["category:string", "action:string", "identifier?:string", "userInfo?:object"], example: #"-d '{"category":"SCHEDULED_TASK_FAILED","action":"RETRY_TASK","userInfo":{"taskName":"eval"}}'"#)
         ep("GET", "/ads/stats", "Ad-blocking statistics (video-rule events only; see the stats panel)", example: "…/ads/stats")
         ep("POST", "/ads/stats/clear", "Reset ad-blocking statistics", example: "-d '{}'")
         ep("GET", "/media/batch", "Batch download progress (per-item states; needsHuman = waiting for a manual check in the popup window)", params: ["id?:uuid"], example: "…/media/batch")
@@ -3621,6 +3623,29 @@ case ("GET", "/state"):
             case ("POST", "/notifications/flush"):
                 let delivered = ProactiveNotificationStore.shared.flushDigest(force: true)
                 return try Self.json(["ok": true, "delivered": delivered])
+            case ("POST", "/notifications/simulate"):
+                guard let taskName = Self.string(body, "taskName"), !taskName.isEmpty else {
+                    return try Self.json(["error": "taskName required"])
+                }
+                let payload = ProactiveNotificationStore.taskNotificationPayload(taskName: taskName)
+                return try Self.json([
+                    "ok": true,
+                    "category": payload.category,
+                    "userInfo": payload.userInfo,
+                    "actions": ["RETRY_TASK", "IGNORE_TASK"],
+                ])
+            case ("POST", "/notifications/action"):
+                guard let category = Self.string(body, "category"), !category.isEmpty else {
+                    return try Self.json(["error": "category required"])
+                }
+                let userInfo = (body["userInfo"] as? [String: Any]) ?? [:]
+                NotificationRouter.shared.handleAction(
+                    category: category,
+                    identifier: Self.string(body, "identifier")
+                        ?? "desire.task.\(UUID().uuidString)",
+                    userInfo: userInfo,
+                    actionID: Self.string(body, "action") ?? "default")
+                return try Self.json(["ok": true])
             case ("POST", "/notifications/test-reset"):
                 ProactiveNotificationStore.shared.resetBudgetAndHeldForTesting()
                 return try Self.json(["ok": true])
@@ -8950,6 +8975,7 @@ case ("GET", "/agent/messages"):
         return [
             "messages": Array(messages),
             "busy": session.isProcessing,
+            "accessLevel": session.accessLevel.rawValue,
             "hasInterruptedTurn": session.hasInterruptedTurn,
             "directive": session.activeDirective ?? "",
             // 输入历史（按对话保存，面板 ↑/↓ 翻阅的那份）

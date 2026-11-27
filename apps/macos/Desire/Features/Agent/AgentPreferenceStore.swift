@@ -268,6 +268,43 @@ class AgentPreferenceStore: ObservableObject {
         didSet { DiskStore.save(modelPrices, key: "aiModelPrices") }
     }
 
+    /// 上下文压缩触发阈值（占生效窗口的比例，v0.8.80 批 6；默认 0.85）。
+    @Published var compactionTriggerPercent: Double {
+        didSet { AppPrefs.defaults.set(compactionTriggerPercent, forKey: "agentCompactionTrigger") }
+    }
+    /// 每个档案手动设置的字符预算（v0.8.80 批 6；键 = 档案 UUID；0/缺省 = 自动校准）。
+    @Published var compactionBudgets: [String: Int] {
+        didSet { DiskStore.save(compactionBudgets, key: "agentCompactionBudgets") }
+    }
+
+    func compactionBudget(forProfile id: UUID?) -> Int? {
+        guard let id, let value = compactionBudgets[id.uuidString], value > 0 else { return nil }
+        return value
+    }
+
+    func setCompactionBudget(_ chars: Int?, forProfile id: UUID?) {
+        guard let id else { return }
+        if let chars, chars > 0 {
+            compactionBudgets[id.uuidString] = min(max(chars, 20_000), 800_000)
+        } else {
+            compactionBudgets.removeValue(forKey: id.uuidString)
+        }
+    }
+
+    /// 某模型键的真实窗口 tokens（v0.8.80 批 6，S6）：模型级映射 > 该模型所属
+    /// 档案的显式窗口。跨档案查（校准表可能含非当前模型的条目）。
+    func windowTokens(forModelKey key: String) -> Int? {
+        let normalized = TokenCalibration.key(forModel: key)
+        for profile in profiles {
+            if let value = profile.modelContextWindows?[normalized] { return value }
+            if TokenCalibration.key(forModel: profile.model) == normalized,
+               let value = profile.contextWindowTokens {
+                return value
+            }
+        }
+        return nil
+    }
+
     /// **Token 校准表**（v0.8.60）：模型名 → EMA 字符/令牌比与样本数。
     /// 请求侧每回合采样（请求字符数 ÷ 服务端自报 promptTokens），消费端
     /// （effectiveContextBudget）据此把窗口 tokens 换算成字符预算。
@@ -658,6 +695,11 @@ class AgentPreferenceStore: ObservableObject {
         ollamaModel = AppPrefs.defaults.string(forKey: "aiOllamaModel") ?? "llama3.2"
         allowedTools = Set(AppPrefs.defaults.stringArray(forKey: "aiAllowedTools") ?? [])
         modelPrices = DiskStore.load([String: ModelPrice].self, key: "aiModelPrices") ?? [:]
+        compactionTriggerPercent = {
+            let raw = AppPrefs.defaults.object(forKey: "agentCompactionTrigger") as? Double ?? 0.85
+            return min(max(raw, 0.6), 0.95)
+        }()
+        compactionBudgets = DiskStore.load([String: Int].self, key: "agentCompactionBudgets") ?? [:]
         modelCalibration = DiskStore.load([String: TokenCalibration.Entry].self, key: "aiModelCalibration") ?? [:]
 
         // 服务档案：首次运行（或从旧版本升级）时构建，并立即落盘。

@@ -308,3 +308,13 @@ ArtifactIndex + readArtifact 白名单，iOS 端请求/回帧按 path 对号）�
 - **验收**：`batch5-e2e` 18/18（A→B 链拿到输出与产物、成环拒绝；关闭窗口立即暂停/清窗恢复；
   替换式无 ⟦N⟧、还原保留 `<code>`；站点自动双语命中缓存出译文）；harness 4043；
   Mac/iOS Debug 构建零警告。
+
+**批 6 进展（2026-11-27）**：存储健康 + 统一 GC（`StorageRetention` 纯判定、`StorageMaintenance`
+扫描/清理/启动 10s + 每日调度、设置"存储"页、桥 `/diag/storage*`；翻译缓存 50MB LRU、
+转存/续传/批次日志可清、会话与归档默认永久保留且当前会话永不自动删）；真锁屏检测
+（`CGSessionCopyCurrentDictionary`）+ 定时任务挂起/解锁重放 + 心跳跳过 + 通知转摘要 +
+`/diag/health.screenLocked` + Doctor 检查 + `/diag/screen-lock` 模拟 + 排队消息随会话落盘；
+上下文预算按档案持久化（`/ai/context-budget`、设置页滑杆/触发阈值）、转存工具行徽标；
+Doctor 稳定 id + 一键修复、轨迹 JSONL 导出、校准窗口按模型键跨档案查找（S6）。
+- **验收**：`batch6-e2e` 14/14（存储报表/清理、预算写入读回、Doctor id 唯一/修复、锁屏挂起→解锁重放）；
+  harness 4045；Mac clean Debug 零警告。

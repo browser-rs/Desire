@@ -72,6 +72,8 @@ final class HeartbeatStore: ObservableObject {
            Date().timeIntervalSince(last) < TimeInterval(intervalMinutes * 60) {
             return
         }
+        // 锁屏（v0.8.80 批 6）：自动心跳跳过，解锁后的下一拍再跑。
+        if SessionGuard.isScreenLocked() { return }
         // 忙时推迟（busy deferral）：不打断进行中的回合，下个 tick 再看。
         if AgentScheduler.shared.deliveryTarget?.isProcessing == true { return }
         // 免打扰时段跳过：省一次模型调用；真有事也推不出去（会被扣进摘要），

@@ -104,6 +104,18 @@ struct AgentDoctorView: View {
                     .lineLimit(3)
                     .textSelection(.enabled)
             }
+            Spacer(minLength: 6)
+            if let fix = check.fix {
+                Button(fix == .openStorage || fix == .openNotificationSettings
+                       ? String(localized: "Open") : String(localized: "Fix")) {
+                    Task {
+                        _ = await AgentDoctor.applyFix(fix)
+                        await run()
+                    }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
         }
         .padding(10)
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -14088,6 +14088,22 @@ do {
           && night!.summary.contains("4 concurrent"))
 }
 
+// 存储保留判定（v0.8.80 批 6）：按天过期 + 容量 LRU。
+do {
+    let now = Date()
+    let entries = [
+        StorageRetention.FileEntry(path: "/a", bytes: 10, modified: now.addingTimeInterval(-10 * 86_400)),
+        StorageRetention.FileEntry(path: "/b", bytes: 10, modified: now.addingTimeInterval(-5 * 86_400)),
+        StorageRetention.FileEntry(path: "/c", bytes: 10, modified: now),
+    ]
+    check("存储保留：按天过期（0 天 = 永不删）",
+          StorageRetention.expired(entries, retentionDays: 7, now: now) == ["/a"]
+          && StorageRetention.expired(entries, retentionDays: 0, now: now).isEmpty)
+    check("存储保留：容量 LRU 从最旧删到预算内",
+          StorageRetention.lruTargets(entries, maxBytes: 15) == ["/a", "/b"]
+          && StorageRetention.lruTargets(entries, maxBytes: 100).isEmpty)
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")

@@ -141,6 +141,53 @@ struct AgentSettingsSection: View {
         return result.isEmpty ? relative : "\(relative) · \(result)"
     }
 
+    // MARK: - 上下文预算（v0.8.80 批 6：按档案持久化 + 触发阈值）
+
+    private var contextBudgetSection: some View {
+        let profileID = store.activeProfile?.id
+        let manual = store.compactionBudget(forProfile: profileID)
+        let auto = store.calibratedBudgetChars(forModel: store.model, profile: store.activeProfile)
+        let effective = manual ?? auto
+        return SettingsSection(
+            title: String(localized: "Context Budget"),
+            subtitle: String(localized: "The character budget used for the context meter and compaction. Auto follows the calibrated window; a manual value is saved per service profile."),
+            icon: "gauge.with.dots.needle.bottom.50percent"
+        ) {
+            SettingsRow(
+                String(localized: "Budget"),
+                subtitle: String(format: String(localized: "%d chars · %@"), effective,
+                                 manual == nil ? String(localized: "auto") : String(localized: "manual")),
+                systemImage: "text.alignleft"
+            ) {
+                HStack(spacing: 8) {
+                    Slider(value: Binding(
+                        get: { Double(effective) },
+                        set: { store.setCompactionBudget(Int($0.rounded()), forProfile: profileID) }
+                    ), in: 40_000...400_000, step: 20_000)
+                    .frame(width: 150)
+                    Button(String(localized: "Auto")) {
+                        store.setCompactionBudget(nil, forProfile: profileID)
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(manual == nil)
+                }
+            }
+            SettingsRowDivider()
+            SettingsRow(
+                String(localized: "Compact at"),
+                subtitle: String(format: String(localized: "%.0f%% of the budget"), store.compactionTriggerPercent * 100),
+                systemImage: "arrow.down.right.and.arrow.up.left"
+            ) {
+                Slider(value: Binding(
+                    get: { store.compactionTriggerPercent },
+                    set: { store.compactionTriggerPercent = $0 }
+                ), in: 0.6...0.95, step: 0.05)
+                .frame(width: 180)
+            }
+        }
+    }
+
     // MARK: - 模型校准（v0.8.64 批 3：0.8.60 数据上屏收口，数据源 /diag/health 同一份）
 
     private var calibrationSection: some View {
@@ -164,12 +211,11 @@ struct AgentSettingsSection: View {
                     // 窗口真值 = 当前档案显式设置（猜表已移除，v0.8.70 事故）；
                     // 非当前模型的行窗口未知 → 显示估算预算（defaultRatio 2.5，
                     // 窗口按 128k 保守假设仅作显示——预算本体不受影响）。
-                    let isCurrentModel = model == store.activeProfile?.model
-                    let displayWindow: String = isCurrentModel
-                        ? (store.activeProfile?.contextWindowTokens).map { "\($0)" } ?? String(localized: "unknown")
-                        : String(localized: "unknown")
-                    let windowTokensForCalc: Int? = isCurrentModel
-                        ? store.activeProfile?.contextWindowTokens : nil
+                    // 窗口按**模型键**查（模型级映射 > 所属档案窗口；v0.8.80 批 6 修 S6：
+                    // 此前只认当前档案且大小写敏感，按模型窗口恒显示 unknown）。
+                    let windowTokensForCalc = store.windowTokens(forModelKey: model)
+                    let displayWindow: String = windowTokensForCalc.map { "\($0)" }
+                        ?? String(localized: "unknown")
                     let budget = TokenCalibration.budgetChars(windowTokens: windowTokensForCalc,
                                                               calibration: entry)
                     SettingsRow(
@@ -210,6 +256,7 @@ struct AgentSettingsSection: View {
             MCPServersSection()
             DPPSettingsSection()
             CostBudgetSection()
+            contextBudgetSection
             calibrationSection
 
             // 悬浮球已升级为独立设置子页（Settings → Floating Ball）。
@@ -2033,6 +2080,18 @@ private struct DoctorSection: View {
                             Text(check.detail)
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 6)
+                        if let fix = check.fix {
+                            Button(fix == .openStorage || fix == .openNotificationSettings
+                                   ? String(localized: "Open") : String(localized: "Fix")) {
+                                Task {
+                                    _ = await AgentDoctor.applyFix(fix)
+                                    await run()
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
                     }
                     .padding(.vertical, 3)

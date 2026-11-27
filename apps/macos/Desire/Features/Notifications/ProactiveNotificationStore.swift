@@ -56,6 +56,12 @@ final class ProactiveNotificationStore: ObservableObject {
     // MARK: - 入口
 
     func deliver(title: String, body: String, tier: NotificationTier) {
+        // 锁屏（v0.8.80 批 6）：不推系统通知，转进摘要；解锁后摘要在下次
+        // tick（或手动 flush）时补推。
+        if SessionGuard.isScreenLocked() {
+            hold(title: title, body: body)
+            return
+        }
         switch tier {
         case .urgent:
             deliverNow(title: title, body: body)

@@ -532,6 +532,24 @@ final class AgentScheduler: ObservableObject {
             ?? "Chain removed from \(name)"
     }
 
+    /// 锁屏期间挂起，解锁后（15s 内）重投；任务被删/禁用就放弃。
+    private func deferForScreenLock(task: ScheduledTask, runID: UUID, attempts: Int,
+                                    promptOverride: String?) {
+        lockDeferredTasks[task.name]?.cancel()
+        lockDeferredTasks[task.name] = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(15))
+                guard !Task.isCancelled, let self else { return }
+                guard !SessionGuard.isScreenLocked() else { continue }
+                guard self.tasks.contains(where: { $0.id == task.id && $0.isEnabled }) else { return }
+                self.lockDeferredTasks[task.name] = nil
+                self.deliver(task: task, runID: runID, attempts: attempts,
+                             promptOverride: promptOverride)
+                return
+            }
+        }
+    }
+
     /// 当前是否在免打扰时段（读 ProactiveNotificationStore 的策略）。
     private func inQuietHours() -> Bool {
         ProactiveNotificationStore.shared.policy.isQuietTime(minutesSinceMidnight: { let c = Calendar.current.dateComponents([.hour, .minute], from: Date()); return (c.hour ?? 0) * 60 + (c.minute ?? 0) }())
@@ -594,10 +612,21 @@ final class AgentScheduler: ObservableObject {
     /// attached BEFORE delivery updates the record when the agent turn ends
     /// (success, or failure with error → notification + one retry). A retry
     /// passes the SAME runID so the record accumulates attempts.
+    private var lockDeferredTasks: [String: Task<Void, Never>] = [:]
+
     private func deliver(task: ScheduledTask, runID: UUID = UUID(), attempts: Int = 1,
                          promptOverride: String? = nil) {
         let taskIndex = tasks.firstIndex(where: { $0.id == task.id })
         let effectivePrompt = promptOverride ?? task.prompt
+        // 锁屏守卫（v0.8.80 批 6）：锁屏期间不启动任何定时任务（浏览器类动作
+        // 在锁屏下静默失效、也避免半夜弹窗），解锁后重放。
+        if SessionGuard.isScreenLocked() {
+            deferForScreenLock(task: task, runID: runID, attempts: attempts,
+                               promptOverride: effectivePrompt)
+            if let i = taskIndex { tasks[i].lastResult = String(localized: "deferred (screen locked)") }
+            Self.log.info("task '\(task.name, privacy: .public)' deferred: screen locked")
+            return
+        }
 
         // 夜间窗口（v0.8.19 替人干活 20）：任务开了"免打扰顺延"且当前在
         // quiet hours → 延到窗口结束再投（一次性 Timer，不占启动路径）。

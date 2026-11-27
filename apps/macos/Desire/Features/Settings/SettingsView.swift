@@ -262,6 +262,7 @@ struct SettingsView: View {
             AutoplayDiagnosticsSection()
         case .translation:
             TranslationSettingsSection()
+            StorageSettingsSection()
         }
     }
 }

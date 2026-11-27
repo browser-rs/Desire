@@ -174,6 +174,7 @@ SOURCES=(
   apps/macos/Desire/Features/Downloads/BatchMedia.swift
   apps/macos/Desire/Features/Downloads/DownloadHistory.swift
   apps/macos/Desire/Features/Downloads/BatchDownloadWindow.swift
+  apps/macos/Desire/Storage/StorageRetention.swift
   apps/macos/Desire/Features/Downloads/BatchMediaContent.swift
   apps/macos/Desire/Features/Downloads/HLSPlaylist.swift
   apps/macos/Desire/Features/Downloads/SyncedSkillPlacement.swift

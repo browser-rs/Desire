@@ -25,4 +25,7 @@ struct Conversation: Identifiable, Codable {
     /// 退出时还在等审批的操作快照（v0.8.80 批 3）：continuation 不跨进程，
     /// 重启后由面板重新给允许/拒绝，再续跑被打断的回合。
     var pendingApproval: PendingApprovalSnapshot?
+    /// 回合中排队待发的消息（v0.8.80 批 6，锁屏/重启后仍在）。只存文本——
+    /// 图片附件不落盘（体积与隐私）。
+    var queuedMessages: [String]?
 }

@@ -247,6 +247,11 @@ private struct ToolCallChip: View {
                                 .font(.system(size: 10, design: .monospaced))
                                 .foregroundStyle(.primary.opacity(0.85))
                                 .textSelection(.enabled)
+                            // 大结果转存徽标（v0.8.80 批 6）：正文只看到预览，
+                            // 这里明说全文在哪个文件、多大。
+                            if let spillPath = ToolResultSpill.parsePath(from: result) {
+                                SpillResultBadge(path: spillPath)
+                            }
                             // 一键分发（v0.8.51 融合）：白板 / 摘录 / Markdown。
                             ResultDispatchBar(
                                 text: result,
@@ -311,5 +316,37 @@ private struct ToolCallChip: View {
             return raw
         }
         return str
+    }
+}
+
+
+/// 转存结果徽标（v0.8.80 批 6）：文件路径 + 体量 + Finder。
+private struct SpillResultBadge: View {
+    @Environment(\.appAccent) private var appAccent: Color
+    let path: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "externaldrive.fill.badge.checkmark")
+                .font(.system(size: 9))
+                .foregroundStyle(appAccent)
+            Text(String(localized: "Full result saved to file (\(sizeText))"))
+                .font(.system(size: 9.5, weight: .medium))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Button(String(localized: "Show in Finder")) {
+                NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+            }
+            .buttonStyle(.plain)
+            .font(.system(size: 9.5, weight: .medium))
+            .foregroundStyle(appAccent)
+        }
+        .help(path)
+    }
+
+    private var sizeText: String {
+        let size = (try? FileManager.default.attributesOfItem(atPath: path)[.size] as? NSNumber)??.intValue ?? 0
+        return ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file)
     }
 }

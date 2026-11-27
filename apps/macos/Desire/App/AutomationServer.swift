@@ -437,6 +437,10 @@ final class AutomationServer {
         ep("GET", "/windows", "Visible app windows (title/size) — popup windows included; E2E for new-window rules", example: "…/windows")
         ep("GET", "/diag/geometry", "Web view + window frames (fullscreen debugging)", params: ["index?:int"], example: "…/diag/geometry")
         ep("GET", "/diag/browser", "Browser diagnostics: content-process crash count + recent crashes", example: "…/diag/browser")
+        ep("POST", "/diag/screen-lock", "E2E: override the screen-lock flag (locked bool; omit to restore the system value)", params: ["locked?:bool"], example: #"-d '{"locked":true}'"#)
+        ep("GET", "/diag/storage", "Storage health by domain (conversations/archives/sessions/translation caches/batch logs/spills/resume) with retention settings", example: "…/diag/storage")
+        ep("POST", "/diag/storage/clean", "Clear one storage domain (conversations/archives require olderThanDays > 0; the open conversation is never deleted)", params: ["domain:string", "olderThanDays?:int"], example: #"-d '{"domain":"translations"}'"#)
+        ep("POST", "/diag/storage/retention", "Set conversation/archive retention in days (0 = keep forever)", params: ["conversationDays?:int", "archiveDays?:int"], example: #"-d '{"conversationDays":90}'"#)
         ep("GET", "/diag/health", "Runtime health: main-thread stall history + cooperative-pool scheduling latency (p50/p95 over a 12-min sliding window)", example: "…/diag/health")
         ep("GET", "/activity", "Activity center: downloads/batch media/exports/scheduled runs/agent sessions/crew", example: "…/activity")
         ep("POST", "/diag/export", "Export a diagnostics zip (MetricKit + crash counters + last 30 min OSLog)", example: "-d '{}'")
@@ -661,6 +665,8 @@ final class AutomationServer {
         ep("POST", "/ai/output-rules/remove", "Remove one output rule by exact text", params: ["text:string"], example: #"-d '{"text":"…"}'"#)
         ep("GET", "/ai/prices", "Model price table (USD per Mtok) used to turn token usage into cost", example: "…/ai/prices")
         ep("POST", "/ai/prices", "Set/clear model prices; 0 or omitted = unknown (that model shows no money)", params: ["models?:{model:{input,output}}", "remove?:[model]"], example: #"-d '{"models":{"gpt-4o":{"input":2.5,"output":10}}}'"#)
+        ep("GET", "/ai/context-budget", "Context budget: manual chars (null = auto), calibrated auto value, effective value and compaction trigger percent", example: "…/ai/context-budget")
+        ep("POST", "/ai/context-budget", "Set the per-profile manual context budget (chars=null clears) and/or the compaction trigger (0.6-0.95)", params: ["chars?:int|null", "triggerPercent?:double"], example: #"-d '{"chars":120000,"triggerPercent":0.85}'"#)
         ep("GET", "/ai/routing/advice", "Cost/latency routing **advice** (advisory only — nothing is switched). Uses filled prices + observed TTFT p50", params: ["chars?:int", "promptTokens?:int", "completionTokens?:int"], example: "…/ai/routing/advice?promptTokens=4000&completionTokens=800")
         ep("GET", "/agent/tool-catalog", "Tool catalog stats: total count, groups, flat vs grouped prompt index sizes", example: "…/agent/tool-catalog")
         ep("GET", "/agent/tool-stats", "Per-tool usage from saved conversations (calls/failures/avg ms) — same source as the stats page", params: ["sinceDays?:int"], example: "…/agent/tool-stats?sinceDays=7")
@@ -727,6 +733,7 @@ final class AutomationServer {
         ep("POST", "/media/batch/config", "Set batch preferences; free space below reserveGB suspends the batch until it recovers", params: ["reserveGB?:int (default 5)", "naming?:clean|code|title", "baseDirectory?:string|null"], example: #"-d '{"reserveGB":5}'"#)
         ep("POST", "/agent/directive", "Set/clear the session-scoped temporary instruction (empty text clears)", params: ["text:string"], example: #"-d '{"text":"Answer in English for this conversation"}'"#)
         ep("POST", "/agent/note", "Append a system note to the conversation (not rendered; folded into the system prompt)", params: ["text:string"], example: #"-d '{"text":"Download finished: x.bin"}'"#)
+        ep("POST", "/agent/doctor/fix", "Run one safe doctor fix (clear spills / clear translation cache / recalibrate active model / open settings)", params: ["action:string"], example: #"-d '{"action":"clearSpills"}'"#)
         ep("GET", "/agent/doctor", "Agent self-check report (model endpoint reachability, keys, MCP, ffmpeg, hooks, skills, notifications, heartbeat)", example: "…/agent/doctor")
         ep("GET", "/containers", "Tab containers (includes ephemeral agent-isolation containers while in use)", example: "…/containers")
         ep("GET", "/agent/modes", "Agent modes (standard/research/writing) + per-window bindings", example: "…/agent/modes")
@@ -1073,6 +1080,33 @@ case ("GET", "/state"):
                 return try Self.json(Self.geometry(index: Self.index(query)))
             case ("GET", "/diag/health"):
                 return try Self.json(RuntimeHealthMonitor.shared.healthSummary(preference: AppState.live?.aiPreference))
+            case ("POST", "/diag/screen-lock"):
+                // E2E：模拟锁屏标志（nil = 回到系统真值）。
+                if let locked = body["locked"] as? Bool {
+                    SessionGuard.debugLockedOverride = locked
+                } else {
+                    SessionGuard.debugLockedOverride = nil
+                }
+                return try Self.json(["ok": true,
+                                      "screenLocked": SessionGuard.isScreenLocked()])
+            case ("GET", "/diag/storage"):
+                return try Self.json(Self.storageReport())
+            case ("POST", "/diag/storage/clean"):
+                guard let domain = Self.string(body, "domain") else {
+                    return try Self.json(["error": "missing domain"])
+                }
+                return try Self.json(StorageMaintenance.clean(
+                    domain: domain, olderThanDays: body["olderThanDays"] as? Int))
+            case ("POST", "/diag/storage/retention"):
+                if let days = body["conversationDays"] as? Int {
+                    StorageMaintenance.setRetentionDays(days, for: "conversations")
+                }
+                if let days = body["archiveDays"] as? Int {
+                    StorageMaintenance.setRetentionDays(days, for: "archives")
+                }
+                return try Self.json(["ok": true,
+                                      "conversationDays": StorageMaintenance.retentionDays(for: "conversations"),
+                                      "archiveDays": StorageMaintenance.retentionDays(for: "archives")])
             case ("GET", "/diag/browser"):
                 return try Self.json(BrowserDiagnostics.shared.summary())
             case ("GET", "/activity"):
@@ -2976,6 +3010,36 @@ case ("GET", "/state"):
                 return try Self.json(Self.outputRulesRemove(text: Self.string(body, "text") ?? ""))
             case ("GET", "/ai/prices"):
                 return try Self.json(Self.aiPriceList())
+            case ("GET", "/ai/context-budget"):
+                guard let pref = AppState.live?.aiPreference else {
+                    return try Self.json(["error": "preference not ready"])
+                }
+                let id = pref.activeProfile?.id
+                return try Self.json([
+                    "ok": true,
+                    "chars": pref.compactionBudget(forProfile: id) ?? NSNull(),
+                    "autoChars": pref.calibratedBudgetChars(forModel: pref.model,
+                                                            profile: pref.activeProfile),
+                    "effectiveChars": AgentScheduler.shared.deliveryTarget?.effectiveContextBudget ?? NSNull(),
+                    "triggerPercent": pref.compactionTriggerPercent,
+                ])
+            case ("POST", "/ai/context-budget"):
+                guard let pref = AppState.live?.aiPreference else {
+                    return try Self.json(["error": "preference not ready"])
+                }
+                if body.keys.contains("chars") {
+                    let chars = body["chars"] as? Int
+                    pref.setCompactionBudget(chars, forProfile: pref.activeProfile?.id)
+                    AgentScheduler.shared.deliveryTarget?.setCompactionBudget(chars)
+                }
+                if let trigger = body["triggerPercent"] as? Double {
+                    pref.compactionTriggerPercent = min(max(trigger, 0.6), 0.95)
+                }
+                return try Self.json([
+                    "ok": true,
+                    "chars": pref.compactionBudget(forProfile: pref.activeProfile?.id) ?? NSNull(),
+                    "triggerPercent": pref.compactionTriggerPercent,
+                ])
             case ("GET", "/ai/routing/advice"):
                 // 建议式路由（v0.8.80 批 3）：只读，不切换模型。
                 return try Self.json(Self.routingAdvice(
@@ -3908,10 +3972,20 @@ case ("GET", "/agent/messages"):
                     "allOk": report.ok,
                     "passed": report.passed,
                     "total": report.checks.count,
-                    "checks": report.checks.map { [
-                        "name": $0.name, "ok": $0.ok, "detail": $0.detail,
-                    ] },
+                    "checks": report.checks.map { check -> [String: Any] in
+                        var row: [String: Any] = ["id": check.id, "name": check.name,
+                                                  "ok": check.ok, "detail": check.detail]
+                        row["fix"] = check.fix?.rawValue ?? NSNull()
+                        return row
+                    },
                 ])
+            case ("POST", "/agent/doctor/fix"):
+                guard let raw = Self.string(body, "action"),
+                      let fix = AgentDoctor.Fix(rawValue: raw) else {
+                    return try Self.json(["error": "action must be retestEndpoint|clearSpills|clearTranslationCache|recalibrate|openNotificationSettings|openStorage"])
+                }
+                return try Self.json(["ok": true, "action": raw,
+                                      "message": await AgentDoctor.applyFix(fix)])
             case ("GET", "/containers"):
                 // 容器列表（E2E/远程可观测；含子代理临时容器）。
                 return try Self.json([
@@ -7766,6 +7840,22 @@ case ("GET", "/agent/messages"):
             }
         }
         return payload
+    }
+
+    /// 存储健康（v0.8.80 批 6）：按域体量 + 保留策略 + 当前打开的会话（清理保护）。
+    private static func storageReport() -> [String: Any] {
+        let domains = StorageMaintenance.scan()
+        return [
+            "ok": true,
+            "totalBytes": domains.reduce(0) { $0 + $1.bytes },
+            "conversationDays": StorageMaintenance.retentionDays(for: "conversations"),
+            "archiveDays": StorageMaintenance.retentionDays(for: "archives"),
+            "translationCacheBudgetBytes": StorageMaintenance.translationCacheBudgetBytes,
+            "domains": domains.map { domain -> [String: Any] in
+                ["id": domain.id, "title": domain.title, "bytes": domain.bytes,
+                 "count": domain.count, "clearable": domain.clearable]
+            },
+        ]
     }
 
     /// 隐私面板权限规则的只读快照（v0.8.6）：读写分离惯例——查询用新实例

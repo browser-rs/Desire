@@ -78,6 +78,8 @@ class AppState: ObservableObject {
         // 但 watcher 尚未交付的订阅。放在 live 之后，备注能写回会话。
         _ = BackgroundCommandStore.shared
         JobEventCenter.shared.reconcileAtLaunch()
+        // 存储健康 + 统一 GC（v0.8.80 批 6）：启动 10s 后一次，之后每日。
+        StorageMaintenance.start()
         lap("background-jobs")
         // 恢复上次活跃人物的数据作用域（cookie 隔离由各窗口在
         // 创建标签时经 profileDataStore 各自恢复）。

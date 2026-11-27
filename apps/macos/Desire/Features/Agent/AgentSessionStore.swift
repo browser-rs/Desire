@@ -526,10 +526,20 @@ class AgentSessionStore: ObservableObject {
     /// 换算用的模型/档案跟**实际发请求的** streamPreference 走（每窗模型
     /// 路由下可能与全局 activeProfile 不同）。
     var effectiveContextBudget: Int {
+        // 手动预算（按档案，v0.8.80 批 6）> 超限自动校准 > 公式换算。
+        if let manual = preference.compactionBudget(forProfile: streamPreference.activeProfile?.id) {
+            return manual
+        }
         if let compactionBudgetOverride { return compactionBudgetOverride }
         return preference.calibratedBudgetChars(
             forModel: streamPreference.model,
             profile: streamPreference.activeProfile)
+    }
+
+    /// 面板/设置页改预算（nil = 回到自动校准）。
+    func setCompactionBudget(_ chars: Int?) {
+        preference.setCompactionBudget(chars, forProfile: streamPreference.activeProfile?.id)
+        updateContextFraction(force: true)
     }
 
     /// 当前生效的窗口 tokens（v0.8.71 批 B 助手）：per-模型映射 > 档案级
@@ -1968,8 +1978,10 @@ class AgentSessionStore: ObservableObject {
         awaitingQuestion = false
         currentAction = nil
         isNewChatIntentional = false
-        // Queued input belonged to the previous conversation's turn.
-        queuedMessages.removeAll()
+        // 排队消息随会话恢复（v0.8.80 批 6）：锁屏/重启后仍在；旧会话无此字段。
+        queuedMessages = (conv.queuedMessages ?? []).map {
+            QueuedMessage(text: $0, images: nil, origin: .system)
+        }
         isPaused = false
         usagePromptTokens = 0
         usageCompletionTokens = 0
@@ -2103,7 +2115,7 @@ class AgentSessionStore: ObservableObject {
         // 计划**保存时现读**计划 store（updatePlan 改完无需专门触发，
         // 回合收尾的常规保存自然带上）；无会话（conversationId=nil）读不到。
         let planSteps = AgentPlanStore.shared.steps(for: id.uuidString)
-        let conv = Conversation(id: id, title: title, createdAt: createdAt, updatedAt: Date(), messages: persistedMessages, inputHistory: inputHistory, planSteps: planSteps.isEmpty ? nil : planSteps, turnActive: turnCheckpointActive, budgetStopLevel: budgetStopLevel, pendingApproval: activeApprovalSnapshot)
+        let conv = Conversation(id: id, title: title, createdAt: createdAt, updatedAt: Date(), messages: persistedMessages, inputHistory: inputHistory, planSteps: planSteps.isEmpty ? nil : planSteps, turnActive: turnCheckpointActive, budgetStopLevel: budgetStopLevel, pendingApproval: activeApprovalSnapshot, queuedMessages: queuedMessages.isEmpty ? nil : queuedMessages.map(\.text))
         conversationStore.save(conv)
     }
 
@@ -2777,7 +2789,7 @@ class AgentSessionStore: ObservableObject {
         pendingTurnNudge = nil
         currentTurnUserText = messages.last(where: { $0.role == .user })?.content
         if let window = resolvedWindowTokens, lastPromptTokens > 0,
-           Double(lastPromptTokens) > Double(window) * 0.85 {
+           Double(lastPromptTokens) > Double(window) * preference.compactionTriggerPercent {
             Log.agent.info("pre-turn compaction: last prompt \(self.lastPromptTokens) tokens > 85% of \(window)-token window")
             await compactNow()
         } else if resolvedWindowTokens == nil {

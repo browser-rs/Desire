@@ -91,6 +91,8 @@ final class RuntimeHealthMonitor {
             // （navigate 等）会静默失效（CI 教训的本地同源），测试与值守的
             // 浏览器类动作前先看这个字段。
             "appActive": NSApp.isActive,
+            // 真锁屏（v0.8.80 批 6）：定时任务/心跳/通知在锁屏期间挂起。
+            "screenLocked": SessionGuard.isScreenLocked(),
             // 构建来源与睡眠感知（v0.8.76 批 1）：诊断数据分源；观测到的睡眠次数
             // 是"停滞记录是否可信"的旁证。
             "buildSource": BuildSource.current.rawValue,
@@ -116,9 +118,8 @@ final class RuntimeHealthMonitor {
         if let preference {
             var calibrations: [[String: Any]] = []
             for (model, entry) in preference.modelCalibration.sorted(by: { $0.key < $1.key }) {
-                // 窗口真值 = 当前档案显式设置（猜表已移除，v0.8.70 事故）；
-                // 非当前模型的行窗口未知 → nil（budgetChars 回退 160k 默认）。
-                let window = preference.activeProfile?.contextWindowTokens
+                // 窗口按模型键跨档案查（v0.8.80 批 6 修 S6：此前只认当前档案）。
+                let window = preference.windowTokens(forModelKey: model)
                 let budget = TokenCalibration.budgetChars(windowTokens: window, calibration: entry)
                 calibrations.append([
                     "model": model,

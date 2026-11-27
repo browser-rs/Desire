@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import os
 @preconcurrency import UserNotifications
@@ -9,10 +10,33 @@ import os
 @MainActor
 enum AgentDoctor {
     struct Check: Identifiable, Equatable {
-        let id = UUID()
+        /// 稳定 id（v0.8.80 批 6）：按检查名派生，重复体检/UI diff 不再每次变。
+        let key: String
         let name: String
         let ok: Bool
         let detail: String
+        /// 一键修复动作（nil = 只能人工处理）。
+        let fix: Fix?
+
+        var id: String { key }
+
+        init(key: String? = nil, name: String, ok: Bool, detail: String,
+             fix: Fix? = nil) {
+            self.key = key ?? name
+            self.name = name
+            self.ok = ok
+            self.detail = detail
+            self.fix = fix
+        }
+    }
+
+    enum Fix: String, CaseIterable {
+        case retestEndpoint
+        case clearSpills
+        case clearTranslationCache
+        case recalibrate
+        case openNotificationSettings
+        case openStorage
     }
 
     struct Report: Equatable {
@@ -94,7 +118,8 @@ enum AgentDoctor {
             ok: spillSize < 1_000_000_000,
             detail: spillSize == 0
                 ? "空（尚无大结果转存）"
-                : "\(ByteCountFormatter.string(fromByteCount: Int64(spillSize), countStyle: .file))（\(spillDir.path)）\(gcNote)"))
+                : "\(ByteCountFormatter.string(fromByteCount: Int64(spillSize), countStyle: .file))（\(spillDir.path)）\(gcNote)",
+            fix: .clearSpills))
 
         // 4. ffmpeg（HLS 直连 MP4 的前置）
         let fm = FileManager.default
@@ -247,6 +272,42 @@ enum AgentDoctor {
             }
         }
 
+                checks.append(Check(
+            name: "锁屏守卫",
+            ok: true,
+            detail: SessionGuard.isScreenLocked()
+                ? "锁屏中——定时任务/心跳/通知已挂起，解锁后自动恢复"
+                : "未锁屏"))
+
+        // 存储 / 翻译缓存 / DiskStore（v0.8.80 批 6）
+        let storageSize = Self.directorySize(DiskStore.directory)
+        checks.append(Check(
+            name: "存储",
+            ok: storageSize < 2_000_000_000,
+            detail: storageSize == 0
+                ? "空"
+                : "\(ByteCountFormatter.string(fromByteCount: Int64(storageSize), countStyle: .file))（\(DiskStore.directory.path)）",
+            fix: .openStorage))
+        let cacheModel = DiskStore.load(TranslationCache.CacheModel.self,
+                                        key: TranslationCache.storeKey) ?? [:]
+        let cacheSummary = TranslationCache.summary(of: cacheModel)
+        let cacheBytes = cacheSummary.chars * 2
+        checks.append(Check(
+            name: "翻译缓存",
+            ok: cacheBytes < 50_000_000,
+            detail: "\(cacheSummary.pages) 页 / \(cacheSummary.blocks) 块 / \(ByteCountFormatter.string(fromByteCount: Int64(cacheBytes), countStyle: .file))",
+            fix: .clearTranslationCache))
+        if let preference {
+            let low = preference.modelCalibration.filter { $0.value.samples < TokenCalibration.minSamples }.count
+            checks.append(Check(
+                name: "模型校准",
+                ok: low == 0,
+                detail: low == 0
+                    ? "\(preference.modelCalibration.count) 个模型均有足够样本"
+                    : "\(low) 个模型样本不足（先用可信任值；重校准会清掉当前模型样本并重新采样）",
+                fix: .recalibrate))
+        }
+
         return Report(checks: checks)
     }
 
@@ -270,5 +331,38 @@ enum AgentDoctor {
             total += (try? file.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
         }
         return total
+    }
+
+    /// 一键修复（v0.8.80 批 6）：UI 与桥共用。返回可展示的结果文案。
+    static func applyFix(_ fix: Fix) async -> String {
+        switch fix {
+        case .retestEndpoint:
+            return "Re-run the check to test the endpoint again."
+        case .clearSpills:
+            let dir = AgentWorkspace.shared.directory
+                .appendingPathComponent("tool-results", isDirectory: true)
+            let fm = FileManager.default
+            let files = (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
+            var removed = 0
+            for file in files where (try? fm.removeItem(at: file)) != nil { removed += 1 }
+            ToolResultSpill.lastGCAt = Date()
+            return "Removed \(removed) spilled result file(s)."
+        case .clearTranslationCache:
+            BilingualReadingService.clearCache()
+            return "Translation cache cleared."
+        case .recalibrate:
+            if let preference = AppState.live?.aiPreference {
+                preference.clearCalibration(forModel: preference.model)
+            }
+            return "Calibration cleared for the active model — it will re-sample on the next turns."
+        case .openNotificationSettings:
+            if let url = URL(string: "x-apple.systempreferences:com.apple.preference.notifications") {
+                NSWorkspace.shared.open(url)
+            }
+            return "Opened Notification settings."
+        case .openStorage:
+            NSWorkspace.shared.open(DiskStore.directory)
+            return "Opened the storage folder."
+        }
     }
 }

@@ -1,4 +1,5 @@
 import AppKit
+import CoreGraphics
 
 /// **会话前台状态探针**（v0.8.63 批 1）。
 ///
@@ -12,9 +13,25 @@ import AppKit
 /// NSWorkspace 则始终给出真实前台应用——别换成 System Events。**
 @MainActor
 enum SessionGuard {
+    /// 诊断/测试用的锁屏覆盖（v0.8.80 批 6：桥可模拟锁屏，免得真锁屏才能测）。
+    static var debugLockedOverride: Bool?
+
+    /// **真锁屏检测**：`CGSessionCopyCurrentDictionary()[CGSSessionScreenIsLocked]`
+    /// 是系统唯一权威标志（v0.8.80 批 6 替换"frontmostApplication != nil"的代理
+    /// ——后者在锁屏时仍可能给出 loginwindow，漏判）。取不到会话字典时回退到
+    /// "有没有前台应用"。
+    static func isScreenLocked() -> Bool {
+        if let debugLockedOverride { return debugLockedOverride }
+        if let info = CGSessionCopyCurrentDictionary() as? [String: Any],
+           let locked = info["CGSSessionScreenIsLocked"] as? Bool {
+            return locked
+        }
+        return NSWorkspace.shared.frontmostApplication == nil
+    }
+
     /// 是否存在前台应用（false = 锁屏/会话锁定/无 frontmost）。
     static func isFrontmostAvailable() -> Bool {
-        NSWorkspace.shared.frontmostApplication != nil
+        !isScreenLocked() && NSWorkspace.shared.frontmostApplication != nil
     }
 
     /// 前台应用名（诊断/日志用；nil = 无前台应用）。

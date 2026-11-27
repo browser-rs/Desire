@@ -1,4 +1,6 @@
+import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// 轨迹页：把 `AgentTrace` 派生的内容**给人看**——上面是聚合（回合/工具/失败/被拒/平均耗时/
 /// 未验证/用户评价 + 最慢与最易错的工具），下面逐回合展开 Thought → Action → Observation。
@@ -93,6 +95,7 @@ struct AgentTraceView: View {
             .tint(.secondary)
             Menu {
                 Button(String(localized: "Export 👍 turns as eval set")) { exportEvalSet() }
+                Button(String(localized: "Export JSONL")) { exportJSONL() }
                 let existing = Array(EvalExporter.listExports().prefix(5))
                 if !existing.isEmpty {
                     Divider()
@@ -362,6 +365,26 @@ struct AgentTraceView: View {
         }
         .padding(20)
         .frame(width: 480)
+    }
+
+    /// 导出**全量轨迹** JSONL（v0.8.80 批 6）：一行一个回合，字段与桥
+    /// `GET /agent/trace` 同源（含工具耗时/耗时/评价/核验）。
+    private func exportJSONL() {
+        guard let id = selectedConversationID,
+              let conversation = conversationStore.conversations.first(where: { $0.id == id }) else { return }
+        let derived = AgentTrace.turns(of: conversation, price: preference.usagePrice(for:))
+        let lines = derived.compactMap { turn -> String? in
+            guard let data = try? JSONSerialization.data(withJSONObject: turn, options: [.sortedKeys]) else { return nil }
+            return String(data: data, encoding: .utf8)
+        }.joined(separator: "\n")
+        let panel = NSSavePanel()
+        panel.title = "Export Trace JSONL"
+        panel.nameFieldStringValue = "\(conversation.title)-trace.jsonl"
+        panel.allowedContentTypes = [.json]
+        panel.begin { response in
+            guard response == .OK, let url = panel.url else { return }
+            try? lines.write(to: url, atomically: true, encoding: .utf8)
+        }
     }
 
     /// 导出 👍 回合为评估集（默认 ~/Documents/DesireAgent）。

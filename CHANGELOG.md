@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.82] - 2026-11-28
 ### Added
 
 - 密码库加密导出/导入（v0.8.82 批 1）：导出可选口令保护的 `.dpass` 包（PBKDF2-SHA256 60 万次 + AES-GCM；JSON 信封带格式/版本/盐/迭代次数），导入只补新条目、同站点同用户名不覆盖；明文 CSV 保留但明确标“不推荐”。桥新增 `/passwords/archive/export|import`。

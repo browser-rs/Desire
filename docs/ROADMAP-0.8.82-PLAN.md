@@ -18,6 +18,16 @@
 > （`WorkflowPanel` + `/playbooks/schedule`）、下载/作业通知动作、`TaskFailureClassify`
 > 分类器。
 >
+> **实施记录（2026-11-28，提交 bc78d285 / 9caac241）**：
+> - **批 1 已落地**：加密密码包导出/导入（PBKDF2-SHA256 60 万 + AES-GCM，桥
+>   `/passwords/archive/*`）、健康“已处理/稍后 30/90 天”（桥 `/passwords/health/mute`）、
+>   标签概览搜索/分组过滤/整组挂起。
+> - **批 2 已落地**：任务下次运行日历（桥 `/agent/tasks/calendar`）、单任务运行历史
+>   抽屉、链路径失败标记、190 预算断言轮询修复。
+> - **本轮未做**：支付卡（按设计门，需先完成 Keychain/CVV 威胁模型评审）、纯文本
+>   缩放 spike、E34–E38、同步冲突台账、iOS 改密 spike、统一值守日历/通知动作/
+>   失败诊断卡、部署/无障碍。留待后续批次，不假装已交付。
+>
 > **v0.8.81 遗留事实（本版 P0，不是“新功能”）**：190 全量 185/190，5 条预算用例
 > 是套件时序不稳（最小探针 460→warning、920/stopLevel=2/无 B-DONE 已单独证明
 > 逻辑正确）；`open -g` 后台启动会把 `firstWindowMs` 记成 ~21s（立即激活为

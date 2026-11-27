@@ -17,16 +17,16 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "lock.keyhole", title: String(localized: "Passwords and cards, under your control"),
-                  detail: String(localized: "Export passwords as a password-protected archive, mark health findings handled or snooze them, and fill a saved payment card from the site menu. Card numbers stay in the keychain; the CVV is never stored.")),
-            .init(icon: "rectangle.stack", title: String(localized: "Tabs, at a glance"),
-                  detail: String(localized: "The tab overview now searches titles and URLs, filters by group, and can suspend or collapse a whole group without leaving the grid.")),
-            .init(icon: "calendar", title: String(localized: "A task board you can read"),
-                  detail: String(localized: "See each task's next runs, open its recent run history, spot the failed step in a chain, and get a plain-language failure diagnosis with the action that makes sense.")),
-            .init(icon: "arrow.triangle.2.circlepath", title: String(localized: "Phones and Macs agree"),
-                  detail: String(localized: "Sync conflicts now show which entry lost and let you keep the local copy or the server copy for bookmarks, quick dials and reading list. The iPhone can make the same choice.")),
-            .init(icon: "bell.badge", title: String(localized: "Fewer false alarms"),
-                  detail: String(localized: "Failed scheduled tasks offer Retry or Ignore right in the notification, batch and download time windows share one overview, and the release gate no longer treats a late token-usage update as a product failure.")),
+            .init(icon: "slider.horizontal.3", title: String(localized: "A toolbar that fits your habits"),
+                  detail: String(localized: "Show or hide the home, zoom, plugin, sync and right-side buttons, and reorder the right-side row in Settings → Toolbar. New buttons stay hidden until you ask for them, so the default layout is unchanged.")),
+            .init(icon: "calendar.badge.clock", title: String(localized: "A week you can see"),
+                  detail: String(localized: "The task page now lays out seven days of scheduled runs, batch downloads and download windows in one grid. Crowded days and real overlaps are flagged with a staggering hint — read-only, nothing is rescheduled.")),
+            .init(icon: "arrow.triangle.branch", title: String(localized: "Conflicts you can settle"),
+                  detail: String(localized: "Use Local now truly restores the copy this Mac had before the server won, for bookmarks, quick dials and reading list. Every choice is kept in a resolution history you can review or clear.")),
+            .init(icon: "checkmark.shield", title: String(localized: "More proof, fewer guesses"),
+                  detail: String(localized: "Seven new deterministic agent checks, a real two-device sync-conflict run, and a hardened 190-item gate cover cache prefixes, approvals, revisions, budgets, notifications, chains and cross-device convergence.")),
+            .init(icon: "iphone", title: String(localized: "Your account, on your phone"),
+                  detail: String(localized: "The iPhone account-security page reads recovery codes, the audit log and the device list, and can revoke a device. Password changes stay on the Mac because only it holds the sync key material.")),
         ]
     }
 

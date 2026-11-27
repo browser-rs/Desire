@@ -120668,6 +120668,236 @@
           }
         }
       }
+    },
+    "A toolbar that fits your habits": {
+      "comment": "WhatsNew v0.8.83",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A toolbar that fits your habits"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "顺手的工具栏"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "順手的工具列"
+          }
+        }
+      }
+    },
+    "Show or hide the home, zoom, plugin, sync and right-side buttons, and reorder the right-side row in Settings → Toolbar. New buttons stay hidden until you ask for them, so the default layout is unchanged.": {
+      "comment": "WhatsNew v0.8.83",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show or hide the home, zoom, plugin, sync and right-side buttons, and reorder the right-side row in Settings → Toolbar. New buttons stay hidden until you ask for them, so the default layout is unchanged."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在“设置→工具栏”里显示/隐藏主页、缩放、插件、同步与右侧按钮，右侧一排还能排序。新按钮默认隐藏，默认布局保持不变。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "在「設定→工具列」裡顯示/隱藏首頁、縮放、外掛、同步與右側按鈕，右側一排還能排序。新按鈕預設隱藏，預設版面保持不變。"
+          }
+        }
+      }
+    },
+    "A week you can see": {
+      "comment": "WhatsNew v0.8.83",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A week you can see"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一眼看清一周"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "一眼看清一週"
+          }
+        }
+      }
+    },
+    "The task page now lays out seven days of scheduled runs, batch downloads and download windows in one grid. Crowded days and real overlaps are flagged with a staggering hint — read-only, nothing is rescheduled.": {
+      "comment": "WhatsNew v0.8.83",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The task page now lays out seven days of scheduled runs, batch downloads and download windows in one grid. Crowded days and real overlaps are flagged with a staggering hint — read-only, nothing is rescheduled."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任务页把未来 7 天的定时运行、批量下载与下载窗口放在一张网格里；拥挤日与真实重叠会标出并建议错峰——只读，不会改动调度。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "任務頁把未來 7 天的定時執行、批次下載與下載視窗放在一張網格裡；擁擠日與真實重疊會標出並建議錯峰——唯讀，不會改動排程。"
+          }
+        }
+      }
+    },
+    "Conflicts you can settle": {
+      "comment": "WhatsNew v0.8.83",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conflicts you can settle"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "冲突由你定"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "衝突由你定"
+          }
+        }
+      }
+    },
+    "Use Local now truly restores the copy this Mac had before the server won, for bookmarks, quick dials and reading list. Every choice is kept in a resolution history you can review or clear.": {
+      "comment": "WhatsNew v0.8.83",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Local now truly restores the copy this Mac had before the server won, for bookmarks, quick dials and reading list. Every choice is kept in a resolution history you can review or clear."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“采用本地”现在会真正恢复服务端胜出前这台 Mac 的版本（书签/快拨/阅读列表）；每次选择都留在可查看、可清空的解决历史里。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "「採用本機」現在會真正恢復伺服器勝出前這台 Mac 的版本（書籤／快速撥號／閱讀列表）；每次選擇都留在可檢視、可清空的解決歷史裡。"
+          }
+        }
+      }
+    },
+    "More proof, fewer guesses": {
+      "comment": "WhatsNew v0.8.83",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "More proof, fewer guesses"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "多一分证据，少一分猜测"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "多一分證據，少一分猜測"
+          }
+        }
+      }
+    },
+    "Seven new deterministic agent checks, a real two-device sync-conflict run, and a hardened 190-item gate cover cache prefixes, approvals, revisions, budgets, notifications, chains and cross-device convergence.": {
+      "comment": "WhatsNew v0.8.83",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seven new deterministic agent checks, a real two-device sync-conflict run, and a hardened 190-item gate cover cache prefixes, approvals, revisions, budgets, notifications, chains and cross-device convergence."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "七条确定性 Agent 评估、真实的双设备同步冲突演练与加固后的 190 项闸门，覆盖缓存前缀、审批、修订、预算、通知、任务链与跨设备收敛。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "七條確定性 Agent 評估、真實的雙裝置同步衝突演練與加固後的 190 項閘門，覆蓋快取前綴、審批、修訂、預算、通知、任務鏈與跨裝置收斂。"
+          }
+        }
+      }
+    },
+    "Your account, on your phone": {
+      "comment": "WhatsNew v0.8.83",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Your account, on your phone"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手机上的账号安全"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "手機上的帳號安全"
+          }
+        }
+      }
+    },
+    "The iPhone account-security page reads recovery codes, the audit log and the device list, and can revoke a device. Password changes stay on the Mac because only it holds the sync key material.": {
+      "comment": "WhatsNew v0.8.83",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The iPhone account-security page reads recovery codes, the audit log and the device list, and can revoke a device. Password changes stay on the Mac because only it holds the sync key material."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone 账号安全页可读取恢复码、审计日志与设备列表，并可吊销设备。改密仍留在 Mac 上——只有它持有同步密钥材料。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "iPhone 帳號安全頁可讀取恢復碼、審計日誌與裝置列表，並可撤銷裝置。改密仍留在 Mac 上——只有它持有同步金鑰材料。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -445,6 +445,8 @@ final class AutomationServer {
         ep("POST", "/diag/storage/clean", "Clear one storage domain (conversations/archives require olderThanDays > 0; the open conversation is never deleted)", params: ["domain:string", "olderThanDays?:int"], example: #"-d '{"domain":"translations"}'"#)
         ep("POST", "/diag/storage/retention", "Set conversation/archive retention in days (0 = keep forever)", params: ["conversationDays?:int", "archiveDays?:int"], example: #"-d '{"conversationDays":90}'"#)
         ep("GET", "/diag/health", "Runtime health: main-thread stall history + cooperative-pool scheduling latency (p50/p95 over a 12-min sliding window)", example: "…/diag/health")
+        ep("GET", "/diag/performance", "Aggregated performance snapshot (tabs/launch/guards/plugin hosts/resources) — same source as desire://performance", example: "…/diag/performance")
+        ep("GET", "/diag/resource-governor", "Current resource-backoff state (memory pressure / thermal / low power -> background load)", example: "…/diag/resource-governor")
         ep("GET", "/activity", "Activity center: downloads/batch media/exports/scheduled runs/agent sessions/crew", example: "…/activity")
         ep("POST", "/diag/export", "Export a diagnostics zip (MetricKit + crash counters + last 30 min OSLog)", example: "-d '{}'")
         ep("POST", "/workflow/start", "Start recording a web workflow on the active tab", example: "-d '{}'")
@@ -1113,6 +1115,8 @@ case ("GET", "/state"):
                     layoutStore.setHidden(Set(rawHidden.compactMap(ToolbarItem.init(rawValue:))))
                 }
                 return try Self.json(layoutStore.diagnostics())
+            case ("GET", "/diag/performance"):
+                return try Self.json(PerformanceSnapshot.collect().bridgeDictionary())
             case ("GET", "/diag/resource-governor"):
                 let c = ResourceGovernor.Conditions(
                     memoryPressure: TabManager.mainMemoryPressureActive,

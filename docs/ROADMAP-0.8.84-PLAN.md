@@ -238,6 +238,11 @@
   不重放 onInstalled）；15 = `ResourceGovernor` 纯逻辑（harness 4 项）+ 下载并发
   闸接入 + `/diag/resource-governor`（模拟链验证 critical → paused）。批 3 全部完成。
 4. **可见与融合**：9 性能面板/设置 → 10 用量缓存 → 12 Agent 资源工具 → 13 Doctor → 11 评估。
+   **实施记录（2026-11-28）**：12 落地（`getTabResources`/`releaseMemory`，豁免集同
+   sweep，tool-chain 验证）→ 13 落地（启动预算/挂起积压/插件宿主三项体检，
+   "挂起积压"带 releaseMemory 修复）→ 9 落地（`desire://performance` 页 +
+   `GET /diag/performance` 同源聚合，深链 E2E + 实窗截图）；10/11 已在批 2 落地
+   （10 用量缓存并入批 2，11 E34–E44 评估随批 2 收口）。批 4 完成。
 5. **收口**：16 perf-probe → 19 文档/发版 → 20 版本收口。
 
 ## 不做 / 暂缓（已核实，别再当缺口）

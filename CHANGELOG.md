@@ -5,6 +5,8 @@
 - 导航与页面减负（v0.8.84 批 2，3/4 件）：**导航守卫零 JS 化**——documentStart 眼线脚本用自有 accessor 影子 + addEventListener Proxy 不可探测地确认页面是否注册了 beforeunload 监听器，无监听器的导航不再付一次合成探针的 JS 往返（`/diag/startup.navGuard{probes,skipped}` 计数，四注册形态 fixture 全验：addEventListener/legacy 赋值/body 属性/无监听器）；`page-perf` 改主框架注入 + 原生 frame 兜底（3 iframe 页实测 domNodes=30009 不再被 3 节点 iframe 覆盖）；DevTools 控制台修 PERF-10（每条消息 COW 全量拷贝 → 原地追加 + 块状裁剪）；应用不在前台时暂停缩略图轮捕（PageWatch 是替人盯页的功能本体，不退避）。
 - 内存管家（v0.8.84 批 3）：后台标签 DOM 节点**总量**超预算（默认 60k，设置页可调/关闭）时按"重量 × 最久未看"逐个挂起最重的——此前均一时间阈值下多个中等页面加起来再重也不会提前挂起。判定抽成 Foundation-only `SuspendPolicy`（harness 4 项：预算开关/阈值/重者优先/同重 LRU）；挂起快照改存 JPEG 压缩数据（1200px 位图 ~1-4MB → ~150KB，叠加层显示前才解码）；内存压力 warning 即时清道（快照+缩略图缓存+收紧深度挂起），新增桥 `POST /diag/memory-pressure` 模拟。
 - 资源退避（v0.8.84 批 3）：纯逻辑 `ResourceGovernor` 把内存压力/热状态/低电量折算成后台档位（critical 热/内存压力 → 暂停入队；低电量/serious 热 → 并发减半），下载并发闸接入（`/diag/resource-governor` 可读档位；定时 Agent 任务不受影响）。同批：插件 background 宿主**闲置休眠**——零监听器/零端口 10 分钟即拆除（WKWebView+全套脚本），contextMenus/storage.onChanged/事件投递路径按需重建，对插件透明。
+- 性能面板与体检（v0.8.84 批 4）：新增 `desire://performance` 内置页——标签（活跃/挂起/未建/后台节点总量/最重 Top5）、启动审计逐阶段（按窗口序号归因）、守卫计数（navGuard/lazyWebViews）、插件后台宿主、内存管家与资源退避档位、DevTools 缓冲体量；"释放内存"按钮走 Doctor 修复链。桥 `GET /diag/performance` 与页面同一份聚合（禁止另算）。Agent 新增 `getTabResources` / `releaseMemory` 工具（豁免集与挂起 sweep 一致）；Doctor 新增启动预算/挂起积压/插件宿主三项体检（"挂起积压"带一键释放修复）。
+
 
 
 

@@ -1766,6 +1766,10 @@ try {
                 parent.onCookieGuardHandled?(dict["pref"] ?? "", dict["label"] ?? "")
                 return
             } else if message.name == "pagePerf", let dict = message.body as? [String: Int] {
+                // 主框架守卫（批 2 第 4 件）：脚本已改 mainFrameOnly，这里再兜
+                // 一层 frame 判定——历史上小 iframe 的上报会覆盖主框架数据，
+                // 大页面守护（>25k 节点）因此被重置（性能+正确性双缺口）。
+                guard message.frameInfo.isMainFrame else { return }
                 parent.state.lastDomNodeCount = dict["domNodes"] ?? 0
                 parent.state.lastLongTaskCount = dict["longTasks"] ?? 0
                 parent.state.lastLongTaskMs = dict["longTaskMs"] ?? 0

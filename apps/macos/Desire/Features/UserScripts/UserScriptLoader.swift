@@ -47,7 +47,10 @@ enum UserScriptLoader {
         add("beforeunload-watch", at: .atDocumentEnd, mainFrameOnly: true)
         add("console-intercept", at: .atDocumentStart)
         // 大页面守护 + 性能快照数据面（0.6.4）：DOM 节点数 + long task 计数
-        add("page-perf", at: .atDocumentEnd)
+        // 主框架 only（v0.8.84 批 2 第 4 件）：此前每个 iframe 都在 5s 遍历全 DOM
+        // 并上报，且原生侧不辨帧——小 iframe 会覆盖大页面守护的数据。守护与
+        // 快照的口径都是主框架（见脚本头注释）。
+        add("page-perf", at: .atDocumentEnd, mainFrameOnly: true)
         // 视频速度控制数据面（0.6.5）：速率桥 + 徽章（默认 1x 零 UI）
         add("video-speed", at: .atDocumentEnd)
         // SPA 路由变化 → DPP 重解析（页面世界：必须包住页面自己的 history 调用）

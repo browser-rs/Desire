@@ -23,6 +23,21 @@ enum LaunchWindowHealer {
 
     static func start() {
         Task { @MainActor in
+            // 快速自救（v0.8.84 批 1-3）：`open -g` 后台启动 + 空会话索引时
+            // SwiftUI 可能整段不建主窗（2026-11-28 实测 3/3 复现，旧的 20s
+            // 阶梯要 21s 才救活——自动化与真实用户都得干等）。3s 无窗先发
+            // 一次 **reopen**（对已建窗是 no-op：applicationShouldHandleReopen
+            // 只在无可见窗时建窗；本会话实测这正是救活的那一步），
+            // 4/8/12/20s 的保守阶梯照旧作为后备。
+            try? await Task.sleep(for: .seconds(2.5))
+            if !hasUserWindow {
+                Log.app.fault("launch heal: no user window at 2.5s — early reopen")
+                LaunchAudit.mark("heal.earlyReopen")
+                let config = NSWorkspace.OpenConfiguration()
+                config.createsNewApplicationInstance = false
+                _ = try? await NSWorkspace.shared.openApplication(
+                    at: Bundle.main.bundleURL, configuration: config)
+            }
             // 4/8/12s 探针 + 20s 末档：慢机器上首窗 + 会话恢复（索引采纳 +
             // 多窗复活）可能超过 12s——直接进 heal 会误触发 order-front /
             // 重启（v0.8.55 批 4：收口强杀后首启无窗的残余路径，先给足耐心）。

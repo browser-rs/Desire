@@ -698,6 +698,59 @@ extension BrowserToolProvider {
             let rightTitle = manager.tabs[partnerIndex].displayTitle
             return "Split view: \(leftTitle) | \(rightTitle) (right pane = tab \(partnerIndex))"
 
+        case "getTabResources":
+            // 资源快照（批 4 第 12 件）：每标签重量一览——挂起决策的数据面。
+            guard let manager = surface.tabManager, !manager.tabs.isEmpty else { return Self.fail("No tabs open") }
+            let resRows = manager.tabs.enumerated().map { (i, t) -> String in
+                let state = t.isSuspended ? "suspended"
+                    : (t.browser.hasLiveWebView ? "live" : "not loaded")
+                let flags = [t.isPinned ? "pinned" : nil,
+                             t.isPlayingAudio ? "playing audio" : nil,
+                             t.id == manager.selectedTab?.id ? "selected" : nil,
+                             t.id == manager.splitPartnerID ? "split" : nil].compactMap { $0 }
+                let flagText = flags.isEmpty ? "" : " (" + flags.joined(separator: ", ") + ")"
+                return "\(i). \(t.displayTitle) — \(t.browser.lastDomNodeCount) nodes, \(t.browser.lastLongTaskCount) long tasks, \(state)\(flagText)"
+            }
+            let liveTotal = manager.tabs.filter { !$0.isSuspended }
+                .reduce(0) { $0 + max(0, $1.browser.lastDomNodeCount) }
+            return "Tabs: \(manager.tabs.count) (live background-node total \(liveTotal))\n"
+                + resRows.joined(separator: "\n")
+
+        case "releaseMemory":
+            // 释放内存（批 4 第 12 件）：挂起最重的后台标签 + 清可再生的视觉
+            // 内存。豁免集与挂起 sweep 一致——选中/分屏/固定/新标签页/无痕/
+            // 播放音频/Agent 租约的标签**永不触碰**。
+            guard let manager = surface.tabManager else { return Self.fail("No window") }
+            let maxSuspend = min(max((args["maxSuspend"] as? Int) ?? 5, 0), 20)
+            let busyAgentTabIDs = Set(AgentScheduler.shared.liveSessions()
+                .compactMap { $0.store?.boundTabManager?.selectedTab?.id })
+            let before = manager.tabs.filter { !$0.isSuspended }
+                .reduce(0) { $0 + max(0, $1.browser.lastDomNodeCount) }
+            let candidates = manager.tabs.filter { tab in
+                tab.id != manager.selectedTab?.id && tab.id != manager.splitPartnerID
+                    && !tab.isPinned && !tab.isOnNewTabPage && !tab.isIncognito
+                    && !tab.isPlayingAudio && !busyAgentTabIDs.contains(tab.id)
+                    && !tab.isSuspended && tab.browser.hasLiveWebView
+                    && tab.browser.lastDomNodeCount > 0
+                    && !AgentScheduler.shared.isTabLeased(tab.id)
+            }.sorted { $0.browser.lastDomNodeCount > $1.browser.lastDomNodeCount }
+                .prefix(maxSuspend)
+            var suspendedCount = 0
+            for tab in candidates {
+                tab.captureSuspendedState()
+                tab.isSuspended = true
+                tab.browser.webView.stopLoading()
+                tab.browser.webView.loadHTMLString("", baseURL: nil)
+                suspendedCount += 1
+            }
+            TabThumbnailStore.purgeAllCaches()
+            let after = manager.tabs.filter { !$0.isSuspended }
+                .reduce(0) { $0 + max(0, $1.browser.lastDomNodeCount) }
+            if suspendedCount == 0 {
+                return "Nothing to free: all heavy tabs are selected/pinned/playing/exempt. Live-node total \(after)."
+            }
+            return "Freed memory: suspended \(suspendedCount) background tab(s), live-node total \(before) → \(after). Thumbnail cache cleared. Exempt tabs (selected/split/pinned/playing/agent) untouched."
+
         case "unsplitView":
             guard let manager = surface.tabManager else { return Self.fail("No window") }
             guard manager.splitPartnerID != nil else { return "Not in split view" }

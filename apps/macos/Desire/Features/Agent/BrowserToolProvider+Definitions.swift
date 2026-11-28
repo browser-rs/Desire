@@ -940,6 +940,16 @@ extension BrowserToolProvider {
                 ])
             )),
             AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "getTabResources", description: "Per-tab resource snapshot: DOM node counts, long tasks, suspended/live state — sorted heaviest first. Read this before deciding to free memory.",
+                parameters: AgentJSONSchema(type: "object", properties: [:])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
+                name: "releaseMemory", description: "Suspend the heaviest background tabs and free regenerable visual memory (snapshots + thumbnails). NEVER touches the selected, split-partner, pinned, playing-audio or Agent-leased tabs. Returns before/after live-node totals.",
+                parameters: AgentJSONSchema(type: "object", properties: [
+                    "maxSuspend": AgentJSONSchemaValue(type: "number", description: "Max tabs to suspend this call (default 5, max 20)")
+                ])
+            )),
+            AgentToolDef(type: "function", function: AgentToolFunctionDef(
                 name: "unsplitView", description: "Leave split view (the right pane's tab stays open as a normal tab).",
                 parameters: AgentJSONSchema(type: "object", properties: [:])
             )),

@@ -226,7 +226,8 @@
    onbeforeunload>` 的解析转赋值不经过 JS setter——靠 documentEnd 二次注入读原生值
    兜底；创建期弱代理接收避免 controller→handler→state 释放环；四注册形态 fixture
    全验）→ 4 page-perf 主框架（iframe 覆盖实测修复）→ 7 DevTools 零拷贝（PERF-10）
-   + 缩略图后台暂停。第 5 件（didFinish 按需）留下一轮——13 处调用点需逐项审计。
+   + 缩略图后台暂停。第 5 件（didFinish 按需）随后落地——见批 5 实施记录
+   （bfeda0ac：合并探针 + jsRoundTrips，实测 2 ≤ 4）。批 2 全部完成。
 3. **内存与后台**：6 快照瘦身/压力 → 8 插件宿主 → 14 内存管家 → 15 资源退避。
    **实施记录（2026-11-28）**：6 落地——快照改 JPEG（叠加层解码显示）、warning
    清道（快照+缩略图+收紧 rebuildCap）、`POST /diag/memory-pressure` 模拟、
@@ -244,6 +245,20 @@
    `GET /diag/performance` 同源聚合，深链 E2E + 实窗截图）；10/11 已在批 2 落地
    （10 用量缓存并入批 2，11 E34–E44 评估随批 2 收口）。批 4 完成。
 5. **收口**：16 perf-probe → 19 文档/发版 → 20 版本收口。
+   **实施记录（2026-11-28，bfeda0ac + probe 提交）**：第 5 件落地——didFinish
+   13 处求值发起点全接 `jsRoundTrips` 计数（didStart 归零、/page/timing 暴露），
+   Feed 发现与混合内容扫描合并为一次往返（http 页不嵌 mixed 段）；实测
+   example.com = 2 次（DPP 解析 + 合并探针）≤ 4；双语重施/阅读进度/DPP 三处
+   核实自带前置门（关闭时零 JS）。顺带清零四条存量并发警告（WeakScriptMessageProxy
+   改隐式 MainActor、TabThumbnailStore 两属性 nonisolated(unsafe)、PerformancePage
+   去多余 await）。第 16 件落地——`tests/perf-probe.py` + `perf-baseline.json`
+   （Release 口径，Debug 只 WARN，`--strict` 判）：冷启动首窗/审计、大页面管道
+   （30k 主框架计数不被覆盖）、守卫双向计数、压力模拟（paused+并发 0）、41 标签
+   恢复（意外建必须 0）；首轮 7/7（340ms/617ms/75ms/0）。第 19 件落地——AGENTS
+   新增"性能与页面生命周期"段（先量后做/didFinish 计费/主框架口径/守卫标志语义）
+   + SettingsContainer 规矩，What's New 换 v0.8.84 亮点（三语手工补 10 键），
+   CHANGELOG 两条。**发版前置（待用户"发"后走闸门）**：Release clean 零警告 +
+   `perf-probe --strict` + 产品页版本三处 + release.sh。
 
 ## 不做 / 暂缓（已核实，别再当缺口）
 

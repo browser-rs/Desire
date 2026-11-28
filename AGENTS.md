@@ -1156,7 +1156,44 @@ Features/Bookmarks/
   - **发版冒烟必须从非 DerivedData 路径（如 /tmp）启动一次**：ACl 失配只在
     换路径启动时触发，常规 DerivedData 路径测不出来。
 
+- **新增设置分区必须走 `SettingsContainer` 包裹**（2026-11-28 逮到的存量
+  事故，v0.8.80 起坏了四版才被用户看见）：裸 `SettingsSection` 直接铺会
+  被窗口标题栏压住分区标题、行内容顶满窗口边——容器负责统一的标题避让
+  与内边距。新分区照抄邻近分区的骨架（`SettingsContainer` → 横幅在卡外 →
+  `SettingsSection`），首启说明横幅放卡片外面（与隐私/远程页同位）。
+
 - **本地化格式串的参数顺序必须与英文一致**（v0.8.79 冒烟当场逮到的崩溃）：`String(format: String(localized: "%@…%@…%lld…"))` 的译文把格式符顺序换了（实测摘要的中文把第二个 `%@` 写成 `%lld`）→ 运行时把 Int 当对象发给 objc_msgSend，主线程 SIGSEGV。翻译可以改措辞，不能改格式符的顺序/类型；`tests/check-localized-formats.py` 已接入 `tests/run.sh`（700 个键，顺序不一致即失败）。
+
+## 性能与页面生命周期（v0.8.84 立，先量后做）
+
+- **性能改动先量后做，量出来的口径要能跨会话复现**：didFinish 的页面求值
+  计数 = `GET /page/timing` 的 `jsRoundTrips`（didStart 归零、按发起点计，
+  简单页面验收线 ≤4，实测 example.com=2）；启动面 = `/diag/startup` 的
+  `firstWindowMs / launchAudit / restoreTabs / lazyWebViews / navGuard`；
+  聚合视图 = `/diag/performance`（与 desire://performance 同一份
+  PerformanceSnapshot，禁止另算）。回归探针 = `tests/perf-probe.py`
+  （阈值 `tests/perf-baseline.json` 是 **Release 口径**——Debug 产物超阈只
+  WARN，`--strict` 才判；发版 checklist 在 Release clean 后跑 --strict）。
+  改 didFinish/启动/挂起路径之前先读一遍这几个数，改完再看一遍。
+- **didFinish 的 JS 往返是计费资源**：新增 didFinish 期的页面探测必须
+  ① 有前置门（站点设置/opt-in/host 匹配），② 能并进既有合并探针就并
+  （Feed 发现+混合内容扫描已是合一往返，http 页连 mixed 段都不嵌）。
+  双语重施（`reapplyIfActive` 的 isOn guard）、阅读进度（progress>0.02
+  guard）、DPP 解析（enabled guard）是"内部自带门"的样板——新路径照这个
+  形状写，别在 didFinish 里加无条件往返。
+- **页面级聚合上报必须声明主框架口径**（v0.8.84 批 2 的真缺口）：任何
+  "每个 frame 都会发消息"的注入脚本，其数据会**互相覆盖**——page-perf
+  曾被 3 节点小 iframe 覆盖主框架的 30k domNodes，大页面守护（>25k）因此
+  失效。现状是双保险：脚本注入 `mainFrameOnly: true` + 原生侧
+  `message.frameInfo.isMainFrame` 兜底；新聚合上报照这个双保险写。
+- **beforeunload 守卫的标志语义**：`BrowserState.hasBeforeUnloadListener`
+  由 page world 眼线脚本（beforeunload-watch.js，自有 accessor 影子 +
+  addEventListener Proxy）在页面**注册监听器那一刻**置位，didStart 复位；
+  "命中即上报、移除不清零"（多探一次只是回到旧探针行为，无损）。计数
+  对称看 `/diag/startup.navGuard`：skipped=零 JS 放行（收益面）、
+  probes=合成探针（保护面），两个数都应该随导航增长。眼线脚本注入两遍
+  （documentStart 装钩子 + documentEnd 兜底读 `<body onbeforeunload>`
+  原生值——解析器转内容属性不经 JS setter）。
 
 ## API 会话/配额/可观测（v0.8.80）
 

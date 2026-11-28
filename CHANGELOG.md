@@ -6,6 +6,10 @@
 - 内存管家（v0.8.84 批 3）：后台标签 DOM 节点**总量**超预算（默认 60k，设置页可调/关闭）时按"重量 × 最久未看"逐个挂起最重的——此前均一时间阈值下多个中等页面加起来再重也不会提前挂起。判定抽成 Foundation-only `SuspendPolicy`（harness 4 项：预算开关/阈值/重者优先/同重 LRU）；挂起快照改存 JPEG 压缩数据（1200px 位图 ~1-4MB → ~150KB，叠加层显示前才解码）；内存压力 warning 即时清道（快照+缩略图缓存+收紧深度挂起），新增桥 `POST /diag/memory-pressure` 模拟。
 - 资源退避（v0.8.84 批 3）：纯逻辑 `ResourceGovernor` 把内存压力/热状态/低电量折算成后台档位（critical 热/内存压力 → 暂停入队；低电量/serious 热 → 并发减半），下载并发闸接入（`/diag/resource-governor` 可读档位；定时 Agent 任务不受影响）。同批：插件 background 宿主**闲置休眠**——零监听器/零端口 10 分钟即拆除（WKWebView+全套脚本），contextMenus/storage.onChanged/事件投递路径按需重建，对插件透明。
 - 性能面板与体检（v0.8.84 批 4）：新增 `desire://performance` 内置页——标签（活跃/挂起/未建/后台节点总量/最重 Top5）、启动审计逐阶段（按窗口序号归因）、守卫计数（navGuard/lazyWebViews）、插件后台宿主、内存管家与资源退避档位、DevTools 缓冲体量；"释放内存"按钮走 Doctor 修复链。桥 `GET /diag/performance` 与页面同一份聚合（禁止另算）。Agent 新增 `getTabResources` / `releaseMemory` 工具（豁免集与挂起 sweep 一致）；Doctor 新增启动预算/挂起积压/插件宿主三项体检（"挂起积压"带一键释放修复）。
+- didFinish 被动探测合并（v0.8.84 批 2 第 5 件）：Feed 发现与混合内容扫描合并为一次 evaluateJavaScript 往返（https 页才嵌 mixed 段）；`/page/timing` 新增 `jsRoundTrips`（didStart 归零、按发起点计）——didFinish 全部 13 处求值发起点接上计数，实测 example.com 简单页 = 2 次（DPP 解析 + 合并探针），验收线 ≤4。双语重施/阅读进度/DPP 三处已核实自带前置门（关闭时零 JS）。
+- 性能回归探针（v0.8.84 批 5）：`tests/perf-probe.py` 在封闭实例上确定性测量——冷启动首窗/审计（vs 700ms 预算）、大页面管道（30k 主框架计数不被 iframe 覆盖）、导航守卫双向计数、内存压力模拟（governor 档位 + 下载并发）、41 标签恢复（装载毫秒 + 懒建意外建必须为 0）；阈值 `tests/perf-baseline.json` 为 Release 口径，Debug 产物超阈只 WARN、`--strict` 才判。发版 checklist = Release clean 构建 + `perf-probe --strict`；CI 不跑（应用无法激活）。首轮 7/7：冷启动 340ms / 审计 617ms / 恢复 75ms / 意外建 0。
+
+
 
 
 

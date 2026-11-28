@@ -17,16 +17,16 @@ struct WhatsNewSheet: View {
     /// 每次发版更新为当版亮点（v0.8.26 / v0.8.46 两次漏过的坑——发版 checklist 固定项）。
     private var highlights: [Highlight] {
         [
-            .init(icon: "slider.horizontal.3", title: String(localized: "A toolbar that fits your habits"),
-                  detail: String(localized: "Show or hide the home, zoom, plugin, sync and right-side buttons, and reorder the right-side row in Settings → Toolbar. New buttons stay hidden until you ask for them, so the default layout is unchanged.")),
-            .init(icon: "calendar.badge.clock", title: String(localized: "A week you can see"),
-                  detail: String(localized: "The task page now lays out seven days of scheduled runs, batch downloads and download windows in one grid. Crowded days and real overlaps are flagged with a staggering hint — read-only, nothing is rescheduled.")),
-            .init(icon: "arrow.triangle.branch", title: String(localized: "Conflicts you can settle"),
-                  detail: String(localized: "Use Local now truly restores the copy this Mac had before the server won, for bookmarks, quick dials and reading list. Every choice is kept in a resolution history you can review or clear.")),
-            .init(icon: "checkmark.shield", title: String(localized: "More proof, fewer guesses"),
-                  detail: String(localized: "Seven new deterministic agent checks, a real two-device sync-conflict run, and a hardened 190-item gate cover cache prefixes, approvals, revisions, budgets, notifications, chains and cross-device convergence.")),
-            .init(icon: "iphone", title: String(localized: "Your account, on your phone"),
-                  detail: String(localized: "The iPhone account-security page reads recovery codes, the audit log and the device list, and can revoke a device. Password changes stay on the Mac because only it holds the sync key material.")),
+            .init(icon: "bolt.badge.clock", title: String(localized: "Launch that skips the scaffolding"),
+                  detail: String(localized: "Restored tabs no longer build a WebView until you actually look at them — 40-tab sessions load about three times faster, and a wider self-heal net opens the first window in seconds even after a crash.")),
+            .init(icon: "gauge.with.dots.needle.bottom.50percent", title: String(localized: "Pages that cost less"),
+                  detail: String(localized: "Navigation now skips the before-unload probe for pages that never registered one, and passive page checks share a single round trip. Background timers, thumbnails and plugin hosts sleep when nothing needs them.")),
+            .init(icon: "memorychip", title: String(localized: "A memory keeper on duty"),
+                  detail: String(localized: "A whole-session node budget suspends the heaviest background tabs first, suspended snapshots compress to a fraction of their size, and a system memory nudge instantly clears everything that can be rebuilt.")),
+            .init(icon: "arrow.down.heart", title: String(localized: "Gentle on the hardware"),
+                  detail: String(localized: "Under thermal, power or memory strain, downloads, thumbnails and other background work step down or pause — scheduled agent tasks always run, because those are things you asked for.")),
+            .init(icon: "chart.bar.xaxis", title: String(localized: "Performance you can read"),
+                  detail: String(localized: "Open desire://performance for tabs, launch stages, guard counters and background hosts in one place — and ask the agent to free memory or report per-tab resources in plain language.")),
         ]
     }
 

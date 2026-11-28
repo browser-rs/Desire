@@ -9,7 +9,9 @@ import WebKit
 class TabThumbnailStore: ObservableObject {
     /// 存活实例登记（批 3 第 6 件）：store 是每窗 @StateObject，内存清道
     /// 需要进程级 purge——弱哈希表遍历，实例释放自动出表。
-    private static let liveInstances = NSHashTable<TabThumbnailStore>.weakObjects()
+    /// nonisolated(unsafe)：deinit（非隔离）也要出表；登记/清道都在主线程，
+    /// 弱表自身不承担跨线程写。
+    nonisolated(unsafe) private static let liveInstances = NSHashTable<TabThumbnailStore>.weakObjects()
 
     /// 进程级清道：清所有窗口的缩略图缓存（NSCache 可按需重拍）。
     static func purgeAllCaches() {
@@ -31,8 +33,9 @@ class TabThumbnailStore: ObservableObject {
     /// 缩略图尺寸配置
     private let thumbnailSize = CGSize(width: 236, height: 150)
 
-    /// 更新定时器
-    private var updateTimer: Timer?
+    /// 更新定时器（nonisolated(unsafe)：deinit 非隔离兜底 invalidate——
+    /// 生命周期全程只在主线程创建/触发）
+    nonisolated(unsafe) private var updateTimer: Timer?
 
     /// 缩略图过期时间（秒）
     private let expirationInterval: TimeInterval = 30

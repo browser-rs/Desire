@@ -310,6 +310,10 @@ class BrowserState: ObservableObject {
     /// 一次 JS 往返。新文档 didStart 时复位（documentStart 眼线随新文档
     /// 重新登记）。
     var hasBeforeUnloadListener = false
+    /// didFinish 发起的页面求值次数（v0.8.84 批 2 第 5 件，didStart 归零；
+    /// /page/timing 暴露）——按发起点计，间接路径（双语流水线内部的多段
+    /// 求值等）算一次。"简单页面 ≤4" 的验收读数。
+    var jsRoundTrips = 0
     /// 守卫决策计数（`/diag/startup.navGuard` 读取）：probe = 有监听器走了
     /// 合成探针；skip = 无监听器零 JS 放行（本项优化的收益面）。
     static var unloadProbesRun = 0
@@ -1021,14 +1025,15 @@ struct WebView: NSViewRepresentable {
     /// 混合内容扫描（0.2.15）：https 页面上 http:// 子资源计数，按风险
     /// 分组——script/iframe/object 是主动加载（可执行/可嵌套），img/video
     /// 等是被动加载（主要涉及隐私与完整性）。
-    static let mixedContentScanJS = """
-    (function() {
-        var active = document.querySelectorAll(
-            'script[src^="http:"], iframe[src^="http:"], object[data^="http:"], embed[src^="http:"], link[rel="stylesheet"][href^="http:"]');
-        var passive = document.querySelectorAll(
-            'img[src^="http:"], source[src^="http:"], video[src^="http:"], audio[src^="http:"], link[href^="http:"]');
-        return { total: active.length + passive.length, scripts: active.length };
-    })()
+    /// 混合内容扫描的**内联段**（v0.8.84 批 2 第 5 件）：didFinish 的 Feed
+    /// 发现与混合内容扫描合并为一次往返，这里是嵌进合并探针的扫描语句
+    /// （赋值给外层已声明的 `mixed` 变量，自带 try 兜底）。不再是独立 IIFE。
+    static let mixedContentScanInlineJS = """
+    try {
+        var active = document.querySelectorAll('script[src^="http:"], iframe[src^="http:"], object[data^="http:"], embed[src^="http:"], link[rel="stylesheet"][href^="http:"]');
+        var passive = document.querySelectorAll('img[src^="http:"], source[src^="http:"], video[src^="http:"], audio[src^="http:"], link[href^="http:"]');
+        mixed = { total: active.length + passive.length, scripts: active.length };
+    } catch (e) {}
     """
 
     /// JS that removes an element-block `<style>` rule by its ID, then
@@ -2016,6 +2021,7 @@ try {
             // 导航守卫眼线复位（批 2 第 3 件）：新文档的监听器登记由
             // documentStart 眼线重新上报——旧文档的标志不能带进新导航判定。
             parent.state.hasBeforeUnloadListener = false
+            parent.state.jsRoundTrips = 0
             // Workaround for WebKit Bug 313542 (https://bugs.webkit.org/show_bug.cgi?id=313542):
             // `customUserAgent` is not applied to the FIRST navigation request
             // when the URL is loaded via `load(_:)` — it only takes effect for
@@ -2306,6 +2312,7 @@ try {
                 guard let events = parent.state.siteProtocol?.events, !events.isEmpty else { return "" }
                 return (try? String(data: JSONEncoder().encode(events), encoding: .utf8)) ?? ""
             }()
+            parent.state.jsRoundTrips += 1
             let rawResult = try? await webView.callAsyncJavaScript(
                 script, arguments: ["hostExtraEvents": hostExtraEvents], in: nil, contentWorld: .page) as? String
             guard let raw = rawResult, let data = raw.data(using: .utf8) else {
@@ -2371,6 +2378,7 @@ try {
             if let y = parent.state.pendingScrollRestore, y > 0 {
                 parent.state.pendingScrollRestore = nil
                 let script = "setTimeout(function(){ window.scrollTo(0, \(y)); }, 250);"
+                parent.state.jsRoundTrips += 1
                 webView.evaluateJavaScript(script, completionHandler: nil)
             }
             parent.isLoading = false
@@ -2383,6 +2391,7 @@ try {
             // 用户手动静音的标签离开该站后保持静音）。
             if let host = webView.url?.host, AppState.live?.siteSettingsStore.isMuted(for: host) == true {
                 parent.state.isMuted = true
+                parent.state.jsRoundTrips += 1
                 Task { await TabAudioControl.apply(true, to: webView) }
             }
             if let url = webView.url {
@@ -2408,12 +2417,37 @@ try {
                     await self.parsePageProtocol(webView: webView)
                 }
                 parent.onPageFinished?(url, parent.state.pageTitle)
-                // Feed 发现（v0.8.45）：轻量一次 evaluate，查不到清空（SPA 路由残留）。
+                // Feed 发现（v0.8.45）+ 混合内容扫描（0.2.15）合并为**一次**
+                // 往返（v0.8.84 批 2 第 5 件）：两者都是 didFinish 的被动只读
+                // 探测，此前各占一次 evaluateJavaScript。https 页才嵌 mixed
+                // 段（http 页无混合内容可扫）；查不到 feed 清空（SPA 路由残留）。
+                let mixedScan = url.scheme == "https" ? WebView.mixedContentScanInlineJS : ""
+                parent.state.jsRoundTrips += 1
                 Task { @MainActor [weak self, weak webView] in
                     guard let self, let webView else { return }
-                    let js = "(function(){var l=document.querySelector('link[rel=\\'alternate\\'][type*=\\'rss\\'],link[rel=\\'alternate\\'][type*=\\'atom\\']');return l?(l.href||''):'';})()"
-                    let found = (try? await webView.evaluateJavaScript(js)) as? String ?? ""
-                    self.parent.state.discoveredFeedURL = found.isEmpty ? nil : found
+                    let js = """
+                    (function() {
+                        var feed = '';
+                        try {
+                            var l = document.querySelector('link[rel=\\'alternate\\'][type*=\\'rss\\'],link[rel=\\'alternate\\'][type*=\\'atom\\']');
+                            feed = l ? (l.href || '') : '';
+                        } catch (e) {}
+                        var mixed = { total: 0, scripts: 0 };
+                        \(mixedScan)
+                        return JSON.stringify({ feed: feed, mixed: mixed });
+                    })()
+                    """
+                    let raw = (try? await webView.evaluateJavaScript(js)) as? String ?? ""
+                    guard let data = raw.data(using: .utf8),
+                          let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return }
+                    let feed = obj["feed"] as? String ?? ""
+                    self.parent.state.discoveredFeedURL = feed.isEmpty ? nil : feed
+                    if let mixed = obj["mixed"] as? [String: Any],
+                       let total = mixed["total"] as? Int,
+                       let scripts = mixed["scripts"] as? Int {
+                        self.parent.state.mixedContentTotal = total
+                        self.parent.state.mixedContentScripts = scripts
+                    }
                 }
                 // 自动播策略补烙（v0.8.8）：新标签页建起的 webview 烙的是默认
                 // requireUserAction，之后导航到视频站策略不变——自动播被
@@ -2448,6 +2482,7 @@ try {
 
             }
             if let host = webView.url?.host, parent.siteSettingsStore.darkModeEnabled(for: host) {
+                parent.state.jsRoundTrips += 1
                 webView.evaluateJavaScript(UserScriptLoader.load("dark-mode-inject"), completionHandler: nil)
             }
             // 站点字体（最小字号/字体族）：站点或全局默认开着才注入——两处
@@ -2455,6 +2490,7 @@ try {
             // 导航后的常规重施（页面脚本幂等）。
             if let host = webView.url?.host,
                parent.siteSettingsStore.effectiveFont(for: host).isActive {
+                parent.state.jsRoundTrips += 1
                 SiteFontApplier.apply(to: webView, host: host, store: parent.siteSettingsStore)
             }
             // 站点自动双语（v0.8.62）：该站点设为自动双语且标签未开启 → 自动开
@@ -2462,6 +2498,7 @@ try {
             if let host = webView.url?.host,
                parent.siteSettingsStore.autoBilingual(for: host),
                !BilingualReadingService.shared.isOn(tabID: parent.tabID) {
+                parent.state.jsRoundTrips += 1
                 BilingualReadingService.shared.toggleInterlinear(
                     webView: webView, tabID: parent.tabID,
                     preference: AppState.live?.aiPreference)
@@ -2475,6 +2512,7 @@ try {
             // 归零），didFinish 按本 webview 的 isMuted 补一次强制——否则
             // 静音标签翻页/刷新后声音就回来了。
             if parent.state.isMuted {
+                parent.state.jsRoundTrips += 1
                 Task { @MainActor [weak webView] in
                     guard let webView else { return }
                     await TabAudioControl.apply(true, to: webView)
@@ -2489,9 +2527,11 @@ try {
                     .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
                 let script = "window.__desireSBCategories = \(categoriesJSON);\n"
                     + UserScriptLoader.load("sponsorblock")
+                parent.state.jsRoundTrips += 1
                 webView.evaluateJavaScript(script, completionHandler: nil)
             }
             if let host = webView.url?.host, let js = parent.state.videoAdBlocker?.pageScript(for: host) {
+                parent.state.jsRoundTrips += 1
                 webView.evaluateJavaScript(js, completionHandler: nil)
             }
             if let host = webView.url?.host {
@@ -2500,6 +2540,7 @@ try {
                 let xpathRules = rules.compactMap { $0.xpath }.filter { !$0.isEmpty }
                 if !cssSelectors.isEmpty {
                     let css = cssSelectors.map { "\($0) { display: none !important; }" }.joined()
+                    parent.state.jsRoundTrips += 1
                     webView.evaluateJavaScript("""
                     (function() {
                         var s = document.createElement('style');
@@ -2520,12 +2561,14 @@ try {
                         } catch(e) {}
                         """
                     }.joined(separator: "\n")
+                    parent.state.jsRoundTrips += 1
                     webView.evaluateJavaScript(steps, completionHandler: nil)
                 }
             }
             if parent.formAutofillStore.isConfigured {
                 // 隔离世界求值（__desireFillProfile 是 dom-tools 的隔离世界成员；
                 // 页面世界已不再注入 dom-tools）
+                parent.state.jsRoundTrips += 1
                 webView.evaluateJavaScript(parent.formAutofillStore.fillScript(), in: nil,
                                            in: WebView.agentToolWorld, completionHandler: nil)
             }
@@ -2542,27 +2585,19 @@ try {
                           let json = String(data: data, encoding: .utf8) else { return }
                     // evaluateJavaScript(_:in:in:) 只有完成式形式（无 async/throws
                     // 重载——await/try? 都会触发 UnnecessaryEffectMarker 警告）
+                    parent.state.jsRoundTrips += 1
                     webView.evaluateJavaScript(
                         "__desireRestoreHighlights(\(json))", in: nil,
                         in: WebView.agentToolWorld, completionHandler: nil)
                 }
             }
-            // 混合内容扫描（0.2.15 加固）：https 页面统计 http:// 子资源。
-            // 一次被动扫描（didFinish 时 DOM 已就绪）；延迟写入的脚本由
-            // 下一轮导航或手动刷新再捕获。
-            if webView.url?.scheme == "https" {
-                webView.evaluateJavaScript(WebView.mixedContentScanJS) { value, _ in
-                    guard let dict = value as? [String: Int],
-                          let total = dict["total"], let scripts = dict["scripts"] else { return }
-                    self.parent.state.mixedContentTotal = total
-                    self.parent.state.mixedContentScripts = scripts
-                }
-            }
+            // 混合内容扫描已并入上方 Feed 发现的合并探针（批 2 第 5 件）。
             // 历史正文索引（v0.8.0，opt-in）：只在开启时抓一次正文前 3000 字。
             if HistoryContentStore.shared.isEnabled,
                !parent.state.isIncognito,
                let url = webView.url?.absoluteString,
                url.hasPrefix("http") {
+                parent.state.jsRoundTrips += 1
                 webView.evaluateJavaScript(
                     "(function(){try{var t=document.body?document.body.innerText.slice(0,3000):'';return [document.title||'',t];}catch(e){return ['',''];}})()"
                 ) { value, _ in
@@ -3500,6 +3535,8 @@ try {
 /// 强持有会构成 controller→handler→state→webview→config 的释放环
 /// （BrowserState 是标签生命周期对象，环 = 关掉的标签永不释放）。
 private final class WeakScriptMessageProxy: NSObject, WKScriptMessageHandler {
+    // 隐式 @MainActor（默认隔离）满足 WKScriptMessageHandler——与 Coordinator
+    // 的主 handler 同款；WebKit 回调落在主线程，无需 Task 跳帧。
     weak var state: BrowserState?
 
     init(state: BrowserState) {
@@ -3507,14 +3544,11 @@ private final class WeakScriptMessageProxy: NSObject, WKScriptMessageHandler {
         super.init()
     }
 
-    nonisolated func userContentController(
+    func userContentController(
         _ userContentController: WKUserContentController,
         didReceive message: WKScriptMessage
     ) {
         guard message.name == "beforeUnloadWatch" else { return }
-        let state = state
-        Task { @MainActor in
-            state?.hasBeforeUnloadListener = true
-        }
+        state?.hasBeforeUnloadListener = true
     }
 }

@@ -37,8 +37,10 @@ struct PerformancePage: View {
 
     private func reload() {
         Task {
-            let s = await PerformanceSnapshot.collect()
-            await MainActor.run { self.snapshot = s }
+            // collect() 是 @MainActor 同步聚合（Task 继承主 actor）——
+            // 不需要 await（曾经 await 触发 UnnecessaryEffectMarker）。
+            let s = PerformanceSnapshot.collect()
+            self.snapshot = s
         }
     }
 

@@ -1077,7 +1077,11 @@ case ("GET", "/state"):
                     }
                 }
                 let parsed = (try? JSONSerialization.jsonObject(with: Data(raw.utf8))) as? [String: Any]
-                return try Self.json(parsed ?? ["error": "parse failed"])
+                var out = parsed ?? ["error": "parse failed"]
+                // didFinish 发起的页面求值次数（v0.8.84 批 2 第 5 件）——
+                // "简单页面往返 ≤4" 的验收读数（didStart 归零，页面级）。
+                out["jsRoundTrips"] = tab.browser.jsRoundTrips
+                return try Self.json(out)
             case ("GET", "/page/url"):
                 return try await Self.json(Self.pageMeta(index: Self.index(query)))
             case ("POST", "/screenshot/fullpage"):

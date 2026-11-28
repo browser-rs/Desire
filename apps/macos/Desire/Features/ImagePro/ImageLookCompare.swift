@@ -49,7 +49,9 @@ nonisolated enum ImageLookCompare {
               let context = CGContext(
                 data: nil, width: width, height: height,
                 bitsPerComponent: 8, bytesPerRow: 0,
-                space: CGColorSpaceCreateDeviceRGB(),
+                // 对比卡是展示图：保 after 的色域、8 位即可。
+                space: ImagePixelFormat(space: ImagePixelFormat.of(after).space,
+                                        bitDepth: 8).cgColorSpace,
                 bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
         context.setFillColor(CGColor(red: 0.94, green: 0.94, blue: 0.95, alpha: 1))
         context.fill(CGRect(x: 0, y: 0, width: width, height: height))
@@ -71,7 +73,9 @@ nonisolated enum ImageLookCompare {
         guard let context = CGContext(
             data: nil, width: width, height: height,
             bitsPerComponent: 8, bytesPerRow: 0,
-            space: image.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
+            // 缩图（vision 通道/展示）：保色域、8 位。
+            space: ImagePixelFormat(space: ImagePixelFormat.of(image).space,
+                                    bitDepth: 8).cgColorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return image }
         context.interpolationQuality = .medium
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))

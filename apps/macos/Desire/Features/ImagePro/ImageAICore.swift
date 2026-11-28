@@ -140,7 +140,8 @@ nonisolated enum ImageAICore {
         guard let context = CGContext(
             data: nil, width: target, height: target,
             bitsPerComponent: 8, bytesPerRow: target * 4,
-            space: CGColorSpaceCreateDeviceRGB(),
+            // 直方图核：固定 8 位 sRGB（统计用途）。
+            space: ImagePixelFormat.default.cgColorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else { return .init(repeating: 0, count: 256) }
         context.interpolationQuality = .low

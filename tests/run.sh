@@ -53,6 +53,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/ScreenshotScaleNote.swift
   apps/macos/Desire/Features/Agent/PixelDiff.swift
   apps/macos/Desire/Features/ImagePro/ImageLookCompare.swift
+  apps/macos/Desire/Features/ImagePro/ImagePixelFormat.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DesireProtocol.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DPPAdapter.swift
   apps/macos/Desire/Features/Agent/PageProtocol/DPPAdapter+Download.swift

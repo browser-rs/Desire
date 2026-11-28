@@ -158,16 +158,17 @@ nonisolated enum ImagePipelineRenderer {
             filter.setValue(radius, forKey: "inputRadius")
             ci = filter.outputImage ?? ci
         }
-        return context.createCGImage(ci, from: ci.extent)
+        return ImagePixelFormat.of(image).render(ci, from: ci.extent, using: context)
     }
 
     /// 分通道曲线：按曲线生成 RGB 立方 LUT（CIColorCube），通道独立映射。
     /// 由渐变映射 stops 生成 256×1 查找图（CIColorMap 的梯度输入）。
     static func gradientImage(from stops: [ImageAdjustParams.GradientMapStop]) -> CGImage? {
         let w = 256, h = 1
+        // 1×256 LUT：既然由本进程消费（CIColorMap），用 sRGB 8 位即可。
         guard let ctx = CGContext(data: nil, width: w, height: h,
                                   bitsPerComponent: 8, bytesPerRow: w * 4,
-                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  space: ImagePixelFormat.default.cgColorSpace,
                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else { return nil }
         let sorted = stops.sorted { $0.position < $1.position }
@@ -281,7 +282,8 @@ nonisolated enum ImagePipelineRenderer {
         blend.setValue(baseCI, forKey: kCIInputBackgroundImageKey)
         blend.setValue(maskCI, forKey: kCIInputMaskImageKey)
         guard let output = blend.outputImage else { return effect }
-        return context.createCGImage(output, from: output.extent) ?? effect
+        return ImagePixelFormat.of(base).render(output, from: output.extent, using: context)
+            ?? effect
     }
 
     /// 选区蒙版：白 = 应用效果，黑 = 保持原样；feather 用高斯模糊实现。
@@ -340,7 +342,8 @@ nonisolated extension ImagePipelineRenderer {
         blend.setValue(baseCI, forKey: kCIInputBackgroundImageKey)
         blend.setValue(maskCI, forKey: kCIInputMaskImageKey)
         guard let output = blend.outputImage else { return effect }
-        return context.createCGImage(output, from: output.extent) ?? effect
+        return ImagePixelFormat.of(base).render(output, from: output.extent, using: context)
+            ?? effect
     }
 
     /// 套索多边形蒙版 + 效果混回（含羽化）。
@@ -391,6 +394,7 @@ nonisolated extension ImagePipelineRenderer {
         blend.setValue(baseCI, forKey: kCIInputBackgroundImageKey)
         blend.setValue(maskCI, forKey: kCIInputMaskImageKey)
         guard let output = blend.outputImage else { return effect }
-        return context.createCGImage(output, from: output.extent) ?? effect
+        return ImagePixelFormat.of(base).render(output, from: output.extent, using: context)
+            ?? effect
     }
 }

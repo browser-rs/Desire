@@ -70,11 +70,8 @@ nonisolated enum ImageWatermarkRenderer {
         guard !p.isNeutral else { return image }
         let width = CGFloat(image.width)
         let height = CGFloat(image.height)
-        guard let context = CGContext(
-            data: nil, width: image.width, height: image.height,
-            bitsPerComponent: 8, bytesPerRow: 0,
-            space: image.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let context = ImagePixelFormat.of(image).makeContext(
+            width: image.width, height: image.height)
         else { return nil }
 
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))

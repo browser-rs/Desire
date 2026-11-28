@@ -50,11 +50,8 @@ nonisolated enum ImageTransforms {
     static func rotated(_ image: CGImage, clockwise: Bool) -> CGImage? {
         let w = image.width, h = image.height
         let newW = h, newH = w
-        guard let context = CGContext(
-            data: nil, width: newW, height: newH,
-            bitsPerComponent: 8, bytesPerRow: 0,
-            space: image.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        guard let context = ImagePixelFormat.of(image).makeContext(width: newW, height: newH)
+        else { return nil }
         context.translateBy(x: CGFloat(newW) / 2, y: CGFloat(newH) / 2)
         if clockwise {
             context.rotate(by: -.pi / 2)
@@ -69,11 +66,8 @@ nonisolated enum ImageTransforms {
     /// 翻转（horizontal = 左右镜像，否则上下）。
     static func flipped(_ image: CGImage, horizontal: Bool) -> CGImage? {
         let w = image.width, h = image.height
-        guard let context = CGContext(
-            data: nil, width: w, height: h,
-            bitsPerComponent: 8, bytesPerRow: 0,
-            space: image.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        guard let context = ImagePixelFormat.of(image).makeContext(width: w, height: h)
+        else { return nil }
         if horizontal {
             context.concatenate(CGAffineTransform(scaleX: -1, y: 1)
                 .translatedBy(x: CGFloat(-w), y: 0))
@@ -105,19 +99,18 @@ nonisolated enum ImageTransforms {
         filter?.setValue(Double(width) / Double(image.width), forKey: kCIInputScaleKey)
         filter?.setValue(1.0, forKey: kCIInputAspectRatioKey)
         guard let output = filter?.outputImage else { return nil }
-        let context = CIContext()
-        return context.createCGImage(output, from: output.extent)
+        // 显式按源格式渲染（RGBA16 + 源色域）——裸 createCGImage 是 8 位 sRGB。
+        let format = ImagePixelFormat.of(image)
+        let context = CIContext(options: format.ciContextOptions)
+        return format.render(output, from: output.extent, using: context)
     }
 
     /// 标注层烙进位图：annotation 为已渲染的位图（视图层把 PencilKit/形状
     /// 画进临时 CGContext），叠在原图上（同尺寸）。
     static func flattened(_ image: CGImage, overlay: CGImage) -> CGImage? {
         let w = image.width, h = image.height
-        guard let context = CGContext(
-            data: nil, width: w, height: h,
-            bitsPerComponent: 8, bytesPerRow: 0,
-            space: image.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        guard let context = ImagePixelFormat.of(image).makeContext(width: w, height: h)
+        else { return nil }
         context.draw(image, in: CGRect(x: 0, y: 0, width: w, height: h))
         context.draw(overlay, in: CGRect(x: 0, y: 0, width: w, height: h))
         return context.makeImage()
@@ -168,11 +161,8 @@ nonisolated enum ImageTransforms {
         let scaleX = (w * cosA + h * sinA) / w
         let scaleY = (w * sinA + h * cosA) / h
         let scale = max(scaleX, scaleY)
-        guard let context = CGContext(
-            data: nil, width: image.width, height: image.height,
-            bitsPerComponent: 8, bytesPerRow: 0,
-            space: image.colorSpace ?? CGColorSpaceCreateDeviceRGB(),
-            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let context = ImagePixelFormat.of(image).makeContext(
+            width: image.width, height: image.height)
         else { return nil }
         context.setFillColor(CGColor(gray: 0, alpha: 0))
         context.fill(CGRect(x: 0, y: 0, width: w, height: h))
@@ -197,65 +187,93 @@ nonisolated enum ImageTransforms {
 
     // MARK: - 编解码（含 .bak 快照语义由调用方处理）
 
+    /// 加载：显式走 ImageIO。`NSImage(contentsOf:)` 会在解码阶段把 16 位 /
+    /// 广色域源图降成 8 位 sRGB（v0.8.85 批 1 实测：16 bpc Display P3 PNG
+    /// 经 NSImage 读回 8 bpc）。EXIF 方向维持原行为（不自动旋转）。
     static func load(from url: URL) -> CGImage? {
-        NSImage(contentsOf: url)?.cgImage(
+        if let source = CGImageSourceCreateWithURL(url as CFURL, nil),
+           let image = CGImageSourceCreateImageAtIndex(
+               source, 0,
+               [kCGImageSourceShouldCacheImmediately: true] as CFDictionary) {
+            return image
+        }
+        return NSImage(contentsOf: url)?.cgImage(
             forProposedRect: nil, context: nil, hints: nil)
     }
 
-    /// 写回（atomically）：png / jpeg 由扩展名推断（heic 走 CoreImage——
-    /// NSBitmapImageRep 无 HEIC 类型；失败回退 png）。
+    /// 写回（旧签名包装）：默认配置 = 跟随源图、保留元数据。
     static func save(_ image: CGImage, to url: URL, quality: Double = 0.9) throws {
+        var options = ImageSaveOptions.default
+        options.quality = quality
+        try save(image, to: url, options: options, sourceProperties: nil)
+    }
+
+    /// 写回（v0.8.85 批 1）：目标配置/位深/DPI/元数据策略。
+    /// **不再经 NSBitmapImageRep**——它把 16 位与广色域静默降成 8 位 sRGB；
+    /// 现在统一 CGImageDestination，位深与 ICC 跟随输出 CGImage 的色域。
+    /// 容器限制：jpg/webp/heic 只有 8 位（`supportsDeepColor`）。
+    static func save(_ image: CGImage, to url: URL,
+                     options: ImageSaveOptions,
+                     sourceProperties: [CFString: Any]?) throws {
         let ext = url.pathExtension.lowercased()
-        let data: Data
-        switch ext {
-        case "jpg", "jpeg":
-            let rep = NSBitmapImageRep(cgImage: image)
-            guard let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: quality]) else {
-                throw NSError(domain: "ImageTransforms", code: 1,
-                              userInfo: [NSLocalizedDescriptionKey: "JPEG representation failed"])
-            }
-            data = jpeg
-        case "tiff", "tif":
-            let rep = NSBitmapImageRep(cgImage: image)
-            guard let tiff = rep.representation(using: .tiff, properties: [:]) else {
-                throw NSError(domain: "ImageTransforms", code: 3,
-                              userInfo: [NSLocalizedDescriptionKey: "TIFF representation failed"])
-            }
-            data = tiff
-        case "heic":
-            let ciImage = CIImage(cgImage: image)
-            let context = CIContext()
-            guard let heic = context.heifRepresentation(
-                of: ciImage, format: .RGBA8, colorSpace: CGColorSpaceCreateDeviceRGB(),
-                options: [CIImageRepresentationOption(rawValue: "kCIImageCompressionQuality"): quality]) else {
-                throw NSError(domain: "ImageTransforms", code: 2,
-                              userInfo: [NSLocalizedDescriptionKey: "HEIC representation failed"])
-            }
-            data = heic
-        case "webp":
-            // CGImageDestination + UTType.webP（macOS 11+）。
-            guard let dest = CGImageDestinationCreateWithURL(
-                url as CFURL, UTType.webP.identifier as CFString, 1, nil) else {
-                throw NSError(domain: "ImageTransforms", code: 4,
-                              userInfo: [NSLocalizedDescriptionKey: "WebP destination failed"])
-            }
-            let properties: [CFString: Any] = [
-                kCGImageDestinationLossyCompressionQuality: quality
-            ]
-            CGImageDestinationAddImage(dest, image, properties as CFDictionary)
-            guard CGImageDestinationFinalize(dest) else {
-                throw NSError(domain: "ImageTransforms", code: 4,
-                              userInfo: [NSLocalizedDescriptionKey: "WebP representation failed"])
-            }
-            return
-        default:
-            let rep = NSBitmapImageRep(cgImage: image)
-            guard let png = rep.representation(using: .png, properties: [:]) else {
-                throw NSError(domain: "ImageTransforms", code: 1,
-                              userInfo: [NSLocalizedDescriptionKey: "PNG representation failed"])
-            }
-            data = png
+        // 1) 目标格式：profile/位深（容器限制：jpg/webp/heic 8 位）
+        let sourceFormat = ImagePixelFormat.of(image)
+        var target = sourceFormat
+        if let space = options.profile.cgColorSpace {
+            target.space = ImagePixelFormat.WorkingSpace.inferred(from: space)
         }
-        try data.write(to: url, options: .atomic)
+        let wants16 = (options.bitDepth ?? sourceFormat.bitDepth) >= 16
+        let deepOK = ImageSaveOptions.supportsDeepColor(ext)
+        let depth = deepOK && wants16 ? 16 : 8
+        target.bitDepth = depth
+        // 2) 需要转换就先进目标上下文（16 位转换高质量且保色彩）
+        var output = image
+        let sourceDepth = max(8, min(16, image.bitsPerComponent))
+        if target.space != sourceFormat.space || depth != sourceDepth,
+           let ctx = target.makeContext(width: image.width, height: image.height) {
+            ctx.interpolationQuality = .high
+            ctx.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+            if let converted = ctx.makeImage() { output = converted }
+        }
+        // 3) 元数据：保留（可去 GPS）/ 清除；DPI 覆盖
+        var properties: [CFString: Any] = [:]
+        if let sourceProperties, options.metadata != .stripAll {
+            var props = sourceProperties
+            props.removeValue(forKey: kCGImagePropertyPixelWidth)
+            props.removeValue(forKey: kCGImagePropertyPixelHeight)
+            if options.metadata == .stripGPS {
+                props.removeValue(forKey: kCGImagePropertyGPSDictionary)
+            }
+            properties = props
+        }
+        if let dpi = options.dpi, dpi > 0 {
+            properties[kCGImagePropertyDPIWidth] = dpi
+            properties[kCGImagePropertyDPIHeight] = dpi
+        }
+        if ["jpg", "jpeg", "webp", "heic", "heif"].contains(ext) {
+            properties[kCGImageDestinationLossyCompressionQuality] = options.quality
+        }
+        // 4) 编码：CGImageDestination 保位深与 ICC（跟着 output 的色域走）
+        let uti: CFString
+        switch ext {
+        case "jpg", "jpeg": uti = UTType.jpeg.identifier as CFString
+        case "tiff", "tif": uti = UTType.tiff.identifier as CFString
+        case "heic", "heif": uti = UTType.heic.identifier as CFString
+        case "webp": uti = UTType.webP.identifier as CFString
+        default: uti = UTType.png.identifier as CFString
+        }
+        guard let data = CFDataCreateMutable(nil, 0),
+              let dest = CGImageDestinationCreateWithData(
+                  data, uti, 1, nil) else {
+            throw NSError(domain: "ImageTransforms", code: 4,
+                          userInfo: [NSLocalizedDescriptionKey: "destination creation failed"])
+        }
+        CGImageDestinationAddImage(dest, output,
+                                   properties.isEmpty ? nil : properties as CFDictionary)
+        guard CGImageDestinationFinalize(dest) else {
+            throw NSError(domain: "ImageTransforms", code: 4,
+                          userInfo: [NSLocalizedDescriptionKey: "encode failed (\(ext))"])
+        }
+        try (data as Data).write(to: url, options: .atomic)
     }
 }

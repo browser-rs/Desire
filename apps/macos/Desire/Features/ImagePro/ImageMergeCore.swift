@@ -38,11 +38,8 @@ nonisolated enum ImageMergeCore {
         let totalW = Int(totalWidth.rounded())
         let totalH = Int(totalHeight.rounded())
         guard totalW > 0, totalH > 0,
-              let context = CGContext(
-                  data: nil, width: totalW, height: totalH,
-                  bitsPerComponent: 8, bytesPerRow: totalW * 4,
-                  space: CGColorSpaceCreateDeviceRGB(),
-                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+              let context = ImagePixelFormat.of(images.first).makeContext(
+                  width: totalW, height: totalH)
         else { return nil }
 
         // 白色背景（gap 填充）

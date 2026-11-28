@@ -860,7 +860,7 @@ struct ImageCanvasView: View {
                    CGColor(gray: 1, alpha: 0)] as CFArray
                 : [CGColor(gray: 0, alpha: CGFloat(session.retouchStrength) * 0.7),
                    CGColor(gray: 0, alpha: 0)] as CFArray
-            if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+            if let gradient = CGGradient(colorsSpace: ctx.colorSpace,
                                          colors: colors, locations: [0, 1]) {
                 ctx.setBlendMode(session.retouchMode == .dodge ? .plusLighter : .multiply)
                 ctx.drawRadialGradient(gradient,

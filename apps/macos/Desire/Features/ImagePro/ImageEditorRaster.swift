@@ -12,13 +12,10 @@ nonisolated enum ImageEditorRaster {
 
     // MARK: - 基础画布
 
-    static func transparent(size: CGSize) -> CGImage? {
+    static func transparent(size: CGSize, format: ImagePixelFormat = .default) -> CGImage? {
         let w = max(1, Int(size.width.rounded()))
         let h = max(1, Int(size.height.rounded()))
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let ctx = format.makeContext(width: w, height: h)
         else { return nil }
         return ctx.makeImage()
     }
@@ -26,10 +23,9 @@ nonisolated enum ImageEditorRaster {
     /// 在副本上绘制（y 向下坐标系；内部自动翻转到 CGContext）。
     static func drawingContext(_ base: CGImage) -> CGContext? {
         let w = base.width, h = base.height
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        // 跟随输入的色域与位深（v0.8.85 批 1）：P3/16 位源图的所有落笔
+        // 工具经这里，不得降成设备色域 8 位。
+        guard let ctx = ImagePixelFormat.of(base).makeContext(width: w, height: h)
         else { return nil }
         ctx.draw(base, in: CGRect(x: 0, y: 0, width: w, height: h))
         ctx.translateBy(x: 0, y: CGFloat(h))
@@ -114,7 +110,8 @@ nonisolated enum ImageEditorRaster {
                           size: CGSize,
                           matching: ((ImageEditorLayer) -> Bool)? = nil,
                           maxRenderSide: CGFloat? = nil,
-                          masks: [UUID: CGImage]? = nil) -> CGImage? {
+                          masks: [UUID: CGImage]? = nil,
+                          format: ImagePixelFormat? = nil) -> CGImage? {
         // 显示比例：画布最长边钳到 maxRenderSide（仅显示路径）。
         let renderScale: CGFloat
         if let maxRenderSide {
@@ -125,10 +122,11 @@ nonisolated enum ImageEditorRaster {
         }
         let w = max(1, Int((size.width * renderScale).rounded()))
         let h = max(1, Int((size.height * renderScale).rounded()))
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        // 格式：调用方显式给（全分辨率=文档格式；显示路径=8 位同色域），
+        // 缺省跟随第一张有像素的图层。
+        let pixelFormat = format
+            ?? ImagePixelFormat.of(layers.first.flatMap { bitmaps[$0.id] })
+        guard let ctx = pixelFormat.makeContext(width: w, height: h)
         else { return nil }
         for layer in layers where layer.isVisible && layer.opacity > 0.001
             && (matching?(layer) ?? true) {
@@ -151,7 +149,8 @@ nonisolated enum ImageEditorRaster {
             if let proFilter = layer.proFilter {
                 let ciInput = CIImage(cgImage: bitmap)
                 let ciOutput = ImageProFilter.apply(ciInput, filter: proFilter)
-                if let rendered = sharedCIContext.createCGImage(ciOutput, from: ciOutput.extent) {
+                if let rendered = pixelFormat.render(ciOutput, from: ciOutput.extent,
+                                                     using: sharedCIContext) {
                     bitmap = rendered
                 }
             }
@@ -191,10 +190,7 @@ nonisolated enum ImageEditorRaster {
     /// 白 = 保留、黑 = 隐藏；inverted 反转（蒙版反转快捷键）。
     static func maskApplied(_ bitmap: CGImage, mask: CGImage, inverted: Bool) -> CGImage? {
         let w = bitmap.width, h = bitmap.height
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let ctx = ImagePixelFormat.of(bitmap).makeContext(width: w, height: h)
         else { return nil }
         ctx.interpolationQuality = .none
         ctx.draw(bitmap, in: CGRect(x: 0, y: 0, width: w, height: h))
@@ -223,10 +219,11 @@ nonisolated enum ImageEditorRaster {
         // CG 高质量插值（96MP→4096 实测 ~90ms）而非 Lanczos/CI（~200ms+ 且
         // 产物是 CI 延迟渲染位图，下游 clip/draw 会触发 CI 管线）。显示预览
         // 的清晰度差异在这个比例下不可辨；导出走全分辨率不经此处。
-        let sctx = CGContext(data: nil, width: newW, height: newH,
-                             bitsPerComponent: 8, bytesPerRow: 0,
-                             space: CGColorSpaceCreateDeviceRGB(),
-                             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        // 显示缓存：保色域（P3 在显示路径不能被裁）、8 位（内存/速度取舍；
+        // 显示深度肉眼不可辨，编辑与导出仍走文档格式）。
+        let displayFormat = ImagePixelFormat(space: ImagePixelFormat.of(image).space,
+                                             bitDepth: 8)
+        let sctx = displayFormat.makeContext(width: newW, height: newH)
         guard let sctx else {
             prescaleCache[id] = (image, maxSide, image)
             return image
@@ -240,10 +237,7 @@ nonisolated enum ImageEditorRaster {
 
     static func flattened(_ base: CGImage, over backdrop: CGColor?) -> CGImage? {
         let w = base.width, h = base.height
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let ctx = ImagePixelFormat.of(base).makeContext(width: w, height: h)
         else { return nil }
         if let backdrop {
             ctx.setFillColor(backdrop)
@@ -316,10 +310,7 @@ nonisolated enum ImageEditorRaster {
         // 96MP ~120ms，且 -O0/-O 差距小）。方向核对（灰度蒙版 + 翻转上下文
         // 组合曾踩位移坑）：clip(to:mask:) 的 mask 走当前 CTM，本函数不翻转
         // CTM、base 与 mask 同为 top-down 位图 → 直接用，选区落点像素级验证过。
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let ctx = ImagePixelFormat.of(base).makeContext(width: w, height: h)
         else { return nil }
         // 1) 底图
         ctx.draw(base, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
@@ -335,10 +326,12 @@ nonisolated enum ImageEditorRaster {
     }
 
     private static func rgbaBytes(_ image: CGImage) -> [UInt8]? {
+        // 裸 buffer 读取核（蒙版/选择逻辑）：固定 8 位 sRGB——结果只用于
+        // 几何/灰度判断，不回流成文档像素。
         let w = image.width, h = image.height
         guard let ctx = CGContext(data: nil, width: w, height: h,
                                   bitsPerComponent: 8, bytesPerRow: w * 4,
-                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  space: ImagePixelFormat.default.cgColorSpace,
                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else { return nil }
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
@@ -383,7 +376,7 @@ nonisolated enum ImageEditorRaster {
     private static func drawStamp(_ ctx: CGContext, center: CGPoint, radius: CGFloat,
                                   inner: CGColor, outer: CGColor, hardness: CGFloat,
                                   alpha: CGFloat) {
-        let space = CGColorSpaceCreateDeviceRGB()
+        let space = ctx.colorSpace
         guard let gradient = CGGradient(colorsSpace: space,
                                         colors: [inner, inner, outer] as CFArray,
                                         locations: [0, hardness, 1]) else { return }
@@ -400,10 +393,7 @@ nonisolated enum ImageEditorRaster {
     /// 平移整张位图（从原图重画，不累积裁切——move 来回拖动不会丢内容）。
     static func translated(_ image: CGImage, dx: CGFloat, dy: CGFloat) -> CGImage? {
         let w = image.width, h = image.height
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let ctx = ImagePixelFormat.of(image).makeContext(width: w, height: h)
         else { return nil }
         ctx.draw(image, in: CGRect(x: dx, y: -dy, width: CGFloat(w), height: CGFloat(h)))
         return ctx.makeImage()
@@ -471,10 +461,7 @@ nonisolated enum ImageEditorRaster {
     /// 把（可能由 CI 延迟渲染支撑的）CGImage 物化成纯 CGContext 位图。
     static func materialized(_ image: CGImage) -> CGImage? {
         let w = image.width, h = image.height
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let ctx = ImagePixelFormat.of(image).makeContext(width: w, height: h)
         else { return nil }
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
         return ctx.makeImage()
@@ -483,10 +470,7 @@ nonisolated enum ImageEditorRaster {
     /// 垂直翻转（用于把 device 空间的蒙版对齐到翻转后的绘制上下文）。
     static func flippedVertically(_ image: CGImage) -> CGImage? {
         let w = image.width, h = image.height
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let ctx = ImagePixelFormat.of(image).makeContext(width: w, height: h)
         else { return nil }
         ctx.translateBy(x: 0, y: CGFloat(h))
         ctx.scaleBy(x: 1, y: -1)
@@ -913,10 +897,8 @@ nonisolated enum ImageEditorRaster {
     static func sampleColor(_ image: CGImage, at point: CGPoint) -> CGColor? {
         let x = Int(point.x.rounded()), y = Int(point.y.rounded())
         guard x >= 0, y >= 0, x < image.width, y < image.height else { return nil }
-        guard let ctx = CGContext(data: nil, width: image.width, height: image.height,
-                                  bitsPerComponent: 8, bytesPerRow: image.width * 4,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let ctx = ImagePixelFormat.of(image).makeContext(width: image.width,
+                                                               height: image.height)
         else { return nil }
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
         guard let data = ctx.data else { return nil }
@@ -973,10 +955,7 @@ nonisolated extension ImageEditorRaster {
         case .clone:
             guard let source else { return base }
             let w = base.width, h = base.height
-            guard let ctx = CGContext(data: nil, width: w, height: h,
-                                      bitsPerComponent: 8, bytesPerRow: 0,
-                                      space: CGColorSpaceCreateDeviceRGB(),
-                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            guard let ctx = ImagePixelFormat.of(base).makeContext(width: w, height: h)
             else { return nil }
             // 把 base 平移，使 source 区域落到 point：draw 在 y-up 里，文档 dy 取反。
             let dx = point.x - source.x
@@ -991,10 +970,8 @@ nonisolated extension ImageEditorRaster {
             guard let source else { return base }
             let dx = point.x - source.x
             let dy = point.y - source.y
-            guard let ctx = CGContext(data: nil, width: base.width, height: base.height,
-                                      bitsPerComponent: 8, bytesPerRow: 0,
-                                      space: CGColorSpaceCreateDeviceRGB(),
-                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            guard let ctx = ImagePixelFormat.of(base).makeContext(width: base.width,
+                                                                    height: base.height)
             else { return nil }
             ctx.draw(base, in: CGRect(x: dx, y: -dy,
                                       width: CGFloat(base.width), height: CGFloat(base.height)))
@@ -1028,12 +1005,22 @@ nonisolated extension ImageEditorRaster {
         return healedTexture(cloned, lowOriginalN, lowClonedN)
     }
 
-    /// 把任意来源的 CGImage 重画进标准 RGBA 位图（字节布局与色彩空间
-    /// 都以 CG DeviceRGB 为准）。
+    /// 把任意位图画进指定格式（裸 buffer 核的输出回到文档格式）。
+    static func normalized(_ image: CGImage, format: ImagePixelFormat) -> CGImage? {
+        guard let ctx = format.makeContext(width: image.width, height: image.height)
+        else { return nil }
+        ctx.interpolationQuality = .none
+        ctx.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        return ctx.makeImage()
+    }
+
+    /// 裸 buffer 核（修复/内容填充）的工作副本：显式 8 位 sRGB——核按
+    /// 4 字节/像素写死，16 位文档在此局部降精度（混回文档格式时由上下文
+    /// 完成色彩转换；v0.8.85 批 1 的已知取舍，区域精度 8 位）。
     private static func normalizedRGBA(_ image: CGImage) -> CGImage? {
         guard let ctx = CGContext(data: nil, width: image.width, height: image.height,
                                   bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  space: ImagePixelFormat.default.cgColorSpace,
                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else { return nil }
         ctx.draw(image, in: CGRect(x: 0, y: 0,
@@ -1052,15 +1039,17 @@ nonisolated extension ImageEditorRaster {
         // 平移语义与 heal 一致：源区内容移到选区位置（图像坐标）。
         let shift = CGPoint(x: bounds.minX - sourceOrigin.x,
                             y: bounds.minY - sourceOrigin.y)
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        // 融合核（healedTexture/低频道）按 4 字节/像素：先在 8 位 sRGB 工作
+        // 副本上算；maskedBlend 回收时画回 base 的文档格式（色彩转换保证，
+        // 区域精度 8 位——v0.8.85 批 1 的已知取舍）。
+        let workFormat = ImagePixelFormat(space: .sRGB, bitDepth: 8)
+        guard let kernelBase = normalized(base, format: workFormat),
+              let ctx = workFormat.makeContext(width: w, height: h)
         else { return nil }
-        ctx.draw(base, in: CGRect(x: shift.x, y: -shift.y,
-                                  width: CGFloat(w), height: CGFloat(h)))
-        let cloned = ctx.makeImage() ?? base
-        let fused = lowFrequencyFused(original: base, cloned: cloned) ?? cloned
+        ctx.draw(kernelBase, in: CGRect(x: shift.x, y: -shift.y,
+                                        width: CGFloat(w), height: CGFloat(h)))
+        let cloned = ctx.makeImage() ?? kernelBase
+        let fused = lowFrequencyFused(original: kernelBase, cloned: cloned) ?? cloned
         return maskedBlend(base: base, effect: fused, mask: mask) ?? base
     }
 
@@ -1069,6 +1058,9 @@ nonisolated extension ImageEditorRaster {
     /// （两张**模糊**图的逐像素比值；限制幅度防除零爆炸）。
     private static func healedTexture(_ cloned: CGImage, _ lowTarget: CGImage,
                                       _ lowClone: CGImage) -> CGImage? {
+        // 裸 buffer 核：全部分量先规范成 8 位 RGBA（16 位/CI 位图直接逐字节
+        // 读会张冠李戴——v0.8.55 批 3 的同类坑）。
+        guard let cloned = normalizedRGBA(cloned) else { return nil }
         let w = cloned.width, h = cloned.height
         guard let cData = cloned.dataProvider?.data,
               let tData = lowTarget.dataProvider?.data,
@@ -1097,7 +1089,7 @@ nonisolated extension ImageEditorRaster {
                                             size: bytesPerRow * h,
                                             releaseData: { _, _, _ in }) else { return nil }
         return CGImage(width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32,
-                       bytesPerRow: bytesPerRow, space: CGColorSpaceCreateDeviceRGB(),
+                       bytesPerRow: bytesPerRow, space: ImagePixelFormat.default.cgColorSpace,
                        bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
                        provider: provider, decode: nil, shouldInterpolate: false,
                        intent: .defaultIntent)
@@ -1148,7 +1140,7 @@ nonisolated extension ImageEditorRaster {
             ctx.clip(to: CGRect(x: 0, y: 0, width: base.width, height: base.height),
                      mask: alpha)
         }
-        let space = CGColorSpaceCreateDeviceRGB()
+        let space = ImagePixelFormat.of(base).cgColorSpace
         guard let gradient = CGGradient(colorsSpace: space, colors: colors as CFArray,
                                         locations: nil) else { return base }
         if radial {
@@ -1172,10 +1164,7 @@ nonisolated extension ImageEditorRaster {
 
     static func silhouette(_ bitmap: CGImage) -> CGImage? {
         let w = bitmap.width, h = bitmap.height
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let ctx = ImagePixelFormat.of(bitmap).makeContext(width: w, height: h)
         else { return nil }
         ctx.setFillColor(CGColor(gray: 1, alpha: 1))
         ctx.fill(CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
@@ -1184,12 +1173,10 @@ nonisolated extension ImageEditorRaster {
         return ctx.makeImage()
     }
 
-    static func colorized(_ mask: CGImage, color: CGColor) -> CGImage? {
+    static func colorized(_ mask: CGImage, color: CGColor,
+                          format: ImagePixelFormat = .default) -> CGImage? {
         let w = mask.width, h = mask.height
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let ctx = format.makeContext(width: w, height: h)
         else { return nil }
         ctx.setFillColor(color)
         ctx.fill(CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))
@@ -1202,10 +1189,8 @@ nonisolated extension ImageEditorRaster {
         guard style.isActive else { return bitmap }
         let w = bitmap.width, h = bitmap.height
         let bounds = CGRect(x: 0, y: 0, width: w, height: h)
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue),
+        let format = ImagePixelFormat.of(bitmap)
+        guard let ctx = format.makeContext(width: w, height: h),
               let mask = silhouette(bitmap) else { return bitmap }
 
         func blurred(_ image: CGImage, radius: Double) -> CGImage? {
@@ -1228,11 +1213,11 @@ nonisolated extension ImageEditorRaster {
         }
 
         if style.glowEnabled, let color = color(from: style.glowColor) {
-            let base = colorized(mask, color: color) ?? mask
+            let base = colorized(mask, color: color, format: format) ?? mask
             drawImage(blurred(base, radius: style.glowRadius))
         }
         if style.shadowEnabled, let color = color(from: style.shadowColor) {
-            let base = colorized(mask, color: color) ?? mask
+            let base = colorized(mask, color: color, format: format) ?? mask
             drawImage(blurred(base, radius: style.shadowRadius),
                       dx: style.shadowOffsetX, dy: style.shadowOffsetY)
         }
@@ -1255,7 +1240,7 @@ nonisolated extension ImageEditorRaster {
         guard w > 0, h > 0,
               let ctx = CGContext(data: nil, width: w, height: h,
                                   bitsPerComponent: 8, bytesPerRow: w * 4,
-                                  space: CGColorSpaceCreateDeviceRGB(),
+                                  space: ImagePixelFormat.default.cgColorSpace,
                                   bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else { return nil }
         ctx.draw(image, in: CGRect(x: 0, y: 0, width: CGFloat(w), height: CGFloat(h)))

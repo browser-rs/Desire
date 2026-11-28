@@ -67,6 +67,9 @@ final class ImageEditorDocument: ObservableObject {
     @Published private(set) var previewProFilter: ImageProFilter?
 
     private var bitmaps: [UUID: CGImage] = [:]
+    /// 文档像素格式（v0.8.85 批 1）：工作色域 + 位深。打开图片时按源图推断
+    /// （16 位源 → 16 位工作；广色域源 → P3 工作），新建文档默认 sRGB 8 位。
+    private(set) var pixelFormat: ImagePixelFormat = .default
     /// 图层蒙版位图（v0.8.54 批 2）：key = layer.id，灰度图（白 = 显示、黑 = 隐藏）。
     private var masks: [UUID: CGImage] = [:]
     private var undoStack: [Snapshot] = []
@@ -101,6 +104,7 @@ final class ImageEditorDocument: ObservableObject {
 
     init(image: CGImage, name: String) {
         canvasSize = CGSize(width: image.width, height: image.height)
+        pixelFormat = ImagePixelFormat.inferred(from: image)
         let base = ImageEditorLayer(id: UUID(), name: name.isEmpty ? "Background" : name)
         layers = [base]
         activeLayerID = base.id
@@ -186,7 +190,8 @@ final class ImageEditorDocument: ObservableObject {
         }
         let image = ImageEditorRaster.composite(layers: effectiveLayers, bitmaps: effective,
                                                 size: canvasSize,
-                                                masks: masks)
+                                                masks: masks,
+                                                format: pixelFormat)
         compositeCache = (revision, image)
         return image
     }
@@ -223,7 +228,8 @@ final class ImageEditorDocument: ObservableObject {
         }
         let image = ImageEditorRaster.composite(
             layers: effectiveLayers, bitmaps: effective, size: canvasSize,
-            matching: nil, maxRenderSide: maxSide)
+            matching: nil, maxRenderSide: maxSide,
+            format: ImagePixelFormat(space: pixelFormat.space, bitDepth: 8))
         displayCache = (revision, maxSide, image)
         return image ?? composite()
     }
@@ -392,7 +398,8 @@ final class ImageEditorDocument: ObservableObject {
                                      name: name ?? "Layer \(layers.count)")
         let index = layers.firstIndex { $0.id == activeLayerID }.map { $0 + 1 } ?? layers.count
         layers.insert(layer, at: index)
-        bitmaps[layer.id] = bitmap ?? ImageEditorRaster.transparent(size: canvasSize)
+        bitmaps[layer.id] = bitmap ?? ImageEditorRaster.transparent(size: canvasSize,
+                                                                    format: pixelFormat)
         activeLayerID = layer.id
         compositeCache = nil
         commit()
@@ -563,10 +570,7 @@ final class ImageEditorDocument: ObservableObject {
         let size = canvasSize
         let w = Int(size.width), h = Int(size.height)
         let merged: CGImage?
-        if let ctx = CGContext(data: nil, width: w, height: h,
-                               bitsPerComponent: 8, bytesPerRow: 0,
-                               space: CGColorSpaceCreateDeviceRGB(),
-                               bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) {
+        if let ctx = ImagePixelFormat.of(lower).makeContext(width: w, height: h) {
             let lowerLayer = layers[index - 1]
             let upperLayer = layers[index]
             ctx.draw(lower, in: CGRect(x: lowerLayer.offset.width,
@@ -758,10 +762,7 @@ final class ImageEditorDocument: ObservableObject {
     /// 把某一图层的 offset/scale/rotation 烘进画布大小的位图。
     private func bakeLayerGeometry(at index: Int, bitmap: CGImage) {
         let w = Int(canvasSize.width), h = Int(canvasSize.height)
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let ctx = ImagePixelFormat.of(bitmap).makeContext(width: w, height: h)
         else { return }
         let layer = layers[index]
         let bw = CGFloat(bitmap.width), bh = CGFloat(bitmap.height)
@@ -862,10 +863,8 @@ final class ImageEditorDocument: ObservableObject {
     /// 拖动中的平移（不进历史；起始处 beginContinuousEdit 一次）。
     func translateActiveLayerLive(dx: CGFloat, dy: CGFloat) {
         guard let bitmap = bitmaps[activeLayerID],
-              let ctx = CGContext(data: nil, width: bitmap.width, height: bitmap.height,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+              let ctx = ImagePixelFormat.of(bitmap).makeContext(width: bitmap.width,
+                                                                height: bitmap.height)
         else { return }
         ctx.draw(bitmap, in: CGRect(x: dx, y: -dy, width: CGFloat(bitmap.width), height: CGFloat(bitmap.height)))
         guard let out = ctx.makeImage() else { return }
@@ -874,10 +873,8 @@ final class ImageEditorDocument: ObservableObject {
 
     func translateActiveLayer(dx: CGFloat, dy: CGFloat, title: String = "Move") {
         guard let bitmap = bitmaps[activeLayerID],
-              let ctx = CGContext(data: nil, width: bitmap.width, height: bitmap.height,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+              let ctx = ImagePixelFormat.of(bitmap).makeContext(width: bitmap.width,
+                                                                height: bitmap.height)
         else { return }
         ctx.draw(bitmap, in: CGRect(x: dx, y: -dy, width: CGFloat(bitmap.width), height: CGFloat(bitmap.height)))
         guard let out = ctx.makeImage() else { return }
@@ -1086,6 +1083,7 @@ final class ImageEditorDocument: ObservableObject {
     /// 用空白画布重置（新建文档）。
     func reset(image: CGImage, name: String) {
         canvasSize = CGSize(width: image.width, height: image.height)
+        pixelFormat = ImagePixelFormat.inferred(from: image)
         let base = ImageEditorLayer(id: UUID(), name: name)
         layers = [base]
         bitmaps = [base.id: image]

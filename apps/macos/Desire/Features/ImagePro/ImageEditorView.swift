@@ -14,6 +14,10 @@ struct ImageEditorView: View {
     /// 导出选项（v0.8.54 批 7）：质量与缩放，随导出面板调整。
     @AppStorage("imagePro.exportQuality", store: AppPrefs.defaults) private var exportQuality: Double = 0.92
     @AppStorage("imagePro.exportScale", store: AppPrefs.defaults) private var exportScale: Double = 1
+    /// 色彩/位深/DPI（v0.8.85 批 1）：preserve 跟随文档；0 = 跟随。
+    @AppStorage("imagePro.exportProfile", store: AppPrefs.defaults) private var exportProfile = "preserve"
+    @AppStorage("imagePro.exportDepth", store: AppPrefs.defaults) private var exportDepth = 0
+    @AppStorage("imagePro.exportDPI", store: AppPrefs.defaults) private var exportDPI = 0.0
     @State private var showExportSheet = false
     @State private var showAI = false
     @State private var showTextStyle = false
@@ -284,7 +288,8 @@ struct ImageEditorView: View {
             .help(String(localized: "Export"))
             .popover(isPresented: $showExportSheet, arrowEdge: .bottom) {
                 ImageExportOptionsSheet(format: $exportFormat, quality: $exportQuality,
-                                        scale: $exportScale) { format in
+                                        scale: $exportScale, profile: $exportProfile,
+                                        depth: $exportDepth, dpi: $exportDPI) { format in
                     export(as: format)
                 }
             }
@@ -927,8 +932,18 @@ struct ImageEditorView: View {
         panel.allowedContentTypes = []
         let response = panel.runModal()
         guard response == .OK, let url = panel.url else { return }
+        var options = ImageSaveOptions.default
+        switch exportProfile {
+        case "srgb": options.profile = .sRGB
+        case "p3": options.profile = .displayP3
+        case "adobe": options.profile = .adobeRGB
+        default: options.profile = .preserve
+        }
+        if exportDepth > 0 { options.bitDepth = exportDepth }
+        if exportDPI > 0 { options.dpi = exportDPI }
         _ = session.export(format: format, to: url,
-                           quality: exportQuality, scale: exportScale)
+                           quality: exportQuality, scale: exportScale,
+                           options: options)
     }
 }
 
@@ -937,6 +952,9 @@ struct ImageExportOptionsSheet: View {
     @Binding var format: String
     @Binding var quality: Double
     @Binding var scale: Double
+    @Binding var profile: String
+    @Binding var depth: Int
+    @Binding var dpi: Double
     let onExport: (String) -> Void
     @Environment(\.dismiss) private var dismiss
 
@@ -973,6 +991,50 @@ struct ImageExportOptionsSheet: View {
                     .font(.system(size: 9.5, design: .monospaced))
                     .frame(width: 44, alignment: .trailing)
             }
+            HStack(spacing: 6) {
+                Text(String(localized: "Color Profile"))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Picker("", selection: $profile) {
+                    Text(String(localized: "Preserve")).tag("preserve")
+                    Text(verbatim: "sRGB").tag("srgb")
+                    Text(verbatim: "Display P3").tag("p3")
+                    Text(verbatim: "Adobe RGB").tag("adobe")
+                }
+                .labelsHidden()
+                .pickerStyle(.menu)
+                .frame(width: 150)
+            }
+            HStack(spacing: 6) {
+                Text(String(localized: "Bit Depth"))
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Picker("", selection: $depth) {
+                    Text(String(localized: "Auto")).tag(0)
+                    Text(verbatim: "8-bit").tag(8)
+                    Text(verbatim: "16-bit").tag(16)
+                }
+                .labelsHidden()
+                .pickerStyle(.segmented)
+                .frame(width: 150)
+                .disabled(!ImageSaveOptions.supportsDeepColor(format))
+            }
+            HStack(spacing: 6) {
+                Text(verbatim: "DPI")
+                    .font(.system(size: 10.5))
+                    .foregroundStyle(.secondary)
+                TextField("", value: $dpi, format: .number)
+                    .textFieldStyle(.roundedBorder)
+                    .frame(width: 70)
+                if dpi <= 0 {
+                    Text(String(localized: "Auto"))
+                        .font(.system(size: 9.5))
+                        .foregroundStyle(.tertiary)
+                }
+                Spacer()
+            }
             Button(String(localized: "Choose File…")) {
                 dismiss()
                 onExport(format)
@@ -981,6 +1043,6 @@ struct ImageExportOptionsSheet: View {
             .frame(maxWidth: .infinity)
         }
         .padding(14)
-        .frame(width: 300)
+        .frame(width: 340)
     }
 }

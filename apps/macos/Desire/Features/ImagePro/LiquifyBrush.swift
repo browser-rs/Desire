@@ -21,8 +21,13 @@ enum LiquifyBrush {
     /// - expand/pinch: `delta` 的 dx 忽略，dy 的长度用作强度倍率（默认 1）
     static func warp(_ base: CGImage, center: CGPoint, radius: CGFloat,
                      mode: Mode, delta: CGPoint) -> CGImage? {
-        let w = base.width, h = base.height
-        guard let inData = base.dataProvider?.data,
+        // 位移核按 4 字节/像素读裸 buffer：先规范成 8 位 sRGB 工作副本，
+        // 结果再画回 base 的文档格式（v0.8.85 批 1；16 位文档曾会读花）。
+        let workFormat = ImagePixelFormat(space: .sRGB, bitDepth: 8)
+        guard let work = ImageEditorRaster.normalized(base, format: workFormat)
+        else { return nil }
+        let w = work.width, h = work.height
+        guard let inData = work.dataProvider?.data,
               let inPtr = CFDataGetBytePtr(inData) else { return nil }
         let bytesPerRow = 4 * w
         let outBuf = UnsafeMutablePointer<UInt8>.allocate(capacity: bytesPerRow * h)
@@ -95,7 +100,7 @@ enum LiquifyBrush {
                                       })
         guard let provider, let cg = CGImage(
             width: w, height: h, bitsPerComponent: 8, bitsPerPixel: 32,
-            bytesPerRow: bytesPerRow, space: CGColorSpaceCreateDeviceRGB(),
+            bytesPerRow: bytesPerRow, space: workFormat.cgColorSpace,
             bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
             provider: provider, decode: nil, shouldInterpolate: false,
             intent: .defaultIntent) else {

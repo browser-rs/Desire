@@ -14505,9 +14505,46 @@ do {
           && devices[0].lastSeenAt == "2026-11-28T01:02:03")
 }
 
+// 文档像素格式（v0.8.85 批 1 件 1）：推断/位深钳制/上下文参数/导出选项。
+do {
+    func makeImage(space: CGColorSpace, bpc: Int, w: Int = 8, h: Int = 8) -> CGImage? {
+        guard let ctx = CGContext(data: nil, width: w, height: h,
+                                  bitsPerComponent: bpc, bytesPerRow: 0,
+                                  space: space,
+                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        ctx.setFillColor(CGColor(colorSpace: space, components: [0.5, 0.2, 0.1, 1])!)
+        ctx.fill(CGRect(x: 0, y: 0, width: w, height: h))
+        return ctx.makeImage()
+    }
+    let p3 = CGColorSpace(name: CGColorSpace.displayP3)!
+    let srgb = CGColorSpace(name: CGColorSpace.sRGB)!
+    let deep = makeImage(space: p3, bpc: 16).map { ImagePixelFormat.inferred(from: $0) }
+    check("像素格式：16 位 P3 源 → displayP3/16 + 源配置名",
+          deep?.space == .displayP3 && deep?.bitDepth == 16
+          && (deep?.sourceProfileName ?? "").contains("P3"))
+    let shallow = makeImage(space: srgb, bpc: 8).map { ImagePixelFormat.inferred(from: $0) }
+    check("像素格式：8 位 sRGB 源 → sRGB/8",
+          shallow?.space == .sRGB && shallow?.bitDepth == 8)
+    check("像素格式：nil 图回落默认 / 位深钳制 8..16",
+          ImagePixelFormat.of(nil) == .default
+          && ImagePixelFormat(space: .sRGB, bitDepth: 32).clampedBitDepth == 16
+          && ImagePixelFormat(space: .displayP3, bitDepth: 7).clampedBitDepth == 8)
+    let ctx16 = ImagePixelFormat(space: .displayP3, bitDepth: 16).makeContext(width: 4, height: 4)
+    check("像素格式：16 位上下文 = 16 bpc + P3",
+          ctx16?.bitsPerComponent == 16
+          && (ctx16?.colorSpace?.name as String?) == (CGColorSpace.displayP3 as String))
+    check("导出选项：深色容器仅 PNG/TIFF 支持 16 位",
+          ImageSaveOptions.supportsDeepColor("png")
+          && ImageSaveOptions.supportsDeepColor("tiff")
+          && !ImageSaveOptions.supportsDeepColor("jpg")
+          && !ImageSaveOptions.supportsDeepColor("webp"))
+}
+
 // 汇总必须在**真正的文件末尾**：此前 print 在 8748 行，其后的 do 块
 // 不计总数、失败也静默（2026-11-15 新增用例时发现的历史结构问题）。
 print("\n纯逻辑单测：\(count) 项，失败 \(failures.count) 项")
+
 if !failures.isEmpty {
     print("失败清单：")
     for f in failures { print("  - \(f)") }

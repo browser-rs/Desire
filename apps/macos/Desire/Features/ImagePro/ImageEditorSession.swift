@@ -263,7 +263,14 @@ final class ImageEditorSession: ObservableObject {
                 try? fm.removeItem(at: backup)
                 try? fm.copyItem(at: fileURL, to: backup)
             }
-            try ImageTransforms.save(output, to: fileURL)
+            // 源元数据（EXIF/ICC 之外的属性）保留：保存前从原文件读一次。
+            var sourceProps: [CFString: Any]?
+            if let src = CGImageSourceCreateWithURL(fileURL as CFURL, nil),
+               let props = CGImageSourceCopyPropertiesAtIndex(src, 0, nil) as? [CFString: Any] {
+                sourceProps = props
+            }
+            try ImageTransforms.save(output, to: fileURL,
+                                     options: .default, sourceProperties: sourceProps)
             ImageEditorDraft.remove(for: draftSourceKey)
             document.markSaved()
             flash(String(localized: "Saved"))
@@ -278,10 +285,7 @@ final class ImageEditorSession: ObservableObject {
     func beginLiveRetouch() {
         guard let base = document.activeBitmap else { return }
         let w = base.width, h = base.height
-        guard let ctx = CGContext(data: nil, width: w, height: h,
-                                  bitsPerComponent: 8, bytesPerRow: 0,
-                                  space: CGColorSpaceCreateDeviceRGB(),
-                                  bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let ctx = ImagePixelFormat.of(base).makeContext(width: w, height: h)
         else { return }
         ctx.translateBy(x: 0, y: CGFloat(h))
         ctx.scaleBy(x: 1, y: -1)
@@ -290,14 +294,11 @@ final class ImageEditorSession: ObservableObject {
         liveRetouchBase = base
         liveRetouchRadius = brushSize / 2
         let r = Int(max(1, liveRetouchRadius))
-        guard let maskCtx = CGContext(data: nil, width: r * 2, height: r * 2,
-                                      bitsPerComponent: 8, bytesPerRow: 0,
-                                      space: CGColorSpaceCreateDeviceRGB(),
-                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        guard let maskCtx = ImagePixelFormat.of(base).makeContext(width: r * 2, height: r * 2)
         else { return }
         let colors = [CGColor(gray: 1, alpha: 1), CGColor(gray: 1, alpha: 1),
                       CGColor(gray: 1, alpha: 0)] as CFArray
-        if let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+        if let gradient = CGGradient(colorsSpace: maskCtx.colorSpace,
                                      colors: colors, locations: [0, 0.6, 1]) {
             maskCtx.drawRadialGradient(
                 gradient, startCenter: CGPoint(x: r, y: r), startRadius: 0,
@@ -399,7 +400,7 @@ final class ImageEditorSession: ObservableObject {
     }
 
     func export(format: String, to url: URL, quality: Double = 0.92,
-                scale: Double = 1) -> Bool {
+                scale: Double = 1, options: ImageSaveOptions = .default) -> Bool {
         guard let composite = document.composite() else { return false }
         var source = composite
         if scale != 1, scale > 0.05 {
@@ -414,7 +415,10 @@ final class ImageEditorSession: ObservableObject {
                                                  over: needsBackdrop ? CGColor(gray: 1, alpha: 1) : nil)
         guard let output else { return false }
         do {
-            try ImageTransforms.save(output, to: url, quality: quality)
+            var saveOptions = options
+            saveOptions.quality = quality
+            try ImageTransforms.save(output, to: url, options: saveOptions,
+                                     sourceProperties: nil)
             flash(String(localized: "Exported"))
             return true
         } catch {

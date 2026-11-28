@@ -2,6 +2,8 @@
 ### Added
 
 - ImagePro 回归套件入库（v0.8.85 批 1 第 19 件）：`tests/imagepro-e2e.py` + `tests/run-imagepro.sh` + `tests/tools/imagepro-probe.swift`（fixture 生成/读回位深与色域/采样/bbox/diff，坐标全走图片像素）——封闭实例上合成真实事件链（`/editor/synthetic` + catcherRect → 窗口坐标）与命令 API，保存后**读落盘像素**断言。首版 `tools` 节 25/25（选框/套索/魔棒/画笔/橡皮/撤销重做/填充/渐变/形状/文字/调整/滤镜/图层/移动/旋转/翻转/裁剪/还原/合成事件/键盘），`color`/`adjustments` 节按"先红后绿"落好（待件 1/2 转绿）。历时教训：`CGContext.setFillColor(red:green:blue:)` 填设备色，P3 fixture 必须显式 `CGColor(colorSpace:)` 造色域外样本。
+- ImagePro 色彩管线与位深（v0.8.85 批 1 件 1）：新增 `ImagePixelFormat`（工作色域 sRGB/Display P3 + 8/16 位深的唯一入口）——打开图片按源推断（16 位源 → 16 位工作、广色域 → P3），全部文档像素上下文（绘制/合成/修饰/变换/液化/水印/合并/CI 渲染）改经它创建，设备色域硬编码清零；**16 位 Display P3 图落笔保存后仍是 16 位 P3，笔触外像素在 P3 空间逐像素不变**（此前一笔即降成 8 位 sRGB）。加载改 ImageIO（NSImage 解码阶段就降位）；保存改 CGImageDestination（保位深与 ICC）。导出面板新增**色彩配置（保持/sRGB/P3/Adobe RGB）/位深（自动/8/16）/DPI**，命令 API `export` 支持 `profile/depth/dpi/metadata`，`/image/state.pixelFormat` 暴露工作色域/位深/源配置。裸 buffer 核（内容填充/修复融合/液化/魔棒）显式走 8 位 sRGB 工作副本且结果回文档格式（区域精度 8 位的已知取舍）。回归套件 `color` 节 7/7、`tools` 25/25、harness 4106。
+
 
 ### Fixed
 

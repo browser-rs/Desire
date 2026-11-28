@@ -28,7 +28,8 @@ nonisolated enum ImageSelectionAdvanced {
         guard let context = CGContext(
             data: nil, width: width, height: height,
             bitsPerComponent: 8, bytesPerRow: width * 4,
-            space: CGColorSpaceCreateDeviceRGB(),
+            // 裸 buffer BFS 核：固定 8 位 sRGB（只比色差，不回流文档像素）。
+            space: ImagePixelFormat.default.cgColorSpace,
             bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
         else { return nil }
         context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))

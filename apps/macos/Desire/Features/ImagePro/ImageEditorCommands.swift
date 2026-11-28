@@ -434,9 +434,29 @@ enum ImageEditorCommands {
                 if let width = Self.number(body["width"]), document.canvasSize.width > 0 {
                     scale = width / document.canvasSize.width
                 }
+                // 导出四选项（v0.8.85 批 1）：目标配置/位深/DPI/元数据。
+                var options = ImageSaveOptions.default
+                if let raw = (body["profile"] as? String)?.lowercased() {
+                    switch raw {
+                    case "srgb": options.profile = .sRGB
+                    case "p3", "displayp3": options.profile = .displayP3
+                    case "adobe", "adobergb": options.profile = .adobeRGB
+                    default: options.profile = .preserve
+                    }
+                }
+                if let depth = Self.number(body["depth"]) { options.bitDepth = Int(depth) }
+                if let dpi = Self.number(body["dpi"]) { options.dpi = dpi }
+                if let raw = (body["metadata"] as? String)?.lowercased() {
+                    switch raw {
+                    case "strip", "stripall": options.metadata = .stripAll
+                    case "stripgps", "gps": options.metadata = .stripGPS
+                    default: options.metadata = .preserve
+                    }
+                }
                 let ok = session.export(format: format,
                                         to: URL(fileURLWithPath: (path as NSString).expandingTildeInPath),
-                                        quality: quality, scale: scale)
+                                        quality: quality, scale: scale,
+                                        options: options)
                 return ["ok": ok, "path": path]
             case "zoom", "fit":
                 if action == "fit" || (body["scale"] as? String) == "fit" {
@@ -977,6 +997,13 @@ enum ImageEditorCommands {
             "history": document.historyTitles,
             "redoCount": document.redoCount,
             "dirty": document.isDirty,
+            // 文档像素格式（v0.8.85 批 1）：工作色域/位深/源配置——Agent 与
+            // 回归套件据此断言色彩管线没降质。注意别与 `color`（前景色）混。
+            "pixelFormat": [
+                "workingSpace": document.pixelFormat.space.rawValue,
+                "bitDepth": document.pixelFormat.clampedBitDepth,
+                "sourceProfile": document.pixelFormat.sourceProfileName ?? "",
+            ] as [String: Any],
             // 有原图锚点且当前已偏离 = restoreall 有事可做
             "originalAvailable": document.originalImage != nil && document.hasEdits,
             "previewing": document.previewAdjust != nil || document.previewFilter != nil,

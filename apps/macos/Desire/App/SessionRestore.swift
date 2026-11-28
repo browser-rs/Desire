@@ -206,12 +206,21 @@ enum SessionRestore {
             excluding: key, mode: context.settings.windowRestoreMode)
         guard !plan.isEmpty else { return }
         TabSessionCoordinator.shared.enqueueRestoreSnapshots(plan)
-        for _ in plan {
-            context.openWindowForRestore?()
+        // 错峰开窗（v0.8.84 批 1-2）：首扇立即开，其余每 300ms 一扇——
+        // 紧循环把每扇窗的 ContentView.init（含会话装载）挤进同一帧，
+        // 首窗可交互被拖慢；错峰后首窗先落，后续窗陆续跟上。
+        // 上限 5（WindowRestoreCore cap）→ 最长 1.2s，远小于 10s 自愈探针。
+        let openWindow = context.openWindowForRestore
+        Task { @MainActor in
+            for (offset, _) in plan.enumerated() {
+                if offset > 0 {
+                    try? await Task.sleep(for: .milliseconds(300))
+                }
+                openWindow?()
+            }
         }
         // 自愈探针（v0.8.52）：10s 后仍有排定窗口没被认领（SwiftUI 偶发建窗
         // 失败），补开一轮（最多 3 扇）；再失败只记 fault，不再循环。
-        let openWindow = context.openWindowForRestore
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(10))
             let remaining = TabSessionCoordinator.shared.pendingRestoreCount

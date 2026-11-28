@@ -18,6 +18,8 @@
 ### Fixed
 
 - 设置 → 存储页布局修复（v0.8.80 起一直如此，2026-11-28 用户报告）：`StorageSettingsSection` 补上缺失的 `SettingsContainer`——裸 `SettingsSection` 的分区标题被窗口标题栏压住、行内容顶满窗口边；首次引导横幅同步移出卡片（与隐私/远程页同位置）。行副标题的 "keep forever" 缺目录键，补上中文“永久保留”。
+- 下载并发闸回归修复（v0.8.84 批 3 引入，发版闸门 190 当场逮到）：`beginTransferIfAllowed` 把"不限并发"（默认值 0）喂给 `concurrency()` 再 `guard limit > 0`——默认设置下**每个下载都永远排队**，且队列回泵→重启→remove→再通知形成自旋环（单击一次下载产生 81 万条排队日志）。现在 0 语义原样透传（normal/reduced 不限、≥2 才减半）、`resumeQueuedIfPossible` 加 paused 档早退与重入闸。harness 补"不限透传"断言（4101）。
+
 
 
 ## [v0.8.83] - 2026-11-28

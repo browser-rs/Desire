@@ -32,10 +32,14 @@ nonisolated enum ResourceGovernor {
     }
 
     /// 折算并发上限：reduced 减半（至少留 1），paused 归零（排队）。
+    /// **currentMax = 0 是"不限"**——normal/reduced 原样透传（0/1 不动，
+    /// ≥2 才减半），paused 仍归零（对"不限"也是"新入队全停"）。
+    /// 调用方要先用 load 自己判 paused，不能拿 0 当"不许跑"（v0.8.84
+    /// 发版闸门真事故：0 被当上限 → 默认设置每个下载永远排队）。
     static func concurrency(currentMax: Int, load: Load) -> Int {
         switch load {
-        case .normal: return max(0, currentMax)
-        case .reduced: return max(1, currentMax / 2)
+        case .normal: return currentMax
+        case .reduced: return currentMax <= 1 ? currentMax : max(1, currentMax / 2)
         case .paused: return 0
         }
     }

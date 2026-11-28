@@ -557,10 +557,25 @@ class DownloadStore: ObservableObject {
     }
 
     /// 窗口打开时按并发上限放行排队项（60s 一拍；窗口变化时也会立即调）。
+    /// 回泵正在跑的标志：remove(id:) 会发 `.downloadSlotFreed`，观察者立刻
+    /// 再进本函数——没有这道闸，"重启失败再排队"的路径会自旋成环（v0.8.84
+    /// 发版闸门真事故：排队→回泵→重启→remove→再通知，日志每秒数万条）。
+    private var isPumpingQueued = false
+
     func resumeQueuedIfPossible() {
+        guard !isPumpingQueued else { return }
         guard isDownloadWindowOpen else { return }
+        // 资源退避 paused 档：排队项重启也会被闸拦回（再排队白转一圈），
+        // 等档位回 normal 的下一次触发再泵。
+        let governorLoad = ResourceGovernor.load(ResourceGovernor.Conditions(
+            memoryPressure: TabManager.mainMemoryPressureActive,
+            thermalRaw: ProcessInfo.processInfo.thermalState.rawValue,
+            lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled))
+        guard governorLoad != .paused else { return }
         let limit = maxConcurrentDownloads
         var active = activeTransferCount
+        isPumpingQueued = true
+        defer { isPumpingQueued = false }
         for item in downloads where item.isQueued {
             if limit > 0, active >= limit { break }
             guard item.state == .inProgress else { continue }
@@ -577,6 +592,9 @@ class DownloadStore: ObservableObject {
     /// 为一次将要开始的下载预留名额；超限返回 false。**必须传 excluding：**
     /// 新下载的 item 已在 downloads 里（inProgress）——不排除它会把自己算进
     /// 进行中计数，上限=1 时第一条就自锁（实测踩过）。
+    /// **maxConcurrentDownloads = 0 是"不限"**（v0.8.84 发版闸门逮到的真
+    /// 事故：把 0 喂给 concurrency() 再 `guard limit > 0`，默认设置下每个
+    /// 下载都永远排队，回泵→重启→再排队每秒自旋数万次）。
     func beginTransferIfAllowed(excluding id: UUID? = nil) -> Bool {
         guard isDownloadWindowOpen else { return false }
         // 资源退避（批 3 第 15 件）：内存压力/critical 热状态 → 暂停入队；
@@ -587,9 +605,9 @@ class DownloadStore: ObservableObject {
             lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled)
         let load = ResourceGovernor.load(conditions)
         guard load != .paused else { return false }
-        let limit = ResourceGovernor.concurrency(
-            currentMax: maxConcurrentDownloads, load: load)
-        guard limit > 0 else { return false }
+        let maxSetting = maxConcurrentDownloads
+        guard maxSetting > 0 else { return true } // 0 = 不限（paused 已在上面拦）
+        let limit = ResourceGovernor.concurrency(currentMax: maxSetting, load: load)
         let active = downloads.filter {
             $0.state == .inProgress && !$0.isPaused && !$0.isQueued && $0.id != id
         }.count

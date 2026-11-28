@@ -14443,6 +14443,12 @@ do {
           && ResourceGovernor.concurrency(currentMax: 4, load: .paused) == 0)
     check("资源退避：reduced 至少留 1 并发",
           ResourceGovernor.concurrency(currentMax: 1, load: .reduced) == 1)
+    // "不限"（0）语义（v0.8.84 发版闸门真事故：0 被当上限 → 默认设置每个
+    // 下载永远排队 → 回泵自旋 81 万条日志）。normal/reduced 原样透传 0，
+    // paused 归零；调用方必须先用 load 判 paused，不能拿 0 当"不许跑"。
+    check("资源退避：不限（0）在 normal/reduced 原样透传",
+          ResourceGovernor.concurrency(currentMax: 0, load: .normal) == 0
+          && ResourceGovernor.concurrency(currentMax: 0, load: .reduced) == 0)
 }
 
 // 支付卡校验（v0.8.82 批 3）：Luhn / 品牌 / 有效期。

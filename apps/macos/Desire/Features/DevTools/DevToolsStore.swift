@@ -146,15 +146,21 @@ class DevToolsStore: ObservableObject {
 
     func addConsoleMessage(level: ConsoleMessage.Level, message: String, url: String? = nil, line: Int? = nil, column: Int? = nil, tabID: UUID? = nil, parts: [ConsoleMessage.Part]? = nil) {
         let msg = ConsoleMessage(level: level, message: message, url: url, line: line, column: column, tabID: tabID, parts: parts)
-        // Mutate the backing array once (append + optional trim), then publish
-        // a single time. The previous append-then-trim sequence published twice.
-        var newMessages = consoleMessages
-        newMessages.append(msg)
-        if newMessages.count > consoleCap {
-            newMessages.removeFirst(newMessages.count - consoleCap)
+        // PERF-10（v0.8.84 批 2 第 7 件）：此前 `var copy = consoleMessages`
+        // 让缓冲失去唯一引用，append 每条消息都触发 COW 全量拷贝（最多
+        // 1000 条）。改为**原地**追加 + 块状裁剪（超 cap+block 才裁 block
+        // 条，单次发布语义不变——裁剪从"每条"降为"每 ~200 条"）。
+        consoleMessages.append(msg)
+        if consoleMessages.count > consoleCap + Self.consoleTrimBlock {
+            consoleMessages.removeFirst(Self.consoleTrimBlock)
         }
-        consoleMessages = newMessages
     }
+
+    /// 块状裁剪步长：稳定态数组大小在 [cap, cap+block) 波动，裁剪频率 =
+    /// 每 block 条消息一次（原来每条都拷贝）。
+    /// 块状裁剪步长：稳定态数组大小在 [cap, cap+block) 波动，裁剪频率 =
+    /// 每 block 条消息一次（原来每条都拷贝）。cap=1000 → 最大驻留 1200。
+    static let consoleTrimBlock = 200
 
     /// 清空所有标签页的日志。
     func clearConsole() {

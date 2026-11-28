@@ -1,4 +1,5 @@
 import Combine
+import AppKit
 import SwiftUI
 import WebKit
 
@@ -169,6 +170,11 @@ class TabThumbnailStore: ObservableObject {
             Task { @MainActor [weak self] in
                 // 定时清理过期缩略图 + 低频轮捕后台页（hover 预览秒开）
                 self?.cleanExpiredThumbnails()
+                // 后台退避（v0.8.84 批 2 第 7 件）：应用不在前台时暂停轮捕——
+                // takeSnapshot 跨进程 ~200ms+/张，用户在用别的应用时纯属耗电。
+                // 回前台下一拍自动恢复（过期页重拍，hover 照常秒开）。
+                // PageWatch 轮询**不退避**——"替人盯页"的功能本体就在后台跑。
+                guard NSApp.isActive else { return }
                 guard let self, let provider = self.tabsProvider else { return }
                 let tabs = provider()
                 self.refreshAllVisible(tabs: tabs)

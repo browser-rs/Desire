@@ -2,6 +2,8 @@
 ### Added
 
 - 启动与恢复减负（v0.8.84 批 1）：**恢复期懒建 WebView**——会话恢复的非选中标签不再构造 WKWebView 骨架（配置/用户脚本/DevTools 记录器全部推迟到首次唤醒），40 标签实测会话装载 251ms→72ms、启动审计回到 700ms 预算内；新增 `restoreTabs` 与 `lazyWebViews`（created/unexpected）启动度量，"意外建"带栈 fault 暴露违规触碰路径（本次即抓出标签胶囊渲染读 webView.url 并以 `displayURLString` 收口）；多扇恢复窗错峰 300ms 开启；强杀后 `open -g` 后台启动的无窗自愈前置——3s 无窗即发一次 reopen（对已建窗 no-op），首窗从 ~21s 提前到 ~3s。
+- 导航与页面减负（v0.8.84 批 2，3/4 件）：**导航守卫零 JS 化**——documentStart 眼线脚本用自有 accessor 影子 + addEventListener Proxy 不可探测地确认页面是否注册了 beforeunload 监听器，无监听器的导航不再付一次合成探针的 JS 往返（`/diag/startup.navGuard{probes,skipped}` 计数，四注册形态 fixture 全验：addEventListener/legacy 赋值/body 属性/无监听器）；`page-perf` 改主框架注入 + 原生 frame 兜底（3 iframe 页实测 domNodes=30009 不再被 3 节点 iframe 覆盖）；DevTools 控制台修 PERF-10（每条消息 COW 全量拷贝 → 原地追加 + 块状裁剪）；应用不在前台时暂停缩略图轮捕（PageWatch 是替人盯页的功能本体，不退避）。
+
 
 ### Fixed
 

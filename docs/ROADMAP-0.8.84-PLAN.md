@@ -220,6 +220,13 @@
    reopen 前置到 2.5s，首窗 21s→3s）。第 18 件的"首窗前工作后移"待
    Release 基线（第 16 件 perf-probe）后再评估。
 2. **导航与页面**：3 守卫零 JS → 4 page-perf → 5 didFinish 按需 → 7 后台降本。
+   **实施记录（2026-11-28，d248cb4a/10096e53/47460ce4）**：3 零 JS 守卫（眼线脚本
+   documentStart 装自有 accessor 影子 + addEventListener Proxy；**WebKit 实测坑**：
+   原生 onbeforeunload accessor 是 window 自有属性而非 Window.prototype；`<body
+   onbeforeunload>` 的解析转赋值不经过 JS setter——靠 documentEnd 二次注入读原生值
+   兜底；创建期弱代理接收避免 controller→handler→state 释放环；四注册形态 fixture
+   全验）→ 4 page-perf 主框架（iframe 覆盖实测修复）→ 7 DevTools 零拷贝（PERF-10）
+   + 缩略图后台暂停。第 5 件（didFinish 按需）留下一轮——13 处调用点需逐项审计。
 3. **内存与后台**：6 快照瘦身/压力 → 8 插件宿主 → 14 内存管家 → 15 资源退避。
 4. **可见与融合**：9 性能面板/设置 → 10 用量缓存 → 12 Agent 资源工具 → 13 Doctor → 11 评估。
 5. **收口**：16 perf-probe → 19 文档/发版 → 20 版本收口。

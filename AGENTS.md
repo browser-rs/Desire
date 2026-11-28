@@ -1166,6 +1166,17 @@ Features/Bookmarks/
 
 ## 性能与页面生命周期（v0.8.84 立，先量后做）
 
+- **"不限/关闭"的哨兵值（0、-1、nil）喂进折算函数之前先查它的约定**（v0.8.84
+  发版闸门逮到的真事故，190 当场拦下）：下载并发默认 `maxConcurrentDownloads
+  = 0 = 不限`，被喂进 `ResourceGovernor.concurrency()` 后 `guard limit > 0`
+  把"不限"判成"不许跑"——默认设置下**每个下载永远排队**，且队列回泵
+  （resume → restart → remove → `.downloadSlotFreed` 再通知）自旋成环，
+  单击一次下载产生 81 万条排队日志。规矩：① 哨兵值原样透传，折算函数
+  不改写它的含义（0/1 不减半）；② 调用方用语义判（先 `load != .paused`）
+  而不是拿数值判；③ **队列/重试类回泵要加重入闸**——凡是"失败再排队"
+  的路径都可能借通知/定时器自旋，`isPumpingQueued` 这道闸必须有；④
+  排队卡死的画像 = `/downloads` 行的 id 在轮询间不断换新 + 同一 URL 的
+  "queued" 日志爆量——看到就查回泵环。
 - **性能改动先量后做，量出来的口径要能跨会话复现**：didFinish 的页面求值
   计数 = `GET /page/timing` 的 `jsRoundTrips`（didStart 归零、按发起点计，
   简单页面验收线 ≤4，实测 example.com=2）；启动面 = `/diag/startup` 的

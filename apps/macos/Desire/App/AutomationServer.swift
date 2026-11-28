@@ -4806,6 +4806,13 @@ case ("GET", "/agent/messages"):
                 // 立即读即启动值；runs>1 说明之后还有工作区/Agent 面板装载混入。
                 "restoreTabs": TabManager.restoreAuditSinceLaunch.dictionary,
                 "restoreTabsLast": TabManager.lastRestoreAudit?.dictionary ?? [:],
+                // 懒建 WebView 计数（批 1B）：unexpected > 0 = 启动/遍历路径
+                // 违规触碰了挂起标签（fault 日志带栈）。
+                "lazyWebViews": [
+                    "created": BrowserState.lazyWebViewCreations,
+                    "unexpected": BrowserState.unexpectedLazyWebViewCreations,
+                    "lastUnexpected": (BrowserState.lastUnexpectedLazyCreation ?? ""),
+                ],
                 "healAttempts": defaults.integer(forKey: "app.launchWindowHealAttempts"),
                 "cleanExitFlag": defaults.object(forKey: "app.cleanExit") as? Bool ?? true,
                 "lastStallAt": RuntimeHealthMonitor.lastStall().map {
@@ -5041,13 +5048,15 @@ case ("GET", "/agent/messages"):
                 "index": i,
                 "title": tab.browser.pageTitle,
                 // 查看器挂载中 → 报文件路径（webview 里是旧页，不代表用户所见）。
+                // 批 1B：懒建挂起标签没有 webview——hasLiveWebView 守卫，
+                // 遍历 /state 不得触发创建。
                 "url": tab.isOnToolsPage
                     ? tab.urlString
                     : (tab.browser.spreadsheetViewerURL?.absoluteString
                         ?? tab.browser.imageEditorURL?.absoluteString
                         ?? tab.browser.archiveViewerURL?.absoluteString
                         ?? tab.browser.documentViewerURL?.absoluteString
-                        ?? tab.browser.webView.url?.absoluteString
+                        ?? (tab.browser.hasLiveWebView ? tab.browser.webView.url?.absoluteString : nil)
                         ?? tab.urlString),
                 "incognito": tab.isIncognito,
                 "selected": tm?.selectedIndex == i,

@@ -520,7 +520,7 @@ private struct TabPillView: View {
                         .foregroundStyle(.secondary)
                         .help(String(localized: "Pinned tab"))
                 }
-                FaviconView(urlString: tab.browser.webView.url?.absoluteString ?? tab.urlString, size: 14)
+                FaviconView(urlString: tab.displayURLString, size: 14)
             }
             if tab.autoRefreshInterval != nil {
                 // 自动刷新角标（v0.8.20）：箭头循环——与声音开关同排同规格。
@@ -635,6 +635,8 @@ private struct TabPillView: View {
 
     /// 手动卸载（v0.7.28）：释放 webview 内存但保留快照，点标签即可恢复。
     private func unloadTab(_ tab: Tab) {
+        // 懒建挂起标签（批 1B）没有 webview——已是卸载态，跳过。
+        guard tab.browser.hasLiveWebView else { return }
         tab.captureSuspendedState()
         tab.isSuspended = true
         tab.browser.webView.stopLoading()
@@ -778,7 +780,8 @@ private struct TabPopoverView: View {
             q.isEmpty
                 || tab.displayTitle.lowercased().contains(q)
                 || tab.urlString.lowercased().contains(q)
-                || (tab.browser.webView.url?.absoluteString.lowercased().contains(q) ?? false)
+                || (tab.browser.hasLiveWebView
+                    && (tab.browser.webView.url?.absoluteString.lowercased().contains(q) ?? false))
         }
         var out: [Row] = tabs.enumerated().compactMap { offset, tab in
             guard matches(tab) else { return nil }
@@ -841,7 +844,7 @@ private struct TabPopoverView: View {
                                     .lineLimit(1)
                                     .font(.system(size: 13))
                                 if !tab.isOnNewTabPage {
-                                    Text(tab.browser.webView.url?.absoluteString ?? tab.urlString)
+                                    Text(tab.displayURLString)
                                         .lineLimit(1)
                                         .font(.system(size: 10))
                                         .foregroundStyle(.tertiary)

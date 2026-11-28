@@ -71,9 +71,42 @@ final class PendingDangerousDownload {
 
 @MainActor
 class BrowserState: ObservableObject {
-    /// 二级挂起会**重建**此视图（释放旧骨架、换上空白新视图）——除本类型
-    /// 的 rebuildWebView() 外不得赋值；读取方照旧（非 optional，永不 nil）。
-    private(set) var webView: BrowserWKWebView
+    /// 主 webview。**懒建**（v0.8.84 批 1B）：恢复期未选中的标签以
+    /// `deferWebView: true` 构造——配置与 webview 都推迟到首次访问。
+    /// 唤醒入口（`Tab.restoreSuspendedState`）先置 `isWebViewWakeExpected`；
+    /// 标签仍挂起时被访问 = 启动路径违规触碰，计"意外建"并 fault（带栈）。
+    /// 除本类型的 `createWebViewNow()`/`rebuildWebView()` 外不得赋值。
+    private var _webView: BrowserWKWebView?
+    /// 下一次 webview 创建是否属于预期唤醒（唤醒入口置位、创建即消费）。
+    var isWebViewWakeExpected = false
+    /// 该实例是否走懒建（恢复标签）。非懒建实例在 init 即创建。
+    private let isDeferredWebView: Bool
+    /// 懒建计数（全部原因）——`/diag/startup.lazyWebViews` 读取。
+    static private(set) var lazyWebViewCreations = 0
+    /// **意外建**计数：挂起中的懒建标签被启动/遍历路径触碰。
+    static private(set) var unexpectedLazyWebViewCreations = 0
+    static private(set) var lastUnexpectedLazyCreation: String?
+
+    var hasLiveWebView: Bool { _webView != nil }
+    var webView: BrowserWKWebView { ensureWebView(reason: .access) }
+
+    enum WebViewCreationReason { case eager, wake, access, rebuild }
+
+    @discardableResult
+    func ensureWebView(reason: WebViewCreationReason) -> BrowserWKWebView {
+        if let w = _webView { return w }
+        let unexpected = isDeferredWebView && reason == .access && !isWebViewWakeExpected
+        let wv = createWebViewNow(reason: reason)
+        isWebViewWakeExpected = false
+        Self.lazyWebViewCreations += 1
+        if unexpected {
+            Self.unexpectedLazyWebViewCreations += 1
+            let stack = Thread.callStackSymbols.dropFirst(2).prefix(6).joined(separator: " | ")
+            Self.lastUnexpectedLazyCreation = String(stack.prefix(400))
+            Log.tabs.fault("lazy webview created while tab suspended (unexpected touch) — \(stack, privacy: .public)")
+        }
+        return wv
+    }
     /// DPP（Desire Page Protocol）：当前页面解析出的协议（didFinish 后由
     /// coordinator 解析缓存）。nil = 页面无协议。pageExtract/pageProtocol
     /// 工具与 page_context 增强消费。
@@ -300,10 +333,35 @@ class BrowserState: ObservableObject {
     /// 就地重开过一次（防循环；见 didFinish 钩子）。
     var autoPlayReopenDone = false
 
-    init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, containerDataStore: WKWebsiteDataStore? = nil) {
+    /// 懒建规格（批 1B）：构造期参数在 init 存下，`createWebViewNow` 消费——
+    /// 恢复标签的配置与 webview 都推迟到首次访问。
+    private let creationJavaScriptEnabled: Bool
+    private let creationContentBlocker: ContentBlockerStore?
+    private let creationContainerDataStore: WKWebsiteDataStore?
+    private let creationDevToolsTabID: UUID?
+
+    init(incognito: Bool = false, javaScriptEnabled: Bool = true, contentBlocker: ContentBlockerStore? = nil, videoAdBlocker: VideoAdBlocker? = nil, autoPlayPolicy: AutoPlayPolicy = .requireUserAction, containerDataStore: WKWebsiteDataStore? = nil, deferWebView: Bool = false, devToolsTabID: UUID? = nil) {
         self.isIncognito = incognito
         self.videoAdBlocker = videoAdBlocker
         self.createdAutoPlayPolicy = autoPlayPolicy
+        self.creationJavaScriptEnabled = javaScriptEnabled
+        self.creationContentBlocker = contentBlocker
+        self.creationContainerDataStore = containerDataStore
+        self.isDeferredWebView = deferWebView
+        self.creationDevToolsTabID = devToolsTabID
+        if deferWebView {
+            // 恢复期懒建（批 1B）：不建配置、不建 webview——首次访问走
+            // ensureWebView → createWebViewNow。意外触碰由计数器与 fault 暴露。
+            return
+        }
+        createWebViewNow(reason: .eager)
+    }
+
+    /// 构造配置（init 急切路径与懒建共用；参数来自构造期存下的规格）。
+    private func makeConfiguration() -> WKWebViewConfiguration {
+        let javaScriptEnabled = creationJavaScriptEnabled
+        let containerDataStore = creationContainerDataStore
+        let contentBlocker = creationContentBlocker
         let config = WKWebViewConfiguration()
         config.preferences.setValue(true, forKey: "developerExtrasEnabled")
         let webpagePrefs = WKWebpagePreferences()
@@ -315,7 +373,7 @@ class BrowserState: ObservableObject {
         config.preferences.setValue(true, forKey: "DOMPasteAllowed")
         config.preferences.setValue(false, forKey: "suppressesIncrementalRendering") // Render progressively
 
-        switch autoPlayPolicy {
+        switch createdAutoPlayPolicy {
         case .allowAll:
             config.mediaTypesRequiringUserActionForPlayback = []
         case .requireUserAction:
@@ -324,7 +382,7 @@ class BrowserState: ObservableObject {
             config.mediaTypesRequiringUserActionForPlayback = [.video, .audio]
             config.preferences.javaScriptCanOpenWindowsAutomatically = false
         }
-        if incognito {
+        if isIncognito {
             config.websiteDataStore = WKWebsiteDataStore.nonPersistent()
         } else if let containerDataStore {
             // Container tab: dedicated persistent data store — cookies,
@@ -406,7 +464,7 @@ class BrowserState: ObservableObject {
         // 不能在脚本里读全局档，否则"站点已阻断"仍会被补刀拉起来。
         let playbackGuard = UserScriptLoader.load("yt-playback-guard")
             .replacingOccurrences(of: "__DESIRE_AUTOPLAY_ALLOWED__",
-                                  with: autoPlayPolicy == .allowAll ? "true" : "false")
+                                  with: createdAutoPlayPolicy == .allowAll ? "true" : "false")
         if !playbackGuard.isEmpty, ProcessInfo.processInfo.environment["DESIRE_AB_FORCE_GUARD"] != nil {
             config.userContentController.addUserScript(
                 WKUserScript(source: playbackGuard, injectionTime: .atDocumentEnd,
@@ -457,10 +515,25 @@ class BrowserState: ObservableObject {
             }
             Log.userScripts.info("webview init: injected webext-api into \(pluginStore.plugins.filter { $0.isEnabled }.count, privacy: .public) plugin world(s)")
         }
+        return config
+    }
 
-        webView = Self.makeWebView(configuration: config)
+    /// 创建 webview 并完成武装（DevTools 归属 + Cookie 策略注册）——
+    /// init 急切路径与懒建共用这一个入口。
+    @discardableResult
+    private func createWebViewNow(reason: WebViewCreationReason) -> BrowserWKWebView {
+        let config = makeConfiguration()
+        let wv = Self.makeWebView(configuration: config)
+        // DevTools 记录器归属 = 本 tab（批 1B：从 Tab.init 移到创建点——
+        // 懒建时这里就是首次武装时机，急切路径语义不变）。
+        if let devToolsTabID = creationDevToolsTabID {
+            wv.devToolsTabID = devToolsTabID
+            DevToolsRecorder.shared.install(in: wv)
+        }
         // Cookie-policy changes must reach this OPEN page too.
-        PrivacyModeStore.shared.registerWebView(webView)
+        PrivacyModeStore.shared.registerWebView(wv)
+        _webView = wv
+        return wv
         // drawsBackground 保持默认（不透明）：0.3.9 曾用 KVC 关掉它试图
         // 消 resize 过场闪（8a880f6），历轮实测均未通过——透明内容让
         // WebKit 无法只拉伸旧帧过渡 resize，每帧合成页面背景反而加剧
@@ -621,8 +694,10 @@ class BrowserState: ObservableObject {
     /// makeNSView 重新 observe（remove-before-add 幂等）。Cookie 策略
     /// 注册照 init 同款：旧的随释放消亡（弱引用 box），新的注册。
     func rebuildWebView() {
-        let config = webView.configuration
-        let old = webView
+        // 懒建挂起标签（批 1B）没有骨架——它们已是"最深度"的挂起态，
+        // 无可重建；恢复时由 ensureWebView 现建。
+        guard let old = _webView else { return }
+        let config = old.configuration
         // 摘掉旧视图上的 delegate（stopObserving 只在 representable
         // dismantle 跑——挂起态它已经跑过；这里兜底再摘，幂等）。
         old.stopLoading()
@@ -634,7 +709,7 @@ class BrowserState: ObservableObject {
         DevToolsRecorder.shared.install(in: fresh)
         PrivacyModeStore.shared.registerWebView(fresh)
         fresh.loadHTMLString("", baseURL: nil)
-        webView = fresh
+        _webView = fresh
         objectWillChange.send()
     }
 

@@ -100,6 +100,9 @@ class Tab: ObservableObject {
     /// scroll position, form input, JS state, and back/forward history); falls
     /// back to a plain URL reload if no snapshot was captured.
     func restoreSuspendedState() {
+        // 唤醒入口（批 1B）：unsuspend / SuspendedTabView.reload / 桥自动
+        // 唤醒都汇到这里——懒建 webview 的首次创建从此处开始不计"意外建"。
+        browser.isWebViewWakeExpected = true
         let restoreStart = Date()
         defer { Log.tabs.debug("tabswitch restoreSuspendedState total: \(Date().timeIntervalSince(restoreStart) * 1000, format: .fixed(precision: 1))ms") }
         if let data = suspendedInteractionState {
@@ -168,6 +171,16 @@ class Tab: ObservableObject {
     }
 
     /// 性能快照（0.6.4，右键"复制性能快照"）：代理指标 + 标识，纯文本进剪贴板。
+    /// 展示用 URL（批 1B）：渲染路径（标签胶囊/搜索/tooltip）统一走这里——
+    /// 挂起标签读 suspend 时快照的 URL，**不碰 webView**（懒建标签会被
+    /// 渲染路径击穿，一次渲染建出 N 个 webview）；活标签才读 webView.url。
+    var displayURLString: String {
+        if isSuspended || !browser.hasLiveWebView {
+            return suspendedURL?.absoluteString ?? urlString
+        }
+        return browser.webView.url?.absoluteString ?? urlString
+    }
+
     var perfSnapshotText: String {
         let url = browser.webView.url?.absoluteString ?? urlString
         return """
@@ -205,7 +218,9 @@ class Tab: ObservableObject {
             return .resolved(global: autoPlayPolicy, host: host, siteOverrideRaw: override,
                              engagement: MediaEngagementStore.shared.isHighEngagement(host))
         }()
-        browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: effectiveAutoPlay, containerDataStore: resolvedDataStore)
+        // 批 1B：`loadsPage == false`（恢复期非选中标签）→ 懒建 WebView——
+        // BrowserState 只存规格，配置与 webview 推迟到首次唤醒/访问。
+        browser = BrowserState(incognito: incognito, javaScriptEnabled: javaScriptEnabled, contentBlocker: contentBlocker, videoAdBlocker: videoAdBlocker, autoPlayPolicy: effectiveAutoPlay, containerDataStore: resolvedDataStore, deferWebView: !loadsPage, devToolsTabID: id)
         // 超级拖拽（0.7.13）：webview 侧链接上报 → MouseGestureStore 判定。
         if MouseGestureStore.shared.superDragEnabled {
             browser.superDragLinkHandler = { urlString in
@@ -219,15 +234,17 @@ class Tab: ObservableObject {
         // DevTools 记录器（0.7.5）：console/network 接收端随 webview 创建
         // 挂上（归属 = 本 tab id），后台标签页也持续记录——此前接收端随
         // SwiftUI 视图挂/卸，转后台即断流。
-        browser.webView.devToolsTabID = id
-        DevToolsRecorder.shared.install(in: browser.webView)
-        browser.webView.allowsBackForwardNavigationGestures = true
+        // 批 1B：归属与安装移入 BrowserState 的创建点（devToolsTabID 参数）——
+        // 恢复期懒建标签在首次唤醒（createWebViewNow）时才武装，这里不再
+        // 触碰 webView（否则懒建失效）。手势在 makeWebView 统一设置。
         if let url {
             urlString = url
             isOnNewTabPage = false
             // loadsPage = false：会话恢复的**非选中**标签用——只记 URL 不发起
             // 加载（挂起态首次 activate 时由 restoreSuspendedState 恢复）。
             // 此前 init 立即 load，N 个标签启动即 N 个并发请求（P0-B）。
+            // 批 1B：`loadsPage == false` 的恢复标签连 WebView 骨架也不建
+            // （deferWebView）——实测 40 标签省 ~250ms 启动（restoreTabs.ms）。
             if loadsPage, let validURL = URL(string: url) {
                 browser.webView.load(URLRequest(url: validURL))
             }
@@ -562,6 +579,9 @@ class TabManager: ObservableObject {
         // 骨架重建：最近的 `deepRebuildCap` 个挂起标签保留原 webview
         // （快速恢复），更旧的逐个重建。
         for tab in suspended.dropFirst(Self.deepRebuildCap) {
+            // 懒建挂起标签（批 1B）没有骨架——已是"无 webview"态，跳过
+            //（否则 rebuild 反而会创建一个）。
+            guard tab.browser.hasLiveWebView else { continue }
             // file:// 页面（webarchive/本地预览）不重建——它们的恢复依赖
             // 视图内状态而非 URL 重载，重建后打不开。
             if tab.browser.webView.url?.isFileURL == true { continue }
@@ -829,6 +849,9 @@ class TabManager: ObservableObject {
     /// promptly under tab churn. Without this the webview is only freed
     /// when the `Tab` itself deinits, which can lag behind close.
     private func tearDown(_ tab: Tab) {
+        // 懒建挂起标签（批 1B）没有 webview——无媒体可停、无页面可清，
+        // 直接跳过（否则关闭动作反而会触发一次创建）。
+        guard tab.browser.hasLiveWebView else { return }
         // 停媒体 + 清页（0.7.2 走查实测：只 stopLoading 时 WebContent 进程
         // 继续解码——关掉 YouTube 标签后视频/声音仍在播，非必现）。挂起
         // 路径的 loadHTMLString 清页机制同源，已验证可靠。

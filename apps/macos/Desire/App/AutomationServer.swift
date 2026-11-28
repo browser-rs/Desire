@@ -440,6 +440,7 @@ final class AutomationServer {
         ep("POST", "/diag/toolbar", "E2E: set toolbar order/hidden items, or reset to defaults", params: ["order?:array", "hidden?:array", "reset?:bool"], example: #"-d '{"hidden":["agent"]}'"#)
         ep("GET", "/diag/browser", "Browser diagnostics: content-process crash count + recent crashes", example: "…/diag/browser")
         ep("POST", "/diag/screen-lock", "E2E: override the screen-lock flag (locked bool; omit to restore the system value)", params: ["locked?:bool"], example: #"-d '{"locked":true}'"#)
+        ep("POST", "/diag/memory-pressure", "E2E: simulate a memory-pressure event (same chain as the DispatchSource)", params: ["level:warning|critical"], example: #"-d '{"level":"warning"}'"#)
         ep("GET", "/diag/storage", "Storage health by domain (conversations/archives/sessions/translation caches/batch logs/spills/resume) with retention settings", example: "…/diag/storage")
         ep("POST", "/diag/storage/clean", "Clear one storage domain (conversations/archives require olderThanDays > 0; the open conversation is never deleted)", params: ["domain:string", "olderThanDays?:int"], example: #"-d '{"domain":"translations"}'"#)
         ep("POST", "/diag/storage/retention", "Set conversation/archive retention in days (0 = keep forever)", params: ["conversationDays?:int", "archiveDays?:int"], example: #"-d '{"conversationDays":90}'"#)
@@ -1114,6 +1115,17 @@ case ("GET", "/state"):
                 return try Self.json(layoutStore.diagnostics())
             case ("GET", "/diag/health"):
                 return try Self.json(RuntimeHealthMonitor.shared.healthSummary(preference: AppState.live?.aiPreference))
+            case ("POST", "/diag/memory-pressure"):
+                let critical = (Self.string(body, "level") ?? "warning").lowercased() == "critical"
+                let managers = TabSessionCoordinator.shared.liveManagers()
+                guard !managers.isEmpty else {
+                    return try Self.json(["error": "no live tab manager"])
+                }
+                for manager in managers {
+                    manager.simulateMemoryPressure(critical: critical)
+                }
+                return try Self.json(["ok": true, "critical": critical,
+                                      "managers": managers.count])
             case ("POST", "/diag/screen-lock"):
                 // E2E：模拟锁屏标志（nil = 回到系统真值）。
                 if let locked = body["locked"] as? Bool {

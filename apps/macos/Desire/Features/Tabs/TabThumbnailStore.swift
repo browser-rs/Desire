@@ -7,6 +7,18 @@ import WebKit
 /// 负责捕获、缓存和更新标签页的缩略图截图
 @MainActor
 class TabThumbnailStore: ObservableObject {
+    /// 存活实例登记（批 3 第 6 件）：store 是每窗 @StateObject，内存清道
+    /// 需要进程级 purge——弱哈希表遍历，实例释放自动出表。
+    private static let liveInstances = NSHashTable<TabThumbnailStore>.weakObjects()
+
+    /// 进程级清道：清所有窗口的缩略图缓存（NSCache 可按需重拍）。
+    static func purgeAllCaches() {
+        for store in liveInstances.allObjects {
+            store.clearAll()
+        }
+    }
+
+
     /// Bounded thumbnail cache (Tab ID string -> thumbnail). `NSCache`
     /// auto-evicts under memory pressure and enforces a count cap, replacing
     /// the previous unbounded `[UUID: NSImage]` that grew with tab count.
@@ -40,10 +52,12 @@ class TabThumbnailStore: ObservableObject {
     }
 
     init() {
+        Self.liveInstances.add(self)
         startUpdateTimer()
     }
 
     deinit {
+        Self.liveInstances.remove(self)
         updateTimer?.invalidate()
     }
 
@@ -180,6 +194,12 @@ class TabThumbnailStore: ObservableObject {
                 self.refreshAllVisible(tabs: tabs)
             }
         }
+    }
+
+    /// 全量清空（批 3 第 6 件）：内存压力清道用——NSCache 条目可按需重拍。
+    func clearAll() {
+        thumbnails.removeAllObjects()
+        thumbnailTimestamps.removeAll()
     }
 
     private func cleanExpiredThumbnails() {

@@ -120990,6 +120990,29 @@
           }
         }
       }
+    },
+    "%lld nodes": {
+      "comment": "Memory governor budget label",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld nodes"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 个节点"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "%lld 個節點"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

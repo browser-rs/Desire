@@ -14399,6 +14399,35 @@ do {
           && empty.days.allSatisfy { $0.entries.isEmpty })
 }
 
+// 内存管家（v0.8.84 批 3 第 14 件）：总量预算判定 + 挂起顺序。
+do {
+    check("内存管家：预算关闭（0）永不挂起",
+          !SuspendPolicy.shouldSuspend(totalNodes: 999_999, budget: 0))
+    check("内存管家：总量未超预算不动",
+          !SuspendPolicy.shouldSuspend(totalNodes: 59_999, budget: 60_000)
+          && !SuspendPolicy.shouldSuspend(totalNodes: 60_000, budget: 60_000))
+    check("内存管家：超预算触发",
+          SuspendPolicy.shouldSuspend(totalNodes: 60_001, budget: 60_000))
+
+    let calendar = Calendar(identifier: .gregorian)
+    func at(_ day: Int, _ hour: Int) -> Date {
+        calendar.date(from: DateComponents(year: 2026, month: 12, day: day, hour: hour))!
+    }
+    let a = UUID(), b = UUID(), c = UUID()
+    let tabs: [(id: UUID, nodes: Int, lastAccessed: Date)] = [
+        (a, 500, at(1, 9)),    // 轻、新
+        (b, 40_000, at(1, 8)), // 重、较旧
+        (c, 30_000, at(1, 7)), // 中、最旧
+    ]
+    let order = SuspendPolicy.evictionOrder(tabs)
+    check("内存管家：重者优先挂起", order == [b, c, a])
+    let tie = SuspendPolicy.evictionOrder([
+        (a, 10_000, at(2, 12)),
+        (b, 10_000, at(1, 12)),
+    ])
+    check("内存管家：同重最久未看优先", tie == [b, a])
+}
+
 // 支付卡校验（v0.8.82 批 3）：Luhn / 品牌 / 有效期。
 do {
     check("支付卡：Luhn 正确与错误",

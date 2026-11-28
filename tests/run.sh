@@ -42,6 +42,7 @@ SOURCES=(
   apps/macos/Desire/Features/Agent/ScheduleDue.swift
   apps/macos/Desire/Features/Agent/TaskCalendar.swift
   apps/macos/Desire/Features/Agent/SurveillanceWeek.swift
+  apps/macos/Desire/Features/Tabs/SuspendPolicy.swift
   apps/macos/Desire/Features/Agent/AnswerDiff.swift
   apps/macos/Desire/Features/Agent/AgentToolCatalog.swift
   apps/macos/Desire/Features/Agent/ToolChainCore.swift

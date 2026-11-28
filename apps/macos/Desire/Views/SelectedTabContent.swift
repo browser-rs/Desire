@@ -617,7 +617,8 @@ struct SelectedTabContent: View {
                             // WebKit 重建页面树需 ~300ms（实测），期间 webview
                             // 白屏——垫挂起前的视觉快照，450ms 后淡出。切走
                             // （视图卸载）时 .task 取消，defer 一样清掉快照。
-                            if let snap = tab.suspendedSnapshot {
+                            if let data = tab.suspendedSnapshotData,
+                               let snap = NSImage(data: data) {
                                 Image(nsImage: snap)
                                     .resizable()
                                     .scaledToFill()
@@ -626,7 +627,7 @@ struct SelectedTabContent: View {
                                     .contentShape(Rectangle())
                                     .transition(.opacity)
                                     .task {
-                                        defer { tab.suspendedSnapshot = nil }
+                                        defer { tab.suspendedSnapshotData = nil }
                                         try? await Task.sleep(for: .milliseconds(450))
                                     }
                             }

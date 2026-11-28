@@ -154,6 +154,12 @@ class Settings: ObservableObject {
     @Published var largePageGuard: Bool {
         didSet { AppPrefs.defaults.set(largePageGuard, forKey: "largePageGuard") }
     }
+    /// 内存管家预算（v0.8.84 批 3 第 14 件）：后台标签 DOM 节点**总量**超过
+    /// 该值时按"重量 × 最久未看"逐个挂起最重的（豁免集与挂起 sweep 一致）。
+    /// 0 = 关闭管家。默认 60000（≈ 单标签守护阈值的 2.4 倍总量）。
+    @Published var tabMemoryBudgetNodes: Int {
+        didSet { AppPrefs.defaults.set(tabMemoryBudgetNodes, forKey: "tabMemoryBudgetNodes") }
+    }
     /// Cookie 弹窗自动处理（0.6.5）：off | reject | accept（默认 off）。
     @Published var cookieBannerPolicy: String {
         didSet { AppPrefs.defaults.set(cookieBannerPolicy, forKey: "cookieBannerPolicy") }
@@ -203,6 +209,7 @@ class Settings: ObservableObject {
         openLinksInBackground = AppPrefs.defaults.bool(forKey: "openLinksInBackground")
         verticalTabBar = AppPrefs.defaults.bool(forKey: "verticalTabBar")
         largePageGuard = AppPrefs.defaults.object(forKey: "largePageGuard") as? Bool ?? true
+        tabMemoryBudgetNodes = AppPrefs.defaults.object(forKey: "tabMemoryBudgetNodes") as? Int ?? 60_000
         cookieBannerPolicy = AppPrefs.defaults.string(forKey: "cookieBannerPolicy") ?? "off"
 
         // Screenshot folder: resolve from bookmark first, else fall back to

@@ -734,6 +734,10 @@ struct GeneralSettingsSection: View {
         }
     }
 
+    private func memoryBudgetLabel(_ value: Int) -> String {
+        value == 0 ? String(localized: "Off") : String(localized: "%lld nodes")
+    }
+
     private func suspendLabel(_ minutes: Double) -> String {
         switch minutes {
         case 5: "5 minutes"

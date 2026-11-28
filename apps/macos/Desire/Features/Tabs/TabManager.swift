@@ -68,7 +68,11 @@ class Tab: ObservableObject {
     /// 回灌后 WebKit 重建页面树要 250-350ms（实测探针），期间 webview 是
     /// 白屏——垫这张图淡出，"白屏跳变"变"快照过渡"。恢复完成即置 nil
     /// 释放（挂起为省内存，快照不能常驻）。
-    @Published var suspendedSnapshot: NSImage?
+    /// 挂起视觉快照（批 3 第 6 件）：改存 **JPEG 压缩数据**（~150KB）——
+    /// 此前存解码位图 NSImage（1200px 宽 ≈ 1-4MB/标签），挂 30 个标签就是
+    /// 几十 MB 常驻。恢复叠加层显示前才解码（每标签只解一次）。压缩在
+    /// 后台队列做（挂起发生在 sweep 路径，不抢主线程）。
+    @Published var suspendedSnapshotData: Data?
 
     /// Capture the current page state so it can survive suspension.
     /// Must be called *before* the page is blanked.
@@ -92,7 +96,18 @@ class Tab: ObservableObject {
                 let ratio = maxW / image.size.width
                 image.size = NSSize(width: maxW, height: image.size.height * ratio)
             }
-            self.suspendedSnapshot = image
+            let scaled = image
+            Task.detached(priority: .utility) { [weak self] in
+                // JPEG 压缩走后台队列：位图→位图格式→压缩都是 CPU 活，
+                // 挂起 sweep 一次可能处理多个标签。
+                guard let tiff = scaled.tiffRepresentation,
+                      let rep = NSBitmapImageRep(data: tiff),
+                      let jpeg = rep.representation(using: .jpeg, properties: [.compressionFactor: 0.45]) else { return }
+                let data = jpeg
+                Task { @MainActor [weak self] in
+                    self?.suspendedSnapshotData = data
+                }
+            }
         }
     }
 
@@ -459,8 +474,14 @@ class TabManager: ObservableObject {
                 self.memoryPressureActive = true
                 let critical = event.contains(.critical)
                 Log.tabs.info("memory pressure event received (critical=\(critical, privacy: .public))")
+                // 视觉清道（批 3 第 6 件）：立即释放可再生的常驻内存——
+                // 挂起快照（压缩数据）与缩略图缓存。这些在下次挂起/选中时
+                // 重新生成，选中的活标签不受影响。
+                self.purgeRestorableVisuals()
                 if critical {
-                    // 紧急：立即跑一次巡检（标志已置位，内存水位分支会清后台）。
+                    // 紧急：收紧深度挂起（全部挂起标签立即重建骨架）并跑巡检
+                    //（标志已置位，内存水位分支会清后台）。
+                    self.tightenDeepSuspend = true
                     self.suspendIdleTabs()
                 }
             }
@@ -533,6 +554,44 @@ class TabManager: ObservableObject {
             tab.browser.webView.loadHTMLString("", baseURL: nil)
         }
 
+        // 内存管家（批 3 第 14 件）：后台标签 DOM **总量**超预算时按
+        // "重量 × 最久未看"逐个挂起最重的，直到回到预算内。豁免集与
+        // 既有 sweep 一致（选中/分屏/固定/新标签页/无痕/播放/Agent 租约）。
+        // 设置 tabMemoryBudgetNodes（0 = 关）。
+        let budget = AppPrefs.defaults.integer(forKey: "tabMemoryBudgetNodes")
+        if budget > 0 {
+            let candidates = tabs.filter { tab in
+                tab.id != selectedTab?.id && tab.id != splitPartnerID && !tab.isPinned
+                    && !tab.isOnNewTabPage && !tab.isIncognito && !tab.isPlayingAudio
+                    && !busyAgentTabIDs.contains(tab.id) && !tab.isSuspended
+                    && tab.browser.hasLiveWebView
+                    && !AgentScheduler.shared.isTabLeased(tab.id)
+            }
+            let total = candidates.reduce(0) { $0 + max(1, $1.browser.lastDomNodeCount) }
+            if SuspendPolicy.shouldSuspend(totalNodes: total, budget: budget) {
+                let order = SuspendPolicy.evictionOrder(candidates.map {
+                    ($0.id, $0.browser.lastDomNodeCount, $0.lastAccessed)
+                })
+                var remaining = total
+                var suspendedCount = 0
+                for id in order where remaining > budget {
+                    guard let tab = tabs.first(where: { $0.id == id }),
+                          let index = tabs.firstIndex(where: { $0.id == id }) else { continue }
+                    tab.captureSuspendedState()
+                    tab.isSuspended = true
+                    remaining -= max(1, tab.browser.lastDomNodeCount)
+                    suspendedCount += 1
+                    tab.browser.webView.stopLoading()
+                    tab.browser.webView.loadHTMLString("", baseURL: nil)
+                    Log.tabs.info("memory governor: suspended '\(tab.displayTitle, privacy: .public)' (\(tab.browser.lastDomNodeCount) nodes, total \(remaining)/\(budget))")
+                    _ = index
+                }
+                if suspendedCount > 0 {
+                    Log.tabs.info("memory governor: \(suspendedCount) tab(s) suspended, total \(remaining)/\(budget) nodes")
+                }
+            }
+        }
+
         deepSuspendIfNeeded()
 
         // Memory watermark: suspend LRU background tabs when the system
@@ -578,7 +637,13 @@ class TabManager: ObservableObject {
 
         // 骨架重建：最近的 `deepRebuildCap` 个挂起标签保留原 webview
         // （快速恢复），更旧的逐个重建。
-        for tab in suspended.dropFirst(Self.deepRebuildCap) {
+        // 内存压力收紧（批 3 第 6 件）：有效 cap=0，全部重建；消费即复位。
+        let effectiveRebuildCap = tightenDeepSuspend ? 0 : Self.deepRebuildCap
+        if tightenDeepSuspend {
+            tightenDeepSuspend = false
+            Log.tabs.info("deep suspend tightened by memory pressure")
+        }
+        for tab in suspended.dropFirst(effectiveRebuildCap) {
             // 懒建挂起标签（批 1B）没有骨架——已是"无 webview"态，跳过
             //（否则 rebuild 反而会创建一个）。
             guard tab.browser.hasLiveWebView else { continue }
@@ -589,6 +654,37 @@ class TabManager: ObservableObject {
         }
         if suspended.count > Self.deepRebuildCap {
             Log.tabs.info("deep suspend: rebuilt webview skeleton for \(suspended.count - Self.deepRebuildCap) LRU tab(s)")
+        }
+    }
+
+    /// 内存压力收紧标志（批 3 第 6 件）：warning/critical 置位，下一次
+    /// deepSuspendIfNeeded 把 deepRebuildCap 视为 0——所有带骨架的挂起标签
+    /// 立即重建（骨架 ≈ 全套脚本+WebKit 内部结构），消费即复位。
+    private var tightenDeepSuspend = false
+
+    /// 释放可再生的视觉内存（挂起快照压缩数据 + 缩略图缓存）。
+    /// 选中的活标签不受影响（快照只属于挂起标签）。
+    private func purgeRestorableVisuals() {
+        var purged = 0
+        for tab in tabs where tab.isSuspended {
+            if tab.suspendedSnapshotData != nil { tab.suspendedSnapshotData = nil; purged += 1 }
+        }
+        TabThumbnailStore.purgeAllCaches()
+        Log.tabs.info("memory purge: dropped \(purged) suspended snapshot(s) + thumbnail cache")
+    }
+
+    /// 桥模拟（`POST /diag/memory-pressure`，仅自动化实例）：把真实
+    /// DispatchSource 事件的手工版本喂给同一条处理链。
+    func simulateMemoryPressure(critical: Bool) {
+        MainActor.assumeIsolated {
+            memoryPressureActive = true
+            purgeRestorableVisuals()
+            if critical {
+                tightenDeepSuspend = true
+                suspendIdleTabs()
+            } else {
+                suspendIdleTabs()
+            }
         }
     }
 

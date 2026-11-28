@@ -42,9 +42,18 @@ final class PluginBackgroundRuntime: NSObject {
         let plugin: Plugin
         let webView: WKWebView
         let coordinator: Coordinator
+        /// 最后一次活动（消息/端口/事件）时间——闲置休眠（批 3 第 8 件）用。
+        var lastActivity = Date()
     }
 
     private var hosts: [UUID: Host] = [:]
+    /// 闲置休眠（批 3 第 8 件）：**零监听器 + 零端口**的宿主闲置超过该时长
+    /// 即拆除（WKWebView + 全套脚本 + WebContent 进程）。有监听器/端口的
+    /// 不休眠（alarms/storage.onChanged/contextMenus 是插件的活契约）。
+    /// 消息派发路径按需重建，对插件透明。
+    private var suspendedHosts: [UUID: Plugin] = [:]
+    private var idleTimer: Timer?
+    private static let idleSuspendSeconds: TimeInterval = 600
     private var wired = false
 
     // MARK: - 生命周期
@@ -63,6 +72,48 @@ final class PluginBackgroundRuntime: NSObject {
         for plugin in store.plugins where enabled.contains(plugin.id) && hosts[plugin.id] == nil {
             start(plugin)
         }
+    }
+
+    /// 闲置休眠（批 3 第 8 件）：零监听器 + 零端口的宿主，闲置超时即拆除。
+    func startIdleSweepIfNeeded() {
+        guard idleTimer == nil else { return }
+        idleTimer = Timer.scheduledTimer(withTimeInterval: 60, repeats: true) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.idleSweep()
+            }
+        }
+    }
+
+    private func idleSweep() {
+        let now = Date()
+        for (id, host) in hosts {
+            let hasListeners = !(backgroundEventListeners[id]?.isEmpty ?? true)
+            let hasPorts = ports.values.contains { $0.pluginID == id }
+            if hasListeners || hasPorts { continue }
+            if now.timeIntervalSince(host.lastActivity) < Self.idleSuspendSeconds { continue }
+            // 拆除但记住插件：下一次任何投递按需重建（对插件透明）。
+            let plugin = host.plugin
+            hosts.removeValue(forKey: id)
+            host.coordinator.teardown()
+            closePorts(pluginID: id)
+            suspendedHosts[id] = plugin
+            Log.userScripts.info("plugin background idle-suspended: \(id.uuidString.prefix(8), privacy: .public) (no listeners/ports for 10min) — will rebuild on demand")
+        }
+    }
+
+    /// 按需重建（批 3 第 8 件）：任何投递路径先确保宿主在跑。
+    private func ensureHost(_ id: UUID) {
+        guard hosts[id] == nil, let plugin = suspendedHosts.removeValue(forKey: id) else { return }
+        Log.userScripts.info("plugin background rebuilt on demand: \(id.uuidString.prefix(8), privacy: .public)")
+        start(plugin)
+        // onInstalled 语义：rebuild 不是 install——不重放，插件的既有监听
+        // 登记（backgroundEventListeners）在拆除时被清了，重建后由插件代码
+        // 重新 addListener（Chrome service worker 同语义）。
+    }
+
+    /// 触碰活动时间（所有投递路径调用）。
+    private func touchActivity(_ id: UUID) {
+        if hosts[id] != nil { hosts[id]?.lastActivity = Date() }
     }
 
     private func start(_ plugin: Plugin) {
@@ -100,6 +151,7 @@ final class PluginBackgroundRuntime: NSObject {
         let web = WKWebView(frame: .zero, configuration: config)
         web.loadHTMLString("<html><body></body></html>", baseURL: base)
         hosts[plugin.id] = Host(plugin: plugin, webView: web, coordinator: coordinator)
+        startIdleSweepIfNeeded()
         // onInstalled 的派发移到 Coordinator 收到 addListener("runtime.onInstalled")
         // 的那一刻（确定性）；插件不注册监听器就无需派发——无消费者的
         // evaluate 只是丢进空页。
@@ -136,6 +188,7 @@ final class PluginBackgroundRuntime: NSObject {
     /// background webview。
     func contextMenuClick(pluginID: UUID, menuItemID: String,
                           pageURL: URL?, linkURL: URL?, srcURL: URL?, selectionText: String?) {
+        ensureHost(pluginID)
         let payload: [String: Any?] = [
             "menuItemId": menuItemID,
             "pageUrl": pageURL?.absoluteString,
@@ -162,7 +215,11 @@ final class PluginBackgroundRuntime: NSObject {
     /// **只投给注册过该事件的插件**——webRequest.onBeforeRequest 每请求
     /// 一发，无差别广播是性能事故；未登记监听的事件 evaluate 进去也无人消费。
     func fireAll(event: String, payload: Any) {
+        for id in suspendedHosts.keys where backgroundEventListeners[id]?.contains(event) == true {
+            ensureHost(id)
+        }
         for id in hosts.keys where backgroundEventListeners[id]?.contains(event) == true {
+            touchActivity(id)
             fire(pluginID: id, event: event, payload: payload)
         }
     }
@@ -181,6 +238,8 @@ final class PluginBackgroundRuntime: NSObject {
 
     /// storage.onChanged 派发（WebExtensionStore.notifyChange 经观察者进来）。
     func fireStorageChanged(ext: String, changes: [String: Any]) {
+        if let id = UUID(uuidString: ext), suspendedHosts[id] != nil { ensureHost(id) }
+        touchActivity(UUID(uuidString: ext) ?? UUID())
         guard UUID(uuidString: ext) != nil else { return }
         fireAll(event: "storage.onChanged", payload: [changes, "local"])
     }

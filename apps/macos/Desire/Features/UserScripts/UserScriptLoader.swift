@@ -38,6 +38,13 @@ enum UserScriptLoader {
                 scripts.append(WKUserScript(source: source, injectionTime: time, forMainFrameOnly: mainFrameOnly))
             }
         }
+        // 导航守卫零 JS 化的数据面（v0.8.84 批 2 第 3 件）：documentStart
+        // 装不可探测拦截，页面注册 beforeunload 监听器时上报一条消息；
+        // documentEnd 同脚本再跑一遍兜底 `<body onbeforeunload>`（解析器的
+        // 转赋值不经过 JS setter，只能解析后读原生值）。**必须主框架**——
+        // 合成探针本来就只看主框架的 window；见脚本头注释。
+        add("beforeunload-watch", at: .atDocumentStart, mainFrameOnly: true)
+        add("beforeunload-watch", at: .atDocumentEnd, mainFrameOnly: true)
         add("console-intercept", at: .atDocumentStart)
         // 大页面守护 + 性能快照数据面（0.6.4）：DOM 节点数 + long task 计数
         add("page-perf", at: .atDocumentEnd)

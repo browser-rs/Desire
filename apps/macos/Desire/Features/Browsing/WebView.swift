@@ -304,6 +304,16 @@ class BrowserState: ObservableObject {
     /// A beforeunload confirmation awaiting a decision (also resolvable via
     /// the automation bridge). nil when nothing is pending.
     @Published var pendingBeforeUnload: PendingBeforeUnload?
+    /// 导航守卫零 JS 化的数据面（v0.8.84 批 2 第 3 件）：`beforeunload-watch.js`
+    /// 在页面注册 beforeunload 监听器的瞬间经创建期弱代理置位。导航守卫
+    /// 只在此标志为真时跑合成探针——没有监听器的页面（绝大多数）不再付
+    /// 一次 JS 往返。新文档 didStart 时复位（documentStart 眼线随新文档
+    /// 重新登记）。
+    var hasBeforeUnloadListener = false
+    /// 守卫决策计数（`/diag/startup.navGuard` 读取）：probe = 有监听器走了
+    /// 合成探针；skip = 无监听器零 JS 放行（本项优化的收益面）。
+    static var unloadProbesRun = 0
+    static var unloadProbesSkipped = 0
     /// 站点触发的工作流提示（v0.8.0）：非模态条，点 Run 才回放。
     @Published var pendingWorkflowSuggestion: WorkflowSuggestion?
     /// Media resources sniffed on this page (network + DOM scan). Cleared
@@ -515,6 +525,14 @@ class BrowserState: ObservableObject {
             }
             Log.userScripts.info("webview init: injected webext-api into \(pluginStore.plugins.filter { $0.isEnabled }.count, privacy: .public) plugin world(s)")
         }
+        // 导航守卫眼线的接收端（批 2 第 3 件）：**创建期**注册（而非 hosting
+        // 期）——documentStart 的上报不能等 SwiftUI 挂载。弱代理避免
+        // controller→handler→self 的强持有环（BrowserState 是标签生命周期，
+        // 强环会让关掉的标签永不释放）。脚本在 page world；这里同 world 收。
+        config.userContentController.add(
+            WeakScriptMessageProxy(state: self),
+            contentWorld: .page,
+            name: "beforeUnloadWatch")
         return config
     }
 
@@ -1991,6 +2009,9 @@ try {
             parent.state.pageProtocolChecked = false
             parent.state.siteProtocol = nil
             parent.state.frameProtocols = []
+            // 导航守卫眼线复位（批 2 第 3 件）：新文档的监听器登记由
+            // documentStart 眼线重新上报——旧文档的标志不能带进新导航判定。
+            parent.state.hasBeforeUnloadListener = false
             // Workaround for WebKit Bug 313542 (https://bugs.webkit.org/show_bug.cgi?id=313542):
             // `customUserAgent` is not applied to the FIRST navigation request
             // when the URL is loaded via `load(_:)` — it only takes effect for
@@ -2721,7 +2742,14 @@ try {
                navigationAction.navigationType == .linkActivated ||
                navigationAction.navigationType == .formSubmitted ||
                navigationAction.navigationType == .other {
-                runBeforeUnloadGuard(webView: webView) { [weak self] allowed in
+                // 零 JS 快路径（批 2 第 3 件）：documentStart 眼线
+                // （beforeunload-watch.js，创建期弱代理接收）确认本文档**没有**
+                // beforeunload 监听器时，不再付一次合成探针的 JS 往返——直接走
+                // 与探针放行分支完全相同的决策（arm + HTTPS 升级 + allow）。
+                // 决策计数进 `/diag/startup.navGuard`。
+                if parent.state.hasBeforeUnloadListener {
+                    BrowserState.unloadProbesRun += 1
+                    runBeforeUnloadGuard(webView: webView) { [weak self] allowed in
                     guard allowed, let self else {
                         decisionHandler(allowed ? .allow : .cancel)
                         return
@@ -2740,6 +2768,17 @@ try {
                     decisionHandler(.allow)
                 }
                 return
+                } else {
+                    // 无监听器：镜像探针放行分支的决策序列，减去 JS 往返。
+                    BrowserState.unloadProbesSkipped += 1
+                    armLoadTimeout(for: url)
+                    if performHTTPSUpgradeIfNeeded(url: url, webView: webView) {
+                        decisionHandler(.cancel)
+                        return
+                    }
+                    decisionHandler(.allow)
+                    return
+                }
             }
 
             // **文件链接当场处理**（衔接正解）：链接本身就是文件时按类型分流，
@@ -3448,6 +3487,30 @@ try {
                 }
             }
             activeDownloads[ObjectIdentifier(download)] = DownloadInfo(id: itemID, progressObservation: observation)
+        }
+    }
+}
+
+/// `beforeUnloadWatch` 消息的接收端（v0.8.84 批 2 第 3 件）。
+/// 弱持有 `BrowserState`：配置的 userContentController 强持有本代理，
+/// 强持有会构成 controller→handler→state→webview→config 的释放环
+/// （BrowserState 是标签生命周期对象，环 = 关掉的标签永不释放）。
+private final class WeakScriptMessageProxy: NSObject, WKScriptMessageHandler {
+    weak var state: BrowserState?
+
+    init(state: BrowserState) {
+        self.state = state
+        super.init()
+    }
+
+    nonisolated func userContentController(
+        _ userContentController: WKUserContentController,
+        didReceive message: WKScriptMessage
+    ) {
+        guard message.name == "beforeUnloadWatch" else { return }
+        let state = state
+        Task { @MainActor in
+            state?.hasBeforeUnloadListener = true
         }
     }
 }

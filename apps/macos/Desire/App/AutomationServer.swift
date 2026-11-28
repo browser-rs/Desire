@@ -4813,6 +4813,12 @@ case ("GET", "/agent/messages"):
                     "unexpected": BrowserState.unexpectedLazyWebViewCreations,
                     "lastUnexpected": (BrowserState.lastUnexpectedLazyCreation ?? ""),
                 ],
+                // 导航守卫决策计数（批 2 第 3 件）：skip = 无监听器零 JS 放行
+                // （收益面），probe = 有监听器走合成探针（保护面）。
+                "navGuard": [
+                    "probes": BrowserState.unloadProbesRun,
+                    "skipped": BrowserState.unloadProbesSkipped,
+                ],
                 "healAttempts": defaults.integer(forKey: "app.launchWindowHealAttempts"),
                 "cleanExitFlag": defaults.object(forKey: "app.cleanExit") as? Bool ?? true,
                 "lastStallAt": RuntimeHealthMonitor.lastStall().map {

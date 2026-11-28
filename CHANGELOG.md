@@ -1,3 +1,9 @@
+## [Unreleased]
+### Fixed
+
+- 设置 → 存储页布局修复（v0.8.80 起一直如此，2026-11-28 用户报告）：`StorageSettingsSection` 补上缺失的 `SettingsContainer`——裸 `SettingsSection` 的分区标题被窗口标题栏压住、行内容顶满窗口边；首次引导横幅同步移出卡片（与隐私/远程页同位置）。行副标题的 "keep forever" 缺目录键，补上中文“永久保留”。
+
+
 ## [v0.8.83] - 2026-11-28
 ### Changed
 

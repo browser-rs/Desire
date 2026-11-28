@@ -14,43 +14,46 @@ struct StorageSettingsSection: View {
     private var total: Int { domains.reduce(0) { $0 + $1.bytes } }
 
     var body: some View {
-        SettingsSection(
-            title: String(localized: "Storage"),
-            subtitle: String(localized: "Disk use by data type. Caches can be cleared safely; conversations are only deleted when you set a retention period."),
-            icon: "internaldrive"
-        ) {
+        // 必须走 SettingsContainer（限宽/留白）：裸 SettingsSection 的标题会被
+        // 窗口标题栏压住、内容顶满边——v0.8.80 起一直如此（2026-11-28 用户报告）。
+        SettingsContainer {
             if !storageHintSeen {
                 SettingsHintBanner(
                     icon: "internaldrive",
                     text: "Caches are safe to clear. Conversations and archives are only deleted when you set a retention period; the open conversation is never touched.",
                     onDismiss: { storageHintSeen = true })
-                SettingsRowDivider()
             }
-            SettingsRow(
-                String(localized: "Total"),
-                subtitle: ByteCountFormatter.string(fromByteCount: Int64(total), countStyle: .file),
-                systemImage: "chart.pie"
+            SettingsSection(
+                title: String(localized: "Storage"),
+                subtitle: String(localized: "Disk use by data type. Caches can be cleared safely; conversations are only deleted when you set a retention period."),
+                icon: "internaldrive"
             ) {
-                Button(String(localized: "Refresh")) { reload() }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
-            }
-            ForEach(domains, id: \.id) { domain in
-                SettingsRowDivider()
-                SettingsRow(domain.title,
-                            subtitle: detail(domain),
-                            systemImage: icon(domain.id)) {
-                    if domain.clearable {
-                        if domain.id == "conversations" {
-                            retentionControls(domain, binding: $conversationDays)
-                        } else if domain.id == "archives" {
-                            retentionControls(domain, binding: $archiveDays)
-                        } else {
-                            Button(String(localized: "Clear"), role: .destructive) {
-                                pendingClear = domain
+                SettingsRow(
+                    String(localized: "Total"),
+                    subtitle: ByteCountFormatter.string(fromByteCount: Int64(total), countStyle: .file),
+                    systemImage: "chart.pie"
+                ) {
+                    Button(String(localized: "Refresh")) { reload() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                }
+                ForEach(domains, id: \.id) { domain in
+                    SettingsRowDivider()
+                    SettingsRow(domain.title,
+                                subtitle: detail(domain),
+                                systemImage: icon(domain.id)) {
+                        if domain.clearable {
+                            if domain.id == "conversations" {
+                                retentionControls(domain, binding: $conversationDays)
+                            } else if domain.id == "archives" {
+                                retentionControls(domain, binding: $archiveDays)
+                            } else {
+                                Button(String(localized: "Clear"), role: .destructive) {
+                                    pendingClear = domain
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
                             }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
                         }
                     }
                 }

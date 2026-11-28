@@ -120967,6 +120967,29 @@
           }
         }
       }
+    },
+    "keep forever": {
+      "comment": "Storage domain subtitle when retention is off",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "keep forever"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久保留"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "永久保留"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

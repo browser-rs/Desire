@@ -1,3 +1,9 @@
+## [Unreleased]
+### Fixed
+
+- What's New 亮点中文显示为英文（v0.8.84 引入，规划下一版核对目录时发现）：十条亮点的译文语言码被手工补成 `zh-CN`/`zh-TW`，而工程只声明 `en`/`zh-Hans`/`zh-Hant`——简繁中文用户看到的"新功能"页是英文源文。已改回工程语言码并补齐 en 源值；`tests/check-localized-formats.py` 新增**语言码白名单**闸门（条目语言码不在工程声明内即失败），接入 `tests/run.sh`。
+
+
 ## [v0.8.84] - 2026-11-29
 ### Added
 

@@ -121016,13 +121016,19 @@
     },
     "Launch that skips the scaffolding": {
       "localizations": {
-        "zh-CN": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Launch that skips the scaffolding"
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "启动不再搭脚手架"
           }
         },
-        "zh-TW": {
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "啟動不再搭鷹架"
@@ -121032,13 +121038,19 @@
     },
     "Restored tabs no longer build a WebView until you actually look at them — 40-tab sessions load about three times faster, and a wider self-heal net opens the first window in seconds even after a crash.": {
       "localizations": {
-        "zh-CN": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Restored tabs no longer build a WebView until you actually look at them — 40-tab sessions load about three times faster, and a wider self-heal net opens the first window in seconds even after a crash."
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "恢复的标签页在真正打开之前不再构造 WebView——40 个标签的会话装载快约三倍；崩溃后首窗的自愈兜底更宽，几秒内即开。"
           }
         },
-        "zh-TW": {
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "恢復的分頁在真正打開之前不再建構 WebView——40 個分頁的會話載入快約三倍；崩潰後首窗的自愈兜底更寬，幾秒內即開。"
@@ -121048,13 +121060,19 @@
     },
     "Pages that cost less": {
       "localizations": {
-        "zh-CN": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pages that cost less"
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "页面开销更小"
           }
         },
-        "zh-TW": {
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "頁面開銷更小"
@@ -121064,13 +121082,19 @@
     },
     "Navigation now skips the before-unload probe for pages that never registered one, and passive page checks share a single round trip. Background timers, thumbnails and plugin hosts sleep when nothing needs them.": {
       "localizations": {
-        "zh-CN": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Navigation now skips the before-unload probe for pages that never registered one, and passive page checks share a single round trip. Background timers, thumbnails and plugin hosts sleep when nothing needs them."
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "从未注册离开确认的页面不再付探测往返，被动页面检查合并为一次往返；后台定时器、缩略图与插件宿主在无人使用时休眠。"
           }
         },
-        "zh-TW": {
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "從未註冊離開確認的頁面不再付探測往返，被動頁面檢查合併為一次往返；背景計時器、縮圖與外掛宿主在無人使用時休眠。"
@@ -121080,13 +121104,19 @@
     },
     "A memory keeper on duty": {
       "localizations": {
-        "zh-CN": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A memory keeper on duty"
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "内存管家值守"
           }
         },
-        "zh-TW": {
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "記憶體管家值守"
@@ -121096,13 +121126,19 @@
     },
     "A whole-session node budget suspends the heaviest background tabs first, suspended snapshots compress to a fraction of their size, and a system memory nudge instantly clears everything that can be rebuilt.": {
       "localizations": {
-        "zh-CN": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A whole-session node budget suspends the heaviest background tabs first, suspended snapshots compress to a fraction of their size, and a system memory nudge instantly clears everything that can be rebuilt."
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "全会话节点预算优先挂起最重的后台标签，挂起快照压缩到原来的一小部分；系统内存提醒一到，可再生的内容立即清空。"
           }
         },
-        "zh-TW": {
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "全會話節點預算優先掛起最重的背景分頁，掛起快照壓縮到原來的一小部分；系統記憶體提醒一到，可再生的內容立即清空。"
@@ -121112,13 +121148,19 @@
     },
     "Gentle on the hardware": {
       "localizations": {
-        "zh-CN": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gentle on the hardware"
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "对硬件更温和"
           }
         },
-        "zh-TW": {
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "對硬體更溫和"
@@ -121128,13 +121170,19 @@
     },
     "Under thermal, power or memory strain, downloads, thumbnails and other background work step down or pause — scheduled agent tasks always run, because those are things you asked for.": {
       "localizations": {
-        "zh-CN": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Under thermal, power or memory strain, downloads, thumbnails and other background work step down or pause — scheduled agent tasks always run, because those are things you asked for."
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "过热、低电量或内存吃紧时，下载、缩略图等后台工作自动降速或暂停——你交代的定时任务始终照跑。"
           }
         },
-        "zh-TW": {
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "過熱、低電量或記憶體吃緊時，下載、縮圖等背景工作自動降速或暫停——你交代的定時任務始終照跑。"
@@ -121144,13 +121192,19 @@
     },
     "Performance you can read": {
       "localizations": {
-        "zh-CN": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Performance you can read"
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "看得懂的性能"
           }
         },
-        "zh-TW": {
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "看得懂的性能"
@@ -121160,13 +121214,19 @@
     },
     "Open desire://performance for tabs, launch stages, guard counters and background hosts in one place — and ask the agent to free memory or report per-tab resources in plain language.": {
       "localizations": {
-        "zh-CN": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open desire://performance for tabs, launch stages, guard counters and background hosts in one place — and ask the agent to free memory or report per-tab resources in plain language."
+          }
+        },
+        "zh-Hans": {
           "stringUnit": {
             "state": "translated",
             "value": "打开 desire://performance 一页看清标签、启动阶段、守卫计数与后台宿主；也可以直接让智能体释放内存、汇报每个标签的资源占用。"
           }
         },
-        "zh-TW": {
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "打開 desire://performance 一頁看清分頁、啟動階段、守衛計數與背景宿主；也可以直接讓智能體釋放記憶體、回報每個分頁的資源佔用。"

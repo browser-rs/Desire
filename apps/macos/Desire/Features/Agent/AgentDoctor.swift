@@ -1,3 +1,4 @@
+import WebKit
 import AppKit
 import Foundation
 import os
@@ -33,6 +34,7 @@ enum AgentDoctor {
     enum Fix: String, CaseIterable {
         case retestEndpoint
         case clearSpills
+        case releaseMemory
         case clearTranslationCache
         case recalibrate
         case openNotificationSettings
@@ -120,6 +122,34 @@ enum AgentDoctor {
                 ? "空（尚无大结果转存）"
                 : "\(ByteCountFormatter.string(fromByteCount: Int64(spillSize), countStyle: .file))（\(spillDir.path)）\(gcNote)",
             fix: .clearSpills))
+
+        // 3.7 性能体检（批 4 第 13 件）：启动预算 / 挂起积压 / 内存管家档位。
+        let launchSnapshot = LaunchAudit.snapshot()
+        let auditOver = (launchSnapshot["overBudget"] as? Bool) ?? false
+        checks.append(Check(
+            name: "启动预算",
+            ok: !auditOver,
+            detail: auditOver
+                ? "启动审计超 700ms（\(launchSnapshot["totalMs"] ?? 0)ms）——冷启动路径退化，看 LaunchAudit 分段"
+                : "启动审计 \(launchSnapshot["totalMs"] ?? 0)ms / 预算 \(launchSnapshot["budgetMs"] ?? 0)ms"))
+
+        let suspendedWithSkeleton = TabSessionCoordinator.shared.liveManagers().flatMap { $0.tabs }
+            .filter { $0.isSuspended && $0.browser.hasLiveWebView }.count
+        let suspendedTotal = TabSessionCoordinator.shared.liveManagers().flatMap { $0.tabs }
+            .filter(\.isSuspended).count
+        checks.append(Check(
+            name: "挂起积压",
+            ok: suspendedWithSkeleton <= 12,
+            detail: suspendedWithSkeleton <= 12
+                ? "\(suspendedTotal) 挂起（其中 \(suspendedWithSkeleton) 个保留骨架——LRU 上限 12）"
+                : "\(suspendedWithSkeleton) 个挂起标签仍保留骨架（上限 12）——下次 sweep 会重建",
+            fix: .releaseMemory))
+
+        let hostCount = PluginBackgroundRuntime.hostCount
+        checks.append(Check(
+            name: "插件后台宿主",
+            ok: true,
+            detail: "\(hostCount) 个在跑（闲置 10 分钟自动休眠，按需重建）"))
 
         // 4. ffmpeg（HLS 直连 MP4 的前置）
         let fm = FileManager.default
@@ -338,6 +368,30 @@ enum AgentDoctor {
         switch fix {
         case .retestEndpoint:
             return "Re-run the check to test the endpoint again."
+        case .releaseMemory:
+            var freed = 0
+            for manager in TabSessionCoordinator.shared.liveManagers() {
+                for tab in manager.tabs where tab.isSuspended {
+                    tab.suspendedSnapshotData = nil
+                    freed += 1
+                }
+                let heavy = manager.tabs.filter { tab in
+                    !tab.isSuspended && tab.id != manager.selectedTab?.id
+                        && tab.id != manager.splitPartnerID && !tab.isPinned
+                        && !tab.isOnNewTabPage && !tab.isIncognito
+                        && !tab.isPlayingAudio && tab.browser.hasLiveWebView
+                        && !AgentScheduler.shared.isTabLeased(tab.id)
+                }.sorted(by: { $0.browser.lastDomNodeCount > $1.browser.lastDomNodeCount })
+                for tab in heavy {
+                    tab.captureSuspendedState()
+                    tab.isSuspended = true
+                    tab.browser.webView.stopLoading()
+                    tab.browser.webView.loadHTMLString("", baseURL: nil)
+                    freed += 1
+                }
+            }
+            TabThumbnailStore.purgeAllCaches()
+            return "Freed \(freed) background tab(s)/snapshot(s) + thumbnail cache."
         case .clearSpills:
             let dir = AgentWorkspace.shared.directory
                 .appendingPathComponent("tool-results", isDirectory: true)

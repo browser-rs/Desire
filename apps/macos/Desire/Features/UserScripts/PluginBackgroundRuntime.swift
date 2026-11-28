@@ -47,6 +47,9 @@ final class PluginBackgroundRuntime: NSObject {
     }
 
     private var hosts: [UUID: Host] = [:]
+    /// 体检/诊断只读（批 4 第 13 件）：在跑的后台宿主数。
+    var hostCount: Int { hosts.count + suspendedHosts.count }
+    static var hostCount: Int { shared.hostCount }
     /// 闲置休眠（批 3 第 8 件）：**零监听器 + 零端口**的宿主闲置超过该时长
     /// 即拆除（WKWebView + 全套脚本 + WebContent 进程）。有监听器/端口的
     /// 不休眠（alarms/storage.onChanged/contextMenus 是插件的活契约）。

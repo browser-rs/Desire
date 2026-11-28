@@ -1,4 +1,8 @@
 ## [Unreleased]
+### Added
+
+- ImagePro 回归套件入库（v0.8.85 批 1 第 19 件）：`tests/imagepro-e2e.py` + `tests/run-imagepro.sh` + `tests/tools/imagepro-probe.swift`（fixture 生成/读回位深与色域/采样/bbox/diff，坐标全走图片像素）——封闭实例上合成真实事件链（`/editor/synthetic` + catcherRect → 窗口坐标）与命令 API，保存后**读落盘像素**断言。首版 `tools` 节 25/25（选框/套索/魔棒/画笔/橡皮/撤销重做/填充/渐变/形状/文字/调整/滤镜/图层/移动/旋转/翻转/裁剪/还原/合成事件/键盘），`color`/`adjustments` 节按"先红后绿"落好（待件 1/2 转绿）。历时教训：`CGContext.setFillColor(red:green:blue:)` 填设备色，P3 fixture 必须显式 `CGColor(colorSpace:)` 造色域外样本。
+
 ### Fixed
 
 - What's New 亮点中文显示为英文（v0.8.84 引入，规划下一版核对目录时发现）：十条亮点的译文语言码被手工补成 `zh-CN`/`zh-TW`，而工程只声明 `en`/`zh-Hans`/`zh-Hant`——简繁中文用户看到的"新功能"页是英文源文。已改回工程语言码并补齐 en 源值；`tests/check-localized-formats.py` 新增**语言码白名单**闸门（条目语言码不在工程声明内即失败），接入 `tests/run.sh`。

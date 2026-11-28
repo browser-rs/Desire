@@ -257,8 +257,12 @@
    恢复（意外建必须 0）；首轮 7/7（340ms/617ms/75ms/0）。第 19 件落地——AGENTS
    新增"性能与页面生命周期"段（先量后做/didFinish 计费/主框架口径/守卫标志语义）
    + SettingsContainer 规矩，What's New 换 v0.8.84 亮点（三语手工补 10 键），
-   CHANGELOG 两条。**发版前置（待用户"发"后走闸门）**：Release clean 零警告 +
-   `perf-probe --strict` + 产品页版本三处 + release.sh。
+   CHANGELOG 两条。**已发版**（2026-11-29，用户『发』）：闸门 = 全量 190 首跑
+   187/190 → **逮到批 3 下载并发闸真回归**（默认 0=不限被 guard>0 判死 +
+   回泵自旋 81 万日志，d1aa8c98 修复 + harness 4101 断言）→ 复跑 browser
+   88/88、agent 106/106、全量 190 ALL PASS → Release clean 零警告 →
+   release.sh 0.8.84 触发（9809d276/build 624/run 46164183427，云端全绿才建
+   tag）。教训：动资源调度/队列路径当天就跑全量 190，别攒到发版。
 
 ## 不做 / 暂缓（已核实，别再当缺口）
 

@@ -233,7 +233,10 @@
    缩略图 store 加进程级 purge（每窗实例弱登记）；14 落地——`SuspendPolicy`
    纯逻辑 + sweep 内总量预算分支（豁免集同既有）+ 设置页预算行（默认 60k），
    harness 4096/0，E2E：20k 后台标签在预算 5000 下一个 sweep 内挂起、选中不动。
-   8（插件宿主休眠）与 15（资源退避）未实施。
+   8 与 15 已落地（76687e96/f1e10a67）：8 = 零监听器/零端口 10 分钟拆除 +
+  contextMenus/storage/事件路径按需重建（Chrome service worker 同语义，rebuild
+  不重放 onInstalled）；15 = `ResourceGovernor` 纯逻辑（harness 4 项）+ 下载并发
+  闸接入 + `/diag/resource-governor`（模拟链验证 critical → paused）。批 3 全部完成。
 4. **可见与融合**：9 性能面板/设置 → 10 用量缓存 → 12 Agent 资源工具 → 13 Doctor → 11 评估。
 5. **收口**：16 perf-probe → 19 文档/发版 → 20 版本收口。
 

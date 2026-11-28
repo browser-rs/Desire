@@ -1,0 +1,8 @@
+{
+  "_comment": "perf-probe 阈值（Release 口径；launch-hermetic 跑 Debug 产物时超阈只 WARN，--strict 才判失败）。发版 checklist：Release clean 构建 + python3 tests/perf-probe.py --strict。",
+  "coldFirstWindowMs": 1500,
+  "coldAuditMs": 700,
+  "restoreApplyMs": 250,
+  "bigPageDomNodesMin": 25000,
+  "bigPageDomNodesMax": 40000
+}

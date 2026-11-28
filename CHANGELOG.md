@@ -1,4 +1,4 @@
-## [Unreleased]
+## [v0.8.84] - 2026-11-29
 ### Added
 
 - 启动与恢复减负（v0.8.84 批 1）：**恢复期懒建 WebView**——会话恢复的非选中标签不再构造 WKWebView 骨架（配置/用户脚本/DevTools 记录器全部推迟到首次唤醒），40 标签实测会话装载 251ms→72ms、启动审计回到 700ms 预算内；新增 `restoreTabs` 与 `lazyWebViews`（created/unexpected）启动度量，"意外建"带栈 fault 暴露违规触碰路径（本次即抓出标签胶囊渲染读 webView.url 并以 `displayURLString` 收口）；多扇恢复窗错峰 300ms 开启；强杀后 `open -g` 后台启动的无窗自愈前置——3s 无窗即发一次 reopen（对已建窗 no-op），首窗从 ~21s 提前到 ~3s。

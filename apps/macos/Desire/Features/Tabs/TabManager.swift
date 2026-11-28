@@ -306,6 +306,33 @@ class Tab: ObservableObject {
 
 @MainActor
 class TabManager: ObservableObject {
+    /// 恢复期度量（v0.8.84 批 1A）：一次 `apply(session:)` 的分段计时。
+    /// `/diag/startup.restoreTabs` 读取；sinceLaunch 累计（run 数区分多次装载），
+    /// last = 最近一次（工作区/Agent 面板装载也会写，启动后立即读桥即启动值）。
+    struct RestoreAudit {
+        var runs = 0
+        var tabs = 0
+        var eagerTabs = 0
+        var ms = 0
+        var eagerMs = 0
+
+        var dictionary: [String: Any] {
+            ["runs": runs, "tabs": tabs, "eagerTabs": eagerTabs,
+             "ms": ms, "eagerMs": eagerMs]
+        }
+
+        mutating func merge(_ other: RestoreAudit) {
+            runs += other.runs
+            tabs += other.tabs
+            eagerTabs += other.eagerTabs
+            ms += other.ms
+            eagerMs += other.eagerMs
+        }
+    }
+
+    static private(set) var restoreAuditSinceLaunch = RestoreAudit()
+    static private(set) var lastRestoreAudit: RestoreAudit?
+
     @Published var tabs: [Tab] = []
     @Published var selectedIndex = 0
     /// 分屏浏览（0.2.15）：与选中标签并排显示的第二个标签，nil = 单栏。
@@ -979,6 +1006,9 @@ class TabManager: ObservableObject {
     /// Rebuilds tabs from a decoded session (per-window restore and legacy
     /// adoption share this path).
     func apply(session: SavedSession, javaScriptEnabled: Bool, contentBlocker: ContentBlockerStore?, videoAdBlocker: VideoAdBlocker? = nil) {
+        // 恢复期度量（批 1A）：整个装载 + 选中标签急切恢复的分段计时。
+        let auditStart = Date()
+        var auditEagerMs = 0
         tabs = []
 
         // R2-4：只有**选中标签**急切恢复；其余标签走现成的挂起机制——原始
@@ -995,7 +1025,9 @@ class TabManager: ObservableObject {
             tab.isPinned = saved.isPinned
 
             if isSelected {
+                let eagerStart = Date()
                 applyEagerly(saved, to: tab)
+                auditEagerMs += Int(Date().timeIntervalSince(eagerStart) * 1000)
             } else {
                 tab.suspendedInteractionState = saved.sessionState
                 tab.suspendedURL = saved.isOnNewTabPage ? nil : saved.url.flatMap(URL.init(string:))
@@ -1006,6 +1038,16 @@ class TabManager: ObservableObject {
         }
 
         selectedIndex = selectedIdx
+
+        // 恢复期度量落账（批 1A）：sinceLaunch 累计 + last 覆盖。
+        var audit = RestoreAudit()
+        audit.runs = 1
+        audit.tabs = session.tabs.count
+        audit.eagerTabs = 1
+        audit.ms = Int(Date().timeIntervalSince(auditStart) * 1000)
+        audit.eagerMs = auditEagerMs
+        Self.restoreAuditSinceLaunch.merge(audit)
+        Self.lastRestoreAudit = audit
     }
 
     /// 选中标签的急切恢复（原 apply 循环体：解码 interactionState + 无状态

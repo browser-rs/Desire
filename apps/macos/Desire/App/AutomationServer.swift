@@ -4802,6 +4802,10 @@ case ("GET", "/agent/messages"):
                 // 启动审计（v0.8.56 批 3）：分段耗时 + 预算判定（summarize 前
                 // 返回空——首窗前的调用拿不到，桥探针在启动完成后读）。
                 "launchAudit": LaunchAudit.snapshot(),
+                // 恢复期度量（v0.8.84 批 1A）：会话装载的分段计时——启动后
+                // 立即读即启动值；runs>1 说明之后还有工作区/Agent 面板装载混入。
+                "restoreTabs": TabManager.restoreAuditSinceLaunch.dictionary,
+                "restoreTabsLast": TabManager.lastRestoreAudit?.dictionary ?? [:],
                 "healAttempts": defaults.integer(forKey: "app.launchWindowHealAttempts"),
                 "cleanExitFlag": defaults.object(forKey: "app.cleanExit") as? Bool ?? true,
                 "lastStallAt": RuntimeHealthMonitor.lastStall().map {

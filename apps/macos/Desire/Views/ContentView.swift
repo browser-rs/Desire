@@ -65,12 +65,17 @@ struct ContentView: View {
     /// 回合进行中的模式切换要等回合结束再重配工具面。
     @State private var pendingSurfaceMode: AppUsageMode?
     @ObservedObject private var promotionShare = PromotionShareCenter.shared
+    /// 启动归因（v0.8.84 批 1A）：多窗恢复会让本 init 在启动期跑 N 次，
+    /// 同名标记无法归因——按进程内构造序号编号（`ContentView.init#1..#N`）。
+    private static var initOrdinal = 0
 
     init(appState: AppState, sessionID: Binding<UUID?>) {
         let t0 = Date()
+        Self.initOrdinal += 1
+        let ordinal = Self.initOrdinal
         defer {
             Log.app.info("launch phase: ContentView.init +\(Int(Date().timeIntervalSince(t0) * 1000), privacy: .public)ms")
-            LaunchAudit.mark("ContentView.init")
+            LaunchAudit.mark("ContentView.init#\(ordinal)")
         }
         self.appState = appState
         _sessionID = sessionID

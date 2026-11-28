@@ -579,8 +579,17 @@ class DownloadStore: ObservableObject {
     /// 进行中计数，上限=1 时第一条就自锁（实测踩过）。
     func beginTransferIfAllowed(excluding id: UUID? = nil) -> Bool {
         guard isDownloadWindowOpen else { return false }
-        let limit = maxConcurrentDownloads
-        guard limit > 0 else { return true }
+        // 资源退避（批 3 第 15 件）：内存压力/critical 热状态 → 暂停入队；
+        // 低电量/serious 热状态 → 并发减半。normal 档照旧。
+        let conditions = ResourceGovernor.Conditions(
+            memoryPressure: TabManager.mainMemoryPressureActive,
+            thermalRaw: ProcessInfo.processInfo.thermalState.rawValue,
+            lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled)
+        let load = ResourceGovernor.load(conditions)
+        guard load != .paused else { return false }
+        let limit = ResourceGovernor.concurrency(
+            currentMax: maxConcurrentDownloads, load: load)
+        guard limit > 0 else { return false }
         let active = downloads.filter {
             $0.state == .inProgress && !$0.isPaused && !$0.isQueued && $0.id != id
         }.count

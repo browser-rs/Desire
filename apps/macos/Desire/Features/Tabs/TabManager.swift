@@ -427,6 +427,8 @@ class TabManager: ObservableObject {
     /// Set by a DispatchSourceMemoryPressure event; consumed by the next
     /// suspendIdleTabs sweep to suspend additional LRU background tabs.
     var memoryPressureActive = false
+    /// 进程级内存压力镜像（批 3 第 15 件）：下载闸等非 TabManager 消费方读取。
+    nonisolated(unsafe) static var mainMemoryPressureActive = false
     /// Window-level profile data store — new tabs in this window use it.
     /// Set by ContentView when the user switches profiles.
     var profileDataStore: WKWebsiteDataStore?
@@ -468,10 +470,12 @@ class TabManager: ObservableObject {
                 let event = source?.data ?? []
                 if event.contains(.normal) {
                     self.memoryPressureActive = false
+                    Self.mainMemoryPressureActive = false
                     Log.tabs.info("memory pressure cleared")
                     return
                 }
                 self.memoryPressureActive = true
+                Self.mainMemoryPressureActive = true
                 let critical = event.contains(.critical)
                 Log.tabs.info("memory pressure event received (critical=\(critical, privacy: .public))")
                 // 视觉清道（批 3 第 6 件）：立即释放可再生的常驻内存——
@@ -678,6 +682,7 @@ class TabManager: ObservableObject {
     func simulateMemoryPressure(critical: Bool) {
         MainActor.assumeIsolated {
             memoryPressureActive = true
+            Self.mainMemoryPressureActive = true
             purgeRestorableVisuals()
             if critical {
                 tightenDeepSuspend = true

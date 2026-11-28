@@ -1113,6 +1113,17 @@ case ("GET", "/state"):
                     layoutStore.setHidden(Set(rawHidden.compactMap(ToolbarItem.init(rawValue:))))
                 }
                 return try Self.json(layoutStore.diagnostics())
+            case ("GET", "/diag/resource-governor"):
+                let c = ResourceGovernor.Conditions(
+                    memoryPressure: TabManager.mainMemoryPressureActive,
+                    thermalRaw: ProcessInfo.processInfo.thermalState.rawValue,
+                    lowPower: ProcessInfo.processInfo.isLowPowerModeEnabled)
+                return try Self.json(["ok": true,
+                                      "memoryPressure": c.memoryPressure,
+                                      "thermalRaw": c.thermalRaw,
+                                      "lowPower": c.lowPower,
+                                      "load": ResourceGovernor.load(c).rawValue,
+                                      "downloadConcurrencyAt4": ResourceGovernor.concurrency(currentMax: 4, load: ResourceGovernor.load(c))])
             case ("GET", "/diag/health"):
                 return try Self.json(RuntimeHealthMonitor.shared.healthSummary(preference: AppState.live?.aiPreference))
             case ("POST", "/diag/memory-pressure"):

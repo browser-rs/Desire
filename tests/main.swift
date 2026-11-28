@@ -14428,6 +14428,23 @@ do {
     check("内存管家：同重最久未看优先", tie == [b, a])
 }
 
+// 资源退避（v0.8.84 批 3 第 15 件）：档位判定与并发折算。
+do {
+    check("资源退避：normal 基线",
+          ResourceGovernor.load(.init()) == .normal
+          && ResourceGovernor.concurrency(currentMax: 4, load: .normal) == 4)
+    check("资源退避：低电量/serious 热 → reduced 减半",
+          ResourceGovernor.load(.init(lowPower: true)) == .reduced
+          && ResourceGovernor.load(.init(thermalRaw: 2)) == .reduced
+          && ResourceGovernor.concurrency(currentMax: 4, load: .reduced) == 2)
+    check("资源退避：内存压力/critical 热 → paused 归零",
+          ResourceGovernor.load(.init(memoryPressure: true)) == .paused
+          && ResourceGovernor.load(.init(thermalRaw: 3)) == .paused
+          && ResourceGovernor.concurrency(currentMax: 4, load: .paused) == 0)
+    check("资源退避：reduced 至少留 1 并发",
+          ResourceGovernor.concurrency(currentMax: 1, load: .reduced) == 1)
+}
+
 // 支付卡校验（v0.8.82 批 3）：Luhn / 品牌 / 有效期。
 do {
     check("支付卡：Luhn 正确与错误",
